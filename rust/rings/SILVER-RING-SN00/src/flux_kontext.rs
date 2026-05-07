@@ -1,0 +1,123 @@
+use std::sync::Arc;
+use teloxide::dispatching::dialogue::{Dialogue, InMemStorage, GetChatId};
+use teloxide::prelude::*;
+use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
+use trios_mb_traits::Database;
+use trios_mb_tg::state::{Scene, FluxKontextState};
+use trios_mb_tg::HandlerResult;
+use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu};
+
+type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
+
+pub async fn handle_flux_kontext_msg(
+    bot: teloxide::Bot,
+    db: Arc<dyn Database>,
+    dialogue: MyDialogue,
+    mut state: FluxKontextState,
+    msg: Message,
+) -> HandlerResult {
+    let lang = load_lang(&db, &msg).await;
+
+    match state.step {
+        0 => {
+            let kb = InlineKeyboardMarkup::new(vec![
+                vec![InlineKeyboardButton::callback(
+                    if lang.is_russian() { "🎨 Контекстное редактирование" } else { "🎨 Context Edit" },
+                    "fk:edit",
+                )],
+                vec![InlineKeyboardButton::callback(
+                    if lang.is_russian() { "🔀 Смешивание изображений" } else { "🔀 Image Blend" },
+                    "fk:blend",
+                )],
+                vec![InlineKeyboardButton::callback(
+                    if lang.is_russian() { "❌ Отмена" } else { "❌ Cancel" },
+                    "fk:cancel",
+                )],
+            ]);
+            let text = if lang.is_russian() {
+                "🎨 FLUX Kontext\n\nВыберите режим:"
+            } else {
+                "🎨 FLUX Kontext\n\nSelect mode:"
+            };
+            bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
+            state.step = 1;
+            dialogue.update(Scene::FluxKontext(state)).await?;
+        }
+        2 => {
+            if let Some(photos) = msg.photo() {
+                let file_id = photos.last().map(|p| p.file.id.clone()).unwrap_or_default();
+                if state.mode.as_deref() == Some("blend") {
+                    if state.image_a.is_none() {
+                        state.image_a = Some(file_id);
+                        let text = if lang.is_russian() {
+                            "✅ Первое изображение получено!\n\nОтправьте второе изображение:"
+                        } else {
+                            "✅ First image received!\n\nSend the second image:"
+                        };
+                        bot.send_message(msg.chat.id, text).await?;
+                    } else {
+                        state.image_b = Some(file_id);
+                        state.step = 3;
+                        let text = if lang.is_russian() {
+                            "✅ Второе изображение получено!\n\nОпишите желаемый результат:"
+                        } else {
+                            "✅ Second image received!\n\nDescribe the desired result:"
+                        };
+                        bot.send_message(msg.chat.id, text).await?;
+                    }
+                } else {
+                    state.image_a = Some(file_id);
+                    state.step = 3;
+                    let text = if lang.is_russian() {
+                        "✅ Изображение получено!\n\nОпишите, что нужно изменить:"
+                    } else {
+                        "✅ Image received!\n\nDescribe what to change:"
+                    };
+                    bot.send_message(msg.chat.id, text).await?;
+                }
+                dialogue.update(Scene::FluxKontext(state)).await?;
+            } else {
+                let text = if lang.is_russian() { "Отправьте изображение" } else { "Send an image" };
+                bot.send_message(msg.chat.id, text).await?;
+            }
+        }
+        3 => {
+            if let Some(text) = msg.text() {
+                state.prompt = Some(text.to_string());
+                state.step = 4;
+                bot.send_message(msg.chat.id, trios_mb_i18n::t(lang, "processing")).await?;
+                dialogue.update(Scene::FluxKontext(state)).await?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+pub async fn handle_flux_kontext_callback(
+    bot: teloxide::Bot,
+    db: Arc<dyn Database>,
+    dialogue: MyDialogue,
+    mut state: FluxKontextState,
+    q: teloxide::types::CallbackQuery,
+) -> HandlerResult {
+    bot.answer_callback_query(&q.id).await?;
+    let lang = load_lang_cb(&db, &q).await;
+    let chat_id = q.chat_id().unwrap();
+    let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
+
+    match data {
+        "fk:cancel" => {
+            return return_to_menu(&bot, &dialogue, chat_id, lang).await;
+        }
+        "fk:edit" | "fk:blend" => {
+            state.mode = Some(if data == "fk:edit" { "edit" } else { "blend" }.to_string());
+            state.step = 2;
+            let text = if lang.is_russian() { "🖼️ Отправьте изображение:" } else { "🖼️ Send an image:" };
+            bot.send_message(chat_id, text).await?;
+            dialogue.update(Scene::FluxKontext(state)).await?;
+        }
+        _ => {}
+    }
+    Ok(())
+}

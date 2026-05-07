@@ -1,0 +1,15 @@
+[package]
+name = "trios-mb-traits"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "GOLD-RING-TR00 — Async trait definitions for multi-bot platform"
+
+[dependencies]
+trios-mb-types = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }

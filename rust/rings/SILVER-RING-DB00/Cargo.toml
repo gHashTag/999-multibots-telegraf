@@ -1,0 +1,23 @@
+[package]
+name = "trios-mb-db"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "SILVER-RING-DB00 — sea-orm database adapter implementing Database trait"
+
+[dependencies]
+trios-mb-types = { workspace = true }
+trios-mb-traits = { workspace = true }
+sea-orm = { workspace = true }
+sea-orm-migration = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+
+[dev-dependencies]
+sea-orm = { workspace = true, features = ["mock"] }

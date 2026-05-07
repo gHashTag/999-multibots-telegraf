@@ -1,0 +1,22 @@
+[package]
+name = "trios-mb-payment"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "SILVER-RING-PY00 — 6 payment methods (Robokassa, Stars, x402, TON)"
+
+[dependencies]
+trios-mb-types = { workspace = true }
+trios-mb-traits = { workspace = true }
+reqwest = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+uuid = { workspace = true }
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+chrono = { workspace = true }
+urlencoding = "2"

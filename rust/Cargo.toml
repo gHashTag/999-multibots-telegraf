@@ -1,0 +1,60 @@
+[workspace]
+members = [
+    "rings/GOLD-RING-TY00",
+    "rings/GOLD-RING-TR00",
+    "rings/GOLD-RING-PR00",
+    "rings/SILVER-RING-DB00",
+    "rings/SILVER-RING-SC00",
+    "rings/SILVER-RING-AI00",
+    "rings/SILVER-RING-PY00",
+    "rings/SILVER-RING-I18N",
+    "rings/SILVER-RING-JB00",
+    "rings/SILVER-RING-TG00",
+    "rings/SILVER-RING-SN00",
+    "rings/BRONZE-RING-SRV",
+    "rings/BRONZE-RING-APP",
+    "rings/TEST-UTILS",
+    "tests/e2e-tests",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Dmitrii Vasilev"]
+license = "MIT"
+repository = "https://github.com/gHashTag/trios"
+
+[workspace.dependencies]
+trios-mb-types    = { path = "rings/GOLD-RING-TY00" }
+trios-mb-traits   = { path = "rings/GOLD-RING-TR00" }
+trios-mb-proto    = { path = "rings/GOLD-RING-PR00" }
+trios-mb-db       = { path = "rings/SILVER-RING-DB00" }
+trios-mb-secrets  = { path = "rings/SILVER-RING-SC00" }
+trios-mb-ai       = { path = "rings/SILVER-RING-AI00" }
+trios-mb-payment  = { path = "rings/SILVER-RING-PY00" }
+trios-mb-i18n     = { path = "rings/SILVER-RING-I18N" }
+trios-mb-jobs     = { path = "rings/SILVER-RING-JB00" }
+trios-mb-tg       = { path = "rings/SILVER-RING-TG00" }
+trios-mb-scenes   = { path = "rings/SILVER-RING-SN00" }
+trios-mb-server   = { path = "rings/BRONZE-RING-SRV" }
+trios-mb-test-utils = { path = "rings/TEST-UTILS" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+thiserror = "1"
+async-trait = "0.1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+axum = { version = "0.7", features = ["ws", "multipart"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+teloxide = { version = "0.13", features = ["macros", "rustls"], default-features = false }
+sea-orm = { version = "1.1", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros", "with-uuid", "with-chrono", "with-json"] }
+sea-orm-migration = "1.1"
+http-body-util = "0.1"
+tower = { version = "0.4", features = ["util"] }
