@@ -14,6 +14,10 @@ trios-mb-server = { workspace = true }
 trios-mb-tg = { workspace = true }
 trios-mb-i18n = { workspace = true }
 trios-mb-jobs = { workspace = true }
+trios-mb-ai = { workspace = true }
+trios-mb-db = { workspace = true }
+trios-mb-payment = { workspace = true }
+trios-mb-scenes = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { version = "0.7", features = ["rt"] }
 axum = { workspace = true }
@@ -23,3 +27,5 @@ serde_json = { workspace = true }
 serde = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
