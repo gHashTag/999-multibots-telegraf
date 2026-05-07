@@ -59,17 +59,26 @@ export async function initInfisical(): Promise<void> {
   }
 
   try {
+    // 🔥 Проверяем наличие Service Token (приоритет над Universal Auth)
+    const serviceToken = process.env.INFISICAL_SERVICE_TOKEN
+
     // Создаем клиент Infisical SDK
     infisicalClient = new InfisicalSDK({
       siteUrl: process.env.INFISICAL_SITE_URL || 'https://app.infisical.com'
     })
 
-    // Авторизация через Universal Auth (Machine Identity)
-    logger.info('[Infisical] Authenticating with Universal Auth...')
-    await infisicalClient.auth().universalAuth.login({
-      clientId,
-      clientSecret
-    })
+    if (serviceToken) {
+      logger.info('[Infisical] Authenticating with Service Token...')
+      // Используем accessToken метод для установки service token
+      infisicalClient.auth().accessToken(serviceToken)
+    } else {
+      // Fallback: Авторизация через Universal Auth (Machine Identity)
+      logger.info('[Infisical] Authenticating with Universal Auth...')
+      await infisicalClient.auth().universalAuth.login({
+        clientId,
+        clientSecret
+      })
+    }
 
     isAuthenticated = true
     logger.info('[Infisical] ✅ Authentication successful')
@@ -121,16 +130,57 @@ async function loadAllSecrets(): Promise<void> {
       secretPath: '/'
     })
 
-    // Сохраняем в кэш
+    // Сохраняем в кэш И в process.env для совместимости с библиотеками
     secretCache = {}
-    for (const secret of result.secrets) {
-      secretCache[secret.secretKey] = secret.secretValue
+
+    // 🔥 Fly.io secrets that should NOT be overridden by Infisical
+    // These are set via `flyctl secrets set` and take precedence
+    const flySecrets = new Set([
+      'INNGEST_SERVE_ORIGIN',  // Must match Fly.io app URL
+      'BASE_WEBHOOK_URL',      // Webhook URL for Replicate callbacks
+    ])
+
+    // Save current Fly.io secret values before Infisical override
+    const flySecretValues: Record<string, string> = {}
+    for (const key of flySecrets) {
+      if (process.env[key]) {
+        flySecretValues[key] = process.env[key]!
+      }
     }
 
-    logger.info('[Infisical] ✅ All secrets loaded into memory', {
+    for (const secret of result.secrets) {
+      secretCache[secret.secretKey] = secret.secretValue
+      // 🔥 CRITICAL: Не перезаписываем Fly.io секреты
+      if (flySecrets.has(secret.secretKey) && flySecretValues[secret.secretKey]) {
+        logger.info(`[Infisical] ⚠️ Preserving Fly.io secret: ${secret.secretKey}`)
+        continue
+      }
+      // Также записываем в process.env для совместимости
+      // с библиотеками типа Inngest, которые читают напрямую из process.env
+      process.env[secret.secretKey] = secret.secretValue
+    }
+
+    // 🔥 Логируем наличие критических ключей
+    const criticalKeys = ['INNGEST_EVENT_KEY', 'INNGEST_SIGNING_KEY', 'SUPABASE_SERVICE_KEY']
+    const missingCritical = criticalKeys.filter(k => !secretCache[k])
+
+    logger.info('[Infisical] ✅ All secrets loaded into memory and process.env', {
       count: result.secrets.length,
-      keys: Object.keys(secretCache).slice(0, 10).join(', ') + '...'
+      keys: Object.keys(secretCache).slice(0, 10).join(', ') + '...',
+      inngestKeys: {
+        INNGEST_EVENT_KEY: !!secretCache['INNGEST_EVENT_KEY'],
+        INNGEST_SIGNING_KEY: !!secretCache['INNGEST_SIGNING_KEY'],
+        RENDER_INNGEST_EVENT_KEY: !!secretCache['RENDER_INNGEST_EVENT_KEY'],
+      },
+      missingCriticalKeys: missingCritical.length > 0 ? missingCritical : 'none'
     })
+
+    if (missingCritical.length > 0) {
+      logger.warn('[Infisical] ⚠️ Missing critical secrets!', {
+        missing: missingCritical,
+        hint: 'Add these secrets to Infisical'
+      })
+    }
   } catch (error) {
     logger.error('[Infisical] ❌ Failed to load secrets', {
       error: error instanceof Error ? error.message : String(error)

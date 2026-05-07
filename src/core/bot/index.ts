@@ -22,7 +22,7 @@ import { getBotGroupFromAvatars } from '@/core/supabase'
 // 🔐 УНИФИЦИРОВАННАЯ СХЕМА: везде используем BOT_TOKEN_1-N
 // Токены загружаются из Infisical автоматически, warnings убраны
 
-// 🔐 УНИФИЦИРОВАННАЯ СХЕМА: токены 1-10 для всех окружений
+// 🔐 УНИФИЦИРОВАННАЯ СХЕМА: токены 1-11 для всех окружений
 const BOT_TOKENS_ALL: string[] = [
   process.env.BOT_TOKEN_1,
   process.env.BOT_TOKEN_2,
@@ -34,9 +34,10 @@ const BOT_TOKENS_ALL: string[] = [
   process.env.BOT_TOKEN_8,
   process.env.BOT_TOKEN_9,
   process.env.BOT_TOKEN_10,
+  process.env.BOT_TOKEN_11,
 ]
 
-// 🔐 Продакшн токены (BOT_TOKEN_1-10)
+// 🔐 Продакшн токены (BOT_TOKEN_1-11)
 const BOT_TOKENS_PROD: string[] = [
   process.env.BOT_TOKEN_1,
   process.env.BOT_TOKEN_2,
@@ -48,11 +49,12 @@ const BOT_TOKENS_PROD: string[] = [
   process.env.BOT_TOKEN_8,
   process.env.BOT_TOKEN_9,
   process.env.BOT_TOKEN_10,
+  process.env.BOT_TOKEN_11,
 ].filter(Boolean)
 
 // Маппинг имен ботов на токены (зависит от окружения)
 export const BOT_NAMES: Record<BotName, string> = {
-  // Production боты (BOT_TOKEN_1-10 в prod/staging)
+  // Production боты (BOT_TOKEN_1-11 в prod/staging)
   ['neuro_blogger_bot']: process.env.BOT_TOKEN_1,
   ['MetaMuse_Manifest_bot']: process.env.BOT_TOKEN_2,
   ['ZavaraBot']: process.env.BOT_TOKEN_3,
@@ -63,6 +65,7 @@ export const BOT_NAMES: Record<BotName, string> = {
   ['Kaya_easy_art_bot']: process.env.BOT_TOKEN_8,
   ['AI_STARS_bot']: process.env.BOT_TOKEN_9,
   ['HaimGroupMedia_bot']: process.env.BOT_TOKEN_10,
+  ['OM_AI_Digital_studio_bot']: process.env.BOT_TOKEN_11,
 
   // Dev боты (BOT_TOKEN_1-2 в dev)
   ['ai_koshey_bot']: process.env.BOT_TOKEN_1,
@@ -87,7 +90,9 @@ export const BOT_TOKENS = BOT_TOKENS_ALL
 export const DEFAULT_BOT_TOKEN = process.env.BOT_TOKEN_1
 
 export const DEFAULT_BOT_NAME = isDev ? 'ai_koshey_bot' : 'neuro_blogger_bot'
-export const defaultBot = DEFAULT_BOT_TOKEN ? new Telegraf<MyContext>(DEFAULT_BOT_TOKEN) : null as any
+export const defaultBot = DEFAULT_BOT_TOKEN
+  ? new Telegraf<MyContext>(DEFAULT_BOT_TOKEN)
+  : (null as any)
 
 if (DEFAULT_BOT_TOKEN) {
   logger.info('🤖 Инициализация defaultBot:', {
@@ -96,44 +101,126 @@ if (DEFAULT_BOT_TOKEN) {
   })
 }
 
-// Вместо массива:
-export const bots: Record<BotName, Telegraf<MyContext>> = {} as any
+// 🔥 LAZY INITIALIZATION: bots объект заполняется после загрузки Infisical
+// Используем Proxy для ленивой инициализации при обращении
+const _botsInternal: Record<BotName, Telegraf<MyContext>> = {} as any
+let _botsInitialized = false
 
-Object.entries(BOT_NAMES)
-  .filter(([, token]) => token)
-  .filter(([name, token]) => {
-    // В dev режиме инициализируем все боты (включая тестовых)
-    // В production - только продакшн ботов
-    if (isDev) {
-      return true // В dev режиме - все боты
-    }
-    return BOT_TOKENS_PROD.includes(token) // В production - только продакшн боты
-  })
-  .forEach(([name, token]) => {
-    bots[name as BotName] =
-      name === DEFAULT_BOT_NAME ? defaultBot : new Telegraf<MyContext>(token)
-  })
+function _initializeBots(): void {
+  if (_botsInitialized) return
 
-logger.info('🌟 Инициализировано ботов:', {
-  description: 'Bots initialized',
-  count: Object.keys(bots).length,
-  bot_names: Object.keys(bots),
-})
+  // Проверяем, есть ли токены (Infisical уже загрузил их)
+  const hasTokens = Object.values(BOT_NAMES).some(token => token)
 
-// 🔐 В dev используем тестовый токен, в production - продакшн
-export const PULSE_BOT_TOKEN = isDev
-  ? process.env.BOT_TOKEN_TEST_1
-  : process.env.BOT_TOKEN_1
+  if (!hasTokens) {
+    logger.warn('⚠️ [BOT REGISTRY] No tokens available yet, skipping initialization')
+    return
+  }
 
-export const pulseBot = PULSE_BOT_TOKEN ? new Telegraf<MyContext>(PULSE_BOT_TOKEN) : null as any
+  Object.entries(BOT_NAMES)
+    .filter(([, token]) => token)
+    .filter(([name, token]) => {
+      // В dev режиме инициализируем все боты (включая тестовых)
+      // В production - только продакшн ботов
+      if (isDev) {
+        return true // В dev режиме - все боты
+      }
+      return BOT_TOKENS_PROD.includes(token) // В production - только продакшн боты
+    })
+    .forEach(([name, token]) => {
+      _botsInternal[name as BotName] =
+        name === DEFAULT_BOT_NAME ? defaultBot : new Telegraf<MyContext>(token)
+    })
 
-if (PULSE_BOT_TOKEN) {
-  logger.info('🤖 Инициализация pulseBot:', {
-    description: 'PulseBot initialization',
-    tokenLength: PULSE_BOT_TOKEN.length,
+  _botsInitialized = true
+
+  logger.info('🌟 Инициализировано ботов:', {
+    description: 'Bots initialized',
+    count: Object.keys(_botsInternal).length,
+    bot_names: Object.keys(_botsInternal),
   })
 }
 
+// Экспортируем Proxy который инициализирует ботов при первом обращении
+export const bots: Record<BotName, Telegraf<MyContext>> = new Proxy(_botsInternal, {
+  get(target, prop: string) {
+    _initializeBots()
+    return target[prop as BotName]
+  },
+  set(target, prop: string, value) {
+    _initializeBots()
+    target[prop as BotName] = value
+    return true
+  },
+  has(target, prop: string) {
+    _initializeBots()
+    return prop in target
+  },
+  ownKeys(target) {
+    _initializeBots()
+    return Object.keys(target)
+  },
+  getOwnPropertyDescriptor(target, prop: string) {
+    _initializeBots()
+    return Object.getOwnPropertyDescriptor(target, prop)
+  },
+})
+
+// 🔐 В dev используем тестовый токен, в production - продакшн
+// ⚠️ LAZY INIT: токен читаем при первом использовании, т.к. Infisical загружается асинхронно
+let _pulseBot: Telegraf<MyContext> | null = null
+let _pulseBotInitialized = false
+
+/**
+ * Получить pulseBot с ленивой инициализацией
+ * Создаётся при первом вызове, когда Infisical уже загрузил токены
+ */
+export const getPulseBot = (): Telegraf<MyContext> | null => {
+  if (_pulseBotInitialized) {
+    return _pulseBot
+  }
+
+  const tokenEnvKey = isDev ? 'BOT_TOKEN_TEST_1' : 'BOT_TOKEN_1'
+  const token = process.env[tokenEnvKey]
+
+  if (token) {
+    _pulseBot = new Telegraf<MyContext>(token)
+    logger.info('🤖 Инициализация pulseBot (lazy):', {
+      description: 'PulseBot lazy initialization',
+      tokenEnvKey,
+      tokenLength: token.length,
+      tokenPrefix: token.substring(0, 10) + '...',
+      isDev,
+    })
+  } else {
+    logger.warn('⚠️ PULSE_BOT_TOKEN не найден, pulseBot не инициализирован', {
+      description: 'PULSE_BOT_TOKEN not found',
+      tokenEnvKey,
+      isDev,
+      envKeysAvailable: {
+        BOT_TOKEN_1: !!process.env.BOT_TOKEN_1,
+        BOT_TOKEN_TEST_1: !!process.env.BOT_TOKEN_TEST_1,
+      },
+    })
+  }
+
+  _pulseBotInitialized = true
+  return _pulseBot
+}
+
+// ✅ Для обратной совместимости - геттер вместо константы
+export const pulseBot = new Proxy({} as Telegraf<MyContext>, {
+  get(_, prop) {
+    const bot = getPulseBot()
+    if (!bot) return undefined
+    return (bot as any)[prop]
+  },
+})
+
+/**
+ * Определяет имя бота по токену
+ * Если несколько ботов используют один токен, возвращает первый найденный
+ */
 export function getBotNameByToken(token: string): { bot_name: BotName } {
   const entry = Object.entries(BOT_NAMES).find(([_, value]) => value === token)
   if (!entry) {
@@ -142,6 +229,62 @@ export function getBotNameByToken(token: string): { bot_name: BotName } {
 
   const [bot_name] = entry
   return { bot_name: bot_name as BotName }
+}
+
+/**
+ * Определяет имя бота по username (Telegram username)
+ * Более точный метод, чем getBotNameByToken, так как username уникален
+ */
+export function getBotNameByUsername(username: string): {
+  bot_name: BotName | null
+} {
+  // Маппинг Telegram username → BotName (case-insensitive поиск)
+  const USERNAME_TO_BOT_NAME: Record<string, BotName> = {
+    neuro_blogger_bot: 'neuro_blogger_bot',
+    metamuse_manifest_bot: 'MetaMuse_Manifest_bot', // case-insensitive
+    MetaMuse_Manifest_bot: 'MetaMuse_Manifest_bot', // точное совпадение
+    MetaMuse_manifest_bot: 'MetaMuse_Manifest_bot', // вариант с маленькой m
+    ZavaraBot: 'ZavaraBot',
+    zavarabot: 'ZavaraBot', // case-insensitive
+    LeeSolarbot: 'LeeSolarbot',
+    leesolarbot: 'LeeSolarbot', // case-insensitive
+    NeuroLenaAssistant_bot: 'NeuroLenaAssistant_bot',
+    neurolenaassistant_bot: 'NeuroLenaAssistant_bot', // case-insensitive
+    NeurostylistShtogrina_bot: 'NeurostylistShtogrina_bot',
+    neurostylistshtogrina_bot: 'NeurostylistShtogrina_bot', // case-insensitive
+    Gaia_Kamskaia_bot: 'Gaia_Kamskaia_bot',
+    gaia_kamskaia_bot: 'Gaia_Kamskaia_bot', // case-insensitive
+    Kaya_easy_art_bot: 'Kaya_easy_art_bot',
+    kaya_easy_art_bot: 'Kaya_easy_art_bot', // case-insensitive
+    AI_STARS_bot: 'AI_STARS_bot',
+    ai_stars_bot: 'AI_STARS_bot', // case-insensitive
+    HaimGroupMedia_bot: 'HaimGroupMedia_bot',
+    haimgroupmedia_bot: 'HaimGroupMedia_bot', // case-insensitive
+    OM_AI_Digital_studio_bot: 'OM_AI_Digital_studio_bot',
+    om_ai_digital_studio_bot: 'OM_AI_Digital_studio_bot', // case-insensitive
+    // Dev боты
+    ai_koshey_bot: 'ai_koshey_bot',
+    clip_maker_neuro_bot: 'clip_maker_neuro_bot',
+    helper_999_bot: 'helper_999_bot',
+    TestNeurocoder_bot: 'TestNeurocoder_bot',
+    testneurocoder_bot: 'TestNeurocoder_bot', // case-insensitive
+  }
+
+  // Сначала точный поиск
+  let bot_name = USERNAME_TO_BOT_NAME[username]
+
+  // Если не нашли, ищем case-insensitive
+  if (!bot_name) {
+    const lowerUsername = username.toLowerCase()
+    const entry = Object.entries(USERNAME_TO_BOT_NAME).find(
+      ([key]) => key.toLowerCase() === lowerUsername
+    )
+    if (entry) {
+      bot_name = entry[1]
+    }
+  }
+
+  return { bot_name: bot_name || null }
 }
 
 export function getTokenByBotName(botName: string): string | undefined {
@@ -202,6 +345,38 @@ export async function createBotByName(botName: string): Promise<
   }
 }
 
+/**
+ * Регистрирует созданный бот в объект bots для доступа через getBotByName
+ * Вызывается после создания бота в src/index.ts
+ */
+export function registerBotInstance(
+  bot: Telegraf<MyContext>,
+  botName: string
+): void {
+  try {
+    const validBotName = toBotName(botName) as BotName
+    // Прямая запись в _botsInternal для обхода Proxy
+    _botsInternal[validBotName] = bot
+    logger.info('✅ [BOT REGISTRY] Bot instance registered', {
+      description: 'Bot instance registered in bots object',
+      botName: validBotName,
+    })
+  } catch (error) {
+    logger.error('❌ [BOT REGISTRY] Failed to register bot instance', {
+      description: 'Failed to register bot instance',
+      botName,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+/**
+ * Принудительная инициализация ботов (вызывается после загрузки Infisical)
+ */
+export function forceInitializeBots(): void {
+  _initializeBots()
+}
+
 export function getBotByName(bot_name: string): {
   bot?: Telegraf<MyContext>
   error?: string | null
@@ -210,6 +385,12 @@ export function getBotByName(bot_name: string): {
     const validBotName = toBotName(bot_name)
     const bot = bots[validBotName]
     if (!bot) {
+      logger.warn('⚠️ [BOT REGISTRY] Bot instance not found', {
+        description: 'Bot instance not found in bots object',
+        requestedBotName: bot_name,
+        validBotName,
+        availableBots: Object.keys(bots),
+      })
       return { error: 'Bot instance not found' }
     }
     return { bot }
@@ -220,7 +401,12 @@ export function getBotByName(bot_name: string): {
 
 export const supportRequest = async (title: string, data: any) => {
   try {
-    await pulseBot.telegram.sendMessage(
+    const bot = getPulseBot()
+    if (!bot) {
+      logger.warn('⚠️ supportRequest: pulseBot не инициализирован')
+      return
+    }
+    await bot.telegram.sendMessage(
       process.env.SUPPORT_CHAT_ID!,
       `🚀 ${title}\n\n${JSON.stringify(data)}`
     )

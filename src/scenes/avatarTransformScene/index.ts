@@ -1,6 +1,7 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { getMainMenuText } from '@/navigation'
 import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
@@ -20,7 +21,7 @@ import {
 import { getBotNameByToken } from '@/core/bot'
 // Импортируем все модели для генерации с fallback логикой
 import { generateFluxKontextMax } from '@/services/generateFluxKontextMax'
-import { generateSeeDream4 } from '@/services/generateSeeDream4'
+import { generateSeeDream45 } from '@/services/generateSeeDream45'
 import { generateNanoBanana } from '@/services/generateNanoBanana'
 // Legacy fallback
 import { generateFluxKontext } from '@/services/generateFluxKontext'
@@ -1067,13 +1068,16 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         parse_mode: 'HTML',
         reply_markup: Markup.keyboard([
           [isRu ? '💫 Оформить подписку' : '💫 Subscribe'],
-          [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+          [getMainMenuText(isRu)],
         ]).resize().reply_markup,
       })
 
       // Возвращаемся в главное меню
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     // Логируем статус пользователя и оставшиеся генерации
@@ -1120,7 +1124,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           ],
           [
             isRu ? 'Отмена' : 'Cancel',
-            isRu ? '🏠 Главное меню' : '🏠 Main menu',
+            getMainMenuText(isRu),
           ],
         ]).resize().reply_markup,
       }
@@ -1146,7 +1150,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         command: text,
       })
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     // Игнорируем другие команды - они будут обработаны command handler'ом
@@ -1159,13 +1166,16 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     }
 
     // Возврат в главное меню
-    if (text === (isRu ? '🏠 Главное меню' : '🏠 Main menu')) {
+    if (text === getMainMenuText(isRu)) {
       await ctx.reply(
         isRu ? '👋 Возвращаемся в главное меню' : '👋 Returning to main menu',
         { reply_markup: { remove_keyboard: true } }
       )
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     // Отмена
@@ -1175,7 +1185,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         { reply_markup: { remove_keyboard: true } }
       )
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     // Обработка выбора пола
@@ -1206,8 +1219,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     // Показываем выбор AI модели
     await ctx.reply(
       isRu
-        ? `🤖 <b>Выбор AI модели для трансформации</b>\n\n👤 <b>Выбранный стиль:</b> ${gender === 'male' ? 'Мужской образ' : 'Женский образ'}\n\n🎯 <b>Выберите технологию генерации:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Проверенная технология\n• Стабильные результаты\n• Классические стили\n\n🎭 <b>SeeDream-4 (ByteDance)</b>\n• Новейшая модель 2024\n• Креативные возможности\n• Экспериментальные стили\n\n💡 <b>Обе модели бесплатны в демо-режиме!</b>`
-        : `🤖 <b>Choose AI model for transformation</b>\n\n👤 <b>Selected style:</b> ${gender === 'male' ? 'Male style' : 'Female style'}\n\n🎯 <b>Select generation technology:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Proven technology\n• Stable results\n• Classic styles\n\n🎭 <b>SeeDream-4 (ByteDance)</b>\n• Latest 2024 model\n• Creative capabilities\n• Experimental styles\n\n💡 <b>Both models are free in demo mode!</b>`,
+        ? `🤖 <b>Выбор AI модели для трансформации</b>\n\n👤 <b>Выбранный стиль:</b> ${gender === 'male' ? 'Мужской образ' : 'Женский образ'}\n\n🎯 <b>Выберите технологию генерации:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Проверенная технология\n• Стабильные результаты\n• Классические стили\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Новейшая модель 2024\n• Креативные возможности\n• Экспериментальные стили\n\n💡 <b>Обе модели бесплатны в демо-режиме!</b>`
+        : `🤖 <b>Choose AI model for transformation</b>\n\n👤 <b>Selected style:</b> ${gender === 'male' ? 'Male style' : 'Female style'}\n\n🎯 <b>Select generation technology:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Proven technology\n• Stable results\n• Classic styles\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Latest 2024 model\n• Creative capabilities\n• Experimental styles\n\n💡 <b>Both models are free in demo mode!</b>`,
       {
         parse_mode: 'HTML',
         reply_markup: Markup.keyboard([
@@ -1215,7 +1228,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             isRu
               ? '🤖 FLUX Kontext Max (Google)'
               : '🤖 FLUX Kontext Max (Google)',
-            isRu ? '🎭 SeeDream-4 (ByteDance)' : '🎭 SeeDream-4 (ByteDance)',
+            isRu ? '🎭 SeeDream-4.5 (ByteDance)' : '🎭 SeeDream-4.5 (ByteDance)',
             isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)',
           ],
           [
@@ -1246,7 +1259,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         command: text,
       })
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     // Игнорируем другие команды - они будут обработаны command handler'ом
@@ -1265,7 +1281,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         { reply_markup: { remove_keyboard: true } }
       )
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     // Возврат к выбору пола
@@ -1285,7 +1304,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
               isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male style',
               isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female style',
             ],
-            [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+            [getMainMenuText(isRu)],
           ]).resize().reply_markup,
         }
       )
@@ -1296,7 +1315,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     }
 
     // Обработка выбора модели
-    let selectedModel: 'flux-kontext' | 'seedream4' | 'nano-banana' | null =
+    let selectedModel: 'flux-kontext' | 'seedream45' | 'nano-banana' | null =
       null
 
     if (
@@ -1309,10 +1328,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       })
     } else if (
       text ===
-      (isRu ? '🎭 SeeDream-4 (ByteDance)' : '🎭 SeeDream-4 (ByteDance)')
+      (isRu ? '🎭 SeeDream-4.5 (ByteDance)' : '🎭 SeeDream-4.5 (ByteDance)')
     ) {
-      selectedModel = 'seedream4'
-      logger.info('[AvatarTransformScene] SeeDream-4 selected', { telegramId })
+      selectedModel = 'seedream45'
+      logger.info('[AvatarTransformScene] SeeDream-4.5 selected', { telegramId })
     } else if (
       text === (isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)')
     ) {
@@ -1351,7 +1370,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       const modelDisplayName =
         selectedModel === 'flux-kontext'
           ? 'FLUX Kontext Max (Google)'
-          : 'SeeDream-4 (ByteDance)'
+          : 'SeeDream-4.5 (ByteDance)'
 
       const gender = ctx.session.selectedGender
       const genderDisplay =
@@ -1467,7 +1486,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         command: text,
       })
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     // Игнорируем другие команды - они будут обработаны command handler'ом
@@ -1479,10 +1501,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return
     }
 
-    // Возврат к выбору модели
+    // Возврат к выбору модели (поддержка текста с/без эмодзи)
     if (
-      text ===
-      (isRu ? '🔙 Назад к выбору модели' : '🔙 Back to model selection')
+      text.includes('Назад к выбору модели') ||
+      text.includes('Back to model selection')
     ) {
       // Очищаем выбранную модель из сессии
       delete ctx.session.selectedModel
@@ -1500,8 +1522,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // Показываем выбор AI модели заново
       await ctx.reply(
         isRu
-          ? `🤖 <b>Выбор AI модели для трансформации</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n\n🎯 <b>Выберите технологию генерации:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Проверенная технология\n• Стабильные результаты\n• Классические стили\n\n🎭 <b>SeeDream-4 (ByteDance)</b>\n• Новейшая модель 2024\n• Креативные возможности\n• Экспериментальные стили\n\n💡 <b>Обе модели бесплатны в демо-режиме!</b>`
-          : `🤖 <b>Choose AI model for transformation</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n\n🎯 <b>Select generation technology:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Proven technology\n• Stable results\n• Classic styles\n\n🎭 <b>SeeDream-4 (ByteDance)</b>\n• Latest 2024 model\n• Creative capabilities\n• Experimental styles\n\n💡 <b>Both models are free in demo mode!</b>`,
+          ? `🤖 <b>Выбор AI модели для трансформации</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n\n🎯 <b>Выберите технологию генерации:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Проверенная технология\n• Стабильные результаты\n• Классические стили\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Новейшая модель 2024\n• Креативные возможности\n• Экспериментальные стили\n\n💡 <b>Обе модели бесплатны в демо-режиме!</b>`
+          : `🤖 <b>Choose AI model for transformation</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n\n🎯 <b>Select generation technology:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Proven technology\n• Stable results\n• Classic styles\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Latest 2024 model\n• Creative capabilities\n• Experimental styles\n\n💡 <b>Both models are free in demo mode!</b>`,
         {
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([
@@ -1509,7 +1531,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
               isRu
                 ? '🤖 FLUX Kontext Max (Google)'
                 : '🤖 FLUX Kontext Max (Google)',
-              isRu ? '🎭 SeeDream-4 (ByteDance)' : '🎭 SeeDream-4 (ByteDance)',
+              isRu ? '🎭 SeeDream-4.5 (ByteDance)' : '🎭 SeeDream-4.5 (ByteDance)',
               isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)',
             ],
             [isRu ? '🔙 Назад' : '🔙 Back'],
@@ -1522,11 +1544,12 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return
     }
 
-    // Пользователь хочет использовать свой аватар
+    // Пользователь хочет использовать свой аватар (поддержка текста с/без эмодзи)
     if (
-      text === (isRu ? '🎨 Использовать мой аватар' : '🎨 Use my avatar') ||
-      text ===
-        (isRu ? '🎨 Создать магнетический образ' : '🎨 Create magnetic look') // Обратная совместимость
+      text.includes('Использовать мой аватар') ||
+      text.includes('Use my avatar') ||
+      text.includes('Создать магнетический образ') ||
+      text.includes('Create magnetic look')
     ) {
       if (!ctx.session.kontextImageUrl) {
         await ctx.reply(
@@ -1546,7 +1569,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             : '❌ Error: gender not selected. Start over'
         )
         await ctx.scene.leave()
-        return ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
       }
 
       // Helper function to create rows with 2 buttons each
@@ -1694,7 +1720,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
                 .map(hero => `• Стиль "${hero}"`)
                 .join(
                   '\n'
-                )}\n\n✍️ <b>+ Кастомный промпт</b> - создайте свой уникальный стиль!\n\n💰 <b>В полной версии доступны ЛЮБЫЕ образы!</b>\n🚀 <b>Технология: ${ctx.session.selectedModel === 'seedream4' ? 'SeeDream-4' : 'FLUX Kontext Max'}</b>`
+                )}\n\n✍️ <b>+ Кастомный промпт</b> - создайте свой уникальный стиль!\n\n💰 <b>В полной версии доступны ЛЮБЫЕ образы!</b>\n🚀 <b>Технология: ${ctx.session.selectedModel === 'seedream45' ? 'SeeDream-4.5' : 'FLUX Kontext Max'}</b>`
             : `🤖 <b>AI Capabilities Demonstration</b>\n\n🎯 Now I'll show you how our bot transforms people!\n\n💡 <b>Choose an example for demonstration:</b>\n\n🌟 <b>Top-10 styles for ${
                 gender === 'male' ? 'men' : 'women'
               }:</b>\n${primaryHeroes
@@ -1702,7 +1728,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
                 .map(hero => `• "${hero}" style`)
                 .join(
                   '\n'
-                )}\n\n✍️ <b>+ Custom Prompt</b> - create your unique style!\n\n💰 <b>In full version ANY styles available!</b>\n🚀 <b>Technology: ${ctx.session.selectedModel === 'seedream4' ? 'SeeDream-4' : 'FLUX Kontext Max'}</b>`,
+                )}\n\n✍️ <b>+ Custom Prompt</b> - create your unique style!\n\n💰 <b>In full version ANY styles available!</b>\n🚀 <b>Technology: ${ctx.session.selectedModel === 'seedream45' ? 'SeeDream-4.5' : 'FLUX Kontext Max'}</b>`,
           {
             parse_mode: 'HTML',
             reply_markup: {
@@ -1726,13 +1752,12 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return ctx.wizard.next() // Переходим к следующему шагу - выбору героя
     }
 
-    // Пользователь хочет загрузить новое фото
-    if (
-      text === (isRu ? '📸 Загрузить фото' : '📸 Upload photo') ||
-      text ===
-        (isRu ? '📸 Загрузить другое фото' : '📸 Upload different photo') ||
-      text === (isRu ? '📸 Загрузить своё фото' : '📸 Upload my photo')
-    ) {
+    // Пользователь хочет загрузить новое фото (поддержка текста с/без эмодзи)
+    const uploadPhotoVariants = isRu
+      ? ['Загрузить фото', 'Загрузить другое фото', 'Загрузить своё фото', 'Upload photo', 'Upload my photo']
+      : ['Upload photo', 'Upload different photo', 'Upload my photo', 'Загрузить фото', 'Загрузить своё фото']
+
+    if (uploadPhotoVariants.some(variant => text.includes(variant))) {
       await ctx.reply(
         isRu
           ? `📸 <b>Загрузка нового фото</b>\n\n💡 Отправьте мне фотографию, которую хотите преобразовать\n\n✨ <b>Рекомендации:</b>\n• Четкое фото лица\n• Хорошее освещение\n• Минимум 512x512 пикселей`
@@ -1770,7 +1795,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         command: receivedText,
       })
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     // Игнорируем другие команды (начинаются с /) - они будут обработаны command handler'ом
@@ -1805,7 +1833,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       const modelDisplayName =
         selectedModel === 'flux-kontext'
           ? 'FLUX Kontext Max (Google)'
-          : 'SeeDream-4 (ByteDance)'
+          : 'SeeDream-4.5 (ByteDance)'
       const genderDisplay =
         gender === 'male'
           ? isRu
@@ -2272,7 +2300,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       )
       // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     // Отображаемое имя героя для пользователя
@@ -2327,7 +2358,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         )
         // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
         await ctx.scene.leave()
-        return ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
       }
 
       const prompt = createMarvelPromptByGender(gender, selectedHero)
@@ -2365,7 +2399,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             : '❌ Context error. Please try again via /start'
         )
         await ctx.scene.leave()
-        return ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
       }
 
       // 🌟 Используем выбранную модель для трансформации
@@ -2398,11 +2435,11 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
       // Define the priority order for models with fallback
       const modelPriority =
-        selectedModel === 'seedream4'
-          ? ['seedream4', 'flux-kontext', 'nano-banana']
+        selectedModel === 'seedream45'
+          ? ['seedream45', 'flux-kontext', 'nano-banana']
           : (selectedModel as string) === 'nano-banana'
-            ? ['nano-banana', 'flux-kontext', 'seedream4']
-            : ['flux-kontext', 'seedream4', 'nano-banana']
+            ? ['nano-banana', 'flux-kontext', 'seedream45']
+            : ['flux-kontext', 'seedream45', 'nano-banana']
 
       console.log('🎯 Starting AI generation with fallback logic:', {
         telegramId,
@@ -2419,9 +2456,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             telegramId,
           })
 
-          if (modelToTry === 'seedream4') {
-            console.log('🎭 Using SeeDream-4...', { telegramId })
-            const seedreamResult = await generateSeeDream4({
+          if (modelToTry === 'seedream45') {
+            console.log('🎭 Using SeeDream-4.5...', { telegramId })
+            const seedreamResult = await generateSeeDream45({
               telegram_id: telegramId,
               prompt: prompt,
               inputImageUrl: userPhotoUrl,
@@ -2435,7 +2472,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
             if (seedreamResult?.image) {
               result = 'success'
-              console.log('✅ SeeDream-4 generation successful!', {
+              console.log('✅ SeeDream-4.5 generation successful!', {
                 telegramId,
               })
               break
@@ -2623,7 +2660,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       await ctx.scene.leave()
 
       // ПЕРЕХОДИМ К ГЛАВНОМУ МЕНЮ (не StartScene)
-      await ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
 
       logger.info(
         '[AvatarTransformScene] Successfully completed transformation and transitioned to StartScene',
@@ -2648,7 +2687,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
       // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
   },
   // Шаг 4: Обработка загруженной фотографии
@@ -2803,7 +2845,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       )
       // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.StartScene)
+      await ctx.scene.leave()
+      await ctx.scene.enter(ModeEnum.StartScene)
+      return
     }
   },
   // Шаг 5: Обработка кастомного промпта
@@ -2829,7 +2873,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         command: customPrompt,
       })
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     // Игнорируем другие команды - они будут обработаны command handler'ом
@@ -2878,7 +2925,10 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           : '❌ Error: gender not selected. Start over'
       )
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     }
 
     // Подтверждение кастомного промпта
@@ -2925,8 +2975,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       let generatedImageUrl: string | null = null
 
       // Выбираем сервис генерации в зависимости от модели
-      if (selectedModel === 'seedream4') {
-        const result = await generateSeeDream4({
+      if (selectedModel === 'seedream45') {
+        const result = await generateSeeDream45({
           telegram_id: telegramId,
           prompt: finalPrompt,
           inputImageUrl: userPhotoUrl,
@@ -2964,7 +3014,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([
             [isRu ? '🔄 Еще трансформация' : '🔄 Another transformation'],
-            [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+            [getMainMenuText(isRu)],
           ]).resize().reply_markup,
         })
 
@@ -2994,7 +3044,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([
             [isRu ? '🎨 Выбрать готовый стиль' : '🎨 Choose ready style'],
-            [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
+            [getMainMenuText(isRu)],
           ]).resize().reply_markup,
         }
       )

@@ -1,6 +1,6 @@
 /**
  * Render Server Client
- * Клиент для взаимодействия с render-server на Render Server
+ * Клиент для взаимодействия с render-server на Railway
  *
  * Server: https://render-v3-production.up.railway.app
  * Inngest: https://render-v3-production.up.railway.app/api/inngest
@@ -87,28 +87,9 @@ export async function sendRenderAvatarVideoEvent(
     jobId: payload.job_id,
     hasHeygenSettings: !!payload.avatar_settings.heygen,
     hasHedraSettings: !!payload.avatar_settings.hedra,
-    hasFalSettings: !!payload.avatar_settings.fal,
   })
-
-  // 🔴 ДЕТАЛЬНАЯ ПРОВЕРКА КЛЮЧЕЙ ПЕРЕД ОТПРАВКОЙ
-  const renderEventKey = process.env.RENDER_INNGEST_EVENT_KEY
-  const renderSigningKey = process.env.RENDER_INNGEST_SIGNING_KEY
-
-  logger.info('🔍 [RENDER SERVER] Environment check:', {
-    hasRenderEventKey: !!renderEventKey,
-    renderEventKeyLength: renderEventKey?.length || 0,
-    hasRenderSigningKey: !!renderSigningKey,
-    renderSigningKeyLength: renderSigningKey?.length || 0,
-  })
-
-  if (!renderEventKey) {
-    logger.error('❌ [RENDER SERVER] КРИТИЧЕСКАЯ ОШИБКА: RENDER_INNGEST_EVENT_KEY отсутствует!')
-    throw new Error('RENDER_INNGEST_EVENT_KEY not configured - cannot send event to render-server')
-  }
 
   try {
-    logger.info('🚀 [RENDER SERVER] Calling inngestProvider.sendEvent()...')
-
     const result = await inngestProvider.sendEvent(
       'RENDER',
       'render-riddle',
@@ -116,8 +97,7 @@ export async function sendRenderAvatarVideoEvent(
     )
 
     if (!result) {
-      logger.error('❌ [RENDER SERVER] inngestProvider.sendEvent() returned null!')
-      throw new Error('Failed to send event to RENDER instance - no result')
+      throw new Error('Failed to send event to RENDER instance')
     }
 
     logger.info('✅ [RENDER SERVER] Event sent successfully', {
@@ -129,7 +109,6 @@ export async function sendRenderAvatarVideoEvent(
   } catch (error) {
     logger.error('❌ [RENDER SERVER] Error sending event', {
       error: error instanceof Error ? error.message : String(error),
-      errorStack: error instanceof Error ? error.stack : undefined,
       jobId: payload.job_id,
     })
     throw error
@@ -137,13 +116,21 @@ export async function sendRenderAvatarVideoEvent(
 }
 
 /**
- * Отправляет событие НАПРЯМУЮ на render-server (Render Server)
- * Обходит Inngest Cloud и идет прямо на Render Server
+ * Проверяет доступность render-server
+ * Использует RENDER инстанс через inngestProvider
+ */
+export async function checkRenderServerAvailability(): Promise<boolean> {
+  return await inngestProvider.checkAvailability('RENDER')
+}
+
+/**
+ * Отправляет событие НАПРЯМУЮ на render-server (Railway)
+ * Обходит Inngest Cloud и идет прямо на Railway
  */
 export async function sendDirectToRenderServer(
   payload: RenderRiddlePayload
 ): Promise<{ eventId: string }> {
-  logger.info('🎬 [RENDER SERVER DIRECT] Sending direct request to Render Server', {
+  logger.info('🎬 [RENDER SERVER DIRECT] Sending direct request to Railway', {
     jobId: payload.job_id,
     hasHeygenSettings: !!payload.avatar_settings.heygen,
     hasHedraSettings: !!payload.avatar_settings.hedra,
@@ -272,12 +259,12 @@ export function createRenderAvatarPayload(
     cover_url: options?.coverUrl || '',
     intro_text_1: {
       text: options?.introText1 || '',
-      position: [540, 1135],
+      position: [540, 860],
       font_size: 100,
     },
     intro_text_2: {
       text: options?.introText2 || '',
-      position: [540, 1267],
+      position: [540, 960],
       font_size: 75,
     },
     avatar_settings: {
@@ -311,9 +298,7 @@ export function createRenderAvatarPayload(
     callback_url:
       options?.callbackUrl !== undefined
         ? options.callbackUrl
-        : process.env.BASE_WEBHOOK_URL
-        ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback/${telegramId}`
-        : `http://212.86.115.30:2999/api/video-callback/${telegramId}`,
+        : 'https://three-head-dragon.shop/api/telegram/ai-reels-callback',
     bot_name: options?.botName,
   }
 }

@@ -2,7 +2,7 @@ import axios, { isAxiosError } from 'axios'
 import {
   isDev,
   SECRET_API_KEY,
-  API_SERVER_URL,
+  API_SERVER_URL_FINAL,
   LOCAL_SERVER_URL,
 } from '@/config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -14,6 +14,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { Markup } from 'telegraf'
 
 // Функция для отправки уведомления админу о проблеме с сервером
+// ✅ ИСПРАВЛЕНО: Не отправляем сообщение пользователю, который инициировал запрос
 async function notifyAdminAboutServerIssue(
   error: string,
   telegram_id: string,
@@ -26,6 +27,21 @@ async function notifyAdminAboutServerIssue(
 
     if (!botResult.bot) return
 
+    // ✅ ИСКЛЮЧАЕМ пользователя, который инициировал запрос, из списка получателей
+    const otherAdmins = adminIds.filter(
+      adminId => adminId.trim() !== telegram_id.toString()
+    )
+
+    // Если нет других админов, просто логируем без отправки сообщения
+    if (otherAdmins.length === 0) {
+      logger.warn('[ADMIN NOTIFICATION] No other admins to notify', {
+        telegram_id,
+        error,
+        note: 'User is the only admin, skipping notification',
+      })
+      return
+    }
+
     const errorMessage =
       `🚨 **SERVER DOWN ALERT**\n\n` +
       `📍 План Б активирован для нейрофото генерации\n` +
@@ -33,16 +49,18 @@ async function notifyAdminAboutServerIssue(
       `🤖 Bot: ${botName}\n` +
       `❌ Error: ${error}\n` +
       `🔄 Используется локальная обработка\n\n` +
-      `⚠️ Проверьте сервер: ${isDev ? LOCAL_SERVER_URL : API_SERVER_URL}`
+      `⚠️ Проверьте сервер: ${isDev ? LOCAL_SERVER_URL : API_SERVER_URL_FINAL}`
 
-    for (const adminId of adminIds) {
+    // Отправляем только другим админам (не пользователю, который инициировал запрос)
+    for (const adminId of otherAdmins) {
       await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
         parse_mode: 'Markdown',
       })
     }
 
-    logger.warn('[ADMIN NOTIFICATION] Server issue reported to admins', {
-      adminIds,
+    logger.warn('[ADMIN NOTIFICATION] Server issue reported to other admins', {
+      notifiedAdmins: otherAdmins,
+      excludedUser: telegram_id,
       error,
     })
   } catch (notifyError) {
@@ -157,7 +175,8 @@ export async function generateNeuroPhotoHybrid(
 
     await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
 
-    const url = `${API_SERVER_URL}/generate/neuro-photo`
+    // ✅ ИСПРАВЛЕНИЕ: Используем API_SERVER_URL_FINAL с fallback
+    const url = `${API_SERVER_URL_FINAL}/generate/neuro-photo`
 
     const serverPayload = {
       prompt,
@@ -245,8 +264,8 @@ export async function generateNeuroPhotoHybrid(
       for (const url of response.data.urls) {
         try {
           const caption = isRussianFromState(ctx)
-            ? `✨ Нейрофото сгенерировано!\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Стоимость: ${exactCostPerImage} ⭐`
-            : `✨ Neurophoto generated!\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}\n💎 Cost: ${exactCostPerImage} ⭐`
+            ? `✨ Нейрофото сгенерировано!\n\n💎 Стоимость: ${exactCostPerImage} ⭐`
+            : `✨ Neurophoto generated!\n\n Cost: ${exactCostPerImage} ⭐`
 
           await ctx.telegram.sendPhoto(
             telegram_id,
@@ -336,10 +355,25 @@ export async function generateNeuroPhotoHybrid(
       telegram_id,
     })
 
-    // 🚨 УВЕДОМЛЕНИЕ АДМИНУ О ПРОБЛЕМЕ С СЕРВЕРОМ
-    await notifyAdminAboutServerIssue(String(error), telegram_id, botName)
+    // ✅ УДАЛЕНО: Уведомление админу о проблеме с сервером (не нужно беспокоить пользователя)
 
     try {
+      console.log('🔔 [HYBRID] ВЫЗОВ generateNeuroPhotoDirect (План Б)', {
+        telegram_id,
+        numImages,
+        botName,
+        explicitAspectRatio,
+      })
+      logger.info({
+        message: '🔔 [HYBRID] ВЫЗОВ generateNeuroPhotoDirect (План Б)',
+        description: 'CALLING generateNeuroPhotoDirect (Plan B)',
+        telegram_id,
+        prompt: prompt.substring(0, 50) + '...',
+        numImages,
+        botName,
+        explicitAspectRatio,
+      })
+
       const localResult = await generateNeuroPhotoDirect(
         prompt,
         model_url,
@@ -354,6 +388,19 @@ export async function generateNeuroPhotoHybrid(
         },
         userModel // ✅ Pass userModel for FAL support
       )
+
+      logger.info({
+        message: '🔔 [HYBRID] generateNeuroPhotoDirect завершен (План Б)',
+        description: 'generateNeuroPhotoDirect completed (Plan B)',
+        telegram_id,
+        result: localResult
+          ? {
+              success: localResult.success,
+              hasUrls: !!localResult.urls,
+              urlsCount: localResult.urls?.length,
+            }
+          : null,
+      })
 
       if (localResult && localResult.success) {
         logger.info('✅ [HYBRID] План Б успешен - локальная обработка завершена', {

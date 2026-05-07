@@ -6,7 +6,6 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getUserBalance } from '../../core/supabase'
 import { logger } from '../../utils/logger'
 import { handleFluxKontextCommand } from '@/commands/fluxKontextCommand'
-import { levels } from '@/menu/simpleMenu'
 import { sendBalanceMessage } from '@/price/helpers'
 import { ModeEnum } from '@/interfaces'
 
@@ -885,10 +884,14 @@ fluxKontextScene.on('text', async ctx => {
       return
     }
 
-    const prompt = ctx.message.text
+    const prompt = ctx.message.text?.trim()
 
-    if (!prompt) {
-      await ctx.reply(isRu ? '❌ Пустой промпт.' : '❌ Empty prompt.')
+    if (!prompt || prompt.length === 0) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пустой промпт. Пожалуйста, введите описание того, что нужно сделать с изображением.'
+          : '❌ Empty prompt. Please enter a description of what to do with the image.'
+      )
       return
     }
 
@@ -1261,7 +1264,8 @@ fluxKontextScene.action('flux_kontext_cancel', async ctx => {
     )
 
     await ctx.scene.leave()
-    await ctx.scene.enter('main_menu')
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error handling FLUX Kontext cancel', {
       error: error instanceof Error ? error.message : 'Unknown error',

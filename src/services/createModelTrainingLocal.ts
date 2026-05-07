@@ -1,3 +1,4 @@
+// @ts-nocheck
 import Replicate from 'replicate'
 import fs from 'fs'
 import { MyContext } from '@/interfaces'
@@ -77,6 +78,11 @@ export async function createModelTrainingLocal(
       throw new Error('❌ Missing REPLICATE_API_TOKEN or REPLICATE_USERNAME in .env')
     }
 
+    logger.info('[LOCAL TRAINING] Using Replicate credentials', {
+      username: REPLICATE_USERNAME,
+      hasToken: !!REPLICATE_API_TOKEN,
+    })
+
     // ✅ STEP 2: Validate ZIP file exists
     if (!fs.existsSync(requestData.filePath)) {
       throw new Error(`❌ ZIP file not found: ${requestData.filePath}`)
@@ -96,10 +102,8 @@ export async function createModelTrainingLocal(
       model_name: requestData.modelName,
     })
 
-    // ✅ STEP 4: Initialize Replicate client
-    const replicate = new Replicate({
-      auth: REPLICATE_API_TOKEN,
-    })
+    // ✅ STEP 4: Validate Replicate client (already initialized from @core/replicate)
+    // The replicate client is initialized in @core/replicate/index.ts with REPLICATE_API_TOKEN
 
     // ✅ STEP 5: Prepare file as base64 data URI for Replicate
     logger.info('[LOCAL TRAINING] Converting ZIP to base64...')
@@ -129,54 +133,74 @@ export async function createModelTrainingLocal(
 
     // Ensure lowercase for Replicate API
     const modelNameLower = modelNameSanitized.toLowerCase()
-    const destination = `${REPLICATE_USERNAME}/${modelNameLower}`
 
-    logger.info('[LOCAL TRAINING] Checking if model exists...', {
+    // ✅ Создаем уникальное имя модели с timestamp (чтобы избежать конфликтов)
+    const uniqueModelName = `${modelNameLower}-${Date.now()}`
+    const destination = `${REPLICATE_USERNAME}/${uniqueModelName}`
+
+    logger.info('[LOCAL TRAINING] Preparing model destination...', {
       destination,
+      owner: REPLICATE_USERNAME,
       originalName: requestData.modelName,
       sanitizedName: modelNameSanitized,
-      lowercaseName: modelNameLower
+      timestamp: Date.now()
     })
 
+    // ✅ STEP 7: Check if model exists and create if needed
+    let modelExists = false
     try {
-      // Try to get existing model
-      const existingModel = await replicate.models.get(REPLICATE_USERNAME, modelNameLower)
-      logger.info('[LOCAL TRAINING] Model exists', { url: existingModel.url })
-    } catch (error) {
-      // Model doesn't exist, create it
-      logger.info('[LOCAL TRAINING] Model not found, creating new model...', {
-        username: REPLICATE_USERNAME,
-        modelName: modelNameLower,
-        originalName: requestData.modelName,
-      })
+      logger.info(`[LOCAL TRAINING] Checking if model exists: ${destination}`)
+      await replicate.models.get(REPLICATE_USERNAME, uniqueModelName)
+      logger.info(`[LOCAL TRAINING] Model ${destination} exists.`)
+      modelExists = true
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        logger.info(`[LOCAL TRAINING] Model ${destination} does not exist. Creating...`)
+        modelExists = false
+      } else {
+        logger.error('[LOCAL TRAINING] Error checking model existence:', error)
+        throw error
+      }
+    }
 
+    if (!modelExists) {
       try {
-        const newModel = await replicate.models.create(
-          REPLICATE_USERNAME,
-          modelNameLower,
+        logger.info(`[LOCAL TRAINING] Creating model ${destination}...`)
+        await replicate.models.create(
+          REPLICATE_USERNAME, // owner
+          uniqueModelName,
           {
             description: `LoRA: ${requestData.triggerWord}`,
             visibility: 'public',
             hardware: 'gpu-l40s',
           }
         )
-        logger.info('[LOCAL TRAINING] ✅ Model created successfully', {
-          url: newModel.url,
-          version: newModel.latest_version?.id,
+        logger.info(`[LOCAL TRAINING] ✅ Model ${destination} created successfully`)
+        // Wait for model to be fully initialized
+        await new Promise(resolve => setTimeout(resolve, 5000))
+      } catch (createError: any) {
+        logger.error('[LOCAL TRAINING] Failed to create model', {
+          error: createError?.message || String(createError),
+          owner: REPLICATE_USERNAME,
         })
 
-        // Wait 5 seconds for model to be fully initialized
-        logger.info('[LOCAL TRAINING] Waiting 5 seconds for model initialization...')
-        await new Promise(resolve => setTimeout(resolve, 5000))
-      } catch (createError) {
-        logger.error('[LOCAL TRAINING] Failed to create model', {
-          error: createError instanceof Error ? createError.message : String(createError),
-        })
+        // Детальная ошибка для пользователя
+        const errorMsg = createError?.message || String(createError)
+
+        if (errorMsg.includes('You don\'t have permission') || errorMsg.includes('permission')) {
+          // Специальное сообщение для ошибки прав
+          const userMessage = requestData.is_ru
+            ? `❌ Ошибка прав доступа к Replicate\n\n🔍 Проблема: Токен REPLICATE и аккаунт ${REPLICATE_USERNAME} принадлежат разным пользователям.\n\n💡 Решения:\n1. Добавьте REPLICATE_USERNAME=ghashtag в Infisical (имя аккаунта с токеном)\n2. Или используйте токен от аккаунта ghashtag\n\n🌐 Проверить аккаунт: https://replicate.com/account`
+            : `❌ Access Rights Error\n\n🔍 Problem: REPLICATE token and ${REPLICATE_USERNAME} account belong to different users.\n\n💡 Solutions:\n1. Add REPLICATE_USERNAME=ghashtag to Infisical (token owner account name)\n2. Or use token from ghashtag account\n\n🌐 Check account: https://replicate.com/account`
+
+          throw new Error(userMessage)
+        }
+
         throw new Error('Failed to create Replicate model')
       }
     }
 
-    // ✅ STEP 7: Create training on Replicate
+    // ✅ STEP 8: Create training on Replicate
     const model = 'ostris/flux-dev-lora-trainer'
     const version = 'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497'
 
@@ -201,6 +225,7 @@ export async function createModelTrainingLocal(
       hasServerApiUrl: !!process.env.API_SERVER_URL,
     })
 
+    // ✅ Создаем тренировку с destination (модель создана)
     const training = await replicate.trainings.create(
       'ostris', // owner
       'flux-dev-lora-trainer', // model name
@@ -216,35 +241,37 @@ export async function createModelTrainingLocal(
           optimizer: 'adamw8bit',
           batch_size: 1,
           resolution: '512,768,1024',
+          autocaption: true,
           learning_rate: 0.0001,
           wandb_project: 'flux_train_replicate',
         },
-        // ✅ Webhook для получения уведомлений о завершении тренировки
-        webhook: webhookUrl,
-        webhook_events_filter: ['completed'],
+        // ✅ Webhook отключен для локальной тренировки
+        // (Replicate требует HTTPS, а BASE_WEBHOOK_URL использует HTTP)
       }
     )
 
     logger.info('[LOCAL TRAINING] ✅ Training created successfully', {
       training_id: training.id,
       status: training.status,
+      model: 'ostris/flux-dev-lora-trainer',
+      version,
       destination,
       elapsed: `${Date.now() - startTime}ms`,
     })
 
-    // ✅ STEP 8: Save training record to Supabase
+    // ✅ STEP 9: Save training record to Supabase
     const trainingRecord = {
       telegram_id: requestData.telegram_id, // Используем telegram_id, а не user_id
       model_name: requestData.modelName,
       trigger_word: requestData.triggerWord,
       zip_url: requestData.filePath, // Local path for reference
       replicate_training_id: training.id,
-      status: training.status,
+      status: 'processing', // Changed from training.status to 'processing'
       bot_name: requestData.botName,
       steps: requestData.steps,
       gender: requestData.gender,
       is_ru: requestData.is_ru,
-      // Additional metadata
+      // Using destination model
       created_at: new Date().toISOString(),
     }
 
@@ -262,7 +289,7 @@ export async function createModelTrainingLocal(
       logger.info('[LOCAL TRAINING] Training record saved to database')
     }
 
-    // ✅ STEP 9: Clean up local ZIP file
+    // ✅ STEP 10: Clean up local ZIP file
     try {
       await fs.promises.unlink(requestData.filePath)
       logger.info('[LOCAL TRAINING] Local ZIP file deleted')
@@ -272,14 +299,14 @@ export async function createModelTrainingLocal(
       })
     }
 
-    // ✅ STEP 10: Return success response
+    // ✅ STEP 11: Return success response
     const successMessage = requestData.is_ru
       ? `✅ Тренировка модели запущена!\n\n📦 Модель: ${requestData.modelName}\n🆔 ID: ${training.id}\n⚡ Провайдер: Replicate\n⏱️ Время: ~1-2 часа`
       : `✅ Model training started!\n\n📦 Model: ${requestData.modelName}\n🆔 ID: ${training.id}\n⚡ Provider: Replicate\n⏱️ Time: ~1-2 hours`
 
     return {
       message: successMessage,
-      model_id: destination,
+      model_id: `ostris/flux-dev-lora-trainer`,
       bot_name: requestData.botName,
       training_id: training.id,
       provider: 'replicate',

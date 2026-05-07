@@ -1,0 +1,20 @@
+[package]
+name = "trios-mb-jobs"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "SILVER-RING-JB00 — Background job processing (PG-backed queue + tokio workers)"
+
+[dependencies]
+trios-mb-types = { workspace = true }
+trios-mb-traits = { workspace = true }
+sea-orm = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { version = "0.7", features = ["rt"] }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }

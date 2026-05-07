@@ -58,15 +58,12 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
     })
 
     // Устанавливаем команды только для приватных чатов
+    // ✅ УДАЛЕН /menu - теперь /start показывает главное меню напрямую
     await bot.telegram.setMyCommands(
       [
         {
           command: 'start',
-          description: '👤 Start / Начать',
-        },
-        {
-          command: 'menu',
-          description: '📟 Menu / Главное меню',
+          description: '📟 Главное меню / Main menu',
         },
         {
           command: 'support',
@@ -84,41 +81,53 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
       }
     )
 
-    // Устанавливаем команды для владельца бота
-    await bot.telegram.setMyCommands(
-      [
+    // Устанавливаем команды для владельца бота (опционально - может не сработать если владелец не начал чат)
+    // ✅ УДАЛЕН /menu - теперь /start показывает главное меню напрямую
+    try {
+      await bot.telegram.setMyCommands(
+        [
+          {
+            command: 'start',
+            description: '📟 Главное меню / Main menu',
+          },
+          {
+            command: 'support',
+            description: '🛠 Tech Support / Техподдержка',
+          },
+          {
+            command: 'price',
+            description: '⭐️ Price / Цена',
+          },
+        ],
         {
-          command: 'start',
-          description: '👤 Start / Начать',
-        },
-        {
-          command: 'menu',
-          description: '📟 Menu / Главное меню',
-        },
-        {
-          command: 'support',
-          description: '🛠 Tech Support / Техподдержка',
-        },
-        {
-          command: 'price',
-          description: '⭐️ Price / Цена',
-        },
-      ],
-      {
-        scope: {
-          type: 'chat',
-          chat_id: parseInt(ownerTelegramId),
-        },
-      }
-    )
+          scope: {
+            type: 'chat',
+            chat_id: parseInt(ownerTelegramId),
+          },
+        }
+      )
+      console.log('✅ Команды для владельца бота установлены:', {
+        description: 'Owner commands set successfully',
+        botName,
+        ownerTelegramId,
+      })
+    } catch (ownerError) {
+      // Это нормально - владелец может ещё не начать чат с ботом
+      console.log('ℹ️ Команды для владельца не установлены (владелец ещё не начал чат с ботом):', {
+        description: 'Owner commands not set - owner has not started chat with bot yet',
+        botName,
+        ownerTelegramId,
+        hint: 'Owner should press /start in bot to enable personalized commands',
+      })
+    }
 
     console.log('✅ Команды бота успешно установлены:', {
       description: 'Bot commands set successfully for private chats',
       botName,
     })
   } catch (error) {
-    console.error('❌ Ошибка при установке команд для владельца бота:', {
-      description: 'Error setting owner commands',
+    console.error('❌ Критическая ошибка при установке команд бота:', {
+      description: 'Critical error setting bot commands',
       error: error instanceof Error ? error.message : 'Unknown error',
     })
   }

@@ -5,7 +5,7 @@ import { getPaymentByInvId } from '@/core/supabase/payments'
 import { supabaseAdmin } from '@/core/supabase'
 import { PaymentStatus, PaymentType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
-import { ROBOKASSA_PASSWORD_2 } from '@/config'
+import { getRobokassaPassword2 } from '@/config'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { notifyBotOwners } from '@/core/supabase/notifyBotOwners'
 
@@ -65,7 +65,34 @@ router.post('/payment-success', async (req: any, res: any) => {
   return handlePaymentSuccess(req, res)
 })
 
+/**
+ * GET handler для тестирования доступности endpoint
+ * GET /api/payment-success
+ */
+router.get('/payment-success', (req: any, res: any) => {
+  console.log('🔍 [ROBOKASSA] GET /payment-success - Health check')
+  res.json({
+    status: 'ok',
+    message: 'Robokassa webhook endpoint is available',
+    timestamp: new Date().toISOString(),
+    method: 'GET',
+    note: 'Use POST for actual webhooks',
+  })
+})
+
 async function handlePaymentSuccess(req: any, res: any) {
+  // 🔍 DEBUG: Логируем ВСЁ что пришло
+  console.log('═══════════════════════════════════════════════════════')
+  console.log('💰 [ROBOKASSA WEBHOOK] INCOMING REQUEST')
+  console.log('═══════════════════════════════════════════════════════')
+  console.log('📍 URL:', req.originalUrl)
+  console.log('📍 Method:', req.method)
+  console.log('📍 IP:', req.ip || req.connection?.remoteAddress)
+  console.log('📍 Headers:', JSON.stringify(req.headers, null, 2))
+  console.log('📍 Body:', JSON.stringify(req.body, null, 2))
+  console.log('📍 Query:', JSON.stringify(req.query, null, 2))
+  console.log('═══════════════════════════════════════════════════════')
+
   try {
     logger.info('🔔 Received Robokassa webhook', {
       body: req.body,
@@ -84,10 +111,12 @@ async function handlePaymentSuccess(req: any, res: any) {
     }
 
     // Проверяем подпись
+    const { getRobokassaPassword2 } = await import('@/config')
+    const password2 = getRobokassaPassword2() || ''
     const isValidSignature = validateRobokassaSignature(
       OutSum,
       InvId,
-      ROBOKASSA_PASSWORD_2 || '',
+      password2,
       SignatureValue
     )
 
@@ -147,12 +176,18 @@ async function handlePaymentSuccess(req: any, res: any) {
     })
 
     // Определяем количество звезд и тип подписки из суммы платежа
+    const numericOutSum = Number(OutSum)
+    if (isNaN(numericOutSum) || numericOutSum <= 0) {
+      logger.error('❌ Invalid OutSum value', { OutSum, InvId })
+      return res.status(400).send('Invalid OutSum')
+    }
+
     let stars = 0
     let subscription = payment.subscription || ''
 
     // Проверяем, соответствует ли сумма одному из тарифов подписки
-    if (SUBSCRIPTION_AMOUNTS[OutSum]) {
-      const plan = SUBSCRIPTION_PLANS.find(p => p.ru_price === OutSum)
+    if (SUBSCRIPTION_AMOUNTS[numericOutSum]) {
+      const plan = SUBSCRIPTION_PLANS.find(p => p.ru_price === numericOutSum)
       if (plan) {
         stars = plan.stars_price
         subscription = plan.callback_data
@@ -160,7 +195,7 @@ async function handlePaymentSuccess(req: any, res: any) {
     }
     // Если не подписка, проверяем стандартные варианты пополнения
     else {
-      const option = PAYMENT_OPTIONS.find(opt => opt.amount === OutSum)
+      const option = PAYMENT_OPTIONS.find(opt => opt.amount === numericOutSum)
       if (option) {
         stars = option.stars
       }
@@ -209,7 +244,7 @@ async function handlePaymentSuccess(req: any, res: any) {
     await sendPaymentSuccessNotification(payment, stars, subscription)
 
     // Отправляем уведомление в админ-группу
-    await sendAdminGroupNotification(payment, OutSum, stars, subscription)
+    await sendAdminGroupNotification(payment, numericOutSum, stars, subscription)
 
     // Отправляем уведомление владельцу бота
     if (payment.bot_name) {

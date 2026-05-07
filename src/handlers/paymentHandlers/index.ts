@@ -14,6 +14,7 @@ import { normalizeTelegramId } from '@/interfaces/telegram.interface'
 import { notifyBotOwners } from '@/core/supabase/notifyBotOwners'
 import { paymentOptionsPlans } from '@/price/priceCalculator'
 import { ModeEnum } from '@/interfaces'
+import { telegramLogService } from '@/services/telegram-log.service'
 
 async function sendNotification(ctx: MyContext, message: string) {
   const adminChatId = process.env.ADMIN_CHAT_ID
@@ -314,6 +315,17 @@ If not, continue on your own and click the "I myself" button`
       subscription: purchasedPlanText,
     })
 
+    // 📨 Логируем платеж в группу НейроМентор
+    await telegramLogService.logPayment({
+      telegramId: userId.toString(),
+      username: username,
+      amount: starsFromPayload,
+      currency: 'XTR',
+      stars: starsFromPayload,
+      method: 'Telegram Stars',
+      botName: botUsername,
+    })
+
     logger.info(
       '[handleSuccessfulPayment] Leaving scene and showing main menu after successful payment...',
       { telegram_id: normalizedUserId }
@@ -328,7 +340,9 @@ If not, continue on your own and click the "I myself" button`
       )
     }
 
-    await ctx.scene.enter(ModeEnum.MainMenu)
+    await ctx.scene.leave()
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
   } catch (error) {
     logger.error('❌ [handleSuccessfulPayment] Error processing payment:', {
       error: error instanceof Error ? error.message : String(error),

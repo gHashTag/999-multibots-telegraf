@@ -1,0 +1,166 @@
+use std::sync::Arc;
+use teloxide::dispatching::dialogue::{Dialogue, InMemStorage, GetChatId};
+use teloxide::prelude::*;
+use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
+use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
+use trios_mb_tg::state::{Scene, TextToImageState};
+use trios_mb_tg::HandlerResult;
+use trios_mb_tg::keyboards::main_menu_keyboard;
+use trios_mb_types::generation::MediaType;
+use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, load_lang_cb};
+
+type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
+
+pub async fn handle_text_to_image_entry(
+    bot: teloxide::Bot,
+    db: Arc<dyn Database>,
+    dialogue: MyDialogue,
+    msg: Message,
+) -> HandlerResult {
+    let lang = load_lang(&db, &msg).await;
+    let text = if lang.is_russian() { "Введите описание изображения:" } else { "Enter image description:" };
+    bot.send_message(msg.chat.id, text).await?;
+    let mut state = TextToImageState::default();
+    state.step = 1;
+    dialogue.update(Scene::TextToImage(state)).await?;
+    Ok(())
+}
+
+pub async fn handle_text_to_image_msg(
+    bot: teloxide::Bot,
+    db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    job_queue: Arc<dyn JobQueue>,
+    dialogue: MyDialogue,
+    mut state: TextToImageState,
+    msg: Message,
+) -> HandlerResult {
+    let lang = load_lang(&db, &msg).await;
+    let text = match msg.text() {
+        Some(t) => t,
+        None => return Ok(()),
+    };
+
+    match state.step {
+        1 => {
+            state.prompt = Some(text.to_string());
+            state.step = 2;
+
+            let kb = InlineKeyboardMarkup::new(vec![
+                vec![
+                    InlineKeyboardButton::callback("FLUX 1.1 Pro", "ti:flux_pro"),
+                    InlineKeyboardButton::callback("SDXL", "ti:sdxl"),
+                ],
+                vec![
+                    InlineKeyboardButton::callback("DALL-E 3", "ti:dalle3"),
+                    InlineKeyboardButton::callback("Midjourney", "ti:midjourney"),
+                ],
+            ]);
+
+            let model_text = if lang.is_russian() { "Выберите модель:" } else { "Select model:" };
+            bot.send_message(msg.chat.id, model_text).reply_markup(kb).await?;
+            dialogue.update(Scene::TextToImage(state)).await?;
+        }
+        3 => {
+            let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+            return dispatch_and_reply(
+                &bot, &dialogue, msg.chat.id,
+                &job_queue, &db,
+                DispatchParams {
+                    telegram_id: tid,
+                    lang,
+                    media_type: MediaType::Image,
+                    job_type: "image_rendering",
+                    cost: 10.0,
+                    prompt: state.prompt.clone(),
+                    image_url: None,
+                    model: state.model.clone(),
+                },
+            ).await;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+pub async fn handle_text_to_image_callback(
+    bot: teloxide::Bot,
+    db: Arc<dyn Database>,
+    _orchestrator: Arc<dyn AiProviderOrchestrator>,
+    job_queue: Arc<dyn JobQueue>,
+    dialogue: MyDialogue,
+    mut state: TextToImageState,
+    q: teloxide::types::CallbackQuery,
+) -> HandlerResult {
+    bot.answer_callback_query(&q.id).await?;
+    let lang = load_lang_cb(&db, &q).await;
+    let chat_id = q.chat_id().unwrap();
+    let tid = q.from.id.0 as i64;
+
+    let data = match &q.data {
+        Some(d) => d.as_str(),
+        None => return Ok(()),
+    };
+
+    match data {
+        "ti:flux_pro" | "ti:sdxl" | "ti:dalle3" | "ti:midjourney" => {
+            let model = match data {
+                "ti:flux_pro" => "flux-1.1-pro",
+                "ti:sdxl" => "sdxl",
+                "ti:dalle3" => "dall-e-3",
+                "ti:midjourney" => "midjourney",
+                _ => "flux-1.1-pro",
+            };
+            state.model = Some(model.to_string());
+            state.step = 3;
+
+            let kb = InlineKeyboardMarkup::new(vec![
+                vec![
+                    InlineKeyboardButton::callback("1:1", "ti:ratio_1_1"),
+                    InlineKeyboardButton::callback("16:9", "ti:ratio_16_9"),
+                    InlineKeyboardButton::callback("9:16", "ti:ratio_9_16"),
+                ],
+            ]);
+
+            let ratio_text = if lang.is_russian() { "Выберите пропорции:" } else { "Select aspect ratio:" };
+            bot.send_message(chat_id, ratio_text).reply_markup(kb).await?;
+            dialogue.update(Scene::TextToImage(state)).await?;
+        }
+        "ti:ratio_1_1" | "ti:ratio_16_9" | "ti:ratio_9_16" => {
+            let ratio = match data {
+                "ti:ratio_1_1" => "1:1",
+                "ti:ratio_16_9" => "16:9",
+                "ti:ratio_9_16" => "9:16",
+                _ => "1:1",
+            };
+            state.aspect_ratio = Some(ratio.to_string());
+            return dispatch_and_reply(
+                &bot, &dialogue, chat_id,
+                &job_queue, &db,
+                DispatchParams {
+                    telegram_id: tid,
+                    lang,
+                    media_type: MediaType::Image,
+                    job_type: "image_rendering",
+                    cost: 10.0,
+                    prompt: state.prompt.clone(),
+                    image_url: None,
+                    model: state.model.clone(),
+                },
+            ).await;
+        }
+        "ti:retry" => {
+            let text = if lang.is_russian() { "Введите описание изображения:" } else { "Enter image description:" };
+            bot.send_message(chat_id, text).await?;
+            dialogue.update(Scene::TextToImage(TextToImageState::default())).await?;
+        }
+        "ti:done" => {
+            dialogue.update(Scene::MainMenu).await?;
+            bot.send_message(chat_id, trios_mb_i18n::t(lang, "main_menu"))
+                .reply_markup(main_menu_keyboard(lang))
+                .await?;
+        }
+        _ => {}
+    }
+    Ok(())
+}

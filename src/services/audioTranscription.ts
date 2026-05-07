@@ -3,6 +3,7 @@ import FormData from 'form-data'
 import fs from 'fs'
 import path from 'path'
 import { logger } from '@/utils/logger'
+import { openai } from '@/core/openai'
 
 interface AudioTranscriptionResult {
   success: boolean
@@ -28,15 +29,7 @@ export async function transcribeAudioFile(
       }
     }
 
-    // Check if OpenAI API key is configured
-    const apiKey = process.env.OPENAI_API_KEY
-    if (!apiKey) {
-      logger.error('[AudioTranscription] OpenAI API key not configured')
-      return {
-        success: false,
-        error: 'Transcription service not configured'
-      }
-    }
+    // OpenAI client is initialized lazily via @/core/openai
 
     // Create form data with audio file
     const formData = new FormData()
@@ -50,20 +43,13 @@ export async function transcribeAudioFile(
       fileSize: fs.statSync(audioFilePath).size
     })
 
-    // Make request to OpenAI Whisper API
-    const response = await axios.post(
-      'https://api.openai.com/v1/audio/transcriptions',
-      formData,
-      {
-        headers: {
-          ...formData.getHeaders(),
-          'Authorization': `Bearer ${apiKey}`
-        },
-        timeout: 60000, // 60 second timeout for audio processing
-        maxBodyLength: Infinity,
-        maxContentLength: Infinity
-      }
-    )
+    // Use OpenAI client for transcription
+    const response = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(audioFilePath) as any,
+      model: 'whisper-1',
+      language: 'ru',
+      response_format: 'json'
+    }) as any
 
     if (response.data && response.data.text) {
       logger.info('[AudioTranscription] Transcription successful', {

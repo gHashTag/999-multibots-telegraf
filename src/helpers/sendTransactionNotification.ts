@@ -1,5 +1,5 @@
 import { logger } from '@/utils/logger'
-import { createBotByName } from '@/core/bot'
+import { getBotByName } from '@/core/bot'
 import { BotName } from '@/interfaces/telegram-bot.interface'
 interface TransactionNotificationParams {
   telegram_id: number
@@ -42,10 +42,14 @@ export const sendTransactionNotification = async ({
       newBalance,
     })
 
-    const botData = await createBotByName(bot_name as BotName)
+    // ✅ ИСПРАВЛЕНО: Используем getBotByName вместо createBotByName
+    // Боты уже зарегистрированы в объекте bots, не нужно создавать новый экземпляр
+    const botData = getBotByName(bot_name)
 
-    if (!botData) {
-      throw new Error(`Bot ${bot_name} not found`)
+    if (!botData.bot || botData.error) {
+      throw new Error(
+        `Bot ${bot_name} not found: ${botData.error || 'unknown error'}`
+      )
     }
 
     // Преобразуем баланс к числу для корректных вычислений

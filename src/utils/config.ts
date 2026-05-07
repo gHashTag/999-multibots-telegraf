@@ -413,4 +413,11 @@ export function loadConfig() {
   }
 }
 
+// Экспортируем переменные окружения для совместимости с существующим кодом
+// В production все переменные загружаются из Infisical
+export const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
+export const REPLICATE_USERNAME = process.env.REPLICATE_USERNAME
+export const SUPABASE_URL = process.env.SUPABASE_URL
+export const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY
+
 export default config

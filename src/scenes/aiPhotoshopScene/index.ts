@@ -1,6 +1,8 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { getMainMenuText } from '@/navigation'
 import { logger } from '../../utils/logger'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import fs from 'fs'
@@ -46,6 +48,8 @@ const AI_PHOTOSHOP_PRICING = {
   modelsUSD: {
     seedream: 0.03,            // SeeDream-4 (ByteDance)
     nano_banana: 0.039,        // Nano Banana (Google Gemini 2.5)
+    nano_banana_pro: 0.05,     // Nano Banana Pro (Google Gemini 3 Pro) - text rendering, 14 images, 4K
+    seedream_45: 0.06,         // Seedream 4.5 (ByteDance) - superior aesthetics, spatial understanding, 4K
     flux_multi_kontext: 0.03,  // FLUX Multi-Kontext
     qwen_edit_plus: 0.03,      // Qwen Image Edit Plus
     // ✨ NEW AI PHOTOSHOP MODELS - January 2025 (ONLY image transformation models)
@@ -63,6 +67,8 @@ const AI_PHOTOSHOP_PRICING = {
     return {
       seedream: calculateFinalPriceInStars(this.modelsUSD.seedream, 0.016, this.markup),              // $0.03 → 5⭐
       nano_banana: calculateFinalPriceInStars(this.modelsUSD.nano_banana, 0.016, this.markup),        // $0.039 → 6⭐
+      nano_banana_pro: calculateFinalPriceInStars(this.modelsUSD.nano_banana_pro, 0.016, this.markup), // $0.05 → 8⭐
+      seedream_45: calculateFinalPriceInStars(this.modelsUSD.seedream_45, 0.016, this.markup),         // $0.06 → 10⭐
       flux_multi_kontext: calculateFinalPriceInStars(this.modelsUSD.flux_multi_kontext, 0.016, this.markup), // $0.03 → 5⭐
       qwen_edit_plus: calculateFinalPriceInStars(this.modelsUSD.qwen_edit_plus, 0.016, this.markup),  // $0.03 → 5⭐
       // ✨ NEW AI PHOTOSHOP MODELS - January 2025 (ONLY image transformation models)
@@ -120,10 +126,84 @@ const AI_PHOTOSHOP_PRICING = {
   },
 } as const
 
+// 📐 Size & Aspect Ratio keyboard for single model flow
+function createSizeAndRatioKeyboard(
+  isRu: boolean,
+  currentRatio: string = '9:16',
+  currentSize: string = '2K'
+) {
+  const ratioOptions = [
+    { key: '9:16', label_ru: '📱 9:16', label_en: '📱 9:16' },
+    { key: '16:9', label_ru: '📺 16:9', label_en: '📺 16:9' },
+    { key: '1:1', label_ru: '🔲 1:1', label_en: '🔲 1:1' },
+    { key: '4:3', label_ru: '🖼️ 4:3', label_en: '🖼️ 4:3' },
+    { key: '3:4', label_ru: '🖼️ 3:4', label_en: '🖼️ 3:4' },
+    { key: '21:9', label_ru: '🎬 21:9', label_en: '🎬 21:9' },
+  ]
+
+  const sizeOptions: Array<{ key: string; label_ru: string; label_en: string }> = [
+    {
+      key: '1K',
+      label_ru: `1K - ${AI_PHOTOSHOP_PRICING.getSingleModelCost('1K')}⭐`,
+      label_en: `1K - ${AI_PHOTOSHOP_PRICING.getSingleModelCost('1K')}⭐`,
+    },
+    {
+      key: '2K',
+      label_ru: `2K - ${AI_PHOTOSHOP_PRICING.getSingleModelCost('2K')}⭐ ✨`,
+      label_en: `2K - ${AI_PHOTOSHOP_PRICING.getSingleModelCost('2K')}⭐ ✨`,
+    },
+    {
+      key: '4K',
+      label_ru: `4K - ${AI_PHOTOSHOP_PRICING.getSingleModelCost('4K')}⭐`,
+      label_en: `4K - ${AI_PHOTOSHOP_PRICING.getSingleModelCost('4K')}⭐`,
+    },
+  ]
+
+  const ratioButtons = ratioOptions.map(r => {
+    const check = r.key === currentRatio ? ' ✅' : ''
+    const label = isRu ? r.label_ru : r.label_en
+    return Markup.button.callback(`${label}${check}`, `ai_ps_ratio_${r.key}`)
+  })
+
+  const sizeButtons = sizeOptions.map(s => {
+    const check = s.key === currentSize ? ' ✅' : ''
+    const label = isRu ? s.label_ru : s.label_en
+    return Markup.button.callback(`${label}${check}`, `ai_ps_res_${s.key}`)
+  })
+
+  return Markup.inlineKeyboard([
+    // Ratio row 1: 3 buttons
+    ratioButtons.slice(0, 3),
+    // Ratio row 2: 3 buttons
+    ratioButtons.slice(3, 6),
+    // Size row
+    sizeButtons,
+    // Confirm + navigation
+    [
+      Markup.button.callback(
+        isRu ? '✅ Продолжить' : '✅ Continue',
+        'ai_ps_size_confirm'
+      ),
+    ],
+    [
+      Markup.button.callback(
+        isRu ? '🔙 Назад' : '🔙 Back',
+        'ai_photoshop_back_to_styles'
+      ),
+      Markup.button.callback(
+        isRu ? '❌ Отмена' : '❌ Cancel',
+        'ai_photoshop_cancel'
+      ),
+    ],
+  ])
+}
+
 // Log when this module loads
 logger.info('🚨 AI Photoshop: Scene module loading...')
 import { generateSeeDream4 } from '@/services/generateSeeDream4'
 import { generateNanoBanana } from '@/services/generateNanoBanana'
+import { generateNanoBananaProReplicate } from '@/services/generateNanoBananaProReplicate'
+import { generateSeedream45Replicate } from '@/services/generateSeedream45Replicate'
 import { generateAdvancedFluxKontext } from '@/services/generateFluxKontext'
 import { generateQwenImageEditPlus } from '@/services/generateQwenImageEditPlus'
 // ✅ NEW AI PHOTOSHOP MODELS - January 2025
@@ -228,6 +308,30 @@ const AI_PHOTOSHOP_MODELS = {
     supports_text_only: false,
     supports_multi_image: true,
     max_images: 3,
+  },
+  nano_banana_pro: {
+    title_ru: '🍌 Nano Banana Pro',
+    title_en: '🍌 Nano Banana Pro',
+    description_ru: 'Google Nano Banana Pro - Gemini 3 Pro, рендеринг текста, до 14 изображений, 4K',
+    description_en: 'Google Nano Banana Pro - Gemini 3 Pro, text rendering, up to 14 images, 4K',
+    cost: AI_PHOTOSHOP_PRICING.models.nano_banana_pro,
+    key: 'nano_banana_pro',
+    supports_image_input: true,
+    supports_text_only: true,
+    supports_multi_image: true,
+    max_images: 14,
+  },
+  seedream_45: {
+    title_ru: '🌱 Seedream 4.5',
+    title_en: '🌱 Seedream 4.5',
+    description_ru: 'ByteDance Seedream 4.5 - Превосходная эстетика, пространственное понимание, до 4K',
+    description_en: 'ByteDance Seedream 4.5 - Superior aesthetics, spatial understanding, up to 4K',
+    cost: AI_PHOTOSHOP_PRICING.models.seedream_45,
+    key: 'seedream_45',
+    supports_image_input: true,
+    supports_text_only: true,
+    supports_multi_image: true,
+    max_images: 14,
   },
   flux_multi_kontext: {
     title_ru: '🎯 FLUX Multi-Kontext',
@@ -1001,8 +1105,15 @@ Object.keys(AI_PHOTOSHOP_STYLES).forEach(styleKey => {
 
       if (ctx.session) {
         ctx.session.aiPhotoshopStyle = styleKey as any
-        ctx.session.aiPhotoshopStep = 'image_upload'
-        ctx.session.awaitingAiPhotoshopImage = true
+        ctx.session.aiPhotoshopStep = 'size_ratio_select'
+        ctx.session.awaitingAiPhotoshopImage = false
+        // Set defaults for size/ratio
+        if (!ctx.session.aiPhotoshopSize) {
+          ctx.session.aiPhotoshopSize = '2K'
+        }
+        if (!ctx.session.aiPhotoshopAspectRatio) {
+          ctx.session.aiPhotoshopAspectRatio = '9:16'
+        }
       }
 
       const style =
@@ -1013,24 +1124,16 @@ Object.keys(AI_PHOTOSHOP_STYLES).forEach(styleKey => {
           ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS
         ]
 
+      const currentRatio = ctx.session?.aiPhotoshopAspectRatio || '9:16'
+      const currentSize = ctx.session?.aiPhotoshopSize || '2K'
+
       await ctx.editMessageText(
         isRu
-          ? `✅ *Модель:* ${isRu ? model?.title_ru : model?.title_en}\n🎨 *Стиль:* ${styleTitle}\n\n📷 Отправьте изображение для обработки:`
-          : `✅ *Model:* ${isRu ? model?.title_ru : model?.title_en}\n🎨 *Style:* ${styleTitle}\n\n📷 Send an image for processing:`,
+          ? `✅ *Модель:* ${model?.title_ru || model?.title_en}\n🎨 *Стиль:* ${styleTitle}\n\n📐 *Выберите соотношение сторон и разрешение:*\n\n📱 Текущее: *${currentRatio}* | 📏 *${currentSize}*`
+          : `✅ *Model:* ${model?.title_en}\n🎨 *Style:* ${styleTitle}\n\n📐 *Choose aspect ratio and resolution:*\n\n📱 Current: *${currentRatio}* | 📏 *${currentSize}*`,
         {
           parse_mode: 'Markdown',
-          reply_markup: Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                isRu ? 'Назад' : 'Back',
-                'ai_photoshop_back_to_styles'
-              ),
-              Markup.button.callback(
-                isRu ? 'Отмена' : 'Cancel',
-                'ai_photoshop_cancel'
-              ),
-            ],
-          ]).reply_markup,
+          reply_markup: createSizeAndRatioKeyboard(isRu, currentRatio, currentSize).reply_markup,
         }
       )
     } catch (error) {
@@ -1041,6 +1144,151 @@ Object.keys(AI_PHOTOSHOP_STYLES).forEach(styleKey => {
       })
     }
   })
+})
+
+// Handle aspect ratio selection in size_ratio_select step
+aiPhotoshopScene.action(/^ai_ps_ratio_(1:1|16:9|9:16|4:3|3:4|21:9|9:21)$/, async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+    const ratio = ctx.match[1] as '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21'
+
+    if (ctx.session) {
+      ctx.session.aiPhotoshopAspectRatio = ratio
+    }
+
+    const currentSize = ctx.session?.aiPhotoshopSize || '2K'
+    const style = AI_PHOTOSHOP_STYLES[ctx.session?.aiPhotoshopStyle as keyof typeof AI_PHOTOSHOP_STYLES]
+    const styleTitle = isRu ? style?.title_ru : style?.title_en
+    const model = AI_PHOTOSHOP_MODELS[ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS]
+
+    await ctx.editMessageText(
+      isRu
+        ? `✅ *Модель:* ${model?.title_ru || model?.title_en}\n🎨 *Стиль:* ${styleTitle}\n\n📐 *Выберите соотношение сторон и разрешение:*\n\n📱 Текущее: *${ratio}* | 📏 *${currentSize}*`
+        : `✅ *Model:* ${model?.title_en}\n🎨 *Style:* ${styleTitle}\n\n📐 *Choose aspect ratio and resolution:*\n\n📱 Current: *${ratio}* | 📏 *${currentSize}*`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createSizeAndRatioKeyboard(isRu, ratio, currentSize).reply_markup,
+      }
+    )
+  } catch (error) {
+    logger.error('Error handling ratio selection', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Handle resolution selection in size_ratio_select step
+aiPhotoshopScene.action(/^ai_ps_res_(1K|2K|4K)$/, async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+    const size = ctx.match[1] as '1K' | '2K' | '4K'
+
+    if (ctx.session) {
+      ctx.session.aiPhotoshopSize = size
+    }
+
+    const currentRatio = ctx.session?.aiPhotoshopAspectRatio || '9:16'
+    const style = AI_PHOTOSHOP_STYLES[ctx.session?.aiPhotoshopStyle as keyof typeof AI_PHOTOSHOP_STYLES]
+    const styleTitle = isRu ? style?.title_ru : style?.title_en
+    const model = AI_PHOTOSHOP_MODELS[ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS]
+
+    await ctx.editMessageText(
+      isRu
+        ? `✅ *Модель:* ${model?.title_ru || model?.title_en}\n🎨 *Стиль:* ${styleTitle}\n\n📐 *Выберите соотношение сторон и разрешение:*\n\n📱 Текущее: *${currentRatio}* | 📏 *${size}*`
+        : `✅ *Model:* ${model?.title_en}\n🎨 *Style:* ${styleTitle}\n\n📐 *Choose aspect ratio and resolution:*\n\n📱 Current: *${currentRatio}* | 📏 *${size}*`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createSizeAndRatioKeyboard(isRu, currentRatio, size).reply_markup,
+      }
+    )
+  } catch (error) {
+    logger.error('Error handling resolution selection', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Handle confirm button - proceed to image upload
+aiPhotoshopScene.action('ai_ps_size_confirm', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    if (ctx.session) {
+      ctx.session.aiPhotoshopStep = 'image_upload'
+      ctx.session.awaitingAiPhotoshopImage = true
+    }
+
+    const model = AI_PHOTOSHOP_MODELS[ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS]
+    const style = AI_PHOTOSHOP_STYLES[ctx.session?.aiPhotoshopStyle as keyof typeof AI_PHOTOSHOP_STYLES]
+    const styleTitle = isRu ? style?.title_ru : style?.title_en
+    const currentRatio = ctx.session?.aiPhotoshopAspectRatio || '9:16'
+    const currentSize = ctx.session?.aiPhotoshopSize || '2K'
+
+    await ctx.editMessageText(
+      isRu
+        ? `✅ *Модель:* ${model?.title_ru || model?.title_en}\n🎨 *Стиль:* ${styleTitle}\n📐 *Формат:* ${currentRatio} | 📏 *${currentSize}*\n\n📷 Отправьте изображение для обработки:`
+        : `✅ *Model:* ${model?.title_en}\n🎨 *Style:* ${styleTitle}\n📐 *Format:* ${currentRatio} | 📏 *${currentSize}*\n\n📷 Send an image for processing:`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: Markup.inlineKeyboard([
+          [
+            Markup.button.callback(
+              isRu ? '🔙 Назад' : '🔙 Back',
+              'ai_photoshop_back_to_size_ratio'
+            ),
+            Markup.button.callback(
+              isRu ? '❌ Отмена' : '❌ Cancel',
+              'ai_photoshop_cancel'
+            ),
+          ],
+        ]).reply_markup,
+      }
+    )
+  } catch (error) {
+    logger.error('Error handling size confirm', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
+})
+
+// Handle back to size/ratio selection from image upload
+aiPhotoshopScene.action('ai_photoshop_back_to_size_ratio', async ctx => {
+  try {
+    await ctx.answerCbQuery()
+    const isRu = isRussianFromState(ctx)
+
+    if (ctx.session) {
+      ctx.session.aiPhotoshopStep = 'size_ratio_select'
+      ctx.session.awaitingAiPhotoshopImage = false
+    }
+
+    const currentRatio = ctx.session?.aiPhotoshopAspectRatio || '9:16'
+    const currentSize = ctx.session?.aiPhotoshopSize || '2K'
+    const model = AI_PHOTOSHOP_MODELS[ctx.session?.aiPhotoshopModel as keyof typeof AI_PHOTOSHOP_MODELS]
+    const style = AI_PHOTOSHOP_STYLES[ctx.session?.aiPhotoshopStyle as keyof typeof AI_PHOTOSHOP_STYLES]
+    const styleTitle = isRu ? style?.title_ru : style?.title_en
+
+    await ctx.editMessageText(
+      isRu
+        ? `✅ *Модель:* ${model?.title_ru || model?.title_en}\n🎨 *Стиль:* ${styleTitle}\n\n📐 *Выберите соотношение сторон и разрешение:*\n\n📱 Текущее: *${currentRatio}* | 📏 *${currentSize}*`
+        : `✅ *Model:* ${model?.title_en}\n🎨 *Style:* ${styleTitle}\n\n📐 *Choose aspect ratio and resolution:*\n\n📱 Current: *${currentRatio}* | 📏 *${currentSize}*`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createSizeAndRatioKeyboard(isRu, currentRatio, currentSize).reply_markup,
+      }
+    )
+  } catch (error) {
+    logger.error('Error handling back to size/ratio', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      telegramId: ctx.from?.id,
+    })
+  }
 })
 
 // Handle custom prompt selection
@@ -2760,29 +3008,37 @@ const processAiPhotoshopRequest = async (
         // Small delay between models to prevent rate limiting
         await new Promise(resolve => setTimeout(resolve, 2000))
       } catch (modelError) {
-        logger.error(
-          `❌ AI Photoshop: Error processing with model ${modelKey}`,
-          {
-            telegramId: ctx.from?.id,
-            model: modelKey,
-            error:
-              modelError instanceof Error
-                ? modelError.message
-                : 'Unknown error',
-            errorStack: modelError instanceof Error ? modelError.stack : undefined,
-            errorDetails: modelError,
-          }
-        )
+        const errorMsg = modelError instanceof Error ? modelError.message : 'Unknown error'
+        const isContentModeration =
+          errorMsg.toLowerCase().includes('e005') ||
+          errorMsg.toLowerCase().includes('flagged as sensitive') ||
+          errorMsg.toLowerCase().includes('nsfw') ||
+          errorMsg.toLowerCase().includes('safety')
 
-        // 🚨 CRITICAL: Show error to user for debugging
-        if (modelKey === 'flux_multi_kontext') {
-          await ctx.reply(
-            `🚨 DEBUG: FLUX Multi-Kontext failed!\n\nError: ${modelError instanceof Error ? modelError.message : 'Unknown error'}\n\nStack: ${modelError instanceof Error ? modelError.stack?.substring(0, 500) : 'N/A'}`,
-            { parse_mode: 'Markdown' }
-          ).catch(() => {})
+        // ✅ Content moderation errors are WARN (expected behavior), not ERROR
+        if (isContentModeration) {
+          logger.warn(
+            `⚠️ AI Photoshop: Content moderation blocked ${modelKey} - trying next model`,
+            {
+              telegramId: ctx.from?.id,
+              model: modelKey,
+              reason: 'CONTENT_MODERATION',
+            }
+          )
+        } else {
+          // Real errors logged as ERROR
+          logger.error(
+            `❌ AI Photoshop: Error processing with model ${modelKey}`,
+            {
+              telegramId: ctx.from?.id,
+              model: modelKey,
+              error: errorMsg,
+              errorStack: modelError instanceof Error ? modelError.stack : undefined,
+            }
+          )
         }
 
-        // Log error but don't spam user with individual error messages (except FLUX for debugging)
+        // Log error but don't spam user with individual error messages - failover will handle it
       }
     }
 
@@ -3092,6 +3348,38 @@ const processAiPhotoshopRequest = async (
         })
         break
 
+      case 'nano_banana_pro': {
+        // ✅ Nano Banana Pro - Gemini 3 Pro, text rendering, up to 14 images, 4K
+        const nanoBananaProSize = ctx.session?.aiPhotoshopSize || '1K'
+        result = await generateNanoBananaProReplicate({
+          telegram_id: ctx.from.id.toString(),
+          promptText: finalPrompt,
+          inputImageUrl: actualImageUrls,
+          ctx,
+          username: ctx.from.username || 'unknown',
+          is_ru: isRu,
+          resolution: (nanoBananaProSize as '1K' | '2K' | '4K') || '1K',
+          aspectRatio: ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[nanoBananaProSize] || '9:16',
+        })
+        break
+      }
+
+      case 'seedream_45': {
+        // ✅ Seedream 4.5 - ByteDance, superior aesthetics, spatial understanding, up to 14 images, 4K
+        const seedream45Size = ctx.session?.aiPhotoshopSize || '2K'
+        result = await generateSeedream45Replicate({
+          telegram_id: ctx.from.id.toString(),
+          promptText: finalPrompt,
+          inputImageUrl: actualImageUrls,
+          ctx,
+          username: ctx.from.username || 'unknown',
+          is_ru: isRu,
+          size: (seedream45Size as '2K' | '4K') || '2K',
+          aspectRatio: ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[seedream45Size] || '9:16',
+        })
+        break
+      }
+
       case 'flux_multi_kontext':
         // ✅ FLUX Multi-Kontext Pro - поддержка 2 изображений
         if (actualImageUrls.length < 2) {
@@ -3100,7 +3388,7 @@ const processAiPhotoshopRequest = async (
               ? '⚠️ FLUX Multi-Kontext требует 2 изображения. Пожалуйста, загрузите второе изображение.'
               : '⚠️ FLUX Multi-Kontext requires 2 images. Please upload a second image.',
             Markup.keyboard([
-              [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+              [getMainMenuText(isRu)],
             ]).resize()
           )
           return
@@ -3133,7 +3421,7 @@ const processAiPhotoshopRequest = async (
           is_ru: isRu,
           ctx,
           aspect_ratio:
-            AI_PHOTOSHOP_PRICING.sizeToAspectRatio[qwenSelectedSize] || '1:1',
+            ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[qwenSelectedSize] || '1:1',
           output_format: 'webp',
           output_quality: 90,
         })
@@ -3158,7 +3446,7 @@ const processAiPhotoshopRequest = async (
           ctx,
           size: fluxProSize,
           aspect_ratio:
-            AI_PHOTOSHOP_PRICING.sizeToAspectRatio[fluxProSize] || '9:16',
+            ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[fluxProSize] || '9:16',
         })
         break
 
@@ -3461,7 +3749,7 @@ const processSingleAiPhotoshopModel = async (
           ctx,
           size: ctx.session?.aiPhotoshopSize || '1K',
           max_images: maxImages, // ✅ USE CORRECT max_images based on input count
-          aspect_ratio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[ctx.session?.aiPhotoshopSize || '1K'] || '9:16', // ✅ ИСПРАВЛЕНО: теперь использует size-based aspect ratio
+          aspect_ratio: ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[ctx.session?.aiPhotoshopSize || '1K'] || '9:16',
         })
 
         // ✅ Save result to session for later sending
@@ -3480,7 +3768,7 @@ const processSingleAiPhotoshopModel = async (
 
         // ✅ Get aspect_ratio from centralized config
         const selectedSize = ctx.session?.aiPhotoshopSize || '2K'
-        const aspectRatio = AI_PHOTOSHOP_PRICING.sizeToAspectRatio[selectedSize] || '9:16'
+        const aspectRatio = ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[selectedSize] || '9:16'
 
         // ✅ Nano Banana controls aspect ratio through PROMPT, not API parameter
         const promptWithAspectRatio = `[${aspectRatio} aspect ratio] ${prompt}`
@@ -3540,7 +3828,7 @@ const processSingleAiPhotoshopModel = async (
           is_ru: isRu,
           ctx,
           silent: true, // Не отправлять статус сообщения в ALL_MODELS режиме
-          aspect_ratio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[ctx.session?.aiPhotoshopSize || '1K'] || '9:16', // ✅ Централизованный aspect_ratio
+          aspect_ratio: ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[ctx.session?.aiPhotoshopSize || '1K'] || '9:16',
         })
 
         logger.info('✅✅✅ FLUX MULTI-KONTEXT COMPLETED!', {
@@ -3568,7 +3856,7 @@ const processSingleAiPhotoshopModel = async (
           username: ctx.from?.username || 'unknown',
           is_ru: isRu,
           ctx,
-          aspect_ratio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[selectedSize] || '1:1',
+          aspect_ratio: ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[selectedSize] || '1:1',
           output_format: 'jpg',
           output_quality: 90,
         })
@@ -3661,14 +3949,14 @@ const processSingleAiPhotoshopModel = async (
                 is_ru: isRu,
                 ctx,
                 size: fluxProSize,
-                aspect_ratio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[fluxProSize] || '9:16',
+                aspect_ratio: ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[fluxProSize] || '9:16',
                 silent: true, // ✅ Don't send photo in ALL_MODELS mode
                 skipBalanceCheck: true, // ✅ Balance already checked before loop
               })
             } else if (modelKey === 'seededit_3') {
               const seedEdit3Size = ctx.session?.aiPhotoshopSize || '2K'
               // ✅ Get centralized aspect ratio
-              const targetAspectRatio = AI_PHOTOSHOP_PRICING.sizeToAspectRatio[seedEdit3Size] || '9:16'
+              const targetAspectRatio = ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[seedEdit3Size] || '9:16'
               // ✅ Add aspect ratio instruction to prompt for SeedEdit 3.0
               const seedEdit3Prompt = targetAspectRatio === '9:16'
                 ? `${prompt}. Adjust image to vertical 9:16 portrait format, maintaining subject composition.`
@@ -3688,7 +3976,7 @@ const processSingleAiPhotoshopModel = async (
             } else if (modelKey === 'qwen_image_edit') {
               const qwenImageEditSize = ctx.session?.aiPhotoshopSize || '2K'
               // ✅ Get centralized aspect ratio
-              const targetAspectRatio = AI_PHOTOSHOP_PRICING.sizeToAspectRatio[qwenImageEditSize] || '9:16'
+              const targetAspectRatio = ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[qwenImageEditSize] || '9:16'
               // ✅ Add aspect ratio instruction to prompt for Qwen Image Edit
               const qwenImageEditPrompt = targetAspectRatio === '9:16'
                 ? `${prompt}. Convert to 9:16 vertical portrait aspect ratio format.`
@@ -3795,7 +4083,7 @@ const processSingleAiPhotoshopModel = async (
             username: ctx.from?.username || 'unknown',
             is_ru: isRu,
             ctx,
-            aspect_ratio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[selectedSize] || '1:1',
+            aspect_ratio: ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[selectedSize] || '1:1',
             output_format: 'jpg',
             output_quality: 90,
           })
@@ -3810,7 +4098,7 @@ const processSingleAiPhotoshopModel = async (
             is_ru: isRu,
             ctx,
             size: fluxProSize,
-            aspect_ratio: AI_PHOTOSHOP_PRICING.sizeToAspectRatio[fluxProSize] || '9:16',
+            aspect_ratio: ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[fluxProSize] || '9:16',
           })
         } else if (modelKey === 'seededit_3') {
           // 🎯 SeedEdit 3.0 - process EACH image separately, 4K support, detail preservation
@@ -3912,11 +4200,28 @@ const processSingleAiPhotoshopModel = async (
       ctx.session.aiPhotoshopModel = originalModel
     }
   } catch (error) {
-    logger.error(`Error in processSingleAiPhotoshopModel for ${modelKey}`, {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      telegramId: ctx.from?.id,
-      model: modelKey,
-    })
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+    const isContentModeration =
+      errorMsg.toLowerCase().includes('e005') ||
+      errorMsg.toLowerCase().includes('flagged as sensitive') ||
+      errorMsg.toLowerCase().includes('nsfw') ||
+      errorMsg.toLowerCase().includes('safety')
+
+    // ✅ Content moderation = WARN (expected behavior when user content is flagged)
+    if (isContentModeration) {
+      logger.warn(`⚠️ Content moderation in processSingleAiPhotoshopModel for ${modelKey}`, {
+        telegramId: ctx.from?.id,
+        model: modelKey,
+        reason: 'CONTENT_MODERATION',
+      })
+    } else {
+      // Real errors = ERROR
+      logger.error(`Error in processSingleAiPhotoshopModel for ${modelKey}`, {
+        error: errorMsg,
+        telegramId: ctx.from?.id,
+        model: modelKey,
+      })
+    }
 
     // Don't send error messages to user in multi-model processing - they're handled upstream
   }
@@ -4013,7 +4318,8 @@ aiPhotoshopScene.action('ai_photoshop_cancel', async ctx => {
     )
 
     await ctx.scene.leave()
-    await ctx.scene.enter('main_menu')
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error handling AI Photoshop cancel', {
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -4901,7 +5207,8 @@ aiPhotoshopScene.action('ai_photoshop_exit_to_menu', async ctx => {
     }
 
     await ctx.scene.leave()
-    await ctx.scene.enter('main_menu')
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error in exit to menu handler', { error })
     // Fallback: force leave scene
@@ -4919,7 +5226,8 @@ aiPhotoshopScene.command('menu', async ctx => {
     )
 
     await ctx.scene.leave()
-    await ctx.scene.enter('main_menu')
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error in menu command handler', { error })
     await ctx.scene.leave()
@@ -4937,7 +5245,7 @@ aiPhotoshopScene.command('start', async ctx => {
     )
 
     await ctx.scene.leave()
-    await ctx.scene.enter('start_scene')
+    await ctx.scene.enter(ModeEnum.StartScene)
   } catch (error) {
     logger.error('Error in start command handler', { error })
     await ctx.scene.leave()

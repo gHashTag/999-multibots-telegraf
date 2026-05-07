@@ -1,0 +1,35 @@
+[package]
+name = "trios-mb-app"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "BRONZE-RING-APP — Main binary, wires all rings together"
+
+[[bin]]
+name = "trios-mb"
+path = "src/main.rs"
+
+[dependencies]
+trios-mb-types = { workspace = true }
+trios-mb-traits = { workspace = true }
+trios-mb-db = { workspace = true }
+trios-mb-secrets = { workspace = true }
+trios-mb-ai = { workspace = true }
+trios-mb-payment = { workspace = true }
+trios-mb-i18n = { workspace = true }
+trios-mb-jobs = { workspace = true }
+trios-mb-tg = { workspace = true }
+trios-mb-scenes = { workspace = true }
+trios-mb-server = { workspace = true }
+teloxide = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+anyhow = { workspace = true }
+dotenvy = "0.15"
+tokio-util = { version = "0.7", features = ["rt"] }

@@ -5,8 +5,10 @@
  */
 
 import { MyContext } from '@/interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from './LanguageManager'
+import { telegramLogService } from '@/services/telegram-log.service'
 
 export enum ErrorType {
   VALIDATION = 'validation',
@@ -138,7 +140,9 @@ export class ErrorHandler {
       if (ctx.scene.current) {
         await ctx.scene.leave()
       }
-      await ctx.scene.enter('main_menu')
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
     } catch (fallbackError) {
       logger.error('Failed to return to main menu after scene transition error', {
         fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
@@ -299,7 +303,7 @@ export class ErrorHandler {
             en: '💳 Subscription issues. Please check your subscription status.',
           },
           fallback: async (ctx) => {
-            await ctx.scene.enter('subscription_scene')
+            await ctx.scene.enter(ModeEnum.SubscriptionScene)
           },
         }
 
@@ -316,7 +320,9 @@ export class ErrorHandler {
             if (ctx.scene.current) {
               await ctx.scene.leave()
             }
-            await ctx.scene.enter('main_menu')
+            await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
           },
         }
 
@@ -403,13 +409,20 @@ export class ErrorHandler {
     errorId: string
   ): Promise<void> {
     try {
-      // Здесь можно добавить отправку уведомлений администраторам
-      // Например, через отдельного бота или email
-      logger.warn('Admin notification needed', {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+
+      // Отправляем в группу НейроМентор
+      await telegramLogService.logError({
+        telegramId: context.telegramId,
+        username: context.username,
+        error: errorMessage,
+        context: `[${errorType.toUpperCase()}] ${context.action || context.sceneId || 'unknown'}`,
+      })
+
+      logger.info('Admin notification sent to НейроМентор', {
         errorId,
         errorType,
         context,
-        errorMessage: error instanceof Error ? error.message : String(error),
       })
     } catch (notificationError) {
       logger.error('Failed to notify admin', {

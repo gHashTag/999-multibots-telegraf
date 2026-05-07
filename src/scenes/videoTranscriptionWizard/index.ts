@@ -2,15 +2,12 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussian } from '@/helpers/language'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
-import { createHelpCancelKeyboard } from '@/menu'
-import { sendGenericErrorMessage } from '@/menu'
+import { handleHelpCancel, createHelpCancelKeyboard, sendGenericErrorMessage, getMainMenuText } from '@/navigation'
 import { logger } from '@/utils/logger'
 import {
   transcribeInstagramReel,
   transcribeVideoFromDirectUrl,
 } from '@/services/videoTranscription'
-import { levels } from '@/menu/simpleMenu'
 import path from 'path'
 import fs from 'fs'
 import { updateUserBalance, getUserBalance } from '@/core/supabase'
@@ -94,6 +91,43 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
+    // ✅ ИСПРАВЛЕНО: Проверяем и списываем баланс ДО транскрипции
+    const costInStars = 3 // Стоимость транскрипции
+    const currentBalance = await getUserBalance(ctx.from.id.toString())
+
+    if (currentBalance < costInStars) {
+      await ctx.reply(
+        isRu
+          ? `❌ Недостаточно средств для транскрибации.\n\n💰 Нужно: ${costInStars} ⭐\n💳 Ваш баланс: ${currentBalance.toFixed(2)} ⭐\n\nПополните баланс и попробуйте снова.`
+          : `❌ Insufficient funds for transcription.\n\n💰 Required: ${costInStars} ⭐\n💳 Your balance: ${currentBalance.toFixed(2)} ⭐\n\nTop up your balance and try again.`
+      )
+      return ctx.scene.leave()
+    }
+
+    // Списываем баланс ДО выполнения услуги
+    const paymentSuccess = await updateUserBalance(
+      ctx.from.id.toString(),
+      costInStars,
+      PaymentType.MONEY_OUTCOME,
+      'Транскрибация видео',
+      {
+        service_type: 'VIDEO_TRANSCRIPTION',
+        isFromUrl,
+        videoUrl: isFromUrl ? videoUrl : undefined,
+      }
+    )
+
+    if (!paymentSuccess) {
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка при списании средств. Попробуйте позже.'
+          : '❌ Payment processing error. Please try again later.'
+      )
+      return ctx.scene.leave()
+    }
+
+    const newBalance = await getUserBalance(ctx.from.id.toString())
+
     try {
       // Показываем статус обработки
       await ctx.reply(
@@ -139,55 +173,12 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
         }
       )
 
-      // ✅ СПИСЫВАЕМ стоимость транскрипции (ОБНОВЛЕНО НА updateUserBalance)
-      try {
-        const costInStars = 3 // Стоимость транскрипции
-        const charged = await updateUserBalance(
-          ctx.from.id.toString(),
-          costInStars,
-          PaymentType.MONEY_OUTCOME,
-          'Транскрибация видео',
-          {
-            service_type: 'VIDEO_TRANSCRIPTION',
-            isFromUrl,
-            videoUrl: isFromUrl ? videoUrl : undefined,
-            textLength: transcriptionResult.text.length,
-          }
-        )
-
-        if (charged) {
-          const newBalance = await getUserBalance(ctx.from.id.toString())
-
-          logger.info('✅ [VideoTranscription] Payment processed successfully', {
-            telegramId: ctx.from.id,
-            cost: costInStars,
-            newBalance,
-          })
-
-          // Отправляем сообщение о стоимости и балансе
-          await ctx.reply(
-            isRu
-              ? `💰 Стоимость: ${costInStars} ⭐\nВаш баланс: ${newBalance.toFixed(2)} ⭐`
-              : `💰 Cost: ${costInStars} ⭐\nYour balance: ${newBalance.toFixed(2)} ⭐`
-          )
-        } else {
-          logger.error('❌ [VideoTranscription] Payment processing failed - insufficient funds', {
-            telegramId: ctx.from.id,
-            cost: costInStars,
-          })
-
-          await ctx.reply(
-            isRu
-              ? '❌ Недостаточно средств для транскрибации видео.'
-              : '❌ Insufficient funds for video transcription.'
-          )
-        }
-      } catch (paymentError) {
-        logger.error('❌ [VideoTranscription] Error processing payment', {
-          telegramId: ctx.from.id,
-          error: paymentError instanceof Error ? paymentError.message : String(paymentError),
-        })
-      }
+      // ✅ Оплата уже списана ДО транскрипции - показываем результат
+      await ctx.reply(
+        isRu
+          ? `💰 Списано: ${costInStars} ⭐\nВаш баланс: ${newBalance.toFixed(2)} ⭐`
+          : `💰 Charged: ${costInStars} ⭐\nYour balance: ${newBalance.toFixed(2)} ⭐`
+      )
 
       // Отправляем результат
       const caption = isRu
@@ -295,9 +286,10 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
 
           // Обрезаем текст если он слишком длинный для Markdown
           const maxTextLength = 3500
-          const displayText = transcriptionResult.text.length > maxTextLength 
-            ? transcriptionResult.text.substring(0, maxTextLength) + '...'
-            : transcriptionResult.text
+          const displayText =
+            transcriptionResult.text.length > maxTextLength
+              ? transcriptionResult.text.substring(0, maxTextLength) + '...'
+              : transcriptionResult.text
 
           await ctx.reply(
             isRu
@@ -335,9 +327,10 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
 
         // Отправляем красиво отформатированный текст для копирования
         const maxTextLength = 3500
-        const displayText = transcriptionResult.text.length > maxTextLength 
-          ? transcriptionResult.text.substring(0, maxTextLength) + '...'
-          : transcriptionResult.text
+        const displayText =
+          transcriptionResult.text.length > maxTextLength
+            ? transcriptionResult.text.substring(0, maxTextLength) + '...'
+            : transcriptionResult.text
 
         await ctx.reply(
           isRu
@@ -357,7 +350,7 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
           [Markup.button.text(isRu ? '📺 Еще одно видео' : '📺 Another video')],
           [
             Markup.button.text(
-              isRu ? levels[104].title_ru : levels[104].title_en
+              getMainMenuText(isRu)
             ),
           ], // Главное меню
         ]).resize()
@@ -393,6 +386,39 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
         error: error.message,
         stack: error.stack,
       })
+
+      // ✅ РЕФАНД: Возвращаем деньги при ошибке транскрипции
+      try {
+        const refundSuccess = await updateUserBalance(
+          ctx.from.id.toString(),
+          costInStars,
+          PaymentType.MONEY_INCOME, // Возврат как пополнение
+          'Возврат за неудачную транскрибацию',
+          {
+            service_type: 'VIDEO_TRANSCRIPTION_REFUND',
+            reason: error.message,
+          }
+        )
+
+        if (refundSuccess) {
+          logger.info('✅ [VideoTranscription] Refund processed successfully', {
+            telegramId: ctx.from.id,
+            refundAmount: costInStars,
+          })
+
+          await ctx.reply(
+            isRu
+              ? `💫 Средства возвращены: ${costInStars} ⭐`
+              : `💫 Refunded: ${costInStars} ⭐`
+          )
+        }
+      } catch (refundError) {
+        logger.error('❌ [VideoTranscription] CRITICAL: Refund failed!', {
+          telegramId: ctx.from.id,
+          refundAmount: costInStars,
+          error: refundError instanceof Error ? refundError.message : String(refundError),
+        })
+      }
 
       // Определяем тип ошибки для более информативного сообщения
       let errorMessage = ''

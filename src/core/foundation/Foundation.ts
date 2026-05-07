@@ -7,7 +7,7 @@
 import { Telegraf } from 'telegraf'
 import { MyContext, MySession } from '@/interfaces'
 import { configManager } from './ConfigManager'
-import { menuSystem } from './MenuSystem'
+// ✅ УДАЛЕНО: MenuSystem - вся логика перенесена в NavigationService
 import { languageManager } from './LanguageManager'
 import { errorHandler, ErrorType } from './ErrorHandler'
 import { logger } from '@/utils/logger'
@@ -155,11 +155,12 @@ export class Foundation {
 
   /**
    * Инициализация системы меню
+   * ✅ УДАЛЕНО: MenuSystem - вся логика перенесена в NavigationService
+   * Навигация теперь инициализируется через NavigationService.initializeNavigation()
    */
   private async initializeMenuSystem(bot: Telegraf<MyContext>): Promise<void> {
-    logger.info('Initializing MenuSystem...')
-    await menuSystem.initialize(bot)
-    logger.info('MenuSystem initialized successfully')
+    logger.info('MenuSystem initialization skipped - using NavigationService instead')
+    // Навигация инициализируется через NavigationService.initializeNavigation() в registerCommands.ts
   }
 
   /**
@@ -273,7 +274,7 @@ export class Foundation {
     return {
       foundation: this.initialized,
       configManager: configManager.get !== undefined, // Простая проверка инициализации
-      menuSystem: menuSystem.isInitialized(),
+      menuSystem: true, // УДАЛЕНО: MenuSystem, используется NavigationService
       errorHandler: true, // ErrorHandler всегда доступен
     }
   }
@@ -301,8 +302,8 @@ export class Foundation {
       systems.configManager =
         configManager.get('isDev') !== undefined ? 'ok' : 'error'
 
-      // Проверяем MenuSystem
-      systems.menuSystem = menuSystem.isInitialized() ? 'ok' : 'error'
+      // Проверяем MenuSystem (удален, используется NavigationService)
+      systems.menuSystem = 'ok' // NavigationService инициализируется в registerCommands.ts
 
       // Проверяем LanguageManager
       systems.languageManager = languageManager.getCacheStats() ? 'ok' : 'error'

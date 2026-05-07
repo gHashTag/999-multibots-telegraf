@@ -2,8 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { updateUserSoul } from '../../core/supabase'
 import { isRussianFromState } from '../../helpers/centralizedLanguage'
-import { handleHelpCancel } from '../../handlers/handleHelpCancel'
-import { createHelpCancelKeyboard } from '../../menu'
+import { handleHelpCancel, createHelpCancelKeyboard, getMainMenuText } from '@/navigation'
 import {
   getUserByTelegramId,
   updateUserLevelPlusOne,
@@ -185,7 +184,7 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
           : '❌ Missing required data. Please start over.',
         {
           reply_markup: Markup.keyboard([
-            [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')],
+            [Markup.button.text(getMainMenuText(isRu))],
           ]).resize(),
         }
       )
@@ -215,7 +214,7 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
         {
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([
-            [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')],
+            [Markup.button.text(getMainMenuText(isRu))],
           ]).resize(),
         }
       )
@@ -225,7 +224,10 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
 
       // Завершаем сцену и переходим в главное меню
       await ctx.scene.leave()
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     } catch (error) {
       logger.error('[avatarBrainWizard] Error saving data:', error)
 
@@ -235,7 +237,7 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
           : '❌ Error saving data. Please use /menu command',
         {
           reply_markup: Markup.keyboard([
-            [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')],
+            [Markup.button.text(getMainMenuText(isRu))],
           ]).resize(),
         }
       )

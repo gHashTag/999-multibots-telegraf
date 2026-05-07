@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { SECRET_API_KEY, PUBLIC_URL } from '@/config'
 import { MyContext } from '@/interfaces'
-import { sendGenericErrorMessage } from '@/menu'
+import { sendGenericErrorMessage } from '@/navigation'
 
 interface VoiceAvatarResponse {
   success: boolean

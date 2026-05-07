@@ -15,7 +15,7 @@ logger.debug(`--- End Bot Logic Check ---`)
 
 import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update, BotCommand } from 'telegraf/types'
-import { registerCommands } from './registerCommands'
+import { registerCommands, createStage } from './navigation'
 import { MyContext } from './interfaces'
 import { session } from 'telegraf'
 import {
@@ -86,7 +86,7 @@ export async function isPortInUse(port: number): Promise<boolean> {
 
 // Добавляю логи перед инициализацией ботов
 async function initializeBots() {
-  const { stage } = await import('./registerCommands')
+  const stage = createStage()
 
   if (isDev) {
     // В режиме разработки запускаем бота, указанного в TEST_BOT_NAME
@@ -178,10 +178,15 @@ async function initializeBots() {
         await bot.telegram.deleteWebhook({ drop_pending_updates: true })
         logger.debug('✅ [WEBHOOK] Вебхук удалён, переходим к polling')
       } else {
-        logger.debug('🟢 [WEBHOOK] Активного вебхука нет, можно запускать polling')
+        logger.debug(
+          '🟢 [WEBHOOK] Активного вебхука нет, можно запускать polling'
+        )
       }
     } catch (error) {
-      logger.warn('⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:', String(error))
+      logger.warn(
+        '⚠️ [WEBHOOK] Не удалось получить/удалить вебхук:',
+        String(error)
+      )
     }
 
     // В режиме разработки используем polling

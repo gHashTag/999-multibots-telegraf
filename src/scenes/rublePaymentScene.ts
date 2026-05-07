@@ -3,16 +3,14 @@ import { MyContext, SessionData, SelectedPayment } from '@/interfaces'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleSelectRubAmount } from '@/handlers'
-import {
-  rubTopUpOptions,
-  getDynamicRubTopUpOptions,
-} from '@/price/helpers/rubTopUpOptions'
+import { rubTopUpOptions } from '@/price/helpers/rubTopUpOptions'
 import { getInvoiceId } from '@/scenes/getRuBillWizard/helper'
-import { MERCHANT_LOGIN, ROBOKASSA_PASSWORD_1 } from '@/config'
+import { getMerchantLogin, getRobokassaPassword1 } from '@/config'
 import { setPayments } from '@/core/supabase'
 import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
 import { ModeEnum } from '@/interfaces/modes'
+import { getMainMenuText } from '@/navigation'
 
 import {
   PaymentStatus,
@@ -31,11 +29,14 @@ rublePaymentScene.enter(async ctx => {
   const isRu = isRussianFromState(ctx)
   const userId = ctx.from?.id
 
-  logger.info('### rublePaymentScene ENTERED ###', {
+  logger.info('🔍 [PAYMENT DEBUG] ### rublePaymentScene ENTERED ###', {
     scene: ModeEnum.RublePaymentScene,
     step: 'enter',
     telegram_id: userId,
     sceneState: ctx.scene.state,
+    hasPaymentInfo: !!paymentInfo,
+    paymentInfoType: paymentInfo?.type,
+    paymentInfoSubscription: paymentInfo?.subscription,
   })
 
   if (!userId) {
@@ -99,16 +100,83 @@ rublePaymentScene.enter(async ctx => {
           amount: amountRub,
           subscription: subscriptionType,
           invId: invId,
+          hasMerchantLogin: !!getMerchantLogin(),
+          hasPassword: !!getRobokassaPassword1(),
         }
       )
 
-      const invoiceURL = await getInvoiceId(
-        MERCHANT_LOGIN,
+      // ✅ КРИТИЧЕСКАЯ ПРОВЕРКА: Проверяем наличие всех параметров перед вызовом
+      const merchantLogin = getMerchantLogin()
+      if (!merchantLogin || merchantLogin.trim() === '') {
+        logger.error(
+          `❌ [${ModeEnum.RublePaymentScene}] MERCHANT_LOGIN is missing for subscription!`,
+          {
+            telegram_id: userId,
+            subscription: subscriptionType,
+          }
+        )
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка конфигурации: не настроен MERCHANT_LOGIN. Обратитесь в поддержку.'
+            : '❌ Configuration error: MERCHANT_LOGIN not set. Please contact support.'
+        )
+        return ctx.scene.leave()
+      }
+
+      const password1 = getRobokassaPassword1()
+      if (!password1 || password1.trim() === '') {
+        logger.error(
+          `❌ [${ModeEnum.RublePaymentScene}] ROBOKASSA_PASSWORD_1 is missing for subscription!`,
+          {
+            telegram_id: userId,
+            subscription: subscriptionType,
+          }
+        )
+        await ctx.reply(
+          isRu
+            ? '❌ Ошибка конфигурации: не настроен ROBOKASSA_PASSWORD_1. Обратитесь в поддержку.'
+            : '❌ Configuration error: ROBOKASSA_PASSWORD_1 not set. Please contact support.'
+        )
+        return ctx.scene.leave()
+      }
+
+      let invoiceURL: string
+      try {
+        invoiceURL = await getInvoiceId(
+          merchantLogin,
         amountRub,
         invId,
         description,
-        ROBOKASSA_PASSWORD_1
+        password1
       )
+        logger.info(
+          `✅ [${ModeEnum.RublePaymentScene}] Subscription invoice URL generated successfully`,
+          {
+            telegram_id: userId,
+            subscription: subscriptionType,
+            invId,
+            urlLength: invoiceURL.length,
+          }
+        )
+      } catch (error: any) {
+        logger.error(
+          `❌ [${ModeEnum.RublePaymentScene}] Failed to generate subscription invoice URL:`,
+          {
+            error: error.message,
+            stack: error.stack,
+            telegram_id: userId,
+            subscription: subscriptionType,
+            amount: amountRub,
+            invId,
+          }
+        )
+        await ctx.reply(
+          isRu
+            ? '❌ Произошла ошибка при создании счета на подписку. Проверьте конфигурацию Робокассы.'
+            : '❌ An error occurred while creating the subscription invoice. Please check Robokassa configuration.'
+        )
+        return ctx.scene.leave()
+      }
 
       const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
@@ -197,10 +265,49 @@ rublePaymentScene.enter(async ctx => {
       return ctx.scene.leave()
     }
   } else {
-    logger.info(`[${ModeEnum.RublePaymentScene}] Entered for BALANCE top-up`, {
-      telegram_id: userId,
-    })
-    await handleSelectRubAmount({ ctx, isRu })
+    // ### ОПТИМИЗАЦИЯ ПРОИЗВОДИТЕЛЬНОСТИ ###
+    // Старый вызов `handleSelectRubAmount` делал медленный API-запрос, блокируя пользователя.
+    // Новая логика:
+    // 1. Немедленно показываем кнопки с вариантами, рассчитанными по статическому курсу.
+    // 2. В ФОНОВОМ режиме запускаем обновление курса валют для следующих операций.
+    // Это обеспечивает мгновенный отклик интерфейса.
+
+    logger.info(
+      `[${ModeEnum.RublePaymentScene}] Entered for BALANCE top-up. Showing instant options.`,
+      {
+        telegram_id: userId,
+      }
+    )
+
+    try {
+      // Немедленно отправляем сообщение с кнопками
+      await ctx.reply(
+        isRu
+          ? 'Выберите сумму для пополнения баланса:'
+          : 'Select the amount to top up your balance:',
+        Markup.inlineKeyboard(
+          rubTopUpOptions.map(option =>
+            Markup.button.callback(
+              `${option.stars} ⭐️ за ${option.amountRub} ₽`,
+              `top_up_rub_${option.amountRub}`
+            )
+          ),
+          { columns: 1 }
+        )
+      )
+
+    } catch (error: any) {
+      logger.error(`❌ [${ModeEnum.RublePaymentScene}] Error showing instant top-up options:`, {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        telegram_id: userId,
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при загрузке вариантов пополнения. Попробуйте позже.'
+          : '❌ An error occurred while loading top-up options. Please try again later.'
+      )
+    }
   }
 })
 
@@ -233,9 +340,8 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
       }
     )
 
-    // Получаем актуальные пакеты с динамическим курсом
-    const dynamicOptions = await getDynamicRubTopUpOptions()
-    let selectedOption = dynamicOptions.find(o => o.amountRub === amountRub)
+    // ✅ УПРОЩЕНИЕ: Всегда ищем опцию в статическом списке. Никаких динамических расчетов.
+    let selectedOption = rubTopUpOptions.find(o => o.amountRub === amountRub)
 
     // Если это админский тест на 1 рубль, создаем специальный объект
     if (!selectedOption && amountRub === 1) {
@@ -307,16 +413,81 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
         stars: stars,
         invId: invId,
         isAdminTest: amountRub === 1,
+        hasMerchantLogin: !!getMerchantLogin(),
+        hasPassword: !!getRobokassaPassword1(),
       }
     )
 
-    const invoiceURL = await getInvoiceId(
-      MERCHANT_LOGIN,
+    // ✅ КРИТИЧЕСКАЯ ПРОВЕРКА: Проверяем наличие всех параметров перед вызовом
+    const merchantLogin = getMerchantLogin()
+    if (!merchantLogin || merchantLogin.trim() === '') {
+      logger.error(
+        `❌ [${ModeEnum.RublePaymentScene}] MERCHANT_LOGIN is missing or empty!`,
+        {
+          telegram_id: userId,
+          amount: amountRub,
+        }
+      )
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка конфигурации: не настроен MERCHANT_LOGIN. Обратитесь в поддержку.'
+          : '❌ Configuration error: MERCHANT_LOGIN not set. Please contact support.'
+      )
+      return ctx.scene.leave()
+    }
+
+    const password1 = getRobokassaPassword1()
+    if (!password1 || password1.trim() === '') {
+      logger.error(
+        `❌ [${ModeEnum.RublePaymentScene}] ROBOKASSA_PASSWORD_1 is missing or empty!`,
+        {
+          telegram_id: userId,
+          amount: amountRub,
+        }
+      )
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка конфигурации: не настроен ROBOKASSA_PASSWORD_1. Обратитесь в поддержку.'
+          : '❌ Configuration error: ROBOKASSA_PASSWORD_1 not set. Please contact support.'
+      )
+      return ctx.scene.leave()
+    }
+
+    let invoiceURL: string
+    try {
+      invoiceURL = await getInvoiceId(
+        merchantLogin,
       amountRub,
       invId,
       description,
-      ROBOKASSA_PASSWORD_1
+      password1
     )
+      logger.info(
+        `✅ [${ModeEnum.RublePaymentScene}] Invoice URL generated successfully`,
+        {
+          telegram_id: userId,
+          invId,
+          urlLength: invoiceURL.length,
+        }
+      )
+    } catch (error: any) {
+      logger.error(
+        `❌ [${ModeEnum.RublePaymentScene}] Failed to generate invoice URL:`,
+        {
+          error: error.message,
+          stack: error.stack,
+          telegram_id: userId,
+          amount: amountRub,
+          invId,
+        }
+      )
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при создании счета. Проверьте конфигурацию Робокассы.'
+          : '❌ An error occurred while creating the invoice. Please check Robokassa configuration.'
+      )
+      return ctx.scene.leave()
+    }
 
     const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
@@ -380,6 +551,7 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
         amountRub === 1 ? ' [ADMIN TEST]' : ''
       }`
     )
+
   } catch (error: any) {
     logger.error(
       `❌ [${ModeEnum.RublePaymentScene}] Error processing callback top_up_rub:`,
@@ -447,13 +619,78 @@ rublePaymentScene.action(/test_subscription_1rub:(.+):(\d+)/, async ctx => {
       ? `Тест подписки ${subscriptionType} (Админ)`
       : `Test subscription ${subscriptionType} (Admin)`
 
-    const invoiceURL = await getInvoiceId(
-      MERCHANT_LOGIN,
+    // ✅ КРИТИЧЕСКАЯ ПРОВЕРКА: Проверяем наличие всех параметров перед вызовом
+    const merchantLogin = getMerchantLogin()
+    if (!merchantLogin || merchantLogin.trim() === '') {
+      logger.error(
+        `❌ [${ModeEnum.RublePaymentScene}] MERCHANT_LOGIN is missing for admin test!`,
+        {
+          telegram_id: userId,
+          subscription: subscriptionType,
+        }
+      )
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка конфигурации: не настроен MERCHANT_LOGIN. Обратитесь в поддержку.'
+          : '❌ Configuration error: MERCHANT_LOGIN not set. Please contact support.'
+      )
+      return
+    }
+
+    const password1 = getRobokassaPassword1()
+    if (!password1 || password1.trim() === '') {
+      logger.error(
+        `❌ [${ModeEnum.RublePaymentScene}] ROBOKASSA_PASSWORD_1 is missing for admin test!`,
+        {
+          telegram_id: userId,
+          subscription: subscriptionType,
+        }
+      )
+      await ctx.reply(
+        isRu
+          ? '❌ Ошибка конфигурации: не настроен ROBOKASSA_PASSWORD_1. Обратитесь в поддержку.'
+          : '❌ Configuration error: ROBOKASSA_PASSWORD_1 not set. Please contact support.'
+      )
+      return
+    }
+
+    let invoiceURL: string
+    try {
+      invoiceURL = await getInvoiceId(
+        merchantLogin,
       testAmount,
       invId,
       description,
-      ROBOKASSA_PASSWORD_1
+      password1
     )
+      logger.info(
+        `✅ [${ModeEnum.RublePaymentScene}] Admin test invoice URL generated successfully`,
+        {
+          telegram_id: userId,
+          subscription: subscriptionType,
+          invId,
+          urlLength: invoiceURL.length,
+        }
+      )
+    } catch (error: any) {
+      logger.error(
+        `❌ [${ModeEnum.RublePaymentScene}] Failed to generate admin test invoice URL:`,
+        {
+          error: error.message,
+          stack: error.stack,
+          telegram_id: userId,
+          subscription: subscriptionType,
+          testAmount,
+          invId,
+        }
+      )
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка при создании тестового счета. Проверьте конфигурацию Робокассы.'
+          : '❌ An error occurred while creating the test invoice. Please check Robokassa configuration.'
+      )
+      return
+    }
 
     const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
@@ -532,15 +769,33 @@ rublePaymentScene.action(/test_subscription_1rub:(.+):(\d+)/, async ctx => {
   }
 })
 
-// Выход из сцены
-rublePaymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
+// ✅ Переключение на оплату звездами (если пользователь передумал)
+rublePaymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
   logger.info(
-    `[${ModeEnum.RublePaymentScene}] Leaving scene via Main Menu button`,
+    `[${ModeEnum.RublePaymentScene}] User wants to switch to Stars payment`,
     {
       telegram_id: ctx.from?.id,
     }
   )
-  await ctx.scene.enter(ModeEnum.MainMenu)
+  await ctx.scene.enter(ModeEnum.StarPaymentScene)
+})
+
+// Выход из сцены
+rublePaymentScene.hears(/^🏠/, async ctx => {
+  const isRu = isRussianFromState(ctx)
+  const mainMenuText = getMainMenuText(isRu)
+
+  if (ctx.message && 'text' in ctx.message && ctx.message.text === mainMenuText) {
+    logger.info(
+      `[${ModeEnum.RublePaymentScene}] Leaving scene via Main Menu button`,
+      {
+        telegram_id: ctx.from?.id,
+      }
+    )
+    await ctx.scene.leave()
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
+  }
 })
 
 // Обработка любых других сообщений

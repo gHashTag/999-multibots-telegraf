@@ -14,13 +14,17 @@ import {
 } from '@/config/lipsync-models.config'
 
 /**
- * Провайдер для Fal.ai Veed Fabric 1.0 Fast модели
- * Более стабильная альтернатива для lip-sync генерации
+ * Провайдер для Fal.ai моделей lip-sync
+ * Поддерживает: Veed Fabric 1.0 Fast, LatentSync, Hummingbird-0
  */
 export class FalVeedFabricProvider implements ILipSyncProvider {
   readonly providerId = 'fal' as const
-  readonly providerName = 'Fal.ai Veed Fabric 1.0 Fast'
-  readonly supportedModels = ['fal-veed-fabric-1.0-fast']
+  readonly providerName = 'Fal.ai Lip-Sync'
+  readonly supportedModels = [
+    'fal-veed-fabric-1.0-fast',
+    'fal-ai/latentsync',
+    'fal-ai/tavus/hummingbird-lipsync/v0',
+  ]
 
   private config: {
     baseUrl: string
@@ -52,19 +56,17 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
 
   /**
    * Генерирует lip-sync видео через Fal.ai API
+   * Поддерживает: Veed Fabric, LatentSync, Hummingbird-0
    */
   async generate(
     input: UniversalLipSyncInput
   ): Promise<LipSyncOutput | LipSyncError> {
     try {
       // Проверяем, что это входные данные для Fal
-      if (
-        input.provider !== 'fal' ||
-        input.modelId !== 'fal-veed-fabric-1.0-fast'
-      ) {
+      if (input.provider !== 'fal' || !this.supportsModel(input.modelId)) {
         return {
-          message: 'Invalid input for Fal Veed Fabric provider',
-          error: `Expected provider: fal, modelId: fal-veed-fabric-1.0-fast`,
+          message: 'Invalid input for Fal.ai provider',
+          error: `Expected provider: fal, supported models: ${this.supportedModels.join(', ')}`,
           code: 'INVALID_INPUT',
           provider: 'fal',
           modelId: input.modelId,
@@ -81,55 +83,41 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
         }
       }
 
-      const falInput = input as FalVeedFabricInput
+      const falInput = input as FalLipSyncInput
 
-      logger.info('🎬 Запуск Fal.ai Veed Fabric 1.0 Fast генерации', {
+      logger.info('🎬 Запуск Fal.ai Lip-Sync генерации', {
         telegramId: falInput.telegramId,
         modelId: falInput.modelId,
+        videoUrl: falInput.videoUrl?.substring(0, 100) + '...',
         imageUrl: falInput.imageUrl?.substring(0, 100) + '...',
         audioUrl: falInput.audioUrl?.substring(0, 100) + '...',
         resolution: falInput.resolution,
       })
 
-      // Подготавливаем данные для Fal.ai API
-      const falApiData = {
-        image_url: falInput.imageUrl,
-        audio_url: falInput.audioUrl,
-        resolution: falInput.resolution || this.config.defaultResolution,
-      }
+      // Определяем какую модель использовать и подготавливаем данные
+      const { falModelEndpoint, falApiData, modelName } =
+        this.prepareModelInput(falInput)
 
-      console.log(
-        '🚨 [FAL PROVIDER] CRITICAL DEBUG: Отправка запроса к Fal.ai API',
-        {
-          telegramId: falInput.telegramId,
-          apiData: {
-            image_url: falApiData.image_url?.substring(0, 50) + '...',
-            audio_url: falApiData.audio_url?.substring(0, 50) + '...',
-            resolution: falApiData.resolution,
-          },
-          baseUrl: this.config.baseUrl,
-          timeout: this.config.timeout,
-          hasFalKey: !!process.env.FAL_KEY,
-        }
-      )
+      console.log('🚨 [FAL PROVIDER] CRITICAL DEBUG: Отправка запроса к Fal.ai API', {
+        telegramId: falInput.telegramId,
+        modelEndpoint: falModelEndpoint,
+        modelName,
+        apiData: {
+          video_url: falApiData.video_url?.substring(0, 50) + '...',
+          image_url: falApiData.image_url?.substring(0, 50) + '...',
+          audio_url: falApiData.audio_url?.substring(0, 50) + '...',
+        },
+        hasFalKey: !!process.env.FAL_KEY,
+      })
 
       logger.debug('📡 Отправка запроса к Fal.ai API', {
         telegramId: falInput.telegramId,
-        apiData: {
-          image_url: falApiData.image_url?.substring(0, 50) + '...',
-          audio_url: falApiData.audio_url?.substring(0, 50) + '...',
-          resolution: falApiData.resolution,
-        },
+        modelEndpoint: falModelEndpoint,
+        apiData: falApiData,
       })
 
-      console.log('🚨 [FAL PROVIDER] CRITICAL DEBUG: Вызываем fal.subscribe', {
-        telegramId: falInput.telegramId,
-        modelId: 'veed/fabric-1.0/fast',
-        inputData: falApiData,
-      })
-
-      // ✅ ИСПРАВЛЕНИЕ: Используем @fal-ai/client вместо axios
-      const result = await fal.subscribe('veed/fabric-1.0/fast', {
+      // Вызываем Fal.ai API
+      const result = await fal.subscribe(falModelEndpoint, {
         input: falApiData,
         logs: true,
         onQueueUpdate: update => {
@@ -139,25 +127,26 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
         },
       })
 
-      console.log(
-        '🚨 [FAL PROVIDER] CRITICAL DEBUG: Получен ответ от Fal.ai API',
-        {
-          telegramId: falInput.telegramId,
-          hasData: !!result.data,
-          hasRequestId: !!result.requestId,
-          dataKeys: Object.keys(result.data || {}),
-        }
-      )
+      console.log('🚨 [FAL PROVIDER] CRITICAL DEBUG: Получен ответ от Fal.ai API', {
+        telegramId: falInput.telegramId,
+        modelEndpoint: falModelEndpoint,
+        hasData: !!result.data,
+        hasRequestId: !!result.requestId,
+        dataKeys: Object.keys(result.data || {}),
+      })
 
       logger.info('✅ Получен ответ от Fal.ai API', {
         telegramId: falInput.telegramId,
+        modelEndpoint: falModelEndpoint,
         hasVideo: !!result.data?.video,
         videoUrl: result.data?.video?.url?.substring(0, 100) + '...',
         requestId: result.requestId,
       })
 
-      // Проверяем результат
-      if (!result.data?.video || !result.data.video.url) {
+      // Извлекаем URL видео (разные модели возвращают по-разному)
+      const videoUrl = this.extractVideoUrl(result.data, falInput.modelId)
+
+      if (!videoUrl) {
         return {
           message: 'No video generated by Fal.ai API',
           error: 'Missing video output in API response',
@@ -167,53 +156,52 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
         }
       }
 
-      const videoUrl = result.data.video.url
-
       // Сохраняем в Supabase
-      const uniqueId = `fal_veed_fabric_${Date.now()}_${falInput.telegramId}`
+      const modelPrefix = this.getModelPrefix(falInput.modelId)
+      const uniqueId = `${modelPrefix}_${Date.now()}_${falInput.telegramId}`
       await saveVideoUrlToSupabase(
         falInput.telegramId,
         uniqueId,
         videoUrl,
-        'fal_veed_fabric'
+        modelPrefix
       )
 
-      logger.info('✅ Fal.ai Veed Fabric видео успешно сгенерировано', {
+      logger.info(`✅ Fal.ai ${modelName} видео успешно сгенерировано`, {
         telegramId: falInput.telegramId,
         uniqueId,
+        modelName,
         videoUrl: videoUrl.substring(0, 100) + '...',
-        resolution: falApiData.resolution,
       })
 
-      // ✅ ИСПРАВЛЕНИЕ: Возвращаем результат в формате, ожидаемом асинхронным менеджером
       return {
         id: uniqueId,
         status: 'succeeded',
         output: videoUrl,
-        modelUsed: 'Fal.ai Veed Fabric 1.0 Fast',
-        costEstimate: this.calculateCostByResolution(falApiData.resolution),
+        modelUsed: modelName,
+        costEstimate: this.calculateModelCost(
+          falInput.modelId,
+          falInput.durationSeconds || 10,
+          falInput.resolution
+        ),
         metadata: {
-          resolution: falApiData.resolution,
+          resolution: falInput.resolution,
           contentType: result.data?.video?.content_type || 'video/mp4',
           provider: 'fal',
-          modelId: 'veed/fabric-1.0/fast',
+          modelId: falModelEndpoint,
         },
       }
     } catch (error: any) {
-      console.log(
-        '🚨 [FAL PROVIDER] CRITICAL DEBUG: Ошибка в Fal.ai провайдере',
-        {
-          telegramId: input.telegramId,
-          error: error.message,
-          errorName: error.name,
-          errorCode: error.code,
-          status: error.status,
-          body: error.body,
-          hasBody: !!error.body,
-        }
-      )
+      console.log('🚨 [FAL PROVIDER] CRITICAL DEBUG: Ошибка в Fal.ai провайдере', {
+        telegramId: input.telegramId,
+        error: error.message,
+        errorName: error.name,
+        errorCode: error.code,
+        status: error.status,
+        body: error.body,
+        hasBody: !!error.body,
+      })
 
-      logger.error('❌ Ошибка генерации Fal.ai Veed Fabric', {
+      logger.error('❌ Ошибка генерации Fal.ai Lip-Sync', {
         telegramId: input.telegramId,
         error: error.message,
         stack: error.stack,
@@ -224,7 +212,6 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
       })
 
       // Специальная обработка для ошибки баланса
-      // @fal-ai/client возвращает error.body.detail, а не error.response.data.detail
       if (
         error.status === 403 &&
         error.body?.detail?.includes('Exhausted balance')
@@ -252,12 +239,143 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
       }
 
       return {
-        message: 'Failed to generate video with Fal.ai Veed Fabric',
+        message: 'Failed to generate video with Fal.ai Lip-Sync',
         error: error.message,
         code: 'GENERATION_ERROR',
         provider: 'fal',
         modelId: input.modelId,
       }
+    }
+  }
+
+  /**
+   * Подготавливает входные данные для конкретной модели
+   */
+  private prepareModelInput(input: FalLipSyncInput): {
+    falModelEndpoint: string
+    falApiData: any
+    modelName: string
+  } {
+    switch (input.modelId) {
+      case 'fal-veed-fabric-1.0-fast':
+        return {
+          falModelEndpoint: 'veed/fabric-1.0/fast',
+          falApiData: {
+            image_url: input.imageUrl,
+            audio_url: input.audioUrl,
+            resolution: input.resolution || this.config.defaultResolution,
+          },
+          modelName: 'Fal.ai Veed Fabric 1.0 Fast',
+        }
+
+      case 'fal-ai/latentsync':
+        return {
+          falModelEndpoint: 'fal-ai/latentsync',
+          falApiData: {
+            video_url: input.videoUrl,
+            audio_url: input.audioUrl,
+            // LatentSync v1.5 параметры
+            guidance_scale: input.guidanceScale || 1.0,
+          },
+          modelName: 'LatentSync (ByteDance)',
+        }
+
+      case 'fal-ai/tavus/hummingbird-lipsync/v0':
+        return {
+          falModelEndpoint: 'fal-ai/tavus/hummingbird-lipsync/v0',
+          falApiData: {
+            video_url: input.videoUrl,
+            audio_url: input.audioUrl,
+          },
+          modelName: 'Hummingbird-0 (Tavus)',
+        }
+
+      default:
+        throw new Error(`Unsupported model: ${input.modelId}`)
+    }
+  }
+
+  /**
+   * Извлекает URL видео из ответа API (разные модели возвращают по-разному)
+   */
+  private extractVideoUrl(data: any, modelId: string): string | null {
+    // Veed Fabric возвращает data.video.url
+    if (data?.video?.url) {
+      return data.video.url
+    }
+
+    // LatentSync и Hummingbird могут возвращать data.video (строка)
+    if (typeof data?.video === 'string') {
+      return data.video
+    }
+
+    // Некоторые модели возвращают data.output.video
+    if (data?.output?.video?.url) {
+      return data.output.video.url
+    }
+
+    if (typeof data?.output?.video === 'string') {
+      return data.output.video
+    }
+
+    // Fallback: data.output (если это строка URL)
+    if (typeof data?.output === 'string' && data.output.startsWith('http')) {
+      return data.output
+    }
+
+    return null
+  }
+
+  /**
+   * Получает префикс для идентификатора результата
+   */
+  private getModelPrefix(modelId: string): string {
+    switch (modelId) {
+      case 'fal-veed-fabric-1.0-fast':
+        return 'fal_veed_fabric'
+      case 'fal-ai/latentsync':
+        return 'fal_latentsync'
+      case 'fal-ai/tavus/hummingbird-lipsync/v0':
+        return 'fal_hummingbird'
+      default:
+        return 'fal_lipsync'
+    }
+  }
+
+  /**
+   * Рассчитывает стоимость для конкретной модели
+   */
+  private calculateModelCost(
+    modelId: string,
+    durationSeconds: number,
+    resolution?: string
+  ): number {
+    const {
+      MARKUP_MULTIPLIER,
+      STAR_COST_USD,
+    } = require('@/price/constants')
+
+    switch (modelId) {
+      case 'fal-veed-fabric-1.0-fast': {
+        const baseCost = resolution === '720p' ? 0.2 : 0.1
+        return baseCost * MARKUP_MULTIPLIER * durationSeconds
+      }
+
+      case 'fal-ai/latentsync': {
+        // $0.20 за первые 40 сек, потом $0.005/сек
+        const baseCost = 0.2
+        const extraSeconds = Math.max(0, durationSeconds - 40)
+        const totalCostUSD = baseCost + extraSeconds * 0.005
+        return totalCostUSD * MARKUP_MULTIPLIER
+      }
+
+      case 'fal-ai/tavus/hummingbird-lipsync/v0': {
+        // $2.10/мин = $0.035/сек
+        return 0.035 * MARKUP_MULTIPLIER * durationSeconds
+      }
+
+      default:
+        return 0.1 * durationSeconds
     }
   }
 
@@ -366,13 +484,27 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
 }
 
 /**
- * Входные данные для Fal.ai Veed Fabric
+ * Входные данные для всех Fal.ai Lip-Sync моделей
  */
-export interface FalVeedFabricInput extends UniversalLipSyncInput {
+export interface FalLipSyncInput extends UniversalLipSyncInput {
   provider: 'fal'
-  modelId: 'fal-veed-fabric-1.0-fast'
-  imageUrl: string
-  audioUrl: string
-  resolution?: '480p' | '720p'
+  modelId:
+    | 'fal-veed-fabric-1.0-fast'
+    | 'fal-ai/latentsync'
+    | 'fal-ai/tavus/hummingbird-lipsync/v0'
   telegramId: string
+  audioUrl: string
+  // Для Veed Fabric (image to video)
+  imageUrl?: string
+  resolution?: '480p' | '720p'
+  // Для LatentSync и Hummingbird (video to video)
+  videoUrl?: string
+  durationSeconds?: number
+  // LatentSync специфичные параметры
+  guidanceScale?: number
 }
+
+/**
+ * @deprecated Use FalLipSyncInput instead
+ */
+export type FalVeedFabricInput = FalLipSyncInput

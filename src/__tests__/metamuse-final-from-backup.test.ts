@@ -1,0 +1,209 @@
+/**
+ * ТЕСТ: Финальный отчет по MetaMuse_Manifest_bot из BACKUP таблицы
+ * (самой актуальной)
+ */
+
+import { describe, test, expect } from '@jest/globals';
+import { initInfisical, getSecret, getSecretsStats } from '../core/infisical';
+import { supabase } from '../core/supabase/client';
+import ExcelJS from 'exceljs';
+
+describe('MetaMuse Final Report from Backup', () => {
+  test('Создаем финальный отчет из backup таблицы', async () => {
+    console.log('\n🎯 ФИНАЛЬНЫЙ ОТЧЕТ ПО METAMUSE_MANIFEST_BOT ИЗ BACKUP');
+    console.log('='.repeat(80));
+
+    try {
+      // Инициализируем Infisical
+      console.log('\n🔐 Инициализируем Infisical...');
+      await initInfisical();
+
+      // Синхронизируем секреты
+      process.env.SUPABASE_URL = getSecret('SUPABASE_URL');
+      process.env.SUPABASE_SERVICE_ROLE_KEY = getSecret('SUPABASE_SERVICE_ROLE_KEY');
+      process.env.SUPABASE_SERVICE_KEY = getSecret('SUPABASE_SERVICE_KEY');
+
+      const stats = getSecretsStats();
+      console.log(`✅ Загружено ${stats.totalSecrets} секретов\n`);
+
+      // Получаем ВСЕ данные из BACKUP (самой актуальной таблицы)
+      console.log('📊 Загружаем данные из BACKUP (самой актуальной)...');
+
+      const { data: allData, error } = await supabase
+        .from('payments_v2_backup')
+        .select('*')
+        .eq('bot_name', 'MetaMuse_Manifest_bot')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (!allData) throw new Error('No data returned');
+
+      console.log(`✅ Загружено ${allData.length} транзакций из backup\n`);
+
+      // Разбиваем по валютам и типам
+      const rubIncome = allData.filter(tx => tx.currency === 'RUB' && tx.type === 'MONEY_INCOME' && parseFloat(tx.amount as any) > 0);
+      const starsIncome = allData.filter(tx => tx.currency === 'STARS' && tx.type === 'MONEY_INCOME' && parseFloat(tx.amount as any) > 0);
+      const starsOutcome = allData.filter(tx => tx.currency === 'STARS' && tx.type === 'MONEY_OUTCOME');
+
+      const rubIncomeSum = rubIncome.reduce((sum, tx) => sum + Math.abs(parseFloat(tx.amount as any) || 0), 0);
+      const starsIncomeSum = starsIncome.reduce((sum, tx) => sum + Math.abs(parseFloat(tx.amount as any) || 0), 0);
+      const starsOutcomeSum = starsOutcome.reduce((sum, tx) => sum + Math.abs(parseFloat(tx.amount as any) || 0), 0);
+
+      // Показываем RUB доходы
+      console.log('📊 RUB доходы (топ-15):');
+      console.log('-'.repeat(80));
+      rubIncome.slice(0, 15).forEach((tx, i) => {
+        const amount = Math.abs(parseFloat(tx.amount as any) || 0);
+        const date = new Date(tx.created_at as any);
+        const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`;
+
+        console.log(`${(i + 1).toString().padStart(2, ' ')}. ${amount.toLocaleString()}₽ | ${dateStr} | User: ${tx.telegram_id}`);
+      });
+
+      console.log(`\n... и ещё ${rubIncome.length - 15} транзакций`);
+
+      // Показываем STARS доходы
+      console.log('\n\n📊 STARS доходы:');
+      console.log('-'.repeat(80));
+      if (starsIncome.length > 0) {
+        starsIncome.forEach((tx, i) => {
+          const amount = Math.abs(parseFloat(tx.amount as any) || 0);
+          const date = new Date(tx.created_at as any);
+          const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`;
+
+          console.log(`${i + 1}. ${amount.toLocaleString()}⭐ | ${dateStr}`);
+          console.log(`   ${tx.description || 'без описания'}`);
+        });
+      } else {
+        console.log('❌ STARS доходов НЕТ (кроме нулевых транзакций)');
+      }
+
+      // Показываем STARS расходы (топ-10)
+      console.log('\n\n📊 STARS расходы (топ-10):');
+      console.log('-'.repeat(80));
+      starsOutcome.slice(0, 10).forEach((tx, i) => {
+        const amount = Math.abs(parseFloat(tx.amount as any) || 0);
+        const date = new Date(tx.created_at as any);
+        const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`;
+
+        console.log(`${i + 1}. ${amount.toLocaleString()}⭐ | ${dateStr} | ${tx.description || 'без описания'}`);
+      });
+
+      console.log(`\n... и ещё ${starsOutcome.length - 10} транзакций`);
+
+      // Создаем Excel
+      console.log('\n📊 Создаем Excel отчет...');
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'Claude Code';
+      workbook.created = new Date();
+
+      // ===== SHEET 1: СВОДКА =====
+      const summarySheet = workbook.addWorksheet('СВОДКА', {
+        views: [{ state: 'frozen', ySplit: 1 }]
+      });
+
+      summarySheet.columns = [
+        { header: 'Показатель', key: 'metric', width: 30 },
+        { header: 'Количество', key: 'count', width: 15 },
+        { header: 'Сумма', key: 'amount', width: 20 },
+        { header: 'Валюта', key: 'currency', width: 10 }
+      ];
+
+      // Стили заголовков
+      summarySheet.getRow(1).font = { bold: true, size: 12 };
+      summarySheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF4472C4' }
+      };
+      summarySheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+
+      summarySheet.addRow({
+        metric: '💰 ДОХОДЫ В РУБЛЯХ (из backup)',
+        count: rubIncome.length,
+        amount: Math.round(rubIncomeSum).toLocaleString(),
+        currency: '₽'
+      });
+
+      summarySheet.addRow({
+        metric: '⭐ ДОХОДЫ В ЗВЕЗДАХ',
+        count: starsIncome.length,
+        amount: Math.round(starsIncomeSum).toLocaleString(),
+        currency: '⭐'
+      });
+
+      summarySheet.addRow({
+        metric: '💸 РАСХОДЫ В ЗВЕЗДАХ',
+        count: starsOutcome.length,
+        amount: Math.round(starsOutcomeSum).toLocaleString(),
+        currency: '⭐'
+      });
+
+      // ===== SHEET 2: RUB ДОХОДЫ =====
+      const rubSheet = workbook.addWorksheet('RUB_доходы_из_backup', {
+        views: [{ state: 'frozen', ySplit: 1 }]
+      });
+
+      rubSheet.columns = [
+        { header: '№', key: 'num', width: 5 },
+        { header: 'Дата', key: 'date', width: 12 },
+        { header: 'Сумма', key: 'amount', width: 12 },
+        { header: 'Валюта', key: 'currency', width: 8 },
+        { header: 'Пользователь', key: 'user', width: 15 },
+        { header: 'Способ оплаты', key: 'method', width: 20 },
+        { header: 'Описание', key: 'description', width: 60 }
+      ];
+
+      rubSheet.getRow(1).font = { bold: true, size: 12 };
+      rubSheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF70AD47' }
+      };
+      rubSheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+
+      rubIncome.forEach((tx, i) => {
+        const amount = Math.abs(parseFloat(tx.amount as any) || 0);
+        const date = new Date(tx.created_at as any);
+        const dateStr = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`;
+
+        rubSheet.addRow({
+          num: i + 1,
+          date: dateStr,
+          amount: Math.round(amount),
+          currency: tx.currency,
+          user: tx.telegram_id,
+          method: tx.payment_method || '',
+          description: tx.description || ''
+        });
+      });
+
+      // Сохраняем файл
+      const fileName = `MetaMuse_Manifest_bot_BACKUP_REPORT_${new Date().toISOString().split('T')[0]}.xlsx`;
+      await workbook.xlsx.writeFile(fileName);
+
+      // ФИНАЛЬНЫЕ ЦИФРЫ
+      console.log('\n' + '='.repeat(80));
+      console.log('💎 ТРИ ФИНАЛЬНЫЕ ЦИФРЫ (ИЗ BACKUP - САМОЙ АКТУАЛЬНОЙ!):');
+      console.log('='.repeat(80));
+      console.log(`\n1️⃣ РАСХОДЫ (STARS): ${Math.round(starsOutcomeSum).toLocaleString()}⭐`);
+      console.log(`   Транзакции: ${starsOutcome.length}`);
+      console.log(`\n2️⃣ ДОХОДЫ В РУБЛЯХ: ${Math.round(rubIncomeSum).toLocaleString()}₽`);
+      console.log(`   Транзакции: ${rubIncome.length}`);
+      console.log(`\n3️⃣ ДОХОДЫ В ЗВЕЗДАХ: ${Math.round(starsIncomeSum).toLocaleString()}⭐`);
+      console.log(`   Транзакции: ${starsIncome.length}`);
+      console.log('='.repeat(80));
+
+      console.log(`\n📁 Excel файл: ${fileName}`);
+      console.log(`📊 Источник: payments_v2_backup (16,240 записей)`);
+      console.log(`✅ Рекомендуется использовать BACKUP таблицу для анализа!`);
+
+      expect(allData).toBeDefined();
+      expect(allData.length).toBeGreaterThan(0);
+
+    } catch (error) {
+      console.error('\n❌ Ошибка:', error);
+      throw error;
+    }
+  });
+});

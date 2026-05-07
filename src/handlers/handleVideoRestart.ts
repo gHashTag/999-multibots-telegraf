@@ -50,11 +50,12 @@ export async function handleRestartVideoGeneration(
 
     await ctx.reply(
       isRussianFromState(ctx)
-        ? 'Не удалось определить предыдущий режим генерации видео. Пожалуйста, вернитесь в /menu.'
-        : 'Could not determine the previous video generation mode. Please return to /menu.'
+        ? 'Не удалось определить предыдущий режим генерации видео. Пожалуйста, вернитесь в /start.'
+        : 'Could not determine the previous video generation mode. Please return to /start.'
     )
     // Выходим из любой возможной текущей сцены и переходим в главное меню
     await ctx.scene.leave()
-    await ctx.scene.enter(ModeEnum.MainMenu)
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
   }
 }

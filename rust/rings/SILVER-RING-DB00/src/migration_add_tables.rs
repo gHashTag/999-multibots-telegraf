@@ -1,0 +1,314 @@
+use sea_orm_migration::prelude::*;
+
+pub struct Migration;
+
+impl MigrationName for Migration {
+    fn name(&self) -> &str {
+        "m00000000000001_add_tables"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for Migration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .create_table(
+                Table::create()
+                    .table(Alias::new("videos"))
+                    .if_not_exists()
+                    .col(ColumnDef::new(Alias::new("id")).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(Alias::new("telegram_id")).big_integer().not_null())
+                    .col(ColumnDef::new(Alias::new("video_url")).text().null())
+                    .col(ColumnDef::new(Alias::new("prompt")).text().null())
+                    .col(ColumnDef::new(Alias::new("model")).text().null())
+                    .col(ColumnDef::new(Alias::new("status")).text().not_null().default("queued"))
+                    .col(ColumnDef::new(Alias::new("provider")).text().null())
+                    .col(ColumnDef::new(Alias::new("duration")).double().null())
+                    .col(ColumnDef::new(Alias::new("aspect_ratio")).text().null())
+                    .col(ColumnDef::new(Alias::new("error")).text().null())
+                    .col(ColumnDef::new(Alias::new("created_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .col(ColumnDef::new(Alias::new("updated_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_videos_telegram_id")
+                    .table(Alias::new("videos"))
+                    .col(Alias::new("telegram_id"))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(Alias::new("subscriptions"))
+                    .if_not_exists()
+                    .col(ColumnDef::new(Alias::new("id")).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(Alias::new("telegram_id")).big_integer().not_null())
+                    .col(ColumnDef::new(Alias::new("subscription_type")).text().not_null())
+                    .col(ColumnDef::new(Alias::new("status")).text().not_null().default("active"))
+                    .col(ColumnDef::new(Alias::new("started_at")).timestamp_with_time_zone().null())
+                    .col(ColumnDef::new(Alias::new("expires_at")).timestamp_with_time_zone().null())
+                    .col(ColumnDef::new(Alias::new("auto_renew")).boolean().not_null().default(false))
+                    .col(ColumnDef::new(Alias::new("payment_id")).uuid().null())
+                    .col(ColumnDef::new(Alias::new("created_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .col(ColumnDef::new(Alias::new("updated_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_subscriptions_telegram_id")
+                    .table(Alias::new("subscriptions"))
+                    .col(Alias::new("telegram_id"))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(Alias::new("referrals"))
+                    .if_not_exists()
+                    .col(ColumnDef::new(Alias::new("id")).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(Alias::new("referrer_id")).big_integer().not_null())
+                    .col(ColumnDef::new(Alias::new("referred_id")).big_integer().not_null())
+                    .col(ColumnDef::new(Alias::new("reward_granted")).boolean().not_null().default(false))
+                    .col(ColumnDef::new(Alias::new("created_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_referrals_referrer_id")
+                    .table(Alias::new("referrals"))
+                    .col(Alias::new("referrer_id"))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_referrals_referred_id")
+                    .table(Alias::new("referrals"))
+                    .col(Alias::new("referred_id"))
+                    .unique()
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(Alias::new("user_projects"))
+                    .if_not_exists()
+                    .col(ColumnDef::new(Alias::new("id")).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(Alias::new("telegram_id")).big_integer().not_null())
+                    .col(ColumnDef::new(Alias::new("name")).text().not_null())
+                    .col(ColumnDef::new(Alias::new("description")).text().null())
+                    .col(ColumnDef::new(Alias::new("industry")).text().null())
+                    .col(ColumnDef::new(Alias::new("created_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .col(ColumnDef::new(Alias::new("updated_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_user_projects_telegram_id")
+                    .table(Alias::new("user_projects"))
+                    .col(Alias::new("telegram_id"))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(Alias::new("user_feature_views"))
+                    .if_not_exists()
+                    .col(ColumnDef::new(Alias::new("id")).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(Alias::new("telegram_id")).big_integer().not_null())
+                    .col(ColumnDef::new(Alias::new("feature_mode")).text().not_null())
+                    .col(ColumnDef::new(Alias::new("first_view_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_user_feature_views_telegram_mode")
+                    .table(Alias::new("user_feature_views"))
+                    .col(Alias::new("telegram_id"))
+                    .col(Alias::new("feature_mode"))
+                    .unique()
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(Alias::new("translations"))
+                    .if_not_exists()
+                    .col(ColumnDef::new(Alias::new("id")).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(Alias::new("key")).text().not_null())
+                    .col(ColumnDef::new(Alias::new("bot_name")).text().not_null())
+                    .col(ColumnDef::new(Alias::new("language_code")).text().not_null())
+                    .col(ColumnDef::new(Alias::new("translation")).text().null())
+                    .col(ColumnDef::new(Alias::new("url")).text().null())
+                    .col(ColumnDef::new(Alias::new("buttons")).json().null())
+                    .col(ColumnDef::new(Alias::new("created_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .col(ColumnDef::new(Alias::new("updated_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_translations_key_bot_lang")
+                    .table(Alias::new("translations"))
+                    .col(Alias::new("key"))
+                    .col(Alias::new("bot_name"))
+                    .col(Alias::new("language_code"))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(Alias::new("broadcasts"))
+                    .if_not_exists()
+                    .col(ColumnDef::new(Alias::new("id")).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(Alias::new("telegram_id")).big_integer().not_null())
+                    .col(ColumnDef::new(Alias::new("message")).text().not_null())
+                    .col(ColumnDef::new(Alias::new("media_url")).text().null())
+                    .col(ColumnDef::new(Alias::new("media_type")).text().null())
+                    .col(ColumnDef::new(Alias::new("status")).text().not_null().default("pending"))
+                    .col(ColumnDef::new(Alias::new("sent_at")).timestamp_with_time_zone().null())
+                    .col(ColumnDef::new(Alias::new("created_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(Alias::new("ai_feedback"))
+                    .if_not_exists()
+                    .col(ColumnDef::new(Alias::new("id")).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(Alias::new("telegram_id")).big_integer().not_null())
+                    .col(ColumnDef::new(Alias::new("assistant_id")).text().null())
+                    .col(ColumnDef::new(Alias::new("report")).text().null())
+                    .col(ColumnDef::new(Alias::new("ai_response")).text().null())
+                    .col(ColumnDef::new(Alias::new("language_code")).text().null())
+                    .col(ColumnDef::new(Alias::new("created_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(Alias::new("voice_models"))
+                    .if_not_exists()
+                    .col(ColumnDef::new(Alias::new("id")).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(Alias::new("telegram_id")).big_integer().not_null())
+                    .col(ColumnDef::new(Alias::new("model_name")).text().not_null())
+                    .col(ColumnDef::new(Alias::new("replicate_training_id")).text().null())
+                    .col(ColumnDef::new(Alias::new("model_url")).text().null())
+                    .col(ColumnDef::new(Alias::new("status")).text().not_null().default("pending"))
+                    .col(ColumnDef::new(Alias::new("audio_url")).text().null())
+                    .col(ColumnDef::new(Alias::new("error_message")).text().null())
+                    .col(ColumnDef::new(Alias::new("created_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .col(ColumnDef::new(Alias::new("updated_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("idx_voice_models_telegram_id")
+                    .table(Alias::new("voice_models"))
+                    .col(Alias::new("telegram_id"))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(Alias::new("bots"))
+                    .if_not_exists()
+                    .col(ColumnDef::new(Alias::new("id")).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(Alias::new("name")).text().not_null())
+                    .col(ColumnDef::new(Alias::new("token")).text().not_null())
+                    .col(ColumnDef::new(Alias::new("is_active")).boolean().not_null().default(true))
+                    .col(ColumnDef::new(Alias::new("bot_name")).text().null())
+                    .col(ColumnDef::new(Alias::new("description")).text().null())
+                    .col(ColumnDef::new(Alias::new("created_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .col(ColumnDef::new(Alias::new("updated_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(Alias::new("clips"))
+                    .if_not_exists()
+                    .col(ColumnDef::new(Alias::new("id")).uuid().not_null().primary_key())
+                    .col(ColumnDef::new(Alias::new("brand")).text().null())
+                    .col(ColumnDef::new(Alias::new("response")).text().null())
+                    .col(ColumnDef::new(Alias::new("video_url")).text().null())
+                    .col(ColumnDef::new(Alias::new("command")).text().null())
+                    .col(ColumnDef::new(Alias::new("type")).text().null())
+                    .col(ColumnDef::new(Alias::new("voice_id")).text().null())
+                    .col(ColumnDef::new(Alias::new("chat_id")).text().null())
+                    .col(ColumnDef::new(Alias::new("lang")).text().null())
+                    .col(ColumnDef::new(Alias::new("trigger")).text().null())
+                    .col(ColumnDef::new(Alias::new("created_at")).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .to_owned(),
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager.drop_table(Table::drop().table(Alias::new("clips")).to_owned()).await?;
+        manager.drop_table(Table::drop().table(Alias::new("bots")).to_owned()).await?;
+        manager.drop_table(Table::drop().table(Alias::new("voice_models")).to_owned()).await?;
+        manager.drop_table(Table::drop().table(Alias::new("ai_feedback")).to_owned()).await?;
+        manager.drop_table(Table::drop().table(Alias::new("broadcasts")).to_owned()).await?;
+        manager.drop_table(Table::drop().table(Alias::new("translations")).to_owned()).await?;
+        manager.drop_table(Table::drop().table(Alias::new("user_feature_views")).to_owned()).await?;
+        manager.drop_table(Table::drop().table(Alias::new("user_projects")).to_owned()).await?;
+        manager.drop_table(Table::drop().table(Alias::new("referrals")).to_owned()).await?;
+        manager.drop_table(Table::drop().table(Alias::new("subscriptions")).to_owned()).await?;
+        manager.drop_table(Table::drop().table(Alias::new("videos")).to_owned()).await?;
+        Ok(())
+    }
+}

@@ -1,0 +1,11 @@
+[package]
+name = "trios-mb-i18n"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "SILVER-RING-I18N — RU/EN internationalization"
+
+[dependencies]
+trios-mb-types = { workspace = true }
+serde = { workspace = true }

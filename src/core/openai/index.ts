@@ -7,7 +7,9 @@ let _openai: OpenAI | null = null
 function getOpenAIClient(): OpenAI {
   if (!_openai) {
     if (!process.env.DEEPSEEK_API_KEY) {
-      throw new Error('DEEPSEEK_API_KEY is not set. Ensure Infisical loaded secrets.')
+      throw new Error(
+        'DEEPSEEK_API_KEY is not set. Ensure Infisical loaded secrets.'
+      )
     }
     _openai = new OpenAI({
       baseURL: 'https://api.deepseek.com/v1',
@@ -21,7 +23,7 @@ function getOpenAIClient(): OpenAI {
 export const openai = new Proxy({} as OpenAI, {
   get(target, prop) {
     return (getOpenAIClient() as any)[prop]
-  }
+  },
 })
 
 //
@@ -33,3 +35,4 @@ export * from './getAinews'
 export * from './getCaptionForNews'
 export * from './getMeditationSteps'
 export * from './getSlides'
+export * from './glm-provider'

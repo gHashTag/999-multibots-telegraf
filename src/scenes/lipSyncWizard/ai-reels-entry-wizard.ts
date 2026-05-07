@@ -8,6 +8,7 @@
 
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces'
+import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 import { AI_REELS_TEMPLATES, AIReelsTemplate } from './ai-reels-templates'
@@ -200,7 +201,7 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
       delete ctx.session.aiReelsRender
       delete (ctx.session as any).__scenes
 
-      await ctx.scene.enter('hedra_render_wizard')
+      await ctx.scene.enter(ModeEnum.HedraRenderWizard)
       return
     } else if (choice === 'service_heygen_render') {
       logger.info('🎬 [AI REELS ENTRY] Routing to HeyGen wizard', { telegramId })
@@ -209,7 +210,7 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
       delete ctx.session.aiReelsRender
       delete (ctx.session as any).__scenes
 
-      await ctx.scene.enter('heygen_render_wizard')
+      await ctx.scene.enter(ModeEnum.HeygenRenderWizard)
       return
     } else if (choice === 'service_fal_render') {
       console.log('🎯🎯🎯 [AI REELS ENTRY] FAL CONDITION HIT!')
@@ -222,7 +223,7 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
 
       console.log('🎯 [AI REELS ENTRY] About to enter fal_render_wizard scene...')
       try {
-        await ctx.scene.enter('fal_render_wizard')
+        await ctx.scene.enter(ModeEnum.FalRenderWizard) // ✅ Сцена существует и зарегистрирована
         console.log('🎯 [AI REELS ENTRY] Scene entered successfully!')
       } catch (error) {
         console.error('❌ [AI REELS ENTRY] Error entering fal_render_wizard:', error)
@@ -248,7 +249,7 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
       )
 
       // Переходим к wizard для Шаблона 1
-      await ctx.scene.enter('ai_reels_wizard')
+      await ctx.scene.enter(ModeEnum.AiReelsWizard)
       return
     } else if (choice === 'ai_reels_template_inngest') {
       // Шаблон 2 - Выбор сервиса

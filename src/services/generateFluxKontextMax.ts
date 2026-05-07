@@ -40,6 +40,7 @@ export interface FluxKontextMaxServiceParams {
   output_format?: 'png' | 'jpg'
   safety_tolerance?: number
   suppressUserErrors?: boolean // ✅ Don't notify user of errors (for fallback chains)
+  is_welcome_gift?: boolean // ✅ Skip payment for welcome generation (lead magnet)
 }
 
 // FLUX Kontext Max model configuration
@@ -149,26 +150,30 @@ export const generateFluxKontextMax = async (
       await updateUserLevelPlusOne(telegram_id, level)
     }
 
-    // Process balance operation
-    const balanceCheck = await processBalanceOperation({
-      ctx,
-      telegram_id: Number(telegram_id),
-      paymentAmount: FLUX_KONTEXT_MAX_MODEL.costPerImage,
-      is_ru,
-      bot_name: ctx?.botInfo?.username,
-    })
-
-    console.log('🤖 [FluxKontextMax] Balance check completed:', {
-      success: balanceCheck.success,
-      telegram_id,
-    })
-
-    if (!balanceCheck.success) {
-      console.error('🚨 [FluxKontextMax] Balance check failed:', {
-        telegram_id,
-        balanceCheck,
+    // Process balance operation - SKIP for welcome gifts (lead magnet)
+    if (!params.is_welcome_gift) {
+      const balanceCheck = await processBalanceOperation({
+        ctx,
+        telegram_id: Number(telegram_id),
+        paymentAmount: FLUX_KONTEXT_MAX_MODEL.costPerImage,
+        is_ru,
+        bot_name: ctx?.botInfo?.username,
       })
-      throw new Error('Not enough stars')
+
+      console.log('🤖 [FluxKontextMax] Balance check completed:', {
+        success: balanceCheck.success,
+        telegram_id,
+      })
+
+      if (!balanceCheck.success) {
+        console.error('🚨 [FluxKontextMax] Balance check failed:', {
+          telegram_id,
+          balanceCheck,
+        })
+        throw new Error('Not enough stars')
+      }
+    } else {
+      console.log('🎁 [FluxKontextMax] Skipping balance check - welcome gift', { telegram_id })
     }
 
     // Send status message
@@ -299,9 +304,13 @@ export const generateFluxKontextMax = async (
       })
 
       // Send success message with image
+      const costLine = params.is_welcome_gift
+        ? (is_ru ? '🎁 Бесплатный подарок!' : '🎁 Free gift!')
+        : (is_ru ? `💰 Потрачено: ${FLUX_KONTEXT_MAX_MODEL.costPerImage}⭐` : `💰 Spent: ${FLUX_KONTEXT_MAX_MODEL.costPerImage}⭐`)
+
       const caption = is_ru
-        ? `✨ Изображение обработано через FLUX Kontext Max!\n\n🎨 Модель: ${FLUX_KONTEXT_MAX_MODEL.name}\n💫 Формат: ${validatedInput.aspect_ratio}\n💰 Потрачено: ${FLUX_KONTEXT_MAX_MODEL.costPerImage}⭐\n\n🤖 Создано ботом @${ctx.botInfo?.username || 'unknown'}`
-        : `✨ Image processed with FLUX Kontext Max!\n\n🎨 Model: ${FLUX_KONTEXT_MAX_MODEL.name}\n💫 Format: ${validatedInput.aspect_ratio}\n💰 Spent: ${FLUX_KONTEXT_MAX_MODEL.costPerImage}⭐\n\n🤖 Created by @${ctx.botInfo?.username || 'unknown'}`
+        ? `✨ Изображение обработано через FLUX Kontext Max!\n\n🎨 Модель: ${FLUX_KONTEXT_MAX_MODEL.name}\n💫 Формат: ${validatedInput.aspect_ratio}\n${costLine}\n\n🤖 Создано ботом @${ctx.botInfo?.username || 'unknown'}`
+        : `✨ Image processed with FLUX Kontext Max!\n\n🎨 Model: ${FLUX_KONTEXT_MAX_MODEL.name}\n💫 Format: ${validatedInput.aspect_ratio}\n${costLine}\n\n🤖 Created by @${ctx.botInfo?.username || 'unknown'}`
 
       // Send the image using local file
       await ctx.replyWithPhoto({ source: savedImagePath }, { caption })
@@ -353,15 +362,63 @@ export const generateFluxKontextMax = async (
     }
 
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMsgLower = errorMessage.toLowerCase()
+
+    // Классифицируем ошибку для понятного логирования
+    let errorType = 'UNKNOWN'
+    let isRetriable = false
+
+    if (errorMsgLower.includes('e005') || errorMsgLower.includes('flagged as sensitive') || errorMsgLower.includes('nsfw') || errorMsgLower.includes('safety')) {
+      errorType = 'NSFW_DETECTED'
+      isRetriable = true // Система автоматически повторит через fallback
+    } else if (errorMsgLower.includes('rate') || errorMsgLower.includes('limit') || errorMsgLower.includes('429') || errorMsgLower.includes('too many')) {
+      errorType = 'RATE_LIMIT'
+      isRetriable = true
+    } else if (errorMsgLower.includes('timeout') || errorMsgLower.includes('etimedout') || errorMsgLower.includes('econnreset') || errorMsgLower.includes('socket')) {
+      errorType = 'TIMEOUT'
+      isRetriable = true
+    } else if (errorMsgLower.includes('balance') || errorMsgLower.includes('insufficient') || errorMsgLower.includes('funds') || errorMsgLower.includes('not enough')) {
+      errorType = 'INSUFFICIENT_BALANCE'
+      isRetriable = false
+    } else if (errorMsgLower.includes('user') && errorMsgLower.includes('not') && errorMsgLower.includes('exist')) {
+      errorType = 'USER_NOT_FOUND'
+      isRetriable = false
+    } else if (errorMsgLower.includes('invalid') || errorMsgLower.includes('validation') || errorMsgLower.includes('parse')) {
+      errorType = 'VALIDATION_ERROR'
+      isRetriable = false
+    } else if (errorMsgLower.includes('download') || errorMsgLower.includes('fetch') || errorMsgLower.includes('enotfound')) {
+      errorType = 'DOWNLOAD_ERROR'
+      isRetriable = true
+    } else if (errorMsgLower.includes('api') || errorMsgLower.includes('500') || errorMsgLower.includes('502') || errorMsgLower.includes('503')) {
+      errorType = 'API_ERROR'
+      isRetriable = true
+    } else if (errorMsgLower.includes('cancel')) {
+      errorType = 'CANCELLED'
+      isRetriable = false
+    }
+
     console.error('🚨 [FluxKontextMax] Generation failed:', {
       telegram_id: params.telegram_id,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      errorType,
+      isRetriable,
+      error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined
     })
 
-    logger.error('[FluxKontextMax] Generation failed', {
+    // ✅ Информативное логирование с типом ошибки И САМИМ СООБЩЕНИЕМ
+    const logMessage = isRetriable
+      ? `[FluxKontextMax] ${errorType} - автоматический retry через fallback`
+      : `[FluxKontextMax] ${errorType} - требует внимания`
+
+    // Добавляем краткое описание ошибки для UNKNOWN
+    const errorDetail = errorType === 'UNKNOWN' ? ` | ${errorMessage.substring(0, 100)}` : ''
+
+    logger.error(`${logMessage}${errorDetail}`, {
       telegram_id: params.telegram_id,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      errorType,
+      isRetriable,
+      error: errorMessage
     })
 
     // ✅ Only notify user if not in fallback mode
@@ -373,8 +430,10 @@ export const generateFluxKontextMax = async (
       await params.ctx.reply(errorMessage)
     }
 
-    // Refund user
-    await refundUser(params.ctx, FLUX_KONTEXT_MAX_MODEL.costPerImage)
+    // Refund user - ONLY if not a welcome gift (no charge was made)
+    if (!params.is_welcome_gift) {
+      await refundUser(params.ctx, FLUX_KONTEXT_MAX_MODEL.costPerImage)
+    }
 
     throw error
   }

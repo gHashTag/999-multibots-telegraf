@@ -35,12 +35,36 @@ class VideoTaskStore {
     try {
       if (fs.existsSync(this.storePath)) {
         const data = fs.readFileSync(this.storePath, 'utf-8')
+
+        // ✅ FIX: Проверяем что файл не пустой и содержит валидный JSON
+        if (!data || data.trim().length === 0) {
+          console.log('📂 [VIDEO-TASK-STORE] Файл пуст, создаём новый store')
+          this.tasks = new Map()
+          this.saveToDisk()
+          return
+        }
+
         const tasks = JSON.parse(data)
-        this.tasks = new Map(Object.entries(tasks))
-        console.log(`📂 [VIDEO-TASK-STORE] Загружено ${this.tasks.size} задач с диска`)
+
+        // ✅ FIX: Проверяем что tasks - объект
+        if (tasks && typeof tasks === 'object' && !Array.isArray(tasks)) {
+          this.tasks = new Map(Object.entries(tasks))
+          console.log(`📂 [VIDEO-TASK-STORE] Загружено ${this.tasks.size} задач с диска`)
+        } else {
+          console.log('📂 [VIDEO-TASK-STORE] Невалидный формат данных, создаём новый store')
+          this.tasks = new Map()
+          this.saveToDisk()
+        }
+      } else {
+        console.log('📂 [VIDEO-TASK-STORE] Файл не найден, создаём новый store')
+        this.tasks = new Map()
+        this.saveToDisk()
       }
     } catch (error) {
-      console.error('❌ [VIDEO-TASK-STORE] Ошибка загрузки задач:', error)
+      // ✅ FIX: Не выводим полную ошибку, просто создаём новый store
+      console.log('📂 [VIDEO-TASK-STORE] Ошибка чтения файла, создаём новый store')
+      this.tasks = new Map()
+      this.saveToDisk()
     }
   }
 

@@ -8,6 +8,22 @@ interface SendPhotoOptions {
   reply_markup?: any
 }
 
+/**
+ * Extract structured error info from Telegram API errors
+ */
+function extractTelegramError(err: unknown): {
+  code: number | undefined
+  description: string
+  raw: string
+} {
+  const e = err as any
+  return {
+    code: e?.response?.error_code,
+    description: e?.response?.description || '',
+    raw: err instanceof Error ? err.message : String(err),
+  }
+}
+
 export async function sendPhotoWithFallback(
   ctx: MyContext,
   photoUrl: string,
@@ -15,193 +31,147 @@ export async function sendPhotoWithFallback(
 ): Promise<boolean> {
   const telegramId = ctx.from?.id?.toString() || 'unknown'
 
-  console.log('📸 [sendPhotoWithFallback] STARTED', {
+  logger.info('[sendPhotoWithFallback] START', {
     telegramId,
     photoUrl,
     hasCaption: !!options.caption,
     captionLength: options.caption?.length,
-    parseMode: options.parse_mode,
   })
 
   try {
-    // Добавляем проверку на null/undefined для photoUrl
     if (!photoUrl || typeof photoUrl !== 'string') {
-      console.error('❌ [sendPhotoWithFallback] Invalid photoUrl:', {
+      logger.error('[sendPhotoWithFallback] FAIL: Invalid photoUrl', {
         telegramId,
         photoUrl,
-        typeOfPhotoUrl: typeof photoUrl
+        typeOfPhotoUrl: typeof photoUrl,
+        failReason: 'INVALID_URL',
       })
       return false
     }
 
-    logger.info(`[sendPhotoWithFallback] Attempting to send photo: ${photoUrl}`)
+    // === Telegram file URL -> direct buffer upload ===
+    if (photoUrl.includes('api.telegram.org/file/bot')) {
+      logger.info('[sendPhotoWithFallback] Detected Telegram file URL, using buffer', { telegramId })
 
-    // Check if this is a Telegram file URL - these must be uploaded via buffer
-    if (photoUrl.includes("api.telegram.org/file/bot")) {
-      console.log('🔍 [sendPhotoWithFallback] Detected Telegram file URL, using buffer method directly', {
-        telegramId,
-        url: photoUrl.substring(0, 100) + '...'
-      })
-
-      // Try to download and upload as buffer
       try {
-        console.log('⬇️ [sendPhotoWithFallback] Downloading Telegram file for buffer upload...', { telegramId })
-
         const response = await fetch(photoUrl)
         if (!response.ok) {
-          console.error('❌ [sendPhotoWithFallback] Failed to download Telegram file:', {
+          logger.error('[sendPhotoWithFallback] FAIL: Cannot download Telegram file', {
             telegramId,
             status: response.status,
-            statusText: response.statusText
+            statusText: response.statusText,
+            failReason: 'TELEGRAM_FILE_DOWNLOAD_FAILED',
           })
           return false
         }
 
-        const buffer = await response.arrayBuffer()
-        const imageBuffer = Buffer.from(buffer)
-
-        console.log('📦 [sendPhotoWithFallback] Downloaded buffer, attempting upload...', {
+        const imageBuffer = Buffer.from(await response.arrayBuffer())
+        logger.info('[sendPhotoWithFallback] Telegram file downloaded', {
           telegramId,
-          bufferSize: imageBuffer.length
+          bufferSize: imageBuffer.length,
         })
 
-        // Отправляем через Buffer
         await ctx.replyWithPhoto({ source: imageBuffer }, options)
-
-        console.log('✅ [sendPhotoWithFallback] Successfully sent Telegram photo via buffer upload!', {
-          telegramId,
-          bufferSize: imageBuffer.length
-        })
+        logger.info('[sendPhotoWithFallback] SUCCESS via Telegram buffer', { telegramId, bufferSize: imageBuffer.length })
         return true
-      } catch (telegramError) {
-        console.error('❌ [sendPhotoWithFallback] Telegram file buffer upload failed:', {
+      } catch (err) {
+        const tgErr = extractTelegramError(err)
+        logger.error('[sendPhotoWithFallback] FAIL: Telegram file buffer upload', {
           telegramId,
-          error: telegramError instanceof Error ? telegramError.message : 'Unknown error',
-          errorDetails: telegramError
+          errorCode: tgErr.code,
+          errorDesc: tgErr.description,
+          error: tgErr.raw,
+          failReason: 'TELEGRAM_FILE_BUFFER_UPLOAD_FAILED',
         })
         return false
       }
     }
 
-    // Сначала пробуем валидацию (пропускаем для Telegram URLs - они всегда валидны)
-    let validation: { isValid: boolean; size?: number; contentType?: string; reason?: string } = { isValid: true, size: undefined, contentType: 'image/jpeg' }
-    if (!photoUrl.includes('api.telegram.org/file/bot')) {
-      console.log('🔍 [sendPhotoWithFallback] Validating non-Telegram URL...', { telegramId })
-      validation = await validateImageUrl(photoUrl)
-      if (!validation.isValid) {
-        console.warn('⚠️ [sendPhotoWithFallback] Image validation failed:', {
-          telegramId,
-          reason: validation.reason
-        })
-        return false
-      }
-    } else {
-      console.log('⏩ [sendPhotoWithFallback] Skipping validation for Telegram URL', { telegramId })
+    // === Step 1: Validate image URL ===
+    const validation = await validateImageUrl(photoUrl)
+    if (!validation.isValid) {
+      logger.error('[sendPhotoWithFallback] FAIL: Image validation failed', {
+        telegramId,
+        photoUrl,
+        validationReason: validation.reason,
+        validationStatus: validation.status,
+        validationContentType: validation.contentType,
+        validationSize: validation.size,
+        failReason: 'VALIDATION_FAILED',
+      })
+      return false
     }
 
-    logger.info(
-      `[sendPhotoWithFallback] Image validation passed. Size: ${
-        validation.size
-          ? (validation.size / 1024 / 1024).toFixed(2) + 'MB'
-          : 'unknown'
-      }, Type: ${validation.contentType}`
-    )
+    logger.info('[sendPhotoWithFallback] Validation passed', {
+      telegramId,
+      size: validation.size ? `${(validation.size / 1024 / 1024).toFixed(2)}MB` : 'unknown',
+      contentType: validation.contentType,
+    })
 
+    // === Step 2: Try sending by URL ===
     try {
-      // Пробуем отправить по URL
-      console.log('📤 [sendPhotoWithFallback] Attempting to send via URL...', {
-        telegramId,
-        url: photoUrl,
-      })
-      
       await ctx.replyWithPhoto(photoUrl, options)
-      
-      console.log('✅ [sendPhotoWithFallback] Photo sent via URL successfully!', {
-        telegramId,
-        url: photoUrl,
-      })
-      
-      logger.info(
-        `[sendPhotoWithFallback] Successfully sent photo via URL: ${photoUrl}`
-      )
+      logger.info('[sendPhotoWithFallback] SUCCESS via URL', { telegramId, photoUrl })
       return true
     } catch (urlError) {
-      console.error('❌ [sendPhotoWithFallback] URL send failed:', {
+      const tgErr = extractTelegramError(urlError)
+      logger.warn('[sendPhotoWithFallback] URL send failed, trying buffer fallback', {
         telegramId,
-        error: urlError instanceof Error ? urlError.message : 'Unknown',
-        errorDetails: urlError,
+        photoUrl,
+        errorCode: tgErr.code,
+        errorDesc: tgErr.description,
+        error: tgErr.raw,
       })
-      logger.warn(
-        `[sendPhotoWithFallback] Failed to send photo via URL: ${photoUrl}. Error: ${
-          urlError instanceof Error ? urlError.message : 'Unknown error'
-        }. Trying buffer upload...`
-      )
 
-      // Fallback: загружаем изображение и отправляем через Buffer
+      // === Step 3: Buffer fallback ===
       try {
-        logger.info(
-          `[sendPhotoWithFallback] Downloading image for buffer upload: ${photoUrl}`
-        )
-
         const response = await fetch(photoUrl)
         if (!response.ok) {
-          logger.error(
-            `[sendPhotoWithFallback] Failed to download image: HTTP ${response.status}`
-          )
+          logger.error('[sendPhotoWithFallback] FAIL: Cannot download image for buffer', {
+            telegramId,
+            photoUrl,
+            httpStatus: response.status,
+            httpStatusText: response.statusText,
+            failReason: 'BUFFER_DOWNLOAD_FAILED',
+          })
           return false
         }
 
-        const buffer = await response.arrayBuffer()
-        const imageBuffer = Buffer.from(buffer)
-
-        logger.info(
-          `[sendPhotoWithFallback] Downloaded ${imageBuffer.length} bytes, attempting buffer upload`
-        )
-
-        // Отправляем через Buffer
-        console.log('📤 [sendPhotoWithFallback] Attempting buffer upload...', {
+        const imageBuffer = Buffer.from(await response.arrayBuffer())
+        logger.info('[sendPhotoWithFallback] Downloaded for buffer upload', {
           telegramId,
           bufferSize: imageBuffer.length,
         })
-        
+
         await ctx.replyWithPhoto({ source: imageBuffer }, options)
-        
-        console.log('✅ [sendPhotoWithFallback] Photo sent via buffer successfully!', {
+        logger.info('[sendPhotoWithFallback] SUCCESS via buffer fallback', {
           telegramId,
           bufferSize: imageBuffer.length,
         })
-
-        logger.info(
-          `[sendPhotoWithFallback] Successfully sent photo via buffer upload: ${photoUrl}`
-        )
         return true
       } catch (bufferError) {
-        console.error('❌ [sendPhotoWithFallback] Buffer upload FAILED:', {
+        const bufErr = extractTelegramError(bufferError)
+        logger.error('[sendPhotoWithFallback] FAIL: Both URL and buffer failed', {
           telegramId,
-          error: bufferError instanceof Error ? bufferError.message : 'Unknown',
-          errorDetails: bufferError,
+          photoUrl,
+          urlErrorCode: tgErr.code,
+          urlErrorDesc: tgErr.description,
+          bufferErrorCode: bufErr.code,
+          bufferErrorDesc: bufErr.description,
+          bufferError: bufErr.raw,
+          failReason: 'ALL_METHODS_FAILED',
         })
-        
-        logger.error(
-          `[sendPhotoWithFallback] Buffer upload also failed: ${
-            bufferError instanceof Error ? bufferError.message : 'Unknown error'
-          }`
-        )
         return false
       }
     }
   } catch (error) {
-    console.error('💥 [sendPhotoWithFallback] UNEXPECTED ERROR:', {
+    logger.error('[sendPhotoWithFallback] FAIL: Unexpected error', {
       telegramId,
-      error: error instanceof Error ? error.message : 'Unknown',
-      errorStack: error instanceof Error ? error.stack : undefined,
+      photoUrl,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      failReason: 'UNEXPECTED_ERROR',
     })
-    
-    logger.error(
-      `[sendPhotoWithFallback] Unexpected error: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`
-    )
     return false
   }
 }

@@ -1,0 +1,31 @@
+[package]
+name = "trios-mb-e2e-tests"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "E2E integration tests for trios-mb workspace"
+
+[dependencies]
+trios-mb-types = { workspace = true }
+trios-mb-traits = { workspace = true }
+trios-mb-test-utils = { workspace = true }
+trios-mb-server = { workspace = true }
+trios-mb-tg = { workspace = true }
+trios-mb-i18n = { workspace = true }
+trios-mb-jobs = { workspace = true }
+trios-mb-ai = { workspace = true }
+trios-mb-db = { workspace = true }
+trios-mb-payment = { workspace = true }
+trios-mb-scenes = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { version = "0.7", features = ["rt"] }
+axum = { workspace = true }
+http-body-util = { workspace = true }
+tower = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }

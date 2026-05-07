@@ -148,7 +148,7 @@ export const generateTextToImageDirect = async (
           )
         }
 
-        // ✅ FIX: Special handling for Midjourney v7
+        // ✅ FIX: Special handling for Midjourney v7 and Nano Banana Pro
         let output: ApiResponse
         let imageUrl: string
 
@@ -168,6 +168,21 @@ export const generateTextToImageDirect = async (
           }
 
           imageUrl = midjourneyResult.imageUrls[0]
+        } else if (model_type.toLowerCase() === 'fal-ai/nano-banana-pro') {
+          logger.info('[generateTextToImageDirect] Using Nano Banana Pro generator')
+          const { generateNanoBananaPro } = await import('./generateNanoBananaPro')
+          const nanoBananaResult = await generateNanoBananaPro({
+            prompt: inputParams.prompt,
+            aspectRatio: inputParams.aspect_ratio,
+            numImages: 1,
+            telegramId: telegram_id,
+          })
+
+          if (!nanoBananaResult.images || nanoBananaResult.images.length === 0) {
+            throw new Error('Nano Banana Pro generation failed')
+          }
+
+          imageUrl = nanoBananaResult.images[0].url
         } else {
           if (!modelId) {
             throw new Error(`Model ID not found for model type: ${model_type}`)

@@ -6,7 +6,6 @@ import {
 import { getUnifiedModelConfig, getUnifiedModelPrice, VIDEO_MODELS_CONFIG, getValidDuration } from '@/config/unified-video-models.config'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { Input } from 'telegraf'
@@ -44,17 +43,15 @@ export async function handleTextToVideoDirect(
     }
   )
 
-  // Проверка подписки
-  const hasSubscription = await checkSubscriptionGuard(ctx, 'NeuroVideo')
-  if (!hasSubscription) {
-    // checkSubscriptionGuard уже отправил сообщение, просто возвращаемся
-    return
-  }
-
   // Получаем информацию о модели из unified config
   const modelConfig = getUnifiedModelConfig(modelId)
   const modelName = is_ru ? modelConfig.nameRu : modelConfig.name
   const price = getUnifiedModelPrice(modelId, { duration: validDuration })
+
+  // ✅ CHECK BALANCE BEFORE GENERATION
+  const { checkUserBalance } = await import('@/helpers/checkUserBalance')
+  const hasBalance = await checkUserBalance(ctx, price)
+  if (!hasBalance) return
 
   // Отправляем сообщение о начале генерации
   const processingMessage = await ctx.reply(

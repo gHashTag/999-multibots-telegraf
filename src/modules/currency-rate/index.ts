@@ -1,25 +1,8 @@
 import { logger } from '@/utils/logger'
 
-interface BybitRateItem {
-  fiatUnit: string
-  price: string
-  payment: string
-  currencyUnit: string
-  [key: string]: any
-}
-
-interface BybitResponse {
-  ret_code: number
-  ret_msg: string
-  result: {
-    items: BybitRateItem[]
-  }
-}
-
-const BYBIT_PUBLIC_URL =
-  'https://www.bybit.com/x-api/fiat/public/channel/payment-list'
+// Константы
 const CACHE_TTL = 300000 // 5 минут в миллисекундах для кеширования курса
-const DEFAULT_RATE = 85 // Значение по умолчанию, если API недоступен
+const DEFAULT_RATE = 103 // Фиксированный курс по умолчанию
 
 interface RateCache {
   rate: number
@@ -29,7 +12,94 @@ interface RateCache {
 let rateCache: RateCache | null = null
 
 /**
- * Получает актуальный курс USDT/RUB с Bybit API
+ * Получить курс через Binance P2P API
+ */
+async function fetchFromBinance(): Promise<number | null> {
+  try {
+    const response = await fetch('https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fiat: 'RUB',
+        page: 1,
+        rows: 10,
+        tradeType: 'SELL',
+        asset: 'USDT',
+        countries: [],
+        proMerchantAds: false,
+        publisherType: null,
+        payTypes: [],
+      }),
+    })
+
+    if (!response.ok) return null
+
+    const data = await response.json()
+    const prices = data?.data?.map((item: any) => parseFloat(item.adv?.price)).filter((p: number) => !isNaN(p))
+
+    if (prices && prices.length > 0) {
+      return Math.round(Math.min(...prices))
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Получить курс через ExchangeRate-API (бесплатный)
+ */
+async function fetchFromExchangeRateApi(): Promise<number | null> {
+  try {
+    // Используем бесплатный API курсов через USD как промежуточную валюту
+    const response = await fetch('https://open.er-api.com/v6/latest/USD', {
+      headers: { Accept: 'application/json' },
+    })
+
+    if (!response.ok) return null
+
+    const data = await response.json()
+    const rubRate = data?.rates?.RUB
+
+    if (rubRate && typeof rubRate === 'number') {
+      return Math.round(rubRate)
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Получить курс через CoinGecko (USDT в RUB)
+ */
+async function fetchFromCoingecko(): Promise<number | null> {
+  try {
+    const response = await fetch(
+      'https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=rub',
+      {
+        headers: { Accept: 'application/json' },
+      }
+    )
+
+    if (!response.ok) return null
+
+    const data = await response.json()
+    const rubRate = data?.tether?.rub
+
+    if (rubRate && typeof rubRate === 'number') {
+      return Math.round(rubRate)
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Получает актуальный курс USDT/RUB с нескольких API
  *
  * @param options - Опции запроса
  * @param options.cache - Использовать ли кеш (по умолчанию true)
@@ -62,46 +132,43 @@ export async function getCurrentRate(
       return rateCache.rate
     }
 
-    // Делаем запрос к Bybit API
-    const response = await fetch(`${BYBIT_PUBLIC_URL}?crypto=USDT&fiat=RUB`, {
-      headers: {
-        Accept: 'application/json',
-      },
-    })
+    // Пробуем получить курс из разных источников
+    let rate: number | null = null
+    let source = ''
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+    // 1. Пробуем ExchangeRate-API (самый стабильный)
+    rate = await fetchFromExchangeRateApi()
+    if (rate) source = 'ExchangeRate-API'
+
+    // 2. Если не получилось - пробуем CoinGecko
+    if (!rate) {
+      rate = await fetchFromCoingecko()
+      if (rate) source = 'CoinGecko'
     }
 
-    const data: BybitResponse = await response.json()
-
-    if (data.ret_code !== 0) {
-      throw new Error(`API error: ${data.ret_msg}`)
+    // 3. Если не получилось - пробуем Binance P2P
+    if (!rate) {
+      rate = await fetchFromBinance()
+      if (rate) source = 'Binance P2P'
     }
 
-    // Проверяем наличие данных
-    if (!data.result || !data.result.items || !Array.isArray(data.result.items)) {
-      throw new Error('Invalid API response: missing items array')
-    }
-
-    // Находим все доступные цены
-    const prices = data.result.items
-      .map(item => parseFloat(item.price))
-      .filter(price => !isNaN(price))
-
-    if (prices.length === 0) {
-      throw new Error('No valid prices found in response')
-    }
-
-    // Берем минимальную цену как наиболее выгодную
-    const minPrice = Math.min(...prices)
-
-    // Обновляем кеш если он включен
-    if (cache) {
-      rateCache = {
-        rate: Math.round(minPrice), // Округляем до целого числа
-        timestamp: Date.now(),
+    if (rate) {
+      // Обновляем кеш если он включен
+      if (cache) {
+        rateCache = {
+          rate,
+          timestamp: Date.now(),
+        }
       }
+
+      logger.info({
+        message: '💰 Получен актуальный курс USDT/RUB',
+        rate,
+        source,
+        cached: cache,
+      })
+
+      return rate
     }
 
     const rate = Math.round(minPrice)

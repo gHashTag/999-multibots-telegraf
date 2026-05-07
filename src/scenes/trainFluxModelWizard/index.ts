@@ -3,220 +3,69 @@ import { MyContext } from '../../interfaces'
 
 import { isValidImage } from '../../helpers/images'
 import { isRussian } from '@/helpers/language'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { handleHelpCancel } from '@/navigation'
 import { getBotToken } from '@/handlers'
-import { updateUserGender } from '@/core/supabase'
 import { sanitizeModelName } from '@/helpers/sanitizeModelName'
-
-// Define gender options
-const GENDER_MALE = 'male'
-const GENDER_FEMALE = 'female'
 
 export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
   'trainFluxModelWizard',
 
-  // Step 1: Ask for Gender
+  // ✅ Шаг 1: Загрузка множественных фото для LoRA обучения (минимум 10)
+  // УБРАНЫ первые 3 шага - данные берутся из digitalAvatarBodyWizard
   async ctx => {
     const isRu = isRussian(ctx)
-    await ctx.reply(
-      isRu
-        ? '👤 Укажите пол вашего аватара:'
-        : '👤 Specify the gender of your avatar:',
-      Markup.inlineKeyboard([
-        [
-          Markup.button.callback(
-            isRu ? 'Мужской ♂️' : 'Male ♂️',
-            `set_gender:${GENDER_MALE}`
-          ),
-          Markup.button.callback(
-            isRu ? 'Женский ♀️' : 'Female ♀️',
-            `set_gender:${GENDER_FEMALE}`
-          ),
-        ],
-        [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel_training')],
-      ])
-    )
-    return ctx.wizard.next()
-  },
+    console.log('Scene: IMAGE COLLECTION (direct from digitalAvatarBodyWizard)')
 
-  // Step 2: Handle Gender Selection & Ask for Model Name
-  async ctx => {
-    const isRu = isRussian(ctx)
-    let gender: string | null = null
-    let targetUserId: number | undefined = ctx.session.targetUserId
-    let username: string | undefined = ctx.session.username
-
-    if (!targetUserId) {
-      if (ctx.from?.id) {
-        targetUserId = ctx.from.id
-        ctx.session.targetUserId = targetUserId
-        console.log(
-          `[trainFluxModelWizard] Fetched targetUserId from ctx.from: ${targetUserId}`
-        )
-      } else {
-        console.error(
-          '[trainFluxModelWizard] Missing targetUserId in session and ctx.from at step 2.'
-        )
-        await ctx.reply(
-          isRu
-            ? '❌ Ошибка сессии. Не могу определить пользователя.'
-            : '❌ Session error. Cannot identify user.'
-        )
-        return ctx.scene.leave()
-      }
-    }
-
-    if (!username) {
+    // ✅ Инициализируем необходимые данные из session
+    if (!ctx.session.username) {
       if (ctx.from?.username) {
-        username = ctx.from.username
-        ctx.session.username = username
-        console.log(
-          `[trainFluxModelWizard] Fetched username from ctx.from: ${username}`
-        )
+        ctx.session.username = ctx.from.username
       } else {
-        username = `user${targetUserId}`
-        ctx.session.username = username
-        console.warn(
-          `[trainFluxModelWizard] Username missing in ctx.from, using fallback: ${username}`
-        )
+        ctx.session.username = `user${ctx.from?.id || 'unknown'}`
       }
     }
 
-    if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
-      const data = ctx.callbackQuery.data
-      if (data.startsWith('set_gender:')) {
-        gender = data.split(':')[1]
-        await ctx.answerCbQuery()
-      } else if (data === 'cancel_training') {
-        await ctx.answerCbQuery()
-        await ctx.reply(isRu ? 'Отменено' : 'Cancelled')
-        return ctx.scene.leave()
-      } else {
-        await ctx.answerCbQuery(
-          isRu ? 'Неизвестное действие' : 'Unknown action'
-        )
-        console.warn('[trainFluxModelWizard] Unexpected callback data:', data)
-        await ctx.reply(
-          isRu
-            ? '⚠️ Пожалуйста, используйте кнопки для выбора пола.'
-            : '⚠️ Please use the buttons to select the gender.'
-        )
-        return
-      }
-    } else {
-      await ctx.reply(
-        isRu
-          ? '⚠️ Пожалуйста, используйте кнопки выше для выбора пола.'
-          : '⚠️ Please use the buttons above to select the gender.'
-      )
-      return
+    if (!ctx.session.targetUserId && ctx.from?.id) {
+      ctx.session.targetUserId = ctx.from.id
     }
 
-    if (!gender || (gender !== GENDER_MALE && gender !== GENDER_FEMALE)) {
-      await ctx.reply(
-        isRu ? '❌ Ошибка выбора пола.' : '❌ Error selecting gender.'
-      )
-      return ctx.scene.leave()
+    // ✅ Устанавливаем значения по умолчанию для совместимости
+    // (если пользователь не проходил trainFluxModelWizard сначала)
+    if (!ctx.session.gender) {
+      ctx.session.gender = 'male' // значение по умолчанию
+      console.log('[trainFluxModelWizard] Using default gender: male')
     }
 
-    ctx.session.gender = gender
-    console.log(`[trainFluxModelWizard] Gender set to session: ${gender}`)
-
-    const genderUpdateSuccess = await updateUserGender(targetUserId, gender)
-    if (!genderUpdateSuccess) {
-      console.error(
-        `[trainFluxModelWizard] Failed to update gender in DB for user ${targetUserId}`
-      )
-      await ctx.reply(
-        isRu
-          ? '⚠️ Не удалось сохранить выбор пола, но вы можете продолжить.'
-          : '⚠️ Could not save gender selection, but you can proceed.'
-      )
-    } else {
-      console.log(
-        `[trainFluxModelWizard] Gender successfully saved to DB for user ${targetUserId}`
-      )
+    if (!ctx.session.modelName) {
+      ctx.session.modelName = 'digital_avatar_model'
+      ctx.session.triggerWord = ctx.session.modelName.toUpperCase()
+      console.log('[trainFluxModelWizard] Using default model name: digital_avatar_model')
     }
 
-    // ✅ Спрашиваем название модели для Нейрофото
-    await ctx.reply(
-      isRu
-        ? `✅ Пол ${gender === GENDER_MALE ? 'Мужской' : 'Женский'} сохранен.\n\n📝 Теперь введите название для вашей модели.\n\nЭто название будет отображаться в разделе "Модели" в Нейрофото.\n\nНапример: "Мой аватар", "Персонаж для видео", "Модель для работы" и т.д.`
-        : `✅ Gender ${gender === GENDER_MALE ? 'Male' : 'Female'} saved.\n\n📝 Now enter a name for your model.\n\nThis name will be displayed in the "Models" section in Neurophoto.\n\nFor example: "My Avatar", "Video Character", "Work Model", etc.`
-    )
-
-    return ctx.wizard.next()
-  },
-
-  // Step 3: Handle Model Name Input & Ask for Images
-  async ctx => {
-    const isRu = isRussian(ctx)
-
-    if (!ctx.message || !('text' in ctx.message)) {
-      await ctx.reply(
-        isRu
-          ? '⚠️ Пожалуйста, введите название модели текстом.'
-          : '⚠️ Please enter the model name as text.'
-      )
-      return
-    }
-
-    const modelNameInput = ctx.message.text.trim()
-
-    if (!modelNameInput || modelNameInput.length < 2) {
-      await ctx.reply(
-        isRu
-          ? '⚠️ Название модели слишком короткое. Введите минимум 2 символа.'
-          : '⚠️ Model name too short. Enter at least 2 characters.'
-      )
-      return
-    }
-
-    if (modelNameInput.length > 50) {
-      await ctx.reply(
-        isRu
-          ? '⚠️ Название модели слишком длинное. Максимум 50 символов.'
-          : '⚠️ Model name too long. Maximum 50 characters.'
-      )
-      return
-    }
-
-    // ✅ Создаем безопасное название для Replicate API (только латинские буквы, цифры, дефисы)
-    const safeModelName = sanitizeModelName(modelNameInput)
-
-    ctx.session.modelName = safeModelName // ✅ Используем санитизированное имя для Replicate
-    ctx.session.triggerWord = safeModelName.toUpperCase() // Trigger word для Replicate
-    ctx.session.images = []
-
-    console.log(`[trainFluxModelWizard] Model name sanitized: "${modelNameInput}" → "${safeModelName}"`)
-
-    const replyMessage = isRu
-      ? `✅ Название модели: "${safeModelName}"\n\n📸 Теперь, пожалуйста, отправьте изображения для обучения модели (минимум 10). Отправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n
-   - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n
-   - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n
-   - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n
-   - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n
-   - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n
-   - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.\n\n`
-      : `✅ Model name: "${safeModelName}"\n\n📸 Now, please send images for model training (minimum 10 images). Send /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n
-   - 🔄 <b>Variety of angles:</b> Use photos taken from different angles.\n
-   - 😊 <b>Variety of facial expressions:</b> Include photos with different facial expressions.\n
-   - 💡 <b>Variety of lighting conditions:</b> Use photos taken under different lighting conditions.\n
-   - 🏞️ <b>Background and environment:</b> The background in the photos should be neutral.\n
-   - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n`
-
-    await ctx.reply(replyMessage, {
-      ...Markup.keyboard([
-        [Markup.button.text(isRu ? 'Отмена' : 'Cancel')],
-      ]).resize(),
-      parse_mode: 'HTML',
+    console.log(`[trainFluxModelWizard] Model data initialized:`, {
+      gender: ctx.session.gender,
+      modelName: ctx.session.modelName,
+      username: ctx.session.username,
+      targetUserId: ctx.session.targetUserId
     })
 
-    console.log('Proceeding to image upload step (Step 4)')
+    await ctx.reply(
+      isRu
+        ? `✅ Модель: "${ctx.session.modelName}"\n\n🔄 <b>ЭТАП: Обучение LoRA модели</b>\n\n📸 Загрузите изображения для обучения ИИ-модели (минимум 10). Это нужно для создания LoRA модели на основе ваших фото.\n\n<i>❗ Это цифровой аватар - используйте 10+ разных фото для качественного обучения.</i>\n\nОтправьте /done когда закончите.\n\nВам потребуется минимум 10 фотографий, которые соответствуют следующим критериям:\n\n   - 📷 <b>Четкость и качество изображения:</b> Фотографии должны быть четкими и высококачественными.\n\n   - 🔄 <b>Разнообразие ракурсов:</b> Используйте фотографии, сделанные с разных ракурсов.\n\n   - 😊 <b>Разнообразие выражений лиц:</b> Включите фотографии с различными выражениями лиц.\n\n   - 💡 <b>Разнообразие освещения:</b> Используйте фотографии, сделанные при разных условиях освещения.\n\n   - 🏞️ <b>Фон и окружение:</b> Фон на фотографиях должен быть нейтральным.\n\n   - 👗 <b>Разнообразие стилей одежды:</b> Включите фотографии в разных нарядах.\n\n   - 🎯 <b>Лицо в центре кадра:</b> Убедитесь, что ваше лицо занимает центральное место на фотографии.\n\n   - 🚫 <b>Минимум постобработки:</b> Избегайте фотографий с сильной постобработкой.\n\n   - ⏳ <b>Разнообразие возрастных периодов:</b> Включите фотографии, сделанные в разные возрастные периоды.`
+        : `✅ Model: "${ctx.session.modelName}"\n\n🔄 <b>STAGE: LoRA Model Training</b>\n\n📸 Now upload images for AI model training (minimum 10 images). This is needed to create a LoRA model based on your photos.\n\n<i>❗ This is digital avatar - use 10+ different photos for quality training.</i>\n\nSend /done when finished.\n\nYou will need at least 10 photos that meet the following criteria:\n\n   - 📷 <b>Clear and high-quality image:</b> Photos should be clear and of high quality.\n\n   - 🔄 <b>Variety of angles:</b> Use photos taken from different angles.\n\n   - 😊 <b>Variety of facial expressions:</b> Include photos with different facial expressions.\n\n   - 💡 <b>Variety of lighting conditions:</b> Use photos taken under different lighting conditions.\n\n   - 🏞️ <b>Background and environment:</b> The background in the photos should be neutral.\n\n   - 👗 <b>Variety of clothing styles:</b> Include photos in different outfits.\n\n   - 🎯 <b>Face in center of frame:</b> Make sure your face occupies a central place in the photo.\n\n   - 🚫 <b>Minimal post-processing:</b> Avoid photos with heavy post-processing.\n\n   - ⏳ <b>Variety of age periods:</b> Include photos taken at different age periods.`,
+      {
+        ...Markup.keyboard([
+          [Markup.button.text(isRu ? 'Отмена' : 'Cancel')],
+        ]).resize(),
+        parse_mode: 'HTML',
+      }
+    )
+
+    console.log('Proceeding to image upload step (Step 1 of wizard)')
     return ctx.wizard.next()
   },
 
-  // Step 4: Handle Image Collection
+  // Step 2: Handle Image Collection (тоже самое что было Step 4 в оригинале)
   async ctx => {
     console.log('Scene: IMAGES')
     const isRu = isRussian(ctx)

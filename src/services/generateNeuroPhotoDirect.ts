@@ -242,6 +242,23 @@ export async function generateNeuroPhotoDirect(
   },
   userModel?: any // ✅ Add userModel parameter for FAL support
 ): Promise<{ data: string; success: boolean; urls?: string[] } | null> {
+  console.log('🔔 [DIRECT] ВХОД В generateNeuroPhotoDirect', {
+    telegram_id,
+    numImages,
+    botName,
+    explicitAspectRatio,
+    disable_telegram_sending: options?.disable_telegram_sending,
+  })
+  logger.info({
+    message: '🔔 [DIRECT] ВХОД В generateNeuroPhotoDirect',
+    description: 'ENTERING generateNeuroPhotoDirect',
+    telegram_id,
+    numImages,
+    botName,
+    explicitAspectRatio,
+    disable_telegram_sending: options?.disable_telegram_sending,
+    promptSample: prompt.substring(0, 50) + '...',
+  })
   // --- IDEMPOTENCY KEY ---
   const idempotencyKey = crypto
     .createHash('sha256')
@@ -253,7 +270,10 @@ export async function generateNeuroPhotoDirect(
     logger.info('[IDEMPOTENCY] Найден локальный результат', {
       idempotencyKey,
     })
-    return cacheEntry.result
+    // ❌ ПРОБЛЕМА: Возвращаем закэшированный результат, но изображение НЕ отправляется!
+    // ✅ РЕШЕНИЕ: Для повторных генераций нужно генерировать новое изображение
+    // Временно отключаем кэш для повторных генераций
+    // return cacheEntry.result
   }
   // --- Проверка идемпотентности ---
   // Псевдокод: ищем в Supabase (таблица payments_v2 или idempotency_keys) запись с этим ключом и created_at > now() - TTL
@@ -282,7 +302,10 @@ export async function generateNeuroPhotoDirect(
         result: row.result,
         expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
       })
-      return row.result
+      // ❌ ПРОБЛЕМА: Возвращаем закэшированный результат, но изображение НЕ отправляется!
+      // ✅ РЕШЕНИЕ: Для повторных генераций нужно генерировать новое изображение
+      // Временно отключаем кэш для повторных генераций
+      // return row.result
     }
     logger.info('[IDEMPOTENCY] Операция уже выполняется, возвращаю статус', {
       idempotencyKey,
@@ -381,6 +404,7 @@ export async function generateNeuroPhotoDirect(
     logger.info('✅ [DIRECT] Экземпляр бота получен', {
       description: 'Bot instance retrieved',
       botName,
+      botInstanceExists: !!bot,
     })
 
     // Проверяем существование пользователя
@@ -401,8 +425,8 @@ export async function generateNeuroPhotoDirect(
       )
 
       try {
-        await ctx.telegram.sendMessage(
-          telegram_id,
+        await bot.telegram.sendMessage(
+          parseInt(telegram_id),
           is_ru
             ? '❌ Ваш аккаунт не найден в базе данных. Пожалуйста, запустите бота заново с помощью команды /start'
             : '❌ Your account was not found in our database. Please restart the bot using the /start command'
@@ -498,8 +522,8 @@ export async function generateNeuroPhotoDirect(
 
       // Добавляем проверку disable_telegram_sending
       if (!options?.disable_telegram_sending) {
-        await ctx.telegram.sendMessage(
-          telegram_id,
+        await bot.telegram.sendMessage(
+          parseInt(telegram_id),
           is_ru
             ? '❌ Не удалось обработать платеж. Пожалуйста, проверьте баланс и попробуйте еще раз.'
             : '❌ Failed to process payment. Please check your balance and try again.'
@@ -560,25 +584,35 @@ export async function generateNeuroPhotoDirect(
     // Генерируем изображения
     const generatedUrls = []
 
+    console.log('🔄 [DIRECT] НАЧАЛО ЦИКЛА ГЕНЕРАЦИИ ИЗОБРАЖЕНИЙ', {
+      telegram_id,
+      validNumImages,
+    })
+    logger.info({
+      message: '🔄 [DIRECT] НАЧАЛО ЦИКЛА ГЕНЕРАЦИИ ИЗОБРАЖЕНИЙ',
+      description: 'STARTING IMAGE GENERATION LOOP',
+      telegram_id,
+      validNumImages,
+      totalIterations: validNumImages,
+    })
+
     for (let i = 0; i < validNumImages; i++) {
-      // --- DEBUG LOG ---
-      // console.log(
-      //   '>>> generateNeuroPhotoDirect: LOOP Iteration',
-      //   {
-      //     telegram_id: telegram_id,
-      //     iteration: i,
-      //     totalIterations: validNumImages,
-      //     promptSample: prompt ? prompt.substring(0, 70) + '...' : 'null'
-      //   }
-      // );
-      // --- END DEBUG LOG ---
+      logger.info({
+        message: '🔄 [DIRECT] ИТЕРАЦИЯ ЦИКЛА ГЕНЕРАЦИИ',
+        description: 'LOOP ITERATION',
+        telegram_id,
+        iteration: i,
+        totalIterations: validNumImages,
+        promptSample: prompt ? prompt.substring(0, 70) + '...' : 'null',
+      })
+
       try {
         // Отправляем сообщение о начале генерации для каждого изображения
         if (!options?.disable_telegram_sending) {
           if (validNumImages > 1) {
             try {
-              await ctx.telegram.sendMessage(
-                telegram_id,
+              await bot.telegram.sendMessage(
+                parseInt(telegram_id),
                 is_ru
                   ? `⏳ Генерация изображения ${i + 1} из ${validNumImages}`
                   : `⏳ Generating image ${i + 1} of ${validNumImages}`
@@ -596,8 +630,8 @@ export async function generateNeuroPhotoDirect(
             }
           } else {
             try {
-              await ctx.telegram.sendMessage(
-                telegram_id,
+              await bot.telegram.sendMessage(
+                parseInt(telegram_id),
                 is_ru ? '⏳ Генерация...' : '⏳ Generating...',
                 {
                   reply_markup: { remove_keyboard: true },
@@ -695,6 +729,12 @@ export async function generateNeuroPhotoDirect(
             telegram_id,
           })
 
+          logger.info({
+            message: '🔄 [DIRECT] Вызов replicate.run()',
+            modelUrlPreview: model_url.substring(0, 50) + '...',
+            telegram_id,
+          })
+
           const output = (await replicate.run(
             model_url as `${string}/${string}:${string}`,
             {
@@ -729,6 +769,18 @@ export async function generateNeuroPhotoDirect(
 
           logger.info('[DIAGNOSTIC] Перед вызовом processApiResponse()', {
             iteration: i,
+            telegram_id,
+          })
+
+          // 🔍 ДЕТАЛЬНЫЙ ЛОГ содержимого output
+          logger.info({
+            message: '[DIAGNOSTIC] Содержимое output перед processApiResponse',
+            outputType: typeof output,
+            outputIsNull: output === null,
+            outputIsUndefined: output === undefined,
+            outputKeys: output && typeof output === 'object' ? Object.keys(output) : null,
+            outputJson: output ? JSON.stringify(output).substring(0, 500) + '...' : 'null',
+            outputFull: output ? JSON.stringify(output, null, 2) : 'null',
             telegram_id,
           })
 
@@ -829,8 +881,38 @@ export async function generateNeuroPhotoDirect(
           }
 
           // ОТПРАВЛЯЕМ ИЗОБРАЖЕНИЕ ПОЛЬЗОВАТЕЛЮ В ЛИЧНЫЕ СООБЩЕНИЯ
+          console.log('🚀 [DIRECT] ДОСТИГНУТ БЛОК ОТПРАВКИ ИЗОБРАЖЕНИЯ', {
+            telegram_id,
+            iteration: i,
+            imageUrl: imageUrl.substring(0, 50) + '...',
+            disable_telegram_sending: options?.disable_telegram_sending,
+          })
+          logger.info({
+            message: '🚀 [DIRECT] ДОСТИГНУТ БЛОК ОТПРАВКИ ИЗОБРАЖЕНИЯ',
+            description: 'REACHED IMAGE SENDING BLOCK',
+            telegram_id,
+            iteration: i,
+            imageUrl: imageUrl.substring(0, 50) + '...',
+            disable_telegram_sending: options?.disable_telegram_sending,
+          })
+
           try {
+            logger.info({
+              message: '🔍 [DIRECT] Проверка перед отправкой изображения',
+              description: 'Checking before sending image',
+              telegram_id,
+              disable_telegram_sending: options?.disable_telegram_sending,
+              imageUrl: imageUrl.substring(0, 50) + '...',
+            })
+
             if (!options?.disable_telegram_sending) {
+              logger.info({
+                message:
+                  '✅ [DIRECT] Отправка изображения разрешена, начинаем отправку',
+                description: 'Image sending allowed, starting send',
+                telegram_id,
+                imageUrl: imageUrl.substring(0, 50) + '...',
+              })
               // Определяем какой провайдер и модель использовались
               const isLoraUsed = useFal
               const loraInfo = isLoraUsed
@@ -889,9 +971,6 @@ export async function generateNeuroPhotoDirect(
                 ? `✨ <b>Изображение создано!</b>
 
 ━━━━━━━━━━━━━━━━━━━━
-📝 <b>Промпт</b>
-${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
-
 🎨 <b>Детали генерации</b>${loraInfo ? `\n├ 🎭 Персонализация: <b>${loraInfo.trigger}</b>` : ''}
 ├ 🤖 Модель: <b>${modelDisplay}</b>
 ├ 📐 Размер: <b>${dimensions}</b>
@@ -908,9 +987,6 @@ Model ID: <code>${isLoraUsed ? 'fal-ai/flux-lora' : model_url}</code>
                 : `✨ <b>Image created!</b>
 
 ━━━━━━━━━━━━━━━━━━━━
-📝 <b>Prompt</b>
-${prompt.slice(0, 150)}${prompt.length > 150 ? '...' : ''}
-
 🎨 <b>Generation Details</b>${loraInfo ? `\n├ 🎭 Personalization: <b>${loraInfo.trigger}</b>` : ''}
 ├ 🤖 Model: <b>${modelDisplay}</b>
 ├ 📐 Size: <b>${dimensions}</b>
@@ -1021,8 +1097,8 @@ Generated: ${new Date().toLocaleString('en-US')}
         // Отправляем сообщение об ошибке пользователю
         try {
           if (!options?.disable_telegram_sending) {
-            await ctx.telegram.sendMessage(
-              telegram_id,
+            await bot.telegram.sendMessage(
+              parseInt(telegram_id),
               is_ru
                 ? '❌ Произошла ошибка при генерации изображения. Мы вернем вам потраченные звезды в ближайшее время.'
                 : '❌ An error occurred while generating the image. We will refund your stars soon.'
@@ -1072,8 +1148,8 @@ Generated: ${new Date().toLocaleString('en-US')}
 
             try {
               if (!options?.disable_telegram_sending) {
-                await ctx.telegram.sendMessage(
-                  telegram_id,
+                await bot.telegram.sendMessage(
+                  parseInt(telegram_id),
                   is_ru
                     ? `💰 Мы вернули вам ${refundAmount} звезд за неудачную генерацию изображения.`
                     : `💰 We have refunded you ${refundAmount} stars for the failed image generation.`
@@ -1122,11 +1198,11 @@ Generated: ${new Date().toLocaleString('en-US')}
         const exactCostPerImage = costPerImage
         const totalCost = exactCostPerImage * generatedUrls.length
         const finalMessage = is_ru
-          ? `✅ Готово! Успешно сгенерировано ${generatedUrls.length} из ${validNumImages} изображений.\nСписано: ${totalCost.toFixed(2)} ⭐️\n\n📝 Промпт: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
-          : `✅ Done! Successfully generated ${generatedUrls.length} out of ${validNumImages} images.\nDeducted: ${totalCost.toFixed(2)} ⭐️\n\n📝 Prompt: ${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}`
+          ? `✅ Готово! Успешно сгенерировано ${generatedUrls.length} из ${validNumImages} изображений.\nСписано: ${totalCost.toFixed(2)} ⭐️`
+          : `✅ Done! Successfully generated ${generatedUrls.length} out of ${validNumImages} images.\nDeducted: ${totalCost.toFixed(2)} ⭐️`
 
         // 🚨 ИСПРАВЛЕНИЕ: Отправляем БЕЗ inline кнопок (wizard добавит reply keyboard)
-        await ctx.telegram.sendMessage(telegram_id, finalMessage)
+        await bot.telegram.sendMessage(parseInt(telegram_id), finalMessage)
 
         logger.info('✅ [DIRECT] Итоговое сообщение отправлено (без кнопок)', {
           telegram_id,

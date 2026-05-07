@@ -248,17 +248,17 @@ export async function getTranslation({
     if (key === 'menu' && buttons.length === 0) {
       try {
         // Dynamically import to avoid circular dependency
-        const { levels } = await import('@/menu/simpleMenu')
+        const { getAllButtonTexts } = await import('@/navigation')
         const { SubscriptionType } = await import('@/interfaces/subscription.interface')
 
         logger.info(`[getTranslation] Generating menu buttons from levels for "${key}"`, {
           telegramId,
           language_code,
-          totalLevels: Object.keys(levels).length
+          totalLevels: getAllButtonTexts().length
         })
 
-        buttons = Object.entries(levels)
-          .map(([key, level]: [string, any]) => {
+        buttons = getAllButtonTexts()
+          .map((item, index) => {
             // Create TranslationButton from Level
             const subscriptionMap: Record<number, SubscriptionType> = {
               1: SubscriptionType.NEUROPHOTO,
@@ -268,35 +268,35 @@ export async function getTranslation({
             }
 
             // 🐛 DEBUG: Log first 3 buttons to see what's happening
-            if (parseInt(key) <= 3) {
-              logger.info(`[getTranslation DEBUG] Button ${key} BEFORE selection:`, {
+            if (index < 3) {
+              logger.info(`[getTranslation DEBUG] Button ${index} BEFORE selection:`, {
                 language_code,
                 language_code_type: typeof language_code,
                 language_code_length: language_code?.length,
                 language_code_charCodes: language_code?.split('').map((c: string) => c.charCodeAt(0)),
-                title_ru: level.title_ru,
-                title_en: level.title_en,
+                title_ru: item.ru,
+                title_en: item.en,
                 comparison_result: language_code === 'ru',
                 strict_equals_ru: language_code === 'ru',
                 loose_equals_ru: language_code == 'ru',
               })
             }
 
-            const textValue = language_code === 'ru' ? level.title_ru : level.title_en
+            const textValue = language_code === 'ru' ? item.ru : item.en
 
             // 🐛 DEBUG: Log selected value
-            if (parseInt(key) <= 3) {
-              logger.info(`[getTranslation DEBUG] Button ${key} AFTER selection:`, {
+            if (index < 3) {
+              logger.info(`[getTranslation DEBUG] Button ${index} AFTER selection:`, {
                 selected_text: textValue,
                 selected_from: language_code === 'ru' ? 'title_ru' : 'title_en'
               })
             }
 
             return {
-              row: parseInt(key) > 100 ? 2 : 1, // Admin buttons on second row
+              row: index > 100 ? 2 : 1, // Admin buttons on second row
               text: textValue,
-              callback_data: `level_${key}`, // Required by TranslationButton interface
-              subscription: subscriptionMap[parseInt(key)] || SubscriptionType.NEUROPHOTO,
+              callback_data: `level_${index}`, // Required by TranslationButton interface
+              subscription: subscriptionMap[index] || SubscriptionType.NEUROPHOTO,
               stars_price: 476,
               en_price: 15,
               ru_price: 1110,

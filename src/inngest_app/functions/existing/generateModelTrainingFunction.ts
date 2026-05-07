@@ -12,10 +12,10 @@
  */
 
 import Replicate from 'replicate'
-import fs from 'fs'
+// fs import removed - ZIP is now downloaded from Supabase URL, not local filesystem
 import { supabase } from '@/core/supabase'
-import { REPLICATE_API_TOKEN, REPLICATE_USERNAME } from '@/config'
 import { logger } from '@/utils/logger'
+import { sanitizeModelName } from '@/helpers/sanitizeModelName'
 import type { Inngest } from 'inngest'
 
 interface ModelTrainingEvent {
@@ -25,7 +25,7 @@ interface ModelTrainingEvent {
     bot_name: string
     modelName: string
     triggerWord: string
-    filePath: string // Local ZIP path on bot-farm
+    zipUrl: string // 🔥 FIX: HTTP URL from Supabase Storage (not local filePath)
     steps: number
     is_ru: boolean
     gender: string
@@ -57,8 +57,17 @@ export const generateModelTrainingFunction = inngest.createFunction(
       })
 
       // ✅ STEP 1: Validate credentials
+      // 🔥 FIX: Read from process.env at runtime, return minimal data to avoid size limit
       await step.run('validate-credentials', async () => {
-        if (!REPLICATE_API_TOKEN || !REPLICATE_USERNAME) {
+        const token = process.env.REPLICATE_API_TOKEN
+        const username = process.env.REPLICATE_USERNAME
+
+        if (!token || !username) {
+          logger.error('[INNGEST TRAINING] ❌ Missing credentials!', {
+            hasToken: !!token,
+            hasUsername: !!username,
+            envKeys: Object.keys(process.env).filter(k => k.includes('REPLICATE')).join(', '),
+          })
           throw new Error('Missing REPLICATE_API_TOKEN or REPLICATE_USERNAME')
         }
         logger.info('[INNGEST TRAINING] Credentials validated')
@@ -86,40 +95,141 @@ export const generateModelTrainingFunction = inngest.createFunction(
         return { hasDuplicate: false }
       })
 
-      // ✅ STEP 3: Prepare ZIP file
-      const zipData = await step.run('prepare-zip', async () => {
-        if (!fs.existsSync(eventData.filePath)) {
-          throw new Error(`ZIP file not found: ${eventData.filePath}`)
+      // ✅ STEP 3: Validate ZIP URL (no download - pass URL directly to Replicate)
+      // 🔥 FIX: Removed HEAD request to avoid Inngest capturing response object
+      // Replicate accepts public URLs directly!
+      const zipValidation = await step.run('validate-zip-url', async () => {
+        if (!eventData.zipUrl) {
+          throw new Error('ZIP URL not provided in event data')
         }
 
-        const fileStats = fs.statSync(eventData.filePath)
-        logger.info('[INNGEST TRAINING] ZIP file validated', {
-          size: fileStats.size,
-          path: eventData.filePath,
+        // Just verify URL exists, don't fetch anything
+        // Replicate will handle URL validation
+        logger.info('[INNGEST TRAINING] ZIP URL will be validated by Replicate', {
+          url: eventData.zipUrl.substring(0, 80) + '...',
         })
 
-        // Convert to base64 for Replicate
-        const fileBuffer = fs.readFileSync(eventData.filePath)
-        const base64Data = fileBuffer.toString('base64')
-        const dataUri = `data:application/zip;base64,${base64Data}`
-
-        logger.info('[INNGEST TRAINING] Base64 conversion complete', {
-          originalSize: fileBuffer.length,
-          base64Length: base64Data.length,
-        })
-
-        return { dataUri, originalSize: fileBuffer.length }
+        return { urlValid: true }
       })
 
-      // ✅ STEP 4: Create training on Replicate
-      const trainingResult = await step.run('create-replicate-training', async () => {
-        const replicate = new Replicate({ auth: REPLICATE_API_TOKEN })
+      // ✅ STEP 4: Sanitize model name and create model on Replicate
+      // 🔥 FIX: Read credentials from process.env to avoid step output size limit
+      const modelInfo = await step.run('create-replicate-model', async () => {
+        const token = process.env.REPLICATE_API_TOKEN
+        const username = process.env.REPLICATE_USERNAME
 
-        const destination = `${REPLICATE_USERNAME}/${eventData.modelName}`
+        const replicate = new Replicate({ auth: token })
+
+        // Sanitize model name (remove spaces, special chars, make lowercase)
+        const sanitizedName = sanitizeModelName(eventData.modelName)
+        // Add unique timestamp to avoid conflicts
+        const uniqueModelName = `${sanitizedName}-${Date.now()}`
+        const destination = `${username}/${uniqueModelName}`
+
+        logger.info('[INNGEST TRAINING] Preparing model destination...', {
+          destination,
+          owner: username,
+          originalName: eventData.modelName,
+          sanitizedName: uniqueModelName,
+        })
+
+        // Check if model exists
+        let modelExists = false
+        try {
+          await replicate.models.get(username, uniqueModelName)
+          logger.info('[INNGEST TRAINING] Model already exists', { destination })
+          modelExists = true
+        } catch (error: any) {
+          if (error?.response?.status === 404) {
+            logger.info('[INNGEST TRAINING] Model does not exist, creating...', { destination })
+            modelExists = false
+          } else {
+            throw error
+          }
+        }
+
+        // Create model if it doesn't exist
+        if (!modelExists) {
+          try {
+            await replicate.models.create(username, uniqueModelName, {
+              description: `LoRA: ${eventData.triggerWord}`,
+              visibility: 'public',
+              hardware: 'gpu-l40s',
+            })
+            logger.info('[INNGEST TRAINING] ✅ Model created successfully', { destination })
+            // Wait for model to be fully initialized
+            await new Promise(resolve => setTimeout(resolve, 5000))
+          } catch (createError: any) {
+            logger.error('[INNGEST TRAINING] Failed to create model', {
+              error: createError?.message,
+              destination,
+            })
+            throw new Error(`Failed to create Replicate model: ${createError?.message}`)
+          }
+        }
+
+        return { destination, uniqueModelName }
+      })
+
+      // ✅ STEP 5a: Save PENDING record BEFORE starting Replicate (prevents lost trainings!)
+      // 🔥 FIX: Create DB record FIRST, then start expensive Replicate training
+      // This prevents the bug where training succeeds but DB save fails silently
+      const pendingRecord = await step.run('save-pending-record', async () => {
+        const trainingRecord = {
+          telegram_id: eventData.telegram_id,
+          model_name: eventData.modelName,
+          trigger_word: eventData.triggerWord,
+          zip_url: eventData.zipUrl,
+          replicate_training_id: `pending-${Date.now()}`, // Temporary ID until training starts
+          status: 'PENDING', // Will be updated to 'starting' when Replicate accepts
+          bot_name: eventData.bot_name,
+          steps: eventData.steps,
+          is_ru: eventData.is_ru,
+          created_at: new Date().toISOString(),
+        }
+
+        const { data, error } = await supabase
+          .from('model_trainings')
+          .insert(trainingRecord)
+          .select('id')
+          .single()
+
+        if (error) {
+          // 🔥 CRITICAL: THROW error - don't proceed if we can't track the training!
+          logger.error('[INNGEST TRAINING] ❌ Failed to save pending record', {
+            error: error.message,
+            telegram_id: eventData.telegram_id,
+            model_name: eventData.modelName,
+          })
+          throw new Error(`Database error: ${error.message}. Training not started to prevent lost records.`)
+        }
+
+        logger.info('[INNGEST TRAINING] ✅ Pending record saved (training will be tracked)', {
+          record_id: data.id,
+          model_name: eventData.modelName,
+        })
+
+        return { record_id: data.id }
+      })
+
+      // ✅ STEP 5b: Create training on Replicate (now safe - we have a DB record)
+      // 🔥 FIX: Read credentials from process.env to avoid step output size limit
+      const trainingResult = await step.run('create-replicate-training', async () => {
+        const token = process.env.REPLICATE_API_TOKEN
+        const replicate = new Replicate({ auth: token })
+
+        const destination = modelInfo.destination
 
         // ✅ ВАЖНО: Webhook URL для получения callback от Replicate
-        // Используем локальный сервер вместо внешнего ai-server
-        const webhookUrl = `http://localhost:3000/webhooks/replicate`
+        // Replicate REQUIRES HTTPS! Use BASE_WEBHOOK_URL from Infisical/env
+        const baseUrl = process.env.BASE_WEBHOOK_URL
+        if (!baseUrl) {
+          throw new Error(
+            'BASE_WEBHOOK_URL is not configured! Cannot register webhook with Replicate. ' +
+            'Set it in Infisical (e.g. https://999-multibots-telegraf.fly.dev)'
+          )
+        }
+        const webhookUrl = `${baseUrl}/api/webhooks/replicate`
 
         logger.info('[INNGEST TRAINING] Creating Replicate training...', {
           destination,
@@ -135,7 +245,8 @@ export const generateModelTrainingFunction = inngest.createFunction(
           {
             destination: destination as `${string}/${string}`,
             input: {
-              input_images: zipData.dataUri,
+              // 🔥 FIX: Pass URL directly instead of base64 (avoids step output size limit)
+              input_images: eventData.zipUrl,
               trigger_word: eventData.triggerWord,
               steps: eventData.steps,
               // Hardware optimization
@@ -167,53 +278,37 @@ export const generateModelTrainingFunction = inngest.createFunction(
         }
       })
 
-      // ✅ STEP 5: Save training record to Supabase
-      await step.run('save-training-record', async () => {
-        const trainingRecord = {
-          user_id: eventData.telegram_id,
-          model_name: eventData.modelName,
-          trigger_word: eventData.triggerWord,
-          zip_url: eventData.filePath,
-          replicate_training_id: trainingResult.training_id,
-          status: trainingResult.status,
-          bot_name: eventData.bot_name,
-          steps: eventData.steps,
-          created_at: new Date().toISOString(),
-        }
-
+      // ✅ STEP 5c: Update record with real training_id (CRITICAL for webhook matching!)
+      await step.run('update-training-record', async () => {
         const { error } = await supabase
           .from('model_trainings')
-          .insert(trainingRecord)
+          .update({
+            replicate_training_id: trainingResult.training_id,
+            status: trainingResult.status,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pendingRecord.record_id)
 
         if (error) {
-          logger.error('[INNGEST TRAINING] Database error (non-fatal)', {
+          // 🔥 CRITICAL: THROW error - webhook won't work without correct training_id!
+          logger.error('[INNGEST TRAINING] ❌ Failed to update training record', {
             error: error.message,
+            record_id: pendingRecord.record_id,
+            training_id: trainingResult.training_id,
           })
-          // Don't throw - training already started
-        } else {
-          logger.info('[INNGEST TRAINING] Training record saved to database')
+          throw new Error(`Failed to update training record: ${error.message}. Webhook may not work!`)
         }
 
-        return { saved: !error }
+        logger.info('[INNGEST TRAINING] ✅ Training record updated with Replicate ID', {
+          record_id: pendingRecord.record_id,
+          training_id: trainingResult.training_id,
+        })
+
+        return { updated: true }
       })
 
-      // ✅ STEP 6: Clean up local ZIP file
-      await step.run('cleanup-zip', async () => {
-        try {
-          if (fs.existsSync(eventData.filePath)) {
-            await fs.promises.unlink(eventData.filePath)
-            logger.info('[INNGEST TRAINING] ZIP file deleted')
-          }
-        } catch (unlinkError) {
-          logger.warn('[INNGEST TRAINING] Failed to delete ZIP (non-fatal)', {
-            error: unlinkError instanceof Error ? unlinkError.message : String(unlinkError),
-          })
-        }
-
-        return { cleaned: true }
-      })
-
-      // ✅ STEP 7: Send initial success message to user
+      // ✅ STEP 6: Send initial success message to user
+      // NOTE: Cleanup step removed - ZIP is now stored in Supabase Storage, not locally
       await step.run('notify-user-started', async () => {
         try {
           const { getBotByName } = await import('@/core/bot')

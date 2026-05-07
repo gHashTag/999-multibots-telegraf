@@ -51,6 +51,7 @@ case "$ENV" in
     SSH_HOST="188.137.250.69"
     SSH_ALIAS="prod999"
     PORT=3002
+    API_PORT=3002
     INFISICAL_ENV="staging"
     CONTAINER_NAME="999-multibots-staging"
     echo -e "${YELLOW}🧪 STAGING MODE${NC}"
@@ -59,6 +60,7 @@ case "$ENV" in
     SSH_HOST="188.137.250.69"
     SSH_ALIAS="prod999"
     PORT=3001
+    API_PORT=3001
     INFISICAL_ENV="prod"
     CONTAINER_NAME="999-multibots"
     echo -e "${GREEN}🚀 PRODUCTION MODE${NC}"
@@ -134,6 +136,31 @@ if [ "$ENV" != "dev" ] && [ "$ENV" != "development" ]; then
 
   echo -e "${GREEN}✅ Code synced${NC}"
   echo ""
+
+  # ✅ Проверка портов (тихая, только если найдена проблема)
+  ssh $SSH_ALIAS bash <<'FIXSCRIPT'
+set -e
+cd /root/999-agents-telegraf
+
+# Проверяем docker-compose.yml (только если найдена проблема)
+if grep -q "2999" docker-compose.yml 2>/dev/null && ! grep -q "#.*2999" docker-compose.yml 2>/dev/null; then
+  echo "⚠️  Port 2999 found in docker-compose.yml, updating to 3000..."
+  sed -i 's/2999:2999/3000:3000/g' docker-compose.yml
+  sed -i 's/:2999 /:3000 /g' docker-compose.yml
+  sed -i 's/localhost:2999/localhost:3000/g' docker-compose.yml
+  echo "✅ docker-compose.yml updated"
+fi
+
+# Проверяем nginx config (только если найдена проблема)
+if docker exec bot-proxy grep -q "2999" /etc/nginx/conf.d/default.conf 2>/dev/null; then
+  echo "⚠️  Port 2999 found in nginx config, updating to 3000..."
+  docker exec bot-proxy sed -i 's/localhost:2999/localhost:3000/g' /etc/nginx/conf.d/default.conf
+  docker exec bot-proxy nginx -t && docker exec bot-proxy nginx -s reload
+  echo "✅ nginx config updated"
+fi
+FIXSCRIPT
+
+  echo ""
 fi
 
 # 3. Build Docker
@@ -159,6 +186,7 @@ if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
     -t $CONTAINER_NAME:latest \
     $BUILD_ARGS \
     --progress=plain \
+    --no-cache \
     . 2>&1 | tail -30
 
   END=$(date +%s)
@@ -188,6 +216,7 @@ docker build \\
   -t $CONTAINER_NAME:latest \\
   $BUILD_ARGS \\
   --progress=plain \\
+  --no-cache \\
   . 2>&1 | tail -30
 
 BUILD_EXIT=\${PIPESTATUS[0]}
@@ -229,8 +258,9 @@ if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
   docker run -d \
     --name $CONTAINER_NAME \
     --restart=unless-stopped \
-    -p 2999:2999 \
+    -p 3000:3000 \
     -p 3001:3001 \
+    -e API_PORT=$API_PORT \
     --env-file .env \
     $CONTAINER_NAME:latest
 
@@ -250,8 +280,10 @@ docker rm $CONTAINER_NAME 2>/dev/null || true
 docker run -d \
   --name $CONTAINER_NAME \
   --restart=always \
-  -p 2999:2999 \
+  -p 3000:3000 \
   -p 3001:3001 \
+  -e API_PORT=$API_PORT \
+  --env-file /root/999-agents-telegraf/.env \
   -v /root/999-agents-telegraf/.env:/app/.env:ro \
   $CONTAINER_NAME:latest
 
@@ -265,6 +297,118 @@ fi
 echo ""
 echo -e "${GREEN}✅ Container deployed${NC}"
 echo ""
+
+# 4.5. 🔧 NGINX AUTO-FIX (Critical - prevents webhook failures!)
+if [ "$ENV" != "dev" ] && [ "$ENV" != "development" ]; then
+  echo "4.5️⃣ Checking and fixing nginx configuration..."
+
+  # Function to send Telegram alert to admin
+  send_admin_alert() {
+    local message="$1"
+    local ADMIN_CHAT_ID="144022504"  # Admin Telegram ID
+    # Get bot token from server .env
+    local BOT_TOKEN=$(ssh $SSH_ALIAS "grep TELEGRAM_BOT_TOKEN_LEELA /root/999-agents-telegraf/.env 2>/dev/null | cut -d'=' -f2" 2>/dev/null || echo "")
+
+    if [ -n "$BOT_TOKEN" ]; then
+      curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+        -d "chat_id=${ADMIN_CHAT_ID}" \
+        -d "text=${message}" \
+        -d "parse_mode=HTML" > /dev/null 2>&1 || true
+      echo "📱 Admin notified via Telegram"
+    fi
+  }
+
+  NGINX_ISSUES=""
+
+  ssh $SSH_ALIAS 'bash -s' << 'NGINX_FIX'
+set -e
+
+ISSUES_FOUND=""
+
+# Check if nginx is running
+if ! systemctl is-active --quiet nginx; then
+  echo "⚠️  Nginx is not running! Starting..."
+  ISSUES_FOUND="${ISSUES_FOUND}nginx_stopped,"
+  systemctl start nginx
+  systemctl enable nginx
+  echo "✅ Nginx started and enabled"
+fi
+
+# Check nginx upstream port (MUST be 3001 for production!)
+NGINX_CONFIG="/etc/nginx/sites-available/bot-api"
+
+if [ -f "$NGINX_CONFIG" ]; then
+  # Check if upstream points to wrong port
+  if grep -q "server 127.0.0.1:3000" "$NGINX_CONFIG"; then
+    echo "⚠️  Nginx upstream pointing to wrong port 3000! Fixing to 3001..."
+    ISSUES_FOUND="${ISSUES_FOUND}wrong_port,"
+    sed -i 's/server 127.0.0.1:3000/server 127.0.0.1:3001/' "$NGINX_CONFIG"
+
+    # Test and reload
+    if nginx -t 2>/dev/null; then
+      systemctl reload nginx
+      echo "✅ Nginx fixed: upstream now points to 3001"
+    else
+      echo "❌ Nginx config test failed!"
+      echo "CRITICAL_ERROR:nginx_config_invalid"
+      exit 1
+    fi
+  else
+    echo "✅ Nginx upstream correctly configured (port 3001)"
+  fi
+else
+  echo "⚠️  Nginx config not found at $NGINX_CONFIG"
+  ISSUES_FOUND="${ISSUES_FOUND}config_missing,"
+fi
+
+# Test external webhook accessibility
+echo "🔍 Testing webhook via nginx..."
+WEBHOOK_TEST=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"test":true}' \
+  https://three-head-dragon.shop/api/video-callback/ 2>/dev/null || echo "000")
+
+if [ "$WEBHOOK_TEST" = "200" ] || [ "$WEBHOOK_TEST" = "202" ]; then
+  echo "✅ External webhook test PASSED (HTTP $WEBHOOK_TEST)"
+else
+  echo "⚠️  External webhook returned HTTP $WEBHOOK_TEST"
+  ISSUES_FOUND="${ISSUES_FOUND}webhook_failed_${WEBHOOK_TEST},"
+  echo "   Checking nginx error log..."
+  tail -5 /var/log/nginx/bot-api.error.log 2>/dev/null || true
+fi
+
+# Output issues for parent script to capture
+if [ -n "$ISSUES_FOUND" ]; then
+  echo "NGINX_ISSUES:${ISSUES_FOUND}"
+fi
+NGINX_FIX
+
+  # Capture nginx check result
+  NGINX_RESULT=$?
+
+  # Check if there were any issues that need admin notification
+  if ssh $SSH_ALIAS "grep -q 'server 127.0.0.1:3000' /etc/nginx/sites-available/bot-api 2>/dev/null"; then
+    # This shouldn't happen after fix, but check anyway
+    :
+  fi
+
+  # Send alert if critical issues detected
+  if [ $NGINX_RESULT -ne 0 ]; then
+    send_admin_alert "🚨 <b>CRITICAL: Deploy nginx issue!</b>
+
+Server: 188.137.250.69
+Time: $(date '+%Y-%m-%d %H:%M:%S')
+
+Nginx configuration failed validation.
+Webhooks may not work!
+
+<code>ssh prod999 'nginx -t'</code>"
+
+    echo -e "${RED}❌ NGINX CRITICAL ERROR! Admin notified.${NC}"
+  fi
+
+  echo ""
+fi
 
 # 5. Health check
 echo "5️⃣ Health check (wait 10s)..."
@@ -286,6 +430,20 @@ else
   echo -e "${YELLOW}⚠️  Health check FAILED (but bots may be running in polling mode)${NC}"
   echo "   Checking logs..."
 
+  # 🚨 SEND WARNING TO ADMIN
+  if [ "$ENV" != "dev" ] && [ "$ENV" != "development" ]; then
+    send_admin_alert "⚠️ <b>WARNING: Health check failed</b>
+
+Server: 188.137.250.69
+Time: $(date '+%Y-%m-%d %H:%M:%S')
+URL: $HEALTH_URL
+
+Контейнер запущен, но health endpoint не отвечает.
+Возможно боты работают в polling mode.
+
+<code>ssh prod999 'docker logs 999-multibots --tail 20'</code>"
+  fi
+
   if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
     docker logs $CONTAINER_NAME --tail 50
   else
@@ -300,10 +458,10 @@ echo "6️⃣ Webhook verification (CRITICAL CHECK)..."
 echo "   Testing Veo 3 webhook endpoint..."
 sleep 3
 
-WEBHOOK_URL="http://$SSH_HOST:$PORT/api/webhooks/kie-ai/video-callback"
+WEBHOOK_URL="http://$SSH_HOST:$PORT/api/video-callback"
 
 if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
-  WEBHOOK_URL="http://localhost:$PORT/api/webhooks/kie-ai/video-callback"
+  WEBHOOK_URL="http://localhost:$PORT/api/video-callback"
 fi
 
 # Test payload - minimal Veo 3 / WAN webhook structure
@@ -356,6 +514,24 @@ else
   echo "Response:"
   echo "$WEBHOOK_RESPONSE"
   echo ""
+
+  # 🚨 SEND TELEGRAM ALERT TO ADMIN
+  if [ "$ENV" != "dev" ] && [ "$ENV" != "development" ]; then
+    send_admin_alert "🚨 <b>CRITICAL: Webhook FAILED!</b>
+
+Server: 188.137.250.69
+Time: $(date '+%Y-%m-%d %H:%M:%S')
+HTTP Code: ${HTTP_CODE:-ERROR}
+
+Deployment aborted. Webhooks не работают!
+Видео не будут доставляться в чат.
+
+<b>Действия:</b>
+1. <code>ssh prod999 'docker logs 999-multibots --tail 50'</code>
+2. <code>ssh prod999 'nginx -t && systemctl reload nginx'</code>
+3. <code>curl -X POST http://188.137.250.69:3001/api/video-callback</code>"
+  fi
+
   echo -e "${RED}❌ DEPLOYMENT ABORTED - Webhook не работает!${NC}"
   echo "   Без webhook бот бесполезен. Проверьте логи:"
   if [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then

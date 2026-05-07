@@ -277,6 +277,15 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.04),
     inputType: ['text', 'image'],
   },
+  'bytedance/seedream-4.5': {
+    shortName: 'Seedream 4.5',
+    description_en: `Seedream 4.5 is the latest evolution of ByteDance's leading image generation model. Built on Seedream 4.0's foundation with improved quality and consistency.\n\nKey improvements over 4.0:\n- Enhanced visual quality and detail preservation\n- Better text rendering and typography\n- Improved instruction following\n- More consistent style transfer\n- Optimized for portrait and character generation\n\nRecommended for professional image generation requiring highest quality output.`,
+    description_ru: `Seedream 4.5 - последняя эволюция ведущей модели генерации изображений ByteDance. Построена на основе Seedream 4.0 с улучшенным качеством и стабильностью.\n\nКлючевые улучшения по сравнению с 4.0:\n- Улучшенное визуальное качество и сохранение деталей\n- Лучший рендеринг текста и типографики\n- Улучшенное следование инструкциям\n- Более стабильная передача стиля\n- Оптимизирована для портретов и генерации персонажей\n\nРекомендуется для профессиональной генерации изображений, требующей наивысшего качества.`,
+    previewImage:
+      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
+    costPerImage: calculateFinalImageCostInStars(0.04),
+    inputType: ['text', 'image'],
+  },
   'google/nano-banana': {
     shortName: 'Nano Banana',
     description_en: `Google's latest image editing model in Gemini 2.5 Flash, described as "could truly be the end of Photoshop". Integrated into Adobe Photoshop Beta alongside FLUX.1 Kontext [pro].\n\nKey features:\n- Multi-image input support for complex edits\n- Excellent instruction following\n- Fast generation with professional quality\n- Text editing and typography preservation\n- Style transfer while maintaining original resemblance\n\nOptimized for rapid, high-quality image transformations with natural language control.`,

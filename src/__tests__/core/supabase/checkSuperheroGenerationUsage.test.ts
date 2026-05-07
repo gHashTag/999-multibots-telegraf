@@ -1,22 +1,23 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { checkSuperheroGenerationUsage } from '@/core/supabase/checkSuperheroGenerationUsage'
 import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscription'
 import { supabase } from '@/core/supabase/client'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 // Mock dependencies
-jest.mock('@/core/supabase/client')
-jest.mock('@/core/supabase/getUserDetailsSubscription')
-jest.mock('@/utils/logger')
-jest.mock('@/config', () => ({
-  ADMIN_IDS_ARRAY: [123456789]
+vi.mock('@/core/supabase/client')
+vi.mock('@/core/supabase/getUserDetailsSubscription')
+vi.mock('@/utils/logger')
+vi.mock('@/config', () => ({
+  ADMIN_IDS_ARRAY: [123456789],
 }))
 
-const mockSupabase = supabase as jest.Mocked<typeof supabase>
-const mockGetUserDetailsSubscription = getUserDetailsSubscription as jest.MockedFunction<typeof getUserDetailsSubscription>
+const mockSupabase = supabase as any
+const mockGetUserDetailsSubscription = getUserDetailsSubscription as any
 
 describe('checkSuperheroGenerationUsage', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('Admin users', () => {
@@ -78,11 +79,11 @@ describe('checkSuperheroGenerationUsage', () => {
 
     it('should allow generation when user has remaining generations', async () => {
       mockSupabase.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({
-                maybeSingle: jest.fn().mockResolvedValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
                   data: { generation_count: 1 },
                   error: null,
                 }),
@@ -104,11 +105,11 @@ describe('checkSuperheroGenerationUsage', () => {
 
     it('should deny generation when user has exceeded limit', async () => {
       mockSupabase.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({
-                maybeSingle: jest.fn().mockResolvedValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
                   data: { generation_count: 3 },
                   error: null,
                 }),
@@ -130,11 +131,11 @@ describe('checkSuperheroGenerationUsage', () => {
 
     it('should allow generation for new user (no existing record)', async () => {
       mockSupabase.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({
-                maybeSingle: jest.fn().mockResolvedValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
                   data: null,
                   error: { code: 'PGRST116' },
                 }),
@@ -166,11 +167,11 @@ describe('checkSuperheroGenerationUsage', () => {
       })
 
       mockSupabase.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({
-                maybeSingle: jest.fn().mockResolvedValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
                   data: { generation_count: 2 },
                   error: null,
                 }),
@@ -191,7 +192,9 @@ describe('checkSuperheroGenerationUsage', () => {
 
   describe('Error handling', () => {
     it('should handle database errors gracefully', async () => {
-      mockGetUserDetailsSubscription.mockRejectedValue(new Error('Database connection failed'))
+      mockGetUserDetailsSubscription.mockRejectedValue(
+        new Error('Database connection failed')
+      )
 
       const result = await checkSuperheroGenerationUsage('987654321')
 

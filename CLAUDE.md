@@ -1,5 +1,25 @@
 # CLAUDE.md - Project Context for Claude Code
 
+## 🚨 CRITICAL NAVIGATION RULE - SINGLE SOURCE OF TRUTH
+
+**ЕДИНСТВЕННЫЙ источник правды для навигации: `/src/navigation/`**
+
+NEVER use or create navigation code outside of `/src/navigation/`:
+- `/src/services/NavigationService.ts` - DEPRECATED, TO BE DELETED
+- `/src/menu/` - DEPRECATED, TO BE DELETED
+
+ALL navigation imports MUST come from `@/navigation`:
+```typescript
+// ✅ CORRECT
+import { showMainMenu, createMainMenuKeyboard } from '@/navigation'
+import { buttonMatcher, safeEnterScene } from '@/navigation'
+
+// ❌ WRONG - DO NOT USE
+import { showMainMenu } from '@/services/NavigationService'
+```
+
+---
+
 **Project**: 999-agents-telegraf - Multi-bot Telegram Platform with AI Generation
 **Language**: TypeScript + Node.js 20
 **Framework**: Telegraf 4.16.3
@@ -7,7 +27,7 @@
 **Secrets**: Infisical (cloud-first, only 5 vars in .env)
 **Background Jobs**: Inngest (event-driven async)
 **AI Providers**: Replicate, Fal, KieAI, OpenAI, Sora, HeyGen, etc.
-**Deployment**: Docker on VPS 188.137.250.69
+**Deployment**: fly.io (app: 999-multibots-telegraf, org: Abbie Connell)
 
 ---
 
@@ -131,38 +151,36 @@ npm test -- neuroPhotoWizard.test.ts
 npm test -- --coverage
 ```
 
-### 3. Deployment (NEW! Unified deploy.sh with Environment Support)
+### 3. Deployment (fly.io)
 
 ```bash
-# 🚀 UNIFIED DEPLOYMENT (esbuild - 2min builds, 101MB images)
+# 🚀 FLY.IO DEPLOYMENT
+# App: 999-multibots-telegraf
+# Org: Abbie Connell (slug: personal)
+# Region: ams (Amsterdam)
+# Config: fly.toml
 
-# Production deployment (default)
-./deploy.sh production
-# or just
-./deploy.sh
+# FLY_API_TOKEN (ОБЯЗАТЕЛЬНО для деплоя!):
+export FLY_API_TOKEN="fm2_lJPECAAAAAAAERO3xBBOw6Ug8TSQzgFqM5JlingBwrVodHRwczovL2FwaS5mbHkuaW8vdjGUAJLOABYNhB8Lk7lodHRwczovL2FwaS5mbHkuaW8vYWFhL3YxxDy14JcudNiTKpR7YyXiNPx5nMM04C0KuNaMfjzAKEJ+DPY/UJHrWD2b7egQrZR1QQdDzHwzyle2+fncItzETpFf9R1miIZotnHSAMndMsENUxaeKEtUjNfqFYa2K5eLUe9anwSXU8lskCxvIvbyfErxqukuRjktxO3u2e/ws2ryJNKxCRhIMzWavRkdRsQgilHPR6P7dyZTKUpAtNFt2MpEsFEk7xXvjD1yf2NxVP8=,fm2_lJPETpFf9R1miIZotnHSAMndMsENUxaeKEtUjNfqFYa2K5eLUe9anwSXU8lskCxvIvbyfErxqukuRjktxO3u2e/ws2ryJNKxCRhIMzWavRkdRsQQoykebr28CiaqhDiq209BlMO5aHR0cHM6Ly9hcGkuZmx5LmlvL2FhYS92MZgEks5phBzazwAAAAElfDr4F84AFStKCpHOABUrSgzEEPoda7NE0D3cm0Yw8/2KnFzEIDNqhlN8HnBRxLPbPqbtBc8KlWSLai98e3BSaOI5XOrB"
 
-# Staging deployment (port 3002)
-./deploy.sh staging
+# Deploy command:
+flyctl deploy --remote-only --app 999-multibots-telegraf
 
-# Development (local) deployment
-./deploy.sh dev
+# Set secrets:
+flyctl secrets set KEY=VALUE --app 999-multibots-telegraf
 
-# What it does:
-# 1. Type check (fails if errors)
-# 2. Sync code to server (rsync, excludes media)
-# 3. Build Docker with esbuild (~2 minutes)
-# 4. Deploy container (zero-downtime restart)
-# 5. Health check (auto-verify)
+# View logs:
+flyctl logs --app 999-multibots-telegraf
 
-# Environment Configuration:
-# - dev:        localhost:3001 (local Docker)
-# - staging:    188.137.250.69:3002
-# - production: 188.137.250.69:3001
+# Status:
+flyctl status --app 999-multibots-telegraf
 
-# Comparison: esbuild vs tsc
-# Build time: 112s vs 3-5min (3x faster!)
-# Image size: 101MB vs 208MB (2x smaller!)
-# Bundle time: 175ms vs 50s (esbuild magic!)
+# SSH into machine:
+flyctl ssh console --app 999-multibots-telegraf
+
+# ВАЖНО: НЕ использовать flyctl auth login!
+# Всегда через export FLY_API_TOKEN=...
+# Аккаунт: Abbie Connell (НЕ Leela Chakra / geyakamskaya@gmail.com!)
 ```
 
 ### 4. Secret Management (Infisical)
@@ -170,6 +188,12 @@ npm test -- --coverage
 ```bash
 # RULE: Only 5 variables in .env (local)
 # All other secrets MUST be in Infisical
+
+# 🚨 IMPORTANT RULE FOR AGENTS:
+# DO NOT ASK USER FOR KEYS! All keys are already documented in .env file!
+# - INNGEST_EVENT_KEY: 4JiBiCBZ8en7jNonnsAPXCFiLVkrt1uEXklGcDzaQ6SCBV9p7-UBlQlTrze-x_WPRTihikB_uhAGhbkwGhnu4Q
+# - INNGEST_SIGNING_KEY: signkey-test-c4167464e900701832920c98bb2ec6e6e3c59fd2b27c62e1f4140dada01e4597
+# Use predefined values from .env documentation!
 
 # Local .env (5 variables only):
 INFISICAL_CLIENT_ID=xxx
@@ -276,10 +300,20 @@ docker stats 999-multibots --no-stream
 
 ### ABSOLUTE PROHIBITIONS
 
+0. **🚫 NEVER use git force push** - `git push --force`, `git push -f` - ABSOLUTELY FORBIDDEN!
+   - Deletes commit history permanently
+   - Overwrites other developers' work
+   - Makes rollback impossible
+   - ONLY use Pull Request workflow: `git checkout -b feat/name && git push -u origin feat/name && gh pr create`
+
 1. **NEVER add secrets to .env** (only 5 Infisical variables)
+
 2. **NEVER skip type checking** before deployment
+
 3. **NEVER deploy without health check**
+
 4. **NEVER ignore TypeScript errors** (`|| true` forbidden)
+
 5. **NEVER create duplicate code** (use anti-duplication-guardian)
 
 ### Telegram Scene Rules (5 Absolute Rules)
@@ -607,8 +641,9 @@ npm run test:coverage # Coverage report
 ## 🌐 Important URLs
 
 ```
-Production Server: 188.137.250.69:3001
-Health Check: http://188.137.250.69:3001/health
+Fly.io Dashboard: https://fly.io/dashboard/abbie-connell
+Fly.io App: https://fly.io/apps/999-multibots-telegraf
+Health Check: https://999-multibots-telegraf.fly.dev/health
 
 Supabase Dashboard: https://supabase.com/dashboard/project/...
 Infisical Dashboard: https://app.infisical.com/

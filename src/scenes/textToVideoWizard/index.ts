@@ -4,11 +4,11 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
-import { generateModelButton, parseModelButton, generateModelKeyboard } from '@/config/unified-video-models.config'
+import { generateModelButton, parseModelButton, generateModelKeyboard, getModelPriceStars } from '@/config/unified-video-models.config'
 import {
   TEXT_TO_VIDEO_CONSTANTS,
 } from '@/interfaces/zod/textToVideo.zod'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { handleHelpCancel, getMainMenuText } from '@/navigation'
 
 
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
@@ -110,7 +110,13 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
           isRu
             ? `✅ Модель выбрана: ${selectedText}\n\n📝 Теперь опишите, что должно происходить в видео:`
             : `✅ Model selected: ${selectedText}\n\n📝 Now describe what should happen in the video:`,
-          Markup.removeKeyboard()
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: isRu ? 'Отмена' : 'Cancel', callback_data: 'cancel_video_generation' }]
+              ]
+            }
+          }
         )
 
         // Переходим к следующему шагу для ожидания промпта
@@ -183,7 +189,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Получаем параметры из сессии
       const selectedModel = ctx.session.selectedVideoModel
       const aspectRatio = ctx.session.selectedAspectRatio || TEXT_TO_VIDEO_CONSTANTS.DEFAULT_ASPECT_RATIO
-      const cost = ctx.session.selectedVideoCost || 40
+      const cost = ctx.session.selectedVideoCost || getModelPriceStars(selectedModel) || 25 // ✅ УНИФИКАЦИЯ ЦЕН
       const duration = ctx.session.selectedDuration
 
       if (!selectedModel) {
@@ -209,6 +215,9 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       const videoModelId = selectedModel as VideoModelId
       await handleTextToVideoDirect(ctx, prompt, videoModelId, duration, aspectRatio)
       console.log('🎬 [WIZARD] Video generation success!')
+
+      // ✅ FIX: Сохраняем последнюю сцену для кнопки "Повторить генерацию"
+      ctx.session.lastCompletedVideoScene = 'text_to_video' as any
 
       return ctx.scene.leave()
       
@@ -258,7 +267,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
             isRu ? '🎬 Veo 3 Fast' : '🎬 Veo 3 Fast',
             isRu ? '🎬 Sora 2' : '🎬 Sora 2',
           ],
-          [isRu ? '🏠 Главное меню' : '🏠 Main Menu'],
+          [getMainMenuText(isRu)],
         ]).resize()
 
         await ctx.reply(
@@ -281,6 +290,29 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
+
+// ✅ Обработчик кнопки отмены
+textToVideoWizard.action('cancel_video_generation', async ctx => {
+  await ctx.answerCbQuery()
+
+  const isRu = isRussianFromState(ctx)
+
+  console.log('🎬 [T2V WIZARD] ❌ CANCEL button pressed! User:', ctx.from?.id)
+
+  // Удаляем inline кнопку
+  try {
+    await ctx.editMessageReplyMarkup({ inline_keyboard: [] })
+  } catch {
+    // Игнорируем ошибку если сообщение уже изменено
+  }
+
+  await ctx.reply(
+    isRu ? '❌ Генерация видео отменена' : '❌ Video generation cancelled',
+    Markup.removeKeyboard()
+  )
+
+  return ctx.scene.leave()
+})
 
 // Обработчик выхода из wizard
 textToVideoWizard.leave(async ctx => {

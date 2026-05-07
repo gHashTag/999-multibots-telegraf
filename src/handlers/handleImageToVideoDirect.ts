@@ -1,11 +1,11 @@
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { Input } from 'telegraf'
 import { VideoModelId } from '@/services/generateTextToVideo'
+import { getUnifiedModelPrice, getUnifiedModelConfig } from '@/config/unified-video-models.config'
 
 /**
  * Handler для генерации видео из изображения через прямую интеграцию с сервером
@@ -37,47 +37,51 @@ export async function handleImageToVideoDirect(
     }
   )
 
-  // Проверка подписки
-  const hasSubscription = await checkSubscriptionGuard(ctx, 'NeuroVideo')
-  if (!hasSubscription) {
-    // checkSubscriptionGuard уже отправил сообщение, просто возвращаемся
-    return
-  }
-
-  // Определяем цену модели для Image to Video
-  const getImageToVideoPrice = (modelId: string, aspectRatio?: string): number => {
-    switch (modelId) {
-      case 'veo3_fast':
-        return 40
-      case "veo3":
-        return 120
-      case 'kling-v1.6-pro':
-        return 60
-      case 'minimax':
-        return 50
-      case 'seedance-1-pro':
-        return aspectRatio === '9:16' ? 23 : 117
-      case 'wan-2.2-i2v-fast':
-        return 70
-      default:
-        return 40
-    }
-  }
-
+  // ✅ УНИФИКАЦИЯ: Используем единый источник правды для цен и названий
   const getModelDisplayName = (modelId: string, is_ru: boolean, aspectRatio?: string): string => {
-    const names: Record<string, string> = {
-      'veo3_fast': 'Veo 3 Fast',
-      'veo3': 'Veo 3',
-      'kling-v1.6-pro': 'Kling v1.6 Pro',
-      'minimax': 'Minimax',
-      'seedance-1-pro': aspectRatio === '9:16' ? 'Seedance Pro 480p' : 'Seedance Pro 1080p',
-      'wan-2.2-i2v-fast': 'WAN 2.2 I2V Fast'
+    const config = getUnifiedModelConfig(modelId)
+    if (!config) {
+      return modelId // Fallback to modelId if config not found
     }
-    return names[modelId] || modelId
+
+    // Для Seedance добавляем разрешение к названию
+    if (modelId === 'seedance-1-pro') {
+      return is_ru
+        ? (aspectRatio === '9:16' ? 'Seedance Pro 480p' : 'Seedance Pro 1080p')
+        : (aspectRatio === '9:16' ? 'Seedance Pro 480p' : 'Seedance Pro 1080p')
+    }
+
+    // Для остальных моделей используем name или nameRu из unified config
+    return is_ru ? config.nameRu : config.name
+  }
+
+  const getImageToVideoPrice = (modelId: string, aspectRatio?: string): number => {
+    try {
+      // Для моделей с разрешением (Seedance, WAN)
+      if (modelId === 'seedance-1-pro') {
+        const resolution = aspectRatio === '9:16' ? '480p' : '1080p'
+        return getUnifiedModelPrice(modelId, { resolution })
+      }
+
+      // Для остальных моделей
+      return getUnifiedModelPrice(modelId)
+    } catch (error) {
+      logger.error('[handleImageToVideoDirect] Price calculation failed', {
+        modelId,
+        aspectRatio,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      return 40 // Fallback price
+    }
   }
 
   const modelName = getModelDisplayName(modelId, is_ru, aspectRatio)
   const price = getImageToVideoPrice(modelId, aspectRatio)
+
+  // ✅ CHECK BALANCE BEFORE GENERATION
+  const { checkUserBalance } = await import('@/helpers/checkUserBalance')
+  const hasBalance = await checkUserBalance(ctx, price)
+  if (!hasBalance) return
 
   // Отправляем сообщение о начале генерации
   const processingMessage = await ctx.reply(
@@ -177,7 +181,16 @@ export async function handleImageToVideoDirect(
         undefined,
         is_ru
           ? `✅ Генерация видео запущена!\n\n🤖 Модель: ${modelName}\n💰 Стоимость: ${price} ⭐\n\n⏳ Видео будет отправлено автоматически, когда будет готово. Это может занять несколько минут.`
-          : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n\n⏳ The video will be sent automatically when ready. This may take a few minutes.`
+          : `✅ Video generation started!\n\n🤖 Model: ${modelName}\n💰 Cost: ${price} ⭐\n\n⏳ The video will be sent automatically when ready. This may take a few minutes.`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: is_ru ? '🔄 Обновить статус' : '🔄 Update Status', callback_data: 'update_video_status' }
+              ]
+            ]
+          }
+        }
       )
     }
 

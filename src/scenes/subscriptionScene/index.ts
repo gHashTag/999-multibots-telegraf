@@ -189,6 +189,14 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       )
     }
 
+    // ✅ ДОБАВЛЯЕМ КНОПКУ ОТМЕНЫ В INLINE KEYBOARD
+    cleanedKeyboardRows.push([
+      Markup.button.callback(
+        isRu ? '❌ Отмена' : '❌ Cancel',
+        'cancel_subscription'
+      ),
+    ])
+
     if (cleanedKeyboardRows.length === 0) {
       logger.warn(
         `[${ModeEnum.SubscriptionScene}] No valid buttons generated.`,
@@ -203,7 +211,10 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
       await ctx.reply(fallbackMessage)
 
       // Возвращаемся в главное меню
-      return ctx.scene.enter(ModeEnum.MainMenu)
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
     } else {
       const inlineKeyboard = Markup.inlineKeyboard(cleanedKeyboardRows)
 
@@ -372,7 +383,10 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
         } */
       } else if (text === 'mainmenu') {
         console.log('CASE: 🏠 Главное меню')
-        return ctx.scene.enter(ModeEnum.MainMenu)
+        await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
       } else {
         // Этот блок теперь действительно означает неизвестный callback_data
         console.warn('[Callback Handler] Unknown callback_data received:', text)
@@ -417,6 +431,29 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
         return // Остаемся в сцене подписки
       }
 
+      // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработка кнопок меню
+      // Проверяем, не нажал ли пользователь кнопку из главного меню
+      try {
+        const { ALL_BUTTONS } = await import('@/navigation/config/buttons.config')
+        const button = Object.values(ALL_BUTTONS).find(btn => btn.ru === messageText || btn.en === messageText)
+
+        if (button) {
+          // Это кнопка меню! Выходим из сцены и позволяем глобальному обработчику её обработать
+          logger.info('🔄 [subscriptionScene] Menu button detected, exiting scene', {
+            telegramId: ctx.from?.id,
+            buttonText: messageText
+          })
+          return ctx.scene.leave()
+        }
+      } catch (error) {
+        // Если не удалось импортировать, просто выходим из сцены
+        logger.warn('⚠️ [subscriptionScene] Failed to import NAVIGATION_BUTTONS, exiting scene', {
+          error: error instanceof Error ? error.message : String(error),
+          telegramId: ctx.from?.id
+        })
+        return ctx.scene.leave()
+      }
+
       // ✅ ОБРАБОТКА ДРУГИХ ТЕКСТОВЫХ КОМАНД - УДАЛЁН УДАЛЁН
       // Все кнопки обрабатываются глобальными обработчиками
       return ctx.scene.leave()
@@ -426,3 +463,17 @@ Get access to all neuro-bot features! Choose a suitable tariff plan:`
     }
   }
 )
+
+// ✅ ОБРАБОТЧИК КНОПКИ ОТМЕНЫ
+subscriptionScene.action('cancel_subscription', async (ctx) => {
+  await ctx.answerCbQuery()
+  const isRu = isRussian(ctx)
+
+  await ctx.editMessageText(
+    isRu ? '❌ Оформление подписки отменено.' : '❌ Subscription canceled.'
+  )
+
+  await ctx.scene.leave()
+  const { showMainMenu } = await import('@/navigation')
+  await showMainMenu(ctx)
+})

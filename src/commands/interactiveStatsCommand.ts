@@ -38,6 +38,28 @@ interface StatsSession {
 // Хранилище сессий (в продакшене лучше использовать Redis)
 const statsSessions = new Map<string, StatsSession>()
 
+// FALLBACK: Если ADMIN_IDS не загружен из Infisical, используем хардкод
+const FALLBACK_ADMIN_IDS = [144022504] // gHashTag
+
+/**
+ * Проверяет является ли пользователь супер-админом
+ */
+function isUserAdmin(userId: string): boolean {
+  const adminIds = ADMIN_IDS_ARRAY.length > 0 ? ADMIN_IDS_ARRAY : FALLBACK_ADMIN_IDS
+  const isAdmin = adminIds.includes(parseInt(userId))
+
+  logger.info('[STATS] isUserAdmin check', {
+    userId,
+    userIdParsed: parseInt(userId),
+    adminIdsArrayLength: ADMIN_IDS_ARRAY.length,
+    usingFallback: ADMIN_IDS_ARRAY.length === 0,
+    adminIds,
+    isAdmin,
+  })
+
+  return isAdmin
+}
+
 /**
  * Проверяет права доступа пользователя к боту
  */
@@ -45,9 +67,7 @@ async function checkBotAccess(
   userId: string,
   botName: string
 ): Promise<boolean> {
-  const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
-
-  if (isAdmin) {
+  if (isUserAdmin(userId)) {
     return true // Супер-админы имеют доступ ко всем ботам
   }
 
@@ -67,7 +87,7 @@ export async function interactiveStatsCommand(ctx: MyContext): Promise<void> {
     }
 
     // Проверяем права доступа
-    const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
+    const isAdmin = isUserAdmin(userId)
     const ownedBots = await getOwnedBots(userId)
 
     // Пользователь должен быть либо админом, либо владельцем ботов
@@ -122,18 +142,22 @@ async function showBotSelection(
     let availableBots: string[] = []
 
     if (isAdmin) {
-      // Супер-админы видят всех ботов
-      const { data: bots, error } = await supabase
-        .from('avatars')
-        .select('bot_name')
-        .not('bot_name', 'is', null)
-        .limit(50)
-
-      if (error) throw error
-
-      availableBots = Array.from(new Set(bots.map(b => b.bot_name)))
-        .filter(bot => bot && bot.trim() !== '')
-        .sort()
+      // Супер-админы видят ВСЕ 11 продакшн ботов (hardcoded list)
+      // НЕ используем avatars таблицу - она может быть неполной
+      const PRODUCTION_BOTS = [
+        'neuro_blogger_bot',
+        'MetaMuse_Manifest_bot',
+        'ZavaraBot',
+        'LeeSolarbot',
+        'NeuroLenaAssistant_bot',
+        'NeurostylistShtogrina_bot',
+        'Gaia_Kamskaia_bot',
+        'Kaya_easy_art_bot',
+        'AI_STARS_bot',
+        'HaimGroupMedia_bot',
+        'OM_AI_Digital_studio_bot',
+      ]
+      availableBots = PRODUCTION_BOTS
     } else {
       // Владельцы ботов видят только свои боты
       availableBots = ownedBots || []
@@ -346,8 +370,8 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
 
     if (!userId) return
 
-    // Проверяем права доступа к боту
-    const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
+    // Проверяем права доступа к боту (используем isUserAdmin с fallback)
+    const isAdmin = isUserAdmin(userId)
     const ownedBots = await getOwnedBots(userId)
 
     if (!isAdmin && ownedBots && !ownedBots.includes(botName)) {
@@ -372,7 +396,7 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
     const userId = ctx.from?.id?.toString()
     if (!userId) return
 
-    const isAdmin = ADMIN_IDS_ARRAY.includes(parseInt(userId))
+    const isAdmin = isUserAdmin(userId)
     const ownedBots = await getOwnedBots(userId)
 
     await showBotSelection(ctx, userId, isAdmin, ownedBots)

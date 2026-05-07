@@ -1,21 +1,22 @@
 import { MyContext } from '@/interfaces'
 import { ModelUrl, UserModel, ModelTraining } from '@/interfaces'
+import { supabase } from '@/core/supabase'
 
 import { generateNeuroPhotoHybrid } from '@/services/generateNeuroPhotoHybrid'
 import {
   getActiveUserModelsByType,
   getReferalsCountAndUserData,
   getUserData,
+  getAspectRatio,
 } from '@/core/supabase'
+import { logger } from '@/utils/logger'
 // ✅ ИМПОРТИРУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA
 import { getActiveUserModelsByTypeForHaim } from '@/core/supabase/getActiveUserModelsByTypeForHaim'
 import {
-  levels,
-  mainMenu,
   sendGenericErrorMessage,
   sendPhotoDescriptionRequest,
-} from '@/menu'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+} from '@/navigation'
+import { getButtonTextsByMode, createMainMenuKeyboard, handleHelpCancel, getMainMenuText } from '@/navigation'
 import { Scenes, Markup } from 'telegraf'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -36,10 +37,22 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
     const { telegramId } = await getUserInfo(ctx)
 
-    // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ БОТ
-    const botToken = ctx.telegram.token
-    const { bot_name } = getBotNameByToken(botToken)
-    console.log(`🤖 Определен бот: ${bot_name} для пользователя ${telegramId}`)
+    // ✅ КРИТИЧНО ИСПРАВЛЕНО: Используем ctx.botInfo?.username для точного определения бота
+    const { getBotNameByUsername, getBotNameByToken } = await import(
+      '@/core/bot'
+    )
+    let bot_name: string
+    if (ctx.botInfo?.username) {
+      const usernameResult = getBotNameByUsername(ctx.botInfo.username)
+      bot_name =
+        usernameResult.bot_name ||
+        getBotNameByToken(ctx.telegram.token).bot_name
+    } else {
+      bot_name = getBotNameByToken(ctx.telegram.token).bot_name
+    }
+    console.log(
+      `🤖 Определен бот: ${bot_name} для пользователя ${telegramId} (username: ${ctx.botInfo?.username})`
+    )
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA, ИНАЧЕ СТАНДАРТНУЮ
     let userModels: ModelTraining[] | null = null
@@ -48,15 +61,35 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       console.log('🎯 Используем расширенную функцию для HaimGroupMedia_bot')
       userModels = await getActiveUserModelsByTypeForHaim(
         Number(telegramId),
-        'replicate',
+        'replicate', // 🔧 ИСПРАВЛЕНО: Получаем только replicate модели
         bot_name
       )
     } else {
       console.log('🔧 Используем стандартную функцию для обычного бота')
       userModels = await getActiveUserModelsByType(
         Number(telegramId),
-        'replicate'
+        'replicate' // 🔧 ИСПРАВЛЕНО: Получаем только replicate модели
       )
+    }
+
+    // ✅ ЕСЛИ НЕТ REPLICATE МОДЕЛЕЙ, ПОЛУЧАЕМ ВСЕ ОСТАЛЬНЫЕ (FAL И Т.Д.)
+    if (!userModels || userModels.length === 0) {
+      console.log('🔍 Нет replicate моделей, проверяем модели других API...')
+      // Получаем ВСЕ модели пользователя (включая Fal и другие)
+      const { data: allModels, error } = await supabase
+        .from('model_trainings')
+        .select('*')
+        .eq('telegram_id', Number(telegramId))
+        .eq('status', 'SUCCESS')
+        .neq('api', 'replicate') // Все кроме replicate
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('❌ Ошибка при получении моделей:', error)
+      } else {
+        userModels = allModels as ModelTraining[]
+        console.log(`✅ Найдено ${userModels?.length || 0} моделей других API (Fal и т.д.)`)
+      }
     }
 
     const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
@@ -65,20 +98,13 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       await ctx.reply(
         isRu
           ? '❌ У вас нет обученных моделей для нейрофото.\n\nИспользуйте команду "🤖 Цифровое тело аватара", в главном меню, чтобы создать свою ИИ модель для генерации нейрофото с вашим лицом. '
-          : "❌ You don't have any trained models for neurophotos.\n\nUse the '🤖  Digital avatar body' command in the main menu to create your AI model for generating neurophotos with your face.",
-        {
-          reply_markup: {
-            keyboard: (
-              await mainMenu({
-                isRu,
-                subscription: subscriptionType,
-                ctx,
-              })
-            ).reply_markup.keyboard,
-          },
-        }
+          : "❌ You don't have any trained models for neurophotos.\n\nUse the '🤖  Digital avatar body' command in the main menu to create your AI model for generating neurophotos with your face."
       )
-      return ctx.scene.leave()
+      
+      // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+      const { CancelButtonService } = await import('@/navigation')
+      await CancelButtonService.executeMainMenu(ctx)
+      return
     } else if (userModels.length === 1) {
       ctx.session.userModel = userModels[0] as UserModel
       await sendPhotoDescriptionRequest(ctx, isRu, 'neuro_photo')
@@ -189,8 +215,9 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
           ? '❌ Произошла ошибка: модель не выбрана. Попробуйте начать заново.'
           : '❌ Error: model not selected. Please start over.'
       )
-      // handleMenu сам определит язык и подписку
-      await mainMenu(ctx)
+      // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+      const { CancelButtonService } = await import('@/navigation')
+      await CancelButtonService.executeMainMenu(ctx)
       return
     }
 
@@ -220,73 +247,133 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     )
 
     console.log('🚀 [DEBUG] Начинаем вызов generateNeuroPhotoHybrid')
+    const isRu = isRussianFromState(ctx)
+
     try {
       // ГЕНЕРИРУЕМ СРАЗУ 1 ИЗОБРАЖЕНИЕ КАК БЫЛО РАНЬШЕ!
+      // ✅ ВОССТАНОВЛЕНО: Получаем aspect ratio пользователя (как в рабочей версии 63eaeb6fc)
+      const userAspectRatio = await getAspectRatio(userId || 0)
+      console.log(`🔍 [DEBUG] aspectRatio пользователя: ${userAspectRatio}`)
+
+      // ✅ КРИТИЧНО ИСПРАВЛЕНО: Используем ctx.botInfo?.username для точного определения бота
+      const { getBotNameByUsername, getBotNameByToken } = await import(
+        '@/core/bot'
+      )
+      let bot_name: string
+      if (ctx.botInfo?.username) {
+        const usernameResult = getBotNameByUsername(ctx.botInfo.username)
+        bot_name =
+          usernameResult.bot_name ||
+          getBotNameByToken(ctx.telegram.token).bot_name
+      } else {
+        bot_name = getBotNameByToken(ctx.telegram.token).bot_name
+      }
+      console.log(
+        `🔍 [DEBUG] Определен bot_name: ${bot_name} для username: ${ctx.botInfo?.username}`
+      )
+
       const result = await generateNeuroPhotoHybrid(
         fullPrompt,
         model_url as any,
         1,
         userId?.toString() ?? '',
         ctx,
-        ctx.botInfo?.username
+        bot_name,
+        userAspectRatio
       )
+      console.log('✅ [DEBUG] generateNeuroPhotoHybrid завершен:', result)
+
+      // ✅ ПРОВЕРЯЕМ РЕЗУЛЬТАТ: Показываем сообщение только если генерация успешна
+      if (!result || !result.success) {
+        console.log('❌ [DEBUG] Генерация не удалась, результат:', result)
+        // Сообщение об ошибке уже отправлено в generateNeuroPhotoHybrid или generateNeuroPhotoDirect
+        return ctx.scene.leave()
+      }
+
+      // ✅ ТОЛЬКО ЕСЛИ ГЕНЕРАЦИЯ УСПЕШНА: Показываем кнопки для дополнительной генерации
       console.log(
-        '✅ [DEBUG] generateNeuroPhotoHybrid завершен успешно:',
-        result
+        '🔄 [DEBUG] Генерация успешна, показываем кнопки для дополнительной генерации'
       )
+
+      const additionalGenerationKeyboard = {
+        reply_markup: {
+          keyboard: [
+            [{ text: '1️⃣' }, { text: '2️⃣' }, { text: '3️⃣' }, { text: '4️⃣' }],
+            [
+              { text: isRu ? '🆕 Новый промпт' : '🆕 New prompt' },
+              { text: isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
+            ],
+            [
+              { text: isRu ? '📐 Изменить размер' : '📐 Change size' },
+              { text: getMainMenuText(isRu) },
+            ],
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: false,
+        },
+      }
+
+      await ctx.reply(
+        isRu
+          ? '✨ Нейрофото сгенерировано! Выберите количество дополнительных изображений или используйте другие опции:'
+          : '✨ Neurophoto generated! Choose the number of additional images or use other options:',
+        additionalGenerationKeyboard
+      )
+
+      // Переходим к следующему шагу для обработки кнопок
+      ctx.wizard.next()
+      return
     } catch (error) {
       console.error('❌ [DEBUG] Ошибка в generateNeuroPhotoHybrid:', error)
-      const isRu = isRussianFromState(ctx)
       await ctx.reply(
         isRu
           ? '❌ Произошла ошибка при генерации изображения. Попробуйте позже.'
           : '❌ Error occurred during image generation. Please try again later.'
       )
-      return
+      return ctx.scene.leave()
     }
-
-    // После генерации показываем кнопки для дополнительной генерации
-    console.log('🔄 [DEBUG] Показываем кнопки для дополнительной генерации')
-
-    const isRu = isRussianFromState(ctx)
-    const additionalGenerationKeyboard = {
-      reply_markup: {
-        keyboard: [
-          [{ text: '1' }, { text: '2' }, { text: '3' }, { text: '4' }],
-          [
-            { text: isRu ? '🆕 Новый промпт' : '🆕 New prompt' },
-            { text: isRu ? '⬆️ Улучшить промпт' : '⬆️ Improve prompt' },
-          ],
-          [
-            { text: isRu ? '📐 Изменить размер' : '📐 Change size' },
-            { text: isRu ? '🏠 Главное меню' : '🏠 Main menu' },
-          ],
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: false,
-      },
-    }
-
-    await ctx.reply(
-      isRu
-        ? '✨ Нейрофото сгенерировано! Выберите количество дополнительных изображений или используйте другие опции:'
-        : '✨ Neurophoto generated! Choose the number of additional images or use other options:',
-      additionalGenerationKeyboard
-    )
-
-    // Переходим к следующему шагу для обработки кнопок
-    ctx.wizard.next()
-    return
   }
 }
 
 const neuroPhotoButtonStep = async (ctx: MyContext) => {
   console.log('CASE 3: neuroPhotoButtonStep')
+  console.log('🔔 [BUTTON STEP] neuroPhotoButtonStep вызван', {
+    telegramId: ctx.from?.id,
+    hasMessage: !!ctx.message,
+    messageType: ctx.message && 'text' in ctx.message ? 'text' : 'other',
+  })
+  logger.info({
+    message: '🔔 [BUTTON STEP] neuroPhotoButtonStep вызван',
+    description: 'neuroPhotoButtonStep called',
+    telegramId: ctx.from?.id,
+    hasMessage: !!ctx.message,
+    messageType: ctx.message && 'text' in ctx.message ? 'text' : 'other',
+  })
+
   if (ctx.message && 'text' in ctx.message) {
     const text = ctx.message.text
     console.log(`CASE: Нажата кнопка ${text}`)
+    logger.info({
+      message: '🔔 [BUTTON STEP] Нажата кнопка',
+      description: 'Button pressed',
+      text,
+      telegramId: ctx.from?.id,
+    })
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRu = isRussianFromState(ctx)
+
+    // ✅ КРИТИЧНО: Проверка "Главное меню" ДО всех остальных проверок
+    if (text === getMainMenuText(isRu)) {
+      console.log('CASE: Главное меню - выход из сцены')
+      logger.info({
+        message: '🏠 [BUTTON STEP] Главное меню - выход из сцены',
+        telegramId: ctx.from?.id,
+      })
+      await ctx.scene.leave()
+      const { showMainMenu } = await import('@/navigation')
+      await showMainMenu(ctx)
+      return
+    }
 
     if (text === '🆕 Новый промпт' || text === '🆕 New prompt') {
       console.log('CASE: Новый промпт - возврат к началу сцены')
@@ -307,13 +394,29 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       return
     }
 
-    if (text === levels[104].title_ru || text === levels[104].title_en) {
-      console.log('CASE: Главное меню')
-      await mainMenu(ctx)
+    // ✅ ВОССТАНОВЛЕНО: Обработка кнопок 1️⃣,2️⃣,3️⃣,4️⃣ и чисел 1,2,3,4 (как в рабочей версии 63eaeb6fc)
+    if (!['1️⃣', '2️⃣', '3️⃣', '4️⃣', '1', '2', '3', '4'].includes(text)) {
+      console.log(
+        `⚠️ [DEBUG] Неизвестный ввод в neuroPhotoButtonStep: "${text}"`
+      )
+      // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+      const { CancelButtonService } = await import('@/navigation')
+      await CancelButtonService.executeMainMenu(ctx)
       return
     }
 
-    const numImages = parseInt(text[0])
+    // Определяем количество изображений
+    let numImages: number
+    if (['1️⃣', '2️⃣', '3️⃣', '4️⃣'].includes(text)) {
+      numImages = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'].indexOf(text) + 1
+    } else {
+      numImages = parseInt(text, 10)
+    }
+
+    console.log(
+      `🔍 [DEBUG] Парсинг кнопки: text="${text}", numImages=${numImages}`
+    )
+
     const prompt = ctx.session.prompt
     const userId = ctx.from?.id
 
@@ -326,8 +429,9 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
           ? '❌ Произошла ошибка: данные для генерации не найдены. Попробуйте начать заново.'
           : '❌ Error: generation data not found. Please start over.'
       )
-      // handleMenu сам определит язык и подписку
-      await mainMenu(ctx)
+      // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+      const { CancelButtonService } = await import('@/navigation')
+      await CancelButtonService.executeMainMenu(ctx)
       return
     }
 
@@ -351,33 +455,123 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
 
       const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${prompt}, ${detailPrompt}`
 
-      await generateNeuroPhotoHybrid(
+      // ✅ ВОССТАНОВЛЕНО: Получаем aspect ratio пользователя (как в рабочей версии 63eaeb6fc)
+      const userAspectRatio = await getAspectRatio(userId || 0)
+      console.log(`🔍 [DEBUG] aspectRatio пользователя: ${userAspectRatio}`)
+
+      // ✅ КРИТИЧНО ИСПРАВЛЕНО: Используем ctx.botInfo?.username для точного определения бота
+      const { getBotNameByUsername, getBotNameByToken } = await import(
+        '@/core/bot'
+      )
+      let bot_name: string
+      if (ctx.botInfo?.username) {
+        const usernameResult = getBotNameByUsername(ctx.botInfo.username)
+        bot_name =
+          usernameResult.bot_name ||
+          getBotNameByToken(ctx.telegram.token).bot_name
+      } else {
+        bot_name = getBotNameByToken(ctx.telegram.token).bot_name
+      }
+      console.log(
+        `🔍 [DEBUG] Определен bot_name: ${bot_name} для username: ${ctx.botInfo?.username}`
+      )
+
+      console.log(
+        '🚀 [DEBUG] Начинаем вызов generateNeuroPhotoHybrid из ButtonStep'
+      )
+      const result = await generateNeuroPhotoHybrid(
         fullPrompt,
         ctx.session.userModel.model_url as any,
         num,
         userId?.toString() ?? '',
         ctx,
-        ctx.botInfo?.username
+        bot_name,
+        userAspectRatio
+      )
+
+      console.log(
+        '✅ [DEBUG] generateNeuroPhotoHybrid завершен из ButtonStep:',
+        result
+      )
+
+      logger.info({
+        message: '🔔 [BUTTON STEP] generateNeuroPhotoHybrid завершен',
+        description: 'generateNeuroPhotoHybrid completed',
+        telegramId: ctx.from?.id,
+        result: result
+          ? {
+              success: result.success,
+              hasUrls: !!result.urls,
+              urlsCount: result.urls?.length,
+            }
+          : null,
+      })
+
+      // ✅ ПРОВЕРЯЕМ РЕЗУЛЬТАТ: Показываем сообщение только если генерация успешна
+      if (!result || !result.success) {
+        console.log(
+          '❌ [DEBUG] Генерация не удалась в ButtonStep, результат:',
+          result
+        )
+        logger.warn({
+          message: '❌ [BUTTON STEP] Генерация не удалась',
+          description: 'Generation failed',
+          telegramId: ctx.from?.id,
+          result,
+        })
+        // Сообщение об ошибке уже отправлено в generateNeuroPhotoHybrid или generateNeuroPhotoDirect
+        return
+      }
+
+      // ✅ ТОЛЬКО ЕСЛИ ГЕНЕРАЦИЯ УСПЕШНА: Показываем кнопки для дополнительной генерации
+      console.log(
+        '🔄 [DEBUG] Генерация успешна в ButtonStep, показываем кнопки'
+      )
+
+      logger.info({
+        message: '🔔 [BUTTON STEP] Генерация успешна, показываем кнопки',
+        description: 'Generation successful, showing buttons',
+        telegramId: ctx.from?.id,
+        urlsCount: result.urls?.length,
+      })
+
+      const additionalGenerationKeyboard = {
+        reply_markup: {
+          keyboard: [
+            [
+              { text: isRu ? '1️⃣' : '1️⃣' },
+              { text: isRu ? '2️⃣' : '2️⃣' },
+              { text: isRu ? '3️⃣' : '3️⃣' },
+              { text: isRu ? '4️⃣' : '4️⃣' },
+            ],
+            [
+              { text: isRu ? '🆕 Новый промпт' : '🆕 New prompt' },
+              { text: getMainMenuText(isRu) },
+            ],
+          ],
+          resize_keyboard: true,
+        },
+      }
+
+      await ctx.reply(
+        isRu
+          ? '✨ Нейрофото сгенерировано! Выберите количество дополнительных изображений или используйте другие опции:'
+          : '✨ Neurophoto generated! Choose the number of additional images or use other options:',
+        additionalGenerationKeyboard
       )
     }
 
-    if (numImages >= 1 && numImages <= 4) {
-      await generate(numImages)
-      return ctx.scene.leave()
-    } else {
-      console.log(
-        'CASE: Неизвестный ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
-      )
-      // handleMenu сам определит язык и подписку
-      await mainMenu(ctx)
-      return
-    }
+    // ✅ numImages уже проверен выше, просто вызываем генерацию
+    await generate(numImages)
+    // ✅ НЕ ВЫХОДИМ ИЗ СЦЕНЫ - остаемся для дополнительной генерации
+    return
   } else {
     console.log(
       'CASE: Нетекстовый или отсутствующий ввод в neuroPhotoButtonStep, показ главного меню и выход из сцены'
     )
-    // handleMenu сам определит язык и подписку
-    await mainMenu(ctx)
+    // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+    const { CancelButtonService } = await import('@/navigation')
+    await CancelButtonService.executeMainMenu(ctx)
     return
   }
 }
@@ -390,7 +584,10 @@ export const neuroPhotoWizard = new Scenes.WizardScene<MyContext>(
 )
 
 neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
+  console.log('🔄 [CALLBACK] Received callback_query in neuroPhotoWizard')
+
   if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
+    console.log('⚠️ [CALLBACK] Invalid callback_query structure')
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRuLocal = isRussianFromState(ctx)
     const message = isRuLocal
@@ -398,7 +595,10 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
       : 'Button callback error'
     return ctx.answerCbQuery(message)
   }
+
   const callbackData = ctx.callbackQuery.data
+  console.log(`🔄 [CALLBACK] Processing callback_data: ${callbackData}`)
+
   // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
   const isRu = isRussianFromState(ctx)
 
@@ -426,8 +626,10 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
 
   if (callbackData === 'go_main_menu') {
     console.log('🔄 [CALLBACK] Главное меню')
-    await mainMenu(ctx)
-    return ctx.scene.leave()
+    // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+    const { CancelButtonService } = await import('@/navigation')
+    await CancelButtonService.executeMainMenu(ctx)
+    return
   }
 
   if (callbackData === 'upscale_neurophoto_image') {
@@ -442,14 +644,16 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
   }
 
   if (callbackData === 'cancel_neuro_photo') {
-    await ctx.reply(
-      isRu
-        ? 'Отменено. Возвращаю в главное меню.'
-        : 'Cancelled. Returning to main menu.'
+    console.log('🔄 [CALLBACK] Отмена - используем CancelButtonService')
+    // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+    const { CancelButtonService } = await import('@/navigation')
+    await CancelButtonService.executeCancel(
+      ctx,
+      isRu ? 'Отменено. Возвращаю в главное меню.' : 'Cancelled. Returning to main menu.'
     )
-    await mainMenu(ctx)
-    return ctx.scene.leave()
+    return
   } else if (callbackData.startsWith('select_neuro_model_')) {
+    console.log(`🔄 [CALLBACK] Processing select_neuro_model: ${callbackData}`)
     let modelId = callbackData.replace('select_neuro_model_', '')
 
     // ✅ ОБРАБАТЫВАЕМ ОБЩИЕ МОДЕЛИ (УБИРАЕМ ПРЕФИКС shared_)
@@ -458,12 +662,21 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
       modelId = modelId.replace('shared_', '')
     }
 
+    console.log(`🔍 [CALLBACK] Looking for model with ID: ${modelId}`)
     const userModels = (ctx.scene.state as NeuroPhotoWizardSession).userModels
+    console.log(
+      `📋 [CALLBACK] Available models in state:`,
+      userModels?.map(m => ({ id: m.id, model_name: m.model_name }))
+    )
+
     const selectedModel = userModels?.find(
       model => model.id.toString() === modelId
     )
 
     if (selectedModel) {
+      console.log(
+        `✅ [CALLBACK] Model found: ${selectedModel.model_name} (${selectedModel.id})`
+      )
       ctx.session.userModel = selectedModel as UserModel
       await sendPhotoDescriptionRequest(ctx, isRu, ModeEnum.NeuroPhoto)
       const isCancel = await handleHelpCancel(ctx)
@@ -472,20 +685,24 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
       }
       ctx.wizard.next()
     } else {
+      console.log(`❌ [CALLBACK] Model not found for ID: ${modelId}`)
       await ctx.reply(
         isRu
           ? '❌ Модель не найдена. Попробуйте снова.'
           : '❌ Model not found. Please try again.'
       )
     }
+  } else {
+    console.log(`⚠️ [CALLBACK] Unknown callback_data: ${callbackData}`)
   }
 })
 
 // ✅ ОБРАБАТЫВАЕМ УНИВЕРСАЛЬНЫЕ КОМАНДЫ ВОКРУГ СЦЕНЫ (МЕНЮ, HELP И Т.Д.)
 neuroPhotoWizard.command('menu', async ctx => {
-  // handleMenu сам определит язык и подписку
-  await mainMenu(ctx)
-  return ctx.scene.leave()
+  // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
+  const { CancelButtonService } = await import('@/navigation')
+  await CancelButtonService.executeMainMenu(ctx)
+  return
 })
 
 neuroPhotoWizard.command('help', async ctx => {

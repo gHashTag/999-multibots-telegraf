@@ -9,19 +9,18 @@ dist/
 *.swp
 *~
 
-# git files (CRITICAL: exclude 1.3GB .git directory!)
+# git files
 .git/
 .git
 **/.git
 .gitignore
 .github/
 
-# environment files - оставляем только ненужные .env файлы
+# environment files
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-# .env* - убираем это правило, оно исключало все .env файлы
 !.env.example
 
 # logs
@@ -53,31 +52,45 @@ src/modules/videoGenerator/__tests__
 Dockerfile
 docker-compose.yml
 
-# documentation and reports
+# documentation
 *.md
-TRANSACTION_LIMIT_FIX_REPORT.md
-FINAL_ANALYTICS_REPORT.md
-QUICK_START_GUIDE.md
-message_for_ambassadors.txt
 *.txt
 
-# development files
-
+# dev files
 .nvmrc
 .tool-versions
 worktrees/
 
-# media files (test uploads - NOT needed in production!)
+# Claude Code
+.claude/
+
+# Scripts
+scripts/
+
+# Large directories NOT needed in build
+avatar_brain/
+data/
+coverage/
+mobile/
+logs/
+docs/
+sql/
+.crush/
+.cursor/
+packages/
+agents/
+tests/
+.clinerules*
+
+# media files
 src/uploads/
 uploads/
-# Videos
 *.mp4
 *.mov
 *.avi
 *.webm
 *.mkv
 *.flv
-# Images
 *.png
 *.jpg
 *.jpeg

@@ -17,7 +17,7 @@ import {
 } from './handlers'
 import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
-import { mainMenu } from '@/menu'
+import { showMainMenu } from '@/navigation'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 
 // Создаем сцены для каждого шага
@@ -42,11 +42,7 @@ const createStepScene = (
         : `You have successfully completed all training and reached the maximum level! 🌟✨`,
       stepNumber < 12
         ? Markup.keyboard([[nextStepText], ['➡️ Завершить']]).resize()
-        : await mainMenu({
-            isRu,
-            subscription: subscriptionType,
-            ctx,
-          })
+        : await showMainMenu(ctx)
     )
   })
 
@@ -85,7 +81,9 @@ export const completeScene = new Scenes.BaseScene<MyContext>('complete')
 
 completeScene.enter(async ctx => {
   await handleQuestComplete(ctx)
-  await ctx.scene.enter(ModeEnum.MainMenu)
+  await ctx.scene.leave()
+  const { showMainMenu } = await import('@/navigation')
+  await showMainMenu(ctx)
 })
 
 // Экспортируем все сцены
@@ -106,13 +104,9 @@ levelQuestWizard.enter(async ctx => {
 
   // Пример использования в конце сцены (если нужно обновить меню)
   await ctx.reply(
-    isRu ? 'Вы завершили квест!' : 'You completed the quest!',
-    await mainMenu({
-      isRu,
-      subscription: subscriptionType,
-      ctx,
-    })
+    isRu ? 'Вы завершили квест!' : 'You completed the quest!'
   )
+  await showMainMenu(ctx)
 })
 
 // ... другие обработчики сцены ...

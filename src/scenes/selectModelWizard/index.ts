@@ -1,19 +1,30 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { getAvailableModels } from '../../commands/selectModelCommand/getAvailableModels'
-import { sendGenericErrorMessage } from '@/menu'
+import { sendGenericErrorMessage } from '@/navigation'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { updateUserModel } from '@/core/supabase'
-import { handleHelpCancel } from '@/handlers'
+import { handleHelpCancel } from '@/navigation'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
+import { ModeEnum } from '@/interfaces/modes'
 
 export const selectModelWizard = new Scenes.WizardScene<MyContext>(
   'select_model',
   async ctx => {
     const isRu = isRussianFromState(ctx)
 
+    console.log('🔍 [selectModelWizard] Step 1: Starting model selection', {
+      telegramId: ctx.from?.id,
+      isRu,
+    })
+
     try {
-      const models = await getAvailableModels()
+      // ✅ Получаем топ-10 моделей для агентного кодинга
+      const models = await getAvailableModels({ maxResults: 10 })
+      console.log('✅ [selectModelWizard] Top 10 models loaded:', {
+        count: models.length,
+        models: models.map(m => m.name),
+      })
 
       // Создаем кнопки для каждой модели, по 3 в ряд
       const buttons: ReturnType<typeof Markup.button.text>[][] = []
@@ -42,36 +53,51 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
 
       const keyboard = Markup.keyboard(buttons).resize().oneTime()
 
-      // ✅ FIX: Добавляем описание к выбору модели ИИ
+      console.log('📤 [selectModelWizard] Sending message with keyboard', {
+        buttonsCount: buttons.length,
+        totalButtons: buttons.flat().length,
+      })
+
+      // ✅ FIX: Показываем топ-10 моделей для агента
       await ctx.reply(
         isRu
-          ? '🤖 <b>Выбор модели ИИ</b>\n\n' +
-              'Здесь вы можете выбрать модель искусственного интеллекта для генерации контента.\n' +
-              'Каждая модель имеет свои особенности и специализацию:\n\n' +
-              '• <b>GPT-4</b> - для текстов и сложных задач\n' +
-              '• <b>DALL-E</b> - для генерации изображений\n' +
-              '• <b>Claude</b> - для анализа и помощи\n\n' +
+          ? '🤖 <b>Топ-10 моделей для агента</b>\n\n' +
+              'Выберите одну из лучших моделей для работы с кодом и агентами:\n\n' +
+              '💻 Модели оптимизированы для:\n' +
+              '• Генерации и рефакторинга кода\n' +
+              '• Работы с агентами и автономными системами\n' +
+              '• Сложных технических задач\n\n' +
               '💡 Выберите модель из списка ниже:'
-          : '🤖 <b>Choose AI Model</b>\n\n' +
-              'Here you can select an AI model for content generation.\n' +
-              'Each model has its own features and specialization:\n\n' +
-              '• <b>GPT-4</b> - for texts and complex tasks\n' +
-              '• <b>DALL-E</b> - for image generation\n' +
-              '• <b>Claude</b> - for analysis and assistance\n\n' +
+          : '🤖 <b>Top 10 Models for Agent</b>\n\n' +
+              'Choose one of the best models for code and agent work:\n\n' +
+              '💻 Models optimized for:\n' +
+              '• Code generation and refactoring\n' +
+              '• Working with agents and autonomous systems\n' +
+              '• Complex technical tasks\n\n' +
               '💡 Select a model from the list below:',
         {
           parse_mode: 'HTML',
-          ...keyboard.reply_markup,
+          reply_markup: {
+            ...keyboard.reply_markup,
+            remove_keyboard: false, // Показываем новую клавиатуру
+          },
         }
       )
 
+      console.log('✅ [selectModelWizard] Message sent successfully')
       return ctx.wizard.next()
     } catch (error) {
-      console.error('Error creating model selection menu:', error)
+      console.error(
+        '❌ [selectModelWizard] Error creating model selection menu:',
+        error
+      )
       await ctx.reply(
         isRu
           ? '❌ Ошибка при получении списка моделей'
-          : '❌ Error fetching models list'
+          : '❌ Error fetching models list',
+        {
+          reply_markup: { remove_keyboard: true },
+        }
       )
       return ctx.scene.leave()
     }
@@ -121,13 +147,25 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
+      console.log('💾 [selectModelWizard] Saving model to database', {
+        telegramId: ctx.from.id.toString(),
+        modelId: selectedModelObject.id,
+        modelName: selectedModelObject.name,
+      })
+
       await updateUserModel(ctx.from.id.toString(), selectedModelObject.id)
+
+      console.log('✅ [selectModelWizard] Model saved successfully', {
+        telegramId: ctx.from.id.toString(),
+        modelId: selectedModelObject.id,
+      })
 
       await ctx.reply(
         isRu
-          ? `✅ Модель успешно изменена на ${selectedModelObject.name}`
-          : `✅ Model successfully changed to ${selectedModelObject.name}`,
+          ? `✅ Модель успешно изменена на <b>${selectedModelObject.name}</b>\n\n💡 Переходим в чат с аватаром для тестирования...`
+          : `✅ Model successfully changed to <b>${selectedModelObject.name}</b>\n\n💡 Going to avatar chat for testing...`,
         {
+          parse_mode: 'HTML',
           reply_markup: { remove_keyboard: true },
         }
       )
@@ -147,7 +185,17 @@ export const selectModelWizard = new Scenes.WizardScene<MyContext>(
       if (level === 5) {
         await updateUserLevelPlusOne(telegram_id.toString(), level)
       }
-      return ctx.scene.leave()
+
+      // ✅ Автоматически переходим в чат с аватаром для тестирования выбранной модели
+      console.log(
+        '🚀 [selectModelWizard] Transitioning to ChatWithAvatar scene',
+        {
+          telegramId: telegram_id.toString(),
+          model: selectedModelObject.name,
+        }
+      )
+
+      return ctx.scene.enter(ModeEnum.ChatWithAvatar)
     } else if (ctx.callbackQuery) {
       await ctx
         .answerCbQuery()

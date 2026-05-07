@@ -1,9 +1,7 @@
-import { sendGenericErrorMessage } from '@/menu'
-import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { sendGenericErrorMessage } from '@/navigation'
 import { MyContext } from '../../interfaces'
 
 export async function handleCallback(ctx: MyContext) {
-  const isRu = isRussianFromState(ctx)
   try {
     console.log('CASE: callback_query:data')
 
@@ -30,7 +28,7 @@ export async function handleCallback(ctx: MyContext) {
       await ctx.answerCbQuery()
     } catch (e) {
       console.error('Не удалось ответить на callback query:', e)
-      await sendGenericErrorMessage(ctx, isRu, error)
+      await sendGenericErrorMessage(ctx)
     }
     throw error
   }

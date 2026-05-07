@@ -2,7 +2,7 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { generateNeuroPhotoHybrid } from '../../services/generateNeuroPhotoHybrid'
 import { isRussian } from '@/helpers'
-import { handleHelpCancel } from '@/handlers'
+import { handleHelpCancel } from '@/navigation'
 import { promptNeuroCoder } from './promts'
 
 export const neuroCoderScene = new Scenes.WizardScene<MyContext>(
@@ -37,10 +37,32 @@ export const neuroCoderScene = new Scenes.WizardScene<MyContext>(
 
       ctx.session.prompt = prompt
       if (ctx.message && 'text' in ctx.message) {
-        console.log('ctx.message.text', ctx.message.text)
-        const numImages = parseInt(ctx.message.text)
+        const inputText = ctx.message.text?.trim()
 
-        console.log(numImages)
+        // Validate input is not empty
+        if (!inputText || inputText.length === 0) {
+          const isRu = isRussian(ctx)
+          await ctx.reply(
+            isRu
+              ? '❌ Пожалуйста, выберите количество изображений из предложенных вариантов.'
+              : '❌ Please select the number of images from the options provided.'
+          )
+          return
+        }
+
+        const numImages = parseInt(inputText)
+        const allowedValues = [1, 2, 30, 50]
+
+        // Validate number is valid
+        if (isNaN(numImages) || !allowedValues.includes(numImages)) {
+          const isRu = isRussian(ctx)
+          await ctx.reply(
+            isRu
+              ? '❌ Пожалуйста, выберите одно из предложенных значений: 1, 2, 30, 50'
+              : '❌ Please choose one of the options: 1, 2, 30, 50'
+          )
+          return
+        }
 
         if (!ctx?.chat?.id) {
           await ctx.reply('Ошибка при генерации ')

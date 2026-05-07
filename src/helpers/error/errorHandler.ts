@@ -1,13 +1,16 @@
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
-// Убираем импорт отсутствующей функции supportRequest
-// import { supportRequest } from '@/core/bot'
+import { telegramLogService } from '@/services/telegram-log.service'
 
-// Создаем заглушку для функции supportRequest
+// Заглушка для supportRequest (заменена на telegramLogService)
 const supportRequest = (message: string, data: any) => {
-  logger.warn('⚠️ Вызов заглушки supportRequest:', { message, data })
-  // Здесь можно добавить функционал отправки сообщения в специальный канал поддержки
+  // Отправляем в группу НейроМентор
+  telegramLogService.logError({
+    error: message,
+    context: data.method || 'supportRequest',
+    botName: data.bot_name,
+  }).catch(err => logger.warn('Failed to send error to log group:', err))
 }
 
 // Интерфейс для типизации ошибки Telegram API
@@ -96,6 +99,15 @@ export const setupErrorHandler = (bot: Telegraf<MyContext>): void => {
         method: error.on?.method || 'unknown',
         update_id: ctx?.update?.update_id,
       })
+
+      // Логируем в группу НейроМентор
+      telegramLogService.logError({
+        telegramId: userId?.toString(),
+        username: username,
+        error: error.message || 'Forbidden Error',
+        context: `403 Forbidden: ${error.on?.method || 'unknown'}`,
+        botName: ctx?.botInfo?.username,
+      }).catch(() => {})
     } else {
       logger.error('❌ Ошибка Telegram API:', {
         description: 'Telegram API Error',
@@ -108,6 +120,15 @@ export const setupErrorHandler = (bot: Telegraf<MyContext>): void => {
         chat_id: chatId,
         update_id: ctx?.update?.update_id,
       })
+
+      // Логируем критические ошибки в группу НейроМентор
+      telegramLogService.logError({
+        telegramId: userId?.toString(),
+        username: username,
+        error: error.message || 'Unknown Telegram API Error',
+        context: `${error.on?.method || 'unknown'} (code: ${error_code || 'N/A'})`,
+        botName: ctx?.botInfo?.username,
+      }).catch(() => {})
     }
 
     // Возвращаем Promise<void> вместо boolean

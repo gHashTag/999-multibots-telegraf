@@ -9,11 +9,15 @@ export type Either<E, A> = Left<E> | Right<A>
 export interface Left<E> {
   readonly _tag: 'Left'
   readonly left: E
+  // ✅ Обратная совместимость: геттер для старого API
+  readonly value: E
 }
 
 export interface Right<A> {
   readonly _tag: 'Right'
   readonly right: A
+  // ✅ Обратная совместимость: геттер для старого API
+  readonly value: A
 }
 
 // TaskEither is an async Either
@@ -22,12 +26,16 @@ export type TaskEither<E, A> = () => Promise<Either<E, A>>
 // Constructors
 export const left = <E, A = never>(e: E): Either<E, A> => ({
   _tag: 'Left',
-  left: e
+  left: e,
+  // ✅ Обратная совместимость: геттер для старого API
+  get value() { return e }
 })
 
 export const right = <A, E = never>(a: A): Either<E, A> => ({
   _tag: 'Right',
-  right: a
+  right: a,
+  // ✅ Обратная совместимость: геттер для старого API
+  get value() { return a }
 })
 
 // Helper to check which variant
@@ -43,6 +51,12 @@ export const map = <E, A, B>(
 ) => (ea: Either<E, A>): Either<E, B> =>
   isLeft(ea) ? ea : right(f(ea.right))
 
+// Map over Left value
+export const mapLeft = <E, A, F>(
+  f: (e: E) => F
+) => (ea: Either<E, A>): Either<F, A> =>
+  isLeft(ea) ? left(f(ea.left)) : ea
+
 // Chain (flatMap)
 export const chain = <E, A, B>(
   f: (a: A) => Either<E, B>
@@ -55,6 +69,16 @@ export const tap = <E, A>(
 ) => (ea: Either<E, A>): Either<E, A> => {
   if (isRight(ea)) {
     f(ea.right)
+  }
+  return ea
+}
+
+// TapLeft (perform side effect if Left)
+export const tapLeft = <E, A>(
+  f: (e: E) => void
+) => (ea: Either<E, A>): Either<E, A> => {
+  if (isLeft(ea)) {
+    f(ea.left)
   }
   return ea
 }
@@ -75,6 +99,12 @@ export const fold = <E, A, B>(
   onRight: (a: A) => B
 ) => (ea: Either<E, A>): B =>
   isLeft(ea) ? onLeft(ea.left) : onRight(ea.right)
+
+// Get or else (extract Right value or return default)
+export const getOrElse = <E, A>(
+  defaultValue: A
+) => (ea: Either<E, A>): A =>
+  isRight(ea) ? ea.right : defaultValue
 
 // Try-catch wrapper
 export const tryCatch = <E, A>(
@@ -101,6 +131,25 @@ export const tryCatchAsync = <E, A>(
   }
 }
 
+// Flatten nested Either
+export const flatten = <E, A>(
+  eea: Either<E, Either<E, A>>
+): Either<E, A> =>
+  isLeft(eea) ? eea : eea.right
+
+// From Promise (convert Promise to TaskEither)
+export const fromPromise = <E, A>(
+  promise: Promise<A>,
+  onError: (error: unknown) => E
+): TaskEither<E, A> => async () => {
+  try {
+    const result = await promise
+    return right(result)
+  } catch (error) {
+    return left(onError(error))
+  }
+}
+
 // Pipe utility (compose functions left-to-right)
 export const pipe = <A>(a: A) => ({
   pipe: <B>(f: (a: A) => B) => pipe(f(a))
@@ -113,11 +162,16 @@ export default {
   isLeft,
   isRight,
   map,
+  mapLeft,
   chain,
   tap,
+  tapLeft,
   tapTask,
   fold,
+  getOrElse,
   tryCatch,
   tryCatchAsync,
+  flatten,
+  fromPromise,
   pipe
 }

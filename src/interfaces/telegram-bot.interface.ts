@@ -175,10 +175,13 @@ export type BotName =
   | 'AI_STARS_bot'
   | 'TestNeurocoder_bot'
   | 'HaimGroupMedia_bot'
+  | 'OM_AI_Digital_studio_bot'
 
 export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   cursor: number
   mode: ModeEnum | SceneId | null
+  /** История переходов между сценами для кнопки "Назад" */
+  navigationHistory?: string[]
   neuroPhotoInitialized?: boolean
   subscription?: SubscriptionType
   selectedSize?: string
@@ -186,6 +189,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   modelSelectionShown?: boolean
   cancelHandled?: boolean
   language_code?: string
+  wizardData?: any  // ✅ Данные для wizard'а (шаги, фото и т.д.)
   images: BufferType
   morphingImages?: {
     buffer: Buffer
@@ -363,7 +367,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   }
 
   // Avatar transformation fields
-  selectedModel?: 'flux-kontext' | 'seedream4' | 'nano-banana' // Выбранная AI модель для трансформации
+  selectedModel?: 'flux-kontext' | 'seedream45' | 'nano-banana' // Выбранная AI модель для трансформации
   selectedGender?: 'male' | 'female' // Выбранный пол для адаптации промпта трансформации
   selectedHero?: string // Выбранный герой Marvel для трансформации
 
@@ -393,15 +397,16 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   requestId?: string
 
   // AI Photoshop scene fields
-  aiPhotoshopModel?: 'seedream' | 'nano_banana' | 'flux_multi_kontext' | 'qwen_edit_plus' | 'flux_kontext_pro' | 'seededit_3' | 'qwen_image_edit' | 'all_models'
+  aiPhotoshopModel?: 'seedream' | 'nano_banana' | 'nano_banana_pro' | 'seedream_45' | 'flux_multi_kontext' | 'qwen_edit_plus' | 'flux_kontext_pro' | 'seededit_3' | 'qwen_image_edit' | 'all_models'
   aiPhotoshopStyle?: 'portrait' | 'artistic' | 'photorealistic' | 'fantasy' | 'cyberpunk' | 'vintage' | 'custom'
   aiPhotoshopImage?: string
   aiPhotoshopPrompt?: string
   aiPhotoshopSize?: '1K' | '2K' | '4K' | 'custom'
+  aiPhotoshopAspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21'
   aiPhotoshopVariationsCount?: number
   awaitingAiPhotoshopImage?: boolean
   awaitingAiPhotoshopPrompt?: boolean
-  aiPhotoshopStep?: 'model_select' | 'style_select' | 'image_upload' | 'custom_prompt' | 'processing' | 'quality_selection'
+  aiPhotoshopStep?: 'model_select' | 'style_select' | 'size_ratio_select' | 'image_upload' | 'custom_prompt' | 'processing' | 'quality_selection'
 
   // 🎬 AI Photoshop camera control fields (transferred from FLUX Kontext)
   aiPhotoshopCameraAngle?: 'medium_shot' | 'close_up' | 'extreme_close_up' | 'wide_shot' | 'high_angle' | 'low_angle' | 'dutch_angle' | 'over_shoulder' | 'profile_shot' | 'three_quarter' | 'bird_eye' | 'macro_beauty'
@@ -433,6 +438,12 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   multiPhotoCount?: number // Number of photos in multi-photo session
   awaitingMultiPhotoConfirmation?: boolean // Waiting for user confirmation to process multi-photos
   multiPhotoProcessingIndex?: number // Current index being processed in multi-photo series
+
+  // Global navigation pending scene (for deferring navigation before stage.middleware)
+  pendingScene?: string | null
+
+  // 🎯 Two-phase navigation: marked before stage, processed after stage
+  __pendingNavigation?: string
 }
 
 export interface MyContext extends Context {

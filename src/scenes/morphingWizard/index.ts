@@ -1,7 +1,7 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+import { handleHelpCancel } from '@/navigation'
 import { getBotToken } from '@/handlers/getBotToken'
 import { generateMorphing } from '../../services/generateMorphing'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
@@ -20,10 +20,10 @@ const getDefaultMorphingModel = () => {
   const models = getMorphingModels()
 
   // ✅ ПРИОРИТЕТ: Kie.ai модели (дешевле и быстрее чем Replicate)
-  // 1. sora-2-i2v (9⭐) - самая дешёвая
-  // 2. sora-2-pro-i2v (19⭐) - премиум качество
+  // 1. sora-2 (9⭐) - самая дешёвая
+  // 2. sora-2-pro (19⭐) - премиум качество
   // 3. veo3_fast (25⭐) - быстрая
-  const preferredModels = ['sora-2-i2v', 'sora-2-pro-i2v', 'veo3_fast']
+  const preferredModels = ['sora-2', 'sora-2-pro', 'veo3_fast']
 
   for (const modelId of preferredModels) {
     const model = models.find(m => m.id === modelId)
@@ -1274,7 +1274,9 @@ morphingWizard.action('morphing_cancel', async ctx => {
     console.log('❌ [MORPHING_CANCEL] Scene left, entering MainMenu...')
 
     // Принудительно возвращаемся в главное меню
-    await ctx.scene.enter(ModeEnum.MainMenu)
+    await ctx.scene.leave()
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
   } catch (error) {
     logger.error('Error cancelling morphing wizard', {
       error: error instanceof Error ? error.message : 'Unknown error',

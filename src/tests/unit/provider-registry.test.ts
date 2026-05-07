@@ -3,7 +3,7 @@
  * 100% покрытие тестами
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   createProviderRegistry,
   createDefaultRegistry,
@@ -13,25 +13,48 @@ import {
   healthCheckRegistry,
   printRegistryStatus
 } from '../../../src/core/providers/registry/provider-registry'
-import { ProviderConfig } from '../../../src/core/functional/types/media.types'
+import { ProviderConfig, ProviderName as ProviderNameCodec } from '../../../src/core/functional/types/media.types'
+import type { ProviderName } from '../../../src/core/functional/types/media.types'
+import { isRight } from '../../../src/core/functional/utils/result'
+
+// Helper to create ProviderName from string
+const createProviderName = (name: string): ProviderName => {
+  const decoded = ProviderNameCodec.decode(name)
+  if (isRight(decoded)) {
+    return decoded.right as ProviderName
+  }
+  throw new Error(`Invalid provider name: ${name}`)
+}
 
 // Mock Provider
-const createMockProvider = (name: string) => ({
-  name,
-  config: {
-    name: name as any,
-    apiKey: 'test-key',
-    baseUrl: `https://${name}.api.test`,
-    timeout: 30000
-  } as ProviderConfig,
-  generateVideo: async () => ({ _tag: 'Right' as const, value: { videoUrl: 'test.mp4', provider: name } }),
-  generateImage: async () => ({ _tag: 'Right' as const, value: { imageUrl: 'test.jpg', provider: name } }),
-  generateAudio: async () => ({ _tag: 'Right' as const, value: { audioUrl: 'test.mp3', provider: name } }),
-  performFaceSwap: async () => ({ _tag: 'Right' as const, value: { imageUrl: 'test-swapped.jpg', provider: name } }),
-  healthCheck: async () => ({ _tag: 'Right' as const, value: { status: 'healthy', latency: 10, uptime: 1000, lastCheck: Date.now() } }),
-  getBalance: async () => ({ _tag: 'Right' as const, value: { currency: 'usd', available: 100, reserved: 0, lastUpdated: Date.now() } }),
-  rateLimit: async () => ({ _tag: 'Right' as const, value: undefined })
-})
+const createMockProvider = (name: string) => {
+  let providerName: ProviderName
+  try {
+    providerName = createProviderName(name)
+  } catch {
+    // Fallback для неизвестных провайдеров в тестах
+    providerName = name as any as ProviderName
+  }
+  return {
+    name,
+    config: {
+      name: providerName,
+      apiKey: 'test-key',
+      baseUrl: `https://${name}.api.test`,
+      timeout: 30000,
+      rateLimit: {
+        requestsPerMinute: 60
+      }
+    } as ProviderConfig,
+    generateVideo: async () => ({ _tag: 'Right' as const, right: { videoUrl: 'test.mp4', provider: name } }),
+    generateImage: async () => ({ _tag: 'Right' as const, right: { imageUrl: 'test.jpg', provider: name } }),
+    generateAudio: async () => ({ _tag: 'Right' as const, right: { audioUrl: 'test.mp3', provider: name } }),
+    performFaceSwap: async () => ({ _tag: 'Right' as const, right: { imageUrl: 'test-swapped.jpg', provider: name } }),
+    healthCheck: async () => ({ _tag: 'Right' as const, right: { status: 'healthy', latency: 10, uptime: 1000, lastCheck: Date.now() } }),
+    getBalance: async () => ({ _tag: 'Right' as const, right: { currency: 'usd', available: 100, reserved: 0, lastUpdated: Date.now() } }),
+    rateLimit: async () => ({ _tag: 'Right' as const, right: undefined })
+  }
+}
 
 // Mock KieAiProvider to avoid import error
 vi.mock('../../../src/core/providers/adapters/kie-ai.adapter', () => ({
@@ -43,10 +66,13 @@ describe('Provider Registry', () => {
     it('should create a registry with providers', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -58,16 +84,22 @@ describe('Provider Registry', () => {
     it('should handle multiple providers', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key-1',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         },
         {
-          name: 'replicate' as const,
+          name: createProviderName('replicate'),
           apiKey: 'test-key-2',
           baseUrl: 'https://api.replicate.com',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -81,10 +113,13 @@ describe('Provider Registry', () => {
     it('should filter by capability', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -100,10 +135,13 @@ describe('Provider Registry', () => {
     it('should list all providers', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -117,10 +155,13 @@ describe('Provider Registry', () => {
     it('should check if provider exists', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -133,10 +174,13 @@ describe('Provider Registry', () => {
     it('should return undefined for non-existent provider', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -179,10 +223,13 @@ describe('Provider Registry', () => {
     it('should get provider by name', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -196,10 +243,13 @@ describe('Provider Registry', () => {
     it('should get provider by capability', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -213,10 +263,13 @@ describe('Provider Registry', () => {
     it('should get best provider', async () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -230,10 +283,13 @@ describe('Provider Registry', () => {
     it('should handle health check of all providers', async () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -259,10 +315,13 @@ describe('Provider Registry', () => {
     it('should handle unknown provider name', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -275,10 +334,13 @@ describe('Provider Registry', () => {
     it('should handle unknown capability', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -291,10 +353,13 @@ describe('Provider Registry', () => {
     it('should get capabilities list', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -315,10 +380,13 @@ describe('Provider Registry', () => {
 
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -330,7 +398,10 @@ describe('Provider Registry', () => {
         name: 'unknown-provider' as any,
         apiKey: 'test-key',
         baseUrl: 'https://unknown.api.test',
-        timeout: 30000
+        timeout: 30000,
+        rateLimit: {
+          requestsPerMinute: 60
+        }
       }
 
       // Registry should not crash on unknown providers
@@ -342,10 +413,13 @@ describe('Provider Registry', () => {
     it('should print registry status without errors', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -360,10 +434,13 @@ describe('Provider Registry', () => {
     it('should manage multiple providers with different capabilities', () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key-1',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -389,10 +466,13 @@ describe('Provider Registry', () => {
     it('should handle health checks for multiple providers', async () => {
       const configs: ProviderConfig[] = [
         {
-          name: 'kie-ai' as const,
+          name: createProviderName('kie-ai'),
           apiKey: 'test-key',
           baseUrl: 'https://api.kie.ai',
-          timeout: 30000
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
         }
       ]
 
@@ -418,20 +498,23 @@ describe('Provider Registry - Integration', () => {
 
   it('should perform health check on KieAi provider', async () => {
     // Mock successful health check response
-    ;(global.fetch as vi.MockedFunction<typeof fetch>).mockResolvedValueOnce({
+    ;(global.fetch as any).mockResolvedValueOnce({
       ok: true,
       status: 200,
       json: async () => ({ status: 'healthy', uptime: 1000 })
     } as Response)
 
-    const configs: ProviderConfig[] = [
-      {
-        name: 'kie-ai' as const,
-        apiKey: 'test-key',
-        baseUrl: 'https://api.kie.ai',
-        timeout: 30000
-      }
-    ]
+      const configs: ProviderConfig[] = [
+        {
+          name: createProviderName('kie-ai'),
+          apiKey: 'test-key',
+          baseUrl: 'https://api.kie.ai',
+          timeout: 30000,
+          rateLimit: {
+            requestsPerMinute: 60
+          }
+        }
+      ]
 
     const registry = createProviderRegistry(configs)
     const provider = registry.getProvider('kie-ai')
@@ -442,7 +525,7 @@ describe('Provider Registry - Integration', () => {
       const health = await provider.healthCheck()()
       expect(health._tag).toBe('Right')
       if (health._tag === 'Right') {
-        expect(health.value.status).toBe('healthy')
+        expect(health.right.status).toBe('healthy')
       }
     }
   })

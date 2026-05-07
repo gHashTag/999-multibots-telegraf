@@ -9,7 +9,7 @@ setupSafeConsoleLogging()
 
 import { Composer, Telegraf, Scenes, Context } from 'telegraf'
 import { Update, BotCommand } from 'telegraf/types'
-import { registerCommands } from './registerCommands'
+import { registerCommands, createStage } from './navigation'
 import { MyContext } from './interfaces'
 import { session } from 'telegraf'
 import {
@@ -21,15 +21,20 @@ import { setBotCommands } from './setCommands'
 import { languageMiddleware } from './middlewares/languageMiddleware'
 // ✅ ДОБАВЛЯЕМ IMPORT ОБРАБОТЧИКА ОШИБОК
 import { setupErrorHandler } from './helpers/error/errorHandler'
+// ✅ ДОБАВЛЯЕМ ГЛОБАЛЬНЫЙ НАВИГАЦИОННЫЙ MIDDLEWARE
+import { registerGlobalNavigationMiddleware } from './navigation'
 
 // ✅ ДОБАВЛЯЕМ IMPORT ОБРАБОТЧИКА УВЕДОМЛЕНИЙ
 import { setupNotificationProcessor } from './handlers/notificationHandler'
 
+// ✅ ДОБАВЛЯЕМ IMPORT СЕРВИСА ЛОГИРОВАНИЯ В TELEGRAM
+import { telegramLogService } from './services/telegram-log.service'
+
 // Импорт новой команды
 import { setupStatsCommand } from './commands/statsCommand'
 
-import { handleTextMessage } from './handlers/handleTextMessage'
-import { message } from 'telegraf/filters'
+// ✅ Импорт обработчика событий вступления/выхода из групп
+import { setupGroupMemberHandler } from './handlers/groupMemberHandler'
 
 // Импортируем наш API сервер из новой директории
 import { startApiServer } from './api_server'
@@ -42,6 +47,10 @@ import { supabase } from './core/supabase'
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
 let mainBotInstance: Telegraf<MyContext> | null = null
+
+// Deferred startup notifications (secrets load before telegramLogService is ready)
+let startupKeyIssues: { missingKeys: string[]; emptyKeys: string[] } | null = null
+let supabaseCredentialsFailed = false
 
 // Define the commands for private chats
 // const privateCommands: BotCommand[] = [
@@ -118,11 +127,9 @@ function discoverBotTokens(): string[] {
 
     if (token) {
       tokens.push(token)
-    } else if (i > 1 && tokens.length === i - 1) {
-      // Если нашли gap (например, BOT_TOKEN_1, BOT_TOKEN_2, но нет BOT_TOKEN_3)
-      // останавливаемся, т.к. токены должны идти последовательно
-      break
     }
+    // ✅ ИСПРАВЛЕНИЕ: Убираем gap detection - сканируем все 100 токенов
+    // Это позволяет BOT_TOKEN_11 загрузиться даже если между ним есть пропуски
   }
 
   return tokens
@@ -131,7 +138,7 @@ function discoverBotTokens(): string[] {
 async function initializeBots() {
   console.log('🤖 Инициализация ботов:', isDev ? 'development' : 'production')
 
-  const { stage } = await import('./registerCommands')
+  const stage = createStage()
 
   // 🚀 МАСШТАБИРУЕМАЯ АРХИТЕКТУРА: автоматически находим все BOT_TOKEN_*
   const infisicalEnv = process.env.INFISICAL_ENVIRONMENT || 'dev'
@@ -418,6 +425,7 @@ async function initializeBots() {
             'callback_query',
             'pre_checkout_query' as any,
             'successful_payment' as any,
+            'chat_member' as any, // Для отслеживания вступления/выхода из групп
           ],
         })
         .then(() => {
@@ -445,7 +453,8 @@ async function initializeBots() {
 async function gracefulShutdown(signal: string) {
   console.log(`🚨 Получен сигнал ${signal}. Завершение работы...`)
   for (const bot of botInstances) {
-    console.log(`🚫 Остановка бота ${bot.botInfo?.username}...`)
+    const botUsername = bot.botInfo?.username || 'neuro_blogger_bot'
+    console.log(`🚫 Остановка бота ${botUsername}...`)
     await bot.stop()
   }
   process.exit(0)
@@ -582,7 +591,7 @@ async function startApplication() {
         `🚀 [Infisical] ${env === 'staging' ? 'Staging' : 'Production'} окружение - загружаем 10 ботов`
       )
 
-      for (let i = 1; i <= 10; i++) {
+      for (let i = 1; i <= 11; i++) {
         const tokenKey = `BOT_TOKEN_${i}`
         try {
           process.env[tokenKey] = getSecret(tokenKey)
@@ -607,6 +616,7 @@ async function startApplication() {
       console.log('  ✅ Supabase credentials загружены')
     } catch (e) {
       console.error('  ❌ Критическая ошибка: Supabase credentials не найдены!')
+      supabaseCredentialsFailed = true
     }
 
     // API ключи для сервисов генерации
@@ -637,7 +647,7 @@ async function startApplication() {
       for (const key of apiKeys) {
         try {
           const value = getSecret(key)
-          if (value) {
+          if (value && value.trim() !== '') {
             process.env[key] = value
 
             // 🔴 ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ДЛЯ RENDER_INNGEST КЛЮЧЕЙ
@@ -677,10 +687,12 @@ async function startApplication() {
               console.log(`  ✅ ${key} загружен`)
             }
           } else {
+            emptyKeys.push(key)
             console.warn(`  ⚠️ ${key} не найден в Infisical (значение пустое)`)
           }
         } catch (e) {
           const errorMsg = e instanceof Error ? e.message : String(e)
+          missingKeys.push(key)
           console.warn(`  ⚠️ ${key} не найден в Infisical: ${errorMsg}`)
         }
       }
@@ -709,11 +721,34 @@ async function startApplication() {
         console.log(`\n✅ [RENDER_INNGEST] Все ключи загружены успешно!`)
       }
 
-      // 🔗 ВРЕМЕННОЕ РЕШЕНИЕ: Устанавливаем BASE_WEBHOOK_URL напрямую для production
-      if (!process.env.BASE_WEBHOOK_URL && env === 'prod') {
-        process.env.BASE_WEBHOOK_URL = 'https://three-head-dragon.shop'
-        console.log('  ✅ BASE_WEBHOOK_URL установлен (hardcoded fallback)')
+      // Save issues for deferred Telegram notification (telegramLogService not yet ready)
+      if (missingKeys.length > 0 || emptyKeys.length > 0) {
+        startupKeyIssues = { missingKeys, emptyKeys }
       }
+
+      // 🔗 Приоритет: .env файл > Infisical (для BASE_WEBHOOK_URL)
+      // Если в .env есть HTTPS версия, используем её вместо HTTP из Infisical
+      if (process.env.BASE_WEBHOOK_URL?.startsWith('http://')) {
+        const httpsUrl = process.env.BASE_WEBHOOK_URL.replace('http://', 'https://')
+        console.log(`  ⚠️ BASE_WEBHOOK_URL: Исправлен HTTP→HTTPS: ${httpsUrl}`)
+        process.env.BASE_WEBHOOK_URL = httpsUrl
+      }
+
+      // Warn if not set in production (no more hardcoded VPS fallback!)
+      if (!process.env.BASE_WEBHOOK_URL && env === 'prod') {
+        console.error('  ❌ BASE_WEBHOOK_URL NOT SET in production! Webhooks from Replicate/Kie.ai will fail!')
+        console.error('     Set BASE_WEBHOOK_URL=https://999-multibots-telegraf.fly.dev in Infisical')
+      }
+
+      // ✅ КРИТИЧЕСКИ ВАЖНО: Reinitialize Inngest client AFTER secrets loaded
+      // The client may have been initialized before Infisical secrets were loaded,
+      // so we need to reset the cached client to pick up INNGEST_EVENT_KEY
+      const { reinitializeInngestClient, isInngestConfigured } = await import('./inngest_app/client')
+      reinitializeInngestClient()
+      const inngestReady = isInngestConfigured()
+      console.log(
+        `  ${inngestReady ? '✅' : '⚠️'} Inngest клиент реинициализирован (eventKey: ${inngestReady ? 'OK' : 'MISSING'})`
+      )
     } catch (e) {
       console.warn('  ⚠️ Некоторые API ключи не загружены')
     }
@@ -733,7 +768,8 @@ async function startApplication() {
         )
       }
 
-      const PORT = 8080
+      // API сервер запущен на порту 3000, туннель должен туда направлять
+      const TUNNEL_PORT = 3000
       let tunnelCreated = false
 
       // 🔷 ВАРИАНТ 1: Cloudflare Tunnel (бесплатно, без ограничений, без токенов)

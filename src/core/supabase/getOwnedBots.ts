@@ -1,5 +1,6 @@
 import { logger } from '@/utils/logger'
 import { supabase } from './client'
+import { ADMIN_IDS_ARRAY } from '@/config'
 
 /**
  * Получает список имен ботов, принадлежащих указанному telegram_id.
@@ -52,4 +53,30 @@ export const getOwnedBots = async (
     )
     return null
   }
+}
+
+/**
+ * Проверяет, является ли пользователь владельцем хотя бы одного бота
+ * или супер-админом.
+ * @param telegramId Telegram ID пользователя
+ * @returns Promise<boolean> true если пользователь владеет ботами или является админом
+ */
+export async function isUserBotOwner(
+  telegramId: string | number | undefined
+): Promise<boolean> {
+  if (!telegramId) {
+    return false
+  }
+
+  const telegramIdStr = telegramId.toString()
+  const telegramIdNum = parseInt(telegramIdStr, 10)
+
+  // Супер-админы всегда имеют доступ
+  if (ADMIN_IDS_ARRAY.includes(telegramIdNum)) {
+    return true
+  }
+
+  // Проверяем владение ботами
+  const ownedBots = await getOwnedBots(telegramIdStr)
+  return ownedBots !== null && ownedBots.length > 0
 }

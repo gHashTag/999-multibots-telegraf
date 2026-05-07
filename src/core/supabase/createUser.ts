@@ -185,6 +185,7 @@ export const createUser = async (
     logger.error("Ошибка при создании новой записи в 'users'", {
       telegramId: telegram_id,
       error: createError.message,
+      errorCode: createError.code,
       details: createError,
       function: 'createUser_STEP2_insertNew_Error',
     })

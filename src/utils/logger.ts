@@ -1,7 +1,94 @@
 import { createLogger, format, transports } from 'winston'
+import Transport from 'winston-transport'
 
 import path from 'path'
 import fs from 'fs'
+
+/**
+ * Custom Winston Transport для отправки ошибок в Telegram группу НейроМентор
+ */
+class TelegramLogTransport extends Transport {
+  private telegramLogService: any = null
+  private isInitialized = false
+  private pendingLogs: Array<{ level: string; message: string; meta: any }> = []
+
+  constructor(opts?: Transport.TransportStreamOptions) {
+    super(opts)
+    // Ленивая инициализация для избежания циклических зависимостей
+    this.initService()
+  }
+
+  private async initService() {
+    try {
+      // Динамический импорт чтобы избежать циклической зависимости
+      const { telegramLogService } = await import(
+        '@/services/telegram-log.service'
+      )
+      this.telegramLogService = telegramLogService
+      this.isInitialized = true
+
+      // Отправляем накопленные логи
+      for (const log of this.pendingLogs) {
+        this.sendToTelegram(log.level, log.message, log.meta)
+      }
+      this.pendingLogs = []
+    } catch (err) {
+      // Сервис ещё не доступен - это нормально при старте
+    }
+  }
+
+  private async sendToTelegram(level: string, message: string, meta: any) {
+    if (!this.telegramLogService?.isReady()) return
+
+    try {
+      await this.telegramLogService.logError({
+        error: message,
+        context: meta?.context || meta?.function || 'logger.error',
+        telegramId: meta?.telegramId || meta?.telegram_id,
+        username: meta?.username,
+        botName: meta?.botName || meta?.bot_name,
+      })
+    } catch {
+      // Игнорируем ошибки отправки чтобы не создавать бесконечный цикл
+    }
+  }
+
+  log(info: any, callback: () => void) {
+    setImmediate(() => {
+      this.emit('logged', info)
+    })
+
+    const message = info.message || ''
+
+    // Отправляем только error уровень И исключаем собственные логи
+    // чтобы избежать рекурсии
+    const isOwnLog =
+      message.includes('[TelegramLog]') ||
+      message.includes('[TelegramLogService]') ||
+      message.includes('Failed to send log to Telegram')
+
+    if (info.level === 'error' && !isOwnLog) {
+      const meta = { ...info }
+      delete meta.level
+      delete meta.message
+      delete meta.timestamp
+
+      if (this.isInitialized) {
+        this.sendToTelegram(info.level, message, meta)
+      } else {
+        // Сохраняем для отправки после инициализации (max 50)
+        if (this.pendingLogs.length < 50) {
+          this.pendingLogs.push({ level: info.level, message, meta })
+        }
+      }
+    }
+
+    callback()
+  }
+}
+
+// Создаём глобальный экземпляр транспорта
+const telegramTransport = new TelegramLogTransport({ level: 'error' })
 
 // Создаем директорию для логов, если её нет
 const logDir = path.join(process.cwd(), 'logs')
@@ -29,9 +116,12 @@ const commonFormat = format.combine(
   })
 )
 
-// Определяем базовые транспорты (консоль)
+// Определяем базовые транспорты (консоль + telegram для ошибок)
 // Указываем тип any[], чтобы разрешить разные транспорты
-const baseTransports: any[] = [new transports.Console()]
+const baseTransports: any[] = [
+  new transports.Console(),
+  telegramTransport, // 📨 Отправка ошибок в группу НейроМентор
+]
 
 // Добавляем файловые транспорты только если не режим теста
 if (process.env.NODE_ENV !== 'test') {

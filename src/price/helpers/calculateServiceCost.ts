@@ -98,6 +98,19 @@ export const SERVICE_COST_CONFIG: Record<string, ServiceCostConfig> = {
     minCost: 126,
     maxCost: 500, // Для сложных морфингов с большим количеством изображений
   },
+
+  // 🎬 IMAGE TO VIDEO СЕРВИСЫ (Veo3, Sora, Kling I2V и другие)
+  // ✅ FIX: Добавлено для устранения "Unknown service type IMAGE_TO_VIDEO" warning
+  image_to_video: {
+    baseCost: 84, // Базовая стоимость для I2V моделей
+    minCost: 50,
+    maxCost: 500, // Для дорогих моделей типа Veo3
+  },
+  IMAGE_TO_VIDEO: {
+    baseCost: 84, // Alias для uppercase версии
+    minCost: 50,
+    maxCost: 500,
+  },
 }
 
 /**

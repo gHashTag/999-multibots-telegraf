@@ -22,7 +22,7 @@ export enum ModeEnum {
 
   // 🔧 СИСТЕМНЫЕ ОПЕРАЦИИ
   AvatarTransform = 'avatar_transform',
-  FaceSwap = 'face_swap',
+  FaceSwap = 'faceSwapWizard',
   AIHeroes = 'ai_heroes',
   Subscribe = 'subscribe',
   TopUpBalance = 'top_up_balance',
@@ -38,13 +38,14 @@ export enum ModeEnum {
   Support = 'support',
   Stats = 'stats',
   Price = 'price',
-  StartScene = 'start_scene',
+  StartScene = 'startScene', // ✅ Синхронизировано с реальным ID сцены
   MenuScene = 'menuScene',
   BalanceScene = 'balance_scene',
-  InviteScene = 'invite_scene',
+  InviteScene = 'inviteScene', // ✅ Синхронизировано с реальным ID сцены
   PaymentScene = 'payment_scene',
   RublePaymentScene = 'rublePaymentScene',
   StarPaymentScene = 'starPaymentScene',
+  CryptoPaymentScene = 'cryptoPaymentScene',
 
   // 🧙‍♂️ МАСТЕРА И ПОМОЩНИКИ
   SelectModel = 'select_model',
@@ -69,7 +70,24 @@ export enum ModeEnum {
   InstagramParserScene = 'instagram_parser_scene',
   InstagramParserWizard = 'instagram_parser_wizard',
   MorphingWizard = 'morphing_wizard',
-  AiPhotoshop = 'ai_photoshop',
+  AiPhotoshop = 'ai_photoshop_scene',
+
+  // 🎤 LIPSYNC ВАРИАНТЫ (используются в lipSyncWizard/)
+  LipSyncModelSelection = 'lip_sync_model_selection',
+  VeedFabricLipSync = 'veed_fabric_lipsync',
+  AiReelsWizard = 'ai_reels_wizard',
+  AiReelsEntryWizard = 'ai_reels_entry_wizard',
+  HedraRenderWizard = 'hedra_render_wizard',
+  HeygenRenderWizard = 'heygen_render_wizard',
+  FalRenderWizard = 'fal_render_wizard',
+
+  // 🎓 ОБУЧЕНИЕ МОДЕЛЕЙ
+  TrainFluxModelWizard = 'trainFluxModelWizard',
+  UploadTrainFluxModelScene = 'uploadTrainFluxModelScene',
+
+  // 🌐 ЯЗЫКОВЫЕ НАСТРОЙКИ
+  ChangeLanguageScene = 'changeLanguageScene',
+  TechSupportScene = 'techSupportScene',
 
   // ⚠️ УСТАРЕВШИЕ/НЕИСПОЛЬЗУЕМЫЕ (оставляем для совместимости)
   /** @deprecated Не используется */
@@ -77,6 +95,13 @@ export enum ModeEnum {
   /** @deprecated Не используется, есть NeuroPhoto */
   TextToImage = 'text_to_image',
   FluxKontext = 'flux_kontext',
+
+  // 🎵 МУЗЫКА
+  MusicGeneration = 'music_generation_wizard',
+
+  // 🎤 VOICE CLONING & AI COVER
+  VoiceTraining = 'voice_training_wizard',
+  AICover = 'ai_cover_wizard',
 }
 
 // Определяем интерфейсы прямо здесь для предотвращения циклических зависимостей

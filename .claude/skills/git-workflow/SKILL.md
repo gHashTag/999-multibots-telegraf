@@ -248,6 +248,162 @@ Issue References:
     Fixes #234
 ```
 
+## 🚫 CRITICAL: FORCE PUSH ABSOLUTELY FORBIDDEN
+
+### ⚠️ STRICT PROHIBITION - NO EXCEPTIONS
+
+```yaml
+FIRM BAN ON FORCE PUSH:
+  - git push --force         ❌ FORBIDDEN
+  - git push -f              ❌ FORBIDDEN
+  - git push --force-with-lease ❌ FORBIDDEN
+  - git push origin --force  ❌ FORBIDDEN
+  - git push --delete --force ❌ FORBIDDEN
+  - ANY use of -f flag       ❌ FORBIDDEN
+```
+
+### 🎯 CONSEQUENCES OF FORCE PUSH
+
+```yaml
+CATASTROPHIC CONSEQUENCES:
+  - DELETES commit history permanently
+  - OVERWRITES other developers' work
+  - MAKES rollback impossible
+  - BREAKS production systems
+  - LOSES team trust forever
+
+REAL CASE (2025-01-11):
+  Agent executed: git push --force
+  Result:
+    - Deleted 50+ commits
+    - Lost 200+ command files
+    - Production was broken
+    - Had to restore from old commits
+```
+
+### ✅ CORRECT WORKFLOW (ONLY ACCEPTABLE METHOD)
+
+```bash
+# 1. Create branch
+git checkout -b feat/my-feature
+
+# 2. Make changes
+git add .
+git commit -m "feat(component): add new feature"
+
+# 3. Push WITHOUT force
+git push -u origin feat/my-feature
+
+# 4. Create Pull Request
+gh pr create --title "feat(component): add new feature" \
+  --body "$(cat <<'EOF'
+## Summary
+- Add new feature
+- Include tests
+- Update documentation
+
+## Testing
+- [x] Tests pass
+- [x] Type check passes
+- [x] Coverage >80%
+EOF
+)"
+
+# 5. Wait for review and approval
+# 6. Merge via PR (NEVER force push!)
+```
+
+### 🚨 ONLY CASE WHERE HISTORY REWRITE IS ACCEPTABLE
+
+```yaml
+EXTREMELY RARE EXCEPTION:
+  Scope: Personal feature branch only
+  Timing: BEFORE first push to remote
+  Method: Use interactive rebase, NOT force push
+
+✅ CORRECT approach:
+  git checkout -b feat/my-feature
+  # Make commits
+  git rebase -i HEAD~3  # Clean up commits
+  git push -u origin feat/my-feature  # Normal push
+
+❌ WRONG approach:
+  git checkout -b feat/my-feature
+  # Make commits
+  git push origin feat/my-feature
+  # Oops, need to rewrite history
+  git rebase -i HEAD~3
+  git push --force  # ❌ CATASTROPHIC ERROR!
+```
+
+### 🔒 PRE-COMMIT HOOK CHECK
+
+Add this check to `.git/hooks/pre-commit`:
+
+```bash
+#!/bin/bash
+# .git/hooks/pre-commit
+
+# Check for force push in git command history
+if git log --oneline --all -20 | grep -i "force\|--force\|-f" > /dev/null; then
+  echo "❌ FORCE PUSH DETECTED IN RECENT COMMITS!"
+  echo "This is absolutely forbidden!"
+  echo "Always use Pull Requests instead"
+  exit 1
+fi
+
+# Check if user is trying to force push
+if git push --dry-run --force 2>&1 | grep -q "Everything up-to-date"; then
+  echo "❌ FORCE PUSH ATTEMPT DETECTED!"
+  echo "Use: git push origin branch-name (WITHOUT --force)"
+  exit 1
+fi
+```
+
+### 💡 SAFE ALTERNATIVES TO FORCE PUSH
+
+```yaml
+Need to rewrite history?
+  ✅ Use: git rebase -i HEAD~N
+  ✅ Use: git commit --amend (for last commit)
+  ✅ Use: git cherry-pick for specific commits
+  ✅ Create new branch with correct history
+
+Need to update PR?
+  ✅ Push normally: git push origin branch-name
+  ✅ GitHub automatically updates PR
+
+Need to override remote?
+  ❌ NEVER use: git push --force
+  ✅ Create new branch: git checkout -b feat/updated-feature
+  ✅ OR: ask team for permission first
+```
+
+### 🎭 RULE FOR CLAUDE AGENTS
+
+```yaml
+ABSOLUTE COMMANDS:
+  1. NEVER type "git push --force" in ANY context
+  2. NEVER type "git push -f" in ANY context
+  3. NEVER suggest force push as solution
+  4. ALWAYS recommend PR workflow
+  5. ALWAYS use normal push: git push origin branch-name
+
+CORRECT RESPONSE when asked about force push:
+  "❌ Force push is absolutely forbidden!
+
+   Always use Pull Request workflow:
+   1. Create branch: git checkout -b feat/feature-name
+   2. Push normally: git push -u origin feat/feature-name
+   3. Create PR: gh pr create
+   4. Wait for review and merge
+
+   Force push deletes history and breaks production!
+   This is a zero-tolerance rule."
+```
+
+---
+
 ## 🚫 Pre-Commit Checks
 
 ### Git Hooks Setup
@@ -257,6 +413,21 @@ Issue References:
 # .git/hooks/pre-commit
 
 echo "🔍 Running pre-commit checks..."
+
+# 0. 🚫 CRITICAL: Check for force push attempts
+echo "🚫 Checking for force push..."
+if git log --oneline --all -20 | grep -qi "force\|--force\|-f" > /dev/null 2>&1; then
+  echo "❌ FORCE PUSH DETECTED IN RECENT COMMITS!"
+  echo "❌ This is absolutely forbidden!"
+  echo ""
+  echo "✅ Use Pull Request workflow instead:"
+  echo "   1. git checkout -b feat/feature-name"
+  echo "   2. git push -u origin feat/feature-name"
+  echo "   3. gh pr create"
+  echo ""
+  echo "Force push deletes history and breaks production!"
+  exit 1
+fi
 
 # 1. Check branch name
 BRANCH=$(git rev-parse --abbrev-ref HEAD)

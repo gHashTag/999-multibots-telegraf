@@ -1,23 +1,23 @@
 # ⛔️ ВНИМАНИЕ! КРИТИЧЕСКИ ВАЖНЫЕ НАСТРОЙКИ! ⛔️
-# 
+#
 # ********************************************************
 # *                   !!!СТОП!!!                          *
 # *        НЕ МЕНЯТЬ СЛЕДУЮЩИЕ НАСТРОЙКИ:                 *
 # *                                                       *
-# * 1. Сеть bot-network и её настройки                    *
-# * 2. Порты приложения (2999, 3000-3007)                *
-# * 3. Healthcheck настройки                              *
-# * 4. Volumes и монтирование директорий                  *
-# *                                                       *
-# * ПОСЛЕДСТВИЯ ИЗМЕНЕНИЙ:                               *
-# * - Перестанет работать nginx прокси                   *
-# * - Боты потеряют связь с Telegram                     *
-# * - Упадёт вся система                                 *
-# *                                                       *
-# * ЕСЛИ НУЖНЫ ИЗМЕНЕНИЯ:                                *
-# * 1. Сделать бэкап этого файла                         *
-# * 2. Проконсультироваться с тимлидом                   *
-# * 3. Тестировать на staging                            *
+# * 1. Сеть bot-network и её настройки                    #
+# * 2. Порты приложения (3000-3010)                      # LAST FIX: 2025-11-25 - убран 2999
+# * 3. Healthcheck настройки                              #
+# * 4. Volumes и монтирование директорий                  #
+# *                                                       #
+# * ПОСЛЕДСТВИЯ ИЗМЕНЕНИЙ:                               #
+# * - Перестанет работать nginx прокси                   #
+# * - Боты потеряют связь с Telegram                     #
+# * - Упадёт вся система                                 #
+# *                                                       #
+# * ЕСЛИ НУЖНЫ ИЗМЕНЕНИЯ:                                #
+# * 1. Сделать бэкап этого файла                         #
+# * 2. Проконсультироваться с тимлидом                   #
+# * 3. Тестировать на staging                            #
 # ********************************************************
 #
 # LAST WORKING UPDATE: 21.04.2025
@@ -32,7 +32,6 @@ services:
       context: ./
       dockerfile: Dockerfile
     ports:
-      - '2999:2999'
       - '3000:3000'
       - '3001:3001'
       - '3002:3002'
@@ -44,6 +43,7 @@ services:
       - '3008:3008'
       - '3009:3009'
       - '3010:3010'
+      - '3011:3011'
     env_file:
       - .env
     environment:
@@ -58,6 +58,7 @@ services:
       - BOT_TOKEN_8=${BOT_TOKEN_8}
       - BOT_TOKEN_9=${BOT_TOKEN_9}
       - BOT_TOKEN_10=${BOT_TOKEN_10}
+      - BOT_TOKEN_11=${BOT_TOKEN_11}
       - INNGEST_EVENT_KEY=${INNGEST_EVENT_KEY}
       - INNGEST_SIGNING_KEY=${INNGEST_SIGNING_KEY}
       - INNGEST_URL=${INNGEST_URL}
@@ -104,7 +105,7 @@ services:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:2999/health" ]
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -147,5 +148,5 @@ networks:
 
 # Объявляем Docker Volume
 volumes:
-  nginx-config-volume: 
+  nginx-config-volume:
   files-volume:

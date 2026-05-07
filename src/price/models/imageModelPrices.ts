@@ -265,4 +265,13 @@ export const imageModelPrices: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.035),
     inputType: ['text', 'image'],
   },
+  'fal-ai/nano-banana-pro': {
+    shortName: 'Nano Banana Pro',
+    description_en: `Nano Banana Pro (a.k.a Nano Banana 2) is Google's new state-of-the-art image generation and editing model. It excels at photorealism, typography, and high-quality image generation with support for multiple aspect ratios and resolutions up to 4K. The model offers excellent prompt following and produces highly detailed results with natural aesthetics.`,
+    description_ru: `Nano Banana Pro (также известная как Nano Banana 2) — это новая передовая модель генерации и редактирования изображений от Google. Она превосходит в фотореализме, типографике и высококачественной генерации изображений с поддержкой различных соотношений сторон и разрешений до 4K. Модель отлично следует промптам и создает высокодетализированные результаты с естественной эстетикой.`,
+    previewImage:
+      'https://v3b.fal.media/files/b/monkey/4eELX5wvo_7Qp2iNbl3Dm_09b7e837a37147cea386940f5aeb1fed.jpg',
+    costPerImage: calculateFinalImageCostInStars(0.0398),
+    inputType: ['text'],
+  },
 }

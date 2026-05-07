@@ -9,6 +9,10 @@ import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { handleSelectStars } from '@/handlers/handleSelectStars'
 import { handleBuySubscription } from '@/handlers/handleBuySubscription'
 import { starAmounts } from '@/price/helpers/starAmounts'
+import { getMainMenuText } from '@/navigation'
+import { isX402Configured } from '@/core/x402'
+import { TON_PAYMENT_SCENE_ID } from '@/scenes/tonPaymentScene'
+import { TON_NATIVE_PAYMENT_SCENE_ID } from '@/scenes/tonNativePaymentScene'
 
 /**
  * Старая сцена оплаты, теперь используется как точка входа
@@ -19,36 +23,63 @@ export const paymentScene = new Scenes.BaseScene<MyContext>(
 )
 
 paymentScene.enter(async ctx => {
-  logger.info(`[${ModeEnum.PaymentScene}] Entering scene.`, {
+  logger.info(`🔍 [PAYMENT DEBUG] [${ModeEnum.PaymentScene}] ===== ENTER HANDLER CALLED =====`, {
     telegram_id: ctx.from?.id,
+    timestamp: new Date().toISOString(),
     botInfo: ctx.botInfo, // Логируем для отладки
     session_selectedPayment: ctx.session.selectedPayment, // Логируем, что в сессии
+    sceneId: ctx.scene?.current?.id,
+    hasScene: !!ctx.scene?.current,
+    sceneCurrent: ctx.scene?.current,
   })
   const isRu = isRussian(ctx)
   const showRublesButton = shouldShowRubles(ctx) // Используем хелпер
 
+  logger.info(`[${ModeEnum.PaymentScene}] Enter scene - showRublesButton: ${showRublesButton}`, {
+    telegram_id: ctx.from?.id,
+    botInfo: ctx.botInfo,
+    showRublesButton,
+  })
+
   try {
     const message = isRu ? 'Выберите способ оплаты:' : 'Select payment method:'
+    const showCryptoButton = isX402Configured()
 
-    const buttons = [
-      [Markup.button.text(isRu ? '⭐️ Звездами' : '⭐️ Stars')], // Кнопка Звездами всегда есть
+    // Первая строка: все способы оплаты в одну линию
+    const paymentRow = [
+      Markup.button.text(isRu ? '⭐ Звездами' : '⭐ Stars'),
     ]
+
+    // Добавляем единую кнопку Криптой (показывает inline-меню с выбором)
+    // Показываем всегда - есть TON USDT и TON даже без x402
+    paymentRow.push(Markup.button.text(isRu ? '💎 Криптой' : '💎 Crypto'))
+    logger.info(`[${ModeEnum.PaymentScene}] Added Crypto button to keyboard`, {
+      telegram_id: ctx.from?.id,
+    })
 
     // Добавляем кнопку Рублями только если хелпер разрешает
     if (showRublesButton) {
-      buttons[0].push(Markup.button.text(isRu ? '💳 Рублями' : '💳 Rubles'))
+      paymentRow.push(Markup.button.text(isRu ? '💳 Рублями' : '💳 Rubles'))
+      logger.info(`[${ModeEnum.PaymentScene}] Added Rubles button to keyboard`, {
+        telegram_id: ctx.from?.id,
+      })
+    } else {
+      logger.warn(`[${ModeEnum.PaymentScene}] Rubles button NOT added (showRublesButton=false)`, {
+        telegram_id: ctx.from?.id,
+        botInfo: ctx.botInfo,
+      })
     }
 
-    // Добавляем остальные кнопки (Справка, Главное меню)
-    buttons.push([
-      Markup.button.webApp(
-        isRu ? 'Что такое звезды❓' : 'What are stars❓',
-        `https://telegram.org/blog/telegram-stars/${isRu ? 'ru' : 'en'}?ln=a`
-      ),
-    ])
-    buttons.push([
-      Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu'),
-    ])
+    const buttons = [
+      paymentRow, // [⭐ Звездами] [💎 Криптой] [💳 Рублями]
+      [
+        Markup.button.webApp(
+          isRu ? 'Что такое звезды❓' : 'What are stars❓',
+          `https://telegram.org/blog/telegram-stars/${isRu ? 'ru' : 'en'}?ln=a`
+        ),
+      ],
+      [Markup.button.text(getMainMenuText(isRu))],
+    ]
 
     const keyboard = Markup.keyboard(buttons).resize()
 
@@ -65,7 +96,7 @@ paymentScene.enter(async ctx => {
 })
 
 // Переход в сцену оплаты Звездами
-paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
+paymentScene.hears(['⭐️ Звездами', '⭐️ Stars', '⭐ Звездами', '⭐ Stars'], async ctx => {
   const isRu = isRussian(ctx)
   const selectedPaymentInfo = ctx.session.selectedPayment
 
@@ -118,64 +149,293 @@ paymentScene.hears(['⭐️ Звездами', '⭐️ Stars'], async ctx => {
 // Используем версию из origin/main (обработчик восстановлен)
 paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
   logger.info(
-    `[${ModeEnum.PaymentScene}] User chose Rubles. Entering RublePaymentScene.`,
-    { telegram_id: ctx.from?.id }
+    `🔍 [PAYMENT DEBUG] [${ModeEnum.PaymentScene}] ===== HEARS HANDLER TRIGGERED: User chose Rubles =====`,
+    { 
+      telegram_id: ctx.from?.id,
+      timestamp: new Date().toISOString(),
+      currentScene: ctx.scene?.current?.id,
+      sceneId: ctx.scene?.current?.id,
+      sceneCurrent: ctx.scene?.current,
+      hasScene: !!ctx.scene?.current,
+      sessionSelectedPayment: ctx.session.selectedPayment,
+      messageText: ctx.message && 'text' in ctx.message ? ctx.message.text : 'N/A',
+      messageType: ctx.message ? Object.keys(ctx.message) : 'no_message',
+    }
   )
-  const paymentInfo = ctx.session.selectedPayment
-  if (
-    paymentInfo &&
-    paymentInfo.type === PaymentType.MONEY_INCOME &&
-    paymentInfo.subscription
-  ) {
-    // Если это покупка подписки, передаем paymentInfo в rublePaymentScene
-    // rublePaymentScene сама разберется, как выставить счет на конкретную сумму подписки
-    logger.info(
-      `[${ModeEnum.PaymentScene}] Passing selectedPayment to RublePaymentScene for subscription.`,
-      { telegram_id: ctx.from?.id, paymentInfo }
+  
+  // ✅ КРИТИЧЕСКАЯ ПРОВЕРКА: Убеждаемся, что пользователь находится в PaymentScene
+  if (ctx.scene?.current?.id !== ModeEnum.PaymentScene) {
+    logger.error(
+      `❌ [PAYMENT DEBUG] [${ModeEnum.PaymentScene}] HEARS HANDLER: User is NOT in PaymentScene!`,
+      {
+        telegram_id: ctx.from?.id,
+        expectedScene: ModeEnum.PaymentScene,
+        actualScene: ctx.scene?.current?.id,
+        sceneCurrent: ctx.scene?.current,
+      }
     )
-    await ctx.scene.enter(ModeEnum.RublePaymentScene, { paymentInfo })
-  } else {
-    // Иначе (пополнение баланса) просто входим в сцену для выбора суммы пополнения рублями
-    logger.info(
-      `[${ModeEnum.PaymentScene}] Entering RublePaymentScene for balance top-up.`,
-      { telegram_id: ctx.from?.id }
+    const isRu = isRussian(ctx)
+    await ctx.reply(
+      isRu
+        ? '❌ Ошибка: вы не находитесь в сцене оплаты. Попробуйте начать заново.'
+        : '❌ Error: you are not in the payment scene. Please try again.'
     )
-    await ctx.scene.enter(ModeEnum.RublePaymentScene)
+    await ctx.scene.leave()
+    return
+  }
+  
+  logger.info(
+    `[${ModeEnum.PaymentScene}] User chose Rubles. Entering RublePaymentScene.`,
+    { 
+      telegram_id: ctx.from?.id,
+      currentScene: ctx.scene?.current?.id,
+      sessionSelectedPayment: ctx.session.selectedPayment
+    }
+  )
+  
+  try {
+    const paymentInfo = ctx.session.selectedPayment
+    if (
+      paymentInfo &&
+      paymentInfo.type === PaymentType.MONEY_INCOME &&
+      paymentInfo.subscription
+    ) {
+      // Если это покупка подписки, передаем paymentInfo в rublePaymentScene
+      // rublePaymentScene сама разберется, как выставить счет на конкретную сумму подписки
+      logger.info(
+        `[${ModeEnum.PaymentScene}] Passing selectedPayment to RublePaymentScene for subscription.`,
+        { telegram_id: ctx.from?.id, paymentInfo }
+      )
+      await ctx.scene.enter(ModeEnum.RublePaymentScene, { paymentInfo })
+    } else {
+      // Иначе (пополнение баланса) просто входим в сцену для выбора суммы пополнения рублями
+      logger.info(
+        `[${ModeEnum.PaymentScene}] Entering RublePaymentScene for balance top-up.`,
+        { 
+          telegram_id: ctx.from?.id,
+          hasPaymentInfo: !!paymentInfo,
+          paymentInfoType: paymentInfo?.type,
+          paymentInfoSubscription: paymentInfo?.subscription
+        }
+      )
+      await ctx.scene.enter(ModeEnum.RublePaymentScene)
+    }
+  } catch (error: any) {
+    logger.error(
+      `❌ [${ModeEnum.PaymentScene}] Error entering RublePaymentScene:`,
+      {
+        error: error.message,
+        stack: error.stack,
+        telegram_id: ctx.from?.id,
+      }
+    )
+    const isRu = isRussian(ctx)
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка при переходе к оплате рублями. Попробуйте позже.'
+        : '❌ An error occurred while switching to ruble payment. Please try again later.'
+    )
   }
 })
 
-// Выход в главное меню
-paymentScene.hears(['🏠 Главное меню', '🏠 Main menu'], async ctx => {
+// Переход к выбору криптовалюты (показываем inline-меню)
+paymentScene.hears(['💎 Криптой', '💎 Crypto'], async ctx => {
+  const isRu = isRussian(ctx)
+  const showX402 = isX402Configured()
+
   logger.info(
-    `[${ModeEnum.PaymentScene}] User chose Main Menu. Leaving scene.`,
-    { telegram_id: ctx.from?.id }
+    `[${ModeEnum.PaymentScene}] User chose Crypto. Showing crypto selection menu.`,
+    {
+      telegram_id: ctx.from?.id,
+      currentScene: ctx.scene?.current?.id,
+      showX402,
+    }
   )
-  // Очищаем информацию о выбранном платеже перед выходом
-  ctx.session.selectedPayment = undefined
-  logger.info(`[${ModeEnum.PaymentScene}] Cleared session.selectedPayment.`, {
+
+  try {
+    const message = isRu
+      ? '💎 *Выберите криптовалюту для оплаты:*'
+      : '💎 *Select cryptocurrency for payment:*'
+
+    // Формируем кнопки в зависимости от доступных методов
+    const cryptoButtons = []
+
+    // Всегда показываем TON USDT (стейблкоин на TON)
+    cryptoButtons.push([
+      Markup.button.callback(
+        isRu ? '💠 TON USDT (стейблкоин)' : '💠 TON USDT (stablecoin)',
+        'crypto_select_ton_usdt'
+      ),
+    ])
+
+    // Всегда показываем нативный TON
+    cryptoButtons.push([
+      Markup.button.callback(
+        isRu ? '💎 TON (нативный)' : '💎 TON (native)',
+        'crypto_select_ton_native'
+      ),
+    ])
+
+    // Добавляем USDC Base если x402 настроен
+    if (showX402) {
+      cryptoButtons.push([
+        Markup.button.callback(
+          isRu ? '🔵 USDC (Base)' : '🔵 USDC (Base)',
+          'crypto_select_usdc_base'
+        ),
+      ])
+    }
+
+    // Кнопка назад
+    cryptoButtons.push([
+      Markup.button.callback(
+        isRu ? '◀️ Назад' : '◀️ Back',
+        'crypto_back'
+      ),
+    ])
+
+    await ctx.reply(message, {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard(cryptoButtons),
+    })
+  } catch (error: any) {
+    logger.error(
+      `❌ [${ModeEnum.PaymentScene}] Error showing crypto menu:`,
+      {
+        error: error.message,
+        stack: error.stack,
+        telegram_id: ctx.from?.id,
+      }
+    )
+    await ctx.reply(
+      isRu
+        ? '❌ Произошла ошибка. Попробуйте позже.'
+        : '❌ An error occurred. Please try again later.'
+    )
+  }
+})
+
+// Action: Выбор TON USDT
+paymentScene.action('crypto_select_ton_usdt', async ctx => {
+  await ctx.answerCbQuery()
+  logger.info(`[${ModeEnum.PaymentScene}] User selected TON USDT`, {
     telegram_id: ctx.from?.id,
   })
-  await ctx.scene.leave()
-  return // Вызываем УДАЛЁН, чтобы показать главное меню
+  try {
+    await ctx.deleteMessage()
+  } catch {
+    // ignore
+  }
+  await ctx.scene.enter(TON_PAYMENT_SCENE_ID)
+})
+
+// Action: Выбор нативного TON
+paymentScene.action('crypto_select_ton_native', async ctx => {
+  await ctx.answerCbQuery()
+  logger.info(`[${ModeEnum.PaymentScene}] User selected TON native`, {
+    telegram_id: ctx.from?.id,
+  })
+  try {
+    await ctx.deleteMessage()
+  } catch {
+    // ignore
+  }
+  await ctx.scene.enter(TON_NATIVE_PAYMENT_SCENE_ID)
+})
+
+// Action: Выбор USDC Base
+paymentScene.action('crypto_select_usdc_base', async ctx => {
+  await ctx.answerCbQuery()
+  logger.info(`[${ModeEnum.PaymentScene}] User selected USDC Base`, {
+    telegram_id: ctx.from?.id,
+  })
+  try {
+    await ctx.deleteMessage()
+  } catch {
+    // ignore
+  }
+  await ctx.scene.enter(ModeEnum.CryptoPaymentScene)
+})
+
+// Action: Назад из крипто-меню
+paymentScene.action('crypto_back', async ctx => {
+  await ctx.answerCbQuery()
+  try {
+    await ctx.deleteMessage()
+  } catch {
+    // ignore
+  }
+  // Re-enter payment scene to show main payment menu
+  await ctx.scene.reenter()
+})
+
+// УДАЛЕНО: Старые hears обработчики для TON USDT и TON
+// Теперь выбор происходит через inline-кнопки в меню "Криптой"
+
+// Выход в главное меню
+paymentScene.hears(/^🏠/, async ctx => {
+  const isRu = isRussian(ctx)
+  const mainMenuText = getMainMenuText(isRu)
+
+  if (ctx.message && 'text' in ctx.message && ctx.message.text === mainMenuText) {
+    logger.info(
+      `[${ModeEnum.PaymentScene}] User chose Main Menu. Leaving scene.`,
+      { telegram_id: ctx.from?.id }
+    )
+    // Очищаем информацию о выбранном платеже перед выходом
+    ctx.session.selectedPayment = undefined
+    logger.info(`[${ModeEnum.PaymentScene}] Cleared session.selectedPayment.`, {
+      telegram_id: ctx.from?.id,
+    })
+    await ctx.scene.leave()
+    // ✅ ИСПРАВЛЕНО: Показываем главное меню после выхода из сцены
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
+  }
 })
 
 // Обработка непредвиденных сообщений
 paymentScene.on('message', async ctx => {
+  const messageText = (ctx.message as any)?.text
   const isRu = isRussian(ctx)
+
+  // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем кнопки меню
+  try {
+    const { ALL_BUTTONS } = await import('@/navigation/config/buttons.config')
+    const button = Object.values(ALL_BUTTONS).find(btn => btn.ru === messageText || btn.en === messageText)
+
+    if (button) {
+      // Это кнопка меню! Выходим из сцены и позволяем глобальному обработчику её обработать
+      logger.info('🔄 [paymentScene] Menu button detected, exiting scene', {
+        telegramId: ctx.from?.id,
+        buttonText: messageText
+      })
+      ctx.session.selectedPayment = undefined
+      return ctx.scene.leave()
+    }
+  } catch (error) {
+    // Если не удалось импортировать, продолжаем с обычной обработкой
+    logger.warn('⚠️ [paymentScene] Failed to import buttons config', {
+      error: error instanceof Error ? error.message : String(error),
+      telegramId: ctx.from?.id
+    })
+  }
+
   logger.warn(`[${ModeEnum.PaymentScene}] Received unexpected message`, {
     telegram_id: ctx.from?.id,
-    text: (ctx.message as any)?.text,
+    text: messageText,
   })
 
   // Предлагаем только доступные опции
+  const mainMenuText = getMainMenuText(isRu)
   const replyText = isRu
-    ? 'Пожалуйста, выберите ⭐️ Звездами или вернитесь в 🏠 Главное меню.'
-    : 'Please select ⭐️ Stars or return to the 🏠 Main menu.'
+    ? `Пожалуйста, выберите ⭐️ Звездами или вернитесь в ${mainMenuText}.`
+    : `Please select ⭐️ Stars or return to the ${mainMenuText}.`
 
   // Клавиатура только со Звездами и Меню
   const buttons = [
     [Markup.button.text(isRu ? '⭐️ Звездами' : '⭐️ Stars')],
-    [Markup.button.text(isRu ? '🏠 Главное меню' : '🏠 Main menu')],
+    [Markup.button.text(mainMenuText)],
   ]
   const keyboard = Markup.keyboard(buttons).resize()
 

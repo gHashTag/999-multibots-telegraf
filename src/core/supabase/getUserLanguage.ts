@@ -1,6 +1,10 @@
 import { supabase } from './client'
 import { logger } from '@/utils/logger'
 
+// 🔇 Throttle для ошибок - не логируем одну и ту же ошибку чаще чем раз в 60 секунд
+const errorThrottle = new Map<string, number>()
+const ERROR_THROTTLE_MS = 60000 // 1 минута
+
 /**
  * Получает язык пользователя из базы данных
  * @param telegram_id - Telegram ID пользователя
@@ -22,20 +26,38 @@ export const getUserLanguageFromDB = async (
       .maybeSingle()
 
     if (error) {
-      logger.error(
-        `[getUserLanguageFromDB] Error fetching language for telegram_id ${telegram_id}:`,
-        {
-          error: error.message,
-          details: error.details,
-        }
-      )
+      // 🔇 Throttle: не спамим одной ошибкой
+      const throttleKey = `${telegram_id}:${error.code || 'unknown'}`
+      const lastErrorTime = errorThrottle.get(throttleKey) || 0
+      const now = Date.now()
+
+      if (now - lastErrorTime > ERROR_THROTTLE_MS) {
+        errorThrottle.set(throttleKey, now)
+        logger.error(
+          `[getUserLanguageFromDB] Error fetching language for telegram_id ${telegram_id}: ${error.message || 'Unknown error'} (code: ${error.code || 'N/A'})`,
+          {
+            error: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint,
+          }
+        )
+      }
       return null
     }
 
     if (!data) {
-      logger.warn(
-        `[getUserLanguageFromDB] User not found for telegram_id: ${telegram_id}`
-      )
+      // 🔇 Throttle: не спамим "user not found" для каждого запроса
+      const throttleKey = `notfound:${telegram_id}`
+      const lastWarnTime = errorThrottle.get(throttleKey) || 0
+      const now = Date.now()
+
+      if (now - lastWarnTime > ERROR_THROTTLE_MS) {
+        errorThrottle.set(throttleKey, now)
+        logger.warn(
+          `[getUserLanguageFromDB] User not found for telegram_id: ${telegram_id}`
+        )
+      }
       return null
     }
 
@@ -55,10 +77,18 @@ export const getUserLanguageFromDB = async (
 
     return null
   } catch (err) {
-    logger.error(
-      `[getUserLanguageFromDB] Unexpected error for telegram_id ${telegram_id}:`,
-      { error: err }
-    )
+    // 🔇 Throttle: не спамим unexpected errors
+    const throttleKey = `exception:${telegram_id}`
+    const lastErrorTime = errorThrottle.get(throttleKey) || 0
+    const now = Date.now()
+
+    if (now - lastErrorTime > ERROR_THROTTLE_MS) {
+      errorThrottle.set(throttleKey, now)
+      logger.error(
+        `[getUserLanguageFromDB] Unexpected error for telegram_id ${telegram_id}: ${err instanceof Error ? err.message : String(err)}`,
+        { error: err }
+      )
+    }
     return null
   }
 }

@@ -1,0 +1,49 @@
+use async_trait::async_trait;
+use trios_mb_traits::AiProvider;
+use trios_mb_types::generation::*;
+use trios_mb_types::AppError;
+use trios_mb_types::errors::AiError;
+
+pub struct MidjourneyProvider {
+    http: reqwest::Client,
+}
+
+impl MidjourneyProvider {
+    pub fn new(_api_key: &str) -> Self {
+        Self {
+            http: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(120))
+                .build()
+                .unwrap_or_default(),
+        }
+    }
+}
+
+#[async_trait]
+impl AiProvider for MidjourneyProvider {
+    fn name(&self) -> &'static str { "midjourney" }
+    fn priority(&self) -> u8 { 50 }
+
+    fn supports_media_type(&self, media_type: MediaType) -> bool {
+        matches!(media_type, MediaType::Image)
+    }
+
+    async fn generate(&self, _request: &GenerationRequest) -> Result<GenerationResult, AppError> {
+        Err(AiError::Provider {
+            provider: "midjourney".into(),
+            message: "Midjourney requires Discord integration. Use Replicate FLUX proxy instead.".into(),
+        }.into())
+    }
+
+    async fn check_status(&self, _generation_id: &str) -> Result<GenerationStatus, AppError> {
+        Ok(GenerationStatus::Failed)
+    }
+
+    async fn get_result(&self, _generation_id: &str) -> Result<Option<String>, AppError> {
+        Ok(None)
+    }
+
+    async fn cancel(&self, _generation_id: &str) -> Result<(), AppError> {
+        Ok(())
+    }
+}

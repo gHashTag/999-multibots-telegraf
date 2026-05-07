@@ -4,7 +4,7 @@ import { MyContext } from '@/interfaces'
 import { refundUser } from '@/price/helpers'
 import { Scenes } from 'telegraf'
 import { isRussian } from '@/helpers/language'
-import { sendGenericErrorMessage } from '@/menu'
+import { sendGenericErrorMessage } from '@/navigation'
 
 interface Prediction {
   input: {

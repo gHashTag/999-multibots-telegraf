@@ -18,12 +18,10 @@ import {
 // ✅ ИМПОРТИРУЕМ НОВУЮ ФУНКЦИЮ ДЛЯ HAIM GROUP MEDIA
 import { getLatestUserModelForHaim } from '@/core/supabase/getLatestUserModelForHaim'
 import {
-  levels,
-  mainMenu,
   sendGenericErrorMessage,
   sendPhotoDescriptionRequest,
-} from '@/menu'
-import { handleHelpCancel } from '@/handlers/handleHelpCancel'
+} from '@/navigation'
+import { getButtonTextsByMode, showMainMenu, createMainMenuKeyboard, handleHelpCancel } from '@/navigation'
 import { Scenes } from 'telegraf'
 
 import { getUserInfo } from '@/handlers/getUserInfo'
@@ -48,9 +46,9 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
     const { telegramId } = await getUserInfo(ctx)
 
-    // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ БОТ
-    const botToken = ctx.telegram.token
-    const { bot_name } = getBotNameByToken(botToken)
+    // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ БОТ (используем botInfo.username вместо токена)
+    const bot_name =
+      ctx.botInfo?.username || getBotNameByToken(ctx.telegram.token).bot_name
     console.log(
       `🤖 Определен бот V2: ${bot_name} для пользователя ${telegramId}`
     )
@@ -292,9 +290,9 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       return
     }
 
-    if (text === levels[104].title_ru || text === levels[104].title_en) {
+    const mainMenuTexts = getButtonTextsByMode('main_menu')
+    if (text === mainMenuTexts?.ru || text === mainMenuTexts?.en) {
       console.log('CASE: Главное меню')
-      return
       return
     }
 
@@ -376,14 +374,7 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       await generate(numImages)
       return ctx.scene.leave()
     } else {
-      const { subscriptionType } = await getReferalsCountAndUserData(
-        ctx.from?.id?.toString() || ''
-      )
-      await mainMenu({
-        isRu,
-        subscription: subscriptionType,
-        ctx,
-      })
+      await showMainMenu(ctx)
     }
   }
 }

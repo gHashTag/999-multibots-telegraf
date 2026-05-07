@@ -49,12 +49,14 @@ export function calculateFinalPrice(
   }
 
   // ✅ ПРИОРИТЕТ 3: Цена по длительности (БЕЗ наценки)
-  if (modelConfig.pricing.type === 'per_duration' && modelConfig.pricing.priceByDuration && selectedDuration) {
-    const price = modelConfig.pricing.priceByDuration[selectedDuration]
+  if (modelConfig.pricing.type === 'per_duration' && modelConfig.pricing.priceByDuration) {
+    // Используем выбранную длительность или первую доступную как fallback
+    const duration = selectedDuration || modelConfig.pricing.defaultDuration || Number(Object.keys(modelConfig.pricing.priceByDuration)[0])
+    const price = modelConfig.pricing.priceByDuration[duration]
     if (price) {
       logger.info('calculateFinalPrice: Using duration-based price (no markup)', {
         modelKey,
-        selectedDuration,
+        selectedDuration: duration,
         priceStars: price,
       })
       return price
@@ -62,12 +64,14 @@ export function calculateFinalPrice(
   }
 
   // ✅ ПРИОРИТЕТ 4: Цена по разрешению (БЕЗ наценки)
-  if (modelConfig.pricing.type === 'per_resolution' && modelConfig.pricing.priceByResolution && selectedResolution) {
-    const price = modelConfig.pricing.priceByResolution[selectedResolution]
+  if (modelConfig.pricing.type === 'per_resolution' && modelConfig.pricing.priceByResolution) {
+    // Используем выбранное разрешение или первое доступное как fallback
+    const resolution = selectedResolution || Object.keys(modelConfig.pricing.priceByResolution)[0]
+    const price = modelConfig.pricing.priceByResolution[resolution]
     if (price) {
       logger.info('calculateFinalPrice: Using resolution-based price (no markup)', {
         modelKey,
-        selectedResolution,
+        selectedResolution: resolution,
         priceStars: price,
       })
       return price

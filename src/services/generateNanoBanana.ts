@@ -190,9 +190,8 @@ export async function generateNanoBanana(
 
         await ctx.reply(
           is_ru
-            ? `❌ Недостаточно звезд для генерации\\n\\nТребуется: ${totalCost}⭐ (за ${imageCount} фото)\\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\\n\\nПополните баланс через /start → 💎 Пополнить баланс`
-            : `❌ Insufficient stars for generation\\n\\nRequired: ${totalCost}⭐ (for ${imageCount} photos)\\nYour balance: ${balanceCheck.currentBalance || 0}⭐\\n\\nTop up via /start → 💎 Top up balance`,
-          { parse_mode: 'MarkdownV2' }
+            ? `❌ Недостаточно звезд для генерации\n\nТребуется: ${totalCost}⭐ (за ${imageCount} фото)\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\n\nПополните баланс через /start → 💎 Пополнить баланс`
+            : `❌ Insufficient stars for generation\n\nRequired: ${totalCost}⭐ (for ${imageCount} photos)\nYour balance: ${balanceCheck.currentBalance || 0}⭐\n\nTop up via /start → 💎 Top up balance`
         )
         return null
       }
@@ -372,8 +371,8 @@ export async function generateNanoBanana(
     if (!params.silent) {
       const botUsername = ctx.botInfo?.username || 'neuro_blogger_bot'
       const caption = is_ru
-        ? `✨ Ваш образ готов!\n\n🍌 Создано с помощью Google Nano Banana\n💫 Потрачено: ${totalCost}⭐\n🎨 Изображений: ${validatedInput.image_input.length}\n\n🤖 Сделано в боте @${botUsername}`
-        : `✨ Your image is ready!\n\n🍌 Created with Google Nano Banana\n💫 Spent: ${totalCost}⭐\n🎨 Images: ${validatedInput.image_input.length}\n\n🤖 Made with @${botUsername} bot`
+        ? `✨ Ваш образ готов!\n\n💫 Стоимость: ${totalCost}⭐\n🎨 Изображений: ${validatedInput.image_input.length}`
+        : `✨ Your image is ready!\n\n💫 Cost: ${totalCost}⭐\n🎨 Images: ${validatedInput.image_input.length}`
 
       console.log('🚀 [NanoBanana] About to call sendPhotoWithFallback', {
         telegram_id,

@@ -1,0 +1,144 @@
+/**
+ * Tests for escapeMarkdown.ts
+ *
+ * Markdown V2 escape utility
+ */
+
+import { describe, it, expect } from 'vitest'
+import { escapeMarkdownV2 } from '@/helpers/escapeMarkdown'
+
+describe('escapeMarkdownV2', () => {
+  describe('special characters', () => {
+    it('should escape underscore', () => {
+      expect(escapeMarkdownV2('hello_world')).toBe('hello\\_world')
+    })
+
+    it('should escape asterisk', () => {
+      expect(escapeMarkdownV2('hello*world')).toBe('hello\\*world')
+    })
+
+    it('should escape square brackets', () => {
+      expect(escapeMarkdownV2('hello[world]')).toBe('hello\\[world\\]')
+    })
+
+    it('should escape parentheses', () => {
+      expect(escapeMarkdownV2('hello(world)')).toBe('hello\\(world\\)')
+    })
+
+    it('should escape tilde', () => {
+      expect(escapeMarkdownV2('hello~world')).toBe('hello\\~world')
+    })
+
+    it('should escape backtick', () => {
+      expect(escapeMarkdownV2('hello`world')).toBe('hello\\`world')
+    })
+
+    it('should escape greater than', () => {
+      expect(escapeMarkdownV2('hello>world')).toBe('hello\\>world')
+    })
+
+    it('should escape hash', () => {
+      expect(escapeMarkdownV2('hello#world')).toBe('hello\\#world')
+    })
+
+    it('should escape plus', () => {
+      expect(escapeMarkdownV2('hello+world')).toBe('hello\\+world')
+    })
+
+    it('should escape minus/hyphen', () => {
+      expect(escapeMarkdownV2('hello-world')).toBe('hello\\-world')
+    })
+
+    it('should escape equals', () => {
+      expect(escapeMarkdownV2('hello=world')).toBe('hello\\=world')
+    })
+
+    it('should escape pipe', () => {
+      expect(escapeMarkdownV2('hello|world')).toBe('hello\\|world')
+    })
+
+    it('should escape curly braces', () => {
+      expect(escapeMarkdownV2('hello{world}')).toBe('hello\\{world\\}')
+    })
+
+    it('should escape period', () => {
+      expect(escapeMarkdownV2('hello.world')).toBe('hello\\.world')
+    })
+
+    it('should escape exclamation mark', () => {
+      expect(escapeMarkdownV2('hello!world')).toBe('hello\\!world')
+    })
+
+    it('should escape backslash', () => {
+      expect(escapeMarkdownV2('hello\\world')).toBe('hello\\\\world')
+    })
+  })
+
+  describe('multiple characters', () => {
+    it('should escape multiple special characters', () => {
+      expect(escapeMarkdownV2('*bold* _italic_ `code`')).toBe(
+        '\\*bold\\* \\_italic\\_ \\`code\\`'
+      )
+    })
+
+    it('should escape complex markdown', () => {
+      expect(escapeMarkdownV2('[link](http://example.com)')).toBe(
+        '\\[link\\]\\(http://example\\.com\\)'
+      )
+    })
+
+    it('should handle consecutive special characters', () => {
+      expect(escapeMarkdownV2('***bold***')).toBe('\\*\\*\\*bold\\*\\*\\*')
+    })
+  })
+
+  describe('edge cases', () => {
+    it('should return empty string for empty input', () => {
+      expect(escapeMarkdownV2('')).toBe('')
+    })
+
+    it('should not modify text without special characters', () => {
+      expect(escapeMarkdownV2('hello world')).toBe('hello world')
+    })
+
+    it('should not modify numbers', () => {
+      expect(escapeMarkdownV2('12345')).toBe('12345')
+    })
+
+    it('should preserve spaces', () => {
+      expect(escapeMarkdownV2('hello   world')).toBe('hello   world')
+    })
+
+    it('should preserve newlines', () => {
+      expect(escapeMarkdownV2('hello\nworld')).toBe('hello\nworld')
+    })
+
+    it('should handle unicode characters', () => {
+      expect(escapeMarkdownV2('привет*мир')).toBe('привет\\*мир')
+    })
+
+    it('should handle emojis with special characters', () => {
+      expect(escapeMarkdownV2('⭐ *stars*')).toBe('⭐ \\*stars\\*')
+    })
+  })
+
+  describe('real-world examples', () => {
+    it('should escape telegram message with formatting', () => {
+      const input = 'Баланс: 100⭐ | Статус: *активен*'
+      const expected = 'Баланс: 100⭐ \\| Статус: \\*активен\\*'
+      expect(escapeMarkdownV2(input)).toBe(expected)
+    })
+
+    it('should escape URL in text', () => {
+      const input = 'Сайт: https://example.com/path?query=1'
+      const expected = 'Сайт: https://example\\.com/path?query\\=1'
+      expect(escapeMarkdownV2(input)).toBe(expected)
+    })
+
+    it('should escape command with arguments', () => {
+      const input = '/start arg1=value1'
+      const expected = '/start arg1\\=value1'
+      expect(escapeMarkdownV2(input)).toBe(expected)
+    })
+  })
+})

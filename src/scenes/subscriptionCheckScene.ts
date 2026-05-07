@@ -68,7 +68,10 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
       isAdmin: true,
       result: 'admin_bypass',
     })
-    return ctx.scene.enter(ModeEnum.MainMenu) // Сразу в главное меню
+    await ctx.scene.leave()
+    const { showMainMenu } = await import('@/navigation')
+    await showMainMenu(ctx)
+    return
   }
 
   // Проверка существования пользователя

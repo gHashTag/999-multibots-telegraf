@@ -39,6 +39,8 @@ RUN if [ "$SKIP_TYPE_CHECK" != "true" ]; then \
 
 # esbuild бандлит все в один файл за секунды!
 # --packages=external: НЕ бандлить node_modules (будут в runtime)
+# Принудительная пересборка без кэша (WORKAROUND для ошибки esbuild)
+RUN rm -rf /root/.npm /root/.cache /root/.cache/esbuild && npm install -g esbuild
 RUN esbuild src/index.ts \
   --bundle \
   --platform=node \
@@ -46,12 +48,17 @@ RUN esbuild src/index.ts \
   --format=cjs \
   --outfile=dist/index.js \
   --packages=external \
-  --sourcemap \
-  --minify
+  --sourcemap
 
 # Stage 3: Production (минимальный runtime)
 FROM node:20-slim
 WORKDIR /app
+
+# Install ffmpeg for video processing (morphing, concatenation)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ffmpeg && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Security: Non-root user
 RUN addgroup --system --gid 1001 nodejs && \
@@ -64,8 +71,11 @@ COPY --from=deps --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./
 
-# ✅ Создать папки uploads, logs, temp с правильными правами (ПЕРЕД USER nodejs!)
-RUN mkdir -p uploads logs temp && chown -R nodejs:nodejs uploads logs temp
+# ✅ Создать папки uploads, logs, temp, tmp с правильными правами (ПЕРЕД USER nodejs!)
+# ✅ Также создать .video-tasks.json для локального хранения задач
+RUN mkdir -p uploads logs temp tmp && \
+    touch .video-tasks.json && \
+    chown -R nodejs:nodejs uploads logs temp tmp .video-tasks.json
 
 # Environment
 ENV NODE_ENV=production
@@ -73,6 +83,7 @@ ENV NODE_ENV=production
 # Switch to non-root user
 USER nodejs
 
-EXPOSE 2999
+# ✅ ИСПРАВЛЕНО: Все порты ботов 3000-3011
+EXPOSE 3000 3001 3002 3003 3004 3005 3006 3007 3008 3009 3010 3011
 
 CMD ["node", "dist/index.js"]

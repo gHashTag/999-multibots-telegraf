@@ -3,9 +3,8 @@ import { getUserModel, getUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { handleFluxKontextPrompt } from '../../commands/fluxKontextCommand'
-import { handleHelpCancel } from '../handleHelpCancel'
 import { Scenes } from 'telegraf'
-import { sendGenericErrorMessage } from '../../menu'
+import { sendGenericErrorMessage, handleHelpCancel } from '@/navigation'
 
 import { logger } from '@/utils/logger'
 import {
@@ -243,17 +242,40 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
         userData,
         textForAi,
         userLanguage,
-        systemPrompt
+        systemPrompt,
+        ctx,
+        userId,
+        userLanguage === 'ru'
       )
 
+      // ✅ Проверяем, является ли ответ изображением (от Nano Banana Pro)
+      if (typeof response === 'object' && response.type === 'image') {
+        console.log(
+          `[handleTextMessage] Image response received for user ${userId}`,
+          { userId, imageUrl: response.imageUrl, cost: response.cost }
+        )
+
+        const caption = response.cost
+          ? `✨ Изображение сгенерировано с помощью Nano Banana Pro\n\n💫 Стоимость: ${response.cost}⭐`
+          : '✨ Изображение сгенерировано с помощью Nano Banana Pro'
+
+        await ctx.replyWithPhoto(response.imageUrl, {
+          caption,
+        })
+        return
+      }
+
+      const responseText = typeof response === 'string' ? response : ''
       console.log(
         `[handleTextMessage] Received response from answerAi for user ${userId}: ${
-          response ? `"${response.substring(0, 50)}..."` : 'null or empty'
+          responseText
+            ? `"${responseText.substring(0, 50)}..."`
+            : 'null or empty'
         }`,
-        { userId, response: response ? !!response : false }
+        { userId, response: responseText ? !!responseText : false }
       )
 
-      if (!response) {
+      if (!responseText) {
         console.error(
           `[handleTextMessage] No valid response from answerAi for user ${userId}. Not replying.`,
           { userId }
@@ -265,7 +287,7 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
         `[handleTextMessage] Preparing to reply to user ${userId} in chat ${chatId}`,
         { userId, chatId }
       )
-      await ctx.reply(response, {
+      await ctx.reply(responseText, {
         parse_mode: 'MarkdownV2',
       })
       console.log(
@@ -275,8 +297,7 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
     }
   } catch (error) {
     logger.error('[handleTextMessage] Error processing text message:', error)
-    const isRu = isRussianFromState(ctx)
-    await sendGenericErrorMessage(ctx, isRu, error)
+    await sendGenericErrorMessage(ctx)
   }
 })
 
