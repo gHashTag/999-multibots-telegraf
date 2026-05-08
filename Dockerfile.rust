@@ -1,40 +1,46 @@
 FROM rust:1.95-bookworm AS builder
 
-RUN apt-get update && apt-get install -y musl-tools && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y musl-tools musl-dev pkg-config && rm -rf /var/lib/apt/lists/*
 
 RUN rustup target add x86_64-unknown-linux-musl
+
+# Set environment for ring crate to use pre-built binaries
+ENV RING_PREGENERATE_ASM=1
 
 WORKDIR /build
 
 COPY rust/Cargo.toml rust/Cargo.lock ./
+
 COPY rust/rings/GOLD-RING-TY00/Cargo.toml rings/GOLD-RING-TY00/Cargo.toml
 COPY rust/rings/GOLD-RING-TY00/src rings/GOLD-RING-TY00/src
-COPY rust/rings/GOLD-RING-PR00/Cargo.toml rings/GOLD-RING-PR00/Cargo.toml
-COPY rust/rings/GOLD-RING-PR00/src rings/GOLD-RING-PR00/src
 COPY rust/rings/GOLD-RING-TR00/Cargo.toml rings/GOLD-RING-TR00/Cargo.toml
 COPY rust/rings/GOLD-RING-TR00/src rings/GOLD-RING-TR00/src
+COPY rust/rings/GOLD-RING-PR00/Cargo.toml rings/GOLD-RING-PR00/Cargo.toml
+COPY rust/rings/GOLD-RING-PR00/src rings/GOLD-RING-PR00/src
 COPY rust/rings/SILVER-RING-DB00/Cargo.toml rings/SILVER-RING-DB00/Cargo.toml
 COPY rust/rings/SILVER-RING-DB00/src rings/SILVER-RING-DB00/src
+COPY rust/rings/SILVER-RING-SC00/Cargo.toml rings/SILVER-RING-SC00/Cargo.toml
+COPY rust/rings/SILVER-RING-SC00/src rings/SILVER-RING-SC00/src
 COPY rust/rings/SILVER-RING-AI00/Cargo.toml rings/SILVER-RING-AI00/Cargo.toml
 COPY rust/rings/SILVER-RING-AI00/src rings/SILVER-RING-AI00/src
+COPY rust/rings/SILVER-RING-PY00/Cargo.toml rings/SILVER-RING-PY00/Cargo.toml
+COPY rust/rings/SILVER-RING-PY00/src rings/SILVER-RING-PY00/src
+COPY rust/rings/SILVER-RING-I18N/Cargo.toml rings/SILVER-RING-I18N/Cargo.toml
+COPY rust/rings/SILVER-RING-I18N/src rings/SILVER-RING-I18N/src
 COPY rust/rings/SILVER-RING-JB00/Cargo.toml rings/SILVER-RING-JB00/Cargo.toml
 COPY rust/rings/SILVER-RING-JB00/src rings/SILVER-RING-JB00/src
 COPY rust/rings/SILVER-RING-TG00/Cargo.toml rings/SILVER-RING-TG00/Cargo.toml
 COPY rust/rings/SILVER-RING-TG00/src rings/SILVER-RING-TG00/src
-COPY rust/rings/SILVER-RING-I18N/Cargo.toml rings/SILVER-RING-I18N/Cargo.toml
-COPY rust/rings/SILVER-RING-I18N/src rings/SILVER-RING-I18N/src
 COPY rust/rings/SILVER-RING-SN00/Cargo.toml rings/SILVER-RING-SN00/Cargo.toml
 COPY rust/rings/SILVER-RING-SN00/src rings/SILVER-RING-SN00/src
-COPY rust/rings/SILVER-RING-PY00/Cargo.toml rings/SILVER-RING-PY00/Cargo.toml
-COPY rust/rings/SILVER-RING-PY00/src rings/SILVER-RING-PY00/src
-COPY rust/rings/SILVER-RING-SRV/Cargo.toml rings/SILVER-RING-SRV/Cargo.toml
-COPY rust/rings/SILVER-RING-SRV/src rings/SILVER-RING-SRV/src
-COPY rust/rings/BRONZE-RING-SEC/Cargo.toml rings/BRONZE-RING-SEC/Cargo.toml
-COPY rust/rings/BRONZE-RING-SEC/src rings/BRONZE-RING-SEC/src
+COPY rust/rings/BRONZE-RING-SRV/Cargo.toml rings/BRONZE-RING-SRV/Cargo.toml
+COPY rust/rings/BRONZE-RING-SRV/src rings/BRONZE-RING-SRV/src
 COPY rust/rings/BRONZE-RING-APP/Cargo.toml rings/BRONZE-RING-APP/Cargo.toml
 COPY rust/rings/BRONZE-RING-APP/src rings/BRONZE-RING-APP/src
 COPY rust/rings/TEST-UTILS/Cargo.toml rings/TEST-UTILS/Cargo.toml
 COPY rust/rings/TEST-UTILS/src rings/TEST-UTILS/src
+
+COPY rust/.cargo .cargo
 
 ENV RUSTFLAGS="-C target-feature=+crt-static"
 

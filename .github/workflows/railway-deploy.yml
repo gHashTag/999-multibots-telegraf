@@ -1,0 +1,23 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'rust/**'
+      - 'Dockerfile.rust'
+      - 'railway.toml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Railway
+        uses: railwayapp/cli@v3
+        with:
+          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+          command: up --service 51666b9a-5337-47c9-a3e8-cbf292d2a47c --environment d54f1813-6221-4cc7-8e0a-ec0d330666a0

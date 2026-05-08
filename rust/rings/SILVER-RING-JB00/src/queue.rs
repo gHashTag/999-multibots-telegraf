@@ -10,9 +10,8 @@ use trios_mb_types::AppError;
 
 mod job_queue_entity {
     use sea_orm::entity::prelude::*;
-    use serde::{Deserialize, Serialize};
 
-    #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
     #[sea_orm(table_name = "job_queue")]
     pub struct Model {
         #[sea_orm(primary_key, auto_increment = false)]
@@ -36,7 +35,7 @@ mod job_queue_entity {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
-use job_queue_entity::*;
+use job_queue_entity::Model;
 
 pub struct PgJobQueue {
     db: Arc<DatabaseConnection>,
@@ -80,7 +79,7 @@ impl JobQueue for PgJobQueue {
             .delay_secs
             .map(|d| now + chrono::Duration::seconds(d as i64));
 
-        let active_model = ActiveModel {
+        let active_model = job_queue_entity::ActiveModel {
             id: Set(id),
             job_type: Set(request.job_type),
             payload: Set(request.payload),
@@ -196,7 +195,7 @@ impl JobQueue for PgJobQueue {
     }
 
     async fn get(&self, id: uuid::Uuid) -> Result<Option<Job>, AppError> {
-        let row = Entity::find_by_id(id)
+        let row = job_queue_entity::Entity::find_by_id(id)
             .one(self.db.as_ref())
             .await
             .map_err(|e| AppError::Db(DbError::Query(e.to_string())))?;

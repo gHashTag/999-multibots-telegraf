@@ -1,0 +1,11 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.rust"
+
+[deploy]
+healthcheckPath = "/health/simple"
+healthcheckTimeout = 300
+restartPolicyType = "ALWAYS"
+
+[service]
+name = "999-multibots-rust"
