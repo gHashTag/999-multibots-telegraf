@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build artifacts
+dist/
+rust/target/
+*.o
+*.so
+*.dylib
+*.dll
+
+# Test files
+__tests__/
+*.test.ts
+*.spec.ts
+coverage/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+temp/
+
+# IDE files
+.vscode/
+.idea/
+.claude/
+.cursor/
+
+# Documentation
+*.md
+docs/
+
+# Scripts (not needed for deployment)
+scripts/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Docker Compose (not needed for Railway)
+docker-compose*.yml
+fly.toml
+fly.rust.toml
+
+# Uploads and public files
+uploads/
+public/
