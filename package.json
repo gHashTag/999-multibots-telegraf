@@ -8,6 +8,7 @@
     "start": "bun run dist/index.js",
     "predev": "./scripts/worktree-env-sync.sh && pkill -f 'bun.*src/index.ts' || true && node scripts/kill-port.cjs 2999 3001 8288",
     "dev": "bun --watch src/index.ts",
+    "dev:infisical": "infisical run --env=prod --projectId=$INFISICAL_PROJECT_ID -- bun --watch src/index.ts",
     "tunnel": "cloudflared tunnel --url http://localhost:3000",
     "tunnel:3001": "cloudflared tunnel --url http://localhost:3001",
     "mobile": "cd mobile && npm start",

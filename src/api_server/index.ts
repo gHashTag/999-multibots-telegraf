@@ -153,7 +153,7 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
         logger.error('❌ [API SERVER] INNGEST_SIGNING_KEY не найден! Webhook verification будет недоступен.')
       }
 
-      const inngestHandler = serve(inngest, allInngestFunctions)
+      const inngestHandler = serve({ client: inngest, functions: allInngestFunctions })
 
       // ✅ Inngest health check на отдельном URL (не блокирует introspection)
       app.get('/api/inngest-status', (req: any, res: any) => {

@@ -16,7 +16,7 @@
 
 // Правильный импорт для Infisical SDK v4
 import { InfisicalSDK } from '@infisical/sdk'
-import { logger } from '@/utils/logger'
+const logger = require('../../utils/logger')
 
 // Интерфейс для секретов
 export interface SecretCache {
@@ -42,12 +42,32 @@ const environment = (process.env.INFISICAL_ENVIRONMENT || (isDev ? 'dev' : 'prod
 export async function initInfisical(): Promise<void> {
   logger.info('[Infisical] 🔐 Initializing cloud-first secret manager...')
 
+  // 🔥 ВАЖНО: Для dev режима пропускаем Infisical, если credentials не заданы
+  // Это позволяет использовать TEST_BOT_TOKEN_* из .env или Infisical если доступен
+  const isDev = process.env.NODE_ENV !== 'production'
+
   // Проверяем наличие ТОЛЬКО credentials для Infisical
   const clientId = process.env.INFISICAL_CLIENT_ID
   const clientSecret = process.env.INFISICAL_CLIENT_SECRET
   const projectId = process.env.INFISICAL_PROJECT_ID
 
+  // В dev режиме пропускаем, если credentials не заданы
+  if (isDev && (!clientId || !clientSecret || !projectId)) {
+    logger.warn('[Infisical] ⚠️ Dev mode: Infisical credentials not set, skipping...')
+    logger.warn('[Infisical] Using TEST_BOT_TOKEN_* from .env instead')
+    // Устанавливаем флаг, что Infisical пропущен
+    (globalThis as any).__INFISICAL_SKIPPED = true
+    return
+  }
+
+  // В production всё ещё проверяем
   if (!clientId || !clientSecret || !projectId) {
+    // Dev mode: skip Infisical error (will use test tokens instead)
+    if (isDev) {
+      logger.warn('[Infisical] ⚠️ Dev mode: Infisical auth skipped, using test tokens from .env')
+      return
+    }
+
     const error = new Error('❌ CRITICAL: Infisical credentials missing! Application cannot start.')
     logger.error('[Infisical] Missing required credentials:', {
       hasClientId: !!clientId,
@@ -96,6 +116,12 @@ export async function initInfisical(): Promise<void> {
     })
 
     const err = new Error(`❌ CRITICAL: Infisical authentication failed! ${error instanceof Error ? error.message : String(error)}`)
+    // 🔥 FIX: Убираем лишние логи для dev режима
+    if (isDev) {
+      logger.error('[Infisical] Dev mode: Skipping detailed error log')
+      logger.error('[Infisical] Use BOT_TOKEN_* from .env for testing')
+      throw new Error('Dev mode: Set BOT_TOKEN_TEST_1 and BOT_TOKEN_TEST_2 in .env for testing')
+    }
     throw err
   }
 }
@@ -105,8 +131,16 @@ export async function initInfisical(): Promise<void> {
  * Это происходит один раз при старте приложения
  */
 async function loadAllSecrets(): Promise<void> {
+  // 🔥 CHECK: Infisical мог быть пропущен в dev режиме
+  const infisicalSkipped = (globalThis as any).__INFISICAL_SKIPPED === true
+
   if (!infisicalClient || !isAuthenticated) {
-    throw new Error('Infisical client not initialized')
+    if (!infisicalSkipped) {
+      throw new Error('Infisical client not initialized')
+    } else {
+      // Если Infisical пропущен, просто используем кэш
+      logger.warn('[Infisical] ⚠️ Infisical was skipped, using cached secrets from .env')
+    }
   }
 
   const projectId = process.env.INFISICAL_PROJECT_ID!
