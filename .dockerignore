@@ -16,6 +16,17 @@ dist/
 .gitignore
 .github/
 
+# Claude Code - development only
+.claude/
+
+# Rust migration - development only
+rust/
+999-multibots-rust/
+
+# Temporary files and uploads
+temp/
+tmp/
+
 # environment files - оставляем только ненужные .env файлы
 .env.local
 .env.development.local

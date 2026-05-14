@@ -16,7 +16,8 @@
 
 // Правильный импорт для Infisical SDK v4
 import { InfisicalSDK } from '@infisical/sdk'
-const logger = require('../../utils/logger')
+// @ts-ignore - Logger import issue with TypeScript
+const logger = require('../../utils/logger').default || require('../../utils/logger')
 
 // Интерфейс для секретов
 export interface SecretCache {
