@@ -165,6 +165,7 @@ impl WorkerPool {
 
 const QUEUE_IO_TIMEOUT: Duration = Duration::from_secs(30);
 
+#[tracing::instrument(skip(queue, job_types, handler), fields(worker_name = %worker_name))]
 async fn poll_and_execute(
     queue: &Arc<dyn JobQueue>,
     job_types: &[&str],
@@ -258,6 +259,7 @@ async fn poll_and_execute(
     Ok(())
 }
 
+#[tracing::instrument(skip(queue, cancel), fields(interval_ms = interval.as_millis()))]
 pub async fn run_retry_maintenance(
     queue: Arc<dyn JobQueue>,
     interval: Duration,

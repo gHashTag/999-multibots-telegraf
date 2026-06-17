@@ -447,17 +447,25 @@ impl DbTrait for PostgresDatabase {
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
 
-        Ok(rows.into_iter().map(|r| Transaction {
-            id: r.id,
-            telegram_id: r.telegram_id,
-            method: serde_json::from_str(&r.method).unwrap_or(PaymentMethod::TelegramStars),
-            status: serde_json::from_str(&r.status).unwrap_or(PaymentStatus::Pending),
-            amount: r.amount,
-            currency: r.currency,
-            external_id: r.external_id,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
-        }).collect())
+        rows.into_iter()
+            .map(|r| -> Result<Transaction, AppError> {
+                Ok(Transaction {
+                    id: r.id,
+                    telegram_id: r.telegram_id,
+                    method: serde_json::from_str(&r.method).map_err(|e| {
+                        AppError::Internal(format!("Corrupt payment method JSON: {}", e))
+                    })?,
+                    status: serde_json::from_str(&r.status).map_err(|e| {
+                        AppError::Internal(format!("Corrupt payment status JSON: {}", e))
+                    })?,
+                    amount: r.amount,
+                    currency: r.currency,
+                    external_id: r.external_id,
+                    created_at: r.created_at,
+                    updated_at: r.updated_at,
+                })
+            })
+            .collect()
     }
 
     async fn check_subscription(&self, telegram_id: i64) -> Result<Option<SubscriptionType>, AppError> {
@@ -627,6 +635,108 @@ impl DbTrait for PostgresDatabase {
             Ok(()) => Ok(true),
             Err(e) => Err(AppError::Db(trios_mb_types::errors::DbError::Connection(e.to_string()))),
         }
+    }
+
+    async fn complete_robokassa_payment(
+        &self,
+        tx_id: uuid::Uuid,
+        telegram_id: i64,
+        amount: f64,
+    ) -> Result<bool, AppError> {
+        let completed_status = serde_json::to_string(&PaymentStatus::Completed).map_err(|e| {
+            AppError::Internal(format!("Failed to serialize PaymentStatus::Completed: {}", e))
+        })?;
+
+        let sql = r#"
+            WITH updated_tx AS (
+                UPDATE payments_v2
+                SET status = $4,
+                    updated_at = NOW()
+                WHERE id = $1 AND status <> $4
+                RETURNING id
+            )
+            UPDATE users
+            SET balance = balance + $2,
+                updated_at = NOW()
+            WHERE telegram_id = $3
+              AND EXISTS (SELECT 1 FROM updated_tx)
+        "#;
+
+        let result = self.pool
+            .execute(Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                vec![
+                    Value::Uuid(Some(Box::new(tx_id))),
+                    Value::Double(Some(amount)),
+                    Value::BigInt(Some(telegram_id)),
+                    Value::String(Some(Box::new(completed_status))),
+                ],
+            ))
+            .await
+            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn get_generation_owned(
+        &self,
+        id: uuid::Uuid,
+        telegram_id: i64,
+    ) -> Result<Option<GenerationResult>, AppError> {
+        use crate::entities::generations as g;
+        let row = g::Entity::find()
+            .filter(g::Column::Id.eq(id))
+            .filter(g::Column::TelegramId.eq(telegram_id))
+            .one(self.pool.as_ref())
+            .await
+            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+
+        match row {
+            Some(r) => Ok(Some(GenerationResult {
+                id: r.id,
+                telegram_id: r.telegram_id,
+                media_type: str_to_media_type(&r.media_type)?,
+                status: str_to_generation_status(&r.status)?,
+                result_url: r.result_url,
+                provider: r.provider,
+                error: r.error,
+                created_at: r.created_at,
+            })),
+            None => Ok(None),
+        }
+    }
+
+    async fn update_generation_status_owned(
+        &self,
+        id: uuid::Uuid,
+        telegram_id: i64,
+        status: GenerationStatus,
+        result_url: Option<&str>,
+        error: Option<&str>,
+    ) -> Result<(), AppError> {
+        use crate::entities::generations as g;
+        let row = g::Entity::find()
+            .filter(g::Column::Id.eq(id))
+            .filter(g::Column::TelegramId.eq(telegram_id))
+            .one(self.pool.as_ref())
+            .await
+            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+
+        if let Some(row) = row {
+            let mut active: g::ActiveModel = row.into();
+            active.status = Set(generation_status_to_str(&status).to_string());
+            if result_url.is_some() {
+                active.result_url = Set(result_url.map(String::from));
+            }
+            if error.is_some() {
+                active.error = Set(error.map(String::from));
+            }
+            active.updated_at = Set(chrono::Utc::now());
+            active.update(self.pool.as_ref()).await
+                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+        }
+        Ok(())
     }
 }
 

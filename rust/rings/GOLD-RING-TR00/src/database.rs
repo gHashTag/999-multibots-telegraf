@@ -36,4 +36,14 @@ pub trait Database: Send + Sync {
 
     async fn get_referral_count(&self, telegram_id: i64) -> Result<i64, AppError>;
     async fn health_check(&self) -> Result<bool, AppError>;
+
+    /// Atomically mark a transaction as completed and credit the user's balance.
+    /// Returns `true` if the credit was applied, `false` if the transaction was already completed.
+    async fn complete_robokassa_payment(&self, tx_id: uuid::Uuid, telegram_id: i64, amount: f64) -> Result<bool, AppError>;
+
+    /// Fetch a generation only if it belongs to the given telegram_id.
+    async fn get_generation_owned(&self, id: uuid::Uuid, telegram_id: i64) -> Result<Option<GenerationResult>, AppError>;
+
+    /// Update a generation's status only if it belongs to the given telegram_id.
+    async fn update_generation_status_owned(&self, id: uuid::Uuid, telegram_id: i64, status: GenerationStatus, result_url: Option<&str>, error: Option<&str>) -> Result<(), AppError>;
 }

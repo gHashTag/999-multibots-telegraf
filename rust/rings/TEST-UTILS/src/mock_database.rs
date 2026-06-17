@@ -290,4 +290,62 @@ impl Database for MockDatabase {
     async fn health_check(&self) -> Result<bool, AppError> {
         Ok(true)
     }
+
+    async fn complete_robokassa_payment(
+        &self,
+        tx_id: uuid::Uuid,
+        telegram_id: i64,
+        amount: f64,
+    ) -> Result<bool, AppError> {
+        let mut inner = self.inner.lock().await;
+        if let Some(tx) = inner.transactions.get_mut(&tx_id) {
+            if tx.status == PaymentStatus::Completed {
+                return Ok(false);
+            }
+            tx.status = PaymentStatus::Completed;
+            tx.updated_at = chrono::Utc::now();
+            if let Some(user) = inner.users.get_mut(&telegram_id) {
+                user.balance += amount;
+                user.updated_at = chrono::Utc::now();
+            }
+            Ok(true)
+        } else {
+            Err(AppError::NotFound(format!("transaction {}", tx_id)))
+        }
+    }
+
+    async fn get_generation_owned(
+        &self,
+        id: uuid::Uuid,
+        telegram_id: i64,
+    ) -> Result<Option<GenerationResult>, AppError> {
+        let inner = self.inner.lock().await;
+        Ok(inner.generations.get(&id).filter(|g| g.telegram_id == telegram_id).cloned())
+    }
+
+    async fn update_generation_status_owned(
+        &self,
+        id: uuid::Uuid,
+        telegram_id: i64,
+        status: GenerationStatus,
+        result_url: Option<&str>,
+        error: Option<&str>,
+    ) -> Result<(), AppError> {
+        let mut inner = self.inner.lock().await;
+        if let Some(gen) = inner.generations.get_mut(&id) {
+            if gen.telegram_id != telegram_id {
+                return Err(AppError::NotFound(format!("generation {} owned by another user", id)));
+            }
+            gen.status = status;
+            if let Some(url) = result_url {
+                gen.result_url = Some(url.to_string());
+            }
+            if let Some(e) = error {
+                gen.error = Some(e.to_string());
+            }
+            Ok(())
+        } else {
+            Err(AppError::NotFound(format!("generation {}", id)))
+        }
+    }
 }
