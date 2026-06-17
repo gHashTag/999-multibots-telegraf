@@ -38,6 +38,10 @@ pub async fn handle_improve_prompt_msg(
         if let Some(text) = msg.text() {
             state.original_prompt = Some(text.to_string());
             let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+    if tid == 0 {
+        tracing::warn!("Missing telegram_id; aborting handler");
+        return Ok(());
+    }
             return dispatch_and_reply(
                 &bot, &dialogue, msg.chat.id,
                 &job_queue, &db,

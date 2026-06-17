@@ -260,6 +260,10 @@ async fn handle_main_menu_msg(
             let scene = scene_from_id(&id);
             dialogue.update(scene).await?;
             let tid = msg.from.map(|u| u.id.0 as i64).unwrap_or(0);
+            if tid == 0 {
+                tracing::warn!("Missing telegram_id; aborting handler");
+                return Ok(());
+            }
             enter_scene_greeting(&bot, msg.chat.id, lang, &id, &db, tid).await?;
         }
         None => {

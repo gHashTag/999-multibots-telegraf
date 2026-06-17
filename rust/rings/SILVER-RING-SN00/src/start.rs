@@ -16,6 +16,10 @@ pub async fn handle_start(
     lang: trios_mb_types::user::Language,
 ) -> HandlerResult {
     let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+    if tid == 0 {
+        tracing::warn!("Missing telegram_id; aborting handler");
+        return Ok(());
+    }
     let username = msg.from.as_ref().and_then(|u| u.username.clone());
 
     let user = match db.get_user_by_telegram_id(tid).await {

@@ -15,6 +15,10 @@ pub async fn handle_balance(
     lang: trios_mb_types::user::Language,
 ) -> HandlerResult {
     let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+    if tid == 0 {
+        tracing::warn!("Missing telegram_id; aborting handler");
+        return Ok(());
+    }
     let balance = db.get_balance(tid).await.unwrap_or(0.0);
     let text = if lang.is_russian() {
         format!("💰 Ваш баланс: {:.2} ₽", balance)

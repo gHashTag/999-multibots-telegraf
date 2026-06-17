@@ -29,6 +29,10 @@ pub async fn handle_instagram_scraping_msg(
     }
 
     let telegram_id = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+    if telegram_id == 0 {
+        tracing::warn!("Missing telegram_id; aborting handler");
+        return Ok(());
+    }
     let lang = load_lang(&db, &msg).await;
     let chat_id = msg.chat.id;
 

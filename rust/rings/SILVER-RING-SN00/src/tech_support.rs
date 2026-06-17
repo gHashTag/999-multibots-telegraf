@@ -24,6 +24,10 @@ pub async fn handle_tech_support_msg(
 
     let user_message = msg.text().unwrap().to_string();
     let telegram_id = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+    if telegram_id == 0 {
+        tracing::warn!("Missing telegram_id; aborting handler");
+        return Ok(());
+    }
 
     tracing::info!(telegram_id = telegram_id, message = %user_message, "Tech support request received");
 

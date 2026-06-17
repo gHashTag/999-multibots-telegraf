@@ -26,6 +26,10 @@ pub async fn handle_neuro_coder_msg(
 
     let prompt = msg.text().unwrap().to_string();
     let telegram_id = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+    if telegram_id == 0 {
+        tracing::warn!("Missing telegram_id; aborting handler");
+        return Ok(());
+    }
 
     let params = DispatchParams {
         telegram_id,

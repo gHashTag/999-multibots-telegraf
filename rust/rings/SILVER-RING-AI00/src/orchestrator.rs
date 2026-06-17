@@ -91,13 +91,31 @@ impl AiProviderOrchestrator for AiOrchestrator {
         let provider = self.providers.iter()
             .find(|p| p.name() == provider_name)
             .ok_or_else(|| AppError::NotFound(format!("provider {}", provider_name)))?;
-        provider.check_status(generation_id).await
+        match tokio::time::timeout(Duration::from_secs(30), provider.check_status(generation_id)).await {
+            Ok(result) => result,
+            Err(_) => {
+                tracing::warn!(provider = provider_name, generation_id, "check_status timed out after 30s");
+                Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {
+                    provider: provider_name.to_string(),
+                    message: "check_status timed out".to_string(),
+                }))
+            }
+        }
     }
 
     async fn get_result(&self, generation_id: &str, provider_name: &str) -> Result<Option<String>, AppError> {
         let provider = self.providers.iter()
             .find(|p| p.name() == provider_name)
             .ok_or_else(|| AppError::NotFound(format!("provider {}", provider_name)))?;
-        provider.get_result(generation_id).await
+        match tokio::time::timeout(Duration::from_secs(30), provider.get_result(generation_id)).await {
+            Ok(result) => result,
+            Err(_) => {
+                tracing::warn!(provider = provider_name, generation_id, "get_result timed out after 30s");
+                Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {
+                    provider: provider_name.to_string(),
+                    message: "get_result timed out".to_string(),
+                }))
+            }
+        }
     }
 }

@@ -143,9 +143,13 @@ pub async fn dispatch_and_reply(
     let gen = db.create_generation(&request).await;
     match gen {
         Ok(_g) => {
+            let payload = serde_json::to_value(&request).map_err(|e| {
+                tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to serialize generation request");
+                trios_mb_types::AppError::Validation(format!("Failed to serialize request: {}", e))
+            })?;
             let enqueue_req = EnqueueRequest {
                 job_type: params.job_type.to_string(),
-                payload: serde_json::to_value(&request).unwrap_or_default(),
+                payload,
                 max_attempts: Some(3),
                 delay_secs: None,
             };
