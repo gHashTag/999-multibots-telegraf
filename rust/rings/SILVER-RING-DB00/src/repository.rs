@@ -124,24 +124,35 @@ impl DbTrait for PostgresDatabase {
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
 
-        Ok(user.map(|m| User {
-            id: m.id,
-            telegram_id: m.telegram_id,
-            username: m.username.clone(),
-            language: Language::from_code(&m.language).unwrap_or_default(),
-            gender: m.gender.as_deref().map(|g| match g {
-                "male" => Gender::Male,
-                "female" => Gender::Female,
-                _ => Gender::Other,
-            }),
-            level: m.level,
-            balance: m.balance,
-            voice: m.voice.clone(),
-            model: m.model.clone(),
-            subscription: m.subscription.as_deref().and_then(str_to_subscription),
-            created_at: m.created_at,
-            updated_at: m.updated_at,
-        }))
+        match user {
+            Some(m) => {
+                let language = Language::from_code(&m.language).ok_or_else(|| {
+                    AppError::Db(trios_mb_types::errors::DbError::Query(format!(
+                        "Unknown language code '{}' for user {}",
+                        m.language, m.telegram_id
+                    )))
+                })?;
+                Ok(Some(User {
+                    id: m.id,
+                    telegram_id: m.telegram_id,
+                    username: m.username.clone(),
+                    language,
+                    gender: m.gender.as_deref().map(|g| match g {
+                        "male" => Gender::Male,
+                        "female" => Gender::Female,
+                        _ => Gender::Other,
+                    }),
+                    level: m.level,
+                    balance: m.balance,
+                    voice: m.voice.clone(),
+                    model: m.model.clone(),
+                    subscription: m.subscription.as_deref().and_then(str_to_subscription),
+                    created_at: m.created_at,
+                    updated_at: m.updated_at,
+                }))
+            }
+            None => Ok(None),
+        }
     }
 
     async fn create_user(&self, telegram_id: i64, username: Option<&str>, language: Language) -> Result<User, AppError> {
@@ -284,6 +295,9 @@ impl DbTrait for PostgresDatabase {
     }
 
     async fn deduct_balance(&self, telegram_id: i64, amount: f64) -> Result<bool, AppError> {
+        if amount <= 0.0 {
+            return Err(AppError::Validation("deduct_balance amount must be > 0".into()));
+        }
         let sql = r#"
             UPDATE users
             SET balance = balance - $1,
@@ -354,17 +368,24 @@ impl DbTrait for PostgresDatabase {
             .one(self.pool.as_ref())
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
-        Ok(row.map(|r| Transaction {
-            id: r.id,
-            telegram_id: r.telegram_id,
-            method: serde_json::from_str(&r.method).unwrap_or(PaymentMethod::TelegramStars),
-            status: serde_json::from_str(&r.status).unwrap_or(PaymentStatus::Pending),
-            amount: r.amount,
-            currency: r.currency,
-            external_id: r.external_id,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
-        }))
+        match row {
+            Some(r) => Ok(Some(Transaction {
+                id: r.id,
+                telegram_id: r.telegram_id,
+                method: serde_json::from_str(&r.method).map_err(|e| {
+                    AppError::Internal(format!("Corrupt payment method JSON: {}", e))
+                })?,
+                status: serde_json::from_str(&r.status).map_err(|e| {
+                    AppError::Internal(format!("Corrupt payment status JSON: {}", e))
+                })?,
+                amount: r.amount,
+                currency: r.currency,
+                external_id: r.external_id,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
+            })),
+            None => Ok(None),
+        }
     }
 
     async fn get_transaction_by_external_id(&self,
@@ -376,17 +397,24 @@ impl DbTrait for PostgresDatabase {
             .one(self.pool.as_ref())
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
-        Ok(row.map(|r| Transaction {
-            id: r.id,
-            telegram_id: r.telegram_id,
-            method: serde_json::from_str(&r.method).unwrap_or(PaymentMethod::TelegramStars),
-            status: serde_json::from_str(&r.status).unwrap_or(PaymentStatus::Pending),
-            amount: r.amount,
-            currency: r.currency,
-            external_id: r.external_id,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
-        }))
+        match row {
+            Some(r) => Ok(Some(Transaction {
+                id: r.id,
+                telegram_id: r.telegram_id,
+                method: serde_json::from_str(&r.method).map_err(|e| {
+                    AppError::Internal(format!("Corrupt payment method JSON: {}", e))
+                })?,
+                status: serde_json::from_str(&r.status).map_err(|e| {
+                    AppError::Internal(format!("Corrupt payment status JSON: {}", e))
+                })?,
+                amount: r.amount,
+                currency: r.currency,
+                external_id: r.external_id,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
+            })),
+            None => Ok(None),
+        }
     }
 
     async fn update_transaction_status(&self, id: uuid::Uuid, status: PaymentStatus) -> Result<(), AppError> {
@@ -462,6 +490,13 @@ impl DbTrait for PostgresDatabase {
     }
 
     async fn save_prompt(&self, telegram_id: i64, prompt: &str, result_url: Option<&str>) -> Result<(), AppError> {
+        const MAX_PROMPT_LEN: usize = 2000;
+        if prompt.len() > MAX_PROMPT_LEN {
+            return Err(AppError::Validation(format!(
+                "Prompt exceeds maximum length of {} characters",
+                MAX_PROMPT_LEN
+            )));
+        }
         use crate::entities::prompts as p;
         let model = p::ActiveModel {
             id: Set(uuid::Uuid::new_v4()),

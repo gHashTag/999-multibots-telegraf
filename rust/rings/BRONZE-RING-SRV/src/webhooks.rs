@@ -10,8 +10,16 @@ use crate::AppState;
 /// Validate a result URL before storing it in the database.
 /// Only allows `http://` or `https://` pointing to public hosts.
 fn validate_result_url(url: &str) -> Result<(), String> {
+    const MAX_URL_LEN: usize = 4096;
     if url.is_empty() {
         return Err("URL is empty".to_string());
+    }
+    if url.len() > MAX_URL_LEN {
+        return Err(format!("URL exceeds maximum length of {} bytes", MAX_URL_LEN));
+    }
+    // Reject URLs with embedded credentials or percent-encoded bypasses
+    if url.contains('@') || url.contains('%') {
+        return Err("URL contains disallowed characters (@ or %)".to_string());
     }
     // Basic scheme validation
     if !url.starts_with("http://") && !url.starts_with("https://") {
@@ -51,6 +59,11 @@ fn validate_result_url(url: &str) -> Result<(), String> {
         return Err("URL points to a private or unsupported address".to_string());
     }
     Ok(())
+}
+
+/// Returns true if the status is terminal (no further transitions allowed).
+fn is_terminal_status(status: GenerationStatus) -> bool {
+    matches!(status, GenerationStatus::Completed | GenerationStatus::Failed | GenerationStatus::Cancelled)
 }
 
 fn parse_uuid(s: &str) -> Result<uuid::Uuid, (StatusCode, String)> {
@@ -114,6 +127,19 @@ pub async fn replicate_webhook(
         Ok(id) => id,
         Err((status, msg)) => return (status, Json(serde_json::json!({"error": msg}))),
     };
+
+    // Wave 160: reject updates to terminal generations to prevent replay overwrites
+    match state.db.get_generation(generation_id).await {
+        Ok(Some(gen)) if is_terminal_status(gen.status) => {
+            tracing::info!(generation_id = %generation_id, status = ?gen.status, "Webhook ignored: generation already in terminal state");
+            return (StatusCode::OK, Json(serde_json::json!({"status": "ok"})));
+        }
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!(generation_id = %generation_id, error = %e, "Failed to load generation for terminal-state check");
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "internal error"})));
+        }
+    }
 
     if payload.is_completed() {
         let urls = payload.output_urls();
@@ -183,6 +209,19 @@ pub async fn kie_ai_webhook(
         Ok(id) => id,
         Err((status, msg)) => return (status, Json(serde_json::json!({"error": msg}))),
     };
+
+    // Wave 160: reject updates to terminal generations to prevent replay overwrites
+    match state.db.get_generation(generation_id).await {
+        Ok(Some(gen)) if is_terminal_status(gen.status) => {
+            tracing::info!(generation_id = %generation_id, status = ?gen.status, "Webhook ignored: generation already in terminal state");
+            return (StatusCode::OK, Json(serde_json::json!({"status": "ok"})));
+        }
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!(generation_id = %generation_id, error = %e, "Failed to load generation for terminal-state check");
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "internal error"})));
+        }
+    }
 
     if payload.is_completed() {
         if let Some(url) = payload.first_video_url() {

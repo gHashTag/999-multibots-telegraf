@@ -12,6 +12,8 @@ pub struct BotDispatcher {
     db: Arc<dyn Database>,
     orchestrator: Arc<dyn AiProviderOrchestrator>,
     job_queue: Arc<dyn JobQueue>,
+    // Wave 160 deferred: migrate from InMemStorage to RedisStorage
+    // InMemStorage loses all dialogue state on restart and grows unbounded.
     storage: Arc<InMemStorage<Scene>>,
 }
 

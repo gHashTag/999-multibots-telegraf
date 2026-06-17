@@ -27,8 +27,15 @@ pub async fn handle_start(
         Ok(None) => {
             db.create_user(tid, username.as_deref(), lang).await?
         }
-        Err(_e) => {
-            db.create_user(tid, username.as_deref(), lang).await?
+        Err(e) => {
+            tracing::error!(telegram_id = tid, error = %e, "Failed to look up user on /start");
+            let err_text = if lang.is_russian() {
+                "❌ Ошибка при входе. Попробуйте позже."
+            } else {
+                "❌ Login error. Please try again later."
+            };
+            bot.send_message(msg.chat.id, err_text).await?;
+            return Ok(());
         }
     };
 

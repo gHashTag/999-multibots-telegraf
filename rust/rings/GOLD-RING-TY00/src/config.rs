@@ -16,15 +16,15 @@ pub struct AppConfig {
 impl std::fmt::Debug for AppConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AppConfig")
-            .field("infisical_client_id", &self.infisical_client_id)
+            .field("infisical_client_id", &"[REDACTED]")
             .field("infisical_client_secret", &"[REDACTED]")
             .field("infisical_project_id", &self.infisical_project_id)
             .field("infisical_environment", &self.infisical_environment)
             .field("database_url", &"[REDACTED]")
             .field("is_production", &self.is_production)
             .field("http_port", &self.http_port)
-            .field("admin_telegram_ids", &self.admin_telegram_ids)
-            .field("staff_telegram_ids", &self.staff_telegram_ids)
+            .field("admin_telegram_ids", &"[REDACTED]")
+            .field("staff_telegram_ids", &"[REDACTED]")
             .finish()
     }
 }
