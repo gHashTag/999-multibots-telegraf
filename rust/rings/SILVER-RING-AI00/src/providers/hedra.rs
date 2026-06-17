@@ -224,6 +224,9 @@ impl AiProvider for HedraProvider {
     }
 
     async fn cancel(&self, _generation_id: &str) -> Result<(), AppError> {
-        Ok(())
+        Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {
+            provider: "hedra".into(),
+            message: "Cancellation not supported by provider".into(),
+        }))
     }
 }

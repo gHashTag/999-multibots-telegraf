@@ -48,7 +48,14 @@ pub async fn handle_flux_kontext_msg(
         }
         2 => {
             if let Some(photos) = msg.photo() {
-                let file_id = photos.last().map(|p| p.file.id.clone()).unwrap_or_default();
+                let file_id = match photos.last() {
+                    Some(p) => p.file.id.clone(),
+                    None => {
+                        let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
+                        bot.send_message(msg.chat.id, err).await?;
+                        return Ok(());
+                    }
+                };
                 if state.mode.as_deref() == Some("blend") {
                     if state.image_a.is_none() {
                         state.image_a = Some(file_id);

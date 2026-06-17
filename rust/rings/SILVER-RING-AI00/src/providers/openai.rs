@@ -358,6 +358,9 @@ impl AiProvider for OpenAiProvider {
     }
 
     async fn cancel(&self, _generation_id: &str) -> Result<(), AppError> {
-        Ok(())
+        Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {
+            provider: "openai".into(),
+            message: "Cancellation not supported by provider".into(),
+        }))
     }
 }

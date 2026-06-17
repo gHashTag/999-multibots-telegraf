@@ -38,7 +38,14 @@ pub async fn handle_neuro_photo_msg(
 
     if let Some(photos) = msg.photo() {
         if state.step <= 1 {
-            let file_id = photos.last().map(|p| p.file.id.clone()).unwrap_or_default();
+            let file_id = match photos.last() {
+                Some(p) => p.file.id.clone(),
+                None => {
+                    let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
+                    bot.send_message(msg.chat.id, err).await?;
+                    return Ok(());
+                }
+            };
             let mut new_state = state;
             new_state.image_url = Some(file_id);
             new_state.step = 2;

@@ -37,7 +37,14 @@ pub async fn handle_morphing_msg(
         }
         1 => {
             if let Some(photos) = msg.photo() {
-                let file_id = photos.last().map(|p| p.file.id.clone()).unwrap_or_default();
+                let file_id = match photos.last() {
+                    Some(p) => p.file.id.clone(),
+                    None => {
+                        let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
+                        bot.send_message(msg.chat.id, err).await?;
+                        return Ok(());
+                    }
+                };
                 let mut images = state.images.clone().unwrap_or_default();
                 images.push(file_id);
                 state.images = Some(images.clone());
@@ -163,7 +170,15 @@ pub async fn handle_morphing_callback(
                 _ => "smooth cinematic transition",
             };
             state.prompt = Some(prompt.to_string());
-            let images_joined = state.images.clone().unwrap_or_default().join(",");
+            let images = match state.images.as_ref() {
+                Some(imgs) if imgs.len() >= 2 => imgs,
+                _ => {
+                    let err = if lang.is_russian() { "❌ Нужно минимум 2 изображения." } else { "❌ Need at least 2 images." };
+                    bot.send_message(chat_id, err).await?;
+                    return return_to_menu(&bot, &dialogue, chat_id, lang).await;
+                }
+            };
+            let images_joined = images.join(",");
             return dispatch_and_reply(
                 &bot, &dialogue, chat_id,
                 &job_queue, &db,

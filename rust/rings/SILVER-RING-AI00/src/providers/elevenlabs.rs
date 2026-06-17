@@ -300,7 +300,10 @@ impl AiProvider for ElevenLabsProvider {
     }
 
     async fn cancel(&self, _generation_id: &str) -> Result<(), AppError> {
-        Ok(())
+        Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {
+            provider: "elevenlabs".into(),
+            message: "Cancellation not supported by provider".into(),
+        }))
     }
 }
 

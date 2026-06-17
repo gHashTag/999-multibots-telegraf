@@ -52,7 +52,14 @@ pub async fn handle_digital_avatar_body_msg(
         }
         1 => {
             if let Some(photos) = msg.photo() {
-                let file_id = photos.last().map(|p| p.file.id.clone()).unwrap_or_default();
+                let file_id = match photos.last() {
+                    Some(p) => p.file.id.clone(),
+                    None => {
+                        let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
+                        bot.send_message(msg.chat.id, err).await?;
+                        return Ok(());
+                    }
+                };
                 state.face_url = Some(file_id);
                 let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
     if tid == 0 {

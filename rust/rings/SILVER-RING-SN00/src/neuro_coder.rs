@@ -19,12 +19,13 @@ pub async fn handle_neuro_coder_msg(
     let lang = load_lang(&db, &msg).await;
     let chat_id = msg.chat.id;
 
-    if msg.text().is_none() {
-        bot.send_message(chat_id, if lang.is_russian() { "Опишите задачу для генерации кода" } else { "Describe the code generation task" }).await?;
-        return Ok(());
-    }
-
-    let prompt = msg.text().unwrap().to_string();
+    let prompt = match msg.text() {
+        Some(t) => t.to_string(),
+        None => {
+            bot.send_message(chat_id, if lang.is_russian() { "Опишите задачу для генерации кода" } else { "Describe the code generation task" }).await?;
+            return Ok(());
+        }
+    };
     let telegram_id = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
     if telegram_id == 0 {
         tracing::warn!("Missing telegram_id; aborting handler");

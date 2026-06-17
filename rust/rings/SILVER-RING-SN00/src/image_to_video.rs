@@ -54,7 +54,14 @@ pub async fn handle_image_to_video_msg(
         }
         2 => {
             if let Some(photos) = msg.photo() {
-                let file_id = photos.last().map(|p| p.file.id.clone()).unwrap_or_default();
+                let file_id = match photos.last() {
+                    Some(p) => p.file.id.clone(),
+                    None => {
+                        let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
+                        bot.send_message(msg.chat.id, err).await?;
+                        return Ok(());
+                    }
+                };
                 state.image_url = Some(file_id);
                 state.step = 3;
                 let text = if lang.is_russian() {

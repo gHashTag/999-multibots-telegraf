@@ -42,7 +42,14 @@ pub async fn handle_face_swap_msg(
         }
         1 => {
             if let Some(photos) = msg.photo() {
-                let file_id = photos.last().map(|p| p.file.id.clone()).unwrap_or_default();
+                let file_id = match photos.last() {
+                    Some(p) => p.file.id.clone(),
+                    None => {
+                        let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
+                        bot.send_message(msg.chat.id, err).await?;
+                        return Ok(());
+                    }
+                };
                 state.target_url = Some(file_id);
                 state.step = 2;
                 let text = if lang.is_russian() {
@@ -59,7 +66,14 @@ pub async fn handle_face_swap_msg(
         }
         2 => {
             if let Some(photos) = msg.photo() {
-                let file_id = photos.last().map(|p| p.file.id.clone()).unwrap_or_default();
+                let file_id = match photos.last() {
+                    Some(p) => p.file.id.clone(),
+                    None => {
+                        let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
+                        bot.send_message(msg.chat.id, err).await?;
+                        return Ok(());
+                    }
+                };
                 state.source_url = Some(file_id);
 
                 if let Err(err_msg) = check_balance(&db, tid, FACE_SWAP_COST, lang).await {

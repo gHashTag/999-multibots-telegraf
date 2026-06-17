@@ -78,7 +78,15 @@ pub async fn kie_ai_webhook(
         "Kie.ai webhook received"
     );
 
-    let task_id = payload.task_id.as_deref().unwrap_or_default();
+    let task_id = match payload.task_id.as_deref() {
+        Some(t) => t,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": "missing task_id"})),
+            );
+        }
+    };
     let generation_id = match parse_uuid(task_id) {
         Ok(id) => id,
         Err((status, msg)) => return (status, Json(serde_json::json!({"error": msg}))),

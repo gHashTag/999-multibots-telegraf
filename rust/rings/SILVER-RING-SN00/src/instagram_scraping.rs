@@ -16,12 +16,14 @@ pub async fn handle_instagram_scraping_msg(
     dialogue: MyDialogue,
     msg: Message,
 ) -> HandlerResult {
-    if !ctx_has_text(&msg) {
-        let lang = load_lang(&db, &msg).await;
-        bot.send_message(msg.chat.id, if lang.is_russian() { "Отправьте ссылку на Instagram профиль" } else { "Send an Instagram profile link" }).await?;
-        return Ok(());
-    }
-    let text = msg.text().unwrap().to_string();
+    let text = match msg.text() {
+        Some(t) => t.to_string(),
+        None => {
+            let lang = load_lang(&db, &msg).await;
+            bot.send_message(msg.chat.id, if lang.is_russian() { "Отправьте ссылку на Instagram профиль" } else { "Send an Instagram profile link" }).await?;
+            return Ok(());
+        }
+    };
     if !text.contains("instagram.com") {
         let lang = load_lang(&db, &msg).await;
         bot.send_message(msg.chat.id, if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram профиль." } else { "❌ Invalid link. Send an Instagram profile link." }).await?;

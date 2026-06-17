@@ -36,7 +36,14 @@ pub async fn handle_train_flux_model_msg(
         }
         1 => {
             if let Some(photos) = msg.photo() {
-                let file_id = photos.last().map(|p| p.file.id.clone()).unwrap_or_default();
+                let file_id = match photos.last() {
+                    Some(p) => p.file.id.clone(),
+                    None => {
+                        let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
+                        bot.send_message(msg.chat.id, err).await?;
+                        return Ok(());
+                    }
+                };
                 let mut images = state.images.clone().unwrap_or_default();
                 images.push(file_id);
                 state.images = Some(images.clone());
@@ -95,6 +102,16 @@ pub async fn handle_train_flux_model_msg(
         tracing::warn!("Missing telegram_id; aborting handler");
         return Ok(());
     }
+
+                let images = match state.images.as_ref() {
+                    Some(imgs) if imgs.len() >= 4 => imgs,
+                    _ => {
+                        let err = if lang.is_russian() { "❌ Нужно минимум 4 изображения." } else { "❌ Need at least 4 images." };
+                        bot.send_message(msg.chat.id, err).await?;
+                        return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
+                    }
+                };
+                let _images = images; // used later if dispatch is added
 
                 if let Err(err_msg) = check_balance(&db, tid, TRAIN_FLUX_COST, lang).await {
                     bot.send_message(msg.chat.id, err_msg).await?;

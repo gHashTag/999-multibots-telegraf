@@ -42,7 +42,14 @@ pub async fn handle_remove_bg_msg(
         }
         1 => {
             if let Some(photos) = msg.photo() {
-                let file_id = photos.last().map(|p| p.file.id.clone()).unwrap_or_default();
+                let file_id = match photos.last() {
+                    Some(p) => p.file.id.clone(),
+                    None => {
+                        let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
+                        bot.send_message(msg.chat.id, err).await?;
+                        return Ok(());
+                    }
+                };
 
                 if let Err(err_msg) = check_balance(&db, tid, REMOVE_BG_COST, lang).await {
                     bot.send_message(msg.chat.id, err_msg).await?;

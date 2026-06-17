@@ -17,12 +17,13 @@ pub async fn handle_instagram_parser_msg(
     let lang = load_lang(&db, &msg).await;
     let chat_id = msg.chat.id;
 
-    if msg.text().is_none() {
-        bot.send_message(chat_id, if lang.is_russian() { "Отправьте ссылку на Instagram профиль" } else { "Send an Instagram profile link" }).await?;
-        return Ok(());
-    }
-
-    let profile_url = msg.text().unwrap().to_string();
+    let profile_url = match msg.text() {
+        Some(t) => t.to_string(),
+        None => {
+            bot.send_message(chat_id, if lang.is_russian() { "Отправьте ссылку на Instagram профиль" } else { "Send an Instagram profile link" }).await?;
+            return Ok(());
+        }
+    };
     if !profile_url.contains("instagram.com") {
         bot.send_message(chat_id, if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram." } else { "❌ Invalid link. Send an Instagram link." }).await?;
         return Ok(());

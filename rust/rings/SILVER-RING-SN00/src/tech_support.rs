@@ -17,12 +17,13 @@ pub async fn handle_tech_support_msg(
     let lang = load_lang(&db, &msg).await;
     let chat_id = msg.chat.id;
 
-    if msg.text().is_none() {
-        bot.send_message(chat_id, if lang.is_russian() { "Опишите вашу проблему" } else { "Describe your issue" }).await?;
-        return Ok(());
-    }
-
-    let user_message = msg.text().unwrap().to_string();
+    let user_message = match msg.text() {
+        Some(t) => t.to_string(),
+        None => {
+            bot.send_message(chat_id, if lang.is_russian() { "Опишите вашу проблему" } else { "Describe your issue" }).await?;
+            return Ok(());
+        }
+    };
     let telegram_id = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
     if telegram_id == 0 {
         tracing::warn!("Missing telegram_id; aborting handler");
