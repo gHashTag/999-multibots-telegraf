@@ -36,6 +36,11 @@ pub async fn handle_improve_prompt_msg(
 
     if state.step == 1 {
         if let Some(text) = msg.text() {
+            if text.len() > 4000 {
+                let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
+                bot.send_message(msg.chat.id, err).await?;
+                return Ok(());
+            }
             state.original_prompt = Some(text.to_string());
             let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
     if tid == 0 {
@@ -79,7 +84,11 @@ pub async fn handle_improve_prompt_callback(
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
 
     if data == "ip:cancel" {
-        return return_to_menu(&bot, &dialogue, q.chat_id().unwrap(), lang).await;
+        let chat_id = match q.chat_id() {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+        return return_to_menu(&bot, &dialogue, chat_id, lang).await;
     }
     Ok(())
 }

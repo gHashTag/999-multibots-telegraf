@@ -24,6 +24,13 @@ pub async fn handle_instagram_parser_msg(
             return Ok(());
         }
     };
+
+    if profile_url.len() > 4000 {
+        let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
+        bot.send_message(chat_id, err).await?;
+        return Ok(());
+    }
+
     if !profile_url.contains("instagram.com") {
         bot.send_message(chat_id, if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram." } else { "❌ Invalid link. Send an Instagram link." }).await?;
         return Ok(());

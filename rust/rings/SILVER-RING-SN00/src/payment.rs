@@ -99,7 +99,10 @@ pub async fn handle_payment_callback(
     new_state.method = Some(method.to_string());
 
     let text = if lang.is_russian() { "Введите сумму пополнения:" } else { "Enter top-up amount:" };
-    let chat_id = q.chat_id().unwrap();
+    let chat_id = match q.chat_id() {
+        Some(id) => id,
+        None => return Ok(()),
+    };
     bot.send_message(chat_id, text).await?;
     dialogue.update(Scene::Payment(new_state)).await?;
     Ok(())

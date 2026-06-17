@@ -212,7 +212,10 @@ impl HeyGenProvider {
             message: "no data in status response".into(),
         })?;
 
-        let status_str = data.status.unwrap_or_default();
+        let status_str = data.status.ok_or_else(|| AiError::InvalidResponse {
+            provider: "heygen".into(),
+            message: "missing status field".into(),
+        })?;
         Ok((status_str, data.video_url))
     }
 
@@ -244,7 +247,11 @@ impl HeyGenProvider {
             message: format!("json parse: {}", e),
         })?;
 
-        Ok(avatars_resp.data.and_then(|d| d.avatars).unwrap_or_default())
+        let avatars = avatars_resp.data.and_then(|d| d.avatars).ok_or_else(|| AiError::InvalidResponse {
+            provider: "heygen".into(),
+            message: "missing avatars data".into(),
+        })?;
+        Ok(avatars)
     }
 }
 

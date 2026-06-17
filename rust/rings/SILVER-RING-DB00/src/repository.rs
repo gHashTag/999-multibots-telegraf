@@ -290,8 +290,9 @@ impl DbTrait for PostgresDatabase {
 
         match user {
             Some(user) if user.balance >= amount => {
+                let current_balance = user.balance;
                 let mut active: u::ActiveModel = user.into();
-                active.balance = Set(active.balance.unwrap() - amount);
+                active.balance = Set(current_balance - amount);
                 active.updated_at = Set(chrono::Utc::now());
                 active.update(self.pool.as_ref()).await
                     .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
@@ -310,8 +311,9 @@ impl DbTrait for PostgresDatabase {
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
 
         if let Some(user) = user {
+            let current_balance = user.balance;
             let mut active: u::ActiveModel = user.into();
-            active.balance = Set(active.balance.unwrap() + amount);
+            active.balance = Set(current_balance + amount);
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
                 .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
@@ -325,8 +327,8 @@ impl DbTrait for PostgresDatabase {
         let model = p::ActiveModel {
             id: Set(tx.id),
             telegram_id: Set(tx.telegram_id),
-            method: Set(serde_json::to_string(&tx.method).unwrap_or_default()),
-            status: Set(serde_json::to_string(&tx.status).unwrap_or_default()),
+            method: Set(serde_json::to_string(&tx.method).map_err(|e| AppError::Internal(format!("serialize payment method: {}", e)))?),
+            status: Set(serde_json::to_string(&tx.status).map_err(|e| AppError::Internal(format!("serialize payment status: {}", e)))?),
             amount: Set(tx.amount),
             currency: Set(tx.currency.clone()),
             external_id: Set(tx.external_id.clone()),

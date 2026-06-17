@@ -41,6 +41,12 @@ pub async fn handle_text_to_video_msg(
         None => return Ok(()),
     };
 
+    if text.len() > 4000 {
+        let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
+        bot.send_message(msg.chat.id, err).await?;
+        return Ok(());
+    }
+
     if state.step == 1 {
         state.prompt = Some(text.to_string());
         state.step = 2;
@@ -74,7 +80,10 @@ pub async fn handle_text_to_video_callback(
 ) -> HandlerResult {
     bot.answer_callback_query(&q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
-    let chat_id = q.chat_id().unwrap();
+    let chat_id = match q.chat_id() {
+        Some(id) => id,
+        None => return Ok(()),
+    };
     let tid = q.from.id.0 as i64;
 
     let data = match &q.data {

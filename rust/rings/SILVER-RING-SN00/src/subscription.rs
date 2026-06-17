@@ -65,7 +65,10 @@ pub async fn handle_subscription_callback(
 ) -> HandlerResult {
     bot.answer_callback_query(&q.id).await?;
     let lang = crate::generation_utils::load_lang_cb(&db, &q).await;
-    let chat_id = q.chat_id().unwrap();
+    let chat_id = match q.chat_id() {
+        Some(id) => id,
+        None => return Ok(()),
+    };
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
 
     match data {

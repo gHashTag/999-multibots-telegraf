@@ -127,7 +127,11 @@ pub async fn handle_ai_photoshop_callback(
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
 
     if data == "aiph:cancel" {
-        return return_to_menu(&bot, &dialogue, q.chat_id().unwrap(), lang).await;
+        let chat_id = match q.chat_id() {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+        return return_to_menu(&bot, &dialogue, chat_id, lang).await;
     }
     Ok(())
 }

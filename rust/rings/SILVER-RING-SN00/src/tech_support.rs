@@ -24,6 +24,13 @@ pub async fn handle_tech_support_msg(
             return Ok(());
         }
     };
+
+    if user_message.len() > 4000 {
+        let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
+        bot.send_message(chat_id, err).await?;
+        return Ok(());
+    }
+
     let telegram_id = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
     if telegram_id == 0 {
         tracing::warn!("Missing telegram_id; aborting handler");

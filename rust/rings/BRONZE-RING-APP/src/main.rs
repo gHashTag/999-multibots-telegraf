@@ -46,9 +46,18 @@ async fn main() -> anyhow::Result<()> {
     info!("AI orchestrator initialized");
 
     // 4. Payment gateways
-    let robokassa_login = secret_store.get("ROBOKASSA_MERCHANT_LOGIN").await.unwrap_or_default();
-    let robokassa_pw1 = secret_store.get("ROBOKASSA_PASSWORD1").await.unwrap_or_default();
-    let robokassa_pw2 = secret_store.get("ROBOKASSA_PASSWORD2").await.unwrap_or_default();
+    let robokassa_login = secret_store.get("ROBOKASSA_MERCHANT_LOGIN").await?;
+    if robokassa_login.is_empty() {
+        anyhow::bail!("ROBOKASSA_MERCHANT_LOGIN is required but empty");
+    }
+    let robokassa_pw1 = secret_store.get("ROBOKASSA_PASSWORD1").await?;
+    if robokassa_pw1.is_empty() {
+        anyhow::bail!("ROBOKASSA_PASSWORD1 is required but empty");
+    }
+    let robokassa_pw2 = secret_store.get("ROBOKASSA_PASSWORD2").await?;
+    if robokassa_pw2.is_empty() {
+        anyhow::bail!("ROBOKASSA_PASSWORD2 is required but empty");
+    }
     let payment_gateway: Arc<dyn PaymentGateway> = Arc::new(
         trios_mb_payment::RobokassaGateway::new(&robokassa_login, &robokassa_pw1, &robokassa_pw2)
     );
@@ -61,9 +70,18 @@ async fn main() -> anyhow::Result<()> {
         let router = trios_mb_server::create_router_with_payments(server_db, server_gw);
         let addr = std::net::SocketAddr::from(([0, 0, 0, 0], http_port));
         info!(addr = %addr, "HTTP server starting");
-        axum::serve(tokio::net::TcpListener::bind(addr).await.unwrap(), router)
-            .await
-            .unwrap();
+        let listener = match tokio::net::TcpListener::bind(addr).await {
+            Ok(l) => l,
+            Err(e) => {
+                tracing::error!(addr = %addr, error = %e, "Failed to bind HTTP listener");
+                return Err(anyhow::anyhow!("Failed to bind HTTP listener on {}: {}", addr, e));
+            }
+        };
+        if let Err(e) = axum::serve(listener, router).await {
+            tracing::error!(addr = %addr, error = %e, "HTTP server error");
+            return Err(anyhow::anyhow!("HTTP server error: {}", e));
+        }
+        Ok(())
     });
 
     // 6. Background Job Workers
@@ -79,7 +97,10 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Primary bot for result delivery
-    let primary_bot_token = secret_store.get("BOT_TOKEN_1").await.unwrap_or_default();
+    let primary_bot_token = secret_store.get("BOT_TOKEN_1").await?;
+    if primary_bot_token.is_empty() {
+        anyhow::bail!("BOT_TOKEN_1 is required but empty");
+    }
     let delivery_bot: Arc<teloxide::Bot> = Arc::new(teloxide::Bot::new(&primary_bot_token));
 
     let worker_pool = build_worker_pool(job_queue.clone(), orchestrator.clone(), db.clone(), delivery_bot.clone());

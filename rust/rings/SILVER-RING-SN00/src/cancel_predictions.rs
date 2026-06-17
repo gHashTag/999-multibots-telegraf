@@ -32,7 +32,10 @@ pub async fn handle_cancel_predictions_callback(
 ) -> HandlerResult {
     bot.answer_callback_query(&q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
-    let chat_id = q.chat_id().unwrap();
+    let chat_id = match q.chat_id() {
+        Some(id) => id,
+        None => return Ok(()),
+    };
     let text = if lang.is_russian() { "❌ Генерации отменены." } else { "❌ Generations cancelled." };
     bot.send_message(chat_id, text).await?;
     return_to_menu(&bot, &dialogue, chat_id, lang).await

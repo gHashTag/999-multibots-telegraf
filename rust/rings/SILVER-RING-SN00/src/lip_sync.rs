@@ -108,7 +108,10 @@ pub async fn handle_lip_sync_callback(
 ) -> HandlerResult {
     bot.answer_callback_query(&q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
-    let chat_id = q.chat_id().unwrap();
+    let chat_id = match q.chat_id() {
+        Some(id) => id,
+        None => return Ok(()),
+    };
     let tid = q.from.id.0 as i64;
 
     let data = match &q.data {
