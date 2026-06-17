@@ -78,7 +78,7 @@ impl OpenAiProvider {
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(60))
                 .connect_timeout(std::time::Duration::from_secs(10))
-                .build()
+                .redirect(reqwest::redirect::Policy::none()).build()
                 .expect("Failed to build OpenAI reqwest client"),
             base_url: "https://api.openai.com".to_string(),
         }
@@ -95,7 +95,7 @@ impl OpenAiProvider {
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(60))
                 .connect_timeout(std::time::Duration::from_secs(10))
-                .build()
+                .redirect(reqwest::redirect::Policy::none()).build()
                 .expect("Failed to build DeepSeek reqwest client"),
             base_url: "https://api.deepseek.com/v1".to_string(),
         }
@@ -107,7 +107,7 @@ impl OpenAiProvider {
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(60))
                 .connect_timeout(std::time::Duration::from_secs(10))
-                .build()
+                .redirect(reqwest::redirect::Policy::none()).build()
                 .expect("Failed to build Grok reqwest client"),
             base_url: "https://api.x.ai/v1".to_string(),
         }

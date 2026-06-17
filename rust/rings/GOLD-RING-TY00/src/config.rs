@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub infisical_client_id: String,
     pub infisical_client_secret: String,
@@ -11,6 +11,22 @@ pub struct AppConfig {
     pub http_port: u16,
     pub admin_telegram_ids: Vec<i64>,
     pub staff_telegram_ids: Vec<i64>,
+}
+
+impl std::fmt::Debug for AppConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppConfig")
+            .field("infisical_client_id", &self.infisical_client_id)
+            .field("infisical_client_secret", &"[REDACTED]")
+            .field("infisical_project_id", &self.infisical_project_id)
+            .field("infisical_environment", &self.infisical_environment)
+            .field("database_url", &"[REDACTED]")
+            .field("is_production", &self.is_production)
+            .field("http_port", &self.http_port)
+            .field("admin_telegram_ids", &self.admin_telegram_ids)
+            .field("staff_telegram_ids", &self.staff_telegram_ids)
+            .finish()
+    }
 }
 
 impl AppConfig {

@@ -167,6 +167,15 @@ impl Database for MockDatabase {
         Ok(inner.transactions.get(&id).cloned())
     }
 
+    async fn get_transaction_by_external_id(&self,
+        external_id: &str,
+    ) -> Result<Option<Transaction>, AppError> {
+        let inner = self.inner.lock().await;
+        Ok(inner.transactions.values().find(|t| {
+            t.external_id.as_deref() == Some(external_id)
+        }).cloned())
+    }
+
     async fn update_transaction_status(&self, id: uuid::Uuid, status: PaymentStatus) -> Result<(), AppError> {
         let mut inner = self.inner.lock().await;
         if let Some(tx) = inner.transactions.get_mut(&id) {

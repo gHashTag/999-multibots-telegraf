@@ -26,18 +26,18 @@ fn media_type_to_str(mt: &MediaType) -> &'static str {
     }
 }
 
-fn str_to_media_type(s: &str) -> MediaType {
+fn str_to_media_type(s: &str) -> Result<MediaType, AppError> {
     match s {
-        "image" => MediaType::Image,
-        "video" => MediaType::Video,
-        "audio" => MediaType::Audio,
-        "image_to_video" => MediaType::ImageToVideo,
-        "text_to_speech" => MediaType::TextToSpeech,
-        "lipsync" => MediaType::LipSync,
-        "faceswap" => MediaType::FaceSwap,
-        "morphing" => MediaType::Morphing,
-        "upscale" => MediaType::Upscale,
-        _ => MediaType::Image,
+        "image" => Ok(MediaType::Image),
+        "video" => Ok(MediaType::Video),
+        "audio" => Ok(MediaType::Audio),
+        "image_to_video" => Ok(MediaType::ImageToVideo),
+        "text_to_speech" => Ok(MediaType::TextToSpeech),
+        "lipsync" => Ok(MediaType::LipSync),
+        "faceswap" => Ok(MediaType::FaceSwap),
+        "morphing" => Ok(MediaType::Morphing),
+        "upscale" => Ok(MediaType::Upscale),
+        _ => Err(AppError::Db(trios_mb_types::errors::DbError::Query(format!("Unknown media_type: {}", s)))),
     }
 }
 
@@ -51,14 +51,14 @@ fn generation_status_to_str(s: &GenerationStatus) -> &'static str {
     }
 }
 
-fn str_to_generation_status(s: &str) -> GenerationStatus {
+fn str_to_generation_status(s: &str) -> Result<GenerationStatus, AppError> {
     match s {
-        "queued" => GenerationStatus::Queued,
-        "processing" => GenerationStatus::Processing,
-        "completed" => GenerationStatus::Completed,
-        "failed" => GenerationStatus::Failed,
-        "cancelled" => GenerationStatus::Cancelled,
-        _ => GenerationStatus::Queued,
+        "queued" => Ok(GenerationStatus::Queued),
+        "processing" => Ok(GenerationStatus::Processing),
+        "completed" => Ok(GenerationStatus::Completed),
+        "failed" => Ok(GenerationStatus::Failed),
+        "cancelled" => Ok(GenerationStatus::Cancelled),
+        _ => Err(AppError::Db(trios_mb_types::errors::DbError::Query(format!("Unknown generation_status: {}", s)))),
     }
 }
 
@@ -145,6 +145,9 @@ impl DbTrait for PostgresDatabase {
     }
 
     async fn create_user(&self, telegram_id: i64, username: Option<&str>, language: Language) -> Result<User, AppError> {
+        if telegram_id <= 0 {
+            return Err(AppError::Validation("telegram_id must be > 0".into()));
+        }
         use crate::entities::users as u;
         let id = uuid::Uuid::new_v4();
         let now = chrono::Utc::now();
@@ -303,6 +306,9 @@ impl DbTrait for PostgresDatabase {
     }
 
     async fn add_balance(&self, telegram_id: i64, amount: f64) -> Result<(), AppError> {
+        if amount < 0.0 {
+            return Err(AppError::Validation("add_balance amount must be >= 0".into()));
+        }
         let sql = r#"
             UPDATE users
             SET balance = balance + $1,
@@ -361,6 +367,28 @@ impl DbTrait for PostgresDatabase {
         }))
     }
 
+    async fn get_transaction_by_external_id(&self,
+        external_id: &str,
+    ) -> Result<Option<Transaction>, AppError> {
+        use crate::entities::payments as p;
+        let row = p::Entity::find()
+            .filter(p::Column::ExternalId.eq(external_id))
+            .one(self.pool.as_ref())
+            .await
+            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+        Ok(row.map(|r| Transaction {
+            id: r.id,
+            telegram_id: r.telegram_id,
+            method: serde_json::from_str(&r.method).unwrap_or(PaymentMethod::TelegramStars),
+            status: serde_json::from_str(&r.status).unwrap_or(PaymentStatus::Pending),
+            amount: r.amount,
+            currency: r.currency,
+            external_id: r.external_id,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+        }))
+    }
+
     async fn update_transaction_status(&self, id: uuid::Uuid, status: PaymentStatus) -> Result<(), AppError> {
         use crate::entities::payments as p;
         let row = p::Entity::find_by_id(id)
@@ -370,7 +398,9 @@ impl DbTrait for PostgresDatabase {
 
         if let Some(row) = row {
             let mut active: p::ActiveModel = row.into();
-            active.status = Set(serde_json::to_string(&status).unwrap_or_default());
+            active.status = Set(serde_json::to_string(&status).map_err(|e| {
+                AppError::Internal(format!("Failed to serialize payment status: {}", e))
+            })?);
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
                 .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
@@ -380,10 +410,11 @@ impl DbTrait for PostgresDatabase {
 
     async fn get_transactions_by_telegram_id(&self, telegram_id: i64, limit: i64) -> Result<Vec<Transaction>, AppError> {
         use crate::entities::payments as p;
+        let safe_limit = if limit <= 0 { 1 } else if limit > 10_000 { 10_000 } else { limit };
         let rows = p::Entity::find()
             .filter(p::Column::TelegramId.eq(telegram_id))
             .order_by_desc(p::Column::CreatedAt)
-            .limit(Some(limit as u64))
+            .limit(Some(safe_limit as u64))
             .all(self.pool.as_ref())
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
@@ -531,16 +562,19 @@ impl DbTrait for PostgresDatabase {
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
 
-        Ok(row.map(|r| GenerationResult {
-            id: r.id,
-            telegram_id: r.telegram_id,
-            media_type: str_to_media_type(&r.media_type),
-            status: str_to_generation_status(&r.status),
-            result_url: r.result_url,
-            provider: r.provider,
-            error: r.error,
-            created_at: r.created_at,
-        }))
+        match row {
+            Some(r) => Ok(Some(GenerationResult {
+                id: r.id,
+                telegram_id: r.telegram_id,
+                media_type: str_to_media_type(&r.media_type)?,
+                status: str_to_generation_status(&r.status)?,
+                result_url: r.result_url,
+                provider: r.provider,
+                error: r.error,
+                created_at: r.created_at,
+            })),
+            None => Ok(None),
+        }
     }
 
     async fn get_referral_count(&self, telegram_id: i64) -> Result<i64, AppError> {
@@ -1033,7 +1067,7 @@ mod tests {
         ];
         for mt in types {
             let s = media_type_to_str(&mt);
-            let back = str_to_media_type(s);
+            let back = str_to_media_type(s).expect("media_type roundtrip");
             assert_eq!(mt, back, "media_type roundtrip failed for {:?}", mt);
         }
     }
@@ -1049,7 +1083,7 @@ mod tests {
         ];
         for s in statuses {
             let str_val = generation_status_to_str(&s);
-            let back = str_to_generation_status(str_val);
+            let back = str_to_generation_status(str_val).expect("generation_status roundtrip");
             assert_eq!(s, back, "generation_status roundtrip failed for {:?}", s);
         }
     }
@@ -1071,12 +1105,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_str_to_media_type_unknown() {
-        assert_eq!(str_to_media_type("unknown"), MediaType::Image);
+        assert!(str_to_media_type("unknown").is_err());
     }
 
     #[tokio::test]
     async fn test_str_to_generation_status_unknown() {
-        assert_eq!(str_to_generation_status("unknown"), GenerationStatus::Queued);
+        assert!(str_to_generation_status("unknown").is_err());
     }
 
     #[tokio::test]

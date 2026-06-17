@@ -17,6 +17,7 @@ pub trait Database: Send + Sync {
 
     async fn create_transaction(&self, tx: &Transaction) -> Result<Transaction, AppError>;
     async fn get_transaction(&self, id: uuid::Uuid) -> Result<Option<Transaction>, AppError>;
+    async fn get_transaction_by_external_id(&self, external_id: &str) -> Result<Option<Transaction>, AppError>;
     async fn update_transaction_status(&self, id: uuid::Uuid, status: PaymentStatus) -> Result<(), AppError>;
     async fn get_transactions_by_telegram_id(&self, telegram_id: i64, limit: i64) -> Result<Vec<Transaction>, AppError>;
 

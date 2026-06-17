@@ -133,7 +133,12 @@ pub async fn dispatch_and_reply(
 
     let gen = db.create_generation(&request).await;
     match gen {
-        Ok(_g) => {
+        Ok(g) => {
+            let mut request = request;
+            request.params = serde_json::json!({
+                "cost": params.cost,
+                "generation_id": g.id.to_string(),
+            });
             let payload = serde_json::to_value(&request).map_err(|e| {
                 tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to serialize generation request");
                 trios_mb_types::AppError::Validation(format!("Failed to serialize request: {}", e))

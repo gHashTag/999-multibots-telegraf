@@ -60,7 +60,7 @@ impl HedraProvider {
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(120))
                 .connect_timeout(std::time::Duration::from_secs(10))
-                .build()
+                .redirect(reqwest::redirect::Policy::none()).build()
                 .expect("Failed to build Hedra reqwest client"),
             base_url: "https://api.hedra.com".to_string(),
         }

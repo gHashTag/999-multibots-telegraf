@@ -1,0 +1,1 @@
+ConnectInfo<std::net::SocketAddr>: governor::middleware::RateLimitingMiddleware<governor::clock::quanta::QuantaInstant>

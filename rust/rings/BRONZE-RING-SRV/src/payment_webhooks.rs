@@ -45,29 +45,33 @@ pub async fn robokassa_callback(
 
         match gateway.verify_callback(&params).await {
             Ok(verification) => {
-                if let Ok(tx_id) = uuid::Uuid::parse_str(&verification.transaction_id) {
-                    // Idempotency guard: load transaction and skip if already completed
-                    match state.db.get_transaction(tx_id).await {
-                        Ok(Some(tx)) if tx.status == PaymentStatus::Completed => {
-                            tracing::info!(tx_id = %tx_id, "Robokassa callback: transaction already completed; skipping");
-                            return "OK".to_string();
-                        }
-                        Ok(_) => {}
-                        Err(e) => {
-                            tracing::error!(error = %e, tx_id = %tx_id, "Failed to load transaction for idempotency check");
-                            return "ERROR: internal error".to_string();
-                        }
+                let external_id = &verification.transaction_id;
+                // Idempotency guard: load transaction by external_id and skip if already completed
+                let tx = match state.db.get_transaction_by_external_id(external_id).await {
+                    Ok(Some(tx)) => tx,
+                    Ok(None) => {
+                        tracing::warn!(external_id = %external_id, "Robokassa callback: transaction not found");
+                        return "ERROR: transaction not found".to_string();
                     }
-
-                    if let Err(e) = state.db.update_transaction_status(tx_id, PaymentStatus::Completed).await {
-                        tracing::error!(error = %e, tx_id = %tx_id, "Failed to update transaction status after Robokassa verification");
+                    Err(e) => {
+                        tracing::error!(error = %e, external_id = %external_id, "Failed to load transaction for idempotency check");
                         return "ERROR: internal error".to_string();
                     }
-                    if let Some(tid) = verification.telegram_id {
-                        if let Err(e) = state.db.add_balance(tid, verification.amount).await {
-                            tracing::error!(telegram_id = tid, error = %e, "Failed to add balance after Robokassa payment");
-                            return "ERROR: internal error".to_string();
-                        }
+                };
+
+                if tx.status == PaymentStatus::Completed {
+                    tracing::info!(tx_id = %tx.id, "Robokassa callback: transaction already completed; skipping");
+                    return "OK".to_string();
+                }
+
+                if let Err(e) = state.db.update_transaction_status(tx.id, PaymentStatus::Completed).await {
+                    tracing::error!(error = %e, tx_id = %tx.id, "Failed to update transaction status after Robokassa verification");
+                    return "ERROR: internal error".to_string();
+                }
+                if let Some(tid) = verification.telegram_id {
+                    if let Err(e) = state.db.add_balance(tid, verification.amount).await {
+                        tracing::error!(telegram_id = tid, error = %e, "Failed to add balance after Robokassa payment");
+                        return "ERROR: internal error".to_string();
                     }
                 }
                 "OK".to_string()

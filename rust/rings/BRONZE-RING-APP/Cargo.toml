@@ -34,3 +34,4 @@ anyhow = { workspace = true }
 dotenvy = "0.15"
 tokio-util = { version = "0.7", features = ["rt"] }
 futures-util = "0.3"
+uuid = { workspace = true }

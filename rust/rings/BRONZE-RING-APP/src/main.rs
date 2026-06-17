@@ -331,18 +331,31 @@ async fn handle_generation_job(
             trios_mb_types::AppError::Validation(format!("Invalid job payload: {}", e))
         })?;
 
+    if request.telegram_id <= 0 {
+        tracing::warn!(job_id = %job.id, telegram_id = request.telegram_id, "Rejecting job with invalid telegram_id");
+        return Err(trios_mb_types::AppError::Validation("Invalid telegram_id".into()));
+    }
+
     let cost: f64 = request.params.get("cost")
         .and_then(|v| v.as_f64())
         .filter(|v| v.is_finite())
         .unwrap_or(0.0);
 
+    let generation_id = request.params.get("generation_id")
+        .and_then(|v| v.as_str())
+        .and_then(|s| uuid::Uuid::parse_str(s).ok());
+
     match orchestrator.dispatch(&request).await {
         Ok(result) => {
-            if let Err(e) = db.update_generation_status(
-                job.id, GenerationStatus::Completed,
-                result.result_url.as_deref(), None,
-            ).await {
-                tracing::error!(error = %e, "Failed to update generation status");
+            if let Some(gen_id) = generation_id {
+                if let Err(e) = db.update_generation_status(
+                    gen_id, GenerationStatus::Completed,
+                    result.result_url.as_deref(), None,
+                ).await {
+                    tracing::error!(generation_id = %gen_id, error = %e, "Failed to update generation status");
+                }
+            } else {
+                tracing::warn!(job_id = %job.id, "Missing generation_id in job payload; skipping status update");
             }
 
             if let Some(ref url) = result.result_url {
@@ -364,10 +377,14 @@ async fn handle_generation_job(
                 }
             }
 
-            if let Err(db_err) = db.update_generation_status(
-                job.id, GenerationStatus::Failed, None, Some(&e.to_string()),
-            ).await {
-                tracing::error!(job_id = %job.id, error = %db_err, "Failed to persist generation failure status");
+            if let Some(gen_id) = generation_id {
+                if let Err(db_err) = db.update_generation_status(
+                    gen_id, GenerationStatus::Failed, None, Some(&e.to_string()),
+                ).await {
+                    tracing::error!(generation_id = %gen_id, error = %db_err, "Failed to persist generation failure status");
+                }
+            } else {
+                tracing::warn!(job_id = %job.id, "Missing generation_id in job payload; skipping failure status update");
             }
 
             let chat_id = teloxide::types::ChatId(request.telegram_id);

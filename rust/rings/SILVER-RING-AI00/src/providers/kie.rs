@@ -60,7 +60,7 @@ impl KieProvider {
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(60))
                 .connect_timeout(std::time::Duration::from_secs(10))
-                .build()
+                .redirect(reqwest::redirect::Policy::none()).build()
                 .expect("Failed to build KIE reqwest client"),
             base_url: "https://api.kie.ai".to_string(),
         }

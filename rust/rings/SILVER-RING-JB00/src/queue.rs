@@ -233,7 +233,7 @@ impl JobQueue for PgJobQueue {
             UPDATE job_queue
             SET status = 'queued', attempts = 0, started_at = NULL, updated_at = NOW()
             WHERE status = 'running'
-              AND started_at < NOW() - INTERVAL '$1 seconds'
+              AND started_at < NOW() - INTERVAL '1 second' * $1
               AND attempts < max_attempts
         "#;
 

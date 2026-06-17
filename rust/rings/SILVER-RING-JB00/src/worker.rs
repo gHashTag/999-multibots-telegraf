@@ -130,8 +130,22 @@ impl WorkerPool {
                                 break;
                             }
                             _ = tokio::time::sleep(Duration::from_millis(500)) => {
-                                if let Err(e) = poll_and_execute(&q, &types, &h, timeout, &name).await {
-                                    tracing::error!(worker = %name, error = %e, "Worker error");
+                                let q2 = q.clone();
+                                let h2 = h.clone();
+                                let types2 = types.clone();
+                                let name2 = name.clone();
+                                let handle = tokio::spawn(async move {
+                                    poll_and_execute(&q2, &types2, &h2, timeout, &name2).await
+                                });
+                                match handle.await {
+                                    Ok(Err(e)) => {
+                                        tracing::error!(worker = %name, error = %e, "Worker error");
+                                    }
+                                    Err(e) => {
+                                        tracing::error!(worker = %name, error = %e, "Worker panicked; restarting in 5s");
+                                        tokio::time::sleep(Duration::from_secs(5)).await;
+                                    }
+                                    Ok(Ok(())) => {}
                                 }
                             }
                         }

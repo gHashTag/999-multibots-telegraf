@@ -1,0 +1,16 @@
+/Users/playra/999-multibots-telegraf/rust/target/aarch64-apple-darwin/debug/deps/sea_orm_migration-52a8d7dc60a0ff8e.d: /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/lib.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/cli.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/connection.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/manager.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/migrator.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/prelude.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/schema.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/seaql_migrations.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/util.rs
+
+/Users/playra/999-multibots-telegraf/rust/target/aarch64-apple-darwin/debug/deps/libsea_orm_migration-52a8d7dc60a0ff8e.rmeta: /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/lib.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/cli.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/connection.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/manager.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/migrator.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/prelude.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/schema.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/seaql_migrations.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/util.rs
+
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/lib.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/cli.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/connection.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/manager.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/migrator.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/prelude.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/schema.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/seaql_migrations.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-orm-migration-1.1.20/src/util.rs:
+
+# env-dep:CARGO_PKG_NAME=sea-orm-migration
+# env-dep:CARGO_PKG_VERSION=1.1.20

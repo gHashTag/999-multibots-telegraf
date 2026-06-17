@@ -1,17 +1,13 @@
 use std::sync::Arc;
 use axum::Router;
 use axum::routing::{get, post};
-use tower_governor::{GovernorConfig, GovernorConfigBuilder, GovernorLayer};
-use tower_governor::governor::Governor;
-use tower_http::cors::{Any, CorsLayer};
+use tower_governor::governor::GovernorConfigBuilder;
+use tower_governor::GovernorLayer;
+use tower_http::cors::CorsLayer;
 use trios_mb_traits::{Database, PaymentGateway};
 
 /// Build a per-IP rate-limit layer.
-/// Falls back to connection IP if no forwarded headers are present.
-fn rate_limit_layer(
-    per_second: u64,
-    burst_size: u32,
-) -> GovernorLayer<Arc<Governor>, axum::extract::ConnectInfo<std::net::SocketAddr>> {
+fn rate_limit_layer(per_second: u64, burst_size: u32) -> GovernorLayer<tower_governor::key_extractor::PeerIpKeyExtractor, governor::middleware::NoOpMiddleware> {
     let config = GovernorConfigBuilder::default()
         .per_second(per_second)
         .burst_size(burst_size)
@@ -31,13 +27,13 @@ pub fn create_router(db: Arc<dyn Database>) -> Router {
         payment_gateway: None,
     });
 
-    // Wave 151+153: CORS hardened — read FRONTEND_URL env var for allowed origins
+    // Wave 159: CORS hardened — deny all when FRONTEND_URL is unset or invalid
     let allowed_origins: Vec<String> = std::env::var("FRONTEND_URL")
         .map(|s| s.split(',').map(|o| o.trim().to_string()).collect())
         .unwrap_or_default();
     let cors = if allowed_origins.is_empty() {
+        tracing::warn!("FRONTEND_URL not set; CORS requests denied");
         CorsLayer::new()
-            .allow_origin(Any)
             .allow_methods([http::Method::GET, http::Method::POST])
             .allow_headers([http::header::CONTENT_TYPE, http::header::AUTHORIZATION])
     } else {
@@ -49,9 +45,8 @@ pub fn create_router(db: Arc<dyn Database>) -> Router {
             }
         }
         if origins.is_empty() {
-            tracing::warn!("No valid CORS origins configured; falling back to Any");
+            tracing::warn!("No valid CORS origins configured; CORS requests denied");
             CorsLayer::new()
-                .allow_origin(Any)
                 .allow_methods([http::Method::GET, http::Method::POST])
                 .allow_headers([http::header::CONTENT_TYPE, http::header::AUTHORIZATION])
         } else {
@@ -86,13 +81,13 @@ pub fn create_router_with_payments(
         payment_gateway: Some(payment_gateway),
     });
 
-    // Wave 151+153: CORS hardened — read FRONTEND_URL env var for allowed origins
+    // Wave 159: CORS hardened — deny all when FRONTEND_URL is unset or invalid
     let allowed_origins: Vec<String> = std::env::var("FRONTEND_URL")
         .map(|s| s.split(',').map(|o| o.trim().to_string()).collect())
         .unwrap_or_default();
     let cors = if allowed_origins.is_empty() {
+        tracing::warn!("FRONTEND_URL not set; CORS requests denied");
         CorsLayer::new()
-            .allow_origin(Any)
             .allow_methods([http::Method::GET, http::Method::POST])
             .allow_headers([http::header::CONTENT_TYPE, http::header::AUTHORIZATION])
     } else {
@@ -104,9 +99,8 @@ pub fn create_router_with_payments(
             }
         }
         if origins.is_empty() {
-            tracing::warn!("No valid CORS origins configured; falling back to Any");
+            tracing::warn!("No valid CORS origins configured; CORS requests denied");
             CorsLayer::new()
-                .allow_origin(Any)
                 .allow_methods([http::Method::GET, http::Method::POST])
                 .allow_headers([http::header::CONTENT_TYPE, http::header::AUTHORIZATION])
         } else {
