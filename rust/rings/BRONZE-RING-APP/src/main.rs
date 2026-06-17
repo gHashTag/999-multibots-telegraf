@@ -269,6 +269,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[tracing::instrument(skip(secrets))]
 async fn build_orchestrator(
     secrets: &Arc<trios_mb_secrets::InfisicalStore>,
 ) -> AiOrchestrator {
@@ -276,43 +277,64 @@ async fn build_orchestrator(
 
     if let Ok(key) = secrets.get("REPLICATE_API_KEY").await {
         if !key.is_empty() {
-            providers.push(Arc::new(ReplicateProvider::new(&key)));
+            match ReplicateProvider::new(&key) {
+                Ok(p) => providers.push(Arc::new(p)),
+                Err(e) => warn!("Failed to build ReplicateProvider: {}", e),
+            }
         }
     }
 
     if let Ok(key) = secrets.get("FAL_KEY").await {
         if !key.is_empty() {
-            providers.push(Arc::new(FalProvider::new(&key)));
+            match FalProvider::new(&key) {
+                Ok(p) => providers.push(Arc::new(p)),
+                Err(e) => warn!("Failed to build FalProvider: {}", e),
+            }
         }
     }
 
     if let Ok(key) = secrets.get("KIE_API_KEY").await {
         if !key.is_empty() {
-            providers.push(Arc::new(KieProvider::new(&key)));
+            match KieProvider::new(&key) {
+                Ok(p) => providers.push(Arc::new(p)),
+                Err(e) => warn!("Failed to build KieProvider: {}", e),
+            }
         }
     }
 
     if let Ok(key) = secrets.get("OPENAI_API_KEY").await {
         if !key.is_empty() {
-            providers.push(Arc::new(OpenAiProvider::new(&key)));
+            match OpenAiProvider::new(&key) {
+                Ok(p) => providers.push(Arc::new(p)),
+                Err(e) => warn!("Failed to build OpenAiProvider: {}", e),
+            }
         }
     }
 
     if let Ok(key) = secrets.get("ELEVENLABS_API_KEY").await {
         if !key.is_empty() {
-            providers.push(Arc::new(ElevenLabsProvider::new(&key)));
+            match ElevenLabsProvider::new(&key) {
+                Ok(p) => providers.push(Arc::new(p)),
+                Err(e) => warn!("Failed to build ElevenLabsProvider: {}", e),
+            }
         }
     }
 
     if let Ok(key) = secrets.get("HEYGEN_API_KEY").await {
         if !key.is_empty() {
-            providers.push(Arc::new(HeyGenProvider::new(&key)));
+            match HeyGenProvider::new(&key) {
+                Ok(p) => providers.push(Arc::new(p)),
+                Err(e) => warn!("Failed to build HeyGenProvider: {}", e),
+            }
         }
     }
 
     if let Ok(key) = secrets.get("HEDRA_API_KEY").await {
         if !key.is_empty() {
-            providers.push(Arc::new(HedraProvider::new(&key)));
+            match HedraProvider::new(&key) {
+                Ok(p) => providers.push(Arc::new(p)),
+                Err(e) => warn!("Failed to build HedraProvider: {}", e),
+            }
         }
     }
 
@@ -366,6 +388,7 @@ fn build_worker_pool(
     pool
 }
 
+#[tracing::instrument(skip(orchestrator, db, bot, job), fields(job_id = %job.id))]
 async fn handle_generation_job(
     orchestrator: &Arc<dyn AiProviderOrchestrator>,
     db: &Arc<dyn Database>,

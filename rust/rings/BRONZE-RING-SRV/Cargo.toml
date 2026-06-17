@@ -21,3 +21,5 @@ uuid = { workspace = true }
 http = "1.0"
 tower_governor = { workspace = true }
 governor = "0.6"
+url = "2.5"
+

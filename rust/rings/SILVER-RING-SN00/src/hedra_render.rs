@@ -10,6 +10,7 @@ use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const HEDRA_RENDER_COST: f64 = 30.0;
+const MAX_DIALOGUE_TEXT_LEN: usize = 2000;
 
 pub async fn handle_hedra_render_msg(
     bot: teloxide::Bot,
@@ -68,6 +69,12 @@ pub async fn handle_hedra_render_msg(
             if let Some(text) = msg.text() {
                 if text.trim().is_empty() {
                     let err = if lang.is_russian() { "✍️ Введите текст" } else { "✍️ Enter text" };
+                    bot.send_message(msg.chat.id, err).await?;
+                    return Ok(());
+                }
+
+                if text.len() > MAX_DIALOGUE_TEXT_LEN {
+                    let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
                     bot.send_message(msg.chat.id, err).await?;
                     return Ok(());
                 }

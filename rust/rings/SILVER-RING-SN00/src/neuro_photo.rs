@@ -11,6 +11,9 @@ use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, loa
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const MAX_DIALOGUE_TEXT_LEN: usize = 2000;
+
+#[tracing::instrument(skip_all)]
 pub async fn handle_neuro_photo_entry(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -25,6 +28,7 @@ pub async fn handle_neuro_photo_entry(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_neuro_photo_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -57,6 +61,11 @@ pub async fn handle_neuro_photo_msg(
 
     if let Some(text) = msg.text() {
         if state.step == 2 && state.image_url.is_some() {
+            if text.len() > MAX_DIALOGUE_TEXT_LEN {
+                let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
+                bot.send_message(msg.chat.id, err).await?;
+                return Ok(());
+            }
             let mut new_state = state;
             new_state.prompt = Some(text.to_string());
             let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
@@ -90,6 +99,7 @@ pub async fn handle_neuro_photo_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_neuro_photo_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,

@@ -3957,6 +3957,7 @@ dependencies = [
  "trios-mb-proto",
  "trios-mb-traits",
  "trios-mb-types",
+ "url",
  "uuid",
 ]
 

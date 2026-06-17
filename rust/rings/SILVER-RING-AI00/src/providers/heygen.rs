@@ -104,16 +104,17 @@ pub struct HeyGenProvider {
 }
 
 impl HeyGenProvider {
-    pub fn new(api_key: &str) -> Self {
-        Self {
+    pub fn new(api_key: &str) -> Result<Self, AppError> {
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none()).build()
+            .map_err(|e| AppError::Internal(format!("Failed to build HeyGen reqwest client: {}", e)))?;
+        Ok(Self {
             api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(60))
-                .connect_timeout(std::time::Duration::from_secs(10))
-                .redirect(reqwest::redirect::Policy::none()).build()
-                .expect("Failed to build HeyGen reqwest client"),
+            http,
             base_url: "https://api.heygen.com".to_string(),
-        }
+        })
     }
 
     pub async fn create_avatar_video(

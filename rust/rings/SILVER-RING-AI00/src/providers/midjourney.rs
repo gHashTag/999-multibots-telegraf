@@ -10,14 +10,15 @@ pub struct MidjourneyProvider {
 }
 
 impl MidjourneyProvider {
-    pub fn new(_api_key: &str) -> Self {
-        Self {
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(120))
-                .connect_timeout(std::time::Duration::from_secs(10))
-                .redirect(reqwest::redirect::Policy::none()).build()
-                .expect("Failed to build Midjourney reqwest client"),
-        }
+    pub fn new(_api_key: &str) -> Result<Self, AppError> {
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none()).build()
+            .map_err(|e| AppError::Internal(format!("Failed to build Midjourney reqwest client: {}", e)))?;
+        Ok(Self {
+            http,
+        })
     }
 }
 

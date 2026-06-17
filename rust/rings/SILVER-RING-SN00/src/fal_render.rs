@@ -10,6 +10,7 @@ use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const FAL_RENDER_COST: f64 = 30.0;
+const MAX_DIALOGUE_TEXT_LEN: usize = 2000;
 
 pub async fn handle_fal_render_msg(
     bot: teloxide::Bot,
@@ -44,6 +45,12 @@ pub async fn handle_fal_render_msg(
             if let Some(text) = msg.text() {
                 if text.trim().is_empty() {
                     let err = if lang.is_russian() { "✍️ Введите промпт" } else { "✍️ Enter a prompt" };
+                    bot.send_message(msg.chat.id, err).await?;
+                    return Ok(());
+                }
+
+                if text.len() > MAX_DIALOGUE_TEXT_LEN {
+                    let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
                     bot.send_message(msg.chat.id, err).await?;
                     return Ok(());
                 }

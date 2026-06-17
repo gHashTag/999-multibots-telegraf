@@ -13,55 +13,59 @@ const WEBHOOK_DB_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Validate a result URL before storing it in the database.
 /// Only allows `http://` or `https://` pointing to public hosts.
-fn validate_result_url(url: &str) -> Result<(), String> {
+fn validate_result_url(url_str: &str) -> Result<(), String> {
     const MAX_URL_LEN: usize = 4096;
-    if url.is_empty() {
+    if url_str.is_empty() {
         return Err("URL is empty".to_string());
     }
-    if url.len() > MAX_URL_LEN {
+    if url_str.len() > MAX_URL_LEN {
         return Err(format!("URL exceeds maximum length of {} bytes", MAX_URL_LEN));
     }
-    // Reject URLs with embedded credentials or percent-encoded bypasses
-    if url.contains('@') || url.contains('%') {
-        return Err("URL contains disallowed characters (@ or %)".to_string());
+
+    let parsed = url::Url::parse(url_str).map_err(|e| format!("Invalid URL: {}", e))?;
+
+    match parsed.scheme() {
+        "http" | "https" => {}
+        _ => return Err("URL must use http or https scheme".to_string()),
     }
-    // Basic scheme validation
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        return Err("URL must use http or https scheme".to_string());
+
+    // Reject embedded credentials
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("URL contains embedded credentials".to_string());
     }
-    // Reject common SSRF / internal indicators in the raw string
-    let lower = url.to_lowercase();
-    if lower.contains("127.")
-        || lower.contains("10.")
-        || lower.contains("192.168.")
-        || lower.contains("0.0.0.0")
-        || lower.contains("::1")
-        || lower.contains("localhost")
-        || lower.contains("169.254.")
-        || lower.contains("172.16.")
-        || lower.contains("172.17.")
-        || lower.contains("172.18.")
-        || lower.contains("172.19.")
-        || lower.contains("172.20.")
-        || lower.contains("172.21.")
-        || lower.contains("172.22.")
-        || lower.contains("172.23.")
-        || lower.contains("172.24.")
-        || lower.contains("172.25.")
-        || lower.contains("172.26.")
-        || lower.contains("172.27.")
-        || lower.contains("172.28.")
-        || lower.contains("172.29.")
-        || lower.contains("172.30.")
-        || lower.contains("172.31.")
-        || lower.contains("file://")
-        || lower.contains("ftp://")
-        || lower.contains("ssh://")
-        || lower.contains("telnet://")
-        || lower.contains("gopher://")
-    {
-        return Err("URL points to a private or unsupported address".to_string());
+
+    if let Some(host) = parsed.host_str() {
+        let lower = host.to_lowercase();
+        if lower == "localhost" {
+            return Err("URL points to localhost".to_string());
+        }
+        if let Ok(ip) = lower.parse::<std::net::IpAddr>() {
+            if ip.is_loopback() {
+                return Err("URL points to a loopback address".to_string());
+            }
+            match ip {
+                std::net::IpAddr::V4(v4) => {
+                    if v4.is_private() || v4.is_link_local() {
+                        return Err("URL points to a private or link-local address".to_string());
+                    }
+                }
+                std::net::IpAddr::V6(v6) => {
+                    let segments = v6.segments();
+                    // IPv6 ULA fc00::/7
+                    if (segments[0] & 0xfe00) == 0xfc00 {
+                        return Err("URL points to an IPv6 ULA address".to_string());
+                    }
+                    // IPv6 link-local fe80::/10
+                    if (segments[0] & 0xffc0) == 0xfe80 {
+                        return Err("URL points to an IPv6 link-local address".to_string());
+                    }
+                }
+            }
+        }
+    } else {
+        return Err("URL has no host".to_string());
     }
+
     Ok(())
 }
 

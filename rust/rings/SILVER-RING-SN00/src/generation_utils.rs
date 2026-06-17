@@ -37,6 +37,7 @@ pub async fn load_lang_cb(db: &Arc<dyn Database>, q: &teloxide::types::CallbackQ
         .unwrap_or_default()
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn deduct_balance(
     db: &Arc<dyn Database>,
     telegram_id: i64,
@@ -101,6 +102,7 @@ pub struct DispatchParams {
     pub model: Option<String>,
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn dispatch_and_reply(
     bot: &teloxide::Bot,
     dialogue: &MyDialogue,

@@ -11,6 +11,7 @@ type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const AI_COVER_COST: f64 = 10.0;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_ai_cover_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -77,6 +78,7 @@ pub async fn handle_ai_cover_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_ai_cover_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,

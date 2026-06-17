@@ -7,13 +7,13 @@ use tower_http::cors::CorsLayer;
 use trios_mb_traits::{Database, PaymentGateway};
 
 /// Build a per-IP rate-limit layer.
-fn rate_limit_layer(per_second: u64, burst_size: u32) -> GovernorLayer<tower_governor::key_extractor::PeerIpKeyExtractor, governor::middleware::NoOpMiddleware> {
+/// Returns `None` if the configuration is invalid (e.g., zero rates).
+fn rate_limit_layer(per_second: u64, burst_size: u32) -> Option<GovernorLayer<tower_governor::key_extractor::PeerIpKeyExtractor, governor::middleware::NoOpMiddleware>> {
     let config = GovernorConfigBuilder::default()
         .per_second(per_second)
         .burst_size(burst_size)
-        .finish()
-        .expect("rate limit config is valid");
-    GovernorLayer { config: Arc::new(config) }
+        .finish()?;
+    Some(GovernorLayer { config: Arc::new(config) })
 }
 
 pub struct AppState {
@@ -52,6 +52,16 @@ fn build_cors() -> CorsLayer {
     }
 }
 
+fn apply_rate_limit<S: Clone + Send + Sync + 'static>(router: Router<S>, per_second: u64, burst_size: u32) -> Router<S> {
+    match rate_limit_layer(per_second, burst_size) {
+        Some(layer) => router.layer(layer),
+        None => {
+            tracing::error!(per_second, burst_size, "Failed to build rate-limit layer; continuing without rate limiting");
+            router
+        }
+    }
+}
+
 pub fn create_router(db: Arc<dyn Database>) -> Router {
     let state = Arc::new(AppState {
         db: db.clone(),
@@ -60,15 +70,19 @@ pub fn create_router(db: Arc<dyn Database>) -> Router {
 
     let cors = build_cors();
 
-    let health = Router::new()
-        .route("/health", get(crate::health::health_check_with_db))
-        .route("/health/simple", get(crate::health::health_check))
-        .layer(rate_limit_layer(10, 20));
+    let health = apply_rate_limit(
+        Router::new()
+            .route("/health", get(crate::health::health_check_with_db))
+            .route("/health/simple", get(crate::health::health_check)),
+        10, 20,
+    );
 
-    let webhooks = Router::new()
-        .route("/api/webhooks/replicate", post(crate::webhooks::replicate_webhook))
-        .route("/api/webhooks/kie-ai", post(crate::webhooks::kie_ai_webhook))
-        .layer(rate_limit_layer(2, 30));
+    let webhooks = apply_rate_limit(
+        Router::new()
+            .route("/api/webhooks/replicate", post(crate::webhooks::replicate_webhook))
+            .route("/api/webhooks/kie-ai", post(crate::webhooks::kie_ai_webhook)),
+        2, 30,
+    );
 
     Router::new()
         .merge(health)
@@ -89,19 +103,25 @@ pub fn create_router_with_payments(
 
     let cors = build_cors();
 
-    let health = Router::new()
-        .route("/health", get(crate::health::health_check_with_db))
-        .route("/health/simple", get(crate::health::health_check))
-        .layer(rate_limit_layer(10, 20));
+    let health = apply_rate_limit(
+        Router::new()
+            .route("/health", get(crate::health::health_check_with_db))
+            .route("/health/simple", get(crate::health::health_check)),
+        10, 20,
+    );
 
-    let webhooks = Router::new()
-        .route("/api/webhooks/replicate", post(crate::webhooks::replicate_webhook))
-        .route("/api/webhooks/kie-ai", post(crate::webhooks::kie_ai_webhook))
-        .layer(rate_limit_layer(2, 30));
+    let webhooks = apply_rate_limit(
+        Router::new()
+            .route("/api/webhooks/replicate", post(crate::webhooks::replicate_webhook))
+            .route("/api/webhooks/kie-ai", post(crate::webhooks::kie_ai_webhook)),
+        2, 30,
+    );
 
-    let payments = Router::new()
-        .route("/api/payment-success", post(crate::payment_webhooks::robokassa_callback))
-        .layer(rate_limit_layer(1, 10));
+    let payments = apply_rate_limit(
+        Router::new()
+            .route("/api/payment-success", post(crate::payment_webhooks::robokassa_callback)),
+        1, 10,
+    );
 
     Router::new()
         .merge(health)

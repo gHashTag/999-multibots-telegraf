@@ -72,16 +72,17 @@ pub struct OpenAiProvider {
 }
 
 impl OpenAiProvider {
-    pub fn new(api_key: &str) -> Self {
-        Self {
+    pub fn new(api_key: &str) -> Result<Self, AppError> {
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none()).build()
+            .map_err(|e| AppError::Internal(format!("Failed to build OpenAI reqwest client: {}", e)))?;
+        Ok(Self {
             api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(60))
-                .connect_timeout(std::time::Duration::from_secs(10))
-                .redirect(reqwest::redirect::Policy::none()).build()
-                .expect("Failed to build OpenAI reqwest client"),
+            http,
             base_url: "https://api.openai.com".to_string(),
-        }
+        })
     }
 
     pub fn with_base_url(mut self, url: &str) -> Self {
@@ -89,28 +90,30 @@ impl OpenAiProvider {
         self
     }
 
-    pub fn deepseek(api_key: &str) -> Self {
-        Self {
+    pub fn deepseek(api_key: &str) -> Result<Self, AppError> {
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none()).build()
+            .map_err(|e| AppError::Internal(format!("Failed to build DeepSeek reqwest client: {}", e)))?;
+        Ok(Self {
             api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(60))
-                .connect_timeout(std::time::Duration::from_secs(10))
-                .redirect(reqwest::redirect::Policy::none()).build()
-                .expect("Failed to build DeepSeek reqwest client"),
+            http,
             base_url: "https://api.deepseek.com/v1".to_string(),
-        }
+        })
     }
 
-    pub fn grok(api_key: &str) -> Self {
-        Self {
+    pub fn grok(api_key: &str) -> Result<Self, AppError> {
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none()).build()
+            .map_err(|e| AppError::Internal(format!("Failed to build Grok reqwest client: {}", e)))?;
+        Ok(Self {
             api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(60))
-                .connect_timeout(std::time::Duration::from_secs(10))
-                .redirect(reqwest::redirect::Policy::none()).build()
-                .expect("Failed to build Grok reqwest client"),
+            http,
             base_url: "https://api.x.ai/v1".to_string(),
-        }
+        })
     }
 
     pub async fn chat_completion(
