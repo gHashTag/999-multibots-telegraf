@@ -63,7 +63,16 @@ pub async fn handle_face_swap_msg(
                     return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                 }
 
-                let _ = deduct_balance(&db, tid, FACE_SWAP_COST).await;
+                if !deduct_balance(&db, tid, FACE_SWAP_COST).await {
+                    tracing::error!(telegram_id = tid, "Failed to deduct balance for face swap");
+                    let err_text = if lang.is_russian() {
+                        "❌ Ошибка списания средств. Попробуйте позже."
+                    } else {
+                        "❌ Failed to deduct balance. Please try again later."
+                    };
+                    bot.send_message(msg.chat.id, err_text).await?;
+                    return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
+                }
 
                 return dispatch_and_reply(
                     &bot, &dialogue, msg.chat.id,

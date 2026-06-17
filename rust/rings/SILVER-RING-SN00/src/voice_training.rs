@@ -100,7 +100,16 @@ pub async fn handle_voice_training_callback(
                 bot.send_message(chat_id, err_msg).await?;
                 return Ok(());
             }
-            let _ = deduct_balance(&db, tid, VOICE_TRAINING_COST).await;
+            if !deduct_balance(&db, tid, VOICE_TRAINING_COST).await {
+                tracing::error!(telegram_id = tid, "Failed to deduct balance for voice training");
+                let err_text = if lang.is_russian() {
+                    "❌ Ошибка списания средств. Попробуйте позже."
+                } else {
+                    "❌ Failed to deduct balance. Please try again later."
+                };
+                bot.send_message(chat_id, err_text).await?;
+                return Ok(());
+            }
 
             let text = if lang.is_russian() {
                 "✅ Обучение голоса запущено!\n\n⏱️ Это займёт 5-10 минут.\n📬 Вы получите уведомление, когда модель будет готова."

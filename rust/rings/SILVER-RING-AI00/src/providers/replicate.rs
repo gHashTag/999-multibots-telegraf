@@ -175,7 +175,10 @@ impl ReplicateProvider {
             return Err(AiError::RateLimited { provider: "replicate".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = resp.text().await.unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to read replicate error response body");
+                format!("[body unreadable: {}]", e)
+            });
             return Err(AiError::Provider {
                 provider: "replicate".into(),
                 message: format!("HTTP {}: {}", status, text),
@@ -206,7 +209,10 @@ impl ReplicateProvider {
             return Err(AiError::RateLimited { provider: "replicate".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = resp.text().await.unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to read replicate error response body");
+                format!("[body unreadable: {}]", e)
+            });
             return Err(AiError::Provider {
                 provider: "replicate".into(),
                 message: format!("HTTP {}: {}", status, text),
@@ -309,7 +315,10 @@ impl AiProvider for ReplicateProvider {
 
         let status = resp.status();
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = resp.text().await.unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to read replicate cancel error response body");
+                format!("[body unreadable: {}]", e)
+            });
             return Err(AiError::Provider {
                 provider: "replicate".into(),
                 message: format!("cancel HTTP {}: {}", status, text),

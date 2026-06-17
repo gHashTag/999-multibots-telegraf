@@ -144,7 +144,10 @@ impl OpenAiProvider {
             return Err(AiError::RateLimited { provider: "openai".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = resp.text().await.unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to read openai error response body");
+                format!("[body unreadable: {}]", e)
+            });
             return Err(AiError::Provider {
                 provider: "openai".into(),
                 message: format!("HTTP {}: {}", status, text),
@@ -211,7 +214,10 @@ impl OpenAiProvider {
             return Err(AiError::RateLimited { provider: "openai".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = resp.text().await.unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to read openai error response body");
+                format!("[body unreadable: {}]", e)
+            });
             return Err(AiError::Provider {
                 provider: "openai".into(),
                 message: format!("HTTP {}: {}", status, text),
@@ -272,7 +278,10 @@ impl OpenAiProvider {
             return Err(AiError::RateLimited { provider: "openai".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = resp.text().await.unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to read openai error response body");
+                format!("[body unreadable: {}]", e)
+            });
             return Err(AiError::Provider {
                 provider: "openai".into(),
                 message: format!("HTTP {}: {}", status, text),
@@ -310,10 +319,11 @@ fn base64_encode(data: &[u8]) -> String {
         for i in 0..(4 - pad) {
             let shift = (3 - i) * 6;
             let idx = ((acc >> shift) & 0x3F) as usize;
-            result.write_char(CHARSET[idx] as char).unwrap();
+            // Infallible: write to pre-allocated String with ASCII chars
+            let _ = result.write_char(CHARSET[idx] as char);
         }
         for _ in 0..pad {
-            result.write_char('=').unwrap();
+            let _ = result.write_char('=');
         }
     }
     result

@@ -67,7 +67,16 @@ pub async fn handle_hedra_render_msg(
                 }
 
                 state.text = Some(text.to_string());
-                let _ = deduct_balance(&db, tid, HEDRA_RENDER_COST).await;
+                if !deduct_balance(&db, tid, HEDRA_RENDER_COST).await {
+                    tracing::error!(telegram_id = tid, "Failed to deduct balance for hedra render (text)");
+                    let err_text = if lang.is_russian() {
+                        "❌ Ошибка списания средств. Попробуйте позже."
+                    } else {
+                        "❌ Failed to deduct balance. Please try again later."
+                    };
+                    bot.send_message(msg.chat.id, err_text).await?;
+                    return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
+                }
 
                 return dispatch_and_reply(
                     &bot, &dialogue, msg.chat.id,
@@ -90,7 +99,16 @@ pub async fn handle_hedra_render_msg(
                 }
 
                 state.audio_url = Some(voice.file.id.clone());
-                let _ = deduct_balance(&db, tid, HEDRA_RENDER_COST).await;
+                if !deduct_balance(&db, tid, HEDRA_RENDER_COST).await {
+                    tracing::error!(telegram_id = tid, "Failed to deduct balance for hedra render (voice)");
+                    let err_text = if lang.is_russian() {
+                        "❌ Ошибка списания средств. Попробуйте позже."
+                    } else {
+                        "❌ Failed to deduct balance. Please try again later."
+                    };
+                    bot.send_message(msg.chat.id, err_text).await?;
+                    return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
+                }
 
                 return dispatch_and_reply(
                     &bot, &dialogue, msg.chat.id,

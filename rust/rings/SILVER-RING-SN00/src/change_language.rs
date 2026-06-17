@@ -22,7 +22,9 @@ pub async fn handle_change_language(
     };
 
     let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
-    let _ = db.update_user_language(tid, new_lang).await;
+    if let Err(e) = db.update_user_language(tid, new_lang).await {
+        tracing::error!(telegram_id = tid, error = %e, "Failed to update user language");
+    }
 
     let text = trios_mb_i18n::t(new_lang, "language_changed");
     bot.send_message(msg.chat.id, text)

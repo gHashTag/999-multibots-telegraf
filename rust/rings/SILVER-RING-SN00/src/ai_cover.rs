@@ -99,7 +99,16 @@ pub async fn handle_ai_cover_callback(
                 bot.send_message(chat_id, err_msg).await?;
                 return Ok(());
             }
-            let _ = deduct_balance(&db, tid, AI_COVER_COST).await;
+            if !deduct_balance(&db, tid, AI_COVER_COST).await {
+                tracing::error!(telegram_id = tid, "Failed to deduct balance for AI cover");
+                let err_text = if lang.is_russian() {
+                    "❌ Ошибка списания средств. Попробуйте позже."
+                } else {
+                    "❌ Failed to deduct balance. Please try again later."
+                };
+                bot.send_message(chat_id, err_text).await?;
+                return Ok(());
+            }
 
             let text = if lang.is_russian() {
                 "⏳ Создаём AI Cover...\n\nЭто займёт 1-3 минуты."

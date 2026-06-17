@@ -82,7 +82,16 @@ pub async fn handle_music_generation_callback(
                 return return_to_menu(&bot, &dialogue, chat_id, lang).await;
             }
             state.model = Some(if data == "mus:suno" { "suno-v3.5" } else { "udio" }.to_string());
-            let _ = deduct_balance(&db, tid, MUSIC_COST).await;
+            if !deduct_balance(&db, tid, MUSIC_COST).await {
+                tracing::error!(telegram_id = tid, "Failed to deduct balance for music generation");
+                let err_text = if lang.is_russian() {
+                    "❌ Ошибка списания средств. Попробуйте позже."
+                } else {
+                    "❌ Failed to deduct balance. Please try again later."
+                };
+                bot.send_message(chat_id, err_text).await?;
+                return return_to_menu(&bot, &dialogue, chat_id, lang).await;
+            }
             return dispatch_and_reply(
                 &bot, &dialogue, chat_id,
                 &job_queue, &db,

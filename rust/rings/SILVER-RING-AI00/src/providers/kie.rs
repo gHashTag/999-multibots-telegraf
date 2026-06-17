@@ -200,7 +200,10 @@ impl KieProvider {
             return Err(AiError::RateLimited { provider: "kie".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = resp.text().await.unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to read kie error response body");
+                format!("[body unreadable: {}]", e)
+            });
             return Err(AiError::Provider {
                 provider: "kie".into(),
                 message: format!("HTTP {}: {}", status, text),
@@ -228,7 +231,10 @@ impl KieProvider {
 
         let status = resp.status();
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = resp.text().await.unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to read kie error response body");
+                format!("[body unreadable: {}]", e)
+            });
             return Err(AiError::Provider {
                 provider: "kie".into(),
                 message: format!("status HTTP {}: {}", status, text),

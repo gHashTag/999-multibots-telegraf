@@ -37,11 +37,9 @@ impl AiOrchestrator {
         matching.sort_by_key(|p| p.priority());
         matching
     }
-}
 
-#[async_trait::async_trait]
-impl AiProviderOrchestrator for AiOrchestrator {
-    async fn dispatch(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
+    async fn dispatch_inner(&self, request: &GenerationRequest,
+    ) -> Result<GenerationResult, AppError> {
         let providers = self.get_providers_for_type(request.media_type);
         let breakers = self.circuit_breakers.read().await;
 
@@ -75,6 +73,18 @@ impl AiProviderOrchestrator for AiOrchestrator {
         Err(last_error.unwrap_or_else(|| AppError::Ai(trios_mb_types::errors::AiError::AllProvidersFailed {
             media_type: format!("{:?}", request.media_type),
         })))
+    }
+}
+
+#[async_trait::async_trait]
+impl AiProviderOrchestrator for AiOrchestrator {
+    async fn dispatch(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
+        match tokio::time::timeout(Duration::from_secs(120), self.dispatch_inner(request)).await {
+            Ok(result) => result,
+            Err(_) => Err(AppError::Ai(trios_mb_types::errors::AiError::AllProvidersFailed {
+                media_type: format!("{:?}", request.media_type),
+            })),
+        }
     }
 
     async fn check_status(&self, generation_id: &str, provider_name: &str) -> Result<GenerationStatus, AppError> {

@@ -27,7 +27,16 @@ impl CircuitBreaker {
             return true;
         }
 
-        let last = self.last_failure.lock().unwrap();
+        let last = match self.last_failure.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                tracing::error!("CircuitBreaker mutex poisoned; resetting state");
+                let _guard = poisoned.into_inner();
+                self.is_open.store(false, Ordering::SeqCst);
+                self.failure_count.store(0, Ordering::SeqCst);
+                return true;
+            }
+        };
         if let Some(time) = *last {
             if time.elapsed() > self.reset_timeout {
                 self.is_open.store(false, Ordering::SeqCst);
@@ -47,8 +56,14 @@ impl CircuitBreaker {
         let count = self.failure_count.fetch_add(1, Ordering::SeqCst) + 1;
         if count >= self.failure_threshold {
             self.is_open.store(true, Ordering::SeqCst);
-            let mut last = self.last_failure.lock().unwrap();
-            *last = Some(Instant::now());
+            match self.last_failure.lock() {
+                Ok(mut last) => { *last = Some(Instant::now()); }
+                Err(poisoned) => {
+                    tracing::error!("CircuitBreaker mutex poisoned on failure record");
+                    let mut last = poisoned.into_inner();
+                    *last = Some(Instant::now());
+                }
+            }
         }
     }
 }

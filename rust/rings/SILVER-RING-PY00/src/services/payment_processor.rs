@@ -119,7 +119,9 @@ impl PaymentProcessor {
         self.db.create_transaction(&tx).await?;
 
         if let Some(_sub_type) = subscription_type {
-            let _ = self.db.renew_subscription(telegram_id, _sub_type).await;
+            if let Err(e) = self.db.renew_subscription(telegram_id, _sub_type).await {
+                tracing::error!(telegram_id = telegram_id, error = %e, "Failed to renew subscription after payment");
+            }
         }
 
         Ok(tx)

@@ -71,7 +71,16 @@ pub async fn handle_heygen_render_msg(
                 }
 
                 state.text = Some(text.to_string());
-                let _ = deduct_balance(&db, tid, HEYGEN_RENDER_COST).await;
+                if !deduct_balance(&db, tid, HEYGEN_RENDER_COST).await {
+                    tracing::error!(telegram_id = tid, "Failed to deduct balance for heygen render");
+                    let err_text = if lang.is_russian() {
+                        "❌ Ошибка списания средств. Попробуйте позже."
+                    } else {
+                        "❌ Failed to deduct balance. Please try again later."
+                    };
+                    bot.send_message(msg.chat.id, err_text).await?;
+                    return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
+                }
 
                 return dispatch_and_reply(
                     &bot, &dialogue, msg.chat.id,

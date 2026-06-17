@@ -101,7 +101,16 @@ pub async fn handle_ai_reels_callback(
         return return_to_menu(&bot, &dialogue, chat_id, lang).await;
     }
 
-    let _ = deduct_balance(&db, tid, AI_REELS_COST).await;
+    if !deduct_balance(&db, tid, AI_REELS_COST).await {
+        tracing::error!(telegram_id = tid, "Failed to deduct balance for AI reels");
+        let err_text = if lang.is_russian() {
+            "❌ Ошибка списания средств. Попробуйте позже."
+        } else {
+            "❌ Failed to deduct balance. Please try again later."
+        };
+        bot.send_message(chat_id, err_text).await?;
+        return return_to_menu(&bot, &dialogue, chat_id, lang).await;
+    }
 
     dispatch_and_reply(
         &bot, &dialogue, chat_id,

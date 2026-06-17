@@ -4,6 +4,7 @@ use serde_json::json;
 use std::sync::Arc;
 use crate::AppState;
 
+#[tracing::instrument]
 pub async fn health_check() -> impl IntoResponse {
     Json(json!({
         "status": "ok",
@@ -12,6 +13,7 @@ pub async fn health_check() -> impl IntoResponse {
     }))
 }
 
+#[tracing::instrument(skip(state))]
 pub async fn health_check_with_db(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
 ) -> impl IntoResponse {

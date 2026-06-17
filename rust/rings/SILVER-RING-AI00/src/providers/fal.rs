@@ -150,7 +150,10 @@ impl FalProvider {
             return Err(AiError::RateLimited { provider: "fal".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = resp.text().await.unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to read fal error response body");
+                format!("[body unreadable: {}]", e)
+            });
             return Err(AiError::Provider {
                 provider: "fal".into(),
                 message: format!("HTTP {}: {}", status, text),

@@ -97,7 +97,16 @@ pub async fn handle_train_flux_model_msg(
                     return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                 }
 
-                let _ = deduct_balance(&db, tid, TRAIN_FLUX_COST).await;
+                if !deduct_balance(&db, tid, TRAIN_FLUX_COST).await {
+                    tracing::error!(telegram_id = tid, "Failed to deduct balance for flux training");
+                    let err_text = if lang.is_russian() {
+                        "❌ Ошибка списания средств. Попробуйте позже."
+                    } else {
+                        "❌ Failed to deduct balance. Please try again later."
+                    };
+                    bot.send_message(msg.chat.id, err_text).await?;
+                    return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
+                }
                 let text = if lang.is_russian() {
                     "✅ Обучение запущено! Это займёт 10-30 минут."
                 } else {

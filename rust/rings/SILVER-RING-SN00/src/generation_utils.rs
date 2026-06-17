@@ -155,7 +155,9 @@ pub async fn dispatch_and_reply(
                 }
                 Err(e) => {
                     tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to enqueue generation, refunding");
-                    let _ = db.add_balance(params.telegram_id, params.cost).await;
+                    if let Err(refund_err) = db.add_balance(params.telegram_id, params.cost).await {
+                        tracing::error!(telegram_id = params.telegram_id, error = %refund_err, "CRITICAL: Failed to refund balance after enqueue failure");
+                    }
                     let err_msg = if params.lang.is_russian() {
                         format!("❌ Ошибка: {}", e)
                     } else {
@@ -167,7 +169,9 @@ pub async fn dispatch_and_reply(
         }
         Err(e) => {
             tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to create generation, refunding");
-            let _ = db.add_balance(params.telegram_id, params.cost).await;
+            if let Err(refund_err) = db.add_balance(params.telegram_id, params.cost).await {
+                tracing::error!(telegram_id = params.telegram_id, error = %refund_err, "CRITICAL: Failed to refund balance after generation creation failure");
+            }
             let err_msg = if params.lang.is_russian() {
                 format!("❌ Ошибка: {}", e)
             } else {

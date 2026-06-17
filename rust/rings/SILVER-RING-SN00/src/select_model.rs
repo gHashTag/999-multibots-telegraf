@@ -72,7 +72,9 @@ pub async fn handle_select_model_callback(
                 _ => "gpt-4o",
             };
             state.selected_model = Some(model.to_string());
-            let _ = db.update_user_model(tid, model).await;
+            if let Err(e) = db.update_user_model(tid, model).await {
+                tracing::error!(telegram_id = tid, error = %e, "Failed to update user model");
+            }
             let text = if lang.is_russian() {
                 format!("✅ Модель выбрана: {}", model)
             } else {
