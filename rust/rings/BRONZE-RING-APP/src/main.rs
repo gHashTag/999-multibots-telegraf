@@ -8,14 +8,24 @@ use trios_mb_jobs::worker::{WorkerPool, JobType};
 use teloxide::prelude::Requester;
 use futures_util::FutureExt;
 
-/// Spawn a background task with panic-aware supervision.
-/// If the inner task panics, it is logged and restarted after a short delay.
-fn spawn_traced<F, Fut>(desc: &'static str, cancel: tokio_util::sync::CancellationToken, factory: F) -> tokio::task::JoinHandle<()>
+/// Spawn a background task with panic-aware supervision and exponential backoff.
+/// If the inner task panics, it is logged and restarted with a capped exponential delay.
+/// After `max_consecutive_failures` consecutive panics, the supervisor escalates to fatal.
+fn spawn_traced<F, Fut>(
+    desc: &'static str,
+    cancel: tokio_util::sync::CancellationToken,
+    factory: F,
+) -> tokio::task::JoinHandle<()>
 where
     F: Fn() -> Fut + Send + 'static,
     Fut: std::future::Future<Output = ()> + Send + 'static,
 {
     tokio::spawn(async move {
+        let mut consecutive_failures: u32 = 0;
+        const MAX_CONSECUTIVE_FAILURES: u32 = 10;
+        const BASE_BACKOFF_SECS: u64 = 5;
+        const MAX_BACKOFF_SECS: u64 = 60;
+
         loop {
             tokio::select! {
                 biased;
@@ -24,12 +34,34 @@ where
                     break;
                 }
                 result = std::panic::AssertUnwindSafe(factory()).catch_unwind() => {
-                    if result.is_ok() {
-                        tracing::info!(task = %desc, "Supervised task completed normally");
-                        break;
+                    match result {
+                        Ok(()) => {
+                            tracing::info!(task = %desc, "Supervised task completed normally");
+                            break;
+                        }
+                        Err(_) => {
+                            consecutive_failures += 1;
+                            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
+                                tracing::error!(
+                                    task = %desc,
+                                    failures = consecutive_failures,
+                                    "Supervised task exceeded max consecutive failures; giving up"
+                                );
+                                break;
+                            }
+                            let backoff = std::cmp::min(
+                                BASE_BACKOFF_SECS * 2_u64.pow(consecutive_failures.min(4)),
+                                MAX_BACKOFF_SECS,
+                            );
+                            tracing::error!(
+                                task = %desc,
+                                failures = consecutive_failures,
+                                backoff_secs = backoff,
+                                "Supervised task panicked; restarting with backoff"
+                            );
+                            tokio::time::sleep(std::time::Duration::from_secs(backoff)).await;
+                        }
                     }
-                    tracing::error!(task = %desc, "Supervised task panicked; restarting in 5s");
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 }
             }
         }
@@ -168,29 +200,46 @@ async fn main() -> anyhow::Result<()> {
         job_queue.clone(),
     );
 
-    let mut bot_handles = Vec::new();
+    let mut bot_handles: Vec<(tokio_util::sync::CancellationToken, tokio::task::JoinHandle<()>)> = Vec::new();
     for i in 1..=15 {
         let key = format!("BOT_TOKEN_{}", i);
         match secret_store.get(&key).await {
             Ok(token) if !token.is_empty() => {
                 info!(bot = i, token_key = %key, "spawning bot");
                 let bot = teloxide::Bot::new(&token);
-                let dp = dispatcher.build_dispatcher(bot, trios_mb_scenes::build_scene_tree());
-                let handle = tokio::spawn(async move {
-                    info!(bot = i, "bot dispatcher starting (polling)");
-                    let inner = tokio::spawn(async move {
-                        let mut dp = dp;
-                        dp.dispatch().await;
-                    });
-                    match inner.await {
-                        Ok(()) => info!(bot = i, "bot dispatcher stopped normally"),
-                        Err(e) if e.is_panic() => {
-                            tracing::error!(bot = i, "bot dispatcher panicked");
+                let dp_builder = dispatcher.clone();
+                let bot_cancel = cancel_token.child_token();
+                let bot_cancel_clone_for_closure = bot_cancel.clone();
+                let desc: &'static str = Box::leak(format!("bot-{}", i).into_boxed_str());
+                let bot_cancel_spawn = bot_cancel.clone();
+                let handle = spawn_traced(desc, bot_cancel_spawn, move || {
+                    let bot = bot.clone();
+                    let dp_builder = dp_builder.clone();
+                    let bot_cancel_inner = bot_cancel_clone_for_closure.clone();
+                    async move {
+                        let mut backoff_secs = 5u64;
+                        loop {
+                            let cancel_child = bot_cancel_inner.child_token();
+                            let mut dp = dp_builder.build_dispatcher(
+                                bot.clone(),
+                                trios_mb_scenes::build_scene_tree(),
+                            );
+                            tokio::select! {
+                                biased;
+                                _ = cancel_child.cancelled() => {
+                                    tracing::info!(bot = i, "bot dispatcher shutting down gracefully");
+                                    break;
+                                }
+                                _ = dp.dispatch() => {
+                                    tracing::warn!(bot = i, "Dispatcher stopped normally; restarting in {}s", backoff_secs);
+                                    tokio::time::sleep(std::time::Duration::from_secs(backoff_secs)).await;
+                                    backoff_secs = std::cmp::min(backoff_secs.saturating_mul(2), 60);
+                                }
+                            }
                         }
-                        Err(_) => info!(bot = i, "bot dispatcher cancelled"),
                     }
                 });
-                bot_handles.push(handle);
+                bot_handles.push((bot_cancel, handle));
             }
             Ok(_) => warn!(bot = i, "empty token, skipping"),
             Err(_) => warn!(bot = i, "token not found, skipping"),
@@ -209,8 +258,9 @@ async fn main() -> anyhow::Result<()> {
     worker_pool.shutdown();
     info!("shutting down workers...");
 
-    for handle in bot_handles {
-        handle.abort();
+    for (bot_cancel, handle) in bot_handles {
+        bot_cancel.cancel();
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), handle).await;
     }
 
     maintenance_handle.abort();
@@ -348,8 +398,8 @@ async fn handle_generation_job(
     match orchestrator.dispatch(&request).await {
         Ok(result) => {
             if let Some(gen_id) = generation_id {
-                if let Err(e) = db.update_generation_status(
-                    gen_id, GenerationStatus::Completed,
+                if let Err(e) = db.update_generation_status_owned(
+                    gen_id, request.telegram_id, GenerationStatus::Completed,
                     result.result_url.as_deref(), None,
                 ).await {
                     tracing::error!(generation_id = %gen_id, error = %e, "Failed to update generation status");
@@ -378,8 +428,8 @@ async fn handle_generation_job(
             }
 
             if let Some(gen_id) = generation_id {
-                if let Err(db_err) = db.update_generation_status(
-                    gen_id, GenerationStatus::Failed, None, Some(&e.to_string()),
+                if let Err(db_err) = db.update_generation_status_owned(
+                    gen_id, request.telegram_id, GenerationStatus::Failed, None, Some(&e.to_string()),
                 ).await {
                     tracing::error!(generation_id = %gen_id, error = %db_err, "Failed to persist generation failure status");
                 }

@@ -5,6 +5,7 @@ use axum::Json;
 use std::sync::Arc;
 use std::time::Duration;
 use trios_mb_types::generation::GenerationStatus;
+use trios_mb_types::truncate_for_log;
 use trios_mb_proto::replicate::WebhookPayload;
 use crate::AppState;
 
@@ -126,6 +127,23 @@ pub async fn replicate_webhook(
         "Replicate webhook received"
     );
 
+    // Wave 162: idempotency guard
+    match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.record_webhook_event("replicate", &payload.id)).await {
+        Ok(Ok(true)) => {}, // new event, proceed
+        Ok(Ok(false)) => {
+            tracing::info!(id = %payload.id, "Replicate webhook: duplicate event, skipping");
+            return (StatusCode::OK, Json(serde_json::json!({"status": "ok"})));
+        }
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, id = %payload.id, "Failed to record webhook event");
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "internal error"})));
+        }
+        Err(_) => {
+            tracing::warn!(id = %payload.id, "Webhook idempotency check timed out");
+            return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
+        }
+    }
+
     let generation_id = match parse_uuid(&payload.id) {
         Ok(id) => id,
         Err((status, msg)) => return (status, Json(serde_json::json!({"error": msg}))),
@@ -184,14 +202,14 @@ pub async fn replicate_webhook(
             );
         }
     } else if payload.is_failed() {
-        let error = payload.error.as_deref().unwrap_or("unknown");
+        let error = truncate_for_log(payload.error.as_deref().unwrap_or("unknown"), 1024);
         match tokio::time::timeout(
             WEBHOOK_DB_TIMEOUT,
             state.db.update_generation_status(
                 generation_id,
                 GenerationStatus::Failed,
                 None,
-                Some(error),
+                Some(&error),
             )
         ).await {
             Ok(Ok(())) => {}
@@ -224,6 +242,24 @@ pub async fn kie_ai_webhook(
         success_flag = ?payload.success_flag_val(),
         "Kie.ai webhook received"
     );
+
+    // Wave 162: idempotency guard
+    let event_id = payload.task_id.as_deref().unwrap_or("missing");
+    match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.record_webhook_event("kie", event_id)).await {
+        Ok(Ok(true)) => {}, // new event, proceed
+        Ok(Ok(false)) => {
+            tracing::info!(task_id = %event_id, "Kie.ai webhook: duplicate event, skipping");
+            return (StatusCode::OK, Json(serde_json::json!({"status": "ok"})));
+        }
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, task_id = %event_id, "Failed to record webhook event");
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "internal error"})));
+        }
+        Err(_) => {
+            tracing::warn!(task_id = %event_id, "Webhook idempotency check timed out");
+            return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
+        }
+    }
 
     let task_id = match payload.task_id.as_deref() {
         Some(t) => t,
@@ -282,14 +318,14 @@ pub async fn kie_ai_webhook(
             }
         }
     } else if payload.is_failed() {
-        let error = payload.error_message.as_deref().unwrap_or("unknown");
+        let error = truncate_for_log(payload.error_message.as_deref().unwrap_or("unknown"), 1024);
         match tokio::time::timeout(
             WEBHOOK_DB_TIMEOUT,
             state.db.update_generation_status(
                 generation_id,
                 GenerationStatus::Failed,
                 None,
-                Some(error),
+                Some(&error),
             )
         ).await {
             Ok(Ok(())) => {}

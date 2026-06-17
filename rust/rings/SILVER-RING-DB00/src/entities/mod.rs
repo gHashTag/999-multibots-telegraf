@@ -15,3 +15,4 @@ pub mod voice_models;
 pub mod bots;
 pub mod clips;
 pub mod job_queue;
+pub mod webhook_events;

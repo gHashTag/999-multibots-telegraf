@@ -8,6 +8,7 @@ use crate::state::Scene;
 pub type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 pub type HandlerError = Box<dyn std::error::Error + Send + Sync>;
 
+#[derive(Clone)]
 pub struct BotDispatcher {
     db: Arc<dyn Database>,
     orchestrator: Arc<dyn AiProviderOrchestrator>,

@@ -16,6 +16,7 @@ struct Inner {
     image_counts: HashMap<i64, i64>,
     generations: HashMap<uuid::Uuid, GenerationResult>,
     referral_counts: HashMap<i64, i64>,
+    webhook_events: HashMap<(String, String), chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Clone)]
@@ -347,5 +348,30 @@ impl Database for MockDatabase {
         } else {
             Err(AppError::NotFound(format!("generation {}", id)))
         }
+    }
+
+    async fn record_webhook_event(
+        &self,
+        provider: &str,
+        event_id: &str,
+    ) -> Result<bool, AppError> {
+        let mut inner = self.inner.lock().await;
+        let key = (provider.to_string(), event_id.to_string());
+        if inner.webhook_events.contains_key(&key) {
+            Ok(false)
+        } else {
+            inner.webhook_events.insert(key, chrono::Utc::now());
+            Ok(true)
+        }
+    }
+
+    async fn has_webhook_event(
+        &self,
+        provider: &str,
+        event_id: &str,
+    ) -> Result<bool, AppError> {
+        let inner = self.inner.lock().await;
+        let key = (provider.to_string(), event_id.to_string());
+        Ok(inner.webhook_events.contains_key(&key))
     }
 }

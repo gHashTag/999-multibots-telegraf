@@ -5,6 +5,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 use std::time::Duration;
 use trios_mb_types::payment::PaymentStatus;
+use trios_mb_types::truncate_for_log;
 use crate::AppState;
 
 const WEBHOOK_DB_TIMEOUT: Duration = Duration::from_secs(10);
@@ -32,8 +33,8 @@ pub async fn robokassa_callback(
     Form(form): Form<RobokassaCallbackForm>,
 ) -> impl IntoResponse {
     tracing::info!(
-        inv_id = %form.inv_id,
-        amount = %form.out_sum,
+        inv_id = %truncate_for_log(&form.inv_id, 128),
+        amount = %truncate_for_log(&form.out_sum, 64),
         "Robokassa callback received"
     );
 
@@ -44,10 +45,27 @@ pub async fn robokassa_callback(
             return "ERROR: invalid amount".to_string();
         }
         Err(e) => {
-            tracing::warn!(out_sum = %form.out_sum, error = %e, "Robokassa callback rejected: amount parse error");
+            tracing::warn!(out_sum = %truncate_for_log(&form.out_sum, 64), error = %e, "Robokassa callback rejected: amount parse error");
             return "ERROR: invalid amount format".to_string();
         }
     };
+
+    // Wave 162: idempotency guard
+    match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.record_webhook_event("robokassa", &form.inv_id)).await {
+        Ok(Ok(true)) => {}, // new event, proceed
+        Ok(Ok(false)) => {
+            tracing::info!(inv_id = %form.inv_id, "Robokassa callback: duplicate event, skipping");
+            return "OK".to_string();
+        }
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, inv_id = %form.inv_id, "Failed to record webhook event");
+            return "ERROR: internal error".to_string();
+        }
+        Err(_) => {
+            tracing::warn!(inv_id = %form.inv_id, "Webhook idempotency check timed out");
+            return "ERROR: DB timeout".to_string();
+        }
+    }
 
     if let Some(gateway) = &state.payment_gateway {
         let params = serde_json::json!({

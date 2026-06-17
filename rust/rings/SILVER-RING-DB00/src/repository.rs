@@ -295,8 +295,8 @@ impl DbTrait for PostgresDatabase {
     }
 
     async fn deduct_balance(&self, telegram_id: i64, amount: f64) -> Result<bool, AppError> {
-        if amount <= 0.0 {
-            return Err(AppError::Validation("deduct_balance amount must be > 0".into()));
+        if !amount.is_finite() || amount <= 0.0 {
+            return Err(AppError::Validation(format!("deduct_balance amount must be finite and > 0: {}", amount)));
         }
         let sql = r#"
             UPDATE users
@@ -320,8 +320,8 @@ impl DbTrait for PostgresDatabase {
     }
 
     async fn add_balance(&self, telegram_id: i64, amount: f64) -> Result<(), AppError> {
-        if amount < 0.0 {
-            return Err(AppError::Validation("add_balance amount must be >= 0".into()));
+        if !amount.is_finite() || amount < 0.0 {
+            return Err(AppError::Validation(format!("add_balance amount must be finite and >= 0: {}", amount)));
         }
         let sql = r#"
             UPDATE users
@@ -643,6 +643,9 @@ impl DbTrait for PostgresDatabase {
         telegram_id: i64,
         amount: f64,
     ) -> Result<bool, AppError> {
+        if !amount.is_finite() || amount < 0.0 {
+            return Err(AppError::Validation(format!("complete_robokassa_payment amount must be finite and >= 0: {}", amount)));
+        }
         let completed_status = serde_json::to_string(&PaymentStatus::Completed).map_err(|e| {
             AppError::Internal(format!("Failed to serialize PaymentStatus::Completed: {}", e))
         })?;
@@ -737,6 +740,45 @@ impl DbTrait for PostgresDatabase {
                 .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
         }
         Ok(())
+    }
+
+    async fn record_webhook_event(
+        &self,
+        provider: &str,
+        event_id: &str,
+    ) -> Result<bool, AppError> {
+        let sql = r#"
+            INSERT INTO webhook_events (provider, event_id, processed_at)
+            VALUES ($1, $2, NOW())
+            ON CONFLICT (provider, event_id) DO NOTHING
+        "#;
+        let result = self.pool
+            .execute(Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                vec![
+                    Value::String(Some(Box::new(provider.to_string()))),
+                    Value::String(Some(Box::new(event_id.to_string()))),
+                ],
+            ))
+            .await
+            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn has_webhook_event(
+        &self,
+        provider: &str,
+        event_id: &str,
+    ) -> Result<bool, AppError> {
+        use crate::entities::webhook_events as w;
+        let count = w::Entity::find()
+            .filter(w::Column::Provider.eq(provider))
+            .filter(w::Column::EventId.eq(event_id))
+            .count(self.pool.as_ref())
+            .await
+            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+        Ok(count > 0)
     }
 }
 

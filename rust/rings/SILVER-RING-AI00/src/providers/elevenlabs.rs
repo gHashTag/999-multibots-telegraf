@@ -121,6 +121,15 @@ impl ElevenLabsProvider {
             }.into());
         }
 
+        const MAX_RESPONSE_BYTES: u64 = 50 * 1024 * 1024;
+        if let Some(cl) = resp.content_length() {
+            if cl > MAX_RESPONSE_BYTES {
+                return Err(AiError::InvalidResponse {
+                    provider: "elevenlabs".into(),
+                    message: format!("response body too large: {} bytes (max {})", cl, MAX_RESPONSE_BYTES),
+                }.into());
+            }
+        }
         resp.bytes()
             .await
             .map(|b| b.to_vec())

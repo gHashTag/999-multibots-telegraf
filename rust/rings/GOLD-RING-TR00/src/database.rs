@@ -46,4 +46,10 @@ pub trait Database: Send + Sync {
 
     /// Update a generation's status only if it belongs to the given telegram_id.
     async fn update_generation_status_owned(&self, id: uuid::Uuid, telegram_id: i64, status: GenerationStatus, result_url: Option<&str>, error: Option<&str>) -> Result<(), AppError>;
+
+    /// Record a webhook event for idempotency. Returns `true` if this is a new event, `false` if already processed.
+    async fn record_webhook_event(&self, provider: &str, event_id: &str) -> Result<bool, AppError>;
+
+    /// Check whether a webhook event has already been processed.
+    async fn has_webhook_event(&self, provider: &str, event_id: &str) -> Result<bool, AppError>;
 }

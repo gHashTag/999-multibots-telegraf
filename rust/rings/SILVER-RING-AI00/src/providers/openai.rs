@@ -288,6 +288,15 @@ impl OpenAiProvider {
             }.into());
         }
 
+        const MAX_RESPONSE_BYTES: u64 = 50 * 1024 * 1024;
+        if let Some(cl) = resp.content_length() {
+            if cl > MAX_RESPONSE_BYTES {
+                return Err(AiError::InvalidResponse {
+                    provider: "openai".into(),
+                    message: format!("response body too large: {} bytes (max {})", cl, MAX_RESPONSE_BYTES),
+                }.into());
+            }
+        }
         let bytes = resp.bytes().await.map_err(|e| AiError::InvalidResponse {
             provider: "openai".into(),
             message: format!("read body: {}", e),
