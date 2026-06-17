@@ -61,7 +61,7 @@ impl KieProvider {
                 .timeout(std::time::Duration::from_secs(60))
                 .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
-                .unwrap_or_default(),
+                .expect("Failed to build KIE reqwest client"),
             base_url: "https://api.kie.ai".to_string(),
         }
     }
@@ -312,7 +312,7 @@ impl AiProvider for KieProvider {
             media_type: request.media_type,
             status: gen_status,
             result_url,
-            provider: Some(format!("kie:{}", task_id.unwrap_or_default())),
+            provider: task_id.map(|id| format!("kie:{}", id)),
             error: kie_resp.error,
             created_at: chrono::Utc::now(),
         })

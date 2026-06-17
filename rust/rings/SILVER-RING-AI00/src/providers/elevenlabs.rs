@@ -68,7 +68,7 @@ impl ElevenLabsProvider {
                 .timeout(std::time::Duration::from_secs(60))
                 .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
-                .unwrap_or_default(),
+                .expect("Failed to build ElevenLabs reqwest client"),
             base_url: "https://api.elevenlabs.io".to_string(),
         }
     }
@@ -158,7 +158,11 @@ impl ElevenLabsProvider {
             message: format!("json parse: {}", e),
         })?;
 
-        Ok(voice_resp.voices.unwrap_or_default())
+        let voices = voice_resp.voices.ok_or_else(|| AiError::InvalidResponse {
+            provider: "elevenlabs".into(),
+            message: "missing voices field".into(),
+        })?;
+        Ok(voices)
     }
 
     pub async fn voice_exists(&self, voice_id: &str) -> Result<bool, AppError> {

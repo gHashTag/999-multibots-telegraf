@@ -55,7 +55,7 @@ impl FalProvider {
                 .timeout(std::time::Duration::from_secs(120))
                 .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
-                .unwrap_or_default(),
+                .expect("Failed to build Fal reqwest client"),
             base_url: "https://queue.fal.run".to_string(),
         }
     }

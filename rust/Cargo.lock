@@ -3655,6 +3655,7 @@ dependencies = [
  "async-trait",
  "axum",
  "dotenvy",
+ "futures-util",
  "serde",
  "serde_json",
  "teloxide",

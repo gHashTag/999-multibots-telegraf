@@ -51,7 +51,7 @@ impl ReplicateProvider {
                 .timeout(std::time::Duration::from_secs(120))
                 .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
-                .unwrap_or_default(),
+                .expect("Failed to build Replicate reqwest client"),
             base_url: "https://api.replicate.com".to_string(),
             webhook_url: None,
         }

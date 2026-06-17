@@ -6,6 +6,35 @@ use trios_mb_ai::providers::*;
 use trios_mb_ai::AiOrchestrator;
 use trios_mb_jobs::worker::{WorkerPool, JobType};
 use teloxide::prelude::Requester;
+use futures_util::FutureExt;
+
+/// Spawn a background task with panic-aware supervision.
+/// If the inner task panics, it is logged and restarted after a short delay.
+fn spawn_traced<F, Fut>(desc: &'static str, cancel: tokio_util::sync::CancellationToken, factory: F) -> tokio::task::JoinHandle<()>
+where
+    F: Fn() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = ()> + Send + 'static,
+{
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                biased;
+                _ = cancel.cancelled() => {
+                    tracing::info!(task = %desc, "Supervised task shutting down gracefully");
+                    break;
+                }
+                result = std::panic::AssertUnwindSafe(factory()).catch_unwind() => {
+                    if result.is_ok() {
+                        tracing::info!(task = %desc, "Supervised task completed normally");
+                        break;
+                    }
+                    tracing::error!(task = %desc, "Supervised task panicked; restarting in 5s");
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                }
+            }
+        }
+    })
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -62,26 +91,44 @@ async fn main() -> anyhow::Result<()> {
         trios_mb_payment::RobokassaGateway::new(&robokassa_login, &robokassa_pw1, &robokassa_pw2)
     );
 
+    let cancel_token = tokio_util::sync::CancellationToken::new();
+
     // 5. HTTP Server with webhooks
     let server_db = db.clone();
     let server_gw = payment_gateway.clone();
     let http_port = config.http_port;
+    let server_cancel = cancel_token.clone();
     let server_handle = tokio::spawn(async move {
-        let router = trios_mb_server::create_router_with_payments(server_db, server_gw);
-        let addr = std::net::SocketAddr::from(([0, 0, 0, 0], http_port));
-        info!(addr = %addr, "HTTP server starting");
-        let listener = match tokio::net::TcpListener::bind(addr).await {
-            Ok(l) => l,
-            Err(e) => {
-                tracing::error!(addr = %addr, error = %e, "Failed to bind HTTP listener");
-                return Err(anyhow::anyhow!("Failed to bind HTTP listener on {}: {}", addr, e));
+        let server_inner = async {
+            let router = trios_mb_server::create_router_with_payments(server_db, server_gw);
+            let addr = std::net::SocketAddr::from(([0, 0, 0, 0], http_port));
+            info!(addr = %addr, "HTTP server starting");
+            let listener = match tokio::net::TcpListener::bind(addr).await {
+                Ok(l) => l,
+                Err(e) => {
+                    tracing::error!(addr = %addr, error = %e, "Failed to bind HTTP listener");
+                    return Err(anyhow::anyhow!("Failed to bind HTTP listener on {}: {}", addr, e));
+                }
+            };
+            if let Err(e) = axum::serve(listener, router).await {
+                tracing::error!(addr = %addr, error = %e, "HTTP server error");
+                return Err(anyhow::anyhow!("HTTP server error: {}", e));
             }
+            Ok(())
         };
-        if let Err(e) = axum::serve(listener, router).await {
-            tracing::error!(addr = %addr, error = %e, "HTTP server error");
-            return Err(anyhow::anyhow!("HTTP server error: {}", e));
+        tokio::select! {
+            biased;
+            _ = server_cancel.cancelled() => {
+                tracing::info!("HTTP server shutting down gracefully");
+            }
+            result = std::panic::AssertUnwindSafe(server_inner).catch_unwind() => {
+                match result {
+                    Ok(Ok(())) => {}
+                    Ok(Err(e)) => tracing::error!(error = %e, "HTTP server error"),
+                    Err(_) => tracing::error!("HTTP server panicked"),
+                }
+            }
         }
-        Ok(())
     });
 
     // 6. Background Job Workers
@@ -89,12 +136,18 @@ async fn main() -> anyhow::Result<()> {
         trios_mb_jobs::PgJobQueue::new(pg_conn)
     );
 
-    let cancel_token = tokio_util::sync::CancellationToken::new();
-    let cancel_clone = cancel_token.clone();
-    let jq = job_queue.clone();
-    let maintenance_handle = tokio::spawn(async move {
-        trios_mb_jobs::run_retry_maintenance(jq, std::time::Duration::from_secs(300), cancel_clone).await;
-    });
+    let maintenance_handle = {
+        let jq = job_queue.clone();
+        let cancel = cancel_token.child_token();
+        let cancel_token_clone = cancel_token.clone();
+        spawn_traced("retry_maintenance", cancel, move || {
+            let jq = jq.clone();
+            let cancel = cancel_token_clone.child_token();
+            async move {
+                trios_mb_jobs::run_retry_maintenance(jq, std::time::Duration::from_secs(300), cancel).await;
+            }
+        })
+    };
 
     // Primary bot for result delivery
     let primary_bot_token = secret_store.get("BOT_TOKEN_1").await?;
@@ -125,8 +178,17 @@ async fn main() -> anyhow::Result<()> {
                 let dp = dispatcher.build_dispatcher(bot, trios_mb_scenes::build_scene_tree());
                 let handle = tokio::spawn(async move {
                     info!(bot = i, "bot dispatcher starting (polling)");
-                    let mut dp = dp;
-                    dp.dispatch().await;
+                    let inner = tokio::spawn(async move {
+                        let mut dp = dp;
+                        dp.dispatch().await;
+                    });
+                    match inner.await {
+                        Ok(()) => info!(bot = i, "bot dispatcher stopped normally"),
+                        Err(e) if e.is_panic() => {
+                            tracing::error!(bot = i, "bot dispatcher panicked");
+                        }
+                        Err(_) => info!(bot = i, "bot dispatcher cancelled"),
+                    }
                 });
                 bot_handles.push(handle);
             }

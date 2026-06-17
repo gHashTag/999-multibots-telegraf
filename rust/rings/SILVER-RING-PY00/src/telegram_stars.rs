@@ -31,9 +31,13 @@ impl PaymentGateway for TelegramStarsGateway {
     }
 
     async fn verify_callback(&self, params: &serde_json::Value) -> Result<PaymentVerification, AppError> {
+        let transaction_id = params["telegram_payment_charge_id"].as_str()
+            .ok_or_else(|| AppError::Validation("Missing telegram_payment_charge_id in Stars callback".into()))?;
+        let amount = params["total_amount"].as_f64()
+            .ok_or_else(|| AppError::Validation("Missing total_amount in Stars callback".into()))?;
         Ok(PaymentVerification {
-            transaction_id: params["telegram_payment_charge_id"].as_str().unwrap_or_default().to_string(),
-            amount: params["total_amount"].as_f64().unwrap_or(0.0),
+            transaction_id: transaction_id.to_string(),
+            amount,
             currency: "XTR".into(),
             status: PaymentStatus::Completed,
             telegram_id: params["user_id"].as_i64(),

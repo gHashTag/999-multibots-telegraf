@@ -61,7 +61,7 @@ impl HedraProvider {
                 .timeout(std::time::Duration::from_secs(120))
                 .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
-                .unwrap_or_default(),
+                .expect("Failed to build Hedra reqwest client"),
             base_url: "https://api.hedra.com".to_string(),
         }
     }
@@ -182,7 +182,7 @@ impl AiProvider for HedraProvider {
             media_type: request.media_type,
             status: gen_status,
             result_url,
-            provider: Some(format!("hedra:{}", anim_id.unwrap_or_default())),
+            provider: anim_id.map(|id| format!("hedra:{}", id)),
             error: hedra_resp.error,
             created_at: chrono::Utc::now(),
         })

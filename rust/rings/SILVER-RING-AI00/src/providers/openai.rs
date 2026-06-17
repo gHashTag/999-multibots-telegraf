@@ -79,7 +79,7 @@ impl OpenAiProvider {
                 .timeout(std::time::Duration::from_secs(60))
                 .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
-                .unwrap_or_default(),
+                .expect("Failed to build OpenAI reqwest client"),
             base_url: "https://api.openai.com".to_string(),
         }
     }
@@ -96,7 +96,7 @@ impl OpenAiProvider {
                 .timeout(std::time::Duration::from_secs(60))
                 .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
-                .unwrap_or_default(),
+                .expect("Failed to build DeepSeek reqwest client"),
             base_url: "https://api.deepseek.com/v1".to_string(),
         }
     }
@@ -108,7 +108,7 @@ impl OpenAiProvider {
                 .timeout(std::time::Duration::from_secs(60))
                 .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
-                .unwrap_or_default(),
+                .expect("Failed to build Grok reqwest client"),
             base_url: "https://api.x.ai/v1".to_string(),
         }
     }

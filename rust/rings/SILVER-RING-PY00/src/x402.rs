@@ -62,12 +62,11 @@ impl PaymentGateway for X402Gateway {
     ) -> Result<PaymentVerification, AppError> {
         let tx_hash = params["transaction_hash"]
             .as_str()
-            .unwrap_or_default();
+            .ok_or_else(|| AppError::Validation("Missing transaction_hash in x402 callback".into()))?;
 
-        let _from = params["from"].as_str().unwrap_or_default();
         let amount = params["amount"]
             .as_f64()
-            .unwrap_or(0.0)
+            .ok_or_else(|| AppError::Validation("Missing amount in x402 callback".into()))?
             / 1_000_000.0;
 
         Ok(PaymentVerification {
@@ -84,6 +83,7 @@ impl PaymentGateway for X402Gateway {
     }
 
     async fn get_payment_url(&self, payment: &PaymentInit) -> Result<String, AppError> {
-        Ok(payment.payment_url.clone().unwrap_or_default())
+        payment.payment_url.clone()
+            .ok_or_else(|| AppError::Validation("Missing payment_url in x402 payment".into()))
     }
 }
