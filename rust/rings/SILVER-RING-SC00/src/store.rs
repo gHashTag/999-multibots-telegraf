@@ -79,7 +79,8 @@ impl InfisicalStore {
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
+            let body = resp.text().await
+                .map_err(|e| AppError::Secrets(SecretsError::Auth(format!("failed to read error body: {}", e))))?;
             return Err(AppError::Secrets(SecretsError::Auth(format!("{}: {}", status, body))));
         }
 
@@ -113,7 +114,8 @@ impl InfisicalStore {
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
+            let body = resp.text().await
+                .map_err(|e| AppError::Secrets(SecretsError::Api { status: 0, message: format!("failed to read error body: {}", e) }))?;
             return Err(AppError::Secrets(SecretsError::Api { status, message: body }));
         }
 

@@ -24,17 +24,15 @@ pub async fn robokassa_callback(
         "Robokassa callback received"
     );
 
-    // Wave 151: validate amount is a valid decimal before forwarding to gateway
-    // Wave 151: validate amount is a valid finite decimal before forwarding to gateway
     let _out_sum_parsed: f64 = match form.out_sum.parse::<f64>() {
         Ok(v) if v.is_finite() && v >= 0.0 => v,
         Ok(v) => {
             tracing::warn!(out_sum = %v, "Robokassa callback rejected: invalid amount");
-            return format!("ERROR: invalid amount: {}", v);
+            return "ERROR: invalid amount".to_string();
         }
         Err(e) => {
             tracing::warn!(out_sum = %form.out_sum, error = %e, "Robokassa callback rejected: amount parse error");
-            return format!("ERROR: invalid amount format: {}", e);
+            return "ERROR: invalid amount format".to_string();
         }
     };
 
@@ -48,12 +46,27 @@ pub async fn robokassa_callback(
         match gateway.verify_callback(&params).await {
             Ok(verification) => {
                 if let Ok(tx_id) = uuid::Uuid::parse_str(&verification.transaction_id) {
+                    // Idempotency guard: load transaction and skip if already completed
+                    match state.db.get_transaction(tx_id).await {
+                        Ok(Some(tx)) if tx.status == PaymentStatus::Completed => {
+                            tracing::info!(tx_id = %tx_id, "Robokassa callback: transaction already completed; skipping");
+                            return "OK".to_string();
+                        }
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::error!(error = %e, tx_id = %tx_id, "Failed to load transaction for idempotency check");
+                            return "ERROR: internal error".to_string();
+                        }
+                    }
+
                     if let Err(e) = state.db.update_transaction_status(tx_id, PaymentStatus::Completed).await {
                         tracing::error!(error = %e, tx_id = %tx_id, "Failed to update transaction status after Robokassa verification");
+                        return "ERROR: internal error".to_string();
                     }
                     if let Some(tid) = verification.telegram_id {
                         if let Err(e) = state.db.add_balance(tid, verification.amount).await {
                             tracing::error!(telegram_id = tid, error = %e, "Failed to add balance after Robokassa payment");
+                            return "ERROR: internal error".to_string();
                         }
                     }
                 }
@@ -61,7 +74,7 @@ pub async fn robokassa_callback(
             }
             Err(e) => {
                 tracing::error!(error = %e, "Robokassa verification failed");
-                format!("ERROR: {}", e)
+                "ERROR: verification failed".to_string()
             }
         }
     } else {

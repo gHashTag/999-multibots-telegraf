@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DatabaseConnection,
-    EntityTrait, FromQueryResult, Statement,
+    EntityTrait, FromQueryResult, Statement, Value,
 };
 use std::sync::Arc;
 use trios_mb_traits::job_queue::*;
@@ -103,11 +103,14 @@ impl JobQueue for PgJobQueue {
     }
 
     async fn dequeue(&self, job_types: &[&str]) -> Result<Option<Job>, AppError> {
-        let types_list = job_types
-            .iter()
-            .map(|t| format!("'{}'", t.replace('\'', "''")))
-            .collect::<Vec<_>>()
-            .join(", ");
+        if job_types.is_empty() {
+            return Ok(None);
+        }
+
+        let placeholders: Vec<String> = (1..=job_types.len())
+            .map(|i| format!("${}", i))
+            .collect();
+        let types_placeholders = placeholders.join(", ");
 
         let sql = format!(
             r#"
@@ -120,7 +123,7 @@ impl JobQueue for PgJobQueue {
                 SELECT id FROM job_queue
                 WHERE status = 'queued'
                   AND (scheduled_at IS NULL OR scheduled_at <= NOW())
-                  AND job_type IN ({types_list})
+                  AND job_type IN ({types_placeholders})
                 ORDER BY created_at ASC
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED
@@ -130,9 +133,15 @@ impl JobQueue for PgJobQueue {
             "#,
         );
 
-        let result = Model::find_by_statement(Statement::from_string(
+        let values: Vec<Value> = job_types
+            .iter()
+            .map(|t| Value::String(Some(Box::new(t.to_string()))))
+            .collect();
+
+        let result = Model::find_by_statement(Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
-            sql,
+            &sql,
+            values,
         ))
         .one(self.db.as_ref())
         .await
@@ -160,33 +169,45 @@ impl JobQueue for PgJobQueue {
             JobStatus::Completed | JobStatus::Failed | JobStatus::Cancelled
         );
 
-        let error_sql = error
-            .map(|e| format!("'{}'", e.replace('\'', "''")))
-            .unwrap_or_else(|| "NULL".to_string());
-
-        let completed_at_sql = if is_terminal {
-            "completed_at = NOW(),"
+        let (sql, values): (String, Vec<Value>) = if is_terminal {
+            (
+                r#"
+                UPDATE job_queue
+                SET status = $1,
+                    error = $2,
+                    completed_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = $3
+                "#.to_string(),
+                vec![
+                    Value::String(Some(Box::new(status_str.to_string()))),
+                    error.map_or(Value::String(None), |e| Value::String(Some(Box::new(e.to_string())))),
+                    Value::Uuid(Some(Box::new(id))),
+                ],
+            )
         } else {
-            ""
+            (
+                r#"
+                UPDATE job_queue
+                SET status = $1,
+                    error = $2,
+                    updated_at = NOW()
+                WHERE id = $3
+                "#.to_string(),
+                vec![
+                    Value::String(Some(Box::new(status_str.to_string()))),
+                    error.map_or(Value::String(None), |e| Value::String(Some(Box::new(e.to_string())))),
+                    Value::Uuid(Some(Box::new(id))),
+                ],
+            )
         };
-
-        let sql = format!(
-            r#"
-            UPDATE job_queue
-            SET status = '{}',
-                error = {},
-                {}
-                updated_at = NOW()
-            WHERE id = '{}'
-            "#,
-            status_str, error_sql, completed_at_sql, id,
-        );
 
         self.db
             .as_ref()
-            .execute(Statement::from_string(
+            .execute(Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
-                sql,
+                &sql,
+                values,
             ))
             .await
             .map_err(|e| AppError::Db(DbError::Query(e.to_string())))?;
@@ -208,23 +229,21 @@ impl JobQueue for PgJobQueue {
     }
 
     async fn retry_stuck(&self, older_than_secs: u64) -> Result<u64, AppError> {
-        let sql = format!(
-            r#"
+        let sql = r#"
             UPDATE job_queue
             SET status = 'queued', attempts = 0, started_at = NULL, updated_at = NOW()
             WHERE status = 'running'
-              AND started_at < NOW() - INTERVAL '{} seconds'
+              AND started_at < NOW() - INTERVAL '$1 seconds'
               AND attempts < max_attempts
-            "#,
-            older_than_secs
-        );
+        "#;
 
         let result = self
             .db
             .as_ref()
-            .execute(Statement::from_string(
+            .execute(Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
+                vec![Value::Int(Some(older_than_secs as i32))],
             ))
             .await
             .map_err(|e| AppError::Db(DbError::Query(e.to_string())))?;

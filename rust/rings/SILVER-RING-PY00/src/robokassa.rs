@@ -28,6 +28,29 @@ impl RobokassaGateway {
         mac.update(data.as_bytes());
         Ok(hex::encode(mac.finalize().into_bytes()))
     }
+
+    fn verify_callback_signature(&self, amount: &str, inv_id: &str, signature_value: &str) -> Result<(), AppError> {
+        use hmac::{Hmac, Mac};
+        use sha2::Sha256;
+        type HmacSha256 = Hmac<Sha256>;
+        let data = format!("{}:{}:{}", amount, inv_id, self.password2);
+        let mut mac = HmacSha256::new_from_slice(data.as_bytes())
+            .map_err(|e| AppError::Internal(format!("HMAC key error: {}", e)))?;
+        mac.update(data.as_bytes());
+        let expected = hex::encode(mac.finalize().into_bytes());
+        // Constant-time comparison of hex strings (length then byte-wise)
+        if expected.len() != signature_value.len() {
+            return Err(AppError::Validation("Robokassa callback signature mismatch".into()));
+        }
+        let mut diff = 0u8;
+        for (a, b) in expected.bytes().zip(signature_value.bytes()) {
+            diff |= a ^ b;
+        }
+        if diff != 0 {
+            return Err(AppError::Validation("Robokassa callback signature mismatch".into()));
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -50,9 +73,15 @@ impl PaymentGateway for RobokassaGateway {
     async fn verify_callback(&self, params: &serde_json::Value) -> Result<PaymentVerification, AppError> {
         let transaction_id = params["InvId"].as_str()
             .ok_or_else(|| AppError::Validation("Missing InvId in Robokassa callback".into()))?;
-        let amount = params["OutSum"].as_str()
-            .and_then(|v| v.parse().ok())
-            .ok_or_else(|| AppError::Validation("Invalid or missing OutSum in Robokassa callback".into()))?;
+        let amount_str = params["OutSum"].as_str()
+            .ok_or_else(|| AppError::Validation("Missing OutSum in Robokassa callback".into()))?;
+        let amount = amount_str.parse::<f64>()
+            .map_err(|_| AppError::Validation("Invalid OutSum format in Robokassa callback".into()))?;
+        let signature_value = params["SignatureValue"].as_str()
+            .ok_or_else(|| AppError::Validation("Missing SignatureValue in Robokassa callback".into()))?;
+
+        self.verify_callback_signature(amount_str, transaction_id, signature_value)?;
+
         Ok(PaymentVerification {
             transaction_id: transaction_id.to_string(),
             amount,

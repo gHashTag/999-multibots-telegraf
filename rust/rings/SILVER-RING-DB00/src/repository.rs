@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, PaginatorTrait, QuerySelect};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, PaginatorTrait, QuerySelect, Statement, Value};
 use std::sync::Arc;
 use trios_mb_traits::Database as DbTrait;
 use trios_mb_types::user::*;
@@ -281,43 +281,45 @@ impl DbTrait for PostgresDatabase {
     }
 
     async fn deduct_balance(&self, telegram_id: i64, amount: f64) -> Result<bool, AppError> {
-        use crate::entities::users as u;
-        let user = u::Entity::find()
-            .filter(u::Column::TelegramId.eq(telegram_id))
-            .one(self.pool.as_ref())
+        let sql = r#"
+            UPDATE users
+            SET balance = balance - $1,
+                updated_at = NOW()
+            WHERE telegram_id = $2
+              AND balance >= $1
+        "#;
+        let result = self.pool
+            .execute(Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                vec![
+                    Value::Double(Some(amount)),
+                    Value::BigInt(Some(telegram_id)),
+                ],
+            ))
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
-
-        match user {
-            Some(user) if user.balance >= amount => {
-                let current_balance = user.balance;
-                let mut active: u::ActiveModel = user.into();
-                active.balance = Set(current_balance - amount);
-                active.updated_at = Set(chrono::Utc::now());
-                active.update(self.pool.as_ref()).await
-                    .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
-                Ok(true)
-            }
-            _ => Ok(false),
-        }
+        Ok(result.rows_affected() > 0)
     }
 
     async fn add_balance(&self, telegram_id: i64, amount: f64) -> Result<(), AppError> {
-        use crate::entities::users as u;
-        let user = u::Entity::find()
-            .filter(u::Column::TelegramId.eq(telegram_id))
-            .one(self.pool.as_ref())
+        let sql = r#"
+            UPDATE users
+            SET balance = balance + $1,
+                updated_at = NOW()
+            WHERE telegram_id = $2
+        "#;
+        self.pool
+            .execute(Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                vec![
+                    Value::Double(Some(amount)),
+                    Value::BigInt(Some(telegram_id)),
+                ],
+            ))
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
-
-        if let Some(user) = user {
-            let current_balance = user.balance;
-            let mut active: u::ActiveModel = user.into();
-            active.balance = Set(current_balance + amount);
-            active.updated_at = Set(chrono::Utc::now());
-            active.update(self.pool.as_ref()).await
-                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
-        }
         Ok(())
     }
 

@@ -11,7 +11,7 @@ fn parse_uuid(s: &str) -> Result<uuid::Uuid, (StatusCode, String)> {
     uuid::Uuid::parse_str(s)
         .map_err(|e| {
             tracing::warn!(input = %s, error = %e, "Invalid UUID in webhook payload");
-            (StatusCode::BAD_REQUEST, format!("Invalid UUID: {}", e))
+            (StatusCode::BAD_REQUEST, "Invalid UUID".to_string())
         })
 }
 

@@ -72,6 +72,12 @@ impl PaymentProcessor {
         ).await?
             .ok_or_else(|| AppError::NotFound(format!("transaction {}", verification.transaction_id)))?;
 
+        // Idempotency guard: skip if already completed
+        if tx.status == PaymentStatus::Completed {
+            tracing::info!(tx_id = %tx.id, "verify_and_complete: transaction already completed; returning early");
+            return Ok(tx);
+        }
+
         self.db.update_transaction_status(tx.id, PaymentStatus::Completed).await?;
         self.db.add_balance(tx.telegram_id, tx.amount).await?;
 
