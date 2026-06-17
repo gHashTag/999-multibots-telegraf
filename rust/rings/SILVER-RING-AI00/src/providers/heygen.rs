@@ -1,3 +1,5 @@
+use secrecy::ExposeSecret;
+// Wave 151: api_key migrated to secrecy::SecretString
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use trios_mb_traits::AiProvider;
@@ -96,7 +98,7 @@ pub struct Avatar {
 }
 
 pub struct HeyGenProvider {
-    api_key: String,
+    api_key: secrecy::SecretString,
     http: reqwest::Client,
     base_url: String,
 }
@@ -104,9 +106,10 @@ pub struct HeyGenProvider {
 impl HeyGenProvider {
     pub fn new(api_key: &str) -> Self {
         Self {
-            api_key: api_key.to_string(),
+            api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(60))
+                .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
                 .unwrap_or_default(),
             base_url: "https://api.heygen.com".to_string(),
@@ -138,7 +141,7 @@ impl HeyGenProvider {
 
         let resp = self.http
             .post(format!("{}/v2/video/generate", self.base_url))
-            .header("X-Api-Key", &self.api_key)
+            .header("X-Api-Key", self.api_key.expose_secret())
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -176,7 +179,7 @@ impl HeyGenProvider {
     pub async fn check_video_status(&self, video_id: &str) -> Result<(String, Option<String>), AppError> {
         let resp = self.http
             .get(format!("{}/v1/video_status.get?video_id={}", self.base_url, video_id))
-            .header("X-Api-Key", &self.api_key)
+            .header("X-Api-Key", self.api_key.expose_secret())
             .send()
             .await
             .map_err(|e| AiError::Provider {
@@ -210,7 +213,7 @@ impl HeyGenProvider {
     pub async fn list_avatars(&self) -> Result<Vec<Avatar>, AppError> {
         let resp = self.http
             .get(format!("{}/v2/avatars", self.base_url))
-            .header("X-Api-Key", &self.api_key)
+            .header("X-Api-Key", self.api_key.expose_secret())
             .send()
             .await
             .map_err(|e| AiError::Provider {

@@ -15,7 +15,6 @@ members = [
     "rings/BRONZE-RING-APP",
     "rings/TEST-UTILS",
     "tests/e2e-tests",
-    "tests/integration-tests",
 ]
 resolver = "2"
 
@@ -60,3 +59,4 @@ sea-orm-migration = "1.1"
 http-body-util = "0.1"
 tower = { version = "0.4", features = ["util"] }
 testcontainers = "0.24"
+secrecy = { version = "0.10", features = ["serde"] }

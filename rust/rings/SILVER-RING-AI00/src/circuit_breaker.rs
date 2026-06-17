@@ -20,16 +20,18 @@ impl CircuitBreaker {
         }
     }
 
+    // Wave 151: use SeqCst ordering for failure count and open state to prevent
+    // torn reads/writes under concurrent dispatch.
     pub fn allow_request(&self) -> bool {
-        if !self.is_open.load(Ordering::Relaxed) {
+        if !self.is_open.load(Ordering::SeqCst) {
             return true;
         }
 
         let last = self.last_failure.lock().unwrap();
         if let Some(time) = *last {
             if time.elapsed() > self.reset_timeout {
-                self.is_open.store(false, Ordering::Relaxed);
-                self.failure_count.store(0, Ordering::Relaxed);
+                self.is_open.store(false, Ordering::SeqCst);
+                self.failure_count.store(0, Ordering::SeqCst);
                 return true;
             }
         }
@@ -37,14 +39,14 @@ impl CircuitBreaker {
     }
 
     pub fn record_success(&self) {
-        self.failure_count.store(0, Ordering::Relaxed);
-        self.is_open.store(false, Ordering::Relaxed);
+        self.failure_count.store(0, Ordering::SeqCst);
+        self.is_open.store(false, Ordering::SeqCst);
     }
 
     pub fn record_failure(&self) {
-        let count = self.failure_count.fetch_add(1, Ordering::Relaxed) + 1;
+        let count = self.failure_count.fetch_add(1, Ordering::SeqCst) + 1;
         if count >= self.failure_threshold {
-            self.is_open.store(true, Ordering::Relaxed);
+            self.is_open.store(true, Ordering::SeqCst);
             let mut last = self.last_failure.lock().unwrap();
             *last = Some(Instant::now());
         }
@@ -82,7 +84,7 @@ mod tests {
         assert!(!cb.allow_request());
         cb.record_success();
         assert!(cb.allow_request());
-        assert_eq!(cb.failure_count.load(Ordering::Relaxed), 0);
+        assert_eq!(cb.failure_count.load(Ordering::SeqCst), 0);
     }
 
     #[test]

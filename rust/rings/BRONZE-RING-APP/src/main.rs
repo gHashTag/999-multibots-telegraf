@@ -241,18 +241,16 @@ async fn handle_generation_job(
 ) -> Result<(), trios_mb_types::AppError> {
     use trios_mb_types::generation::*;
 
+    // Wave 151: reject malformed job payloads instead of silently defaulting
     let request = serde_json::from_value::<GenerationRequest>(job.payload.clone())
-        .unwrap_or_else(|_| GenerationRequest {
-            telegram_id: 0,
-            media_type: MediaType::Image,
-            prompt: None,
-            image_url: None,
-            model: None,
-            params: serde_json::json!({}),
-        });
+        .map_err(|e| {
+            tracing::error!(job_id = %job.id, error = %e, "Failed to deserialize generation request");
+            trios_mb_types::AppError::Validation(format!("Invalid job payload: {}", e))
+        })?;
 
     let cost: f64 = request.params.get("cost")
         .and_then(|v| v.as_f64())
+        .filter(|v| v.is_finite())
         .unwrap_or(0.0);
 
     match orchestrator.dispatch(&request).await {
@@ -283,9 +281,11 @@ async fn handle_generation_job(
                 }
             }
 
-            let _ = db.update_generation_status(
+            if let Err(db_err) = db.update_generation_status(
                 job.id, GenerationStatus::Failed, None, Some(&e.to_string()),
-            ).await;
+            ).await {
+                tracing::error!(job_id = %job.id, error = %db_err, "Failed to persist generation failure status");
+            }
 
             let chat_id = teloxide::types::ChatId(request.telegram_id);
             let err_msg = format!("❌ Ошибка генерации. Средства возвращены ({} ⭐).", cost);

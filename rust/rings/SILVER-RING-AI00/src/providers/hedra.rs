@@ -1,3 +1,5 @@
+use secrecy::ExposeSecret;
+// Wave 151: api_key migrated to secrecy::SecretString
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use trios_mb_traits::AiProvider;
@@ -46,7 +48,7 @@ struct HedraData {
 }
 
 pub struct HedraProvider {
-    api_key: String,
+    api_key: secrecy::SecretString,
     http: reqwest::Client,
     base_url: String,
 }
@@ -54,9 +56,10 @@ pub struct HedraProvider {
 impl HedraProvider {
     pub fn new(api_key: &str) -> Self {
         Self {
-            api_key: api_key.to_string(),
+            api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(120))
+                .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
                 .unwrap_or_default(),
             base_url: "https://api.hedra.com".to_string(),
@@ -74,7 +77,7 @@ impl HedraProvider {
 
         let resp = self.http
             .post(format!("{}/v1/animations", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -107,7 +110,7 @@ impl HedraProvider {
     async fn fetch_animation_status(&self, animation_id: &str) -> Result<HedronResponse, AppError> {
         let resp = self.http
             .get(format!("{}/v1/animations/{}", self.base_url, animation_id))
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
             .send()
             .await
             .map_err(|e| AiError::Provider {

@@ -1,3 +1,4 @@
+use secrecy::ExposeSecret;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use trios_mb_traits::AiProvider;
@@ -34,8 +35,9 @@ struct PredictionUrls {
     cancel: String,
 }
 
+// Wave 151: api_key migrated to secrecy::SecretString
 pub struct ReplicateProvider {
-    api_key: String,
+    api_key: secrecy::SecretString,
     http: reqwest::Client,
     base_url: String,
     webhook_url: Option<String>,
@@ -44,9 +46,10 @@ pub struct ReplicateProvider {
 impl ReplicateProvider {
     pub fn new(api_key: &str) -> Self {
         Self {
-            api_key: api_key.to_string(),
+            api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(120))
+                .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
                 .unwrap_or_default(),
             base_url: "https://api.replicate.com".to_string(),
@@ -157,7 +160,7 @@ impl ReplicateProvider {
 
         let resp = self.http
             .post(format!("{}/v1/predictions", self.base_url))
-            .header("Authorization", format!("Token {}", self.api_key))
+            .header("Authorization", format!("Token {}", self.api_key.expose_secret()))
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -190,7 +193,7 @@ impl ReplicateProvider {
     async fn fetch_prediction(&self, prediction_id: &str) -> Result<PredictionResponse, AppError> {
         let resp = self.http
             .get(format!("{}/v1/predictions/{}", self.base_url, prediction_id))
-            .header("Authorization", format!("Token {}", self.api_key))
+            .header("Authorization", format!("Token {}", self.api_key.expose_secret()))
             .send()
             .await
             .map_err(|e| AiError::Provider {
@@ -296,7 +299,7 @@ impl AiProvider for ReplicateProvider {
     async fn cancel(&self, generation_id: &str) -> Result<(), AppError> {
         let resp = self.http
             .post(format!("{}/v1/predictions/{}/cancel", self.base_url, generation_id))
-            .header("Authorization", format!("Token {}", self.api_key))
+            .header("Authorization", format!("Token {}", self.api_key.expose_secret()))
             .send()
             .await
             .map_err(|e| AiError::Provider {

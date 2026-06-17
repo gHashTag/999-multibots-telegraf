@@ -1,3 +1,5 @@
+use secrecy::ExposeSecret;
+// Wave 151: api_key migrated to secrecy::SecretString
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use trios_mb_traits::AiProvider;
@@ -53,7 +55,7 @@ struct UserSubscription {
 }
 
 pub struct ElevenLabsProvider {
-    api_key: String,
+    api_key: secrecy::SecretString,
     http: reqwest::Client,
     base_url: String,
 }
@@ -61,9 +63,10 @@ pub struct ElevenLabsProvider {
 impl ElevenLabsProvider {
     pub fn new(api_key: &str) -> Self {
         Self {
-            api_key: api_key.to_string(),
+            api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(60))
+                .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
                 .unwrap_or_default(),
             base_url: "https://api.elevenlabs.io".to_string(),
@@ -89,7 +92,7 @@ impl ElevenLabsProvider {
 
         let resp = self.http
             .post(format!("{}/v1/text-to-speech/{}", self.base_url, voice_id))
-            .header("xi-api-key", &self.api_key)
+            .header("xi-api-key", self.api_key.expose_secret())
             .header("Content-Type", "application/json")
             .header("Accept", "audio/mpeg")
             .json(&payload)
@@ -127,7 +130,7 @@ impl ElevenLabsProvider {
     pub async fn list_voices(&self) -> Result<Vec<Voice>, AppError> {
         let resp = self.http
             .get(format!("{}/v1/voices", self.base_url))
-            .header("xi-api-key", &self.api_key)
+            .header("xi-api-key", self.api_key.expose_secret())
             .send()
             .await
             .map_err(|e| AiError::Provider {
@@ -174,7 +177,7 @@ impl ElevenLabsProvider {
 
         let resp = self.http
             .post(format!("{}/v1/voices/add", self.base_url))
-            .header("xi-api-key", &self.api_key)
+            .header("xi-api-key", self.api_key.expose_secret())
             .multipart(form)
             .send()
             .await
@@ -206,7 +209,7 @@ impl ElevenLabsProvider {
     pub async fn get_character_balance(&self) -> Result<(i64, i64), AppError> {
         let resp = self.http
             .get(format!("{}/v1/user", self.base_url))
-            .header("xi-api-key", &self.api_key)
+            .header("xi-api-key", self.api_key.expose_secret())
             .send()
             .await
             .map_err(|e| AiError::Provider {

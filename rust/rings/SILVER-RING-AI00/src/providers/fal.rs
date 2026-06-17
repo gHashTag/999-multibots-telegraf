@@ -1,3 +1,5 @@
+use secrecy::ExposeSecret;
+// Wave 151: api_key migrated to secrecy::SecretString
 use async_trait::async_trait;
 use serde::Deserialize;
 use trios_mb_traits::AiProvider;
@@ -40,7 +42,7 @@ struct FalImage {
 }
 
 pub struct FalProvider {
-    api_key: String,
+    api_key: secrecy::SecretString,
     http: reqwest::Client,
     base_url: String,
 }
@@ -48,9 +50,10 @@ pub struct FalProvider {
 impl FalProvider {
     pub fn new(api_key: &str) -> Self {
         Self {
-            api_key: api_key.to_string(),
+            api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(120))
+                .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
                 .unwrap_or_default(),
             base_url: "https://queue.fal.run".to_string(),
@@ -132,7 +135,7 @@ impl FalProvider {
     async fn queue_submission(&self, model_id: &str, payload: serde_json::Value) -> Result<QueueResponse, AppError> {
         let resp = self.http
             .post(format!("{}/{}", self.base_url, model_id))
-            .header("Authorization", format!("Key {}", self.api_key))
+            .header("Authorization", format!("Key {}", self.api_key.expose_secret()))
             .header("Content-Type", "application/json")
             .json(&payload)
             .send()
@@ -165,7 +168,7 @@ impl FalProvider {
     async fn check_queue_status(&self, model_id: &str, request_id: &str) -> Result<StatusResponse, AppError> {
         let resp = self.http
             .get(format!("{}/{}/requests/{}/status", self.base_url, model_id, request_id))
-            .header("Authorization", format!("Key {}", self.api_key))
+            .header("Authorization", format!("Key {}", self.api_key.expose_secret()))
             .send()
             .await
             .map_err(|e| AiError::Provider {
@@ -193,7 +196,7 @@ impl FalProvider {
     async fn fetch_result(&self, model_id: &str, request_id: &str) -> Result<FalResultResponse, AppError> {
         let resp = self.http
             .get(format!("{}/{}/requests/{}", self.base_url, model_id, request_id))
-            .header("Authorization", format!("Key {}", self.api_key))
+            .header("Authorization", format!("Key {}", self.api_key.expose_secret()))
             .send()
             .await
             .map_err(|e| AiError::Provider {

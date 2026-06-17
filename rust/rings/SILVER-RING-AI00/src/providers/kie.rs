@@ -1,3 +1,5 @@
+use secrecy::ExposeSecret;
+// Wave 151: api_key migrated to secrecy::SecretString
 use async_trait::async_trait;
 use serde::Deserialize;
 use trios_mb_traits::AiProvider;
@@ -46,7 +48,7 @@ struct KieBalanceResponse {
 }
 
 pub struct KieProvider {
-    api_key: String,
+    api_key: secrecy::SecretString,
     http: reqwest::Client,
     base_url: String,
 }
@@ -54,9 +56,10 @@ pub struct KieProvider {
 impl KieProvider {
     pub fn new(api_key: &str) -> Self {
         Self {
-            api_key: api_key.to_string(),
+            api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(60))
+                .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
                 .unwrap_or_default(),
             base_url: "https://api.kie.ai".to_string(),
@@ -182,7 +185,7 @@ impl KieProvider {
     async fn send_request(&self, endpoint: &str, payload: serde_json::Value) -> Result<KieTaskResponse, AppError> {
         let resp = self.http
             .post(format!("{}{}", self.base_url, endpoint))
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
             .header("Content-Type", "application/json")
             .json(&payload)
             .send()
@@ -215,7 +218,7 @@ impl KieProvider {
     async fn check_task_status(&self, task_id: &str) -> Result<KieTaskResponse, AppError> {
         let resp = self.http
             .get(format!("{}/api/v1/task/{}", self.base_url, task_id))
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
             .send()
             .await
             .map_err(|e| AiError::Provider {

@@ -1,3 +1,4 @@
+use secrecy::ExposeSecret;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use trios_mb_traits::AiProvider;
@@ -63,8 +64,9 @@ struct TtsRequest {
     speed: Option<f64>,
 }
 
+// Wave 151: api_key migrated to secrecy::SecretString
 pub struct OpenAiProvider {
-    api_key: String,
+    api_key: secrecy::SecretString,
     http: reqwest::Client,
     base_url: String,
 }
@@ -72,9 +74,10 @@ pub struct OpenAiProvider {
 impl OpenAiProvider {
     pub fn new(api_key: &str) -> Self {
         Self {
-            api_key: api_key.to_string(),
+            api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(60))
+                .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
                 .unwrap_or_default(),
             base_url: "https://api.openai.com".to_string(),
@@ -88,9 +91,10 @@ impl OpenAiProvider {
 
     pub fn deepseek(api_key: &str) -> Self {
         Self {
-            api_key: api_key.to_string(),
+            api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(60))
+                .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
                 .unwrap_or_default(),
             base_url: "https://api.deepseek.com/v1".to_string(),
@@ -99,9 +103,10 @@ impl OpenAiProvider {
 
     pub fn grok(api_key: &str) -> Self {
         Self {
-            api_key: api_key.to_string(),
+            api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(60))
+                .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
                 .unwrap_or_default(),
             base_url: "https://api.x.ai/v1".to_string(),
@@ -124,7 +129,7 @@ impl OpenAiProvider {
 
         let resp = self.http
             .post(format!("{}/chat/completions", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -191,7 +196,7 @@ impl OpenAiProvider {
 
         let resp = self.http
             .post(format!("{}/images/generations", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -252,7 +257,7 @@ impl OpenAiProvider {
 
         let resp = self.http
             .post(format!("{}/audio/speech", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
             .header("Content-Type", "application/json")
             .json(&body)
             .send()

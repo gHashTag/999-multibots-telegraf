@@ -1,3 +1,4 @@
+// Wave 151: api_key migrated to secrecy::SecretString
 use async_trait::async_trait;
 use trios_mb_traits::AiProvider;
 use trios_mb_types::generation::*;
@@ -13,6 +14,7 @@ impl MidjourneyProvider {
         Self {
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(120))
+                .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
                 .unwrap_or_default(),
         }
