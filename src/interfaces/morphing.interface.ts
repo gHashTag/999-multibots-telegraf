@@ -1,6 +1,8 @@
 /**
- * Morphing Interface Stub
+ * Morphing Interface
  */
+
+export type MorphingType = 'seamless' | 'loop'
 
 export interface MorphingConfig {
   sourceImage: string;

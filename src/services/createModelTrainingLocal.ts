@@ -196,7 +196,7 @@ export async function createModelTrainingLocal(
           throw new Error(userMessage)
         }
 
-        throw new Error('Failed to create Replicate model')
+        throw new Error(`Failed to create Replicate model: ${errorMsg}`)
       }
     }
 

@@ -56,6 +56,9 @@ export * from './instagramScrapingWizard'
 export * from './instagramParserScene'
 export * from './instagramParserWizard'
 export { default as morphingWizard } from './morphingWizard'
+// 💰 BALANCE SCENES
+export * from './checkBalanceScene'
+export * from './balanceScene'
 // 🎤 VOICE TRAINING & AI COVER
 export { default as voiceTrainingWizard } from './voiceTrainingWizard'
 export { default as aiCoverWizard } from './aiCoverWizard'

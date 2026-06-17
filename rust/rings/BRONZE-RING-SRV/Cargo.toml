@@ -19,3 +19,4 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
 http = "1.0"
+tower_governor = { workspace = true }

@@ -67,6 +67,9 @@ export const generateSeedEdit3 = async (
     preserve_background: params.preserve_background,
   })
 
+  // Объявляем переменные до try для доступности в catch
+  let totalCost = 0
+
   try {
     const {
       prompt,
@@ -125,7 +128,7 @@ export const generateSeedEdit3 = async (
     // ✅ Calculate cost
     const costPerImage = SEEDEDIT3_MODEL.costPerImage
     const qualityMultiplier = size === '4K' ? 6 : size === '2K' ? 4 : 1
-    const totalCost = costPerImage * qualityMultiplier
+    totalCost = costPerImage * qualityMultiplier
 
     logger.info('💰 [SeedEdit3] Cost calculation:', {
       telegram_id,
@@ -322,6 +325,22 @@ export const generateSeedEdit3 = async (
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     })
+
+    // ✅ Refund on any outer error (if not already refunded in inner catch)
+    try {
+      if (totalCost > 0 && params.ctx) {
+        await refundUser(params.ctx, totalCost, params.silent || false)
+        logger.info('💰 Balance refunded after SeedEdit3 error', {
+          telegram_id: params.telegram_id,
+          refundAmount: totalCost,
+        })
+      }
+    } catch (refundError) {
+      logger.error('Failed to refund after SeedEdit3 error', {
+        telegram_id: params.telegram_id,
+        refundError: refundError instanceof Error ? refundError.message : 'Unknown',
+      })
+    }
 
     throw error
   }

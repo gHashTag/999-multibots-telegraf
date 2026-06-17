@@ -1,0 +1,6 @@
+/Users/playra/999-multibots-telegraf/rust/target/aarch64-apple-darwin/debug/deps/byteorder-2a10005710f9e792.d: /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/byteorder-1.5.0/src/lib.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/byteorder-1.5.0/src/io.rs
+
+/Users/playra/999-multibots-telegraf/rust/target/aarch64-apple-darwin/debug/deps/libbyteorder-2a10005710f9e792.rmeta: /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/byteorder-1.5.0/src/lib.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/byteorder-1.5.0/src/io.rs
+
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/byteorder-1.5.0/src/lib.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/byteorder-1.5.0/src/io.rs:

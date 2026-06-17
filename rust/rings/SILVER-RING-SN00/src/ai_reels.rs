@@ -6,7 +6,7 @@ use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, AiReelsState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_types::generation::MediaType;
-use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, check_balance, deduct_balance, dispatch_and_reply};
+use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, deduct_balance, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -99,19 +99,8 @@ pub async fn handle_ai_reels_callback(
     state.style = Some(style.to_string());
     let tid = q.from.id.0 as i64;
 
-    if let Err(err_msg) = check_balance(&db, tid, AI_REELS_COST, lang).await {
+    if let Err(err_msg) = deduct_balance(&db, tid, AI_REELS_COST, lang).await {
         bot.send_message(chat_id, err_msg).await?;
-        return return_to_menu(&bot, &dialogue, chat_id, lang).await;
-    }
-
-    if !deduct_balance(&db, tid, AI_REELS_COST).await {
-        tracing::error!(telegram_id = tid, "Failed to deduct balance for AI reels");
-        let err_text = if lang.is_russian() {
-            "❌ Ошибка списания средств. Попробуйте позже."
-        } else {
-            "❌ Failed to deduct balance. Please try again later."
-        };
-        bot.send_message(chat_id, err_text).await?;
         return return_to_menu(&bot, &dialogue, chat_id, lang).await;
     }
 

@@ -5,7 +5,7 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::Database;
 use trios_mb_tg::state::{Scene, AiCoverState};
 use trios_mb_tg::HandlerResult;
-use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu, check_balance, deduct_balance};
+use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu, deduct_balance};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -98,18 +98,8 @@ pub async fn handle_ai_cover_callback(
             return return_to_menu(&bot, &dialogue, chat_id, lang).await;
         }
         "ac:confirm" => {
-            if let Err(err_msg) = check_balance(&db, tid, AI_COVER_COST, lang).await {
+            if let Err(err_msg) = deduct_balance(&db, tid, AI_COVER_COST, lang).await {
                 bot.send_message(chat_id, err_msg).await?;
-                return Ok(());
-            }
-            if !deduct_balance(&db, tid, AI_COVER_COST).await {
-                tracing::error!(telegram_id = tid, "Failed to deduct balance for AI cover");
-                let err_text = if lang.is_russian() {
-                    "❌ Ошибка списания средств. Попробуйте позже."
-                } else {
-                    "❌ Failed to deduct balance. Please try again later."
-                };
-                bot.send_message(chat_id, err_text).await?;
                 return Ok(());
             }
 

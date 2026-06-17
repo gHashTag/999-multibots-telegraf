@@ -1,6 +1,9 @@
 /**
- * Kling Module Stub
+ * Kling Module
+ * Re-exports from kling/index for backward compatibility
  */
+
+export { createKlingMorphingVideo } from './kling/index'
 
 export async function generateKlingVideo(params: any) {
   console.log('[Kling Stub] generateKlingVideo', params);

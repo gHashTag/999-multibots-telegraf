@@ -15,3 +15,11 @@ export * from './validateImageUrl'
 export * from './sendPhotoWithFallback'
 export * from './sanitizeModelName'
 export * from './saveFileLocally'
+export * from './error'
+
+// Helper to get bot name from context
+import { MyContext } from '../interfaces'
+
+export function getBotNameFromContext(ctx: MyContext): string {
+  return ctx.botInfo?.username || 'unknown_bot'
+}

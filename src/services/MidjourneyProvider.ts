@@ -205,7 +205,7 @@ export class MidjourneyProvider {
           model: 'midjourney-v6',
         }
       } else if (response.data.status === 'failed') {
-        throw new Error('Image generation failed')
+        throw new Error(`Image generation failed: ${response.data?.error || response.msg || 'Unknown reason'}`)
       } else {
         // Still processing
         return {

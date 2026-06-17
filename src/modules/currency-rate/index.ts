@@ -171,15 +171,11 @@ export async function getCurrentRate(
       return rate
     }
 
-    const rate = Math.round(minPrice)
-
-    logger.info('💰 Получен актуальный курс USDT/RUB через Bybit', {
-      rate,
-      cached: cache,
-      available_prices: prices.length,
+    // Если ни один источник не вернул курс, используем fallback
+    logger.warn('⚠️ Не удалось получить курс ни из одного источника, используется fallback', {
+      fallback,
     })
-
-    return rate
+    return fallback
   } catch (error) {
     logger.error('❌ Ошибка получения курса USDT/RUB', {
       error: error instanceof Error ? error.message : 'Unknown error',

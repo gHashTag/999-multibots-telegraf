@@ -73,6 +73,8 @@ export const generateFluxKontext = async (
     is_ru: params.is_ru,
   })
 
+  let paymentAmount = 0
+
   try {
     const {
       prompt,
@@ -114,11 +116,13 @@ export const generateFluxKontext = async (
       await updateUserLevelPlusOne(telegram_id, level)
     }
 
+    paymentAmount = modelConfig.costPerImage
+
     // Проверка баланса
     const balanceCheck = await processBalanceOperation({
       ctx,
       telegram_id: Number(telegram_id),
-      paymentAmount: modelConfig.costPerImage,
+      paymentAmount,
       is_ru,
     })
 
@@ -513,6 +517,22 @@ export const generateFluxKontext = async (
           errorMessageToUser = `❌ ${match[1]}`
         }
       }
+    }
+
+    // ✅ ВОЗВРАТ БАЛАНСА при ошибке генерации (если баланс был списан)
+    try {
+      if (paymentAmount > 0 && params.ctx && !errorMessageToUser.includes('Недостаточно звёзд') && !errorMessageToUser.includes('Not enough stars')) {
+        await refundUser(params.ctx, paymentAmount, true) // silent refund
+        logger.info('💰 Balance refunded after FLUX Kontext error', {
+          telegram_id: params.telegram_id,
+          refundAmount: paymentAmount,
+        })
+      }
+    } catch (refundError) {
+      logger.error('Failed to refund after FLUX Kontext error', {
+        telegram_id: params.telegram_id,
+        refundError: refundError instanceof Error ? refundError.message : 'Unknown',
+      })
     }
 
     // ✅ Only notify user if not in fallback mode

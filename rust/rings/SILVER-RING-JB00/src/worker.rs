@@ -149,6 +149,8 @@ impl WorkerPool {
     }
 }
 
+const QUEUE_IO_TIMEOUT: Duration = Duration::from_secs(30);
+
 async fn poll_and_execute(
     queue: &Arc<dyn JobQueue>,
     job_types: &[&str],
@@ -156,7 +158,17 @@ async fn poll_and_execute(
     timeout: Duration,
     worker_name: &str,
 ) -> Result<(), AppError> {
-    let job = queue.dequeue(job_types).await?;
+    let job = match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.dequeue(job_types)).await {
+        Ok(Ok(job)) => job,
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, "dequeue failed");
+            return Ok(());
+        }
+        Err(_) => {
+            tracing::warn!("dequeue timed out after {}s", QUEUE_IO_TIMEOUT.as_secs());
+            return Ok(());
+        }
+    };
     let job = match job {
         Some(j) => j,
         None => return Ok(()),
@@ -176,42 +188,51 @@ async fn poll_and_execute(
 
     match result {
         Ok(Ok(())) => {
-            queue
-                .update_status(job_id, JobStatus::Completed, None)
-                .await?;
+            if let Err(e) = tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.update_status(job_id, JobStatus::Completed, None)).await {
+                tracing::error!(error = %e, job_id = %job_id, "Failed to mark job completed (timeout)");
+            }
             tracing::info!(worker = worker_name, job_id = %job_id, "Job completed");
         }
         Ok(Err(e)) => {
             let err_str = e.to_string();
-            let job = queue.get(job_id).await?;
+            let job = match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.get(job_id)).await {
+                Ok(Ok(j)) => j,
+                Ok(Err(e)) => {
+                    tracing::error!(error = %e, job_id = %job_id, "Failed to get job for retry decision");
+                    None
+                }
+                Err(_) => {
+                    tracing::warn!(job_id = %job_id, "get job timed out");
+                    None
+                }
+            };
             if let Some(j) = job {
-                if j.attempts >= j.max_attempts {
-                    queue
-                        .update_status(job_id, JobStatus::Failed, Some(&err_str))
-                        .await?;
+                let status = if j.attempts >= j.max_attempts {
                     tracing::error!(
                         worker = worker_name,
                         job_id = %job_id,
                         attempts = j.attempts,
                         "Job failed permanently"
                     );
+                    JobStatus::Failed
                 } else {
-                    queue
-                        .update_status(job_id, JobStatus::Queued, Some(&err_str))
-                        .await?;
                     tracing::warn!(
                         worker = worker_name,
                         job_id = %job_id,
                         attempt = j.attempts,
                         "Job failed, will retry"
                     );
+                    JobStatus::Queued
+                };
+                if let Err(e) = tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.update_status(job_id, status, Some(&err_str))).await {
+                    tracing::error!(error = %e, job_id = %job_id, "Failed to update job status after failure (timeout)");
                 }
             }
         }
         Err(_) => {
-            queue
-                .update_status(job_id, JobStatus::Queued, Some("timeout"))
-                .await?;
+            if let Err(e) = tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.update_status(job_id, JobStatus::Queued, Some("timeout"))).await {
+                tracing::error!(error = %e, job_id = %job_id, "Failed to mark job timed out (timeout)");
+            }
             tracing::warn!(
                 worker = worker_name,
                 job_id = %job_id,
@@ -232,13 +253,16 @@ pub async fn run_retry_maintenance(
         tokio::select! {
             _ = cancel.cancelled() => break,
             _ = tokio::time::sleep(interval) => {
-                match queue.retry_stuck(300).await {
-                    Ok(count) if count > 0 => {
+                match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.retry_stuck(300)).await {
+                    Ok(Ok(count)) if count > 0 => {
                         tracing::info!(retried = count, "Retry maintenance: reset stuck jobs");
                     }
-                    Ok(_) => {}
-                    Err(e) => {
+                    Ok(Ok(_)) => {}
+                    Ok(Err(e)) => {
                         tracing::error!(error = %e, "Retry maintenance failed");
+                    }
+                    Err(_) => {
+                        tracing::warn!("Retry maintenance timed out after {}s", QUEUE_IO_TIMEOUT.as_secs());
                     }
                 }
             }

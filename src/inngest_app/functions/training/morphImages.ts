@@ -4,7 +4,7 @@ import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { getUserByTelegramId } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
 import { createKlingMorphingVideo } from '@/core/kling'
-import { MorphingType } from '@/interfaces/morphing.interface'
+// MorphingType is 'seamless' | 'loop' string literal
 import fs from 'fs'
 import path from 'path'
 
@@ -137,13 +137,13 @@ export const morphImages = inngest.createFunction(
 
     // Приводим тип morphing_type к правильному enum
     const morphingTypeEnum =
-      morphing_type === 'seamless' ? MorphingType.SEAMLESS : MorphingType.LOOP
+      morphing_type === 'seamless' ? 'seamless' : 'loop'
 
     // Определяем сколько пар нужно обработать
     const totalPairs =
       extractedImages.length -
       1 +
-      (morphingTypeEnum === MorphingType.LOOP && extractedImages.length > 2
+      (morphingTypeEnum === 'loop' && extractedImages.length > 2
         ? 1
         : 0)
     logger.info('🧬 🎯 Начинаем пошаговую обработку морфинг пар:', {
@@ -152,7 +152,7 @@ export const morphImages = inngest.createFunction(
       total_pairs: totalPairs,
       morphing_type: morphingTypeEnum,
       includes_loop:
-        morphingTypeEnum === MorphingType.LOOP && extractedImages.length > 2,
+        morphingTypeEnum === 'loop' && extractedImages.length > 2,
     })
 
     // ШАГ 4.1: 🚀 УНИВЕРСАЛЬНАЯ ОБРАБОТКА ВСЕХ ПАР (любое количество!)
@@ -251,7 +251,7 @@ export const morphImages = inngest.createFunction(
 
     // ШАГ 4.2: Если LOOP - обрабатываем замыкающую пару (последнее с первым)
     let loopVideoUrl: string | null = null
-    if (morphingTypeEnum === MorphingType.LOOP && extractedImages.length > 2) {
+    if (morphingTypeEnum === 'loop' && extractedImages.length > 2) {
       loopVideoUrl = await step.run('process-loop-pair', async () => {
         const lastImage = extractedImages[extractedImages.length - 1]
         const firstImage = extractedImages[0]

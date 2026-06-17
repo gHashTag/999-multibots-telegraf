@@ -16,8 +16,8 @@ import { Telegraf } from 'telegraf'
 // ✅ Inngest включен для мониторинга webhook'ов
 import { serve } from 'inngest/express'
 import { inngest } from '../inngest_app/client'
-// ✅ LAZY: Импортируем фабричную функцию, а не готовые функции
-import { createAllInngestFunctions } from '../inngest_app/registerFunctions'
+// ✅ LAZY: Импортируем все функции Inngest
+import { allInngestFunctions } from '../inngest_app/registerFunctions'
 import { logger } from '@/utils/logger'
 // ✅ Webhook health verification on startup
 import { verifyWebhooksOnStartup } from '@/utils/webhookHealthCheck'

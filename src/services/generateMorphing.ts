@@ -49,6 +49,10 @@ export async function generateMorphing(
     imagesCount: requestData.images.length,
   })
 
+  // Объявляем tempDir до try для доступности в catch
+  const tempDir = `temp/morphing_${requestData.telegram_id}_${Date.now()}`
+  const fullTempDir = `${process.cwd()}/${tempDir}`
+
   try {
     // ✅ ЛОКАЛЬНАЯ ОБРАБОТКА МОРФИНГА - чистый JavaScript без Inngest
     logger.info('🧬 [MORPHING SERVICE] Starting local JavaScript processing', {
@@ -85,10 +89,6 @@ export async function generateMorphing(
         .map((img, index) => `${index + 1}:${img.originalOrder || 'none'}`)
         .join(', '),
     })
-
-    // Создаем временную директорию для изображений
-    const tempDir = `temp/morphing_${requestData.telegram_id}_${Date.now()}`
-    const fullTempDir = `${process.cwd()}/${tempDir}`
 
     // Создаем директорию если не существует
     if (!fs.existsSync(fullTempDir)) {
@@ -368,7 +368,7 @@ export async function generateMorphing(
         serviceType: 'Morphing Loop (Kling)',
         additionalInfo: {
           image_count: requestData.imageCount.toString(),
-          model: 'kling-v2.5-turbo-pro',
+          model: 'kling-v2.1-pro',
           morphing_type: requestData.morphingType,
         },
       })
@@ -380,6 +380,23 @@ export async function generateMorphing(
       logger.error('❌ Failed to send to pulse group', {
         telegramId: requestData.telegram_id,
         error: pulseError,
+      })
+    }
+
+    // ✅ ОЧИСТКА ВРЕМЕННЫХ ФАЙЛОВ
+    try {
+      if (fs.existsSync(fullTempDir)) {
+        fs.rmSync(fullTempDir, { recursive: true, force: true })
+        logger.info('🗑️ Temp directory cleaned up', {
+          telegramId: requestData.telegram_id,
+          tempDir: fullTempDir,
+        })
+      }
+    } catch (cleanupError) {
+      logger.warn('⚠️ Failed to cleanup temp directory', {
+        telegramId: requestData.telegram_id,
+        tempDir: fullTempDir,
+        error: cleanupError,
       })
     }
 
@@ -402,6 +419,25 @@ export async function generateMorphing(
       stack: error instanceof Error ? error.stack : undefined,
     })
 
-    throw new Error('Произошла ошибка при создании морфинга')
+    // ✅ ОЧИСТКА ВРЕМЕННЫХ ФАЙЛОВ ПРИ ОШИБКЕ
+    try {
+      if (fs.existsSync(fullTempDir)) {
+        fs.rmSync(fullTempDir, { recursive: true, force: true })
+        logger.info('🗑️ Temp directory cleaned up after error', {
+          telegramId: requestData.telegram_id,
+          tempDir: fullTempDir,
+        })
+      }
+    } catch (cleanupError) {
+      logger.warn('⚠️ Failed to cleanup temp directory after error', {
+        telegramId: requestData.telegram_id,
+        tempDir: fullTempDir,
+        error: cleanupError,
+      })
+    }
+
+    // Пробрасываем оригинальную ошибку с префиксом для контекста
+    const originalMessage = error instanceof Error ? error.message : 'Unknown error'
+    throw new Error(`Произошла ошибка при создании морфинга: ${originalMessage}`)
   }
 }

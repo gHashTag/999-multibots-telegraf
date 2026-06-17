@@ -8,6 +8,7 @@ import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { logger } from '@/utils/logger'
 import { calculateFinalPrice } from '@/price/helpers/calculateFinalPrice'
 import { processBalanceVideoOperationHelper } from '@/modules/videoGenerator/helpers/priceHelper'
+import { refundUser } from '@/price/helpers/refundUser'
 import { isValidImage } from '../../helpers/images'
 import fs from 'fs'
 import { ModeEnum } from '@/interfaces/modes'
@@ -1043,6 +1044,9 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     return
   }
 
+  // Объявляем paymentAmount до try для доступности в catch
+  let paymentAmount = 0
+
   try {
     logger.info('🧬 [MORPHING WIZARD] Starting generation', {
       telegramId: ctx.from?.id,
@@ -1083,9 +1087,11 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
       return
     }
 
+    paymentAmount = balanceResult.paymentAmount || 0
+
     logger.info('[startMorphingGeneration] Balance sufficient and deducted', {
       telegramId: ctx.from?.id,
-      paymentAmount: balanceResult.paymentAmount,
+      paymentAmount: paymentAmount,
       newBalance: balanceResult.newBalance,
     })
     // ===== 💰 КОНЕЦ СПИСАНИЯ БАЛАНСА =====
@@ -1132,9 +1138,18 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
 ✨ Creating amazing Infinity Morphing for you...
 ⏳ This may take up to 5 minutes, please wait...`
 
-    await ctx.editMessageText(costMessage, {
-      parse_mode: 'HTML',
-    })
+    try {
+      await ctx.editMessageText(costMessage, {
+        parse_mode: 'HTML',
+      })
+    } catch (editError) {
+      // Если не удалось отредактировать сообщение, отправляем новое
+      logger.warn('Failed to edit message, sending new one', {
+        telegramId: ctx.from?.id,
+        error: editError instanceof Error ? editError.message : 'Unknown',
+      })
+      await ctx.reply(costMessage, { parse_mode: 'HTML' })
+    }
 
     // Вызываем сервис генерации морфинга (прямо с изображениями, без архива)
     const morphingResult = await generateMorphing({
@@ -1164,9 +1179,16 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
 
 💡 <b>Note:</b> If file is large (>50MB), you'll receive a download link`
 
-    await ctx.editMessageText(completionMessage, {
-      parse_mode: 'HTML',
-    })
+    try {
+      await ctx.editMessageText(completionMessage, {
+        parse_mode: 'HTML',
+      })
+    } catch (editError) {
+      logger.warn('Failed to edit completion message', {
+        telegramId: ctx.from?.id,
+        error: editError instanceof Error ? editError.message : 'Unknown',
+      })
+    }
 
     // Очищаем сессию и выходим из сцены
     if (ctx.session) {
@@ -1185,17 +1207,35 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
 
     const isRu = isRussianFromState(ctx)
 
+    // ✅ ВОЗВРАТ БАЛАНСА при ошибке генерации
+    try {
+      if (typeof paymentAmount === 'number' && paymentAmount > 0) {
+        await refundUser(ctx, paymentAmount, true) // silent refund
+        logger.info('💰 Balance refunded after morphing error', {
+          telegramId: ctx.from?.id,
+          refundAmount: paymentAmount,
+        })
+      }
+    } catch (refundError) {
+      logger.error('Failed to refund after morphing error', {
+        telegramId: ctx.from?.id,
+        refundError: refundError instanceof Error ? refundError.message : 'Unknown',
+      })
+    }
+
     // Более информативное сообщение об ошибке
     const errorMessage = isRu
       ? `❌ Произошла ошибка при создании морфинг видео:
 
 ${error instanceof Error ? error.message : 'Неизвестная ошибка'}
 
+💰 Средства за неудавшуюся генерацию возвращены на баланс.
 Пожалуйста, попробуйте еще раз или свяжитесь с поддержкой.`
       : `❌ An error occurred while creating morphing video:
 
 ${error instanceof Error ? error.message : 'Unknown error'}
 
+💰 Funds for the failed generation have been refunded to your balance.
 Please try again or contact support.`
 
     await ctx.reply(errorMessage)

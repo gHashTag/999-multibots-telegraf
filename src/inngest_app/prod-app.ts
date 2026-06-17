@@ -10,13 +10,13 @@ import { Inngest } from 'inngest';
 // === WORKING FUNCTIONS (No broken imports) ===
 
 // Test Functions (3) - Always work
-import { testSimpleFunction } from './functions/testSimpleFunction';
+// import { testSimpleFunction } from './functions/testSimpleFunction'; // module not found
 import { testSimpleMessageFunction } from './functions/testSimpleMessageFunction';
 import { testAdvancedLoopFunction } from './functions/testAdvancedLoopFunction';
 
 // Monitoring Functions (2)
-import { criticalErrorMonitorFunction } from './functions/monitoring/criticalErrorMonitor';
-import { logMonitorFunction } from './functions/monitoring/logMonitor';
+import { criticalErrorMonitor } from './functions/monitoring/criticalErrorMonitor';
+import { logMonitor } from './functions/monitoring/logMonitor';
 
 // Callback Functions (1)
 import { aiReelsCallbackFunction } from './functions/ai-reels-callback';
@@ -50,13 +50,13 @@ app.get('/health', (req, res) => {
 // Only functions that are GUARANTEED to work
 const workingFunctions = [
   // Test (3)
-  testSimpleFunction,
+  // testSimpleFunction, // module not found
   testSimpleMessageFunction,
   testAdvancedLoopFunction,
 
   // Monitoring (2)
-  criticalErrorMonitorFunction,
-  logMonitorFunction,
+  criticalErrorMonitor,
+  logMonitor,
 
   // Callback (1)
   aiReelsCallbackFunction,

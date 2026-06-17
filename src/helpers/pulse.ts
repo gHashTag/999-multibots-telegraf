@@ -275,6 +275,11 @@ export const sendMediaToPulse = async (
             promptAvailable: !!prompt,
           })
         } catch (photoError) {
+          // Extract Telegram error details
+          const telegramError = photoError as any
+          const errorCode = telegramError?.response?.error_code
+          const errorDesc = telegramError?.response?.description
+
           logger.error('❌ [pulse] Ошибка при отправке ФОТО', {
             description: 'Error sending PHOTO in pulse',
             error:
@@ -392,6 +397,11 @@ export const sendMediaToPulse = async (
               })
             }
           } catch (textError) {
+            // Extract Telegram error details
+            const telegramError = textError as any
+            const errorCode = telegramError?.response?.error_code
+            const errorDesc = telegramError?.response?.description
+
             logger.error('❌ [pulse] Ошибка при отправке ТЕКСТА с промптом (HTML)', {
               description:
                 'Error sending TEXT message with prompt in pulse (HTML)',
@@ -478,6 +488,9 @@ export const sendMediaToPulse = async (
               telegramId: rawTelegramId,
             })
           } catch (textError) {
+            // Extract Telegram error details
+            const telegramError = textError as any
+
             logger.error('❌ [pulse] Ошибка при отправке ТЕКСТА без промпта', {
               description: 'Error sending TEXT message without prompt in pulse',
               error:

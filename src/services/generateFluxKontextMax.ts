@@ -285,8 +285,9 @@ export const generateFluxKontextMax = async (
         fileSize: imageBuffer.length
       })
     } catch (downloadError) {
+      const originalMsg = downloadError instanceof Error ? downloadError.message : String(downloadError)
       console.error('🚨 [FluxKontextMax] Failed to download/save image:', downloadError)
-      throw new Error('Failed to process generated image')
+      throw new Error(`Failed to process generated image: ${originalMsg}`)
     }
 
     // Save prompt to database
@@ -355,10 +356,11 @@ export const generateFluxKontextMax = async (
       }
 
     } catch (saveError) {
+      const originalMsg = saveError instanceof Error ? saveError.message : String(saveError)
       console.error('🚨 [FluxKontextMax] Failed to save prompt:', saveError)
       // Refund user if database save fails
       await refundUser(ctx, FLUX_KONTEXT_MAX_MODEL.costPerImage)
-      throw new Error('Failed to save generation record')
+      throw new Error(`Failed to save generation record: ${originalMsg}`)
     }
 
   } catch (error) {

@@ -98,9 +98,11 @@ export const RenderAvatarVideoEventDataSchema = z.object({
   job_id: z.string().min(1, 'job_id is required').optional(),
   user_id: z.string().min(1, 'User ID required'),
   avatar_text: z.string().min(1, 'Avatar text cannot be empty'),
-  avatar_service: z.enum(['hedra', 'heygen'], {
-    errorMap: () => ({ message: 'avatar_service must be "hedra" or "heygen"' }),
+  avatar_gen_service: z.enum(['hedra', 'heygen'], {
+    errorMap: () => ({ message: 'avatar_gen_service must be "hedra" or "heygen"' }),
   }),
+  avatar_settings: AvatarSettingsSchema,
+  kie_api_key: z.string().min(10, 'Invalid KIE API key').optional(),
   voice_id: z.string().optional(),
   eleven_labs_api_key: z.string().min(10, 'Invalid ElevenLabs API key').optional(),
   hedra_api_key: z.string().min(10, 'Invalid Hedra API key').optional(),

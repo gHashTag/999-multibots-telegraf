@@ -5,7 +5,7 @@
 
 import { replicate } from '@/core/replicate'
 import { logger } from '@/utils/logger'
-import { MorphingType } from '@/interfaces/morphing.interface'
+export type MorphingType = 'seamless' | 'loop'
 import { VIDEO_MODELS_CONFIG } from '@/config/unified-video-models.config'
 import fs from 'fs'
 
@@ -26,7 +26,8 @@ const getKlingModelConfig = (modelId: string) => {
     id: config.apiModel, // API model ID for Replicate (e.g., 'kwaivgi/kling-v2.1')
     configId: config.id, // ID from unified config (e.g., 'kling-v2.1-pro')
     name: config.name,
-    variant: config.apiSettings?.baseInput?.mode || 'pro',
+    variant: config.apiSettings?.baseInput?.model_variant || config.apiSettings?.baseInput?.mode || 'pro',
+    baseInput: config.apiSettings?.baseInput || {},
   }
 }
 
@@ -113,12 +114,15 @@ export async function createKlingMorphingVideo(
           end_image: `data:image/jpeg;base64,${image2Base64}`,
           prompt: defaultPrompt,
           duration: 5, // 5 seconds
+          ...modelConfig.baseInput,
         }
 
-        // Add mode if variant is specified
+        // Add model_variant if variant is specified
         if (modelConfig.variant) {
-          input.mode =
+          input.model_variant =
             modelConfig.variant === 'standard' ? 'std' : modelConfig.variant
+          // Для обратной совместимости также передаем mode
+          input.mode = input.model_variant
         }
 
         // Call Replicate API

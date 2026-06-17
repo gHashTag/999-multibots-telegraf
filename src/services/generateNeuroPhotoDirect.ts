@@ -425,7 +425,7 @@ export async function generateNeuroPhotoDirect(
       )
 
       try {
-        await bot.telegram.sendMessage(
+        await bot.sendMessage(
           parseInt(telegram_id),
           is_ru
             ? '❌ Ваш аккаунт не найден в базе данных. Пожалуйста, запустите бота заново с помощью команды /start'
@@ -522,7 +522,7 @@ export async function generateNeuroPhotoDirect(
 
       // Добавляем проверку disable_telegram_sending
       if (!options?.disable_telegram_sending) {
-        await bot.telegram.sendMessage(
+        await bot.sendMessage(
           parseInt(telegram_id),
           is_ru
             ? '❌ Не удалось обработать платеж. Пожалуйста, проверьте баланс и попробуйте еще раз.'
@@ -611,7 +611,7 @@ export async function generateNeuroPhotoDirect(
         if (!options?.disable_telegram_sending) {
           if (validNumImages > 1) {
             try {
-              await bot.telegram.sendMessage(
+              await bot.sendMessage(
                 parseInt(telegram_id),
                 is_ru
                   ? `⏳ Генерация изображения ${i + 1} из ${validNumImages}`
@@ -630,7 +630,7 @@ export async function generateNeuroPhotoDirect(
             }
           } else {
             try {
-              await bot.telegram.sendMessage(
+              await bot.sendMessage(
                 parseInt(telegram_id),
                 is_ru ? '⏳ Генерация...' : '⏳ Generating...',
                 {
@@ -1097,7 +1097,7 @@ Generated: ${new Date().toLocaleString('en-US')}
         // Отправляем сообщение об ошибке пользователю
         try {
           if (!options?.disable_telegram_sending) {
-            await bot.telegram.sendMessage(
+            await bot.sendMessage(
               parseInt(telegram_id),
               is_ru
                 ? '❌ Произошла ошибка при генерации изображения. Мы вернем вам потраченные звезды в ближайшее время.'
@@ -1148,7 +1148,7 @@ Generated: ${new Date().toLocaleString('en-US')}
 
             try {
               if (!options?.disable_telegram_sending) {
-                await bot.telegram.sendMessage(
+                await bot.sendMessage(
                   parseInt(telegram_id),
                   is_ru
                     ? `💰 Мы вернули вам ${refundAmount} звезд за неудачную генерацию изображения.`
@@ -1202,7 +1202,7 @@ Generated: ${new Date().toLocaleString('en-US')}
           : `✅ Done! Successfully generated ${generatedUrls.length} out of ${validNumImages} images.\nDeducted: ${totalCost.toFixed(2)} ⭐️`
 
         // 🚨 ИСПРАВЛЕНИЕ: Отправляем БЕЗ inline кнопок (wizard добавит reply keyboard)
-        await bot.telegram.sendMessage(parseInt(telegram_id), finalMessage)
+        await bot.sendMessage(parseInt(telegram_id), finalMessage)
 
         logger.info('✅ [DIRECT] Итоговое сообщение отправлено (без кнопок)', {
           telegram_id,

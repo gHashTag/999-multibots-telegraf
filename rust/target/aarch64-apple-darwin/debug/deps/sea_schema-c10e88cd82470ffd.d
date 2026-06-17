@@ -1,0 +1,11 @@
+/Users/playra/999-multibots-telegraf/rust/target/aarch64-apple-darwin/debug/deps/sea_schema-c10e88cd82470ffd.d: /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/lib.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/parser.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/sqlx_types/mod.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/sqlx_types/mock.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/util.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/name.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/probe.rs
+
+/Users/playra/999-multibots-telegraf/rust/target/aarch64-apple-darwin/debug/deps/libsea_schema-c10e88cd82470ffd.rmeta: /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/lib.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/parser.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/sqlx_types/mod.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/sqlx_types/mock.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/util.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/name.rs /Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/probe.rs
+
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/lib.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/parser.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/sqlx_types/mod.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/sqlx_types/mock.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/util.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/name.rs:
+/Users/playra/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sea-schema-0.16.2/src/probe.rs:

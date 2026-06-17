@@ -37,30 +37,33 @@ pub async fn load_lang_cb(db: &Arc<dyn Database>, q: &teloxide::types::CallbackQ
         .unwrap_or_default()
 }
 
-pub async fn check_balance(
+pub async fn deduct_balance(
     db: &Arc<dyn Database>,
     telegram_id: i64,
     cost: f64,
     lang: Language,
 ) -> Result<f64, String> {
-    let balance = db.get_balance(telegram_id).await.unwrap_or(0.0);
-    if balance < cost {
-        let msg = if lang.is_russian() {
-            format!("❌ Недостаточно средств.\n\nТребуется: {:.0} ⭐\nВаш баланс: {:.1} ⭐", cost, balance)
-        } else {
-            format!("❌ Insufficient funds.\n\nRequired: {:.0} ⭐\nYour balance: {:.1} ⭐", cost, balance)
-        };
-        return Err(msg);
+    match db.deduct_balance(telegram_id, cost).await {
+        Ok(true) => Ok(0.0),
+        Ok(false) => {
+            let balance = db.get_balance(telegram_id).await.unwrap_or(0.0);
+            let msg = if lang.is_russian() {
+                format!("❌ Недостаточно средств.\n\nТребуется: {:.0} ⭐\nВаш баланс: {:.1} ⭐", cost, balance)
+            } else {
+                format!("❌ Insufficient funds.\n\nRequired: {:.0} ⭐\nYour balance: {:.1} ⭐", cost, balance)
+            };
+            Err(msg)
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "DB error during balance deduction");
+            let msg = if lang.is_russian() {
+                "❌ Ошибка списания средств. Попробуйте позже.".to_string()
+            } else {
+                "❌ Failed to deduct balance. Please try again later.".to_string()
+            };
+            Err(msg)
+        }
     }
-    Ok(balance)
-}
-
-pub async fn deduct_balance(
-    db: &Arc<dyn Database>,
-    telegram_id: i64,
-    cost: f64,
-) -> bool {
-    db.deduct_balance(telegram_id, cost).await.unwrap_or(false)
 }
 
 pub fn back_cancel_keyboard(lang: Language) -> InlineKeyboardMarkup {
@@ -106,19 +109,7 @@ pub async fn dispatch_and_reply(
     db: &Arc<dyn Database>,
     params: DispatchParams,
 ) -> HandlerResult {
-    if let Err(err_msg) = check_balance(db, params.telegram_id, params.cost, params.lang).await {
-        bot.send_message(chat_id, err_msg).await?;
-        dialogue.update(Scene::MainMenu).await?;
-        return Ok(());
-    }
-
-    let deducted = deduct_balance(db, params.telegram_id, params.cost).await;
-    if !deducted {
-        let err_msg = if params.lang.is_russian() {
-            "❌ Не удалось списать средства"
-        } else {
-            "❌ Failed to deduct balance"
-        };
+    if let Err(err_msg) = deduct_balance(db, params.telegram_id, params.cost, params.lang).await {
         bot.send_message(chat_id, err_msg).await?;
         dialogue.update(Scene::MainMenu).await?;
         return Ok(());

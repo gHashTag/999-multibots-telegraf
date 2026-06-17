@@ -1,11 +1,57 @@
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
 use std::sync::Arc;
 use trios_mb_types::generation::GenerationStatus;
 use trios_mb_proto::replicate::WebhookPayload;
 use crate::AppState;
+
+/// Validate a result URL before storing it in the database.
+/// Only allows `http://` or `https://` pointing to public hosts.
+fn validate_result_url(url: &str) -> Result<(), String> {
+    if url.is_empty() {
+        return Err("URL is empty".to_string());
+    }
+    // Basic scheme validation
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("URL must use http or https scheme".to_string());
+    }
+    // Reject common SSRF / internal indicators in the raw string
+    let lower = url.to_lowercase();
+    if lower.contains("127.")
+        || lower.contains("10.")
+        || lower.contains("192.168.")
+        || lower.contains("0.0.0.0")
+        || lower.contains("::1")
+        || lower.contains("localhost")
+        || lower.contains("169.254.")
+        || lower.contains("172.16.")
+        || lower.contains("172.17.")
+        || lower.contains("172.18.")
+        || lower.contains("172.19.")
+        || lower.contains("172.20.")
+        || lower.contains("172.21.")
+        || lower.contains("172.22.")
+        || lower.contains("172.23.")
+        || lower.contains("172.24.")
+        || lower.contains("172.25.")
+        || lower.contains("172.26.")
+        || lower.contains("172.27.")
+        || lower.contains("172.28.")
+        || lower.contains("172.29.")
+        || lower.contains("172.30.")
+        || lower.contains("172.31.")
+        || lower.contains("file://")
+        || lower.contains("ftp://")
+        || lower.contains("ssh://")
+        || lower.contains("telnet://")
+        || lower.contains("gopher://")
+    {
+        return Err("URL points to a private or unsupported address".to_string());
+    }
+    Ok(())
+}
 
 fn parse_uuid(s: &str) -> Result<uuid::Uuid, (StatusCode, String)> {
     uuid::Uuid::parse_str(s)
@@ -15,11 +61,49 @@ fn parse_uuid(s: &str) -> Result<uuid::Uuid, (StatusCode, String)> {
         })
 }
 
-#[tracing::instrument(skip(state, payload), fields(webhook_type = "replicate", id = %payload.id))]
+/// Verify webhook secret from `X-Webhook-Secret` header against an env-var token.
+/// Uses constant-time comparison to prevent timing attacks.
+fn verify_webhook_secret(headers: &HeaderMap, env_var: &str) -> Result<(), (StatusCode, String)> {
+    let expected = match std::env::var(env_var) {
+        Ok(v) if !v.is_empty() => v,
+        _ => {
+            tracing::error!(env_var = %env_var, "Webhook secret not configured");
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, "Webhook secret not configured".to_string()));
+        }
+    };
+
+    let provided = match headers.get("X-Webhook-Secret") {
+        Some(h) => match h.to_str() {
+            Ok(s) => s,
+            Err(_) => return Err((StatusCode::UNAUTHORIZED, "Invalid webhook secret header".to_string())),
+        },
+        None => return Err((StatusCode::UNAUTHORIZED, "Missing webhook secret header".to_string())),
+    };
+
+    if expected.len() != provided.len() {
+        return Err((StatusCode::UNAUTHORIZED, "Invalid webhook secret".to_string()));
+    }
+    let mut diff = 0u8;
+    for (a, b) in expected.bytes().zip(provided.bytes()) {
+        diff |= a ^ b;
+    }
+    if diff != 0 {
+        return Err((StatusCode::UNAUTHORIZED, "Invalid webhook secret".to_string()));
+    }
+    Ok(())
+}
+
+#[tracing::instrument(skip(state, headers, payload), fields(webhook_type = "replicate", id = %payload.id))]
 pub async fn replicate_webhook(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(payload): Json<WebhookPayload>,
 ) -> impl IntoResponse {
+    if let Err((status, msg)) = verify_webhook_secret(&headers, "REPLICATE_WEBHOOK_SECRET") {
+        tracing::warn!("Replicate webhook rejected: invalid secret");
+        return (status, Json(serde_json::json!({"error": msg})));
+    }
+
     tracing::info!(
         id = %payload.id,
         status = %payload.status,
@@ -35,7 +119,9 @@ pub async fn replicate_webhook(
         let urls = payload.output_urls();
         let url = urls.first().map(|s| s.as_str()).unwrap_or("");
         if !url.is_empty() {
-            if let Err(e) = state.db.update_generation_status(
+            if let Err(reason) = validate_result_url(url) {
+                tracing::warn!(url = %url, reason = %reason, "Rejecting Replicate result URL");
+            } else if let Err(e) = state.db.update_generation_status(
                 generation_id,
                 GenerationStatus::Completed,
                 Some(url),
@@ -67,11 +153,17 @@ pub async fn replicate_webhook(
     (StatusCode::OK, Json(serde_json::json!({"status": "ok"})))
 }
 
-#[tracing::instrument(skip(state, payload), fields(webhook_type = "kie_ai", task_id = ?payload.task_id))]
+#[tracing::instrument(skip(state, headers, payload), fields(webhook_type = "kie_ai", task_id = ?payload.task_id))]
 pub async fn kie_ai_webhook(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(payload): Json<trios_mb_proto::kie::WebhookPayload>,
 ) -> impl IntoResponse {
+    if let Err((status, msg)) = verify_webhook_secret(&headers, "KIE_WEBHOOK_SECRET") {
+        tracing::warn!("Kie.ai webhook rejected: invalid secret");
+        return (status, Json(serde_json::json!({"error": msg})));
+    }
+
     tracing::info!(
         task_id = ?payload.task_id,
         success_flag = ?payload.success_flag_val(),
@@ -94,7 +186,9 @@ pub async fn kie_ai_webhook(
 
     if payload.is_completed() {
         if let Some(url) = payload.first_video_url() {
-            if let Err(e) = state.db.update_generation_status(
+            if let Err(reason) = validate_result_url(&url) {
+                tracing::warn!(url = %url, reason = %reason, "Rejecting Kie.ai result URL");
+            } else if let Err(e) = state.db.update_generation_status(
                 generation_id,
                 GenerationStatus::Completed,
                 Some(&url),

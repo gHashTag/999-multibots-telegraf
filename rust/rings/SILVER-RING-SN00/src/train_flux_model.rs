@@ -5,7 +5,7 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::Database;
 use trios_mb_tg::state::{Scene, TrainFluxModelState};
 use trios_mb_tg::HandlerResult;
-use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu, check_balance, deduct_balance};
+use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu, deduct_balance};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -113,19 +113,8 @@ pub async fn handle_train_flux_model_msg(
                 };
                 let _images = images; // used later if dispatch is added
 
-                if let Err(err_msg) = check_balance(&db, tid, TRAIN_FLUX_COST, lang).await {
+                if let Err(err_msg) = deduct_balance(&db, tid, TRAIN_FLUX_COST, lang).await {
                     bot.send_message(msg.chat.id, err_msg).await?;
-                    return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
-                }
-
-                if !deduct_balance(&db, tid, TRAIN_FLUX_COST).await {
-                    tracing::error!(telegram_id = tid, "Failed to deduct balance for flux training");
-                    let err_text = if lang.is_russian() {
-                        "❌ Ошибка списания средств. Попробуйте позже."
-                    } else {
-                        "❌ Failed to deduct balance. Please try again later."
-                    };
-                    bot.send_message(msg.chat.id, err_text).await?;
                     return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                 }
                 let text = if lang.is_russian() {

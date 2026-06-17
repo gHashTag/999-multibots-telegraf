@@ -264,10 +264,10 @@ export const renderAvatarVideoFunction = inngest.createFunction(
 
         return {
           id: `attachment_${Date.now()}`,
-          url: result.url,
+          url: result.url!,
           object_key: `jobs/${jobId}/avatar_video.mp4`,
           meta_data: { format: { duration: 60 } },
-        }
+        } as Attachment
       })
     } else if (data.avatar_gen_service === 'heygen') {
       // Step 2a: Start HeyGen avatar generation
@@ -298,10 +298,10 @@ export const renderAvatarVideoFunction = inngest.createFunction(
 
         return {
           id: `attachment_${Date.now()}`,
-          url: result.video_url,
+          url: result.video_url!,
           object_key: `jobs/${jobId}/avatar_video.mp4`,
           meta_data: { duration_seconds: result.duration || 60 },
-        }
+        } as Attachment
       })
 
       // HeyGen videos have embedded audio
@@ -332,7 +332,7 @@ export const renderAvatarVideoFunction = inngest.createFunction(
     })
 
     // Step 5: Generate B-roll videos in parallel
-    const brollGenerations = await step.run('generate-brolls-parallel', async () => {
+    const brollGenerations: { segment: BRollSegment; task_id: string }[] = await step.run('generate-brolls-parallel', async () => {
       logger.info(`Starting parallel generation of ${brollSegments.length} B-roll videos`)
 
       const kieAI = new KieAIService(data.kie_api_key)
@@ -354,7 +354,7 @@ export const renderAvatarVideoFunction = inngest.createFunction(
     })
 
     // Step 6: Wait for all B-roll completions in parallel
-    const completedBRolls = await step.run('wait-brolls-completion', async () => {
+    const completedBRolls: { segment: BRollSegment; attachment: Attachment }[] = await step.run('wait-brolls-completion', async () => {
       logger.info(`Waiting for ${brollGenerations.length} B-roll videos to complete`)
 
       const kieAI = new KieAIService(data.kie_api_key)

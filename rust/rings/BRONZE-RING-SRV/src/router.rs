@@ -1,8 +1,24 @@
 use std::sync::Arc;
 use axum::Router;
 use axum::routing::{get, post};
+use tower_governor::{GovernorConfig, GovernorConfigBuilder, GovernorLayer};
+use tower_governor::governor::Governor;
 use tower_http::cors::{Any, CorsLayer};
 use trios_mb_traits::{Database, PaymentGateway};
+
+/// Build a per-IP rate-limit layer.
+/// Falls back to connection IP if no forwarded headers are present.
+fn rate_limit_layer(
+    per_second: u64,
+    burst_size: u32,
+) -> GovernorLayer<Arc<Governor>, axum::extract::ConnectInfo<std::net::SocketAddr>> {
+    let config = GovernorConfigBuilder::default()
+        .per_second(per_second)
+        .burst_size(burst_size)
+        .finish()
+        .expect("rate limit config is valid");
+    GovernorLayer { config: Arc::new(config) }
+}
 
 pub struct AppState {
     pub db: Arc<dyn Database>,
@@ -46,6 +62,9 @@ pub fn create_router(db: Arc<dyn Database>) -> Router {
         }
     };
 
+    // Wave 158: per-IP rate limiting — 60 req/min burst, 30 req/s sustained
+    let rate_limit = rate_limit_layer(1, 60);
+
     // Wave 151: limit request body size to 10MB for webhooks
     Router::new()
         .route("/health", get(crate::health::health_check_with_db))
@@ -53,6 +72,7 @@ pub fn create_router(db: Arc<dyn Database>) -> Router {
         .route("/api/webhooks/replicate", post(crate::webhooks::replicate_webhook))
         .route("/api/webhooks/kie-ai", post(crate::webhooks::kie_ai_webhook))
         .layer(cors)
+        .layer(rate_limit)
         .layer(axum::extract::DefaultBodyLimit::max(10 * 1024 * 1024))
         .with_state(state)
 }
@@ -97,6 +117,9 @@ pub fn create_router_with_payments(
         }
     };
 
+    // Wave 158: per-IP rate limiting — 60 req/min burst, 1 req/s sustained
+    let rate_limit = rate_limit_layer(1, 60);
+
     // Wave 151: limit request body size to 10MB for webhooks/payments
     Router::new()
         .route("/health", get(crate::health::health_check_with_db))
@@ -105,6 +128,7 @@ pub fn create_router_with_payments(
         .route("/api/webhooks/kie-ai", post(crate::webhooks::kie_ai_webhook))
         .route("/api/payment-success", post(crate::payment_webhooks::robokassa_callback))
         .layer(cors)
+        .layer(rate_limit)
         .layer(axum::extract::DefaultBodyLimit::max(10 * 1024 * 1024))
         .with_state(state)
 }

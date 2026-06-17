@@ -6,7 +6,7 @@ use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, AvatarTransformState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_types::generation::MediaType;
-use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, check_balance, deduct_balance, dispatch_and_reply};
+use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, deduct_balance, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -83,22 +83,11 @@ pub async fn handle_avatar_transform_msg(
         return Ok(());
     }
 
-                if let Err(err_msg) = check_balance(&db, tid, AVATAR_TRANSFORM_COST, lang).await {
+                if let Err(err_msg) = deduct_balance(&db, tid, AVATAR_TRANSFORM_COST, lang).await {
                     bot.send_message(msg.chat.id, err_msg).await?;
                     return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                 }
-
                 state.image_url = Some(file_id);
-                if !deduct_balance(&db, tid, AVATAR_TRANSFORM_COST).await {
-                    tracing::error!(telegram_id = tid, "Failed to deduct balance for avatar transform");
-                    let err_text = if lang.is_russian() {
-                        "❌ Ошибка списания средств. Попробуйте позже."
-                    } else {
-                        "❌ Failed to deduct balance. Please try again later."
-                    };
-                    bot.send_message(msg.chat.id, err_text).await?;
-                    return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
-                }
                 return dispatch_and_reply(
                     &bot, &dialogue, msg.chat.id,
                     &job_queue, &db,
