@@ -14,4 +14,4 @@ pub use money::Money;
 pub use payment::PaymentMethod;
 pub use scene::SceneId;
 pub use user::Language;
-pub use utils::truncate_for_log;
+pub use utils::{truncate_for_log, validate_result_url};

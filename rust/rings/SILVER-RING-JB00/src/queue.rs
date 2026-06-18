@@ -230,9 +230,12 @@ impl JobQueue for PgJobQueue {
 
     async fn retry_stuck(&self, older_than_secs: u64) -> Result<u64, AppError> {
         const MAX_RETRY_STUCK_BATCH: u64 = 1000;
-        let sql = r#"
+
+        // 1) Re-queue stuck jobs that still have retry budget.
+        //    Do NOT reset attempts — preserve the count so max_attempts is eventually reached.
+        let sql_retry = r#"
             UPDATE job_queue
-            SET status = 'queued', attempts = 0, started_at = NULL, updated_at = NOW()
+            SET status = 'queued', started_at = NULL, updated_at = NOW()
             WHERE id IN (
                 SELECT id FROM job_queue
                 WHERE status = 'running'
@@ -242,12 +245,12 @@ impl JobQueue for PgJobQueue {
             )
         "#;
 
-        let result = self
+        let result_retry = self
             .db
             .as_ref()
             .execute(Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
-                sql,
+                sql_retry,
                 vec![
                     Value::Int(Some(older_than_secs as i32)),
                     Value::BigUnsigned(Some(MAX_RETRY_STUCK_BATCH)),
@@ -256,6 +259,37 @@ impl JobQueue for PgJobQueue {
             .await
             .map_err(|e| AppError::Db(DbError::Query(e.to_string())))?;
 
-        Ok(result.rows_affected())
+        // 2) Mark permanently stuck jobs (attempts >= max_attempts) as failed.
+        let sql_fail = r#"
+            UPDATE job_queue
+            SET status = 'failed',
+                error = 'Job stuck and max attempts exhausted',
+                started_at = NULL,
+                completed_at = NOW(),
+                updated_at = NOW()
+            WHERE id IN (
+                SELECT id FROM job_queue
+                WHERE status = 'running'
+                  AND started_at < NOW() - INTERVAL '1 second' * $1
+                  AND attempts >= max_attempts
+                LIMIT $2
+            )
+        "#;
+
+        let result_fail = self
+            .db
+            .as_ref()
+            .execute(Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql_fail,
+                vec![
+                    Value::Int(Some(older_than_secs as i32)),
+                    Value::BigUnsigned(Some(MAX_RETRY_STUCK_BATCH)),
+                ],
+            ))
+            .await
+            .map_err(|e| AppError::Db(DbError::Query(e.to_string())))?;
+
+        Ok(result_retry.rows_affected() + result_fail.rows_affected())
     }
 }

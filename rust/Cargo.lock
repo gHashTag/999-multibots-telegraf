@@ -3922,6 +3922,7 @@ dependencies = [
  "trios-mb-tg",
  "trios-mb-traits",
  "trios-mb-types",
+ "url",
  "uuid",
 ]
 
@@ -4012,6 +4013,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 1.0.69",
+ "url",
  "uuid",
 ]
 

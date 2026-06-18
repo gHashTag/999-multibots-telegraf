@@ -23,7 +23,39 @@ where
         const MAX_BACKOFF_SECS: u64 = 60;
 
         loop {
-            let mut task = tokio::spawn(factory());
+            // Catch synchronous panics in the factory closure itself before spawning.
+            // tokio::spawn only catches panics inside the future; a panic in the closure
+            // that builds the future would abort the supervisor thread.
+            let fut = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(||
+                factory()
+            )) {
+                Ok(f) => f,
+                Err(_) => {
+                    consecutive_failures += 1;
+                    if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
+                        tracing::error!(
+                            worker = %desc,
+                            failures = consecutive_failures,
+                            "Supervised worker exceeded max consecutive failures; giving up"
+                        );
+                        break;
+                    }
+                    let backoff = std::cmp::min(
+                        BASE_BACKOFF_SECS * 2_u64.pow(consecutive_failures.min(4)),
+                        MAX_BACKOFF_SECS,
+                    );
+                    tracing::error!(
+                        worker = %desc,
+                        failures = consecutive_failures,
+                        backoff_secs = backoff,
+                        "Supervised worker factory panicked; restarting with backoff"
+                    );
+                    tokio::time::sleep(Duration::from_secs(backoff)).await;
+                    continue;
+                }
+            };
+
+            let mut task = tokio::spawn(fut);
             tokio::select! {
                 biased;
                 _ = cancel.cancelled() => {

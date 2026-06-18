@@ -409,9 +409,13 @@ fn build_worker_pool(
     register_handler!(pool, JobType::MorphingRendering, handle_generation_job);
 
     pool.register(JobType::Scraping, Box::new(move |job: trios_mb_traits::job_queue::Job| {
-        let payload = job.payload;
+        let payload_len = job.payload.to_string().len();
         Box::pin(async move {
-            tracing::info!(payload = %payload, "Scraping job executed (stub)");
+            tracing::info!(
+                job_type = "scraping",
+                payload_len = payload_len,
+                "Scraping job executed (stub)"
+            );
             Ok::<_, trios_mb_types::AppError>(())
         }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), trios_mb_types::AppError>> + Send>>
     }) as JobHandler);
@@ -451,10 +455,26 @@ async fn handle_generation_job(
 
     match orchestrator.dispatch(&request).await {
         Ok(result) => {
+            // Validate provider result_url before persisting (outbound path guard)
+            let validated_url = result.result_url.as_deref().and_then(|url| {
+                match trios_mb_types::validate_result_url(url) {
+                    Ok(()) => Some(url),
+                    Err(reason) => {
+                        tracing::warn!(
+                            generation_id = ?generation_id,
+                            url = %trios_mb_types::truncate_for_log(url, 128),
+                            reason = %reason,
+                            "Provider returned invalid result_url; rejecting"
+                        );
+                        None
+                    }
+                }
+            });
+
             if let Some(gen_id) = generation_id {
                 if let Err(e) = db.update_generation_status_owned(
                     gen_id, request.telegram_id, GenerationStatus::Completed,
-                    result.result_url.as_deref(), None,
+                    validated_url, None,
                 ).await {
                     tracing::error!(generation_id = %gen_id, error = %e, "Failed to update generation status");
                 }
@@ -462,7 +482,7 @@ async fn handle_generation_job(
                 tracing::warn!(job_id = %job.id, "Missing generation_id in job payload; skipping status update");
             }
 
-            if let Some(ref url) = result.result_url {
+            if let Some(url) = validated_url {
                 let chat_id = teloxide::types::ChatId(request.telegram_id);
                 let msg = format!("✅ Результат готов!\n\n{}", url);
                 if let Err(e) = bot.send_message(chat_id, &msg).await {

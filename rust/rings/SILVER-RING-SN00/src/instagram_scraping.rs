@@ -33,7 +33,37 @@ pub async fn handle_instagram_scraping_msg(
         return Ok(());
     }
 
-    if !text.contains("instagram.com") {
+    // Hardened Instagram URL validation: parse with url::Url, enforce exact host whitelist.
+    let parsed_url = match url::Url::parse(&text) {
+        Ok(u) => u,
+        Err(_) => {
+            let lang = load_lang(&db, &msg).await;
+            bot.send_message(msg.chat.id, if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram профиль." } else { "❌ Invalid link. Send an Instagram profile link." }).await?;
+            return Ok(());
+        }
+    };
+
+    match parsed_url.scheme() {
+        "http" | "https" => {}
+        _ => {
+            let lang = load_lang(&db, &msg).await;
+            bot.send_message(msg.chat.id, if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram профиль." } else { "❌ Invalid link. Send an Instagram profile link." }).await?;
+            return Ok(());
+        }
+    }
+
+    let host_ok = parsed_url.host_str().map_or(false, |host| {
+        let lower = host.to_lowercase();
+        lower == "instagram.com" || lower == "www.instagram.com"
+    });
+    if !host_ok {
+        let lang = load_lang(&db, &msg).await;
+        bot.send_message(msg.chat.id, if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram профиль." } else { "❌ Invalid link. Send an Instagram profile link." }).await?;
+        return Ok(());
+    }
+
+    // Reject URLs with embedded credentials (SSRF defense)
+    if !parsed_url.username().is_empty() || parsed_url.password().is_some() {
         let lang = load_lang(&db, &msg).await;
         bot.send_message(msg.chat.id, if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram профиль." } else { "❌ Invalid link. Send an Instagram profile link." }).await?;
         return Ok(());
