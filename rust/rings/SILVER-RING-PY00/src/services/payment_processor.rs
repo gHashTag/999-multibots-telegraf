@@ -86,10 +86,8 @@ impl PaymentProcessor {
         let _amount_money = Money::from_f64(verification.amount)
             .ok_or_else(|| AppError::Validation(format!("callback amount overflows Money: {}", verification.amount)))?;
 
-        let tx = self.db.get_transaction(
-            uuid::Uuid::parse_str(&verification.transaction_id)
-                .map_err(|e| AppError::Internal(e.to_string()))?
-        ).await?
+        let tx = self.db.get_transaction_by_external_id(&verification.transaction_id)
+            .await?
             .ok_or_else(|| AppError::NotFound(format!("transaction {}", verification.transaction_id)))?;
 
         // Idempotency guard: skip if already completed

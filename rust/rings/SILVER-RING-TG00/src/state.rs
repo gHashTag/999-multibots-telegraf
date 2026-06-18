@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use trios_mb_types::scene::SceneId;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum Scene {
     #[default]
     MainMenu,
@@ -114,6 +115,7 @@ impl Scene {
 macro_rules! scene_state {
     ($name:ident { $($field:ident : $ty:ty),* $(,)? }) => {
         #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
         pub struct $name {
             pub step: u8,
             $(

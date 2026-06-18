@@ -93,10 +93,7 @@ fn verify_webhook_secret(headers: &HeaderMap, expected: &str) -> Result<(), (Sta
         None => return Err((StatusCode::UNAUTHORIZED, "Missing webhook secret header".to_string())),
     };
 
-    if expected.len() != provided.len() {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid webhook secret".to_string()));
-    }
-    let mut diff = 0u8;
+    let mut diff = (expected.len() != provided.len()) as u8;
     for (a, b) in expected.bytes().zip(provided.bytes()) {
         diff |= a ^ b;
     }
