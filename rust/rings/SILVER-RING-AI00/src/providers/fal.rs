@@ -139,6 +139,7 @@ impl FalProvider {
         serde_json::Value::Object(payload)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn queue_submission(&self, model_id: &str, payload: serde_json::Value) -> Result<QueueResponse, AppError> {
         let resp = self.http
             .post(format!("{}/{}", self.base_url, model_id))
@@ -168,6 +169,7 @@ impl FalProvider {
         Ok(queue_resp)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_queue_status(&self, model_id: &str, request_id: &str) -> Result<StatusResponse, AppError> {
         let resp = self.http
             .get(format!("{}/{}/requests/{}/status", self.base_url, model_id, request_id))
@@ -192,6 +194,7 @@ impl FalProvider {
         Ok(status_resp)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn fetch_result(&self, model_id: &str, request_id: &str) -> Result<FalResultResponse, AppError> {
         let resp = self.http
             .get(format!("{}/{}/requests/{}", self.base_url, model_id, request_id))

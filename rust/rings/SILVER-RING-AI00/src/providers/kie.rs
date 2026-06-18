@@ -192,6 +192,7 @@ impl KieProvider {
         self.send_request(endpoint, payload).await
     }
 
+    #[tracing::instrument(skip_all)]
     async fn send_request(&self, endpoint: &str, payload: serde_json::Value) -> Result<KieTaskResponse, AppError> {
         let resp = self.http
             .post(format!("{}{}", self.base_url, endpoint))
@@ -221,6 +222,7 @@ impl KieProvider {
         Ok(task_resp)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_task_status(&self, task_id: &str) -> Result<KieTaskResponse, AppError> {
         let resp = self.http
             .get(format!("{}/api/v1/task/{}", self.base_url, task_id))

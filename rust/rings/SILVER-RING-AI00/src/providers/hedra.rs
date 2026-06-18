@@ -69,6 +69,7 @@ impl HedraProvider {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn create_animation(&self, request: &GenerationRequest) -> Result<HedronResponse, AppError> {
         let body = CreateAnimationRequest {
             audio_url: request.params.get("audio_url").and_then(|v| v.as_str()).map(|s| s.to_string()),
@@ -106,6 +107,7 @@ impl HedraProvider {
         Ok(resp_data)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn fetch_animation_status(&self, animation_id: &str) -> Result<HedronResponse, AppError> {
         let resp = self.http
             .get(format!("{}/v1/animations/{}", self.base_url, animation_id))

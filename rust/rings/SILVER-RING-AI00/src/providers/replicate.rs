@@ -153,6 +153,7 @@ impl ReplicateProvider {
         serde_json::Value::Object(input)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn create_prediction(&self, model: &str, input: serde_json::Value) -> Result<PredictionResponse, AppError> {
         let version = self.resolve_model_version(model)
             .ok_or_else(|| AppError::Validation(format!("unknown model: {}", model)))?;
@@ -191,6 +192,7 @@ impl ReplicateProvider {
         Ok(pred)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn fetch_prediction(&self, prediction_id: &str) -> Result<PredictionResponse, AppError> {
         let resp = self.http
             .get(format!("{}/v1/predictions/{}", self.base_url, prediction_id))

@@ -153,6 +153,7 @@ impl InfisicalStore {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn authenticate(&self) -> Result<String, AppError> {
         let mut cache = self.cache.write().await;
 
@@ -192,6 +193,7 @@ impl InfisicalStore {
         Ok(token)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn load_secrets(&self) -> Result<(), AppError> {
         let token = self.authenticate().await?;
 
@@ -231,6 +233,7 @@ impl InfisicalStore {
 
 #[async_trait]
 impl SecretStore for InfisicalStore {
+    #[tracing::instrument(skip_all)]
     async fn get(&self, key: &str) -> Result<String, AppError> {
         {
             let cache = self.cache.read().await;
@@ -249,6 +252,7 @@ impl SecretStore for InfisicalStore {
             .ok_or_else(|| AppError::Secrets(SecretsError::NotFound { key: key.to_string() }))
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_all(&self, keys: &[&str]) -> Result<HashMap<String, String>, AppError> {
         let mut result = HashMap::new();
         let mut stale = Vec::new();
@@ -279,6 +283,7 @@ impl SecretStore for InfisicalStore {
         Ok(result)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn reload(&self) -> Result<(), AppError> {
         {
             let mut cache = self.cache.write().await;
@@ -287,6 +292,7 @@ impl SecretStore for InfisicalStore {
         self.load_secrets().await
     }
 
+    #[tracing::instrument(skip_all)]
     async fn health_check(&self) -> Result<bool, AppError> {
         match self.authenticate().await {
             Ok(_) => Ok(true),
