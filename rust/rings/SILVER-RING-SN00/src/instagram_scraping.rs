@@ -5,6 +5,7 @@ use trios_mb_traits::{Database, JobQueue};
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
 use crate::generation_utils::{load_lang, dispatch_and_reply, DispatchParams};
+use trios_mb_tg::send_message_timeout;
 use trios_mb_types::generation::MediaType;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
@@ -21,7 +22,8 @@ pub async fn handle_instagram_scraping_msg(
         Some(t) => t.to_string(),
         None => {
             let lang = load_lang(&db, &msg).await;
-            bot.send_message(msg.chat.id, if lang.is_russian() { "Отправьте ссылку на Instagram профиль" } else { "Send an Instagram profile link" }).await?;
+            let text = if lang.is_russian() { "Отправьте ссылку на Instagram профиль" } else { "Send an Instagram profile link" };
+            send_message_timeout(&bot, msg.chat.id, text, None).await?;
             return Ok(());
         }
     };
@@ -29,7 +31,7 @@ pub async fn handle_instagram_scraping_msg(
     if text.len() > 4000 {
         let lang = load_lang(&db, &msg).await;
         let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
-        bot.send_message(msg.chat.id, err).await?;
+        send_message_timeout(&bot, msg.chat.id, err, None).await?;
         return Ok(());
     }
 
@@ -38,7 +40,8 @@ pub async fn handle_instagram_scraping_msg(
         Ok(u) => u,
         Err(_) => {
             let lang = load_lang(&db, &msg).await;
-            bot.send_message(msg.chat.id, if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram профиль." } else { "❌ Invalid link. Send an Instagram profile link." }).await?;
+            let text = if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram профиль." } else { "❌ Invalid link. Send an Instagram profile link." };
+            send_message_timeout(&bot, msg.chat.id, text, None).await?;
             return Ok(());
         }
     };
@@ -47,7 +50,8 @@ pub async fn handle_instagram_scraping_msg(
         "http" | "https" => {}
         _ => {
             let lang = load_lang(&db, &msg).await;
-            bot.send_message(msg.chat.id, if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram профиль." } else { "❌ Invalid link. Send an Instagram profile link." }).await?;
+            let text = if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram профиль." } else { "❌ Invalid link. Send an Instagram profile link." };
+            send_message_timeout(&bot, msg.chat.id, text, None).await?;
             return Ok(());
         }
     }
@@ -58,14 +62,16 @@ pub async fn handle_instagram_scraping_msg(
     });
     if !host_ok {
         let lang = load_lang(&db, &msg).await;
-        bot.send_message(msg.chat.id, if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram профиль." } else { "❌ Invalid link. Send an Instagram profile link." }).await?;
+        let text = if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram профиль." } else { "❌ Invalid link. Send an Instagram profile link." };
+        send_message_timeout(&bot, msg.chat.id, text, None).await?;
         return Ok(());
     }
 
     // Reject URLs with embedded credentials (SSRF defense)
     if !parsed_url.username().is_empty() || parsed_url.password().is_some() {
         let lang = load_lang(&db, &msg).await;
-        bot.send_message(msg.chat.id, if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram профиль." } else { "❌ Invalid link. Send an Instagram profile link." }).await?;
+        let text = if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram профиль." } else { "❌ Invalid link. Send an Instagram profile link." };
+        send_message_timeout(&bot, msg.chat.id, text, None).await?;
         return Ok(());
     }
 
@@ -88,7 +94,7 @@ pub async fn handle_instagram_scraping_msg(
     if !trios_mb_tg::access::has_parsing_access(telegram_id, bot_name) {
         tracing::warn!(%telegram_id, %bot_name, "User lacks parsing access for instagram_scraping");
         let err = if lang.is_russian() { "❌ Нет доступа." } else { "❌ Access denied." };
-        bot.send_message(chat_id, err).await?;
+        send_message_timeout(&bot, chat_id, err, None).await?;
         return Ok(());
     }
 

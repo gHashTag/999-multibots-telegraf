@@ -1,7 +1,10 @@
 use std::time::Duration;
+use teloxide::dispatching::dialogue::{Dialogue, InMemStorage};
 use teloxide::prelude::*;
 use teloxide::types::{ChatId, Message, ReplyMarkup};
 use tracing;
+
+use crate::state::Scene;
 
 const TELEGRAM_API_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -48,6 +51,45 @@ pub async fn answer_callback_query_timeout(
             Err(std::io::Error::new(
                 std::io::ErrorKind::TimedOut,
                 "Telegram API answer_callback_query timeout"
+            ))
+        }
+    }
+}
+
+/// Update the dialogue state with a hard 30-second timeout.
+/// Prevents FSM state-loss when the Telegram API or in-memory storage stalls.
+pub async fn dialogue_update_timeout(
+    dialogue: &Dialogue<Scene, InMemStorage<Scene>>,
+    scene: Scene,
+) -> Result<(), std::io::Error> {
+    match tokio::time::timeout(TELEGRAM_API_TIMEOUT, dialogue.update(scene)).await {
+        Ok(result) => result.map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::Other, format!("Telegram API error: {}", e))
+        }),
+        Err(_) => {
+            tracing::error!("dialogue.update timed out after {}s", TELEGRAM_API_TIMEOUT.as_secs());
+            Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "Telegram API dialogue.update timeout"
+            ))
+        }
+    }
+}
+
+/// Exit the dialogue with a hard 30-second timeout.
+/// Prevents FSM state-loss when the Telegram API or in-memory storage stalls.
+pub async fn dialogue_exit_timeout(
+    dialogue: &Dialogue<Scene, InMemStorage<Scene>>,
+) -> Result<(), std::io::Error> {
+    match tokio::time::timeout(TELEGRAM_API_TIMEOUT, dialogue.exit()).await {
+        Ok(result) => result.map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::Other, format!("Telegram API error: {}", e))
+        }),
+        Err(_) => {
+            tracing::error!("dialogue.exit timed out after {}s", TELEGRAM_API_TIMEOUT.as_secs());
+            Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "Telegram API dialogue.exit timeout"
             ))
         }
     }

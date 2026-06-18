@@ -7,7 +7,7 @@ use teloxide::types::{Update, ChatId};
 use teloxide::utils::command::BotCommands;
 use trios_mb_traits::Database;
 use trios_mb_tg::state::Scene;
-use trios_mb_tg::{HandlerResult, HandlerError, answer_callback_query_timeout, send_message_timeout};
+use trios_mb_tg::{HandlerResult, HandlerError, answer_callback_query_timeout, send_message_timeout, dialogue_update_timeout, dialogue_exit_timeout};
 use trios_mb_tg::keyboards::main_menu_keyboard;
 use crate::generation_utils::{load_lang, load_lang_by_id};
 
@@ -224,16 +224,16 @@ async fn handle_nav_callback(
 
     match action {
         Some(trios_mb_tg::navigation::NavigationAction::Back) => {
-            dialogue.update(Scene::MainMenu).await?;
+            dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
             send_message_timeout(&bot, chat_id, trios_mb_i18n::t(lang, "main_menu"), Some(main_menu_keyboard(lang).into())).await?;
         }
         Some(trios_mb_tg::navigation::NavigationAction::Cancel) => {
-            dialogue.exit().await?;
+            dialogue_exit_timeout(&dialogue).await?;
             send_message_timeout(&bot, chat_id, trios_mb_i18n::t(lang, "main_menu"), Some(main_menu_keyboard(lang).into())).await?;
         }
         Some(trios_mb_tg::navigation::NavigationAction::Navigate(scene_id)) => {
             let scene = scene_from_id(&scene_id);
-            dialogue.update(scene).await?;
+            dialogue_update_timeout(&dialogue, scene).await?;
             enter_scene_greeting(&bot, chat_id, lang, &scene_id, &db, tid).await?;
         }
         None => {}
@@ -267,7 +267,7 @@ async fn handle_main_menu_msg(
     match target {
         Some(id) => {
             let scene = scene_from_id(&id);
-            dialogue.update(scene).await?;
+            dialogue_update_timeout(&dialogue, scene).await?;
             enter_scene_greeting(&bot, msg.chat.id, lang, &id, &db, tid).await?;
         }
         None => {
@@ -310,7 +310,7 @@ async fn handle_help_state_msg(
     dialogue: MyDialogue,
     _msg: Message,
 ) -> HandlerResult {
-    dialogue.update(Scene::MainMenu).await?;
+    dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
     Ok(())
 }
 
@@ -323,7 +323,7 @@ async fn handle_balance_state_msg(
 ) -> HandlerResult {
     let lang = load_lang(&db, &msg).await;
     send_message_timeout(&bot, msg.chat.id, trios_mb_i18n::t(lang, "main_menu"), Some(main_menu_keyboard(lang).into())).await?;
-    dialogue.update(Scene::MainMenu).await?;
+    dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
     Ok(())
 }
 

@@ -82,13 +82,19 @@ impl JobQueue for PgJobQueue {
             .delay_secs
             .map(|d| now + chrono::Duration::seconds(d as i64));
 
+        let raw_max = request.max_attempts.unwrap_or(3);
+        let max_attempts = raw_max.max(1);
+        if raw_max <= 0 {
+            tracing::warn!(%id, raw_max_attempts = raw_max, "max_attempts clamped to 1; invalid value rejected at enqueue time");
+        }
+
         let active_model = job_queue_entity::ActiveModel {
             id: Set(id),
             job_type: Set(request.job_type),
             payload: Set(request.payload),
             status: Set("queued".to_string()),
             attempts: Set(0),
-            max_attempts: Set(request.max_attempts.unwrap_or(3)),
+            max_attempts: Set(max_attempts),
             scheduled_at: Set(scheduled_at.map(|dt| dt.into())),
             started_at: Set(None),
             completed_at: Set(None),

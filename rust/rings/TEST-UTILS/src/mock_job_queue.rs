@@ -42,7 +42,7 @@ impl JobQueue for MockJobQueue {
             payload: request.payload,
             status: JobStatus::Queued,
             attempts: 0,
-            max_attempts: request.max_attempts.unwrap_or(3),
+            max_attempts: request.max_attempts.unwrap_or(3).max(1),
             scheduled_at: request.delay_secs.map(|d| now + chrono::Duration::seconds(d as i64)),
             started_at: None,
             completed_at: None,
