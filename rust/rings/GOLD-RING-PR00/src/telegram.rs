@@ -7,32 +7,43 @@ pub struct CallbackData {
     pub payload: Option<serde_json::Value>,
 }
 
+const MAX_CALLBACK_DATA_LEN: usize = 4096;
+
 impl CallbackData {
     pub fn navigate(scene: SceneId) -> String {
-        serde_json::to_string(&Self {
+        let s = serde_json::to_string(&Self {
             action: "nav".into(),
             payload: Some(serde_json::json!({ "scene": scene.scene_name() })),
         })
-        .unwrap_or_default()
+        .unwrap_or_default();
+        debug_assert!(!s.is_empty(), "CallbackData::navigate serialization unexpectedly failed");
+        s
     }
 
     pub fn action(name: &str) -> String {
-        serde_json::to_string(&Self {
+        let s = serde_json::to_string(&Self {
             action: name.into(),
             payload: None,
         })
-        .unwrap_or_default()
+        .unwrap_or_default();
+        debug_assert!(!s.is_empty(), "CallbackData::action serialization unexpectedly failed");
+        s
     }
 
     pub fn action_with_payload(name: &str, payload: serde_json::Value) -> String {
-        serde_json::to_string(&Self {
+        let s = serde_json::to_string(&Self {
             action: name.into(),
             payload: Some(payload),
         })
-        .unwrap_or_default()
+        .unwrap_or_default();
+        debug_assert!(!s.is_empty(), "CallbackData::action_with_payload serialization unexpectedly failed");
+        s
     }
 
     pub fn parse(data: &str) -> Option<Self> {
+        if data.len() > MAX_CALLBACK_DATA_LEN {
+            return None;
+        }
         serde_json::from_str(data).ok()
     }
 }

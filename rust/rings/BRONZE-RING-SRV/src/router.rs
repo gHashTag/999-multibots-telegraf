@@ -3,7 +3,7 @@ use axum::Router;
 use axum::routing::{get, post};
 use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::GovernorLayer;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use trios_mb_traits::{Database, PaymentGateway};
 
 /// Build a per-IP rate-limit layer.
@@ -28,6 +28,7 @@ fn build_cors() -> CorsLayer {
     if allowed_origins.is_empty() {
         tracing::warn!("FRONTEND_URL not set; CORS requests denied");
         CorsLayer::new()
+            .allow_origin(AllowOrigin::list(Vec::new()))
             .allow_methods([http::Method::GET, http::Method::POST])
             .allow_headers([http::header::CONTENT_TYPE, http::header::AUTHORIZATION])
     } else {
@@ -41,6 +42,7 @@ fn build_cors() -> CorsLayer {
         if origins.is_empty() {
             tracing::warn!("No valid CORS origins configured; CORS requests denied");
             CorsLayer::new()
+                .allow_origin(AllowOrigin::list(Vec::new()))
                 .allow_methods([http::Method::GET, http::Method::POST])
                 .allow_headers([http::header::CONTENT_TYPE, http::header::AUTHORIZATION])
         } else {
@@ -88,7 +90,7 @@ pub fn create_router(db: Arc<dyn Database>) -> Router {
         .merge(health)
         .merge(webhooks)
         .layer(cors)
-        .layer(axum::extract::DefaultBodyLimit::max(10 * 1024 * 1024))
+        .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
         .with_state(state)
 }
 
@@ -128,6 +130,6 @@ pub fn create_router_with_payments(
         .merge(webhooks)
         .merge(payments)
         .layer(cors)
-        .layer(axum::extract::DefaultBodyLimit::max(10 * 1024 * 1024))
+        .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
         .with_state(state)
 }

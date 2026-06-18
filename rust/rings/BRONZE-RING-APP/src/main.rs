@@ -130,38 +130,40 @@ async fn main() -> anyhow::Result<()> {
     let server_gw = payment_gateway.clone();
     let http_port = config.http_port;
     let server_cancel = cancel_token.clone();
-    let server_handle = tokio::spawn(async move {
-        let server_inner = async {
-            let router = trios_mb_server::create_router_with_payments(server_db, server_gw);
-            let addr = std::net::SocketAddr::from(([0, 0, 0, 0], http_port));
-            info!(addr = %addr, "HTTP server starting");
-            let listener = match tokio::net::TcpListener::bind(addr).await {
-                Ok(l) => l,
-                Err(e) => {
-                    tracing::error!(addr = %addr, error = %e, "Failed to bind HTTP listener");
-                    return Err(anyhow::anyhow!("Failed to bind HTTP listener on {}: {}", addr, e));
+    let server_handle = spawn_traced(
+        "http-server",
+        cancel_token.clone(),
+        move || {
+            let server_db = server_db.clone();
+            let server_gw = server_gw.clone();
+            let http_port = http_port;
+            let server_cancel = server_cancel.clone();
+            async move {
+                let router = trios_mb_server::create_router_with_payments(server_db, server_gw);
+                let addr = std::net::SocketAddr::from(([0, 0, 0, 0], http_port));
+                info!(addr = %addr, "HTTP server starting");
+                let listener = match tokio::net::TcpListener::bind(addr).await {
+                    Ok(l) => l,
+                    Err(e) => {
+                        tracing::error!(addr = %addr, error = %e, "Failed to bind HTTP listener");
+                        return;
+                    }
+                };
+                let serve = axum::serve(listener, router);
+                tokio::select! {
+                    biased;
+                    _ = server_cancel.cancelled() => {
+                        tracing::info!("HTTP server shutting down gracefully");
+                    }
+                    result = std::future::IntoFuture::into_future(serve) => {
+                        if let Err(e) = result {
+                            tracing::error!(addr = %addr, error = %e, "HTTP server error");
+                        }
+                    }
                 }
-            };
-            if let Err(e) = axum::serve(listener, router).await {
-                tracing::error!(addr = %addr, error = %e, "HTTP server error");
-                return Err(anyhow::anyhow!("HTTP server error: {}", e));
             }
-            Ok(())
-        };
-        tokio::select! {
-            biased;
-            _ = server_cancel.cancelled() => {
-                tracing::info!("HTTP server shutting down gracefully");
-            }
-            result = std::panic::AssertUnwindSafe(server_inner).catch_unwind() => {
-                match result {
-                    Ok(Ok(())) => {}
-                    Ok(Err(e)) => tracing::error!(error = %e, "HTTP server error"),
-                    Err(_) => tracing::error!("HTTP server panicked"),
-                }
-            }
-        }
-    });
+        },
+    );
 
     // 6. Background Job Workers
     let job_queue: Arc<dyn JobQueue> = Arc::new(
