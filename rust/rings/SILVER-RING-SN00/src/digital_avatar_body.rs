@@ -5,6 +5,7 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, DigitalAvatarBodyState};
 use trios_mb_tg::HandlerResult;
+use trios_mb_tg::answer_callback_query_timeout;
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
@@ -101,7 +102,7 @@ pub async fn handle_digital_avatar_body_callback(
     mut state: DigitalAvatarBodyState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let tid = q.from.id.0 as i64;
     if tid <= 0 {
         tracing::warn!("Callback query missing valid telegram_id; aborting handler");

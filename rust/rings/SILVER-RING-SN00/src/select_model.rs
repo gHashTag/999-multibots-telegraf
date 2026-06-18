@@ -5,6 +5,7 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::Database;
 use trios_mb_tg::state::{Scene, SelectModelState};
 use trios_mb_tg::HandlerResult;
+use trios_mb_tg::answer_callback_query_timeout;
 use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
@@ -55,7 +56,7 @@ pub async fn handle_select_model_callback(
     mut state: SelectModelState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
     let chat_id = match q.chat_id() {
         Some(id) => id,

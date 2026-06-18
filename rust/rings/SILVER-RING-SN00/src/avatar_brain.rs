@@ -4,6 +4,7 @@ use teloxide::prelude::*;
 use trios_mb_traits::Database;
 use trios_mb_tg::state::{Scene, AvatarBrainState};
 use trios_mb_tg::HandlerResult;
+use trios_mb_tg::answer_callback_query_timeout;
 use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
@@ -140,7 +141,7 @@ pub async fn handle_avatar_brain_callback(
     _state: AvatarBrainState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let tid = q.from.id.0 as i64;
     if tid <= 0 {
         tracing::warn!("Callback query missing valid telegram_id; aborting handler");

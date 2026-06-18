@@ -322,38 +322,41 @@ async fn poll_and_execute(
         }
         Some(Ok(Err(e))) => {
             let err_str = e.to_string();
-            let job = match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.get(job_id)).await {
-                Ok(Ok(j)) => j,
+            let status = match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.get(job_id)).await {
+                Ok(Ok(Some(j))) => {
+                    if j.attempts >= j.max_attempts {
+                        tracing::error!(
+                            worker = worker_name,
+                            job_id = %job_id,
+                            attempts = j.attempts,
+                            "Job failed permanently"
+                        );
+                        JobStatus::Failed
+                    } else {
+                        tracing::warn!(
+                            worker = worker_name,
+                            job_id = %job_id,
+                            attempt = j.attempts,
+                            "Job failed, will retry"
+                        );
+                        JobStatus::Queued
+                    }
+                }
+                Ok(Ok(None)) => {
+                    tracing::warn!(job_id = %job_id, "Job not found in queue for retry decision; defaulting to Queued");
+                    JobStatus::Queued
+                }
                 Ok(Err(e)) => {
-                    tracing::error!(error = %e, job_id = %job_id, "Failed to get job for retry decision");
-                    None
+                    tracing::error!(error = %e, job_id = %job_id, "Failed to get job for retry decision; defaulting to Queued");
+                    JobStatus::Queued
                 }
                 Err(_) => {
-                    tracing::warn!(job_id = %job_id, "get job timed out");
-                    None
+                    tracing::warn!(job_id = %job_id, "get job timed out; defaulting to Queued");
+                    JobStatus::Queued
                 }
             };
-            if let Some(j) = job {
-                let status = if j.attempts >= j.max_attempts {
-                    tracing::error!(
-                        worker = worker_name,
-                        job_id = %job_id,
-                        attempts = j.attempts,
-                        "Job failed permanently"
-                    );
-                    JobStatus::Failed
-                } else {
-                    tracing::warn!(
-                        worker = worker_name,
-                        job_id = %job_id,
-                        attempt = j.attempts,
-                        "Job failed, will retry"
-                    );
-                    JobStatus::Queued
-                };
-                if let Err(e) = tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.update_status(job_id, status, Some(&err_str))).await {
-                    tracing::error!(error = %e, job_id = %job_id, "Failed to update job status after failure (timeout)");
-                }
+            if let Err(e) = tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.update_status(job_id, status, Some(&err_str))).await {
+                tracing::error!(error = %e, job_id = %job_id, "Failed to update job status after failure (timeout)");
             }
         }
         Some(Err(join_err)) => {
@@ -392,10 +395,17 @@ pub async fn run_retry_maintenance(
         tokio::select! {
             _ = cancel.cancelled() => break,
             _ = tokio::time::sleep(interval) => {
-                // Threshold must cover the longest legitimate job timeout (ModelTraining = 7200s).
-                // Using a single global threshold avoids false-positive stuck detection on healthy
-                // long-running jobs. A per-job-type dynamic threshold is deferred to a future wave.
-                match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.retry_stuck(7200)).await {
+                // Threshold must exceed the longest legitimate job timeout by a safety margin.
+                // This prevents a race where retry_stuck flags a job as stuck before the worker's
+                // own abort timer fires, which would cause duplicate execution.
+                const STUCK_JOB_MARGIN_SECS: u64 = 300;
+                let max_timeout = JobType::all_types()
+                    .iter()
+                    .map(|t| t.timeout_secs())
+                    .max()
+                    .unwrap_or(7200);
+                let stuck_threshold = max_timeout + STUCK_JOB_MARGIN_SECS;
+                match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.retry_stuck(stuck_threshold)).await {
                     Ok(Ok(count)) if count > 0 => {
                         tracing::info!(retried = count, "Retry maintenance: reset stuck jobs");
                     }

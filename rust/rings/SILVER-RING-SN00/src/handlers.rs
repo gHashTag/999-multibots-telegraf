@@ -7,7 +7,7 @@ use teloxide::types::{Update, ChatId};
 use teloxide::utils::command::BotCommands;
 use trios_mb_traits::Database;
 use trios_mb_tg::state::Scene;
-use trios_mb_tg::{HandlerResult, HandlerError};
+use trios_mb_tg::{HandlerResult, HandlerError, answer_callback_query_timeout};
 use trios_mb_tg::keyboards::main_menu_keyboard;
 use crate::generation_utils::{load_lang, load_lang_by_id};
 
@@ -212,7 +212,7 @@ async fn handle_nav_callback(
         return Ok(());
     }
 
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
 
     let action = trios_mb_tg::navigation::NavigationRouter::parse_callback(&data);
     let chat_id = match q.chat_id() {

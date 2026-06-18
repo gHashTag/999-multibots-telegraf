@@ -6,6 +6,7 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::Database;
 use trios_mb_tg::state::{Scene, PaymentFlowState};
 use trios_mb_tg::HandlerResult;
+use trios_mb_tg::answer_callback_query_timeout;
 use crate::generation_utils::{load_lang, load_lang_cb};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
@@ -88,7 +89,7 @@ pub async fn handle_payment_callback(
     state: PaymentFlowState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let tid = q.from.id.0 as i64;
     if tid <= 0 {
         tracing::warn!("Callback query missing valid telegram_id; aborting handler");

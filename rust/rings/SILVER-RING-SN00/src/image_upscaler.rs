@@ -4,6 +4,7 @@ use teloxide::prelude::*;
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, UpscalerState};
 use trios_mb_tg::HandlerResult;
+use trios_mb_tg::answer_callback_query_timeout;
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
@@ -85,7 +86,7 @@ pub async fn handle_image_upscaler_callback(
     _state: UpscalerState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
 

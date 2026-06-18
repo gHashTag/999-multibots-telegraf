@@ -6,6 +6,7 @@ use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, TextToVideoState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
+use trios_mb_tg::answer_callback_query_timeout;
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, load_lang_cb, return_to_menu};
 
@@ -81,7 +82,7 @@ pub async fn handle_text_to_video_callback(
     mut state: TextToVideoState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
     let chat_id = match q.chat_id() {
         Some(id) => id,
