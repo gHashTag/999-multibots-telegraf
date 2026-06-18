@@ -5,6 +5,7 @@ use trios_mb_traits::{Database, JobQueue};
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
 use crate::generation_utils::{load_lang, dispatch_and_reply, DispatchParams};
+use trios_mb_tg::send_message_timeout;
 use trios_mb_types::generation::MediaType;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
@@ -23,14 +24,18 @@ pub async fn handle_neuro_coder_msg(
     let prompt = match msg.text() {
         Some(t) => t.to_string(),
         None => {
-            bot.send_message(chat_id, if lang.is_russian() { "Опишите задачу для генерации кода" } else { "Describe the code generation task" }).await?;
+            send_message_timeout(
+                &bot, chat_id, if lang.is_russian() { "Опишите задачу для генерации кода" } else { "Describe the code generation task" }, None,
+            ).await?;
             return Ok(());
         }
     };
 
     if prompt.len() > 4000 {
         let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
-        bot.send_message(chat_id, err).await?;
+        send_message_timeout(
+            &bot, chat_id, err, None,
+        ).await?;
         return Ok(());
     }
 

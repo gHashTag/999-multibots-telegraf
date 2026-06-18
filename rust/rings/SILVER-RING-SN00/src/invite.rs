@@ -6,6 +6,7 @@ use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
 use crate::generation_utils::load_lang;
 use crate::generation_utils::return_to_menu;
+use trios_mb_tg::send_message_timeout;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -37,6 +38,8 @@ pub async fn handle_invite_msg(
         )
     };
 
-    bot.send_message(msg.chat.id, intro).await?;
+    send_message_timeout(
+        &bot, msg.chat.id, intro, None,
+    ).await?;
     return_to_menu(&bot, &dialogue, msg.chat.id, lang).await
 }

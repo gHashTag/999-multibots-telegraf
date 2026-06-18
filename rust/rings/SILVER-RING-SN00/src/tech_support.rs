@@ -5,6 +5,7 @@ use trios_mb_traits::Database;
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
 use crate::generation_utils::{load_lang, return_to_menu};
+use trios_mb_tg::send_message_timeout;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -21,14 +22,18 @@ pub async fn handle_tech_support_msg(
     let user_message = match msg.text() {
         Some(t) => t.to_string(),
         None => {
-            bot.send_message(chat_id, if lang.is_russian() { "Опишите вашу проблему" } else { "Describe your issue" }).await?;
+            send_message_timeout(
+                &bot, chat_id, if lang.is_russian() { "Опишите вашу проблему" } else { "Describe your issue" }, None,
+            ).await?;
             return Ok(());
         }
     };
 
     if user_message.len() > 4000 {
         let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
-        bot.send_message(chat_id, err).await?;
+        send_message_timeout(
+            &bot, chat_id, err, None,
+        ).await?;
         return Ok(());
     }
 
@@ -45,6 +50,8 @@ pub async fn handle_tech_support_msg(
     } else {
         "✅ Your request has been sent to tech support.\n\nWe'll respond as soon as possible.\n\nContacts:\n• @support_bot\n• support@example.com"
     };
-    bot.send_message(chat_id, text).await?;
+    send_message_timeout(
+        &bot, chat_id, text, None,
+    ).await?;
     return_to_menu(&bot, &dialogue, chat_id, lang).await
 }
