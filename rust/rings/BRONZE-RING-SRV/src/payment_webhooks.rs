@@ -11,6 +11,7 @@ use crate::AppState;
 const WEBHOOK_DB_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RobokassaCallbackForm {
     pub out_sum: String,
     pub inv_id: String,

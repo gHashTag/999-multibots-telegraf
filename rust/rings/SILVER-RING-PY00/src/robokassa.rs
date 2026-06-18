@@ -32,7 +32,8 @@ impl RobokassaGateway {
         use hmac::{Hmac, Mac};
         use sha2::Sha256;
         type HmacSha256 = Hmac<Sha256>;
-        let data = format!("{}:{}:{}:{}", self.merchant_login, amount, inv_id, self.password1);
+        let amount_fmt = format!("{:.2}", amount);
+        let data = format!("{}:{}:{}:{}", self.merchant_login, amount_fmt, inv_id, self.password1);
         let mut mac = HmacSha256::new_from_slice(data.as_bytes())
             .map_err(|e| AppError::Internal(format!("HMAC key error: {}", e)))?;
         mac.update(data.as_bytes());
@@ -120,9 +121,10 @@ impl PaymentGateway for RobokassaGateway {
     async fn get_payment_url(&self, payment: &PaymentInit) -> Result<String, AppError> {
         let inv_id = payment.external_id.as_deref().unwrap_or("0");
         let sig = self.generate_signature(payment.amount, inv_id)?;
+        let amount_fmt = format!("{:.2}", payment.amount);
         Ok(format!(
             "https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin={}&OutSum={}&InvId={}&SignatureValue={}&Description=Top+up+balance",
-            self.merchant_login, payment.amount, inv_id, sig
+            self.merchant_login, amount_fmt, inv_id, sig
         ))
     }
 }

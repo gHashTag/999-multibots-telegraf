@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use trios_mb_traits::{PaymentGateway, PaymentInit, PaymentVerification};
 use trios_mb_types::payment::*;
 use trios_mb_types::AppError;
+use trios_mb_types::Money;
 
 pub struct TelegramStarsGateway;
 
@@ -26,6 +27,8 @@ impl PaymentGateway for TelegramStarsGateway {
                 amount
             )));
         }
+        let _amount_money = Money::from_f64(amount)
+            .ok_or_else(|| AppError::Validation(format!("Stars amount overflows Money: {}", amount)))?;
         Ok(PaymentInit {
             id: uuid::Uuid::new_v4(),
             telegram_id,
@@ -47,6 +50,8 @@ impl PaymentGateway for TelegramStarsGateway {
                 amount
             )));
         }
+        let _amount_money = Money::from_f64(amount)
+            .ok_or_else(|| AppError::Validation(format!("Stars callback amount overflows Money: {}", amount)))?;
         Ok(PaymentVerification {
             transaction_id: transaction_id.to_string(),
             amount,

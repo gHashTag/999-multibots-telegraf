@@ -48,10 +48,18 @@ impl PaymentGateway for X402Gateway {
         let id = uuid::Uuid::new_v4();
         let external_id = format!("x402_{}", id);
 
+        const MAX_X402_AMOUNT: f64 = 1_000_000_000.0;
+        if amount > MAX_X402_AMOUNT {
+            return Err(AppError::Validation(format!(
+                "x402 amount exceeds maximum of {}: {}",
+                MAX_X402_AMOUNT, amount
+            )));
+        }
+        let scaled = (amount * 1_000_000.0) as u64;
         let payment_url = format!(
             "https://app.tonkeeper.com/transfer/{}?amount={}&text={}",
             self.wallet_address,
-            (amount * 1_000_000.0) as u64,
+            scaled,
             urlencoding::encode(&external_id)
         );
 

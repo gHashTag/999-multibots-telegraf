@@ -25,6 +25,9 @@ where
         const MAX_CONSECUTIVE_FAILURES: u32 = 10;
         const BASE_BACKOFF_SECS: u64 = 5;
         const MAX_BACKOFF_SECS: u64 = 60;
+        const RESTART_RATE_WINDOW_SECS: u64 = 60;
+        let mut last_restart: Option<std::time::Instant> = None;
+        let mut restarts_in_window: u32 = 0;
 
         loop {
             tokio::select! {
@@ -41,6 +44,25 @@ where
                         }
                         Err(_) => {
                             consecutive_failures += 1;
+                            let now = std::time::Instant::now();
+                            if let Some(last) = last_restart {
+                                if now.duration_since(last).as_secs() < RESTART_RATE_WINDOW_SECS {
+                                    restarts_in_window += 1;
+                                    if restarts_in_window >= 3 {
+                                        tracing::warn!(
+                                            task = %desc,
+                                            restarts_in_window,
+                                            "Supervised task restarting rapidly; possible root cause not resolved"
+                                        );
+                                    }
+                                } else {
+                                    restarts_in_window = 1;
+                                }
+                            } else {
+                                restarts_in_window = 1;
+                            }
+                            last_restart = Some(now);
+
                             if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
                                 tracing::error!(
                                     task = %desc,
