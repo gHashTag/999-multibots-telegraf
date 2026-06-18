@@ -8,6 +8,7 @@ use tower_governor::GovernorLayer;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::timeout::TimeoutLayer;
 use trios_mb_traits::{Database, PaymentGateway};
+use secrecy::SecretString;
 
 /// Build a per-IP rate-limit layer.
 /// Returns `None` if the configuration is invalid (e.g., zero rates).
@@ -23,14 +24,15 @@ pub struct AppState {
     pub db: Arc<dyn Database>,
     pub payment_gateway: Option<Arc<dyn PaymentGateway>>,
     /// Webhook secrets loaded at startup. Keys are env-var names; values are the secrets.
-    pub webhook_secrets: HashMap<String, String>,
+    /// Stored as SecretString so buffers are zeroised on drop and redacted in Debug.
+    pub webhook_secrets: HashMap<String, SecretString>,
 }
 
 /// Load a webhook secret from an environment variable.
-/// Panics at startup if the secret is required but missing or empty.
-fn load_webhook_secret(env_var: &str) -> Option<String> {
+/// Returns SecretString so the buffer is zeroised on drop and redacted in Debug.
+fn load_webhook_secret(env_var: &str) -> Option<SecretString> {
     match std::env::var(env_var) {
-        Ok(v) if !v.is_empty() => Some(v),
+        Ok(v) if !v.is_empty() => Some(SecretString::new(v)),
         Ok(_) => {
             tracing::warn!(env_var, "Webhook secret is empty");
             None
@@ -106,6 +108,8 @@ async fn edge_hardening(
     headers.insert("X-Content-Type-Options", http::HeaderValue::from_static("nosniff"));
     headers.insert("X-Frame-Options", http::HeaderValue::from_static("DENY"));
     headers.insert("Strict-Transport-Security", http::HeaderValue::from_static("max-age=63072000; includeSubDomains"));
+    headers.insert("Content-Security-Policy", http::HeaderValue::from_static("default-src 'none'; frame-ancestors 'none'; base-uri 'none'"));
+    headers.insert("Referrer-Policy", http::HeaderValue::from_static("strict-origin-when-cross-origin"));
 
     // Sanitize client-error and server-error bodies to prevent info disclosure
     if (code.is_client_error() || code.is_server_error()) && code != axum::http::StatusCode::TOO_MANY_REQUESTS {
@@ -122,6 +126,9 @@ fn build_sanitized_response(code: axum::http::StatusCode) -> Response {
         .header("Content-Type", "text/plain; charset=utf-8")
         .header("X-Content-Type-Options", "nosniff")
         .header("X-Frame-Options", "DENY")
+        .header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'")
+        .header("Referrer-Policy", "strict-origin-when-cross-origin")
+        .header("Cache-Control", "no-cache, no-store, must-revalidate")
         .body(axum::body::Body::from("Bad Request"))
         .unwrap_or_else(|_| {
             // Fallback: builder should never fail with static headers, but

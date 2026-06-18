@@ -7,6 +7,7 @@ use std::time::Duration;
 use trios_mb_types::generation::GenerationStatus;
 use trios_mb_types::truncate_for_log;
 use trios_mb_proto::replicate::WebhookPayload;
+use secrecy::ExposeSecret;
 use crate::AppState;
 
 const WEBHOOK_DB_TIMEOUT: Duration = Duration::from_secs(10);
@@ -119,7 +120,7 @@ pub async fn replicate_webhook(
     Json(payload): Json<WebhookPayload>,
 ) -> impl IntoResponse {
     let replicate_secret = match state.webhook_secrets.get("REPLICATE_WEBHOOK_SECRET") {
-        Some(s) => s.as_str(),
+        Some(s) => s.expose_secret(),
         None => {
             tracing::error!("REPLICATE_WEBHOOK_SECRET not loaded at startup; rejecting webhook");
             return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Webhook secret not configured"})));
@@ -242,7 +243,7 @@ pub async fn kie_ai_webhook(
     Json(payload): Json<trios_mb_proto::kie::WebhookPayload>,
 ) -> impl IntoResponse {
     let kie_secret = match state.webhook_secrets.get("KIE_WEBHOOK_SECRET") {
-        Some(s) => s.as_str(),
+        Some(s) => s.expose_secret(),
         None => {
             tracing::error!("KIE_WEBHOOK_SECRET not loaded at startup; rejecting webhook");
             return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Webhook secret not configured"})));
