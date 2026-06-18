@@ -58,7 +58,7 @@ use crate::tech_support::handle_tech_support_msg;
 use crate::neuro_coder::handle_neuro_coder_msg;
 
 
-#[derive(BotCommands, Clone)]
+#[derive(BotCommands, Clone, Debug)]
 #[command(rename_rule = "lowercase")]
 enum Command {
     #[command(description = "Start")]
@@ -180,6 +180,7 @@ pub fn build_scene_tree() -> UpdateHandler<HandlerError> {
         .branch(callback_branch)
 }
 
+#[tracing::instrument(skip_all, fields(cmd = ?cmd))]
 async fn handle_command(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -197,6 +198,7 @@ async fn handle_command(
     }
 }
 
+#[tracing::instrument(skip_all)]
 async fn handle_nav_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -204,6 +206,12 @@ async fn handle_nav_callback(
     q: teloxide::types::CallbackQuery,
     data: String,
 ) -> HandlerResult {
+    let tid = q.from.id.0 as i64;
+    if tid <= 0 {
+        tracing::warn!("Callback query missing valid telegram_id; aborting nav handler");
+        return Ok(());
+    }
+
     bot.answer_callback_query(&q.id).await?;
 
     let action = trios_mb_tg::navigation::NavigationRouter::parse_callback(&data);
@@ -212,7 +220,7 @@ async fn handle_nav_callback(
         None => return Ok(()),
     };
 
-    let lang = load_lang_by_id(&db, q.from.id.0 as i64).await;
+    let lang = load_lang_by_id(&db, tid).await;
 
     match action {
         Some(trios_mb_tg::navigation::NavigationAction::Back) => {
@@ -230,13 +238,14 @@ async fn handle_nav_callback(
         Some(trios_mb_tg::navigation::NavigationAction::Navigate(scene_id)) => {
             let scene = scene_from_id(&scene_id);
             dialogue.update(scene).await?;
-            enter_scene_greeting(&bot, chat_id, lang, &scene_id, &db, q.from.id.0 as i64).await?;
+            enter_scene_greeting(&bot, chat_id, lang, &scene_id, &db, tid).await?;
         }
         None => {}
     }
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 async fn handle_main_menu_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -301,6 +310,7 @@ fn match_text_to_scene(lang: trios_mb_types::user::Language, text: &str) -> Opti
     })
 }
 
+#[tracing::instrument(skip_all)]
 async fn handle_help_state_msg(
     _bot: teloxide::Bot,
     _db: Arc<dyn Database>,
@@ -311,6 +321,7 @@ async fn handle_help_state_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 async fn handle_balance_state_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -386,6 +397,7 @@ fn scene_from_id(id: &trios_mb_types::scene::SceneId) -> Scene {
     }
 }
 
+#[tracing::instrument(skip(bot, db), fields(scene = ?scene_id, telegram_id))]
 async fn enter_scene_greeting(
     bot: &teloxide::Bot,
     chat_id: ChatId,
