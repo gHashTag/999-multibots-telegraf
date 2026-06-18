@@ -60,8 +60,11 @@ fn apply_rate_limit<S: Clone + Send + Sync + 'static>(router: Router<S>, per_sec
     match rate_limit_layer(per_second, burst_size) {
         Some(layer) => router.layer(layer),
         None => {
-            tracing::error!(per_second, burst_size, "Failed to build rate-limit layer; continuing without rate limiting");
-            router
+            panic!(
+                "FATAL: Failed to build rate-limit layer (per_second={}, burst_size={}). \
+                 Misconfigured rate limiting is a security risk. Aborting startup.",
+                per_second, burst_size
+            );
         }
     }
 }

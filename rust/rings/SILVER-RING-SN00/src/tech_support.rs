@@ -4,7 +4,6 @@ use teloxide::prelude::*;
 use trios_mb_traits::Database;
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
-use trios_mb_types::truncate_for_log;
 use crate::generation_utils::{load_lang, return_to_menu};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
@@ -39,7 +38,7 @@ pub async fn handle_tech_support_msg(
         return Ok(());
     }
 
-    tracing::info!(telegram_id = telegram_id, message = %truncate_for_log(&user_message, 200), "Tech support request received");
+    tracing::info!(telegram_id = telegram_id, message_len = user_message.len(), "Tech support request received");
 
     let text = if lang.is_russian() {
         "✅ Ваше обращение отправлено в техподдержку.\n\nМы ответим в ближайшее время.\n\nКонтакты:\n• @support_bot\n• support@example.com"
