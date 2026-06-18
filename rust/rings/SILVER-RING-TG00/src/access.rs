@@ -1,23 +1,42 @@
 use std::sync::LazyLock;
 
 /// Load a mandatory i64 from an environment variable.
-/// Panics at first access if the variable is missing or not a valid i64.
+/// Logs an error and returns a sentinel value (0) if the variable is missing or invalid,
+/// preventing a runtime panic while still allowing the bot to start.
 fn load_mandatory_i64(env_var: &str) -> i64 {
-    let raw = std::env::var(env_var)
-        .unwrap_or_else(|_| panic!("FATAL: {} environment variable is required but not set", env_var));
-    raw.parse::<i64>()
-        .unwrap_or_else(|_| panic!("FATAL: {}='{}' is not a valid i64", env_var, raw))
+    let raw = match std::env::var(env_var) {
+        Ok(v) => v,
+        Err(_) => {
+            tracing::error!("{} environment variable is required but not set; defaulting to 0", env_var);
+            return 0;
+        }
+    };
+    match raw.parse::<i64>() {
+        Ok(v) => v,
+        Err(_) => {
+            tracing::error!("{}='{}' is not a valid i64; defaulting to 0", env_var, raw);
+            0
+        }
+    }
 }
 
 /// Load an optional comma-separated list of i64s from an environment variable.
 /// Returns an empty Vec if the variable is unset or empty.
+/// Skips invalid integers with a warning instead of panicking.
 fn load_optional_id_list(env_var: &str) -> Vec<i64> {
     match std::env::var(env_var) {
         Ok(raw) if !raw.is_empty() => raw
             .split(',')
-            .map(|s| s.trim().parse::<i64>().unwrap_or_else(|_| {
-                panic!("FATAL: {} contains invalid integer: '{}'", env_var, s.trim())
-            }))
+            .filter_map(|s| {
+                let trimmed = s.trim();
+                match trimmed.parse::<i64>() {
+                    Ok(v) => Some(v),
+                    Err(_) => {
+                        tracing::warn!("{} contains invalid integer: '{}'; skipping", env_var, trimmed);
+                        None
+                    }
+                }
+            })
             .collect(),
         _ => Vec::new(),
     }

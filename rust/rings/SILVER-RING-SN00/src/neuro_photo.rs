@@ -7,7 +7,7 @@ use trios_mb_tg::state::{Scene, NeuroPhotoState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
 use trios_mb_types::generation::MediaType;
-use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, load_lang_cb};
+use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, load_lang_cb, return_to_menu};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -134,6 +134,22 @@ pub async fn handle_neuro_photo_callback(
             let gender = if data == "np:male" { "male" } else { "female" };
             let mut new_state = state;
             new_state.gender = Some(gender.to_string());
+            let prompt = match new_state.prompt.as_ref() {
+                Some(p) => p.clone(),
+                None => {
+                    let err = if lang.is_russian() { "❌ Сессия устарела. Начните заново." } else { "❌ Session expired. Please start again." };
+                    bot.send_message(chat_id, err).await?;
+                    return return_to_menu(&bot, &dialogue, chat_id, lang).await;
+                }
+            };
+            let image_url = match new_state.image_url.as_ref() {
+                Some(u) => u.clone(),
+                None => {
+                    let err = if lang.is_russian() { "❌ Сессия устарела. Начните заново." } else { "❌ Session expired. Please start again." };
+                    bot.send_message(chat_id, err).await?;
+                    return return_to_menu(&bot, &dialogue, chat_id, lang).await;
+                }
+            };
             return dispatch_and_reply(
                 &bot, &dialogue, chat_id,
                 &job_queue, &db,
@@ -143,8 +159,8 @@ pub async fn handle_neuro_photo_callback(
                     media_type: MediaType::Image,
                     job_type: "image_rendering",
                     cost: 10.0,
-                    prompt: new_state.prompt.clone(),
-                    image_url: new_state.image_url.clone(),
+                    prompt: Some(prompt),
+                    image_url: Some(image_url),
                     model: new_state.model.clone(),
                 },
             ).await;

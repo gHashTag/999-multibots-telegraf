@@ -7,7 +7,7 @@ use trios_mb_tg::state::{Scene, TextToImageState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
 use trios_mb_types::generation::MediaType;
-use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, load_lang_cb};
+use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, load_lang_cb, return_to_menu};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -154,6 +154,14 @@ pub async fn handle_text_to_image_callback(
                 _ => "1:1",
             };
             state.aspect_ratio = Some(ratio.to_string());
+            let prompt = match state.prompt.as_ref() {
+                Some(p) => p.clone(),
+                None => {
+                    let err = if lang.is_russian() { "❌ Сессия устарела. Начните заново." } else { "❌ Session expired. Please start again." };
+                    bot.send_message(chat_id, err).await?;
+                    return return_to_menu(&bot, &dialogue, chat_id, lang).await;
+                }
+            };
             return dispatch_and_reply(
                 &bot, &dialogue, chat_id,
                 &job_queue, &db,
@@ -163,7 +171,7 @@ pub async fn handle_text_to_image_callback(
                     media_type: MediaType::Image,
                     job_type: "image_rendering",
                     cost: 10.0,
-                    prompt: state.prompt.clone(),
+                    prompt: Some(prompt),
                     image_url: None,
                     model: state.model.clone(),
                 },

@@ -123,6 +123,15 @@ impl PostgresDatabase {
     }
 }
 
+fn truncate_string(s: &str, max: usize, context: &str) -> String {
+    if s.len() > max {
+        tracing::warn!(%context, len = s.len(), max, "Truncating string to maximum length");
+        s[..max].to_string()
+    } else {
+        s.to_string()
+    }
+}
+
 #[async_trait]
 impl DbTrait for PostgresDatabase {
     async fn get_user_by_telegram_id(&self, telegram_id: i64) -> Result<Option<User>, AppError> {
@@ -588,14 +597,23 @@ impl DbTrait for PostgresDatabase {
 
     async fn create_generation(&self, req: &GenerationRequest) -> Result<GenerationResult, AppError> {
         use crate::entities::generations as g;
+        const MAX_PROMPT_LEN: usize = 2000;
         let id = uuid::Uuid::new_v4();
         let now = chrono::Utc::now();
+        let prompt = req.prompt.as_ref().map(|p| {
+            if p.len() > MAX_PROMPT_LEN {
+                tracing::warn!(telegram_id = req.telegram_id, len = p.len(), "Truncating generation prompt to {} bytes", MAX_PROMPT_LEN);
+                p[..MAX_PROMPT_LEN].to_string()
+            } else {
+                p.clone()
+            }
+        });
         let model = g::ActiveModel {
             id: Set(id),
             telegram_id: Set(req.telegram_id),
             media_type: Set(media_type_to_str(&req.media_type).to_string()),
             status: Set(generation_status_to_str(&GenerationStatus::Queued).to_string()),
-            prompt: Set(req.prompt.clone()),
+            prompt: Set(prompt),
             result_url: Set(None),
             provider: Set(None),
             params: Set(Some(req.params.clone())),
@@ -620,6 +638,8 @@ impl DbTrait for PostgresDatabase {
 
     async fn update_generation_status(&self, id: uuid::Uuid, status: GenerationStatus, result_url: Option<&str>, error: Option<&str>) -> Result<(), AppError> {
         use crate::entities::generations as g;
+        const MAX_RESULT_URL_LEN: usize = 4096;
+        const MAX_ERROR_LEN: usize = 1024;
         let row = g::Entity::find_by_id(id)
             .one(self.pool.as_ref())
             .await
@@ -629,10 +649,10 @@ impl DbTrait for PostgresDatabase {
             let mut active: g::ActiveModel = row.into();
             active.status = Set(generation_status_to_str(&status).to_string());
             if result_url.is_some() {
-                active.result_url = Set(result_url.map(String::from));
+                active.result_url = Set(result_url.map(|s| truncate_string(s, MAX_RESULT_URL_LEN, "result_url")));
             }
             if error.is_some() {
-                active.error = Set(error.map(String::from));
+                active.error = Set(error.map(|s| truncate_string(s, MAX_ERROR_LEN, "error")));
             }
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
@@ -762,6 +782,8 @@ impl DbTrait for PostgresDatabase {
         error: Option<&str>,
     ) -> Result<(), AppError> {
         use crate::entities::generations as g;
+        const MAX_RESULT_URL_LEN: usize = 4096;
+        const MAX_ERROR_LEN: usize = 1024;
         let row = g::Entity::find()
             .filter(g::Column::Id.eq(id))
             .filter(g::Column::TelegramId.eq(telegram_id))
@@ -773,10 +795,10 @@ impl DbTrait for PostgresDatabase {
             let mut active: g::ActiveModel = row.into();
             active.status = Set(generation_status_to_str(&status).to_string());
             if result_url.is_some() {
-                active.result_url = Set(result_url.map(String::from));
+                active.result_url = Set(result_url.map(|s| truncate_string(s, MAX_RESULT_URL_LEN, "result_url")));
             }
             if error.is_some() {
-                active.error = Set(error.map(String::from));
+                active.error = Set(error.map(|s| truncate_string(s, MAX_ERROR_LEN, "error")));
             }
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
