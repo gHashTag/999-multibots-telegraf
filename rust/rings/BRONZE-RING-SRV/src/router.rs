@@ -160,7 +160,8 @@ pub fn create_router(db: Arc<dyn Database>) -> Result<Router, String> {
             .route("/api/webhooks/replicate", post(crate::webhooks::replicate_webhook))
             .route("/api/webhooks/kie-ai", post(crate::webhooks::kie_ai_webhook)),
         2, 30,
-    )?;
+    )?
+    .layer(axum::extract::DefaultBodyLimit::max(256 * 1024));
 
     Ok(Router::new()
         .merge(health)
@@ -203,7 +204,8 @@ pub fn create_router_with_payments(
             .route("/api/webhooks/replicate", post(crate::webhooks::replicate_webhook))
             .route("/api/webhooks/kie-ai", post(crate::webhooks::kie_ai_webhook)),
         2, 30,
-    )?;
+    )?
+    .layer(axum::extract::DefaultBodyLimit::max(256 * 1024));
 
     let payments = apply_rate_limit(
         Router::new()

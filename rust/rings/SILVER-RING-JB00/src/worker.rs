@@ -192,6 +192,7 @@ pub struct WorkerPool {
 }
 
 impl WorkerPool {
+    #[tracing::instrument(skip_all)]
     pub fn new(queue: Arc<dyn JobQueue>) -> Self {
         Self {
             queue,
@@ -200,15 +201,17 @@ impl WorkerPool {
         }
     }
 
-    pub fn register(&mut self, job_type: JobType, handler: JobHandler) {
+    #[tracing::instrument(skip_all, fields(job_type = %job_type.as_str()))]
+    pub fn register(&mut self, job_type: JobType, _handler: JobHandler) {
         let concurrency = job_type.concurrency_limit();
         self.handlers.push(WorkerSpec {
             job_type,
             concurrency,
-            handler: Arc::new(handler),
+            handler: Arc::new(_handler),
         });
     }
 
+    #[tracing::instrument(skip_all, fields(handlers = self.handlers.len()))]
     pub fn spawn(self: &Arc<Self>) {
         for spec in &self.handlers {
             let type_str = spec.job_type.as_str();
@@ -264,6 +267,7 @@ impl WorkerPool {
         tracing::info!(handlers = self.handlers.len(), "Worker pool spawned");
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn shutdown(&self) {
         self.cancel_token.cancel();
     }

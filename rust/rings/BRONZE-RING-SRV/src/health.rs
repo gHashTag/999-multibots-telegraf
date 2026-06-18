@@ -30,13 +30,26 @@ pub async fn health_check_with_db(
                 "db": "connected",
             })),
         ),
-        _ => (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(json!({
-                "status": "degraded",
-                "db": "disconnected",
-            })),
-        ),
+        Ok(false) => {
+            tracing::warn!("DB health check returned false; service degraded");
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({
+                    "status": "degraded",
+                    "db": "unhealthy",
+                })),
+            )
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "DB health check failed");
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({
+                    "status": "degraded",
+                    "db": "disconnected",
+                })),
+            )
+        }
     };
     (
         status,
