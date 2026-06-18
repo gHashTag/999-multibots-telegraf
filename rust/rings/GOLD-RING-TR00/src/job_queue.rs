@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use trios_mb_types::AppError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Job {
     pub id: uuid::Uuid,
     pub job_type: String,
@@ -18,6 +19,7 @@ pub struct Job {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum JobStatus {
     Queued,
     Running,
@@ -27,6 +29,7 @@ pub enum JobStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EnqueueRequest {
     pub job_type: String,
     pub payload: serde_json::Value,

@@ -9,6 +9,9 @@ use trios_mb_types::truncate_for_log;
 use crate::AppState;
 
 const WEBHOOK_DB_TIMEOUT: Duration = Duration::from_secs(10);
+const MAX_INV_ID_LEN: usize = 128;
+const MAX_SIGNATURE_LEN: usize = 512;
+const MAX_OUT_SUM_LEN: usize = 32;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -38,6 +41,19 @@ pub async fn robokassa_callback(
         amount = %truncate_for_log(&form.out_sum, 64),
         "Robokassa callback received"
     );
+
+    if form.inv_id.len() > MAX_INV_ID_LEN {
+        tracing::warn!(len = form.inv_id.len(), "Robokassa callback rejected: inv_id too long");
+        return "ERROR: invalid inv_id".to_string();
+    }
+    if form.signature_value.len() > MAX_SIGNATURE_LEN {
+        tracing::warn!(len = form.signature_value.len(), "Robokassa callback rejected: signature too long");
+        return "ERROR: invalid signature".to_string();
+    }
+    if form.out_sum.len() > MAX_OUT_SUM_LEN {
+        tracing::warn!(len = form.out_sum.len(), "Robokassa callback rejected: out_sum too long");
+        return "ERROR: invalid amount".to_string();
+    }
 
     let _out_sum_parsed: f64 = match form.out_sum.parse::<f64>() {
         Ok(v) if v.is_finite() && v >= 0.0 => v,

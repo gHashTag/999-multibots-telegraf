@@ -106,8 +106,8 @@ async fn edge_hardening(
     headers.insert("X-Frame-Options", http::HeaderValue::from_static("DENY"));
     headers.insert("Strict-Transport-Security", http::HeaderValue::from_static("max-age=63072000; includeSubDomains"));
 
-    // Sanitize client-error bodies to prevent info disclosure
-    if code.is_client_error() && code != axum::http::StatusCode::TOO_MANY_REQUESTS {
+    // Sanitize client-error and server-error bodies to prevent info disclosure
+    if (code.is_client_error() || code.is_server_error()) && code != axum::http::StatusCode::TOO_MANY_REQUESTS {
         return build_sanitized_response(code);
     }
 
