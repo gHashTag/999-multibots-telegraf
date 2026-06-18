@@ -10,12 +10,18 @@ pub struct X402Gateway {
 }
 
 impl X402Gateway {
-    pub fn new(wallet_address: &str) -> Self {
-        Self {
+    pub fn new(wallet_address: &str) -> Result<Self, AppError> {
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|e| AppError::Internal(format!("Failed to build x402 reqwest client: {}", e)))?;
+        Ok(Self {
             wallet_address: wallet_address.to_string(),
             facilitator_url: "https://x402.org/facilitator".to_string(),
-            http: reqwest::Client::new(),
-        }
+            http,
+        })
     }
 
     pub fn with_facilitator(mut self, url: &str) -> Self {
@@ -36,6 +42,9 @@ impl PaymentGateway for X402Gateway {
         amount: f64,
         _description: &str,
     ) -> Result<PaymentInit, AppError> {
+        if !amount.is_finite() || amount <= 0.0 {
+            return Err(AppError::Validation(format!("x402 amount must be finite and > 0: {}", amount)));
+        }
         let id = uuid::Uuid::new_v4();
         let external_id = format!("x402_{}", id);
 
@@ -68,6 +77,9 @@ impl PaymentGateway for X402Gateway {
             .as_f64()
             .ok_or_else(|| AppError::Validation("Missing amount in x402 callback".into()))?
             / 1_000_000.0;
+        if !amount.is_finite() || amount < 0.0 {
+            return Err(AppError::Validation(format!("x402 callback amount must be finite and >= 0: {}", amount)));
+        }
 
         Ok(PaymentVerification {
             transaction_id: tx_hash.to_string(),

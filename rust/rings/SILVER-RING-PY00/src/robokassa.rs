@@ -9,6 +9,16 @@ pub struct RobokassaGateway {
     password2: String,
 }
 
+impl std::fmt::Debug for RobokassaGateway {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RobokassaGateway")
+            .field("merchant_login", &self.merchant_login)
+            .field("password1", &"<redacted>")
+            .field("password2", &"<redacted>")
+            .finish()
+    }
+}
+
 impl RobokassaGateway {
     pub fn new(merchant_login: &str, password1: &str, password2: &str) -> Self {
         Self {

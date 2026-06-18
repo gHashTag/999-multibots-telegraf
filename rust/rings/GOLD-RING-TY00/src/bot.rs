@@ -64,9 +64,19 @@ impl BotName {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct BotConfig {
     pub name: BotName,
     pub token: String,
     pub is_production: bool,
+}
+
+impl std::fmt::Debug for BotConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BotConfig")
+            .field("name", &self.name)
+            .field("token", &"<redacted>")
+            .field("is_production", &self.is_production)
+            .finish()
+    }
 }

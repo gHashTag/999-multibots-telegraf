@@ -147,10 +147,7 @@ impl OpenAiProvider {
             return Err(AiError::RateLimited { provider: "openai".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "Failed to read openai error response body");
-                format!("[body unreadable: {}]", e)
-            });
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "openai".into(),
                 message: format!("HTTP {}: {}", status, text),
@@ -217,10 +214,7 @@ impl OpenAiProvider {
             return Err(AiError::RateLimited { provider: "openai".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "Failed to read openai error response body");
-                format!("[body unreadable: {}]", e)
-            });
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "openai".into(),
                 message: format!("HTTP {}: {}", status, text),
@@ -281,10 +275,7 @@ impl OpenAiProvider {
             return Err(AiError::RateLimited { provider: "openai".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "Failed to read openai error response body");
-                format!("[body unreadable: {}]", e)
-            });
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "openai".into(),
                 message: format!("HTTP {}: {}", status, text),

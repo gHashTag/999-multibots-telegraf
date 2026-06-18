@@ -5,6 +5,67 @@ use trios_mb_traits::job_queue::*;
 use trios_mb_types::AppError;
 use serde::{Deserialize, Serialize};
 
+/// Spawn a background task with panic-aware supervision.
+/// If the inner task panics, it is logged and restarted with exponential backoff.
+fn spawn_traced<F, Fut>(
+    desc: String,
+    cancel: CancellationToken,
+    factory: F,
+) -> tokio::task::JoinHandle<()>
+where
+    F: Fn() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = ()> + Send + 'static,
+{
+    tokio::spawn(async move {
+        let mut consecutive_failures: u32 = 0;
+        const MAX_CONSECUTIVE_FAILURES: u32 = 10;
+        const BASE_BACKOFF_SECS: u64 = 5;
+        const MAX_BACKOFF_SECS: u64 = 60;
+
+        loop {
+            let mut task = tokio::spawn(factory());
+            tokio::select! {
+                biased;
+                _ = cancel.cancelled() => {
+                    task.abort();
+                    tracing::info!(worker = %desc, "Supervised worker shutting down gracefully");
+                    break;
+                }
+                result = &mut task => {
+                    match result {
+                        Ok(()) => {
+                            tracing::info!(worker = %desc, "Supervised worker completed normally");
+                            break;
+                        }
+                        Err(_) => {
+                            consecutive_failures += 1;
+                            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
+                                tracing::error!(
+                                    worker = %desc,
+                                    failures = consecutive_failures,
+                                    "Supervised worker exceeded max consecutive failures; giving up"
+                                );
+                                break;
+                            }
+                            let backoff = std::cmp::min(
+                                BASE_BACKOFF_SECS * 2_u64.pow(consecutive_failures.min(4)),
+                                MAX_BACKOFF_SECS,
+                            );
+                            tracing::error!(
+                                worker = %desc,
+                                failures = consecutive_failures,
+                                backoff_secs = backoff,
+                                "Supervised worker panicked; restarting with backoff"
+                            );
+                            tokio::time::sleep(Duration::from_secs(backoff)).await;
+                        }
+                    }
+                }
+            }
+        }
+    })
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum JobType {
@@ -121,36 +182,34 @@ impl WorkerPool {
                 let types = type_strs.clone();
                 let name = format!("worker-{}-{}", type_str, worker_id);
 
-                tokio::spawn(async move {
-                    tracing::info!(worker = %name, "Worker started");
-                    loop {
-                        tokio::select! {
-                            _ = c.cancelled() => {
-                                tracing::info!(worker = %name, "Worker shutting down");
-                                break;
-                            }
-                            _ = tokio::time::sleep(Duration::from_millis(500)) => {
-                                let q2 = q.clone();
-                                let h2 = h.clone();
-                                let types2 = types.clone();
-                                let name2 = name.clone();
-                                let handle = tokio::spawn(async move {
-                                    poll_and_execute(&q2, &types2, &h2, timeout, &name2).await
-                                });
-                                match handle.await {
-                                    Ok(Err(e)) => {
-                                        tracing::error!(worker = %name, error = %e, "Worker error");
-                                    }
-                                    Err(e) => {
-                                        tracing::error!(worker = %name, error = %e, "Worker panicked; restarting in 5s");
-                                        tokio::time::sleep(Duration::from_secs(5)).await;
-                                    }
-                                    Ok(Ok(())) => {}
+                spawn_traced(name, c, move || {
+                    let q = q.clone();
+                    let h = h.clone();
+                    let types = types.clone();
+                    let timeout = timeout;
+                    let name = format!("worker-{}-{}", type_str, worker_id);
+                    async move {
+                        loop {
+                            tokio::time::sleep(Duration::from_millis(500)).await;
+                            let q2 = q.clone();
+                            let h2 = h.clone();
+                            let types2 = types.clone();
+                            let name2 = name.clone();
+                            let timeout2 = timeout;
+                            let handle = tokio::spawn(async move {
+                                poll_and_execute(&q2, &types2, &h2, timeout2, &name2).await
+                            });
+                            match handle.await {
+                                Ok(Err(e)) => {
+                                    tracing::error!(worker = %name, error = %e, "Worker error");
                                 }
+                                Err(e) => {
+                                    tracing::error!(worker = %name, error = %e, "Worker panicked; restarting");
+                                }
+                                Ok(Ok(())) => {}
                             }
                         }
                     }
-                    tracing::info!(worker = %name, "Worker stopped");
                 });
             }
         }

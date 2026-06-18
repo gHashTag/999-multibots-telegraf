@@ -157,10 +157,7 @@ impl HeyGenProvider {
             return Err(AiError::RateLimited { provider: "heygen".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "Failed to read heygen error response body");
-                format!("[body unreadable: {}]", e)
-            });
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "heygen".into(),
                 message: format!("HTTP {}: {}", status, text),
@@ -193,10 +190,7 @@ impl HeyGenProvider {
 
         let status = resp.status();
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "Failed to read heygen error response body");
-                format!("[body unreadable: {}]", e)
-            });
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "heygen".into(),
                 message: format!("HTTP {}: {}", status, text),
@@ -233,10 +227,7 @@ impl HeyGenProvider {
 
         let status = resp.status();
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "Failed to read heygen error response body");
-                format!("[body unreadable: {}]", e)
-            });
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "heygen".into(),
                 message: format!("HTTP {}: {}", status, text),

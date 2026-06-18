@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, PaginatorTrait, QuerySelect, Statement, Value};
 use std::sync::Arc;
+use std::time::Duration;
 use trios_mb_traits::Database as DbTrait;
 use trios_mb_types::user::*;
 use trios_mb_types::payment::Transaction;
@@ -83,7 +84,11 @@ fn str_to_subscription(s: &str) -> Option<SubscriptionType> {
 
 impl PostgresDatabase {
     pub async fn connect(url: &str) -> Result<Self, AppError> {
-        let conn = sea_orm::Database::connect(url)
+        let mut opt = sea_orm::ConnectOptions::new(url.to_string());
+        opt.connect_timeout(Duration::from_secs(5));
+        opt.idle_timeout(Duration::from_secs(60));
+        opt.max_connections(20);
+        let conn = sea_orm::Database::connect(opt)
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Connection(e.to_string())))?;
         Ok(Self {

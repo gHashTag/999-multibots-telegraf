@@ -93,10 +93,7 @@ impl HedraProvider {
             return Err(AiError::RateLimited { provider: "hedra".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "Failed to read hedra error response body");
-                format!("[body unreadable: {}]", e)
-            });
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "hedra".into(),
                 message: format!("HTTP {}: {}", status, text),
@@ -124,10 +121,7 @@ impl HedraProvider {
 
         let status = resp.status();
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "Failed to read hedra error response body");
-                format!("[body unreadable: {}]", e)
-            });
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "hedra".into(),
                 message: format!("HTTP {}: {}", status, text),
