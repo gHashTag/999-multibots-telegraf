@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::{debug, error, info, warn};
 use trios_mb_types::config::AppConfig;
 use trios_mb_traits::{SecretStore, Database, PaymentGateway, AiProvider, AiProviderOrchestrator, JobQueue};
 use trios_mb_ai::providers::*;
@@ -307,7 +307,17 @@ async fn main() -> anyhow::Result<()> {
 
     for (bot_cancel, handle) in bot_handles {
         bot_cancel.cancel();
-        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), handle).await;
+        match tokio::time::timeout(std::time::Duration::from_secs(5), handle).await {
+            Ok(Ok(())) => debug!("bot task exited cleanly"),
+            Ok(Err(join_err)) => {
+                if join_err.is_panic() {
+                    error!("bot task panicked during shutdown: {}", join_err);
+                } else {
+                    error!("bot task cancelled during shutdown: {}", join_err);
+                }
+            }
+            Err(_elapsed) => warn!("bot task shutdown timed out after 5s"),
+        }
     }
 
     maintenance_handle.abort();

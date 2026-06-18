@@ -45,7 +45,14 @@ impl CallbackData {
         if data.len() > MAX_CALLBACK_DATA_LEN {
             return None;
         }
-        serde_json::from_str(data).ok()
+        match serde_json::from_str::<Self>(data) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                let preview: String = data.chars().take(128).collect();
+                tracing::warn!(error = %e, payload = %preview, "CallbackData parse failed");
+                None
+            }
+        }
     }
 }
 

@@ -27,7 +27,13 @@ pub async fn handle_subscription_msg(
         return Ok(());
     }
 
-    let current_sub = db.check_subscription(tid).await.ok().flatten();
+    let current_sub = match db.check_subscription(tid).await {
+        Ok(opt) => opt,
+        Err(e) => {
+            tracing::error!(telegram_id = tid, error = %e, "DB error checking subscription");
+            return Err(e.into());
+        }
+    };
     let sub_text = match current_sub {
         Some(st) => {
             let name = match st {
