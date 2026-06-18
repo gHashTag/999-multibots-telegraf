@@ -6,18 +6,24 @@ use crate::AppState;
 
 #[tracing::instrument]
 pub async fn health_check() -> impl IntoResponse {
-    Json(json!({
-        "status": "ok",
-        "version": env!("CARGO_PKG_VERSION"),
-        "timestamp": chrono::Utc::now().to_rfc3339(),
-    }))
+    (
+        [(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-cache, no-store, must-revalidate"),
+        )],
+        Json(json!({
+            "status": "ok",
+            "version": env!("CARGO_PKG_VERSION"),
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+        })),
+    )
 }
 
 #[tracing::instrument(skip(state))]
 pub async fn health_check_with_db(
     axum::extract::State(state): axum::extract::State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    match state.db.health_check().await {
+    let (status, body) = match state.db.health_check().await {
         Ok(true) => (
             StatusCode::OK,
             Json(json!({
@@ -33,5 +39,13 @@ pub async fn health_check_with_db(
                 "db": "disconnected",
             })),
         ),
-    }
+    };
+    (
+        status,
+        [(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-cache, no-store, must-revalidate"),
+        )],
+        body,
+    )
 }
