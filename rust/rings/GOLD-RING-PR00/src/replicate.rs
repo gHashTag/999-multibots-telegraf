@@ -34,6 +34,7 @@ fn default_resolution() -> String { "512,768,1024".to_string() }
 fn default_learning_rate() -> f64 { 0.0001 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TrainingResponse {
     pub id: String,
     pub status: String,
@@ -71,6 +72,7 @@ fn default_quality() -> i32 { 80 }
 fn default_outputs() -> i32 { 1 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PredictionResponse {
     pub id: String,
     pub output: Option<serde_json::Value>,

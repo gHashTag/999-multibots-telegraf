@@ -47,7 +47,14 @@ pub async fn handle_morphing_msg(
                         return Ok(());
                     }
                 };
-                let mut images = state.images.clone().unwrap_or_default();
+                let mut images = match state.images.as_ref() {
+                    Some(imgs) => imgs.clone(),
+                    None => {
+                        let err = if lang.is_russian() { "❌ Сессия устарела. Отправьте изображения заново." } else { "❌ Session expired. Please send images again." };
+                        bot.send_message(msg.chat.id, err).await?;
+                        return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
+                    }
+                };
                 images.push(file_id);
                 state.images = Some(images.clone());
 
@@ -126,7 +133,14 @@ pub async fn handle_morphing_callback(
             bot.send_message(chat_id, text).await?;
         }
         "mor:generate" => {
-            let images = state.images.clone().unwrap_or_default();
+            let images = match state.images.as_ref() {
+                Some(imgs) => imgs.clone(),
+                None => {
+                    let err = if lang.is_russian() { "❌ Сессия устарела. Отправьте изображения заново." } else { "❌ Session expired. Please send images again." };
+                    bot.send_message(chat_id, err).await?;
+                    return return_to_menu(&bot, &dialogue, chat_id, lang).await;
+                }
+            };
             if images.len() < 2 {
                 let err = if lang.is_russian() { "❌ Нужно минимум 2 изображения." } else { "❌ Need at least 2 images." };
                 bot.send_message(chat_id, err).await?;

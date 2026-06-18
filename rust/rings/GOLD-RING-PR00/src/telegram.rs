@@ -50,6 +50,7 @@ impl CallbackData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct InlineButton {
     pub text: String,
     pub callback_data: String,

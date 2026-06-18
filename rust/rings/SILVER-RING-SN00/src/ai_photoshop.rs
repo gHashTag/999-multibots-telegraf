@@ -12,6 +12,7 @@ type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 const AI_PHOTOSHOP_COST: f64 = 10.0;
 const MAX_DIALOGUE_TEXT_LEN: usize = 2000;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_ai_photoshop_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -109,6 +110,7 @@ pub async fn handle_ai_photoshop_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_ai_photoshop_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,

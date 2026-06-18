@@ -10,6 +10,7 @@ type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const MAX_DIALOGUE_TEXT_LEN: usize = 2000;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_avatar_brain_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -131,6 +132,7 @@ pub async fn handle_avatar_brain_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_avatar_brain_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,

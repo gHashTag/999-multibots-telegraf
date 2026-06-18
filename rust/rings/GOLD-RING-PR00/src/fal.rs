@@ -19,12 +19,14 @@ pub struct FalImageInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FalImageSize {
     pub width: i32,
     pub height: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FalLora {
     pub path: String,
     #[serde(default = "default_scale")]
@@ -35,6 +37,7 @@ fn default_one() -> i32 { 1 }
 fn default_scale() -> f64 { 1.0 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FalImageResponse {
     pub data: Option<FalImageData>,
     pub images: Option<Vec<FalImageUrl>>,
@@ -43,11 +46,13 @@ pub struct FalImageResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FalImageData {
     pub images: Option<Vec<FalImageUrl>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FalImageUrl {
     pub url: String,
 }
@@ -93,12 +98,14 @@ pub enum FalLipSyncInput {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FalLipSyncResponse {
     pub data: Option<FalLipSyncData>,
     pub request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FalLipSyncData {
     pub video: serde_json::Value,
 }
