@@ -12,6 +12,7 @@ const TELEGRAM_API_TIMEOUT: Duration = Duration::from_secs(30);
 /// If the Telegram API stalls, returns an `std::io::Error` with `TimedOut` kind
 /// instead of hanging the worker forever. The error auto-converts to `HandlerError`
 /// at call sites via the `?` operator.
+#[tracing::instrument(skip_all, fields(chat_id = %chat_id))]
 pub async fn send_message_timeout(
     bot: &Bot,
     chat_id: ChatId,
@@ -38,6 +39,7 @@ pub async fn send_message_timeout(
 }
 
 /// Answer a callback query with a hard 30-second timeout.
+#[tracing::instrument(skip_all, fields(query_id = %query_id))]
 pub async fn answer_callback_query_timeout(
     bot: &Bot,
     query_id: &str,
@@ -58,6 +60,7 @@ pub async fn answer_callback_query_timeout(
 
 /// Update the dialogue state with a hard 30-second timeout.
 /// Prevents FSM state-loss when the Telegram API or in-memory storage stalls.
+#[tracing::instrument(skip_all)]
 pub async fn dialogue_update_timeout(
     dialogue: &Dialogue<Scene, InMemStorage<Scene>>,
     scene: Scene,
@@ -78,6 +81,7 @@ pub async fn dialogue_update_timeout(
 
 /// Exit the dialogue with a hard 30-second timeout.
 /// Prevents FSM state-loss when the Telegram API or in-memory storage stalls.
+#[tracing::instrument(skip_all)]
 pub async fn dialogue_exit_timeout(
     dialogue: &Dialogue<Scene, InMemStorage<Scene>>,
 ) -> Result<(), std::io::Error> {

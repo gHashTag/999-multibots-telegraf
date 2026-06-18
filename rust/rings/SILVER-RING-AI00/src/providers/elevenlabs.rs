@@ -70,7 +70,7 @@ impl ElevenLabsProvider {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(60))
             .connect_timeout(std::time::Duration::from_secs(10))
-            .redirect(reqwest::redirect::Policy::none()).build()
+            .redirect(reqwest::redirect::Policy::none()).pool_max_idle_per_host(10).build()
             .map_err(|e| AppError::Internal(format!("Failed to build ElevenLabs reqwest client: {}", e)))?;
         Ok(Self {
             api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
@@ -79,6 +79,7 @@ impl ElevenLabsProvider {
         })
     }
 
+    #[tracing::instrument(skip_all, fields(voice_id = %voice_id))]
     pub async fn text_to_speech_raw(
         &self,
         voice_id: &str,
@@ -149,6 +150,7 @@ impl ElevenLabsProvider {
         Ok(bytes.to_vec())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn list_voices(&self) -> Result<Vec<Voice>, AppError> {
         let resp = self.http
             .get(format!("{}/v1/voices", self.base_url))
@@ -178,11 +180,13 @@ impl ElevenLabsProvider {
         Ok(voices)
     }
 
+    #[tracing::instrument(skip_all, fields(voice_id = %voice_id))]
     pub async fn voice_exists(&self, voice_id: &str) -> Result<bool, AppError> {
         let voices = self.list_voices().await?;
         Ok(voices.iter().any(|v| v.voice_id == voice_id))
     }
 
+    #[tracing::instrument(skip_all, fields(name = %name, audio_len = audio_data.len()))]
     pub async fn add_voice(
         &self,
         name: &str,
@@ -226,6 +230,7 @@ impl ElevenLabsProvider {
         Ok(add_resp.voice_id)
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn get_character_balance(&self) -> Result<(i64, i64), AppError> {
         let resp = self.http
             .get(format!("{}/v1/user", self.base_url))

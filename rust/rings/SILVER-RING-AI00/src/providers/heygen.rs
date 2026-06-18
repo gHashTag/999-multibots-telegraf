@@ -115,7 +115,7 @@ impl HeyGenProvider {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(60))
             .connect_timeout(std::time::Duration::from_secs(10))
-            .redirect(reqwest::redirect::Policy::none()).build()
+            .redirect(reqwest::redirect::Policy::none()).pool_max_idle_per_host(10).build()
             .map_err(|e| AppError::Internal(format!("Failed to build HeyGen reqwest client: {}", e)))?;
         Ok(Self {
             api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
@@ -124,6 +124,7 @@ impl HeyGenProvider {
         })
     }
 
+    #[tracing::instrument(skip_all, fields(avatar_id = %avatar_id))]
     pub async fn create_avatar_video(
         &self,
         avatar_id: &str,
@@ -181,6 +182,7 @@ impl HeyGenProvider {
             }.into())
     }
 
+    #[tracing::instrument(skip_all, fields(video_id = %video_id))]
     pub async fn check_video_status(&self, video_id: &str) -> Result<(String, Option<String>), AppError> {
         let resp = self.http
             .get(format!("{}/v1/video_status.get?video_id={}", self.base_url, video_id))
@@ -215,6 +217,7 @@ impl HeyGenProvider {
         Ok((status_str, data.video_url))
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn list_avatars(&self) -> Result<Vec<Avatar>, AppError> {
         let resp = self.http
             .get(format!("{}/v2/avatars", self.base_url))

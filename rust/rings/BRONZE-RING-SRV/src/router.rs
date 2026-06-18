@@ -93,6 +93,7 @@ fn apply_rate_limit<S: Clone + Send + Sync + 'static>(router: Router<S>, per_sec
 /// Middleware that injects security headers and replaces client-error bodies with
 /// a generic message to prevent information disclosure (e.g., leaked field names
 /// from JSON deserialization failures).
+#[tracing::instrument(skip_all)]
 async fn edge_hardening(
     req: axum::extract::Request,
     next: axum::middleware::Next,

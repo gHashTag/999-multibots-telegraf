@@ -140,6 +140,7 @@ impl InfisicalStore {
             .timeout(std::time::Duration::from_secs(30))
             .connect_timeout(std::time::Duration::from_secs(10))
             .redirect(reqwest::redirect::Policy::none())
+            .pool_max_idle_per_host(10)
             .build()
             .map_err(|e| AppError::Internal(format!("Failed to build Infisical reqwest client: {}", e)))?;
         Ok(Self {

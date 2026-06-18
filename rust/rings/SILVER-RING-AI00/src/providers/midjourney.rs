@@ -14,7 +14,7 @@ impl MidjourneyProvider {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(120))
             .connect_timeout(std::time::Duration::from_secs(10))
-            .redirect(reqwest::redirect::Policy::none()).build()
+            .redirect(reqwest::redirect::Policy::none()).pool_max_idle_per_host(10).build()
             .map_err(|e| AppError::Internal(format!("Failed to build Midjourney reqwest client: {}", e)))?;
         Ok(Self {
             http,
