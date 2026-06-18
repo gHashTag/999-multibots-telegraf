@@ -290,16 +290,25 @@ async fn poll_and_execute(
         "Processing job"
     );
 
-    let result = tokio::time::timeout(timeout, handler(job)).await;
+    // Spawn handler as a separate task so panics are caught by Tokio and returned as JoinError.
+    // Directly awaiting a future that panics would unwind through the worker loop and abort the task.
+    let mut task = tokio::spawn(handler(job));
+    let join_result = tokio::select! {
+        r = &mut task => Some(r),
+        _ = tokio::time::sleep(timeout) => {
+            task.abort();
+            None
+        }
+    };
 
-    match result {
-        Ok(Ok(())) => {
+    match join_result {
+        Some(Ok(Ok(()))) => {
             if let Err(e) = tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.update_status(job_id, JobStatus::Completed, None)).await {
                 tracing::error!(error = %e, job_id = %job_id, "Failed to mark job completed (timeout)");
             }
             tracing::info!(worker = worker_name, job_id = %job_id, "Job completed");
         }
-        Ok(Err(e)) => {
+        Some(Ok(Err(e))) => {
             let err_str = e.to_string();
             let job = match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.get(job_id)).await {
                 Ok(Ok(j)) => j,
@@ -335,7 +344,18 @@ async fn poll_and_execute(
                 }
             }
         }
-        Err(_) => {
+        Some(Err(join_err)) => {
+            let panic_info = if join_err.is_panic() {
+                "handler panicked"
+            } else {
+                "handler cancelled"
+            };
+            tracing::error!(worker = worker_name, job_id = %job_id, %panic_info, "Job handler crashed");
+            if let Err(e) = tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.update_status(job_id, JobStatus::Failed, Some(panic_info))).await {
+                tracing::error!(error = %e, job_id = %job_id, "Failed to mark job failed after handler crash");
+            }
+        }
+        None => {
             if let Err(e) = tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.update_status(job_id, JobStatus::Queued, Some("timeout"))).await {
                 tracing::error!(error = %e, job_id = %job_id, "Failed to mark job timed out (timeout)");
             }

@@ -169,6 +169,8 @@ impl JobQueue for PgJobQueue {
             JobStatus::Completed | JobStatus::Failed | JobStatus::Cancelled
         );
 
+        // Atomic status guard: only update a job that is still running.
+        // Prevents blind overwrites when duplicate workers process the same job.
         let (sql, values): (String, Vec<Value>) = if is_terminal {
             (
                 r#"
@@ -178,6 +180,7 @@ impl JobQueue for PgJobQueue {
                     completed_at = NOW(),
                     updated_at = NOW()
                 WHERE id = $3
+                  AND status = 'running'
                 "#.to_string(),
                 vec![
                     Value::String(Some(Box::new(status_str.to_string()))),
@@ -193,6 +196,7 @@ impl JobQueue for PgJobQueue {
                     error = $2,
                     updated_at = NOW()
                 WHERE id = $3
+                  AND status = 'running'
                 "#.to_string(),
                 vec![
                     Value::String(Some(Box::new(status_str.to_string()))),
@@ -225,7 +229,25 @@ impl JobQueue for PgJobQueue {
     }
 
     async fn cancel(&self, id: uuid::Uuid) -> Result<(), AppError> {
-        self.update_status(id, JobStatus::Cancelled, None).await
+        let sql = r#"
+            UPDATE job_queue
+            SET status = 'cancelled',
+                error = NULL,
+                completed_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $1
+              AND status IN ('running', 'queued')
+        "#;
+        self.db
+            .as_ref()
+            .execute(Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                vec![Value::Uuid(Some(Box::new(id)))],
+            ))
+            .await
+            .map_err(|e| AppError::Db(DbError::Query(e.to_string())))?;
+        Ok(())
     }
 
     async fn retry_stuck(&self, older_than_secs: u64) -> Result<u64, AppError> {
@@ -252,7 +274,7 @@ impl JobQueue for PgJobQueue {
                 sea_orm::DatabaseBackend::Postgres,
                 sql_retry,
                 vec![
-                    Value::Int(Some(older_than_secs as i32)),
+                    Value::BigInt(Some(older_than_secs.min(i64::MAX as u64) as i64)),
                     Value::BigUnsigned(Some(MAX_RETRY_STUCK_BATCH)),
                 ],
             ))
@@ -283,7 +305,7 @@ impl JobQueue for PgJobQueue {
                 sea_orm::DatabaseBackend::Postgres,
                 sql_fail,
                 vec![
-                    Value::Int(Some(older_than_secs as i32)),
+                    Value::BigInt(Some(older_than_secs.min(i64::MAX as u64) as i64)),
                     Value::BigUnsigned(Some(MAX_RETRY_STUCK_BATCH)),
                 ],
             ))
