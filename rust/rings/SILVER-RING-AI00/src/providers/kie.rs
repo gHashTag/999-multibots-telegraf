@@ -217,6 +217,7 @@ impl KieProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "kie", 64_000_000)?;
         resp.json::<KieTaskResponse>()
             .await
             .map_err(|e| AiError::InvalidResponse {
@@ -245,6 +246,7 @@ impl KieProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "kie", 64_000_000)?;
         resp.json::<KieTaskResponse>()
             .await
             .map_err(|e| AiError::InvalidResponse {

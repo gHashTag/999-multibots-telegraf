@@ -136,23 +136,6 @@ pub async fn replicate_webhook(
         "Replicate webhook received"
     );
 
-    // Wave 162: idempotency guard
-    match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.record_webhook_event("replicate", &payload.id)).await {
-        Ok(Ok(true)) => {}, // new event, proceed
-        Ok(Ok(false)) => {
-            tracing::info!(id = %payload.id, "Replicate webhook: duplicate event, skipping");
-            return (StatusCode::OK, Json(serde_json::json!({"status": "ok"})));
-        }
-        Ok(Err(e)) => {
-            tracing::error!(error = %e, id = %payload.id, "Failed to record webhook event");
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "internal error"})));
-        }
-        Err(_) => {
-            tracing::warn!(id = %payload.id, "Webhook idempotency check timed out");
-            return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
-        }
-    }
-
     let generation_id = match parse_uuid(&payload.id) {
         Ok(id) => id,
         Err((status, msg)) => return (status, Json(serde_json::json!({"error": msg}))),
@@ -194,6 +177,7 @@ pub async fn replicate_webhook(
                     Ok(Ok(())) => {}
                     Ok(Err(e)) => {
                         tracing::error!(error = %e, generation_id = %generation_id, "Failed to update generation status on Replicate webhook");
+                        return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
                     }
                     Err(_) => {
                         tracing::warn!(generation_id = %generation_id, "Update generation status timed out");
@@ -224,11 +208,27 @@ pub async fn replicate_webhook(
             Ok(Ok(())) => {}
             Ok(Err(e)) => {
                 tracing::error!(error = %e, generation_id = %generation_id, "Failed to update generation status on Replicate failure webhook");
+                return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
             }
             Err(_) => {
                 tracing::warn!(generation_id = %generation_id, "Update generation status timed out");
                 return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
             }
+        }
+    }
+
+    // Wave 191: record idempotency AFTER successful DB update so provider retries
+    // are not permanently lost on transient DB errors.
+    match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.record_webhook_event("replicate", &payload.id)).await {
+        Ok(Ok(true)) => {},
+        Ok(Ok(false)) => {
+            tracing::info!(id = %payload.id, "Replicate webhook: duplicate event after processing");
+        }
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, id = %payload.id, "Failed to record webhook event after successful processing");
+        }
+        Err(_) => {
+            tracing::warn!(id = %payload.id, "Webhook idempotency record timed out after successful processing");
         }
     }
 
@@ -258,24 +258,6 @@ pub async fn kie_ai_webhook(
         success_flag = ?payload.success_flag_val(),
         "Kie.ai webhook received"
     );
-
-    // Wave 162: idempotency guard
-    let event_id = payload.task_id.as_deref().unwrap_or("missing");
-    match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.record_webhook_event("kie", event_id)).await {
-        Ok(Ok(true)) => {}, // new event, proceed
-        Ok(Ok(false)) => {
-            tracing::info!(task_id = %event_id, "Kie.ai webhook: duplicate event, skipping");
-            return (StatusCode::OK, Json(serde_json::json!({"status": "ok"})));
-        }
-        Ok(Err(e)) => {
-            tracing::error!(error = %e, task_id = %event_id, "Failed to record webhook event");
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "internal error"})));
-        }
-        Err(_) => {
-            tracing::warn!(task_id = %event_id, "Webhook idempotency check timed out");
-            return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
-        }
-    }
 
     let task_id = match payload.task_id.as_deref() {
         Some(t) => t,
@@ -325,6 +307,7 @@ pub async fn kie_ai_webhook(
                     Ok(Ok(())) => {}
                     Ok(Err(e)) => {
                         tracing::error!(error = %e, generation_id = %generation_id, "Failed to update generation status on Kie.ai webhook");
+                        return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
                     }
                     Err(_) => {
                         tracing::warn!(generation_id = %generation_id, "Update generation status timed out");
@@ -347,11 +330,27 @@ pub async fn kie_ai_webhook(
             Ok(Ok(())) => {}
             Ok(Err(e)) => {
                 tracing::error!(error = %e, generation_id = %generation_id, "Failed to update generation status on Kie.ai failure webhook");
+                return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
             }
             Err(_) => {
                 tracing::warn!(generation_id = %generation_id, "Update generation status timed out");
                 return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
             }
+        }
+    }
+
+    // Wave 191: record idempotency AFTER successful DB update.
+    let event_id = payload.task_id.as_deref().unwrap_or("missing");
+    match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.record_webhook_event("kie", event_id)).await {
+        Ok(Ok(true)) => {},
+        Ok(Ok(false)) => {
+            tracing::info!(task_id = %event_id, "Kie.ai webhook: duplicate event after processing");
+        }
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, task_id = %event_id, "Failed to record webhook event after successful processing");
+        }
+        Err(_) => {
+            tracing::warn!(task_id = %event_id, "Webhook idempotency record timed out after successful processing");
         }
     }
 

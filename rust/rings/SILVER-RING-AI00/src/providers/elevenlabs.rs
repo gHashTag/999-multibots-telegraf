@@ -162,6 +162,7 @@ impl ElevenLabsProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "elevenlabs", 64_000_000)?;
         let voice_resp: VoiceListResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
             provider: "elevenlabs".into(),
             message: format!("json parse: {}", e),
@@ -217,6 +218,7 @@ impl ElevenLabsProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "elevenlabs", 64_000_000)?;
         let add_resp: AddVoiceResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
             provider: "elevenlabs".into(),
             message: format!("json parse: {}", e),
@@ -245,6 +247,7 @@ impl ElevenLabsProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "elevenlabs", 64_000_000)?;
         let user: UserResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
             provider: "elevenlabs".into(),
             message: format!("json parse: {}", e),

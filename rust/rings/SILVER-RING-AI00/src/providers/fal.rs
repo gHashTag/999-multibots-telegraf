@@ -164,6 +164,7 @@ impl FalProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "fal", 64_000_000)?;
         resp.json::<QueueResponse>()
             .await
             .map_err(|e| AiError::InvalidResponse {
@@ -192,6 +193,7 @@ impl FalProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "fal", 64_000_000)?;
         resp.json::<StatusResponse>()
             .await
             .map_err(|e| AiError::InvalidResponse {
@@ -220,6 +222,7 @@ impl FalProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "fal", 64_000_000)?;
         resp.json::<FalResultResponse>()
             .await
             .map_err(|e| AiError::InvalidResponse {

@@ -171,6 +171,7 @@ impl HeyGenProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "heygen", 64_000_000)?;
         let hg_resp: HeyGenResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
             provider: "heygen".into(),
             message: format!("json parse: {}", e),
@@ -204,6 +205,7 @@ impl HeyGenProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "heygen", 64_000_000)?;
         let status_resp: VideoStatusResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
             provider: "heygen".into(),
             message: format!("json parse: {}", e),
@@ -241,6 +243,7 @@ impl HeyGenProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "heygen", 64_000_000)?;
         let avatars_resp: AvatarListResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
             provider: "heygen".into(),
             message: format!("json parse: {}", e),

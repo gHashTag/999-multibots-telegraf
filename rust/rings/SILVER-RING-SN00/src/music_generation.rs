@@ -91,6 +91,12 @@ pub async fn handle_music_generation_callback(
             return return_to_menu(&bot, &dialogue, chat_id, lang).await;
         }
         "mus:suno" | "mus:udio" => {
+            if state.prompt.is_none() || state.prompt.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+                let text = "❌ Please describe the music first.";
+                bot.send_message(chat_id, text).await?;
+                return return_to_menu(&bot, &dialogue, chat_id, lang).await;
+            }
+
             if let Err(err_msg) = deduct_balance(&db, tid, MUSIC_COST, lang).await {
                 bot.send_message(chat_id, err_msg).await?;
                 return return_to_menu(&bot, &dialogue, chat_id, lang).await;

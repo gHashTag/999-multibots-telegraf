@@ -102,6 +102,7 @@ impl HedraProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "hedra", 64_000_000)?;
         resp.json::<HedronResponse>()
             .await
             .map_err(|e| AiError::InvalidResponse {
@@ -130,6 +131,7 @@ impl HedraProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "hedra", 64_000_000)?;
         resp.json::<HedronResponse>()
             .await
             .map_err(|e| AiError::InvalidResponse {

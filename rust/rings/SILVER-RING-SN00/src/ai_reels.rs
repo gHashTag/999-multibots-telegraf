@@ -111,6 +111,12 @@ pub async fn handle_ai_reels_callback(
         return Ok(());
     }
 
+    if state.prompt.is_none() || state.prompt.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+        let text = "❌ Please describe the video first.";
+        bot.send_message(chat_id, text).await?;
+        return return_to_menu(&bot, &dialogue, chat_id, lang).await;
+    }
+
     if let Err(err_msg) = deduct_balance(&db, tid, AI_REELS_COST, lang).await {
         bot.send_message(chat_id, err_msg).await?;
         return return_to_menu(&bot, &dialogue, chat_id, lang).await;

@@ -160,6 +160,7 @@ impl OpenAiProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "openai", 64_000_000)?;
         let chat_resp: ChatResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
             provider: "openai".into(),
             message: format!("json parse: {}", e),
@@ -227,6 +228,7 @@ impl OpenAiProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "openai", 64_000_000)?;
         let img_resp: ImageResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
             provider: "openai".into(),
             message: format!("json parse: {}", e),

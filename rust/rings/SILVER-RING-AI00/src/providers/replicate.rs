@@ -187,6 +187,7 @@ impl ReplicateProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "replicate", 64_000_000)?;
         resp.json::<PredictionResponse>()
             .await
             .map_err(|e| AiError::InvalidResponse {
@@ -218,6 +219,7 @@ impl ReplicateProvider {
             }.into());
         }
 
+        super::check_json_body_size(&resp, "replicate", 64_000_000)?;
         resp.json::<PredictionResponse>()
             .await
             .map_err(|e| AiError::InvalidResponse {

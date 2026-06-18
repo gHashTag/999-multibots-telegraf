@@ -83,7 +83,7 @@ pub async fn handle_ai_cover_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
     dialogue: MyDialogue,
-    _state: AiCoverState,
+    state: AiCoverState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
     bot.answer_callback_query(&q.id).await?;
@@ -104,6 +104,12 @@ pub async fn handle_ai_cover_callback(
             return return_to_menu(&bot, &dialogue, chat_id, lang).await;
         }
         "ac:confirm" => {
+            if state.audio_url.is_none() || state.audio_url.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+                let text = "❌ Please send an audio file first.";
+                bot.send_message(chat_id, text).await?;
+                return Ok(());
+            }
+
             if let Err(err_msg) = deduct_balance(&db, tid, AI_COVER_COST, lang).await {
                 bot.send_message(chat_id, err_msg).await?;
                 return Ok(());
