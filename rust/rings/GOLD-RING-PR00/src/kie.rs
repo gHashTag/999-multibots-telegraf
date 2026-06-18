@@ -86,6 +86,7 @@ impl TaskStatusData {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WebhookPayload {
     pub task_id: Option<String>,
     pub success_flag: Option<i32>,
@@ -103,6 +104,7 @@ pub struct WebhookPayload {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WebhookResponse {
     pub result_urls: Option<Vec<String>>,
     pub result_url: Option<String>,

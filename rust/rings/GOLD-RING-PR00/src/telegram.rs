@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use trios_mb_types::scene::SceneId;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CallbackData {
     pub action: String,
     pub payload: Option<serde_json::Value>,

@@ -4,6 +4,7 @@ use trios_mb_types::payment::*;
 use trios_mb_types::errors::PaymentError;
 use trios_mb_types::AppError;
 use trios_mb_types::user::SubscriptionType;
+use trios_mb_types::Money;
 
 pub struct PaymentProcessor {
     db: Arc<dyn Database>,
@@ -19,6 +20,7 @@ impl PaymentProcessor {
         self.gateways.iter().find(|g| g.method() == method)
     }
 
+    #[tracing::instrument(skip(self), fields(telegram_id = telegram_id, method = ?method))]
     pub async fn create_payment(
         &self,
         telegram_id: i64,
@@ -32,6 +34,8 @@ impl PaymentProcessor {
                 amount
             )));
         }
+        let _amount_money = Money::from_f64(amount)
+            .ok_or_else(|| AppError::Validation(format!("payment amount overflows Money: {}", amount)))?;
 
         let gateway = self.gateway_for_method(method)
             .ok_or_else(|| AppError::Payment(PaymentError::Provider {
@@ -60,6 +64,7 @@ impl PaymentProcessor {
         Ok(payment_init)
     }
 
+    #[tracing::instrument(skip(self, callback_params), fields(method = ?method))]
     pub async fn verify_and_complete(
         &self,
         method: PaymentMethod,
@@ -78,6 +83,8 @@ impl PaymentProcessor {
                 verification.amount
             )));
         }
+        let _amount_money = Money::from_f64(verification.amount)
+            .ok_or_else(|| AppError::Validation(format!("callback amount overflows Money: {}", verification.amount)))?;
 
         let tx = self.db.get_transaction(
             uuid::Uuid::parse_str(&verification.transaction_id)
@@ -97,6 +104,7 @@ impl PaymentProcessor {
         Ok(tx)
     }
 
+    #[tracing::instrument(skip(self), fields(telegram_id = telegram_id))]
     pub async fn direct_debit(
         &self,
         telegram_id: i64,
@@ -111,9 +119,13 @@ impl PaymentProcessor {
                 amount
             )));
         }
+        let amount_money = Money::from_f64(amount)
+            .ok_or_else(|| AppError::Validation(format!("direct_debit amount overflows Money: {}", amount)))?;
 
         let balance = self.db.get_balance(telegram_id).await?;
-        if balance < amount {
+        let balance_money = Money::from_f64(balance)
+            .ok_or_else(|| AppError::Internal(format!("user balance overflows Money: {}", balance)))?;
+        if balance_money.checked_sub(amount_money).is_none() {
             return Err(AppError::Payment(PaymentError::InsufficientBalance {
                 required: amount,
                 current: balance,
@@ -153,6 +165,7 @@ impl PaymentProcessor {
         Ok(tx)
     }
 
+    #[tracing::instrument(skip(self), fields(transaction_id = %transaction_id, method = ?method))]
     pub async fn refund(
         &self,
         transaction_id: uuid::Uuid,
@@ -172,6 +185,8 @@ impl PaymentProcessor {
                 tx.amount
             )));
         }
+        let _amount_money = Money::from_f64(tx.amount)
+            .ok_or_else(|| AppError::Validation(format!("refund amount overflows Money: {}", tx.amount)))?;
 
         let gateway = self.gateway_for_method(method);
         if let Some(gw) = gateway {
@@ -185,6 +200,7 @@ impl PaymentProcessor {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self), fields(transaction_id = %transaction_id))]
     pub async fn get_payment_status(&self, transaction_id: uuid::Uuid) -> Result<PaymentStatus, AppError> {
         let tx = self.db.get_transaction(transaction_id).await?
             .ok_or_else(|| AppError::NotFound(format!("transaction {}", transaction_id)))?;

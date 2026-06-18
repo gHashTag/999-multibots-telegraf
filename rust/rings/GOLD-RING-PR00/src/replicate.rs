@@ -79,6 +79,7 @@ pub struct PredictionResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WebhookPayload {
     pub id: String,
     pub status: String,
