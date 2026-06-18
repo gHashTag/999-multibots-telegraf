@@ -263,6 +263,7 @@ impl AiProvider for HeyGenProvider {
         matches!(media_type, MediaType::Video | MediaType::LipSync)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         let avatar_id = request.params.get("avatar_id")
             .and_then(|v| v.as_str())
@@ -287,6 +288,7 @@ impl AiProvider for HeyGenProvider {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, generation_id: &str) -> Result<GenerationStatus, AppError> {
         let video_id = generation_id.strip_prefix("heygen:")
             .unwrap_or(generation_id);
@@ -302,6 +304,7 @@ impl AiProvider for HeyGenProvider {
         Ok(status)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, generation_id: &str) -> Result<Option<String>, AppError> {
         let video_id = generation_id.strip_prefix("heygen:")
             .unwrap_or(generation_id);

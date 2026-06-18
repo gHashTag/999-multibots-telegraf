@@ -348,6 +348,7 @@ impl AiProvider for OpenAiProvider {
         matches!(media_type, MediaType::Image | MediaType::TextToSpeech)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         match request.media_type {
             MediaType::Image => self.generate_image(request).await,
@@ -359,10 +360,12 @@ impl AiProvider for OpenAiProvider {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, _generation_id: &str) -> Result<GenerationStatus, AppError> {
         Ok(GenerationStatus::Completed)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, _generation_id: &str) -> Result<Option<String>, AppError> {
         Ok(None)
     }

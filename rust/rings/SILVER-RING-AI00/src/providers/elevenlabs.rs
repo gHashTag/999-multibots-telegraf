@@ -267,6 +267,7 @@ impl AiProvider for ElevenLabsProvider {
         matches!(media_type, MediaType::TextToSpeech | MediaType::Audio)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         match request.media_type {
             MediaType::TextToSpeech | MediaType::Audio => {
@@ -298,10 +299,12 @@ impl AiProvider for ElevenLabsProvider {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, _generation_id: &str) -> Result<GenerationStatus, AppError> {
         Ok(GenerationStatus::Completed)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, _generation_id: &str) -> Result<Option<String>, AppError> {
         Ok(None)
     }

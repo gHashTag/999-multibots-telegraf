@@ -246,6 +246,7 @@ impl AiProvider for FalProvider {
         matches!(media_type, MediaType::Image | MediaType::Video | MediaType::ImageToVideo | MediaType::LipSync)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         let model = request.model.as_deref().unwrap_or("nano-banana-pro");
         let model_id = self.resolve_model_id(model)
@@ -275,6 +276,7 @@ impl AiProvider for FalProvider {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, generation_id: &str) -> Result<GenerationStatus, AppError> {
         let (model_id, request_id) = parse_fal_generation_id(generation_id)?;
 
@@ -289,6 +291,7 @@ impl AiProvider for FalProvider {
         Ok(status)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, generation_id: &str) -> Result<Option<String>, AppError> {
         let (model_id, request_id) = parse_fal_generation_id(generation_id)?;
 

@@ -36,6 +36,7 @@ impl PaymentGateway for X402Gateway {
         PaymentMethod::X402
     }
 
+    #[tracing::instrument(skip_all)]
     async fn create_payment(
         &self,
         telegram_id: i64,
@@ -73,6 +74,7 @@ impl PaymentGateway for X402Gateway {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn verify_callback(
         &self,
         params: &serde_json::Value,
@@ -98,10 +100,12 @@ impl PaymentGateway for X402Gateway {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn refund(&self, _transaction_id: &str) -> Result<(), AppError> {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_payment_url(&self, payment: &PaymentInit) -> Result<String, AppError> {
         payment.payment_url.clone()
             .ok_or_else(|| AppError::Validation("Missing payment_url in x402 payment".into()))

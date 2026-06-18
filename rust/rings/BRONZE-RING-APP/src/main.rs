@@ -22,14 +22,24 @@ where
 {
     tokio::spawn(async move {
         let mut consecutive_failures: u32 = 0;
+        let mut last_failure: Option<std::time::Instant> = None;
         const MAX_CONSECUTIVE_FAILURES: u32 = 10;
         const BASE_BACKOFF_SECS: u64 = 5;
         const MAX_BACKOFF_SECS: u64 = 60;
         const RESTART_RATE_WINDOW_SECS: u64 = 60;
+        const FAILURE_RESET_SECS: u64 = 300; // 5 minutes of healthy uptime resets the streak
         let mut last_restart: Option<std::time::Instant> = None;
         let mut restarts_in_window: u32 = 0;
 
         loop {
+            // Time-decay reset: transient panics spread across hours/days should not
+            // permanently accumulate to the fatal limit. Following Erlang/Akka pattern
+            // (intensity within a period) rather than a monotonic counter.
+            let now = std::time::Instant::now();
+            if last_failure.map_or(false, |t| now.duration_since(t).as_secs() >= FAILURE_RESET_SECS) {
+                consecutive_failures = 0;
+            }
+
             tokio::select! {
                 biased;
                 _ = cancel.cancelled() => {
@@ -44,7 +54,7 @@ where
                         }
                         Err(_) => {
                             consecutive_failures += 1;
-                            let now = std::time::Instant::now();
+                            last_failure = Some(now);
                             if let Some(last) = last_restart {
                                 if now.duration_since(last).as_secs() < RESTART_RATE_WINDOW_SECS {
                                     restarts_in_window += 1;

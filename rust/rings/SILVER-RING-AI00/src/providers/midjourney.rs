@@ -31,6 +31,7 @@ impl AiProvider for MidjourneyProvider {
         matches!(media_type, MediaType::Image)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate(&self, _request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         Err(AiError::Provider {
             provider: "midjourney".into(),
@@ -38,10 +39,12 @@ impl AiProvider for MidjourneyProvider {
         }.into())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, _generation_id: &str) -> Result<GenerationStatus, AppError> {
         Ok(GenerationStatus::Failed)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, _generation_id: &str) -> Result<Option<String>, AppError> {
         Ok(None)
     }

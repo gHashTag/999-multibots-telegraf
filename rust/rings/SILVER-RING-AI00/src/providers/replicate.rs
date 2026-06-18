@@ -250,6 +250,7 @@ impl AiProvider for ReplicateProvider {
         matches!(media_type, MediaType::Image | MediaType::Video | MediaType::ImageToVideo | MediaType::LipSync | MediaType::FaceSwap)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         let model = request.model.as_deref().unwrap_or("flux");
         let input = match request.media_type {
@@ -285,6 +286,7 @@ impl AiProvider for ReplicateProvider {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, generation_id: &str) -> Result<GenerationStatus, AppError> {
         let prediction = self.fetch_prediction(generation_id).await?;
         let status = match prediction.status.as_str() {
@@ -296,6 +298,7 @@ impl AiProvider for ReplicateProvider {
         Ok(status)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, generation_id: &str) -> Result<Option<String>, AppError> {
         let prediction = self.fetch_prediction(generation_id).await?;
         Ok(Self::extract_output_url(&prediction.output))

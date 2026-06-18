@@ -78,6 +78,7 @@ impl AiOrchestrator {
 
 #[async_trait::async_trait]
 impl AiProviderOrchestrator for AiOrchestrator {
+    #[tracing::instrument(skip_all)]
     async fn dispatch(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         match tokio::time::timeout(Duration::from_secs(120), self.dispatch_inner(request)).await {
             Ok(result) => result,
@@ -87,6 +88,7 @@ impl AiProviderOrchestrator for AiOrchestrator {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, generation_id: &str, provider_name: &str) -> Result<GenerationStatus, AppError> {
         let provider = self.providers.iter()
             .find(|p| p.name() == provider_name)
@@ -103,6 +105,7 @@ impl AiProviderOrchestrator for AiOrchestrator {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, generation_id: &str, provider_name: &str) -> Result<Option<String>, AppError> {
         let provider = self.providers.iter()
             .find(|p| p.name() == provider_name)

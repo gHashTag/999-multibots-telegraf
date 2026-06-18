@@ -20,6 +20,7 @@ impl TelegramStarsGateway {
 impl PaymentGateway for TelegramStarsGateway {
     fn method(&self) -> PaymentMethod { PaymentMethod::TelegramStars }
 
+    #[tracing::instrument(skip_all)]
     async fn create_payment(&self, telegram_id: i64, amount: f64, _description: &str) -> Result<PaymentInit, AppError> {
         if !amount.is_finite() || amount <= 0.0 {
             return Err(AppError::Validation(format!(
@@ -39,6 +40,7 @@ impl PaymentGateway for TelegramStarsGateway {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn verify_callback(&self, params: &serde_json::Value) -> Result<PaymentVerification, AppError> {
         let transaction_id = params["telegram_payment_charge_id"].as_str()
             .ok_or_else(|| AppError::Validation("Missing telegram_payment_charge_id in Stars callback".into()))?;
@@ -61,8 +63,10 @@ impl PaymentGateway for TelegramStarsGateway {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn refund(&self, _transaction_id: &str) -> Result<(), AppError> { Ok(()) }
 
+    #[tracing::instrument(skip_all)]
     async fn get_payment_url(&self, _payment: &PaymentInit) -> Result<String, AppError> {
         Ok(String::new())
     }

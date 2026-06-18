@@ -276,6 +276,7 @@ impl AiProvider for KieProvider {
         matches!(media_type, MediaType::Image | MediaType::Video | MediaType::LipSync | MediaType::ImageToVideo)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         let model = request.model.as_deref().unwrap_or("veo3_fast");
 
@@ -322,6 +323,7 @@ impl AiProvider for KieProvider {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, generation_id: &str) -> Result<GenerationStatus, AppError> {
         let task_id = generation_id.strip_prefix("kie:")
             .unwrap_or(generation_id);
@@ -341,6 +343,7 @@ impl AiProvider for KieProvider {
         Ok(status)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, generation_id: &str) -> Result<Option<String>, AppError> {
         let task_id = generation_id.strip_prefix("kie:")
             .unwrap_or(generation_id);

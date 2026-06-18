@@ -65,6 +65,7 @@ impl RobokassaGateway {
 impl PaymentGateway for RobokassaGateway {
     fn method(&self) -> PaymentMethod { PaymentMethod::Robokassa }
 
+    #[tracing::instrument(skip_all)]
     async fn create_payment(&self, telegram_id: i64, amount: f64, _description: &str) -> Result<PaymentInit, AppError> {
         if !amount.is_finite() || amount <= 0.0 {
             return Err(AppError::Validation(format!(
@@ -84,6 +85,7 @@ impl PaymentGateway for RobokassaGateway {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn verify_callback(&self, params: &serde_json::Value) -> Result<PaymentVerification, AppError> {
         let transaction_id = params["InvId"].as_str()
             .ok_or_else(|| AppError::Validation("Missing InvId in Robokassa callback".into()))?;
@@ -111,10 +113,12 @@ impl PaymentGateway for RobokassaGateway {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn refund(&self, _transaction_id: &str) -> Result<(), AppError> {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_payment_url(&self, payment: &PaymentInit) -> Result<String, AppError> {
         let inv_id = payment.external_id.as_deref().unwrap_or("0");
         let sig = self.generate_signature(payment.amount, inv_id)?;

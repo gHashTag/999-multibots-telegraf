@@ -159,6 +159,7 @@ impl AiProvider for HedraProvider {
         matches!(media_type, MediaType::LipSync | MediaType::Video)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         let hedra_resp = self.create_animation(request).await?;
 
@@ -185,6 +186,7 @@ impl AiProvider for HedraProvider {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, generation_id: &str) -> Result<GenerationStatus, AppError> {
         let anim_id = generation_id.strip_prefix("hedra:")
             .unwrap_or(generation_id);
@@ -208,6 +210,7 @@ impl AiProvider for HedraProvider {
         Ok(status)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, generation_id: &str) -> Result<Option<String>, AppError> {
         let anim_id = generation_id.strip_prefix("hedra:")
             .unwrap_or(generation_id);
