@@ -23,11 +23,13 @@ struct VoiceSettings {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct VoiceListResponse {
     voices: Option<Vec<Voice>>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Voice {
     pub voice_id: String,
     pub name: String,
@@ -36,17 +38,20 @@ pub struct Voice {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct AddVoiceResponse {
     voice_id: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct UserResponse {
     #[serde(default)]
     subscription: Option<UserSubscription>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct UserSubscription {
     #[serde(default)]
     character_count: Option<i64>,

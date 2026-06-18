@@ -11,6 +11,7 @@ use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 #[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all)]
 pub async fn handle_morphing_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -93,6 +94,7 @@ pub async fn handle_morphing_msg(
 }
 
 #[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all)]
 pub async fn handle_morphing_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -109,6 +111,10 @@ pub async fn handle_morphing_callback(
         None => return Ok(()),
     };
     let tid = q.from.id.0 as i64;
+    if tid <= 0 {
+        tracing::warn!("Callback query missing valid telegram_id; aborting morphing handler");
+        return Ok(());
+    }
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
 
     match data {

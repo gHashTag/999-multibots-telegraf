@@ -22,6 +22,7 @@ struct CreateAnimationRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct HedronResponse {
     #[serde(default)]
     id: Option<String>,
@@ -36,6 +37,7 @@ struct HedronResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct HedraData {
     #[serde(default)]
     id: Option<String>,

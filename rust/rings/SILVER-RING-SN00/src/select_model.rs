@@ -61,6 +61,10 @@ pub async fn handle_select_model_callback(
     };
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
     let tid = q.from.id.0 as i64;
+    if tid <= 0 {
+        tracing::warn!("Callback query missing valid telegram_id; aborting select_model handler");
+        return Ok(());
+    }
 
     match data {
         "sm:cancel" => {

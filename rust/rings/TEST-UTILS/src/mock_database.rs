@@ -188,7 +188,8 @@ impl Database for MockDatabase {
         }
     }
 
-    async fn get_transactions_by_telegram_id(&self, telegram_id: i64, limit: i64) -> Result<Vec<Transaction>, AppError> {
+    async fn get_transactions_by_telegram_id(&self, telegram_id: i64, cursor: Option<uuid::Uuid>, limit: i64) -> Result<Vec<Transaction>, AppError> {
+        let _ = cursor; // cursor pagination not implemented in mock
         let inner = self.inner.lock().await;
         let mut txs: Vec<_> = inner
             .transactions

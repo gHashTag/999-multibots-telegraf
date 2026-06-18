@@ -8,6 +8,7 @@ use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct KieTaskResponse {
     #[serde(default)]
     task_id: Option<String>,
@@ -26,6 +27,7 @@ struct KieTaskResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct KieData {
     #[serde(default)]
     video_url: Option<String>,
@@ -38,6 +40,7 @@ struct KieData {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct KieBalanceResponse {
     #[serde(default)]
     balance: Option<f64>,

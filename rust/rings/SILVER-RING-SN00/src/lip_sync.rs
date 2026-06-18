@@ -113,6 +113,10 @@ pub async fn handle_lip_sync_callback(
         None => return Ok(()),
     };
     let tid = q.from.id.0 as i64;
+    if tid <= 0 {
+        tracing::warn!("Callback query missing valid telegram_id; aborting lip_sync handler");
+        return Ok(());
+    }
 
     let data = match &q.data {
         Some(d) => d.as_str(),

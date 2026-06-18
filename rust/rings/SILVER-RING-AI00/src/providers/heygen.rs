@@ -43,6 +43,7 @@ struct VoiceInput {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct HeyGenResponse {
     #[serde(default)]
     data: Option<HeyGenData>,
@@ -53,6 +54,7 @@ struct HeyGenResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct HeyGenData {
     #[serde(default)]
     video_id: Option<String>,
@@ -63,6 +65,7 @@ struct HeyGenData {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct VideoStatusResponse {
     #[serde(default)]
     data: Option<VideoStatusData>,
@@ -71,6 +74,7 @@ struct VideoStatusResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct VideoStatusData {
     #[serde(default)]
     status: Option<String>,
@@ -79,18 +83,21 @@ struct VideoStatusData {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct AvatarListResponse {
     #[serde(default)]
     data: Option<AvatarData>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct AvatarData {
     #[serde(default)]
     avatars: Option<Vec<Avatar>>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Avatar {
     pub avatar_id: String,
     #[serde(default)]

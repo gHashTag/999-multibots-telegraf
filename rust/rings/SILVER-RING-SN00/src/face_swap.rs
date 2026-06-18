@@ -11,6 +11,7 @@ type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const FACE_SWAP_COST: f64 = 10.0;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_face_swap_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -105,6 +106,7 @@ pub async fn handle_face_swap_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_face_swap_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,

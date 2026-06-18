@@ -17,17 +17,20 @@ struct ChatRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ChatMessage {
     pub role: String,
     pub content: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ChatResponse {
     choices: Vec<ChatChoice>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ChatChoice {
     message: ChatMessage,
 }
@@ -45,11 +48,13 @@ struct ImageRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ImageResponse {
     data: Vec<ImageData>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ImageData {
     url: Option<String>,
     b64_json: Option<String>,

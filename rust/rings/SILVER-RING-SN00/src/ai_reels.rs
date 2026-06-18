@@ -104,6 +104,10 @@ pub async fn handle_ai_reels_callback(
 
     state.style = Some(style.to_string());
     let tid = q.from.id.0 as i64;
+    if tid <= 0 {
+        tracing::warn!("Callback query missing valid telegram_id; aborting ai_reels handler");
+        return Ok(());
+    }
 
     if let Err(err_msg) = deduct_balance(&db, tid, AI_REELS_COST, lang).await {
         bot.send_message(chat_id, err_msg).await?;

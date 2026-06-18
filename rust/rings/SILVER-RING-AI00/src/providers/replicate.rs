@@ -21,6 +21,7 @@ struct CreatePredictionRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PredictionResponse {
     id: String,
     status: String,
@@ -30,6 +31,7 @@ struct PredictionResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PredictionUrls {
     get: String,
     cancel: String,

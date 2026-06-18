@@ -14,6 +14,7 @@ type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 const MAX_DIALOGUE_TEXT_LEN: usize = 2000;
 
 #[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all)]
 pub async fn handle_neuro_photo_entry(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -28,6 +29,7 @@ pub async fn handle_neuro_photo_entry(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 #[tracing::instrument(skip_all)]
 pub async fn handle_neuro_photo_msg(
     bot: teloxide::Bot,
@@ -100,6 +102,7 @@ pub async fn handle_neuro_photo_msg(
 }
 
 #[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all)]
 pub async fn handle_neuro_photo_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -116,6 +119,10 @@ pub async fn handle_neuro_photo_callback(
         None => return Ok(()),
     };
     let tid = q.from.id.0 as i64;
+    if tid <= 0 {
+        tracing::warn!("Callback query missing valid telegram_id; aborting neuro_photo handler");
+        return Ok(());
+    }
 
     let data = match &q.data {
         Some(d) => d.as_str(),

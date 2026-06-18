@@ -8,12 +8,14 @@ use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct QueueResponse {
     request_id: String,
     status: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct StatusResponse {
     status: String,
     #[serde(default)]
@@ -21,6 +23,7 @@ struct StatusResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct FalResultResponse {
     #[serde(default)]
     video_url: Option<String>,
@@ -37,6 +40,7 @@ struct FalResultResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct FalImage {
     url: String,
 }
