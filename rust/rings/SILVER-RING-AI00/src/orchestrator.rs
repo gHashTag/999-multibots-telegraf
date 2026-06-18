@@ -38,6 +38,7 @@ impl AiOrchestrator {
         matching
     }
 
+    #[tracing::instrument(skip_all)]
     async fn dispatch_inner(&self, request: &GenerationRequest,
     ) -> Result<GenerationResult, AppError> {
         let providers = self.get_providers_for_type(request.media_type);

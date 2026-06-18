@@ -87,6 +87,7 @@ fn str_to_subscription(s: &str) -> Option<SubscriptionType> {
 }
 
 impl PostgresDatabase {
+    #[tracing::instrument(skip_all)]
     pub async fn connect(url: &str) -> Result<Self, AppError> {
         let mut opt = sea_orm::ConnectOptions::new(url.to_string());
         opt.connect_timeout(Duration::from_secs(5));
@@ -114,6 +115,7 @@ impl PostgresDatabase {
         self.pool.clone()
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn run_migrations(&self) -> Result<(), AppError> {
         use sea_orm_migration::MigratorTrait;
         crate::migration::Migrator::up(self.pool.as_ref(), None)

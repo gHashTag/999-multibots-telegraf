@@ -13,6 +13,7 @@ use trios_mb_traits::job_queue::EnqueueRequest;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+#[tracing::instrument(skip_all)]
 pub async fn load_lang(db: &Arc<dyn Database>, msg: &Message) -> Language {
     match msg.from {
         Some(ref user) => load_lang_by_id(db, user.id.0 as i64).await,
@@ -20,6 +21,7 @@ pub async fn load_lang(db: &Arc<dyn Database>, msg: &Message) -> Language {
     }
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn load_lang_by_id(db: &Arc<dyn Database>, telegram_id: i64) -> Language {
     db.get_user_by_telegram_id(telegram_id)
         .await
@@ -29,6 +31,7 @@ pub async fn load_lang_by_id(db: &Arc<dyn Database>, telegram_id: i64) -> Langua
         .unwrap_or_default()
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn load_lang_cb(db: &Arc<dyn Database>, q: &teloxide::types::CallbackQuery) -> Language {
     db.get_user_by_telegram_id(q.from.id.0 as i64)
         .await
@@ -85,6 +88,7 @@ pub fn back_cancel_keyboard(lang: Language) -> InlineKeyboardMarkup {
     ])
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn return_to_menu(
     bot: &teloxide::Bot,
     dialogue: &MyDialogue,
