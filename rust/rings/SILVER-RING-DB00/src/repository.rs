@@ -134,6 +134,7 @@ fn truncate_string(s: &str, max: usize, context: &str) -> String {
 
 #[async_trait]
 impl DbTrait for PostgresDatabase {
+    #[tracing::instrument(skip_all)]
     async fn get_user_by_telegram_id(&self, telegram_id: i64) -> Result<Option<User>, AppError> {
         use crate::entities::users as u;
         let user = u::Entity::find()
@@ -173,6 +174,7 @@ impl DbTrait for PostgresDatabase {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn create_user(&self, telegram_id: i64, username: Option<&str>, language: Language) -> Result<User, AppError> {
         if telegram_id <= 0 {
             return Err(AppError::Validation("telegram_id must be > 0".into()));
@@ -218,6 +220,7 @@ impl DbTrait for PostgresDatabase {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_user_language(&self, telegram_id: i64, language: Language) -> Result<(), AppError> {
         use crate::entities::users as u;
         let user = u::Entity::find()
@@ -236,6 +239,7 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_user_gender(&self, telegram_id: i64, gender: Gender) -> Result<(), AppError> {
         use crate::entities::users as u;
         let user = u::Entity::find()
@@ -258,6 +262,7 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_user_level(&self, telegram_id: i64, level: i32) -> Result<(), AppError> {
         use crate::entities::users as u;
         let user = u::Entity::find()
@@ -276,6 +281,7 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_user_voice(&self, telegram_id: i64, voice: &str) -> Result<(), AppError> {
         if voice.len() > MAX_VOICE_LEN {
             return Err(AppError::Validation(format!("voice exceeds max length of {}", MAX_VOICE_LEN)));
@@ -297,6 +303,7 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_user_model(&self, telegram_id: i64, model: &str) -> Result<(), AppError> {
         if model.len() > MAX_MODEL_LEN {
             return Err(AppError::Validation(format!("model exceeds max length of {}", MAX_MODEL_LEN)));
@@ -318,11 +325,13 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_balance(&self, telegram_id: i64) -> Result<f64, AppError> {
         let user = self.get_user_by_telegram_id(telegram_id).await?;
         Ok(user.map(|u| u.balance).unwrap_or(0.0))
     }
 
+    #[tracing::instrument(skip_all)]
     async fn deduct_balance(&self, telegram_id: i64, amount: f64) -> Result<bool, AppError> {
         if !amount.is_finite() || amount <= 0.0 {
             return Err(AppError::Validation(format!("deduct_balance amount must be finite and > 0: {}", amount)));
@@ -348,6 +357,7 @@ impl DbTrait for PostgresDatabase {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn add_balance(&self, telegram_id: i64, amount: f64) -> Result<(), AppError> {
         if !amount.is_finite() || amount < 0.0 {
             return Err(AppError::Validation(format!("add_balance amount must be finite and >= 0: {}", amount)));
@@ -372,6 +382,7 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn create_transaction(&self, tx: &Transaction) -> Result<Transaction, AppError> {
         use crate::entities::payments as p;
         let now = chrono::Utc::now();
@@ -391,6 +402,7 @@ impl DbTrait for PostgresDatabase {
         Ok(tx.clone())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_transaction(&self, id: uuid::Uuid) -> Result<Option<Transaction>, AppError> {
         use crate::entities::payments as p;
         let row = p::Entity::find_by_id(id)
@@ -417,6 +429,7 @@ impl DbTrait for PostgresDatabase {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_transaction_by_external_id(&self,
         external_id: &str,
     ) -> Result<Option<Transaction>, AppError> {
@@ -446,6 +459,7 @@ impl DbTrait for PostgresDatabase {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_transaction_status(&self, id: uuid::Uuid, status: PaymentStatus) -> Result<(), AppError> {
         use crate::entities::payments as p;
         let row = p::Entity::find_by_id(id)
@@ -465,6 +479,7 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_transactions_by_telegram_id(&self, telegram_id: i64, cursor: Option<uuid::Uuid>, limit: i64) -> Result<Vec<Transaction>, AppError> {
         use crate::entities::payments as p;
         let safe_limit = if limit <= 0 { 1 } else if limit > 100 { 100 } else { limit };
@@ -511,6 +526,7 @@ impl DbTrait for PostgresDatabase {
             .collect()
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_subscription(&self, telegram_id: i64) -> Result<Option<SubscriptionType>, AppError> {
         use crate::entities::users as u;
         let user = u::Entity::find()
@@ -522,6 +538,7 @@ impl DbTrait for PostgresDatabase {
         Ok(user.and_then(|m| m.subscription.as_deref().and_then(str_to_subscription)))
     }
 
+    #[tracing::instrument(skip_all)]
     async fn renew_subscription(&self, telegram_id: i64, sub_type: SubscriptionType) -> Result<(), AppError> {
         use crate::entities::users as u;
         let user = u::Entity::find()
@@ -540,6 +557,7 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn save_prompt(&self, telegram_id: i64, prompt: &str, result_url: Option<&str>) -> Result<(), AppError> {
         const MAX_PROMPT_LEN: usize = 2000;
         const MAX_RESULT_URL_LEN: usize = 4096;
@@ -570,6 +588,7 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_prompt(&self, telegram_id: i64) -> Result<Option<String>, AppError> {
         use crate::entities::prompts as p;
         let row = p::Entity::find()
@@ -581,10 +600,12 @@ impl DbTrait for PostgresDatabase {
         Ok(row.and_then(|r| r.prompt))
     }
 
+    #[tracing::instrument(skip_all)]
     async fn increment_generated_images(&self, _telegram_id: i64) -> Result<(), AppError> {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_generated_images_count(&self, telegram_id: i64) -> Result<i64, AppError> {
         use crate::entities::generations as g;
         let count = g::Entity::find()
@@ -595,6 +616,7 @@ impl DbTrait for PostgresDatabase {
         Ok(count as i64)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn create_generation(&self, req: &GenerationRequest) -> Result<GenerationResult, AppError> {
         use crate::entities::generations as g;
         const MAX_PROMPT_LEN: usize = 2000;
@@ -636,6 +658,7 @@ impl DbTrait for PostgresDatabase {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_generation_status(&self, id: uuid::Uuid, status: GenerationStatus, result_url: Option<&str>, error: Option<&str>) -> Result<(), AppError> {
         use crate::entities::generations as g;
         const MAX_RESULT_URL_LEN: usize = 4096;
@@ -661,6 +684,7 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_generation(&self, id: uuid::Uuid) -> Result<Option<GenerationResult>, AppError> {
         use crate::entities::generations as g;
         let row = g::Entity::find_by_id(id)
@@ -683,6 +707,7 @@ impl DbTrait for PostgresDatabase {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_referral_count(&self, telegram_id: i64) -> Result<i64, AppError> {
         use crate::entities::referrals as r;
         let count = r::Entity::find()
@@ -693,6 +718,7 @@ impl DbTrait for PostgresDatabase {
         Ok(count as i64)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn health_check(&self) -> Result<bool, AppError> {
         match self.pool.ping().await {
             Ok(()) => Ok(true),
@@ -700,6 +726,7 @@ impl DbTrait for PostgresDatabase {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn complete_robokassa_payment(
         &self,
         tx_id: uuid::Uuid,
@@ -745,6 +772,7 @@ impl DbTrait for PostgresDatabase {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_generation_owned(
         &self,
         id: uuid::Uuid,
@@ -773,6 +801,7 @@ impl DbTrait for PostgresDatabase {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_generation_status_owned(
         &self,
         id: uuid::Uuid,
@@ -807,6 +836,7 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn record_webhook_event(
         &self,
         provider: &str,
@@ -831,6 +861,7 @@ impl DbTrait for PostgresDatabase {
         Ok(result.rows_affected() > 0)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn has_webhook_event(
         &self,
         provider: &str,

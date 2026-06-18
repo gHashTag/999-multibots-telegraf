@@ -75,6 +75,7 @@ fn row_to_job(row: &Model) -> Job {
 
 #[async_trait]
 impl JobQueue for PgJobQueue {
+    #[tracing::instrument(skip_all)]
     async fn enqueue(&self, request: EnqueueRequest) -> Result<Job, AppError> {
         let id = uuid::Uuid::new_v4();
         let now = chrono::Utc::now();
@@ -111,6 +112,7 @@ impl JobQueue for PgJobQueue {
         Ok(row_to_job(&inserted))
     }
 
+    #[tracing::instrument(skip_all)]
     async fn dequeue(&self, job_types: &[&str]) -> Result<Option<Job>, AppError> {
         if job_types.is_empty() {
             return Ok(None);
@@ -160,6 +162,7 @@ impl JobQueue for PgJobQueue {
         Ok(result.map(|r| row_to_job(&r)))
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_status(
         &self,
         id: uuid::Uuid,
@@ -229,6 +232,7 @@ impl JobQueue for PgJobQueue {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get(&self, id: uuid::Uuid) -> Result<Option<Job>, AppError> {
         let row = job_queue_entity::Entity::find_by_id(id)
             .one(self.db.as_ref())
@@ -238,6 +242,7 @@ impl JobQueue for PgJobQueue {
         Ok(row.map(|r| row_to_job(&r)))
     }
 
+    #[tracing::instrument(skip_all)]
     async fn cancel(&self, id: uuid::Uuid) -> Result<(), AppError> {
         let sql = r#"
             UPDATE job_queue
@@ -260,6 +265,7 @@ impl JobQueue for PgJobQueue {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn retry_stuck(&self, older_than_secs: u64) -> Result<u64, AppError> {
         const MAX_RETRY_STUCK_BATCH: u64 = 1000;
 

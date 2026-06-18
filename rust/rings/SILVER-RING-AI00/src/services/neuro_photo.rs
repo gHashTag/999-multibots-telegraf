@@ -14,6 +14,7 @@ impl NeuroPhotoService {
         Self { db, orchestrator, cost }
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn generate(
         &self,
         telegram_id: i64,
