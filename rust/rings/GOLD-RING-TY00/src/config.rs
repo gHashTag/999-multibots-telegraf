@@ -45,18 +45,43 @@ impl AppConfig {
             is_production: std::env::var("NODE_ENV")
                 .map(|v| v == "production")
                 .unwrap_or(false),
-            http_port: std::env::var("PORT")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(3000),
-            admin_telegram_ids: std::env::var("ADMIN_IDS")
-                .ok()
-                .map(|s| s.split(',').filter_map(|id| id.trim().parse().ok()).collect())
-                .unwrap_or_default(),
-            staff_telegram_ids: std::env::var("STAFF_IDS")
-                .ok()
-                .map(|s| s.split(',').filter_map(|id| id.trim().parse().ok()).collect())
-                .unwrap_or_default(),
+            http_port: match std::env::var("PORT") {
+                Ok(v) => v.parse::<u16>()
+                    .map_err(|_| crate::AppError::Config(format!("PORT '{}' is not a valid port number", v)))?,
+                Err(_) => 3000,
+            },
+            admin_telegram_ids: match std::env::var("ADMIN_IDS") {
+                Ok(v) => {
+                    let mut ids = Vec::new();
+                    for token in v.split(',') {
+                        let token = token.trim();
+                        if token.is_empty() {
+                            continue;
+                        }
+                        let id = token.parse::<i64>()
+                            .map_err(|_| crate::AppError::Config(format!("ADMIN_IDS contains invalid id: {}", token)))?;
+                        ids.push(id);
+                    }
+                    ids
+                }
+                Err(_) => Vec::new(),
+            },
+            staff_telegram_ids: match std::env::var("STAFF_IDS") {
+                Ok(v) => {
+                    let mut ids = Vec::new();
+                    for token in v.split(',') {
+                        let token = token.trim();
+                        if token.is_empty() {
+                            continue;
+                        }
+                        let id = token.parse::<i64>()
+                            .map_err(|_| crate::AppError::Config(format!("STAFF_IDS contains invalid id: {}", token)))?;
+                        ids.push(id);
+                    }
+                    ids
+                }
+                Err(_) => Vec::new(),
+            },
         })
     }
 }

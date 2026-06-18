@@ -21,7 +21,20 @@ pub async fn handle_start(
         tracing::warn!("Missing telegram_id; aborting handler");
         return Ok(());
     }
+    const MAX_USERNAME_LEN: usize = 32;
     let username = msg.from.as_ref().and_then(|u| u.username.clone());
+    let username = username.and_then(|s| {
+        let trimmed = s.trim();
+        if trimmed.is_empty() || trimmed.len() > MAX_USERNAME_LEN {
+            return None;
+        }
+        // Telegram usernames are lowercase a-z, 0-9, underscore.
+        // Reject anything with control chars or spaces.
+        if trimmed.chars().any(|c| c.is_control() || c.is_whitespace()) {
+            return None;
+        }
+        Some(trimmed.to_string())
+    });
 
     let user = match db.get_user_by_telegram_id(tid).await {
         Ok(Some(u)) => u,

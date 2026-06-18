@@ -13,6 +13,10 @@ pub struct PostgresDatabase {
     pool: Arc<DatabaseConnection>,
 }
 
+const MAX_USERNAME_LEN: usize = 32;
+const MAX_VOICE_LEN: usize = 128;
+const MAX_MODEL_LEN: usize = 64;
+
 fn media_type_to_str(mt: &MediaType) -> &'static str {
     match mt {
         MediaType::Image => "image",
@@ -164,6 +168,11 @@ impl DbTrait for PostgresDatabase {
         if telegram_id <= 0 {
             return Err(AppError::Validation("telegram_id must be > 0".into()));
         }
+        if let Some(u) = username {
+            if u.len() > MAX_USERNAME_LEN {
+                return Err(AppError::Validation(format!("username exceeds max length of {}", MAX_USERNAME_LEN)));
+            }
+        }
         use crate::entities::users as u;
         let id = uuid::Uuid::new_v4();
         let now = chrono::Utc::now();
@@ -259,6 +268,9 @@ impl DbTrait for PostgresDatabase {
     }
 
     async fn update_user_voice(&self, telegram_id: i64, voice: &str) -> Result<(), AppError> {
+        if voice.len() > MAX_VOICE_LEN {
+            return Err(AppError::Validation(format!("voice exceeds max length of {}", MAX_VOICE_LEN)));
+        }
         use crate::entities::users as u;
         let user = u::Entity::find()
             .filter(u::Column::TelegramId.eq(telegram_id))
@@ -277,6 +289,9 @@ impl DbTrait for PostgresDatabase {
     }
 
     async fn update_user_model(&self, telegram_id: i64, model: &str) -> Result<(), AppError> {
+        if model.len() > MAX_MODEL_LEN {
+            return Err(AppError::Validation(format!("model exceeds max length of {}", MAX_MODEL_LEN)));
+        }
         use crate::entities::users as u;
         let user = u::Entity::find()
             .filter(u::Column::TelegramId.eq(telegram_id))
@@ -504,11 +519,20 @@ impl DbTrait for PostgresDatabase {
 
     async fn save_prompt(&self, telegram_id: i64, prompt: &str, result_url: Option<&str>) -> Result<(), AppError> {
         const MAX_PROMPT_LEN: usize = 2000;
+        const MAX_RESULT_URL_LEN: usize = 4096;
         if prompt.len() > MAX_PROMPT_LEN {
             return Err(AppError::Validation(format!(
                 "Prompt exceeds maximum length of {} characters",
                 MAX_PROMPT_LEN
             )));
+        }
+        if let Some(url) = result_url {
+            if url.len() > MAX_RESULT_URL_LEN {
+                return Err(AppError::Validation(format!(
+                    "Result URL exceeds maximum length of {} characters",
+                    MAX_RESULT_URL_LEN
+                )));
+            }
         }
         use crate::entities::prompts as p;
         let model = p::ActiveModel {

@@ -166,6 +166,12 @@ impl PaymentProcessor {
                 id: transaction_id.to_string(),
             }));
         }
+        if !tx.amount.is_finite() || tx.amount <= 0.0 {
+            return Err(AppError::Validation(format!(
+                "refund amount must be finite and > 0: {}",
+                tx.amount
+            )));
+        }
 
         let gateway = self.gateway_for_method(method);
         if let Some(gw) = gateway {
