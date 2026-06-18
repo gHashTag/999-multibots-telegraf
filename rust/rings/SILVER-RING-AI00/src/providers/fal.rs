@@ -164,13 +164,8 @@ impl FalProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "fal", 64_000_000)?;
-        resp.json::<QueueResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "fal".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let queue_resp: QueueResponse = super::parse_json_limited(resp, "fal", 64_000_000).await?;
+        Ok(queue_resp)
     }
 
     async fn check_queue_status(&self, model_id: &str, request_id: &str) -> Result<StatusResponse, AppError> {
@@ -193,13 +188,8 @@ impl FalProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "fal", 64_000_000)?;
-        resp.json::<StatusResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "fal".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let status_resp: StatusResponse = super::parse_json_limited(resp, "fal", 64_000_000).await?;
+        Ok(status_resp)
     }
 
     async fn fetch_result(&self, model_id: &str, request_id: &str) -> Result<FalResultResponse, AppError> {
@@ -222,13 +212,8 @@ impl FalProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "fal", 64_000_000)?;
-        resp.json::<FalResultResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "fal".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let result: FalResultResponse = super::parse_json_limited(resp, "fal", 64_000_000).await?;
+        Ok(result)
     }
 
     fn extract_url_from_result(result: &FalResultResponse) -> Option<String> {

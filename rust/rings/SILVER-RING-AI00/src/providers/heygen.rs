@@ -171,11 +171,7 @@ impl HeyGenProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "heygen", 64_000_000)?;
-        let hg_resp: HeyGenResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
-            provider: "heygen".into(),
-            message: format!("json parse: {}", e),
-        })?;
+        let hg_resp: HeyGenResponse = super::parse_json_limited(resp, "heygen", 64_000_000).await?;
 
         hg_resp.data
             .and_then(|d| d.video_id)
@@ -205,11 +201,7 @@ impl HeyGenProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "heygen", 64_000_000)?;
-        let status_resp: VideoStatusResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
-            provider: "heygen".into(),
-            message: format!("json parse: {}", e),
-        })?;
+        let status_resp: VideoStatusResponse = super::parse_json_limited(resp, "heygen", 64_000_000).await?;
 
         let data = status_resp.data.ok_or_else(|| AiError::InvalidResponse {
             provider: "heygen".into(),
@@ -243,11 +235,7 @@ impl HeyGenProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "heygen", 64_000_000)?;
-        let avatars_resp: AvatarListResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
-            provider: "heygen".into(),
-            message: format!("json parse: {}", e),
-        })?;
+        let avatars_resp: AvatarListResponse = super::parse_json_limited(resp, "heygen", 64_000_000).await?;
 
         let avatars = avatars_resp.data.and_then(|d| d.avatars).ok_or_else(|| AiError::InvalidResponse {
             provider: "heygen".into(),

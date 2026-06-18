@@ -160,11 +160,7 @@ impl OpenAiProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "openai", 64_000_000)?;
-        let chat_resp: ChatResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
-            provider: "openai".into(),
-            message: format!("json parse: {}", e),
-        })?;
+        let chat_resp: ChatResponse = super::parse_json_limited(resp, "openai", 64_000_000).await?;
 
         chat_resp.choices.first()
             .map(|c| c.message.content.clone())
@@ -228,11 +224,7 @@ impl OpenAiProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "openai", 64_000_000)?;
-        let img_resp: ImageResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
-            provider: "openai".into(),
-            message: format!("json parse: {}", e),
-        })?;
+        let img_resp: ImageResponse = super::parse_json_limited(resp, "openai", 64_000_000).await?;
 
         let url = img_resp.data.first()
             .and_then(|d| d.url.clone().or_else(|| d.b64_json.clone()))
@@ -292,18 +284,27 @@ impl OpenAiProvider {
         }
 
         const MAX_RESPONSE_BYTES: u64 = 50 * 1024 * 1024;
-        if let Some(cl) = resp.content_length() {
-            if cl > MAX_RESPONSE_BYTES {
+        let bytes = match tokio::time::timeout(std::time::Duration::from_secs(30), resp.bytes()).await {
+            Ok(Ok(b)) => b,
+            Ok(Err(e)) => {
                 return Err(AiError::InvalidResponse {
                     provider: "openai".into(),
-                    message: format!("response body too large: {} bytes (max {})", cl, MAX_RESPONSE_BYTES),
+                    message: format!("read body: {}", e),
                 }.into());
             }
+            Err(_) => {
+                return Err(AiError::InvalidResponse {
+                    provider: "openai".into(),
+                    message: "response body read timed out".to_string(),
+                }.into());
+            }
+        };
+        if bytes.len() as u64 > MAX_RESPONSE_BYTES {
+            return Err(AiError::InvalidResponse {
+                provider: "openai".into(),
+                message: format!("response body too large: {} bytes (max {})", bytes.len(), MAX_RESPONSE_BYTES),
+            }.into());
         }
-        let bytes = resp.bytes().await.map_err(|e| AiError::InvalidResponse {
-            provider: "openai".into(),
-            message: format!("read body: {}", e),
-        })?;
 
         Ok(GenerationResult {
             id: uuid::Uuid::new_v4(),

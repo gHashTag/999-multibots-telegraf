@@ -125,21 +125,28 @@ impl ElevenLabsProvider {
         }
 
         const MAX_RESPONSE_BYTES: u64 = 50 * 1024 * 1024;
-        if let Some(cl) = resp.content_length() {
-            if cl > MAX_RESPONSE_BYTES {
+        let bytes = match tokio::time::timeout(std::time::Duration::from_secs(30), resp.bytes()).await {
+            Ok(Ok(b)) => b,
+            Ok(Err(e)) => {
                 return Err(AiError::InvalidResponse {
                     provider: "elevenlabs".into(),
-                    message: format!("response body too large: {} bytes (max {})", cl, MAX_RESPONSE_BYTES),
+                    message: format!("read body: {}", e),
                 }.into());
             }
-        }
-        resp.bytes()
-            .await
-            .map(|b| b.to_vec())
-            .map_err(|e| AiError::InvalidResponse {
+            Err(_) => {
+                return Err(AiError::InvalidResponse {
+                    provider: "elevenlabs".into(),
+                    message: "response body read timed out".to_string(),
+                }.into());
+            }
+        };
+        if bytes.len() as u64 > MAX_RESPONSE_BYTES {
+            return Err(AiError::InvalidResponse {
                 provider: "elevenlabs".into(),
-                message: format!("read body: {}", e),
-            }.into())
+                message: format!("response body too large: {} bytes (max {})", bytes.len(), MAX_RESPONSE_BYTES),
+            }.into());
+        }
+        Ok(bytes.to_vec())
     }
 
     pub async fn list_voices(&self) -> Result<Vec<Voice>, AppError> {
@@ -162,11 +169,7 @@ impl ElevenLabsProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "elevenlabs", 64_000_000)?;
-        let voice_resp: VoiceListResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
-            provider: "elevenlabs".into(),
-            message: format!("json parse: {}", e),
-        })?;
+        let voice_resp: VoiceListResponse = super::parse_json_limited(resp, "elevenlabs", 64_000_000).await?;
 
         let voices = voice_resp.voices.ok_or_else(|| AiError::InvalidResponse {
             provider: "elevenlabs".into(),
@@ -218,11 +221,7 @@ impl ElevenLabsProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "elevenlabs", 64_000_000)?;
-        let add_resp: AddVoiceResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
-            provider: "elevenlabs".into(),
-            message: format!("json parse: {}", e),
-        })?;
+        let add_resp: AddVoiceResponse = super::parse_json_limited(resp, "elevenlabs", 64_000_000).await?;
 
         Ok(add_resp.voice_id)
     }
@@ -247,11 +246,7 @@ impl ElevenLabsProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "elevenlabs", 64_000_000)?;
-        let user: UserResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
-            provider: "elevenlabs".into(),
-            message: format!("json parse: {}", e),
-        })?;
+        let user: UserResponse = super::parse_json_limited(resp, "elevenlabs", 64_000_000).await?;
 
         let sub = user.subscription.unwrap_or(UserSubscription {
             character_count: Some(0),

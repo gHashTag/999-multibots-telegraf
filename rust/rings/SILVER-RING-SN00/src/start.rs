@@ -5,6 +5,7 @@ use trios_mb_traits::Database;
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
+use trios_mb_tg::{send_message_timeout, dialogue_update_timeout};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -49,16 +50,14 @@ pub async fn handle_start(
             } else {
                 "❌ Login error. Please try again later."
             };
-            bot.send_message(msg.chat.id, err_text).await?;
+            send_message_timeout(&bot, msg.chat.id, err_text, None).await?;
             return Ok(());
         }
     };
 
     let greet = if user.language.is_russian() { "👋 Добро пожаловать!" } else { "👋 Welcome!" };
     let text = format!("{}\n\n{}", greet, trios_mb_i18n::t(user.language, "main_menu"));
-    bot.send_message(msg.chat.id, text)
-        .reply_markup(main_menu_keyboard(user.language))
-        .await?;
-    dialogue.update(Scene::MainMenu).await?;
+    send_message_timeout(&bot, msg.chat.id, text, Some(main_menu_keyboard(user.language).into())).await?;
+    dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
     Ok(())
 }

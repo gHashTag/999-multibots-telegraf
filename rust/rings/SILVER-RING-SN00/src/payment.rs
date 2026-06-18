@@ -7,6 +7,7 @@ use trios_mb_traits::Database;
 use trios_mb_tg::state::{Scene, PaymentFlowState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{send_message_timeout, dialogue_update_timeout};
 use crate::generation_utils::{load_lang, load_lang_cb};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
@@ -40,8 +41,8 @@ pub async fn handle_payment_entry(
     ]);
 
     let text = trios_mb_i18n::t(lang, "top_up");
-    bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
-    dialogue.update(Scene::Payment(PaymentFlowState::default())).await?;
+    send_message_timeout(&bot, msg.chat.id, text, Some(kb.into())).await?;
+    dialogue_update_timeout(&dialogue, Scene::Payment(PaymentFlowState::default())).await?;
     Ok(())
 }
 
@@ -58,7 +59,7 @@ pub async fn handle_payment_msg(
     if let Some(text) = msg.text() {
         if text.len() > MAX_PAYMENT_TEXT_LEN {
             let err = if lang.is_russian() { "❌ Слишком длинная сумма." } else { "❌ Amount text too long." };
-            bot.send_message(msg.chat.id, err).await?;
+            send_message_timeout(&bot, msg.chat.id, err, None).await?;
             return Ok(());
         }
         if let Ok(amount) = text.parse::<f64>() {
@@ -70,14 +71,14 @@ pub async fn handle_payment_msg(
                 } else {
                     format!("Top up {:.2} is being processed...", amount)
                 };
-                bot.send_message(msg.chat.id, text).await?;
-                dialogue.update(Scene::Payment(new_state)).await?;
+                send_message_timeout(&bot, msg.chat.id, text, None).await?;
+                dialogue_update_timeout(&dialogue, Scene::Payment(new_state)).await?;
                 return Ok(());
             }
         }
     }
     let text = if lang.is_russian() { "Введите сумму пополнения:" } else { "Enter top-up amount:" };
-    bot.send_message(msg.chat.id, text).await?;
+    send_message_timeout(&bot, msg.chat.id, text, None).await?;
     Ok(())
 }
 
@@ -119,7 +120,7 @@ pub async fn handle_payment_callback(
         Some(id) => id,
         None => return Ok(()),
     };
-    bot.send_message(chat_id, text).await?;
-    dialogue.update(Scene::Payment(new_state)).await?;
+    send_message_timeout(&bot, chat_id, text, None).await?;
+    dialogue_update_timeout(&dialogue, Scene::Payment(new_state)).await?;
     Ok(())
 }

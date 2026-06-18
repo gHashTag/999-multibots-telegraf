@@ -217,13 +217,8 @@ impl KieProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "kie", 64_000_000)?;
-        resp.json::<KieTaskResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "kie".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let task_resp: KieTaskResponse = super::parse_json_limited(resp, "kie", 64_000_000).await?;
+        Ok(task_resp)
     }
 
     async fn check_task_status(&self, task_id: &str) -> Result<KieTaskResponse, AppError> {
@@ -246,13 +241,8 @@ impl KieProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "kie", 64_000_000)?;
-        resp.json::<KieTaskResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "kie".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let task_resp: KieTaskResponse = super::parse_json_limited(resp, "kie", 64_000_000).await?;
+        Ok(task_resp)
     }
 
     fn extract_url(resp: &KieTaskResponse) -> Option<String> {

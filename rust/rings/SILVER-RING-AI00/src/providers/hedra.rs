@@ -102,13 +102,8 @@ impl HedraProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "hedra", 64_000_000)?;
-        resp.json::<HedronResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "hedra".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let resp_data: HedronResponse = super::parse_json_limited(resp, "hedra", 64_000_000).await?;
+        Ok(resp_data)
     }
 
     async fn fetch_animation_status(&self, animation_id: &str) -> Result<HedronResponse, AppError> {
@@ -131,13 +126,8 @@ impl HedraProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "hedra", 64_000_000)?;
-        resp.json::<HedronResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "hedra".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let resp_data: HedronResponse = super::parse_json_limited(resp, "hedra", 64_000_000).await?;
+        Ok(resp_data)
     }
 
     fn extract_id(resp: &HedronResponse) -> Option<String> {

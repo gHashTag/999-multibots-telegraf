@@ -187,13 +187,8 @@ impl ReplicateProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "replicate", 64_000_000)?;
-        resp.json::<PredictionResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "replicate".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let pred: PredictionResponse = super::parse_json_limited(resp, "replicate", 64_000_000).await?;
+        Ok(pred)
     }
 
     async fn fetch_prediction(&self, prediction_id: &str) -> Result<PredictionResponse, AppError> {
@@ -219,13 +214,8 @@ impl ReplicateProvider {
             }.into());
         }
 
-        super::check_json_body_size(&resp, "replicate", 64_000_000)?;
-        resp.json::<PredictionResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "replicate".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let pred: PredictionResponse = super::parse_json_limited(resp, "replicate", 64_000_000).await?;
+        Ok(pred)
     }
 
     fn extract_output_url(output: &Option<serde_json::Value>) -> Option<String> {
