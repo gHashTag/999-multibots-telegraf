@@ -58,7 +58,10 @@ fn row_to_job(row: &Model) -> Job {
             "completed" => JobStatus::Completed,
             "failed" => JobStatus::Failed,
             "cancelled" => JobStatus::Cancelled,
-            _ => JobStatus::Queued,
+            other => {
+                tracing::warn!(unknown_status = %other, job_id = ?row.id, "Unrecognized job status in DB; treating as failed to prevent re-execution");
+                JobStatus::Failed
+            }
         },
         attempts: row.attempts,
         max_attempts: row.max_attempts,
@@ -124,6 +127,7 @@ impl JobQueue for PgJobQueue {
                 WHERE status = 'queued'
                   AND (scheduled_at IS NULL OR scheduled_at <= NOW())
                   AND job_type IN ({types_placeholders})
+                  AND attempts < max_attempts
                 ORDER BY created_at ASC
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED

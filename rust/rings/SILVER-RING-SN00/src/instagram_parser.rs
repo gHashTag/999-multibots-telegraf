@@ -32,8 +32,37 @@ pub async fn handle_instagram_parser_msg(
         return Ok(());
     }
 
-    if !profile_url.contains("instagram.com") {
-        bot.send_message(chat_id, if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram." } else { "❌ Invalid link. Send an Instagram link." }).await?;
+    let parsed_url = match url::Url::parse(&profile_url) {
+        Ok(u) => u,
+        Err(_) => {
+            let err = if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram." } else { "❌ Invalid link. Send an Instagram link." };
+            bot.send_message(chat_id, err).await?;
+            return Ok(());
+        }
+    };
+
+    match parsed_url.scheme() {
+        "http" | "https" => {}
+        _ => {
+            let err = if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram." } else { "❌ Invalid link. Send an Instagram link." };
+            bot.send_message(chat_id, err).await?;
+            return Ok(());
+        }
+    }
+
+    let host_ok = parsed_url.host_str().map_or(false, |host| {
+        let lower = host.to_lowercase();
+        lower == "instagram.com" || lower == "www.instagram.com"
+    });
+    if !host_ok {
+        let err = if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram." } else { "❌ Invalid link. Send an Instagram link." };
+        bot.send_message(chat_id, err).await?;
+        return Ok(());
+    }
+
+    if !parsed_url.username().is_empty() || parsed_url.password().is_some() {
+        let err = if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram." } else { "❌ Invalid link. Send an Instagram link." };
+        bot.send_message(chat_id, err).await?;
         return Ok(());
     }
 
