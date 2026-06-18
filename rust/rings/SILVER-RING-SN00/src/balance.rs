@@ -19,7 +19,19 @@ pub async fn handle_balance(
         tracing::warn!("Missing telegram_id; aborting handler");
         return Ok(());
     }
-    let balance = db.get_balance(tid).await.unwrap_or(0.0);
+    let balance = match db.get_balance(tid).await {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::error!(telegram_id = tid, error = %e, "Failed to get balance");
+            let err = if lang.is_russian() {
+                "❌ Не удалось получить баланс. Попробуйте позже.".to_string()
+            } else {
+                "❌ Could not retrieve balance. Please try again later.".to_string()
+            };
+            bot.send_message(msg.chat.id, err).await?;
+            return Ok(());
+        }
+    };
     let text = if lang.is_russian() {
         format!("💰 Ваш баланс: {:.2} ₽", balance)
     } else {

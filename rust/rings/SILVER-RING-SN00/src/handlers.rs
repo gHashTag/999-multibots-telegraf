@@ -415,7 +415,19 @@ async fn enter_scene_greeting(
             bot.send_message(chat_id, trios_mb_i18n::t(lang, "top_up")).await?;
         }
         SceneId::CheckBalance | SceneId::Balance => {
-            let balance = db.get_balance(telegram_id).await.unwrap_or(0.0);
+            let balance = match db.get_balance(telegram_id).await {
+                Ok(b) => b,
+                Err(e) => {
+                    tracing::error!(telegram_id, error = %e, "Failed to get balance in handler");
+                    let err = if lang.is_russian() {
+                        "❌ Не удалось получить баланс. Попробуйте позже.".to_string()
+                    } else {
+                        "❌ Could not retrieve balance. Please try again later.".to_string()
+                    };
+                    bot.send_message(chat_id, err).await?;
+                    return Ok(());
+                }
+            };
             let text = if lang.is_russian() {
                 format!("💰 Ваш баланс: {:.2} ₽", balance)
             } else {

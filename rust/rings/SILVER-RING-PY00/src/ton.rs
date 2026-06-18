@@ -59,6 +59,13 @@ impl PaymentGateway for TonGateway {
                 amount
             )));
         }
+        const MAX_TON_AMOUNT: f64 = 1_000_000_000.0;
+        if amount > MAX_TON_AMOUNT {
+            return Err(AppError::Validation(format!(
+                "TON amount exceeds maximum of {}: {}",
+                MAX_TON_AMOUNT, amount
+            )));
+        }
 
         let id = uuid::Uuid::new_v4();
         let external_id = format!("ton_{}", id);

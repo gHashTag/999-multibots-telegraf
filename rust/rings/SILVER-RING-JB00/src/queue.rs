@@ -229,12 +229,17 @@ impl JobQueue for PgJobQueue {
     }
 
     async fn retry_stuck(&self, older_than_secs: u64) -> Result<u64, AppError> {
+        const MAX_RETRY_STUCK_BATCH: u64 = 1000;
         let sql = r#"
             UPDATE job_queue
             SET status = 'queued', attempts = 0, started_at = NULL, updated_at = NOW()
-            WHERE status = 'running'
-              AND started_at < NOW() - INTERVAL '1 second' * $1
-              AND attempts < max_attempts
+            WHERE id IN (
+                SELECT id FROM job_queue
+                WHERE status = 'running'
+                  AND started_at < NOW() - INTERVAL '1 second' * $1
+                  AND attempts < max_attempts
+                LIMIT $2
+            )
         "#;
 
         let result = self
@@ -243,7 +248,10 @@ impl JobQueue for PgJobQueue {
             .execute(Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Postgres,
                 sql,
-                vec![Value::Int(Some(older_than_secs as i32))],
+                vec![
+                    Value::Int(Some(older_than_secs as i32)),
+                    Value::BigUnsigned(Some(MAX_RETRY_STUCK_BATCH)),
+                ],
             ))
             .await
             .map_err(|e| AppError::Db(DbError::Query(e.to_string())))?;

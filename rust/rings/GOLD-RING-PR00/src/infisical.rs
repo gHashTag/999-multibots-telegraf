@@ -17,6 +17,7 @@ impl fmt::Debug for AuthRequest {
 }
 
 #[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AuthResponse {
     pub access_token: String,
     pub expires_at: Option<i64>,
@@ -48,6 +49,7 @@ impl fmt::Debug for GetSecretsRequest {
 }
 
 #[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GetSecretsResponse {
     pub secrets: Vec<SecretItem>,
 }
@@ -61,6 +63,7 @@ impl fmt::Debug for GetSecretsResponse {
 }
 
 #[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SecretItem {
     pub key: String,
     #[serde(rename = "secretValue")]

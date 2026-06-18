@@ -109,7 +109,7 @@ async fn main() -> anyhow::Result<()> {
         &config.infisical_client_secret,
         &config.infisical_project_id,
         &config.infisical_environment,
-    ));
+    )?);
     info!("loading secrets from Infisical...");
     secret_store.reload().await?;
     info!("secrets loaded");

@@ -47,15 +47,21 @@ impl SecretCache {
 }
 
 impl InfisicalStore {
-    pub fn new(client_id: &str, client_secret: &str, project_id: &str, environment: &str) -> Self {
-        Self {
+    pub fn new(client_id: &str, client_secret: &str, project_id: &str, environment: &str) -> Result<Self, AppError> {
+        let http = Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|e| AppError::Internal(format!("Failed to build Infisical reqwest client: {}", e)))?;
+        Ok(Self {
             client_id: client_id.to_string(),
             client_secret: client_secret.to_string(),
             project_id: project_id.to_string(),
             environment: environment.to_string(),
-            http: Client::new(),
+            http,
             cache: Arc::new(RwLock::new(SecretCache::new())),
-        }
+        })
     }
 
     async fn authenticate(&self) -> Result<String, AppError> {

@@ -47,7 +47,13 @@ pub async fn deduct_balance(
     match db.deduct_balance(telegram_id, cost).await {
         Ok(true) => Ok(0.0),
         Ok(false) => {
-            let balance = db.get_balance(telegram_id).await.unwrap_or(0.0);
+            let balance = match db.get_balance(telegram_id).await {
+                Ok(b) => b,
+                Err(e) => {
+                    tracing::error!(telegram_id, error = %e, "Failed to get balance for error message");
+                    0.0
+                }
+            };
             let msg = if lang.is_russian() {
                 format!("❌ Недостаточно средств.\n\nТребуется: {:.0} ⭐\nВаш баланс: {:.1} ⭐", cost, balance)
             } else {
