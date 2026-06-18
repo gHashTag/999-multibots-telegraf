@@ -5,7 +5,7 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, DigitalAvatarBodyState};
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, dialogue_update_timeout, send_message_timeout};
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
@@ -48,9 +48,11 @@ pub async fn handle_digital_avatar_body_msg(
             } else {
                 "🤖 Digital Body\n\nChoose body style:"
             };
-            bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
+            send_message_timeout(
+                &bot, msg.chat.id, text, Some(kb.into()),
+            ).await?;
             state.step = 1;
-            dialogue.update(Scene::DigitalAvatarBody(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::DigitalAvatarBody(state)).await?;
         }
         1 => {
             if let Some(photos) = msg.photo() {
@@ -58,7 +60,7 @@ pub async fn handle_digital_avatar_body_msg(
                     Some(p) => p.file.id.clone(),
                     None => {
                         let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
-                        bot.send_message(msg.chat.id, err).await?;
+                        send_message_timeout(&bot, msg.chat.id, err, None).await?;
                         return Ok(());
                     }
                 };
@@ -84,7 +86,7 @@ pub async fn handle_digital_avatar_body_msg(
                 ).await;
             } else {
                 let text = if lang.is_russian() { "Отправьте фото лица" } else { "Send a face photo" };
-                bot.send_message(msg.chat.id, text).await?;
+                send_message_timeout(&bot, msg.chat.id, text, None).await?;
             }
         }
         _ => {}
@@ -130,8 +132,8 @@ pub async fn handle_digital_avatar_body_callback(
             state.body_style = Some(style.to_string());
             state.step = 1;
             let text = if lang.is_russian() { "📸 Отправьте фото лица:" } else { "📸 Send a face photo:" };
-            bot.send_message(chat_id, text).await?;
-            dialogue.update(Scene::DigitalAvatarBody(state)).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
+            dialogue_update_timeout(&dialogue, Scene::DigitalAvatarBody(state)).await?;
         }
         _ => {}
     }
