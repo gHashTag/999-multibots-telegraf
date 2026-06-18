@@ -67,23 +67,6 @@ pub async fn robokassa_callback(
         }
     };
 
-    // Wave 162: idempotency guard
-    match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.record_webhook_event("robokassa", &form.inv_id)).await {
-        Ok(Ok(true)) => {}, // new event, proceed
-        Ok(Ok(false)) => {
-            tracing::info!(inv_id = %form.inv_id, "Robokassa callback: duplicate event, skipping");
-            return "OK".to_string();
-        }
-        Ok(Err(e)) => {
-            tracing::error!(error = %e, inv_id = %form.inv_id, "Failed to record webhook event");
-            return "ERROR: internal error".to_string();
-        }
-        Err(_) => {
-            tracing::warn!(inv_id = %form.inv_id, "Webhook idempotency check timed out");
-            return "ERROR: DB timeout".to_string();
-        }
-    }
-
     if let Some(gateway) = &state.payment_gateway {
         let params = serde_json::json!({
             "OutSum": form.out_sum,
@@ -93,6 +76,24 @@ pub async fn robokassa_callback(
 
         match gateway.verify_callback(&params).await {
             Ok(verification) => {
+                // Idempotency guard runs ONLY after signature verification succeeds,
+                // preventing cache poisoning by forged callbacks with invalid signatures.
+                match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.record_webhook_event("robokassa", &form.inv_id)).await {
+                    Ok(Ok(true)) => {}, // new event, proceed
+                    Ok(Ok(false)) => {
+                        tracing::info!(inv_id = %form.inv_id, "Robokassa callback: duplicate event, skipping");
+                        return "OK".to_string();
+                    }
+                    Ok(Err(e)) => {
+                        tracing::error!(error = %e, inv_id = %form.inv_id, "Failed to record webhook event");
+                        return "ERROR: internal error".to_string();
+                    }
+                    Err(_) => {
+                        tracing::warn!(inv_id = %form.inv_id, "Webhook idempotency check timed out");
+                        return "ERROR: DB timeout".to_string();
+                    }
+                }
+
                 let external_id = &verification.transaction_id;
 
                 let tx = match tokio::time::timeout(

@@ -37,6 +37,27 @@ pub async fn handle_instagram_parser_msg(
         return Ok(());
     }
 
+    let telegram_id = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+    if telegram_id == 0 {
+        tracing::warn!("Missing telegram_id; aborting handler");
+        return Ok(());
+    }
+
+    let me = match bot.get_me().await {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::warn!("Failed to get bot info: {}", e);
+            return Ok(());
+        }
+    };
+    let bot_name = me.user.username.as_deref().unwrap_or("");
+    if !trios_mb_tg::access::has_parsing_access(telegram_id, bot_name) {
+        tracing::warn!(%telegram_id, %bot_name, "User lacks parsing access for instagram_parser");
+        let err = if lang.is_russian() { "❌ Нет доступа." } else { "❌ Access denied." };
+        bot.send_message(chat_id, err).await?;
+        return Ok(());
+    }
+
     let text = if lang.is_russian() {
         format!("📊 Анализ профиля...\n\n{}\n\nФункция в разработке. Скоро будет доступна!", profile_url)
     } else {

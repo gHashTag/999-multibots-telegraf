@@ -167,9 +167,9 @@ pub async fn dispatch_and_reply(
                         tracing::error!(telegram_id = params.telegram_id, error = %refund_err, "CRITICAL: Failed to refund balance after enqueue failure");
                     }
                     let err_msg = if params.lang.is_russian() {
-                        format!("❌ Ошибка: {}", e)
+                        "❌ Не удалось отправить задачу. Попробуйте позже.".to_string()
                     } else {
-                        format!("❌ Error: {}", e)
+                        "❌ Could not submit task. Please try again later.".to_string()
                     };
                     bot.send_message(chat_id, err_msg).await?;
                 }
@@ -181,9 +181,9 @@ pub async fn dispatch_and_reply(
                 tracing::error!(telegram_id = params.telegram_id, error = %refund_err, "CRITICAL: Failed to refund balance after generation creation failure");
             }
             let err_msg = if params.lang.is_russian() {
-                format!("❌ Ошибка: {}", e)
+                "❌ Не удалось создать задачу. Попробуйте позже.".to_string()
             } else {
-                format!("❌ Error: {}", e)
+                "❌ Could not create task. Please try again later.".to_string()
             };
             bot.send_message(chat_id, err_msg).await?;
         }

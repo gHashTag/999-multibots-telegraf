@@ -77,6 +77,21 @@ pub async fn handle_instagram_scraping_msg(
     let lang = load_lang(&db, &msg).await;
     let chat_id = msg.chat.id;
 
+    let me = match bot.get_me().await {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::warn!("Failed to get bot info: {}", e);
+            return Ok(());
+        }
+    };
+    let bot_name = me.user.username.as_deref().unwrap_or("");
+    if !trios_mb_tg::access::has_parsing_access(telegram_id, bot_name) {
+        tracing::warn!(%telegram_id, %bot_name, "User lacks parsing access for instagram_scraping");
+        let err = if lang.is_russian() { "❌ Нет доступа." } else { "❌ Access denied." };
+        bot.send_message(chat_id, err).await?;
+        return Ok(());
+    }
+
     let params = DispatchParams {
         telegram_id,
         lang,
