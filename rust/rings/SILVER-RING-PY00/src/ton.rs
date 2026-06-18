@@ -53,6 +53,13 @@ impl PaymentGateway for TonGateway {
         amount: f64,
         _description: &str,
     ) -> Result<PaymentInit, AppError> {
+        if !amount.is_finite() || amount <= 0.0 {
+            return Err(AppError::Validation(format!(
+                "TON amount must be finite and > 0: {}",
+                amount
+            )));
+        }
+
         let id = uuid::Uuid::new_v4();
         let external_id = format!("ton_{}", id);
 

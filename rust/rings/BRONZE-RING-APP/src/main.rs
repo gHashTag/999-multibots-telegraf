@@ -220,6 +220,8 @@ async fn main() -> anyhow::Result<()> {
                     let bot_cancel_inner = bot_cancel_clone_for_closure.clone();
                     async move {
                         let mut backoff_secs = 5u64;
+                        let mut restart_count = 0u32;
+                        const MAX_RESTARTS: u32 = 20;
                         loop {
                             let cancel_child = bot_cancel_inner.child_token();
                             let mut dp = dp_builder.build_dispatcher(
@@ -233,7 +235,12 @@ async fn main() -> anyhow::Result<()> {
                                     break;
                                 }
                                 _ = dp.dispatch() => {
-                                    tracing::warn!(bot = i, "Dispatcher stopped normally; restarting in {}s", backoff_secs);
+                                    restart_count += 1;
+                                    if restart_count >= MAX_RESTARTS {
+                                        tracing::error!(bot = i, restarts = restart_count, "Dispatcher exceeded max restarts; giving up");
+                                        break;
+                                    }
+                                    tracing::warn!(bot = i, restart = restart_count, "Dispatcher stopped normally; restarting in {}s", backoff_secs);
                                     tokio::time::sleep(std::time::Duration::from_secs(backoff_secs)).await;
                                     backoff_secs = std::cmp::min(backoff_secs.saturating_mul(2), 60);
                                 }

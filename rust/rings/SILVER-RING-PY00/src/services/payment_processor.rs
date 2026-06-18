@@ -26,6 +26,13 @@ impl PaymentProcessor {
         method: PaymentMethod,
         description: &str,
     ) -> Result<PaymentInit, AppError> {
+        if !amount.is_finite() || amount <= 0.0 {
+            return Err(AppError::Validation(format!(
+                "payment amount must be finite and > 0: {}",
+                amount
+            )));
+        }
+
         let gateway = self.gateway_for_method(method)
             .ok_or_else(|| AppError::Payment(PaymentError::Provider {
                 provider: format!("{:?}", method),
@@ -65,6 +72,12 @@ impl PaymentProcessor {
             }))?;
 
         let verification = gateway.verify_callback(callback_params).await?;
+        if !verification.amount.is_finite() || verification.amount < 0.0 {
+            return Err(AppError::Validation(format!(
+                "callback amount must be finite and >= 0: {}",
+                verification.amount
+            )));
+        }
 
         let tx = self.db.get_transaction(
             uuid::Uuid::parse_str(&verification.transaction_id)
@@ -92,6 +105,13 @@ impl PaymentProcessor {
         _service_type: Option<&str>,
         subscription_type: Option<SubscriptionType>,
     ) -> Result<Transaction, AppError> {
+        if !amount.is_finite() || amount <= 0.0 {
+            return Err(AppError::Validation(format!(
+                "direct_debit amount must be finite and > 0: {}",
+                amount
+            )));
+        }
+
         let balance = self.db.get_balance(telegram_id).await?;
         if balance < amount {
             return Err(AppError::Payment(PaymentError::InsufficientBalance {

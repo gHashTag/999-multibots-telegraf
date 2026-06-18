@@ -68,6 +68,12 @@ impl PaymentGateway for RobokassaGateway {
     fn method(&self) -> PaymentMethod { PaymentMethod::Robokassa }
 
     async fn create_payment(&self, telegram_id: i64, amount: f64, _description: &str) -> Result<PaymentInit, AppError> {
+        if !amount.is_finite() || amount <= 0.0 {
+            return Err(AppError::Validation(format!(
+                "Robokassa amount must be finite and > 0: {}",
+                amount
+            )));
+        }
         let id = uuid::Uuid::new_v4();
         let external_id = format!("{}", chrono::Utc::now().timestamp_millis());
         Ok(PaymentInit {
@@ -87,6 +93,12 @@ impl PaymentGateway for RobokassaGateway {
             .ok_or_else(|| AppError::Validation("Missing OutSum in Robokassa callback".into()))?;
         let amount = amount_str.parse::<f64>()
             .map_err(|_| AppError::Validation("Invalid OutSum format in Robokassa callback".into()))?;
+        if !amount.is_finite() || amount < 0.0 {
+            return Err(AppError::Validation(format!(
+                "Robokassa callback amount must be finite and >= 0: {}",
+                amount
+            )));
+        }
         let signature_value = params["SignatureValue"].as_str()
             .ok_or_else(|| AppError::Validation("Missing SignatureValue in Robokassa callback".into()))?;
 

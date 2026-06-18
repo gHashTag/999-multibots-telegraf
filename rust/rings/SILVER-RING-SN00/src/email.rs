@@ -8,6 +8,8 @@ use crate::generation_utils::{load_lang, return_to_menu};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const MAX_EMAIL_LEN: usize = 254;
+
 pub async fn handle_email_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -31,6 +33,11 @@ pub async fn handle_email_msg(
 
     if state.step == 1 {
         if let Some(text) = msg.text() {
+            if text.len() > MAX_EMAIL_LEN {
+                let err = if lang.is_russian() { "❌ Email слишком длинный." } else { "❌ Email too long." };
+                bot.send_message(msg.chat.id, err).await?;
+                return Ok(());
+            }
             let email = text.trim();
             if !email.contains('@') || !email.contains('.') {
                 let err = if lang.is_russian() { "❌ Некорректный email" } else { "❌ Invalid email" };

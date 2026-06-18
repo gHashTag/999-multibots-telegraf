@@ -84,16 +84,27 @@ async fn edge_hardening(
 
     // Sanitize client-error bodies to prevent info disclosure
     if code.is_client_error() && code != axum::http::StatusCode::TOO_MANY_REQUESTS {
-        return Response::builder()
-            .status(code)
-            .header("Content-Type", "text/plain; charset=utf-8")
-            .header("X-Content-Type-Options", "nosniff")
-            .header("X-Frame-Options", "DENY")
-            .body(axum::body::Body::from("Bad Request"))
-            .unwrap();
+        return build_sanitized_response(code);
     }
 
     response
+}
+
+/// Build a generic sanitized response without panicking.
+fn build_sanitized_response(code: axum::http::StatusCode) -> Response {
+    Response::builder()
+        .status(code)
+        .header("Content-Type", "text/plain; charset=utf-8")
+        .header("X-Content-Type-Options", "nosniff")
+        .header("X-Frame-Options", "DENY")
+        .body(axum::body::Body::from("Bad Request"))
+        .unwrap_or_else(|_| {
+            // Fallback: builder should never fail with static headers, but
+            // if it does, construct a minimal response manually.
+            let mut resp = Response::new(axum::body::Body::from("Bad Request"));
+            *resp.status_mut() = code;
+            resp
+        })
 }
 
 pub fn create_router(db: Arc<dyn Database>) -> Router {

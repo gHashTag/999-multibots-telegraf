@@ -53,7 +53,7 @@ pub async fn handle_payment_msg(
     let lang = load_lang(&db, &msg).await;
     if let Some(text) = msg.text() {
         if let Ok(amount) = text.parse::<f64>() {
-            if amount > 0.0 {
+            if amount.is_finite() && amount > 0.0 {
                 let mut new_state = state;
                 new_state.amount = Some(amount);
                 let text = if lang.is_russian() {
