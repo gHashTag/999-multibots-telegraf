@@ -18,11 +18,21 @@ where
 {
     tokio::spawn(async move {
         let mut consecutive_failures: u32 = 0;
+        let mut last_failure: Option<std::time::Instant> = None;
         const MAX_CONSECUTIVE_FAILURES: u32 = 10;
         const BASE_BACKOFF_SECS: u64 = 5;
         const MAX_BACKOFF_SECS: u64 = 60;
+        const FAILURE_RESET_SECS: u64 = 300; // 5 minutes of healthy uptime resets the streak
 
         loop {
+            // Time-decay reset: transient panics spread across hours/days should not
+            // permanently accumulate to the fatal limit. Following Erlang/Akka pattern
+            // (intensity within a period) rather than a monotonic counter.
+            let now = std::time::Instant::now();
+            if last_failure.map_or(false, |t| now.duration_since(t).as_secs() >= FAILURE_RESET_SECS) {
+                consecutive_failures = 0;
+            }
+
             // Catch synchronous panics in the factory closure itself before spawning.
             // tokio::spawn only catches panics inside the future; a panic in the closure
             // that builds the future would abort the supervisor thread.
@@ -32,6 +42,7 @@ where
                 Ok(f) => f,
                 Err(_) => {
                     consecutive_failures += 1;
+                    last_failure = Some(now);
                     if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
                         tracing::error!(
                             worker = %desc,
@@ -71,6 +82,7 @@ where
                         }
                         Err(_) => {
                             consecutive_failures += 1;
+                            last_failure = Some(now);
                             if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
                                 tracing::error!(
                                     worker = %desc,
@@ -380,7 +392,10 @@ pub async fn run_retry_maintenance(
         tokio::select! {
             _ = cancel.cancelled() => break,
             _ = tokio::time::sleep(interval) => {
-                match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.retry_stuck(300)).await {
+                // Threshold must cover the longest legitimate job timeout (ModelTraining = 7200s).
+                // Using a single global threshold avoids false-positive stuck detection on healthy
+                // long-running jobs. A per-job-type dynamic threshold is deferred to a future wave.
+                match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.retry_stuck(7200)).await {
                     Ok(Ok(count)) if count > 0 => {
                         tracing::info!(retried = count, "Retry maintenance: reset stuck jobs");
                     }

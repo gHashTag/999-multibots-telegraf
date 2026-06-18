@@ -31,7 +31,7 @@ impl std::fmt::Debug for RobokassaCallbackForm {
     }
 }
 
-#[tracing::instrument(skip(state, form), fields(inv_id = %form.inv_id))]
+#[tracing::instrument(skip(state, form), fields(inv_id = %truncate_for_log(&form.inv_id, 128)))]
 pub async fn robokassa_callback(
     State(state): State<Arc<AppState>>,
     Form(form): Form<RobokassaCallbackForm>,
@@ -81,15 +81,15 @@ pub async fn robokassa_callback(
                 match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.record_webhook_event("robokassa", &form.inv_id)).await {
                     Ok(Ok(true)) => {}, // new event, proceed
                     Ok(Ok(false)) => {
-                        tracing::info!(inv_id = %form.inv_id, "Robokassa callback: duplicate event, skipping");
+                        tracing::info!(inv_id = %truncate_for_log(&form.inv_id, 128), "Robokassa callback: duplicate event, skipping");
                         return "OK".to_string();
                     }
                     Ok(Err(e)) => {
-                        tracing::error!(error = %e, inv_id = %form.inv_id, "Failed to record webhook event");
+                        tracing::error!(error = %e, inv_id = %truncate_for_log(&form.inv_id, 128), "Failed to record webhook event");
                         return "ERROR: internal error".to_string();
                     }
                     Err(_) => {
-                        tracing::warn!(inv_id = %form.inv_id, "Webhook idempotency check timed out");
+                        tracing::warn!(inv_id = %truncate_for_log(&form.inv_id, 128), "Webhook idempotency check timed out");
                         return "ERROR: DB timeout".to_string();
                     }
                 }
@@ -102,15 +102,15 @@ pub async fn robokassa_callback(
                 ).await {
                     Ok(Ok(Some(tx))) => tx,
                     Ok(Ok(None)) => {
-                        tracing::warn!(external_id = %external_id, "Robokassa callback: transaction not found");
+                        tracing::warn!(external_id = %truncate_for_log(external_id, 128), "Robokassa callback: transaction not found");
                         return "ERROR: transaction not found".to_string();
                     }
                     Ok(Err(e)) => {
-                        tracing::error!(error = %e, external_id = %external_id, "Failed to load transaction");
+                        tracing::error!(error = %e, external_id = %truncate_for_log(external_id, 128), "Failed to load transaction");
                         return "ERROR: internal error".to_string();
                     }
                     Err(_) => {
-                        tracing::warn!(external_id = %external_id, "Transaction lookup timed out");
+                        tracing::warn!(external_id = %truncate_for_log(external_id, 128), "Transaction lookup timed out");
                         return "ERROR: DB timeout".to_string();
                     }
                 };

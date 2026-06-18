@@ -86,7 +86,7 @@ fn is_terminal_status(status: GenerationStatus) -> bool {
 fn parse_uuid(s: &str) -> Result<uuid::Uuid, (StatusCode, String)> {
     uuid::Uuid::parse_str(s)
         .map_err(|e| {
-            tracing::warn!(input = %s, error = %e, "Invalid UUID in webhook payload");
+            tracing::warn!(input = %truncate_for_log(s, 256), error = %e, "Invalid UUID in webhook payload");
             (StatusCode::BAD_REQUEST, "Invalid UUID".to_string())
         })
 }
@@ -180,7 +180,7 @@ pub async fn replicate_webhook(
         let url = urls.first().map(|s| s.as_str()).unwrap_or("");
         if !url.is_empty() {
             if let Err(reason) = validate_result_url(url) {
-                tracing::warn!(url = %url, reason = %reason, "Rejecting Replicate result URL");
+                tracing::warn!(url = %truncate_for_log(url, 256), reason = %reason, "Rejecting Replicate result URL");
             } else {
                 match tokio::time::timeout(
                     WEBHOOK_DB_TIMEOUT,
@@ -254,7 +254,7 @@ pub async fn kie_ai_webhook(
     }
 
     tracing::info!(
-        task_id = ?payload.task_id,
+        task_id = %truncate_for_log(payload.task_id.as_deref().unwrap_or(""), 256),
         success_flag = ?payload.success_flag_val(),
         "Kie.ai webhook received"
     );
@@ -311,7 +311,7 @@ pub async fn kie_ai_webhook(
     if payload.is_completed() {
         if let Some(url) = payload.first_video_url() {
             if let Err(reason) = validate_result_url(&url) {
-                tracing::warn!(url = %url, reason = %reason, "Rejecting Kie.ai result URL");
+                tracing::warn!(url = %truncate_for_log(&url, 256), reason = %reason, "Rejecting Kie.ai result URL");
             } else {
                 match tokio::time::timeout(
                     WEBHOOK_DB_TIMEOUT,
