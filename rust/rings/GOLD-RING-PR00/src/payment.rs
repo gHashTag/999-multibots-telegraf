@@ -116,7 +116,6 @@ pub struct DirectPaymentRequest {
     pub bot_name: String,
     pub service_type: String,
     pub inv_id: Option<String>,
-    pub bypass_payment_check: Option<bool>,
     pub metadata: Option<serde_json::Value>,
 }
 

@@ -1,10 +1,13 @@
 use trios_mb_types::scene::SceneId;
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 use crate::categories::{self, CategoryConfig, NavigationItem};
 
 const MAX_HISTORY_DEPTH: usize = 5;
 const STUCK_THRESHOLD: usize = 3;
 const FORCE_RESET_THRESHOLD: usize = 5;
+const INACTIVE_EVICTION_THRESHOLD: Duration = Duration::from_secs(24 * 60 * 60); // 24 hours
+const EVICTION_INTERVAL: usize = 1000; // evict every N enter() calls
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NavigationAction {
@@ -39,6 +42,8 @@ pub enum ButtonMatch {
 
 pub struct NavigationRouter {
     history: HashMap<i64, Vec<SceneId>>,
+    last_accessed: HashMap<i64, Instant>,
+    enter_count: usize,
 }
 
 impl Default for NavigationRouter {
@@ -51,6 +56,8 @@ impl NavigationRouter {
     pub fn new() -> Self {
         Self {
             history: HashMap::new(),
+            last_accessed: HashMap::new(),
+            enter_count: 0,
         }
     }
 
@@ -59,6 +66,9 @@ impl NavigationRouter {
     }
 
     pub fn enter(&mut self, chat_id: i64, scene: SceneId) {
+        let now = Instant::now();
+        self.last_accessed.insert(chat_id, now);
+
         let history = self.history.entry(chat_id).or_default();
         if history.last() != Some(&scene) {
             history.push(scene);
@@ -67,9 +77,39 @@ impl NavigationRouter {
             let drain_count = history.len() - MAX_HISTORY_DEPTH;
             history.drain(0..drain_count);
         }
+
+        self.enter_count += 1;
+        if self.enter_count % EVICTION_INTERVAL == 0 {
+            self.evict_inactive(INACTIVE_EVICTION_THRESHOLD);
+        }
+    }
+
+    /// Remove chat histories that have been idle longer than `threshold`.
+    /// Call periodically (e.g., every N enter() calls or from a background task).
+    pub fn evict_inactive(&mut self, threshold: Duration) {
+        let now = Instant::now();
+        let mut to_remove = Vec::new();
+        for (&chat_id, &last) in &self.last_accessed {
+            if now.duration_since(last) > threshold {
+                to_remove.push(chat_id);
+            }
+        }
+        let evicted_count = to_remove.len();
+        for chat_id in to_remove {
+            self.history.remove(&chat_id);
+            self.last_accessed.remove(&chat_id);
+        }
+        if evicted_count > 0 {
+            tracing::info!(
+                evicted = evicted_count,
+                remaining = self.history.len(),
+                "NavigationRouter evicted inactive chats"
+            );
+        }
     }
 
     pub fn go_back(&mut self, chat_id: i64) -> Option<SceneId> {
+        self.last_accessed.insert(chat_id, Instant::now());
         let history = self.history.get_mut(&chat_id)?;
         if history.len() > 1 {
             history.pop();
@@ -81,6 +121,7 @@ impl NavigationRouter {
 
     pub fn clear(&mut self, chat_id: i64) {
         self.history.remove(&chat_id);
+        self.last_accessed.remove(&chat_id);
     }
 
     pub fn history_depth(&self, chat_id: i64) -> usize {

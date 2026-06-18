@@ -4,6 +4,7 @@ use teloxide::prelude::*;
 use trios_mb_traits::Database;
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
+use trios_mb_tg::{answer_callback_query_timeout, send_message_timeout};
 use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
@@ -16,11 +17,11 @@ pub async fn handle_cancel_predictions_msg(
 ) -> HandlerResult {
     let lang = load_lang(&db, &msg).await;
     let text = if lang.is_russian() {
-        "❌ Все активные генерации отменены."
+        "❌ Отмена генераций пока не поддерживается."
     } else {
-        "❌ All active generations cancelled."
+        "❌ Cancelling generations is not yet supported."
     };
-    bot.send_message(msg.chat.id, text).await?;
+    send_message_timeout(&bot, msg.chat.id, text).await?;
     return_to_menu(&bot, &dialogue, msg.chat.id, lang).await
 }
 
@@ -30,13 +31,13 @@ pub async fn handle_cancel_predictions_callback(
     dialogue: MyDialogue,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
     let chat_id = match q.chat_id() {
         Some(id) => id,
         None => return Ok(()),
     };
-    let text = if lang.is_russian() { "❌ Генерации отменены." } else { "❌ Generations cancelled." };
-    bot.send_message(chat_id, text).await?;
+    let text = if lang.is_russian() { "❌ Отмена генераций пока не поддерживается." } else { "❌ Cancelling generations is not yet supported." };
+    send_message_timeout(&bot, chat_id, text).await?;
     return_to_menu(&bot, &dialogue, chat_id, lang).await
 }
