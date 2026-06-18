@@ -83,9 +83,12 @@ impl AiProviderOrchestrator for AiOrchestrator {
     async fn dispatch(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         match tokio::time::timeout(Duration::from_secs(120), self.dispatch_inner(request)).await {
             Ok(result) => result,
-            Err(_) => Err(AppError::Ai(trios_mb_types::errors::AiError::AllProvidersFailed {
-                media_type: format!("{:?}", request.media_type),
-            })),
+            Err(_) => {
+                tracing::warn!(media_type = ?request.media_type, "Orchestrator dispatch timed out after 120s");
+                Err(AppError::Ai(trios_mb_types::errors::AiError::AllProvidersFailed {
+                    media_type: format!("{:?}", request.media_type),
+                }))
+            }
         }
     }
 

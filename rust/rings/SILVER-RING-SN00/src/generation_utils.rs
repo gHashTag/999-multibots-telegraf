@@ -23,22 +23,26 @@ pub async fn load_lang(db: &Arc<dyn Database>, msg: &Message) -> Language {
 
 #[tracing::instrument(skip_all)]
 pub async fn load_lang_by_id(db: &Arc<dyn Database>, telegram_id: i64) -> Language {
-    db.get_user_by_telegram_id(telegram_id)
-        .await
-        .ok()
-        .flatten()
-        .map(|u| u.language)
-        .unwrap_or_default()
+    match db.get_user_by_telegram_id(telegram_id).await {
+        Ok(Some(user)) => user.language,
+        Ok(None) => Language::default(),
+        Err(e) => {
+            tracing::warn!(telegram_id, error = %e, "Failed to load user language from DB; falling back to default");
+            Language::default()
+        }
+    }
 }
 
 #[tracing::instrument(skip_all)]
 pub async fn load_lang_cb(db: &Arc<dyn Database>, q: &teloxide::types::CallbackQuery) -> Language {
-    db.get_user_by_telegram_id(q.from.id.0 as i64)
-        .await
-        .ok()
-        .flatten()
-        .map(|u| u.language)
-        .unwrap_or_default()
+    match db.get_user_by_telegram_id(q.from.id.0 as i64).await {
+        Ok(Some(user)) => user.language,
+        Ok(None) => Language::default(),
+        Err(e) => {
+            tracing::warn!(telegram_id = q.from.id.0, error = %e, "Failed to load user language from DB; falling back to default");
+            Language::default()
+        }
+    }
 }
 
 #[tracing::instrument(skip_all)]
@@ -95,11 +99,15 @@ pub async fn return_to_menu(
     chat_id: teloxide::types::ChatId,
     lang: Language,
 ) -> HandlerResult {
-    let _ = send_message_timeout(
+    if let Err(e) = send_message_timeout(
         bot, chat_id, trios_mb_i18n::t(lang, "main_menu"),
         Some(main_menu_keyboard(lang).into()),
-    ).await;
-    let _ = dialogue_update_timeout(dialogue, Scene::MainMenu).await;
+    ).await {
+        tracing::warn!(chat_id = %chat_id, error = %e, "Failed to send main menu message");
+    }
+    if let Err(e) = dialogue_update_timeout(dialogue, Scene::MainMenu).await {
+        tracing::warn!(chat_id = %chat_id, error = %e, "Failed to reset dialogue to MainMenu");
+    }
     Ok(())
 }
 
@@ -124,8 +132,12 @@ pub async fn dispatch_and_reply(
     params: DispatchParams,
 ) -> HandlerResult {
     if let Err(err_msg) = deduct_balance(db, params.telegram_id, params.cost, params.lang).await {
-        let _ = send_message_timeout(bot, chat_id, err_msg, None).await;
-        let _ = dialogue_update_timeout(dialogue, Scene::MainMenu).await;
+        if let Err(e) = send_message_timeout(bot, chat_id, err_msg, None).await {
+            tracing::warn!(chat_id = %chat_id, error = %e, "Failed to send insufficient-balance message");
+        }
+        if let Err(e) = dialogue_update_timeout(dialogue, Scene::MainMenu).await {
+            tracing::warn!(chat_id = %chat_id, error = %e, "Failed to reset dialogue after insufficient balance");
+        }
         return Ok(());
     }
 
@@ -134,7 +146,9 @@ pub async fn dispatch_and_reply(
     } else {
         "⏳ Task submitted for processing. Result will be sent as a message."
     };
-    let _ = send_message_timeout(bot, chat_id, processing, None).await;
+    if let Err(e) = send_message_timeout(bot, chat_id, processing, None).await {
+        tracing::warn!(chat_id = %chat_id, error = %e, "Failed to send processing message");
+    }
 
     let request = GenerationRequest {
         telegram_id: params.telegram_id,
@@ -177,7 +191,9 @@ pub async fn dispatch_and_reply(
                     } else {
                         "❌ Could not submit task. Please try again later.".to_string()
                     };
-                    let _ = send_message_timeout(bot, chat_id, err_msg, None).await;
+                    if let Err(e) = send_message_timeout(bot, chat_id, err_msg, None).await {
+                        tracing::warn!(chat_id = %chat_id, error = %e, "Failed to send enqueue-failure message");
+                    }
                 }
             }
         }
@@ -191,10 +207,14 @@ pub async fn dispatch_and_reply(
             } else {
                 "❌ Could not create task. Please try again later.".to_string()
             };
-            let _ = send_message_timeout(bot, chat_id, err_msg, None).await;
+            if let Err(e) = send_message_timeout(bot, chat_id, err_msg, None).await {
+                tracing::warn!(chat_id = %chat_id, error = %e, "Failed to send create-generation-failure message");
+            }
         }
     }
 
-    let _ = dialogue_update_timeout(dialogue, Scene::MainMenu).await;
+    if let Err(e) = dialogue_update_timeout(dialogue, Scene::MainMenu).await {
+        tracing::warn!(chat_id = %chat_id, error = %e, "Failed to reset dialogue after dispatch");
+    }
     Ok(())
 }
