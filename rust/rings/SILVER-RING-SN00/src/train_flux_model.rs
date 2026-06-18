@@ -45,7 +45,14 @@ pub async fn handle_train_flux_model_msg(
                         return Ok(());
                     }
                 };
-                let mut images = state.images.clone().unwrap_or_default();
+                let mut images = match state.images.as_ref() {
+                    Some(imgs) => imgs.clone(),
+                    None => {
+                        let err = if lang.is_russian() { "❌ Сессия устарела. Отправьте изображения заново." } else { "❌ Session expired. Please send images again." };
+                        bot.send_message(msg.chat.id, err).await?;
+                        return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
+                    }
+                };
                 images.push(file_id);
                 state.images = Some(images.clone());
 

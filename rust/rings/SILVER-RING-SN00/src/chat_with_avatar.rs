@@ -80,6 +80,12 @@ pub async fn handle_chat_with_avatar_callback(
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
     bot.answer_callback_query(&q.id).await?;
+    let tid = q.from.id.0 as i64;
+    if tid <= 0 {
+        tracing::warn!("Callback query missing valid telegram_id; aborting handler");
+        return Ok(());
+    }
+
     let lang = load_lang_cb(&db, &q).await;
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
 

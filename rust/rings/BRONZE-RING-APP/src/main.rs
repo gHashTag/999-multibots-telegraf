@@ -161,7 +161,13 @@ async fn main() -> anyhow::Result<()> {
             let http_port = http_port;
             let server_cancel = server_cancel.clone();
             async move {
-                let router = trios_mb_server::create_router_with_payments(server_db, server_gw);
+                let router = match trios_mb_server::create_router_with_payments(server_db, server_gw) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        tracing::error!(error = %e, "Failed to create HTTP router; aborting server task");
+                        return;
+                    }
+                };
                 let addr = std::net::SocketAddr::from(([0, 0, 0, 0], http_port));
                 info!(addr = %addr, "HTTP server starting");
                 let listener = match tokio::net::TcpListener::bind(addr).await {

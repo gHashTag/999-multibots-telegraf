@@ -94,8 +94,22 @@ pub async fn handle_avatar_brain_msg(
                     return Ok(());
                 }
 
-                let company = state.name.clone().unwrap_or_default();
-                let position = state.personality.clone().unwrap_or_default();
+                let company = match state.name.as_ref() {
+                    Some(n) if !n.is_empty() => n.clone(),
+                    _ => {
+                        let err = if lang.is_russian() { "❌ Сессия устарела. Начните заново." } else { "❌ Session expired. Please start again." };
+                        bot.send_message(msg.chat.id, err).await?;
+                        return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
+                    }
+                };
+                let position = match state.personality.as_ref() {
+                    Some(p) if !p.is_empty() => p.clone(),
+                    _ => {
+                        let err = if lang.is_russian() { "❌ Сессия устарела. Начните заново." } else { "❌ Session expired. Please start again." };
+                        bot.send_message(msg.chat.id, err).await?;
+                        return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
+                    }
+                };
                 if text.len() > MAX_DIALOGUE_TEXT_LEN {
                     let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
                     bot.send_message(msg.chat.id, err).await?;
@@ -125,6 +139,12 @@ pub async fn handle_avatar_brain_callback(
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
     bot.answer_callback_query(&q.id).await?;
+    let tid = q.from.id.0 as i64;
+    if tid <= 0 {
+        tracing::warn!("Callback query missing valid telegram_id; aborting handler");
+        return Ok(());
+    }
+
     let lang = load_lang_cb(&db, &q).await;
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
 

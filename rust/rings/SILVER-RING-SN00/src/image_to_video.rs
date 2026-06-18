@@ -133,6 +133,12 @@ pub async fn handle_image_to_video_callback(
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
     bot.answer_callback_query(&q.id).await?;
+    let tid = q.from.id.0 as i64;
+    if tid <= 0 {
+        tracing::warn!("Callback query missing valid telegram_id; aborting handler");
+        return Ok(());
+    }
+
     let lang = load_lang_cb(&db, &q).await;
     let chat_id = match q.chat_id() {
         Some(id) => id,

@@ -75,15 +75,17 @@ fn build_cors() -> CorsLayer {
     }
 }
 
-fn apply_rate_limit<S: Clone + Send + Sync + 'static>(router: Router<S>, per_second: u64, burst_size: u32) -> Router<S> {
+fn apply_rate_limit<S: Clone + Send + Sync + 'static>(router: Router<S>, per_second: u64, burst_size: u32) -> Result<Router<S>, String> {
     match rate_limit_layer(per_second, burst_size) {
-        Some(layer) => router.layer(layer),
+        Some(layer) => Ok(router.layer(layer)),
         None => {
-            panic!(
-                "FATAL: Failed to build rate-limit layer (per_second={}, burst_size={}). \
-                 Misconfigured rate limiting is a security risk. Aborting startup.",
+            let msg = format!(
+                "Failed to build rate-limit layer (per_second={}, burst_size={}). \
+                 Misconfigured rate limiting is a security risk.",
                 per_second, burst_size
             );
+            tracing::error!("{}", msg);
+            Err(msg)
         }
     }
 }
@@ -129,7 +131,7 @@ fn build_sanitized_response(code: axum::http::StatusCode) -> Response {
         })
 }
 
-pub fn create_router(db: Arc<dyn Database>) -> Router {
+pub fn create_router(db: Arc<dyn Database>) -> Result<Router, String> {
     let mut secrets = HashMap::new();
     if let Some(s) = load_webhook_secret("REPLICATE_WEBHOOK_SECRET") {
         secrets.insert("REPLICATE_WEBHOOK_SECRET".to_string(), s);
@@ -150,29 +152,29 @@ pub fn create_router(db: Arc<dyn Database>) -> Router {
             .route("/health", get(crate::health::health_check_with_db))
             .route("/health/simple", get(crate::health::health_check)),
         10, 20,
-    );
+    )?;
 
     let webhooks = apply_rate_limit(
         Router::new()
             .route("/api/webhooks/replicate", post(crate::webhooks::replicate_webhook))
             .route("/api/webhooks/kie-ai", post(crate::webhooks::kie_ai_webhook)),
         2, 30,
-    );
+    )?;
 
-    Router::new()
+    Ok(Router::new()
         .merge(health)
         .merge(webhooks)
         .layer(cors)
         .layer(axum::middleware::from_fn(edge_hardening))
         .layer(TimeoutLayer::new(std::time::Duration::from_secs(30)))
         .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
-        .with_state(state)
+        .with_state(state))
 }
 
 pub fn create_router_with_payments(
     db: Arc<dyn Database>,
     payment_gateway: Arc<dyn PaymentGateway>,
-) -> Router {
+) -> Result<Router, String> {
     let mut secrets = HashMap::new();
     if let Some(s) = load_webhook_secret("REPLICATE_WEBHOOK_SECRET") {
         secrets.insert("REPLICATE_WEBHOOK_SECRET".to_string(), s);
@@ -193,22 +195,22 @@ pub fn create_router_with_payments(
             .route("/health", get(crate::health::health_check_with_db))
             .route("/health/simple", get(crate::health::health_check)),
         10, 20,
-    );
+    )?;
 
     let webhooks = apply_rate_limit(
         Router::new()
             .route("/api/webhooks/replicate", post(crate::webhooks::replicate_webhook))
             .route("/api/webhooks/kie-ai", post(crate::webhooks::kie_ai_webhook)),
         2, 30,
-    );
+    )?;
 
     let payments = apply_rate_limit(
         Router::new()
             .route("/api/payment-success", post(crate::payment_webhooks::robokassa_callback)),
         1, 10,
-    );
+    )?;
 
-    Router::new()
+    Ok(Router::new()
         .merge(health)
         .merge(webhooks)
         .merge(payments)
@@ -216,5 +218,5 @@ pub fn create_router_with_payments(
         .layer(axum::middleware::from_fn(edge_hardening))
         .layer(TimeoutLayer::new(std::time::Duration::from_secs(30)))
         .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
-        .with_state(state)
+        .with_state(state))
 }
