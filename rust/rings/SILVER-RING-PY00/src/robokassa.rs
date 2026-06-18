@@ -2,11 +2,13 @@ use async_trait::async_trait;
 use trios_mb_traits::{PaymentGateway, PaymentInit, PaymentVerification};
 use trios_mb_types::payment::*;
 use trios_mb_types::AppError;
+use secrecy::{ExposeSecret, SecretString};
+use subtle::ConstantTimeEq;
 
 pub struct RobokassaGateway {
     merchant_login: String,
-    password1: String,
-    password2: String,
+    password1: SecretString,
+    password2: SecretString,
 }
 
 impl std::fmt::Debug for RobokassaGateway {
@@ -23,8 +25,8 @@ impl RobokassaGateway {
     pub fn new(merchant_login: &str, password1: &str, password2: &str) -> Self {
         Self {
             merchant_login: merchant_login.to_string(),
-            password1: password1.to_string(),
-            password2: password2.to_string(),
+            password1: SecretString::new(password1.to_string()),
+            password2: SecretString::new(password2.to_string()),
         }
     }
 
@@ -33,28 +35,39 @@ impl RobokassaGateway {
         use sha2::Sha256;
         type HmacSha256 = Hmac<Sha256>;
         let amount_fmt = format!("{:.2}", amount);
-        let data = format!("{}:{}:{}:{}", self.merchant_login, amount_fmt, inv_id, self.password1);
+        let data = format!(
+            "{}:{}:{}:{}",
+            self.merchant_login,
+            amount_fmt,
+            inv_id,
+            self.password1.expose_secret()
+        );
         let mut mac = HmacSha256::new_from_slice(data.as_bytes())
             .map_err(|e| AppError::Internal(format!("HMAC key error: {}", e)))?;
         mac.update(data.as_bytes());
         Ok(hex::encode(mac.finalize().into_bytes()))
     }
 
-    fn verify_callback_signature(&self, amount: &str, inv_id: &str, signature_value: &str) -> Result<(), AppError> {
+    fn verify_callback_signature(
+        &self,
+        amount: &str,
+        inv_id: &str,
+        signature_value: &str,
+    ) -> Result<(), AppError> {
         use hmac::{Hmac, Mac};
         use sha2::Sha256;
         type HmacSha256 = Hmac<Sha256>;
-        let data = format!("{}:{}:{}", amount, inv_id, self.password2);
+        let data = format!("{}:{}:{}", amount, inv_id, self.password2.expose_secret());
         let mut mac = HmacSha256::new_from_slice(data.as_bytes())
             .map_err(|e| AppError::Internal(format!("HMAC key error: {}", e)))?;
         mac.update(data.as_bytes());
         let expected = hex::encode(mac.finalize().into_bytes());
-        // Constant-time comparison of hex strings; never branch on length before the loop
-        let mut diff = (expected.len() != signature_value.len()) as u8;
-        for (a, b) in expected.bytes().zip(signature_value.bytes()) {
-            diff |= a ^ b;
+        // Constant-time comparison via subtle::ConstantTimeEq to resist timing attacks
+        if expected.len() != signature_value.len() {
+            return Err(AppError::Validation("Robokassa callback signature mismatch".into()));
         }
-        if diff != 0 {
+        let eq = expected.as_bytes().ct_eq(signature_value.as_bytes());
+        if eq.unwrap_u8() == 0 {
             return Err(AppError::Validation("Robokassa callback signature mismatch".into()));
         }
         Ok(())

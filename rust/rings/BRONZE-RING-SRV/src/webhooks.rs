@@ -8,6 +8,7 @@ use trios_mb_types::generation::GenerationStatus;
 use trios_mb_types::truncate_for_log;
 use trios_mb_proto::replicate::WebhookPayload;
 use secrecy::ExposeSecret;
+use subtle::ConstantTimeEq;
 use crate::AppState;
 
 const WEBHOOK_DB_TIMEOUT: Duration = Duration::from_secs(10);
@@ -103,11 +104,12 @@ fn verify_webhook_secret(headers: &HeaderMap, expected: &str) -> Result<(), (Sta
         None => return Err((StatusCode::UNAUTHORIZED, "Missing webhook secret header".to_string())),
     };
 
-    let mut diff = (expected.len() != provided.len()) as u8;
-    for (a, b) in expected.bytes().zip(provided.bytes()) {
-        diff |= a ^ b;
+    // Constant-time comparison via subtle::ConstantTimeEq to resist timing attacks
+    if expected.len() != provided.len() {
+        return Err((StatusCode::UNAUTHORIZED, "Invalid webhook secret".to_string()));
     }
-    if diff != 0 {
+    let eq = expected.as_bytes().ct_eq(provided.as_bytes());
+    if eq.unwrap_u8() == 0 {
         return Err((StatusCode::UNAUTHORIZED, "Invalid webhook secret".to_string()));
     }
     Ok(())

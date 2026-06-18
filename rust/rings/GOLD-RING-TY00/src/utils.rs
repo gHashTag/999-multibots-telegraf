@@ -40,8 +40,8 @@ pub fn validate_result_url(url_str: &str) -> Result<(), String> {
             return Err("URL points to localhost".to_string());
         }
         if let Ok(ip) = lower.parse::<std::net::IpAddr>() {
-            if ip.is_loopback() {
-                return Err("URL points to a loopback address".to_string());
+            if ip.is_loopback() || ip.is_unspecified() {
+                return Err("URL points to a loopback or unspecified address".to_string());
             }
             match ip {
                 std::net::IpAddr::V4(v4) => {
@@ -50,6 +50,16 @@ pub fn validate_result_url(url_str: &str) -> Result<(), String> {
                     }
                 }
                 std::net::IpAddr::V6(v6) => {
+                    // Reject IPv4-mapped addresses that would bypass IPv4 filters
+                    if let Some(mapped) = v6.to_ipv4_mapped() {
+                        if mapped.is_loopback()
+                            || mapped.is_private()
+                            || mapped.is_link_local()
+                            || mapped.is_unspecified()
+                        {
+                            return Err("URL points to an IPv4-mapped internal address".to_string());
+                        }
+                    }
                     let segments = v6.segments();
                     // IPv6 ULA fc00::/7
                     if (segments[0] & 0xfe00) == 0xfc00 {
