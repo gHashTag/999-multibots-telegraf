@@ -157,7 +157,7 @@ async fn get_transactions_by_telegram_id_limits() {
         db.create_transaction(&tx).await.unwrap();
     }
 
-    let txs = db.get_transactions_by_telegram_id(400, 3).await.unwrap();
+    let txs = db.get_transactions_by_telegram_id(400, None, 3).await.unwrap();
     assert_eq!(txs.len(), 3);
 }
 

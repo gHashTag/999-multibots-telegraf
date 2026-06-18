@@ -456,12 +456,26 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
-    async fn get_transactions_by_telegram_id(&self, telegram_id: i64, limit: i64) -> Result<Vec<Transaction>, AppError> {
+    async fn get_transactions_by_telegram_id(&self, telegram_id: i64, cursor: Option<uuid::Uuid>, limit: i64) -> Result<Vec<Transaction>, AppError> {
         use crate::entities::payments as p;
-        let safe_limit = if limit <= 0 { 1 } else if limit > 10_000 { 10_000 } else { limit };
-        let rows = p::Entity::find()
+        let safe_limit = if limit <= 0 { 1 } else if limit > 100 { 100 } else { limit };
+        let mut query = p::Entity::find()
             .filter(p::Column::TelegramId.eq(telegram_id))
-            .order_by_desc(p::Column::CreatedAt)
+            .order_by_desc(p::Column::CreatedAt);
+        if let Some(c) = cursor {
+            // Cursor is a UUID; we paginate by only returning rows created before
+            // the row identified by the cursor. First resolve the cursor to a timestamp.
+            let cursor_row = p::Entity::find()
+                .filter(p::Column::Id.eq(c))
+                .one(self.pool.as_ref())
+                .await
+                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            if let Some(row) = cursor_row {
+                query = query.filter(p::Column::CreatedAt.lt(row.created_at));
+            }
+            // If the cursor row is gone, we return the first page (no extra filter).
+        }
+        let rows = query
             .limit(Some(safe_limit as u64))
             .all(self.pool.as_ref())
             .await

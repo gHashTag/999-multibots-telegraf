@@ -82,17 +82,9 @@ fn parse_uuid(s: &str) -> Result<uuid::Uuid, (StatusCode, String)> {
         })
 }
 
-/// Verify webhook secret from `X-Webhook-Secret` header against an env-var token.
+/// Verify webhook secret from `X-Webhook-Secret` header against a pre-loaded token.
 /// Uses constant-time comparison to prevent timing attacks.
-fn verify_webhook_secret(headers: &HeaderMap, env_var: &str) -> Result<(), (StatusCode, String)> {
-    let expected = match std::env::var(env_var) {
-        Ok(v) if !v.is_empty() => v,
-        _ => {
-            tracing::error!(env_var = %env_var, "Webhook secret not configured");
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, "Webhook secret not configured".to_string()));
-        }
-    };
-
+fn verify_webhook_secret(headers: &HeaderMap, expected: &str) -> Result<(), (StatusCode, String)> {
     let provided = match headers.get("X-Webhook-Secret") {
         Some(h) => match h.to_str() {
             Ok(s) => s,
@@ -120,7 +112,14 @@ pub async fn replicate_webhook(
     headers: HeaderMap,
     Json(payload): Json<WebhookPayload>,
 ) -> impl IntoResponse {
-    if let Err((status, msg)) = verify_webhook_secret(&headers, "REPLICATE_WEBHOOK_SECRET") {
+    let replicate_secret = match state.webhook_secrets.get("REPLICATE_WEBHOOK_SECRET") {
+        Some(s) => s.as_str(),
+        None => {
+            tracing::error!("REPLICATE_WEBHOOK_SECRET not loaded at startup; rejecting webhook");
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Webhook secret not configured"})));
+        }
+    };
+    if let Err((status, msg)) = verify_webhook_secret(&headers, replicate_secret) {
         tracing::warn!("Replicate webhook rejected: invalid secret");
         return (status, Json(serde_json::json!({"error": msg})));
     }
@@ -236,7 +235,14 @@ pub async fn kie_ai_webhook(
     headers: HeaderMap,
     Json(payload): Json<trios_mb_proto::kie::WebhookPayload>,
 ) -> impl IntoResponse {
-    if let Err((status, msg)) = verify_webhook_secret(&headers, "KIE_WEBHOOK_SECRET") {
+    let kie_secret = match state.webhook_secrets.get("KIE_WEBHOOK_SECRET") {
+        Some(s) => s.as_str(),
+        None => {
+            tracing::error!("KIE_WEBHOOK_SECRET not loaded at startup; rejecting webhook");
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Webhook secret not configured"})));
+        }
+    };
+    if let Err((status, msg)) = verify_webhook_secret(&headers, kie_secret) {
         tracing::warn!("Kie.ai webhook rejected: invalid secret");
         return (status, Json(serde_json::json!({"error": msg})));
     }

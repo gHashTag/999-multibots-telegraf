@@ -19,7 +19,7 @@ pub trait Database: Send + Sync {
     async fn get_transaction(&self, id: uuid::Uuid) -> Result<Option<Transaction>, AppError>;
     async fn get_transaction_by_external_id(&self, external_id: &str) -> Result<Option<Transaction>, AppError>;
     async fn update_transaction_status(&self, id: uuid::Uuid, status: PaymentStatus) -> Result<(), AppError>;
-    async fn get_transactions_by_telegram_id(&self, telegram_id: i64, limit: i64) -> Result<Vec<Transaction>, AppError>;
+    async fn get_transactions_by_telegram_id(&self, telegram_id: i64, cursor: Option<uuid::Uuid>, limit: i64) -> Result<Vec<Transaction>, AppError>;
 
     async fn check_subscription(&self, telegram_id: i64) -> Result<Option<SubscriptionType>, AppError>;
     async fn renew_subscription(&self, telegram_id: i64, sub_type: SubscriptionType) -> Result<(), AppError>;

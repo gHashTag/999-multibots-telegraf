@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::collections::HashMap;
 use axum::Router;
 use axum::routing::{get, post};
 use axum::response::Response;
@@ -21,6 +22,24 @@ fn rate_limit_layer(per_second: u64, burst_size: u32) -> Option<GovernorLayer<to
 pub struct AppState {
     pub db: Arc<dyn Database>,
     pub payment_gateway: Option<Arc<dyn PaymentGateway>>,
+    /// Webhook secrets loaded at startup. Keys are env-var names; values are the secrets.
+    pub webhook_secrets: HashMap<String, String>,
+}
+
+/// Load a webhook secret from an environment variable.
+/// Panics at startup if the secret is required but missing or empty.
+fn load_webhook_secret(env_var: &str) -> Option<String> {
+    match std::env::var(env_var) {
+        Ok(v) if !v.is_empty() => Some(v),
+        Ok(_) => {
+            tracing::warn!(env_var, "Webhook secret is empty");
+            None
+        }
+        Err(_) => {
+            tracing::warn!(env_var, "Webhook secret env var not set");
+            None
+        }
+    }
 }
 
 fn build_cors() -> CorsLayer {
@@ -111,9 +130,17 @@ fn build_sanitized_response(code: axum::http::StatusCode) -> Response {
 }
 
 pub fn create_router(db: Arc<dyn Database>) -> Router {
+    let mut secrets = HashMap::new();
+    if let Some(s) = load_webhook_secret("REPLICATE_WEBHOOK_SECRET") {
+        secrets.insert("REPLICATE_WEBHOOK_SECRET".to_string(), s);
+    }
+    if let Some(s) = load_webhook_secret("KIE_WEBHOOK_SECRET") {
+        secrets.insert("KIE_WEBHOOK_SECRET".to_string(), s);
+    }
     let state = Arc::new(AppState {
         db: db.clone(),
         payment_gateway: None,
+        webhook_secrets: secrets,
     });
 
     let cors = build_cors();
@@ -146,9 +173,17 @@ pub fn create_router_with_payments(
     db: Arc<dyn Database>,
     payment_gateway: Arc<dyn PaymentGateway>,
 ) -> Router {
+    let mut secrets = HashMap::new();
+    if let Some(s) = load_webhook_secret("REPLICATE_WEBHOOK_SECRET") {
+        secrets.insert("REPLICATE_WEBHOOK_SECRET".to_string(), s);
+    }
+    if let Some(s) = load_webhook_secret("KIE_WEBHOOK_SECRET") {
+        secrets.insert("KIE_WEBHOOK_SECRET".to_string(), s);
+    }
     let state = Arc::new(AppState {
         db: db.clone(),
         payment_gateway: Some(payment_gateway),
+        webhook_secrets: secrets,
     });
 
     let cors = build_cors();
