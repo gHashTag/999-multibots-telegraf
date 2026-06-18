@@ -6,8 +6,7 @@ use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, TextToVideoState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
-use trios_mb_tg::answer_callback_query_timeout;
-use trios_mb_tg::dialogue_update_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, dialogue_update_timeout, send_message_timeout};
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, load_lang_cb, return_to_menu};
 
@@ -22,10 +21,13 @@ pub async fn handle_text_to_video_entry(
 ) -> HandlerResult {
     let lang = load_lang(&db, &msg).await;
     let text = if lang.is_russian() { "Введите описание видео:" } else { "Enter video description:" };
-    bot.send_message(msg.chat.id, text).await?;
+    send_message_timeout(
+        &bot, msg.chat.id, text, None,
+    ).await?;
     let mut state = TextToVideoState::default();
     state.step = 1;
-    dialogue_update_timeout(&dialogue, Scene::TextToVideo(state)).await?;
+    dialogue_update_timeout(
+        &dialogue, Scene::TextToVideo(state)).await?;
     Ok(())
 }
 
@@ -47,7 +49,9 @@ pub async fn handle_text_to_video_msg(
 
     if text.len() > 4000 {
         let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
-        bot.send_message(msg.chat.id, err).await?;
+        send_message_timeout(
+            &bot, msg.chat.id, err, None,
+        ).await?;
         return Ok(());
     }
 
@@ -67,8 +71,11 @@ pub async fn handle_text_to_video_msg(
         ]);
 
         let model_text = if lang.is_russian() { "Выберите модель:" } else { "Select model:" };
-        bot.send_message(msg.chat.id, model_text).reply_markup(kb).await?;
-        dialogue_update_timeout(&dialogue, Scene::TextToVideo(state)).await?;
+        send_message_timeout(
+            &bot, msg.chat.id, model_text, Some(kb.into()),
+        ).await?;
+        dialogue_update_timeout(
+            &dialogue, Scene::TextToVideo(state)).await?;
     }
     Ok(())
 }
@@ -120,8 +127,11 @@ pub async fn handle_text_to_video_callback(
             ]);
 
             let dur_text = if lang.is_russian() { "Выберите длительность:" } else { "Select duration:" };
-            bot.send_message(chat_id, dur_text).reply_markup(kb).await?;
-            dialogue_update_timeout(&dialogue, Scene::TextToVideo(state)).await?;
+            send_message_timeout(
+                &bot, chat_id, dur_text, Some(kb.into()),
+            ).await?;
+            dialogue_update_timeout(
+                &dialogue, Scene::TextToVideo(state)).await?;
         }
         "tv:dur_5" | "tv:dur_10" => {
             let dur = match data {
@@ -134,7 +144,9 @@ pub async fn handle_text_to_video_callback(
                 Some(p) => p.clone(),
                 None => {
                     let err = if lang.is_russian() { "❌ Сессия устарела. Начните заново." } else { "❌ Session expired. Please start again." };
-                    bot.send_message(chat_id, err).await?;
+                    send_message_timeout(
+                        &bot, chat_id, err, None,
+                    ).await?;
                     return return_to_menu(&bot, &dialogue, chat_id, lang).await;
                 }
             };
@@ -155,14 +167,18 @@ pub async fn handle_text_to_video_callback(
         }
         "tv:retry" => {
             let text = if lang.is_russian() { "Введите описание видео:" } else { "Enter video description:" };
-            bot.send_message(chat_id, text).await?;
-            dialogue_update_timeout(&dialogue, Scene::TextToVideo(TextToVideoState::default())).await?;
+            send_message_timeout(
+                &bot, chat_id, text, None,
+            ).await?;
+            dialogue_update_timeout(
+                &dialogue, Scene::TextToVideo(TextToVideoState::default())).await?;
         }
         "tv:done" => {
-            dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
-            bot.send_message(chat_id, trios_mb_i18n::t(lang, "main_menu"))
-                .reply_markup(main_menu_keyboard(lang))
-                .await?;
+            dialogue_update_timeout(
+                &dialogue, Scene::MainMenu).await?;
+            send_message_timeout(
+                &bot, chat_id, trios_mb_i18n::t(lang, "main_menu"), Some(main_menu_keyboard(lang).into()),
+            ).await?;
         }
         _ => {}
     }

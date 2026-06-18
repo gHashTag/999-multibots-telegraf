@@ -6,8 +6,7 @@ use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, TextToImageState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
-use trios_mb_tg::answer_callback_query_timeout;
-use trios_mb_tg::dialogue_update_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, dialogue_update_timeout, send_message_timeout};
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, load_lang_cb, return_to_menu};
 
@@ -22,7 +21,9 @@ pub async fn handle_text_to_image_entry(
 ) -> HandlerResult {
     let lang = load_lang(&db, &msg).await;
     let text = if lang.is_russian() { "Введите описание изображения:" } else { "Enter image description:" };
-    bot.send_message(msg.chat.id, text).await?;
+    send_message_timeout(
+        &bot, msg.chat.id, text, None,
+    ).await?;
     let mut state = TextToImageState::default();
     state.step = 1;
     dialogue_update_timeout(&dialogue, Scene::TextToImage(state)).await?;
@@ -47,7 +48,9 @@ pub async fn handle_text_to_image_msg(
 
     if text.len() > 4000 {
         let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
-        bot.send_message(msg.chat.id, err).await?;
+        send_message_timeout(
+            &bot, msg.chat.id, err, None,
+        ).await?;
         return Ok(());
     }
 
@@ -68,8 +71,11 @@ pub async fn handle_text_to_image_msg(
             ]);
 
             let model_text = if lang.is_russian() { "Выберите модель:" } else { "Select model:" };
-            bot.send_message(msg.chat.id, model_text).reply_markup(kb).await?;
-            dialogue_update_timeout(&dialogue, Scene::TextToImage(state)).await?;
+            send_message_timeout(
+                &bot, msg.chat.id, model_text, Some(kb.into()),
+            ).await?;
+            dialogue_update_timeout(
+                &dialogue, Scene::TextToImage(state)).await?;
         }
         3 => {
             let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
@@ -145,8 +151,11 @@ pub async fn handle_text_to_image_callback(
             ]);
 
             let ratio_text = if lang.is_russian() { "Выберите пропорции:" } else { "Select aspect ratio:" };
-            bot.send_message(chat_id, ratio_text).reply_markup(kb).await?;
-            dialogue_update_timeout(&dialogue, Scene::TextToImage(state)).await?;
+            send_message_timeout(
+                &bot, chat_id, ratio_text, Some(kb.into()),
+            ).await?;
+            dialogue_update_timeout(
+                &dialogue, Scene::TextToImage(state)).await?;
         }
         "ti:ratio_1_1" | "ti:ratio_16_9" | "ti:ratio_9_16" => {
             let ratio = match data {
@@ -160,7 +169,9 @@ pub async fn handle_text_to_image_callback(
                 Some(p) => p.clone(),
                 None => {
                     let err = if lang.is_russian() { "❌ Сессия устарела. Начните заново." } else { "❌ Session expired. Please start again." };
-                    bot.send_message(chat_id, err).await?;
+                    send_message_timeout(
+                        &bot, chat_id, err, None,
+                    ).await?;
                     return return_to_menu(&bot, &dialogue, chat_id, lang).await;
                 }
             };
@@ -181,14 +192,16 @@ pub async fn handle_text_to_image_callback(
         }
         "ti:retry" => {
             let text = if lang.is_russian() { "Введите описание изображения:" } else { "Enter image description:" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(
+                &bot, chat_id, text, None,
+            ).await?;
             dialogue_update_timeout(&dialogue, Scene::TextToImage(TextToImageState::default())).await?;
         }
         "ti:done" => {
             dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
-            bot.send_message(chat_id, trios_mb_i18n::t(lang, "main_menu"))
-                .reply_markup(main_menu_keyboard(lang))
-                .await?;
+            send_message_timeout(
+                &bot, chat_id, trios_mb_i18n::t(lang, "main_menu"), Some(main_menu_keyboard(lang).into()),
+            ).await?;
         }
         _ => {}
     }
