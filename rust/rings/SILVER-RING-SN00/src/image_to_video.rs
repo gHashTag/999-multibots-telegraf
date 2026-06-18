@@ -5,7 +5,7 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, ImageToVideoState};
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, dialogue_update_timeout, send_message_timeout};
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
@@ -52,9 +52,10 @@ pub async fn handle_image_to_video_msg(
             } else {
                 "🎥 Choose model and video format:"
             };
-            bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
+            send_message_timeout(&bot, msg.chat.id, text, Some(kb.into()),
+            ).await?;
             state.step = 1;
-            dialogue.update(Scene::ImageToVideo(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::ImageToVideo(state)).await?;
         }
         2 => {
             if let Some(photos) = msg.photo() {
@@ -62,7 +63,7 @@ pub async fn handle_image_to_video_msg(
                     Some(p) => p.file.id.clone(),
                     None => {
                         let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
-                        bot.send_message(msg.chat.id, err).await?;
+                        send_message_timeout(&bot, msg.chat.id, err, None).await?;
                         return Ok(());
                     }
                 };
@@ -73,27 +74,27 @@ pub async fn handle_image_to_video_msg(
                 } else {
                     "✅ Image received!\n\n📝 Describe what should happen in the video:"
                 };
-                bot.send_message(msg.chat.id, text).await?;
-                dialogue.update(Scene::ImageToVideo(state)).await?;
+                send_message_timeout(&bot, msg.chat.id, text, None).await?;
+                dialogue_update_timeout(&dialogue, Scene::ImageToVideo(state)).await?;
             } else {
                 let text = if lang.is_russian() {
                     "🖼️ Пожалуйста, отправьте изображение."
                 } else {
                     "🖼️ Please send an image."
                 };
-                bot.send_message(msg.chat.id, text).await?;
+                send_message_timeout(&bot, msg.chat.id, text, None).await?;
             }
         }
         3 => {
             if let Some(text) = msg.text() {
                 if text.trim().len() < 3 {
                     let err = if lang.is_russian() { "Описание слишком короткое." } else { "Description too short." };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
                     return Ok(());
                 }
                 if text.len() > MAX_DIALOGUE_TEXT_LEN {
                     let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
                     return Ok(());
                 }
                 state.prompt = Some(text.to_string());
@@ -168,8 +169,8 @@ pub async fn handle_image_to_video_callback(
             } else {
                 "🖼️ Now send an image to create video:"
             };
-            bot.send_message(chat_id, text).await?;
-            dialogue.update(Scene::ImageToVideo(state)).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
+            dialogue_update_timeout(&dialogue, Scene::ImageToVideo(state)).await?;
         }
         _ => {}
     }

@@ -5,7 +5,7 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::Database;
 use trios_mb_tg::state::{Scene, AiCoverState};
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, dialogue_update_timeout, send_message_timeout};
 use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu, deduct_balance};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
@@ -29,16 +29,17 @@ pub async fn handle_ai_cover_msg(
             } else {
                 "🎧 AI Cover - Song with your voice\n\nSend a song (MP3, WAV, OGG).\n💰 Cost: 10⭐\n⏱️ Time: 1-3 minutes"
             };
-            bot.send_message(msg.chat.id, text)
-                .reply_markup(InlineKeyboardMarkup::new(vec![
+            send_message_timeout(
+                &bot, msg.chat.id, text,
+                Some(InlineKeyboardMarkup::new(vec![
                     vec![InlineKeyboardButton::callback(
                         if lang.is_russian() { "🏠 В меню" } else { "🏠 To menu" },
                         "ac:back_menu",
                     )],
-                ]))
-                .await?;
+                ]).into()),
+            ).await?;
             state.step = 1;
-            dialogue.update(Scene::AiCover(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::AiCover(state)).await?;
         }
         1 => {
             if let Some(audio) = msg.audio() {
@@ -63,15 +64,16 @@ pub async fn handle_ai_cover_msg(
                 } else {
                     format!("🎵 Song accepted!\n\n📀 {}\n📏 Duration: {} sec\n💰 Cost: 10⭐", title, duration)
                 };
-                bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
-                dialogue.update(Scene::AiCover(state)).await?;
+                send_message_timeout(&bot, msg.chat.id, text, Some(kb.into()),
+                ).await?;
+                dialogue_update_timeout(&dialogue, Scene::AiCover(state)).await?;
             } else {
                 let text = if lang.is_russian() {
                     "📎 Отправьте песню в формате MP3, WAV или OGG"
                 } else {
                     "📎 Send a song in MP3, WAV or OGG format"
                 };
-                bot.send_message(msg.chat.id, text).await?;
+                send_message_timeout(&bot, msg.chat.id, text, None).await?;
             }
         }
         _ => {}
@@ -107,12 +109,12 @@ pub async fn handle_ai_cover_callback(
         "ac:confirm" => {
             if state.audio_url.is_none() || state.audio_url.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
                 let text = "❌ Please send an audio file first.";
-                bot.send_message(chat_id, text).await?;
+                send_message_timeout(&bot, chat_id, text, None).await?;
                 return Ok(());
             }
 
             if let Err(err_msg) = deduct_balance(&db, tid, AI_COVER_COST, lang).await {
-                bot.send_message(chat_id, err_msg).await?;
+                send_message_timeout(&bot, chat_id, err_msg, None).await?;
                 return Ok(());
             }
 
@@ -121,15 +123,15 @@ pub async fn handle_ai_cover_callback(
             } else {
                 "⏳ Creating AI Cover...\n\nThis will take 1-3 minutes."
             };
-            bot.send_message(chat_id, text).await?;
-            dialogue.update(Scene::MainMenu).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
+            dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
         }
         "ac:another" => {
             let mut new_state = AiCoverState::default();
             new_state.step = 1;
             let text = if lang.is_russian() { "📎 Отправьте следующую песню:" } else { "📎 Send the next song:" };
-            bot.send_message(chat_id, text).await?;
-            dialogue.update(Scene::AiCover(new_state)).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
+            dialogue_update_timeout(&dialogue, Scene::AiCover(new_state)).await?;
         }
         _ => {}
     }

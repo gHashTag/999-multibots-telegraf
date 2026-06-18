@@ -5,7 +5,7 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, FluxKontextState};
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, dialogue_update_timeout, send_message_timeout};
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
@@ -46,9 +46,11 @@ pub async fn handle_flux_kontext_msg(
             } else {
                 "🎨 FLUX Kontext\n\nSelect mode:"
             };
-            bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
+            send_message_timeout(
+                &bot, msg.chat.id, text, Some(kb.into()),
+            ).await?;
             state.step = 1;
-            dialogue.update(Scene::FluxKontext(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::FluxKontext(state)).await?;
         }
         2 => {
             if let Some(photos) = msg.photo() {
@@ -56,7 +58,7 @@ pub async fn handle_flux_kontext_msg(
                     Some(p) => p.file.id.clone(),
                     None => {
                         let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
-                        bot.send_message(msg.chat.id, err).await?;
+                        send_message_timeout(&bot, msg.chat.id, err, None).await?;
                         return Ok(());
                     }
                 };
@@ -68,7 +70,7 @@ pub async fn handle_flux_kontext_msg(
                         } else {
                             "✅ First image received!\n\nSend the second image:"
                         };
-                        bot.send_message(msg.chat.id, text).await?;
+                        send_message_timeout(&bot, msg.chat.id, text, None).await?;
                     } else {
                         state.image_b = Some(file_id);
                         state.step = 3;
@@ -77,7 +79,7 @@ pub async fn handle_flux_kontext_msg(
                         } else {
                             "✅ Second image received!\n\nDescribe the desired result:"
                         };
-                        bot.send_message(msg.chat.id, text).await?;
+                        send_message_timeout(&bot, msg.chat.id, text, None).await?;
                     }
                 } else {
                     state.image_a = Some(file_id);
@@ -87,19 +89,19 @@ pub async fn handle_flux_kontext_msg(
                     } else {
                         "✅ Image received!\n\nDescribe what to change:"
                     };
-                    bot.send_message(msg.chat.id, text).await?;
+                    send_message_timeout(&bot, msg.chat.id, text, None).await?;
                 }
-                dialogue.update(Scene::FluxKontext(state)).await?;
+                dialogue_update_timeout(&dialogue, Scene::FluxKontext(state)).await?;
             } else {
                 let text = if lang.is_russian() { "Отправьте изображение" } else { "Send an image" };
-                bot.send_message(msg.chat.id, text).await?;
+                send_message_timeout(&bot, msg.chat.id, text, None).await?;
             }
         }
         3 => {
             if let Some(text) = msg.text() {
                 if text.len() > MAX_DIALOGUE_TEXT_LEN {
                     let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
                     return Ok(());
                 }
                 state.prompt = Some(text.to_string());
@@ -155,8 +157,8 @@ pub async fn handle_flux_kontext_callback(
             state.mode = Some(if data == "fk:edit" { "edit" } else { "blend" }.to_string());
             state.step = 2;
             let text = if lang.is_russian() { "🖼️ Отправьте изображение:" } else { "🖼️ Send an image:" };
-            bot.send_message(chat_id, text).await?;
-            dialogue.update(Scene::FluxKontext(state)).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
+            dialogue_update_timeout(&dialogue, Scene::FluxKontext(state)).await?;
         }
         _ => {}
     }

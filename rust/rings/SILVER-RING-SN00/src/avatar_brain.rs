@@ -4,7 +4,7 @@ use teloxide::prelude::*;
 use trios_mb_traits::Database;
 use trios_mb_tg::state::{Scene, AvatarBrainState};
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, dialogue_update_timeout, send_message_timeout};
 use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
@@ -28,11 +28,12 @@ pub async fn handle_avatar_brain_msg(
             } else {
                 "👋 Enter your company name"
             };
-            bot.send_message(msg.chat.id, text)
-                .reply_markup(crate::generation_utils::back_cancel_keyboard(lang))
-                .await?;
+            send_message_timeout(
+                &bot, msg.chat.id, text,
+                Some(crate::generation_utils::back_cancel_keyboard(lang).into()),
+            ).await?;
             state.step = 1;
-            dialogue.update(Scene::AvatarBrain(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::AvatarBrain(state)).await?;
         }
         1 => {
             if let Some(text) = msg.text() {
@@ -42,19 +43,19 @@ pub async fn handle_avatar_brain_msg(
                     } else {
                         "❌ Company name must be less than 100 characters"
                     };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
                     return Ok(());
                 }
                 if text.len() > MAX_DIALOGUE_TEXT_LEN {
                     let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
                     return Ok(());
                 }
                 state.name = Some(text.trim().to_string());
                 state.step = 2;
                 let prompt = if lang.is_russian() { "💼 Укажите вашу должность" } else { "💼 Enter your position" };
-                bot.send_message(msg.chat.id, prompt).await?;
-                dialogue.update(Scene::AvatarBrain(state)).await?;
+                send_message_timeout(&bot, msg.chat.id, prompt, None).await?;
+                dialogue_update_timeout(&dialogue, Scene::AvatarBrain(state)).await?;
             }
         }
         2 => {
@@ -65,12 +66,12 @@ pub async fn handle_avatar_brain_msg(
                     } else {
                         "❌ Position must be less than 100 characters"
                     };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
                     return Ok(());
                 }
                 if text.len() > MAX_DIALOGUE_TEXT_LEN {
                     let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
                     return Ok(());
                 }
                 state.personality = Some(text.trim().to_string());
@@ -80,8 +81,8 @@ pub async fn handle_avatar_brain_msg(
                 } else {
                     "🛠️ Describe your professional skills"
                 };
-                bot.send_message(msg.chat.id, prompt).await?;
-                dialogue.update(Scene::AvatarBrain(state)).await?;
+                send_message_timeout(&bot, msg.chat.id, prompt, None).await?;
+                dialogue_update_timeout(&dialogue, Scene::AvatarBrain(state)).await?;
             }
         }
         3 => {
@@ -92,7 +93,7 @@ pub async fn handle_avatar_brain_msg(
                     } else {
                         "❌ Skills description too long"
                     };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
                     return Ok(());
                 }
 
@@ -100,7 +101,7 @@ pub async fn handle_avatar_brain_msg(
                     Some(n) if !n.is_empty() => n.clone(),
                     _ => {
                         let err = if lang.is_russian() { "❌ Сессия устарела. Начните заново." } else { "❌ Session expired. Please start again." };
-                        bot.send_message(msg.chat.id, err).await?;
+                        send_message_timeout(&bot, msg.chat.id, err, None).await?;
                         return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                     }
                 };
@@ -108,13 +109,13 @@ pub async fn handle_avatar_brain_msg(
                     Some(p) if !p.is_empty() => p.clone(),
                     _ => {
                         let err = if lang.is_russian() { "❌ Сессия устарела. Начните заново." } else { "❌ Session expired. Please start again." };
-                        bot.send_message(msg.chat.id, err).await?;
+                        send_message_timeout(&bot, msg.chat.id, err, None).await?;
                         return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                     }
                 };
                 if text.len() > MAX_DIALOGUE_TEXT_LEN {
                     let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
                     return Ok(());
                 }
                 let skills = text.trim().to_string();
@@ -124,7 +125,7 @@ pub async fn handle_avatar_brain_msg(
                 } else {
                     format!("✨ Avatar's brain successfully created!\n\n📋 Summary:\n• Company: {}\n• Position: {}\n• Skills: {}", company, position, skills)
                 };
-                bot.send_message(msg.chat.id, text).await?;
+                send_message_timeout(&bot, msg.chat.id, text, None).await?;
                 return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
             }
         }
