@@ -13,7 +13,6 @@ pub async fn health_check() -> impl IntoResponse {
         )],
         Json(json!({
             "status": "ok",
-            "version": env!("CARGO_PKG_VERSION"),
             "timestamp": chrono::Utc::now().to_rfc3339(),
         })),
     )
@@ -29,7 +28,6 @@ pub async fn health_check_with_db(
             Json(json!({
                 "status": "ok",
                 "db": "connected",
-                "version": env!("CARGO_PKG_VERSION"),
             })),
         ),
         _ => (

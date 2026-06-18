@@ -49,11 +49,8 @@ impl RobokassaGateway {
             .map_err(|e| AppError::Internal(format!("HMAC key error: {}", e)))?;
         mac.update(data.as_bytes());
         let expected = hex::encode(mac.finalize().into_bytes());
-        // Constant-time comparison of hex strings (length then byte-wise)
-        if expected.len() != signature_value.len() {
-            return Err(AppError::Validation("Robokassa callback signature mismatch".into()));
-        }
-        let mut diff = 0u8;
+        // Constant-time comparison of hex strings; never branch on length before the loop
+        let mut diff = (expected.len() != signature_value.len()) as u8;
         for (a, b) in expected.bytes().zip(signature_value.bytes()) {
             diff |= a ^ b;
         }

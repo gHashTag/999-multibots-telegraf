@@ -43,6 +43,9 @@ fn validate_result_url(url_str: &str) -> Result<(), String> {
             if ip.is_loopback() {
                 return Err("URL points to a loopback address".to_string());
             }
+            if ip.is_unspecified() {
+                return Err("URL points to an unspecified address".to_string());
+            }
             match ip {
                 std::net::IpAddr::V4(v4) => {
                     if v4.is_private() || v4.is_link_local() {
@@ -50,6 +53,12 @@ fn validate_result_url(url_str: &str) -> Result<(), String> {
                     }
                 }
                 std::net::IpAddr::V6(v6) => {
+                    // Reject IPv4-mapped IPv6 that bypasses IPv4 filters (e.g. ::ffff:127.0.0.1)
+                    if let Some(v4) = v6.to_ipv4_mapped() {
+                        if v4.is_loopback() || v4.is_private() || v4.is_link_local() {
+                            return Err("URL points to an IPv4-mapped internal address".to_string());
+                        }
+                    }
                     let segments = v6.segments();
                     // IPv6 ULA fc00::/7
                     if (segments[0] & 0xfe00) == 0xfc00 {
