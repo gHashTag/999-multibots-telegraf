@@ -111,7 +111,9 @@ impl FalProvider {
             payload.insert("prompt".to_string(), serde_json::Value::String(prompt.clone()));
         }
         if let Some(d) = request.params.get("duration").and_then(|v| v.as_f64()) {
-            payload.insert("duration".to_string(), serde_json::json!(d));
+            if d.is_finite() && d > 0.0 {
+                payload.insert("duration".to_string(), serde_json::json!(d));
+            }
         }
         if let Some(ref ar) = request.params.get("aspect_ratio").and_then(|v| v.as_str()) {
             payload.insert("aspect_ratio".to_string(), serde_json::Value::String(ar.to_string()));

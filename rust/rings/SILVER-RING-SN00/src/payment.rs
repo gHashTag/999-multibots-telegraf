@@ -51,7 +51,13 @@ pub async fn handle_payment_msg(
     msg: Message,
 ) -> HandlerResult {
     let lang = load_lang(&db, &msg).await;
+    const MAX_PAYMENT_TEXT_LEN: usize = 32;
     if let Some(text) = msg.text() {
+        if text.len() > MAX_PAYMENT_TEXT_LEN {
+            let err = if lang.is_russian() { "❌ Слишком длинная сумма." } else { "❌ Amount text too long." };
+            bot.send_message(msg.chat.id, err).await?;
+            return Ok(());
+        }
         if let Ok(amount) = text.parse::<f64>() {
             if amount.is_finite() && amount > 0.0 {
                 let mut new_state = state;

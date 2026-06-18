@@ -76,7 +76,11 @@ impl KieProvider {
             payload.insert("prompt".to_string(), serde_json::Value::String(prompt.clone()));
         }
         if let Some(d) = request.params.get("duration").and_then(|v| v.as_f64()) {
-            payload.insert("duration".to_string(), serde_json::json!(d));
+            if d.is_finite() && d > 0.0 {
+                payload.insert("duration".to_string(), serde_json::json!(d));
+            } else {
+                payload.insert("duration".to_string(), serde_json::json!(5));
+            }
         } else {
             payload.insert("duration".to_string(), serde_json::json!(5));
         }
@@ -124,7 +128,9 @@ impl KieProvider {
             payload.insert("instrumental".to_string(), serde_json::Value::Bool(instrumental));
         }
         if let Some(d) = request.params.get("duration").and_then(|v| v.as_f64()) {
-            payload.insert("duration".to_string(), serde_json::json!(d));
+            if d.is_finite() && d > 0.0 {
+                payload.insert("duration".to_string(), serde_json::json!(d));
+            }
         }
         serde_json::Value::Object(payload)
     }

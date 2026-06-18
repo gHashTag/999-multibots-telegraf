@@ -109,7 +109,9 @@ impl ReplicateProvider {
             input.insert("prompt".to_string(), serde_json::Value::String(prompt.clone()));
         }
         if let Some(duration) = request.params.get("duration").and_then(|v| v.as_f64()) {
-            input.insert("duration".to_string(), serde_json::Value::Number((duration as i64).into()));
+            if duration.is_finite() && duration > 0.0 {
+                input.insert("duration".to_string(), serde_json::Value::Number((duration as i64).into()));
+            }
         }
         if let Some(ref ar) = request.params.get("aspect_ratio").and_then(|v| v.as_str()) {
             input.insert("aspect_ratio".to_string(), serde_json::Value::String(ar.to_string()));

@@ -123,6 +123,7 @@ impl OpenAiProvider {
         temperature: Option<f64>,
         max_tokens: Option<u32>,
     ) -> Result<String, AppError> {
+        let temperature = temperature.filter(|t| t.is_finite() && *t >= 0.0 && *t <= 2.0);
         let body = ChatRequest {
             model: model.to_string(),
             messages,
@@ -251,11 +252,12 @@ impl OpenAiProvider {
             .and_then(|v| v.as_str())
             .unwrap_or("alloy");
 
+        let speed = request.params.get("speed").and_then(|v| v.as_f64()).filter(|s| s.is_finite() && *s > 0.0 && *s <= 4.0);
         let body = TtsRequest {
             model: "tts-1".to_string(),
             input: prompt.to_string(),
             voice: voice.to_string(),
-            speed: request.params.get("speed").and_then(|v| v.as_f64()),
+            speed,
         };
 
         let resp = self.http

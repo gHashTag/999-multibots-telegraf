@@ -8,6 +8,7 @@ const STUCK_THRESHOLD: usize = 3;
 const FORCE_RESET_THRESHOLD: usize = 5;
 const INACTIVE_EVICTION_THRESHOLD: Duration = Duration::from_secs(24 * 60 * 60); // 24 hours
 const EVICTION_INTERVAL: usize = 1000; // evict every N enter() calls
+const MAX_NAVIGATION_ENTRIES: usize = 50_000; // hard ceiling on tracked chats
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NavigationAction {
@@ -76,6 +77,22 @@ impl NavigationRouter {
         if history.len() > MAX_HISTORY_DEPTH {
             let drain_count = history.len() - MAX_HISTORY_DEPTH;
             history.drain(0..drain_count);
+        }
+
+        if self.history.len() > MAX_NAVIGATION_ENTRIES {
+            if let Some((oldest_chat, _)) = self.last_accessed
+                .iter()
+                .min_by_key(|(_, &instant)| instant)
+                .map(|(&k, &v)| (k, v))
+            {
+                self.history.remove(&oldest_chat);
+                self.last_accessed.remove(&oldest_chat);
+                tracing::warn!(
+                    evicted_chat = oldest_chat,
+                    remaining = self.history.len(),
+                    "NavigationRouter at capacity; evicted oldest chat"
+                );
+            }
         }
 
         self.enter_count += 1;

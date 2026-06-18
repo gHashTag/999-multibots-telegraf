@@ -86,7 +86,14 @@ pub async fn handle_train_flux_model_msg(
         }
         2 => {
             if let Some(text) = msg.text() {
-                state.trigger_word = Some(text.trim().to_string());
+                const MAX_TRIGGER_WORD_LEN: usize = 64;
+                let trimmed = text.trim();
+                if trimmed.len() > MAX_TRIGGER_WORD_LEN {
+                    let err = if lang.is_russian() { "❌ Trigger word слишком длинный." } else { "❌ Trigger word too long." };
+                    bot.send_message(msg.chat.id, err).await?;
+                    return Ok(());
+                }
+                state.trigger_word = Some(trimmed.to_string());
                 state.step = 3;
                 let prompt = if lang.is_russian() { "📛 Введите название модели:" } else { "📛 Enter model name:" };
                 bot.send_message(msg.chat.id, prompt).await?;
@@ -95,7 +102,14 @@ pub async fn handle_train_flux_model_msg(
         }
         3 => {
             if let Some(text) = msg.text() {
-                state.model_name = Some(text.trim().to_string());
+                const MAX_MODEL_NAME_LEN: usize = 64;
+                let trimmed = text.trim();
+                if trimmed.len() > MAX_MODEL_NAME_LEN {
+                    let err = if lang.is_russian() { "❌ Название модели слишком длинное." } else { "❌ Model name too long." };
+                    bot.send_message(msg.chat.id, err).await?;
+                    return Ok(());
+                }
+                state.model_name = Some(trimmed.to_string());
                 state.step = 4;
                 let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
     if tid == 0 {
