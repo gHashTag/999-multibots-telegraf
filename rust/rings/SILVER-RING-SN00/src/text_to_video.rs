@@ -7,6 +7,7 @@ use trios_mb_tg::state::{Scene, TextToVideoState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
 use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::dialogue_update_timeout;
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, load_lang_cb, return_to_menu};
 
@@ -24,7 +25,7 @@ pub async fn handle_text_to_video_entry(
     bot.send_message(msg.chat.id, text).await?;
     let mut state = TextToVideoState::default();
     state.step = 1;
-    dialogue.update(Scene::TextToVideo(state)).await?;
+    dialogue_update_timeout(&dialogue, Scene::TextToVideo(state)).await?;
     Ok(())
 }
 
@@ -67,7 +68,7 @@ pub async fn handle_text_to_video_msg(
 
         let model_text = if lang.is_russian() { "Выберите модель:" } else { "Select model:" };
         bot.send_message(msg.chat.id, model_text).reply_markup(kb).await?;
-        dialogue.update(Scene::TextToVideo(state)).await?;
+        dialogue_update_timeout(&dialogue, Scene::TextToVideo(state)).await?;
     }
     Ok(())
 }
@@ -120,7 +121,7 @@ pub async fn handle_text_to_video_callback(
 
             let dur_text = if lang.is_russian() { "Выберите длительность:" } else { "Select duration:" };
             bot.send_message(chat_id, dur_text).reply_markup(kb).await?;
-            dialogue.update(Scene::TextToVideo(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::TextToVideo(state)).await?;
         }
         "tv:dur_5" | "tv:dur_10" => {
             let dur = match data {
@@ -155,10 +156,10 @@ pub async fn handle_text_to_video_callback(
         "tv:retry" => {
             let text = if lang.is_russian() { "Введите описание видео:" } else { "Enter video description:" };
             bot.send_message(chat_id, text).await?;
-            dialogue.update(Scene::TextToVideo(TextToVideoState::default())).await?;
+            dialogue_update_timeout(&dialogue, Scene::TextToVideo(TextToVideoState::default())).await?;
         }
         "tv:done" => {
-            dialogue.update(Scene::MainMenu).await?;
+            dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
             bot.send_message(chat_id, trios_mb_i18n::t(lang, "main_menu"))
                 .reply_markup(main_menu_keyboard(lang))
                 .await?;

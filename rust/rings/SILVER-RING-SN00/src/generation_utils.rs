@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage};
 use teloxide::prelude::*;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
@@ -7,7 +6,7 @@ use trios_mb_traits::{Database, JobQueue};
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
-use trios_mb_tg::send_message_timeout;
+use trios_mb_tg::{send_message_timeout, dialogue_update_timeout};
 use trios_mb_types::user::Language;
 use trios_mb_types::generation::*;
 use trios_mb_traits::job_queue::EnqueueRequest;
@@ -92,16 +91,11 @@ pub async fn return_to_menu(
     chat_id: teloxide::types::ChatId,
     lang: Language,
 ) -> HandlerResult {
-    const TELEGRAM_API_TIMEOUT: Duration = Duration::from_secs(30);
-    if let Err(_) = tokio::time::timeout(
-        TELEGRAM_API_TIMEOUT,
-        bot.send_message(chat_id, trios_mb_i18n::t(lang, "main_menu")).reply_markup(main_menu_keyboard(lang))
-    ).await {
-        tracing::warn!(%chat_id, "bot.send_message (main_menu) timed out");
-    }
-    if let Err(_) = tokio::time::timeout(TELEGRAM_API_TIMEOUT, dialogue.update(Scene::MainMenu)).await {
-        tracing::warn!(%chat_id, "dialogue.update(MainMenu) timed out");
-    }
+    let _ = send_message_timeout(
+        bot, chat_id, trios_mb_i18n::t(lang, "main_menu"),
+        Some(main_menu_keyboard(lang).into()),
+    ).await;
+    let _ = dialogue_update_timeout(dialogue, Scene::MainMenu).await;
     Ok(())
 }
 
@@ -125,11 +119,9 @@ pub async fn dispatch_and_reply(
     db: &Arc<dyn Database>,
     params: DispatchParams,
 ) -> HandlerResult {
-    const TELEGRAM_API_TIMEOUT: Duration = Duration::from_secs(30);
-
     if let Err(err_msg) = deduct_balance(db, params.telegram_id, params.cost, params.lang).await {
         let _ = send_message_timeout(bot, chat_id, err_msg, None).await;
-        let _ = tokio::time::timeout(TELEGRAM_API_TIMEOUT, dialogue.update(Scene::MainMenu)).await;
+        let _ = dialogue_update_timeout(dialogue, Scene::MainMenu).await;
         return Ok(());
     }
 
@@ -199,6 +191,6 @@ pub async fn dispatch_and_reply(
         }
     }
 
-    let _ = tokio::time::timeout(TELEGRAM_API_TIMEOUT, dialogue.update(Scene::MainMenu)).await;
+    let _ = dialogue_update_timeout(dialogue, Scene::MainMenu).await;
     Ok(())
 }

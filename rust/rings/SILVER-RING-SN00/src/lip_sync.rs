@@ -6,7 +6,7 @@ use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, LipSyncState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, dialogue_update_timeout};
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, load_lang_cb};
 
@@ -24,7 +24,7 @@ pub async fn handle_lip_sync_entry(
     bot.send_message(msg.chat.id, text).await?;
     let mut state = LipSyncState::default();
     state.step = 1;
-    dialogue.update(Scene::LipSync(state)).await?;
+    dialogue_update_timeout(&dialogue, Scene::LipSync(state)).await?;
     Ok(())
 }
 
@@ -46,7 +46,7 @@ pub async fn handle_lip_sync_msg(
             state.step = 2;
             let text = if lang.is_russian() { "Отправьте аудио" } else { "Send audio" };
             bot.send_message(msg.chat.id, text).await?;
-            dialogue.update(Scene::LipSync(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::LipSync(state)).await?;
             return Ok(());
         }
     }
@@ -69,7 +69,7 @@ pub async fn handle_lip_sync_msg(
 
             let text = if lang.is_russian() { "Выберите модель:" } else { "Select model:" };
             bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
-            dialogue.update(Scene::LipSync(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::LipSync(state)).await?;
             return Ok(());
         }
     }
@@ -92,7 +92,7 @@ pub async fn handle_lip_sync_msg(
 
             let text = if lang.is_russian() { "Выберите модель:" } else { "Select model:" };
             bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
-            dialogue.update(Scene::LipSync(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::LipSync(state)).await?;
             return Ok(());
         }
     }
@@ -155,10 +155,10 @@ pub async fn handle_lip_sync_callback(
         "ls:retry" => {
             let text = if lang.is_russian() { "Отправьте видео для LipSync" } else { "Send a video for LipSync" };
             bot.send_message(chat_id, text).await?;
-            dialogue.update(Scene::LipSync(LipSyncState::default())).await?;
+            dialogue_update_timeout(&dialogue, Scene::LipSync(LipSyncState::default())).await?;
         }
         "ls:done" => {
-            dialogue.update(Scene::MainMenu).await?;
+            dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
             bot.send_message(chat_id, trios_mb_i18n::t(lang, "main_menu"))
                 .reply_markup(main_menu_keyboard(lang))
                 .await?;

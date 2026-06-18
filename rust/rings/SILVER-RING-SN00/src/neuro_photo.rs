@@ -7,6 +7,7 @@ use trios_mb_tg::state::{Scene, NeuroPhotoState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
 use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::dialogue_update_timeout;
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, load_lang_cb, return_to_menu};
 
@@ -26,7 +27,7 @@ pub async fn handle_neuro_photo_entry(
     bot.send_message(msg.chat.id, trios_mb_i18n::t(lang, "send_photo")).await?;
     let mut state = NeuroPhotoState::default();
     state.step = 1;
-    dialogue.update(Scene::NeuroPhoto(state)).await?;
+    dialogue_update_timeout(&dialogue, Scene::NeuroPhoto(state)).await?;
     Ok(())
 }
 
@@ -57,7 +58,7 @@ pub async fn handle_neuro_photo_msg(
             new_state.image_url = Some(file_id);
             new_state.step = 2;
             bot.send_message(msg.chat.id, trios_mb_i18n::t(lang, "send_text")).await?;
-            dialogue.update(Scene::NeuroPhoto(new_state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::NeuroPhoto(new_state)).await?;
             return Ok(());
         }
     }
@@ -97,7 +98,7 @@ pub async fn handle_neuro_photo_msg(
         bot.send_message(msg.chat.id, trios_mb_i18n::t(lang, "send_photo")).await?;
         let mut new_state = state;
         new_state.step = 1;
-        dialogue.update(Scene::NeuroPhoto(new_state)).await?;
+        dialogue_update_timeout(&dialogue, Scene::NeuroPhoto(new_state)).await?;
     }
     Ok(())
 }
@@ -168,10 +169,10 @@ pub async fn handle_neuro_photo_callback(
         }
         "np:retry" => {
             bot.send_message(chat_id, trios_mb_i18n::t(lang, "send_photo")).await?;
-            dialogue.update(Scene::NeuroPhoto(NeuroPhotoState::default())).await?;
+            dialogue_update_timeout(&dialogue, Scene::NeuroPhoto(NeuroPhotoState::default())).await?;
         }
         "np:done" => {
-            dialogue.update(Scene::MainMenu).await?;
+            dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
             bot.send_message(chat_id, trios_mb_i18n::t(lang, "main_menu"))
                 .reply_markup(main_menu_keyboard(lang))
                 .await?;
