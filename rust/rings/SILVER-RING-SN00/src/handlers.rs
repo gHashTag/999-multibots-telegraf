@@ -7,7 +7,7 @@ use teloxide::types::{Update, ChatId};
 use teloxide::utils::command::BotCommands;
 use trios_mb_traits::Database;
 use trios_mb_tg::state::Scene;
-use trios_mb_tg::{HandlerResult, HandlerError, answer_callback_query_timeout};
+use trios_mb_tg::{HandlerResult, HandlerError, answer_callback_query_timeout, send_message_timeout};
 use trios_mb_tg::keyboards::main_menu_keyboard;
 use crate::generation_utils::{load_lang, load_lang_by_id};
 
@@ -225,15 +225,11 @@ async fn handle_nav_callback(
     match action {
         Some(trios_mb_tg::navigation::NavigationAction::Back) => {
             dialogue.update(Scene::MainMenu).await?;
-            bot.send_message(chat_id, trios_mb_i18n::t(lang, "main_menu"))
-                .reply_markup(main_menu_keyboard(lang))
-                .await?;
+            send_message_timeout(&bot, chat_id, trios_mb_i18n::t(lang, "main_menu"), Some(main_menu_keyboard(lang).into())).await?;
         }
         Some(trios_mb_tg::navigation::NavigationAction::Cancel) => {
             dialogue.exit().await?;
-            bot.send_message(chat_id, trios_mb_i18n::t(lang, "main_menu"))
-                .reply_markup(main_menu_keyboard(lang))
-                .await?;
+            send_message_timeout(&bot, chat_id, trios_mb_i18n::t(lang, "main_menu"), Some(main_menu_keyboard(lang).into())).await?;
         }
         Some(trios_mb_tg::navigation::NavigationAction::Navigate(scene_id)) => {
             let scene = scene_from_id(&scene_id);
@@ -262,9 +258,7 @@ async fn handle_main_menu_msg(
     let text = match msg.text() {
         Some(t) => t,
         None => {
-            bot.send_message(msg.chat.id, trios_mb_i18n::t(lang, "main_menu"))
-                .reply_markup(main_menu_keyboard(lang))
-                .await?;
+            send_message_timeout(&bot, msg.chat.id, trios_mb_i18n::t(lang, "main_menu"), Some(main_menu_keyboard(lang).into())).await?;
             return Ok(());
         }
     };
@@ -277,9 +271,7 @@ async fn handle_main_menu_msg(
             enter_scene_greeting(&bot, msg.chat.id, lang, &id, &db, tid).await?;
         }
         None => {
-            bot.send_message(msg.chat.id, trios_mb_i18n::t(lang, "main_menu"))
-                .reply_markup(main_menu_keyboard(lang))
-                .await?;
+            send_message_timeout(&bot, msg.chat.id, trios_mb_i18n::t(lang, "main_menu"), Some(main_menu_keyboard(lang).into())).await?;
         }
     }
     Ok(())
@@ -330,9 +322,7 @@ async fn handle_balance_state_msg(
     msg: Message,
 ) -> HandlerResult {
     let lang = load_lang(&db, &msg).await;
-    bot.send_message(msg.chat.id, trios_mb_i18n::t(lang, "main_menu"))
-        .reply_markup(main_menu_keyboard(lang))
-        .await?;
+    send_message_timeout(&bot, msg.chat.id, trios_mb_i18n::t(lang, "main_menu"), Some(main_menu_keyboard(lang).into())).await?;
     dialogue.update(Scene::MainMenu).await?;
     Ok(())
 }
@@ -410,22 +400,22 @@ async fn enter_scene_greeting(
     use trios_mb_types::scene::SceneId;
     match scene_id {
         SceneId::NeuroPhoto | SceneId::NeuroPhotoV2 => {
-            bot.send_message(chat_id, trios_mb_i18n::t(lang, "send_photo")).await?;
+            send_message_timeout(&bot, chat_id, trios_mb_i18n::t(lang, "send_photo"), None).await?;
         }
         SceneId::TextToImage | SceneId::TextToVideo => {
-            bot.send_message(chat_id, trios_mb_i18n::t(lang, "send_text")).await?;
+            send_message_timeout(&bot, chat_id, trios_mb_i18n::t(lang, "send_text"), None).await?;
         }
         SceneId::LipSync => {
             let text = if lang.is_russian() { "🎤 Отправьте видео для LipSync" } else { "🎤 Send a video for LipSync" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::ImageToVideo => {
             let text = if lang.is_russian() { "🎥 Выберите модель и формат видео:" } else { "🎥 Choose model and video format:" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::Payment | SceneId::StarPayment | SceneId::RublePayment
         | SceneId::CryptoPayment | SceneId::TonPayment | SceneId::TonNativePayment => {
-            bot.send_message(chat_id, trios_mb_i18n::t(lang, "top_up")).await?;
+            send_message_timeout(&bot, chat_id, trios_mb_i18n::t(lang, "top_up"), None).await?;
         }
         SceneId::CheckBalance | SceneId::Balance => {
             let balance = match db.get_balance(telegram_id).await {
@@ -437,7 +427,7 @@ async fn enter_scene_greeting(
                     } else {
                         "❌ Could not retrieve balance. Please try again later.".to_string()
                     };
-                    bot.send_message(chat_id, err).await?;
+                    send_message_timeout(&bot, chat_id, err, None).await?;
                     return Ok(());
                 }
             };
@@ -446,83 +436,83 @@ async fn enter_scene_greeting(
             } else {
                 format!("💰 Your balance: {:.2}", balance)
             };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::FaceSwap => {
             let text = if lang.is_russian() { "🎭 Отправьте фото для замены лица" } else { "🎭 Send a photo for face swap" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::Morphing => {
             let text = if lang.is_russian() { "🌀 Отправьте изображения для морфинга" } else { "🌀 Send images for morphing" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::TextToSpeech => {
             let text = if lang.is_russian() { "🎙️ Отправьте текст для озвучки" } else { "🎙️ Send text for speech" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::VideoTranscription => {
             let text = if lang.is_russian() { "📺 Отправьте видео" } else { "📺 Send a video" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::MusicGeneration => {
             let text = if lang.is_russian() { "🎵 Опишите музыку" } else { "🎵 Describe music" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::VoiceAvatar => {
             let text = if lang.is_russian() { "🎙️ Отправьте голосовое сообщение" } else { "🎙️ Send a voice message" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::VoiceTraining => {
             let text = if lang.is_russian() { "🎤 Отправьте аудио для обучения" } else { "🎤 Send audio for training" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::AiCover => {
             let text = if lang.is_russian() { "🎧 Отправьте песню для AI Cover" } else { "🎧 Send a song for AI Cover" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::AvatarTransform => {
             let text = if lang.is_russian() { "🦸 Выберите супергероя" } else { "🦸 Choose a superhero" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::AvatarBrain => {
             let text = if lang.is_russian() { "🧠 Введите название компании" } else { "🧠 Enter company name" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::ChatWithAvatar => {
             let text = if lang.is_russian() { "💭 Напишите сообщение аватару" } else { "💭 Write to avatar" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::DigitalAvatarBody | SceneId::DigitalAvatarBodyV2 => {
             let text = if lang.is_russian() { "🤖 Выберите стиль тела" } else { "🤖 Choose body style" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::SelectModel => {
             let text = if lang.is_russian() { "🤖 Выберите модель" } else { "🤖 Select model" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::ImprovePrompt => {
             let text = if lang.is_russian() { "✨ Отправьте промпт" } else { "✨ Send prompt" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::TrainFluxModel => {
             let text = if lang.is_russian() { "🔥 Отправьте изображения для обучения" } else { "🔥 Send training images" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::ImageToPrompt => {
             let text = if lang.is_russian() { "🖼️ Отправьте изображение" } else { "🖼️ Send an image" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::ImageUpscaler => {
             let text = if lang.is_russian() { "⬆️ Отправьте фото" } else { "⬆️ Send a photo" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::FluxKontext => {
             let text = if lang.is_russian() { "🎨 FLUX Kontext" } else { "🎨 FLUX Kontext" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::Email => {
             let text = if lang.is_russian() { "📧 Введите email" } else { "📧 Enter email" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::Invite => {
             let ref_count = db.get_referral_count(telegram_id).await.unwrap_or(0);
@@ -531,60 +521,58 @@ async fn enter_scene_greeting(
             } else {
                 format!("👥 Referrals: {}", ref_count)
             };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::AiPhotoshop => {
             let text = if lang.is_russian() { "🎨 AI Photoshop — отправьте изображение" } else { "🎨 AI Photoshop — send an image" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::HedraRender => {
             let text = if lang.is_russian() { "🎬 Hedra — отправьте изображение" } else { "🎬 Hedra — send an image" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::HeygenRender => {
             let text = if lang.is_russian() { "🎥 HeyGen — введите ID аватара" } else { "🎥 HeyGen — enter avatar ID" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::FalRender => {
             let text = if lang.is_russian() { "⚡ Fal.ai — введите промпт" } else { "⚡ Fal.ai — enter prompt" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::RemoveBg => {
             let text = if lang.is_russian() { "🖼️ Удалить фон — отправьте фото" } else { "🖼️ Remove BG — send a photo" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::AiReelsEntry | SceneId::AiReels | SceneId::AiReelsRender => {
             let text = if lang.is_russian() { "🎬 AI Reels — опишите видео" } else { "🎬 AI Reels — describe the video" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::Size => {
             let text = if lang.is_russian() { "📐 Выберите размер" } else { "📐 Select size" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::VideoDuration => {
             let text = if lang.is_russian() { "⏱️ Выберите длительность" } else { "⏱️ Select duration" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::InstagramScraping => {
             let text = if lang.is_russian() { "🔍 Парсинг Instagram\n\nОтправьте ссылку на Instagram профиль:" } else { "🔍 Instagram Scraping\n\nSend an Instagram profile link:" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::InstagramParser | SceneId::InstagramParserWizard => {
             let text = if lang.is_russian() { "📊 Парсер Instagram\n\nОтправьте ссылку на профиль для анализа:" } else { "📊 Instagram Parser\n\nSend a profile link for analysis:" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::NeuroCoder => {
             let text = if lang.is_russian() { "💻 Нейро Кодер\n\nОпишите задачу для генерации кода:" } else { "💻 Neuro Coder\n\nDescribe the code generation task:" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::TechSupport => {
             let text = if lang.is_russian() { "🛠️ Техподдержка\n\nОпишите вашу проблему:" } else { "🛠️ Tech Support\n\nDescribe your issue:" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         _ => {
-            bot.send_message(chat_id, trios_mb_i18n::t(lang, "main_menu"))
-                .reply_markup(main_menu_keyboard(lang))
-                .await?;
+            send_message_timeout(&bot, chat_id, trios_mb_i18n::t(lang, "main_menu"), Some(main_menu_keyboard(lang).into())).await?;
         }
     }
     Ok(())

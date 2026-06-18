@@ -267,7 +267,9 @@ impl JobQueue for PgJobQueue {
                 WHERE status = 'running'
                   AND started_at < NOW() - INTERVAL '1 second' * $1
                   AND attempts < max_attempts
+                ORDER BY started_at ASC
                 LIMIT $2
+                FOR UPDATE SKIP LOCKED
             )
         "#;
 
@@ -298,7 +300,9 @@ impl JobQueue for PgJobQueue {
                 WHERE status = 'running'
                   AND started_at < NOW() - INTERVAL '1 second' * $1
                   AND attempts >= max_attempts
+                ORDER BY started_at ASC
                 LIMIT $2
+                FOR UPDATE SKIP LOCKED
             )
         "#;
 
@@ -316,6 +320,39 @@ impl JobQueue for PgJobQueue {
             .await
             .map_err(|e| AppError::Db(DbError::Query(e.to_string())))?;
 
-        Ok(result_retry.rows_affected() + result_fail.rows_affected())
+        // 3) Mark orphaned queued jobs (attempts >= max_attempts) as failed.
+        //    These can be left behind when queue.get fails after a handler error
+        //    and the worker defaults to Queued without knowing attempts reached max.
+        let sql_orphan = r#"
+            UPDATE job_queue
+            SET status = 'failed',
+                error = 'Queued but attempts exhausted (orphaned)',
+                started_at = NULL,
+                completed_at = NOW(),
+                updated_at = NOW()
+            WHERE id IN (
+                SELECT id FROM job_queue
+                WHERE status = 'queued'
+                  AND attempts >= max_attempts
+                ORDER BY created_at ASC
+                LIMIT $1
+                FOR UPDATE SKIP LOCKED
+            )
+        "#;
+
+        let result_orphan = self
+            .db
+            .as_ref()
+            .execute(Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql_orphan,
+                vec![Value::BigUnsigned(Some(MAX_RETRY_STUCK_BATCH))],
+            ))
+            .await
+            .map_err(|e| AppError::Db(DbError::Query(e.to_string())))?;
+
+        Ok(result_retry.rows_affected()
+            + result_fail.rows_affected()
+            + result_orphan.rows_affected())
     }
 }

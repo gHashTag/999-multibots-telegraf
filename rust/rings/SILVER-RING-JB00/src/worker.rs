@@ -223,6 +223,7 @@ impl WorkerPool {
                 let q = queue.clone();
                 let h = handler.clone();
                 let c = cancel.clone();
+                let cancel = cancel.clone();
                 let types = type_strs.clone();
                 let name = format!("worker-{}-{}", type_str, worker_id);
 
@@ -232,6 +233,7 @@ impl WorkerPool {
                     let types = types.clone();
                     let timeout = timeout;
                     let name = format!("worker-{}-{}", type_str, worker_id);
+                    let cancel = cancel.clone();
                     async move {
                         loop {
                             tokio::time::sleep(Duration::from_millis(500)).await;
@@ -240,8 +242,9 @@ impl WorkerPool {
                             let types2 = types.clone();
                             let name2 = name.clone();
                             let timeout2 = timeout;
+                            let c2 = cancel.clone();
                             let handle = tokio::spawn(async move {
-                                poll_and_execute(&q2, &types2, &h2, timeout2, &name2).await
+                                poll_and_execute(&q2, &types2, &h2, timeout2, &name2, c2).await
                             });
                             match handle.await {
                                 Ok(Err(e)) => {
@@ -268,13 +271,14 @@ impl WorkerPool {
 
 const QUEUE_IO_TIMEOUT: Duration = Duration::from_secs(30);
 
-#[tracing::instrument(skip(queue, job_types, handler), fields(worker_name = %worker_name))]
+#[tracing::instrument(skip(queue, job_types, handler, cancel), fields(worker_name = %worker_name))]
 async fn poll_and_execute(
     queue: &Arc<dyn JobQueue>,
     job_types: &[&str],
     handler: &Arc<JobHandler>,
     timeout: Duration,
     worker_name: &str,
+    cancel: CancellationToken,
 ) -> Result<(), AppError> {
     let job = match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.dequeue(job_types)).await {
         Ok(Ok(job)) => job,
@@ -307,6 +311,11 @@ async fn poll_and_execute(
     let mut task = tokio::spawn(handler(job));
     let join_result = tokio::select! {
         r = &mut task => Some(r),
+        _ = cancel.cancelled() => {
+            task.abort();
+            tracing::warn!(worker = worker_name, job_id = %job_id, "Job aborted due to shutdown signal");
+            None
+        }
         _ = tokio::time::sleep(timeout) => {
             task.abort();
             None
@@ -371,13 +380,15 @@ async fn poll_and_execute(
             }
         }
         None => {
-            if let Err(e) = tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.update_status(job_id, JobStatus::Queued, Some("timeout"))).await {
-                tracing::error!(error = %e, job_id = %job_id, "Failed to mark job timed out (timeout)");
+            let reason = if cancel.is_cancelled() { "shutdown" } else { "timeout" };
+            if let Err(e) = tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.update_status(job_id, JobStatus::Queued, Some(reason))).await {
+                tracing::error!(error = %e, job_id = %job_id, "Failed to mark job {} (timeout)", reason);
             }
             tracing::warn!(
                 worker = worker_name,
                 job_id = %job_id,
-                "Job timed out, will retry"
+                "Job {}, will retry",
+                reason
             );
         }
     }

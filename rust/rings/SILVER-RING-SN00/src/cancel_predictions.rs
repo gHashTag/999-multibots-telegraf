@@ -22,7 +22,7 @@ pub async fn handle_cancel_predictions_msg(
     } else {
         "❌ Cancelling generations is not yet supported."
     };
-    send_message_timeout(&bot, msg.chat.id, text).await?;
+    send_message_timeout(&bot, msg.chat.id, text, None).await?;
     return_to_menu(&bot, &dialogue, msg.chat.id, lang).await
 }
 
@@ -40,6 +40,6 @@ pub async fn handle_cancel_predictions_callback(
         None => return Ok(()),
     };
     let text = if lang.is_russian() { "❌ Отмена генераций пока не поддерживается." } else { "❌ Cancelling generations is not yet supported." };
-    send_message_timeout(&bot, chat_id, text).await?;
+    send_message_timeout(&bot, chat_id, text, None).await?;
     return_to_menu(&bot, &dialogue, chat_id, lang).await
 }

@@ -128,7 +128,7 @@ pub async fn dispatch_and_reply(
     const TELEGRAM_API_TIMEOUT: Duration = Duration::from_secs(30);
 
     if let Err(err_msg) = deduct_balance(db, params.telegram_id, params.cost, params.lang).await {
-        let _ = send_message_timeout(bot, chat_id, err_msg).await;
+        let _ = send_message_timeout(bot, chat_id, err_msg, None).await;
         let _ = tokio::time::timeout(TELEGRAM_API_TIMEOUT, dialogue.update(Scene::MainMenu)).await;
         return Ok(());
     }
@@ -138,7 +138,7 @@ pub async fn dispatch_and_reply(
     } else {
         "⏳ Task submitted for processing. Result will be sent as a message."
     };
-    let _ = send_message_timeout(bot, chat_id, processing).await;
+    let _ = send_message_timeout(bot, chat_id, processing, None).await;
 
     let request = GenerationRequest {
         telegram_id: params.telegram_id,
@@ -181,7 +181,7 @@ pub async fn dispatch_and_reply(
                     } else {
                         "❌ Could not submit task. Please try again later.".to_string()
                     };
-                    let _ = send_message_timeout(bot, chat_id, err_msg).await;
+                    let _ = send_message_timeout(bot, chat_id, err_msg, None).await;
                 }
             }
         }
@@ -195,7 +195,7 @@ pub async fn dispatch_and_reply(
             } else {
                 "❌ Could not create task. Please try again later.".to_string()
             };
-            let _ = send_message_timeout(bot, chat_id, err_msg).await;
+            let _ = send_message_timeout(bot, chat_id, err_msg, None).await;
         }
     }
 
