@@ -5,13 +5,12 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, MorphingState};
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, send_message_timeout, dialogue_update_timeout};
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
-#[tracing::instrument(skip_all)]
 #[tracing::instrument(skip_all)]
 pub async fn handle_morphing_msg(
     bot: teloxide::Bot,
@@ -31,12 +30,10 @@ pub async fn handle_morphing_msg(
             } else {
                 "🌀 Infinity Morphing\n\nSend the first image (minimum 2):"
             };
-            bot.send_message(msg.chat.id, text)
-                .reply_markup(crate::generation_utils::back_cancel_keyboard(lang))
-                .await?;
+            send_message_timeout(&bot, msg.chat.id, text, Some(crate::generation_utils::back_cancel_keyboard(lang).into())).await?;
             state.images = Some(Vec::new());
             state.step = 1;
-            dialogue.update(Scene::Morphing(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::Morphing(state)).await?;
         }
         1 => {
             if let Some(photos) = msg.photo() {
@@ -44,7 +41,7 @@ pub async fn handle_morphing_msg(
                     Some(p) => p.file.id.clone(),
                     None => {
                         let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
-                        bot.send_message(msg.chat.id, err).await?;
+                        send_message_timeout(&bot, msg.chat.id, err, None).await?;
                         return Ok(());
                     }
                 };
@@ -52,7 +49,7 @@ pub async fn handle_morphing_msg(
                     Some(imgs) => imgs.clone(),
                     None => {
                         let err = if lang.is_russian() { "❌ Сессия устарела. Отправьте изображения заново." } else { "❌ Session expired. Please send images again." };
-                        bot.send_message(msg.chat.id, err).await?;
+                        send_message_timeout(&bot, msg.chat.id, err, None).await?;
                         return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                     }
                 };
@@ -80,16 +77,16 @@ pub async fn handle_morphing_msg(
                     } else {
                         format!("📸 {} images uploaded\n\nMinimum reached. Add more or create morphing.", count)
                     };
-                    bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
+                    send_message_timeout(&bot, msg.chat.id, text, Some(kb.into())).await?;
                 } else {
                     let text = if lang.is_russian() {
                         format!("📸 Загружено {}/2 минимум. Отправьте ещё.", count)
                     } else {
                         format!("📸 {}/2 minimum loaded. Send more.", count)
                     };
-                    bot.send_message(msg.chat.id, text).await?;
+                    send_message_timeout(&bot, msg.chat.id, text, None).await?;
                 }
-                dialogue.update(Scene::Morphing(state)).await?;
+                dialogue_update_timeout(&dialogue, Scene::Morphing(state)).await?;
             } else if let Some(text) = msg.text() {
                 if text.contains("Отмена") || text.contains("Cancel") {
                     return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
@@ -101,7 +98,6 @@ pub async fn handle_morphing_msg(
     Ok(())
 }
 
-#[tracing::instrument(skip_all)]
 #[tracing::instrument(skip_all)]
 pub async fn handle_morphing_callback(
     bot: teloxide::Bot,
@@ -131,20 +127,20 @@ pub async fn handle_morphing_callback(
         }
         "mor:more" => {
             let text = if lang.is_russian() { "📸 Отправьте следующее изображение:" } else { "📸 Send the next image:" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         "mor:generate" => {
             let images = match state.images.as_ref() {
                 Some(imgs) => imgs.clone(),
                 None => {
                     let err = if lang.is_russian() { "❌ Сессия устарела. Отправьте изображения заново." } else { "❌ Session expired. Please send images again." };
-                    bot.send_message(chat_id, err).await?;
+                    send_message_timeout(&bot, chat_id, err, None).await?;
                     return return_to_menu(&bot, &dialogue, chat_id, lang).await;
                 }
             };
             if images.len() < 2 {
                 let err = if lang.is_russian() { "❌ Нужно минимум 2 изображения." } else { "❌ Need at least 2 images." };
-                bot.send_message(chat_id, err).await?;
+                send_message_timeout(&bot, chat_id, err, None).await?;
                 return Ok(());
             }
 
@@ -163,9 +159,9 @@ pub async fn handle_morphing_callback(
                 )],
             ]);
             let text = if lang.is_russian() { "🔄 Выберите тип морфинга:" } else { "🔄 Choose morphing type:" };
-            bot.send_message(chat_id, text).reply_markup(kb).await?;
+            send_message_timeout(&bot, chat_id, text, Some(kb.into())).await?;
             state.step = 2;
-            dialogue.update(Scene::Morphing(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::Morphing(state)).await?;
         }
         "mor:loop" | "mor:linear" => {
             state.morphing_type = Some(if data == "mor:loop" { "loop" } else { "linear" }.to_string());
@@ -178,14 +174,14 @@ pub async fn handle_morphing_callback(
                 vec![InlineKeyboardButton::callback("🎨 Creative", "mor:prompt_artistic")],
             ]);
             let text = if lang.is_russian() { "🎬 Выберите стиль переходов:" } else { "🎬 Choose transition style:" };
-            bot.send_message(chat_id, text).reply_markup(kb).await?;
-            dialogue.update(Scene::Morphing(state)).await?;
+            send_message_timeout(&bot, chat_id, text, Some(kb.into())).await?;
+            dialogue_update_timeout(&dialogue, Scene::Morphing(state)).await?;
         }
         "mor:back_upload" => {
             state.step = 1;
             let text = if lang.is_russian() { "📸 Отправьте следующее изображение:" } else { "📸 Send the next image:" };
-            bot.send_message(chat_id, text).await?;
-            dialogue.update(Scene::Morphing(state)).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
+            dialogue_update_timeout(&dialogue, Scene::Morphing(state)).await?;
         }
         d if d.starts_with("mor:prompt_") => {
             let prompt = match d {
@@ -200,7 +196,7 @@ pub async fn handle_morphing_callback(
                 Some(imgs) if imgs.len() >= 2 => imgs,
                 _ => {
                     let err = if lang.is_russian() { "❌ Нужно минимум 2 изображения." } else { "❌ Need at least 2 images." };
-                    bot.send_message(chat_id, err).await?;
+                    send_message_timeout(&bot, chat_id, err, None).await?;
                     return return_to_menu(&bot, &dialogue, chat_id, lang).await;
                 }
             };

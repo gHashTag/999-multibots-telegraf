@@ -5,7 +5,7 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::Database;
 use trios_mb_tg::state::{Scene, TrainFluxModelState};
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, send_message_timeout, dialogue_update_timeout};
 use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu, deduct_balance};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
@@ -29,12 +29,10 @@ pub async fn handle_train_flux_model_msg(
             } else {
                 "🔥 Train Flux LoRA Model\n\nSend training images (one at a time).\n\nSend the first image:"
             };
-            bot.send_message(msg.chat.id, text)
-                .reply_markup(crate::generation_utils::back_cancel_keyboard(lang))
-                .await?;
+            send_message_timeout(&bot, msg.chat.id, text, Some(crate::generation_utils::back_cancel_keyboard(lang).into())).await?;
             state.images = Some(Vec::new());
             state.step = 1;
-            dialogue.update(Scene::TrainFluxModel(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::TrainFluxModel(state)).await?;
         }
         1 => {
             if let Some(photos) = msg.photo() {
@@ -42,7 +40,7 @@ pub async fn handle_train_flux_model_msg(
                     Some(p) => p.file.id.clone(),
                     None => {
                         let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
-                        bot.send_message(msg.chat.id, err).await?;
+                        send_message_timeout(&bot, msg.chat.id, err, None).await?;
                         return Ok(());
                     }
                 };
@@ -50,7 +48,7 @@ pub async fn handle_train_flux_model_msg(
                     Some(imgs) => imgs.clone(),
                     None => {
                         let err = if lang.is_russian() { "❌ Сессия устарела. Отправьте изображения заново." } else { "❌ Session expired. Please send images again." };
-                        bot.send_message(msg.chat.id, err).await?;
+                        send_message_timeout(&bot, msg.chat.id, err, None).await?;
                         return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                     }
                 };
@@ -74,22 +72,22 @@ pub async fn handle_train_flux_model_msg(
                     } else {
                         format!("📸 {} images uploaded. Minimum reached.", count)
                     };
-                    bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
+                    send_message_timeout(&bot, msg.chat.id, text, Some(kb.into())).await?;
                 } else {
                     let text = if lang.is_russian() {
                         format!("📸 Загружено {}/4 минимум. Отправьте ещё.", count)
                     } else {
                         format!("📸 {}/4 minimum loaded. Send more.", count)
                     };
-                    bot.send_message(msg.chat.id, text).await?;
+                    send_message_timeout(&bot, msg.chat.id, text, None).await?;
                 }
-                dialogue.update(Scene::TrainFluxModel(state)).await?;
+                dialogue_update_timeout(&dialogue, Scene::TrainFluxModel(state)).await?;
             } else if let Some(text) = msg.text() {
                 if text.contains("Готово") || text.contains("Done") {
                     state.step = 2;
                     let prompt = if lang.is_russian() { "🔑 Введите trigger word:" } else { "🔑 Enter trigger word:" };
-                    bot.send_message(msg.chat.id, prompt).await?;
-                    dialogue.update(Scene::TrainFluxModel(state)).await?;
+                    send_message_timeout(&bot, msg.chat.id, prompt, None).await?;
+                    dialogue_update_timeout(&dialogue, Scene::TrainFluxModel(state)).await?;
                 }
             }
         }
@@ -99,14 +97,14 @@ pub async fn handle_train_flux_model_msg(
                 let trimmed = text.trim();
                 if trimmed.len() > MAX_TRIGGER_WORD_LEN {
                     let err = if lang.is_russian() { "❌ Trigger word слишком длинный." } else { "❌ Trigger word too long." };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
                     return Ok(());
                 }
                 state.trigger_word = Some(trimmed.to_string());
                 state.step = 3;
                 let prompt = if lang.is_russian() { "📛 Введите название модели:" } else { "📛 Enter model name:" };
-                bot.send_message(msg.chat.id, prompt).await?;
-                dialogue.update(Scene::TrainFluxModel(state)).await?;
+                send_message_timeout(&bot, msg.chat.id, prompt, None).await?;
+                dialogue_update_timeout(&dialogue, Scene::TrainFluxModel(state)).await?;
             }
         }
         3 => {
@@ -115,7 +113,7 @@ pub async fn handle_train_flux_model_msg(
                 let trimmed = text.trim();
                 if trimmed.len() > MAX_MODEL_NAME_LEN {
                     let err = if lang.is_russian() { "❌ Название модели слишком длинное." } else { "❌ Model name too long." };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
                     return Ok(());
                 }
                 state.model_name = Some(trimmed.to_string());
@@ -130,14 +128,14 @@ pub async fn handle_train_flux_model_msg(
                     Some(imgs) if imgs.len() >= 4 => imgs,
                     _ => {
                         let err = if lang.is_russian() { "❌ Нужно минимум 4 изображения." } else { "❌ Need at least 4 images." };
-                        bot.send_message(msg.chat.id, err).await?;
+                        send_message_timeout(&bot, msg.chat.id, err, None).await?;
                         return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                     }
                 };
                 let _images = images; // used later if dispatch is added
 
                 if let Err(err_msg) = deduct_balance(&db, tid, TRAIN_FLUX_COST, lang).await {
-                    bot.send_message(msg.chat.id, err_msg).await?;
+                    send_message_timeout(&bot, msg.chat.id, err_msg, None).await?;
                     return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                 }
                 let text = if lang.is_russian() {
@@ -145,7 +143,7 @@ pub async fn handle_train_flux_model_msg(
                 } else {
                     "✅ Training started! This will take 10-30 minutes."
                 };
-                bot.send_message(msg.chat.id, text).await?;
+                send_message_timeout(&bot, msg.chat.id, text, None).await?;
                 return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
             }
         }
@@ -176,14 +174,14 @@ pub async fn handle_train_flux_model_callback(
         }
         "tf:more" => {
             let text = if lang.is_russian() { "📸 Отправьте следующее изображение:" } else { "📸 Send next image:" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         "tf:done_upload" => {
             let mut new_state = state;
             new_state.step = 2;
             let text = if lang.is_russian() { "🔑 Введите trigger word:" } else { "🔑 Enter trigger word:" };
-            bot.send_message(chat_id, text).await?;
-            dialogue.update(Scene::TrainFluxModel(new_state)).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
+            dialogue_update_timeout(&dialogue, Scene::TrainFluxModel(new_state)).await?;
         }
         _ => {}
     }

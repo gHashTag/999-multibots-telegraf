@@ -5,7 +5,7 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, AvatarTransformState};
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, send_message_timeout, dialogue_update_timeout};
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, deduct_balance, dispatch_and_reply};
 
@@ -57,22 +57,22 @@ pub async fn handle_avatar_transform_msg(
             } else {
                 "🦸 AI Heroes\n\nChoose a superhero:"
             };
-            bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
+            send_message_timeout(&bot, msg.chat.id, text, Some(kb.into())).await?;
             state.step = 1;
-            dialogue.update(Scene::AvatarTransform(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::AvatarTransform(state)).await?;
         }
         1 => {
             if let Some(text) = msg.text() {
                 if text.len() > MAX_DIALOGUE_TEXT_LEN {
                     let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
                     return Ok(());
                 }
                 state.style = Some(text.to_string());
                 state.step = 2;
                 let prompt_text = if lang.is_russian() { "Отправьте своё фото:" } else { "Send your photo:" };
-                bot.send_message(msg.chat.id, prompt_text).await?;
-                dialogue.update(Scene::AvatarTransform(state)).await?;
+                send_message_timeout(&bot, msg.chat.id, prompt_text, None).await?;
+                dialogue_update_timeout(&dialogue, Scene::AvatarTransform(state)).await?;
             }
         }
         2 => {
@@ -81,7 +81,7 @@ pub async fn handle_avatar_transform_msg(
                     Some(p) => p.file.id.clone(),
                     None => {
                         let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
-                        bot.send_message(msg.chat.id, err).await?;
+                        send_message_timeout(&bot, msg.chat.id, err, None).await?;
                         return Ok(());
                     }
                 };
@@ -92,7 +92,7 @@ pub async fn handle_avatar_transform_msg(
     }
 
                 if let Err(err_msg) = deduct_balance(&db, tid, AVATAR_TRANSFORM_COST, lang).await {
-                    bot.send_message(msg.chat.id, err_msg).await?;
+                    send_message_timeout(&bot, msg.chat.id, err_msg, None).await?;
                     return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                 }
                 state.image_url = Some(file_id);
@@ -112,7 +112,7 @@ pub async fn handle_avatar_transform_msg(
                 ).await;
             } else {
                 let text = if lang.is_russian() { "Отправьте фото" } else { "Send a photo" };
-                bot.send_message(msg.chat.id, text).await?;
+                send_message_timeout(&bot, msg.chat.id, text, None).await?;
             }
         }
         _ => {}
@@ -152,8 +152,8 @@ pub async fn handle_avatar_transform_callback(
             state.style = Some("custom".to_string());
             state.step = 1;
             let text = if lang.is_russian() { "✍️ Опишите желаемый стиль:" } else { "✍️ Describe the desired style:" };
-            bot.send_message(chat_id, text).await?;
-            dialogue.update(Scene::AvatarTransform(state)).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
+            dialogue_update_timeout(&dialogue, Scene::AvatarTransform(state)).await?;
         }
         d if d.starts_with("at:") => {
             let hero = match d {
@@ -168,8 +168,8 @@ pub async fn handle_avatar_transform_callback(
             state.style = Some(hero.to_string());
             state.step = 2;
             let text = if lang.is_russian() { "📸 Отправьте своё фото:" } else { "📸 Send your photo:" };
-            bot.send_message(chat_id, text).await?;
-            dialogue.update(Scene::AvatarTransform(state)).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
+            dialogue_update_timeout(&dialogue, Scene::AvatarTransform(state)).await?;
         }
         _ => {}
     }
