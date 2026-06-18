@@ -7,6 +7,7 @@ use trios_mb_tg::HandlerResult;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_help(
     bot: teloxide::Bot,
     _db: Arc<dyn Database>,

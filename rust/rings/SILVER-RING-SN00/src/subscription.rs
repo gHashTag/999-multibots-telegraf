@@ -10,6 +10,7 @@ use crate::generation_utils::return_to_menu;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_subscription_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -57,6 +58,7 @@ pub async fn handle_subscription_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_subscription_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,

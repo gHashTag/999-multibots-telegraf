@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum SceneCategory {
     System,
     Generation,
@@ -13,6 +14,7 @@ pub enum SceneCategory {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum AccessLevel {
     Public,
     Subscriber,
@@ -22,6 +24,7 @@ pub enum AccessLevel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum SceneStatus {
     Active,
     Deprecated,
@@ -30,6 +33,7 @@ pub enum SceneStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SceneMetadata {
     pub id: SceneId,
     pub name: String,
@@ -41,6 +45,7 @@ pub struct SceneMetadata {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum SceneId {
     Start,
     Menu,

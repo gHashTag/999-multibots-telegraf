@@ -11,6 +11,7 @@ type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const VOICE_TRAINING_COST: f64 = 15.0;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_voice_training_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -78,6 +79,7 @@ pub async fn handle_voice_training_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_voice_training_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,

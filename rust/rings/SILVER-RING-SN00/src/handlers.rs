@@ -252,6 +252,12 @@ async fn handle_main_menu_msg(
     dialogue: MyDialogue,
     msg: Message,
 ) -> HandlerResult {
+    let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+    if tid == 0 {
+        tracing::warn!("Missing telegram_id; aborting main menu handler");
+        return Ok(());
+    }
+
     let lang = load_lang(&db, &msg).await;
     let text = match msg.text() {
         Some(t) => t,
@@ -268,11 +274,6 @@ async fn handle_main_menu_msg(
         Some(id) => {
             let scene = scene_from_id(&id);
             dialogue.update(scene).await?;
-            let tid = msg.from.map(|u| u.id.0 as i64).unwrap_or(0);
-            if tid == 0 {
-                tracing::warn!("Missing telegram_id; aborting handler");
-                return Ok(());
-            }
             enter_scene_greeting(&bot, msg.chat.id, lang, &id, &db, tid).await?;
         }
         None => {

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AppConfig {
     pub infisical_client_id: String,
     pub infisical_client_secret: String,

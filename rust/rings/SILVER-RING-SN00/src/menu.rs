@@ -8,6 +8,7 @@ use trios_mb_tg::keyboards::main_menu_keyboard;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_menu(
     bot: teloxide::Bot,
     _db: Arc<dyn Database>,

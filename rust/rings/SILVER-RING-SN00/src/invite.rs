@@ -9,6 +9,7 @@ use crate::generation_utils::return_to_menu;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_invite_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,

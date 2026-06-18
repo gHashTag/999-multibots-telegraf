@@ -8,6 +8,7 @@ use trios_mb_tg::keyboards::main_menu_keyboard;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_change_language(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,

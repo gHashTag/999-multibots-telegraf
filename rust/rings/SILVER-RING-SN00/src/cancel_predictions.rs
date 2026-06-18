@@ -9,6 +9,7 @@ use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_cancel_predictions_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -25,6 +26,7 @@ pub async fn handle_cancel_predictions_msg(
     return_to_menu(&bot, &dialogue, msg.chat.id, lang).await
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_cancel_predictions_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,

@@ -62,6 +62,7 @@ fn validate_email(email: &str) -> bool {
     true
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_email_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,

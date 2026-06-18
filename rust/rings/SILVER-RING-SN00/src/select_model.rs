@@ -9,6 +9,7 @@ use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_select_model_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -46,6 +47,7 @@ pub async fn handle_select_model_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_select_model_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,

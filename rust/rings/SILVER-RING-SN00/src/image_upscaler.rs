@@ -9,6 +9,7 @@ use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_image_upscaler_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -74,6 +75,7 @@ pub async fn handle_image_upscaler_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_image_upscaler_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,

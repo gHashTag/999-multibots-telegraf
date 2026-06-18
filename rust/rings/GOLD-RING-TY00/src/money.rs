@@ -4,6 +4,7 @@ use std::fmt;
 /// Money represented as i64 minor units (e.g. cents × 100).
 /// All arithmetic is checked to prevent silent overflow.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 #[serde(into = "String", try_from = "String")]
 pub struct Money(i64);
 

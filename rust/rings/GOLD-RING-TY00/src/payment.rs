@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum PaymentMethod {
     TelegramStars,
     Robokassa,
@@ -24,6 +25,7 @@ impl PaymentMethod {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum PaymentStatus {
     Pending,
     Completed,
@@ -33,6 +35,7 @@ pub enum PaymentStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Transaction {
     pub id: uuid::Uuid,
     pub telegram_id: i64,

@@ -12,6 +12,7 @@ type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const MUSIC_COST: f64 = 5.0;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_music_generation_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -62,6 +63,7 @@ pub async fn handle_music_generation_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_music_generation_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,

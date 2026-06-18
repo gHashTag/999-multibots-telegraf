@@ -11,6 +11,7 @@ use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, loa
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_lip_sync_entry(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -26,6 +27,7 @@ pub async fn handle_lip_sync_entry(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_lip_sync_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -97,6 +99,7 @@ pub async fn handle_lip_sync_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_lip_sync_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
