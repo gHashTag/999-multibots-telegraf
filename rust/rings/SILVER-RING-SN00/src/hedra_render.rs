@@ -4,7 +4,7 @@ use teloxide::prelude::*;
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, HedraRenderState};
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, dialogue_update_timeout, send_message_timeout};
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, deduct_balance, dispatch_and_reply};
 
@@ -37,11 +37,13 @@ pub async fn handle_hedra_render_msg(
             } else {
                 "🎬 Hedra Render\n\nSend an image (face).\n\nCost: 30 ⭐"
             };
-            bot.send_message(msg.chat.id, text)
-                .reply_markup(crate::generation_utils::back_cancel_keyboard(lang))
-                .await?;
+            send_message_timeout(
+                &bot, msg.chat.id, text,
+                Some(crate::generation_utils::back_cancel_keyboard(lang).into()),
+            ).await?;
             state.step = 1;
-            dialogue.update(Scene::HedraRender(state)).await?;
+            dialogue_update_timeout(
+                &dialogue, Scene::HedraRender(state)).await?;
         }
         1 => {
             if let Some(photos) = msg.photo() {
@@ -49,7 +51,9 @@ pub async fn handle_hedra_render_msg(
                     Some(p) => p.file.id.clone(),
                     None => {
                         let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
-                        bot.send_message(msg.chat.id, err).await?;
+                        send_message_timeout(
+                            &bot, msg.chat.id, err, None,
+                        ).await?;
                         return Ok(());
                     }
                 };
@@ -60,29 +64,40 @@ pub async fn handle_hedra_render_msg(
                 } else {
                     "✅ Image received!\n\nNow send text or audio for animation."
                 };
-                bot.send_message(msg.chat.id, text).await?;
-                dialogue.update(Scene::HedraRender(state)).await?;
+                send_message_timeout(
+                    &bot, msg.chat.id, text, None,
+                ).await?;
+                dialogue_update_timeout(
+                    &dialogue, Scene::HedraRender(state)).await?;
             } else {
                 let text = if lang.is_russian() { "❌ Отправьте изображение." } else { "❌ Send an image." };
-                bot.send_message(msg.chat.id, text).await?;
+                send_message_timeout(
+                    &bot, msg.chat.id, text, None,
+                ).await?;
             }
         }
         2 => {
             if let Some(text) = msg.text() {
                 if text.trim().is_empty() {
                     let err = if lang.is_russian() { "✍️ Введите текст" } else { "✍️ Enter text" };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(
+                        &bot, msg.chat.id, err, None,
+                    ).await?;
                     return Ok(());
                 }
 
                 if text.len() > MAX_DIALOGUE_TEXT_LEN {
                     let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(
+                        &bot, msg.chat.id, err, None,
+                    ).await?;
                     return Ok(());
                 }
 
                 if let Err(err_msg) = deduct_balance(&db, tid, HEDRA_RENDER_COST, lang).await {
-                    bot.send_message(msg.chat.id, err_msg).await?;
+                    send_message_timeout(
+                        &bot, msg.chat.id, err_msg, None,
+                    ).await?;
                     return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                 }
                 state.text = Some(text.to_string());
@@ -103,7 +118,9 @@ pub async fn handle_hedra_render_msg(
                 ).await;
             } else if let Some(voice) = msg.voice() {
                 if let Err(err_msg) = deduct_balance(&db, tid, HEDRA_RENDER_COST, lang).await {
-                    bot.send_message(msg.chat.id, err_msg).await?;
+                    send_message_timeout(
+                        &bot, msg.chat.id, err_msg, None,
+                    ).await?;
                     return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                 }
                 state.audio_url = Some(voice.file.id.clone());
@@ -124,7 +141,9 @@ pub async fn handle_hedra_render_msg(
                 ).await;
             } else {
                 let text = if lang.is_russian() { "✍️ Отправьте текст или аудио" } else { "✍️ Send text or audio" };
-                bot.send_message(msg.chat.id, text).await?;
+                send_message_timeout(
+                    &bot, msg.chat.id, text, None,
+                ).await?;
             }
         }
         _ => {}
