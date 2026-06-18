@@ -11,11 +11,71 @@ use trios_mb_types::AppError;
 const INFISICAL_API_URL: &str = "https://app.infisical.com/api";
 const MAX_SECRET_CACHE_ENTRIES: usize = 1000;
 const SECRET_CACHE_TTL: Duration = Duration::from_secs(5 * 60); // 5 minutes per key
+const MAX_BODY_BYTES: usize = 1_048_576; // 1 MiB
+const BODY_READ_TIMEOUT_SECS: u64 = 10;
+
+/// Read an HTTP response body with a hard byte cap and timeout to prevent
+/// OOM from malicious or misbehaving servers.
+async fn read_body_limited(resp: reqwest::Response, max_bytes: usize) -> Result<String, AppError> {
+    let bytes = match tokio::time::timeout(Duration::from_secs(BODY_READ_TIMEOUT_SECS), resp.bytes()).await {
+        Ok(Ok(b)) => b,
+        Ok(Err(e)) => return Err(AppError::Secrets(SecretsError::Api {
+            status: 0,
+            message: format!("failed to read response body: {}", e),
+        })),
+        Err(_) => return Err(AppError::Secrets(SecretsError::Api {
+            status: 0,
+            message: "response body read timed out".into(),
+        })),
+    };
+    if bytes.len() > max_bytes {
+        return Err(AppError::Secrets(SecretsError::Api {
+            status: 0,
+            message: format!("response body too large: {} bytes (max {})", bytes.len(), max_bytes),
+        }));
+    }
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// Read an HTTP response body with a hard byte cap and timeout, then parse JSON.
+async fn read_json_limited<T: serde::de::DeserializeOwned>(resp: reqwest::Response, max_bytes: usize) -> Result<T, AppError> {
+    let bytes = match tokio::time::timeout(Duration::from_secs(BODY_READ_TIMEOUT_SECS), resp.bytes()).await {
+        Ok(Ok(b)) => b,
+        Ok(Err(e)) => return Err(AppError::Secrets(SecretsError::Api {
+            status: 0,
+            message: format!("failed to read response body: {}", e),
+        })),
+        Err(_) => return Err(AppError::Secrets(SecretsError::Api {
+            status: 0,
+            message: "response body read timed out".into(),
+        })),
+    };
+    if bytes.len() > max_bytes {
+        return Err(AppError::Secrets(SecretsError::Api {
+            status: 0,
+            message: format!("response body too large: {} bytes (max {})", bytes.len(), max_bytes),
+        }));
+    }
+    serde_json::from_slice(&bytes).map_err(|e| AppError::Secrets(SecretsError::Api {
+        status: 0,
+        message: format!("json parse error: {}", e),
+    }))
+}
 
 struct SecretCache {
     access_token: Option<String>,
     token_expires_at: Option<chrono::DateTime<chrono::Utc>>,
     secrets: HashMap<String, (String, Instant)>,
+}
+
+impl std::fmt::Debug for SecretCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SecretCache")
+            .field("access_token", &"[REDACTED]")
+            .field("token_expires_at", &self.token_expires_at)
+            .field("secrets", &format!("[{} entries]", self.secrets.len()))
+            .finish()
+    }
 }
 
 impl SecretCache {
@@ -61,6 +121,19 @@ pub struct InfisicalStore {
     cache: Arc<RwLock<SecretCache>>,
 }
 
+impl std::fmt::Debug for InfisicalStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InfisicalStore")
+            .field("client_id", &"[REDACTED]")
+            .field("client_secret", &"[REDACTED]")
+            .field("project_id", &"[REDACTED]")
+            .field("environment", &self.environment)
+            .field("http", &self.http)
+            .field("cache", &self.cache)
+            .finish()
+    }
+}
+
 impl InfisicalStore {
     pub fn new(client_id: &str, client_secret: &str, project_id: &str, environment: &str) -> Result<Self, AppError> {
         let http = Client::builder()
@@ -100,13 +173,12 @@ impl InfisicalStore {
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
-            let body = resp.text().await
-                .map_err(|e| AppError::Secrets(SecretsError::Auth(format!("failed to read error body: {}", e))))?;
-            return Err(AppError::Secrets(SecretsError::Auth(format!("{}: {}", status, body))));
+            let body = read_body_limited(resp, MAX_BODY_BYTES).await?;
+            let truncated = trios_mb_types::truncate_for_log(&body, 4096);
+            return Err(AppError::Secrets(SecretsError::Auth(format!("{}: {}", status, truncated))));
         }
 
-        let body: serde_json::Value = resp.json().await
-            .map_err(|e| AppError::Secrets(SecretsError::Auth(e.to_string())))?;
+        let body: serde_json::Value = read_json_limited(resp, MAX_BODY_BYTES).await?;
 
         let token = body["accessToken"].as_str()
             .ok_or_else(|| AppError::Secrets(SecretsError::Auth("No accessToken in response".into())))?
@@ -135,13 +207,12 @@ impl InfisicalStore {
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
-            let body = resp.text().await
-                .map_err(|e| AppError::Secrets(SecretsError::Api { status: 0, message: format!("failed to read error body: {}", e) }))?;
-            return Err(AppError::Secrets(SecretsError::Api { status, message: body }));
+            let body = read_body_limited(resp, MAX_BODY_BYTES).await?;
+            let truncated = trios_mb_types::truncate_for_log(&body, 4096);
+            return Err(AppError::Secrets(SecretsError::Api { status, message: truncated.to_string() }));
         }
 
-        let body: serde_json::Value = resp.json().await
-            .map_err(|e| AppError::Secrets(SecretsError::Api { status: 0, message: e.to_string() }))?;
+        let body: serde_json::Value = read_json_limited(resp, MAX_BODY_BYTES).await?;
 
         let mut cache = self.cache.write().await;
 
