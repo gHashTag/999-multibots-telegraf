@@ -4,7 +4,7 @@ use teloxide::prelude::*;
 use trios_mb_traits::Database;
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::keyboards::main_menu_keyboard;
+use trios_mb_tg::{keyboards::main_menu_keyboard, send_message_timeout, dialogue_update_timeout};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -32,9 +32,7 @@ pub async fn handle_change_language(
     }
 
     let text = trios_mb_i18n::t(new_lang, "language_changed");
-    bot.send_message(msg.chat.id, text)
-        .reply_markup(main_menu_keyboard(new_lang))
-        .await?;
-    dialogue.update(Scene::MainMenu).await?;
+    send_message_timeout(&bot, msg.chat.id, text, Some(main_menu_keyboard(new_lang).into())).await?;
+    dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
     Ok(())
 }

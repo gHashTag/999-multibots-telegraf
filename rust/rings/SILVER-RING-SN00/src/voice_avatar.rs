@@ -4,7 +4,7 @@ use teloxide::prelude::*;
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, VoiceAvatarState};
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, send_message_timeout, dialogue_update_timeout};
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
@@ -28,11 +28,9 @@ pub async fn handle_voice_avatar_msg(
         } else {
             "🎙️ Send a voice message to create your voice avatar"
         };
-        bot.send_message(msg.chat.id, text)
-            .reply_markup(crate::generation_utils::back_cancel_keyboard(lang))
-            .await?;
+        send_message_timeout(&bot, msg.chat.id, text, Some(crate::generation_utils::back_cancel_keyboard(lang).into())).await?;
         state.step = 1;
-        dialogue.update(Scene::VoiceAvatar(state)).await?;
+        dialogue_update_timeout(&dialogue, Scene::VoiceAvatar(state)).await?;
         return Ok(());
     }
 
@@ -68,7 +66,7 @@ pub async fn handle_voice_avatar_msg(
             } else {
                 "🎙️ Please send a voice message"
             };
-            bot.send_message(msg.chat.id, text).await?;
+            send_message_timeout(&bot, msg.chat.id, text, None).await?;
         }
     }
 

@@ -3,7 +3,7 @@ use teloxide::dispatching::dialogue::{Dialogue, InMemStorage};
 use teloxide::prelude::*;
 use trios_mb_traits::Database;
 use trios_mb_tg::state::{Scene, EmailState};
-use trios_mb_tg::HandlerResult;
+use trios_mb_tg::{HandlerResult, send_message_timeout, dialogue_update_timeout};
 use crate::generation_utils::{load_lang, return_to_menu};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
@@ -78,9 +78,9 @@ pub async fn handle_email_msg(
         } else {
             "📧 Enter your email:"
         };
-        bot.send_message(msg.chat.id, text).await?;
+        send_message_timeout(&bot, msg.chat.id, text, None).await?;
         state.step = 1;
-        dialogue.update(Scene::Email(state)).await?;
+        dialogue_update_timeout(&dialogue, Scene::Email(state)).await?;
         return Ok(());
     }
 
@@ -88,22 +88,21 @@ pub async fn handle_email_msg(
         if let Some(text) = msg.text() {
             if text.len() > MAX_EMAIL_LEN {
                 let err = if lang.is_russian() { "❌ Email слишком длинный." } else { "❌ Email too long." };
-                bot.send_message(msg.chat.id, err).await?;
+                send_message_timeout(&bot, msg.chat.id, err, None).await?;
                 return Ok(());
             }
             let email = text.trim();
             if !validate_email(email) {
                 let err = if lang.is_russian() { "❌ Некорректный email" } else { "❌ Invalid email" };
-                bot.send_message(msg.chat.id, err).await?;
+                send_message_timeout(&bot, msg.chat.id, err, None).await?;
                 return Ok(());
             }
-            state.email = Some(email.to_string());
             let text = if lang.is_russian() {
                 format!("✅ Email {} сохранён!", email)
             } else {
                 format!("✅ Email {} saved!", email)
             };
-            bot.send_message(msg.chat.id, text).await?;
+            send_message_timeout(&bot, msg.chat.id, text, None).await?;
             return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
         }
     }

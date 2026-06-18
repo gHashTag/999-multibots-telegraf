@@ -5,7 +5,7 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::Database;
 use trios_mb_tg::state::{Scene, SelectModelState};
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, send_message_timeout, dialogue_update_timeout};
 use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
@@ -40,9 +40,9 @@ pub async fn handle_select_model_msg(
         } else {
             "🤖 Select avatar language model:"
         };
-        bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
+        send_message_timeout(&bot, msg.chat.id, text, Some(kb.into())).await?;
         state.step = 1;
-        dialogue.update(Scene::SelectModel(state)).await?;
+        dialogue_update_timeout(&dialogue, Scene::SelectModel(state)).await?;
     }
 
     Ok(())
@@ -53,7 +53,7 @@ pub async fn handle_select_model_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
     dialogue: MyDialogue,
-    mut state: SelectModelState,
+    _state: SelectModelState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
     answer_callback_query_timeout(&bot, &q.id).await?;
@@ -81,7 +81,6 @@ pub async fn handle_select_model_callback(
                 "sm:llama" => "llama-3",
                 _ => "gpt-4o",
             };
-            state.selected_model = Some(model.to_string());
             if let Err(e) = db.update_user_model(tid, model).await {
                 tracing::error!(telegram_id = tid, error = %e, "Failed to update user model");
             }
@@ -90,7 +89,7 @@ pub async fn handle_select_model_callback(
             } else {
                 format!("✅ Model selected: {}", model)
             };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
             return return_to_menu(&bot, &dialogue, chat_id, lang).await;
         }
         _ => {}

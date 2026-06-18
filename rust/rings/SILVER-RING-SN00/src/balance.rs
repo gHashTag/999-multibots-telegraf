@@ -3,7 +3,7 @@ use teloxide::dispatching::dialogue::{Dialogue, InMemStorage};
 use teloxide::prelude::*;
 use trios_mb_traits::Database;
 use trios_mb_tg::state::Scene;
-use trios_mb_tg::HandlerResult;
+use trios_mb_tg::{HandlerResult, send_message_timeout, dialogue_update_timeout};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -29,7 +29,7 @@ pub async fn handle_balance(
             } else {
                 "❌ Could not retrieve balance. Please try again later.".to_string()
             };
-            bot.send_message(msg.chat.id, err).await?;
+            send_message_timeout(&bot, msg.chat.id, err, None).await?;
             return Ok(());
         }
     };
@@ -38,7 +38,7 @@ pub async fn handle_balance(
     } else {
         format!("💰 Your balance: {:.2}", balance)
     };
-    bot.send_message(msg.chat.id, text).await?;
-    dialogue.update(Scene::Balance).await?;
+    send_message_timeout(&bot, msg.chat.id, text, None).await?;
+    dialogue_update_timeout(&dialogue, Scene::Balance).await?;
     Ok(())
 }

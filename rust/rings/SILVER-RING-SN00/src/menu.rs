@@ -4,7 +4,7 @@ use teloxide::prelude::*;
 use trios_mb_traits::Database;
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::keyboards::main_menu_keyboard;
+use trios_mb_tg::{keyboards::main_menu_keyboard, send_message_timeout, dialogue_update_timeout};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
@@ -16,9 +16,7 @@ pub async fn handle_menu(
     msg: Message,
     lang: trios_mb_types::user::Language,
 ) -> HandlerResult {
-    bot.send_message(msg.chat.id, trios_mb_i18n::t(lang, "main_menu"))
-        .reply_markup(main_menu_keyboard(lang))
-        .await?;
-    dialogue.update(Scene::MainMenu).await?;
+    send_message_timeout(&bot, msg.chat.id, trios_mb_i18n::t(lang, "main_menu"), Some(main_menu_keyboard(lang).into())).await?;
+    dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
     Ok(())
 }

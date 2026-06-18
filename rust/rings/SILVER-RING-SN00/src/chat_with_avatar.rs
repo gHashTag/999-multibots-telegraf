@@ -4,7 +4,7 @@ use teloxide::prelude::*;
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, ChatWithAvatarState};
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, send_message_timeout, dialogue_update_timeout};
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
@@ -28,11 +28,9 @@ pub async fn handle_chat_with_avatar_msg(
         } else {
             "💭 Write a message to the avatar:"
         };
-        bot.send_message(msg.chat.id, text)
-            .reply_markup(crate::generation_utils::back_cancel_keyboard(lang))
-            .await?;
+        send_message_timeout(&bot, msg.chat.id, text, Some(crate::generation_utils::back_cancel_keyboard(lang).into())).await?;
         state.step = 1;
-        dialogue.update(Scene::ChatWithAvatar(state)).await?;
+        dialogue_update_timeout(&dialogue, Scene::ChatWithAvatar(state)).await?;
         return Ok(());
     }
 
@@ -40,7 +38,7 @@ pub async fn handle_chat_with_avatar_msg(
         if let Some(text) = msg.text() {
             if text.len() > 4000 {
                 let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
-                bot.send_message(msg.chat.id, err).await?;
+                send_message_timeout(&bot, msg.chat.id, err, None).await?;
                 return Ok(());
             }
             state.message = Some(text.to_string());
@@ -65,7 +63,7 @@ pub async fn handle_chat_with_avatar_msg(
             ).await;
         } else {
             let err = if lang.is_russian() { "Отправьте текстовое сообщение" } else { "Send a text message" };
-            bot.send_message(msg.chat.id, err).await?;
+            send_message_timeout(&bot, msg.chat.id, err, None).await?;
         }
     }
 

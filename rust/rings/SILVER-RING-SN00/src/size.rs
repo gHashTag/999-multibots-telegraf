@@ -5,7 +5,7 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, SizeState};
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, send_message_timeout, dialogue_update_timeout};
 use crate::generation_utils::{load_lang, load_lang_cb};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
@@ -37,9 +37,9 @@ pub async fn handle_size_msg(
         ],
     ]);
     let text = if lang.is_russian() { "📐 Выберите размер:" } else { "📐 Select size:" };
-    bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
+    send_message_timeout(&bot, msg.chat.id, text, Some(kb.into())).await?;
     state.step = 1;
-    dialogue.update(Scene::Size(state)).await?;
+    dialogue_update_timeout(&dialogue, Scene::Size(state)).await?;
     Ok(())
 }
 
@@ -80,7 +80,7 @@ pub async fn handle_size_callback(
     } else {
         format!("✅ Selected size: {} ({}x{})", ratio, w, h)
     };
-    bot.send_message(chat_id, text).await?;
-    dialogue.update(Scene::Size(state)).await?;
+    send_message_timeout(&bot, chat_id, text, None).await?;
+    dialogue_update_timeout(&dialogue, Scene::Size(state)).await?;
     Ok(())
 }

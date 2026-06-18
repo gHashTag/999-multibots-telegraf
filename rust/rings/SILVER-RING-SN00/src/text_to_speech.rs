@@ -4,7 +4,7 @@ use teloxide::prelude::*;
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, TextToSpeechState};
 use trios_mb_tg::HandlerResult;
-use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::{answer_callback_query_timeout, send_message_timeout, dialogue_update_timeout};
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, deduct_balance, dispatch_and_reply};
 
@@ -36,11 +36,9 @@ pub async fn handle_text_to_speech_msg(
         } else {
             "🎙️ Send text to convert to voice"
         };
-        bot.send_message(msg.chat.id, text)
-            .reply_markup(crate::generation_utils::back_cancel_keyboard(lang))
-            .await?;
+        send_message_timeout(&bot, msg.chat.id, text, Some(crate::generation_utils::back_cancel_keyboard(lang).into())).await?;
         state.step = 1;
-        dialogue.update(Scene::TextToSpeech(state)).await?;
+        dialogue_update_timeout(&dialogue, Scene::TextToSpeech(state)).await?;
         return Ok(());
     }
 
@@ -48,18 +46,18 @@ pub async fn handle_text_to_speech_msg(
         if let Some(text) = msg.text() {
             if text.trim().is_empty() {
                 let err = if lang.is_russian() { "✍️ Пожалуйста, отправьте текст" } else { "✍️ Please send text" };
-                bot.send_message(msg.chat.id, err).await?;
+                send_message_timeout(&bot, msg.chat.id, err, None).await?;
                 return Ok(());
             }
 
             if text.len() > MAX_DIALOGUE_TEXT_LEN {
                 let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
-                bot.send_message(msg.chat.id, err).await?;
+                send_message_timeout(&bot, msg.chat.id, err, None).await?;
                 return Ok(());
             }
 
             if let Err(err_msg) = deduct_balance(&db, tid, TTS_COST, lang).await {
-                bot.send_message(msg.chat.id, err_msg).await?;
+                send_message_timeout(&bot, msg.chat.id, err_msg, None).await?;
                 return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
             }
             state.text = Some(text.to_string());
@@ -81,7 +79,7 @@ pub async fn handle_text_to_speech_msg(
             ).await;
         } else {
             let err = if lang.is_russian() { "✍️ Пожалуйста, отправьте текст" } else { "✍️ Please send text" };
-            bot.send_message(msg.chat.id, err).await?;
+            send_message_timeout(&bot, msg.chat.id, err, None).await?;
         }
     }
 
