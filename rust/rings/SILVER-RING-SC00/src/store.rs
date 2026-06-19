@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
+use secrecy::{ExposeSecret, SecretString};
 use trios_mb_traits::SecretStore;
 use trios_mb_types::errors::SecretsError;
 use trios_mb_types::AppError;
@@ -114,7 +115,7 @@ impl SecretCache {
 
 pub struct InfisicalStore {
     client_id: String,
-    client_secret: String,
+    client_secret: SecretString,
     project_id: String,
     environment: String,
     http: Client,
@@ -145,7 +146,7 @@ impl InfisicalStore {
             .map_err(|e| AppError::Internal(format!("Failed to build Infisical reqwest client: {}", e)))?;
         Ok(Self {
             client_id: client_id.to_string(),
-            client_secret: client_secret.to_string(),
+            client_secret: SecretString::new(client_secret.to_string()),
             project_id: project_id.to_string(),
             environment: environment.to_string(),
             http,
@@ -167,7 +168,7 @@ impl InfisicalStore {
             .post(format!("{}/v2/auth/universal-auth/login", INFISICAL_API_URL))
             .json(&serde_json::json!({
                 "clientId": self.client_id,
-                "clientSecret": self.client_secret,
+                "clientSecret": self.client_secret.expose_secret(),
             }))
             .send()
             .await

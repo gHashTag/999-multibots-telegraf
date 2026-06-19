@@ -129,6 +129,7 @@ fn build_sanitized_response(code: axum::http::StatusCode) -> Response {
         .header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'")
         .header("Referrer-Policy", "strict-origin-when-cross-origin")
         .header("Cache-Control", "no-cache, no-store, must-revalidate")
+        .header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
         .body(axum::body::Body::from("Bad Request"))
         .unwrap_or_else(|_| {
             // Fallback: builder should never fail with static headers, but

@@ -191,9 +191,10 @@ pub async fn replicate_webhook(
         }
 
         if let Some(weights) = payload.output_weights() {
+            let weights_truncated = trios_mb_types::truncate_for_log(&weights, 256);
             tracing::info!(
                 id = %payload.id,
-                weights = %weights,
+                weights = %weights_truncated,
                 "Training completed, weights available"
             );
         }
