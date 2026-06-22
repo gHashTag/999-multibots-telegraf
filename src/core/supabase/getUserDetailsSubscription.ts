@@ -168,11 +168,15 @@ export const getUserDetailsSubscription = async (
       console.log(`ℹ️ [getUserDetailsSubscription] Пользователь ${telegramIdStr} не админ, проверяем подписку через payments_v2`)
 
       try {
-      // Ищем активные подписки по приоритету: NEUROTESTER > NEUROVIDEO > NEUROPHOTO
+      // Ищем активные подписки по приоритету (highest first):
+      // NEUROTESTER > STUDIO > PRO > NEUROVIDEO > NEUROPHOTO > BASIC
       const subscriptionPriority = [
         SubscriptionType.NEUROTESTER,
+        SubscriptionType.STUDIO,
+        SubscriptionType.PRO,
         SubscriptionType.NEUROVIDEO,
         SubscriptionType.NEUROPHOTO,
+        SubscriptionType.BASIC,
       ]
 
       for (const subscriptionType of subscriptionPriority) {
@@ -219,7 +223,7 @@ export const getUserDetailsSubscription = async (
           // NEUROTESTER всегда активна
           isThisTypeActive = true
         } else {
-          // NEUROPHOTO, NEUROVIDEO - временные подписки (30 дней)
+          // BASIC, PRO, STUDIO, NEUROPHOTO, NEUROVIDEO - временные подписки (30 дней)
           const paymentDate = new Date(subData.payment_date)
           const now = new Date()
           expirationDate = new Date(paymentDate)

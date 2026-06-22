@@ -86,8 +86,11 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
     return ctx.scene.enter(ModeEnum.CreateUserScene)
   }
 
-  // Проверка типа подписки - ТОЛЬКО ПЛАТНЫЕ ПОДПИСКИ
+  // Проверка типа подписки - ПЛАТНЫЕ ПОДПИСКИ (включая новые тарифы)
   if (
+    user.subscription === SubscriptionType.BASIC ||
+    user.subscription === SubscriptionType.PRO ||
+    user.subscription === SubscriptionType.STUDIO ||
     user.subscription === SubscriptionType.NEUROPHOTO ||
     user.subscription === SubscriptionType.NEUROVIDEO ||
     user.subscription === SubscriptionType.STARS

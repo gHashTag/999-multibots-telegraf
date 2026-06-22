@@ -226,10 +226,20 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
         messageText = isRu
           ? `💫 **Выберите подписку**
 
-Получите доступ ко всем функциям нейро-бота! Выберите подходящий тарифный план:`
+Получите доступ ко всем функциям нейро-бота!
+
+**Free** — 3 генерации/день, AI чат
+**Basic** — 299 ₽/мес: 50 генераций/мес, AI чат
+**Pro** — 699 ₽/мес: безлимит, все инструменты
+**Studio** — 1 999 ₽/мес: всё + API + маркетплейс`
           : `💫 **Choose Subscription**
 
-Get access to all neuro-bot features! Choose a suitable tariff plan:`
+Get access to all neuro-bot features!
+
+**Free** — 3 generations/day, AI chat
+**Basic** — $4/mo: 50 generations/mo, AI chat
+**Pro** — $9/mo: unlimited, all tools
+**Studio** — $25/mo: everything + API + marketplace`
 
         logger.warn(
           `[${ModeEnum.SubscriptionScene}] Translation not found for key 'subscriptionScene'. Using fallback text.`,

@@ -137,18 +137,29 @@ export const DIGITAL_AVATAR_COSTS = {
   v2: 0.2, // DigitalAvatarBodyV2
 } as const
 
-// === Цены на подписки ===
+// === Цены на подписки (новые тарифы) ===
+export const BASIC_PRICE_RUB = 299.0
+export const PRO_PRICE_RUB = 699.0
+export const STUDIO_PRICE_RUB = 1999.0
+
+// === Цены на подписки (legacy, для обратной совместимости) ===
+/** @deprecated Use BASIC/PRO/STUDIO prices instead */
 export const NEUROPHOTO_PRICE_RUB = 1110.0
+/** @deprecated Use BASIC/PRO/STUDIO prices instead */
 export const NEUROVIDEO_PRICE_RUB = 2999.0
 
 /**
  * Определяет тип подписки по сумме платежа.
  * @param amount Сумма платежа в рублях.
- * @returns Тип подписки ('neurophoto', 'neurovideo') или null
+ * @returns Тип подписки или null
  */
 export const getSubscriptionTypeByAmount = (
   amount: number
-): 'neurophoto' | 'neurovideo' | null => {
+): 'basic' | 'pro' | 'studio' | 'neurophoto' | 'neurovideo' | null => {
+  if (amount === BASIC_PRICE_RUB) return 'basic'
+  if (amount === PRO_PRICE_RUB) return 'pro'
+  if (amount === STUDIO_PRICE_RUB) return 'studio'
+  // Legacy amounts for backward compatibility
   if (amount === NEUROPHOTO_PRICE_RUB) return 'neurophoto'
   if (amount === NEUROVIDEO_PRICE_RUB) return 'neurovideo'
   return null

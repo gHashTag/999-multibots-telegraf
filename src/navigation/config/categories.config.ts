@@ -270,6 +270,14 @@ export const CATEGORIES: CategoryConfig[] = [
         mode: ModeEnum.SelectModel,
         requiresSubscription: true,
       },
+      {
+        id: 'ai_chat',
+        ru: '💬 AI Чат',
+        en: '💬 AI Chat',
+        icon: '💬',
+        mode: ModeEnum.AiChat,
+        directScene: true,
+      },
     ],
   },
   {

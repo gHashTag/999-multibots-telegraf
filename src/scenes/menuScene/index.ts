@@ -91,6 +91,9 @@ const menuCommandStep = async (ctx: MyContext) => {
 
     // --- Определяем ключ для приветственного сообщения ---
     if (
+      newSubscription === SubscriptionType.BASIC ||
+      newSubscription === SubscriptionType.PRO ||
+      newSubscription === SubscriptionType.STUDIO ||
       newSubscription === SubscriptionType.NEUROVIDEO ||
       newSubscription === SubscriptionType.NEUROPHOTO ||
       newSubscription === SubscriptionType.NEUROTESTER

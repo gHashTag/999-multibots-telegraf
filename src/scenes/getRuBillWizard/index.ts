@@ -61,11 +61,20 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
     const subscription = selectedPayment.subscription.toLowerCase()
     let amount: number
     let stars: number
-    if (subscription === SubscriptionType.NEUROPHOTO.toLowerCase()) {
-      amount = 1110 // Правильная сумма для НейроФото
+    if (subscription === SubscriptionType.BASIC.toLowerCase()) {
+      amount = 299
+      stars = 130
+    } else if (subscription === SubscriptionType.PRO.toLowerCase()) {
+      amount = 699
+      stars = 304
+    } else if (subscription === SubscriptionType.STUDIO.toLowerCase()) {
+      amount = 1999
+      stars = 869
+    } else if (subscription === SubscriptionType.NEUROPHOTO.toLowerCase()) {
+      amount = 1110 // Legacy: НейроФото
       stars = 476
     } else if (subscription === SubscriptionType.NEUROVIDEO.toLowerCase()) {
-      amount = 2999 // Правильная сумма для НейроВидео
+      amount = 2999 // Legacy: НейроВидео
       stars = 1303
     } else {
       await ctx.reply(
@@ -104,13 +113,16 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
       const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
       let subTypeEnum: SubscriptionType | null = null
-      if (
-        subscription.toLowerCase() === SubscriptionType.NEUROPHOTO.toLowerCase()
-      ) {
+      const subLower = subscription.toLowerCase()
+      if (subLower === SubscriptionType.BASIC.toLowerCase()) {
+        subTypeEnum = SubscriptionType.BASIC
+      } else if (subLower === SubscriptionType.PRO.toLowerCase()) {
+        subTypeEnum = SubscriptionType.PRO
+      } else if (subLower === SubscriptionType.STUDIO.toLowerCase()) {
+        subTypeEnum = SubscriptionType.STUDIO
+      } else if (subLower === SubscriptionType.NEUROPHOTO.toLowerCase()) {
         subTypeEnum = SubscriptionType.NEUROPHOTO
-      } else if (
-        subscription.toLowerCase() === SubscriptionType.NEUROVIDEO.toLowerCase()
-      ) {
+      } else if (subLower === SubscriptionType.NEUROVIDEO.toLowerCase()) {
         subTypeEnum = SubscriptionType.NEUROVIDEO
       }
 

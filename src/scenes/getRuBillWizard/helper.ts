@@ -17,14 +17,19 @@ export const paymentOptions: {
   stars: string
   subscription: SubscriptionType
 }[] = [
-  { amount: 1110, stars: '476', subscription: SubscriptionType.NEUROPHOTO },
-  { amount: 2999, stars: '1303', subscription: SubscriptionType.NEUROVIDEO },
-  // { amount: 49999, stars: '5000', subscription: 'neuromeeting' },
-  // { amount: 99999, stars: '7500', subscription: 'neuroblogger' },
-  //   { amount: 120000, stars: '10000', subscription: 'neuromentor' },
+  { amount: 299, stars: '130', subscription: SubscriptionType.BASIC },
+  { amount: 699, stars: '304', subscription: SubscriptionType.PRO },
+  { amount: 1999, stars: '869', subscription: SubscriptionType.STUDIO },
+  // Legacy plans kept for backward compatibility with existing payments
+  // { amount: 1110, stars: '476', subscription: SubscriptionType.NEUROPHOTO },
+  // { amount: 2999, stars: '1303', subscription: SubscriptionType.NEUROVIDEO },
 ]
 
 export const subscriptionTitles = (isRu: boolean) => ({
+  basic: isRu ? 'Basic' : 'Basic',
+  pro: isRu ? 'Pro' : 'Pro',
+  studio: isRu ? 'Studio' : 'Studio',
+  // Legacy titles
   neurophoto: isRu ? '📸 Нейрофото' : '📸 NeuroPhoto',
   neurovideo: isRu ? '📚 НейроВидео' : '📚 NeuroVideo',
 })

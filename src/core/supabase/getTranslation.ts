@@ -10,45 +10,65 @@ import { SubscriptionType } from '@/interfaces/subscription.interface'
 const DEFAULT_BUTTONS_RU: TranslationButton[] = [
   {
     row: 1,
-    text: '📸 НейроФото',
-    stars_price: 476,
-    en_price: 15,
-    ru_price: 1110,
-    description: 'Опис тарифу НейроФото...',
-    callback_data: 'neurophoto', // SubscriptionType.NEUROPHOTO.toLowerCase()
-    subscription: SubscriptionType.NEUROPHOTO,
+    text: 'Basic — 50 генераций/мес, AI чат',
+    stars_price: 130,
+    en_price: 4,
+    ru_price: 299,
+    description: '50 генераций в месяц, AI чат',
+    callback_data: 'basic',
+    subscription: SubscriptionType.BASIC,
   },
   {
     row: 2,
-    text: '📚 НейроВидео',
-    stars_price: 1303,
-    en_price: 35,
-    ru_price: 2999,
-    description: 'Опис тарифу НейроВидео...',
-    subscription: SubscriptionType.NEUROVIDEO,
-    callback_data: 'neurovideo', // SubscriptionType.NEUROVIDEO.toLowerCase()
+    text: 'Pro — безлимит, все инструменты',
+    stars_price: 304,
+    en_price: 9,
+    ru_price: 699,
+    description: 'Безлимитные генерации, все инструменты',
+    callback_data: 'pro',
+    subscription: SubscriptionType.PRO,
+  },
+  {
+    row: 3,
+    text: 'Studio — всё + API + маркетплейс',
+    stars_price: 869,
+    en_price: 25,
+    ru_price: 1999,
+    description: 'Всё из Pro + API доступ + маркетплейс',
+    callback_data: 'studio',
+    subscription: SubscriptionType.STUDIO,
   },
 ]
 const DEFAULT_BUTTONS_EN: TranslationButton[] = [
   {
     row: 1,
-    text: '📸 NeuroPhoto',
-    en_price: 15,
-    ru_price: 1110,
-    description: 'Description of the NeuroPhoto tariff...',
-    stars_price: 476,
-    callback_data: 'neurophoto',
-    subscription: SubscriptionType.NEUROPHOTO,
+    text: 'Basic — 50 gens/mo, AI chat',
+    en_price: 4,
+    ru_price: 299,
+    description: '50 generations per month, AI chat',
+    stars_price: 130,
+    callback_data: 'basic',
+    subscription: SubscriptionType.BASIC,
   },
   {
     row: 2,
-    text: '📚 NeuroVideo',
-    en_price: 35,
-    ru_price: 2999,
-    description: 'Description of the NeuroVideo tariff...',
-    stars_price: 1303,
-    callback_data: 'neurovideo',
-    subscription: SubscriptionType.NEUROVIDEO,
+    text: 'Pro — unlimited, all tools',
+    en_price: 9,
+    ru_price: 699,
+    description: 'Unlimited generations, all tools',
+    stars_price: 304,
+    callback_data: 'pro',
+    subscription: SubscriptionType.PRO,
+  },
+  {
+    row: 3,
+    text: 'Studio — everything + API + marketplace',
+    en_price: 25,
+    ru_price: 1999,
+    description: 'Everything from Pro + API access + marketplace',
+    stars_price: 869,
+    callback_data: 'studio',
+    subscription: SubscriptionType.STUDIO,
   },
 ]
 
@@ -261,10 +281,10 @@ export async function getTranslation({
           .map((item, index) => {
             // Create TranslationButton from Level
             const subscriptionMap: Record<number, SubscriptionType> = {
-              1: SubscriptionType.NEUROPHOTO,
-              2: SubscriptionType.NEUROPHOTO,
-              9: SubscriptionType.NEUROVIDEO,
-              10: SubscriptionType.NEUROVIDEO,
+              1: SubscriptionType.BASIC,
+              2: SubscriptionType.BASIC,
+              9: SubscriptionType.PRO,
+              10: SubscriptionType.PRO,
             }
 
             // 🐛 DEBUG: Log first 3 buttons to see what's happening
@@ -296,7 +316,7 @@ export async function getTranslation({
               row: index > 100 ? 2 : 1, // Admin buttons on second row
               text: textValue,
               callback_data: `level_${index}`, // Required by TranslationButton interface
-              subscription: subscriptionMap[index] || SubscriptionType.NEUROPHOTO,
+              subscription: subscriptionMap[index] || SubscriptionType.BASIC,
               stars_price: 476,
               en_price: 15,
               ru_price: 1110,

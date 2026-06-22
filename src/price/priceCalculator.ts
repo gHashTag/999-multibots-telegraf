@@ -17,8 +17,19 @@ export interface PaymentOption {
   isAdminOnly?: boolean
 }
 
-// У нас два тарифных плана, не менять!!!
+// Tier-based subscription plans (4 tiers)
+// Legacy NEUROPHOTO/NEUROVIDEO plans kept below for backward compat
 export const paymentOptionsPlans: PaymentOption[] = [
+  { amount: 299, stars: '130', subscription: SubscriptionType.BASIC },
+  { amount: 699, stars: '304', subscription: SubscriptionType.PRO },
+  { amount: 1999, stars: '869', subscription: SubscriptionType.STUDIO },
+]
+
+/**
+ * @deprecated Legacy plans. Kept for backward compatibility with existing payments.
+ * New code should use paymentOptionsPlans (BASIC/PRO/STUDIO).
+ */
+export const legacyPaymentOptionsPlans: PaymentOption[] = [
   { amount: 1110, stars: '476', subscription: SubscriptionType.NEUROPHOTO },
   { amount: 2999, stars: '1303', subscription: SubscriptionType.NEUROVIDEO },
 ]

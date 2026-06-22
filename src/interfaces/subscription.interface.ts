@@ -1,8 +1,65 @@
 export enum SubscriptionType {
+  // --- New tier-based subscriptions ---
+  FREE = 'FREE',
+  BASIC = 'BASIC',
+  PRO = 'PRO',
+  STUDIO = 'STUDIO',
+
+  // --- Legacy types (kept for backward compatibility) ---
+  /** @deprecated Maps to PRO tier. Use SubscriptionType.PRO instead. */
   NEUROPHOTO = 'NEUROPHOTO',
+  /** @deprecated Maps to PRO tier. Use SubscriptionType.PRO instead. */
   NEUROVIDEO = 'NEUROVIDEO',
   STARS = 'STARS',
   NEUROTESTER = 'NEUROTESTER',
+}
+
+/**
+ * Maps any SubscriptionType to its canonical tier.
+ * Legacy NEUROPHOTO/NEUROVIDEO subscribers are treated as PRO.
+ */
+export function getSubscriptionTier(
+  type: SubscriptionType | null | undefined
+): SubscriptionType {
+  switch (type) {
+    case SubscriptionType.STUDIO:
+      return SubscriptionType.STUDIO
+    case SubscriptionType.PRO:
+    case SubscriptionType.NEUROPHOTO:
+    case SubscriptionType.NEUROVIDEO:
+      return SubscriptionType.PRO
+    case SubscriptionType.BASIC:
+      return SubscriptionType.BASIC
+    case SubscriptionType.NEUROTESTER:
+      return SubscriptionType.NEUROTESTER
+    default:
+      return SubscriptionType.FREE
+  }
+}
+
+/**
+ * Generation limits per subscription tier.
+ * FREE: 3 per day, BASIC: 50 per month, PRO/STUDIO: unlimited.
+ */
+export const TIER_LIMITS: Record<
+  string,
+  { daily: number | null; monthly: number | null }
+> = {
+  [SubscriptionType.FREE]: { daily: 3, monthly: null },
+  [SubscriptionType.BASIC]: { daily: null, monthly: 50 },
+  [SubscriptionType.PRO]: { daily: null, monthly: null },
+  [SubscriptionType.STUDIO]: { daily: null, monthly: null },
+  [SubscriptionType.NEUROTESTER]: { daily: null, monthly: null },
+}
+
+/**
+ * Pricing for each tier in RUB per month.
+ */
+export const TIER_PRICES_RUB: Record<string, number> = {
+  [SubscriptionType.FREE]: 0,
+  [SubscriptionType.BASIC]: 299,
+  [SubscriptionType.PRO]: 699,
+  [SubscriptionType.STUDIO]: 1999,
 }
 
 export interface Subscription {

@@ -96,6 +96,9 @@ export enum ModeEnum {
   TextToImage = 'text_to_image',
   FluxKontext = 'flux_kontext',
 
+  // 💬 AI ЧАТ
+  AiChat = 'aiChatWizard',
+
   // 🎵 МУЗЫКА
   MusicGeneration = 'music_generation_wizard',
 

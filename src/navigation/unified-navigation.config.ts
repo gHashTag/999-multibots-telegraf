@@ -104,6 +104,14 @@ export const NAVIGATION_BUTTONS: NavigationButton[] = [
     icon: '🎙️'
   },
 
+  {
+    ru: '💬 AI Чат',
+    en: '💬 AI Chat',
+    mode: ModeEnum.AiChat,
+    category: 'ai',
+    icon: '💬'
+  },
+
   // === ВИДЕО И ФОТО ===
   {
     ru: '🎥 Фото в видео',

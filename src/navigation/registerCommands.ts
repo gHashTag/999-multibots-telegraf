@@ -80,6 +80,7 @@ import {
   musicGenerationWizard,
   voiceTrainingWizard,
   aiCoverWizard,
+  aiChatWizard,
 } from '@/scenes'
 
 // Импорт обработчиков и команд
@@ -976,6 +977,7 @@ export function createStage(): Scenes.Stage<MyContext> {
     musicGenerationWizard,
     voiceTrainingWizard,
     aiCoverWizard,
+    aiChatWizard,
     // ✅ ДОБАВЛЯЕМ СЦЕНЫ КАТЕГОРИЙ
     ...getCategoryScenes(),
   ]

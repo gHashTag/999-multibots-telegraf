@@ -62,5 +62,7 @@ export * from './balanceScene'
 // 🎤 VOICE TRAINING & AI COVER
 export { default as voiceTrainingWizard } from './voiceTrainingWizard'
 export { default as aiCoverWizard } from './aiCoverWizard'
+// 💬 AI CHAT
+export { aiChatWizard } from './aiChatWizard'
 // ✅ ЭКСПОРТИРУЕМ СЦЕНЫ КАТЕГОРИЙ
 export * from './categoryScenes'

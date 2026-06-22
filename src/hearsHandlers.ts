@@ -913,14 +913,16 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
           ? '❌ <b>Пополнение баланса недоступно без подписки</b>\n\n' +
             '💳 Функция пополнения баланса доступна только для пользователей с активной подпиской.\n\n' +
             '📋 <b>Доступные тарифы:</b>\n' +
-            '• NEUROPHOTO - работа с фото и изображениями\n' +
-            '• NEUROVIDEO - все функции включая видео\n\n' +
+            '• Basic (299 ₽/мес) - 50 генераций, AI чат\n' +
+            '• Pro (699 ₽/мес) - безлимит, все инструменты\n' +
+            '• Studio (1 999 ₽/мес) - всё + API + маркетплейс\n\n' +
             '💫 Нажмите "Оформить подписку" в главном меню для выбора тарифа'
           : '❌ <b>Balance top-up is not available without subscription</b>\n\n' +
             '💳 The balance top-up feature is only available for users with an active subscription.\n\n' +
             '📋 <b>Available plans:</b>\n' +
-            '• NEUROPHOTO - photo and image features\n' +
-            '• NEUROVIDEO - all features including video\n\n' +
+            '• Basic ($4/mo) - 50 generations, AI chat\n' +
+            '• Pro ($9/mo) - unlimited, all tools\n' +
+            '• Studio ($25/mo) - everything + API + marketplace\n\n' +
             '💫 Press "Subscribe" in the main menu to choose a plan'
 
         await ctx.replyWithHTML(message)
@@ -957,14 +959,16 @@ export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
           ? '❌ <b>Просмотр баланса недоступен без подписки</b>\n\n' +
             '💳 Функции баланса доступны только для пользователей с активной подпиской.\n\n' +
             '📋 <b>Доступные тарифы:</b>\n' +
-            '• NEUROPHOTO - работа с фото и изображениями\n' +
-            '• NEUROVIDEO - все функции включая видео\n\n' +
+            '• Basic (299 ₽/мес) - 50 генераций, AI чат\n' +
+            '• Pro (699 ₽/мес) - безлимит, все инструменты\n' +
+            '• Studio (1 999 ₽/мес) - всё + API + маркетплейс\n\n' +
             '💫 Нажмите "Оформить подписку" в главном меню для выбора тарифа'
           : '❌ <b>Balance view is not available without subscription</b>\n\n' +
             '💳 Balance features are only available for users with an active subscription.\n\n' +
             '📋 <b>Available plans:</b>\n' +
-            '• NEUROPHOTO - photo and image features\n' +
-            '• NEUROVIDEO - all features including video\n\n' +
+            '• Basic ($4/mo) - 50 generations, AI chat\n' +
+            '• Pro ($9/mo) - unlimited, all tools\n' +
+            '• Studio ($25/mo) - everything + API + marketplace\n\n' +
             '💫 Press "Subscribe" in the main menu to choose a plan'
 
         await ctx.replyWithHTML(message)
