@@ -93,6 +93,11 @@ pub async fn handle_image_to_video_msg(
         }
         3 => {
             if let Some(text) = msg.text() {
+                if text.trim().is_empty() {
+                    let err = if lang.is_russian() { "✍️ Введите описание" } else { "✍️ Enter a description" };
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                    return Ok(());
+                }
                 if text.trim().len() < 3 {
                     let err = if lang.is_russian() { "Описание слишком короткое." } else { "Description too short." };
                     send_message_timeout(&bot, msg.chat.id, err, None).await?;

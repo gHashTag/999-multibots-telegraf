@@ -1,3 +1,4 @@
+use std::sync::LazyLock;
 use secrecy::ExposeSecret;
 // Wave 151: api_key migrated to secrecy::SecretString
 use async_trait::async_trait;
@@ -8,6 +9,13 @@ use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
 const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+static ELEVENLABS_BASE_URL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("ELEVENLABS_BASE_URL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "https://api.elevenlabs.io".to_string())
+});
 
 #[derive(Debug, Serialize)]
 struct TtsPayload {
@@ -80,7 +88,7 @@ impl ElevenLabsProvider {
         Ok(Self {
             api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
             http,
-            base_url: "https://api.elevenlabs.io".to_string(),
+            base_url: ELEVENLABS_BASE_URL.clone(),
         })
     }
 

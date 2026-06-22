@@ -1,3 +1,4 @@
+use std::sync::LazyLock;
 use secrecy::ExposeSecret;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -7,6 +8,27 @@ use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
 const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+static OPENAI_BASE_URL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("OPENAI_BASE_URL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "https://api.openai.com".to_string())
+});
+
+static DEEPSEEK_BASE_URL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("DEEPSEEK_BASE_URL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "https://api.deepseek.com/v1".to_string())
+});
+
+static GROK_BASE_URL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("GROK_BASE_URL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "https://api.x.ai/v1".to_string())
+});
 
 #[derive(Debug, Serialize)]
 struct ChatRequest {
@@ -91,7 +113,7 @@ impl OpenAiProvider {
         Ok(Self {
             api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
             http,
-            base_url: "https://api.openai.com".to_string(),
+            base_url: OPENAI_BASE_URL.clone(),
         })
     }
 
@@ -112,7 +134,7 @@ impl OpenAiProvider {
         Ok(Self {
             api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
             http,
-            base_url: "https://api.deepseek.com/v1".to_string(),
+            base_url: DEEPSEEK_BASE_URL.clone(),
         })
     }
 
@@ -128,7 +150,7 @@ impl OpenAiProvider {
         Ok(Self {
             api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
             http,
-            base_url: "https://api.x.ai/v1".to_string(),
+            base_url: GROK_BASE_URL.clone(),
         })
     }
 
