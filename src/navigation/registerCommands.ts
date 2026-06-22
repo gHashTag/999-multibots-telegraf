@@ -918,7 +918,31 @@ If not, continue on your own and click the "I myself" button`
       )
     })
 
-    // Commands registered successfully
+    // 10. AI FALLBACK — последний handler, ловит необработанный текст
+    bot.use(async (ctx: any, next: any) => {
+      if (!ctx.message || !('text' in ctx.message)) return next()
+      const text = ctx.message.text
+      if (!text || text.startsWith('/')) return next()
+      if (/^[\u{1F300}-\u{1FAD6}\u{2600}-\u{27BF}]/u.test(text)) return next()
+      if (ctx.scene?.current) return next()
+
+      try {
+        logger.info(`🤖 [AI Fallback] "${text.substring(0, 50)}" from ${ctx.from?.id}`)
+        const { chatWithAI } = await import('@/services/aiChatService')
+        const reply = await chatWithAI(
+          [
+            { role: 'system', content: 'Ты — AI ассистент бота. Помогаешь пользователям с генерацией фото, видео, аватаров. Отвечай кратко (2-3 предложения). Тарифы: Free (3/день), Basic (299₽), Pro (699₽), Studio (1999₽). Для начала: /start' },
+            { role: 'user', content: text },
+          ],
+          undefined,
+          { telegramId: String(ctx.from?.id), botName: (ctx as any).botInfo?.username || '' }
+        )
+        await ctx.reply(reply)
+      } catch (err: any) {
+        logger.error('🤖 [AI Fallback] Error', { error: err?.message })
+      }
+    })
+
     logger.info(
       '✅ [Navigation] All commands and handlers registered successfully'
     )
