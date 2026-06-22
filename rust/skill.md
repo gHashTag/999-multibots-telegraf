@@ -125,3 +125,8 @@ Trigger: User says "исследуй слабые места работы, ис�
 - DB Connection Pool Constant Extraction — `repository.rs` (`DB_CONNECT_TIMEOUT_SECS`, `DB_IDLE_TIMEOUT_SECS`, `DB_MAX_CONNECTIONS`)
 - Duplicate Function-Level Constant Consolidation — `repository.rs` (`MAX_PROMPT_LEN`, `MAX_RESULT_URL_LEN`, `MAX_ERROR_LEN`)
 - Default Value + Pagination Constant Extraction — `repository.rs` (`DEFAULT_USER_LEVEL`, `DEFAULT_USER_BALANCE`, `MAX_TRANSACTION_PAGE_SIZE`)
+
+## Wave 247 Applied Skills
+- CORS Origin Scheme Validation — `router.rs` (`build_cors()`)
+- Health Check Timestamp Fingerprinting Removal — `health.rs`
+- Missing User Balance Sentinel Constant — `repository.rs` (`MISSING_USER_BALANCE_SENTINEL`)

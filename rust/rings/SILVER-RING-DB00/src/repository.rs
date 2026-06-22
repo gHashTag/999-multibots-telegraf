@@ -28,6 +28,7 @@ const DB_MAX_CONNECTIONS: u32 = 20;
 // Default user values
 const DEFAULT_USER_LEVEL: i32 = 1;
 const DEFAULT_USER_BALANCE: f64 = 0.0;
+const MISSING_USER_BALANCE_SENTINEL: f64 = 0.0;
 
 // Pagination limits
 const MAX_TRANSACTION_PAGE_SIZE: i64 = 100;
@@ -348,8 +349,8 @@ impl DbTrait for PostgresDatabase {
         match user {
             Some(u) => Ok(u.balance),
             None => {
-                tracing::warn!(telegram_id, "get_balance called for non-existent user; returning 0.0 sentinel");
-                Ok(0.0)
+                tracing::warn!(telegram_id, "get_balance called for non-existent user; returning sentinel");
+                Ok(MISSING_USER_BALANCE_SENTINEL)
             }
         }
     }

@@ -17,7 +17,6 @@ pub async fn health_check() -> impl IntoResponse {
         )],
         Json(json!({
             "status": "ok",
-            "timestamp": chrono::Utc::now().to_rfc3339(),
         })),
     )
 }

@@ -80,6 +80,10 @@ fn build_cors() -> CorsLayer {
     } else {
         let mut origins: Vec<http::HeaderValue> = Vec::new();
         for o in allowed_origins {
+            if !(o.starts_with("http://") || o.starts_with("https://")) {
+                tracing::warn!(origin = %o, "CORS origin missing scheme; skipping");
+                continue;
+            }
             match http::HeaderValue::from_str(&o) {
                 Ok(hv) => origins.push(hv),
                 Err(e) => tracing::warn!(origin = %o, error = %e, "Invalid CORS origin; skipping"),
