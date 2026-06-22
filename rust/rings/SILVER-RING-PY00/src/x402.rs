@@ -16,6 +16,7 @@ impl X402Gateway {
             .connect_timeout(std::time::Duration::from_secs(10))
             .redirect(reqwest::redirect::Policy::none())
             .pool_max_idle_per_host(10)
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
             .build()
             .map_err(|e| AppError::Internal(format!("Failed to build x402 reqwest client: {}", e)))?;
         Ok(Self {

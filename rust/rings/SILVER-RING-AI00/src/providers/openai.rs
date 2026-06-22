@@ -81,7 +81,10 @@ impl OpenAiProvider {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(60))
             .connect_timeout(std::time::Duration::from_secs(10))
-            .redirect(reqwest::redirect::Policy::none()).pool_max_idle_per_host(10).build()
+            .redirect(reqwest::redirect::Policy::none())
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .build()
             .map_err(|e| AppError::Internal(format!("Failed to build OpenAI reqwest client: {}", e)))?;
         Ok(Self {
             api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
@@ -99,7 +102,10 @@ impl OpenAiProvider {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(60))
             .connect_timeout(std::time::Duration::from_secs(10))
-            .redirect(reqwest::redirect::Policy::none()).pool_max_idle_per_host(10).build()
+            .redirect(reqwest::redirect::Policy::none())
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .build()
             .map_err(|e| AppError::Internal(format!("Failed to build DeepSeek reqwest client: {}", e)))?;
         Ok(Self {
             api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
@@ -112,7 +118,10 @@ impl OpenAiProvider {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(60))
             .connect_timeout(std::time::Duration::from_secs(10))
-            .redirect(reqwest::redirect::Policy::none()).pool_max_idle_per_host(10).build()
+            .redirect(reqwest::redirect::Policy::none())
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .build()
             .map_err(|e| AppError::Internal(format!("Failed to build Grok reqwest client: {}", e)))?;
         Ok(Self {
             api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),

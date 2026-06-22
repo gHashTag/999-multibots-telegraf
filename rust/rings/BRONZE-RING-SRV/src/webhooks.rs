@@ -97,6 +97,7 @@ fn parse_uuid(s: &str) -> Result<uuid::Uuid, (StatusCode, String)> {
 /// Uses constant-time comparison to prevent timing attacks.
 /// Accepts `&SecretString` so the raw value is exposed only inside this function body,
 /// minimising the window where a core dump or panic message could recover it.
+#[tracing::instrument(skip_all)]
 fn verify_webhook_secret(headers: &HeaderMap, expected: &secrecy::SecretString) -> Result<(), (StatusCode, String)> {
     let provided = match headers.get("X-Webhook-Secret") {
         Some(h) => match h.to_str() {
