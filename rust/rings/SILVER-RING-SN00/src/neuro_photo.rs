@@ -68,6 +68,13 @@ pub async fn handle_neuro_photo_msg(
 
     if let Some(text) = msg.text() {
         if state.step == 2 && state.image_url.is_some() {
+            if text.trim().is_empty() {
+                let err = if lang.is_russian() { "❌ Пустой промпт не допускается." } else { "❌ Empty prompt is not allowed." };
+                send_message_timeout(
+                    &bot, msg.chat.id, err, None,
+                ).await?;
+                return Ok(());
+            }
             if text.len() > MAX_DIALOGUE_TEXT_LEN {
                 let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
                 send_message_timeout(

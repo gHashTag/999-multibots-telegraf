@@ -1,3 +1,4 @@
+use std::sync::LazyLock;
 use secrecy::ExposeSecret;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -7,6 +8,13 @@ use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
 const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+static REPLICATE_SDXL_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_SDXL_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "stability-ai/sdxl:7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc".to_string())
+});
 
 #[derive(Debug, Serialize)]
 struct PredictionInput {
@@ -73,7 +81,7 @@ impl ReplicateProvider {
     fn resolve_model_version(&self, model: &str) -> Option<String> {
         match model {
             "flux" => Some("black-forest-labs/flux-1.1-pro-ultra".to_string()),
-            "sdxl" => Some("stability-ai/sdxl:7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc".to_string()),
+            "sdxl" => Some(REPLICATE_SDXL_MODEL.clone()),
             "sd3" => Some("stability-ai/stable-diffusion-3.5-large-turbo".to_string()),
             "recraft" => Some("recraft-ai/recraft-v3".to_string()),
             "photon" => Some("luma/photon".to_string()),

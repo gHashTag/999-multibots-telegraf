@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage};
 use teloxide::prelude::*;
+use tokio::time::{timeout, Duration};
 use trios_mb_traits::{Database, JobQueue};
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
@@ -9,6 +10,8 @@ use trios_mb_tg::send_message_timeout;
 use trios_mb_types::generation::MediaType;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
+
+const TELEGRAM_API_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[tracing::instrument(skip_all)]
 pub async fn handle_instagram_scraping_msg(
@@ -83,10 +86,14 @@ pub async fn handle_instagram_scraping_msg(
     let lang = load_lang(&db, &msg).await;
     let chat_id = msg.chat.id;
 
-    let me = match bot.get_me().await {
-        Ok(u) => u,
-        Err(e) => {
+    let me = match timeout(TELEGRAM_API_TIMEOUT, bot.get_me()).await {
+        Ok(Ok(u)) => u,
+        Ok(Err(e)) => {
             tracing::warn!("Failed to get bot info: {}", e);
+            return Ok(());
+        }
+        Err(_) => {
+            tracing::warn!("bot.get_me() timed out");
             return Ok(());
         }
     };
