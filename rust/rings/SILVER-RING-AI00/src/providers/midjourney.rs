@@ -5,6 +5,12 @@ use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
+use std::time::Duration;
+
+const REQWEST_TIMEOUT: Duration = Duration::from_secs(120);
+const REQWEST_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const REQWEST_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+
 pub struct MidjourneyProvider {
     http: reqwest::Client,
 }
@@ -12,11 +18,11 @@ pub struct MidjourneyProvider {
 impl MidjourneyProvider {
     pub fn new(_api_key: &str) -> Result<Self, AppError> {
         let http = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(120))
-            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(REQWEST_TIMEOUT)
+            .connect_timeout(REQWEST_CONNECT_TIMEOUT)
             .redirect(reqwest::redirect::Policy::none())
             .pool_max_idle_per_host(10)
-            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .pool_idle_timeout(REQWEST_POOL_IDLE_TIMEOUT)
             .build()
             .map_err(|e| AppError::Internal(format!("Failed to build Midjourney reqwest client: {}", e)))?;
         Ok(Self {

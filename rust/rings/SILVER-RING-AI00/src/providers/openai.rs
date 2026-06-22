@@ -375,7 +375,8 @@ impl OpenAiProvider {
         }
 
         const MAX_RESPONSE_BYTES: u64 = 50 * 1024 * 1024;
-        let bytes = match tokio::time::timeout(std::time::Duration::from_secs(30), resp.bytes()).await {
+        const BODY_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+        let bytes = match tokio::time::timeout(BODY_READ_TIMEOUT, resp.bytes()).await {
             Ok(Ok(b)) => b,
             Ok(Err(e)) => {
                 return Err(AiError::InvalidResponse {

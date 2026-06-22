@@ -8,6 +8,8 @@ use trios_mb_tg::{answer_callback_query_timeout, send_message_timeout, dialogue_
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
+const MAX_VIDEO_TRANSCRIPTION_BYTES: u64 = 100 * 1024 * 1024;
+
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 #[tracing::instrument(skip_all)]
@@ -36,6 +38,15 @@ pub async fn handle_video_transcription_msg(
 
     if state.step == 1 {
         if let Some(video) = msg.video() {
+            if video.file.size as u64 > MAX_VIDEO_TRANSCRIPTION_BYTES {
+                let text = if lang.is_russian() {
+                    "❌ Видео слишком большое. Максимальный размер — 100 МБ."
+                } else {
+                    "❌ Video is too large. Maximum size is 100 MB."
+                };
+                send_message_timeout(&bot, msg.chat.id, text, Some(crate::generation_utils::back_cancel_keyboard(lang).into())).await?;
+                return Ok(());
+            }
             state.video_url = Some(video.file.id.clone());
             let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
     if tid == 0 {
