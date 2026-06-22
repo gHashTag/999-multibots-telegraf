@@ -13,6 +13,22 @@ use secrecy::SecretString;
 
 const ROUTER_TIMEOUT: Duration = Duration::from_secs(30);
 
+// HSTS max-age values (seconds)
+const HSTS_MAX_AGE_MAIN: u64 = 63072000; // 2 years
+const HSTS_MAX_AGE_SANITIZED: u64 = 31536000; // 1 year
+
+// Body limit values (bytes)
+const WEBHOOK_BODY_LIMIT_BYTES: usize = 256 * 1024;
+const GLOBAL_BODY_LIMIT_BYTES: usize = 2 * 1024 * 1024;
+
+// Rate limit values
+const HEALTH_RATE_PER_SECOND: u64 = 10;
+const HEALTH_RATE_BURST: u32 = 20;
+const WEBHOOK_RATE_PER_SECOND: u64 = 2;
+const WEBHOOK_RATE_BURST: u32 = 30;
+const PAYMENT_RATE_PER_SECOND: u64 = 1;
+const PAYMENT_RATE_BURST: u32 = 10;
+
 /// Build a per-IP rate-limit layer.
 /// Returns `None` if the configuration is invalid (e.g., zero rates).
 fn rate_limit_layer(per_second: u64, burst_size: u32) -> Option<GovernorLayer<tower_governor::key_extractor::PeerIpKeyExtractor, governor::middleware::NoOpMiddleware>> {
@@ -114,7 +130,8 @@ async fn edge_hardening(
     let headers = response.headers_mut();
     headers.insert("X-Content-Type-Options", http::HeaderValue::from_static("nosniff"));
     headers.insert("X-Frame-Options", http::HeaderValue::from_static("DENY"));
-    headers.insert("Strict-Transport-Security", http::HeaderValue::from_static("max-age=63072000; includeSubDomains"));
+    let hsts_value = format!("max-age={}; includeSubDomains", HSTS_MAX_AGE_MAIN);
+    headers.insert("Strict-Transport-Security", http::HeaderValue::from_str(&hsts_value).unwrap_or_else(|_| http::HeaderValue::from_static("max-age=63072000; includeSubDomains")));
     headers.insert("Content-Security-Policy", http::HeaderValue::from_static("default-src 'none'; frame-ancestors 'none'; base-uri 'none'"));
     headers.insert("Referrer-Policy", http::HeaderValue::from_static("strict-origin-when-cross-origin"));
 
@@ -136,7 +153,7 @@ fn build_sanitized_response(code: axum::http::StatusCode) -> Response {
         .header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'")
         .header("Referrer-Policy", "strict-origin-when-cross-origin")
         .header("Cache-Control", "no-cache, no-store, must-revalidate")
-        .header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        .header("Strict-Transport-Security", format!("max-age={}; includeSubDomains", HSTS_MAX_AGE_SANITIZED))
         .body(axum::body::Body::from("Bad Request"))
         .unwrap_or_else(|_| {
             // Fallback: builder should never fail with static headers, but
@@ -167,16 +184,16 @@ pub fn create_router(db: Arc<dyn Database>) -> Result<Router, String> {
         Router::new()
             .route("/health", get(crate::health::health_check_with_db))
             .route("/health/simple", get(crate::health::health_check)),
-        10, 20,
+        HEALTH_RATE_PER_SECOND, HEALTH_RATE_BURST,
     )?;
 
     let webhooks = apply_rate_limit(
         Router::new()
             .route("/api/webhooks/replicate", post(crate::webhooks::replicate_webhook))
             .route("/api/webhooks/kie-ai", post(crate::webhooks::kie_ai_webhook)),
-        2, 30,
+        WEBHOOK_RATE_PER_SECOND, WEBHOOK_RATE_BURST,
     )?
-    .layer(axum::extract::DefaultBodyLimit::max(256 * 1024));
+    .layer(axum::extract::DefaultBodyLimit::max(WEBHOOK_BODY_LIMIT_BYTES));
 
     Ok(Router::new()
         .merge(health)
@@ -184,7 +201,7 @@ pub fn create_router(db: Arc<dyn Database>) -> Result<Router, String> {
         .layer(cors)
         .layer(axum::middleware::from_fn(edge_hardening))
         .layer(TimeoutLayer::new(ROUTER_TIMEOUT))
-        .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
+        .layer(axum::extract::DefaultBodyLimit::max(GLOBAL_BODY_LIMIT_BYTES))
         .with_state(state))
 }
 
@@ -211,21 +228,21 @@ pub fn create_router_with_payments(
         Router::new()
             .route("/health", get(crate::health::health_check_with_db))
             .route("/health/simple", get(crate::health::health_check)),
-        10, 20,
+        HEALTH_RATE_PER_SECOND, HEALTH_RATE_BURST,
     )?;
 
     let webhooks = apply_rate_limit(
         Router::new()
             .route("/api/webhooks/replicate", post(crate::webhooks::replicate_webhook))
             .route("/api/webhooks/kie-ai", post(crate::webhooks::kie_ai_webhook)),
-        2, 30,
+        WEBHOOK_RATE_PER_SECOND, WEBHOOK_RATE_BURST,
     )?
-    .layer(axum::extract::DefaultBodyLimit::max(256 * 1024));
+    .layer(axum::extract::DefaultBodyLimit::max(WEBHOOK_BODY_LIMIT_BYTES));
 
     let payments = apply_rate_limit(
         Router::new()
             .route("/api/payment-success", post(crate::payment_webhooks::robokassa_callback)),
-        1, 10,
+        PAYMENT_RATE_PER_SECOND, PAYMENT_RATE_BURST,
     )?;
 
     Ok(Router::new()
@@ -235,6 +252,6 @@ pub fn create_router_with_payments(
         .layer(cors)
         .layer(axum::middleware::from_fn(edge_hardening))
         .layer(TimeoutLayer::new(ROUTER_TIMEOUT))
-        .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
+        .layer(axum::extract::DefaultBodyLimit::max(GLOBAL_BODY_LIMIT_BYTES))
         .with_state(state))
 }

@@ -115,3 +115,8 @@ Trigger: User says "исследуй слабые места работы, ис�
 - Named Timeout Constant Extraction (Router Layer) — `router.rs` (`ROUTER_TIMEOUT`)
 - Empty/Whitespace Text Rejection — `payment.rs` (payment amount)
 - Empty Text Rejection — `email.rs` (email address)
+
+## Wave 245 Applied Skills
+- HSTS Max-Age Constant Extraction — `router.rs` (`HSTS_MAX_AGE_MAIN`, `HSTS_MAX_AGE_SANITIZED`)
+- Body Limit Constant Extraction — `router.rs` (`WEBHOOK_BODY_LIMIT_BYTES`, `GLOBAL_BODY_LIMIT_BYTES`)
+- Rate Limit Constant Extraction — `router.rs` (`HEALTH_RATE_*`, `WEBHOOK_RATE_*`, `PAYMENT_RATE_*`)
