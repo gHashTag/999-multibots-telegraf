@@ -40,6 +40,20 @@ static OPENAI_DEFAULT_MODEL: LazyLock<String> = LazyLock::new(|| {
         .unwrap_or_else(|| "gpt-4o".to_string())
 });
 
+static OPENAI_DEFAULT_TTS_VOICE: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("OPENAI_DEFAULT_TTS_VOICE")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "alloy".to_string())
+});
+
+static OPENAI_DEFAULT_TTS_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("OPENAI_DEFAULT_TTS_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "tts-1".to_string())
+});
+
 #[derive(Debug, Serialize)]
 struct ChatRequest {
     model: String,
@@ -314,11 +328,11 @@ impl OpenAiProvider {
         }
         let voice = request.params.get("voice")
             .and_then(|v| v.as_str())
-            .unwrap_or("alloy");
+            .unwrap_or(&OPENAI_DEFAULT_TTS_VOICE);
 
         let speed = request.params.get("speed").and_then(|v| v.as_f64()).filter(|s| s.is_finite() && *s > 0.0 && *s <= 4.0);
         let body = TtsRequest {
-            model: "tts-1".to_string(),
+            model: OPENAI_DEFAULT_TTS_MODEL.clone(),
             input: prompt.to_string(),
             voice: voice.to_string(),
             speed,

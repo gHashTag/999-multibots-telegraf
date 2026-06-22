@@ -8,6 +8,9 @@ use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
 const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const REQWEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const REQWEST_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+const REQWEST_POOL_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -61,11 +64,11 @@ pub struct KieProvider {
 impl KieProvider {
     pub fn new(api_key: &str) -> Result<Self, AppError> {
         let http = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(60))
-            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(REQWEST_TIMEOUT)
+            .connect_timeout(REQWEST_CONNECT_TIMEOUT)
             .redirect(reqwest::redirect::Policy::none())
             .pool_max_idle_per_host(10)
-            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .pool_idle_timeout(REQWEST_POOL_IDLE_TIMEOUT)
             .build()
             .map_err(|e| AppError::Internal(format!("Failed to build KIE reqwest client: {}", e)))?;
         Ok(Self {
