@@ -2,9 +2,6 @@
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
-[build.args]
-SKIP_TYPE_CHECK = "true"
-
 [deploy]
 healthcheckPath = "/health"
 healthcheckTimeout = 300
