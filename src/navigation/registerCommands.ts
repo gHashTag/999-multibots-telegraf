@@ -110,11 +110,8 @@ import { autoFixerConfigScene } from '@/commands/autofixer/autofixer-config.scen
 import { requireAdmin } from '@/middleware/adminOnly'
 import { setupAutonomousMonitor } from '@/commands/autonomousMonitor'
 import {
-  handleBusinessConnection,
-  handleBusinessMessage,
+  createBusinessMiddleware,
   getBusinessStats,
-  type BusinessConnection,
-  type BusinessMessage,
 } from '@/services/businessBotService'
 import { registerMultiPhotoActions } from '@/handlers/multiPhotoActions'
 import { handleHelpCommand } from '@/commands/helpCommand'
@@ -506,29 +503,8 @@ If not, continue on your own and click the "I myself" button`
     )
     setupAutonomousMonitor(bot)
 
-    // 9. TELEGRAM BUSINESS INTEGRATION
-    ;(bot as any).on('business_connection', async (ctx: any) => {
-      try {
-        const connection: BusinessConnection = ctx.update.business_connection
-        handleBusinessConnection(connection)
-      } catch (error) {
-        logger.error('[Business] Error handling business_connection', {
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    })
-
-    ;(bot as any).on('business_message', async (ctx: any) => {
-      try {
-        const msg: BusinessMessage = ctx.update.business_message
-        const botUsername = ctx.botInfo?.username || ''
-        await handleBusinessMessage(msg, bot as any, botUsername)
-      } catch (error) {
-        logger.error('[Business] Error handling business_message', {
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    })
+    // 9. TELEGRAM BUSINESS INTEGRATION (raw middleware — Telegraf 4.16 lacks native support)
+    createBusinessMiddleware(bot as any)
 
     bot.command('business', requireAdmin(), async ctx => {
       const s = getBusinessStats()

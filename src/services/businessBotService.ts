@@ -168,6 +168,28 @@ export async function handleBusinessMessage(
   }
 }
 
+// --- Raw middleware (Telegraf 4.16.3 doesn't support business events natively) ---
+
+export function createBusinessMiddleware(bot: Telegraf<any>) {
+  const botUsername = bot.botInfo?.username || ''
+
+  bot.use(async (ctx: any, next: () => Promise<void>) => {
+    const update = ctx.update
+
+    if (update.business_connection) {
+      handleBusinessConnection(update.business_connection as BusinessConnection)
+      return
+    }
+
+    if (update.business_message) {
+      await handleBusinessMessage(update.business_message as BusinessMessage, bot, botUsername)
+      return
+    }
+
+    return next()
+  })
+}
+
 // --- Admin stats ---
 
 export function getBusinessStats(): {
