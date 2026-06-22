@@ -641,7 +641,7 @@ impl DbTrait for PostgresDatabase {
             .filter(g::Column::TelegramId.eq(telegram_id))
             .count(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("get_generated_images_count", e))?;
         Ok(count as i64)
     }
 
@@ -740,7 +740,7 @@ impl DbTrait for PostgresDatabase {
             .filter(r::Column::ReferrerId.eq(telegram_id))
             .count(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("get_referral_count", e))?;
         Ok(count as i64)
     }
 

@@ -47,6 +47,10 @@ pub async fn robokassa_callback(
         tracing::warn!(len = form.inv_id.len(), "Robokassa callback rejected: inv_id too long");
         return "ERROR: invalid inv_id".to_string();
     }
+    if !form.inv_id.chars().all(|c| c.is_ascii_digit()) {
+        tracing::warn!(inv_id = %truncate_for_log(&form.inv_id, 128), "Robokassa callback rejected: inv_id contains non-digit characters");
+        return "ERROR: invalid inv_id format".to_string();
+    }
     if form.signature_value.len() > MAX_SIGNATURE_LEN {
         tracing::warn!(len = form.signature_value.len(), "Robokassa callback rejected: signature too long");
         return "ERROR: invalid signature".to_string();

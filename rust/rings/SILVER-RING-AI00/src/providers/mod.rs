@@ -24,6 +24,7 @@ pub use midjourney::MidjourneyProvider;
 
 /// Read an HTTP error response body with a byte cap and timeout to prevent
 /// OOM and indefinite hangs from malicious or misbehaving servers.
+#[tracing::instrument(skip_all)]
 pub(crate) async fn read_error_body(resp: reqwest::Response, max_bytes: usize) -> String {
     match resp.content_length() {
         Some(len) if len > max_bytes as u64 => {
@@ -46,6 +47,7 @@ pub(crate) async fn read_error_body(resp: reqwest::Response, max_bytes: usize) -
 /// Read a successful HTTP response body with a hard timeout, enforce `max_bytes`,
 /// then parse JSON. This closes the chunked-transfer bypass where
 /// `content_length()` is `None` and `.json().await` buffers an infinite stream.
+#[tracing::instrument(skip(resp), fields(provider = %provider, max_bytes))]
 pub(super) async fn parse_json_limited<T: serde::de::DeserializeOwned>(
     resp: reqwest::Response,
     provider: &str,
