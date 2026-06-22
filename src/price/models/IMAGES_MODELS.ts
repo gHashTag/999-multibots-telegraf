@@ -15,6 +15,7 @@ interface ModelInfo {
 }
 
 export const IMAGES_MODELS: Record<string, ModelInfo> = {
+  /* DISABLED: 'black-forest-labs/flux-1.1-pro'
   'black-forest-labs/flux-1.1-pro': {
     shortName: 'FLUX1.1 [pro]',
     description_en: `FLUX1.1 [pro] generates images six times faster than its predecessor, with improved quality and diversity. It offers a balance between speed and image quality.`,
@@ -24,6 +25,7 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.055),
     inputType: ['text', 'image'],
   },
+  */
   'black-forest-labs/flux-1.1-pro-ultra': {
     shortName: 'FLUX1.1 [pro] Ultra',
     description_en: `FLUX1.1 [pro] Ultra supports 4x higher resolutions (up to 4MP) with fast generation times of 10 seconds per image. It offers high resolution without speed compromise and includes a raw mode for more natural aesthetics`,
@@ -33,6 +35,7 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.06),
     inputType: ['text', 'image'],
   },
+  /* DISABLED: 'black-forest-labs/flux-canny-pro'
   'black-forest-labs/flux-canny-pro': {
     shortName: 'FLUX1.1 [pro] Canny',
     description_en: `Edge-guided image generation that preserves structure and composition. Perfect for retexturing images or turning sketches into detailed art.\nFLUX.1 Canny [pro] leads the field in structural conditioning. It uses Canny edge detection to maintain precise control during image transformations. Feed it an edge map and text prompt to generate images that follow exact structural guidance while adding rich detail.\nParticularly effective for: - Converting sketches to finished art - Retexturing while preserving composition - Controlled style transfer - Architectural visualization`,
@@ -42,6 +45,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.05),
     inputType: ['text', 'image'],
   },
+  */
+  /* DISABLED: 'black-forest-labs/flux-depth-pro'
   'black-forest-labs/flux-depth-pro': {
     shortName: 'FLUX1.1 [pro] Depth',
     description_en: `Depth-guided image generation that preserves structure and composition. Perfect for retexturing images or turning sketches into detailed art.\nFLUX.1 Depth [pro] leads the field in depth conditioning. It uses depth maps to maintain precise control during image transformations. Feed it an image and its depth map to generate images that follow exact depth guidance while adding rich detail.\nParticularly effective for: - Retexturing while preserving composition - Architectural visualization - Controlled style transfer - 3D scene reconstruction`,
@@ -51,6 +56,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.05),
     inputType: ['text', 'image', 'dev'],
   },
+  */
+  /* DISABLED: 'black-forest-labs/flux-dev'
   'black-forest-labs/flux-dev': {
     shortName: 'FLUX1.1 [dev]',
     description_en: `Depth-aware image generation that preserves 3D relationships. Transform images while maintaining realistic spatial structure.\nFLUX.1 Depth [pro] outperforms proprietary solutions like Midjourney ReTexture in depth-aware tasks. It uses depth maps to maintain precise control during image transformations, letting you edit images while preserving spatial relationships and perspective.\nThe model excels at: - Architectural visualization - Product placement in scenes - Style transfer with depth preservation - Scene composition with accurate scaling\nOffers higher output diversity than other depth-guided models while maintaining spatial accuracy.`,
@@ -60,6 +67,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.025),
     inputType: ['text', 'image'],
   },
+  */
+  /* DISABLED: 'black-forest-labs/flux-dev-lora'
   'black-forest-labs/flux-dev-lora': {
     shortName: 'FLUX1.1 [dev] Lora',
     description_en: `FLUX-dev-lora is a model based on a hybrid architecture of multimodal and parallel blocks of diffusion transformer, optimized for image generation from text descriptions. It offers improved performance and efficiency, including rotational positional embeddings and parallel attention layers. FLUX-dev-lora is available for non-commercial use and supports open weights for scientific research and creative projects.`,
@@ -69,6 +78,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.032),
     inputType: ['text', 'image'],
   },
+  */
+  /* DISABLED: 'black-forest-labs/flux-fill-pro'
   'black-forest-labs/flux-fill-pro': {
     shortName: 'FLUX1.1 [pro] Fill',
     description_en: `FLUX.1 Fill [pro] is a model based on a hybrid architecture of multimodal and parallel blocks of diffusion transformer, optimized for image generation from text descriptions. It offers improved performance and efficiency, including rotational positional embeddings and parallel attention layers. FLUX.1 Fill [pro] is available for non-commercial use and supports open weights for scientific research and creative projects.`,
@@ -78,6 +89,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.05),
     inputType: ['text', 'image', 'dev'],
   },
+  */
+  /* DISABLED: 'black-forest-labs/flux-schnell'
   'black-forest-labs/flux-schnell': {
     shortName: 'FLUX1.1 [dev] Schnell',
     description_en: `Schnell model`,
@@ -87,6 +100,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.003),
     inputType: ['text'],
   },
+  */
+  /* DISABLED: 'black-forest-labs/flux-schnell-lora'
   'black-forest-labs/flux-schnell-lora': {
     shortName: 'FLUX1.1 [dev] Schnell lora',
     description_en: `FLUX.1 [schnell] is a 12 billion parameter rectified flow transformer capable of generating images from text descriptions.`,
@@ -96,15 +111,17 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.02),
     inputType: ['text'],
   },
+  */
   'ideogram-ai/ideogram-v2': {
     shortName: 'Ideogram',
-    description_en: `Ideogram (pronounced “eye-dee-oh-gram”) is a AI tool that turns your ideas into stunning images, in a matter of seconds. Ideogram excels at creating captivating designs, realistic images, innovative logos and posters. With unique capabilities like text rendering in images, we aim to inspire creativity and help every user bring their imagination to life.`,
+    description_en: `Ideogram (pronounced "eye-dee-oh-gram") is a AI tool that turns your ideas into stunning images, in a matter of seconds. Ideogram excels at creating captivating designs, realistic images, innovative logos and posters. With unique capabilities like text rendering in images, we aim to inspire creativity and help every user bring their imagination to life.`,
     description_ru: `Ideogram (произносится как "ай-ди-о-грам") — это AI-инструмент, который превращает ваши идеи в потрясающие изображения за несколько секунд. Ideogram превосходит в создании захватывающих дизайнов, реалистичных изображений, инновационных логотипов и постеров. С уникальными возможностями, такими как рендеринг текста в изображениях, мы стремимся вдохновить творчество и помочь каждому пользователю воплотить свою фантазию в жизнь.`,
     previewImage:
       'https://replicate.delivery/czjl/wPuHfFHPOGxqbC3r1rJbEomny4eprgwRVpjIP7pN7oKf6pSnA/R8_ideogram.png',
     costPerImage: calculateFinalImageCostInStars(0.08),
     inputType: ['text', 'image'],
   },
+  /* DISABLED: 'ideogram-ai/ideogram-v2-turbo'
   'ideogram-ai/ideogram-v2-turbo': {
     shortName: 'Ideogram Turbo',
     description_en: `Turbo generates images quickly and is best used for ideation when you want a quick look at the composition. Sometimes useful for achieving a sketchy look (~7 to ~12 sec)`,
@@ -114,6 +131,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.05),
     inputType: ['text', 'image'],
   },
+  */
+  /* DISABLED: 'luma/photon'
   'luma/photon': {
     shortName: 'Luma Photon',
     description_en: `Luma Photon is a cutting-edge AI image generation model that offers ultra-high quality and 10x higher cost efficiency. It is designed for creative professionals, providing a new benchmark in visual intelligence with the ability to understand natural language instructions and generate consistent characters from a single input image.`,
@@ -123,6 +142,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.03),
     inputType: ['text', 'image'],
   },
+  */
+  /* DISABLED: 'luma/photon-flash'
   'luma/photon-flash': {
     shortName: 'Luma Photon Flash',
     description_en: `Luma Photon Flash is a cutting-edge AI image generation model that offers ultra-high quality and 10x higher cost efficiency. It is designed for creative professionals, providing a new benchmark in visual intelligence with the ability to understand natural language instructions and generate consistent characters from a single input image.`,
@@ -132,6 +153,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.01),
     inputType: ['text', 'image'],
   },
+  */
+  /* DISABLED: 'recraft-ai/recraft-20b'
   'recraft-ai/recraft-20b': {
     shortName: 'Recraft 20b',
     description_en: `Recraft 20b model`,
@@ -141,6 +164,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.022),
     inputType: ['text'],
   },
+  */
+  /* DISABLED: 'recraft-ai/recraft-20b-svg'
   'recraft-ai/recraft-20b-svg': {
     shortName: 'Recraft 20b SVG',
     description_en: `Recraft 20b SVG is an affordable and fast model for generating vector images. It is designed to efficiently create high-quality SVG graphics from text inputs, making it ideal for both personal and commercial projects.`,
@@ -150,6 +175,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.044),
     inputType: ['text', 'dev'],
   },
+  */
+  /* DISABLED: 'recraft-ai/recraft-v3'
   'recraft-ai/recraft-v3': {
     shortName: 'Recraft V3',
     description_en: `Recraft version 3`,
@@ -159,6 +186,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.04),
     inputType: ['text'],
   },
+  */
+  /* DISABLED: 'recraft-ai/recraft-v3-svg'
   'recraft-ai/recraft-v3-svg': {
     shortName: 'Recraft V3 SVG',
     description_en: `Recraft V3 SVG is a cutting-edge text-to-image model that generates high-quality SVG images, including logos and icons. It excels in prompt understanding, allowing for accurate visual representations and seamless integration of text and image elements. The model supports brand style customization and offers both raster and vector image generation.`,
@@ -168,6 +197,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.08),
     inputType: ['text', 'dev'],
   },
+  */
+  /* DISABLED: 'stability-ai/stable-diffusion-3.5-large'
   'stability-ai/stable-diffusion-3.5-large': {
     shortName: 'Stable Diffusion 3.5 Large',
     description_en: `Stable Diffusion 3.5 Large is a Multimodal Diffusion Transformer (MMDiT) text-to-image model that features improved performance in image quality, typography, complex prompt understanding, and resource-efficiency.`,
@@ -177,6 +208,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.065),
     inputType: ['text', 'image'],
   },
+  */
+  /* DISABLED: 'stability-ai/stable-diffusion-3.5-large-turbo'
   'stability-ai/stable-diffusion-3.5-large-turbo': {
     shortName: 'Stable Diffusion 3.5 Large Turbo',
     description_en: `Stable Diffusion 3.5 Large Turbo is a high-resolution text-to-image model that excels in generating detailed images with various artistic styles. It uses Adversarial Diffusion Distillation for improved image quality and efficiency, supporting both text and image inputs.`,
@@ -186,6 +219,7 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.04),
     inputType: ['text', 'image'],
   },
+  */
   // AI Photoshop & Image Editing Models
   'black-forest-labs/flux-kontext-pro': {
     shortName: 'FLUX Kontext [pro]',
@@ -205,6 +239,7 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.08),
     inputType: ['text', 'image'],
   },
+  /* DISABLED: 'bytedance/seededit-3.0'
   'bytedance/seededit-3.0': {
     shortName: 'SeedEdit 3.0',
     description_en: `SeedEdit 3.0 achieves industry-leading usability rate of 56.1% and processes 4K images with exceptional detail preservation. Built on Seedream 3.0, it excels at portrait retouching, background changes, perspective shifts, and lighting adjustments.\n\nKey strengths:\n- 4K image support with natural, precise editing\n- Superior detail preservation in non-edited areas\n- Outperforms GPT-4o (37.1%) and Gemini 2.0 (30.3%) in usability\n- Specialized reward models for quality assurance\n\nIdeal for professional image editing requiring high fidelity and consistency.`,
@@ -214,6 +249,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.05),
     inputType: ['text', 'image'],
   },
+  */
+  /* DISABLED: 'bytedance/seedream-4'
   'bytedance/seedream-4': {
     shortName: 'Seedream 4.0',
     description_en: `Seedream 4.0 ranks #1 on the Artificial Analysis Image Editing Leaderboard with ELO score of 1,205, surpassing Google's Gemini 2.5 Flash. It combines text-to-image generation and image editing into a single architecture.\n\nPerformance highlights:\n- Ultra-fast: 2K high-resolution generation in 1.8 seconds\n- Top-tier quality: Leads in visual quality benchmarks\n- Comprehensive editing: Background replacement, object manipulation, style transfer, lighting modification\n- Natural language understanding: Simply describe changes in plain English\n\nBest for fast, high-quality image generation and professional editing workflows.`,
@@ -223,6 +260,7 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.04),
     inputType: ['text', 'image'],
   },
+  */
   'bytedance/seedream-4.5': {
     shortName: 'Seedream 4.5',
     description_en: `Seedream 4.5 is ByteDance's latest flagship image generation model, representing the cutting edge of their Seedream family. Built on Seedream 4.0's award-winning foundation with significant quality and consistency improvements.\n\nKey improvements over 4.0:\n- Enhanced visual quality and detail preservation\n- Better text rendering and typography\n- Improved instruction following and prompt adherence\n- More consistent style transfer\n- Optimized for portrait and character generation\n- State-of-the-art results across multiple benchmarks\n\nRecommended for professional image generation requiring highest quality output.`,
@@ -232,6 +270,7 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.04),
     inputType: ['text', 'image'],
   },
+  /* DISABLED: 'qwen/qwen-image-edit'
   'qwen/qwen-image-edit': {
     shortName: 'Qwen Image Edit',
     description_en: `Qwen-Image-Edit from Alibaba achieves state-of-the-art (SOTA) performance in image editing tasks. Built on the 20B Qwen-Image backbone, it supports bilingual (Chinese and English) text editing.\n\nUnique capabilities:\n- Dual editing modes: Low-level visual appearance + high-level semantic editing\n- Bilingual text editing: Add, delete, modify text while preserving original font, size, and style\n- Explicit mask inputs for inpainting/outpainting\n- Region-aware prompts: Apply changes only within specified bounding boxes\n- Multi-turn chained edits: Iteratively refine outputs\n- Ultra-fast: Edits in less than 3 seconds\n\nOpen-source with commercial use allowed. Perfect for precise, controllable image editing.`,
@@ -241,6 +280,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.025),
     inputType: ['text', 'image'],
   },
+  */
+  /* DISABLED: 'qwen/qwen-image-edit-plus'
   'qwen/qwen-image-edit-plus': {
     shortName: 'Qwen Image Edit Plus',
     description_en: `Improved version of Qwen-Image-Edit with enhanced multi-image editing capabilities and superior single-image consistency. Maintains all SOTA features of the base model with additional refinements.\n\nEnhancements:\n- Better multi-image editing coordination\n- Improved single-image consistency across edits\n- Enhanced semantic understanding\n- Faster processing with maintained quality\n\nBuilds upon the proven Qwen-Image-Edit foundation with performance optimizations for professional workflows.`,
@@ -250,6 +291,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.03),
     inputType: ['text', 'image'],
   },
+  */
+  /* DISABLED: 'bria/genfill'
   'bria/genfill': {
     shortName: 'Bria GenFill',
     description_en: `High-quality object addition and visual transformation model from Bria AI. Specializes in seamlessly adding new objects to images or transforming existing elements while maintaining photorealistic quality.\n\nKey features:\n- Precise object addition with context awareness\n- Visual element transformation\n- Natural integration with existing scene\n- High-quality results for commercial use\n\nIdeal for product placement, scene enhancement, and creative visual modifications.`,
@@ -259,6 +302,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.04),
     inputType: ['text', 'image'],
   },
+  */
+  /* DISABLED: 'bria/eraser'
   'bria/eraser': {
     shortName: 'Bria Eraser',
     description_en: `Precise removal of unwanted objects from images with intelligent background reconstruction. Professional-grade eraser tool for clean, natural results.\n\nCapabilities:\n- One-click object removal\n- Intelligent background inpainting\n- Natural seamless results\n- No artifacts or visible edits\n\nPerfect for product photography cleanup, unwanted element removal, and professional image refinement.`,
@@ -268,6 +313,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.035),
     inputType: ['image'],
   },
+  */
+  /* DISABLED: 'bria/expand-image'
   'bria/expand-image': {
     shortName: 'Bria Expand',
     description_en: `Expand images beyond their borders in high quality using intelligent outpainting. Extends images naturally while maintaining style, lighting, and composition consistency.\n\nFeatures:\n- High-quality border expansion\n- Style-consistent outpainting\n- Natural edge blending\n- Maintains original composition integrity\n\nIdeal for resizing images, changing aspect ratios, and creative composition expansion.`,
@@ -277,6 +324,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.04),
     inputType: ['image'],
   },
+  */
+  /* DISABLED: 'bria/generate-background'
   'bria/generate-background': {
     shortName: 'Bria Background',
     description_en: `Efficiently swap backgrounds in images via text prompts. Professional background replacement that maintains subject integrity and lighting consistency.\n\nCapabilities:\n- Text-based background generation\n- Automatic subject detection and preservation\n- Lighting and color matching\n- Natural integration of new backgrounds\n\nPerfect for product photography, portrait enhancement, and creative scene composition.`,
@@ -286,6 +335,7 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.035),
     inputType: ['text', 'image'],
   },
+  */
   // google/imagen-4 and grok/aurora — removed: no provider API integration yet
   // TODO: add when Google Vertex AI and xAI API wrappers are implemented
   // Midjourney v7 - FLUX-based Midjourney-style generation (adminconteudosflix/midjourney-allcraft)

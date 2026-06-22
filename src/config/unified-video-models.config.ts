@@ -141,7 +141,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       aspectRatios: ['16:9', '9:16', '1:1'],
       durations: [8],
     },
-    status: 'active',
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Veo 3.1 версии
   },
 
   veo3: {
@@ -161,7 +161,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       aspectRatios: ['16:9', '9:16', '1:1'],
       durations: [8],
     },
-    status: 'active',
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Veo 3.1 версии
   },
 
   'runway-aleph': {
@@ -184,7 +184,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       durations: [5, 6, 10],
       maxDuration: 10,
     },
-    status: 'active',
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО
   },
 
   'sora-2': {
@@ -205,7 +205,7 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
       aspectRatios: ['16:9', '9:16'],
       durations: [10],
     },
-    status: 'active',
+    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Sora 2 Pro
   },
 
   'sora-2-pro': {
