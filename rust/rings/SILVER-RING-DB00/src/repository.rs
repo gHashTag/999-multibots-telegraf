@@ -16,6 +16,21 @@ pub struct PostgresDatabase {
 const MAX_USERNAME_LEN: usize = 32;
 const MAX_VOICE_LEN: usize = 128;
 const MAX_MODEL_LEN: usize = 64;
+const MAX_PROMPT_LEN: usize = 2000;
+const MAX_RESULT_URL_LEN: usize = 4096;
+const MAX_ERROR_LEN: usize = 1024;
+
+// DB connection pool settings
+const DB_CONNECT_TIMEOUT_SECS: u64 = 5;
+const DB_IDLE_TIMEOUT_SECS: u64 = 60;
+const DB_MAX_CONNECTIONS: u32 = 20;
+
+// Default user values
+const DEFAULT_USER_LEVEL: i32 = 1;
+const DEFAULT_USER_BALANCE: f64 = 0.0;
+
+// Pagination limits
+const MAX_TRANSACTION_PAGE_SIZE: i64 = 100;
 
 fn media_type_to_str(mt: &MediaType) -> &'static str {
     match mt {
@@ -90,9 +105,9 @@ impl PostgresDatabase {
     #[tracing::instrument(skip_all)]
     pub async fn connect(url: &str) -> Result<Self, AppError> {
         let mut opt = sea_orm::ConnectOptions::new(url.to_string());
-        opt.connect_timeout(Duration::from_secs(5));
-        opt.idle_timeout(Duration::from_secs(60));
-        opt.max_connections(20);
+        opt.connect_timeout(Duration::from_secs(DB_CONNECT_TIMEOUT_SECS));
+        opt.idle_timeout(Duration::from_secs(DB_IDLE_TIMEOUT_SECS));
+        opt.max_connections(DB_MAX_CONNECTIONS);
         let conn = sea_orm::Database::connect(opt)
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Connection(e.to_string())))?;
@@ -195,8 +210,8 @@ impl DbTrait for PostgresDatabase {
             username: Set(username.map(String::from)),
             language: Set(language.code().to_string()),
             gender: Set(None),
-            level: Set(1),
-            balance: Set(0.0),
+            level: Set(DEFAULT_USER_LEVEL),
+            balance: Set(DEFAULT_USER_BALANCE),
             voice: Set(None),
             model: Set(None),
             subscription: Set(None),
@@ -490,7 +505,7 @@ impl DbTrait for PostgresDatabase {
     #[tracing::instrument(skip_all)]
     async fn get_transactions_by_telegram_id(&self, telegram_id: i64, cursor: Option<uuid::Uuid>, limit: i64) -> Result<Vec<Transaction>, AppError> {
         use crate::entities::payments as p;
-        let safe_limit = if limit <= 0 { 1 } else if limit > 100 { 100 } else { limit };
+        let safe_limit = if limit <= 0 { 1 } else if limit > MAX_TRANSACTION_PAGE_SIZE { MAX_TRANSACTION_PAGE_SIZE } else { limit };
         let mut query = p::Entity::find()
             .filter(p::Column::TelegramId.eq(telegram_id))
             .order_by_desc(p::Column::CreatedAt);
@@ -567,8 +582,6 @@ impl DbTrait for PostgresDatabase {
 
     #[tracing::instrument(skip_all)]
     async fn save_prompt(&self, telegram_id: i64, prompt: &str, result_url: Option<&str>) -> Result<(), AppError> {
-        const MAX_PROMPT_LEN: usize = 2000;
-        const MAX_RESULT_URL_LEN: usize = 4096;
         if prompt.len() > MAX_PROMPT_LEN {
             return Err(AppError::Validation(format!(
                 "Prompt exceeds maximum length of {} characters",
@@ -627,7 +640,6 @@ impl DbTrait for PostgresDatabase {
     #[tracing::instrument(skip_all)]
     async fn create_generation(&self, req: &GenerationRequest) -> Result<GenerationResult, AppError> {
         use crate::entities::generations as g;
-        const MAX_PROMPT_LEN: usize = 2000;
         let id = uuid::Uuid::new_v4();
         let now = chrono::Utc::now();
         let prompt = req.prompt.as_ref().map(|p| {
@@ -669,8 +681,6 @@ impl DbTrait for PostgresDatabase {
     #[tracing::instrument(skip_all)]
     async fn update_generation_status(&self, id: uuid::Uuid, status: GenerationStatus, result_url: Option<&str>, error: Option<&str>) -> Result<(), AppError> {
         use crate::entities::generations as g;
-        const MAX_RESULT_URL_LEN: usize = 4096;
-        const MAX_ERROR_LEN: usize = 1024;
         let row = g::Entity::find_by_id(id)
             .one(self.pool.as_ref())
             .await
@@ -819,8 +829,6 @@ impl DbTrait for PostgresDatabase {
         error: Option<&str>,
     ) -> Result<(), AppError> {
         use crate::entities::generations as g;
-        const MAX_RESULT_URL_LEN: usize = 4096;
-        const MAX_ERROR_LEN: usize = 1024;
         let row = g::Entity::find()
             .filter(g::Column::Id.eq(id))
             .filter(g::Column::TelegramId.eq(telegram_id))

@@ -120,3 +120,8 @@ Trigger: User says "исследуй слабые места работы, ис�
 - HSTS Max-Age Constant Extraction — `router.rs` (`HSTS_MAX_AGE_MAIN`, `HSTS_MAX_AGE_SANITIZED`)
 - Body Limit Constant Extraction — `router.rs` (`WEBHOOK_BODY_LIMIT_BYTES`, `GLOBAL_BODY_LIMIT_BYTES`)
 - Rate Limit Constant Extraction — `router.rs` (`HEALTH_RATE_*`, `WEBHOOK_RATE_*`, `PAYMENT_RATE_*`)
+
+## Wave 246 Applied Skills
+- DB Connection Pool Constant Extraction — `repository.rs` (`DB_CONNECT_TIMEOUT_SECS`, `DB_IDLE_TIMEOUT_SECS`, `DB_MAX_CONNECTIONS`)
+- Duplicate Function-Level Constant Consolidation — `repository.rs` (`MAX_PROMPT_LEN`, `MAX_RESULT_URL_LEN`, `MAX_ERROR_LEN`)
+- Default Value + Pagination Constant Extraction — `repository.rs` (`DEFAULT_USER_LEVEL`, `DEFAULT_USER_BALANCE`, `MAX_TRANSACTION_PAGE_SIZE`)
