@@ -69,18 +69,22 @@ export async function chatWithAI(
   model?: string,
   opts?: { telegramId?: string; botName?: string }
 ): Promise<string> {
-  // Prefer OpenAI (paid), fallback to OpenRouter
-  const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY
-  if (!apiKey) {
-    throw new Error('No API key found (OPENAI_API_KEY or OPENROUTER_API_KEY)')
-  }
+  // Priority: DeepSeek (cheapest) → OpenAI → OpenRouter
+  const providers = [
+    { key: process.env.DEEPSEEK_API_KEY, url: 'https://api.deepseek.com/v1', name: 'deepseek' },
+    { key: process.env.OPENAI_API_KEY, url: undefined, name: 'openai' },
+    { key: process.env.OPENROUTER_API_KEY, url: 'https://openrouter.ai/api/v1', name: 'openrouter' },
+  ]
+  const provider = providers.find(p => p.key)
+  if (!provider) throw new Error('No AI API key found')
 
-  const useOpenRouter = !process.env.OPENAI_API_KEY && !!process.env.OPENROUTER_API_KEY
-  const baseURL = useOpenRouter ? 'https://openrouter.ai/api/v1' : undefined
+  const apiKey = provider.key!
+  const baseURL = provider.url
 
   const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) })
 
-  const modelId = model || AI_CHAT_MODELS.gpt4.id
+  const defaultModel = provider.name === 'deepseek' ? 'deepseek-chat' : AI_CHAT_MODELS.gpt4.id
+  const modelId = model || defaultModel
   const tid = opts?.telegramId ?? ''
   const bot = opts?.botName ?? 'default'
 
