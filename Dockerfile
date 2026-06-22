@@ -28,6 +28,7 @@ COPY package-lock.json* ./
 RUN npm install
 
 COPY . .
+RUN echo "build-v3-$(date +%s)" > /tmp/build-marker
 
 # ✅ Проверка TypeScript перед сборкой (можно пропустить с --build-arg SKIP_TYPE_CHECK=true)
 ARG SKIP_TYPE_CHECK=false

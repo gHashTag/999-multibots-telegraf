@@ -1219,8 +1219,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     // Показываем выбор AI модели
     await ctx.reply(
       isRu
-        ? `🤖 <b>Выбор AI модели для трансформации</b>\n\n👤 <b>Выбранный стиль:</b> ${gender === 'male' ? 'Мужской образ' : 'Женский образ'}\n\n🎯 <b>Выберите технологию генерации:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Проверенная технология\n• Стабильные результаты\n• Классические стили\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Новейшая модель 2024\n• Креативные возможности\n• Экспериментальные стили\n\n💡 <b>Обе модели бесплатны в демо-режиме!</b>`
-        : `🤖 <b>Choose AI model for transformation</b>\n\n👤 <b>Selected style:</b> ${gender === 'male' ? 'Male style' : 'Female style'}\n\n🎯 <b>Select generation technology:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Proven technology\n• Stable results\n• Classic styles\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Latest 2024 model\n• Creative capabilities\n• Experimental styles\n\n💡 <b>Both models are free in demo mode!</b>`,
+        ? `🤖 <b>Выбор AI модели для трансформации</b>\n\n👤 <b>Выбранный стиль:</b> ${gender === 'male' ? 'Мужской образ' : 'Женский образ'}\n\n🎯 <b>Выберите технологию генерации:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Проверенная технология\n• Стабильные результаты\n• Классические стили\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Новейшая модель 2025\n• Креативные возможности\n• Экспериментальные стили\n\n💡 <b>Обе модели бесплатны в демо-режиме!</b>`
+        : `🤖 <b>Choose AI model for transformation</b>\n\n👤 <b>Selected style:</b> ${gender === 'male' ? 'Male style' : 'Female style'}\n\n🎯 <b>Select generation technology:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Proven technology\n• Stable results\n• Classic styles\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Latest 2025 model\n• Creative capabilities\n• Experimental styles\n\n💡 <b>Both models are free in demo mode!</b>`,
       {
         parse_mode: 'HTML',
         reply_markup: Markup.keyboard([
@@ -1522,8 +1522,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       // Показываем выбор AI модели заново
       await ctx.reply(
         isRu
-          ? `🤖 <b>Выбор AI модели для трансформации</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n\n🎯 <b>Выберите технологию генерации:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Проверенная технология\n• Стабильные результаты\n• Классические стили\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Новейшая модель 2024\n• Креативные возможности\n• Экспериментальные стили\n\n💡 <b>Обе модели бесплатны в демо-режиме!</b>`
-          : `🤖 <b>Choose AI model for transformation</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n\n🎯 <b>Select generation technology:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Proven technology\n• Stable results\n• Classic styles\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Latest 2024 model\n• Creative capabilities\n• Experimental styles\n\n💡 <b>Both models are free in demo mode!</b>`,
+          ? `🤖 <b>Выбор AI модели для трансформации</b>\n\n👤 <b>Выбранный стиль:</b> ${genderDisplay}\n\n🎯 <b>Выберите технологию генерации:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Проверенная технология\n• Стабильные результаты\n• Классические стили\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Новейшая модель 2025\n• Креативные возможности\n• Экспериментальные стили\n\n💡 <b>Обе модели бесплатны в демо-режиме!</b>`
+          : `🤖 <b>Choose AI model for transformation</b>\n\n👤 <b>Selected style:</b> ${genderDisplay}\n\n🎯 <b>Select generation technology:</b>\n\n🤖 <b>FLUX Kontext Max (Google)</b>\n• Proven technology\n• Stable results\n• Classic styles\n\n🎭 <b>SeeDream-4.5 (ByteDance)</b>\n• Latest 2025 model\n• Creative capabilities\n• Experimental styles\n\n💡 <b>Both models are free in demo mode!</b>`,
         {
           parse_mode: 'HTML',
           reply_markup: Markup.keyboard([
