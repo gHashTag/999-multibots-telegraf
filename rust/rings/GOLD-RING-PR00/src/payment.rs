@@ -1,9 +1,22 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+fn deserialize_finite_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let v = f64::deserialize(deserializer)?;
+    if v.is_finite() {
+        Ok(v)
+    } else {
+        Err(serde::de::Error::custom("value must be finite"))
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RobokassaPaymentUrl {
     pub merchant_login: String,
+    #[serde(deserialize_with = "deserialize_finite_f64")]
     pub out_sum: f64,
     pub inv_id: i64,
     pub description: String,
@@ -14,6 +27,7 @@ pub struct RobokassaPaymentUrl {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RobokassaCallback {
+    #[serde(deserialize_with = "deserialize_finite_f64")]
     pub out_sum: f64,
     pub inv_id: i64,
     pub signature_value: String,
@@ -59,6 +73,7 @@ pub struct TelegramSuccessfulPayment {
 pub struct X402PaymentRequest {
     pub inv_id: String,
     pub telegram_id: String,
+    #[serde(deserialize_with = "deserialize_finite_f64")]
     pub amount_usd: f64,
     pub stars: i32,
     pub description: String,
@@ -120,6 +135,7 @@ impl TonPaymentLink {
 #[serde(deny_unknown_fields)]
 pub struct DirectPaymentRequest {
     pub telegram_id: String,
+    #[serde(deserialize_with = "deserialize_finite_f64")]
     pub amount: f64,
     pub payment_type: String,
     pub description: String,
@@ -142,7 +158,10 @@ pub struct DirectPaymentResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BalanceChange {
+    #[serde(deserialize_with = "deserialize_finite_f64")]
     pub before: f64,
+    #[serde(deserialize_with = "deserialize_finite_f64")]
     pub after: f64,
+    #[serde(deserialize_with = "deserialize_finite_f64")]
     pub difference: f64,
 }

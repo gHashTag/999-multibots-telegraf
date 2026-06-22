@@ -9,6 +9,7 @@ use trios_mb_types::truncate_for_log;
 use crate::AppState;
 
 const WEBHOOK_DB_TIMEOUT: Duration = Duration::from_secs(10);
+const GATEWAY_VERIFY_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_INV_ID_LEN: usize = 128;
 const MAX_SIGNATURE_LEN: usize = 512;
 const MAX_OUT_SUM_LEN: usize = 32;
@@ -84,8 +85,8 @@ pub async fn robokassa_callback(
             "SignatureValue": form.signature_value,
         });
 
-        match gateway.verify_callback(&params).await {
-            Ok(verification) => {
+        match tokio::time::timeout(GATEWAY_VERIFY_TIMEOUT, gateway.verify_callback(&params)).await {
+            Ok(Ok(verification)) => {
                 // Idempotency guard runs ONLY after signature verification succeeds,
                 // preventing cache poisoning by forged callbacks with invalid signatures.
                 match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.record_webhook_event("robokassa", &form.inv_id)).await {
@@ -95,7 +96,7 @@ pub async fn robokassa_callback(
                         return "OK".to_string();
                     }
                     Ok(Err(e)) => {
-                        tracing::error!(error = %e, inv_id = %truncate_for_log(&form.inv_id, 128), "Failed to record webhook event");
+                        tracing::error!(error = %truncate_for_log(&e.to_string(), 1024), inv_id = %truncate_for_log(&form.inv_id, 128), "Failed to record webhook event");
                         return "ERROR: internal error".to_string();
                     }
                     Err(_) => {
@@ -116,7 +117,7 @@ pub async fn robokassa_callback(
                         return "ERROR: transaction not found".to_string();
                     }
                     Ok(Err(e)) => {
-                        tracing::error!(error = %e, external_id = %truncate_for_log(external_id, 128), "Failed to load transaction");
+                        tracing::error!(error = %truncate_for_log(&e.to_string(), 1024), external_id = %truncate_for_log(external_id, 128), "Failed to load transaction");
                         return "ERROR: internal error".to_string();
                     }
                     Err(_) => {
@@ -139,7 +140,7 @@ pub async fn robokassa_callback(
                             "OK".to_string()
                         }
                         Ok(Err(e)) => {
-                            tracing::error!(error = %e, tx_id = %tx.id, "Failed to complete Robokassa payment");
+                            tracing::error!(error = %truncate_for_log(&e.to_string(), 1024), tx_id = %tx.id, "Failed to complete Robokassa payment");
                             "ERROR: internal error".to_string()
                         }
                         Err(_) => {
@@ -154,7 +155,7 @@ pub async fn robokassa_callback(
                     ).await {
                         Ok(Ok(())) => "OK".to_string(),
                         Ok(Err(e)) => {
-                            tracing::error!(error = %e, tx_id = %tx.id, "Failed to update transaction status");
+                            tracing::error!(error = %truncate_for_log(&e.to_string(), 1024), tx_id = %tx.id, "Failed to update transaction status");
                             "ERROR: internal error".to_string()
                         }
                         Err(_) => {
@@ -164,9 +165,13 @@ pub async fn robokassa_callback(
                     }
                 }
             }
-            Err(e) => {
-                tracing::error!(error = %e, "Robokassa verification failed");
+            Ok(Err(e)) => {
+                tracing::error!(error = %truncate_for_log(&e.to_string(), 1024), "Robokassa verification failed");
                 "Internal server error".to_string()
+            }
+            Err(_) => {
+                tracing::error!("Robokassa verification timed out");
+                "ERROR: gateway timeout".to_string()
             }
         }
     } else {
