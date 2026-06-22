@@ -439,7 +439,9 @@ async function initializeBots() {
             'callback_query',
             'pre_checkout_query' as any,
             'successful_payment' as any,
-            'chat_member' as any, // Для отслеживания вступления/выхода из групп
+            'chat_member' as any,
+            'business_connection' as any,
+            'business_message' as any,
           ],
         })
         .then(() => {
