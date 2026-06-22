@@ -5,7 +5,8 @@ const ALLOWED_WEBHOOK_DOMAINS = [
   'three-head-dragon.shop',
   '188.137.250.69',
   'localhost',
-  'fly.dev', // Wildcard for all fly.io domains (matches *.fly.dev)
+  'fly.dev',
+  'up.railway.app',
 ] as const
 
 // 🚨 CRITICAL: Validate webhook URL before use

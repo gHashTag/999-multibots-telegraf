@@ -1,11 +1,21 @@
-import { replicate } from '@/core/replicate'
+import { replicate as replicateProxy } from '@/core/replicate'
+import Replicate from 'replicate'
+
+// Full Replicate SDK client for models/trainings API (the proxy from @/core/replicate only exposes .run)
+function getFullReplicateClient(): InstanceType<typeof Replicate> {
+  const token = process.env.REPLICATE_API_TOKEN
+  if (!token) {
+    throw new Error('REPLICATE_API_TOKEN not found in process.env')
+  }
+  return new Replicate({ auth: token })
+}
+
 import {
   getUserByTelegramId,
   updateUserBalance,
   updateUserLevelPlusOne,
   getUserBalance,
   createModelTraining,
-  updateLatestModelTraining,
   supabase,
 } from '@/core/supabase'
 import { getBotByName } from '@/core/bot'
@@ -435,7 +445,7 @@ export const generateModelTraining = inngest.createFunction(
               return Promise.reject('User not found')
             }
             logger.info('Пользователь найден', {
-              userId: user.user_id,
+              userId: user.id,
               telegram_id,
             })
             return user
@@ -466,14 +476,15 @@ export const generateModelTraining = inngest.createFunction(
         const username = process.env.REPLICATE_USERNAME
         if (!username) throw new Error('REPLICATE_USERNAME not set')
 
+        const replicateClient = getFullReplicateClient()
         try {
-          const existing = await replicate.models.get(username, modelName)
+          const existing = await replicateClient.models.get(username, modelName)
           logger.info('🔵 Существующая модель:', existing.url)
           return `${username}/${modelName}`
         } catch (error) {
           logger.info('🏗️ Создание новой модели...')
           try {
-            const newModel = await replicate.models.create(
+            const newModel = await replicateClient.models.create(
               username,
               modelName,
               {
@@ -496,7 +507,8 @@ export const generateModelTraining = inngest.createFunction(
         const cancelProcess = {
           cancel: async () => {
             try {
-              await replicate.trainings.cancel(trainingId)
+              const replicateClient = getFullReplicateClient()
+              await replicateClient.trainings.cancel(trainingId)
               logger.info(`❌ Training ${trainingId} canceled`)
             } catch (error) {
               logger.error('Cancel error:', error)
@@ -514,7 +526,8 @@ export const generateModelTraining = inngest.createFunction(
             '❌ Отсутствуют обязательные параметры: zipUrl или triggerWord'
           )
         }
-        const training: Prediction = await replicate.trainings.create(
+        const replicateClient = getFullReplicateClient()
+        const training: Prediction = await replicateClient.trainings.create(
           'ostris',
           'flux-dev-lora-trainer',
           'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497',
@@ -566,7 +579,7 @@ export const generateModelTraining = inngest.createFunction(
       // 2. Проверка пользователя и баланса
       const [user] = await trainingSteps.checkUserAndBalance()
       logger.info('Пользователь найден', {
-        userId: user.user_id,
+        userId: user.id,
         telegram_id: eventData.telegram_id,
       })
 
@@ -687,13 +700,14 @@ export const generateModelTraining = inngest.createFunction(
           if (!username) throw new Error('REPLICATE_USERNAME не задан')
 
           logger.info('🔍 Проверка существования модели', { modelName })
+          const replicateClient = getFullReplicateClient()
           try {
-            const existing = await replicate.models.get(username, modelName)
+            const existing = await replicateClient.models.get(username, modelName)
             logger.info('🔵 Существующая модель найдена:', existing.url)
             return `${username}/${modelName}`
           } catch (error) {
             logger.info('🏗️ Создание новой модели...')
-            const newModel = await replicate.models.create(
+            const newModel = await replicateClient.models.create(
               username,
               modelName,
               {
@@ -748,15 +762,17 @@ export const generateModelTraining = inngest.createFunction(
               'running',
               training.id
             )
-            updateLatestModelTraining(
-              eventData.telegram_id,
-              eventData.modelName,
-              {
+            // Update latest model training status directly
+            await supabase
+              .from('model_trainings')
+              .update({
                 status: 'running',
                 replicate_training_id: training.id,
-              },
-              'replicate'
-            )
+              })
+              .eq('telegram_id', eventData.telegram_id)
+              .eq('model_name', eventData.modelName)
+              .order('created_at', { ascending: false })
+              .limit(1)
             return {
               training,
               dbRecord: trainingRecord,

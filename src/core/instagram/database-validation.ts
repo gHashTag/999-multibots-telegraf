@@ -2,7 +2,7 @@
  * Database Validation Stubs
  */
 
-export async function validateProjectInStep(step: any, projectId: string) {
+export async function validateProjectInStep(projectId?: number | string) {
   console.log('[DB Validation Stub] validateProjectInStep', projectId);
   return { valid: true };
 }

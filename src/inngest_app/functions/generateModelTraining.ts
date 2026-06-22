@@ -3,9 +3,7 @@
  * Creates digital avatars (LoRA training) for users
  */
 
-import { inngest } from '@/inngest_app/client'
-import { createGenerateModelTrainingFunction } from './existing/generateModelTrainingFunction'
+import { generateModelTrainingFunction } from './existing/generateModelTrainingFunction'
 
-// Export the created function by calling the factory
-export const generateModelTraining =
-  createGenerateModelTrainingFunction(inngest)
+// Re-export the function
+export const generateModelTraining = generateModelTrainingFunction

@@ -74,7 +74,7 @@ export const modelTrainingV2 = inngest.createFunction(
 
       logger.info('✅ User found', {
         telegramId: telegram_id,
-        userId: user.user_id,
+        userId: user.id,
         step: 'check-user-exists',
       })
 
@@ -461,7 +461,7 @@ export const modelTrainingV2 = inngest.createFunction(
           step: 'handle-error',
         })
 
-        errorMessageAdmin(error as Error)
+        errorMessageAdmin(null, error as Error)
       })
 
       logger.error('🛑 Model training process failed', {

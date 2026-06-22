@@ -113,7 +113,7 @@ export const RenderAvatarVideoEventDataSchema = z.object({
   .refine(
     (data) => {
       // Hedra требует avatar_photo_url, voice_id, eleven_labs_api_key, hedra_api_key
-      if (data.avatar_service === 'hedra') {
+      if (data.avatar_gen_service === 'hedra') {
         return (
           data.avatar_photo_url !== undefined &&
           data.voice_id !== undefined &&
@@ -122,7 +122,7 @@ export const RenderAvatarVideoEventDataSchema = z.object({
         )
       }
       // HeyGen требует avatar_id, voice_id, heygen_api_key
-      if (data.avatar_service === 'heygen') {
+      if (data.avatar_gen_service === 'heygen') {
         return (
           data.avatar_id !== undefined &&
           data.voice_id !== undefined &&

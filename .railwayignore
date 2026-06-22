@@ -59,7 +59,7 @@ fly.rust.toml
 uploads/
 public/
 
-# Large dirs not needed for Rust build
+# Large dirs not needed for build
 avatar_brain/
 data/
 mobile/
@@ -69,3 +69,12 @@ agents/
 worktrees/
 .crush/
 src/uploads/
+uploads/
+rust/
+*.mp4
+*.mov
+*.webm
+*.jpeg
+*.jpg
+*.png
+*.webp

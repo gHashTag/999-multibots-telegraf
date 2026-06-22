@@ -359,7 +359,6 @@ async function initializeBots() {
       // bot.on(message('text'), handleTextMessage)
       // <<<---------------------------------------------------->>>
 
-      botInstances.push(bot)
       const botInfo = await bot.telegram.getMe()
       console.log(`🤖 Бот ${botInfo.username} инициализирован`)
 

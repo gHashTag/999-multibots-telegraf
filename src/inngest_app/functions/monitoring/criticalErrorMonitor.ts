@@ -141,7 +141,7 @@ async function sendErrorNotification(message: string, urgency: string): Promise<
     // Всегда отправляем в группу (сейчас админу)
     await bot.telegram.sendMessage(GROUP_CHAT_ID, message, {
       parse_mode: 'HTML',
-      disable_web_page_preview: true
+      link_preview_options: { is_disabled: true }
     })
     
     // Для критических ошибок дублируем админу
@@ -188,7 +188,12 @@ export const criticalErrorMonitor = inngest.createFunction(
     
     // Шаг 2: Форматирование сообщения
     const message = await step.run('format-message', async () => {
-      return formatErrorMessage(errorContext, analysis)
+      return formatErrorMessage(errorContext, {
+        analysis: analysis.analysis || '',
+        solution: analysis.solution || '',
+        urgency: analysis.urgency || 'normal',
+        tags: analysis.tags || [],
+      })
     })
     
     // Шаг 3: Отправка уведомления
@@ -238,7 +243,7 @@ export const healthCheck = inngest.createFunction(
           status: response.ok ? 'healthy' : 'unhealthy',
           statusCode: response.status
         }
-      } catch (error) {
+      } catch (error: any) {
         return {
           service: 'Main API',
           status: 'error',
@@ -247,7 +252,7 @@ export const healthCheck = inngest.createFunction(
       }
     })
     results.push(apiHealth)
-    
+
     // Проверка Inngest
     const inngestHealth = await step.run('check-inngest-health', async () => {
       try {
@@ -257,7 +262,7 @@ export const healthCheck = inngest.createFunction(
           status: response.ok ? 'healthy' : 'unhealthy',
           statusCode: response.status
         }
-      } catch (error) {
+      } catch (error: any) {
         return {
           service: 'Inngest',
           status: 'error',

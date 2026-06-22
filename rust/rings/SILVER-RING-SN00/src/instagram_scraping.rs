@@ -31,6 +31,13 @@ pub async fn handle_instagram_scraping_msg(
         }
     };
 
+    if text.trim().is_empty() {
+        let lang = load_lang(&db, &msg).await;
+        let err = if lang.is_russian() { "❌ Пустая ссылка не допускается." } else { "❌ Empty link is not allowed." };
+        send_message_timeout(&bot, msg.chat.id, err, None).await?;
+        return Ok(());
+    }
+
     if text.len() > 4000 {
         let lang = load_lang(&db, &msg).await;
         let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };

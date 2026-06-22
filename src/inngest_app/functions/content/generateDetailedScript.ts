@@ -293,7 +293,7 @@ export const generateDetailedScript = inngest.createFunction(
             duration_seconds: 3,
             transition_to_next:
               index === creationScenes.length - 1 ? 'fade' : 'dissolve',
-          }))
+          })) as DetailedScene[]
 
           log.info('📜 Используем библейскую тему CREATION', {
             scenes: scenes.length,
@@ -409,7 +409,7 @@ export const generateDetailedScript = inngest.createFunction(
               },
               duration_seconds: 3,
               transition_to_next: 'cut',
-            }))
+            })) as unknown as DetailedScene[]
           }
         }
 

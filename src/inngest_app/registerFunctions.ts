@@ -7,32 +7,31 @@ import { serve } from 'inngest/express'
 import { inngest } from './inngestClient'
 import { logger } from '@/utils/logger'
 
-// Import all functions - will need to fix imports after creating proper exports
-// Content Functions - TEMPORARILY DISABLED due to broken imports
-// import { analyzeCompetitorReelsFunction } from './functions/content/analyzeCompetitorReels'
-// import { extractTopContentFunction } from './functions/content/extractTopContent'
-// import { findCompetitorsFunction } from './functions/content/findCompetitors'
-// import { generateContentScriptsFunction } from './functions/content/generateContentScripts'
-// import { generateDetailedScriptFunction } from './functions/content/generateDetailedScript'
-// import { generateScenarioClipsFunction } from './functions/content/generateScenarioClips'
+// Content Functions
+import { analyzeCompetitorReels } from './functions/content/analyzeCompetitorReels'
+import { extractTopContent } from './functions/content/extractTopContent'
+import { findCompetitors } from './functions/content/findCompetitors'
+import { generateContentScripts } from './functions/content/generateContentScripts'
+import { generateDetailedScript } from './functions/content/generateDetailedScript'
+import { generateScenarioClips } from './functions/content/generateScenarioClips'
 
-// Instagram Functions - TEMPORARILY DISABLED due to broken imports
-// import { instagramScraperV2Function } from './functions/instagram/instagramScraper-v2'
-// import { instagramScraperV2SimpleFunction } from './functions/instagram/instagramScraper-v2-simple'
+// Instagram Functions - disabled: missing schema exports in @/core/instagram/schemas
+// import { instagramScraperV2 } from './functions/instagram/instagramScraper-v2'
+// import { instagramReelsTest } from './functions/instagram/instagramScraper-v2-simple'
 
 // Monitoring Functions
 import { criticalErrorMonitor, healthCheck } from './functions/monitoring/criticalErrorMonitor'
 import { logMonitor, triggerLogMonitor } from './functions/monitoring/logMonitor'
 
-// Training Functions - TEMPORARILY DISABLED due to broken imports
-// import { modelTrainingV2Function } from './functions/training/modelTrainingV2'
-// import { morphImagesFunction } from './functions/training/morphImages'
+// Training Functions
+import { modelTrainingV2 } from './functions/training/modelTrainingV2'
+import { morphImages } from './functions/training/morphImages'
 
 // Generation Functions
 import { neuroImageGeneration } from './functions/generation/neuroImageGeneration'
 
-// Payment Functions - TEMPORARILY DISABLED due to broken imports
-// import { paymentProcessingFunction } from './functions/payments/paymentProcessing'
+// Payment Functions
+import { processPayment } from './functions/payments/paymentProcessing'
 
 // Broadcast Functions
 import { broadcastMessage } from './functions/broadcast/broadcastMessage'
@@ -50,35 +49,34 @@ import { generateAIReelsFunction } from './functions/existing/generateAIReelsFun
 import { generateAdvancedLoopingVideoFunction } from './functions/existing/generateAdvancedLoopingVideoFunction'
 import { generateModelTrainingFunction } from './functions/existing/generateModelTrainingFunction'
 
-// Collect all functions (raw array with potential undefined values)
 const allFunctionsRaw = [
-  // Content (6) - TEMPORARILY DISABLED
-  // analyzeCompetitorReelsFunction,
-  // extractTopContentFunction,
-  // findCompetitorsFunction,
-  // generateContentScriptsFunction,
-  // generateDetailedScriptFunction,
-  // generateScenarioClipsFunction,
+  // Content (6)
+  analyzeCompetitorReels,
+  extractTopContent,
+  findCompetitors,
+  generateContentScripts,
+  generateDetailedScript,
+  generateScenarioClips,
 
-  // Instagram (2) - TEMPORARILY DISABLED
-  // instagramScraperV2Function,
-  // instagramScraperV2SimpleFunction,
+  // Instagram (2) - disabled: missing schema exports
+  // instagramScraperV2,
+  // instagramReelsTest,
 
-  // Monitoring (2)
+  // Monitoring (4)
   criticalErrorMonitor,
   healthCheck,
   logMonitor,
   triggerLogMonitor,
 
-  // Training (2) - TEMPORARILY DISABLED
-  // modelTrainingV2Function,
-  // morphImagesFunction,
+  // Training (2)
+  modelTrainingV2,
+  morphImages,
 
   // Generation (1)
   neuroImageGeneration,
 
-  // Payment (1) - TEMPORARILY DISABLED
-  // paymentProcessingFunction,
+  // Payment (1)
+  processPayment,
 
   // Broadcast (1)
   broadcastMessage,
@@ -97,7 +95,6 @@ const allFunctionsRaw = [
   generateModelTrainingFunction,
 ]
 
-// Filter out undefined functions and log warnings
 export const allInngestFunctions = allFunctionsRaw.filter((f, index) => {
   if (!f) {
     logger.warn(`⚠️ [INNGEST] Function at index ${index} is undefined - skipping`)
@@ -106,41 +103,21 @@ export const allInngestFunctions = allFunctionsRaw.filter((f, index) => {
   return true
 })
 
-// Log all registered functions
 logger.info('🚀 [INNGEST] Registering functions', {
   count: allInngestFunctions.length,
   functions: allInngestFunctions.map(f => f.name || 'unnamed'),
 })
 
-// Create the Inngest handler for Express (v3 syntax)
 export const inngestHandler = serve({
   client: inngest,
   functions: allInngestFunctions,
 })
 
-// Helper to check function registration
-export function getFunctionStatus(): {
-  total: number
-  names: string[]
-  categories: Record<string, number>
-} {
+export function getFunctionStatus() {
   return {
     total: allInngestFunctions.length,
     names: allInngestFunctions.map(f => f.name || 'unnamed'),
-    categories: {
-      content: 6,
-      instagram: 2,
-      monitoring: 2,
-      training: 2,
-      generation: 1,
-      payment: 1,
-      broadcast: 1,
-      callback: 1,
-      render: 3,
-      existing: 3,
-    },
   }
 }
 
-// Export for testing
 export { allInngestFunctions as functions }

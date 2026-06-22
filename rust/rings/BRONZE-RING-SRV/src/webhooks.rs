@@ -149,12 +149,12 @@ pub async fn replicate_webhook(
     };
 
     // Wave 160: reject updates to terminal generations to prevent replay overwrites
-    match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.get_generation(generation_id)).await {
+    let gen_opt = match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.get_generation(generation_id)).await {
         Ok(Ok(Some(gen))) if is_terminal_status(gen.status) => {
             tracing::info!(generation_id = %generation_id, status = ?gen.status, "Webhook ignored: generation already in terminal state");
             return (StatusCode::OK, Json(serde_json::json!({"status": "ok"})));
         }
-        Ok(Ok(_)) => {}
+        Ok(Ok(gen)) => gen,
         Ok(Err(e)) => {
             tracing::error!(generation_id = %generation_id, error = %e, "Failed to load generation for terminal-state check");
             return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "internal error"})));
@@ -163,7 +163,8 @@ pub async fn replicate_webhook(
             tracing::warn!(generation_id = %generation_id, "Generation lookup timed out");
             return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
         }
-    }
+    };
+    let telegram_id = gen_opt.as_ref().map(|g| g.telegram_id);
 
     if payload.is_completed() {
         let urls = payload.output_urls();
@@ -171,11 +172,12 @@ pub async fn replicate_webhook(
         if !url.is_empty() {
             if let Err(reason) = validate_result_url(url) {
                 tracing::warn!(url = %truncate_for_log(url, 256), reason = %reason, "Rejecting Replicate result URL");
-            } else {
+            } else if let Some(telegram_id) = telegram_id {
                 match tokio::time::timeout(
                     WEBHOOK_DB_TIMEOUT,
-                    state.db.update_generation_status(
+                    state.db.update_generation_status_owned(
                         generation_id,
+                        telegram_id,
                         GenerationStatus::Completed,
                         Some(url),
                         None,
@@ -204,23 +206,26 @@ pub async fn replicate_webhook(
         }
     } else if payload.is_failed() {
         let error = truncate_for_log(payload.error.as_deref().unwrap_or("unknown"), 1024);
-        match tokio::time::timeout(
-            WEBHOOK_DB_TIMEOUT,
-            state.db.update_generation_status(
-                generation_id,
-                GenerationStatus::Failed,
-                None,
-                Some(&error),
-            )
-        ).await {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => {
-                tracing::error!(error = %e, generation_id = %generation_id, "Failed to update generation status on Replicate failure webhook");
-                return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
-            }
-            Err(_) => {
-                tracing::warn!(generation_id = %generation_id, "Update generation status timed out");
-                return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
+        if let Some(telegram_id) = telegram_id {
+            match tokio::time::timeout(
+                WEBHOOK_DB_TIMEOUT,
+                state.db.update_generation_status_owned(
+                    generation_id,
+                    telegram_id,
+                    GenerationStatus::Failed,
+                    None,
+                    Some(&error),
+                )
+            ).await {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => {
+                    tracing::error!(error = %e, generation_id = %generation_id, "Failed to update generation status on Replicate failure webhook");
+                    return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
+                }
+                Err(_) => {
+                    tracing::warn!(generation_id = %generation_id, "Update generation status timed out");
+                    return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
+                }
             }
         }
     }
@@ -282,12 +287,12 @@ pub async fn kie_ai_webhook(
     };
 
     // Wave 160: reject updates to terminal generations to prevent replay overwrites
-    match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.get_generation(generation_id)).await {
+    let gen_opt = match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.get_generation(generation_id)).await {
         Ok(Ok(Some(gen))) if is_terminal_status(gen.status) => {
             tracing::info!(generation_id = %generation_id, status = ?gen.status, "Webhook ignored: generation already in terminal state");
             return (StatusCode::OK, Json(serde_json::json!({"status": "ok"})));
         }
-        Ok(Ok(_)) => {}
+        Ok(Ok(gen)) => gen,
         Ok(Err(e)) => {
             tracing::error!(generation_id = %generation_id, error = %e, "Failed to load generation for terminal-state check");
             return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "internal error"})));
@@ -296,17 +301,19 @@ pub async fn kie_ai_webhook(
             tracing::warn!(generation_id = %generation_id, "Generation lookup timed out");
             return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
         }
-    }
+    };
+    let telegram_id = gen_opt.as_ref().map(|g| g.telegram_id);
 
     if payload.is_completed() {
         if let Some(url) = payload.first_video_url() {
             if let Err(reason) = validate_result_url(&url) {
                 tracing::warn!(url = %truncate_for_log(&url, 256), reason = %reason, "Rejecting Kie.ai result URL");
-            } else {
+            } else if let Some(telegram_id) = telegram_id {
                 match tokio::time::timeout(
                     WEBHOOK_DB_TIMEOUT,
-                    state.db.update_generation_status(
+                    state.db.update_generation_status_owned(
                         generation_id,
+                        telegram_id,
                         GenerationStatus::Completed,
                         Some(&url),
                         None,
@@ -326,23 +333,26 @@ pub async fn kie_ai_webhook(
         }
     } else if payload.is_failed() {
         let error = truncate_for_log(payload.error_message.as_deref().unwrap_or("unknown"), 1024);
-        match tokio::time::timeout(
-            WEBHOOK_DB_TIMEOUT,
-            state.db.update_generation_status(
-                generation_id,
-                GenerationStatus::Failed,
-                None,
-                Some(&error),
-            )
-        ).await {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => {
-                tracing::error!(error = %e, generation_id = %generation_id, "Failed to update generation status on Kie.ai failure webhook");
-                return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
-            }
-            Err(_) => {
-                tracing::warn!(generation_id = %generation_id, "Update generation status timed out");
-                return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
+        if let Some(telegram_id) = telegram_id {
+            match tokio::time::timeout(
+                WEBHOOK_DB_TIMEOUT,
+                state.db.update_generation_status_owned(
+                    generation_id,
+                    telegram_id,
+                    GenerationStatus::Failed,
+                    None,
+                    Some(&error),
+                )
+            ).await {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => {
+                    tracing::error!(error = %e, generation_id = %generation_id, "Failed to update generation status on Kie.ai failure webhook");
+                    return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
+                }
+                Err(_) => {
+                    tracing::warn!(generation_id = %generation_id, "Update generation status timed out");
+                    return (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"error": "DB timeout, retry later"})));
+                }
             }
         }
     }

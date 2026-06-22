@@ -52,8 +52,7 @@ const SUBSCRIPTION_AMOUNTS = SUBSCRIPTION_PLANS.reduce((acc, plan) => {
  * Обработчик webhook от Robokassa (legacy endpoint)
  * POST /api/robokassa-result
  */
-router.post('/robokassa-result', async (req: any, res: any) => {
-  // Redirect to new endpoint
+router.post('/robokassa-result', express.urlencoded({ extended: true }) as any, async (req: any, res: any) => {
   return handlePaymentSuccess(req, res)
 })
 
@@ -61,7 +60,7 @@ router.post('/robokassa-result', async (req: any, res: any) => {
  * Обработчик webhook от Robokassa (primary endpoint)
  * POST /api/payment-success
  */
-router.post('/payment-success', async (req: any, res: any) => {
+router.post('/payment-success', express.urlencoded({ extended: true }) as any, async (req: any, res: any) => {
   return handlePaymentSuccess(req, res)
 })
 
@@ -98,6 +97,11 @@ async function handlePaymentSuccess(req: any, res: any) {
       body: req.body,
       headers: req.headers,
     })
+
+    if (!req.body) {
+      logger.warn('❌ Empty request body in Robokassa webhook')
+      return res.status(400).send('Missing request body')
+    }
 
     const { OutSum, InvId, SignatureValue } = req.body
 

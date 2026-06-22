@@ -11,7 +11,7 @@ import { logger } from '@/utils/logger'
 // ✅ Используем единый клиент из @/inngest_app/client
 import { inngest } from './client'
 
-export type InngestInstance = 'BOT'
+export type InngestInstance = 'BOT' | 'RENDER'
 
 interface InngestConfig {
   eventKey: string
