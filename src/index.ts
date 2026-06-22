@@ -369,10 +369,31 @@ async function initializeBots() {
       // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
       bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
       bot.on('successful_payment', handleSuccessfulPayment as any)
-      // Обработчик текстовых сообщений по умолчанию - должен быть последним
-      // ВРЕМЕННО ОТКЛЮЧЕН: handleTextMessage - он мешает работе wizard сцен
-      // bot.on(message('text'), handleTextMessage)
-      // <<<---------------------------------------------------->>>
+      // AI fallback — отвечает если пользователь не в сцене и текст не кнопка
+      bot.on('text' as any, async (ctx: any) => {
+        try {
+          // Не отвечать если в сцене
+          if (ctx.scene?.current) return
+          // Не отвечать на команды
+          const text = ctx.message?.text || ''
+          if (text.startsWith('/')) return
+          // Не отвечать на кнопки меню (emoji в начале = кнопка)
+          if (/^[^\w\s]/.test(text) && text.length < 30) return
+
+          const { chatWithAI } = await import('./services/aiChatService')
+          const reply = await chatWithAI(
+            [
+              { role: 'system', content: 'Ты — AI ассистент бота. Помогаешь пользователям с генерацией фото, видео, аватаров. Отвечай кратко (2-3 предложения). Если вопрос про функции — предложи попробовать через меню (/start). Тарифы: Free (3/день), Basic (299₽), Pro (699₽), Studio (1999₽).' },
+              { role: 'user', content: text },
+            ],
+            undefined,
+            { telegramId: String(ctx.from?.id), botName: ctx.botInfo?.username || '' }
+          )
+          await ctx.reply(reply)
+        } catch {
+          // молча пропускаем ошибки — не ломаем основной flow
+        }
+      })
 
       const botInfo = await bot.telegram.getMe()
       console.log(`🤖 Бот ${botInfo.username} инициализирован`)
