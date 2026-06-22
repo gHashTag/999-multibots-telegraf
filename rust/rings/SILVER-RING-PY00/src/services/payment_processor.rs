@@ -28,6 +28,11 @@ impl PaymentProcessor {
         method: PaymentMethod,
         description: &str,
     ) -> Result<PaymentInit, AppError> {
+        if telegram_id <= 0 {
+            return Err(AppError::Validation(format!(
+                "telegram_id must be positive: {}", telegram_id
+            )));
+        }
         if !amount.is_finite() || amount <= 0.0 {
             return Err(AppError::Validation(format!(
                 "payment amount must be finite and > 0: {}",
@@ -117,6 +122,11 @@ impl PaymentProcessor {
         _service_type: Option<&str>,
         subscription_type: Option<SubscriptionType>,
     ) -> Result<Transaction, AppError> {
+        if telegram_id <= 0 {
+            return Err(AppError::Validation(format!(
+                "telegram_id must be positive: {}", telegram_id
+            )));
+        }
         if !amount.is_finite() || amount <= 0.0 {
             return Err(AppError::Validation(format!(
                 "direct_debit amount must be finite and > 0: {}",

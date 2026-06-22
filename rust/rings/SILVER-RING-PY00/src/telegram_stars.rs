@@ -4,6 +4,8 @@ use trios_mb_types::payment::*;
 use trios_mb_types::AppError;
 use trios_mb_types::Money;
 
+const MAX_TRANSACTION_ID_LEN: usize = 256;
+
 pub struct TelegramStarsGateway;
 
 impl Default for TelegramStarsGateway {
@@ -44,6 +46,12 @@ impl PaymentGateway for TelegramStarsGateway {
     async fn verify_callback(&self, params: &serde_json::Value) -> Result<PaymentVerification, AppError> {
         let transaction_id = params["telegram_payment_charge_id"].as_str()
             .ok_or_else(|| AppError::Validation("Missing telegram_payment_charge_id in Stars callback".into()))?;
+        if transaction_id.len() > MAX_TRANSACTION_ID_LEN {
+            return Err(AppError::Validation(format!(
+                "Stars telegram_payment_charge_id exceeds maximum length of {}: got {}",
+                MAX_TRANSACTION_ID_LEN, transaction_id.len()
+            )));
+        }
         let amount = params["total_amount"].as_f64()
             .ok_or_else(|| AppError::Validation("Missing total_amount in Stars callback".into()))?;
         if !amount.is_finite() || amount < 0.0 {

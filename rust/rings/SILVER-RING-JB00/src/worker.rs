@@ -287,7 +287,8 @@ async fn poll_and_execute(
     let job = match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.dequeue(job_types)).await {
         Ok(Ok(job)) => job,
         Ok(Err(e)) => {
-            tracing::error!(error = %e, "dequeue failed");
+            let err_raw = e.to_string();
+            tracing::error!(error = %trios_mb_types::truncate_for_log(&err_raw, 1024), "dequeue failed");
             return Ok(());
         }
         Err(_) => {
