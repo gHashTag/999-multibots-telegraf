@@ -28,6 +28,7 @@ const notifHistory: Record<string, { level: NotificationLevel; ts: number }> = {
 const DAY = 86_400_000
 const THREE_DAYS = 3 * DAY
 const WEEK = 7 * DAY
+let firstRunSkipped = false
 
 // -- Helpers --
 
@@ -224,6 +225,13 @@ export async function disableBot(botName: string): Promise<boolean> {
 // -- 5. runBillingCheck --
 
 export async function runBillingCheck(): Promise<void> {
+  // Skip first run after restart to avoid spamming owners
+  if (!firstRunSkipped) {
+    firstRunSkipped = true
+    logger.info('[Billing] Skipping first run after restart (anti-spam)')
+    return
+  }
+
   logger.info('[Billing] Running billing check...')
 
   const { data: bots, error } = await supabaseAdmin.from('avatars').select('bot_name')
