@@ -13,6 +13,8 @@ use crate::generation_utils::{load_lang, load_lang_by_id};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const DB_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 use crate::start::handle_start;
 use crate::menu::handle_menu;
 use crate::help::handle_help;
@@ -418,10 +420,20 @@ async fn enter_scene_greeting(
             send_message_timeout(&bot, chat_id, trios_mb_i18n::t(lang, "top_up"), None).await?;
         }
         SceneId::CheckBalance | SceneId::Balance => {
-            let balance = match db.get_balance(telegram_id).await {
-                Ok(b) => b,
-                Err(e) => {
+            let balance = match tokio::time::timeout(DB_TIMEOUT, db.get_balance(telegram_id)).await {
+                Ok(Ok(b)) => b,
+                Ok(Err(e)) => {
                     tracing::error!(telegram_id, error = %e, "Failed to get balance in handler");
+                    let err = if lang.is_russian() {
+                        "❌ Не удалось получить баланс. Попробуйте позже.".to_string()
+                    } else {
+                        "❌ Could not retrieve balance. Please try again later.".to_string()
+                    };
+                    send_message_timeout(&bot, chat_id, err, None).await?;
+                    return Ok(());
+                }
+                Err(_) => {
+                    tracing::warn!(telegram_id, "DB timeout getting balance in handler");
                     let err = if lang.is_russian() {
                         "❌ Не удалось получить баланс. Попробуйте позже.".to_string()
                     } else {
@@ -515,16 +527,24 @@ async fn enter_scene_greeting(
             send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::Invite => {
-            let text = match db.get_referral_count(telegram_id).await {
-                Ok(ref_count) => {
+            let text = match tokio::time::timeout(DB_TIMEOUT, db.get_referral_count(telegram_id)).await {
+                Ok(Ok(ref_count)) => {
                     if lang.is_russian() {
                         format!("👥 Рефералов: {}", ref_count)
                     } else {
                         format!("👥 Referrals: {}", ref_count)
                     }
                 }
-                Err(e) => {
+                Ok(Err(e)) => {
                     tracing::error!(error = %e, telegram_id, "Failed to load referral count");
+                    if lang.is_russian() {
+                        "❌ Не удалось загрузить количество рефералов. Попробуйте позже.".to_string()
+                    } else {
+                        "❌ Unable to load referral count. Please try again later.".to_string()
+                    }
+                }
+                Err(_) => {
+                    tracing::warn!(telegram_id, "DB timeout loading referral count");
                     if lang.is_russian() {
                         "❌ Не удалось загрузить количество рефералов. Попробуйте позже.".to_string()
                     } else {

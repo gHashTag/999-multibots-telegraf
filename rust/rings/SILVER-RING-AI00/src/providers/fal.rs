@@ -7,6 +7,8 @@ use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
+const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct QueueResponse {
@@ -144,17 +146,29 @@ impl FalProvider {
 
     #[tracing::instrument(skip_all)]
     async fn queue_submission(&self, model_id: &str, payload: serde_json::Value) -> Result<QueueResponse, AppError> {
-        let resp = self.http
-            .post(format!("{}/{}", self.base_url, model_id))
-            .header("Authorization", format!("Key {}", self.api_key.expose_secret()))
-            .header("Content-Type", "application/json")
-            .json(&payload)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "fal".into(),
-                message: format!("queue request failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/{}", self.base_url, model_id))
+                .header("Authorization", format!("Key {}", self.api_key.expose_secret()))
+                .header("Content-Type", "application/json")
+                .json(&payload)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "fal".into(),
+                    message: format!("queue request failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "fal".into(),
+                    message: "queue request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
@@ -174,15 +188,27 @@ impl FalProvider {
 
     #[tracing::instrument(skip_all)]
     async fn check_queue_status(&self, model_id: &str, request_id: &str) -> Result<StatusResponse, AppError> {
-        let resp = self.http
-            .get(format!("{}/{}/requests/{}/status", self.base_url, model_id, request_id))
-            .header("Authorization", format!("Key {}", self.api_key.expose_secret()))
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "fal".into(),
-                message: format!("status check failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/{}/requests/{}/status", self.base_url, model_id, request_id))
+                .header("Authorization", format!("Key {}", self.api_key.expose_secret()))
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "fal".into(),
+                    message: format!("status check failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "fal".into(),
+                    message: "status check request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {
@@ -199,15 +225,27 @@ impl FalProvider {
 
     #[tracing::instrument(skip_all)]
     async fn fetch_result(&self, model_id: &str, request_id: &str) -> Result<FalResultResponse, AppError> {
-        let resp = self.http
-            .get(format!("{}/{}/requests/{}", self.base_url, model_id, request_id))
-            .header("Authorization", format!("Key {}", self.api_key.expose_secret()))
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "fal".into(),
-                message: format!("fetch result failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/{}/requests/{}", self.base_url, model_id, request_id))
+                .header("Authorization", format!("Key {}", self.api_key.expose_secret()))
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "fal".into(),
+                    message: format!("fetch result failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "fal".into(),
+                    message: "fetch result request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {

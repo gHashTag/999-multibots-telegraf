@@ -10,6 +10,8 @@ use trios_mb_tg::send_message_timeout;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const DB_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 #[tracing::instrument(skip_all)]
 pub async fn handle_invite_msg(
     bot: teloxide::Bot,
@@ -24,8 +26,8 @@ pub async fn handle_invite_msg(
         return Ok(());
     }
 
-    let intro = match db.get_referral_count(tid).await {
-        Ok(ref_count) => {
+    let intro = match tokio::time::timeout(DB_TIMEOUT, db.get_referral_count(tid)).await {
+        Ok(Ok(ref_count)) => {
             if lang.is_russian() {
                 format!(
                     "🎁 Пригласите друга и получите бонусные звёзды!\n\n👥 Рефералов: {}\n\nОтправьте другу эту ссылку:",
@@ -38,8 +40,16 @@ pub async fn handle_invite_msg(
                 )
             }
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             tracing::error!(error = %e, telegram_id = tid, "Failed to load referral count");
+            if lang.is_russian() {
+                "❌ Не удалось загрузить количество рефералов. Попробуйте позже.".to_string()
+            } else {
+                "❌ Unable to load referral count. Please try again later.".to_string()
+            }
+        }
+        Err(_) => {
+            tracing::warn!(telegram_id = tid, "DB timeout loading referral count");
             if lang.is_russian() {
                 "❌ Не удалось загрузить количество рефералов. Попробуйте позже.".to_string()
             } else {

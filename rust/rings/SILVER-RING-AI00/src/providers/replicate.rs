@@ -6,6 +6,8 @@ use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
+const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
 #[derive(Debug, Serialize)]
 struct PredictionInput {
     #[serde(flatten)]
@@ -167,17 +169,29 @@ impl ReplicateProvider {
             webhook: self.webhook_url.clone(),
         };
 
-        let resp = self.http
-            .post(format!("{}/v1/predictions", self.base_url))
-            .header("Authorization", format!("Token {}", self.api_key.expose_secret()))
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "replicate".into(),
-                message: format!("request failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/v1/predictions", self.base_url))
+                .header("Authorization", format!("Token {}", self.api_key.expose_secret()))
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "replicate".into(),
+                    message: format!("request failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "replicate".into(),
+                    message: "request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
@@ -197,15 +211,27 @@ impl ReplicateProvider {
 
     #[tracing::instrument(skip_all)]
     async fn fetch_prediction(&self, prediction_id: &str) -> Result<PredictionResponse, AppError> {
-        let resp = self.http
-            .get(format!("{}/v1/predictions/{}", self.base_url, prediction_id))
-            .header("Authorization", format!("Token {}", self.api_key.expose_secret()))
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "replicate".into(),
-                message: format!("status check failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/v1/predictions/{}", self.base_url, prediction_id))
+                .header("Authorization", format!("Token {}", self.api_key.expose_secret()))
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "replicate".into(),
+                    message: format!("status check failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "replicate".into(),
+                    message: "status check request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
@@ -307,15 +333,27 @@ impl AiProvider for ReplicateProvider {
 
     #[tracing::instrument(skip_all, fields(generation_id = %generation_id))]
     async fn cancel(&self, generation_id: &str) -> Result<(), AppError> {
-        let resp = self.http
-            .post(format!("{}/v1/predictions/{}/cancel", self.base_url, generation_id))
-            .header("Authorization", format!("Token {}", self.api_key.expose_secret()))
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "replicate".into(),
-                message: format!("cancel failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/v1/predictions/{}/cancel", self.base_url, generation_id))
+                .header("Authorization", format!("Token {}", self.api_key.expose_secret()))
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "replicate".into(),
+                    message: format!("cancel failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "replicate".into(),
+                    message: "cancel request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {

@@ -7,6 +7,8 @@ use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
+const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
 #[derive(Debug, Serialize)]
 struct CreateAnimationRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -82,17 +84,29 @@ impl HedraProvider {
             voice_id: request.params.get("voice_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
         };
 
-        let resp = self.http
-            .post(format!("{}/v1/animations", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "hedra".into(),
-                message: format!("create animation failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/v1/animations", self.base_url))
+                .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "hedra".into(),
+                    message: format!("create animation failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "hedra".into(),
+                    message: "create animation request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
@@ -112,15 +126,27 @@ impl HedraProvider {
 
     #[tracing::instrument(skip_all)]
     async fn fetch_animation_status(&self, animation_id: &str) -> Result<HedronResponse, AppError> {
-        let resp = self.http
-            .get(format!("{}/v1/animations/{}", self.base_url, animation_id))
-            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "hedra".into(),
-                message: format!("status check failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/v1/animations/{}", self.base_url, animation_id))
+                .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "hedra".into(),
+                    message: format!("status check failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "hedra".into(),
+                    message: "status check request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {

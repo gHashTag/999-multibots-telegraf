@@ -7,6 +7,8 @@ use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
+const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct KieTaskResponse {
@@ -175,16 +177,19 @@ impl KieProvider {
         model.contains("wan")
     }
 
+    #[tracing::instrument(skip_all)]
     async fn submit_video(&self, payload: serde_json::Value) -> Result<KieTaskResponse, AppError> {
         let endpoint = "/api/v1/video/generate";
         self.send_request(endpoint, payload).await
     }
 
+    #[tracing::instrument(skip_all)]
     async fn submit_sora(&self, payload: serde_json::Value) -> Result<KieTaskResponse, AppError> {
         let endpoint = "/api/v1/sora/generate";
         self.send_request(endpoint, payload).await
     }
 
+    #[tracing::instrument(skip_all)]
     async fn submit_image(&self, payload: serde_json::Value) -> Result<KieTaskResponse, AppError> {
         let endpoint = "/api/v1/image/generate";
         self.send_request(endpoint, payload).await
@@ -197,17 +202,29 @@ impl KieProvider {
 
     #[tracing::instrument(skip_all)]
     async fn send_request(&self, endpoint: &str, payload: serde_json::Value) -> Result<KieTaskResponse, AppError> {
-        let resp = self.http
-            .post(format!("{}{}", self.base_url, endpoint))
-            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
-            .header("Content-Type", "application/json")
-            .json(&payload)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "kie".into(),
-                message: format!("request failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}{}", self.base_url, endpoint))
+                .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
+                .header("Content-Type", "application/json")
+                .json(&payload)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "kie".into(),
+                    message: format!("request failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "kie".into(),
+                    message: "request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
@@ -227,15 +244,27 @@ impl KieProvider {
 
     #[tracing::instrument(skip_all)]
     async fn check_task_status(&self, task_id: &str) -> Result<KieTaskResponse, AppError> {
-        let resp = self.http
-            .get(format!("{}/api/v1/task/{}", self.base_url, task_id))
-            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "kie".into(),
-                message: format!("status check failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/api/v1/task/{}", self.base_url, task_id))
+                .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "kie".into(),
+                    message: format!("status check failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "kie".into(),
+                    message: "status check request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {

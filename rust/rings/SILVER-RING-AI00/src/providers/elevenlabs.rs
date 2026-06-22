@@ -7,6 +7,8 @@ use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
+const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
 #[derive(Debug, Serialize)]
 struct TtsPayload {
     text: String,
@@ -100,18 +102,30 @@ impl ElevenLabsProvider {
             },
         };
 
-        let resp = self.http
-            .post(format!("{}/v1/text-to-speech/{}", self.base_url, voice_id))
-            .header("xi-api-key", self.api_key.expose_secret())
-            .header("Content-Type", "application/json")
-            .header("Accept", "audio/mpeg")
-            .json(&payload)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "elevenlabs".into(),
-                message: format!("tts request failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/v1/text-to-speech/{}", self.base_url, voice_id))
+                .header("xi-api-key", self.api_key.expose_secret())
+                .header("Content-Type", "application/json")
+                .header("Accept", "audio/mpeg")
+                .json(&payload)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: format!("tts request failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: "tts request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
@@ -155,15 +169,27 @@ impl ElevenLabsProvider {
 
     #[tracing::instrument(skip_all)]
     pub async fn list_voices(&self) -> Result<Vec<Voice>, AppError> {
-        let resp = self.http
-            .get(format!("{}/v1/voices", self.base_url))
-            .header("xi-api-key", self.api_key.expose_secret())
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "elevenlabs".into(),
-                message: format!("list voices failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/v1/voices", self.base_url))
+                .header("xi-api-key", self.api_key.expose_secret())
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: format!("list voices failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: "list voices request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {
@@ -205,16 +231,28 @@ impl ElevenLabsProvider {
                 .mime_str("audio/mpeg")
                 .map_err(|e| AppError::Internal(e.to_string()))?);
 
-        let resp = self.http
-            .post(format!("{}/v1/voices/add", self.base_url))
-            .header("xi-api-key", self.api_key.expose_secret())
-            .multipart(form)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "elevenlabs".into(),
-                message: format!("add voice failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/v1/voices/add", self.base_url))
+                .header("xi-api-key", self.api_key.expose_secret())
+                .multipart(form)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: format!("add voice failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: "add voice request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
@@ -235,15 +273,27 @@ impl ElevenLabsProvider {
 
     #[tracing::instrument(skip_all)]
     pub async fn get_character_balance(&self) -> Result<(i64, i64), AppError> {
-        let resp = self.http
-            .get(format!("{}/v1/user", self.base_url))
-            .header("xi-api-key", self.api_key.expose_secret())
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "elevenlabs".into(),
-                message: format!("user info failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/v1/user", self.base_url))
+                .header("xi-api-key", self.api_key.expose_secret())
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: format!("user info failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: "user info request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {

@@ -7,6 +7,8 @@ use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
+const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
 #[derive(Debug, Serialize)]
 struct CreateVideoRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -151,17 +153,29 @@ impl HeyGenProvider {
             test: Some(test),
         };
 
-        let resp = self.http
-            .post(format!("{}/v2/video/generate", self.base_url))
-            .header("X-Api-Key", self.api_key.expose_secret())
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "heygen".into(),
-                message: format!("create video failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/v2/video/generate", self.base_url))
+                .header("X-Api-Key", self.api_key.expose_secret())
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "heygen".into(),
+                    message: format!("create video failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "heygen".into(),
+                    message: "create video request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
@@ -187,15 +201,27 @@ impl HeyGenProvider {
 
     #[tracing::instrument(skip_all, fields(video_id = %video_id))]
     pub async fn check_video_status(&self, video_id: &str) -> Result<(String, Option<String>), AppError> {
-        let resp = self.http
-            .get(format!("{}/v1/video_status.get?video_id={}", self.base_url, video_id))
-            .header("X-Api-Key", self.api_key.expose_secret())
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "heygen".into(),
-                message: format!("status check failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/v1/video_status.get?video_id={}", self.base_url, video_id))
+                .header("X-Api-Key", self.api_key.expose_secret())
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "heygen".into(),
+                    message: format!("status check failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "heygen".into(),
+                    message: "status check request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {
@@ -222,15 +248,27 @@ impl HeyGenProvider {
 
     #[tracing::instrument(skip_all)]
     pub async fn list_avatars(&self) -> Result<Vec<Avatar>, AppError> {
-        let resp = self.http
-            .get(format!("{}/v2/avatars", self.base_url))
-            .header("X-Api-Key", self.api_key.expose_secret())
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "heygen".into(),
-                message: format!("list avatars failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/v2/avatars", self.base_url))
+                .header("X-Api-Key", self.api_key.expose_secret())
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "heygen".into(),
+                    message: format!("list avatars failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "heygen".into(),
+                    message: "list avatars request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {
