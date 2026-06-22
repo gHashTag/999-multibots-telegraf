@@ -33,6 +33,13 @@ const MISSING_USER_BALANCE_SENTINEL: f64 = 0.0;
 // Pagination limits
 const MAX_TRANSACTION_PAGE_SIZE: i64 = 100;
 
+/// Sanitize a raw database error into a generic message.
+/// The raw error is preserved in tracing logs; callers get a safe description.
+fn sanitize_db_error<E: std::fmt::Display>(operation: &str, err: E) -> AppError {
+    tracing::error!(operation, error = %err, "Database operation failed");
+    AppError::Db(trios_mb_types::errors::DbError::Query(format!("{} failed", operation)))
+}
+
 fn media_type_to_str(mt: &MediaType) -> &'static str {
     match mt {
         MediaType::Image => "image",
@@ -111,7 +118,7 @@ impl PostgresDatabase {
         opt.max_connections(DB_MAX_CONNECTIONS);
         let conn = sea_orm::Database::connect(opt)
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Connection(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("connect", e))?;
         Ok(Self {
             pool: Arc::new(conn),
         })
@@ -741,7 +748,7 @@ impl DbTrait for PostgresDatabase {
     async fn health_check(&self) -> Result<bool, AppError> {
         match self.pool.ping().await {
             Ok(()) => Ok(true),
-            Err(e) => Err(AppError::Db(trios_mb_types::errors::DbError::Connection(e.to_string()))),
+            Err(e) => Err(sanitize_db_error("health_check", e)),
         }
     }
 
@@ -786,7 +793,7 @@ impl DbTrait for PostgresDatabase {
                 ],
             ))
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("complete_robokassa_payment", e))?;
 
         Ok(result.rows_affected() > 0)
     }

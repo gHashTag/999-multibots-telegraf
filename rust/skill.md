@@ -130,3 +130,8 @@ Trigger: User says "исследуй слабые места работы, ис�
 - CORS Origin Scheme Validation — `router.rs` (`build_cors()`)
 - Health Check Timestamp Fingerprinting Removal — `health.rs`
 - Missing User Balance Sentinel Constant — `repository.rs` (`MISSING_USER_BALANCE_SENTINEL`)
+
+## Wave 248 Applied Skills
+- CORS Wildcard Origin Rejection — `router.rs` (`build_cors()`)
+- Health Check Body Size Limit — `router.rs` (`DefaultBodyLimit::max(4096)`)
+- DB Error Sanitization Helper — `repository.rs` (`sanitize_db_error` applied to 3 critical functions)

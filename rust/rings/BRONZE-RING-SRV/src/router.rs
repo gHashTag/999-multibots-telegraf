@@ -80,6 +80,10 @@ fn build_cors() -> CorsLayer {
     } else {
         let mut origins: Vec<http::HeaderValue> = Vec::new();
         for o in allowed_origins {
+            if o.contains('*') {
+                tracing::warn!(origin = %o, "CORS origin contains wildcard; skipping");
+                continue;
+            }
             if !(o.starts_with("http://") || o.starts_with("https://")) {
                 tracing::warn!(origin = %o, "CORS origin missing scheme; skipping");
                 continue;
@@ -187,7 +191,8 @@ pub fn create_router(db: Arc<dyn Database>) -> Result<Router, String> {
     let health = apply_rate_limit(
         Router::new()
             .route("/health", get(crate::health::health_check_with_db))
-            .route("/health/simple", get(crate::health::health_check)),
+            .route("/health/simple", get(crate::health::health_check))
+            .layer(axum::extract::DefaultBodyLimit::max(4096)),
         HEALTH_RATE_PER_SECOND, HEALTH_RATE_BURST,
     )?;
 
@@ -231,7 +236,8 @@ pub fn create_router_with_payments(
     let health = apply_rate_limit(
         Router::new()
             .route("/health", get(crate::health::health_check_with_db))
-            .route("/health/simple", get(crate::health::health_check)),
+            .route("/health/simple", get(crate::health::health_check))
+            .layer(axum::extract::DefaultBodyLimit::max(4096)),
         HEALTH_RATE_PER_SECOND, HEALTH_RATE_BURST,
     )?;
 
