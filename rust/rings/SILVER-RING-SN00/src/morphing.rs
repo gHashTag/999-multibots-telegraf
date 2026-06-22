@@ -12,6 +12,7 @@ use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const MAX_MORPHING_IMAGES: usize = 10;
+const MAX_MORPHING_TEXT_LEN: usize = 500;
 
 #[tracing::instrument(skip_all)]
 pub async fn handle_morphing_msg(
@@ -99,9 +100,34 @@ pub async fn handle_morphing_msg(
                 }
                 dialogue_update_timeout(&dialogue, Scene::Morphing(state)).await?;
             } else if let Some(text) = msg.text() {
-                if text.contains("Отмена") || text.contains("Cancel") {
+                let trimmed = text.trim();
+                if trimmed.is_empty() {
+                    let err = if lang.is_russian() {
+                        "❌ Пустое сообщение не допускается."
+                    } else {
+                        "❌ Empty message is not allowed."
+                    };
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                    return Ok(());
+                }
+                if text.len() > MAX_MORPHING_TEXT_LEN {
+                    let err = if lang.is_russian() {
+                        "❌ Сообщение слишком длинное."
+                    } else {
+                        "❌ Message is too long."
+                    };
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                    return Ok(());
+                }
+                if trimmed.eq_ignore_ascii_case("отмена") || trimmed.eq_ignore_ascii_case("cancel") {
                     return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                 }
+                let err = if lang.is_russian() {
+                    "❌ Неизвестная команда. Отправьте изображение или слово «Отмена»."
+                } else {
+                    "❌ Unknown command. Send an image or the word «Cancel»."
+                };
+                send_message_timeout(&bot, msg.chat.id, err, None).await?;
             }
         }
         _ => {}

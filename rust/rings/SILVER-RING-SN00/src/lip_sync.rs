@@ -12,6 +12,9 @@ use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, loa
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const MAX_LIP_SYNC_VIDEO_BYTES: u64 = 100 * 1024 * 1024;
+const MAX_LIP_SYNC_AUDIO_BYTES: u64 = 50 * 1024 * 1024;
+
 #[tracing::instrument(skip_all)]
 pub async fn handle_lip_sync_entry(
     bot: teloxide::Bot,
@@ -44,6 +47,15 @@ pub async fn handle_lip_sync_msg(
 
     if let Some(video) = msg.video() {
         if state.step <= 1 {
+            if video.file.size as u64 > MAX_LIP_SYNC_VIDEO_BYTES {
+                let err = if lang.is_russian() {
+                    "❌ Видео слишком большое. Максимум 100 МБ."
+                } else {
+                    "❌ Video is too large. Maximum 100 MB."
+                };
+                send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                return Ok(());
+            }
             state.video_url = Some(video.file.id.clone());
             state.step = 2;
             let text = if lang.is_russian() { "Отправьте аудио" } else { "Send audio" };
@@ -57,6 +69,15 @@ pub async fn handle_lip_sync_msg(
 
     if let Some(audio) = msg.audio() {
         if state.step == 2 {
+            if audio.file.size as u64 > MAX_LIP_SYNC_AUDIO_BYTES {
+                let err = if lang.is_russian() {
+                    "❌ Аудио слишком большое. Максимум 50 МБ."
+                } else {
+                    "❌ Audio is too large. Maximum 50 MB."
+                };
+                send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                return Ok(());
+            }
             state.audio_url = Some(audio.file.id.clone());
             state.step = 3;
 
@@ -82,6 +103,15 @@ pub async fn handle_lip_sync_msg(
 
     if let Some(voice) = msg.voice() {
         if state.step == 2 {
+            if voice.file.size as u64 > MAX_LIP_SYNC_AUDIO_BYTES {
+                let err = if lang.is_russian() {
+                    "❌ Голосовое слишком большое. Максимум 50 МБ."
+                } else {
+                    "❌ Voice message is too large. Maximum 50 MB."
+                };
+                send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                return Ok(());
+            }
             state.audio_url = Some(voice.file.id.clone());
             state.step = 3;
 

@@ -14,6 +14,7 @@ use crate::generation_utils::{load_lang, load_lang_by_id};
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const DB_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+const MAX_MENU_TEXT_LEN: usize = 500;
 
 use crate::start::handle_start;
 use crate::menu::handle_menu;
@@ -264,6 +265,18 @@ async fn handle_main_menu_msg(
             return Ok(());
         }
     };
+
+    if text.trim().is_empty() {
+        let err = if lang.is_russian() { "❌ Пустое сообщение не допускается." } else { "❌ Empty message is not allowed." };
+        send_message_timeout(&bot, msg.chat.id, err, Some(main_menu_keyboard(lang).into())).await?;
+        return Ok(());
+    }
+
+    if text.len() > MAX_MENU_TEXT_LEN {
+        let err = if lang.is_russian() { "❌ Сообщение слишком длинное." } else { "❌ Message is too long." };
+        send_message_timeout(&bot, msg.chat.id, err, Some(main_menu_keyboard(lang).into())).await?;
+        return Ok(());
+    }
 
     let target = match_text_to_scene(lang, text);
     match target {
