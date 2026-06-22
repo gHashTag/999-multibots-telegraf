@@ -343,6 +343,11 @@ async function initializeBots() {
         // (до bot.launch(), чтобы не ждать бесконечного polling loop)
         startApiServer(bot) // Передаём только первый бот (default)
         console.log('✅ API сервер запущен с bot instance для webhooks')
+
+        // ✅ Запускаем мониторинг провайдеров (проверка каждые 5 минут)
+        const { startProviderMonitor } = await import('./services/provider-health-monitor')
+        startProviderMonitor()
+        console.log('✅ Provider health monitor запущен')
       }
 
       // ✅ Сохраняем ВСЕ bot instances для multi-bot поддержки

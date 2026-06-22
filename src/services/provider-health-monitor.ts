@@ -1,0 +1,166 @@
+import { logger } from '@/utils/logger'
+
+interface ProviderStatus {
+  name: string
+  available: boolean
+  reason?: string
+  lastCheck: number
+}
+
+const providerStatuses: Record<string, ProviderStatus> = {}
+const CHECK_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+
+async function notifyAdmin(message: string) {
+  const chatId = process.env.ADMIN_CHAT_ID
+  const token = process.env.BOT_TOKEN_1
+  if (!chatId || !token) return
+
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'HTML',
+      }),
+    })
+  } catch (e) {
+    logger.error('Failed to notify admin about provider status', { error: e })
+  }
+}
+
+async function checkFalAi(): Promise<ProviderStatus> {
+  const key = process.env.FAL_KEY
+  if (!key) return { name: 'fal.ai', available: false, reason: 'FAL_KEY not set', lastCheck: Date.now() }
+
+  try {
+    const resp = await fetch('https://queue.fal.run/fal-ai/flux-schnell', {
+      method: 'POST',
+      headers: { Authorization: `Key ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    const body = await resp.text()
+    if (body.includes('Exhausted balance') || body.includes('locked')) {
+      return { name: 'fal.ai', available: false, reason: 'Balance exhausted', lastCheck: Date.now() }
+    }
+    return { name: 'fal.ai', available: true, lastCheck: Date.now() }
+  } catch {
+    return { name: 'fal.ai', available: false, reason: 'API unreachable', lastCheck: Date.now() }
+  }
+}
+
+async function checkReplicate(): Promise<ProviderStatus> {
+  const token = process.env.REPLICATE_API_TOKEN
+  if (!token) return { name: 'replicate', available: false, reason: 'Token not set', lastCheck: Date.now() }
+
+  try {
+    const resp = await fetch('https://api.replicate.com/v1/account', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (resp.status === 401) return { name: 'replicate', available: false, reason: 'Invalid token', lastCheck: Date.now() }
+    return { name: 'replicate', available: resp.ok, lastCheck: Date.now() }
+  } catch {
+    return { name: 'replicate', available: false, reason: 'API unreachable', lastCheck: Date.now() }
+  }
+}
+
+async function checkOpenAI(): Promise<ProviderStatus> {
+  const key = process.env.OPENAI_API_KEY
+  if (!key) return { name: 'openai', available: false, reason: 'Key not set', lastCheck: Date.now() }
+
+  try {
+    const resp = await fetch('https://api.openai.com/v1/models', {
+      headers: { Authorization: `Bearer ${key}` },
+    })
+    if (resp.status === 401 || resp.status === 429) {
+      return { name: 'openai', available: false, reason: `HTTP ${resp.status}`, lastCheck: Date.now() }
+    }
+    return { name: 'openai', available: resp.ok, lastCheck: Date.now() }
+  } catch {
+    return { name: 'openai', available: false, reason: 'API unreachable', lastCheck: Date.now() }
+  }
+}
+
+async function checkElevenLabs(): Promise<ProviderStatus> {
+  const key = process.env.ELEVENLABS_API_KEY
+  if (!key) return { name: 'elevenlabs', available: false, reason: 'Key not set', lastCheck: Date.now() }
+
+  try {
+    const resp = await fetch('https://api.elevenlabs.io/v1/user/subscription', {
+      headers: { 'xi-api-key': key },
+    })
+    if (!resp.ok) return { name: 'elevenlabs', available: false, reason: `HTTP ${resp.status}`, lastCheck: Date.now() }
+    const data = await resp.json()
+    const charsLeft = (data.character_limit || 0) - (data.character_count || 0)
+    if (charsLeft < 1000) {
+      return { name: 'elevenlabs', available: false, reason: `Only ${charsLeft} chars left`, lastCheck: Date.now() }
+    }
+    return { name: 'elevenlabs', available: true, lastCheck: Date.now() }
+  } catch {
+    return { name: 'elevenlabs', available: false, reason: 'API unreachable', lastCheck: Date.now() }
+  }
+}
+
+export async function checkAllProviders(): Promise<Record<string, ProviderStatus>> {
+  const checks = await Promise.allSettled([
+    checkFalAi(),
+    checkReplicate(),
+    checkOpenAI(),
+    checkElevenLabs(),
+  ])
+
+  const results = checks.map(r => r.status === 'fulfilled' ? r.value : { name: 'unknown', available: false, reason: 'Check failed', lastCheck: Date.now() })
+  const alerts: string[] = []
+
+  for (const status of results) {
+    const prev = providerStatuses[status.name]
+    providerStatuses[status.name] = status
+
+    if (!status.available) {
+      logger.error(`🚨 Provider ${status.name} is DOWN`, { reason: status.reason })
+      if (!prev || prev.available) {
+        alerts.push(`🔴 <b>${status.name}</b> — ${status.reason}`)
+      }
+    } else if (prev && !prev.available) {
+      logger.info(`✅ Provider ${status.name} recovered`)
+      alerts.push(`🟢 <b>${status.name}</b> — recovered`)
+    }
+  }
+
+  if (alerts.length > 0) {
+    await notifyAdmin(`⚡ <b>Provider Alert</b>\n\n${alerts.join('\n')}\n\n🕐 ${new Date().toISOString()}`)
+  }
+
+  return providerStatuses
+}
+
+export function isProviderAvailable(name: string): boolean {
+  const status = providerStatuses[name]
+  if (!status) return true
+  if (Date.now() - status.lastCheck > CHECK_INTERVAL_MS) return true
+  return status.available
+}
+
+export function getProviderStatus(name: string): ProviderStatus | undefined {
+  return providerStatuses[name]
+}
+
+export function getAllProviderStatuses(): Record<string, ProviderStatus> {
+  return { ...providerStatuses }
+}
+
+let monitorInterval: ReturnType<typeof setInterval> | null = null
+
+export function startProviderMonitor(intervalMs = CHECK_INTERVAL_MS) {
+  logger.info('🔍 Starting provider health monitor', { intervalMs })
+  checkAllProviders()
+  monitorInterval = setInterval(checkAllProviders, intervalMs)
+}
+
+export function stopProviderMonitor() {
+  if (monitorInterval) {
+    clearInterval(monitorInterval)
+    monitorInterval = null
+  }
+}

@@ -127,6 +127,16 @@ export async function generateNeuroPhotoHybrid(
     explicitAspectRatio,
   })
 
+  // Проверка доступности провайдера
+  const { isProviderAvailable } = await import('./provider-health-monitor')
+  if (!isProviderAvailable('fal.ai') && !isProviderAvailable('replicate')) {
+    const is_ru = await isRussianFromState(ctx)
+    await ctx.reply(is_ru
+      ? '⚠️ Все провайдеры генерации временно недоступны. Администратор уведомлён. Попробуйте позже.'
+      : '⚠️ All generation providers are temporarily unavailable. Admin has been notified. Please try again later.')
+    return null
+  }
+
   logger.info('🔄 [HYBRID] Начало гибридной генерации neuro_photo', {
     telegram_id,
     numImages,

@@ -75,6 +75,13 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
     next()
   })
 
+  // Provider health endpoint
+  app.get('/api/providers', async (_req: any, res: any) => {
+    const { getAllProviderStatuses, checkAllProviders } = await import('../services/provider-health-monitor')
+    if (_req.query.refresh === 'true') await checkAllProviders()
+    res.json(getAllProviderStatuses())
+  })
+
   // Регистрируем маршруты для проверки работоспособности
   app.use('/', healthRouter)
 
