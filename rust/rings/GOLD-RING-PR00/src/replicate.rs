@@ -130,8 +130,8 @@ impl WebhookPayload {
                     let raw = o.to_string();
                     let preview = trios_mb_types::truncate_for_log(&raw, 256);
                     tracing::warn!(
-                        id = %self.id,
-                        status = %self.status,
+                        id = %trios_mb_types::truncate_for_log(&self.id, 256),
+                        status = %trios_mb_types::truncate_for_log(&self.status, 256),
                         output_preview = %preview,
                         "Replicate output format is neither array nor string; possible provider API drift"
                     );

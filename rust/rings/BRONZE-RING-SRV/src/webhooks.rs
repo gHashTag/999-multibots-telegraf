@@ -15,6 +15,7 @@ const WEBHOOK_DB_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Validate a result URL before storing it in the database.
 /// Only allows `http://` or `https://` pointing to public hosts.
+#[tracing::instrument(skip_all)]
 fn validate_result_url(url_str: &str) -> Result<(), String> {
     const MAX_URL_LEN: usize = 4096;
     if url_str.is_empty() {
@@ -119,7 +120,7 @@ fn verify_webhook_secret(headers: &HeaderMap, expected: &secrecy::SecretString) 
     Ok(())
 }
 
-#[tracing::instrument(skip(state, headers, payload), fields(webhook_type = "replicate", id = %payload.id))]
+#[tracing::instrument(skip(state, headers, payload), fields(webhook_type = "replicate", id = %truncate_for_log(&payload.id, 256)))]
 pub async fn replicate_webhook(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -138,8 +139,8 @@ pub async fn replicate_webhook(
     }
 
     tracing::info!(
-        id = %payload.id,
-        status = %payload.status,
+        id = %truncate_for_log(&payload.id, 256),
+        status = %truncate_for_log(&payload.status, 256),
         "Replicate webhook received"
     );
 
@@ -199,7 +200,7 @@ pub async fn replicate_webhook(
         if let Some(weights) = payload.output_weights() {
             let weights_truncated = trios_mb_types::truncate_for_log(&weights, 256);
             tracing::info!(
-                id = %payload.id,
+                id = %truncate_for_log(&payload.id, 256),
                 weights = %weights_truncated,
                 "Training completed, weights available"
             );
@@ -235,20 +236,20 @@ pub async fn replicate_webhook(
     match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.record_webhook_event("replicate", &payload.id)).await {
         Ok(Ok(true)) => {},
         Ok(Ok(false)) => {
-            tracing::info!(id = %payload.id, "Replicate webhook: duplicate event after processing");
+            tracing::info!(id = %truncate_for_log(&payload.id, 256), "Replicate webhook: duplicate event after processing");
         }
         Ok(Err(e)) => {
-            tracing::error!(error = %e, id = %payload.id, "Failed to record webhook event after successful processing");
+            tracing::error!(error = %e, id = %truncate_for_log(&payload.id, 256), "Failed to record webhook event after successful processing");
         }
         Err(_) => {
-            tracing::warn!(id = %payload.id, "Webhook idempotency record timed out after successful processing");
+            tracing::warn!(id = %truncate_for_log(&payload.id, 256), "Webhook idempotency record timed out after successful processing");
         }
     }
 
     (StatusCode::OK, Json(serde_json::json!({"status": "ok"})))
 }
 
-#[tracing::instrument(skip(state, headers, payload), fields(webhook_type = "kie_ai", task_id = ?payload.task_id))]
+#[tracing::instrument(skip(state, headers, payload), fields(webhook_type = "kie_ai", task_id = %truncate_for_log(payload.task_id.as_deref().unwrap_or(""), 256)))]
 pub async fn kie_ai_webhook(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -362,13 +363,13 @@ pub async fn kie_ai_webhook(
     match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.record_webhook_event("kie", event_id)).await {
         Ok(Ok(true)) => {},
         Ok(Ok(false)) => {
-            tracing::info!(task_id = %event_id, "Kie.ai webhook: duplicate event after processing");
+            tracing::info!(task_id = %truncate_for_log(event_id, 256), "Kie.ai webhook: duplicate event after processing");
         }
         Ok(Err(e)) => {
-            tracing::error!(error = %e, task_id = %event_id, "Failed to record webhook event after successful processing");
+            tracing::error!(error = %e, task_id = %truncate_for_log(event_id, 256), "Failed to record webhook event after successful processing");
         }
         Err(_) => {
-            tracing::warn!(task_id = %event_id, "Webhook idempotency record timed out after successful processing");
+            tracing::warn!(task_id = %truncate_for_log(event_id, 256), "Webhook idempotency record timed out after successful processing");
         }
     }
 
