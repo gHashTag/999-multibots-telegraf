@@ -196,6 +196,8 @@ async function initializeBots() {
         'callback_query',
         'pre_checkout_query' as any,
         'successful_payment' as any,
+        'business_connection' as any,
+        'business_message' as any,
       ],
     })
     logger.debug(
@@ -288,6 +290,8 @@ async function initializeBots() {
               'callback_query',
               'pre_checkout_query' as any,
               'successful_payment' as any,
+              'business_connection' as any,
+              'business_message' as any,
             ],
           })
           logger.debug(`🚀 Бот ${botInfo.username} запущен в polling режиме`)
@@ -309,6 +313,8 @@ async function initializeBots() {
               'callback_query',
               'pre_checkout_query' as any,
               'successful_payment' as any,
+              'business_connection' as any,
+              'business_message' as any,
             ],
           })
           logger.debug(

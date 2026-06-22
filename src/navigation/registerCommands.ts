@@ -109,6 +109,13 @@ import { setupAutoFixerCommands } from '@/commands/autofixer/autofixer.command'
 import { autoFixerConfigScene } from '@/commands/autofixer/autofixer-config.scene'
 import { requireAdmin } from '@/middleware/adminOnly'
 import { setupAutonomousMonitor } from '@/commands/autonomousMonitor'
+import {
+  handleBusinessConnection,
+  handleBusinessMessage,
+  getBusinessStats,
+  type BusinessConnection,
+  type BusinessMessage,
+} from '@/services/businessBotService'
 import { registerMultiPhotoActions } from '@/handlers/multiPhotoActions'
 import { handleHelpCommand } from '@/commands/helpCommand'
 import { get100Command } from '@/commands/get100Command'
@@ -499,7 +506,46 @@ If not, continue on your own and click the "I myself" button`
     )
     setupAutonomousMonitor(bot)
 
-    // 9. ДОПОЛНИТЕЛЬНЫЕ ACTION-ОБРАБОТЧИКИ (не навигация)
+    // 9. TELEGRAM BUSINESS INTEGRATION
+    ;(bot as any).on('business_connection', async (ctx: any) => {
+      try {
+        const connection: BusinessConnection = ctx.update.business_connection
+        handleBusinessConnection(connection)
+      } catch (error) {
+        logger.error('[Business] Error handling business_connection', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    })
+
+    ;(bot as any).on('business_message', async (ctx: any) => {
+      try {
+        const msg: BusinessMessage = ctx.update.business_message
+        const botUsername = ctx.botInfo?.username || ''
+        await handleBusinessMessage(msg, bot as any, botUsername)
+      } catch (error) {
+        logger.error('[Business] Error handling business_message', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    })
+
+    bot.command('business', requireAdmin(), async ctx => {
+      const s = getBusinessStats()
+      const connList = s.connections.length > 0
+        ? s.connections.map(c => `  - ID: ${c.id.slice(0, 8)}... | User: ${c.userId} | Reply: ${c.canReply ? 'yes' : 'no'}`).join('\n')
+        : '  (none)'
+
+      await ctx.reply(
+        `📊 Telegram Business Stats\n\n` +
+        `Active connections: ${s.activeConnections}\n` +
+        `Messages today: ${s.todayMessages}\n` +
+        `Unique users today: ${s.todayUniqueUsers}\n\n` +
+        `Connections:\n${connList}`
+      )
+    })
+
+    // 10. ДОПОЛНИТЕЛЬНЫЕ ACTION-ОБРАБОТЧИКИ (не навигация)
     // ⚠️ ВАЖНО: Основные навигационные action-обработчики (go_main_menu, go_help, go_back)
     // уже зарегистрированы в registerNavigationActions() внутри initializeNavigation()
     // Здесь регистрируем только специфичные обработчики, не связанные с навигацией
