@@ -334,7 +334,8 @@ async fn poll_and_execute(
             tracing::info!(worker = worker_name, job_id = %job_id, "Job completed");
         }
         Some(Ok(Err(e))) => {
-            let err_str = e.to_string();
+            let err_raw = e.to_string();
+            let err_str = trios_mb_types::truncate_for_log(&err_raw, 1024);
             let status = match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.get(job_id)).await {
                 Ok(Ok(Some(j))) => {
                     if j.attempts >= j.max_attempts {

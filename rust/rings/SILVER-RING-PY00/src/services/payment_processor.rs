@@ -96,6 +96,12 @@ impl PaymentProcessor {
             return Ok(tx);
         }
 
+        if !tx.amount.is_finite() || tx.amount < 0.0 {
+            return Err(AppError::Validation(format!(
+                "transaction amount must be finite and >= 0: {}",
+                tx.amount
+            )));
+        }
         self.db.update_transaction_status(tx.id, PaymentStatus::Completed).await?;
         self.db.add_balance(tx.telegram_id, tx.amount).await?;
 

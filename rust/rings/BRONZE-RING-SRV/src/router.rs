@@ -49,6 +49,7 @@ pub struct AppState {
 
 /// Load a webhook secret from an environment variable.
 /// Returns SecretString so the buffer is zeroised on drop and redacted in Debug.
+#[tracing::instrument(skip_all)]
 fn load_webhook_secret(env_var: &str) -> Option<SecretString> {
     match std::env::var(env_var) {
         Ok(v) if !v.is_empty() => Some(SecretString::new(v.into_boxed_str())),
