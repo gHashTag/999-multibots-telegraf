@@ -11,6 +11,8 @@ use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu, deduct_ba
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const VOICE_TRAINING_COST: f64 = 15.0;
+const MIN_VOICE_TRAINING_DURATION: u32 = 30;
+const MAX_VOICE_TRAINING_DURATION: u32 = 180;
 
 #[tracing::instrument(skip_all)]
 pub async fn handle_voice_training_msg(
@@ -42,11 +44,25 @@ pub async fn handle_voice_training_msg(
             dialogue_update_timeout(&dialogue, Scene::VoiceTraining(state)).await?;
         }
         1 => {
-            let file_id = if let Some(audio) = msg.audio() {
-                Some(audio.file.id.clone())
-            } else { msg.voice().map(|voice| voice.file.id.clone()) };
+            let (file_id, duration) = if let Some(audio) = msg.audio() {
+                (Some(audio.file.id.clone()), audio.duration.seconds())
+            } else if let Some(voice) = msg.voice() {
+                (Some(voice.file.id.clone()), voice.duration.seconds())
+            } else {
+                (None, 0)
+            };
 
             if let Some(fid) = file_id {
+                if duration < MIN_VOICE_TRAINING_DURATION || duration > MAX_VOICE_TRAINING_DURATION {
+                    let err = if lang.is_russian() {
+                        format!("❌ Длительность аудио должна быть от {} до {} секунд.", MIN_VOICE_TRAINING_DURATION, MAX_VOICE_TRAINING_DURATION)
+                    } else {
+                        format!("❌ Audio duration must be between {} and {} seconds.", MIN_VOICE_TRAINING_DURATION, MAX_VOICE_TRAINING_DURATION)
+                    };
+                    send_message_timeout(&bot, msg.chat.id, err, None,
+                    ).await?;
+                    return Ok(());
+                }
                 state.audio_url = Some(fid);
                 state.step = 2;
 

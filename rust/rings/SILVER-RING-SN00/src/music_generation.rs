@@ -41,6 +41,13 @@ pub async fn handle_music_generation_msg(
         }
         1 => {
             if let Some(text) = msg.text() {
+                if text.trim().is_empty() {
+                    let err = if lang.is_russian() { "❌ Пустой промпт не допускается." } else { "❌ Empty prompt is not allowed." };
+                    send_message_timeout(
+                        &bot, msg.chat.id, err, None,
+                    ).await?;
+                    return Ok(());
+                }
                 if text.len() > 4000 {
                     let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
                     send_message_timeout(

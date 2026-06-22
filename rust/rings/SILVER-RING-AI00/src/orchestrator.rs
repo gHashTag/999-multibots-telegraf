@@ -10,6 +10,9 @@ use crate::circuit_breaker::CircuitBreaker;
 
 const FAILURE_THRESHOLD: u32 = 3;
 const RESET_TIMEOUT_SECS: u64 = 60;
+const DISPATCH_TIMEOUT_SECS: u64 = 120;
+const CHECK_STATUS_TIMEOUT_SECS: u64 = 30;
+const GET_RESULT_TIMEOUT_SECS: u64 = 30;
 
 pub struct AiOrchestrator {
     providers: Vec<Arc<dyn AiProvider>>,
@@ -84,7 +87,7 @@ impl AiOrchestrator {
 impl AiProviderOrchestrator for AiOrchestrator {
     #[tracing::instrument(skip_all)]
     async fn dispatch(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
-        match tokio::time::timeout(Duration::from_secs(120), self.dispatch_inner(request)).await {
+        match tokio::time::timeout(Duration::from_secs(DISPATCH_TIMEOUT_SECS), self.dispatch_inner(request)).await {
             Ok(result) => result,
             Err(_) => {
                 tracing::warn!(media_type = ?request.media_type, "Orchestrator dispatch timed out after 120s");
@@ -100,10 +103,10 @@ impl AiProviderOrchestrator for AiOrchestrator {
         let provider = self.providers.iter()
             .find(|p| p.name() == provider_name)
             .ok_or_else(|| AppError::NotFound(format!("provider {}", provider_name)))?;
-        match tokio::time::timeout(Duration::from_secs(30), provider.check_status(generation_id)).await {
+        match tokio::time::timeout(Duration::from_secs(CHECK_STATUS_TIMEOUT_SECS), provider.check_status(generation_id)).await {
             Ok(result) => result,
             Err(_) => {
-                tracing::warn!(provider = provider_name, generation_id, "check_status timed out after 30s");
+                tracing::warn!(provider = provider_name, generation_id, "check_status timed out after {}s", CHECK_STATUS_TIMEOUT_SECS);
                 Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {
                     provider: provider_name.to_string(),
                     message: "check_status timed out".to_string(),
@@ -117,10 +120,10 @@ impl AiProviderOrchestrator for AiOrchestrator {
         let provider = self.providers.iter()
             .find(|p| p.name() == provider_name)
             .ok_or_else(|| AppError::NotFound(format!("provider {}", provider_name)))?;
-        match tokio::time::timeout(Duration::from_secs(30), provider.get_result(generation_id)).await {
+        match tokio::time::timeout(Duration::from_secs(GET_RESULT_TIMEOUT_SECS), provider.get_result(generation_id)).await {
             Ok(result) => result,
             Err(_) => {
-                tracing::warn!(provider = provider_name, generation_id, "get_result timed out after 30s");
+                tracing::warn!(provider = provider_name, generation_id, "get_result timed out after {}s", GET_RESULT_TIMEOUT_SECS);
                 Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {
                     provider: provider_name.to_string(),
                     message: "get_result timed out".to_string(),
