@@ -12,33 +12,42 @@ const MAX_CALLBACK_DATA_LEN: usize = 4096;
 
 impl CallbackData {
     pub fn navigate(scene: SceneId) -> String {
-        let s = serde_json::to_string(&Self {
+        match serde_json::to_string(&Self {
             action: "nav".into(),
             payload: Some(serde_json::json!({ "scene": scene.scene_name() })),
-        })
-        .unwrap_or_default();
-        debug_assert!(!s.is_empty(), "CallbackData::navigate serialization unexpectedly failed");
-        s
+        }) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(error = %e, scene = %scene.scene_name(), "CallbackData::navigate serialization failed");
+                String::new()
+            }
+        }
     }
 
     pub fn action(name: &str) -> String {
-        let s = serde_json::to_string(&Self {
+        match serde_json::to_string(&Self {
             action: name.into(),
             payload: None,
-        })
-        .unwrap_or_default();
-        debug_assert!(!s.is_empty(), "CallbackData::action serialization unexpectedly failed");
-        s
+        }) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(error = %e, action = %name, "CallbackData::action serialization failed");
+                String::new()
+            }
+        }
     }
 
     pub fn action_with_payload(name: &str, payload: serde_json::Value) -> String {
-        let s = serde_json::to_string(&Self {
+        match serde_json::to_string(&Self {
             action: name.into(),
             payload: Some(payload),
-        })
-        .unwrap_or_default();
-        debug_assert!(!s.is_empty(), "CallbackData::action_with_payload serialization unexpectedly failed");
-        s
+        }) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(error = %e, action = %name, "CallbackData::action_with_payload serialization failed");
+                String::new()
+            }
+        }
     }
 
     pub fn parse(data: &str) -> Option<Self> {

@@ -119,15 +119,25 @@ impl WebhookPayload {
     }
 
     pub fn output_urls(&self) -> Vec<String> {
-        self.output
-            .as_ref()
-            .and_then(|o| {
+        match self.output.as_ref() {
+            None => Vec::new(),
+            Some(o) => {
                 if let Some(arr) = o.as_array() {
-                    Some(arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                    arr.iter().filter_map(|v| v.as_str().map(String::from)).collect()
+                } else if let Some(s) = o.as_str() {
+                    vec![s.to_string()]
                 } else {
-                    o.as_str().map(|s| vec![s.to_string()])
+                    let raw = o.to_string();
+                    let preview = trios_mb_types::truncate_for_log(&raw, 256);
+                    tracing::warn!(
+                        id = %self.id,
+                        status = %self.status,
+                        output_preview = %preview,
+                        "Replicate output format is neither array nor string; possible provider API drift"
+                    );
+                    Vec::new()
                 }
-            })
-            .unwrap_or_default()
+            }
+        }
     }
 }

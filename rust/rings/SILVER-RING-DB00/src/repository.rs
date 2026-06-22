@@ -330,7 +330,13 @@ impl DbTrait for PostgresDatabase {
     #[tracing::instrument(skip_all)]
     async fn get_balance(&self, telegram_id: i64) -> Result<f64, AppError> {
         let user = self.get_user_by_telegram_id(telegram_id).await?;
-        Ok(user.map(|u| u.balance).unwrap_or(0.0))
+        match user {
+            Some(u) => Ok(u.balance),
+            None => {
+                tracing::warn!(telegram_id, "get_balance called for non-existent user; returning 0.0 sentinel");
+                Ok(0.0)
+            }
+        }
     }
 
     #[tracing::instrument(skip_all)]
