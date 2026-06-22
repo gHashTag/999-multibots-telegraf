@@ -7,6 +7,7 @@ use trios_mb_types::AppError;
 const REQWEST_TIMEOUT: Duration = Duration::from_secs(30);
 const REQWEST_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const REQWEST_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+const MAX_TRANSACTION_ID_LEN: usize = 256;
 
 pub struct X402Gateway {
     wallet_address: String,
@@ -89,6 +90,12 @@ impl PaymentGateway for X402Gateway {
         let tx_hash = params["transaction_hash"]
             .as_str()
             .ok_or_else(|| AppError::Validation("Missing transaction_hash in x402 callback".into()))?;
+        if tx_hash.len() > MAX_TRANSACTION_ID_LEN {
+            return Err(AppError::Validation(format!(
+                "x402 transaction_hash exceeds maximum length of {}: got {}",
+                MAX_TRANSACTION_ID_LEN, tx_hash.len()
+            )));
+        }
 
         let amount = params["amount"]
             .as_f64()

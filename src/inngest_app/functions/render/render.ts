@@ -33,12 +33,14 @@ import {
   sendCallback,
 } from './helpers/renderSteps'
 import { validateRenderEventData } from './schemas'
+import { createInngestFailureHandler } from '@/inngest_app/client'
 
 export const renderFunction = inngest.createFunction(
   {
     id: 'render', // Same as Python: fn_id="render"
     name: '🎬 Render Workflow',
     retries: 3,
+    onFailure: createInngestFailureHandler('render'),
   },
   { event: 'render' }, // Same as Python: event="render"
   async ({ event, step, logger }) => {

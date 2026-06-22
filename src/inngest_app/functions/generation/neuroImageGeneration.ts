@@ -25,12 +25,14 @@ import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { slugify } from 'inngest'
+import { createInngestFailureHandler } from '@/inngest_app/client'
 
 export const neuroImageGeneration = inngest.createFunction(
   {
     id: slugify('neuro-image-generation'),
     name: '🎨 Neuro Image Generation',
     retries: 3,
+    onFailure: createInngestFailureHandler('neuro-image-generation'),
   },
   { event: 'neuro/photo.generate' },
   async ({ event, step }) => {

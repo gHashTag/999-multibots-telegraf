@@ -161,6 +161,29 @@ export const createInngestFailureHandler = (functionName: string) => {
       error: error?.message,
       eventName: event?.name,
     })
+
+    // Send Telegram notification to admin
+    const adminChatId = process.env.ADMIN_CHAT_ID
+    const botToken = process.env.BOT_TOKEN_1
+    if (adminChatId && botToken) {
+      try {
+        const text = `🚨 *Inngest Failure*\n\n` +
+          `*Function:* \`${functionName}\`\n` +
+          `*Error:* ${(error?.message || String(error)).slice(0, 300)}\n` +
+          `*Run:* \`${runId}\`\n` +
+          `*Event:* ${event?.name || 'unknown'}`
+        const url = `https://api.telegram.org/bot${botToken}/sendMessage`
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: adminChatId, text, parse_mode: 'Markdown' }),
+        })
+      } catch (notifyErr) {
+        logger.warn('Failed to send Inngest failure notification to admin', {
+          error: notifyErr instanceof Error ? notifyErr.message : String(notifyErr),
+        })
+      }
+    }
   }
 }
 

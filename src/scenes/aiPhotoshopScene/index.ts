@@ -54,6 +54,7 @@ const AI_PHOTOSHOP_PRICING = {
     qwen_edit_plus: 0.03,      // Qwen Image Edit Plus
     // ✨ NEW AI PHOTOSHOP MODELS - January 2025 (ONLY image transformation models)
     flux_kontext_pro: 0.05,    // FLUX Kontext Pro (8x faster, Adobe integrated)
+    flux_kontext_max: 0.08,    // FLUX Kontext Max (advanced editing and transformation)
     seededit_3: 0.05,          // SeedEdit 3.0 (56.1% usability, 4K support)
     qwen_image_edit: 0.025,    // Qwen Image Edit (SOTA, bilingual, FREE)
   },
@@ -73,6 +74,7 @@ const AI_PHOTOSHOP_PRICING = {
       qwen_edit_plus: calculateFinalPriceInStars(this.modelsUSD.qwen_edit_plus, 0.016, this.markup),  // $0.03 → 5⭐
       // ✨ NEW AI PHOTOSHOP MODELS - January 2025 (ONLY image transformation models)
       flux_kontext_pro: calculateFinalPriceInStars(this.modelsUSD.flux_kontext_pro, 0.016, this.markup),    // $0.05 → 8⭐
+      flux_kontext_max: calculateFinalPriceInStars(this.modelsUSD.flux_kontext_max, 0.016, this.markup),    // $0.08 → 12⭐
       seededit_3: calculateFinalPriceInStars(this.modelsUSD.seededit_3, 0.016, this.markup),                // $0.05 → 8⭐
       qwen_image_edit: calculateFinalPriceInStars(this.modelsUSD.qwen_image_edit, 0.016, this.markup),      // $0.025 → 4⭐
     }
@@ -208,6 +210,7 @@ import { generateAdvancedFluxKontext } from '@/services/generateFluxKontext'
 import { generateQwenImageEditPlus } from '@/services/generateQwenImageEditPlus'
 // ✅ NEW AI PHOTOSHOP MODELS - January 2025
 import { generateFluxKontextPro } from '@/services/generateFluxKontextPro'
+import { generateFluxKontextMax } from '@/services/generateFluxKontextMax'
 import { generateSeedEdit3 } from '@/services/generateSeedEdit3'
 import { generateQwenImageEdit } from '@/services/generateQwenImageEdit'
 // ✅ IMPORT MULTI-PHOTO SUPPORT FOR AI PHOTOSHOP
@@ -371,6 +374,20 @@ const AI_PHOTOSHOP_MODELS = {
       'FLUX Kontext Pro - 8x faster, Adobe Photoshop Beta integrated',
     cost: AI_PHOTOSHOP_PRICING.models.flux_kontext_pro,
     key: 'flux_kontext_pro',
+    supports_image_input: true,
+    supports_text_only: true,
+    supports_multi_image: false,
+    max_images: 1,
+  },
+  flux_kontext_max: {
+    title_ru: '🚀 FLUX Kontext Max',
+    title_en: '🚀 FLUX Kontext Max',
+    description_ru:
+      'FLUX Kontext Max - Продвинутое редактирование и трансформация изображений',
+    description_en:
+      'FLUX Kontext Max - Advanced image editing and transformation',
+    cost: AI_PHOTOSHOP_PRICING.models.flux_kontext_max,
+    key: 'flux_kontext_max',
     supports_image_input: true,
     supports_text_only: true,
     supports_multi_image: false,
@@ -3450,6 +3467,25 @@ const processAiPhotoshopRequest = async (
         })
         break
 
+      case 'flux_kontext_max':
+        logger.info('🚀 Processing with FLUX Kontext Max', {
+          telegram_id: ctx.from.id,
+          imageCount: actualImageUrls.length,
+        })
+
+        result = await generateFluxKontextMax({
+          inputImageUrl: actualImageUrls[0], // WHAT to edit - Single image only
+          prompt: finalPrompt, // HOW to edit
+          telegram_id: ctx.from.id.toString(),
+          username: ctx.from.username || 'unknown',
+          is_ru: isRu,
+          ctx,
+          aspect_ratio:
+            ctx.session?.aiPhotoshopAspectRatio === '16:9' ? '16:9' :
+            ctx.session?.aiPhotoshopAspectRatio === '1:1' ? '1:1' : 'match_input_image',
+        })
+        break
+
       case 'seededit_3':
         logger.info('🎯 Processing with SeedEdit 3.0', {
           telegram_id: ctx.from.id,
@@ -3870,7 +3906,7 @@ const processSingleAiPhotoshopModel = async (
             imageUrl: imageUrl.substring(0, 50) + '...',
           })
         }
-      } else if (['flux_kontext_pro', 'seededit_3', 'qwen_image_edit'].includes(modelKey)) {
+      } else if (['flux_kontext_pro', 'flux_kontext_max', 'seededit_3', 'qwen_image_edit'].includes(modelKey)) {
         // 🔄 Models 5-7 support ONLY single image
         // ✅ ИСПРАВЛЕНИЕ: По умолчанию обрабатываем ТОЛЬКО ПЕРВОЕ фото (variations = 1)
         // Если нужно больше вариаций - используется variations count
@@ -3952,6 +3988,19 @@ const processSingleAiPhotoshopModel = async (
                 aspect_ratio: ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[fluxProSize] || '9:16',
                 silent: true, // ✅ Don't send photo in ALL_MODELS mode
                 skipBalanceCheck: true, // ✅ Balance already checked before loop
+              })
+            } else if (modelKey === 'flux_kontext_max') {
+              result = await generateFluxKontextMax({
+                inputImageUrl: currentImageUrl,
+                prompt,
+                telegram_id: userId.toString(),
+                username: ctx.from?.username || 'unknown',
+                is_ru: isRu,
+                ctx,
+                aspect_ratio:
+                  ctx.session?.aiPhotoshopAspectRatio === '16:9' ? '16:9' :
+                  ctx.session?.aiPhotoshopAspectRatio === '1:1' ? '1:1' : 'match_input_image',
+                suppressUserErrors: true, // ✅ Don't notify user of errors in ALL_MODELS mode
               })
             } else if (modelKey === 'seededit_3') {
               const seedEdit3Size = ctx.session?.aiPhotoshopSize || '2K'
@@ -4099,6 +4148,19 @@ const processSingleAiPhotoshopModel = async (
             ctx,
             size: fluxProSize,
             aspect_ratio: ctx.session?.aiPhotoshopAspectRatio || AI_PHOTOSHOP_PRICING.sizeToAspectRatio[fluxProSize] || '9:16',
+          })
+        } else if (modelKey === 'flux_kontext_max') {
+          // 🚀 FLUX Kontext Max - process EACH image separately, advanced editing
+          result = await generateFluxKontextMax({
+            inputImageUrl: currentImageUrl, // WHAT to edit - EACH image separately
+            prompt, // HOW to edit
+            telegram_id: userId.toString(),
+            username: ctx.from?.username || 'unknown',
+            is_ru: isRu,
+            ctx,
+            aspect_ratio:
+              ctx.session?.aiPhotoshopAspectRatio === '16:9' ? '16:9' :
+              ctx.session?.aiPhotoshopAspectRatio === '1:1' ? '1:1' : 'match_input_image',
           })
         } else if (modelKey === 'seededit_3') {
           // 🎯 SeedEdit 3.0 - process EACH image separately, 4K support, detail preservation

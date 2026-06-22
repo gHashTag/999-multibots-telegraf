@@ -25,6 +25,7 @@ import { HeyGenService } from '@/services/heygen'
 import { ElevenLabsService } from '@/services/elevenLabs'
 import { KieAIService } from '@/services/kieAI'
 import { validateRenderAvatarVideoEventData } from './schemas'
+import { createInngestFailureHandler } from '@/inngest_app/client'
 
 // ==================== Types ====================
 
@@ -168,6 +169,7 @@ export const renderAvatarVideoFunction = inngest.createFunction(
     id: 'render-avatar-video',
     name: '🎥 Render Avatar Video Workflow',
     retries: 3,
+    onFailure: createInngestFailureHandler('render-avatar-video'),
   },
   { event: 'render/avatar-video' },
   async ({ event, step, logger }) => {

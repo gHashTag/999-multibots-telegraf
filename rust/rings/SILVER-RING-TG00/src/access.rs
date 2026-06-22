@@ -63,12 +63,18 @@ pub fn is_super_admin(user_id: i64) -> bool {
 }
 
 pub fn is_admin(user_id: i64) -> bool {
+    if user_id == SUPER_ADMIN_SENTINEL {
+        return false;
+    }
     is_super_admin(user_id)
         || HAIM_GROUP_STAFF_IDS.contains(&user_id)
         || METAMUSE_STAFF_IDS.contains(&user_id)
 }
 
 pub fn is_staff(user_id: i64) -> bool {
+    if user_id == SUPER_ADMIN_SENTINEL {
+        return false;
+    }
     HAIM_GROUP_STAFF_IDS.contains(&user_id) || METAMUSE_STAFF_IDS.contains(&user_id)
 }
 
@@ -101,6 +107,9 @@ pub static METAMUSE_BOT_NAME: LazyLock<String> =
     LazyLock::new(|| load_bot_name("METAMUSE_BOT_NAME", "MetaMuse_Manifest_bot"));
 
 pub fn has_parsing_access(user_id: i64, bot_name: &str) -> bool {
+    if user_id == SUPER_ADMIN_SENTINEL {
+        return false;
+    }
     if is_super_admin(user_id) {
         return true;
     }

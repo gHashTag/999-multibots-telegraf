@@ -3,6 +3,8 @@ use trios_mb_traits::{PaymentGateway, PaymentInit, PaymentVerification};
 use trios_mb_types::payment::*;
 use trios_mb_types::AppError;
 
+const MAX_TRANSACTION_ID_LEN: usize = 256;
+
 pub struct TonGateway {
     wallet_address: String,
     is_jetton: bool,
@@ -97,6 +99,12 @@ impl PaymentGateway for TonGateway {
     ) -> Result<PaymentVerification, AppError> {
         let hash = params["hash"].as_str()
             .ok_or_else(|| AppError::Validation("Missing hash in TON callback".into()))?;
+        if hash.len() > MAX_TRANSACTION_ID_LEN {
+            return Err(AppError::Validation(format!(
+                "TON hash exceeds maximum length of {}: got {}",
+                MAX_TRANSACTION_ID_LEN, hash.len()
+            )));
+        }
         let amount_nano = params["amount"]
             .as_str()
             .and_then(|v| v.parse::<u64>().ok())
