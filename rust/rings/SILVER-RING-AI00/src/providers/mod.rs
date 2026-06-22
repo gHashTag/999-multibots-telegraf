@@ -1,6 +1,9 @@
 use std::time::Duration;
 use trios_mb_types::AppError;
 
+const ERROR_BODY_READ_TIMEOUT: Duration = Duration::from_secs(10);
+const JSON_BODY_READ_TIMEOUT: Duration = Duration::from_secs(30);
+
 pub mod replicate;
 pub mod fal;
 pub mod kie;
@@ -26,7 +29,7 @@ pub(crate) async fn read_error_body(resp: reqwest::Response, max_bytes: usize) -
         Some(len) if len > max_bytes as u64 => {
             format!("(error body too large: {} bytes)", len)
         }
-        _ => match tokio::time::timeout(Duration::from_secs(10), resp.bytes()).await {
+        _ => match tokio::time::timeout(ERROR_BODY_READ_TIMEOUT, resp.bytes()).await {
             Ok(Ok(b)) => {
                 if b.len() > max_bytes {
                     format!("(error body too large: {} bytes)", b.len())
@@ -48,7 +51,7 @@ pub(super) async fn parse_json_limited<T: serde::de::DeserializeOwned>(
     provider: &str,
     max_bytes: u64,
 ) -> Result<T, AppError> {
-    let bytes = match tokio::time::timeout(Duration::from_secs(30), resp.bytes()).await {
+    let bytes = match tokio::time::timeout(JSON_BODY_READ_TIMEOUT, resp.bytes()).await {
         Ok(Ok(b)) => b,
         Ok(Err(e)) => {
             return Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {

@@ -12,6 +12,8 @@ type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const HEDRA_RENDER_COST: f64 = 30.0;
 const MAX_DIALOGUE_TEXT_LEN: usize = 2000;
+const MAX_HEDRA_IMAGE_BYTES: u64 = 20 * 1024 * 1024;
+const MAX_HEDRA_VOICE_BYTES: u64 = 50 * 1024 * 1024;
 
 #[tracing::instrument(skip_all)]
 pub async fn handle_hedra_render_msg(
@@ -57,6 +59,19 @@ pub async fn handle_hedra_render_msg(
                         return Ok(());
                     }
                 };
+                if let Some(p) = photos.last() {
+                    if p.file.size as u64 > MAX_HEDRA_IMAGE_BYTES {
+                        let err = if lang.is_russian() {
+                            format!("❌ Изображение слишком большое. Максимум {} МБ.", MAX_HEDRA_IMAGE_BYTES / 1024 / 1024)
+                        } else {
+                            format!("❌ Image is too large. Maximum {} MB.", MAX_HEDRA_IMAGE_BYTES / 1024 / 1024)
+                        };
+                        send_message_timeout(
+                            &bot, msg.chat.id, err, None,
+                        ).await?;
+                        return Ok(());
+                    }
+                }
                 state.image_url = Some(file_id);
                 state.step = 2;
                 let text = if lang.is_russian() {
@@ -117,6 +132,17 @@ pub async fn handle_hedra_render_msg(
                     },
                 ).await;
             } else if let Some(voice) = msg.voice() {
+                if voice.file.size as u64 > MAX_HEDRA_VOICE_BYTES {
+                    let err = if lang.is_russian() {
+                        format!("❌ Голосовое сообщение слишком большое. Максимум {} МБ.", MAX_HEDRA_VOICE_BYTES / 1024 / 1024)
+                    } else {
+                        format!("❌ Voice message is too large. Maximum {} MB.", MAX_HEDRA_VOICE_BYTES / 1024 / 1024)
+                    };
+                    send_message_timeout(
+                        &bot, msg.chat.id, err, None,
+                    ).await?;
+                    return Ok(());
+                }
                 if let Err(err_msg) = deduct_balance(&db, tid, HEDRA_RENDER_COST, lang).await {
                     send_message_timeout(
                         &bot, msg.chat.id, err_msg, None,

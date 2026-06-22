@@ -11,6 +11,7 @@ use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu, deduct_ba
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const AI_COVER_COST: f64 = 10.0;
+const MAX_AI_COVER_AUDIO_BYTES: u64 = 50 * 1024 * 1024;
 
 #[tracing::instrument(skip_all)]
 pub async fn handle_ai_cover_msg(
@@ -43,6 +44,17 @@ pub async fn handle_ai_cover_msg(
         }
         1 => {
             if let Some(audio) = msg.audio() {
+                if audio.file.size as u64 > MAX_AI_COVER_AUDIO_BYTES {
+                    let err = if lang.is_russian() {
+                        format!("❌ Аудиофайл слишком большой. Максимум {} МБ.", MAX_AI_COVER_AUDIO_BYTES / 1024 / 1024)
+                    } else {
+                        format!("❌ Audio file too large. Maximum {} MB.", MAX_AI_COVER_AUDIO_BYTES / 1024 / 1024)
+                    };
+                    send_message_timeout(
+                        &bot, msg.chat.id, err, None,
+                    ).await?;
+                    return Ok(());
+                }
                 state.audio_url = Some(audio.file.id.clone());
                 state.step = 2;
 
