@@ -663,6 +663,18 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     bot.command('addbalance', requireAdmin(), handleAddBalanceCommand)
     bot.command('checkbalance', requireAdmin(), handleCheckBalanceCommand)
 
+    // 💰 БИЛЛИНГ — отчёт для владельцев ботов (доступен всем владельцам)
+    bot.command('billing', async (ctx) => {
+      const { handleBillingCommand } = require('./commands/billingCommand')
+      return handleBillingCommand(ctx)
+    })
+
+    // 🔧 ПОДПИСКИ — админская команда
+    bot.command('admin_sub', requireAdmin(), async (ctx) => {
+      const { adminSubscriptionCommand } = require('./commands/adminSubscriptionCommand')
+      return adminSubscriptionCommand(ctx)
+    })
+
     // 🤖 АВТОФИКСЕР КОМАНДЫ
     setupAutoFixerCommands(bot)
 

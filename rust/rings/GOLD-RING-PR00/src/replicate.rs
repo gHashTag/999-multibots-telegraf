@@ -23,7 +23,7 @@ pub struct TrainingInput {
     pub batch_size: i32,
     #[serde(default = "default_resolution")]
     pub resolution: String,
-    #[serde(default = "default_learning_rate")]
+    #[serde(default = "default_learning_rate", deserialize_with = "deserialize_finite_f64")]
     pub learning_rate: f64,
 }
 
@@ -55,7 +55,7 @@ pub struct PredictionInput {
     pub num_inference_steps: i32,
     #[serde(default = "default_format")]
     pub output_format: String,
-    #[serde(default = "default_guidance")]
+    #[serde(default = "default_guidance", deserialize_with = "deserialize_finite_f64")]
     pub guidance_scale: f64,
     #[serde(default = "default_quality")]
     pub output_quality: i32,

@@ -43,26 +43,32 @@ fn rate_limit_layer(per_second: u64, burst_size: u32) -> Option<GovernorLayer<to
 pub struct AppState {
     pub db: Arc<dyn Database>,
     pub payment_gateway: Option<Arc<dyn PaymentGateway>>,
-    /// Webhook secrets loaded at startup. Keys are env-var names; values are the secrets.
+    /// Webhook secrets loaded at startup. Keys are env-var names; values are vectors
+    /// of valid secrets (current + old) to support zero-downtime rotation.
     /// Stored as SecretString so buffers are zeroised on drop and redacted in Debug.
-    pub webhook_secrets: HashMap<String, SecretString>,
+    pub webhook_secrets: HashMap<String, Vec<SecretString>>,
 }
 
 /// Load a webhook secret from an environment variable.
-/// Returns SecretString so the buffer is zeroised on drop and redacted in Debug.
+/// Also attempts to load a `_OLD` variant (e.g., `REPLICATE_WEBHOOK_SECRET_OLD`)
+/// so zero-downtime rotation is possible: both the current and previous secret
+/// are accepted during the grace period.
+/// Returns a Vec so the verifier can constant-time compare against all valid secrets.
 #[tracing::instrument(skip_all)]
-fn load_webhook_secret(env_var: &str) -> Option<SecretString> {
+fn load_webhook_secret(env_var: &str) -> Vec<SecretString> {
+    let mut secrets = Vec::new();
     match std::env::var(env_var) {
-        Ok(v) if !v.is_empty() => Some(SecretString::new(v.into_boxed_str())),
-        Ok(_) => {
-            tracing::warn!(env_var, "Webhook secret is empty");
-            None
-        }
-        Err(_) => {
-            tracing::warn!(env_var, "Webhook secret env var not set");
-            None
-        }
+        Ok(v) if !v.is_empty() => secrets.push(SecretString::new(v.into_boxed_str())),
+        Ok(_) => tracing::warn!(env_var, "Webhook secret is empty"),
+        Err(_) => tracing::warn!(env_var, "Webhook secret env var not set"),
     }
+    let old_var = format!("{}_OLD", env_var);
+    match std::env::var(&old_var) {
+        Ok(v) if !v.is_empty() => secrets.push(SecretString::new(v.into_boxed_str())),
+        Ok(_) => tracing::warn!(old_var = %old_var, "Old webhook secret is empty"),
+        Err(_) => tracing::debug!(old_var = %old_var, "Old webhook secret env var not set"),
+    }
+    secrets
 }
 
 fn build_cors() -> CorsLayer {
@@ -176,11 +182,13 @@ fn build_sanitized_response(code: axum::http::StatusCode) -> Response {
 
 pub fn create_router(db: Arc<dyn Database>) -> Result<Router, String> {
     let mut secrets = HashMap::new();
-    if let Some(s) = load_webhook_secret("REPLICATE_WEBHOOK_SECRET") {
-        secrets.insert("REPLICATE_WEBHOOK_SECRET".to_string(), s);
+    let replicate_secrets = load_webhook_secret("REPLICATE_WEBHOOK_SECRET");
+    if !replicate_secrets.is_empty() {
+        secrets.insert("REPLICATE_WEBHOOK_SECRET".to_string(), replicate_secrets);
     }
-    if let Some(s) = load_webhook_secret("KIE_WEBHOOK_SECRET") {
-        secrets.insert("KIE_WEBHOOK_SECRET".to_string(), s);
+    let kie_secrets = load_webhook_secret("KIE_WEBHOOK_SECRET");
+    if !kie_secrets.is_empty() {
+        secrets.insert("KIE_WEBHOOK_SECRET".to_string(), kie_secrets);
     }
     let state = Arc::new(AppState {
         db: db.clone(),
@@ -221,11 +229,13 @@ pub fn create_router_with_payments(
     payment_gateway: Arc<dyn PaymentGateway>,
 ) -> Result<Router, String> {
     let mut secrets = HashMap::new();
-    if let Some(s) = load_webhook_secret("REPLICATE_WEBHOOK_SECRET") {
-        secrets.insert("REPLICATE_WEBHOOK_SECRET".to_string(), s);
+    let replicate_secrets = load_webhook_secret("REPLICATE_WEBHOOK_SECRET");
+    if !replicate_secrets.is_empty() {
+        secrets.insert("REPLICATE_WEBHOOK_SECRET".to_string(), replicate_secrets);
     }
-    if let Some(s) = load_webhook_secret("KIE_WEBHOOK_SECRET") {
-        secrets.insert("KIE_WEBHOOK_SECRET".to_string(), s);
+    let kie_secrets = load_webhook_secret("KIE_WEBHOOK_SECRET");
+    if !kie_secrets.is_empty() {
+        secrets.insert("KIE_WEBHOOK_SECRET".to_string(), kie_secrets);
     }
     let state = Arc::new(AppState {
         db: db.clone(),

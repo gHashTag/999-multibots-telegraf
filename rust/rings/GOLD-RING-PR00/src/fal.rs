@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::deserialize_finite_f64;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FalImageRequest {
@@ -29,7 +30,7 @@ pub struct FalImageSize {
 #[serde(deny_unknown_fields)]
 pub struct FalLora {
     pub path: String,
-    #[serde(default = "default_scale")]
+    #[serde(default = "default_scale", deserialize_with = "deserialize_finite_f64")]
     pub scale: f64,
 }
 

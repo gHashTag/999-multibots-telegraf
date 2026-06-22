@@ -96,10 +96,10 @@ fn parse_uuid(s: &str) -> Result<uuid::Uuid, (StatusCode, String)> {
 
 /// Verify webhook secret from `X-Webhook-Secret` header against a pre-loaded token.
 /// Uses constant-time comparison to prevent timing attacks.
-/// Accepts `&SecretString` so the raw value is exposed only inside this function body,
-/// minimising the window where a core dump or panic message could recover it.
+/// Accepts `&[SecretString]` so zero-downtime rotation is supported: during a grace
+/// period both the current and old secret are accepted.
 #[tracing::instrument(skip_all)]
-fn verify_webhook_secret(headers: &HeaderMap, expected: &secrecy::SecretString) -> Result<(), (StatusCode, String)> {
+fn verify_webhook_secret(headers: &HeaderMap, expected: &[secrecy::SecretString]) -> Result<(), (StatusCode, String)> {
     let provided = match headers.get("X-Webhook-Secret") {
         Some(h) => match h.to_str() {
             Ok(s) => s,
@@ -108,16 +108,18 @@ fn verify_webhook_secret(headers: &HeaderMap, expected: &secrecy::SecretString) 
         None => return Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string())),
     };
 
-    // Constant-time comparison via subtle::ConstantTimeEq.
+    // Constant-time comparison via subtle::ConstantTimeEq against ALL valid secrets.
     // Do NOT add an explicit length check before ct_eq — that would leak the secret length
     // via timing (different code path for wrong-length inputs). subtle::ct_eq already
     // returns Choice(0) for different lengths.
-    let expected_raw = expected.expose_secret();
-    let eq = expected_raw.as_bytes().ct_eq(provided.as_bytes());
-    if eq.unwrap_u8() == 0 {
-        return Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()));
+    for secret in expected {
+        let expected_raw = secret.expose_secret();
+        let eq = expected_raw.as_bytes().ct_eq(provided.as_bytes());
+        if eq.unwrap_u8() == 1 {
+            return Ok(());
+        }
     }
-    Ok(())
+    Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))
 }
 
 #[tracing::instrument(skip(state, headers, payload), fields(webhook_type = "replicate", id = %truncate_for_log(&payload.id, 256)))]
@@ -126,14 +128,14 @@ pub async fn replicate_webhook(
     headers: HeaderMap,
     Json(payload): Json<WebhookPayload>,
 ) -> impl IntoResponse {
-    let replicate_secret = match state.webhook_secrets.get("REPLICATE_WEBHOOK_SECRET") {
-        Some(s) => s,
+    let replicate_secrets = match state.webhook_secrets.get("REPLICATE_WEBHOOK_SECRET") {
+        Some(s) => s.as_slice(),
         None => {
             tracing::error!("REPLICATE_WEBHOOK_SECRET not loaded at startup; rejecting webhook");
             return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal server error"})));
         }
     };
-    if let Err((status, msg)) = verify_webhook_secret(&headers, replicate_secret) {
+    if let Err((status, msg)) = verify_webhook_secret(&headers, replicate_secrets) {
         tracing::warn!("Replicate webhook rejected: invalid secret");
         return (status, Json(serde_json::json!({"error": msg})));
     }
@@ -255,14 +257,14 @@ pub async fn kie_ai_webhook(
     headers: HeaderMap,
     Json(payload): Json<trios_mb_proto::kie::WebhookPayload>,
 ) -> impl IntoResponse {
-    let kie_secret = match state.webhook_secrets.get("KIE_WEBHOOK_SECRET") {
-        Some(s) => s,
+    let kie_secrets = match state.webhook_secrets.get("KIE_WEBHOOK_SECRET") {
+        Some(s) => s.as_slice(),
         None => {
             tracing::error!("KIE_WEBHOOK_SECRET not loaded at startup; rejecting webhook");
             return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal server error"})));
         }
     };
-    if let Err((status, msg)) = verify_webhook_secret(&headers, kie_secret) {
+    if let Err((status, msg)) = verify_webhook_secret(&headers, kie_secrets) {
         tracing::warn!("Kie.ai webhook rejected: invalid secret");
         return (status, Json(serde_json::json!({"error": msg})));
     }

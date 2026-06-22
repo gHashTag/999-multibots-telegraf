@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::{deserialize_option_finite_f64, deserialize_option_string_max_4096, deserialize_option_string_max_1024, deserialize_option_string_max_256};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CreateTaskRequest {
@@ -61,12 +62,16 @@ pub struct TaskStatusResponse {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TaskStatusData {
+    #[serde(deserialize_with = "deserialize_option_string_max_256")]
     pub task_id: Option<String>,
     pub status: Option<String>,
     pub success_flag: Option<i32>,
+    #[serde(deserialize_with = "deserialize_option_string_max_4096")]
     pub video_url: Option<String>,
     pub result_urls: Option<Vec<String>>,
+    #[serde(deserialize_with = "deserialize_option_string_max_1024")]
     pub error_message: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_finite_f64")]
     pub duration: Option<f64>,
 }
 
@@ -92,15 +97,20 @@ impl TaskStatusData {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WebhookPayload {
+    #[serde(deserialize_with = "deserialize_option_string_max_256")]
     pub task_id: Option<String>,
     pub success_flag: Option<i32>,
     pub result_urls: Option<Vec<String>>,
     pub result_water_mark_urls: Option<Vec<String>>,
     pub result_url: Option<String>,
     pub result_watermark_urls: Option<Vec<String>>,
+    #[serde(deserialize_with = "deserialize_option_string_max_4096")]
     pub video_url: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_string_max_1024")]
     pub error_message: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_string_max_256")]
     pub error_code: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_finite_f64")]
     pub duration: Option<f64>,
     pub code: Option<i32>,
     pub data: Option<serde_json::Value>,
@@ -112,7 +122,9 @@ pub struct WebhookPayload {
 pub struct WebhookResponse {
     pub result_urls: Option<Vec<String>>,
     pub result_url: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_string_max_1024")]
     pub error_message: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_finite_f64")]
     pub duration: Option<f64>,
 }
 
