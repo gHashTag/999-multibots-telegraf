@@ -24,18 +24,28 @@ pub async fn handle_invite_msg(
         return Ok(());
     }
 
-    let ref_count = db.get_referral_count(tid).await.unwrap_or(0);
-
-    let intro = if lang.is_russian() {
-        format!(
-            "🎁 Пригласите друга и получите бонусные звёзды!\n\n👥 Рефералов: {}\n\nОтправьте другу эту ссылку:",
-            ref_count
-        )
-    } else {
-        format!(
-            "🎁 Invite a friend and get bonus stars!\n\n👥 Referrals: {}\n\nSend this link to a friend:",
-            ref_count
-        )
+    let intro = match db.get_referral_count(tid).await {
+        Ok(ref_count) => {
+            if lang.is_russian() {
+                format!(
+                    "🎁 Пригласите друга и получите бонусные звёзды!\n\n👥 Рефералов: {}\n\nОтправьте другу эту ссылку:",
+                    ref_count
+                )
+            } else {
+                format!(
+                    "🎁 Invite a friend and get bonus stars!\n\n👥 Referrals: {}\n\nSend this link to a friend:",
+                    ref_count
+                )
+            }
+        }
+        Err(e) => {
+            tracing::error!(error = %e, telegram_id = tid, "Failed to load referral count");
+            if lang.is_russian() {
+                "❌ Не удалось загрузить количество рефералов. Попробуйте позже.".to_string()
+            } else {
+                "❌ Unable to load referral count. Please try again later.".to_string()
+            }
+        }
     };
 
     send_message_timeout(

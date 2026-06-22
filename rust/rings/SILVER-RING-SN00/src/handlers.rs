@@ -515,11 +515,22 @@ async fn enter_scene_greeting(
             send_message_timeout(&bot, chat_id, text, None).await?;
         }
         SceneId::Invite => {
-            let ref_count = db.get_referral_count(telegram_id).await.unwrap_or(0);
-            let text = if lang.is_russian() {
-                format!("👥 Рефералов: {}", ref_count)
-            } else {
-                format!("👥 Referrals: {}", ref_count)
+            let text = match db.get_referral_count(telegram_id).await {
+                Ok(ref_count) => {
+                    if lang.is_russian() {
+                        format!("👥 Рефералов: {}", ref_count)
+                    } else {
+                        format!("👥 Referrals: {}", ref_count)
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, telegram_id, "Failed to load referral count");
+                    if lang.is_russian() {
+                        "❌ Не удалось загрузить количество рефералов. Попробуйте позже.".to_string()
+                    } else {
+                        "❌ Unable to load referral count. Please try again later.".to_string()
+                    }
+                }
             };
             send_message_timeout(&bot, chat_id, text, None).await?;
         }

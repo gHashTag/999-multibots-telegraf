@@ -56,6 +56,7 @@ pub async fn handle_payment_msg(
 ) -> HandlerResult {
     let lang = load_lang(&db, &msg).await;
     const MAX_PAYMENT_TEXT_LEN: usize = 32;
+    const MAX_PAYMENT_AMOUNT: f64 = 100_000.0;
     if let Some(text) = msg.text() {
         if text.len() > MAX_PAYMENT_TEXT_LEN {
             let err = if lang.is_russian() { "❌ Слишком длинная сумма." } else { "❌ Amount text too long." };
@@ -64,6 +65,15 @@ pub async fn handle_payment_msg(
         }
         if let Ok(amount) = text.parse::<f64>() {
             if amount.is_finite() && amount > 0.0 {
+                if amount > MAX_PAYMENT_AMOUNT {
+                    let err = if lang.is_russian() {
+                        format!("❌ Максимальная сумма пополнения — {:.2} ₽.", MAX_PAYMENT_AMOUNT)
+                    } else {
+                        format!("❌ Maximum top-up amount is {:.2}.", MAX_PAYMENT_AMOUNT)
+                    };
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                    return Ok(());
+                }
                 let mut new_state = state;
                 new_state.amount = Some(amount);
                 let text = if lang.is_russian() {

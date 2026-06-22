@@ -12,6 +12,7 @@ const WEBHOOK_DB_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_INV_ID_LEN: usize = 128;
 const MAX_SIGNATURE_LEN: usize = 512;
 const MAX_OUT_SUM_LEN: usize = 32;
+const MAX_PAYMENT_AMOUNT: f64 = 100_000.0;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -55,7 +56,7 @@ pub async fn robokassa_callback(
         return "ERROR: invalid amount".to_string();
     }
 
-    let _out_sum_parsed: f64 = match form.out_sum.parse::<f64>() {
+    let out_sum_parsed: f64 = match form.out_sum.parse::<f64>() {
         Ok(v) if v.is_finite() && v >= 0.0 => v,
         Ok(v) => {
             tracing::warn!(out_sum = %v, "Robokassa callback rejected: invalid amount");
@@ -66,6 +67,11 @@ pub async fn robokassa_callback(
             return "ERROR: invalid amount format".to_string();
         }
     };
+
+    if out_sum_parsed > MAX_PAYMENT_AMOUNT {
+        tracing::warn!(out_sum = %out_sum_parsed, max = %MAX_PAYMENT_AMOUNT, "Robokassa callback rejected: amount exceeds maximum allowed");
+        return "ERROR: amount exceeds maximum allowed".to_string();
+    }
 
     if let Some(gateway) = &state.payment_gateway {
         let params = serde_json::json!({
