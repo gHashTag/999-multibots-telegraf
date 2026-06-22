@@ -166,7 +166,7 @@ impl DbTrait for PostgresDatabase {
             .filter(u::Column::TelegramId.eq(telegram_id))
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("get_user_by_telegram_id", e))?;
 
         match user {
             Some(m) => {
@@ -227,7 +227,7 @@ impl DbTrait for PostgresDatabase {
             updated_at: Set(now),
         };
         let result = model.insert(self.pool.as_ref()).await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("create_user", e))?;
 
         Ok(User {
             id: result.id,
@@ -384,7 +384,7 @@ impl DbTrait for PostgresDatabase {
                 ],
             ))
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("deduct_balance", e))?;
         Ok(result.rows_affected() > 0)
     }
 

@@ -135,3 +135,7 @@ Trigger: User says "исследуй слабые места работы, ис�
 - CORS Wildcard Origin Rejection — `router.rs` (`build_cors()`)
 - Health Check Body Size Limit — `router.rs` (`DefaultBodyLimit::max(4096)`)
 - DB Error Sanitization Helper — `repository.rs` (`sanitize_db_error` applied to 3 critical functions)
+
+## Wave 249 Applied Skills
+- Payment Webhook Body Size Limit — `router.rs` (`DefaultBodyLimit::max(16 * 1024)`)
+- DB Error Sanitization — `repository.rs` (`get_user_by_telegram_id`, `create_user`, `deduct_balance`)
