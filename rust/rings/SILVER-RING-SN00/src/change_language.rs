@@ -8,6 +8,8 @@ use trios_mb_tg::{keyboards::main_menu_keyboard, send_message_timeout, dialogue_
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const DB_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 #[tracing::instrument(skip_all)]
 pub async fn handle_change_language(
     bot: teloxide::Bot,
@@ -27,8 +29,14 @@ pub async fn handle_change_language(
         tracing::warn!("Missing telegram_id; aborting handler");
         return Ok(());
     }
-    if let Err(e) = db.update_user_language(tid, new_lang).await {
-        tracing::error!(telegram_id = tid, error = %e, "Failed to update user language");
+    match tokio::time::timeout(DB_TIMEOUT, db.update_user_language(tid, new_lang)).await {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => {
+            tracing::error!(telegram_id = tid, error = %e, "Failed to update user language");
+        }
+        Err(_) => {
+            tracing::warn!(telegram_id = tid, "DB timeout updating user language");
+        }
     }
 
     let text = trios_mb_i18n::t(new_lang, "language_changed");

@@ -10,6 +10,8 @@ use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const DB_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 #[tracing::instrument(skip_all)]
 pub async fn handle_select_model_msg(
     bot: teloxide::Bot,
@@ -81,8 +83,14 @@ pub async fn handle_select_model_callback(
                 "sm:llama" => "llama-3",
                 _ => "gpt-4o",
             };
-            if let Err(e) = db.update_user_model(tid, model).await {
-                tracing::error!(telegram_id = tid, error = %e, "Failed to update user model");
+            match tokio::time::timeout(DB_TIMEOUT, db.update_user_model(tid, model)).await {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => {
+                    tracing::error!(telegram_id = tid, error = %e, "Failed to update user model");
+                }
+                Err(_) => {
+                    tracing::warn!(telegram_id = tid, "DB timeout updating user model");
+                }
             }
             let text = if lang.is_russian() {
                 format!("✅ Модель выбрана: {}", model)

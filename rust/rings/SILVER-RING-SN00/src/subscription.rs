@@ -13,6 +13,8 @@ use crate::generation_utils::return_to_menu;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const DB_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 #[tracing::instrument(skip_all)]
 pub async fn handle_subscription_msg(
     bot: teloxide::Bot,
@@ -27,11 +29,21 @@ pub async fn handle_subscription_msg(
         return Ok(());
     }
 
-    let current_sub = match db.check_subscription(tid).await {
-        Ok(opt) => opt,
-        Err(e) => {
+    let current_sub = match tokio::time::timeout(DB_TIMEOUT, db.check_subscription(tid)).await {
+        Ok(Ok(opt)) => opt,
+        Ok(Err(e)) => {
             tracing::error!(telegram_id = tid, error = %e, "DB error checking subscription");
             return Err(e.into());
+        }
+        Err(_) => {
+            tracing::warn!(telegram_id = tid, "DB timeout checking subscription");
+            let err_text = if lang.is_russian() {
+                "❌ Не удалось проверить подписку. Попробуйте позже."
+            } else {
+                "❌ Could not check subscription. Please try again later."
+            };
+            send_message_timeout(&bot, msg.chat.id, err_text, None).await?;
+            return Ok(());
         }
     };
     let sub_text = match current_sub {

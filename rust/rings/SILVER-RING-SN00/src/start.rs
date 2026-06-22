@@ -9,6 +9,8 @@ use trios_mb_tg::{send_message_timeout, dialogue_update_timeout};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const DB_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 #[tracing::instrument(skip_all)]
 pub async fn handle_start(
     bot: teloxide::Bot,
@@ -37,13 +39,45 @@ pub async fn handle_start(
         Some(trimmed.to_string())
     });
 
-    let user = match db.get_user_by_telegram_id(tid).await {
-        Ok(Some(u)) => u,
-        Ok(None) => {
-            db.create_user(tid, username.as_deref(), lang).await?
+    let user = match tokio::time::timeout(DB_TIMEOUT, db.get_user_by_telegram_id(tid)).await {
+        Ok(Ok(Some(u))) => u,
+        Ok(Ok(None)) => {
+            match tokio::time::timeout(DB_TIMEOUT, db.create_user(tid, username.as_deref(), lang)).await {
+                Ok(Ok(u)) => u,
+                Ok(Err(e)) => {
+                    tracing::error!(telegram_id = tid, error = %e, "Failed to create user on /start");
+                    let err_text = if lang.is_russian() {
+                        "❌ Ошибка при входе. Попробуйте позже."
+                    } else {
+                        "❌ Login error. Please try again later."
+                    };
+                    send_message_timeout(&bot, msg.chat.id, err_text, None).await?;
+                    return Ok(());
+                }
+                Err(_) => {
+                    tracing::warn!(telegram_id = tid, "DB timeout creating user on /start");
+                    let err_text = if lang.is_russian() {
+                        "❌ Ошибка при входе. Попробуйте позже."
+                    } else {
+                        "❌ Login error. Please try again later."
+                    };
+                    send_message_timeout(&bot, msg.chat.id, err_text, None).await?;
+                    return Ok(());
+                }
+            }
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             tracing::error!(telegram_id = tid, error = %e, "Failed to look up user on /start");
+            let err_text = if lang.is_russian() {
+                "❌ Ошибка при входе. Попробуйте позже."
+            } else {
+                "❌ Login error. Please try again later."
+            };
+            send_message_timeout(&bot, msg.chat.id, err_text, None).await?;
+            return Ok(());
+        }
+        Err(_) => {
+            tracing::warn!(telegram_id = tid, "DB timeout looking up user on /start");
             let err_text = if lang.is_russian() {
                 "❌ Ошибка при входе. Попробуйте позже."
             } else {

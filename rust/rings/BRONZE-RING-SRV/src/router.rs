@@ -45,11 +45,15 @@ fn load_webhook_secret(env_var: &str) -> Option<SecretString> {
 }
 
 fn build_cors() -> CorsLayer {
-    let allowed_origins: Vec<String> = std::env::var("FRONTEND_URL")
-        .map(|s| s.split(',').map(|o| o.trim().to_string()).collect())
-        .unwrap_or_default();
+    let allowed_origins: Vec<String> = match std::env::var("FRONTEND_URL") {
+        Ok(s) => s.split(',').map(|o| o.trim().to_string()).collect(),
+        Err(e) => {
+            tracing::warn!(error = %e, "FRONTEND_URL not set; CORS requests denied");
+            Vec::new()
+        }
+    };
     if allowed_origins.is_empty() {
-        tracing::warn!("FRONTEND_URL not set; CORS requests denied");
+        tracing::warn!("FRONTEND_URL yielded empty origin list; CORS requests denied");
         CorsLayer::new()
             .allow_origin(AllowOrigin::list(Vec::new()))
             .allow_methods([http::Method::GET, http::Method::POST])
