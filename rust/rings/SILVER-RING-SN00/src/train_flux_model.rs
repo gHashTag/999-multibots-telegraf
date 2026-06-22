@@ -11,6 +11,7 @@ use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu, deduct_ba
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const TRAIN_FLUX_COST: f64 = 50.0;
+const MAX_TRAIN_IMAGES: usize = 20;
 
 #[tracing::instrument(skip_all)]
 pub async fn handle_train_flux_model_msg(
@@ -52,6 +53,15 @@ pub async fn handle_train_flux_model_msg(
                         return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                     }
                 };
+                if images.len() >= MAX_TRAIN_IMAGES {
+                    let err = if lang.is_russian() {
+                        format!("❌ Максимум {} изображений для обучения.", MAX_TRAIN_IMAGES)
+                    } else {
+                        format!("❌ Maximum {} images allowed for training.", MAX_TRAIN_IMAGES)
+                    };
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                    return Ok(());
+                }
                 images.push(file_id);
                 state.images = Some(images.clone());
 

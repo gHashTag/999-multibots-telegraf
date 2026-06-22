@@ -11,6 +11,8 @@ use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const MAX_MORPHING_IMAGES: usize = 10;
+
 #[tracing::instrument(skip_all)]
 pub async fn handle_morphing_msg(
     bot: teloxide::Bot,
@@ -53,6 +55,15 @@ pub async fn handle_morphing_msg(
                         return return_to_menu(&bot, &dialogue, msg.chat.id, lang).await;
                     }
                 };
+                if images.len() >= MAX_MORPHING_IMAGES {
+                    let err = if lang.is_russian() {
+                        format!("❌ Максимум {} изображений для морфинга.", MAX_MORPHING_IMAGES)
+                    } else {
+                        format!("❌ Maximum {} images allowed for morphing.", MAX_MORPHING_IMAGES)
+                    };
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                    return Ok(());
+                }
                 images.push(file_id);
                 state.images = Some(images.clone());
 
