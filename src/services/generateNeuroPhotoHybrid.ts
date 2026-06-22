@@ -301,6 +301,16 @@ export async function generateNeuroPhotoHybrid(
         }
       }
 
+      // Track successful generation for skill learning
+      import('./skillManager').then(sm => sm.trackGeneration({
+        telegram_id,
+        service_type: 'neuro_photo',
+        prompt,
+        model: String(model_url),
+        settings: { aspect_ratio: explicitAspectRatio, num_images: numImages },
+        success: true,
+      })).catch(() => {})
+
       return response.data
     } else if (response.data.jobId) {
       // СЦЕНАРИЙ 2: Сервер вернул jobId для асинхронной обработки
@@ -413,6 +423,16 @@ export async function generateNeuroPhotoHybrid(
       })
 
       if (localResult && localResult.success) {
+        // Track successful local generation for skill learning
+        import('./skillManager').then(sm => sm.trackGeneration({
+          telegram_id,
+          service_type: 'neuro_photo',
+          prompt,
+          model: String(model_url),
+          settings: { aspect_ratio: explicitAspectRatio, num_images: numImages },
+          success: true,
+        })).catch(() => {})
+
         logger.info('✅ [HYBRID] План Б успешен - локальная обработка завершена', {
           telegram_id,
         })

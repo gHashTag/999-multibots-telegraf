@@ -232,6 +232,16 @@ export const generateTextToImageDirect = async (
         }
         results.push({ image, prompt_id })
         successfulGenerations++ // ✅ Увеличиваем счетчик успешных генераций
+
+        // Track successful generation for skill learning
+        import('./skillManager').then(sm => sm.trackGeneration({
+          telegram_id,
+          service_type: 'text_to_image',
+          prompt,
+          model: model_type,
+          settings: { aspect_ratio: inputParams.aspect_ratio || inputParams.size, num_images },
+          success: true,
+        })).catch(() => {})
       } catch (error) {
         console.error(`Попытка не удалась для изображения ${i + 1}:`, error)
         let errorMessageToUser = '❌ Произошла ошибка.'

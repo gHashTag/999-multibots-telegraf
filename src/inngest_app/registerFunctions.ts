@@ -46,6 +46,7 @@ import { renderRiddleFunction } from './functions/render/renderRiddle'
 
 // Analytics Functions
 import { dailySalesAdvisor } from './functions/analytics/dailySalesAdvisor'
+import { skillDetector } from './functions/analytics/skillDetector'
 
 // Existing Functions
 import { generateAIReelsFunction } from './functions/existing/generateAIReelsFunction'
@@ -92,8 +93,9 @@ const allFunctionsRaw = [
   renderAvatarVideoFunction,
   renderRiddleFunction,
 
-  // Analytics (1)
+  // Analytics (2)
   dailySalesAdvisor,
+  skillDetector,
 
   // Existing (3)
   generateAIReelsFunction,

@@ -268,9 +268,11 @@ impl ReplicateProvider {
         }
         if !status.is_success() {
             let text = super::read_error_body(resp, 64_000).await;
+            let text_trunc = trios_mb_types::truncate_for_log(&text, 256);
+            tracing::error!(status = %status, body = %text_trunc, provider = "replicate", "provider returned non-success status");
             return Err(AiError::Provider {
                 provider: "replicate".into(),
-                message: format!("HTTP {}: {}", status, text),
+                message: format!("provider returned HTTP {}", status),
             }.into());
         }
 
@@ -289,9 +291,11 @@ impl ReplicateProvider {
         ).await {
             Ok(Ok(resp)) => resp,
             Ok(Err(e)) => {
+                let err_raw = e.to_string();
+                tracing::error!(error = %trios_mb_types::truncate_for_log(&err_raw, 1024), provider = "replicate", "status check request failed");
                 return Err(AiError::Provider {
                     provider: "replicate".into(),
-                    message: format!("status check failed: {}", e),
+                    message: "status check request failed".to_string(),
                 }.into());
             }
             Err(_) => {
@@ -308,9 +312,11 @@ impl ReplicateProvider {
         }
         if !status.is_success() {
             let text = super::read_error_body(resp, 64_000).await;
+            let text_trunc = trios_mb_types::truncate_for_log(&text, 256);
+            tracing::error!(status = %status, body = %text_trunc, provider = "replicate", "provider returned non-success status");
             return Err(AiError::Provider {
                 provider: "replicate".into(),
-                message: format!("HTTP {}: {}", status, text),
+                message: format!("provider returned HTTP {}", status),
             }.into());
         }
 
@@ -411,9 +417,11 @@ impl AiProvider for ReplicateProvider {
         ).await {
             Ok(Ok(resp)) => resp,
             Ok(Err(e)) => {
+                let err_raw = e.to_string();
+                tracing::error!(error = %trios_mb_types::truncate_for_log(&err_raw, 1024), provider = "replicate", "cancel request failed");
                 return Err(AiError::Provider {
                     provider: "replicate".into(),
-                    message: format!("cancel failed: {}", e),
+                    message: "cancel request failed".to_string(),
                 }.into());
             }
             Err(_) => {
@@ -427,9 +435,11 @@ impl AiProvider for ReplicateProvider {
         let status = resp.status();
         if !status.is_success() {
             let text = super::read_error_body(resp, 64_000).await;
+            let text_trunc = trios_mb_types::truncate_for_log(&text, 256);
+            tracing::error!(status = %status, body = %text_trunc, provider = "replicate", "provider cancel returned non-success status");
             return Err(AiError::Provider {
                 provider: "replicate".into(),
-                message: format!("cancel HTTP {}: {}", status, text),
+                message: format!("provider cancel returned HTTP {}", status),
             }.into());
         }
         Ok(())

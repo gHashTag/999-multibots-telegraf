@@ -257,9 +257,11 @@ impl FalProvider {
         }
         if !status.is_success() {
             let text = super::read_error_body(resp, 64_000).await;
+            let text_trunc = trios_mb_types::truncate_for_log(&text, 256);
+            tracing::error!(status = %status, body = %text_trunc, provider = "fal", "provider returned non-success status");
             return Err(AiError::Provider {
                 provider: "fal".into(),
-                message: format!("HTTP {}: {}", status, text),
+                message: format!("provider returned HTTP {}", status),
             }.into());
         }
 
