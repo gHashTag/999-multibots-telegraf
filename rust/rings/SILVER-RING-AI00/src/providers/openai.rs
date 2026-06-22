@@ -194,17 +194,33 @@ impl OpenAiProvider {
             max_tokens,
         };
 
-        let resp = self.http
-            .post(format!("{}/chat/completions", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "openai".into(),
-                message: format!("chat request failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/chat/completions", self.base_url))
+                .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send(),
+        )
+        .await
+        {
+            Ok(Ok(r)) => r,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "openai".into(),
+                    message: format!("chat request failed: {}", e),
+                }
+                .into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "openai".into(),
+                    message: "chat request timed out".into(),
+                }
+                .into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {

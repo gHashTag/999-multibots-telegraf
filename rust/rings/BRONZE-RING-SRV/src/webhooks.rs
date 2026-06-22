@@ -103,9 +103,9 @@ fn verify_webhook_secret(headers: &HeaderMap, expected: &secrecy::SecretString) 
     let provided = match headers.get("X-Webhook-Secret") {
         Some(h) => match h.to_str() {
             Ok(s) => s,
-            Err(_) => return Err((StatusCode::UNAUTHORIZED, "Invalid webhook secret header".to_string())),
+            Err(_) => return Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string())),
         },
-        None => return Err((StatusCode::UNAUTHORIZED, "Missing webhook secret header".to_string())),
+        None => return Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string())),
     };
 
     // Constant-time comparison via subtle::ConstantTimeEq.
@@ -115,7 +115,7 @@ fn verify_webhook_secret(headers: &HeaderMap, expected: &secrecy::SecretString) 
     let expected_raw = expected.expose_secret();
     let eq = expected_raw.as_bytes().ct_eq(provided.as_bytes());
     if eq.unwrap_u8() == 0 {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid webhook secret".to_string()));
+        return Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()));
     }
     Ok(())
 }

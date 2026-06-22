@@ -18,6 +18,7 @@ const HSTS_MAX_AGE_MAIN: u64 = 63072000; // 2 years
 const HSTS_MAX_AGE_SANITIZED: u64 = 31536000; // 1 year
 
 // Body limit values (bytes)
+const HEALTH_BODY_LIMIT_BYTES: usize = 4096;
 const WEBHOOK_BODY_LIMIT_BYTES: usize = 256 * 1024;
 const GLOBAL_BODY_LIMIT_BYTES: usize = 2 * 1024 * 1024;
 
@@ -193,7 +194,7 @@ pub fn create_router(db: Arc<dyn Database>) -> Result<Router, String> {
         Router::new()
             .route("/health", get(crate::health::health_check_with_db))
             .route("/health/simple", get(crate::health::health_check))
-            .layer(axum::extract::DefaultBodyLimit::max(4096)),
+            .layer(axum::extract::DefaultBodyLimit::max(HEALTH_BODY_LIMIT_BYTES)),
         HEALTH_RATE_PER_SECOND, HEALTH_RATE_BURST,
     )?;
 
@@ -238,7 +239,7 @@ pub fn create_router_with_payments(
         Router::new()
             .route("/health", get(crate::health::health_check_with_db))
             .route("/health/simple", get(crate::health::health_check))
-            .layer(axum::extract::DefaultBodyLimit::max(4096)),
+            .layer(axum::extract::DefaultBodyLimit::max(HEALTH_BODY_LIMIT_BYTES)),
         HEALTH_RATE_PER_SECOND, HEALTH_RATE_BURST,
     )?;
 
