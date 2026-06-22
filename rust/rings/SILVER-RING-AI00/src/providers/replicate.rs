@@ -16,6 +16,62 @@ static REPLICATE_SDXL_MODEL: LazyLock<String> = LazyLock::new(|| {
         .unwrap_or_else(|| "stability-ai/sdxl:7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc".to_string())
 });
 
+static REPLICATE_FLUX_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_FLUX_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "black-forest-labs/flux-1.1-pro-ultra".to_string())
+});
+
+static REPLICATE_SD3_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_SD3_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "stability-ai/stable-diffusion-3.5-large-turbo".to_string())
+});
+
+static REPLICATE_RECRAFT_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_RECRAFT_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "recraft-ai/recraft-v3".to_string())
+});
+
+static REPLICATE_PHOTON_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_PHOTON_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "luma/photon".to_string())
+});
+
+static REPLICATE_HAIPER_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_HAIPER_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "haiper-ai/haiper-video-2".to_string())
+});
+
+static REPLICATE_MINIMAX_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_MINIMAX_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "minimax/video-01".to_string())
+});
+
+static REPLICATE_KLING_LIP_SYNC_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_KLING_LIP_SYNC_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "kwaivgi/kling-lip-sync".to_string())
+});
+
+static REPLICATE_FACE_SWAP_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_FACE_SWAP_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "lucataco/faceswap".to_string())
+});
+
 #[derive(Debug, Serialize)]
 struct PredictionInput {
     #[serde(flatten)]
@@ -80,15 +136,15 @@ impl ReplicateProvider {
 
     fn resolve_model_version(&self, model: &str) -> Option<String> {
         match model {
-            "flux" => Some("black-forest-labs/flux-1.1-pro-ultra".to_string()),
+            "flux" => Some(REPLICATE_FLUX_MODEL.clone()),
             "sdxl" => Some(REPLICATE_SDXL_MODEL.clone()),
-            "sd3" => Some("stability-ai/stable-diffusion-3.5-large-turbo".to_string()),
-            "recraft" => Some("recraft-ai/recraft-v3".to_string()),
-            "photon" => Some("luma/photon".to_string()),
-            "haiper" => Some("haiper-ai/haiper-video-2".to_string()),
-            "minimax" => Some("minimax/video-01".to_string()),
-            "kling-lip-sync" => Some("kwaivgi/kling-lip-sync".to_string()),
-            "face-swap" => Some("lucataco/faceswap".to_string()),
+            "sd3" => Some(REPLICATE_SD3_MODEL.clone()),
+            "recraft" => Some(REPLICATE_RECRAFT_MODEL.clone()),
+            "photon" => Some(REPLICATE_PHOTON_MODEL.clone()),
+            "haiper" => Some(REPLICATE_HAIPER_MODEL.clone()),
+            "minimax" => Some(REPLICATE_MINIMAX_MODEL.clone()),
+            "kling-lip-sync" => Some(REPLICATE_KLING_LIP_SYNC_MODEL.clone()),
+            "face-swap" => Some(REPLICATE_FACE_SWAP_MODEL.clone()),
             _ => None,
         }
     }

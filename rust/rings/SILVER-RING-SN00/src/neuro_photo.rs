@@ -13,6 +13,7 @@ use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, loa
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const MAX_DIALOGUE_TEXT_LEN: usize = 2000;
+const MAX_NEURO_PHOTO_BYTES: u64 = 20 * 1024 * 1024;
 
 #[tracing::instrument(skip_all)]
 pub async fn handle_neuro_photo_entry(
@@ -45,8 +46,8 @@ pub async fn handle_neuro_photo_msg(
 
     if let Some(photos) = msg.photo() {
         if state.step <= 1 {
-            let file_id = match photos.last() {
-                Some(p) => p.file.id.clone(),
+            let photo = match photos.last() {
+                Some(p) => p,
                 None => {
                     let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
                     send_message_timeout(
@@ -55,8 +56,15 @@ pub async fn handle_neuro_photo_msg(
                     return Ok(());
                 }
             };
+            if photo.file.size as u64 > MAX_NEURO_PHOTO_BYTES {
+                let err = if lang.is_russian() { "❌ Изображение слишком большое. Максимум 20 МБ." } else { "❌ Image too large. Maximum 20 MB." };
+                send_message_timeout(
+                    &bot, msg.chat.id, err, None,
+                ).await?;
+                return Ok(());
+            }
             let mut new_state = state;
-            new_state.image_url = Some(file_id);
+            new_state.image_url = Some(photo.file.id.clone());
             new_state.step = 2;
             send_message_timeout(
                 &bot, msg.chat.id, trios_mb_i18n::t(lang, "send_text"), None,
