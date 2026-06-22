@@ -11,6 +11,7 @@ import voiceAvatarRouter from './routes/voice-avatar.routes'
 import neuroPhotoRouter from './routes/neuro-photo.routes'
 import competitorRouter from './routes/competitor.routes'
 import diagnosticRouter from './routes/diagnostic.routes'
+import billingRouter from './routes/billing.routes'
 import x402Router, { setX402BotInstance } from './routes/x402.routes'
 import { Telegraf } from 'telegraf'
 // ✅ Inngest включен для мониторинга webhook'ов
@@ -107,6 +108,9 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
 
   // Регистрируем диагностические роуты
   app.use('/api', diagnosticRouter)
+
+  // Регистрируем роуты биллинга владельцев ботов
+  app.use('/api', billingRouter)
 
   // ✅ Интеграция Inngest с API (актуальная сигнатура serve)
   const inngestHandler = serve({

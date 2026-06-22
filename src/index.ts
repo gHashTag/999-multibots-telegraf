@@ -46,6 +46,11 @@ import { supabase } from './core/supabase'
 
 // Инициализация ботов
 const botInstances: Telegraf<MyContext>[] = []
+
+/** Accessor for billing and other services that need the running bot list */
+export function getBotInstances(): Telegraf<MyContext>[] {
+  return botInstances
+}
 let mainBotInstance: Telegraf<MyContext> | null = null
 
 // Deferred startup notifications (secrets load before telegramLogService is ready)
@@ -348,6 +353,11 @@ async function initializeBots() {
         const { startProviderMonitor } = await import('./services/provider-health-monitor')
         startProviderMonitor()
         console.log('✅ Provider health monitor запущен')
+
+        // ✅ Запускаем мониторинг биллинга владельцев ботов (проверка раз в 24ч)
+        const { startBillingMonitor } = await import('./services/bot-owner-billing')
+        startBillingMonitor()
+        console.log('✅ Bot owner billing monitor запущен')
       }
 
       // ✅ Сохраняем ВСЕ bot instances для multi-bot поддержки
