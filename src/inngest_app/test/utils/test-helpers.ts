@@ -7,7 +7,7 @@
  * - Генераторы тестовых данных
  */
 
-import { vi } from 'vitest'
+import { vi, expect } from 'vitest'
 import type { Mock } from 'vitest'
 
 // ============================================================================
@@ -25,7 +25,7 @@ export const mockInngestClient = {
 export function setupInngestMocks() {
   vi.clearAllMocks()
   mockInngestClient.send.mockResolvedValue({ ok: true, ids: ['event_123'] })
-  mockInngestClient.createFunction.mockImplementation((config, trigger, handler) => ({
+  mockInngestClient.createFunction.mockImplementation((config: any, trigger: any, handler: any) => ({
     id: config.id,
     name: config.name,
     retries: config.retries || 0,

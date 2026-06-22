@@ -1,3 +1,5 @@
+use secrecy::ExposeSecret;
+// Wave 151: api_key migrated to secrecy::SecretString
 use async_trait::async_trait;
 use serde::Deserialize;
 use trios_mb_traits::AiProvider;
@@ -5,7 +7,13 @@ use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
+const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const REQWEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const REQWEST_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+const REQWEST_POOL_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
+
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct KieTaskResponse {
     #[serde(default)]
     task_id: Option<String>,
@@ -24,6 +32,7 @@ struct KieTaskResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct KieData {
     #[serde(default)]
     video_url: Option<String>,
@@ -36,6 +45,7 @@ struct KieData {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct KieBalanceResponse {
     #[serde(default)]
     balance: Option<f64>,
@@ -46,21 +56,26 @@ struct KieBalanceResponse {
 }
 
 pub struct KieProvider {
-    api_key: String,
+    api_key: secrecy::SecretString,
     http: reqwest::Client,
     base_url: String,
 }
 
 impl KieProvider {
-    pub fn new(api_key: &str) -> Self {
-        Self {
-            api_key: api_key.to_string(),
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(60))
-                .build()
-                .unwrap_or_default(),
+    pub fn new(api_key: &str) -> Result<Self, AppError> {
+        let http = reqwest::Client::builder()
+            .timeout(REQWEST_TIMEOUT)
+            .connect_timeout(REQWEST_CONNECT_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(REQWEST_POOL_IDLE_TIMEOUT)
+            .build()
+            .map_err(|e| AppError::Internal(format!("Failed to build KIE reqwest client: {}", e)))?;
+        Ok(Self {
+            api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
+            http,
             base_url: "https://api.kie.ai".to_string(),
-        }
+        })
     }
 
     fn build_video_payload(&self, request: &GenerationRequest) -> serde_json::Value {
@@ -72,7 +87,11 @@ impl KieProvider {
             payload.insert("prompt".to_string(), serde_json::Value::String(prompt.clone()));
         }
         if let Some(d) = request.params.get("duration").and_then(|v| v.as_f64()) {
-            payload.insert("duration".to_string(), serde_json::json!(d));
+            if d.is_finite() && d > 0.0 {
+                payload.insert("duration".to_string(), serde_json::json!(d));
+            } else {
+                payload.insert("duration".to_string(), serde_json::json!(5));
+            }
         } else {
             payload.insert("duration".to_string(), serde_json::json!(5));
         }
@@ -120,7 +139,9 @@ impl KieProvider {
             payload.insert("instrumental".to_string(), serde_json::Value::Bool(instrumental));
         }
         if let Some(d) = request.params.get("duration").and_then(|v| v.as_f64()) {
-            payload.insert("duration".to_string(), serde_json::json!(d));
+            if d.is_finite() && d > 0.0 {
+                payload.insert("duration".to_string(), serde_json::json!(d));
+            }
         }
         serde_json::Value::Object(payload)
     }
@@ -159,16 +180,19 @@ impl KieProvider {
         model.contains("wan")
     }
 
+    #[tracing::instrument(skip_all)]
     async fn submit_video(&self, payload: serde_json::Value) -> Result<KieTaskResponse, AppError> {
         let endpoint = "/api/v1/video/generate";
         self.send_request(endpoint, payload).await
     }
 
+    #[tracing::instrument(skip_all)]
     async fn submit_sora(&self, payload: serde_json::Value) -> Result<KieTaskResponse, AppError> {
         let endpoint = "/api/v1/sora/generate";
         self.send_request(endpoint, payload).await
     }
 
+    #[tracing::instrument(skip_all)]
     async fn submit_image(&self, payload: serde_json::Value) -> Result<KieTaskResponse, AppError> {
         let endpoint = "/api/v1/image/generate";
         self.send_request(endpoint, payload).await
@@ -179,65 +203,83 @@ impl KieProvider {
         self.send_request(endpoint, payload).await
     }
 
+    #[tracing::instrument(skip_all)]
     async fn send_request(&self, endpoint: &str, payload: serde_json::Value) -> Result<KieTaskResponse, AppError> {
-        let resp = self.http
-            .post(format!("{}{}", self.base_url, endpoint))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&payload)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "kie".into(),
-                message: format!("request failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}{}", self.base_url, endpoint))
+                .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
+                .header("Content-Type", "application/json")
+                .json(&payload)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "kie".into(),
+                    message: format!("request failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "kie".into(),
+                    message: "request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
             return Err(AiError::RateLimited { provider: "kie".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "kie".into(),
                 message: format!("HTTP {}: {}", status, text),
             }.into());
         }
 
-        resp.json::<KieTaskResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "kie".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let task_resp: KieTaskResponse = super::parse_json_limited(resp, "kie", 64_000_000).await?;
+        Ok(task_resp)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_task_status(&self, task_id: &str) -> Result<KieTaskResponse, AppError> {
-        let resp = self.http
-            .get(format!("{}/api/v1/task/{}", self.base_url, task_id))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "kie".into(),
-                message: format!("status check failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/api/v1/task/{}", self.base_url, task_id))
+                .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "kie".into(),
+                    message: format!("status check failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "kie".into(),
+                    message: "status check request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "kie".into(),
                 message: format!("status HTTP {}: {}", status, text),
             }.into());
         }
 
-        resp.json::<KieTaskResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "kie".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let task_resp: KieTaskResponse = super::parse_json_limited(resp, "kie", 64_000_000).await?;
+        Ok(task_resp)
     }
 
     fn extract_url(resp: &KieTaskResponse) -> Option<String> {
@@ -263,7 +305,12 @@ impl AiProvider for KieProvider {
         matches!(media_type, MediaType::Image | MediaType::Video | MediaType::LipSync | MediaType::ImageToVideo)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
+        let prompt = request.prompt.as_deref().unwrap_or("").trim();
+        if prompt.is_empty() {
+            return Err(AppError::Validation("Empty prompt is not allowed".to_string()));
+        }
         let model = request.model.as_deref().unwrap_or("veo3_fast");
 
         let kie_resp = match request.media_type {
@@ -303,12 +350,13 @@ impl AiProvider for KieProvider {
             media_type: request.media_type,
             status: gen_status,
             result_url,
-            provider: Some(format!("kie:{}", task_id.unwrap_or_default())),
+            provider: task_id.map(|id| format!("kie:{}", id)),
             error: kie_resp.error,
             created_at: chrono::Utc::now(),
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, generation_id: &str) -> Result<GenerationStatus, AppError> {
         let task_id = generation_id.strip_prefix("kie:")
             .unwrap_or(generation_id);
@@ -328,6 +376,7 @@ impl AiProvider for KieProvider {
         Ok(status)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, generation_id: &str) -> Result<Option<String>, AppError> {
         let task_id = generation_id.strip_prefix("kie:")
             .unwrap_or(generation_id);
@@ -341,6 +390,9 @@ impl AiProvider for KieProvider {
     }
 
     async fn cancel(&self, _generation_id: &str) -> Result<(), AppError> {
-        Ok(())
+        Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {
+            provider: "kie".into(),
+            message: "Cancellation not supported by provider".into(),
+        }))
     }
 }

@@ -36,7 +36,7 @@ import {
   extractAudioFromHeyGenAvatar,
 } from './steps'
 import { S3Service } from './helpers/s3.service'
-import { processRiddleTemplate, extractBrollLayers } from './helpers/templateProcessor'
+import { processRiddleTemplate, extractBrollLayers, TextSettings } from './helpers/templateProcessor'
 import { validateRenderRiddleEventData } from './schemas'
 import { detectFacePosition, shouldUseFaceDetection } from './helpers/faceDetection'
 import { getHeyGenAvatarDetails, extractPreviewImageUrl } from './helpers/heygenAvatarDetails'
@@ -280,7 +280,7 @@ export const renderRiddleFunction = inngest.createFunction(
       // Face detection for circle positioning (optional)
       let facePosition: { position: [number, number, number]; anchor_point: [number, number, number]; scale: [number, number, number] } | undefined
 
-      if (shouldUseFaceDetection(data.circle_position, data.circle_scale)) {
+      if (shouldUseFaceDetection(data.circle_position as [number, number, number], data.circle_scale as [number, number, number])) {
         logger.info(`🔍 Face detection enabled for automatic circle positioning`)
 
         // Get avatar photo URL based on service
@@ -327,10 +327,10 @@ export const renderRiddleFunction = inngest.createFunction(
           avatarUrl,
           avatarDuration,
           coverUrl: data.cover_url,
-          introText1: data.intro_text_1,
-          introText2: data.intro_text_2,
-          circlePosition: facePosition?.position || data.circle_position,
-          circleScale: facePosition?.scale || data.circle_scale,
+          introText1: data.intro_text_1 as TextSettings,
+          introText2: data.intro_text_2 as TextSettings,
+          circlePosition: (facePosition?.position || data.circle_position) as [number, number, number],
+          circleScale: (facePosition?.scale || data.circle_scale) as [number, number, number],
           circleAnchorPoint: facePosition?.anchor_point,
           brollData,
         },

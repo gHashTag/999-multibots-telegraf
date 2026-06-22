@@ -307,7 +307,7 @@ async function sendTelegramNotification(message: string): Promise<void> {
     // Отправляем в группу (сейчас админу)
     await bot.telegram.sendMessage(GROUP_CHAT_ID, message, { 
       parse_mode: 'HTML',
-      disable_web_page_preview: true 
+      link_preview_options: { is_disabled: true }
     })
     
     // Если есть критические ошибки, дублируем администратору
@@ -354,19 +354,20 @@ export const logMonitor = inngest.createFunction(
     // Шаг 3: Генерация сообщения
     const message = await step.run('generate-message', async () => {
       logger.info('Generating Telegram message...')
-      return await generateTelegramMessage(analysis)
+      return await generateTelegramMessage(analysis as unknown as LogAnalysisResult)
     })
-    
+
     // Шаг 4: Отправка уведомления
     await step.run('send-notification', async () => {
       logger.info('Sending Telegram notification...')
       await sendTelegramNotification(message)
     })
-    
+
+    const typedAnalysis = analysis as unknown as LogAnalysisResult
     logger.info('Log monitoring completed successfully', {
-      status: analysis.status,
-      errors: analysis.errors.length,
-      warnings: analysis.warnings.length
+      status: typedAnalysis.status,
+      errors: typedAnalysis.errors.length,
+      warnings: typedAnalysis.warnings.length
     })
     
     return {
@@ -399,18 +400,19 @@ export const triggerLogMonitor = inngest.createFunction(
     })
     
     const message = await step.run('generate-message', async () => {
-      return await generateTelegramMessage(analysis)
+      return await generateTelegramMessage(analysis as unknown as LogAnalysisResult)
     })
-    
+
     await step.run('send-notification', async () => {
       await sendTelegramNotification(message)
     })
-    
+
+    const typedAnalysis2 = analysis as unknown as LogAnalysisResult
     return {
       success: true,
       manual: true,
-      status: analysis.status,
-      summary: analysis.summary,
+      status: typedAnalysis2.status,
+      summary: typedAnalysis2.summary,
       triggeredBy: event.data?.userId || 'system',
       timestamp: new Date().toISOString()
     }

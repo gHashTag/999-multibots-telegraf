@@ -4,11 +4,15 @@ use teloxide::prelude::*;
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, VoiceAvatarState};
 use trios_mb_tg::HandlerResult;
+use trios_mb_tg::{answer_callback_query_timeout, send_message_timeout, dialogue_update_timeout};
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const MAX_VOICE_AVATAR_AUDIO_BYTES: u64 = 50 * 1024 * 1024;
+
+#[tracing::instrument(skip_all)]
 pub async fn handle_voice_avatar_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -26,22 +30,37 @@ pub async fn handle_voice_avatar_msg(
         } else {
             "🎙️ Send a voice message to create your voice avatar"
         };
-        bot.send_message(msg.chat.id, text)
-            .reply_markup(crate::generation_utils::back_cancel_keyboard(lang))
-            .await?;
+        send_message_timeout(&bot, msg.chat.id, text, Some(crate::generation_utils::back_cancel_keyboard(lang).into())).await?;
         state.step = 1;
-        dialogue.update(Scene::VoiceAvatar(state)).await?;
+        dialogue_update_timeout(&dialogue, Scene::VoiceAvatar(state)).await?;
         return Ok(());
     }
 
     if state.step == 1 {
-        let file_id = if let Some(voice) = msg.voice() {
-            Some(voice.file.id.clone())
-        } else { msg.audio().map(|audio| audio.file.id.clone()) };
+        let (file_id, size) = if let Some(voice) = msg.voice() {
+            (Some(voice.file.id.clone()), voice.file.size as u64)
+        } else if let Some(audio) = msg.audio() {
+            (Some(audio.file.id.clone()), audio.file.size as u64)
+        } else {
+            (None, 0)
+        };
 
         if let Some(fid) = file_id {
+            if size > MAX_VOICE_AVATAR_AUDIO_BYTES {
+                let err = if lang.is_russian() {
+                    "❌ Файл слишком большой. Максимум 50 МБ."
+                } else {
+                    "❌ File too large. Maximum 50 MB."
+                };
+                send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                return Ok(());
+            }
             state.audio_url = Some(fid);
             let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+    if tid == 0 {
+        tracing::warn!("Missing telegram_id; aborting handler");
+        return Ok(());
+    }
             return dispatch_and_reply(
                 &bot, &dialogue, msg.chat.id,
                 &job_queue, &db,
@@ -62,13 +81,14 @@ pub async fn handle_voice_avatar_msg(
             } else {
                 "🎙️ Please send a voice message"
             };
-            bot.send_message(msg.chat.id, text).await?;
+            send_message_timeout(&bot, msg.chat.id, text, None).await?;
         }
     }
 
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_voice_avatar_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -78,12 +98,16 @@ pub async fn handle_voice_avatar_callback(
     _state: VoiceAvatarState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
 
     if data == "va:cancel" {
-        return return_to_menu(&bot, &dialogue, q.chat_id().unwrap(), lang).await;
+        let chat_id = match q.chat_id() {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+        return return_to_menu(&bot, &dialogue, chat_id, lang).await;
     }
     Ok(())
 }

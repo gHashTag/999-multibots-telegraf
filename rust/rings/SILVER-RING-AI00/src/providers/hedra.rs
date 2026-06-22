@@ -1,9 +1,24 @@
+use std::sync::LazyLock;
+use secrecy::ExposeSecret;
+// Wave 151: api_key migrated to secrecy::SecretString
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use trios_mb_traits::AiProvider;
 use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
+
+const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const REQWEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+const REQWEST_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+const REQWEST_POOL_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
+
+static HEDRA_BASE_URL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("HEDRA_BASE_URL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "https://api.hedra.com".to_string())
+});
 
 #[derive(Debug, Serialize)]
 struct CreateAnimationRequest {
@@ -20,6 +35,7 @@ struct CreateAnimationRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct HedronResponse {
     #[serde(default)]
     id: Option<String>,
@@ -34,6 +50,7 @@ struct HedronResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct HedraData {
     #[serde(default)]
     id: Option<String>,
@@ -46,23 +63,29 @@ struct HedraData {
 }
 
 pub struct HedraProvider {
-    api_key: String,
+    api_key: secrecy::SecretString,
     http: reqwest::Client,
     base_url: String,
 }
 
 impl HedraProvider {
-    pub fn new(api_key: &str) -> Self {
-        Self {
-            api_key: api_key.to_string(),
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(120))
-                .build()
-                .unwrap_or_default(),
-            base_url: "https://api.hedra.com".to_string(),
-        }
+    pub fn new(api_key: &str) -> Result<Self, AppError> {
+        let http = reqwest::Client::builder()
+            .timeout(REQWEST_TIMEOUT)
+            .connect_timeout(REQWEST_CONNECT_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(REQWEST_POOL_IDLE_TIMEOUT)
+            .build()
+            .map_err(|e| AppError::Internal(format!("Failed to build Hedra reqwest client: {}", e)))?;
+        Ok(Self {
+            api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
+            http,
+            base_url: HEDRA_BASE_URL.clone(),
+        })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn create_animation(&self, request: &GenerationRequest) -> Result<HedronResponse, AppError> {
         let body = CreateAnimationRequest {
             audio_url: request.params.get("audio_url").and_then(|v| v.as_str()).map(|s| s.to_string()),
@@ -72,64 +95,81 @@ impl HedraProvider {
             voice_id: request.params.get("voice_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
         };
 
-        let resp = self.http
-            .post(format!("{}/v1/animations", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "hedra".into(),
-                message: format!("create animation failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/v1/animations", self.base_url))
+                .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "hedra".into(),
+                    message: format!("create animation failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "hedra".into(),
+                    message: "create animation request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
             return Err(AiError::RateLimited { provider: "hedra".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "hedra".into(),
                 message: format!("HTTP {}: {}", status, text),
             }.into());
         }
 
-        resp.json::<HedronResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "hedra".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let resp_data: HedronResponse = super::parse_json_limited(resp, "hedra", 64_000_000).await?;
+        Ok(resp_data)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn fetch_animation_status(&self, animation_id: &str) -> Result<HedronResponse, AppError> {
-        let resp = self.http
-            .get(format!("{}/v1/animations/{}", self.base_url, animation_id))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "hedra".into(),
-                message: format!("status check failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/v1/animations/{}", self.base_url, animation_id))
+                .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "hedra".into(),
+                    message: format!("status check failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "hedra".into(),
+                    message: "status check request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "hedra".into(),
                 message: format!("HTTP {}: {}", status, text),
             }.into());
         }
 
-        resp.json::<HedronResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "hedra".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let resp_data: HedronResponse = super::parse_json_limited(resp, "hedra", 64_000_000).await?;
+        Ok(resp_data)
     }
 
     fn extract_id(resp: &HedronResponse) -> Option<String> {
@@ -153,7 +193,12 @@ impl AiProvider for HedraProvider {
         matches!(media_type, MediaType::LipSync | MediaType::Video)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
+        let prompt = request.prompt.as_deref().unwrap_or("").trim();
+        if prompt.is_empty() {
+            return Err(AppError::Validation("Empty prompt is not allowed".to_string()));
+        }
         let hedra_resp = self.create_animation(request).await?;
 
         let anim_id = Self::extract_id(&hedra_resp);
@@ -173,12 +218,13 @@ impl AiProvider for HedraProvider {
             media_type: request.media_type,
             status: gen_status,
             result_url,
-            provider: Some(format!("hedra:{}", anim_id.unwrap_or_default())),
+            provider: anim_id.map(|id| format!("hedra:{}", id)),
             error: hedra_resp.error,
             created_at: chrono::Utc::now(),
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, generation_id: &str) -> Result<GenerationStatus, AppError> {
         let anim_id = generation_id.strip_prefix("hedra:")
             .unwrap_or(generation_id);
@@ -202,6 +248,7 @@ impl AiProvider for HedraProvider {
         Ok(status)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, generation_id: &str) -> Result<Option<String>, AppError> {
         let anim_id = generation_id.strip_prefix("hedra:")
             .unwrap_or(generation_id);
@@ -215,6 +262,9 @@ impl AiProvider for HedraProvider {
     }
 
     async fn cancel(&self, _generation_id: &str) -> Result<(), AppError> {
-        Ok(())
+        Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {
+            provider: "hedra".into(),
+            message: "Cancellation not supported by provider".into(),
+        }))
     }
 }

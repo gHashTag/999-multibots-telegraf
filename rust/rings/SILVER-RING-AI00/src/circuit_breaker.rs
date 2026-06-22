@@ -1,11 +1,17 @@
-use std::sync::atomic::{AtomicU32, AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
+
+/// Sentinel value indicating no failure has been recorded.
+const NO_FAILURE: u64 = u64::MAX;
 
 pub struct CircuitBreaker {
     failure_count: AtomicU32,
     failure_threshold: u32,
     is_open: AtomicBool,
-    last_failure: std::sync::Mutex<Option<Instant>>,
+    /// Stores `Instant::elapsed().as_millis()` snapshot at the time of failure,
+    /// or `NO_FAILURE` if no failure has been recorded.
+    /// This avoids `std::sync::Mutex` in async contexts.
+    last_failure_millis: AtomicU64,
     reset_timeout: Duration,
 }
 
@@ -15,38 +21,52 @@ impl CircuitBreaker {
             failure_count: AtomicU32::new(0),
             failure_threshold,
             is_open: AtomicBool::new(false),
-            last_failure: std::sync::Mutex::new(None),
+            last_failure_millis: AtomicU64::new(NO_FAILURE),
             reset_timeout,
         }
     }
 
+    fn now_millis() -> u64 {
+        // Use a monotonic proxy: since we only compare deltas within the same process,
+        // Instant::now().elapsed() from a fixed base is sufficient.
+        // Simpler: just use Instant::now() comparison via storing the Instant itself is not Send,
+        // so we store epoch millis from a once-initialized Instant base.
+        static BASE: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+        let base = BASE.get_or_init(Instant::now);
+        base.elapsed().as_millis() as u64
+    }
+
+    // Wave 151: use SeqCst ordering for failure count and open state to prevent
+    // torn reads/writes under concurrent dispatch.
     pub fn allow_request(&self) -> bool {
-        if !self.is_open.load(Ordering::Relaxed) {
+        if !self.is_open.load(Ordering::SeqCst) {
             return true;
         }
 
-        let last = self.last_failure.lock().unwrap();
-        if let Some(time) = *last {
-            if time.elapsed() > self.reset_timeout {
-                self.is_open.store(false, Ordering::Relaxed);
-                self.failure_count.store(0, Ordering::Relaxed);
-                return true;
-            }
+        let last = self.last_failure_millis.load(Ordering::SeqCst);
+        if last == NO_FAILURE {
+            return true;
+        }
+
+        let elapsed = Self::now_millis().saturating_sub(last);
+        if Duration::from_millis(elapsed) > self.reset_timeout {
+            self.is_open.store(false, Ordering::SeqCst);
+            self.failure_count.store(0, Ordering::SeqCst);
+            return true;
         }
         false
     }
 
     pub fn record_success(&self) {
-        self.failure_count.store(0, Ordering::Relaxed);
-        self.is_open.store(false, Ordering::Relaxed);
+        self.failure_count.store(0, Ordering::SeqCst);
+        self.is_open.store(false, Ordering::SeqCst);
     }
 
     pub fn record_failure(&self) {
-        let count = self.failure_count.fetch_add(1, Ordering::Relaxed) + 1;
+        let count = self.failure_count.fetch_add(1, Ordering::SeqCst) + 1;
         if count >= self.failure_threshold {
-            self.is_open.store(true, Ordering::Relaxed);
-            let mut last = self.last_failure.lock().unwrap();
-            *last = Some(Instant::now());
+            self.is_open.store(true, Ordering::SeqCst);
+            self.last_failure_millis.store(Self::now_millis(), Ordering::SeqCst);
         }
     }
 }
@@ -82,7 +102,7 @@ mod tests {
         assert!(!cb.allow_request());
         cb.record_success();
         assert!(cb.allow_request());
-        assert_eq!(cb.failure_count.load(Ordering::Relaxed), 0);
+        assert_eq!(cb.failure_count.load(Ordering::SeqCst), 0);
     }
 
     #[test]

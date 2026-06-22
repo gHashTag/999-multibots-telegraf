@@ -16,6 +16,7 @@ struct Inner {
     image_counts: HashMap<i64, i64>,
     generations: HashMap<uuid::Uuid, GenerationResult>,
     referral_counts: HashMap<i64, i64>,
+    webhook_events: HashMap<(String, String), chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Clone)]
@@ -167,6 +168,15 @@ impl Database for MockDatabase {
         Ok(inner.transactions.get(&id).cloned())
     }
 
+    async fn get_transaction_by_external_id(&self,
+        external_id: &str,
+    ) -> Result<Option<Transaction>, AppError> {
+        let inner = self.inner.lock().await;
+        Ok(inner.transactions.values().find(|t| {
+            t.external_id.as_deref() == Some(external_id)
+        }).cloned())
+    }
+
     async fn update_transaction_status(&self, id: uuid::Uuid, status: PaymentStatus) -> Result<(), AppError> {
         let mut inner = self.inner.lock().await;
         if let Some(tx) = inner.transactions.get_mut(&id) {
@@ -178,7 +188,8 @@ impl Database for MockDatabase {
         }
     }
 
-    async fn get_transactions_by_telegram_id(&self, telegram_id: i64, limit: i64) -> Result<Vec<Transaction>, AppError> {
+    async fn get_transactions_by_telegram_id(&self, telegram_id: i64, cursor: Option<uuid::Uuid>, limit: i64) -> Result<Vec<Transaction>, AppError> {
+        let _ = cursor; // cursor pagination not implemented in mock
         let inner = self.inner.lock().await;
         let mut txs: Vec<_> = inner
             .transactions
@@ -280,5 +291,88 @@ impl Database for MockDatabase {
 
     async fn health_check(&self) -> Result<bool, AppError> {
         Ok(true)
+    }
+
+    async fn complete_robokassa_payment(
+        &self,
+        tx_id: uuid::Uuid,
+        telegram_id: i64,
+        amount: f64,
+    ) -> Result<bool, AppError> {
+        let mut inner = self.inner.lock().await;
+        if let Some(tx) = inner.transactions.get_mut(&tx_id) {
+            if tx.status == PaymentStatus::Completed {
+                return Ok(false);
+            }
+            tx.status = PaymentStatus::Completed;
+            tx.updated_at = chrono::Utc::now();
+            if let Some(user) = inner.users.get_mut(&telegram_id) {
+                user.balance += amount;
+                user.updated_at = chrono::Utc::now();
+            }
+            Ok(true)
+        } else {
+            Err(AppError::NotFound(format!("transaction {}", tx_id)))
+        }
+    }
+
+    async fn get_generation_owned(
+        &self,
+        id: uuid::Uuid,
+        telegram_id: i64,
+    ) -> Result<Option<GenerationResult>, AppError> {
+        let inner = self.inner.lock().await;
+        Ok(inner.generations.get(&id).filter(|g| g.telegram_id == telegram_id).cloned())
+    }
+
+    async fn update_generation_status_owned(
+        &self,
+        id: uuid::Uuid,
+        telegram_id: i64,
+        status: GenerationStatus,
+        result_url: Option<&str>,
+        error: Option<&str>,
+    ) -> Result<(), AppError> {
+        let mut inner = self.inner.lock().await;
+        if let Some(gen) = inner.generations.get_mut(&id) {
+            if gen.telegram_id != telegram_id {
+                return Err(AppError::NotFound(format!("generation {} owned by another user", id)));
+            }
+            gen.status = status;
+            if let Some(url) = result_url {
+                gen.result_url = Some(url.to_string());
+            }
+            if let Some(e) = error {
+                gen.error = Some(e.to_string());
+            }
+            Ok(())
+        } else {
+            Err(AppError::NotFound(format!("generation {}", id)))
+        }
+    }
+
+    async fn record_webhook_event(
+        &self,
+        provider: &str,
+        event_id: &str,
+    ) -> Result<bool, AppError> {
+        let mut inner = self.inner.lock().await;
+        let key = (provider.to_string(), event_id.to_string());
+        if inner.webhook_events.contains_key(&key) {
+            Ok(false)
+        } else {
+            inner.webhook_events.insert(key, chrono::Utc::now());
+            Ok(true)
+        }
+    }
+
+    async fn has_webhook_event(
+        &self,
+        provider: &str,
+        event_id: &str,
+    ) -> Result<bool, AppError> {
+        let inner = self.inner.lock().await;
+        let key = (provider.to_string(), event_id.to_string());
+        Ok(inner.webhook_events.contains_key(&key))
     }
 }

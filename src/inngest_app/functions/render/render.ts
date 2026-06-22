@@ -55,25 +55,25 @@ export const renderFunction = inngest.createFunction(
     // Step 1: Create job folder on remote server
     await step.run('create-job-folder', async () => {
       logger.info(`[Step 1/4] Creating job folder for job ${job_id}`)
-      return createJobFolder(eventData, logger)
+      return createJobFolder(eventData as RenderEventData, logger)
     })
 
     // Step 2: Download files (template, build job.json)
     await step.run('download-files', async () => {
       logger.info(`[Step 2/4] Downloading files for job ${job_id}`)
-      return downloadFiles(eventData, logger)
+      return downloadFiles(eventData as RenderEventData, logger)
     })
 
     // Step 3: Execute render on remote server
     await step.run('render', async () => {
       logger.info(`[Step 3/4] Rendering job ${job_id}`)
-      return executeRender(eventData, logger)
+      return executeRender(eventData as RenderEventData, logger)
     })
 
     // Step 4: Upload result to S3
     const uploadResult = await step.run('upload-to-s3', async () => {
       logger.info(`[Step 4/4] Uploading result to S3 for job ${job_id}`)
-      return uploadToS3(eventData, logger)
+      return uploadToS3(eventData as RenderEventData, logger)
     })
 
     // Step 5: Send callback if provided (optional, don't fail workflow if it fails)

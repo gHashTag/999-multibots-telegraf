@@ -6,11 +6,13 @@ use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, TextToImageState};
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
+use trios_mb_tg::{answer_callback_query_timeout, dialogue_update_timeout, send_message_timeout};
 use trios_mb_types::generation::MediaType;
-use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, load_lang_cb};
+use crate::generation_utils::{DispatchParams, dispatch_and_reply, load_lang, load_lang_cb, return_to_menu};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_text_to_image_entry(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -19,13 +21,16 @@ pub async fn handle_text_to_image_entry(
 ) -> HandlerResult {
     let lang = load_lang(&db, &msg).await;
     let text = if lang.is_russian() { "Введите описание изображения:" } else { "Enter image description:" };
-    bot.send_message(msg.chat.id, text).await?;
+    send_message_timeout(
+        &bot, msg.chat.id, text, None,
+    ).await?;
     let mut state = TextToImageState::default();
     state.step = 1;
-    dialogue.update(Scene::TextToImage(state)).await?;
+    dialogue_update_timeout(&dialogue, Scene::TextToImage(state)).await?;
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_text_to_image_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -40,6 +45,22 @@ pub async fn handle_text_to_image_msg(
         Some(t) => t,
         None => return Ok(()),
     };
+
+    if text.trim().is_empty() {
+        let err = if lang.is_russian() { "❌ Пустой промпт не допускается." } else { "❌ Empty prompt is not allowed." };
+        send_message_timeout(
+            &bot, msg.chat.id, err, None,
+        ).await?;
+        return Ok(());
+    }
+
+    if text.len() > 4000 {
+        let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
+        send_message_timeout(
+            &bot, msg.chat.id, err, None,
+        ).await?;
+        return Ok(());
+    }
 
     match state.step {
         1 => {
@@ -58,11 +79,18 @@ pub async fn handle_text_to_image_msg(
             ]);
 
             let model_text = if lang.is_russian() { "Выберите модель:" } else { "Select model:" };
-            bot.send_message(msg.chat.id, model_text).reply_markup(kb).await?;
-            dialogue.update(Scene::TextToImage(state)).await?;
+            send_message_timeout(
+                &bot, msg.chat.id, model_text, Some(kb.into()),
+            ).await?;
+            dialogue_update_timeout(
+                &dialogue, Scene::TextToImage(state)).await?;
         }
         3 => {
             let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+            if tid == 0 {
+                tracing::warn!("Missing telegram_id; aborting handler");
+                return Ok(());
+            }
             return dispatch_and_reply(
                 &bot, &dialogue, msg.chat.id,
                 &job_queue, &db,
@@ -83,6 +111,7 @@ pub async fn handle_text_to_image_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_text_to_image_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -92,10 +121,17 @@ pub async fn handle_text_to_image_callback(
     mut state: TextToImageState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
-    let chat_id = q.chat_id().unwrap();
+    let chat_id = match q.chat_id() {
+        Some(id) => id,
+        None => return Ok(()),
+    };
     let tid = q.from.id.0 as i64;
+    if tid <= 0 {
+        tracing::warn!("Callback query missing valid telegram_id; aborting text_to_image handler");
+        return Ok(());
+    }
 
     let data = match &q.data {
         Some(d) => d.as_str(),
@@ -123,8 +159,11 @@ pub async fn handle_text_to_image_callback(
             ]);
 
             let ratio_text = if lang.is_russian() { "Выберите пропорции:" } else { "Select aspect ratio:" };
-            bot.send_message(chat_id, ratio_text).reply_markup(kb).await?;
-            dialogue.update(Scene::TextToImage(state)).await?;
+            send_message_timeout(
+                &bot, chat_id, ratio_text, Some(kb.into()),
+            ).await?;
+            dialogue_update_timeout(
+                &dialogue, Scene::TextToImage(state)).await?;
         }
         "ti:ratio_1_1" | "ti:ratio_16_9" | "ti:ratio_9_16" => {
             let ratio = match data {
@@ -134,6 +173,16 @@ pub async fn handle_text_to_image_callback(
                 _ => "1:1",
             };
             state.aspect_ratio = Some(ratio.to_string());
+            let prompt = match state.prompt.as_ref() {
+                Some(p) => p.clone(),
+                None => {
+                    let err = if lang.is_russian() { "❌ Сессия устарела. Начните заново." } else { "❌ Session expired. Please start again." };
+                    send_message_timeout(
+                        &bot, chat_id, err, None,
+                    ).await?;
+                    return return_to_menu(&bot, &dialogue, chat_id, lang).await;
+                }
+            };
             return dispatch_and_reply(
                 &bot, &dialogue, chat_id,
                 &job_queue, &db,
@@ -143,7 +192,7 @@ pub async fn handle_text_to_image_callback(
                     media_type: MediaType::Image,
                     job_type: "image_rendering",
                     cost: 10.0,
-                    prompt: state.prompt.clone(),
+                    prompt: Some(prompt),
                     image_url: None,
                     model: state.model.clone(),
                 },
@@ -151,14 +200,16 @@ pub async fn handle_text_to_image_callback(
         }
         "ti:retry" => {
             let text = if lang.is_russian() { "Введите описание изображения:" } else { "Enter image description:" };
-            bot.send_message(chat_id, text).await?;
-            dialogue.update(Scene::TextToImage(TextToImageState::default())).await?;
+            send_message_timeout(
+                &bot, chat_id, text, None,
+            ).await?;
+            dialogue_update_timeout(&dialogue, Scene::TextToImage(TextToImageState::default())).await?;
         }
         "ti:done" => {
-            dialogue.update(Scene::MainMenu).await?;
-            bot.send_message(chat_id, trios_mb_i18n::t(lang, "main_menu"))
-                .reply_markup(main_menu_keyboard(lang))
-                .await?;
+            dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
+            send_message_timeout(
+                &bot, chat_id, trios_mb_i18n::t(lang, "main_menu"), Some(main_menu_keyboard(lang).into()),
+            ).await?;
         }
         _ => {}
     }

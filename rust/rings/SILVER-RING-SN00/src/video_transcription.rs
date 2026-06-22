@@ -4,11 +4,15 @@ use teloxide::prelude::*;
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, VideoTranscriptionState};
 use trios_mb_tg::HandlerResult;
+use trios_mb_tg::{answer_callback_query_timeout, send_message_timeout, dialogue_update_timeout};
 use trios_mb_types::generation::MediaType;
 use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, dispatch_and_reply};
 
+const MAX_VIDEO_TRANSCRIPTION_BYTES: u64 = 100 * 1024 * 1024;
+
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_video_transcription_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -26,18 +30,29 @@ pub async fn handle_video_transcription_msg(
         } else {
             "📺 Send a video for transcription"
         };
-        bot.send_message(msg.chat.id, text)
-            .reply_markup(crate::generation_utils::back_cancel_keyboard(lang))
-            .await?;
+        send_message_timeout(&bot, msg.chat.id, text, Some(crate::generation_utils::back_cancel_keyboard(lang).into())).await?;
         state.step = 1;
-        dialogue.update(Scene::VideoTranscription(state)).await?;
+        dialogue_update_timeout(&dialogue, Scene::VideoTranscription(state)).await?;
         return Ok(());
     }
 
     if state.step == 1 {
         if let Some(video) = msg.video() {
+            if video.file.size as u64 > MAX_VIDEO_TRANSCRIPTION_BYTES {
+                let text = if lang.is_russian() {
+                    "❌ Видео слишком большое. Максимальный размер — 100 МБ."
+                } else {
+                    "❌ Video is too large. Maximum size is 100 MB."
+                };
+                send_message_timeout(&bot, msg.chat.id, text, Some(crate::generation_utils::back_cancel_keyboard(lang).into())).await?;
+                return Ok(());
+            }
             state.video_url = Some(video.file.id.clone());
             let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+    if tid == 0 {
+        tracing::warn!("Missing telegram_id; aborting handler");
+        return Ok(());
+    }
             return dispatch_and_reply(
                 &bot, &dialogue, msg.chat.id,
                 &job_queue, &db,
@@ -54,13 +69,14 @@ pub async fn handle_video_transcription_msg(
             ).await;
         } else {
             let text = if lang.is_russian() { "Отправьте видео" } else { "Send a video" };
-            bot.send_message(msg.chat.id, text).await?;
+            send_message_timeout(&bot, msg.chat.id, text, None).await?;
         }
     }
 
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_video_transcription_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -70,12 +86,16 @@ pub async fn handle_video_transcription_callback(
     _state: VideoTranscriptionState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
 
     if data == "vt:cancel" {
-        return return_to_menu(&bot, &dialogue, q.chat_id().unwrap(), lang).await;
+        let chat_id = match q.chat_id() {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+        return return_to_menu(&bot, &dialogue, chat_id, lang).await;
     }
     Ok(())
 }

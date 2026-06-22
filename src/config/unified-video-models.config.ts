@@ -232,93 +232,10 @@ export const UNIFIED_VIDEO_MODELS: Record<string, UnifiedVideoModelConfig> = {
 
   // ==================== REPLICATE MODELS ====================
 
-  'kling-v1.6-pro': {
-    id: 'kling-v1.6-pro',
-    name: 'Kling v1.6 Pro',
-    nameRu: 'Kling v1.6 Pro',
-    description: 'Kling Pro - профессиональная анимация изображений',
-    provider: 'replicate',
-    apiModel: 'kwaivgi/kling-v1.6-pro',
-    inputTypes: ['text', 'image'],
-    pricing: {
-      type: 'fixed',
-      fixedPriceStars: 9, // Согласно videoModels.ts
-    },
-    apiSettings: {
-      imageKey: 'start_image',
-      canMorph: true,
-      aspectRatios: ['16:9', '9:16'],
-      baseInput: {
-        prompt_optimizer: true,
-        cfg_scale: 0.5,
-      },
-    },
-    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
-  },
-
-  'ray-v2': {
-    id: 'ray-v2',
-    name: 'Ray-v2',
-    nameRu: 'Ray-v2',
-    description: 'Luma Ray v2 - детальная анимация',
-    provider: 'replicate',
-    apiModel: 'luma/ray-2-720p',
-    inputTypes: ['text', 'image'],
-    pricing: {
-      type: 'fixed',
-      fixedPriceStars: 16,
-    },
-    apiSettings: {
-      imageKey: 'start_image_url',
-      aspectRatios: ['16:9', '9:16'],
-    },
-    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
-  },
-
-  'haiper-video-2': {
-    id: 'haiper-video-2',
-    name: 'Haiper Video 2',
-    nameRu: 'Haiper Video 2',
-    description: 'Haiper AI - высокое качество, 6 секунд',
-    provider: 'replicate',
-    apiModel: 'haiper-ai/haiper-video-2',
-    inputTypes: ['text', 'image'],
-    pricing: {
-      type: 'fixed',
-      // Рассчитываем из basePrice: $0.05 × 1.5 / $0.016 = 4.7⭐ ≈ 5⭐
-      fixedPriceStars: 5,
-    },
-    apiSettings: {
-      imageKey: 'frame_image_url',
-      aspectRatios: ['16:9', '9:16'],
-      baseInput: {
-        duration: 6,
-        use_prompt_enhancer: true,
-      },
-    },
-    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
-  },
-
-  'kling-v1.6-standard': {
-    id: 'kling-v1.6-standard',
-    name: 'Kling v1.6 Standard',
-    nameRu: 'Kling v1.6 Standard',
-    description: 'Kling Standard - стандартная анимация с морфингом',
-    provider: 'replicate',
-    apiModel: 'kwaivgi/kling-v1.6-standard',
-    inputTypes: ['image', 'morph'],
-    pricing: {
-      type: 'per_second',
-      pricePerSecondUSD: 0.056,
-      defaultDuration: 5,
-    },
-    apiSettings: {
-      imageKey: 'start_image',
-      canMorph: true,
-      aspectRatios: ['16:9', '9:16'],
-    },
-    status: 'deprecated', // ❌ ОТКЛЮЧЕНО: используй Kie.ai вместо Replicate,
-  },
+  // ❌ REMOVED: kling-v1.6-pro (replaced by v2.1 Pro)
+  // ❌ REMOVED: ray-v2 (Luma Dream Machine deprecated)
+  // ❌ REMOVED: haiper-video-2 (Haiper company shut down)
+  // ❌ REMOVED: kling-v1.6-standard (replaced by v2.1)
 
   'kling-v2.0': {
     id: 'kling-v2.0',

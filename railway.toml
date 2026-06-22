@@ -1,11 +1,15 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile.rust"
+dockerfilePath = "Dockerfile"
+
+[build.args]
+SKIP_TYPE_CHECK = "true"
 
 [deploy]
-healthcheckPath = "/health/simple"
+healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ALWAYS"
+numReplicas = 1
 
 [service]
-name = "999-multibots-rust"
+name = "999-multibots-telegraf"

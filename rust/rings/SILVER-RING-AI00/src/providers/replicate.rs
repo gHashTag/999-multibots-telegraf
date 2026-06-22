@@ -1,9 +1,79 @@
+use std::sync::LazyLock;
+use secrecy::ExposeSecret;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use trios_mb_traits::AiProvider;
 use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
+
+const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const REQWEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+const REQWEST_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+const REQWEST_POOL_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
+
+static REPLICATE_SDXL_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_SDXL_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "stability-ai/sdxl:7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc".to_string())
+});
+
+static REPLICATE_FLUX_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_FLUX_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "black-forest-labs/flux-1.1-pro-ultra".to_string())
+});
+
+static REPLICATE_SD3_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_SD3_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "stability-ai/stable-diffusion-3.5-large-turbo".to_string())
+});
+
+static REPLICATE_RECRAFT_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_RECRAFT_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "recraft-ai/recraft-v3".to_string())
+});
+
+static REPLICATE_PHOTON_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_PHOTON_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "luma/photon".to_string())
+});
+
+static REPLICATE_HAIPER_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_HAIPER_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "haiper-ai/haiper-video-2".to_string())
+});
+
+static REPLICATE_MINIMAX_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_MINIMAX_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "minimax/video-01".to_string())
+});
+
+static REPLICATE_KLING_LIP_SYNC_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_KLING_LIP_SYNC_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "kwaivgi/kling-lip-sync".to_string())
+});
+
+static REPLICATE_FACE_SWAP_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("REPLICATE_FACE_SWAP_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "lucataco/faceswap".to_string())
+});
 
 #[derive(Debug, Serialize)]
 struct PredictionInput {
@@ -20,6 +90,7 @@ struct CreatePredictionRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PredictionResponse {
     id: String,
     status: String,
@@ -29,29 +100,36 @@ struct PredictionResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PredictionUrls {
     get: String,
     cancel: String,
 }
 
+// Wave 151: api_key migrated to secrecy::SecretString
 pub struct ReplicateProvider {
-    api_key: String,
+    api_key: secrecy::SecretString,
     http: reqwest::Client,
     base_url: String,
     webhook_url: Option<String>,
 }
 
 impl ReplicateProvider {
-    pub fn new(api_key: &str) -> Self {
-        Self {
-            api_key: api_key.to_string(),
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(120))
-                .build()
-                .unwrap_or_default(),
+    pub fn new(api_key: &str) -> Result<Self, AppError> {
+        let http = reqwest::Client::builder()
+            .timeout(REQWEST_TIMEOUT)
+            .connect_timeout(REQWEST_CONNECT_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(REQWEST_POOL_IDLE_TIMEOUT)
+            .build()
+            .map_err(|e| AppError::Internal(format!("Failed to build Replicate reqwest client: {}", e)))?;
+        Ok(Self {
+            api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
+            http,
             base_url: "https://api.replicate.com".to_string(),
             webhook_url: None,
-        }
+        })
     }
 
     pub fn with_webhook(mut self, url: &str) -> Self {
@@ -61,15 +139,15 @@ impl ReplicateProvider {
 
     fn resolve_model_version(&self, model: &str) -> Option<String> {
         match model {
-            "flux" => Some("black-forest-labs/flux-1.1-pro-ultra".to_string()),
-            "sdxl" => Some("stability-ai/sdxl:7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc".to_string()),
-            "sd3" => Some("stability-ai/stable-diffusion-3.5-large-turbo".to_string()),
-            "recraft" => Some("recraft-ai/recraft-v3".to_string()),
-            "photon" => Some("luma/photon".to_string()),
-            "haiper" => Some("haiper-ai/haiper-video-2".to_string()),
-            "minimax" => Some("minimax/video-01".to_string()),
-            "kling-lip-sync" => Some("kwaivgi/kling-lip-sync".to_string()),
-            "face-swap" => Some("lucataco/faceswap".to_string()),
+            "flux" => Some(REPLICATE_FLUX_MODEL.clone()),
+            "sdxl" => Some(REPLICATE_SDXL_MODEL.clone()),
+            "sd3" => Some(REPLICATE_SD3_MODEL.clone()),
+            "recraft" => Some(REPLICATE_RECRAFT_MODEL.clone()),
+            "photon" => Some(REPLICATE_PHOTON_MODEL.clone()),
+            "haiper" => Some(REPLICATE_HAIPER_MODEL.clone()),
+            "minimax" => Some(REPLICATE_MINIMAX_MODEL.clone()),
+            "kling-lip-sync" => Some(REPLICATE_KLING_LIP_SYNC_MODEL.clone()),
+            "face-swap" => Some(REPLICATE_FACE_SWAP_MODEL.clone()),
             _ => None,
         }
     }
@@ -105,7 +183,9 @@ impl ReplicateProvider {
             input.insert("prompt".to_string(), serde_json::Value::String(prompt.clone()));
         }
         if let Some(duration) = request.params.get("duration").and_then(|v| v.as_f64()) {
-            input.insert("duration".to_string(), serde_json::Value::Number((duration as i64).into()));
+            if duration.is_finite() && duration > 0.0 {
+                input.insert("duration".to_string(), serde_json::Value::Number((duration as i64).into()));
+            }
         }
         if let Some(ref ar) = request.params.get("aspect_ratio").and_then(|v| v.as_str()) {
             input.insert("aspect_ratio".to_string(), serde_json::Value::String(ar.to_string()));
@@ -145,6 +225,7 @@ impl ReplicateProvider {
         serde_json::Value::Object(input)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn create_prediction(&self, model: &str, input: serde_json::Value) -> Result<PredictionResponse, AppError> {
         let version = self.resolve_model_version(model)
             .ok_or_else(|| AppError::Validation(format!("unknown model: {}", model)))?;
@@ -155,67 +236,84 @@ impl ReplicateProvider {
             webhook: self.webhook_url.clone(),
         };
 
-        let resp = self.http
-            .post(format!("{}/v1/predictions", self.base_url))
-            .header("Authorization", format!("Token {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "replicate".into(),
-                message: format!("request failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/v1/predictions", self.base_url))
+                .header("Authorization", format!("Token {}", self.api_key.expose_secret()))
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "replicate".into(),
+                    message: format!("request failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "replicate".into(),
+                    message: "request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
             return Err(AiError::RateLimited { provider: "replicate".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "replicate".into(),
                 message: format!("HTTP {}: {}", status, text),
             }.into());
         }
 
-        resp.json::<PredictionResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "replicate".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let pred: PredictionResponse = super::parse_json_limited(resp, "replicate", 64_000_000).await?;
+        Ok(pred)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn fetch_prediction(&self, prediction_id: &str) -> Result<PredictionResponse, AppError> {
-        let resp = self.http
-            .get(format!("{}/v1/predictions/{}", self.base_url, prediction_id))
-            .header("Authorization", format!("Token {}", self.api_key))
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "replicate".into(),
-                message: format!("status check failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/v1/predictions/{}", self.base_url, prediction_id))
+                .header("Authorization", format!("Token {}", self.api_key.expose_secret()))
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "replicate".into(),
+                    message: format!("status check failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "replicate".into(),
+                    message: "status check request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
             return Err(AiError::RateLimited { provider: "replicate".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "replicate".into(),
                 message: format!("HTTP {}: {}", status, text),
             }.into());
         }
 
-        resp.json::<PredictionResponse>()
-            .await
-            .map_err(|e| AiError::InvalidResponse {
-                provider: "replicate".into(),
-                message: format!("json parse: {}", e),
-            }.into())
+        let pred: PredictionResponse = super::parse_json_limited(resp, "replicate", 64_000_000).await?;
+        Ok(pred)
     }
 
     fn extract_output_url(output: &Option<serde_json::Value>) -> Option<String> {
@@ -242,7 +340,12 @@ impl AiProvider for ReplicateProvider {
         matches!(media_type, MediaType::Image | MediaType::Video | MediaType::ImageToVideo | MediaType::LipSync | MediaType::FaceSwap)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
+        let prompt = request.prompt.as_deref().unwrap_or("").trim();
+        if prompt.is_empty() {
+            return Err(AppError::Validation("Empty prompt is not allowed".to_string()));
+        }
         let model = request.model.as_deref().unwrap_or("flux");
         let input = match request.media_type {
             MediaType::Image => self.build_image_input(request),
@@ -277,6 +380,7 @@ impl AiProvider for ReplicateProvider {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, generation_id: &str) -> Result<GenerationStatus, AppError> {
         let prediction = self.fetch_prediction(generation_id).await?;
         let status = match prediction.status.as_str() {
@@ -288,25 +392,39 @@ impl AiProvider for ReplicateProvider {
         Ok(status)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, generation_id: &str) -> Result<Option<String>, AppError> {
         let prediction = self.fetch_prediction(generation_id).await?;
         Ok(Self::extract_output_url(&prediction.output))
     }
 
+    #[tracing::instrument(skip_all, fields(generation_id = %generation_id))]
     async fn cancel(&self, generation_id: &str) -> Result<(), AppError> {
-        let resp = self.http
-            .post(format!("{}/v1/predictions/{}/cancel", self.base_url, generation_id))
-            .header("Authorization", format!("Token {}", self.api_key))
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "replicate".into(),
-                message: format!("cancel failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/v1/predictions/{}/cancel", self.base_url, generation_id))
+                .header("Authorization", format!("Token {}", self.api_key.expose_secret()))
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "replicate".into(),
+                    message: format!("cancel failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "replicate".into(),
+                    message: "cancel request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "replicate".into(),
                 message: format!("cancel HTTP {}: {}", status, text),

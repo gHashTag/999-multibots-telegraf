@@ -28,6 +28,7 @@ COPY package-lock.json* ./
 RUN npm install
 
 COPY . .
+RUN echo "build-v3-$(date +%s)" > /tmp/build-marker
 
 # ✅ Проверка TypeScript перед сборкой (можно пропустить с --build-arg SKIP_TYPE_CHECK=true)
 ARG SKIP_TYPE_CHECK=false
@@ -40,7 +41,8 @@ RUN if [ "$SKIP_TYPE_CHECK" != "true" ]; then \
 # esbuild бандлит все в один файл за секунды!
 # --packages=external: НЕ бандлить node_modules (будут в runtime)
 # Принудительная пересборка без кэша (WORKAROUND для ошибки esbuild)
-RUN rm -rf /root/.npm /root/.cache /root/.cache/esbuild && npm install -g esbuild
+ARG CACHE_BUST=1
+RUN echo "cache-bust: $CACHE_BUST" && rm -rf /root/.npm /root/.cache /root/.cache/esbuild && npm install -g esbuild
 RUN esbuild src/index.ts \
   --bundle \
   --platform=node \

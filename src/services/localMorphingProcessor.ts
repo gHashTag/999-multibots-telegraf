@@ -4,6 +4,7 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import axios from 'axios'
 import { logger } from '@/utils/logger'
+import { replicate } from '@/core/replicate'
 
 // Увеличиваем размер буфера до 50MB для обработки больших выводов от FFmpeg
 const execAsync = (
@@ -88,10 +89,6 @@ interface MorphingVideoOptions {
   customPrompt?: string
 }
 
-interface ReplicateClient {
-  run: (model: string, options: { input: any }) => Promise<any>
-}
-
 /**
  * 🧬 Локальный процессор морфинга без Inngest
  * Использует прямые вызовы к Replicate API и FFmpeg
@@ -123,7 +120,8 @@ const FALLBACK_KLING_MODELS = FALLBACK_KLING_MODEL_IDS.map(modelId => {
     id: config.apiModel, // Используем apiModel для Replicate (например 'kwaivgi/kling-v2.1')
     configId: config.id, // ID из unified config (например 'kling-v2.1-pro')
     name: config.name,
-    variant: config.apiSettings?.baseInput?.mode || 'pro',
+    variant: config.apiSettings?.baseInput?.model_variant || config.apiSettings?.baseInput?.mode || 'pro',
+    baseInput: config.apiSettings?.baseInput || {},
     cost: 0.9, // Примерная стоимость за клип (для логирования)
     description: config.description,
   }
@@ -255,11 +253,8 @@ export async function createMorphingVideo(
     telegram_id,
   })
 
-  // ✅ Инициализация Replicate
-  const Replicate = require('replicate')
-  const replicate: ReplicateClient = new Replicate({
-    auth: process.env.REPLICATE_API_TOKEN,
-  })
+  // ✅ Используем централизованный Replicate клиент из @/core/replicate
+  // (ленивая инициализация с проверкой токена)
 
   try {
     // ✅ Шаг 1: Создание пар изображений для морфинга (A->B, B->C, C->D) - линейно
@@ -606,10 +601,8 @@ async function generateSingleClipWithRetry(
   totalClips: number,
   customPrompt?: string
 ): Promise<string> {
-  const Replicate = require('replicate')
-  const replicate: ReplicateClient = new Replicate({
-    auth: process.env.REPLICATE_API_TOKEN,
-  })
+  // ✅ Используем централизованный Replicate клиент из @/core/replicate
+  // (ленивая инициализация с проверкой токена)
 
   let currentModelIndex = 0 // Начинаем с первой модели
 
@@ -621,7 +614,7 @@ async function generateSingleClipWithRetry(
     end_image: any
     prompt: string
     duration: number
-    mode?: string // Для v2.1: 'pro' или 'standard'
+    model_variant?: string // Для v2.1: 'pro' или 'standard'
   } = {
     start_image: pair.start,
     end_image: pair.end,
@@ -635,12 +628,15 @@ async function generateSingleClipWithRetry(
       const currentModel = currentModelInfo.id
 
       // Адаптируем параметры под разные модели Kling
-      const input = { ...baseInput }
+      // ✅ Копируем baseInput из конфига модели + добавляем model_variant
+      const input: any = { ...baseInput, ...currentModelInfo.baseInput }
 
-      // ✅ УНИВЕРСАЛЬНАЯ ЛОГИКА: используем mode из unified config
+      // ✅ УНИВЕРСАЛЬНАЯ ЛОГИКА: используем model_variant из unified config
       if (currentModelInfo.variant) {
-        input.mode = currentModelInfo.variant === 'standard' ? 'std' : currentModelInfo.variant
-        logger.info(`🆕 Using ${currentModelInfo.name} with mode: ${input.mode}`, {
+        input.model_variant = currentModelInfo.variant === 'standard' ? 'std' : currentModelInfo.variant
+        // Для обратной совместимости также передаем mode (если API ожидает его)
+        input.mode = input.model_variant
+        logger.info(`🆕 Using ${currentModelInfo.name} with model_variant: ${input.model_variant}`, {
           modelId: currentModelInfo.configId,
           apiModel: currentModel
         })

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 #[derive(Default)]
 pub enum Language {
     #[serde(rename = "ru")]
@@ -33,6 +34,7 @@ impl Language {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum Gender {
     Male,
     Female,
@@ -40,6 +42,7 @@ pub enum Gender {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum SubscriptionType {
     NeuroPhoto,
     NeuroVideo,
@@ -48,6 +51,7 @@ pub enum SubscriptionType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct User {
     pub id: uuid::Uuid,
     pub telegram_id: i64,
@@ -64,6 +68,7 @@ pub struct User {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UserBalance {
     pub telegram_id: i64,
     pub amount: f64,
@@ -71,6 +76,7 @@ pub struct UserBalance {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UserStats {
     pub telegram_id: i64,
     pub generated_images: i64,

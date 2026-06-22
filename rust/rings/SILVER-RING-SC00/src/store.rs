@@ -2,27 +2,84 @@ use async_trait::async_trait;
 use reqwest::Client;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
+use secrecy::{ExposeSecret, SecretString};
 use trios_mb_traits::SecretStore;
 use trios_mb_types::errors::SecretsError;
 use trios_mb_types::AppError;
 
 const INFISICAL_API_URL: &str = "https://app.infisical.com/api";
+const MAX_SECRET_CACHE_ENTRIES: usize = 1000;
+const SECRET_CACHE_TTL: Duration = Duration::from_secs(5 * 60); // 5 minutes per key
+const MAX_BODY_BYTES: usize = 1_048_576; // 1 MiB
+const REQWEST_TIMEOUT: Duration = Duration::from_secs(30);
+const REQWEST_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const REQWEST_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+const BODY_READ_TIMEOUT_SECS: u64 = 10;
 
-pub struct InfisicalStore {
-    client_id: String,
-    client_secret: String,
-    project_id: String,
-    environment: String,
-    http: Client,
-    cache: Arc<RwLock<SecretCache>>,
+/// Read an HTTP response body with a hard byte cap and timeout to prevent
+/// OOM from malicious or misbehaving servers.
+async fn read_body_limited(resp: reqwest::Response, max_bytes: usize) -> Result<String, AppError> {
+    let bytes = match tokio::time::timeout(Duration::from_secs(BODY_READ_TIMEOUT_SECS), resp.bytes()).await {
+        Ok(Ok(b)) => b,
+        Ok(Err(e)) => return Err(AppError::Secrets(SecretsError::Api {
+            status: 0,
+            message: format!("failed to read response body: {}", e),
+        })),
+        Err(_) => return Err(AppError::Secrets(SecretsError::Api {
+            status: 0,
+            message: "response body read timed out".into(),
+        })),
+    };
+    if bytes.len() > max_bytes {
+        return Err(AppError::Secrets(SecretsError::Api {
+            status: 0,
+            message: format!("response body too large: {} bytes (max {})", bytes.len(), max_bytes),
+        }));
+    }
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// Read an HTTP response body with a hard byte cap and timeout, then parse JSON.
+async fn read_json_limited<T: serde::de::DeserializeOwned>(resp: reqwest::Response, max_bytes: usize) -> Result<T, AppError> {
+    let bytes = match tokio::time::timeout(Duration::from_secs(BODY_READ_TIMEOUT_SECS), resp.bytes()).await {
+        Ok(Ok(b)) => b,
+        Ok(Err(e)) => return Err(AppError::Secrets(SecretsError::Api {
+            status: 0,
+            message: format!("failed to read response body: {}", e),
+        })),
+        Err(_) => return Err(AppError::Secrets(SecretsError::Api {
+            status: 0,
+            message: "response body read timed out".into(),
+        })),
+    };
+    if bytes.len() > max_bytes {
+        return Err(AppError::Secrets(SecretsError::Api {
+            status: 0,
+            message: format!("response body too large: {} bytes (max {})", bytes.len(), max_bytes),
+        }));
+    }
+    serde_json::from_slice(&bytes).map_err(|e| AppError::Secrets(SecretsError::Api {
+        status: 0,
+        message: format!("json parse error: {}", e),
+    }))
 }
 
 struct SecretCache {
-    access_token: Option<String>,
+    access_token: Option<SecretString>,
     token_expires_at: Option<chrono::DateTime<chrono::Utc>>,
-    secrets: HashMap<String, String>,
-    secrets_loaded_at: Option<chrono::DateTime<chrono::Utc>>,
+    secrets: HashMap<String, (SecretString, Instant)>,
+}
+
+impl std::fmt::Debug for SecretCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SecretCache")
+            .field("access_token", &"[REDACTED]")
+            .field("token_expires_at", &self.token_expires_at)
+            .field("secrets", &format!("[{} entries]", self.secrets.len()))
+            .finish()
+    }
 }
 
 impl SecretCache {
@@ -31,39 +88,83 @@ impl SecretCache {
             access_token: None,
             token_expires_at: None,
             secrets: HashMap::new(),
-            secrets_loaded_at: None,
         }
     }
 
-    fn is_secrets_fresh(&self) -> bool {
-        match self.secrets_loaded_at {
-            Some(loaded) => {
-                let age = chrono::Utc::now() - loaded;
-                age.num_minutes() < 5
-            }
+    /// Check if a specific secret entry is still within its TTL.
+    fn is_entry_fresh(&self, key: &str) -> bool {
+        match self.secrets.get(key) {
+            Some((_, loaded)) => loaded.elapsed() < SECRET_CACHE_TTL,
             None => false,
         }
+    }
+
+    /// Insert a secret, evicting the oldest entries if over capacity.
+    fn insert(&mut self, key: String, value: SecretString) {
+        if self.secrets.len() >= MAX_SECRET_CACHE_ENTRIES {
+            // Evict the oldest entry by insertion time
+            let oldest = self.secrets
+                .iter()
+                .min_by_key(|(_, (_, loaded))| *loaded)
+                .map(|(k, _)| k.clone());
+            if let Some(k) = oldest {
+                self.secrets.remove(&k);
+                tracing::warn!(evicted_key = %k, "Secret cache at capacity; evicted oldest entry");
+            }
+        }
+        self.secrets.insert(key, (value, Instant::now()));
+    }
+}
+
+pub struct InfisicalStore {
+    client_id: String,
+    client_secret: SecretString,
+    project_id: String,
+    environment: String,
+    http: Client,
+    cache: Arc<RwLock<SecretCache>>,
+}
+
+impl std::fmt::Debug for InfisicalStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InfisicalStore")
+            .field("client_id", &"[REDACTED]")
+            .field("client_secret", &"[REDACTED]")
+            .field("project_id", &"[REDACTED]")
+            .field("environment", &self.environment)
+            .field("http", &self.http)
+            .field("cache", &self.cache)
+            .finish()
     }
 }
 
 impl InfisicalStore {
-    pub fn new(client_id: &str, client_secret: &str, project_id: &str, environment: &str) -> Self {
-        Self {
+    pub fn new(client_id: &str, client_secret: &str, project_id: &str, environment: &str) -> Result<Self, AppError> {
+        let http = Client::builder()
+            .timeout(REQWEST_TIMEOUT)
+            .connect_timeout(REQWEST_CONNECT_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(REQWEST_POOL_IDLE_TIMEOUT)
+            .build()
+            .map_err(|e| AppError::Internal(format!("Failed to build Infisical reqwest client: {}", e)))?;
+        Ok(Self {
             client_id: client_id.to_string(),
-            client_secret: client_secret.to_string(),
+            client_secret: SecretString::new(client_secret.to_string().into_boxed_str()),
             project_id: project_id.to_string(),
             environment: environment.to_string(),
-            http: Client::new(),
+            http,
             cache: Arc::new(RwLock::new(SecretCache::new())),
-        }
+        })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn authenticate(&self) -> Result<String, AppError> {
         let mut cache = self.cache.write().await;
 
         if let (Some(token), Some(expires)) = (&cache.access_token, cache.token_expires_at) {
             if chrono::Utc::now() < expires {
-                return Ok(token.clone());
+                return Ok(token.expose_secret().to_string());
             }
         }
 
@@ -71,7 +172,7 @@ impl InfisicalStore {
             .post(format!("{}/v2/auth/universal-auth/login", INFISICAL_API_URL))
             .json(&serde_json::json!({
                 "clientId": self.client_id,
-                "clientSecret": self.client_secret,
+                "clientSecret": self.client_secret.expose_secret(),
             }))
             .send()
             .await
@@ -79,24 +180,25 @@ impl InfisicalStore {
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(AppError::Secrets(SecretsError::Auth(format!("{}: {}", status, body))));
+            let body = read_body_limited(resp, MAX_BODY_BYTES).await?;
+            let truncated = trios_mb_types::truncate_for_log(&body, 4096);
+            return Err(AppError::Secrets(SecretsError::Auth(format!("{}: {}", status, truncated))));
         }
 
-        let body: serde_json::Value = resp.json().await
-            .map_err(|e| AppError::Secrets(SecretsError::Auth(e.to_string())))?;
+        let body: serde_json::Value = read_json_limited(resp, MAX_BODY_BYTES).await?;
 
         let token = body["accessToken"].as_str()
             .ok_or_else(|| AppError::Secrets(SecretsError::Auth("No accessToken in response".into())))?
             .to_string();
 
         let expires_at = chrono::Utc::now() + chrono::Duration::minutes(55);
-        cache.access_token = Some(token.clone());
+        cache.access_token = Some(SecretString::new(token.clone().into_boxed_str()));
         cache.token_expires_at = Some(expires_at);
 
         Ok(token)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn load_secrets(&self) -> Result<(), AppError> {
         let token = self.authenticate().await?;
 
@@ -113,39 +215,37 @@ impl InfisicalStore {
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(AppError::Secrets(SecretsError::Api { status, message: body }));
+            let body = read_body_limited(resp, MAX_BODY_BYTES).await?;
+            let truncated = trios_mb_types::truncate_for_log(&body, 4096);
+            return Err(AppError::Secrets(SecretsError::Api { status, message: truncated.to_string() }));
         }
 
-        let body: serde_json::Value = resp.json().await
-            .map_err(|e| AppError::Secrets(SecretsError::Api { status: 0, message: e.to_string() }))?;
+        let body: serde_json::Value = read_json_limited(resp, MAX_BODY_BYTES).await?;
 
         let mut cache = self.cache.write().await;
-        cache.secrets.clear();
 
         if let Some(secrets) = body["secrets"].as_array() {
             for secret in secrets {
                 if let (Some(key), Some(value)) = (secret["key"].as_str(), secret["value"].as_str()) {
-                    cache.secrets.insert(key.to_string(), value.to_string());
+                    cache.insert(key.to_string(), SecretString::new(value.to_string().into_boxed_str()));
                 }
             }
         }
 
-        cache.secrets_loaded_at = Some(chrono::Utc::now());
         Ok(())
     }
 }
 
 #[async_trait]
 impl SecretStore for InfisicalStore {
+    #[tracing::instrument(skip_all)]
     async fn get(&self, key: &str) -> Result<String, AppError> {
         {
             let cache = self.cache.read().await;
-            if cache.is_secrets_fresh() {
-                if let Some(value) = cache.secrets.get(key) {
-                    return Ok(value.clone());
+            if cache.is_entry_fresh(key) {
+                if let Some((value, _)) = cache.secrets.get(key) {
+                    return Ok(value.expose_secret().to_string());
                 }
-                return Err(AppError::Secrets(SecretsError::NotFound { key: key.to_string() }));
             }
         }
 
@@ -153,44 +253,51 @@ impl SecretStore for InfisicalStore {
 
         let cache = self.cache.read().await;
         cache.secrets.get(key)
-            .cloned()
+            .map(|(v, _)| v.expose_secret().to_string())
             .ok_or_else(|| AppError::Secrets(SecretsError::NotFound { key: key.to_string() }))
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_all(&self, keys: &[&str]) -> Result<HashMap<String, String>, AppError> {
+        let mut result = HashMap::new();
+        let mut stale = Vec::new();
+
         {
             let cache = self.cache.read().await;
-            if cache.is_secrets_fresh() {
-                let mut result = HashMap::new();
-                for key in keys {
-                    if let Some(value) = cache.secrets.get(*key) {
-                        result.insert(key.to_string(), value.clone());
+            for key in keys {
+                if cache.is_entry_fresh(key) {
+                    if let Some((value, _)) = cache.secrets.get(*key) {
+                        result.insert(key.to_string(), value.expose_secret().to_string());
                     }
+                } else {
+                    stale.push(*key);
                 }
-                return Ok(result);
             }
         }
 
-        self.load_secrets().await?;
-
-        let cache = self.cache.read().await;
-        let mut result = HashMap::new();
-        for key in keys {
-            if let Some(value) = cache.secrets.get(*key) {
-                result.insert(key.to_string(), value.clone());
+        if !stale.is_empty() {
+            self.load_secrets().await?;
+            let cache = self.cache.read().await;
+            for key in stale {
+                if let Some((value, _)) = cache.secrets.get(key) {
+                    result.insert(key.to_string(), value.expose_secret().to_string());
+                }
             }
         }
+
         Ok(result)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn reload(&self) -> Result<(), AppError> {
         {
             let mut cache = self.cache.write().await;
-            cache.secrets_loaded_at = None;
+            cache.secrets.clear();
         }
         self.load_secrets().await
     }
 
+    #[tracing::instrument(skip_all)]
     async fn health_check(&self) -> Result<bool, AppError> {
         match self.authenticate().await {
             Ok(_) => Ok(true),

@@ -34,6 +34,7 @@ fn default_resolution() -> String { "512,768,1024".to_string() }
 fn default_learning_rate() -> f64 { 0.0001 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TrainingResponse {
     pub id: String,
     pub status: String,
@@ -71,6 +72,7 @@ fn default_quality() -> i32 { 80 }
 fn default_outputs() -> i32 { 1 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PredictionResponse {
     pub id: String,
     pub output: Option<serde_json::Value>,
@@ -79,6 +81,7 @@ pub struct PredictionResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WebhookPayload {
     pub id: String,
     pub status: String,
@@ -116,15 +119,25 @@ impl WebhookPayload {
     }
 
     pub fn output_urls(&self) -> Vec<String> {
-        self.output
-            .as_ref()
-            .and_then(|o| {
+        match self.output.as_ref() {
+            None => Vec::new(),
+            Some(o) => {
                 if let Some(arr) = o.as_array() {
-                    Some(arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                    arr.iter().filter_map(|v| v.as_str().map(String::from)).collect()
+                } else if let Some(s) = o.as_str() {
+                    vec![s.to_string()]
                 } else {
-                    o.as_str().map(|s| vec![s.to_string()])
+                    let raw = o.to_string();
+                    let preview = trios_mb_types::truncate_for_log(&raw, 256);
+                    tracing::warn!(
+                        id = %self.id,
+                        status = %self.status,
+                        output_preview = %preview,
+                        "Replicate output format is neither array nor string; possible provider API drift"
+                    );
+                    Vec::new()
                 }
-            })
-            .unwrap_or_default()
+            }
+        }
     }
 }

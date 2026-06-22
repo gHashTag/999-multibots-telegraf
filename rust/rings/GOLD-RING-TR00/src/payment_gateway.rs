@@ -15,6 +15,7 @@ pub trait PaymentGateway: Send + Sync {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PaymentInit {
     pub id: uuid::Uuid,
     pub telegram_id: i64,
@@ -25,6 +26,7 @@ pub struct PaymentInit {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PaymentVerification {
     pub transaction_id: String,
     pub amount: f64,

@@ -47,12 +47,27 @@ impl PaymentGateway for TonGateway {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn create_payment(
         &self,
         telegram_id: i64,
         amount: f64,
         _description: &str,
     ) -> Result<PaymentInit, AppError> {
+        if !amount.is_finite() || amount <= 0.0 {
+            return Err(AppError::Validation(format!(
+                "TON amount must be finite and > 0: {}",
+                amount
+            )));
+        }
+        const MAX_TON_AMOUNT: f64 = 1_000_000_000.0;
+        if amount > MAX_TON_AMOUNT {
+            return Err(AppError::Validation(format!(
+                "TON amount exceeds maximum of {}: {}",
+                MAX_TON_AMOUNT, amount
+            )));
+        }
+
         let id = uuid::Uuid::new_v4();
         let external_id = format!("ton_{}", id);
 
@@ -75,15 +90,17 @@ impl PaymentGateway for TonGateway {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn verify_callback(
         &self,
         params: &serde_json::Value,
     ) -> Result<PaymentVerification, AppError> {
-        let hash = params["hash"].as_str().unwrap_or_default();
+        let hash = params["hash"].as_str()
+            .ok_or_else(|| AppError::Validation("Missing hash in TON callback".into()))?;
         let amount_nano = params["amount"]
             .as_str()
             .and_then(|v| v.parse::<u64>().ok())
-            .unwrap_or(0);
+            .ok_or_else(|| AppError::Validation("Invalid or missing amount in TON callback".into()))?;
 
         let amount = if self.is_jetton {
             amount_nano as f64 / 1_000_000.0
@@ -102,11 +119,14 @@ impl PaymentGateway for TonGateway {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn refund(&self, _transaction_id: &str) -> Result<(), AppError> {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_payment_url(&self, payment: &PaymentInit) -> Result<String, AppError> {
-        Ok(payment.payment_url.clone().unwrap_or_default())
+        payment.payment_url.clone()
+            .ok_or_else(|| AppError::Validation("Missing payment_url in TON payment".into()))
     }
 }

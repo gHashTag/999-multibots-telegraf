@@ -5,13 +5,16 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, AiReelsState};
 use trios_mb_tg::HandlerResult;
+use trios_mb_tg::{answer_callback_query_timeout, dialogue_update_timeout, send_message_timeout};
 use trios_mb_types::generation::MediaType;
-use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, check_balance, deduct_balance, dispatch_and_reply};
+use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, deduct_balance, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const AI_REELS_COST: f64 = 50.0;
+const MAX_DIALOGUE_TEXT_LEN: usize = 2000;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_ai_reels_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -30,17 +33,28 @@ pub async fn handle_ai_reels_msg(
             } else {
                 "🎬 AI Reels\n\nDescribe the video you want to create.\n\nCost: 50 ⭐"
             };
-            bot.send_message(msg.chat.id, text)
-                .reply_markup(crate::generation_utils::back_cancel_keyboard(lang))
-                .await?;
+            send_message_timeout(
+                &bot, msg.chat.id, text,
+                Some(crate::generation_utils::back_cancel_keyboard(lang).into()),
+            ).await?;
             state.step = 1;
-            dialogue.update(Scene::AiReels(state)).await?;
+            dialogue_update_timeout(
+                &dialogue, Scene::AiReels(state)).await?;
         }
         1 => {
             if let Some(text) = msg.text() {
                 if text.trim().is_empty() {
                     let err = if lang.is_russian() { "✍️ Опишите видео" } else { "✍️ Describe the video" };
-                    bot.send_message(msg.chat.id, err).await?;
+                    send_message_timeout(
+                        &bot, msg.chat.id, err, None,
+                    ).await?;
+                    return Ok(());
+                }
+                if text.len() > MAX_DIALOGUE_TEXT_LEN {
+                    let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
+                    send_message_timeout(
+                        &bot, msg.chat.id, err, None,
+                    ).await?;
                     return Ok(());
                 }
                 state.prompt = Some(text.to_string());
@@ -56,11 +70,16 @@ pub async fn handle_ai_reels_msg(
                     vec![InlineKeyboardButton::callback(realistic, "reels:realistic")],
                 ]);
                 let prompt_text = if lang.is_russian() { "🎨 Выберите стиль:" } else { "🎨 Select style:" };
-                bot.send_message(msg.chat.id, prompt_text).reply_markup(kb).await?;
-                dialogue.update(Scene::AiReels(state)).await?;
+                send_message_timeout(
+                    &bot, msg.chat.id, prompt_text, Some(kb.into()),
+                ).await?;
+                dialogue_update_timeout(
+                    &dialogue, Scene::AiReels(state)).await?;
             } else {
                 let text = if lang.is_russian() { "✍️ Опишите видео" } else { "✍️ Describe the video" };
-                bot.send_message(msg.chat.id, text).await?;
+                send_message_timeout(
+                    &bot, msg.chat.id, text, None,
+                ).await?;
             }
         }
         _ => {}
@@ -68,6 +87,7 @@ pub async fn handle_ai_reels_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_ai_reels_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -77,9 +97,12 @@ pub async fn handle_ai_reels_callback(
     mut state: AiReelsState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
-    let chat_id = q.chat_id().unwrap();
+    let chat_id = match q.chat_id() {
+        Some(id) => id,
+        None => return Ok(()),
+    };
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
 
     if data == "reels:cancel" {
@@ -95,13 +118,25 @@ pub async fn handle_ai_reels_callback(
 
     state.style = Some(style.to_string());
     let tid = q.from.id.0 as i64;
+    if tid <= 0 {
+        tracing::warn!("Callback query missing valid telegram_id; aborting ai_reels handler");
+        return Ok(());
+    }
 
-    if let Err(err_msg) = check_balance(&db, tid, AI_REELS_COST, lang).await {
-        bot.send_message(chat_id, err_msg).await?;
+    if state.prompt.is_none() || state.prompt.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+        let text = "❌ Please describe the video first.";
+        send_message_timeout(
+            &bot, chat_id, text, None,
+        ).await?;
         return return_to_menu(&bot, &dialogue, chat_id, lang).await;
     }
 
-    let _ = deduct_balance(&db, tid, AI_REELS_COST).await;
+    if let Err(err_msg) = deduct_balance(&db, tid, AI_REELS_COST, lang).await {
+        send_message_timeout(
+            &bot, chat_id, err_msg, None,
+        ).await?;
+        return return_to_menu(&bot, &dialogue, chat_id, lang).await;
+    }
 
     dispatch_and_reply(
         &bot, &dialogue, chat_id,

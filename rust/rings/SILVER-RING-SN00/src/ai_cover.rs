@@ -5,12 +5,15 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::Database;
 use trios_mb_tg::state::{Scene, AiCoverState};
 use trios_mb_tg::HandlerResult;
-use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu, check_balance, deduct_balance};
+use trios_mb_tg::{answer_callback_query_timeout, dialogue_update_timeout, send_message_timeout};
+use crate::generation_utils::{load_lang, load_lang_cb, return_to_menu, deduct_balance};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const AI_COVER_COST: f64 = 10.0;
+const MAX_AI_COVER_AUDIO_BYTES: u64 = 50 * 1024 * 1024;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_ai_cover_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -27,19 +30,31 @@ pub async fn handle_ai_cover_msg(
             } else {
                 "🎧 AI Cover - Song with your voice\n\nSend a song (MP3, WAV, OGG).\n💰 Cost: 10⭐\n⏱️ Time: 1-3 minutes"
             };
-            bot.send_message(msg.chat.id, text)
-                .reply_markup(InlineKeyboardMarkup::new(vec![
+            send_message_timeout(
+                &bot, msg.chat.id, text,
+                Some(InlineKeyboardMarkup::new(vec![
                     vec![InlineKeyboardButton::callback(
                         if lang.is_russian() { "🏠 В меню" } else { "🏠 To menu" },
                         "ac:back_menu",
                     )],
-                ]))
-                .await?;
+                ]).into()),
+            ).await?;
             state.step = 1;
-            dialogue.update(Scene::AiCover(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::AiCover(state)).await?;
         }
         1 => {
             if let Some(audio) = msg.audio() {
+                if audio.file.size as u64 > MAX_AI_COVER_AUDIO_BYTES {
+                    let err = if lang.is_russian() {
+                        format!("❌ Аудиофайл слишком большой. Максимум {} МБ.", MAX_AI_COVER_AUDIO_BYTES / 1024 / 1024)
+                    } else {
+                        format!("❌ Audio file too large. Maximum {} MB.", MAX_AI_COVER_AUDIO_BYTES / 1024 / 1024)
+                    };
+                    send_message_timeout(
+                        &bot, msg.chat.id, err, None,
+                    ).await?;
+                    return Ok(());
+                }
                 state.audio_url = Some(audio.file.id.clone());
                 state.step = 2;
 
@@ -61,15 +76,16 @@ pub async fn handle_ai_cover_msg(
                 } else {
                     format!("🎵 Song accepted!\n\n📀 {}\n📏 Duration: {} sec\n💰 Cost: 10⭐", title, duration)
                 };
-                bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
-                dialogue.update(Scene::AiCover(state)).await?;
+                send_message_timeout(&bot, msg.chat.id, text, Some(kb.into()),
+                ).await?;
+                dialogue_update_timeout(&dialogue, Scene::AiCover(state)).await?;
             } else {
                 let text = if lang.is_russian() {
                     "📎 Отправьте песню в формате MP3, WAV или OGG"
                 } else {
                     "📎 Send a song in MP3, WAV or OGG format"
                 };
-                bot.send_message(msg.chat.id, text).await?;
+                send_message_timeout(&bot, msg.chat.id, text, None).await?;
             }
         }
         _ => {}
@@ -77,17 +93,25 @@ pub async fn handle_ai_cover_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_ai_cover_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
     dialogue: MyDialogue,
-    _state: AiCoverState,
+    state: AiCoverState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
-    let chat_id = q.chat_id().unwrap();
+    let chat_id = match q.chat_id() {
+        Some(id) => id,
+        None => return Ok(()),
+    };
     let tid = q.from.id.0 as i64;
+    if tid <= 0 {
+        tracing::warn!("Callback query missing valid telegram_id; aborting ai_cover handler");
+        return Ok(());
+    }
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
 
     match data {
@@ -95,26 +119,31 @@ pub async fn handle_ai_cover_callback(
             return return_to_menu(&bot, &dialogue, chat_id, lang).await;
         }
         "ac:confirm" => {
-            if let Err(err_msg) = check_balance(&db, tid, AI_COVER_COST, lang).await {
-                bot.send_message(chat_id, err_msg).await?;
+            if state.audio_url.is_none() || state.audio_url.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+                let text = "❌ Please send an audio file first.";
+                send_message_timeout(&bot, chat_id, text, None).await?;
                 return Ok(());
             }
-            let _ = deduct_balance(&db, tid, AI_COVER_COST).await;
+
+            if let Err(err_msg) = deduct_balance(&db, tid, AI_COVER_COST, lang).await {
+                send_message_timeout(&bot, chat_id, err_msg, None).await?;
+                return Ok(());
+            }
 
             let text = if lang.is_russian() {
                 "⏳ Создаём AI Cover...\n\nЭто займёт 1-3 минуты."
             } else {
                 "⏳ Creating AI Cover...\n\nThis will take 1-3 minutes."
             };
-            bot.send_message(chat_id, text).await?;
-            dialogue.update(Scene::MainMenu).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
+            dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
         }
         "ac:another" => {
             let mut new_state = AiCoverState::default();
             new_state.step = 1;
             let text = if lang.is_russian() { "📎 Отправьте следующую песню:" } else { "📎 Send the next song:" };
-            bot.send_message(chat_id, text).await?;
-            dialogue.update(Scene::AiCover(new_state)).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
+            dialogue_update_timeout(&dialogue, Scene::AiCover(new_state)).await?;
         }
         _ => {}
     }

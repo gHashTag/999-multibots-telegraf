@@ -32,6 +32,9 @@ if (forceDevMode) {
 
 export const isDev = process.env.NODE_ENV === 'development' || forceDevMode
 
+// Cloudflare Tunnel URL (set during tunnel creation in index.ts)
+export const CLOUDFLARE_TUNNEL_URL = process.env.BASE_WEBHOOK_URL
+
 // Логирование для проверки токенов
 if (process.env.NODE_ENV === 'production') {
   console.log('Bot tokens check in ENV:')

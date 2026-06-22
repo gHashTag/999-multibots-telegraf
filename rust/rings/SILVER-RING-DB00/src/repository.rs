@@ -1,6 +1,7 @@
 use async_trait::async_trait;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, PaginatorTrait, QuerySelect};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, PaginatorTrait, QuerySelect, Statement, Value};
 use std::sync::Arc;
+use std::time::Duration;
 use trios_mb_traits::Database as DbTrait;
 use trios_mb_types::user::*;
 use trios_mb_types::payment::Transaction;
@@ -10,6 +11,33 @@ use trios_mb_types::AppError;
 
 pub struct PostgresDatabase {
     pool: Arc<DatabaseConnection>,
+}
+
+const MAX_USERNAME_LEN: usize = 32;
+const MAX_VOICE_LEN: usize = 128;
+const MAX_MODEL_LEN: usize = 64;
+const MAX_PROMPT_LEN: usize = 2000;
+const MAX_RESULT_URL_LEN: usize = 4096;
+const MAX_ERROR_LEN: usize = 1024;
+
+// DB connection pool settings
+const DB_CONNECT_TIMEOUT_SECS: u64 = 5;
+const DB_IDLE_TIMEOUT_SECS: u64 = 60;
+const DB_MAX_CONNECTIONS: u32 = 20;
+
+// Default user values
+const DEFAULT_USER_LEVEL: i32 = 1;
+const DEFAULT_USER_BALANCE: f64 = 0.0;
+const MISSING_USER_BALANCE_SENTINEL: f64 = 0.0;
+
+// Pagination limits
+const MAX_TRANSACTION_PAGE_SIZE: i64 = 100;
+
+/// Sanitize a raw database error into a generic message.
+/// The raw error is preserved in tracing logs; callers get a safe description.
+fn sanitize_db_error<E: std::fmt::Display>(operation: &str, err: E) -> AppError {
+    tracing::error!(operation, error = %err, "Database operation failed");
+    AppError::Db(trios_mb_types::errors::DbError::Query(format!("{} failed", operation)))
 }
 
 fn media_type_to_str(mt: &MediaType) -> &'static str {
@@ -26,18 +54,18 @@ fn media_type_to_str(mt: &MediaType) -> &'static str {
     }
 }
 
-fn str_to_media_type(s: &str) -> MediaType {
+fn str_to_media_type(s: &str) -> Result<MediaType, AppError> {
     match s {
-        "image" => MediaType::Image,
-        "video" => MediaType::Video,
-        "audio" => MediaType::Audio,
-        "image_to_video" => MediaType::ImageToVideo,
-        "text_to_speech" => MediaType::TextToSpeech,
-        "lipsync" => MediaType::LipSync,
-        "faceswap" => MediaType::FaceSwap,
-        "morphing" => MediaType::Morphing,
-        "upscale" => MediaType::Upscale,
-        _ => MediaType::Image,
+        "image" => Ok(MediaType::Image),
+        "video" => Ok(MediaType::Video),
+        "audio" => Ok(MediaType::Audio),
+        "image_to_video" => Ok(MediaType::ImageToVideo),
+        "text_to_speech" => Ok(MediaType::TextToSpeech),
+        "lipsync" => Ok(MediaType::LipSync),
+        "faceswap" => Ok(MediaType::FaceSwap),
+        "morphing" => Ok(MediaType::Morphing),
+        "upscale" => Ok(MediaType::Upscale),
+        _ => Err(AppError::Db(trios_mb_types::errors::DbError::Query(format!("Unknown media_type: {}", s)))),
     }
 }
 
@@ -51,14 +79,14 @@ fn generation_status_to_str(s: &GenerationStatus) -> &'static str {
     }
 }
 
-fn str_to_generation_status(s: &str) -> GenerationStatus {
+fn str_to_generation_status(s: &str) -> Result<GenerationStatus, AppError> {
     match s {
-        "queued" => GenerationStatus::Queued,
-        "processing" => GenerationStatus::Processing,
-        "completed" => GenerationStatus::Completed,
-        "failed" => GenerationStatus::Failed,
-        "cancelled" => GenerationStatus::Cancelled,
-        _ => GenerationStatus::Queued,
+        "queued" => Ok(GenerationStatus::Queued),
+        "processing" => Ok(GenerationStatus::Processing),
+        "completed" => Ok(GenerationStatus::Completed),
+        "failed" => Ok(GenerationStatus::Failed),
+        "cancelled" => Ok(GenerationStatus::Cancelled),
+        _ => Err(AppError::Db(trios_mb_types::errors::DbError::Query(format!("Unknown generation_status: {}", s)))),
     }
 }
 
@@ -82,10 +110,15 @@ fn str_to_subscription(s: &str) -> Option<SubscriptionType> {
 }
 
 impl PostgresDatabase {
+    #[tracing::instrument(skip_all)]
     pub async fn connect(url: &str) -> Result<Self, AppError> {
-        let conn = sea_orm::Database::connect(url)
+        let mut opt = sea_orm::ConnectOptions::new(url.to_string());
+        opt.connect_timeout(Duration::from_secs(DB_CONNECT_TIMEOUT_SECS));
+        opt.idle_timeout(Duration::from_secs(DB_IDLE_TIMEOUT_SECS));
+        opt.max_connections(DB_MAX_CONNECTIONS);
+        let conn = sea_orm::Database::connect(opt)
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Connection(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("connect", e))?;
         Ok(Self {
             pool: Arc::new(conn),
         })
@@ -105,6 +138,7 @@ impl PostgresDatabase {
         self.pool.clone()
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn run_migrations(&self) -> Result<(), AppError> {
         use sea_orm_migration::MigratorTrait;
         crate::migration::Migrator::up(self.pool.as_ref(), None)
@@ -114,8 +148,18 @@ impl PostgresDatabase {
     }
 }
 
+fn truncate_string(s: &str, max: usize, context: &str) -> String {
+    if s.len() > max {
+        tracing::warn!(%context, len = s.len(), max, "Truncating string to maximum length");
+        s[..max].to_string()
+    } else {
+        s.to_string()
+    }
+}
+
 #[async_trait]
 impl DbTrait for PostgresDatabase {
+    #[tracing::instrument(skip_all)]
     async fn get_user_by_telegram_id(&self, telegram_id: i64) -> Result<Option<User>, AppError> {
         use crate::entities::users as u;
         let user = u::Entity::find()
@@ -124,27 +168,47 @@ impl DbTrait for PostgresDatabase {
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
 
-        Ok(user.map(|m| User {
-            id: m.id,
-            telegram_id: m.telegram_id,
-            username: m.username.clone(),
-            language: Language::from_code(&m.language).unwrap_or_default(),
-            gender: m.gender.as_deref().map(|g| match g {
-                "male" => Gender::Male,
-                "female" => Gender::Female,
-                _ => Gender::Other,
-            }),
-            level: m.level,
-            balance: m.balance,
-            voice: m.voice.clone(),
-            model: m.model.clone(),
-            subscription: m.subscription.as_deref().and_then(str_to_subscription),
-            created_at: m.created_at,
-            updated_at: m.updated_at,
-        }))
+        match user {
+            Some(m) => {
+                let language = Language::from_code(&m.language).ok_or_else(|| {
+                    AppError::Db(trios_mb_types::errors::DbError::Query(format!(
+                        "Unknown language code '{}' for user {}",
+                        m.language, m.telegram_id
+                    )))
+                })?;
+                Ok(Some(User {
+                    id: m.id,
+                    telegram_id: m.telegram_id,
+                    username: m.username.clone(),
+                    language,
+                    gender: m.gender.as_deref().map(|g| match g {
+                        "male" => Gender::Male,
+                        "female" => Gender::Female,
+                        _ => Gender::Other,
+                    }),
+                    level: m.level,
+                    balance: m.balance,
+                    voice: m.voice.clone(),
+                    model: m.model.clone(),
+                    subscription: m.subscription.as_deref().and_then(str_to_subscription),
+                    created_at: m.created_at,
+                    updated_at: m.updated_at,
+                }))
+            }
+            None => Ok(None),
+        }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn create_user(&self, telegram_id: i64, username: Option<&str>, language: Language) -> Result<User, AppError> {
+        if telegram_id <= 0 {
+            return Err(AppError::Validation("telegram_id must be > 0".into()));
+        }
+        if let Some(u) = username {
+            if u.len() > MAX_USERNAME_LEN {
+                return Err(AppError::Validation(format!("username exceeds max length of {}", MAX_USERNAME_LEN)));
+            }
+        }
         use crate::entities::users as u;
         let id = uuid::Uuid::new_v4();
         let now = chrono::Utc::now();
@@ -154,8 +218,8 @@ impl DbTrait for PostgresDatabase {
             username: Set(username.map(String::from)),
             language: Set(language.code().to_string()),
             gender: Set(None),
-            level: Set(1),
-            balance: Set(0.0),
+            level: Set(DEFAULT_USER_LEVEL),
+            balance: Set(DEFAULT_USER_BALANCE),
             voice: Set(None),
             model: Set(None),
             subscription: Set(None),
@@ -181,6 +245,7 @@ impl DbTrait for PostgresDatabase {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_user_language(&self, telegram_id: i64, language: Language) -> Result<(), AppError> {
         use crate::entities::users as u;
         let user = u::Entity::find()
@@ -199,6 +264,7 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_user_gender(&self, telegram_id: i64, gender: Gender) -> Result<(), AppError> {
         use crate::entities::users as u;
         let user = u::Entity::find()
@@ -221,6 +287,7 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_user_level(&self, telegram_id: i64, level: i32) -> Result<(), AppError> {
         use crate::entities::users as u;
         let user = u::Entity::find()
@@ -239,7 +306,11 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_user_voice(&self, telegram_id: i64, voice: &str) -> Result<(), AppError> {
+        if voice.len() > MAX_VOICE_LEN {
+            return Err(AppError::Validation(format!("voice exceeds max length of {}", MAX_VOICE_LEN)));
+        }
         use crate::entities::users as u;
         let user = u::Entity::find()
             .filter(u::Column::TelegramId.eq(telegram_id))
@@ -257,7 +328,11 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_user_model(&self, telegram_id: i64, model: &str) -> Result<(), AppError> {
+        if model.len() > MAX_MODEL_LEN {
+            return Err(AppError::Validation(format!("model exceeds max length of {}", MAX_MODEL_LEN)));
+        }
         use crate::entities::users as u;
         let user = u::Entity::find()
             .filter(u::Column::TelegramId.eq(telegram_id))
@@ -275,58 +350,78 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_balance(&self, telegram_id: i64) -> Result<f64, AppError> {
         let user = self.get_user_by_telegram_id(telegram_id).await?;
-        Ok(user.map(|u| u.balance).unwrap_or(0.0))
-    }
-
-    async fn deduct_balance(&self, telegram_id: i64, amount: f64) -> Result<bool, AppError> {
-        use crate::entities::users as u;
-        let user = u::Entity::find()
-            .filter(u::Column::TelegramId.eq(telegram_id))
-            .one(self.pool.as_ref())
-            .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
-
         match user {
-            Some(user) if user.balance >= amount => {
-                let mut active: u::ActiveModel = user.into();
-                active.balance = Set(active.balance.unwrap() - amount);
-                active.updated_at = Set(chrono::Utc::now());
-                active.update(self.pool.as_ref()).await
-                    .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
-                Ok(true)
+            Some(u) => Ok(u.balance),
+            None => {
+                tracing::warn!(telegram_id, "get_balance called for non-existent user; returning sentinel");
+                Ok(MISSING_USER_BALANCE_SENTINEL)
             }
-            _ => Ok(false),
         }
     }
 
-    async fn add_balance(&self, telegram_id: i64, amount: f64) -> Result<(), AppError> {
-        use crate::entities::users as u;
-        let user = u::Entity::find()
-            .filter(u::Column::TelegramId.eq(telegram_id))
-            .one(self.pool.as_ref())
+    #[tracing::instrument(skip_all)]
+    async fn deduct_balance(&self, telegram_id: i64, amount: f64) -> Result<bool, AppError> {
+        if !amount.is_finite() || amount <= 0.0 {
+            return Err(AppError::Validation(format!("deduct_balance amount must be finite and > 0: {}", amount)));
+        }
+        let sql = r#"
+            UPDATE users
+            SET balance = balance - $1,
+                updated_at = NOW()
+            WHERE telegram_id = $2
+              AND balance >= $1
+        "#;
+        let result = self.pool
+            .execute(Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                vec![
+                    Value::Double(Some(amount)),
+                    Value::BigInt(Some(telegram_id)),
+                ],
+            ))
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+        Ok(result.rows_affected() > 0)
+    }
 
-        if let Some(user) = user {
-            let mut active: u::ActiveModel = user.into();
-            active.balance = Set(active.balance.unwrap() + amount);
-            active.updated_at = Set(chrono::Utc::now());
-            active.update(self.pool.as_ref()).await
-                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+    #[tracing::instrument(skip_all)]
+    async fn add_balance(&self, telegram_id: i64, amount: f64) -> Result<(), AppError> {
+        if !amount.is_finite() || amount < 0.0 {
+            return Err(AppError::Validation(format!("add_balance amount must be finite and >= 0: {}", amount)));
         }
+        let sql = r#"
+            UPDATE users
+            SET balance = balance + $1,
+                updated_at = NOW()
+            WHERE telegram_id = $2
+        "#;
+        self.pool
+            .execute(Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                vec![
+                    Value::Double(Some(amount)),
+                    Value::BigInt(Some(telegram_id)),
+                ],
+            ))
+            .await
+            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn create_transaction(&self, tx: &Transaction) -> Result<Transaction, AppError> {
         use crate::entities::payments as p;
         let now = chrono::Utc::now();
         let model = p::ActiveModel {
             id: Set(tx.id),
             telegram_id: Set(tx.telegram_id),
-            method: Set(serde_json::to_string(&tx.method).unwrap_or_default()),
-            status: Set(serde_json::to_string(&tx.status).unwrap_or_default()),
+            method: Set(serde_json::to_string(&tx.method).map_err(|e| AppError::Internal(format!("serialize payment method: {}", e)))?),
+            status: Set(serde_json::to_string(&tx.status).map_err(|e| AppError::Internal(format!("serialize payment status: {}", e)))?),
             amount: Set(tx.amount),
             currency: Set(tx.currency.clone()),
             external_id: Set(tx.external_id.clone()),
@@ -338,25 +433,64 @@ impl DbTrait for PostgresDatabase {
         Ok(tx.clone())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_transaction(&self, id: uuid::Uuid) -> Result<Option<Transaction>, AppError> {
         use crate::entities::payments as p;
         let row = p::Entity::find_by_id(id)
             .one(self.pool.as_ref())
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
-        Ok(row.map(|r| Transaction {
-            id: r.id,
-            telegram_id: r.telegram_id,
-            method: serde_json::from_str(&r.method).unwrap_or(PaymentMethod::TelegramStars),
-            status: serde_json::from_str(&r.status).unwrap_or(PaymentStatus::Pending),
-            amount: r.amount,
-            currency: r.currency,
-            external_id: r.external_id,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
-        }))
+        match row {
+            Some(r) => Ok(Some(Transaction {
+                id: r.id,
+                telegram_id: r.telegram_id,
+                method: serde_json::from_str(&r.method).map_err(|e| {
+                    AppError::Internal(format!("Corrupt payment method JSON: {}", e))
+                })?,
+                status: serde_json::from_str(&r.status).map_err(|e| {
+                    AppError::Internal(format!("Corrupt payment status JSON: {}", e))
+                })?,
+                amount: r.amount,
+                currency: r.currency,
+                external_id: r.external_id,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
+            })),
+            None => Ok(None),
+        }
     }
 
+    #[tracing::instrument(skip_all)]
+    async fn get_transaction_by_external_id(&self,
+        external_id: &str,
+    ) -> Result<Option<Transaction>, AppError> {
+        use crate::entities::payments as p;
+        let row = p::Entity::find()
+            .filter(p::Column::ExternalId.eq(external_id))
+            .one(self.pool.as_ref())
+            .await
+            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+        match row {
+            Some(r) => Ok(Some(Transaction {
+                id: r.id,
+                telegram_id: r.telegram_id,
+                method: serde_json::from_str(&r.method).map_err(|e| {
+                    AppError::Internal(format!("Corrupt payment method JSON: {}", e))
+                })?,
+                status: serde_json::from_str(&r.status).map_err(|e| {
+                    AppError::Internal(format!("Corrupt payment status JSON: {}", e))
+                })?,
+                amount: r.amount,
+                currency: r.currency,
+                external_id: r.external_id,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
+            })),
+            None => Ok(None),
+        }
+    }
+
+    #[tracing::instrument(skip_all)]
     async fn update_transaction_status(&self, id: uuid::Uuid, status: PaymentStatus) -> Result<(), AppError> {
         use crate::entities::payments as p;
         let row = p::Entity::find_by_id(id)
@@ -366,7 +500,9 @@ impl DbTrait for PostgresDatabase {
 
         if let Some(row) = row {
             let mut active: p::ActiveModel = row.into();
-            active.status = Set(serde_json::to_string(&status).unwrap_or_default());
+            active.status = Set(serde_json::to_string(&status).map_err(|e| {
+                AppError::Internal(format!("Failed to serialize payment status: {}", e))
+            })?);
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
                 .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
@@ -374,29 +510,54 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
-    async fn get_transactions_by_telegram_id(&self, telegram_id: i64, limit: i64) -> Result<Vec<Transaction>, AppError> {
+    #[tracing::instrument(skip_all)]
+    async fn get_transactions_by_telegram_id(&self, telegram_id: i64, cursor: Option<uuid::Uuid>, limit: i64) -> Result<Vec<Transaction>, AppError> {
         use crate::entities::payments as p;
-        let rows = p::Entity::find()
+        let safe_limit = if limit <= 0 { 1 } else if limit > MAX_TRANSACTION_PAGE_SIZE { MAX_TRANSACTION_PAGE_SIZE } else { limit };
+        let mut query = p::Entity::find()
             .filter(p::Column::TelegramId.eq(telegram_id))
-            .order_by_desc(p::Column::CreatedAt)
-            .limit(Some(limit as u64))
+            .order_by_desc(p::Column::CreatedAt);
+        if let Some(c) = cursor {
+            // Cursor is a UUID; we paginate by only returning rows created before
+            // the row identified by the cursor. First resolve the cursor to a timestamp.
+            let cursor_row = p::Entity::find()
+                .filter(p::Column::Id.eq(c))
+                .one(self.pool.as_ref())
+                .await
+                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            if let Some(row) = cursor_row {
+                query = query.filter(p::Column::CreatedAt.lt(row.created_at));
+            }
+            // If the cursor row is gone, we return the first page (no extra filter).
+        }
+        let rows = query
+            .limit(Some(safe_limit as u64))
             .all(self.pool.as_ref())
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
 
-        Ok(rows.into_iter().map(|r| Transaction {
-            id: r.id,
-            telegram_id: r.telegram_id,
-            method: serde_json::from_str(&r.method).unwrap_or(PaymentMethod::TelegramStars),
-            status: serde_json::from_str(&r.status).unwrap_or(PaymentStatus::Pending),
-            amount: r.amount,
-            currency: r.currency,
-            external_id: r.external_id,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
-        }).collect())
+        rows.into_iter()
+            .map(|r| -> Result<Transaction, AppError> {
+                Ok(Transaction {
+                    id: r.id,
+                    telegram_id: r.telegram_id,
+                    method: serde_json::from_str(&r.method).map_err(|e| {
+                        AppError::Internal(format!("Corrupt payment method JSON: {}", e))
+                    })?,
+                    status: serde_json::from_str(&r.status).map_err(|e| {
+                        AppError::Internal(format!("Corrupt payment status JSON: {}", e))
+                    })?,
+                    amount: r.amount,
+                    currency: r.currency,
+                    external_id: r.external_id,
+                    created_at: r.created_at,
+                    updated_at: r.updated_at,
+                })
+            })
+            .collect()
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_subscription(&self, telegram_id: i64) -> Result<Option<SubscriptionType>, AppError> {
         use crate::entities::users as u;
         let user = u::Entity::find()
@@ -408,6 +569,7 @@ impl DbTrait for PostgresDatabase {
         Ok(user.and_then(|m| m.subscription.as_deref().and_then(str_to_subscription)))
     }
 
+    #[tracing::instrument(skip_all)]
     async fn renew_subscription(&self, telegram_id: i64, sub_type: SubscriptionType) -> Result<(), AppError> {
         use crate::entities::users as u;
         let user = u::Entity::find()
@@ -426,7 +588,22 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn save_prompt(&self, telegram_id: i64, prompt: &str, result_url: Option<&str>) -> Result<(), AppError> {
+        if prompt.len() > MAX_PROMPT_LEN {
+            return Err(AppError::Validation(format!(
+                "Prompt exceeds maximum length of {} characters",
+                MAX_PROMPT_LEN
+            )));
+        }
+        if let Some(url) = result_url {
+            if url.len() > MAX_RESULT_URL_LEN {
+                return Err(AppError::Validation(format!(
+                    "Result URL exceeds maximum length of {} characters",
+                    MAX_RESULT_URL_LEN
+                )));
+            }
+        }
         use crate::entities::prompts as p;
         let model = p::ActiveModel {
             id: Set(uuid::Uuid::new_v4()),
@@ -440,6 +617,7 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_prompt(&self, telegram_id: i64) -> Result<Option<String>, AppError> {
         use crate::entities::prompts as p;
         let row = p::Entity::find()
@@ -451,10 +629,12 @@ impl DbTrait for PostgresDatabase {
         Ok(row.and_then(|r| r.prompt))
     }
 
+    #[tracing::instrument(skip_all)]
     async fn increment_generated_images(&self, _telegram_id: i64) -> Result<(), AppError> {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_generated_images_count(&self, telegram_id: i64) -> Result<i64, AppError> {
         use crate::entities::generations as g;
         let count = g::Entity::find()
@@ -465,16 +645,25 @@ impl DbTrait for PostgresDatabase {
         Ok(count as i64)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn create_generation(&self, req: &GenerationRequest) -> Result<GenerationResult, AppError> {
         use crate::entities::generations as g;
         let id = uuid::Uuid::new_v4();
         let now = chrono::Utc::now();
+        let prompt = req.prompt.as_ref().map(|p| {
+            if p.len() > MAX_PROMPT_LEN {
+                tracing::warn!(telegram_id = req.telegram_id, len = p.len(), "Truncating generation prompt to {} bytes", MAX_PROMPT_LEN);
+                p[..MAX_PROMPT_LEN].to_string()
+            } else {
+                p.clone()
+            }
+        });
         let model = g::ActiveModel {
             id: Set(id),
             telegram_id: Set(req.telegram_id),
             media_type: Set(media_type_to_str(&req.media_type).to_string()),
             status: Set(generation_status_to_str(&GenerationStatus::Queued).to_string()),
-            prompt: Set(req.prompt.clone()),
+            prompt: Set(prompt),
             result_url: Set(None),
             provider: Set(None),
             params: Set(Some(req.params.clone())),
@@ -497,6 +686,7 @@ impl DbTrait for PostgresDatabase {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn update_generation_status(&self, id: uuid::Uuid, status: GenerationStatus, result_url: Option<&str>, error: Option<&str>) -> Result<(), AppError> {
         use crate::entities::generations as g;
         let row = g::Entity::find_by_id(id)
@@ -508,10 +698,10 @@ impl DbTrait for PostgresDatabase {
             let mut active: g::ActiveModel = row.into();
             active.status = Set(generation_status_to_str(&status).to_string());
             if result_url.is_some() {
-                active.result_url = Set(result_url.map(String::from));
+                active.result_url = Set(result_url.map(|s| truncate_string(s, MAX_RESULT_URL_LEN, "result_url")));
             }
             if error.is_some() {
-                active.error = Set(error.map(String::from));
+                active.error = Set(error.map(|s| truncate_string(s, MAX_ERROR_LEN, "error")));
             }
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
@@ -520,6 +710,7 @@ impl DbTrait for PostgresDatabase {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_generation(&self, id: uuid::Uuid) -> Result<Option<GenerationResult>, AppError> {
         use crate::entities::generations as g;
         let row = g::Entity::find_by_id(id)
@@ -527,18 +718,22 @@ impl DbTrait for PostgresDatabase {
             .await
             .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
 
-        Ok(row.map(|r| GenerationResult {
-            id: r.id,
-            telegram_id: r.telegram_id,
-            media_type: str_to_media_type(&r.media_type),
-            status: str_to_generation_status(&r.status),
-            result_url: r.result_url,
-            provider: r.provider,
-            error: r.error,
-            created_at: r.created_at,
-        }))
+        match row {
+            Some(r) => Ok(Some(GenerationResult {
+                id: r.id,
+                telegram_id: r.telegram_id,
+                media_type: str_to_media_type(&r.media_type)?,
+                status: str_to_generation_status(&r.status)?,
+                result_url: r.result_url,
+                provider: r.provider,
+                error: r.error,
+                created_at: r.created_at,
+            })),
+            None => Ok(None),
+        }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_referral_count(&self, telegram_id: i64) -> Result<i64, AppError> {
         use crate::entities::referrals as r;
         let count = r::Entity::find()
@@ -549,11 +744,161 @@ impl DbTrait for PostgresDatabase {
         Ok(count as i64)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn health_check(&self) -> Result<bool, AppError> {
         match self.pool.ping().await {
             Ok(()) => Ok(true),
-            Err(e) => Err(AppError::Db(trios_mb_types::errors::DbError::Connection(e.to_string()))),
+            Err(e) => Err(sanitize_db_error("health_check", e)),
         }
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn complete_robokassa_payment(
+        &self,
+        tx_id: uuid::Uuid,
+        telegram_id: i64,
+        amount: f64,
+    ) -> Result<bool, AppError> {
+        if !amount.is_finite() || amount < 0.0 {
+            return Err(AppError::Validation(format!("complete_robokassa_payment amount must be finite and >= 0: {}", amount)));
+        }
+        let completed_status = serde_json::to_string(&PaymentStatus::Completed).map_err(|e| {
+            AppError::Internal(format!("Failed to serialize PaymentStatus::Completed: {}", e))
+        })?;
+
+        let sql = r#"
+            WITH updated_tx AS (
+                UPDATE payments_v2
+                SET status = $4,
+                    updated_at = NOW()
+                WHERE id = $1 AND status <> $4
+                RETURNING id
+            )
+            UPDATE users
+            SET balance = balance + $2,
+                updated_at = NOW()
+            WHERE telegram_id = $3
+              AND EXISTS (SELECT 1 FROM updated_tx)
+        "#;
+
+        let result = self.pool
+            .execute(Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                vec![
+                    Value::Uuid(Some(Box::new(tx_id))),
+                    Value::Double(Some(amount)),
+                    Value::BigInt(Some(telegram_id)),
+                    Value::String(Some(Box::new(completed_status))),
+                ],
+            ))
+            .await
+            .map_err(|e| sanitize_db_error("complete_robokassa_payment", e))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn get_generation_owned(
+        &self,
+        id: uuid::Uuid,
+        telegram_id: i64,
+    ) -> Result<Option<GenerationResult>, AppError> {
+        use crate::entities::generations as g;
+        let row = g::Entity::find()
+            .filter(g::Column::Id.eq(id))
+            .filter(g::Column::TelegramId.eq(telegram_id))
+            .one(self.pool.as_ref())
+            .await
+            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+
+        match row {
+            Some(r) => Ok(Some(GenerationResult {
+                id: r.id,
+                telegram_id: r.telegram_id,
+                media_type: str_to_media_type(&r.media_type)?,
+                status: str_to_generation_status(&r.status)?,
+                result_url: r.result_url,
+                provider: r.provider,
+                error: r.error,
+                created_at: r.created_at,
+            })),
+            None => Ok(None),
+        }
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn update_generation_status_owned(
+        &self,
+        id: uuid::Uuid,
+        telegram_id: i64,
+        status: GenerationStatus,
+        result_url: Option<&str>,
+        error: Option<&str>,
+    ) -> Result<(), AppError> {
+        use crate::entities::generations as g;
+        let row = g::Entity::find()
+            .filter(g::Column::Id.eq(id))
+            .filter(g::Column::TelegramId.eq(telegram_id))
+            .one(self.pool.as_ref())
+            .await
+            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+
+        if let Some(row) = row {
+            let mut active: g::ActiveModel = row.into();
+            active.status = Set(generation_status_to_str(&status).to_string());
+            if result_url.is_some() {
+                active.result_url = Set(result_url.map(|s| truncate_string(s, MAX_RESULT_URL_LEN, "result_url")));
+            }
+            if error.is_some() {
+                active.error = Set(error.map(|s| truncate_string(s, MAX_ERROR_LEN, "error")));
+            }
+            active.updated_at = Set(chrono::Utc::now());
+            active.update(self.pool.as_ref()).await
+                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+        }
+        Ok(())
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn record_webhook_event(
+        &self,
+        provider: &str,
+        event_id: &str,
+    ) -> Result<bool, AppError> {
+        let sql = r#"
+            INSERT INTO webhook_events (provider, event_id, processed_at)
+            VALUES ($1, $2, NOW())
+            ON CONFLICT (provider, event_id) DO NOTHING
+        "#;
+        let result = self.pool
+            .execute(Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                sql,
+                vec![
+                    Value::String(Some(Box::new(provider.to_string()))),
+                    Value::String(Some(Box::new(event_id.to_string()))),
+                ],
+            ))
+            .await
+            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn has_webhook_event(
+        &self,
+        provider: &str,
+        event_id: &str,
+    ) -> Result<bool, AppError> {
+        use crate::entities::webhook_events as w;
+        let count = w::Entity::find()
+            .filter(w::Column::Provider.eq(provider))
+            .filter(w::Column::EventId.eq(event_id))
+            .count(self.pool.as_ref())
+            .await
+            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+        Ok(count > 0)
     }
 }
 
@@ -1029,7 +1374,7 @@ mod tests {
         ];
         for mt in types {
             let s = media_type_to_str(&mt);
-            let back = str_to_media_type(s);
+            let back = str_to_media_type(s).expect("media_type roundtrip");
             assert_eq!(mt, back, "media_type roundtrip failed for {:?}", mt);
         }
     }
@@ -1045,7 +1390,7 @@ mod tests {
         ];
         for s in statuses {
             let str_val = generation_status_to_str(&s);
-            let back = str_to_generation_status(str_val);
+            let back = str_to_generation_status(str_val).expect("generation_status roundtrip");
             assert_eq!(s, back, "generation_status roundtrip failed for {:?}", s);
         }
     }
@@ -1067,12 +1412,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_str_to_media_type_unknown() {
-        assert_eq!(str_to_media_type("unknown"), MediaType::Image);
+        assert!(str_to_media_type("unknown").is_err());
     }
 
     #[tokio::test]
     async fn test_str_to_generation_status_unknown() {
-        assert_eq!(str_to_generation_status("unknown"), GenerationStatus::Queued);
+        assert!(str_to_generation_status("unknown").is_err());
     }
 
     #[tokio::test]

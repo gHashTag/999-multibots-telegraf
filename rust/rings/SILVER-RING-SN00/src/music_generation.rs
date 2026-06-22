@@ -5,13 +5,15 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, MusicGenerationState};
 use trios_mb_tg::HandlerResult;
+use trios_mb_tg::{answer_callback_query_timeout, dialogue_update_timeout, send_message_timeout};
 use trios_mb_types::generation::MediaType;
-use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, check_balance, deduct_balance, dispatch_and_reply};
+use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to_menu, deduct_balance, dispatch_and_reply};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const MUSIC_COST: f64 = 5.0;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_music_generation_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -30,14 +32,29 @@ pub async fn handle_music_generation_msg(
             } else {
                 "🎵 Describe the music you want to generate:"
             };
-            bot.send_message(msg.chat.id, text)
-                .reply_markup(crate::generation_utils::back_cancel_keyboard(lang))
-                .await?;
+            send_message_timeout(
+                &bot, msg.chat.id, text,
+                Some(crate::generation_utils::back_cancel_keyboard(lang).into()),
+            ).await?;
             state.step = 1;
-            dialogue.update(Scene::MusicGeneration(state)).await?;
+            dialogue_update_timeout(&dialogue, Scene::MusicGeneration(state)).await?;
         }
         1 => {
             if let Some(text) = msg.text() {
+                if text.trim().is_empty() {
+                    let err = if lang.is_russian() { "❌ Пустой промпт не допускается." } else { "❌ Empty prompt is not allowed." };
+                    send_message_timeout(
+                        &bot, msg.chat.id, err, None,
+                    ).await?;
+                    return Ok(());
+                }
+                if text.len() > 4000 {
+                    let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
+                    send_message_timeout(
+                        &bot, msg.chat.id, err, None,
+                    ).await?;
+                    return Ok(());
+                }
                 state.prompt = Some(text.to_string());
                 state.step = 2;
 
@@ -48,8 +65,11 @@ pub async fn handle_music_generation_msg(
                     ],
                 ]);
                 let model_text = if lang.is_russian() { "Выберите модель:" } else { "Select model:" };
-                bot.send_message(msg.chat.id, model_text).reply_markup(kb).await?;
-                dialogue.update(Scene::MusicGeneration(state)).await?;
+                send_message_timeout(
+                    &bot, msg.chat.id, model_text, Some(kb.into()),
+                ).await?;
+                dialogue_update_timeout(
+                    &dialogue, Scene::MusicGeneration(state)).await?;
             }
         }
         _ => {}
@@ -57,6 +77,7 @@ pub async fn handle_music_generation_msg(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_music_generation_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -66,23 +87,39 @@ pub async fn handle_music_generation_callback(
     mut state: MusicGenerationState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
-    let chat_id = q.chat_id().unwrap();
+    let chat_id = match q.chat_id() {
+        Some(id) => id,
+        None => return Ok(()),
+    };
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
     let tid = q.from.id.0 as i64;
+    if tid <= 0 {
+        tracing::warn!("Callback query missing valid telegram_id; aborting music_generation handler");
+        return Ok(());
+    }
 
     match data {
         "mus:cancel" => {
             return return_to_menu(&bot, &dialogue, chat_id, lang).await;
         }
         "mus:suno" | "mus:udio" => {
-            if let Err(err_msg) = check_balance(&db, tid, MUSIC_COST, lang).await {
-                bot.send_message(chat_id, err_msg).await?;
+            if state.prompt.is_none() || state.prompt.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+                let text = "❌ Please describe the music first.";
+                send_message_timeout(
+                    &bot, chat_id, text, None,
+                ).await?;
+                return return_to_menu(&bot, &dialogue, chat_id, lang).await;
+            }
+
+            if let Err(err_msg) = deduct_balance(&db, tid, MUSIC_COST, lang).await {
+                send_message_timeout(
+                    &bot, chat_id, err_msg, None,
+                ).await?;
                 return return_to_menu(&bot, &dialogue, chat_id, lang).await;
             }
             state.model = Some(if data == "mus:suno" { "suno-v3.5" } else { "udio" }.to_string());
-            let _ = deduct_balance(&db, tid, MUSIC_COST).await;
             return dispatch_and_reply(
                 &bot, &dialogue, chat_id,
                 &job_queue, &db,

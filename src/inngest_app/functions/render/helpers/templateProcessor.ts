@@ -21,19 +21,19 @@ export interface LayerSettings {
       method: string
       propertyMatchName: string
       propertyName: string
-      value: [number, number, number]
+      value: [number, number] | [number, number, number]
     }
     scale?: {
       method: string
       propertyMatchName: string
       propertyName: string
-      value: [number, number, number]
+      value: [number, number] | [number, number, number]
     }
     anchorPoint?: {
       method: string
       propertyMatchName: string
       propertyName: string
-      value: [number, number, number]
+      value: [number, number] | [number, number, number]
     }
     fontSize?: number
     inPoint?: number

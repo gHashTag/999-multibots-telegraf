@@ -5,6 +5,111 @@ use trios_mb_traits::job_queue::*;
 use trios_mb_types::AppError;
 use serde::{Deserialize, Serialize};
 
+/// Spawn a background task with panic-aware supervision.
+/// If the inner task panics, it is logged and restarted with exponential backoff.
+fn spawn_traced<F, Fut>(
+    desc: String,
+    cancel: CancellationToken,
+    factory: F,
+) -> tokio::task::JoinHandle<()>
+where
+    F: Fn() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = ()> + Send + 'static,
+{
+    tokio::spawn(async move {
+        let mut consecutive_failures: u32 = 0;
+        let mut last_failure: Option<std::time::Instant> = None;
+        const MAX_CONSECUTIVE_FAILURES: u32 = 10;
+        const BASE_BACKOFF_SECS: u64 = 5;
+        const MAX_BACKOFF_SECS: u64 = 60;
+        const FAILURE_RESET_SECS: u64 = 300; // 5 minutes of healthy uptime resets the streak
+
+        loop {
+            // Time-decay reset: transient panics spread across hours/days should not
+            // permanently accumulate to the fatal limit. Following Erlang/Akka pattern
+            // (intensity within a period) rather than a monotonic counter.
+            let now = std::time::Instant::now();
+            if last_failure.map_or(false, |t| now.duration_since(t).as_secs() >= FAILURE_RESET_SECS) {
+                consecutive_failures = 0;
+            }
+
+            // Catch synchronous panics in the factory closure itself before spawning.
+            // tokio::spawn only catches panics inside the future; a panic in the closure
+            // that builds the future would abort the supervisor thread.
+            let fut = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(||
+                factory()
+            )) {
+                Ok(f) => f,
+                Err(_) => {
+                    consecutive_failures += 1;
+                    last_failure = Some(now);
+                    if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
+                        tracing::error!(
+                            worker = %desc,
+                            failures = consecutive_failures,
+                            "Supervised worker exceeded max consecutive failures; giving up"
+                        );
+                        break;
+                    }
+                    let backoff = std::cmp::min(
+                        BASE_BACKOFF_SECS * 2_u64.pow(consecutive_failures.min(4)),
+                        MAX_BACKOFF_SECS,
+                    );
+                    tracing::error!(
+                        worker = %desc,
+                        failures = consecutive_failures,
+                        backoff_secs = backoff,
+                        "Supervised worker factory panicked; restarting with backoff"
+                    );
+                    tokio::time::sleep(Duration::from_secs(backoff)).await;
+                    continue;
+                }
+            };
+
+            let mut task = tokio::spawn(fut);
+            tokio::select! {
+                biased;
+                _ = cancel.cancelled() => {
+                    task.abort();
+                    tracing::info!(worker = %desc, "Supervised worker shutting down gracefully");
+                    break;
+                }
+                result = &mut task => {
+                    match result {
+                        Ok(()) => {
+                            tracing::info!(worker = %desc, "Supervised worker completed normally");
+                            break;
+                        }
+                        Err(_) => {
+                            consecutive_failures += 1;
+                            last_failure = Some(now);
+                            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
+                                tracing::error!(
+                                    worker = %desc,
+                                    failures = consecutive_failures,
+                                    "Supervised worker exceeded max consecutive failures; giving up"
+                                );
+                                break;
+                            }
+                            let backoff = std::cmp::min(
+                                BASE_BACKOFF_SECS * 2_u64.pow(consecutive_failures.min(4)),
+                                MAX_BACKOFF_SECS,
+                            );
+                            tracing::error!(
+                                worker = %desc,
+                                failures = consecutive_failures,
+                                backoff_secs = backoff,
+                                "Supervised worker panicked; restarting with backoff"
+                            );
+                            tokio::time::sleep(Duration::from_secs(backoff)).await;
+                        }
+                    }
+                }
+            }
+        }
+    })
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum JobType {
@@ -87,6 +192,7 @@ pub struct WorkerPool {
 }
 
 impl WorkerPool {
+    #[tracing::instrument(skip_all)]
     pub fn new(queue: Arc<dyn JobQueue>) -> Self {
         Self {
             queue,
@@ -95,15 +201,17 @@ impl WorkerPool {
         }
     }
 
-    pub fn register(&mut self, job_type: JobType, handler: JobHandler) {
+    #[tracing::instrument(skip_all, fields(job_type = %job_type.as_str()))]
+    pub fn register(&mut self, job_type: JobType, _handler: JobHandler) {
         let concurrency = job_type.concurrency_limit();
         self.handlers.push(WorkerSpec {
             job_type,
             concurrency,
-            handler: Arc::new(handler),
+            handler: Arc::new(_handler),
         });
     }
 
+    #[tracing::instrument(skip_all, fields(handlers = self.handlers.len()))]
     pub fn spawn(self: &Arc<Self>) {
         for spec in &self.handlers {
             let type_str = spec.job_type.as_str();
@@ -118,25 +226,40 @@ impl WorkerPool {
                 let q = queue.clone();
                 let h = handler.clone();
                 let c = cancel.clone();
+                let cancel = cancel.clone();
                 let types = type_strs.clone();
                 let name = format!("worker-{}-{}", type_str, worker_id);
 
-                tokio::spawn(async move {
-                    tracing::info!(worker = %name, "Worker started");
-                    loop {
-                        tokio::select! {
-                            _ = c.cancelled() => {
-                                tracing::info!(worker = %name, "Worker shutting down");
-                                break;
-                            }
-                            _ = tokio::time::sleep(Duration::from_millis(500)) => {
-                                if let Err(e) = poll_and_execute(&q, &types, &h, timeout, &name).await {
+                spawn_traced(name, c, move || {
+                    let q = q.clone();
+                    let h = h.clone();
+                    let types = types.clone();
+                    let timeout = timeout;
+                    let name = format!("worker-{}-{}", type_str, worker_id);
+                    let cancel = cancel.clone();
+                    async move {
+                        loop {
+                            tokio::time::sleep(Duration::from_millis(500)).await;
+                            let q2 = q.clone();
+                            let h2 = h.clone();
+                            let types2 = types.clone();
+                            let name2 = name.clone();
+                            let timeout2 = timeout;
+                            let c2 = cancel.clone();
+                            let handle = tokio::spawn(async move {
+                                poll_and_execute(&q2, &types2, &h2, timeout2, &name2, c2).await
+                            });
+                            match handle.await {
+                                Ok(Err(e)) => {
                                     tracing::error!(worker = %name, error = %e, "Worker error");
                                 }
+                                Err(e) => {
+                                    tracing::error!(worker = %name, error = %e, "Worker panicked; restarting");
+                                }
+                                Ok(Ok(())) => {}
                             }
                         }
                     }
-                    tracing::info!(worker = %name, "Worker stopped");
                 });
             }
         }
@@ -144,19 +267,34 @@ impl WorkerPool {
         tracing::info!(handlers = self.handlers.len(), "Worker pool spawned");
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn shutdown(&self) {
         self.cancel_token.cancel();
     }
 }
 
+const QUEUE_IO_TIMEOUT: Duration = Duration::from_secs(30);
+
+#[tracing::instrument(skip(queue, job_types, handler, cancel), fields(worker_name = %worker_name))]
 async fn poll_and_execute(
     queue: &Arc<dyn JobQueue>,
     job_types: &[&str],
     handler: &Arc<JobHandler>,
     timeout: Duration,
     worker_name: &str,
+    cancel: CancellationToken,
 ) -> Result<(), AppError> {
-    let job = queue.dequeue(job_types).await?;
+    let job = match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.dequeue(job_types)).await {
+        Ok(Ok(job)) => job,
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, "dequeue failed");
+            return Ok(());
+        }
+        Err(_) => {
+            tracing::warn!("dequeue timed out after {}s", QUEUE_IO_TIMEOUT.as_secs());
+            return Ok(());
+        }
+    };
     let job = match job {
         Some(j) => j,
         None => return Ok(()),
@@ -172,50 +310,89 @@ async fn poll_and_execute(
         "Processing job"
     );
 
-    let result = tokio::time::timeout(timeout, handler(job)).await;
+    // Spawn handler as a separate task so panics are caught by Tokio and returned as JoinError.
+    // Directly awaiting a future that panics would unwind through the worker loop and abort the task.
+    let mut task = tokio::spawn(handler(job));
+    let join_result = tokio::select! {
+        r = &mut task => Some(r),
+        _ = cancel.cancelled() => {
+            task.abort();
+            tracing::warn!(worker = worker_name, job_id = %job_id, "Job aborted due to shutdown signal");
+            None
+        }
+        _ = tokio::time::sleep(timeout) => {
+            task.abort();
+            None
+        }
+    };
 
-    match result {
-        Ok(Ok(())) => {
-            queue
-                .update_status(job_id, JobStatus::Completed, None)
-                .await?;
+    match join_result {
+        Some(Ok(Ok(()))) => {
+            if let Err(e) = tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.update_status(job_id, JobStatus::Completed, None)).await {
+                tracing::error!(error = %e, job_id = %job_id, "Failed to mark job completed (timeout)");
+            }
             tracing::info!(worker = worker_name, job_id = %job_id, "Job completed");
         }
-        Ok(Err(e)) => {
+        Some(Ok(Err(e))) => {
             let err_str = e.to_string();
-            let job = queue.get(job_id).await?;
-            if let Some(j) = job {
-                if j.attempts >= j.max_attempts {
-                    queue
-                        .update_status(job_id, JobStatus::Failed, Some(&err_str))
-                        .await?;
-                    tracing::error!(
-                        worker = worker_name,
-                        job_id = %job_id,
-                        attempts = j.attempts,
-                        "Job failed permanently"
-                    );
-                } else {
-                    queue
-                        .update_status(job_id, JobStatus::Queued, Some(&err_str))
-                        .await?;
-                    tracing::warn!(
-                        worker = worker_name,
-                        job_id = %job_id,
-                        attempt = j.attempts,
-                        "Job failed, will retry"
-                    );
+            let status = match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.get(job_id)).await {
+                Ok(Ok(Some(j))) => {
+                    if j.attempts >= j.max_attempts {
+                        tracing::error!(
+                            worker = worker_name,
+                            job_id = %job_id,
+                            attempts = j.attempts,
+                            "Job failed permanently"
+                        );
+                        JobStatus::Failed
+                    } else {
+                        tracing::warn!(
+                            worker = worker_name,
+                            job_id = %job_id,
+                            attempt = j.attempts,
+                            "Job failed, will retry"
+                        );
+                        JobStatus::Queued
+                    }
                 }
+                Ok(Ok(None)) => {
+                    tracing::warn!(job_id = %job_id, "Job not found in queue for retry decision; defaulting to Queued");
+                    JobStatus::Queued
+                }
+                Ok(Err(e)) => {
+                    tracing::error!(error = %e, job_id = %job_id, "Failed to get job for retry decision; defaulting to Queued");
+                    JobStatus::Queued
+                }
+                Err(_) => {
+                    tracing::warn!(job_id = %job_id, "get job timed out; defaulting to Queued");
+                    JobStatus::Queued
+                }
+            };
+            if let Err(e) = tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.update_status(job_id, status, Some(&err_str))).await {
+                tracing::error!(error = %e, job_id = %job_id, "Failed to update job status after failure (timeout)");
             }
         }
-        Err(_) => {
-            queue
-                .update_status(job_id, JobStatus::Queued, Some("timeout"))
-                .await?;
+        Some(Err(join_err)) => {
+            let panic_info = if join_err.is_panic() {
+                "handler panicked"
+            } else {
+                "handler cancelled"
+            };
+            tracing::error!(worker = worker_name, job_id = %job_id, %panic_info, "Job handler crashed");
+            if let Err(e) = tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.update_status(job_id, JobStatus::Failed, Some(panic_info))).await {
+                tracing::error!(error = %e, job_id = %job_id, "Failed to mark job failed after handler crash");
+            }
+        }
+        None => {
+            let reason = if cancel.is_cancelled() { "shutdown" } else { "timeout" };
+            if let Err(e) = tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.update_status(job_id, JobStatus::Queued, Some(reason))).await {
+                tracing::error!(error = %e, job_id = %job_id, "Failed to mark job {} (timeout)", reason);
+            }
             tracing::warn!(
                 worker = worker_name,
                 job_id = %job_id,
-                "Job timed out, will retry"
+                "Job {}, will retry",
+                reason
             );
         }
     }
@@ -223,6 +400,7 @@ async fn poll_and_execute(
     Ok(())
 }
 
+#[tracing::instrument(skip(queue, cancel), fields(interval_ms = interval.as_millis()))]
 pub async fn run_retry_maintenance(
     queue: Arc<dyn JobQueue>,
     interval: Duration,
@@ -232,13 +410,26 @@ pub async fn run_retry_maintenance(
         tokio::select! {
             _ = cancel.cancelled() => break,
             _ = tokio::time::sleep(interval) => {
-                match queue.retry_stuck(300).await {
-                    Ok(count) if count > 0 => {
+                // Threshold must exceed the longest legitimate job timeout by a safety margin.
+                // This prevents a race where retry_stuck flags a job as stuck before the worker's
+                // own abort timer fires, which would cause duplicate execution.
+                const STUCK_JOB_MARGIN_SECS: u64 = 300;
+                let max_timeout = JobType::all_types()
+                    .iter()
+                    .map(|t| t.timeout_secs())
+                    .max()
+                    .unwrap_or(7200);
+                let stuck_threshold = max_timeout + STUCK_JOB_MARGIN_SECS;
+                match tokio::time::timeout(QUEUE_IO_TIMEOUT, queue.retry_stuck(stuck_threshold)).await {
+                    Ok(Ok(count)) if count > 0 => {
                         tracing::info!(retried = count, "Retry maintenance: reset stuck jobs");
                     }
-                    Ok(_) => {}
-                    Err(e) => {
+                    Ok(Ok(_)) => {}
+                    Ok(Err(e)) => {
                         tracing::error!(error = %e, "Retry maintenance failed");
+                    }
+                    Err(_) => {
+                        tracing::warn!("Retry maintenance timed out after {}s", QUEUE_IO_TIMEOUT.as_secs());
                     }
                 }
             }

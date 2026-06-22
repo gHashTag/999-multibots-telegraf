@@ -131,6 +131,8 @@ export {
   navigateToCategory
 } from './helpers/menuKeyboard'
 
+export { mainMenu } from './unified-navigation.config'
+
 // Права доступа
 export {
   HAIM_GROUP_STAFF_IDS,

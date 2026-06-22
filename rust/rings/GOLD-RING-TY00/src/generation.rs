@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum MediaType {
     Image,
     Video,
@@ -14,6 +15,7 @@ pub enum MediaType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GenerationRequest {
     pub telegram_id: i64,
     pub media_type: MediaType,
@@ -24,6 +26,7 @@ pub struct GenerationRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GenerationResult {
     pub id: uuid::Uuid,
     pub telegram_id: i64,
@@ -36,6 +39,7 @@ pub struct GenerationResult {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum GenerationStatus {
     Queued,
     Processing,

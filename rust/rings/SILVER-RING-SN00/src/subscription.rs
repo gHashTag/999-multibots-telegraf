@@ -5,11 +5,17 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::Database;
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
+use trios_mb_tg::answer_callback_query_timeout;
+use trios_mb_tg::send_message_timeout;
+use trios_mb_types::user::SubscriptionType;
 use crate::generation_utils::load_lang;
 use crate::generation_utils::return_to_menu;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const DB_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+#[tracing::instrument(skip_all)]
 pub async fn handle_subscription_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -18,10 +24,42 @@ pub async fn handle_subscription_msg(
 ) -> HandlerResult {
     let lang = load_lang(&db, &msg).await;
     let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+    if tid == 0 {
+        tracing::warn!("Missing telegram_id; aborting handler");
+        return Ok(());
+    }
 
-    let current_sub = db.check_subscription(tid).await.ok().flatten();
+    let current_sub = match tokio::time::timeout(DB_TIMEOUT, db.check_subscription(tid)).await {
+        Ok(Ok(opt)) => opt,
+        Ok(Err(e)) => {
+            tracing::error!(telegram_id = tid, error = %e, "DB error checking subscription");
+            return Err(e.into());
+        }
+        Err(_) => {
+            tracing::warn!(telegram_id = tid, "DB timeout checking subscription");
+            let err_text = if lang.is_russian() {
+                "❌ Не удалось проверить подписку. Попробуйте позже."
+            } else {
+                "❌ Could not check subscription. Please try again later."
+            };
+            send_message_timeout(&bot, msg.chat.id, err_text, None).await?;
+            return Ok(());
+        }
+    };
     let sub_text = match current_sub {
-        Some(st) => if lang.is_russian() { format!("Текущая подписка: {:?}", st) } else { format!("Current subscription: {:?}", st) },
+        Some(st) => {
+            let name = match st {
+                SubscriptionType::NeuroPhoto => "NeuroPhoto",
+                SubscriptionType::NeuroVideo => "NeuroVideo",
+                SubscriptionType::Stars => "Stars",
+                SubscriptionType::NeuroTester => "NeuroTester",
+            };
+            if lang.is_russian() {
+                format!("Текущая подписка: {}", name)
+            } else {
+                format!("Current subscription: {}", name)
+            }
+        }
         None => if lang.is_russian() { "Нет активной подписки".to_string() } else { "No active subscription".to_string() },
     };
 
@@ -49,19 +87,23 @@ pub async fn handle_subscription_msg(
     } else {
         format!("💫 Subscriptions\n\n{}\n\nChoose a plan:", sub_text)
     };
-    bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
+    send_message_timeout(&bot, msg.chat.id, text, Some(kb.into())).await?;
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_subscription_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
     dialogue: MyDialogue,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let lang = crate::generation_utils::load_lang_cb(&db, &q).await;
-    let chat_id = q.chat_id().unwrap();
+    let chat_id = match q.chat_id() {
+        Some(id) => id,
+        None => return Ok(()),
+    };
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
 
     match data {
@@ -70,7 +112,7 @@ pub async fn handle_subscription_callback(
         }
         "sub:neuro_photo" | "sub:neuro_video" | "sub:stars" => {
             let text = if lang.is_russian() { "Скоро будет доступно!" } else { "Coming soon!" };
-            bot.send_message(chat_id, text).await?;
+            send_message_timeout(&bot, chat_id, text, None).await?;
         }
         _ => {}
     }

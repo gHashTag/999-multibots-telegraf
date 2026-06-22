@@ -132,19 +132,19 @@ export const getAllFunctions = () => {
 
 export const getFunctionById = (id: string) => {
   const all = getAllFunctions()
-  return all.find((f) => f.id === id)
+  return all.find((f: any) => f.id === id)
 }
 
 export const getFunctionsByCategory = (category: string) => {
   const all = getAllFunctions()
-  return all.filter((f) => f.category === category)
+  return all.filter((f: any) => f.category === category)
 }
 
 export const getFunctionStats = () => {
   const all = getAllFunctions()
   const byCategory: Record<string, number> = {}
 
-  all.forEach((f) => {
+  all.forEach((f: any) => {
     const category = f.category || 'uncategorized'
     byCategory[category] = (byCategory[category] || 0) + 1
   })

@@ -5,9 +5,13 @@ use trios_mb_traits::Database;
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
+use trios_mb_tg::{send_message_timeout, dialogue_update_timeout};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const DB_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+#[tracing::instrument(skip_all)]
 pub async fn handle_start(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -16,23 +20,77 @@ pub async fn handle_start(
     lang: trios_mb_types::user::Language,
 ) -> HandlerResult {
     let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+    if tid == 0 {
+        tracing::warn!("Missing telegram_id; aborting handler");
+        return Ok(());
+    }
+    const MAX_USERNAME_LEN: usize = 32;
     let username = msg.from.as_ref().and_then(|u| u.username.clone());
-
-    let user = match db.get_user_by_telegram_id(tid).await {
-        Ok(Some(u)) => u,
-        Ok(None) => {
-            db.create_user(tid, username.as_deref(), lang).await?
+    let username = username.and_then(|s| {
+        let trimmed = s.trim();
+        if trimmed.is_empty() || trimmed.len() > MAX_USERNAME_LEN {
+            return None;
         }
-        Err(_e) => {
-            db.create_user(tid, username.as_deref(), lang).await?
+        // Telegram usernames are lowercase a-z, 0-9, underscore.
+        // Reject anything with control chars or spaces.
+        if trimmed.chars().any(|c| c.is_control() || c.is_whitespace()) {
+            return None;
+        }
+        Some(trimmed.to_string())
+    });
+
+    let user = match tokio::time::timeout(DB_TIMEOUT, db.get_user_by_telegram_id(tid)).await {
+        Ok(Ok(Some(u))) => u,
+        Ok(Ok(None)) => {
+            match tokio::time::timeout(DB_TIMEOUT, db.create_user(tid, username.as_deref(), lang)).await {
+                Ok(Ok(u)) => u,
+                Ok(Err(e)) => {
+                    tracing::error!(telegram_id = tid, error = %e, "Failed to create user on /start");
+                    let err_text = if lang.is_russian() {
+                        "❌ Ошибка при входе. Попробуйте позже."
+                    } else {
+                        "❌ Login error. Please try again later."
+                    };
+                    send_message_timeout(&bot, msg.chat.id, err_text, None).await?;
+                    return Ok(());
+                }
+                Err(_) => {
+                    tracing::warn!(telegram_id = tid, "DB timeout creating user on /start");
+                    let err_text = if lang.is_russian() {
+                        "❌ Ошибка при входе. Попробуйте позже."
+                    } else {
+                        "❌ Login error. Please try again later."
+                    };
+                    send_message_timeout(&bot, msg.chat.id, err_text, None).await?;
+                    return Ok(());
+                }
+            }
+        }
+        Ok(Err(e)) => {
+            tracing::error!(telegram_id = tid, error = %e, "Failed to look up user on /start");
+            let err_text = if lang.is_russian() {
+                "❌ Ошибка при входе. Попробуйте позже."
+            } else {
+                "❌ Login error. Please try again later."
+            };
+            send_message_timeout(&bot, msg.chat.id, err_text, None).await?;
+            return Ok(());
+        }
+        Err(_) => {
+            tracing::warn!(telegram_id = tid, "DB timeout looking up user on /start");
+            let err_text = if lang.is_russian() {
+                "❌ Ошибка при входе. Попробуйте позже."
+            } else {
+                "❌ Login error. Please try again later."
+            };
+            send_message_timeout(&bot, msg.chat.id, err_text, None).await?;
+            return Ok(());
         }
     };
 
     let greet = if user.language.is_russian() { "👋 Добро пожаловать!" } else { "👋 Welcome!" };
     let text = format!("{}\n\n{}", greet, trios_mb_i18n::t(user.language, "main_menu"));
-    bot.send_message(msg.chat.id, text)
-        .reply_markup(main_menu_keyboard(user.language))
-        .await?;
-    dialogue.update(Scene::MainMenu).await?;
+    send_message_timeout(&bot, msg.chat.id, text, Some(main_menu_keyboard(user.language).into())).await?;
+    dialogue_update_timeout(&dialogue, Scene::MainMenu).await?;
     Ok(())
 }

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RobokassaPaymentUrl {
     pub merchant_login: String,
     pub out_sum: f64,
@@ -11,6 +12,7 @@ pub struct RobokassaPaymentUrl {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RobokassaCallback {
     pub out_sum: f64,
     pub inv_id: i64,
@@ -18,6 +20,7 @@ pub struct RobokassaCallback {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TelegramStarsPayment {
     pub telegram_id: i64,
     pub amount: i32,
@@ -26,6 +29,7 @@ pub struct TelegramStarsPayment {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TelegramPreCheckoutQuery {
     pub id: String,
     pub from: TelegramUserInfo,
@@ -35,12 +39,14 @@ pub struct TelegramPreCheckoutQuery {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TelegramUserInfo {
     pub id: i64,
     pub username: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TelegramSuccessfulPayment {
     pub currency: String,
     pub total_amount: i32,
@@ -49,6 +55,7 @@ pub struct TelegramSuccessfulPayment {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct X402PaymentRequest {
     pub inv_id: String,
     pub telegram_id: String,
@@ -59,6 +66,7 @@ pub struct X402PaymentRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct X402PaymentResponse {
     pub success: bool,
     pub transaction_hash: Option<String>,
@@ -66,6 +74,7 @@ pub struct X402PaymentResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TonTransaction {
     pub hash: String,
     pub lt: String,
@@ -108,6 +117,7 @@ impl TonPaymentLink {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DirectPaymentRequest {
     pub telegram_id: String,
     pub amount: f64,
@@ -116,11 +126,11 @@ pub struct DirectPaymentRequest {
     pub bot_name: String,
     pub service_type: String,
     pub inv_id: Option<String>,
-    pub bypass_payment_check: Option<bool>,
     pub metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DirectPaymentResult {
     pub success: bool,
     pub payment_id: Option<i64>,
@@ -130,6 +140,7 @@ pub struct DirectPaymentResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BalanceChange {
     pub before: f64,
     pub after: f64,

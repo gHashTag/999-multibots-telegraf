@@ -15,7 +15,7 @@ async fn make_db() -> Arc<dyn Database> {
 #[tokio::test]
 async fn health_check_returns_200_with_ok() {
     let db = make_db().await;
-    let app = create_router(db);
+    let app = create_router(db).expect("create_router should succeed in tests");
 
     let response = app
         .oneshot(
@@ -39,7 +39,7 @@ async fn health_check_returns_200_with_ok() {
 #[tokio::test]
 async fn health_simple_returns_ok() {
     let db = make_db().await;
-    let app = create_router(db);
+    let app = create_router(db).expect("create_router should succeed in tests");
 
     let response = app
         .oneshot(
@@ -64,7 +64,7 @@ async fn health_simple_returns_ok() {
 #[tokio::test]
 async fn health_check_includes_version() {
     let db = make_db().await;
-    let app = create_router(db);
+    let app = create_router(db).expect("create_router should succeed in tests");
 
     let response = app
         .oneshot(

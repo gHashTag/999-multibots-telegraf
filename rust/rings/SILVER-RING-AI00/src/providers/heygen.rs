@@ -1,9 +1,24 @@
+use std::sync::LazyLock;
+use secrecy::ExposeSecret;
+// Wave 151: api_key migrated to secrecy::SecretString
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use trios_mb_traits::AiProvider;
 use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
+
+const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const REQWEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const REQWEST_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+const REQWEST_POOL_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
+
+static HEYGEN_BASE_URL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("HEYGEN_BASE_URL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "https://api.heygen.com".to_string())
+});
 
 #[derive(Debug, Serialize)]
 struct CreateVideoRequest {
@@ -41,6 +56,7 @@ struct VoiceInput {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct HeyGenResponse {
     #[serde(default)]
     data: Option<HeyGenData>,
@@ -51,6 +67,7 @@ struct HeyGenResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct HeyGenData {
     #[serde(default)]
     video_id: Option<String>,
@@ -61,6 +78,7 @@ struct HeyGenData {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct VideoStatusResponse {
     #[serde(default)]
     data: Option<VideoStatusData>,
@@ -69,6 +87,7 @@ struct VideoStatusResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct VideoStatusData {
     #[serde(default)]
     status: Option<String>,
@@ -77,18 +96,21 @@ struct VideoStatusData {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct AvatarListResponse {
     #[serde(default)]
     data: Option<AvatarData>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct AvatarData {
     #[serde(default)]
     avatars: Option<Vec<Avatar>>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Avatar {
     pub avatar_id: String,
     #[serde(default)]
@@ -96,23 +118,29 @@ pub struct Avatar {
 }
 
 pub struct HeyGenProvider {
-    api_key: String,
+    api_key: secrecy::SecretString,
     http: reqwest::Client,
     base_url: String,
 }
 
 impl HeyGenProvider {
-    pub fn new(api_key: &str) -> Self {
-        Self {
-            api_key: api_key.to_string(),
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(60))
-                .build()
-                .unwrap_or_default(),
-            base_url: "https://api.heygen.com".to_string(),
-        }
+    pub fn new(api_key: &str) -> Result<Self, AppError> {
+        let http = reqwest::Client::builder()
+            .timeout(REQWEST_TIMEOUT)
+            .connect_timeout(REQWEST_CONNECT_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(REQWEST_POOL_IDLE_TIMEOUT)
+            .build()
+            .map_err(|e| AppError::Internal(format!("Failed to build HeyGen reqwest client: {}", e)))?;
+        Ok(Self {
+            api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
+            http,
+            base_url: HEYGEN_BASE_URL.clone(),
+        })
     }
 
+    #[tracing::instrument(skip_all, fields(avatar_id = %avatar_id))]
     pub async fn create_avatar_video(
         &self,
         avatar_id: &str,
@@ -136,34 +164,43 @@ impl HeyGenProvider {
             test: Some(test),
         };
 
-        let resp = self.http
-            .post(format!("{}/v2/video/generate", self.base_url))
-            .header("X-Api-Key", &self.api_key)
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "heygen".into(),
-                message: format!("create video failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/v2/video/generate", self.base_url))
+                .header("X-Api-Key", self.api_key.expose_secret())
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "heygen".into(),
+                    message: format!("create video failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "heygen".into(),
+                    message: "create video request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
             return Err(AiError::RateLimited { provider: "heygen".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "heygen".into(),
                 message: format!("HTTP {}: {}", status, text),
             }.into());
         }
 
-        let hg_resp: HeyGenResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
-            provider: "heygen".into(),
-            message: format!("json parse: {}", e),
-        })?;
+        let hg_resp: HeyGenResponse = super::parse_json_limited(resp, "heygen", 64_000_000).await?;
 
         hg_resp.data
             .and_then(|d| d.video_id)
@@ -173,66 +210,93 @@ impl HeyGenProvider {
             }.into())
     }
 
+    #[tracing::instrument(skip_all, fields(video_id = %video_id))]
     pub async fn check_video_status(&self, video_id: &str) -> Result<(String, Option<String>), AppError> {
-        let resp = self.http
-            .get(format!("{}/v1/video_status.get?video_id={}", self.base_url, video_id))
-            .header("X-Api-Key", &self.api_key)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "heygen".into(),
-                message: format!("status check failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/v1/video_status.get?video_id={}", self.base_url, video_id))
+                .header("X-Api-Key", self.api_key.expose_secret())
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "heygen".into(),
+                    message: format!("status check failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "heygen".into(),
+                    message: "status check request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "heygen".into(),
                 message: format!("HTTP {}: {}", status, text),
             }.into());
         }
 
-        let status_resp: VideoStatusResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
-            provider: "heygen".into(),
-            message: format!("json parse: {}", e),
-        })?;
+        let status_resp: VideoStatusResponse = super::parse_json_limited(resp, "heygen", 64_000_000).await?;
 
         let data = status_resp.data.ok_or_else(|| AiError::InvalidResponse {
             provider: "heygen".into(),
             message: "no data in status response".into(),
         })?;
 
-        let status_str = data.status.unwrap_or_default();
+        let status_str = data.status.ok_or_else(|| AiError::InvalidResponse {
+            provider: "heygen".into(),
+            message: "missing status field".into(),
+        })?;
         Ok((status_str, data.video_url))
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn list_avatars(&self) -> Result<Vec<Avatar>, AppError> {
-        let resp = self.http
-            .get(format!("{}/v2/avatars", self.base_url))
-            .header("X-Api-Key", &self.api_key)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "heygen".into(),
-                message: format!("list avatars failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/v2/avatars", self.base_url))
+                .header("X-Api-Key", self.api_key.expose_secret())
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "heygen".into(),
+                    message: format!("list avatars failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "heygen".into(),
+                    message: "list avatars request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "heygen".into(),
                 message: format!("HTTP {}: {}", status, text),
             }.into());
         }
 
-        let avatars_resp: AvatarListResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
-            provider: "heygen".into(),
-            message: format!("json parse: {}", e),
-        })?;
+        let avatars_resp: AvatarListResponse = super::parse_json_limited(resp, "heygen", 64_000_000).await?;
 
-        Ok(avatars_resp.data.and_then(|d| d.avatars).unwrap_or_default())
+        let avatars = avatars_resp.data.and_then(|d| d.avatars).ok_or_else(|| AiError::InvalidResponse {
+            provider: "heygen".into(),
+            message: "missing avatars data".into(),
+        })?;
+        Ok(avatars)
     }
 }
 
@@ -245,6 +309,7 @@ impl AiProvider for HeyGenProvider {
         matches!(media_type, MediaType::Video | MediaType::LipSync)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         let avatar_id = request.params.get("avatar_id")
             .and_then(|v| v.as_str())
@@ -252,7 +317,10 @@ impl AiProvider for HeyGenProvider {
         let voice_id = request.params.get("voice_id")
             .and_then(|v| v.as_str())
             .unwrap_or("voice_public_default");
-        let text = request.prompt.as_deref().unwrap_or("");
+        let text = request.prompt.as_deref().unwrap_or("").trim();
+        if text.is_empty() {
+            return Err(AppError::Validation("prompt is empty or whitespace-only".to_string()));
+        }
         let test = request.params.get("test").and_then(|v| v.as_bool()).unwrap_or(false);
 
         let video_id = self.create_avatar_video(avatar_id, voice_id, text, test).await?;
@@ -269,6 +337,7 @@ impl AiProvider for HeyGenProvider {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, generation_id: &str) -> Result<GenerationStatus, AppError> {
         let video_id = generation_id.strip_prefix("heygen:")
             .unwrap_or(generation_id);
@@ -284,6 +353,7 @@ impl AiProvider for HeyGenProvider {
         Ok(status)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, generation_id: &str) -> Result<Option<String>, AppError> {
         let video_id = generation_id.strip_prefix("heygen:")
             .unwrap_or(generation_id);
@@ -293,6 +363,9 @@ impl AiProvider for HeyGenProvider {
     }
 
     async fn cancel(&self, _generation_id: &str) -> Result<(), AppError> {
-        Ok(())
+        Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {
+            provider: "heygen".into(),
+            message: "Cancellation not supported by provider".into(),
+        }))
     }
 }

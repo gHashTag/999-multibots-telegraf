@@ -1,21 +1,33 @@
+// Wave 151: api_key migrated to secrecy::SecretString
 use async_trait::async_trait;
 use trios_mb_traits::AiProvider;
 use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
+use std::time::Duration;
+
+const REQWEST_TIMEOUT: Duration = Duration::from_secs(120);
+const REQWEST_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const REQWEST_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+
 pub struct MidjourneyProvider {
     http: reqwest::Client,
 }
 
 impl MidjourneyProvider {
-    pub fn new(_api_key: &str) -> Self {
-        Self {
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(120))
-                .build()
-                .unwrap_or_default(),
-        }
+    pub fn new(_api_key: &str) -> Result<Self, AppError> {
+        let http = reqwest::Client::builder()
+            .timeout(REQWEST_TIMEOUT)
+            .connect_timeout(REQWEST_CONNECT_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(REQWEST_POOL_IDLE_TIMEOUT)
+            .build()
+            .map_err(|e| AppError::Internal(format!("Failed to build Midjourney reqwest client: {}", e)))?;
+        Ok(Self {
+            http,
+        })
     }
 }
 
@@ -28,6 +40,7 @@ impl AiProvider for MidjourneyProvider {
         matches!(media_type, MediaType::Image)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate(&self, _request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         Err(AiError::Provider {
             provider: "midjourney".into(),
@@ -35,15 +48,20 @@ impl AiProvider for MidjourneyProvider {
         }.into())
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, _generation_id: &str) -> Result<GenerationStatus, AppError> {
         Ok(GenerationStatus::Failed)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, _generation_id: &str) -> Result<Option<String>, AppError> {
         Ok(None)
     }
 
     async fn cancel(&self, _generation_id: &str) -> Result<(), AppError> {
-        Ok(())
+        Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {
+            provider: "midjourney".into(),
+            message: "Cancellation not supported by provider".into(),
+        }))
     }
 }

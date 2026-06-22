@@ -3,7 +3,7 @@ import { message, callbackQuery } from 'telegraf/filters'
 import { MyContext } from './interfaces'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
-import { levels } from './menu/simpleMenu'
+import { levels } from '@/navigation/constants/access'
 import { getUserDetailsSubscription } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 import { getUserInfo } from './handlers/getUserInfo'
@@ -15,7 +15,7 @@ import { sendMediaToPulse } from './helpers/pulse'
 // Импортируем обработчик команды hello_world
 import { handleHelloWorld } from './commands/handleHelloWorld'
 import { priceCommand } from './commands/priceCommand'
-import { checkSubscriptionGuard } from './helpers/subscriptionGuard'
+import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
 import { setupInteractiveStats } from './commands/interactiveStatsCommand'
 // Импортируем админские команды
 import {

@@ -1,5 +1,6 @@
 import { logger } from '@/utils/logger'
 import { processBalanceOperation } from '@/price/helpers/processBalanceOperation'
+import { refundUser } from '@/price/helpers/refundUser'
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { MyContext } from '@/interfaces'
 import { KieAiProvider } from './video-providers/KieAiProvider'
@@ -28,6 +29,9 @@ export async function generateNanoBananaKie({
   username,
   is_ru = true,
 }: NanoBananaKieParams): Promise<string | null> {
+  // Объявляем costPerImage до try для доступности в catch
+  const costPerImage = 8 // Цена за одну генерацию на KIE.AI
+
   try {
     console.log('🚀 [generateNanoBananaKie] Starting generation via KIE.AI', {
       telegram_id,
@@ -42,9 +46,6 @@ export async function generateNanoBananaKie({
       inputImageUrl,
       username,
     })
-
-    // Цена за одну генерацию на KIE.AI (дешевле чем Replicate)
-    const costPerImage = 8 // Уменьшаем цену, так как KIE.AI дешевле
 
     // Проверяем баланс и списываем звезды
     console.log('🔵 [generateNanoBananaKie] Checking balance...', {
@@ -209,6 +210,22 @@ export async function generateNanoBananaKie({
       telegram_id,
       error: error instanceof Error ? error.message : 'Unknown error',
     })
+
+    // ✅ ВОЗВРАТ БАЛАНСА при ошибке генерации
+    try {
+      if (costPerImage > 0 && ctx) {
+        await refundUser(ctx, costPerImage, true) // silent refund
+        logger.info('💰 Balance refunded after NanoBananaKie error', {
+          telegram_id,
+          refundAmount: costPerImage,
+        })
+      }
+    } catch (refundError) {
+      logger.error('Failed to refund after NanoBananaKie error', {
+        telegram_id,
+        refundError: refundError instanceof Error ? refundError.message : 'Unknown',
+      })
+    }
 
     // Отправляем сообщение администратору об ошибке
     try {

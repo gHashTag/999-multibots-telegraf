@@ -16,8 +16,8 @@ import { Telegraf } from 'telegraf'
 // ✅ Inngest включен для мониторинга webhook'ов
 import { serve } from 'inngest/express'
 import { inngest } from '../inngest_app/client'
-// ✅ LAZY: Импортируем фабричную функцию, а не готовые функции
-import { createAllInngestFunctions } from '../inngest_app/registerFunctions'
+// ✅ LAZY: Импортируем все функции Inngest
+import { allInngestFunctions } from '../inngest_app/registerFunctions'
 import { logger } from '@/utils/logger'
 // ✅ Webhook health verification on startup
 import { verifyWebhooksOnStartup } from '@/utils/webhookHealthCheck'
@@ -57,6 +57,7 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
 
   // Middleware для парсинга JSON с установленным лимитом в 10MB
   app.use(express.json({ limit: '10mb' }) as any)
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }) as any)
 
   // Раздача статических файлов из temp/ директории для морфинга
   app.use('/temp', express.static('temp') as any)

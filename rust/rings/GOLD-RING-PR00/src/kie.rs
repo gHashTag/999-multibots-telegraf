@@ -24,6 +24,7 @@ pub struct TaskInput {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateTaskResponse {
     pub code: i32,
     pub msg: String,
@@ -31,6 +32,7 @@ pub struct CreateTaskResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TaskData {
     pub task_id: Option<String>,
     pub video_url: Option<String>,
@@ -49,6 +51,7 @@ impl CreateTaskResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TaskStatusResponse {
     pub code: i32,
     pub msg: String,
@@ -56,6 +59,7 @@ pub struct TaskStatusResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TaskStatusData {
     pub task_id: Option<String>,
     pub status: Option<String>,
@@ -86,6 +90,7 @@ impl TaskStatusData {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WebhookPayload {
     pub task_id: Option<String>,
     pub success_flag: Option<i32>,
@@ -103,6 +108,7 @@ pub struct WebhookPayload {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WebhookResponse {
     pub result_urls: Option<Vec<String>>,
     pub result_url: Option<String>,

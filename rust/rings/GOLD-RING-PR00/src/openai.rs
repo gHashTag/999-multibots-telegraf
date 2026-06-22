@@ -11,6 +11,7 @@ pub struct ChatRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ChatMessage {
     pub role: String,
     pub content: String,
@@ -31,16 +32,19 @@ impl ChatMessage {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ChatResponse {
     pub choices: Vec<ChatChoice>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ChatChoice {
     pub message: ChatChoiceMessage,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ChatChoiceMessage {
     pub content: Option<String>,
 }
@@ -62,11 +66,13 @@ pub struct TranscriptionRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TranscriptionResponse {
     pub text: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WhisperResponse {
     pub text: String,
 }

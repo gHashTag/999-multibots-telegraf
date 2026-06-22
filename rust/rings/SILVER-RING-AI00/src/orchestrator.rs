@@ -5,10 +5,14 @@ use tokio::sync::RwLock;
 use trios_mb_traits::{AiProvider, AiProviderOrchestrator};
 use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
+use trios_mb_types::truncate_for_log;
 use crate::circuit_breaker::CircuitBreaker;
 
 const FAILURE_THRESHOLD: u32 = 3;
 const RESET_TIMEOUT_SECS: u64 = 60;
+const DISPATCH_TIMEOUT_SECS: u64 = 120;
+const CHECK_STATUS_TIMEOUT_SECS: u64 = 30;
+const GET_RESULT_TIMEOUT_SECS: u64 = 30;
 
 pub struct AiOrchestrator {
     providers: Vec<Arc<dyn AiProvider>>,
@@ -37,11 +41,10 @@ impl AiOrchestrator {
         matching.sort_by_key(|p| p.priority());
         matching
     }
-}
 
-#[async_trait::async_trait]
-impl AiProviderOrchestrator for AiOrchestrator {
-    async fn dispatch(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
+    #[tracing::instrument(skip_all)]
+    async fn dispatch_inner(&self, request: &GenerationRequest,
+    ) -> Result<GenerationResult, AppError> {
         let providers = self.get_providers_for_type(request.media_type);
         let breakers = self.circuit_breakers.read().await;
 
@@ -63,7 +66,9 @@ impl AiProviderOrchestrator for AiOrchestrator {
                     return Ok(result);
                 }
                 Err(e) => {
-                    tracing::warn!(provider = provider.name(), error = %e, "provider failed");
+                    let err_msg = e.to_string();
+                    let err_short = truncate_for_log(&err_msg, 256);
+                    tracing::warn!(provider = provider.name(), error = %err_short, "provider failed");
                     if let Some(b) = breaker {
                         b.record_failure();
                     }
@@ -76,18 +81,54 @@ impl AiProviderOrchestrator for AiOrchestrator {
             media_type: format!("{:?}", request.media_type),
         })))
     }
+}
 
+#[async_trait::async_trait]
+impl AiProviderOrchestrator for AiOrchestrator {
+    #[tracing::instrument(skip_all)]
+    async fn dispatch(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
+        match tokio::time::timeout(Duration::from_secs(DISPATCH_TIMEOUT_SECS), self.dispatch_inner(request)).await {
+            Ok(result) => result,
+            Err(_) => {
+                tracing::warn!(media_type = ?request.media_type, "Orchestrator dispatch timed out after 120s");
+                Err(AppError::Ai(trios_mb_types::errors::AiError::AllProvidersFailed {
+                    media_type: format!("{:?}", request.media_type),
+                }))
+            }
+        }
+    }
+
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, generation_id: &str, provider_name: &str) -> Result<GenerationStatus, AppError> {
         let provider = self.providers.iter()
             .find(|p| p.name() == provider_name)
             .ok_or_else(|| AppError::NotFound(format!("provider {}", provider_name)))?;
-        provider.check_status(generation_id).await
+        match tokio::time::timeout(Duration::from_secs(CHECK_STATUS_TIMEOUT_SECS), provider.check_status(generation_id)).await {
+            Ok(result) => result,
+            Err(_) => {
+                tracing::warn!(provider = provider_name, generation_id, "check_status timed out after {}s", CHECK_STATUS_TIMEOUT_SECS);
+                Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {
+                    provider: provider_name.to_string(),
+                    message: "check_status timed out".to_string(),
+                }))
+            }
+        }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, generation_id: &str, provider_name: &str) -> Result<Option<String>, AppError> {
         let provider = self.providers.iter()
             .find(|p| p.name() == provider_name)
             .ok_or_else(|| AppError::NotFound(format!("provider {}", provider_name)))?;
-        provider.get_result(generation_id).await
+        match tokio::time::timeout(Duration::from_secs(GET_RESULT_TIMEOUT_SECS), provider.get_result(generation_id)).await {
+            Ok(result) => result,
+            Err(_) => {
+                tracing::warn!(provider = provider_name, generation_id, "get_result timed out after {}s", GET_RESULT_TIMEOUT_SECS);
+                Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {
+                    provider: provider_name.to_string(),
+                    message: "get_result timed out".to_string(),
+                }))
+            }
+        }
     }
 }

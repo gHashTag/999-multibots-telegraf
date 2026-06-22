@@ -6,12 +6,16 @@ use trios_mb_traits::{Database, JobQueue};
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
 use trios_mb_tg::keyboards::main_menu_keyboard;
+use trios_mb_tg::{send_message_timeout, dialogue_update_timeout};
 use trios_mb_types::user::Language;
 use trios_mb_types::generation::*;
 use trios_mb_traits::job_queue::EnqueueRequest;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const DB_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+#[tracing::instrument(skip_all)]
 pub async fn load_lang(db: &Arc<dyn Database>, msg: &Message) -> Language {
     match msg.from {
         Some(ref user) => load_lang_by_id(db, user.id.0 as i64).await,
@@ -19,48 +23,85 @@ pub async fn load_lang(db: &Arc<dyn Database>, msg: &Message) -> Language {
     }
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn load_lang_by_id(db: &Arc<dyn Database>, telegram_id: i64) -> Language {
-    db.get_user_by_telegram_id(telegram_id)
-        .await
-        .ok()
-        .flatten()
-        .map(|u| u.language)
-        .unwrap_or_default()
+    match tokio::time::timeout(DB_TIMEOUT, db.get_user_by_telegram_id(telegram_id)).await {
+        Ok(Ok(Some(user))) => user.language,
+        Ok(Ok(None)) => Language::default(),
+        Ok(Err(e)) => {
+            tracing::warn!(telegram_id, error = %e, "Failed to load user language from DB; falling back to default");
+            Language::default()
+        }
+        Err(_) => {
+            tracing::warn!(telegram_id, "DB timeout loading user language; falling back to default");
+            Language::default()
+        }
+    }
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn load_lang_cb(db: &Arc<dyn Database>, q: &teloxide::types::CallbackQuery) -> Language {
-    db.get_user_by_telegram_id(q.from.id.0 as i64)
-        .await
-        .ok()
-        .flatten()
-        .map(|u| u.language)
-        .unwrap_or_default()
+    match tokio::time::timeout(DB_TIMEOUT, db.get_user_by_telegram_id(q.from.id.0 as i64)).await {
+        Ok(Ok(Some(user))) => user.language,
+        Ok(Ok(None)) => Language::default(),
+        Ok(Err(e)) => {
+            tracing::warn!(telegram_id = q.from.id.0, error = %e, "Failed to load user language from DB; falling back to default");
+            Language::default()
+        }
+        Err(_) => {
+            tracing::warn!(telegram_id = q.from.id.0, "DB timeout loading user language from DB; falling back to default");
+            Language::default()
+        }
+    }
 }
 
-pub async fn check_balance(
+#[tracing::instrument(skip_all)]
+pub async fn deduct_balance(
     db: &Arc<dyn Database>,
     telegram_id: i64,
     cost: f64,
     lang: Language,
 ) -> Result<f64, String> {
-    let balance = db.get_balance(telegram_id).await.unwrap_or(0.0);
-    if balance < cost {
-        let msg = if lang.is_russian() {
-            format!("❌ Недостаточно средств.\n\nТребуется: {:.0} ⭐\nВаш баланс: {:.1} ⭐", cost, balance)
-        } else {
-            format!("❌ Insufficient funds.\n\nRequired: {:.0} ⭐\nYour balance: {:.1} ⭐", cost, balance)
-        };
-        return Err(msg);
+    match tokio::time::timeout(DB_TIMEOUT, db.deduct_balance(telegram_id, cost)).await {
+        Ok(Ok(true)) => Ok(0.0),
+        Ok(Ok(false)) => {
+            let balance = match tokio::time::timeout(DB_TIMEOUT, db.get_balance(telegram_id)).await {
+                Ok(Ok(b)) => b,
+                Ok(Err(e)) => {
+                    tracing::error!(telegram_id, error = %e, "Failed to get balance for error message");
+                    0.0
+                }
+                Err(_) => {
+                    tracing::warn!(telegram_id, "DB timeout getting balance for error message");
+                    0.0
+                }
+            };
+            let msg = if lang.is_russian() {
+                format!("❌ Недостаточно средств.\n\nТребуется: {:.0} ⭐\nВаш баланс: {:.1} ⭐", cost, balance)
+            } else {
+                format!("❌ Insufficient funds.\n\nRequired: {:.0} ⭐\nYour balance: {:.1} ⭐", cost, balance)
+            };
+            Err(msg)
+        }
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, "DB error during balance deduction");
+            let msg = if lang.is_russian() {
+                "❌ Ошибка списания средств. Попробуйте позже.".to_string()
+            } else {
+                "❌ Failed to deduct balance. Please try again later.".to_string()
+            };
+            Err(msg)
+        }
+        Err(_) => {
+            tracing::warn!(telegram_id, "DB timeout during balance deduction");
+            let msg = if lang.is_russian() {
+                "❌ Ошибка списания средств. Попробуйте позже.".to_string()
+            } else {
+                "❌ Failed to deduct balance. Please try again later.".to_string()
+            };
+            Err(msg)
+        }
     }
-    Ok(balance)
-}
-
-pub async fn deduct_balance(
-    db: &Arc<dyn Database>,
-    telegram_id: i64,
-    cost: f64,
-) -> bool {
-    db.deduct_balance(telegram_id, cost).await.unwrap_or(false)
 }
 
 pub fn back_cancel_keyboard(lang: Language) -> InlineKeyboardMarkup {
@@ -74,16 +115,22 @@ pub fn back_cancel_keyboard(lang: Language) -> InlineKeyboardMarkup {
     ])
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn return_to_menu(
     bot: &teloxide::Bot,
     dialogue: &MyDialogue,
     chat_id: teloxide::types::ChatId,
     lang: Language,
 ) -> HandlerResult {
-    bot.send_message(chat_id, trios_mb_i18n::t(lang, "main_menu"))
-        .reply_markup(main_menu_keyboard(lang))
-        .await?;
-    dialogue.update(Scene::MainMenu).await?;
+    if let Err(e) = send_message_timeout(
+        bot, chat_id, trios_mb_i18n::t(lang, "main_menu"),
+        Some(main_menu_keyboard(lang).into()),
+    ).await {
+        tracing::warn!(chat_id = %chat_id, error = %e, "Failed to send main menu message");
+    }
+    if let Err(e) = dialogue_update_timeout(dialogue, Scene::MainMenu).await {
+        tracing::warn!(chat_id = %chat_id, error = %e, "Failed to reset dialogue to MainMenu");
+    }
     Ok(())
 }
 
@@ -98,6 +145,7 @@ pub struct DispatchParams {
     pub model: Option<String>,
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn dispatch_and_reply(
     bot: &teloxide::Bot,
     dialogue: &MyDialogue,
@@ -106,21 +154,13 @@ pub async fn dispatch_and_reply(
     db: &Arc<dyn Database>,
     params: DispatchParams,
 ) -> HandlerResult {
-    if let Err(err_msg) = check_balance(db, params.telegram_id, params.cost, params.lang).await {
-        bot.send_message(chat_id, err_msg).await?;
-        dialogue.update(Scene::MainMenu).await?;
-        return Ok(());
-    }
-
-    let deducted = deduct_balance(db, params.telegram_id, params.cost).await;
-    if !deducted {
-        let err_msg = if params.lang.is_russian() {
-            "❌ Не удалось списать средства"
-        } else {
-            "❌ Failed to deduct balance"
-        };
-        bot.send_message(chat_id, err_msg).await?;
-        dialogue.update(Scene::MainMenu).await?;
+    if let Err(err_msg) = deduct_balance(db, params.telegram_id, params.cost, params.lang).await {
+        if let Err(e) = send_message_timeout(bot, chat_id, err_msg, None).await {
+            tracing::warn!(chat_id = %chat_id, error = %e, "Failed to send insufficient-balance message");
+        }
+        if let Err(e) = dialogue_update_timeout(dialogue, Scene::MainMenu).await {
+            tracing::warn!(chat_id = %chat_id, error = %e, "Failed to reset dialogue after insufficient balance");
+        }
         return Ok(());
     }
 
@@ -129,7 +169,9 @@ pub async fn dispatch_and_reply(
     } else {
         "⏳ Task submitted for processing. Result will be sent as a message."
     };
-    bot.send_message(chat_id, processing).await?;
+    if let Err(e) = send_message_timeout(bot, chat_id, processing, None).await {
+        tracing::warn!(chat_id = %chat_id, error = %e, "Failed to send processing message");
+    }
 
     let request = GenerationRequest {
         telegram_id: params.telegram_id,
@@ -140,12 +182,21 @@ pub async fn dispatch_and_reply(
         params: serde_json::json!({ "cost": params.cost }),
     };
 
-    let gen = db.create_generation(&request).await;
+    let gen = tokio::time::timeout(DB_TIMEOUT, db.create_generation(&request)).await;
     match gen {
-        Ok(_g) => {
+        Ok(Ok(g)) => {
+            let mut request = request;
+            request.params = serde_json::json!({
+                "cost": params.cost,
+                "generation_id": g.id.to_string(),
+            });
+            let payload = serde_json::to_value(&request).map_err(|e| {
+                tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to serialize generation request");
+                trios_mb_types::AppError::Validation(format!("Failed to serialize request: {}", e))
+            })?;
             let enqueue_req = EnqueueRequest {
                 job_type: params.job_type.to_string(),
-                payload: serde_json::to_value(&request).unwrap_or_default(),
+                payload,
                 max_attempts: Some(3),
                 delay_secs: None,
             };
@@ -155,28 +206,61 @@ pub async fn dispatch_and_reply(
                 }
                 Err(e) => {
                     tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to enqueue generation, refunding");
-                    let _ = db.add_balance(params.telegram_id, params.cost).await;
+                    match tokio::time::timeout(DB_TIMEOUT, db.add_balance(params.telegram_id, params.cost)).await {
+                        Ok(Ok(())) => {}
+                        Ok(Err(refund_err)) => {
+                            tracing::error!(telegram_id = params.telegram_id, error = %refund_err, "CRITICAL: Failed to refund balance after enqueue failure");
+                        }
+                        Err(_) => {
+                            tracing::warn!(telegram_id = params.telegram_id, "DB timeout refunding balance after enqueue failure");
+                        }
+                    }
                     let err_msg = if params.lang.is_russian() {
-                        format!("❌ Ошибка: {}", e)
+                        "❌ Не удалось отправить задачу. Попробуйте позже.".to_string()
                     } else {
-                        format!("❌ Error: {}", e)
+                        "❌ Could not submit task. Please try again later.".to_string()
                     };
-                    bot.send_message(chat_id, err_msg).await?;
+                    if let Err(e) = send_message_timeout(bot, chat_id, err_msg, None).await {
+                        tracing::warn!(chat_id = %chat_id, error = %e, "Failed to send enqueue-failure message");
+                    }
                 }
             }
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to create generation, refunding");
-            let _ = db.add_balance(params.telegram_id, params.cost).await;
+            match tokio::time::timeout(DB_TIMEOUT, db.add_balance(params.telegram_id, params.cost)).await {
+                Ok(Ok(())) => {}
+                Ok(Err(refund_err)) => {
+                    tracing::error!(telegram_id = params.telegram_id, error = %refund_err, "CRITICAL: Failed to refund balance after generation creation failure");
+                }
+                Err(_) => {
+                    tracing::warn!(telegram_id = params.telegram_id, "DB timeout refunding balance after generation creation failure");
+                }
+            }
             let err_msg = if params.lang.is_russian() {
-                format!("❌ Ошибка: {}", e)
+                "❌ Не удалось создать задачу. Попробуйте позже.".to_string()
             } else {
-                format!("❌ Error: {}", e)
+                "❌ Could not create task. Please try again later.".to_string()
             };
-            bot.send_message(chat_id, err_msg).await?;
+            if let Err(e) = send_message_timeout(bot, chat_id, err_msg, None).await {
+                tracing::warn!(chat_id = %chat_id, error = %e, "Failed to send create-generation-failure message");
+            }
+        }
+        Err(_) => {
+            tracing::warn!(telegram_id = params.telegram_id, "DB timeout creating generation");
+            let err_msg = if params.lang.is_russian() {
+                "❌ Не удалось создать задачу. Попробуйте позже.".to_string()
+            } else {
+                "❌ Could not create task. Please try again later.".to_string()
+            };
+            if let Err(e) = send_message_timeout(bot, chat_id, err_msg, None).await {
+                tracing::warn!(chat_id = %chat_id, error = %e, "Failed to send create-generation-timeout message");
+            }
         }
     }
 
-    dialogue.update(Scene::MainMenu).await?;
+    if let Err(e) = dialogue_update_timeout(dialogue, Scene::MainMenu).await {
+        tracing::warn!(chat_id = %chat_id, error = %e, "Failed to reset dialogue after dispatch");
+    }
     Ok(())
 }

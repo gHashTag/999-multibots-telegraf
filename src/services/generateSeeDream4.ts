@@ -317,8 +317,9 @@ export const generateSeeDream4 = async (
         fileSize: imageBuffer.length
       })
     } catch (downloadError) {
+      const originalMsg = downloadError instanceof Error ? downloadError.message : String(downloadError)
       console.error('🚨 [SeeDream4] Failed to download/save image:', downloadError)
-      throw new Error('Failed to process generated image')
+      throw new Error(`Failed to process generated image: ${originalMsg}`)
     }
 
     // ✅ СПИСАНИЕ ЗВЕЗД ПОСЛЕ УСПЕШНОЙ ГЕНЕРАЦИИ (или пропуск для welcome gift)
@@ -406,9 +407,10 @@ export const generateSeeDream4 = async (
       }
 
     } catch (saveError) {
+      const originalMsg = saveError instanceof Error ? saveError.message : String(saveError)
       console.error('🚨 [SeeDream4] Failed to save prompt:', saveError)
       // ❌ НЕ ВОЗВРАЩАЕМ - звезды уже списаны после успешной генерации
-      throw new Error('Failed to save generation record')
+      throw new Error(`Failed to save generation record: ${originalMsg}`)
     }
 
   } catch (error) {

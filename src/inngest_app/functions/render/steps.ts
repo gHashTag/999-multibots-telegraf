@@ -216,11 +216,12 @@ export async function renderFunction(
     }
 
     // Execute render via SSH
-    const sshService = new SSHService(
-      server.url,
-      server.user,
-      server.port
-    )
+    const sshService = new SSHService({
+      host: server.url,
+      username: server.user,
+      port: server.port,
+      privateKey: process.env.SSH_PRIVATE_KEY || '',
+    })
 
     await sshService.connect()
     // ... render execution logic
@@ -818,16 +819,18 @@ export async function updateJobLayers(
       .eq('status', 'completed')
       .single()
 
+    const { data: brollIdeaRows } = await supabase
+      .from('broll_ideas')
+      .select('id')
+      .eq('job_id', job_id)
+
+    const brollIdeaIdsForFilter = (brollIdeaRows || []).map((r: any) => r.id)
+
     const { data: brollVideos } = await supabase
       .from('broll_videos')
       .select('*')
       .eq('status', 'success')
-      .in('broll_idea_id',
-        supabase
-          .from('broll_ideas')
-          .select('id')
-          .eq('job_id', job_id)
-      )
+      .in('broll_idea_id', brollIdeaIdsForFilter)
 
     // Get current job with layer_settings
     const { data: job, error: jobError } = await supabase
@@ -1551,7 +1554,7 @@ export async function waitForHedraAvatarCompletion(
     // Upload to S3
     const object_key = `jobs/${job_id}/avatar.mp4`
     const s3Service = new S3Service()
-    await s3Service.uploadFile(object_key, videoBuffer, 'video/mp4')
+    await s3Service.uploadFile(object_key, 'video/mp4', videoBuffer)
 
     // Save to database
     const attachment_id = uuidv4()
@@ -1678,7 +1681,7 @@ export async function waitForHeyGenAvatarCompletion(
     // Upload to S3
     const object_key = `jobs/${job_id}/avatar.mp4`
     const s3Service = new S3Service()
-    await s3Service.uploadFile(object_key, videoBuffer, 'video/mp4')
+    await s3Service.uploadFile(object_key, 'video/mp4', videoBuffer)
 
     // Save to database
     const attachment_id = uuidv4()

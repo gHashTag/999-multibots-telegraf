@@ -3,25 +3,75 @@ use axum::response::IntoResponse;
 use axum::Form;
 use serde::Deserialize;
 use std::sync::Arc;
+use std::time::Duration;
 use trios_mb_types::payment::PaymentStatus;
+use trios_mb_types::truncate_for_log;
 use crate::AppState;
 
-#[derive(Debug, Deserialize)]
+const WEBHOOK_DB_TIMEOUT: Duration = Duration::from_secs(10);
+const MAX_INV_ID_LEN: usize = 128;
+const MAX_SIGNATURE_LEN: usize = 512;
+const MAX_OUT_SUM_LEN: usize = 32;
+const MAX_PAYMENT_AMOUNT: f64 = 100_000.0;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RobokassaCallbackForm {
     pub out_sum: String,
     pub inv_id: String,
     pub signature_value: String,
 }
 
+impl std::fmt::Debug for RobokassaCallbackForm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RobokassaCallbackForm")
+            .field("out_sum", &self.out_sum)
+            .field("inv_id", &self.inv_id)
+            .field("signature_value", &"[REDACTED]")
+            .finish()
+    }
+}
+
+#[tracing::instrument(skip(state, form), fields(inv_id = %truncate_for_log(&form.inv_id, 128)))]
 pub async fn robokassa_callback(
     State(state): State<Arc<AppState>>,
     Form(form): Form<RobokassaCallbackForm>,
 ) -> impl IntoResponse {
     tracing::info!(
-        inv_id = %form.inv_id,
-        amount = %form.out_sum,
+        inv_id = %truncate_for_log(&form.inv_id, 128),
+        amount = %truncate_for_log(&form.out_sum, 64),
         "Robokassa callback received"
     );
+
+    if form.inv_id.len() > MAX_INV_ID_LEN {
+        tracing::warn!(len = form.inv_id.len(), "Robokassa callback rejected: inv_id too long");
+        return "ERROR: invalid inv_id".to_string();
+    }
+    if form.signature_value.len() > MAX_SIGNATURE_LEN {
+        tracing::warn!(len = form.signature_value.len(), "Robokassa callback rejected: signature too long");
+        return "ERROR: invalid signature".to_string();
+    }
+    if form.out_sum.len() > MAX_OUT_SUM_LEN {
+        tracing::warn!(len = form.out_sum.len(), "Robokassa callback rejected: out_sum too long");
+        return "ERROR: invalid amount".to_string();
+    }
+
+    let out_sum_parsed: f64 = match form.out_sum.parse::<f64>() {
+        Ok(v) if v.is_finite() && v >= 0.0 => v,
+        Ok(v) => {
+            tracing::warn!(out_sum = %v, "Robokassa callback rejected: invalid amount");
+            return "ERROR: invalid amount".to_string();
+        }
+        Err(e) => {
+            tracing::warn!(out_sum = %truncate_for_log(&form.out_sum, 64), error = %e, "Robokassa callback rejected: amount parse error");
+            return "ERROR: invalid amount format".to_string();
+        }
+    };
+
+    if out_sum_parsed > MAX_PAYMENT_AMOUNT {
+        tracing::warn!(out_sum = %out_sum_parsed, max = %MAX_PAYMENT_AMOUNT, "Robokassa callback rejected: amount exceeds maximum allowed");
+        return "ERROR: amount exceeds maximum allowed".to_string();
+    }
 
     if let Some(gateway) = &state.payment_gateway {
         let params = serde_json::json!({
@@ -32,20 +82,91 @@ pub async fn robokassa_callback(
 
         match gateway.verify_callback(&params).await {
             Ok(verification) => {
-                if let Ok(tx_id) = uuid::Uuid::parse_str(&verification.transaction_id) {
-                    let _ = state.db.update_transaction_status(tx_id, PaymentStatus::Completed).await;
-                    if let Some(tid) = verification.telegram_id {
-                        let _ = state.db.add_balance(tid, verification.amount).await;
+                // Idempotency guard runs ONLY after signature verification succeeds,
+                // preventing cache poisoning by forged callbacks with invalid signatures.
+                match tokio::time::timeout(WEBHOOK_DB_TIMEOUT, state.db.record_webhook_event("robokassa", &form.inv_id)).await {
+                    Ok(Ok(true)) => {}, // new event, proceed
+                    Ok(Ok(false)) => {
+                        tracing::info!(inv_id = %truncate_for_log(&form.inv_id, 128), "Robokassa callback: duplicate event, skipping");
+                        return "OK".to_string();
+                    }
+                    Ok(Err(e)) => {
+                        tracing::error!(error = %e, inv_id = %truncate_for_log(&form.inv_id, 128), "Failed to record webhook event");
+                        return "ERROR: internal error".to_string();
+                    }
+                    Err(_) => {
+                        tracing::warn!(inv_id = %truncate_for_log(&form.inv_id, 128), "Webhook idempotency check timed out");
+                        return "ERROR: DB timeout".to_string();
                     }
                 }
-                "OK".to_string()
+
+                let external_id = &verification.transaction_id;
+
+                let tx = match tokio::time::timeout(
+                    WEBHOOK_DB_TIMEOUT,
+                    state.db.get_transaction_by_external_id(external_id)
+                ).await {
+                    Ok(Ok(Some(tx))) => tx,
+                    Ok(Ok(None)) => {
+                        tracing::warn!(external_id = %truncate_for_log(external_id, 128), "Robokassa callback: transaction not found");
+                        return "ERROR: transaction not found".to_string();
+                    }
+                    Ok(Err(e)) => {
+                        tracing::error!(error = %e, external_id = %truncate_for_log(external_id, 128), "Failed to load transaction");
+                        return "ERROR: internal error".to_string();
+                    }
+                    Err(_) => {
+                        tracing::warn!(external_id = %truncate_for_log(external_id, 128), "Transaction lookup timed out");
+                        return "ERROR: DB timeout".to_string();
+                    }
+                };
+
+                if let Some(tid) = verification.telegram_id {
+                    match tokio::time::timeout(
+                        WEBHOOK_DB_TIMEOUT,
+                        state.db.complete_robokassa_payment(tx.id, tid, verification.amount)
+                    ).await {
+                        Ok(Ok(true)) => {
+                            tracing::info!(tx_id = %tx.id, "Robokassa payment credited atomically");
+                            "OK".to_string()
+                        }
+                        Ok(Ok(false)) => {
+                            tracing::info!(tx_id = %tx.id, "Robokassa callback: transaction already completed; skipping");
+                            "OK".to_string()
+                        }
+                        Ok(Err(e)) => {
+                            tracing::error!(error = %e, tx_id = %tx.id, "Failed to complete Robokassa payment");
+                            "ERROR: internal error".to_string()
+                        }
+                        Err(_) => {
+                            tracing::warn!(tx_id = %tx.id, "Complete payment timed out");
+                            "Internal server error".to_string()
+                        }
+                    }
+                } else {
+                    match tokio::time::timeout(
+                        WEBHOOK_DB_TIMEOUT,
+                        state.db.update_transaction_status(tx.id, PaymentStatus::Completed)
+                    ).await {
+                        Ok(Ok(())) => "OK".to_string(),
+                        Ok(Err(e)) => {
+                            tracing::error!(error = %e, tx_id = %tx.id, "Failed to update transaction status");
+                            "ERROR: internal error".to_string()
+                        }
+                        Err(_) => {
+                            tracing::warn!(tx_id = %tx.id, "Update transaction status timed out");
+                            "Internal server error".to_string()
+                        }
+                    }
+                }
             }
             Err(e) => {
                 tracing::error!(error = %e, "Robokassa verification failed");
-                format!("ERROR: {}", e)
+                "Internal server error".to_string()
             }
         }
     } else {
-        "ERROR: no payment gateway".to_string()
+        tracing::error!("Robokassa callback received but no payment gateway configured");
+        "Internal server error".to_string()
     }
 }

@@ -16,7 +16,23 @@
 
 // Правильный импорт для Infisical SDK v4
 import { InfisicalSDK } from '@infisical/sdk'
-import { logger } from '@/utils/logger'
+
+// Simple logging function - avoid circular dependencies with esbuild
+function logInfo(message: string, meta?: any) {
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`[Infisical] ${message}`, meta || '')
+  } else {
+    console.info(`[Infisical] ${message}`, meta || '')
+  }
+}
+
+function logError(message: string, meta?: any) {
+  console.error(`[Infisical] ${message}`, meta || '')
+}
+
+function logWarn(message: string, meta?: any) {
+  console.warn(`[Infisical] ${message}`, meta || '')
+}
 
 // Интерфейс для секретов
 export interface SecretCache {
@@ -40,7 +56,7 @@ const environment = (process.env.INFISICAL_ENVIRONMENT || (isDev ? 'dev' : 'prod
  * Она загрузит все секреты в память для быстрого доступа.
  */
 export async function initInfisical(): Promise<void> {
-  logger.info('[Infisical] 🔐 Initializing cloud-first secret manager...')
+  logInfo('🔐 Initializing cloud-first secret manager...')
 
   // Проверяем наличие ТОЛЬКО credentials для Infisical
   const clientId = process.env.INFISICAL_CLIENT_ID
@@ -49,7 +65,7 @@ export async function initInfisical(): Promise<void> {
 
   if (!clientId || !clientSecret || !projectId) {
     const error = new Error('❌ CRITICAL: Infisical credentials missing! Application cannot start.')
-    logger.error('[Infisical] Missing required credentials:', {
+    logError('Missing required credentials:', {
       hasClientId: !!clientId,
       hasClientSecret: !!clientSecret,
       hasProjectId: !!projectId,
@@ -68,12 +84,12 @@ export async function initInfisical(): Promise<void> {
     })
 
     if (serviceToken) {
-      logger.info('[Infisical] Authenticating with Service Token...')
+      logInfo('Authenticating with Service Token...')
       // Используем accessToken метод для установки service token
       infisicalClient.auth().accessToken(serviceToken)
     } else {
       // Fallback: Авторизация через Universal Auth (Machine Identity)
-      logger.info('[Infisical] Authenticating with Universal Auth...')
+      logInfo('Authenticating with Universal Auth...')
       await infisicalClient.auth().universalAuth.login({
         clientId,
         clientSecret
@@ -81,19 +97,19 @@ export async function initInfisical(): Promise<void> {
     }
 
     isAuthenticated = true
-    logger.info('[Infisical] ✅ Authentication successful')
+    logInfo('✅ Authentication successful')
 
     // 🔥 ЗАГРУЖАЕМ ВСЕ СЕКРЕТЫ СРАЗУ В ПАМЯТЬ
     await loadAllSecrets()
 
-    logger.info('[Infisical] ✅ Cloud-first initialization complete', {
+    logInfo('✅ Cloud-first initialization complete', {
       projectId,
       environment,
       secretsLoaded: Object.keys(secretCache).length,
       siteUrl: process.env.INFISICAL_SITE_URL || 'https://app.infisical.com'
     })
   } catch (error) {
-    logger.error('[Infisical] ❌ Authentication failed:', {
+    logError('❌ Authentication failed:', {
       error: error instanceof Error ? error.message : String(error),
       errorName: error instanceof Error ? error.name : 'Unknown',
       projectId,
@@ -104,8 +120,15 @@ export async function initInfisical(): Promise<void> {
       siteUrl: process.env.INFISICAL_SITE_URL || 'https://app.infisical.com'
     })
 
-    const err = new Error(`❌ CRITICAL: Infisical authentication failed! ${error instanceof Error ? error.message : String(error)}`)
-    throw err
+    logError('⚠️ Infisical unavailable, falling back to process.env secrets')
+    isAuthenticated = false
+    secretCache = {}
+    for (const [key, value] of Object.entries(process.env)) {
+      if (key && value && !key.startsWith('INFISICAL_') && !key.startsWith('RAILWAY_')) {
+        secretCache[key] = value
+      }
+    }
+    logInfo(`✅ Loaded ${Object.keys(secretCache).length} secrets from process.env (Infisical fallback)`)
   }
 }
 
@@ -121,7 +144,7 @@ async function loadAllSecrets(): Promise<void> {
   const projectId = process.env.INFISICAL_PROJECT_ID!
 
   try {
-    logger.info('[Infisical] 📥 Loading all secrets from cloud...')
+    logInfo('📥 Loading all secrets from cloud...')
 
     // Получаем ВСЕ секреты из root path (правильный метод для SDK v4)
     const result = await infisicalClient.secrets().listSecrets({
@@ -152,7 +175,7 @@ async function loadAllSecrets(): Promise<void> {
       secretCache[secret.secretKey] = secret.secretValue
       // 🔥 CRITICAL: Не перезаписываем Fly.io секреты
       if (flySecrets.has(secret.secretKey) && flySecretValues[secret.secretKey]) {
-        logger.info(`[Infisical] ⚠️ Preserving Fly.io secret: ${secret.secretKey}`)
+        console.log(`[Infisical] ⚠️ Preserving Fly.io secret: ${secret.secretKey}`)
         continue
       }
       // Также записываем в process.env для совместимости
@@ -164,7 +187,7 @@ async function loadAllSecrets(): Promise<void> {
     const criticalKeys = ['INNGEST_EVENT_KEY', 'INNGEST_SIGNING_KEY', 'SUPABASE_SERVICE_KEY']
     const missingCritical = criticalKeys.filter(k => !secretCache[k])
 
-    logger.info('[Infisical] ✅ All secrets loaded into memory and process.env', {
+    logInfo('✅ All secrets loaded into memory and process.env', {
       count: result.secrets.length,
       keys: Object.keys(secretCache).slice(0, 10).join(', ') + '...',
       inngestKeys: {
@@ -176,13 +199,13 @@ async function loadAllSecrets(): Promise<void> {
     })
 
     if (missingCritical.length > 0) {
-      logger.warn('[Infisical] ⚠️ Missing critical secrets!', {
+      logWarn('⚠️ Missing critical secrets!', {
         missing: missingCritical,
         hint: 'Add these secrets to Infisical'
       })
     }
   } catch (error) {
-    logger.error('[Infisical] ❌ Failed to load secrets', {
+    logError('❌ Failed to load secrets', {
       error: error instanceof Error ? error.message : String(error)
     })
     throw error
@@ -200,7 +223,7 @@ export function getSecret(secretName: string): string {
   const value = secretCache[secretName]
 
   if (value === undefined) {
-    logger.error(`[Infisical] ❌ Secret "${secretName}" not found in cache!`, {
+    logError(`❌ Secret "${secretName}" not found in cache!`, {
       availableSecrets: Object.keys(secretCache).length,
       requestedSecret: secretName
     })
@@ -221,7 +244,7 @@ export function getSecretOrDefault(secretName: string, defaultValue: string): st
   const value = secretCache[secretName]
 
   if (value === undefined) {
-    logger.warn(`[Infisical] ⚠️ Secret "${secretName}" not found, using default value`)
+    logWarn(`⚠️ Secret "${secretName}" not found, using default value`)
     return defaultValue
   }
 
@@ -249,7 +272,7 @@ export function getSecrets(secretNames: string[]): Record<string, string> {
   }
 
   if (missingSecrets.length > 0) {
-    logger.error(`[Infisical] ❌ Missing secrets:`, {
+    logError(`❌ Missing secrets:`, {
       missing: missingSecrets,
       available: Object.keys(secretCache).length
     })
@@ -264,9 +287,9 @@ export function getSecrets(secretNames: string[]): Record<string, string> {
  * Используйте если секреты были обновлены в Infisical
  */
 export async function reloadSecrets(): Promise<void> {
-  logger.info('[Infisical] 🔄 Reloading secrets from cloud...')
+  console.log('[Infisical] 🔄 Reloading secrets from cloud...')
   await loadAllSecrets()
-  logger.info('[Infisical] ✅ Secrets reloaded successfully')
+  console.log('[Infisical] ✅ Secrets reloaded successfully')
 }
 
 /**

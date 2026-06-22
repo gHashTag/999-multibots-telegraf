@@ -1,11 +1,10 @@
 import { inngest } from '@/inngest_app/client'
 import { updateUserBalance } from '@/core/supabase'
-import { sendPaymentNotification } from '@/price/helpers'
-import { createBotByName } from '@/config'
+import { createBotByName } from '@/core/bot'
 import { getTelegramIdFromInvId } from '@/core/supabase'
 import { errorMessageAdmin } from '@/helpers/error/errorMessageAdmin'
 import { errorMessage } from '@/helpers'
-import { defaultBot } from '@/config'
+import { defaultBot } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
@@ -67,7 +66,7 @@ export const processPayment = inngest.createFunction(
     retries: 3, // Автоматические повторы при сбоях
     onFailure: async ({ error }) => {
       console.log('❌ Ошибка обработки платежа:', error)
-      errorMessageAdmin(error)
+      errorMessageAdmin(null, error)
       return { error: error.message }
     },
   },
@@ -145,7 +144,7 @@ export const processPayment = inngest.createFunction(
 
         // 4. Получаем токен и групповой ID для бота
         const botConfig = await step.run('get-bot-config', async () => {
-          const botData = createBotByName(bot_name)
+          const botData = await createBotByName(bot_name)
           if (!botData) {
             throw new Error(`Не удалось создать бота для ${bot_name}`)
           }
@@ -198,16 +197,13 @@ export const processPayment = inngest.createFunction(
 
           const bot = new Telegraf<MyContext>(botToken)
 
-          // Используем функцию sendPaymentNotification
-          await sendPaymentNotification({
-            amount: roundedIncSum.toString(),
-            stars,
-            telegramId: telegram_id.toString(),
-            language_code,
-            username,
-            groupId: botConfig.groupId,
-            bot,
-          })
+          // Отправляем уведомление об оплате
+          const caption =
+            language_code === 'ru'
+              ? `💸 Пользователь @${username || 'Пользователь без username'} (Telegram ID: ${telegram_id}) оплатил ${roundedIncSum} рублей и получил ${stars} звезд.`
+              : `💸 User @${username || 'User without username'} (Telegram ID: ${telegram_id}) paid ${roundedIncSum} RUB and received ${stars} stars.`
+
+          await bot.telegram.sendMessage('-4166575919', caption)
 
           console.log('📨 processPayment: уведомление отправлено')
           return { success: true }
@@ -257,14 +253,14 @@ export const processPayment = inngest.createFunction(
         const { telegram_id, language_code } = await getTelegramIdFromInvId(
           inv_id
         )
-        errorMessage(error as Error, telegram_id, language_code === 'ru')
-        errorMessageAdmin(error as Error)
+        errorMessage(null, error as Error, language_code === 'ru')
+        errorMessageAdmin(null, error as Error)
       } catch (innerError) {
         console.log(
           '❌ processPayment: ошибка при получении telegram_id',
           innerError
         )
-        errorMessageAdmin(innerError as Error)
+        errorMessageAdmin(null, innerError as Error)
       }
 
       throw error // Перебрасываем ошибку для активации механизма повторных попыток

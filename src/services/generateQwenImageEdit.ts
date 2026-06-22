@@ -65,6 +65,9 @@ export const generateQwenImageEdit = async (
     is_ru: params.is_ru,
   })
 
+  // Объявляем переменные до try для доступности в catch
+  let totalCost = 0
+
   try {
     const {
       prompt,
@@ -123,7 +126,7 @@ export const generateQwenImageEdit = async (
 
     // ✅ Calculate cost (cheapest model!)
     const costPerImage = QWEN_IMAGE_EDIT_MODEL.costPerImage
-    const totalCost = costPerImage
+    totalCost = costPerImage
 
     logger.info('💰 [QwenImageEdit] Cost calculation:', {
       telegram_id,
@@ -206,7 +209,7 @@ export const generateQwenImageEdit = async (
       })
 
       // ✅ Refund user on API failure (silent mode if needed)
-      await refundUser(ctx, totalCost, params.silent || false)
+      await refundUser(params.ctx, totalCost, params.silent || false)
 
       throw error
     }
@@ -324,6 +327,22 @@ export const generateQwenImageEdit = async (
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     })
+
+    // ✅ Refund on any outer error (if not already refunded in inner catch)
+    try {
+      if (totalCost > 0 && params.ctx) {
+        await refundUser(params.ctx, totalCost, params.silent || false)
+        logger.info('💰 Balance refunded after QwenImageEdit error', {
+          telegram_id: params.telegram_id,
+          refundAmount: totalCost,
+        })
+      }
+    } catch (refundError) {
+      logger.error('Failed to refund after QwenImageEdit error', {
+        telegram_id: params.telegram_id,
+        refundError: refundError instanceof Error ? refundError.message : 'Unknown',
+      })
+    }
 
     throw error
   }

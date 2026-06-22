@@ -1,13 +1,18 @@
 use std::sync::Arc;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage};
 use teloxide::prelude::*;
+use tokio::time::{timeout, Duration};
 use trios_mb_traits::Database;
 use trios_mb_tg::state::Scene;
 use trios_mb_tg::HandlerResult;
 use crate::generation_utils::{load_lang, return_to_menu};
+use trios_mb_tg::send_message_timeout;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const TELEGRAM_API_TIMEOUT: Duration = Duration::from_secs(10);
+
+#[tracing::instrument(skip_all)]
 pub async fn handle_instagram_parser_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -17,14 +22,83 @@ pub async fn handle_instagram_parser_msg(
     let lang = load_lang(&db, &msg).await;
     let chat_id = msg.chat.id;
 
-    if msg.text().is_none() {
-        bot.send_message(chat_id, if lang.is_russian() { "Отправьте ссылку на Instagram профиль" } else { "Send an Instagram profile link" }).await?;
+    let profile_url = match msg.text() {
+        Some(t) => t.to_string(),
+        None => {
+            let text = if lang.is_russian() { "Отправьте ссылку на Instagram профиль" } else { "Send an Instagram profile link" };
+            send_message_timeout(&bot, chat_id, text, None).await?;
+            return Ok(());
+        }
+    };
+
+    if profile_url.trim().is_empty() {
+        let err = if lang.is_russian() { "❌ Пустая ссылка не допускается." } else { "❌ Empty link is not allowed." };
+        send_message_timeout(&bot, chat_id, err, None).await?;
         return Ok(());
     }
 
-    let profile_url = msg.text().unwrap().to_string();
-    if !profile_url.contains("instagram.com") {
-        bot.send_message(chat_id, if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram." } else { "❌ Invalid link. Send an Instagram link." }).await?;
+    if profile_url.len() > 4000 {
+        let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
+        send_message_timeout(&bot, chat_id, err, None).await?;
+        return Ok(());
+    }
+
+    let parsed_url = match url::Url::parse(&profile_url) {
+        Ok(u) => u,
+        Err(_) => {
+            let err = if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram." } else { "❌ Invalid link. Send an Instagram link." };
+            send_message_timeout(&bot, chat_id, err, None).await?;
+            return Ok(());
+        }
+    };
+
+    match parsed_url.scheme() {
+        "http" | "https" => {}
+        _ => {
+            let err = if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram." } else { "❌ Invalid link. Send an Instagram link." };
+            send_message_timeout(&bot, chat_id, err, None).await?;
+            return Ok(());
+        }
+    }
+
+    let host_ok = parsed_url.host_str().map_or(false, |host| {
+        let lower = host.to_lowercase();
+        lower == "instagram.com" || lower == "www.instagram.com"
+    });
+    if !host_ok {
+        let err = if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram." } else { "❌ Invalid link. Send an Instagram link." };
+        send_message_timeout(&bot, chat_id, err, None).await?;
+        return Ok(());
+    }
+
+    if !parsed_url.username().is_empty() || parsed_url.password().is_some() {
+        let err = if lang.is_russian() { "❌ Неверная ссылка. Отправьте ссылку на Instagram." } else { "❌ Invalid link. Send an Instagram link." };
+        send_message_timeout(&bot, chat_id, err, None).await?;
+        return Ok(());
+    }
+
+    let telegram_id = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
+    if telegram_id == 0 {
+        tracing::warn!("Missing telegram_id; aborting handler");
+        return Ok(());
+    }
+
+    let me = match timeout(TELEGRAM_API_TIMEOUT, bot.get_me()).await {
+        Ok(Ok(u)) => u,
+        Ok(Err(e)) => {
+            tracing::warn!("Failed to get bot info: {}", e);
+            return Ok(());
+        }
+        Err(_) => {
+            tracing::warn!("bot.get_me() timed out");
+            return Ok(());
+        }
+    };
+    let bot_name = me.user.username.as_deref().unwrap_or("");
+    if !trios_mb_tg::access::has_parsing_access(telegram_id, bot_name) {
+        tracing::warn!(%telegram_id, %bot_name, "User lacks parsing access for instagram_parser");
+        let err = if lang.is_russian() { "❌ Нет доступа." } else { "❌ Access denied." };
+        send_message_timeout(&bot, chat_id, err, None).await?;
         return Ok(());
     }
 
@@ -33,6 +107,6 @@ pub async fn handle_instagram_parser_msg(
     } else {
         format!("📊 Analyzing profile...\n\n{}\n\nThis feature is under development. Coming soon!", profile_url)
     };
-    bot.send_message(chat_id, text).await?;
+    send_message_timeout(&bot, chat_id, text, None).await?;
     return_to_menu(&bot, &dialogue, chat_id, lang).await
 }

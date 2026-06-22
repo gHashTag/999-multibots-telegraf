@@ -1,11 +1,105 @@
+use secrecy::ExposeSecret;
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::{debug, error, info, warn};
 use trios_mb_types::config::AppConfig;
 use trios_mb_traits::{SecretStore, Database, PaymentGateway, AiProvider, AiProviderOrchestrator, JobQueue};
 use trios_mb_ai::providers::*;
 use trios_mb_ai::AiOrchestrator;
 use trios_mb_jobs::worker::{WorkerPool, JobType};
 use teloxide::prelude::Requester;
+use futures_util::FutureExt;
+
+/// Spawn a background task with panic-aware supervision and exponential backoff.
+/// If the inner task panics, it is logged and restarted with a capped exponential delay.
+/// After `max_consecutive_failures` consecutive panics, the supervisor escalates to fatal.
+fn spawn_traced<F, Fut>(
+    desc: &'static str,
+    cancel: tokio_util::sync::CancellationToken,
+    factory: F,
+) -> tokio::task::JoinHandle<()>
+where
+    F: Fn() -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = ()> + Send + 'static,
+{
+    tokio::spawn(async move {
+        let mut consecutive_failures: u32 = 0;
+        let mut last_failure: Option<std::time::Instant> = None;
+        const MAX_CONSECUTIVE_FAILURES: u32 = 10;
+        const BASE_BACKOFF_SECS: u64 = 5;
+        const MAX_BACKOFF_SECS: u64 = 60;
+        const RESTART_RATE_WINDOW_SECS: u64 = 60;
+        const FAILURE_RESET_SECS: u64 = 300; // 5 minutes of healthy uptime resets the streak
+        let mut last_restart: Option<std::time::Instant> = None;
+        let mut restarts_in_window: u32 = 0;
+
+        loop {
+            // Time-decay reset: transient panics spread across hours/days should not
+            // permanently accumulate to the fatal limit. Following Erlang/Akka pattern
+            // (intensity within a period) rather than a monotonic counter.
+            let now = std::time::Instant::now();
+            if last_failure.map_or(false, |t| now.duration_since(t).as_secs() >= FAILURE_RESET_SECS) {
+                consecutive_failures = 0;
+            }
+
+            tokio::select! {
+                biased;
+                _ = cancel.cancelled() => {
+                    tracing::info!(task = %desc, "Supervised task shutting down gracefully");
+                    break;
+                }
+                result = std::panic::AssertUnwindSafe(factory()).catch_unwind() => {
+                    match result {
+                        Ok(()) => {
+                            tracing::info!(task = %desc, "Supervised task completed normally");
+                            break;
+                        }
+                        Err(_) => {
+                            consecutive_failures += 1;
+                            last_failure = Some(now);
+                            if let Some(last) = last_restart {
+                                if now.duration_since(last).as_secs() < RESTART_RATE_WINDOW_SECS {
+                                    restarts_in_window += 1;
+                                    if restarts_in_window >= 3 {
+                                        tracing::warn!(
+                                            task = %desc,
+                                            restarts_in_window,
+                                            "Supervised task restarting rapidly; possible root cause not resolved"
+                                        );
+                                    }
+                                } else {
+                                    restarts_in_window = 1;
+                                }
+                            } else {
+                                restarts_in_window = 1;
+                            }
+                            last_restart = Some(now);
+
+                            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
+                                tracing::error!(
+                                    task = %desc,
+                                    failures = consecutive_failures,
+                                    "Supervised task exceeded max consecutive failures; giving up"
+                                );
+                                break;
+                            }
+                            let backoff = std::cmp::min(
+                                BASE_BACKOFF_SECS * 2_u64.pow(consecutive_failures.min(4)),
+                                MAX_BACKOFF_SECS,
+                            );
+                            tracing::error!(
+                                task = %desc,
+                                failures = consecutive_failures,
+                                backoff_secs = backoff,
+                                "Supervised task panicked; restarting with backoff"
+                            );
+                            tokio::time::sleep(std::time::Duration::from_secs(backoff)).await;
+                        }
+                    }
+                }
+            }
+        }
+    })
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -23,10 +117,10 @@ async fn main() -> anyhow::Result<()> {
     // 1. Secrets
     let secret_store = Arc::new(trios_mb_secrets::InfisicalStore::new(
         &config.infisical_client_id,
-        &config.infisical_client_secret,
+        config.infisical_client_secret.expose_secret(),
         &config.infisical_project_id,
         &config.infisical_environment,
-    ));
+    )?);
     info!("loading secrets from Infisical...");
     secret_store.reload().await?;
     info!("secrets loaded");
@@ -46,40 +140,93 @@ async fn main() -> anyhow::Result<()> {
     info!("AI orchestrator initialized");
 
     // 4. Payment gateways
-    let robokassa_login = secret_store.get("ROBOKASSA_MERCHANT_LOGIN").await.unwrap_or_default();
-    let robokassa_pw1 = secret_store.get("ROBOKASSA_PASSWORD1").await.unwrap_or_default();
-    let robokassa_pw2 = secret_store.get("ROBOKASSA_PASSWORD2").await.unwrap_or_default();
+    let robokassa_login = secret_store.get("ROBOKASSA_MERCHANT_LOGIN").await?;
+    if robokassa_login.is_empty() {
+        anyhow::bail!("ROBOKASSA_MERCHANT_LOGIN is required but empty");
+    }
+    let robokassa_pw1 = secret_store.get("ROBOKASSA_PASSWORD1").await?;
+    if robokassa_pw1.is_empty() {
+        anyhow::bail!("ROBOKASSA_PASSWORD1 is required but empty");
+    }
+    let robokassa_pw2 = secret_store.get("ROBOKASSA_PASSWORD2").await?;
+    if robokassa_pw2.is_empty() {
+        anyhow::bail!("ROBOKASSA_PASSWORD2 is required but empty");
+    }
     let payment_gateway: Arc<dyn PaymentGateway> = Arc::new(
         trios_mb_payment::RobokassaGateway::new(&robokassa_login, &robokassa_pw1, &robokassa_pw2)
     );
+
+    let cancel_token = tokio_util::sync::CancellationToken::new();
 
     // 5. HTTP Server with webhooks
     let server_db = db.clone();
     let server_gw = payment_gateway.clone();
     let http_port = config.http_port;
-    let server_handle = tokio::spawn(async move {
-        let router = trios_mb_server::create_router_with_payments(server_db, server_gw);
-        let addr = std::net::SocketAddr::from(([0, 0, 0, 0], http_port));
-        info!(addr = %addr, "HTTP server starting");
-        axum::serve(tokio::net::TcpListener::bind(addr).await.unwrap(), router)
-            .await
-            .unwrap();
-    });
+    let server_cancel = cancel_token.clone();
+    let server_handle = spawn_traced(
+        "http-server",
+        cancel_token.clone(),
+        move || {
+            let server_db = server_db.clone();
+            let server_gw = server_gw.clone();
+            let http_port = http_port;
+            let server_cancel = server_cancel.clone();
+            async move {
+                let router = match trios_mb_server::create_router_with_payments(server_db, server_gw) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        tracing::error!(error = %e, "Failed to create HTTP router; aborting server task");
+                        return;
+                    }
+                };
+                let addr = std::net::SocketAddr::from(([0, 0, 0, 0], http_port));
+                info!(addr = %addr, "HTTP server starting");
+                let listener = match tokio::net::TcpListener::bind(addr).await {
+                    Ok(l) => l,
+                    Err(e) => {
+                        tracing::error!(addr = %addr, error = %e, "Failed to bind HTTP listener");
+                        return;
+                    }
+                };
+                let serve = axum::serve(listener, router);
+                tokio::select! {
+                    biased;
+                    _ = server_cancel.cancelled() => {
+                        tracing::info!("HTTP server shutting down gracefully");
+                    }
+                    result = std::future::IntoFuture::into_future(serve) => {
+                        if let Err(e) = result {
+                            tracing::error!(addr = %addr, error = %e, "HTTP server error");
+                        }
+                    }
+                }
+            }
+        },
+    );
 
     // 6. Background Job Workers
     let job_queue: Arc<dyn JobQueue> = Arc::new(
         trios_mb_jobs::PgJobQueue::new(pg_conn)
     );
 
-    let cancel_token = tokio_util::sync::CancellationToken::new();
-    let cancel_clone = cancel_token.clone();
-    let jq = job_queue.clone();
-    let maintenance_handle = tokio::spawn(async move {
-        trios_mb_jobs::run_retry_maintenance(jq, std::time::Duration::from_secs(300), cancel_clone).await;
-    });
+    let maintenance_handle = {
+        let jq = job_queue.clone();
+        let cancel = cancel_token.child_token();
+        let cancel_token_clone = cancel_token.clone();
+        spawn_traced("retry_maintenance", cancel, move || {
+            let jq = jq.clone();
+            let cancel = cancel_token_clone.child_token();
+            async move {
+                trios_mb_jobs::run_retry_maintenance(jq, std::time::Duration::from_secs(300), cancel).await;
+            }
+        })
+    };
 
     // Primary bot for result delivery
-    let primary_bot_token = secret_store.get("BOT_TOKEN_1").await.unwrap_or_default();
+    let primary_bot_token = secret_store.get("BOT_TOKEN_1").await?;
+    if primary_bot_token.is_empty() {
+        anyhow::bail!("BOT_TOKEN_1 is required but empty");
+    }
     let delivery_bot: Arc<teloxide::Bot> = Arc::new(teloxide::Bot::new(&primary_bot_token));
 
     let worker_pool = build_worker_pool(job_queue.clone(), orchestrator.clone(), db.clone(), delivery_bot.clone());
@@ -94,20 +241,53 @@ async fn main() -> anyhow::Result<()> {
         job_queue.clone(),
     );
 
-    let mut bot_handles = Vec::new();
+    let mut bot_handles: Vec<(tokio_util::sync::CancellationToken, tokio::task::JoinHandle<()>)> = Vec::new();
     for i in 1..=15 {
         let key = format!("BOT_TOKEN_{}", i);
         match secret_store.get(&key).await {
             Ok(token) if !token.is_empty() => {
                 info!(bot = i, token_key = %key, "spawning bot");
                 let bot = teloxide::Bot::new(&token);
-                let dp = dispatcher.build_dispatcher(bot, trios_mb_scenes::build_scene_tree());
-                let handle = tokio::spawn(async move {
-                    info!(bot = i, "bot dispatcher starting (polling)");
-                    let mut dp = dp;
-                    dp.dispatch().await;
+                let dp_builder = dispatcher.clone();
+                let bot_cancel = cancel_token.child_token();
+                let bot_cancel_clone_for_closure = bot_cancel.clone();
+                let desc: &'static str = Box::leak(format!("bot-{}", i).into_boxed_str());
+                let bot_cancel_spawn = bot_cancel.clone();
+                let handle = spawn_traced(desc, bot_cancel_spawn, move || {
+                    let bot = bot.clone();
+                    let dp_builder = dp_builder.clone();
+                    let bot_cancel_inner = bot_cancel_clone_for_closure.clone();
+                    async move {
+                        let mut backoff_secs = 5u64;
+                        let mut restart_count = 0u32;
+                        const MAX_RESTARTS: u32 = 20;
+                        loop {
+                            let cancel_child = bot_cancel_inner.child_token();
+                            let mut dp = dp_builder.build_dispatcher(
+                                bot.clone(),
+                                trios_mb_scenes::build_scene_tree(),
+                            );
+                            tokio::select! {
+                                biased;
+                                _ = cancel_child.cancelled() => {
+                                    tracing::info!(bot = i, "bot dispatcher shutting down gracefully");
+                                    break;
+                                }
+                                _ = dp.dispatch() => {
+                                    restart_count += 1;
+                                    if restart_count >= MAX_RESTARTS {
+                                        tracing::error!(bot = i, restarts = restart_count, "Dispatcher exceeded max restarts; giving up");
+                                        break;
+                                    }
+                                    tracing::warn!(bot = i, restart = restart_count, "Dispatcher stopped normally; restarting in {}s", backoff_secs);
+                                    tokio::time::sleep(std::time::Duration::from_secs(backoff_secs)).await;
+                                    backoff_secs = std::cmp::min(backoff_secs.saturating_mul(2), 60);
+                                }
+                            }
+                        }
+                    }
                 });
-                bot_handles.push(handle);
+                bot_handles.push((bot_cancel, handle));
             }
             Ok(_) => warn!(bot = i, "empty token, skipping"),
             Err(_) => warn!(bot = i, "token not found, skipping"),
@@ -126,8 +306,19 @@ async fn main() -> anyhow::Result<()> {
     worker_pool.shutdown();
     info!("shutting down workers...");
 
-    for handle in bot_handles {
-        handle.abort();
+    for (bot_cancel, handle) in bot_handles {
+        bot_cancel.cancel();
+        match tokio::time::timeout(std::time::Duration::from_secs(5), handle).await {
+            Ok(Ok(())) => debug!("bot task exited cleanly"),
+            Ok(Err(join_err)) => {
+                if join_err.is_panic() {
+                    error!("bot task panicked during shutdown: {}", join_err);
+                } else {
+                    error!("bot task cancelled during shutdown: {}", join_err);
+                }
+            }
+            Err(_elapsed) => warn!("bot task shutdown timed out after 5s"),
+        }
     }
 
     maintenance_handle.abort();
@@ -136,6 +327,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[tracing::instrument(skip(secrets))]
 async fn build_orchestrator(
     secrets: &Arc<trios_mb_secrets::InfisicalStore>,
 ) -> AiOrchestrator {
@@ -143,43 +335,64 @@ async fn build_orchestrator(
 
     if let Ok(key) = secrets.get("REPLICATE_API_KEY").await {
         if !key.is_empty() {
-            providers.push(Arc::new(ReplicateProvider::new(&key)));
+            match ReplicateProvider::new(&key) {
+                Ok(p) => providers.push(Arc::new(p)),
+                Err(e) => warn!("Failed to build ReplicateProvider: {}", e),
+            }
         }
     }
 
     if let Ok(key) = secrets.get("FAL_KEY").await {
         if !key.is_empty() {
-            providers.push(Arc::new(FalProvider::new(&key)));
+            match FalProvider::new(&key) {
+                Ok(p) => providers.push(Arc::new(p)),
+                Err(e) => warn!("Failed to build FalProvider: {}", e),
+            }
         }
     }
 
     if let Ok(key) = secrets.get("KIE_API_KEY").await {
         if !key.is_empty() {
-            providers.push(Arc::new(KieProvider::new(&key)));
+            match KieProvider::new(&key) {
+                Ok(p) => providers.push(Arc::new(p)),
+                Err(e) => warn!("Failed to build KieProvider: {}", e),
+            }
         }
     }
 
     if let Ok(key) = secrets.get("OPENAI_API_KEY").await {
         if !key.is_empty() {
-            providers.push(Arc::new(OpenAiProvider::new(&key)));
+            match OpenAiProvider::new(&key) {
+                Ok(p) => providers.push(Arc::new(p)),
+                Err(e) => warn!("Failed to build OpenAiProvider: {}", e),
+            }
         }
     }
 
     if let Ok(key) = secrets.get("ELEVENLABS_API_KEY").await {
         if !key.is_empty() {
-            providers.push(Arc::new(ElevenLabsProvider::new(&key)));
+            match ElevenLabsProvider::new(&key) {
+                Ok(p) => providers.push(Arc::new(p)),
+                Err(e) => warn!("Failed to build ElevenLabsProvider: {}", e),
+            }
         }
     }
 
     if let Ok(key) = secrets.get("HEYGEN_API_KEY").await {
         if !key.is_empty() {
-            providers.push(Arc::new(HeyGenProvider::new(&key)));
+            match HeyGenProvider::new(&key) {
+                Ok(p) => providers.push(Arc::new(p)),
+                Err(e) => warn!("Failed to build HeyGenProvider: {}", e),
+            }
         }
     }
 
     if let Ok(key) = secrets.get("HEDRA_API_KEY").await {
         if !key.is_empty() {
-            providers.push(Arc::new(HedraProvider::new(&key)));
+            match HedraProvider::new(&key) {
+                Ok(p) => providers.push(Arc::new(p)),
+                Err(e) => warn!("Failed to build HedraProvider: {}", e),
+            }
         }
     }
 
@@ -223,9 +436,13 @@ fn build_worker_pool(
     register_handler!(pool, JobType::MorphingRendering, handle_generation_job);
 
     pool.register(JobType::Scraping, Box::new(move |job: trios_mb_traits::job_queue::Job| {
-        let payload = job.payload;
+        let payload_len = job.payload.to_string().len();
         Box::pin(async move {
-            tracing::info!(payload = %payload, "Scraping job executed (stub)");
+            tracing::info!(
+                job_type = "scraping",
+                payload_len = payload_len,
+                "Scraping job executed (stub)"
+            );
             Ok::<_, trios_mb_types::AppError>(())
         }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), trios_mb_types::AppError>> + Send>>
     }) as JobHandler);
@@ -233,6 +450,7 @@ fn build_worker_pool(
     pool
 }
 
+#[tracing::instrument(skip(orchestrator, db, bot, job), fields(job_id = %job.id))]
 async fn handle_generation_job(
     orchestrator: &Arc<dyn AiProviderOrchestrator>,
     db: &Arc<dyn Database>,
@@ -241,30 +459,57 @@ async fn handle_generation_job(
 ) -> Result<(), trios_mb_types::AppError> {
     use trios_mb_types::generation::*;
 
+    // Wave 151: reject malformed job payloads instead of silently defaulting
     let request = serde_json::from_value::<GenerationRequest>(job.payload.clone())
-        .unwrap_or_else(|_| GenerationRequest {
-            telegram_id: 0,
-            media_type: MediaType::Image,
-            prompt: None,
-            image_url: None,
-            model: None,
-            params: serde_json::json!({}),
-        });
+        .map_err(|e| {
+            tracing::error!(job_id = %job.id, error = %e, "Failed to deserialize generation request");
+            trios_mb_types::AppError::Validation(format!("Invalid job payload: {}", e))
+        })?;
+
+    if request.telegram_id <= 0 {
+        tracing::warn!(job_id = %job.id, telegram_id = request.telegram_id, "Rejecting job with invalid telegram_id");
+        return Err(trios_mb_types::AppError::Validation("Invalid telegram_id".into()));
+    }
 
     let cost: f64 = request.params.get("cost")
         .and_then(|v| v.as_f64())
+        .filter(|v| v.is_finite())
         .unwrap_or(0.0);
+
+    let generation_id = request.params.get("generation_id")
+        .and_then(|v| v.as_str())
+        .and_then(|s| uuid::Uuid::parse_str(s).ok());
 
     match orchestrator.dispatch(&request).await {
         Ok(result) => {
-            if let Err(e) = db.update_generation_status(
-                job.id, GenerationStatus::Completed,
-                result.result_url.as_deref(), None,
-            ).await {
-                tracing::error!(error = %e, "Failed to update generation status");
+            // Validate provider result_url before persisting (outbound path guard)
+            let validated_url = result.result_url.as_deref().and_then(|url| {
+                match trios_mb_types::validate_result_url(url) {
+                    Ok(()) => Some(url),
+                    Err(reason) => {
+                        tracing::warn!(
+                            generation_id = ?generation_id,
+                            url = %trios_mb_types::truncate_for_log(url, 128),
+                            reason = %reason,
+                            "Provider returned invalid result_url; rejecting"
+                        );
+                        None
+                    }
+                }
+            });
+
+            if let Some(gen_id) = generation_id {
+                if let Err(e) = db.update_generation_status_owned(
+                    gen_id, request.telegram_id, GenerationStatus::Completed,
+                    validated_url, None,
+                ).await {
+                    tracing::error!(generation_id = %gen_id, error = %e, "Failed to update generation status");
+                }
+            } else {
+                tracing::warn!(job_id = %job.id, "Missing generation_id in job payload; skipping status update");
             }
 
-            if let Some(ref url) = result.result_url {
+            if let Some(url) = validated_url {
                 let chat_id = teloxide::types::ChatId(request.telegram_id);
                 let msg = format!("✅ Результат готов!\n\n{}", url);
                 if let Err(e) = bot.send_message(chat_id, &msg).await {
@@ -283,9 +528,15 @@ async fn handle_generation_job(
                 }
             }
 
-            let _ = db.update_generation_status(
-                job.id, GenerationStatus::Failed, None, Some(&e.to_string()),
-            ).await;
+            if let Some(gen_id) = generation_id {
+                if let Err(db_err) = db.update_generation_status_owned(
+                    gen_id, request.telegram_id, GenerationStatus::Failed, None, Some(&e.to_string()),
+                ).await {
+                    tracing::error!(generation_id = %gen_id, error = %db_err, "Failed to persist generation failure status");
+                }
+            } else {
+                tracing::warn!(job_id = %job.id, "Missing generation_id in job payload; skipping failure status update");
+            }
 
             let chat_id = teloxide::types::ChatId(request.telegram_id);
             let err_msg = format!("❌ Ошибка генерации. Средства возвращены ({} ⭐).", cost);

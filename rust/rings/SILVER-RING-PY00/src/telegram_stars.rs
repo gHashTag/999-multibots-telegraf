@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use trios_mb_traits::{PaymentGateway, PaymentInit, PaymentVerification};
 use trios_mb_types::payment::*;
 use trios_mb_types::AppError;
+use trios_mb_types::Money;
 
 pub struct TelegramStarsGateway;
 
@@ -19,7 +20,16 @@ impl TelegramStarsGateway {
 impl PaymentGateway for TelegramStarsGateway {
     fn method(&self) -> PaymentMethod { PaymentMethod::TelegramStars }
 
+    #[tracing::instrument(skip_all)]
     async fn create_payment(&self, telegram_id: i64, amount: f64, _description: &str) -> Result<PaymentInit, AppError> {
+        if !amount.is_finite() || amount <= 0.0 {
+            return Err(AppError::Validation(format!(
+                "Telegram Stars amount must be finite and > 0: {}",
+                amount
+            )));
+        }
+        let _amount_money = Money::from_f64(amount)
+            .ok_or_else(|| AppError::Validation(format!("Stars amount overflows Money: {}", amount)))?;
         Ok(PaymentInit {
             id: uuid::Uuid::new_v4(),
             telegram_id,
@@ -30,18 +40,33 @@ impl PaymentGateway for TelegramStarsGateway {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn verify_callback(&self, params: &serde_json::Value) -> Result<PaymentVerification, AppError> {
+        let transaction_id = params["telegram_payment_charge_id"].as_str()
+            .ok_or_else(|| AppError::Validation("Missing telegram_payment_charge_id in Stars callback".into()))?;
+        let amount = params["total_amount"].as_f64()
+            .ok_or_else(|| AppError::Validation("Missing total_amount in Stars callback".into()))?;
+        if !amount.is_finite() || amount < 0.0 {
+            return Err(AppError::Validation(format!(
+                "Stars callback amount must be finite and >= 0: {}",
+                amount
+            )));
+        }
+        let _amount_money = Money::from_f64(amount)
+            .ok_or_else(|| AppError::Validation(format!("Stars callback amount overflows Money: {}", amount)))?;
         Ok(PaymentVerification {
-            transaction_id: params["telegram_payment_charge_id"].as_str().unwrap_or_default().to_string(),
-            amount: params["total_amount"].as_f64().unwrap_or(0.0),
+            transaction_id: transaction_id.to_string(),
+            amount,
             currency: "XTR".into(),
             status: PaymentStatus::Completed,
             telegram_id: params["user_id"].as_i64(),
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn refund(&self, _transaction_id: &str) -> Result<(), AppError> { Ok(()) }
 
+    #[tracing::instrument(skip_all)]
     async fn get_payment_url(&self, _payment: &PaymentInit) -> Result<String, AppError> {
         Ok(String::new())
     }

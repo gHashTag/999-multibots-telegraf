@@ -9,11 +9,13 @@ pub struct CreateAvatarVideoRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateAvatarVideoResponse {
     pub video_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VideoStatusResponse {
     pub video_url: Option<String>,
     pub duration: Option<f64>,
@@ -22,11 +24,13 @@ pub struct VideoStatusResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AvatarListResponse {
     pub avatars: Vec<Avatar>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Avatar {
     pub avatar_id: String,
     pub avatar_name: Option<String>,
@@ -40,18 +44,21 @@ pub struct ElevenLabsTtsRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ElevenLabsVoice {
     pub voice_id: String,
     pub name: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HedraGenerateRequest {
     pub image_url: String,
     pub audio_url: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HedraGenerateResponse {
     pub video_url: Option<String>,
     pub status: Option<String>,

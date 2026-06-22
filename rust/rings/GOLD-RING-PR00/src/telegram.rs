@@ -2,42 +2,71 @@ use serde::{Deserialize, Serialize};
 use trios_mb_types::scene::SceneId;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CallbackData {
     pub action: String,
     pub payload: Option<serde_json::Value>,
 }
 
+const MAX_CALLBACK_DATA_LEN: usize = 4096;
+
 impl CallbackData {
     pub fn navigate(scene: SceneId) -> String {
-        serde_json::to_string(&Self {
+        match serde_json::to_string(&Self {
             action: "nav".into(),
             payload: Some(serde_json::json!({ "scene": scene.scene_name() })),
-        })
-        .unwrap_or_default()
+        }) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(error = %e, scene = %scene.scene_name(), "CallbackData::navigate serialization failed");
+                String::new()
+            }
+        }
     }
 
     pub fn action(name: &str) -> String {
-        serde_json::to_string(&Self {
+        match serde_json::to_string(&Self {
             action: name.into(),
             payload: None,
-        })
-        .unwrap_or_default()
+        }) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(error = %e, action = %name, "CallbackData::action serialization failed");
+                String::new()
+            }
+        }
     }
 
     pub fn action_with_payload(name: &str, payload: serde_json::Value) -> String {
-        serde_json::to_string(&Self {
+        match serde_json::to_string(&Self {
             action: name.into(),
             payload: Some(payload),
-        })
-        .unwrap_or_default()
+        }) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(error = %e, action = %name, "CallbackData::action_with_payload serialization failed");
+                String::new()
+            }
+        }
     }
 
     pub fn parse(data: &str) -> Option<Self> {
-        serde_json::from_str(data).ok()
+        if data.len() > MAX_CALLBACK_DATA_LEN {
+            return None;
+        }
+        match serde_json::from_str::<Self>(data) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                let preview: String = data.chars().take(128).collect();
+                tracing::warn!(error = %e, payload = %preview, "CallbackData parse failed");
+                None
+            }
+        }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct InlineButton {
     pub text: String,
     pub callback_data: String,

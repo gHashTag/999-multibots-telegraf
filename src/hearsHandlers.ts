@@ -1,4 +1,4 @@
-import { imageModelMenu } from './menu/imageModelMenu'
+// import { imageModelMenu } from './menu/imageModelMenu' // module not found
 import { logger } from './utils/logger'
 import { generateTextToImage } from './services/generateTextToImage'
 import { isRussian } from './helpers/language'
@@ -6,16 +6,17 @@ import { isRussian } from './helpers/language'
 import { isRussianFromState } from './helpers/centralizedLanguage'
 import { MyContext } from './interfaces/'
 import { Telegraf, Markup } from 'telegraf'
-import { HAIM_GROUP_STAFF_IDS } from './menu/simpleMenu'
+import { HAIM_GROUP_STAFF_IDS } from '@/navigation/config/access.config'
 import { generateNeuroPhotoHybrid } from './services/generateNeuroPhotoHybrid'
 import { handleSizeSelection } from './handlers'
-import { levels, mainMenu } from './menu'
+import { levels } from '@/navigation/constants/access'
+import { mainMenu } from '@/navigation/unified-navigation.config'
 import { getReferalsCountAndUserData, getUserData } from './core/supabase'
 import { ModeEnum } from './interfaces/modes'
 import { SubscriptionType } from './interfaces/subscription.interface'
 // import { handleRestartVideoGeneration } from './handlers/handleVideoRestart' // Закомментировано, так как кнопка неясна
 import { getUserProfileAndSettings } from '@/db/userSettings'
-import { checkSubscriptionGuard } from './helpers/subscriptionGuard'
+import { checkSubscriptionGuard } from '@/helpers/subscriptionGuard'
 // Импортируем обработчики FLUX Kontext
 import {
   handleFluxKontextImage,
@@ -25,7 +26,7 @@ import {
 
 // Импортируем функцию upscaling
 import { upscaleFluxKontextImage } from './services/generateFluxKontext'
-import { getParsingAccess } from './menu/simpleMenu'
+import { getParsingAccess } from '@/navigation/config/access.config'
 
 export const setupHearsHandlers = (bot: Telegraf<MyContext>) => {
   logger.info('Настройка обработчиков hears...')

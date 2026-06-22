@@ -5,10 +5,12 @@ use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 use trios_mb_traits::{Database, AiProviderOrchestrator, JobQueue};
 use trios_mb_tg::state::{Scene, SizeState};
 use trios_mb_tg::HandlerResult;
+use trios_mb_tg::{answer_callback_query_timeout, send_message_timeout, dialogue_update_timeout};
 use crate::generation_utils::{load_lang, load_lang_cb};
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_size_msg(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -35,12 +37,13 @@ pub async fn handle_size_msg(
         ],
     ]);
     let text = if lang.is_russian() { "📐 Выберите размер:" } else { "📐 Select size:" };
-    bot.send_message(msg.chat.id, text).reply_markup(kb).await?;
+    send_message_timeout(&bot, msg.chat.id, text, Some(kb.into())).await?;
     state.step = 1;
-    dialogue.update(Scene::Size(state)).await?;
+    dialogue_update_timeout(&dialogue, Scene::Size(state)).await?;
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn handle_size_callback(
     bot: teloxide::Bot,
     db: Arc<dyn Database>,
@@ -50,9 +53,12 @@ pub async fn handle_size_callback(
     mut state: SizeState,
     q: teloxide::types::CallbackQuery,
 ) -> HandlerResult {
-    bot.answer_callback_query(&q.id).await?;
+    answer_callback_query_timeout(&bot, &q.id).await?;
     let lang = load_lang_cb(&db, &q).await;
-    let chat_id = q.chat_id().unwrap();
+    let chat_id = match q.chat_id() {
+        Some(id) => id,
+        None => return Ok(()),
+    };
     let data = match &q.data { Some(d) => d.as_str(), None => return Ok(()) };
 
     let (w, h, ratio) = match data {
@@ -74,7 +80,7 @@ pub async fn handle_size_callback(
     } else {
         format!("✅ Selected size: {} ({}x{})", ratio, w, h)
     };
-    bot.send_message(chat_id, text).await?;
-    dialogue.update(Scene::Size(state)).await?;
+    send_message_timeout(&bot, chat_id, text, None).await?;
+    dialogue_update_timeout(&dialogue, Scene::Size(state)).await?;
     Ok(())
 }

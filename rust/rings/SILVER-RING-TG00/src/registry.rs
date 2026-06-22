@@ -164,10 +164,12 @@ impl SceneRegistry {
         Self { scenes }
     }
 
+    #[tracing::instrument(skip(self), fields(scene_id = %id.scene_name()))]
     pub fn get(&self, id: &SceneId) -> Option<&SceneEntry> {
         self.scenes.get(id)
     }
 
+    #[tracing::instrument(skip(self), fields(category = ?category))]
     pub fn by_category(&self, category: SceneCategory) -> Vec<&SceneEntry> {
         let mut result: Vec<_> = self.scenes.values()
             .filter(|e| e.category == category && e.status == SceneStatus::Active)
@@ -176,18 +178,21 @@ impl SceneRegistry {
         result
     }
 
+    #[tracing::instrument(skip(self), fields(access = ?access))]
     pub fn by_access_level(&self, access: AccessLevel) -> Vec<&SceneEntry> {
         self.scenes.values()
             .filter(|e| e.access_level == access && e.status == SceneStatus::Active)
             .collect()
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn active_scenes(&self) -> Vec<&SceneEntry> {
         self.scenes.values()
             .filter(|e| e.status == SceneStatus::Active)
             .collect()
     }
 
+    #[tracing::instrument(skip(self), fields(scene_id = %id.scene_name(), is_subscriber, is_admin))]
     pub fn check_access(&self, id: &SceneId, is_subscriber: bool, is_admin: bool) -> bool {
         match self.scenes.get(id) {
             Some(entry) => {
@@ -206,6 +211,7 @@ impl SceneRegistry {
         }
     }
 
+    #[tracing::instrument(skip(self), fields(from = %from.scene_name(), to = %to.scene_name()))]
     pub fn is_transition_allowed(&self, from: SceneId, to: SceneId) -> bool {
         let from_entry = match self.scenes.get(&from) {
             Some(e) => e,
@@ -222,6 +228,7 @@ impl SceneRegistry {
         self.scenes.contains_key(&to)
     }
 
+    #[tracing::instrument(skip(self), fields(from = %from.scene_name()))]
     pub fn get_allowed_transitions(&self, from: SceneId) -> Vec<SceneId> {
         let mut transitions = HashSet::new();
         if let Some(entry) = self.scenes.get(&from) {

@@ -1,9 +1,25 @@
+use std::sync::LazyLock;
+use secrecy::ExposeSecret;
+// Wave 151: api_key migrated to secrecy::SecretString
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use trios_mb_traits::AiProvider;
 use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
+
+const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const REQWEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const REQWEST_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+const REQWEST_POOL_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
+const BODY_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+static ELEVENLABS_BASE_URL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("ELEVENLABS_BASE_URL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "https://api.elevenlabs.io".to_string())
+});
 
 #[derive(Debug, Serialize)]
 struct TtsPayload {
@@ -21,11 +37,13 @@ struct VoiceSettings {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct VoiceListResponse {
     voices: Option<Vec<Voice>>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Voice {
     pub voice_id: String,
     pub name: String,
@@ -34,17 +52,20 @@ pub struct Voice {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct AddVoiceResponse {
     voice_id: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct UserResponse {
     #[serde(default)]
     subscription: Option<UserSubscription>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct UserSubscription {
     #[serde(default)]
     character_count: Option<i64>,
@@ -53,23 +74,29 @@ struct UserSubscription {
 }
 
 pub struct ElevenLabsProvider {
-    api_key: String,
+    api_key: secrecy::SecretString,
     http: reqwest::Client,
     base_url: String,
 }
 
 impl ElevenLabsProvider {
-    pub fn new(api_key: &str) -> Self {
-        Self {
-            api_key: api_key.to_string(),
-            http: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(60))
-                .build()
-                .unwrap_or_default(),
-            base_url: "https://api.elevenlabs.io".to_string(),
-        }
+    pub fn new(api_key: &str) -> Result<Self, AppError> {
+        let http = reqwest::Client::builder()
+            .timeout(REQWEST_TIMEOUT)
+            .connect_timeout(REQWEST_CONNECT_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
+            .pool_max_idle_per_host(10)
+            .pool_idle_timeout(REQWEST_POOL_IDLE_TIMEOUT)
+            .build()
+            .map_err(|e| AppError::Internal(format!("Failed to build ElevenLabs reqwest client: {}", e)))?;
+        Ok(Self {
+            api_key: secrecy::SecretString::new(api_key.to_string().into_boxed_str()),
+            http,
+            base_url: ELEVENLABS_BASE_URL.clone(),
+        })
     }
 
+    #[tracing::instrument(skip_all, fields(voice_id = %voice_id))]
     pub async fn text_to_speech_raw(
         &self,
         voice_id: &str,
@@ -87,18 +114,30 @@ impl ElevenLabsProvider {
             },
         };
 
-        let resp = self.http
-            .post(format!("{}/v1/text-to-speech/{}", self.base_url, voice_id))
-            .header("xi-api-key", &self.api_key)
-            .header("Content-Type", "application/json")
-            .header("Accept", "audio/mpeg")
-            .json(&payload)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "elevenlabs".into(),
-                message: format!("tts request failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/v1/text-to-speech/{}", self.base_url, voice_id))
+                .header("xi-api-key", self.api_key.expose_secret())
+                .header("Content-Type", "application/json")
+                .header("Accept", "audio/mpeg")
+                .json(&payload)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: format!("tts request failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: "tts request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
@@ -108,55 +147,87 @@ impl ElevenLabsProvider {
             return Err(AiError::NotFound { id: voice_id.to_string() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "elevenlabs".into(),
                 message: format!("HTTP {}: {}", status, text),
             }.into());
         }
 
-        resp.bytes()
-            .await
-            .map(|b| b.to_vec())
-            .map_err(|e| AiError::InvalidResponse {
+        const MAX_RESPONSE_BYTES: u64 = 50 * 1024 * 1024;
+        let bytes = match tokio::time::timeout(BODY_READ_TIMEOUT, resp.bytes()).await {
+            Ok(Ok(b)) => b,
+            Ok(Err(e)) => {
+                return Err(AiError::InvalidResponse {
+                    provider: "elevenlabs".into(),
+                    message: format!("read body: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::InvalidResponse {
+                    provider: "elevenlabs".into(),
+                    message: "response body read timed out".to_string(),
+                }.into());
+            }
+        };
+        if bytes.len() as u64 > MAX_RESPONSE_BYTES {
+            return Err(AiError::InvalidResponse {
                 provider: "elevenlabs".into(),
-                message: format!("read body: {}", e),
-            }.into())
+                message: format!("response body too large: {} bytes (max {})", bytes.len(), MAX_RESPONSE_BYTES),
+            }.into());
+        }
+        Ok(bytes.to_vec())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn list_voices(&self) -> Result<Vec<Voice>, AppError> {
-        let resp = self.http
-            .get(format!("{}/v1/voices", self.base_url))
-            .header("xi-api-key", &self.api_key)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "elevenlabs".into(),
-                message: format!("list voices failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/v1/voices", self.base_url))
+                .header("xi-api-key", self.api_key.expose_secret())
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: format!("list voices failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: "list voices request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "elevenlabs".into(),
                 message: format!("HTTP {}: {}", status, text),
             }.into());
         }
 
-        let voice_resp: VoiceListResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
-            provider: "elevenlabs".into(),
-            message: format!("json parse: {}", e),
-        })?;
+        let voice_resp: VoiceListResponse = super::parse_json_limited(resp, "elevenlabs", 64_000_000).await?;
 
-        Ok(voice_resp.voices.unwrap_or_default())
+        let voices = voice_resp.voices.ok_or_else(|| AiError::InvalidResponse {
+            provider: "elevenlabs".into(),
+            message: "missing voices field".into(),
+        })?;
+        Ok(voices)
     }
 
+    #[tracing::instrument(skip_all, fields(voice_id = %voice_id))]
     pub async fn voice_exists(&self, voice_id: &str) -> Result<bool, AppError> {
         let voices = self.list_voices().await?;
         Ok(voices.iter().any(|v| v.voice_id == voice_id))
     }
 
+    #[tracing::instrument(skip_all, fields(name = %name, audio_len = audio_data.len()))]
     pub async fn add_voice(
         &self,
         name: &str,
@@ -172,61 +243,80 @@ impl ElevenLabsProvider {
                 .mime_str("audio/mpeg")
                 .map_err(|e| AppError::Internal(e.to_string()))?);
 
-        let resp = self.http
-            .post(format!("{}/v1/voices/add", self.base_url))
-            .header("xi-api-key", &self.api_key)
-            .multipart(form)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "elevenlabs".into(),
-                message: format!("add voice failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/v1/voices/add", self.base_url))
+                .header("xi-api-key", self.api_key.expose_secret())
+                .multipart(form)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: format!("add voice failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: "add voice request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
             return Err(AiError::RateLimited { provider: "elevenlabs".into() }.into());
         }
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "elevenlabs".into(),
                 message: format!("HTTP {}: {}", status, text),
             }.into());
         }
 
-        let add_resp: AddVoiceResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
-            provider: "elevenlabs".into(),
-            message: format!("json parse: {}", e),
-        })?;
+        let add_resp: AddVoiceResponse = super::parse_json_limited(resp, "elevenlabs", 64_000_000).await?;
 
         Ok(add_resp.voice_id)
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn get_character_balance(&self) -> Result<(i64, i64), AppError> {
-        let resp = self.http
-            .get(format!("{}/v1/user", self.base_url))
-            .header("xi-api-key", &self.api_key)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "elevenlabs".into(),
-                message: format!("user info failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .get(format!("{}/v1/user", self.base_url))
+                .header("xi-api-key", self.api_key.expose_secret())
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: format!("user info failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "elevenlabs".into(),
+                    message: "user info request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if !status.is_success() {
-            let text = resp.text().await.unwrap_or_default();
+            let text = super::read_error_body(resp, 64_000).await;
             return Err(AiError::Provider {
                 provider: "elevenlabs".into(),
                 message: format!("HTTP {}: {}", status, text),
             }.into());
         }
 
-        let user: UserResponse = resp.json().await.map_err(|e| AiError::InvalidResponse {
-            provider: "elevenlabs".into(),
-            message: format!("json parse: {}", e),
-        })?;
+        let user: UserResponse = super::parse_json_limited(resp, "elevenlabs", 64_000_000).await?;
 
         let sub = user.subscription.unwrap_or(UserSubscription {
             character_count: Some(0),
@@ -245,6 +335,7 @@ impl AiProvider for ElevenLabsProvider {
         matches!(media_type, MediaType::TextToSpeech | MediaType::Audio)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         match request.media_type {
             MediaType::TextToSpeech | MediaType::Audio => {
@@ -254,7 +345,10 @@ impl AiProvider for ElevenLabsProvider {
                 let model_id = request.params.get("model_id")
                     .and_then(|v| v.as_str())
                     .unwrap_or("eleven_turbo_v2_5");
-                let text = request.prompt.as_deref().unwrap_or("");
+                let text = request.prompt.as_deref().unwrap_or("").trim();
+                if text.is_empty() {
+                    return Err(AppError::Validation("prompt is empty or whitespace-only".to_string()));
+                }
 
                 let audio_data = self.text_to_speech_raw(voice_id, text, model_id).await?;
 
@@ -276,16 +370,21 @@ impl AiProvider for ElevenLabsProvider {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn check_status(&self, _generation_id: &str) -> Result<GenerationStatus, AppError> {
         Ok(GenerationStatus::Completed)
     }
 
+    #[tracing::instrument(skip_all)]
     async fn get_result(&self, _generation_id: &str) -> Result<Option<String>, AppError> {
         Ok(None)
     }
 
     async fn cancel(&self, _generation_id: &str) -> Result<(), AppError> {
-        Ok(())
+        Err(AppError::Ai(trios_mb_types::errors::AiError::Provider {
+            provider: "elevenlabs".into(),
+            message: "Cancellation not supported by provider".into(),
+        }))
     }
 }
 

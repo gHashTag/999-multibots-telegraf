@@ -264,11 +264,11 @@ export const renderAvatarVideoFunction = inngest.createFunction(
 
         return {
           id: `attachment_${Date.now()}`,
-          url: result.url,
+          url: result.url!,
           object_key: `jobs/${jobId}/avatar_video.mp4`,
           meta_data: { format: { duration: 60 } },
-        }
-      })
+        } as Attachment
+      }) as unknown as Attachment
     } else if (data.avatar_gen_service === 'heygen') {
       // Step 2a: Start HeyGen avatar generation
       const heygenVideoId = await step.run('start-heygen-generation', async () => {
@@ -298,11 +298,11 @@ export const renderAvatarVideoFunction = inngest.createFunction(
 
         return {
           id: `attachment_${Date.now()}`,
-          url: result.video_url,
+          url: result.video_url!,
           object_key: `jobs/${jobId}/avatar_video.mp4`,
           meta_data: { duration_seconds: result.duration || 60 },
-        }
-      })
+        } as Attachment
+      }) as unknown as Attachment
 
       // HeyGen videos have embedded audio
       audioUrl = avatarAttachment.url
@@ -351,7 +351,7 @@ export const renderAvatarVideoFunction = inngest.createFunction(
           return { segment, task_id: result.taskId }
         })
       )
-    })
+    }) as unknown as { segment: BRollSegment; task_id: string }[]
 
     // Step 6: Wait for all B-roll completions in parallel
     const completedBRolls = await step.run('wait-brolls-completion', async () => {
@@ -387,7 +387,7 @@ export const renderAvatarVideoFunction = inngest.createFunction(
       logger.info(`${successful.length}/${completed.length} B-rolls completed successfully`)
 
       return successful
-    })
+    }) as unknown as { segment: BRollSegment; attachment: Attachment }[]
 
     // Step 7: Create job settings JSON
     const settings = await step.run('create-job-settings', async () => {

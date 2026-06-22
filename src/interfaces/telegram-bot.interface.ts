@@ -190,6 +190,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   cancelHandled?: boolean
   language_code?: string
   wizardData?: any  // ✅ Данные для wizard'а (шаги, фото и т.д.)
+  availableModels?: any[]  // ✅ Список доступных моделей для выбора
   images: BufferType
   morphingImages?: {
     buffer: Buffer

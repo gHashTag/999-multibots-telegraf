@@ -33,15 +33,6 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.06),
     inputType: ['text', 'image'],
   },
-  'black-forest-labs/flux-canny-dev': {
-    shortName: 'FLUX1.1 [dev] Canny',
-    description_en: `FLUX.1 Canny [dev] gives developers the same edge-guided generation that powers Canny [pro]. Feed it a sketch or edge map plus a description, and it creates images that follow your structural guidance while adding rich detail and style.`,
-    description_ru: `FLUX.1 Canny [dev] дает разработчикам тот же эффект эффективного руководства по краям, который используется в Canny [pro]. Подайте ему эскиз или карту краев и описание, и он создаст изображения, следуя вашему структурному руководству, добавляя богатый детализированный стиль.`,
-    previewImage:
-      'https://replicate.delivery/xezq/4bt5HoegzYR9EKqv70zsBoHnhFkcaB9Yk1naaQJai6rtfPzTA/out-0.webp',
-    costPerImage: calculateFinalImageCostInStars(0.025),
-    inputType: ['text', 'image'],
-  },
   'black-forest-labs/flux-canny-pro': {
     shortName: 'FLUX1.1 [pro] Canny',
     description_en: `Edge-guided image generation that preserves structure and composition. Perfect for retexturing images or turning sketches into detailed art.\nFLUX.1 Canny [pro] leads the field in structural conditioning. It uses Canny edge detection to maintain precise control during image transformations. Feed it an edge map and text prompt to generate images that follow exact structural guidance while adding rich detail.\nParticularly effective for: - Converting sketches to finished art - Retexturing while preserving composition - Controlled style transfer - Architectural visualization`,
@@ -50,15 +41,6 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
       'https://replicate.delivery/czjl/yRS3V6IYC877GF3DnejR0WJvcz5eg6LTlbE3cJPC6CJQqMzTA/tmp8gs0wfw3.jpg',
     costPerImage: calculateFinalImageCostInStars(0.05),
     inputType: ['text', 'image'],
-  },
-  'black-forest-labs/flux-depth-dev': {
-    shortName: 'FLUX1.1 [dev] Depth',
-    description_en: `FLUX.1 Depth [dev] brings depth-guided generation to open development. Feed it an image and its depth map, and it maintains proper perspective and scale while adding or changing elements. The same technology that powers Depth [pro], optimized for developers building spatial-aware creative tools.`,
-    description_ru: `FLUX.1 Depth [dev] приводит в действие глубинное руководство для открытого разработки. Подайте ему изображение и его карту глубины, и оно сохраняет правильное перспективное и масштабное соотношение, добавляя или изменяя элементы. Технология, которая используется в Depth [pro], оптимизирована для разработчиков, создающих пространственно-ориентированные творческие инструменты.`,
-    previewImage:
-      'https://replicate.delivery/xezq/JnlhyMG4GD6uEpGsfoXVG7wc8pIvQ3UtfRRhyef2aXkQQfZeE/out-0.webp',
-    costPerImage: calculateFinalImageCostInStars(0.025),
-    inputType: ['text', 'image', 'dev'],
   },
   'black-forest-labs/flux-depth-pro': {
     shortName: 'FLUX1.1 [pro] Depth',
@@ -87,15 +69,6 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.032),
     inputType: ['text', 'image'],
   },
-  'black-forest-labs/flux-fill-dev': {
-    shortName: 'FLUX1.1 [dev] Fill',
-    description_en: `FLUX.1 Fill [dev] brings professional-quality inpainting to open development. Paint over any part of an image, describe what you want to see instead, and get natural results that respect the original context.\nThis is the same technology that powers Fill [pro], optimized for developers building creative tools. The model weights and code are available on Hugging Face under the Flux Dev License. `,
-    description_ru: `FLUX.1 Fill [dev] приносит профессиональное качество в маскировку в открытое развитие. Нарисуйте любой часть изображения, опишите, что вы хотите увидеть вместо нее, и получите естественные результаты, уважающие оригинальный контекст.\nЭто та же технология, которая используется в Fill [pro], оптимизированная для разработчиков, создающих творческие инструменты. Веса и код модели доступны на Hugging Face под лицензией Flux Dev.`,
-    previewImage:
-      'https://replicate.delivery/xezq/XAOCdYKsGYZ9FNTeeEQPbl8DM9eoDf050jLfSAZMuWVYJdZeE/out-0.webp',
-    costPerImage: calculateFinalImageCostInStars(0.04),
-    inputType: ['text', 'image', 'dev'],
-  },
   'black-forest-labs/flux-fill-pro': {
     shortName: 'FLUX1.1 [pro] Fill',
     description_en: `FLUX.1 Fill [pro] is a model based on a hybrid architecture of multimodal and parallel blocks of diffusion transformer, optimized for image generation from text descriptions. It offers improved performance and efficiency, including rotational positional embeddings and parallel attention layers. FLUX.1 Fill [pro] is available for non-commercial use and supports open weights for scientific research and creative projects.`,
@@ -104,24 +77,6 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
       'https://replicate.delivery/xezq/XAOCdYKsGYZ9FNTeeEQPbl8DM9eoDf050jLfSAZMuWVYJdZeE/out-0.webp',
     costPerImage: calculateFinalImageCostInStars(0.05),
     inputType: ['text', 'image', 'dev'],
-  },
-  'black-forest-labs/flux-redux-dev': {
-    shortName: 'FLUX1.1 [dev] Redux',
-    description_en: `FLUX.1 Redux [dev] helps you explore variations of existing images. Give it an image and a description of what you want to change, and it creates new versions that maintain the essence of the original while incorporating your changes. Perfect for iterating on designs or exploring creative directions.`,
-    description_ru: `FLUX.1 Redux [dev] помогает вам исследовать вариации существующих изображений. Подайте ему изображение и описание того, что вы хотите изменить, и он создает новые версии, сохраняя суть оригинала, в то время как включая ваши изменения. Идеально подходит для итерации над дизайнами или исследования творческих направлений.`,
-    previewImage:
-      'https://replicate.delivery/xezq/Oaex1FdP2ayjUSrbBrYA1WXnGJlu2ESnk71anWxs4OGWEo5JA/out-0.webp',
-    costPerImage: calculateFinalImageCostInStars(0.025),
-    inputType: ['image', 'dev'],
-  },
-  'black-forest-labs/flux-redux-schnell': {
-    shortName: 'FLUX1.1 [dev] Redux schnell',
-    description_en: `FLUX.1 Redux [schnell] lets you quickly generate variations of your images. It’s optimized for speed, making it perfect for prototyping and creative exploration. While it trades some quality for speed compared to Redux [dev], it’s ideal for rapid iteration or building real-time creative tools.`,
-    description_ru: `FLUX.1 Redux [schnell] позволяет вам быстро создавать вариации ваших изображений. Он оптимизирован для скорости, делая его идеальным для прототипирования и творческого исследования. Хотя он торгует качеством ради скорости по сравнению с Redux [dev], он идеально подходит для быстрой итерации или создания реально-временных творческих инструментов.`,
-    previewImage:
-      'https://replicate.delivery/xezq/EXqL6e5mFnSxcS5cebdKDEbKfAfArVBY0aJpf1V8iZoeHem5JA/out-0.webp',
-    costPerImage: calculateFinalImageCostInStars(0.003),
-    inputType: ['image', 'dev'],
   },
   'black-forest-labs/flux-schnell': {
     shortName: 'FLUX1.1 [dev] Schnell',
@@ -213,15 +168,6 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.08),
     inputType: ['text', 'dev'],
   },
-  'stability-ai/stable-diffusion-3': {
-    shortName: 'Stable Diffusion 3',
-    description_en: `Stable Diffusion 3 Medium is a 2 billion parameter text-to-image model developed by Stability AI. It excels at photorealism, typography, and prompt following.`,
-    description_ru: `Stable Diffusion 3 Medium — это 2 миллиард параметров, текстово-изображённая модель, разработанная Stability AI. Она превосходит в фотореализме, типографике и следовании инструкциям.`,
-    previewImage:
-      'https://replicate.delivery/yhqm/i4mS31BVDBYVIF0ol6UV2dwHwuztMDbsnlVJBeJ75ViVTQhJA/R8_SD3_00001_.webp',
-    costPerImage: calculateFinalImageCostInStars(0.035),
-    inputType: ['text', 'image'],
-  },
   'stability-ai/stable-diffusion-3.5-large': {
     shortName: 'Stable Diffusion 3.5 Large',
     description_en: `Stable Diffusion 3.5 Large is a Multimodal Diffusion Transformer (MMDiT) text-to-image model that features improved performance in image quality, typography, complex prompt understanding, and resource-efficiency.`,
@@ -240,15 +186,6 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.04),
     inputType: ['text', 'image'],
   },
-  'stability-ai/stable-diffusion-3.5-medium': {
-    shortName: 'Stable Diffusion 3.5 Medium',
-    description_en: `Stable Diffusion 3.5 Medium is a 2.5 billion parameter text-to-image model developed by Stability AI. It features the MMDiT-X architecture, offering improved image quality, typography, and complex prompt understanding. The model is designed for efficient resource use and supports both text and image inputs.`,
-    description_ru: `Stable Diffusion 3.5 Medium — это текстово-изображённая модель с 2.5 миллиардами параметров, разработанная Stability AI. Она использует архитектуру MMDiT-X, обеспечивая улучшенное качество изображений, типографику и понимание сложных промптов. Модель разработана для эффективного использования ресурсов и поддерживает как текстовые, так и визуальные входные данные.`,
-    previewImage:
-      'https://replicate.delivery/yhqm/b8ZWW3KneUSuca1q7wzUrSpRsElbIdLtFqXEMaZetgrLaprTA/R8_sd3.5L_00001_.webp',
-    costPerImage: calculateFinalImageCostInStars(0.035),
-    inputType: ['text', 'image'],
-  },
   // AI Photoshop & Image Editing Models
   'black-forest-labs/flux-kontext-pro': {
     shortName: 'FLUX Kontext [pro]',
@@ -257,6 +194,15 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     previewImage:
       'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
     costPerImage: calculateFinalImageCostInStars(0.05),
+    inputType: ['text', 'image'],
+  },
+  'black-forest-labs/flux-kontext-max': {
+    shortName: 'FLUX Kontext [max]',
+    description_en: `FLUX Kontext Max — highest quality AI image editing with multi-image support and maximum creativity. The most powerful model in the Kontext family, delivering superior results for complex edits, character consistency, and creative transformations.\n\nKey capabilities:\n- Multi-image input support for complex compositions\n- Maximum quality and creativity in transformations\n- Superior character consistency across edits\n- Best-in-class prompt following\n- Ideal for professional and demanding creative workflows`,
+    description_ru: `FLUX Kontext Max — максимальное качество ИИ-редактирования с поддержкой нескольких изображений. Самая мощная модель семейства Kontext, обеспечивающая превосходные результаты для сложных правок, постоянства персонажей и творческих трансформаций.\n\nОсновные возможности:\n- Поддержка нескольких изображений для сложных композиций\n- Максимальное качество и креативность трансформаций\n- Превосходное постоянство персонажей в правках\n- Лучшее в классе следование промптам\n- Идеально для профессиональных и требовательных творческих процессов`,
+    previewImage:
+      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
+    costPerImage: calculateFinalImageCostInStars(0.08),
     inputType: ['text', 'image'],
   },
   'bytedance/seededit-3.0': {
@@ -279,20 +225,11 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
   },
   'bytedance/seedream-4.5': {
     shortName: 'Seedream 4.5',
-    description_en: `Seedream 4.5 is the latest evolution of ByteDance's leading image generation model. Built on Seedream 4.0's foundation with improved quality and consistency.\n\nKey improvements over 4.0:\n- Enhanced visual quality and detail preservation\n- Better text rendering and typography\n- Improved instruction following\n- More consistent style transfer\n- Optimized for portrait and character generation\n\nRecommended for professional image generation requiring highest quality output.`,
-    description_ru: `Seedream 4.5 - последняя эволюция ведущей модели генерации изображений ByteDance. Построена на основе Seedream 4.0 с улучшенным качеством и стабильностью.\n\nКлючевые улучшения по сравнению с 4.0:\n- Улучшенное визуальное качество и сохранение деталей\n- Лучший рендеринг текста и типографики\n- Улучшенное следование инструкциям\n- Более стабильная передача стиля\n- Оптимизирована для портретов и генерации персонажей\n\nРекомендуется для профессиональной генерации изображений, требующей наивысшего качества.`,
+    description_en: `Seedream 4.5 is ByteDance's latest flagship image generation model, representing the cutting edge of their Seedream family. Built on Seedream 4.0's award-winning foundation with significant quality and consistency improvements.\n\nKey improvements over 4.0:\n- Enhanced visual quality and detail preservation\n- Better text rendering and typography\n- Improved instruction following and prompt adherence\n- More consistent style transfer\n- Optimized for portrait and character generation\n- State-of-the-art results across multiple benchmarks\n\nRecommended for professional image generation requiring highest quality output.`,
+    description_ru: `Seedream 4.5 — флагманская модель генерации изображений ByteDance, представляющая передний край семейства Seedream. Построена на отмеченной наградами основе Seedream 4.0 со значительными улучшениями качества и стабильности.\n\nКлючевые улучшения по сравнению с 4.0:\n- Улучшенное визуальное качество и сохранение деталей\n- Лучший рендеринг текста и типографики\n- Улучшенное следование инструкциям и точность промптов\n- Более стабильная передача стиля\n- Оптимизирована для портретов и генерации персонажей\n- Передовые результаты по множеству бенчмарков\n\nРекомендуется для профессиональной генерации изображений, требующей наивысшего качества.`,
     previewImage:
       'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
     costPerImage: calculateFinalImageCostInStars(0.04),
-    inputType: ['text', 'image'],
-  },
-  'google/nano-banana': {
-    shortName: 'Nano Banana',
-    description_en: `Google's latest image editing model in Gemini 2.5 Flash, described as "could truly be the end of Photoshop". Integrated into Adobe Photoshop Beta alongside FLUX.1 Kontext [pro].\n\nKey features:\n- Multi-image input support for complex edits\n- Excellent instruction following\n- Fast generation with professional quality\n- Text editing and typography preservation\n- Style transfer while maintaining original resemblance\n\nOptimized for rapid, high-quality image transformations with natural language control.`,
-    description_ru: `Последняя модель редактирования изображений Google в Gemini 2.5 Flash, описанная как "может действительно стать концом Photoshop". Интегрирована в Adobe Photoshop Beta вместе с FLUX.1 Kontext [pro].\n\nОсновные функции:\n- Поддержка мультиизображений для сложных правок\n- Отличное следование инструкциям\n- Быстрая генерация с профессиональным качеством\n- Редактирование текста и сохранение типографики\n- Передача стиля с сохранением оригинального сходства\n\nОптимизирована для быстрых, высококачественных трансформаций изображений с управлением естественным языком.`,
-    previewImage:
-      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
-    costPerImage: calculateFinalImageCostInStars(0.03),
     inputType: ['text', 'image'],
   },
   'qwen/qwen-image-edit': {
@@ -349,32 +286,22 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.035),
     inputType: ['text', 'image'],
   },
-  // ✅ ADD: Midjourney integration
-  'midjourney/midjourney-v6': {
-    shortName: 'Midjourney v6',
-    description_en: `Midjourney v6 is a state-of-the-art AI image generation model renowned for its artistic style, exceptional prompt interpretation, and high-quality outputs. It excels at creating stunning visuals with rich detail and artistic flair.
-
-Key features:
-- Superior prompt following and interpretation
-- Artistic and creative image generation
-- High-quality output with rich detail
-- Wide range of styles and aesthetics
-- Popular among artists and designers
-
-Perfect for creative projects, artistic visualizations, and high-end image generation.`,
-    description_ru: `Midjourney v6 — это передовая модель генерации изображений с ИИ, известная своим художественным стилем, исключительной интерпретацией промптов и высококачественными результатами. Она превосходит в создании потрясающих визуальных образов с богатыми деталями и художественным чутьем.
-
-Основные функции:
-- Превосходное следование и интерпретация промптов
-- Художественная и творческая генерация изображений
-- Высококачественные результаты с богатыми деталями
-- Широкий спектр стилей и эстетики
-- Популярна среди художников и дизайнеров
-
-Идеально для творческих проектов, художественных визуализаций и высококачественной генерации изображений.`,
+  'google/imagen-4': {
+    shortName: 'Google Imagen 4',
+    description_en: `Google Imagen 4 — photorealistic image generation with exceptional text rendering and detail. Google's most advanced image generation model, delivering stunning realism, accurate typography, and precise prompt following.\n\nKey features:\n- Exceptional photorealism and fine detail\n- Industry-leading text rendering in images\n- Strong prompt adherence and instruction following\n- Wide range of styles from photographic to artistic\n- Fast generation with consistent quality`,
+    description_ru: `Google Imagen 4 — фотореалистичная генерация с исключительной детализацией и точным текстом. Самая продвинутая модель генерации изображений Google, обеспечивающая потрясающий реализм, точную типографику и точное следование промптам.\n\nОсновные функции:\n- Исключительный фотореализм и мелкие детали\n- Лидирующий в отрасли рендеринг текста в изображениях\n- Сильное следование промптам и инструкциям\n- Широкий спектр стилей от фотографических до художественных\n- Быстрая генерация со стабильным качеством`,
     previewImage:
       'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
-    costPerImage: calculateFinalImageCostInStars(0.25),
+    costPerImage: calculateFinalImageCostInStars(0.04),
+    inputType: ['text'],
+  },
+  'grok/aurora': {
+    shortName: 'Grok Aurora',
+    description_en: `Grok Aurora — fast, creative image generation with strong artistic style capabilities. xAI's dedicated image model offering vibrant, stylistic outputs with excellent speed and creative interpretation of prompts.\n\nKey features:\n- Fast generation with artistic flair\n- Strong creative and stylistic capabilities\n- Vibrant color palettes and compositions\n- Good prompt interpretation for abstract concepts\n- Excellent for artistic and illustrative content`,
+    description_ru: `Grok Aurora — быстрая креативная генерация с сильными художественными стилями. Специализированная модель изображений xAI, предлагающая яркие, стилистические результаты с отличной скоростью и креативной интерпретацией промптов.\n\nОсновные функции:\n- Быстрая генерация с художественным чутьем\n- Сильные креативные и стилистические возможности\n- Яркие цветовые палитры и композиции\n- Хорошая интерпретация промптов для абстрактных концепций\n- Отлично подходит для художественного и иллюстративного контента`,
+    previewImage:
+      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
+    costPerImage: calculateFinalImageCostInStars(0.03),
     inputType: ['text'],
   },
   // Midjourney v7 - FLUX-based Midjourney-style generation (adminconteudosflix/midjourney-allcraft)

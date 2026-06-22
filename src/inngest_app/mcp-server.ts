@@ -160,7 +160,7 @@ class InngestMCPServer {
       try {
         switch (name) {
           case 'send_event':
-            return await this.sendEvent(args as InngestEvent);
+            return await this.sendEvent(args as unknown as InngestEvent);
 
           case 'list_functions':
             return await this.listFunctions();

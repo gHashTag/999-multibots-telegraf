@@ -339,8 +339,9 @@ export const generateSeeDream45 = async (
         fileSize: imageBuffer.length
       })
     } catch (downloadError) {
+      const originalMsg = downloadError instanceof Error ? downloadError.message : String(downloadError)
       console.error('🚨 [SeeDream4.5] Failed to download/save image:', downloadError)
-      throw new Error('Failed to process generated image')
+      throw new Error(`Failed to process generated image: ${originalMsg}`)
     }
 
     // Deduct stars AFTER successful generation (skip for welcome gift)
@@ -428,8 +429,9 @@ export const generateSeeDream45 = async (
       }
 
     } catch (saveError) {
+      const originalMsg = saveError instanceof Error ? saveError.message : String(saveError)
       console.error('🚨 [SeeDream4.5] Failed to save prompt:', saveError)
-      throw new Error('Failed to save generation record')
+      throw new Error(`Failed to save generation record: ${originalMsg}`)
     }
 
   } catch (error) {

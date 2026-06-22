@@ -448,7 +448,7 @@ export const generateScenarioClips = inngest.createFunction(
         // Сохраняем информацию о стиле для отчета
         if (selectedStyle) {
           const updatedMetadata = {
-            ...scenarioRecord.metadata,
+            ...((scenarioRecord.metadata || {}) as Record<string, any>),
             blogger_style: bloggerStyle,
             style_info: {
               name: selectedStyle.name,
