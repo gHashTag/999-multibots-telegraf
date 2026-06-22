@@ -369,17 +369,19 @@ async function initializeBots() {
       // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
       bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
       bot.on('successful_payment', handleSuccessfulPayment as any)
-      // AI fallback — отвечает если пользователь не в сцене и текст не кнопка
-      bot.on('text' as any, async (ctx: any) => {
-        try {
-          // Не отвечать если в сцене
-          if (ctx.scene?.current) return
-          // Не отвечать на команды
-          const text = ctx.message?.text || ''
-          if (text.startsWith('/')) return
-          // Не отвечать на кнопки меню (emoji в начале = кнопка)
-          if (/^[\u{1F300}-\u{1FAD6}\u{2600}-\u{27BF}]/u.test(text)) return
+      // AI fallback — последний middleware, отвечает на текст вне сцен
+      bot.use(async (ctx: any) => {
+        // Только текстовые сообщения
+        if (!ctx.message || !('text' in ctx.message)) return
+        const text = ctx.message.text
+        if (!text || text.startsWith('/')) return
+        // Не отвечать на кнопки (emoji в начале)
+        if (/^[\u{1F300}-\u{1FAD6}\u{2600}-\u{27BF}]/u.test(text)) return
+        // Не отвечать если в сцене
+        if (ctx.scene?.current) return
 
+        try {
+          console.log(`🤖 [AI Fallback] Processing: "${text.substring(0, 50)}" from ${ctx.from?.id}`)
           const { chatWithAI } = await import('./services/aiChatService')
           const reply = await chatWithAI(
             [
@@ -390,8 +392,9 @@ async function initializeBots() {
             { telegramId: String(ctx.from?.id), botName: ctx.botInfo?.username || '' }
           )
           await ctx.reply(reply)
-        } catch {
-          // молча пропускаем ошибки — не ломаем основной flow
+          console.log(`🤖 [AI Fallback] Replied to ${ctx.from?.id}`)
+        } catch (err: any) {
+          console.error(`🤖 [AI Fallback] Error:`, err?.message || err)
         }
       })
 
