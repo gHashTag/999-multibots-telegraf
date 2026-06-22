@@ -15,6 +15,8 @@ export interface DebtSummary {
   total_ai_costs: number
   total_owner_payments: number
   total_user_income: number
+  net_profit: number
+  platform_share: number
   debt: number
   breakdown: CostBreakdown[]
   incomeByMethod: Record<string, number>
@@ -126,9 +128,14 @@ export async function calculateOwnerDebt(botName: string): Promise<DebtSummary> 
     incomeByMethod[cur] = (incomeByMethod[cur] || 0) + (Number(r.amount || r.stars) || 0)
   }
 
+  // Формула: доход - себестоимость = чистая прибыль. 50% прибыли → платформе.
+  const net_profit = Math.max(0, total_user_income - total_ai_costs)
+  const platform_share = Math.round(net_profit * 0.5)
+  const debt = Math.max(0, platform_share - total_owner_payments)
+
   return {
     bot_name: botName, total_ai_costs, total_owner_payments,
-    total_user_income, debt: total_ai_costs - total_owner_payments,
+    total_user_income, debt, net_profit, platform_share,
     breakdown, incomeByMethod,
   }
 }
@@ -147,21 +154,33 @@ export async function generateDebtReport(botName: string): Promise<string> {
     .map(([cur, v]) => `  • ${cur === 'XTR' ? 'Telegram Stars' : cur === 'RUB' ? 'Рубли' : cur}: ${fmtMultiCurrency(v, cur)}`)
     .join('\n')
 
-  const profit = s.total_user_income - s.total_ai_costs
-  const pct = s.total_user_income > 0 ? Math.round((profit / s.total_user_income) * 100) : 0
-
   let r = `📊 <b>Отчёт по боту @${s.bot_name}</b>\n\n`
-  r += `💰 <b>Доходы от пользователей:</b> ${fmt(s.total_user_income)}\n`
+
+  r += `━━━ <b>КАК СЧИТАЕМ</b> ━━━\n`
+  r += `Доход − Себестоимость = Чистая прибыль\n`
+  r += `Чистая прибыль делится 50/50\n`
+  r += `50% вам, 50% платформе\n\n`
+
+  r += `💰 <b>1. Доход от клиентов:</b> ${fmt(s.total_user_income)}\n`
   if (incomeLines) r += incomeLines + '\n'
-  r += `\n💸 <b>Расходы на AI:</b> ${fmt(s.total_ai_costs)}\n`
+
+  r += `\n💸 <b>2. Себестоимость AI:</b> ${fmt(s.total_ai_costs)}\n`
   if (costLines) r += costLines + '\n'
-  r += `\n📈 <b>Ваша прибыль:</b> ${fmt(profit)} (${pct}%)\n`
-  if (s.total_owner_payments > 0) r += `✅ Оплачено платформе: ${fmt(s.total_owner_payments)}\n`
+
+  r += `\n📈 <b>3. Чистая прибыль:</b> ${fmt(s.net_profit)}\n`
+  r += `   (${fmt(s.total_user_income)} − ${fmt(s.total_ai_costs)})\n`
+
+  r += `\n━━━ <b>РАСПРЕДЕЛЕНИЕ 50/50</b> ━━━\n`
+  r += `👤 Ваша доля (50%): <b>${fmt(Math.round(s.net_profit * 0.5))}</b>\n`
+  r += `🏢 Платформе (50%): <b>${fmt(s.platform_share)}</b>\n`
+
+  if (s.total_owner_payments > 0) r += `\n✅ Уже оплачено: ${fmt(s.total_owner_payments)}\n`
+
   if (s.debt > 0) {
-    r += `\n⚠️ <b>Задолженность: ${fmt(s.debt)}</b>\n`
-    r += '💳 Оплатите чтобы бот продолжал работать'
+    r += `\n⚠️ <b>К оплате: ${fmt(s.debt)}</b>\n`
+    r += `(${fmt(s.platform_share)} − ${fmt(s.total_owner_payments)} оплачено)`
   } else {
-    r += '\n✅ Задолженности нет — всё оплачено!'
+    r += '\n✅ Всё оплачено!'
   }
   return r
 }
