@@ -1,151 +1,64 @@
 ---
 name: check
-description: Quick JavaScript error check in production logs
+description: Quick health check of Railway production deployment
 ---
 
-## Быстрая диагностика production логов
+## Railway Production Health Check
 
-SSH в production и выполни:
+### 1. Health Endpoints
 ```bash
-ssh prod999 "docker logs 999-multibots --tail 100 2>&1"
+BASE="https://999-multibots-telegraf-production-2008.up.railway.app"
+curl -s "$BASE/health"
+curl -s "$BASE/api/health"
 ```
 
-## Правила диагностики
-
-### CRITICAL (требует немедленного исправления):
-- `Cannot find module` - модуль не найден (перебилдить Docker)
-- `MODULE_NOT_FOUND` - проверить импорты и пути
-- `TypeError: Cannot` - ошибка типа, null/undefined access
-- `ReferenceError:` - необъявленная переменная
-- `SyntaxError:` - синтаксическая ошибка в коде
-- `UnhandledPromiseRejectionWarning` - необработанный промис
-- `ENOENT:` - файл не найден
-- `FATAL` - критическая ошибка приложения
-- `Segmentation fault` - crash процесса
-
-### WARNING (требует внимания):
-- `[WARN]:` - предупреждения приложения
-- `[Infisical]` - проблемы с секретами (проверить Infisical Dashboard)
-- `Error:` - общие ошибки (анализировать контекст)
-- `ECONNREFUSED` - проблемы соединения с внешними сервисами
-- `ETIMEDOUT` - таймаут соединения
-- `TelegramError` - ошибки Telegram API
-- `429 Too Many Requests` - rate limiting
-
-### INFO (для контекста):
-- `[INFO]:` - информационные сообщения
-- `Bot started` - успешный старт бота
-- `Webhook set` - webhook установлен
-- `Health check passed` - health check прошёл
-
-## Дополнительные проверки
-
-### Статус контейнера:
+### 2. Bot Status (all 10 bots)
+Check each bot token from `/tmp/railway_secrets.txt`:
 ```bash
-ssh prod999 "docker ps | grep 999-multibots"
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  TOKEN=$(grep "^BOT_TOKEN_${i}=" /tmp/railway_secrets.txt | head -1 | sed "s/^BOT_TOKEN_${i}='//;s/'$//")
+  curl -s "https://api.telegram.org/bot${TOKEN}/getMe" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'BOT_{'"$i"'}: {d[\"result\"][\"username\"]}' if d.get('ok') else f'BOT_{'"$i"'}: INVALID')"
+done
 ```
 
-### Использование ресурсов:
+### 3. Provider Health
 ```bash
-ssh prod999 "docker stats 999-multibots --no-stream"
+curl -s "$BASE/api/providers"
 ```
 
-### Health check:
+### 4. Railway Logs (errors only)
 ```bash
-curl -s http://188.137.250.69:3001/health
+railway logs -n 100 2>&1 | grep -iE "error|CRITICAL|fail" | grep -v "Supabase.*успешно|уведомлений" | tail -10
 ```
 
-### Последние ошибки с grep:
+### 5. Billing Status
 ```bash
-ssh prod999 "docker logs 999-multibots --tail 500 2>&1 | grep -E '(Error|ERROR|error|CRITICAL|TypeError|Cannot find|FATAL)' | tail -30"
+curl -s "$BASE/api/billing" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(f'{b[\"bot_name\"]}: debt={b[\"debt\"]:.0f}⭐') for b in d.get('bots',[])]"
 ```
 
-### Restart контейнера (если нужно):
+### 6. Payment Endpoint
 ```bash
-ssh prod999 "docker restart 999-multibots"
+curl -s "$BASE/api/payment-success"
 ```
 
-### Полный лог (последние 500 строк):
-```bash
-ssh prod999 "docker logs 999-multibots --tail 500 2>&1"
-```
+## Diagnosis Rules
 
-## ВАЖНО: Проверка всех Webhook'ов
+### CRITICAL:
+- Health returns non-200 → Railway container crashed
+- Bot token INVALID → Token expired, update in Railway vars
+- Provider DOWN → Check balance, notify admin
 
-### Проверить статус webhook'ов всех ботов:
-```bash
-curl -s http://188.137.250.69:3001/health | jq '.webhooks'
-```
+### WARNING:
+- Debt > 500⭐ → Owner needs to pay
+- Fal.ai exhausted → Need to top up fal.ai balance
+- railway logs errors → Investigate
 
-### Проверить webhook конкретного бота через Telegram API:
-```bash
-# Получить токен из логов и проверить
-ssh prod999 "docker logs 999-multibots 2>&1 | grep -oP 'BOT_TOKEN=\K[0-9]+:[A-Za-z0-9_-]+' | head -1"
-# Затем: curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"
-```
+### OK:
+- Health UP + all bots valid + no errors → Production healthy
 
-### Проверить webhook health через API сервера:
-```bash
-curl -s http://188.137.250.69:3001/api/webhooks/status
-```
-
-### Типичные проблемы webhook:
-| Статус | Причина | Решение |
-|--------|---------|---------|
-| `pending_update_count > 100` | Очередь забита | Перезапустить контейнер |
-| `last_error_message` | Ошибка webhook | Проверить SSL и URL |
-| `has_custom_certificate: false` | Нет SSL | Проверить сертификат |
-| `pending_update_count` растёт | Бот не обрабатывает | Проверить логи ошибок |
-
-### Проверить Inngest webhook:
-```bash
-curl -s http://188.137.250.69:3001/api/inngest
-```
-
-## HTTPS домен (neuro-blogger.com)
-
-### Проверить HTTPS сертификат:
-```bash
-curl -sI https://neuro-blogger.com/health | head -10
-```
-
-### Проверить SSL сертификат:
-```bash
-echo | openssl s_client -connect neuro-blogger.com:443 -servername neuro-blogger.com 2>/dev/null | openssl x509 -noout -dates
-```
-
-### Проверить webhook URL для ботов:
-```bash
-# Все боты должны использовать HTTPS URL:
-# https://neuro-blogger.com/webhook/<bot_token>
-curl -s https://neuro-blogger.com/health
-```
-
-### Проверить Nginx/reverse proxy статус:
-```bash
-ssh prod999 "nginx -t && systemctl status nginx --no-pager"
-```
-
-### Типичные проблемы HTTPS:
-| Проблема | Причина | Решение |
-|----------|---------|---------|
-| `SSL certificate problem` | Истёк сертификат | `certbot renew` |
-| `Connection refused` | Nginx не запущен | `systemctl restart nginx` |
-| `502 Bad Gateway` | Backend не отвечает | Проверить Docker контейнер |
-| `404 Not Found` | Неправильный proxy_pass | Проверить nginx config |
-
-## После анализа
-
-1. **Если CRITICAL ошибки** - немедленно предложи исправление или перебилдь Docker
-2. **Если WARNING** - объясни причину и предложи решение
-3. **Если всё ок** - ответь "Production работает нормально"
-
-## Частые проблемы и решения
-
-| Ошибка | Причина | Решение |
-|--------|---------|---------|
-| `Cannot find module` | Модуль не установлен или неправильный путь | `./deploy.sh production` |
-| `ECONNREFUSED` | Внешний сервис недоступен | Проверить статус сервиса |
-| `TelegramError: 409` | Конфликт webhook | Перезапустить контейнер |
-| `Infisical error` | Проблемы с секретами | Проверить Infisical Dashboard |
-| `ENOMEM` | Недостаточно памяти | Перезапустить контейнер |
+## Deployment Info
+- **Platform:** Railway (railway.com)
+- **App URL:** https://999-multibots-telegraf-production-2008.up.railway.app
+- **Project:** aware-art (564d9ebd-7aa8-44fe-93ec-e0b03c87158d)
+- **Deploy:** Push to `main` branch → auto-deploy
+- **Logs:** `railway logs -n 100`
