@@ -158,6 +158,10 @@ impl AiProvider for HedraProvider {
 
     #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
+        let prompt = request.prompt.as_deref().unwrap_or("").trim();
+        if prompt.is_empty() {
+            return Err(AppError::Validation("Empty prompt is not allowed".to_string()));
+        }
         let hedra_resp = self.create_animation(request).await?;
 
         let anim_id = Self::extract_id(&hedra_resp);

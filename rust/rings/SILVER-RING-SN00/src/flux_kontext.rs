@@ -99,6 +99,11 @@ pub async fn handle_flux_kontext_msg(
         }
         3 => {
             if let Some(text) = msg.text() {
+                if text.trim().is_empty() {
+                    let err = if lang.is_russian() { "❌ Пустой текст недопустим." } else { "❌ Empty text is not allowed." };
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                    return Ok(());
+                }
                 if text.len() > MAX_DIALOGUE_TEXT_LEN {
                     let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 2000 символов." } else { "❌ Text too long. Maximum 2000 characters." };
                     send_message_timeout(&bot, msg.chat.id, err, None).await?;

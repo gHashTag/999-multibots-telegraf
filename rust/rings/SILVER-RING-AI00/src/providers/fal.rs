@@ -242,6 +242,10 @@ impl AiProvider for FalProvider {
 
     #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
+        let prompt = request.prompt.as_deref().unwrap_or("").trim();
+        if prompt.is_empty() {
+            return Err(AppError::Validation("Empty prompt is not allowed".to_string()));
+        }
         let model = request.model.as_deref().unwrap_or("nano-banana-pro");
         let model_id = self.resolve_model_id(model)
             .ok_or_else(|| AppError::Validation(format!("unknown fal model: {}", model)))?;

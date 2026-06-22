@@ -249,6 +249,10 @@ impl AiProvider for ReplicateProvider {
 
     #[tracing::instrument(skip_all)]
     async fn generate(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
+        let prompt = request.prompt.as_deref().unwrap_or("").trim();
+        if prompt.is_empty() {
+            return Err(AppError::Validation("Empty prompt is not allowed".to_string()));
+        }
         let model = request.model.as_deref().unwrap_or("flux");
         let input = match request.media_type {
             MediaType::Image => self.build_image_input(request),

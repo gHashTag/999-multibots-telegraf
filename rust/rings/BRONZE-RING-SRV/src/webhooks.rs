@@ -129,7 +129,7 @@ pub async fn replicate_webhook(
         Some(s) => s,
         None => {
             tracing::error!("REPLICATE_WEBHOOK_SECRET not loaded at startup; rejecting webhook");
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Webhook secret not configured"})));
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal server error"})));
         }
     };
     if let Err((status, msg)) = verify_webhook_secret(&headers, replicate_secret) {
@@ -253,7 +253,7 @@ pub async fn kie_ai_webhook(
         Some(s) => s,
         None => {
             tracing::error!("KIE_WEBHOOK_SECRET not loaded at startup; rejecting webhook");
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Webhook secret not configured"})));
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal server error"})));
         }
     };
     if let Err((status, msg)) = verify_webhook_secret(&headers, kie_secret) {

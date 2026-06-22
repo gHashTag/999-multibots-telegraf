@@ -29,6 +29,13 @@ pub async fn handle_tech_support_msg(
         }
     };
 
+    if user_message.trim().is_empty() {
+        let err = if lang.is_russian() { "❌ Пустой текст недопустим." } else { "❌ Empty text is not allowed." };
+        send_message_timeout(&bot, chat_id, err, None,
+        ).await?;
+        return Ok(());
+    }
+
     if user_message.len() > 4000 {
         let err = if lang.is_russian() { "❌ Текст слишком длинный. Максимум 4000 символов." } else { "❌ Text too long. Maximum 4000 characters." };
         send_message_timeout(

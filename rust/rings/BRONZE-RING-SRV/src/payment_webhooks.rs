@@ -140,7 +140,7 @@ pub async fn robokassa_callback(
                         }
                         Err(_) => {
                             tracing::warn!(tx_id = %tx.id, "Complete payment timed out");
-                            "ERROR: DB timeout".to_string()
+                            "Internal server error".to_string()
                         }
                     }
                 } else {
@@ -155,18 +155,18 @@ pub async fn robokassa_callback(
                         }
                         Err(_) => {
                             tracing::warn!(tx_id = %tx.id, "Update transaction status timed out");
-                            "ERROR: DB timeout".to_string()
+                            "Internal server error".to_string()
                         }
                     }
                 }
             }
             Err(e) => {
                 tracing::error!(error = %e, "Robokassa verification failed");
-                "ERROR: verification failed".to_string()
+                "Internal server error".to_string()
             }
         }
     } else {
         tracing::error!("Robokassa callback received but no payment gateway configured");
-        "ERROR: no payment gateway".to_string()
+        "Internal server error".to_string()
     }
 }
