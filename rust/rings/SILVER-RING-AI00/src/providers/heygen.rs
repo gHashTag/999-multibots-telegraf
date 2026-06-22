@@ -268,7 +268,10 @@ impl AiProvider for HeyGenProvider {
         let voice_id = request.params.get("voice_id")
             .and_then(|v| v.as_str())
             .unwrap_or("voice_public_default");
-        let text = request.prompt.as_deref().unwrap_or("");
+        let text = request.prompt.as_deref().unwrap_or("").trim();
+        if text.is_empty() {
+            return Err(AppError::Validation("prompt is empty or whitespace-only".to_string()));
+        }
         let test = request.params.get("test").and_then(|v| v.as_bool()).unwrap_or(false);
 
         let video_id = self.create_avatar_video(avatar_id, voice_id, text, test).await?;

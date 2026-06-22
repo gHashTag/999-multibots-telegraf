@@ -283,7 +283,10 @@ impl AiProvider for ElevenLabsProvider {
                 let model_id = request.params.get("model_id")
                     .and_then(|v| v.as_str())
                     .unwrap_or("eleven_turbo_v2_5");
-                let text = request.prompt.as_deref().unwrap_or("");
+                let text = request.prompt.as_deref().unwrap_or("").trim();
+                if text.is_empty() {
+                    return Err(AppError::Validation("prompt is empty or whitespace-only".to_string()));
+                }
 
                 let audio_data = self.text_to_speech_raw(voice_id, text, model_id).await?;
 

@@ -201,7 +201,10 @@ impl OpenAiProvider {
 
     async fn generate_image(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         let model = request.model.as_deref().unwrap_or("gpt-4o");
-        let prompt = request.prompt.as_deref().unwrap_or("");
+        let prompt = request.prompt.as_deref().unwrap_or("").trim();
+        if prompt.is_empty() {
+            return Err(AppError::Validation("prompt is empty or whitespace-only".to_string()));
+        }
 
         let body = ImageRequest {
             model: model.to_string(),
@@ -257,7 +260,10 @@ impl OpenAiProvider {
     }
 
     async fn text_to_speech(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
-        let prompt = request.prompt.as_deref().unwrap_or("");
+        let prompt = request.prompt.as_deref().unwrap_or("").trim();
+        if prompt.is_empty() {
+            return Err(AppError::Validation("prompt is empty or whitespace-only".to_string()));
+        }
         let voice = request.params.get("voice")
             .and_then(|v| v.as_str())
             .unwrap_or("alloy");
