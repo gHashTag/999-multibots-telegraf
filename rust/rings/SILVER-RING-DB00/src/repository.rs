@@ -143,7 +143,7 @@ impl PostgresDatabase {
         use sea_orm_migration::MigratorTrait;
         crate::migration::Migrator::up(self.pool.as_ref(), None)
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Migration(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("run_migrations", e))?;
         Ok(())
     }
 }
@@ -409,7 +409,7 @@ impl DbTrait for PostgresDatabase {
                 ],
             ))
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("add_balance", e))?;
         Ok(())
     }
 
@@ -429,7 +429,7 @@ impl DbTrait for PostgresDatabase {
             updated_at: Set(now),
         };
         model.insert(self.pool.as_ref()).await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("create_transaction", e))?;
         Ok(tx.clone())
     }
 

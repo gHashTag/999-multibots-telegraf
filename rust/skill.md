@@ -139,3 +139,8 @@ Trigger: User says "исследуй слабые места работы, ис�
 ## Wave 249 Applied Skills
 - Payment Webhook Body Size Limit — `router.rs` (`DefaultBodyLimit::max(16 * 1024)`)
 - DB Error Sanitization — `repository.rs` (`get_user_by_telegram_id`, `create_user`, `deduct_balance`)
+
+## Wave 250 Applied Skills
+- DB Error Sanitization — `repository.rs` (`run_migrations`)
+- DB Error Sanitization — `repository.rs` (`add_balance`)
+- DB Error Sanitization — `repository.rs` (`create_transaction`)
