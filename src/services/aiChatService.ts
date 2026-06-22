@@ -16,7 +16,7 @@ export interface ChatMessage {
 }
 
 export const AI_CHAT_MODELS: Record<string, { id: string; label_ru: string; label_en: string }> = {
-  gpt4: { id: 'gpt-4.1', label_ru: 'GPT-4.1', label_en: 'GPT-4.1' },
+  gpt4: { id: 'gpt-4.1-mini', label_ru: 'GPT-4.1 Mini', label_en: 'GPT-4.1 Mini' },
   claude: { id: 'claude-sonnet-4-20250514', label_ru: 'Claude Sonnet', label_en: 'Claude Sonnet' },
   deepseek: { id: 'deepseek-chat', label_ru: 'DeepSeek', label_en: 'DeepSeek' },
 }
@@ -69,14 +69,14 @@ export async function chatWithAI(
   model?: string,
   opts?: { telegramId?: string; botName?: string }
 ): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY
+  // Prefer OpenAI (paid), fallback to OpenRouter
+  const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY
   if (!apiKey) {
-    throw new Error('No API key found (OPENROUTER_API_KEY or OPENAI_API_KEY)')
+    throw new Error('No API key found (OPENAI_API_KEY or OPENROUTER_API_KEY)')
   }
 
-  const baseURL = process.env.OPENROUTER_API_KEY
-    ? 'https://openrouter.ai/api/v1'
-    : undefined
+  const useOpenRouter = !process.env.OPENAI_API_KEY && !!process.env.OPENROUTER_API_KEY
+  const baseURL = useOpenRouter ? 'https://openrouter.ai/api/v1' : undefined
 
   const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) })
 
