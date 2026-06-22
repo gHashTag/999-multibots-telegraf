@@ -10,6 +10,8 @@ use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const MAX_VOICE_AVATAR_AUDIO_BYTES: u64 = 50 * 1024 * 1024;
+
 #[tracing::instrument(skip_all)]
 pub async fn handle_voice_avatar_msg(
     bot: teloxide::Bot,
@@ -35,11 +37,24 @@ pub async fn handle_voice_avatar_msg(
     }
 
     if state.step == 1 {
-        let file_id = if let Some(voice) = msg.voice() {
-            Some(voice.file.id.clone())
-        } else { msg.audio().map(|audio| audio.file.id.clone()) };
+        let (file_id, size) = if let Some(voice) = msg.voice() {
+            (Some(voice.file.id.clone()), voice.file.size as u64)
+        } else if let Some(audio) = msg.audio() {
+            (Some(audio.file.id.clone()), audio.file.size as u64)
+        } else {
+            (None, 0)
+        };
 
         if let Some(fid) = file_id {
+            if size > MAX_VOICE_AVATAR_AUDIO_BYTES {
+                let err = if lang.is_russian() {
+                    "❌ Файл слишком большой. Максимум 50 МБ."
+                } else {
+                    "❌ File too large. Maximum 50 MB."
+                };
+                send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                return Ok(());
+            }
             state.audio_url = Some(fid);
             let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
     if tid == 0 {

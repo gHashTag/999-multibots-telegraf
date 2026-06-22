@@ -10,6 +10,8 @@ use crate::generation_utils::{DispatchParams, load_lang, load_lang_cb, return_to
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const MAX_UPSCALER_PHOTO_BYTES: u64 = 20 * 1024 * 1024;
+
 #[tracing::instrument(skip_all)]
 pub async fn handle_image_upscaler_msg(
     bot: teloxide::Bot,
@@ -36,15 +38,20 @@ pub async fn handle_image_upscaler_msg(
 
     if state.step == 1 {
         if let Some(photos) = msg.photo() {
-            let file_id = match photos.last() {
-                Some(p) => p.file.id.clone(),
+            let photo = match photos.last() {
+                Some(p) => p,
                 None => {
                     let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
                     send_message_timeout(&bot, msg.chat.id, err, None).await?;
                     return Ok(());
                 }
             };
-            state.image_url = Some(file_id);
+            if photo.file.size as u64 > MAX_UPSCALER_PHOTO_BYTES {
+                let err = if lang.is_russian() { "❌ Изображение слишком большое. Максимум 20 МБ." } else { "❌ Image too large. Maximum 20 MB." };
+                send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                return Ok(());
+            }
+            state.image_url = Some(photo.file.id.clone());
             state.scale = Some(2);
             let tid = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
     if tid == 0 {

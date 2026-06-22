@@ -13,6 +13,7 @@ type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 const VOICE_TRAINING_COST: f64 = 15.0;
 const MIN_VOICE_TRAINING_DURATION: u32 = 30;
 const MAX_VOICE_TRAINING_DURATION: u32 = 180;
+const MAX_VOICE_TRAINING_AUDIO_BYTES: u64 = 50 * 1024 * 1024;
 
 #[tracing::instrument(skip_all)]
 pub async fn handle_voice_training_msg(
@@ -44,15 +45,24 @@ pub async fn handle_voice_training_msg(
             dialogue_update_timeout(&dialogue, Scene::VoiceTraining(state)).await?;
         }
         1 => {
-            let (file_id, duration) = if let Some(audio) = msg.audio() {
-                (Some(audio.file.id.clone()), audio.duration.seconds())
+            let (file_id, duration, size) = if let Some(audio) = msg.audio() {
+                (Some(audio.file.id.clone()), audio.duration.seconds(), audio.file.size as u64)
             } else if let Some(voice) = msg.voice() {
-                (Some(voice.file.id.clone()), voice.duration.seconds())
+                (Some(voice.file.id.clone()), voice.duration.seconds(), voice.file.size as u64)
             } else {
-                (None, 0)
+                (None, 0, 0)
             };
 
             if let Some(fid) = file_id {
+                if size > MAX_VOICE_TRAINING_AUDIO_BYTES {
+                    let err = if lang.is_russian() {
+                        "❌ Файл слишком большой. Максимум 50 МБ.".to_string()
+                    } else {
+                        "❌ File too large. Maximum 50 MB.".to_string()
+                    };
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                    return Ok(());
+                }
                 if duration < MIN_VOICE_TRAINING_DURATION || duration > MAX_VOICE_TRAINING_DURATION {
                     let err = if lang.is_russian() {
                         format!("❌ Длительность аудио должна быть от {} до {} секунд.", MIN_VOICE_TRAINING_DURATION, MAX_VOICE_TRAINING_DURATION)
