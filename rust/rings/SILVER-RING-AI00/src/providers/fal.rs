@@ -1,3 +1,4 @@
+use std::sync::LazyLock;
 use secrecy::ExposeSecret;
 // Wave 151: api_key migrated to secrecy::SecretString
 use async_trait::async_trait;
@@ -8,6 +9,83 @@ use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
 const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+static FAL_NANO_BANANA_PRO_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("FAL_NANO_BANANA_PRO_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "fal-ai/nano-banana-pro".to_string())
+});
+
+static FAL_VEED_FABRIC_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("FAL_VEED_FABRIC_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "fal-ai/veed-fabric".to_string())
+});
+
+static FAL_WAN_25_T2V_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("FAL_WAN_25_T2V_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "fal-ai/wan/v2.5/text-to-video".to_string())
+});
+
+static FAL_WAN_25_I2V_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("FAL_WAN_25_I2V_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "fal-ai/wan/v2.5/image-to-video".to_string())
+});
+
+static FAL_LATENTSYNC_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("FAL_LATENTSYNC_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "fal-ai/latentsync".to_string())
+});
+
+static FAL_HUMMINGBIRD_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("FAL_HUMMINGBIRD_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "fal-ai/hummingbird".to_string())
+});
+
+static FAL_FLUX_SCHNELL_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("FAL_FLUX_SCHNELL_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "fal-ai/flux/schnell".to_string())
+});
+
+static FAL_FLUX_PRO_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("FAL_FLUX_PRO_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "fal-ai/flux".to_string())
+});
+
+static FAL_FLUX_DEV_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("FAL_FLUX_DEV_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "fal-ai/flux/dev".to_string())
+});
+
+static FAL_MINIMAX_VIDEO_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("FAL_MINIMAX_VIDEO_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "fal-ai/minimax/video-01-live".to_string())
+});
+
+static FAL_KLING_VIDEO_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("FAL_KLING_VIDEO_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "fal-ai/kling-video".to_string())
+});
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -72,17 +150,17 @@ impl FalProvider {
 
     fn resolve_model_id(&self, model: &str) -> Option<String> {
         match model {
-            "nano-banana-pro" => Some("fal-ai/nano-banana-pro".to_string()),
-            "veed-fabric" => Some("fal-ai/veed-fabric".to_string()),
-            "wan-2.5-t2v" => Some("fal-ai/wan/v2.5/text-to-video".to_string()),
-            "wan-2.5-i2v" => Some("fal-ai/wan/v2.5/image-to-video".to_string()),
-            "latentsync" => Some("fal-ai/latentsync".to_string()),
-            "hummingbird" => Some("fal-ai/hummingbird".to_string()),
-            "flux-schnell" => Some("fal-ai/flux/schnell".to_string()),
-            "flux-pro" => Some("fal-ai/flux".to_string()),
-            "flux-dev" => Some("fal-ai/flux/dev".to_string()),
-            "minimax-video" => Some("fal-ai/minimax/video-01-live".to_string()),
-            "kling-video" => Some("fal-ai/kling-video".to_string()),
+            "nano-banana-pro" => Some(FAL_NANO_BANANA_PRO_MODEL.clone()),
+            "veed-fabric" => Some(FAL_VEED_FABRIC_MODEL.clone()),
+            "wan-2.5-t2v" => Some(FAL_WAN_25_T2V_MODEL.clone()),
+            "wan-2.5-i2v" => Some(FAL_WAN_25_I2V_MODEL.clone()),
+            "latentsync" => Some(FAL_LATENTSYNC_MODEL.clone()),
+            "hummingbird" => Some(FAL_HUMMINGBIRD_MODEL.clone()),
+            "flux-schnell" => Some(FAL_FLUX_SCHNELL_MODEL.clone()),
+            "flux-pro" => Some(FAL_FLUX_PRO_MODEL.clone()),
+            "flux-dev" => Some(FAL_FLUX_DEV_MODEL.clone()),
+            "minimax-video" => Some(FAL_MINIMAX_VIDEO_MODEL.clone()),
+            "kling-video" => Some(FAL_KLING_VIDEO_MODEL.clone()),
             other => Some(other.to_string()),
         }
     }
