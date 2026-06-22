@@ -81,6 +81,35 @@ deserialize_option_string_max_len!(deserialize_option_string_max_4096, 4096);
 deserialize_option_string_max_len!(deserialize_option_string_max_1024, 1024);
 deserialize_option_string_max_len!(deserialize_option_string_max_256, 256);
 
+/// Deserialize a `Vec<T>` and enforce a maximum element count.
+pub fn deserialize_vec_max_100<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    let vec = Vec::<T>::deserialize(deserializer)?;
+    if vec.len() > 100 {
+        Err(serde::de::Error::custom("vec exceeds maximum length of 100"))
+    } else {
+        Ok(vec)
+    }
+}
+
+/// Deserialize an `Option<Vec<T>>` and enforce a maximum element count.
+pub fn deserialize_option_vec_max_100<'de, D, T>(deserializer: D) -> Result<Option<Vec<T>>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    let opt = Option::<Vec<T>>::deserialize(deserializer)?;
+    if let Some(ref vec) = opt {
+        if vec.len() > 100 {
+            return Err(serde::de::Error::custom("vec exceeds maximum length of 100"));
+        }
+    }
+    Ok(opt)
+}
+
 pub mod fal;
 pub mod infisical;
 pub mod kie;

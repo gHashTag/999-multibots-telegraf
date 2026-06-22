@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
-use crate::deserialize_finite_f64;
+use crate::{
+    deserialize_finite_f64,
+    deserialize_option_string_max_256, deserialize_option_string_max_4096,
+    deserialize_string_max_4096, deserialize_option_vec_max_100,
+};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FalImageRequest {
@@ -41,20 +45,25 @@ fn default_scale() -> f64 { 1.0 }
 #[serde(deny_unknown_fields)]
 pub struct FalImageResponse {
     pub data: Option<FalImageData>,
+    #[serde(deserialize_with = "deserialize_option_vec_max_100")]
     pub images: Option<Vec<FalImageUrl>>,
+    #[serde(deserialize_with = "deserialize_option_string_max_4096")]
     pub image_url: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_string_max_4096")]
     pub url: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FalImageData {
+    #[serde(deserialize_with = "deserialize_option_vec_max_100")]
     pub images: Option<Vec<FalImageUrl>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FalImageUrl {
+    #[serde(deserialize_with = "deserialize_string_max_4096")]
     pub url: String,
 }
 
@@ -102,6 +111,7 @@ pub enum FalLipSyncInput {
 #[serde(deny_unknown_fields)]
 pub struct FalLipSyncResponse {
     pub data: Option<FalLipSyncData>,
+    #[serde(deserialize_with = "deserialize_option_string_max_256")]
     pub request_id: Option<String>,
 }
 

@@ -1,5 +1,9 @@
 #[allow(dead_code)]
 use serde::{Deserialize, Serialize};
+use crate::{
+    deserialize_option_string_max_1024, deserialize_option_string_max_256,
+    deserialize_option_string_max_4096, deserialize_string_max_256,
+};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CreateTrainingRequest {
@@ -36,7 +40,9 @@ fn default_learning_rate() -> f64 { 0.0001 }
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TrainingResponse {
+    #[serde(deserialize_with = "deserialize_string_max_256")]
     pub id: String,
+    #[serde(deserialize_with = "deserialize_string_max_256")]
     pub status: String,
 }
 
@@ -74,24 +80,35 @@ fn default_outputs() -> i32 { 1 }
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PredictionResponse {
+    #[serde(deserialize_with = "deserialize_string_max_256")]
     pub id: String,
     pub output: Option<serde_json::Value>,
+    #[serde(deserialize_with = "deserialize_option_string_max_1024")]
     pub error: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_string_max_256")]
     pub status: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WebhookPayload {
+    #[serde(deserialize_with = "deserialize_string_max_256")]
     pub id: String,
+    #[serde(deserialize_with = "deserialize_string_max_256")]
     pub status: String,
+    #[serde(deserialize_with = "deserialize_option_string_max_256")]
     pub model: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_string_max_256")]
     pub version: Option<String>,
     pub input: Option<serde_json::Value>,
     pub output: Option<serde_json::Value>,
+    #[serde(deserialize_with = "deserialize_option_string_max_1024")]
     pub error: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_string_max_4096")]
     pub logs: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_string_max_256")]
     pub created_at: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_string_max_256")]
     pub completed_at: Option<String>,
 }
 
