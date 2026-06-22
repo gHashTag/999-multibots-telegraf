@@ -50,7 +50,15 @@ pub static HAIM_GROUP_STAFF_IDS: LazyLock<Vec<i64>> =
 pub static METAMUSE_STAFF_IDS: LazyLock<Vec<i64>> =
     LazyLock::new(|| load_optional_id_list("METAMUSE_STAFF_IDS"));
 
+/// Sentinel value used when SUPER_ADMIN_ID env var is missing or invalid.
+const SUPER_ADMIN_SENTINEL: i64 = 0;
+
 pub fn is_super_admin(user_id: i64) -> bool {
+    // Reject the sentinel explicitly: even though no real Telegram user has ID 0,
+    // defense-in-depth mandates that the fallback value never grant privileges.
+    if user_id == SUPER_ADMIN_SENTINEL {
+        return false;
+    }
     user_id == *SUPER_ADMIN_ID
 }
 
@@ -72,13 +80,33 @@ pub fn is_metamuse_staff(user_id: i64) -> bool {
     METAMUSE_STAFF_IDS.contains(&user_id)
 }
 
+fn load_bot_name(env_var: &str, fallback: &str) -> String {
+    match std::env::var(env_var) {
+        Ok(v) if !v.is_empty() => v,
+        Ok(_) => {
+            tracing::warn!("{} is empty; falling back to hardcoded bot name", env_var);
+            fallback.to_string()
+        }
+        Err(_) => {
+            tracing::warn!("{} not set; falling back to hardcoded bot name", env_var);
+            fallback.to_string()
+        }
+    }
+}
+
+pub static HAIM_GROUP_BOT_NAME: LazyLock<String> =
+    LazyLock::new(|| load_bot_name("HAIM_GROUP_BOT_NAME", "HaimGroupMedia_bot"));
+
+pub static METAMUSE_BOT_NAME: LazyLock<String> =
+    LazyLock::new(|| load_bot_name("METAMUSE_BOT_NAME", "MetaMuse_Manifest_bot"));
+
 pub fn has_parsing_access(user_id: i64, bot_name: &str) -> bool {
     if is_super_admin(user_id) {
         return true;
     }
     match bot_name {
-        "HaimGroupMedia_bot" => HAIM_GROUP_STAFF_IDS.contains(&user_id),
-        "MetaMuse_Manifest_bot" => METAMUSE_STAFF_IDS.contains(&user_id),
+        n if n == HAIM_GROUP_BOT_NAME.as_str() => HAIM_GROUP_STAFF_IDS.contains(&user_id),
+        n if n == METAMUSE_BOT_NAME.as_str() => METAMUSE_STAFF_IDS.contains(&user_id),
         _ => false,
     }
 }
