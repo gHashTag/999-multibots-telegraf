@@ -4,7 +4,7 @@ use std::fmt;
 #[derive(Clone, Serialize)]
 pub struct AuthRequest {
     pub client_id: String,
-    client_secret: String,
+    pub client_secret: String,
 }
 
 impl fmt::Debug for AuthRequest {

@@ -1,3 +1,4 @@
+use secrecy::ExposeSecret;
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 use trios_mb_types::config::AppConfig;
@@ -116,7 +117,7 @@ async fn main() -> anyhow::Result<()> {
     // 1. Secrets
     let secret_store = Arc::new(trios_mb_secrets::InfisicalStore::new(
         &config.infisical_client_id,
-        &config.infisical_client_secret,
+        config.infisical_client_secret.expose_secret(),
         &config.infisical_project_id,
         &config.infisical_environment,
     )?);

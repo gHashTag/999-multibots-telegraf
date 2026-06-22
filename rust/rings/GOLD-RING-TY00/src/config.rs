@@ -1,10 +1,9 @@
-use serde::{Deserialize, Serialize};
+use secrecy::SecretString;
 
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone)]
 pub struct AppConfig {
     pub infisical_client_id: String,
-    pub infisical_client_secret: String,
+    pub infisical_client_secret: SecretString,
     pub infisical_project_id: String,
     pub infisical_environment: String,
     pub database_url: String,
@@ -35,8 +34,11 @@ impl AppConfig {
         Ok(Self {
             infisical_client_id: std::env::var("INFISICAL_CLIENT_ID")
                 .map_err(|_| crate::AppError::Config("INFISICAL_CLIENT_ID not set".into()))?,
-            infisical_client_secret: std::env::var("INFISICAL_CLIENT_SECRET")
-                .map_err(|_| crate::AppError::Config("INFISICAL_CLIENT_SECRET not set".into()))?,
+            infisical_client_secret: SecretString::new(
+                std::env::var("INFISICAL_CLIENT_SECRET")
+                    .map_err(|_| crate::AppError::Config("INFISICAL_CLIENT_SECRET not set".into()))?
+                    .into_boxed_str()
+            ),
             infisical_project_id: std::env::var("INFISICAL_PROJECT_ID")
                 .map_err(|_| crate::AppError::Config("INFISICAL_PROJECT_ID not set".into()))?,
             infisical_environment: std::env::var("INFISICAL_ENVIRONMENT")

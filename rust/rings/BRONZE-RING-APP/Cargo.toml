@@ -11,6 +11,7 @@ name = "trios-mb"
 path = "src/main.rs"
 
 [dependencies]
+secrecy = { workspace = true }
 trios-mb-types = { workspace = true }
 trios-mb-traits = { workspace = true }
 trios-mb-db = { workspace = true }

@@ -5,6 +5,7 @@ use tokio::sync::RwLock;
 use trios_mb_traits::{AiProvider, AiProviderOrchestrator};
 use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
+use trios_mb_types::truncate_for_log;
 use crate::circuit_breaker::CircuitBreaker;
 
 const FAILURE_THRESHOLD: u32 = 3;
@@ -62,7 +63,9 @@ impl AiOrchestrator {
                     return Ok(result);
                 }
                 Err(e) => {
-                    tracing::warn!(provider = provider.name(), error = %e, "provider failed");
+                    let err_msg = e.to_string();
+                    let err_short = truncate_for_log(&err_msg, 256);
+                    tracing::warn!(provider = provider.name(), error = %err_short, "provider failed");
                     if let Some(b) = breaker {
                         b.record_failure();
                     }

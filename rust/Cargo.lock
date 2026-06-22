@@ -2743,15 +2743,6 @@ checksum = "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b"
 
 [[package]]
 name = "secrecy"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9bd1c54ea06cfd2f6b63219704de0b9b4f72dcc2b8fdef820be6cd799780e91e"
-dependencies = [
- "zeroize",
-]
-
-[[package]]
-name = "secrecy"
 version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e891af845473308773346dc847b2c23ee78fe442e0472ac50e22a18a93d3ae5a"
@@ -3775,7 +3766,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "reqwest 0.12.28",
- "secrecy 0.10.3",
+ "secrecy",
  "serde",
  "serde_json",
  "tokio",
@@ -3794,6 +3785,7 @@ dependencies = [
  "axum",
  "dotenvy",
  "futures-util",
+ "secrecy",
  "serde",
  "serde_json",
  "teloxide",
@@ -3894,7 +3886,7 @@ dependencies = [
  "hex",
  "hmac",
  "reqwest 0.12.28",
- "secrecy 0.8.0",
+ "secrecy",
  "serde",
  "serde_json",
  "sha2",
@@ -3910,6 +3902,7 @@ dependencies = [
 name = "trios-mb-proto"
 version = "0.1.0"
 dependencies = [
+ "secrecy",
  "serde",
  "serde_json",
  "tracing",
@@ -3945,7 +3938,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "reqwest 0.12.28",
- "secrecy 0.8.0",
+ "secrecy",
  "serde",
  "serde_json",
  "tokio",
@@ -3963,7 +3956,7 @@ dependencies = [
  "chrono",
  "governor",
  "http 1.4.0",
- "secrecy 0.8.0",
+ "secrecy",
  "serde",
  "serde_json",
  "subtle",
@@ -4025,6 +4018,7 @@ name = "trios-mb-types"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "secrecy",
  "serde",
  "serde_json",
  "thiserror 1.0.69",

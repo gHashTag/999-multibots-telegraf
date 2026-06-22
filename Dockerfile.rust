@@ -4,12 +4,10 @@ RUN apt-get update && apt-get install -y musl-tools musl-dev pkg-config && rm -r
 
 RUN rustup target add x86_64-unknown-linux-musl
 
-# Set environment for ring crate to use pre-built binaries
-ENV RING_PREGENERATE_ASM=1
-
 WORKDIR /build
 
 COPY rust/Cargo.toml rust/Cargo.lock ./
+COPY rust/.cargo .cargo
 
 COPY rust/rings/GOLD-RING-TY00/Cargo.toml rings/GOLD-RING-TY00/Cargo.toml
 COPY rust/rings/GOLD-RING-TY00/src rings/GOLD-RING-TY00/src
@@ -39,30 +37,23 @@ COPY rust/rings/BRONZE-RING-APP/Cargo.toml rings/BRONZE-RING-APP/Cargo.toml
 COPY rust/rings/BRONZE-RING-APP/src rings/BRONZE-RING-APP/src
 COPY rust/rings/TEST-UTILS/Cargo.toml rings/TEST-UTILS/Cargo.toml
 COPY rust/rings/TEST-UTILS/src rings/TEST-UTILS/src
-
-COPY rust/.cargo .cargo
+COPY rust/tests/e2e-tests/Cargo.toml tests/e2e-tests/Cargo.toml
+RUN mkdir -p tests/e2e-tests/src && echo "" > tests/e2e-tests/src/lib.rs
 
 ENV RUSTFLAGS="-C target-feature=+crt-static"
 
-RUN cargo build --release -p trios-mb-app --target x86_64-unknown-linux-musl 2>/dev/null || true
-
-COPY rust/ .
-
 RUN cargo build --release -p trios-mb-app --target x86_64-unknown-linux-musl
 
-FROM debian:bookworm-slim
+FROM alpine:3.20
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache ca-certificates tzdata
 
-RUN addgroup --system --gid 1001 app && \
-    adduser --system --uid 1001 --gid 1001 app
+RUN addgroup -S app && adduser -S -G app app
 
 COPY --from=builder /build/target/x86_64-unknown-linux-musl/release/trios-mb /usr/local/bin/trios-mb
 
 USER app
 
-EXPOSE 3001
+ENV RUST_LOG=info,trios_mb=debug
 
 CMD ["trios-mb"]

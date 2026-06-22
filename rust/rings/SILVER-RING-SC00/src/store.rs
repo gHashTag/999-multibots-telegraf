@@ -64,9 +64,9 @@ async fn read_json_limited<T: serde::de::DeserializeOwned>(resp: reqwest::Respon
 }
 
 struct SecretCache {
-    access_token: Option<String>,
+    access_token: Option<SecretString>,
     token_expires_at: Option<chrono::DateTime<chrono::Utc>>,
-    secrets: HashMap<String, (String, Instant)>,
+    secrets: HashMap<String, (SecretString, Instant)>,
 }
 
 impl std::fmt::Debug for SecretCache {
@@ -97,7 +97,7 @@ impl SecretCache {
     }
 
     /// Insert a secret, evicting the oldest entries if over capacity.
-    fn insert(&mut self, key: String, value: String) {
+    fn insert(&mut self, key: String, value: SecretString) {
         if self.secrets.len() >= MAX_SECRET_CACHE_ENTRIES {
             // Evict the oldest entry by insertion time
             let oldest = self.secrets
@@ -146,7 +146,7 @@ impl InfisicalStore {
             .map_err(|e| AppError::Internal(format!("Failed to build Infisical reqwest client: {}", e)))?;
         Ok(Self {
             client_id: client_id.to_string(),
-            client_secret: SecretString::new(client_secret.to_string()),
+            client_secret: SecretString::new(client_secret.to_string().into_boxed_str()),
             project_id: project_id.to_string(),
             environment: environment.to_string(),
             http,
@@ -160,7 +160,7 @@ impl InfisicalStore {
 
         if let (Some(token), Some(expires)) = (&cache.access_token, cache.token_expires_at) {
             if chrono::Utc::now() < expires {
-                return Ok(token.clone());
+                return Ok(token.expose_secret().to_string());
             }
         }
 
@@ -188,7 +188,7 @@ impl InfisicalStore {
             .to_string();
 
         let expires_at = chrono::Utc::now() + chrono::Duration::minutes(55);
-        cache.access_token = Some(token.clone());
+        cache.access_token = Some(SecretString::new(token.clone().into_boxed_str()));
         cache.token_expires_at = Some(expires_at);
 
         Ok(token)
@@ -223,7 +223,7 @@ impl InfisicalStore {
         if let Some(secrets) = body["secrets"].as_array() {
             for secret in secrets {
                 if let (Some(key), Some(value)) = (secret["key"].as_str(), secret["value"].as_str()) {
-                    cache.insert(key.to_string(), value.to_string());
+                    cache.insert(key.to_string(), SecretString::new(value.to_string().into_boxed_str()));
                 }
             }
         }
@@ -240,7 +240,7 @@ impl SecretStore for InfisicalStore {
             let cache = self.cache.read().await;
             if cache.is_entry_fresh(key) {
                 if let Some((value, _)) = cache.secrets.get(key) {
-                    return Ok(value.clone());
+                    return Ok(value.expose_secret().to_string());
                 }
             }
         }
@@ -249,7 +249,7 @@ impl SecretStore for InfisicalStore {
 
         let cache = self.cache.read().await;
         cache.secrets.get(key)
-            .map(|(v, _)| v.clone())
+            .map(|(v, _)| v.expose_secret().to_string())
             .ok_or_else(|| AppError::Secrets(SecretsError::NotFound { key: key.to_string() }))
     }
 
@@ -263,7 +263,7 @@ impl SecretStore for InfisicalStore {
             for key in keys {
                 if cache.is_entry_fresh(key) {
                     if let Some((value, _)) = cache.secrets.get(*key) {
-                        result.insert(key.to_string(), value.clone());
+                        result.insert(key.to_string(), value.expose_secret().to_string());
                     }
                 } else {
                     stale.push(*key);
@@ -276,7 +276,7 @@ impl SecretStore for InfisicalStore {
             let cache = self.cache.read().await;
             for key in stale {
                 if let Some((value, _)) = cache.secrets.get(key) {
-                    result.insert(key.to_string(), value.clone());
+                    result.insert(key.to_string(), value.expose_secret().to_string());
                 }
             }
         }

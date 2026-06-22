@@ -18,7 +18,7 @@ uuid = { workspace = true }
 hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
-secrecy = "0.8"
+secrecy = { workspace = true }
 subtle = "2.6"
 chrono = { workspace = true }
 urlencoding = "2"

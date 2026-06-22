@@ -25,8 +25,8 @@ impl RobokassaGateway {
     pub fn new(merchant_login: &str, password1: &str, password2: &str) -> Self {
         Self {
             merchant_login: merchant_login.to_string(),
-            password1: SecretString::new(password1.to_string()),
-            password2: SecretString::new(password2.to_string()),
+            password1: SecretString::new(password1.to_string().into_boxed_str()),
+            password2: SecretString::new(password2.to_string().into_boxed_str()),
         }
     }
 
