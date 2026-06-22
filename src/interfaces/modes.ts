@@ -105,6 +105,9 @@ export enum ModeEnum {
   // 🎤 VOICE CLONING & AI COVER
   VoiceTraining = 'voice_training_wizard',
   AICover = 'ai_cover_wizard',
+
+  // 🛒 МАРКЕТПЛЕЙС
+  Marketplace = 'marketplaceWizard',
 }
 
 // Определяем интерфейсы прямо здесь для предотвращения циклических зависимостей

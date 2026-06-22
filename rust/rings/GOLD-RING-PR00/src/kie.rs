@@ -1,5 +1,10 @@
 use serde::{Deserialize, Serialize};
-use crate::{deserialize_option_finite_f64, deserialize_option_string_max_4096, deserialize_option_string_max_1024, deserialize_option_string_max_256};
+use crate::{
+    deserialize_option_finite_f64,
+    deserialize_option_string_max_4096, deserialize_option_string_max_1024,
+    deserialize_option_string_max_256,
+    deserialize_option_vec_string_max_100_len_4096,
+};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CreateTaskRequest {
@@ -13,7 +18,7 @@ pub struct CreateTaskRequest {
 pub struct TaskInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "deserialize_option_vec_string_max_100_len_4096")]
     pub image_urls: Option<Vec<String>>,
     pub aspect_ratio: String,
     #[serde(default)]
@@ -37,6 +42,7 @@ pub struct CreateTaskResponse {
 pub struct TaskData {
     pub task_id: Option<String>,
     pub video_url: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_vec_string_max_100_len_4096")]
     pub result_urls: Option<Vec<String>>,
     pub success_flag: Option<i32>,
 }
@@ -68,6 +74,7 @@ pub struct TaskStatusData {
     pub success_flag: Option<i32>,
     #[serde(deserialize_with = "deserialize_option_string_max_4096")]
     pub video_url: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_vec_string_max_100_len_4096")]
     pub result_urls: Option<Vec<String>>,
     #[serde(deserialize_with = "deserialize_option_string_max_1024")]
     pub error_message: Option<String>,
@@ -100,9 +107,12 @@ pub struct WebhookPayload {
     #[serde(deserialize_with = "deserialize_option_string_max_256")]
     pub task_id: Option<String>,
     pub success_flag: Option<i32>,
+    #[serde(deserialize_with = "deserialize_option_vec_string_max_100_len_4096")]
     pub result_urls: Option<Vec<String>>,
+    #[serde(deserialize_with = "deserialize_option_vec_string_max_100_len_4096")]
     pub result_water_mark_urls: Option<Vec<String>>,
     pub result_url: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_vec_string_max_100_len_4096")]
     pub result_watermark_urls: Option<Vec<String>>,
     #[serde(deserialize_with = "deserialize_option_string_max_4096")]
     pub video_url: Option<String>,
@@ -120,6 +130,7 @@ pub struct WebhookPayload {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WebhookResponse {
+    #[serde(deserialize_with = "deserialize_option_vec_string_max_100_len_4096")]
     pub result_urls: Option<Vec<String>>,
     pub result_url: Option<String>,
     #[serde(deserialize_with = "deserialize_option_string_max_1024")]

@@ -193,6 +193,15 @@ export const NAVIGATION_BUTTONS: NavigationButton[] = [
     requires_subscription: true
   },
 
+  // === МАРКЕТПЛЕЙС ===
+  {
+    ru: '🛒 Маркетплейс',
+    en: '🛒 Marketplace',
+    mode: ModeEnum.Marketplace,
+    category: 'tools',
+    icon: '🛒'
+  },
+
   // === НАВИГАЦИЯ И ПОДДЕРЖКА ===
   {
     ru: '👥 Пригласить друга',

@@ -281,6 +281,14 @@ export const CATEGORIES: CategoryConfig[] = [
     ],
   },
   {
+    id: 'marketplace',
+    ru: '🛒 Маркетплейс',
+    en: '🛒 Marketplace',
+    icon: '🛒',
+    sceneId: ModeEnum.Marketplace, // Прямой переход в marketplaceWizard
+    items: [], // Пустой - это кнопка быстрого доступа, не категория с подменю
+  },
+  {
     id: 'top_up',
     ru: '💎 Пополнить',
     en: '💎 Top up',

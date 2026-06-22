@@ -64,5 +64,7 @@ export { default as voiceTrainingWizard } from './voiceTrainingWizard'
 export { default as aiCoverWizard } from './aiCoverWizard'
 // 💬 AI CHAT
 export { aiChatWizard } from './aiChatWizard'
+// 🛒 МАРКЕТПЛЕЙС
+export { marketplaceWizard } from './marketplaceWizard'
 // ✅ ЭКСПОРТИРУЕМ СЦЕНЫ КАТЕГОРИЙ
 export * from './categoryScenes'

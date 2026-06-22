@@ -79,9 +79,11 @@ pub(super) async fn parse_json_limited<T: serde::de::DeserializeOwned>(
         }));
     }
     serde_json::from_slice(&bytes).map_err(|e| {
+        let err_raw = e.to_string();
+        tracing::error!(error = %trios_mb_types::truncate_for_log(&err_raw, 1024), provider = %provider, "provider response json parse failed");
         AppError::Ai(trios_mb_types::errors::AiError::InvalidResponse {
             provider: provider.to_string(),
-            message: format!("json parse: {}", e),
+            message: "invalid provider response".to_string(),
         })
     })
 }

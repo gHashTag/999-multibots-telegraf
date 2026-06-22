@@ -247,9 +247,11 @@ impl ReplicateProvider {
         ).await {
             Ok(Ok(resp)) => resp,
             Ok(Err(e)) => {
+                let err_raw = e.to_string();
+                tracing::error!(error = %trios_mb_types::truncate_for_log(&err_raw, 1024), provider = "replicate", "provider request failed");
                 return Err(AiError::Provider {
                     provider: "replicate".into(),
-                    message: format!("request failed: {}", e),
+                    message: "provider request failed".to_string(),
                 }.into());
             }
             Err(_) => {

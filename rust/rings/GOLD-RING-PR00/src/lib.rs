@@ -110,6 +110,30 @@ where
     Ok(opt)
 }
 
+/// Deserialize an `Option<Vec<String>>` and enforce both a maximum element count (100)
+/// and a maximum byte length per element (4096).
+pub fn deserialize_option_vec_string_max_100_len_4096<'de, D>(
+    deserializer: D,
+) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::<Vec<String>>::deserialize(deserializer)?;
+    if let Some(ref vec) = opt {
+        if vec.len() > 100 {
+            return Err(serde::de::Error::custom("vec exceeds maximum length of 100"));
+        }
+        for s in vec {
+            if s.len() > 4096 {
+                return Err(serde::de::Error::custom(
+                    "string exceeds maximum length of 4096",
+                ));
+            }
+        }
+    }
+    Ok(opt)
+}
+
 pub mod fal;
 pub mod infisical;
 pub mod kie;
