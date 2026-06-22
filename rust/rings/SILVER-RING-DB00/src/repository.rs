@@ -524,7 +524,7 @@ impl DbTrait for PostgresDatabase {
                 .filter(p::Column::Id.eq(c))
                 .one(self.pool.as_ref())
                 .await
-                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+                .map_err(|e| sanitize_db_error("get_transactions_by_telegram_id_cursor", e))?;
             if let Some(row) = cursor_row {
                 query = query.filter(p::Column::CreatedAt.lt(row.created_at));
             }
@@ -534,7 +534,7 @@ impl DbTrait for PostgresDatabase {
             .limit(Some(safe_limit as u64))
             .all(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("get_transactions_by_telegram_id", e))?;
 
         rows.into_iter()
             .map(|r| -> Result<Transaction, AppError> {
@@ -564,7 +564,7 @@ impl DbTrait for PostgresDatabase {
             .filter(u::Column::TelegramId.eq(telegram_id))
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("check_subscription", e))?;
 
         Ok(user.and_then(|m| m.subscription.as_deref().and_then(str_to_subscription)))
     }
@@ -576,14 +576,14 @@ impl DbTrait for PostgresDatabase {
             .filter(u::Column::TelegramId.eq(telegram_id))
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("renew_subscription", e))?;
 
         if let Some(user) = user {
             let mut active: u::ActiveModel = user.into();
             active.subscription = Set(Some(subscription_to_str(&sub_type).to_string()));
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
-                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+                .map_err(|e| sanitize_db_error("renew_subscription", e))?;
         }
         Ok(())
     }
@@ -613,7 +613,7 @@ impl DbTrait for PostgresDatabase {
             created_at: Set(chrono::Utc::now()),
         };
         model.insert(self.pool.as_ref()).await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("save_prompt", e))?;
         Ok(())
     }
 
@@ -625,7 +625,7 @@ impl DbTrait for PostgresDatabase {
             .order_by_desc(p::Column::CreatedAt)
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("get_prompt", e))?;
         Ok(row.and_then(|r| r.prompt))
     }
 
@@ -672,7 +672,7 @@ impl DbTrait for PostgresDatabase {
             updated_at: Set(now),
         };
         model.insert(self.pool.as_ref()).await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("create_generation", e))?;
 
         Ok(GenerationResult {
             id,
@@ -692,7 +692,7 @@ impl DbTrait for PostgresDatabase {
         let row = g::Entity::find_by_id(id)
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("update_generation_status", e))?;
 
         if let Some(row) = row {
             let mut active: g::ActiveModel = row.into();
@@ -705,7 +705,7 @@ impl DbTrait for PostgresDatabase {
             }
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
-                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+                .map_err(|e| sanitize_db_error("update_generation_status", e))?;
         }
         Ok(())
     }
@@ -716,7 +716,7 @@ impl DbTrait for PostgresDatabase {
         let row = g::Entity::find_by_id(id)
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("get_generation", e))?;
 
         match row {
             Some(r) => Ok(Some(GenerationResult {
@@ -810,7 +810,7 @@ impl DbTrait for PostgresDatabase {
             .filter(g::Column::TelegramId.eq(telegram_id))
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("get_generation_owned", e))?;
 
         match row {
             Some(r) => Ok(Some(GenerationResult {
@@ -842,7 +842,7 @@ impl DbTrait for PostgresDatabase {
             .filter(g::Column::TelegramId.eq(telegram_id))
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("update_generation_status_owned", e))?;
 
         if let Some(row) = row {
             let mut active: g::ActiveModel = row.into();
@@ -855,7 +855,7 @@ impl DbTrait for PostgresDatabase {
             }
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
-                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+                .map_err(|e| sanitize_db_error("update_generation_status_owned", e))?;
         }
         Ok(())
     }
@@ -881,7 +881,7 @@ impl DbTrait for PostgresDatabase {
                 ],
             ))
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("record_webhook_event", e))?;
         Ok(result.rows_affected() > 0)
     }
 
@@ -897,7 +897,7 @@ impl DbTrait for PostgresDatabase {
             .filter(w::Column::EventId.eq(event_id))
             .count(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("has_webhook_event", e))?;
         Ok(count > 0)
     }
 }
