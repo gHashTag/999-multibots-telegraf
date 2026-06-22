@@ -6,6 +6,8 @@ use trios_mb_types::generation::*;
 use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
+const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
 #[derive(Debug, Serialize)]
 struct ChatRequest {
     model: String,
@@ -199,6 +201,7 @@ impl OpenAiProvider {
         ).await
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate_image(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         let model = request.model.as_deref().unwrap_or("gpt-4o");
         let prompt = request.prompt.as_deref().unwrap_or("").trim();
@@ -214,17 +217,29 @@ impl OpenAiProvider {
             quality: request.params.get("quality").and_then(|v| v.as_str()).map(|q| q.to_string()),
         };
 
-        let resp = self.http
-            .post(format!("{}/images/generations", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "openai".into(),
-                message: format!("image request failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/images/generations", self.base_url))
+                .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "openai".into(),
+                    message: format!("image request failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "openai".into(),
+                    message: "image request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
@@ -259,6 +274,7 @@ impl OpenAiProvider {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn text_to_speech(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
         let prompt = request.prompt.as_deref().unwrap_or("").trim();
         if prompt.is_empty() {
@@ -276,17 +292,29 @@ impl OpenAiProvider {
             speed,
         };
 
-        let resp = self.http
-            .post(format!("{}/audio/speech", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| AiError::Provider {
-                provider: "openai".into(),
-                message: format!("tts request failed: {}", e),
-            })?;
+        let resp = match tokio::time::timeout(
+            PROVIDER_HTTP_TIMEOUT,
+            self.http
+                .post(format!("{}/audio/speech", self.base_url))
+                .header("Authorization", format!("Bearer {}", self.api_key.expose_secret()))
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send(),
+        ).await {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                return Err(AiError::Provider {
+                    provider: "openai".into(),
+                    message: format!("tts request failed: {}", e),
+                }.into());
+            }
+            Err(_) => {
+                return Err(AiError::Provider {
+                    provider: "openai".into(),
+                    message: "tts request timed out".to_string(),
+                }.into());
+            }
+        };
 
         let status = resp.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {

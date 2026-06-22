@@ -13,6 +13,8 @@ use trios_mb_traits::job_queue::EnqueueRequest;
 
 type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
+const DB_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 #[tracing::instrument(skip_all)]
 pub async fn load_lang(db: &Arc<dyn Database>, msg: &Message) -> Language {
     match msg.from {
@@ -23,11 +25,15 @@ pub async fn load_lang(db: &Arc<dyn Database>, msg: &Message) -> Language {
 
 #[tracing::instrument(skip_all)]
 pub async fn load_lang_by_id(db: &Arc<dyn Database>, telegram_id: i64) -> Language {
-    match db.get_user_by_telegram_id(telegram_id).await {
-        Ok(Some(user)) => user.language,
-        Ok(None) => Language::default(),
-        Err(e) => {
+    match tokio::time::timeout(DB_TIMEOUT, db.get_user_by_telegram_id(telegram_id)).await {
+        Ok(Ok(Some(user))) => user.language,
+        Ok(Ok(None)) => Language::default(),
+        Ok(Err(e)) => {
             tracing::warn!(telegram_id, error = %e, "Failed to load user language from DB; falling back to default");
+            Language::default()
+        }
+        Err(_) => {
+            tracing::warn!(telegram_id, "DB timeout loading user language; falling back to default");
             Language::default()
         }
     }
@@ -35,11 +41,15 @@ pub async fn load_lang_by_id(db: &Arc<dyn Database>, telegram_id: i64) -> Langua
 
 #[tracing::instrument(skip_all)]
 pub async fn load_lang_cb(db: &Arc<dyn Database>, q: &teloxide::types::CallbackQuery) -> Language {
-    match db.get_user_by_telegram_id(q.from.id.0 as i64).await {
-        Ok(Some(user)) => user.language,
-        Ok(None) => Language::default(),
-        Err(e) => {
+    match tokio::time::timeout(DB_TIMEOUT, db.get_user_by_telegram_id(q.from.id.0 as i64)).await {
+        Ok(Ok(Some(user))) => user.language,
+        Ok(Ok(None)) => Language::default(),
+        Ok(Err(e)) => {
             tracing::warn!(telegram_id = q.from.id.0, error = %e, "Failed to load user language from DB; falling back to default");
+            Language::default()
+        }
+        Err(_) => {
+            tracing::warn!(telegram_id = q.from.id.0, "DB timeout loading user language from DB; falling back to default");
             Language::default()
         }
     }
@@ -52,13 +62,17 @@ pub async fn deduct_balance(
     cost: f64,
     lang: Language,
 ) -> Result<f64, String> {
-    match db.deduct_balance(telegram_id, cost).await {
-        Ok(true) => Ok(0.0),
-        Ok(false) => {
-            let balance = match db.get_balance(telegram_id).await {
-                Ok(b) => b,
-                Err(e) => {
+    match tokio::time::timeout(DB_TIMEOUT, db.deduct_balance(telegram_id, cost)).await {
+        Ok(Ok(true)) => Ok(0.0),
+        Ok(Ok(false)) => {
+            let balance = match tokio::time::timeout(DB_TIMEOUT, db.get_balance(telegram_id)).await {
+                Ok(Ok(b)) => b,
+                Ok(Err(e)) => {
                     tracing::error!(telegram_id, error = %e, "Failed to get balance for error message");
+                    0.0
+                }
+                Err(_) => {
+                    tracing::warn!(telegram_id, "DB timeout getting balance for error message");
                     0.0
                 }
             };
@@ -69,8 +83,17 @@ pub async fn deduct_balance(
             };
             Err(msg)
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             tracing::error!(error = %e, "DB error during balance deduction");
+            let msg = if lang.is_russian() {
+                "❌ Ошибка списания средств. Попробуйте позже.".to_string()
+            } else {
+                "❌ Failed to deduct balance. Please try again later.".to_string()
+            };
+            Err(msg)
+        }
+        Err(_) => {
+            tracing::warn!(telegram_id, "DB timeout during balance deduction");
             let msg = if lang.is_russian() {
                 "❌ Ошибка списания средств. Попробуйте позже.".to_string()
             } else {
@@ -159,9 +182,9 @@ pub async fn dispatch_and_reply(
         params: serde_json::json!({ "cost": params.cost }),
     };
 
-    let gen = db.create_generation(&request).await;
+    let gen = tokio::time::timeout(DB_TIMEOUT, db.create_generation(&request)).await;
     match gen {
-        Ok(g) => {
+        Ok(Ok(g)) => {
             let mut request = request;
             request.params = serde_json::json!({
                 "cost": params.cost,
@@ -183,8 +206,14 @@ pub async fn dispatch_and_reply(
                 }
                 Err(e) => {
                     tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to enqueue generation, refunding");
-                    if let Err(refund_err) = db.add_balance(params.telegram_id, params.cost).await {
-                        tracing::error!(telegram_id = params.telegram_id, error = %refund_err, "CRITICAL: Failed to refund balance after enqueue failure");
+                    match tokio::time::timeout(DB_TIMEOUT, db.add_balance(params.telegram_id, params.cost)).await {
+                        Ok(Ok(())) => {}
+                        Ok(Err(refund_err)) => {
+                            tracing::error!(telegram_id = params.telegram_id, error = %refund_err, "CRITICAL: Failed to refund balance after enqueue failure");
+                        }
+                        Err(_) => {
+                            tracing::warn!(telegram_id = params.telegram_id, "DB timeout refunding balance after enqueue failure");
+                        }
                     }
                     let err_msg = if params.lang.is_russian() {
                         "❌ Не удалось отправить задачу. Попробуйте позже.".to_string()
@@ -197,10 +226,16 @@ pub async fn dispatch_and_reply(
                 }
             }
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             tracing::error!(telegram_id = params.telegram_id, error = %e, "Failed to create generation, refunding");
-            if let Err(refund_err) = db.add_balance(params.telegram_id, params.cost).await {
-                tracing::error!(telegram_id = params.telegram_id, error = %refund_err, "CRITICAL: Failed to refund balance after generation creation failure");
+            match tokio::time::timeout(DB_TIMEOUT, db.add_balance(params.telegram_id, params.cost)).await {
+                Ok(Ok(())) => {}
+                Ok(Err(refund_err)) => {
+                    tracing::error!(telegram_id = params.telegram_id, error = %refund_err, "CRITICAL: Failed to refund balance after generation creation failure");
+                }
+                Err(_) => {
+                    tracing::warn!(telegram_id = params.telegram_id, "DB timeout refunding balance after generation creation failure");
+                }
             }
             let err_msg = if params.lang.is_russian() {
                 "❌ Не удалось создать задачу. Попробуйте позже.".to_string()
@@ -209,6 +244,17 @@ pub async fn dispatch_and_reply(
             };
             if let Err(e) = send_message_timeout(bot, chat_id, err_msg, None).await {
                 tracing::warn!(chat_id = %chat_id, error = %e, "Failed to send create-generation-failure message");
+            }
+        }
+        Err(_) => {
+            tracing::warn!(telegram_id = params.telegram_id, "DB timeout creating generation");
+            let err_msg = if params.lang.is_russian() {
+                "❌ Не удалось создать задачу. Попробуйте позже.".to_string()
+            } else {
+                "❌ Could not create task. Please try again later.".to_string()
+            };
+            if let Err(e) = send_message_timeout(bot, chat_id, err_msg, None).await {
+                tracing::warn!(chat_id = %chat_id, error = %e, "Failed to send create-generation-timeout message");
             }
         }
     }
