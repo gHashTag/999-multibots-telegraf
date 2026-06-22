@@ -141,6 +141,7 @@ async function getOwnerReport(ownerTelegramId: number): Promise<string> {
   msg += `💸 Расход AI: ${fmtNum(total_cost_rub)}₽ ($${fmtNum(total_cost_rub / USD_RUB)})\n`
   msg += `📈 Прибыль: ${fmtNum(total_profit)}₽\n`
   msg += `⚠️ Задолженность: <b>${fmtNum(total_cost_rub)}₽</b>\n`
+  msg += `\n🏢 <b>White-label:</b> настройте бот на /api/whitelabel/{botName}\n`
 
   return msg
 }

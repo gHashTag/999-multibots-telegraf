@@ -112,6 +112,48 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
   // Регистрируем роуты биллинга владельцев ботов
   app.use('/api', billingRouter)
 
+  // White-label B2B config endpoints
+  app.get('/api/whitelabel/landing', (_req: any, res: any) => {
+    res.setHeader('Content-Type', 'text/html')
+    res.send(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Bot Platform — Agent as a Service</title>
+<style>body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 20px;color:#1a1a2e;line-height:1.6}
+h1{font-size:1.8rem}ul{list-style:none;padding:0}li{padding:6px 0}li::before{content:"- ";font-weight:bold}
+.cta{display:inline-block;margin-top:16px;padding:10px 24px;background:#6c5ce7;color:#fff;border-radius:8px;text-decoration:none}</style>
+</head><body><h1>AI Bot Platform</h1><p>Custom AI Telegram bot for your business</p>
+<ul><li>10+ AI models: photo, video, voice, lip-sync</li>
+<li>Your branding, your pricing, your bot</li>
+<li>White-label dashboard and analytics</li>
+<li>Setup: $50-200/hour</li></ul>
+<a class="cta" href="https://t.me/neuro_sage">Contact @neuro_sage</a></body></html>`)
+  })
+
+  app.get('/api/whitelabel/:botName', async (req: any, res: any) => {
+    try {
+      const { getWhiteLabelConfig } = await import('../services/whiteLabelConfig')
+      const config = await getWhiteLabelConfig(req.params.botName)
+      res.json(config)
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch config' })
+    }
+  })
+
+  app.post('/api/whitelabel/:botName', async (req: any, res: any) => {
+    const expectedKey = process.env.ADMIN_API_KEY
+    if (!expectedKey || req.body?.admin_key !== expectedKey) {
+      return res.status(403).json({ error: 'Forbidden: invalid admin_key' })
+    }
+    try {
+      const { updateWhiteLabelConfig } = await import('../services/whiteLabelConfig')
+      const { admin_key, ...config } = req.body
+      const ok = await updateWhiteLabelConfig(req.params.botName, config)
+      res.json({ success: ok })
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to update config' })
+    }
+  })
+
   // ✅ Интеграция Inngest с API (актуальная сигнатура serve)
   const inngestHandler = serve({
     client: inngest,
