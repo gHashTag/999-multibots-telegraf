@@ -12,6 +12,7 @@ type MyDialogue = Dialogue<Scene, InMemStorage<Scene>>;
 
 const TRAIN_FLUX_COST: f64 = 50.0;
 const MAX_TRAIN_IMAGES: usize = 20;
+const MAX_TRAIN_FLUX_PHOTO_BYTES: u64 = 20 * 1024 * 1024;
 
 #[tracing::instrument(skip_all)]
 pub async fn handle_train_flux_model_msg(
@@ -37,14 +38,20 @@ pub async fn handle_train_flux_model_msg(
         }
         1 => {
             if let Some(photos) = msg.photo() {
-                let file_id = match photos.last() {
-                    Some(p) => p.file.id.clone(),
+                let photo = match photos.last() {
+                    Some(p) => p,
                     None => {
                         let err = if lang.is_russian() { "❌ Не удалось получить изображение." } else { "❌ Could not retrieve image." };
                         send_message_timeout(&bot, msg.chat.id, err, None).await?;
                         return Ok(());
                     }
                 };
+                if photo.file.size as u64 > MAX_TRAIN_FLUX_PHOTO_BYTES {
+                    let err = if lang.is_russian() { "❌ Изображение слишком большое. Максимум 20 МБ." } else { "❌ Image too large. Maximum 20 MB." };
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                    return Ok(());
+                }
+                let file_id = photo.file.id.clone();
                 let mut images = match state.images.as_ref() {
                     Some(imgs) => imgs.clone(),
                     None => {
