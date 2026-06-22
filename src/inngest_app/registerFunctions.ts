@@ -44,6 +44,9 @@ import { renderFunction } from './functions/render/render'
 import { renderAvatarVideoFunction } from './functions/render/renderAvatarVideo'
 import { renderRiddleFunction } from './functions/render/renderRiddle'
 
+// Analytics Functions
+import { dailySalesAdvisor } from './functions/analytics/dailySalesAdvisor'
+
 // Existing Functions
 import { generateAIReelsFunction } from './functions/existing/generateAIReelsFunction'
 import { generateAdvancedLoopingVideoFunction } from './functions/existing/generateAdvancedLoopingVideoFunction'
@@ -88,6 +91,9 @@ const allFunctionsRaw = [
   renderFunction,
   renderAvatarVideoFunction,
   renderRiddleFunction,
+
+  // Analytics (1)
+  dailySalesAdvisor,
 
   // Existing (3)
   generateAIReelsFunction,
