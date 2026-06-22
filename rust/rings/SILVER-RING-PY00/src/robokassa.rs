@@ -62,10 +62,10 @@ impl RobokassaGateway {
             .map_err(|e| AppError::Internal(format!("HMAC key error: {}", e)))?;
         mac.update(data.as_bytes());
         let expected = hex::encode(mac.finalize().into_bytes());
-        // Constant-time comparison via subtle::ConstantTimeEq to resist timing attacks
-        if expected.len() != signature_value.len() {
-            return Err(AppError::Validation("Robokassa callback signature mismatch".into()));
-        }
+        // Constant-time comparison via subtle::ConstantTimeEq to resist timing attacks.
+        // Do NOT add an explicit length check before ct_eq — that leaks the expected
+        // signature length via timing (different code path for wrong-length inputs).
+        // subtle::ct_eq already returns Choice(0) for different lengths.
         let eq = expected.as_bytes().ct_eq(signature_value.as_bytes());
         if eq.unwrap_u8() == 0 {
             return Err(AppError::Validation("Robokassa callback signature mismatch".into()));

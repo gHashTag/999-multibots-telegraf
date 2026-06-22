@@ -95,7 +95,9 @@ fn parse_uuid(s: &str) -> Result<uuid::Uuid, (StatusCode, String)> {
 
 /// Verify webhook secret from `X-Webhook-Secret` header against a pre-loaded token.
 /// Uses constant-time comparison to prevent timing attacks.
-fn verify_webhook_secret(headers: &HeaderMap, expected: &str) -> Result<(), (StatusCode, String)> {
+/// Accepts `&SecretString` so the raw value is exposed only inside this function body,
+/// minimising the window where a core dump or panic message could recover it.
+fn verify_webhook_secret(headers: &HeaderMap, expected: &secrecy::SecretString) -> Result<(), (StatusCode, String)> {
     let provided = match headers.get("X-Webhook-Secret") {
         Some(h) => match h.to_str() {
             Ok(s) => s,
@@ -104,11 +106,12 @@ fn verify_webhook_secret(headers: &HeaderMap, expected: &str) -> Result<(), (Sta
         None => return Err((StatusCode::UNAUTHORIZED, "Missing webhook secret header".to_string())),
     };
 
-    // Constant-time comparison via subtle::ConstantTimeEq to resist timing attacks
-    if expected.len() != provided.len() {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid webhook secret".to_string()));
-    }
-    let eq = expected.as_bytes().ct_eq(provided.as_bytes());
+    // Constant-time comparison via subtle::ConstantTimeEq.
+    // Do NOT add an explicit length check before ct_eq — that would leak the secret length
+    // via timing (different code path for wrong-length inputs). subtle::ct_eq already
+    // returns Choice(0) for different lengths.
+    let expected_raw = expected.expose_secret();
+    let eq = expected_raw.as_bytes().ct_eq(provided.as_bytes());
     if eq.unwrap_u8() == 0 {
         return Err((StatusCode::UNAUTHORIZED, "Invalid webhook secret".to_string()));
     }
@@ -122,7 +125,7 @@ pub async fn replicate_webhook(
     Json(payload): Json<WebhookPayload>,
 ) -> impl IntoResponse {
     let replicate_secret = match state.webhook_secrets.get("REPLICATE_WEBHOOK_SECRET") {
-        Some(s) => s.expose_secret(),
+        Some(s) => s,
         None => {
             tracing::error!("REPLICATE_WEBHOOK_SECRET not loaded at startup; rejecting webhook");
             return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Webhook secret not configured"})));
@@ -246,7 +249,7 @@ pub async fn kie_ai_webhook(
     Json(payload): Json<trios_mb_proto::kie::WebhookPayload>,
 ) -> impl IntoResponse {
     let kie_secret = match state.webhook_secrets.get("KIE_WEBHOOK_SECRET") {
-        Some(s) => s.expose_secret(),
+        Some(s) => s,
         None => {
             tracing::error!("KIE_WEBHOOK_SECRET not loaded at startup; rejecting webhook");
             return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Webhook secret not configured"})));
