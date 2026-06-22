@@ -144,3 +144,8 @@ Trigger: User says "исследуй слабые места работы, ис�
 - DB Error Sanitization — `repository.rs` (`run_migrations`)
 - DB Error Sanitization — `repository.rs` (`add_balance`)
 - DB Error Sanitization — `repository.rs` (`create_transaction`)
+
+## Wave 251 Applied Skills
+- DB Error Sanitization — `repository.rs` (`update_user_language`, `update_user_gender`, `update_user_level`)
+- DB Error Sanitization — `repository.rs` (`update_user_voice`, `update_user_model`)
+- DB Error Sanitization — `repository.rs` (`get_transaction`, `get_transaction_by_external_id`, `update_transaction_status`)

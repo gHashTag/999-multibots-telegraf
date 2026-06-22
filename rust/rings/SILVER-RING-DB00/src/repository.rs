@@ -252,14 +252,14 @@ impl DbTrait for PostgresDatabase {
             .filter(u::Column::TelegramId.eq(telegram_id))
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("update_user_language", e))?;
 
         if let Some(user) = user {
             let mut active: u::ActiveModel = user.into();
             active.language = Set(language.code().to_string());
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
-                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+                .map_err(|e| sanitize_db_error("update_user_language", e))?;
         }
         Ok(())
     }
@@ -271,7 +271,7 @@ impl DbTrait for PostgresDatabase {
             .filter(u::Column::TelegramId.eq(telegram_id))
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("update_user_gender", e))?;
 
         if let Some(user) = user {
             let mut active: u::ActiveModel = user.into();
@@ -282,7 +282,7 @@ impl DbTrait for PostgresDatabase {
             }));
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
-                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+                .map_err(|e| sanitize_db_error("update_user_gender", e))?;
         }
         Ok(())
     }
@@ -294,14 +294,14 @@ impl DbTrait for PostgresDatabase {
             .filter(u::Column::TelegramId.eq(telegram_id))
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("update_user_level", e))?;
 
         if let Some(user) = user {
             let mut active: u::ActiveModel = user.into();
             active.level = Set(level);
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
-                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+                .map_err(|e| sanitize_db_error("update_user_level", e))?;
         }
         Ok(())
     }
@@ -316,14 +316,14 @@ impl DbTrait for PostgresDatabase {
             .filter(u::Column::TelegramId.eq(telegram_id))
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("update_user_voice", e))?;
 
         if let Some(user) = user {
             let mut active: u::ActiveModel = user.into();
             active.voice = Set(Some(voice.to_string()));
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
-                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+                .map_err(|e| sanitize_db_error("update_user_voice", e))?;
         }
         Ok(())
     }
@@ -338,14 +338,14 @@ impl DbTrait for PostgresDatabase {
             .filter(u::Column::TelegramId.eq(telegram_id))
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("update_user_model", e))?;
 
         if let Some(user) = user {
             let mut active: u::ActiveModel = user.into();
             active.model = Set(Some(model.to_string()));
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
-                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+                .map_err(|e| sanitize_db_error("update_user_model", e))?;
         }
         Ok(())
     }
@@ -439,7 +439,7 @@ impl DbTrait for PostgresDatabase {
         let row = p::Entity::find_by_id(id)
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("get_transaction", e))?;
         match row {
             Some(r) => Ok(Some(Transaction {
                 id: r.id,
@@ -469,7 +469,7 @@ impl DbTrait for PostgresDatabase {
             .filter(p::Column::ExternalId.eq(external_id))
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("get_transaction_by_external_id", e))?;
         match row {
             Some(r) => Ok(Some(Transaction {
                 id: r.id,
@@ -496,7 +496,7 @@ impl DbTrait for PostgresDatabase {
         let row = p::Entity::find_by_id(id)
             .one(self.pool.as_ref())
             .await
-            .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+            .map_err(|e| sanitize_db_error("update_transaction_status", e))?;
 
         if let Some(row) = row {
             let mut active: p::ActiveModel = row.into();
@@ -505,7 +505,7 @@ impl DbTrait for PostgresDatabase {
             })?);
             active.updated_at = Set(chrono::Utc::now());
             active.update(self.pool.as_ref()).await
-                .map_err(|e| AppError::Db(trios_mb_types::errors::DbError::Query(e.to_string())))?;
+                .map_err(|e| sanitize_db_error("update_transaction_status", e))?;
         }
         Ok(())
     }
