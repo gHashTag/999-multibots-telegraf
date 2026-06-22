@@ -8,6 +8,9 @@ use trios_mb_types::AppError;
 use trios_mb_types::errors::AiError;
 
 const PROVIDER_HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const REQWEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const REQWEST_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+const REQWEST_POOL_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
 
 static OPENAI_BASE_URL: LazyLock<String> = LazyLock::new(|| {
     std::env::var("OPENAI_BASE_URL")
@@ -28,6 +31,13 @@ static GROK_BASE_URL: LazyLock<String> = LazyLock::new(|| {
         .ok()
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "https://api.x.ai/v1".to_string())
+});
+
+static OPENAI_DEFAULT_MODEL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("OPENAI_DEFAULT_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "gpt-4o".to_string())
 });
 
 #[derive(Debug, Serialize)]
@@ -103,11 +113,11 @@ pub struct OpenAiProvider {
 impl OpenAiProvider {
     pub fn new(api_key: &str) -> Result<Self, AppError> {
         let http = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(60))
-            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(REQWEST_TIMEOUT)
+            .connect_timeout(REQWEST_CONNECT_TIMEOUT)
             .redirect(reqwest::redirect::Policy::none())
             .pool_max_idle_per_host(10)
-            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .pool_idle_timeout(REQWEST_POOL_IDLE_TIMEOUT)
             .build()
             .map_err(|e| AppError::Internal(format!("Failed to build OpenAI reqwest client: {}", e)))?;
         Ok(Self {
@@ -124,11 +134,11 @@ impl OpenAiProvider {
 
     pub fn deepseek(api_key: &str) -> Result<Self, AppError> {
         let http = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(60))
-            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(REQWEST_TIMEOUT)
+            .connect_timeout(REQWEST_CONNECT_TIMEOUT)
             .redirect(reqwest::redirect::Policy::none())
             .pool_max_idle_per_host(10)
-            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .pool_idle_timeout(REQWEST_POOL_IDLE_TIMEOUT)
             .build()
             .map_err(|e| AppError::Internal(format!("Failed to build DeepSeek reqwest client: {}", e)))?;
         Ok(Self {
@@ -140,11 +150,11 @@ impl OpenAiProvider {
 
     pub fn grok(api_key: &str) -> Result<Self, AppError> {
         let http = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(60))
-            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(REQWEST_TIMEOUT)
+            .connect_timeout(REQWEST_CONNECT_TIMEOUT)
             .redirect(reqwest::redirect::Policy::none())
             .pool_max_idle_per_host(10)
-            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .pool_idle_timeout(REQWEST_POOL_IDLE_TIMEOUT)
             .build()
             .map_err(|e| AppError::Internal(format!("Failed to build Grok reqwest client: {}", e)))?;
         Ok(Self {
@@ -225,7 +235,7 @@ impl OpenAiProvider {
 
     #[tracing::instrument(skip_all)]
     async fn generate_image(&self, request: &GenerationRequest) -> Result<GenerationResult, AppError> {
-        let model = request.model.as_deref().unwrap_or("gpt-4o");
+        let model = request.model.as_deref().unwrap_or(&OPENAI_DEFAULT_MODEL);
         let prompt = request.prompt.as_deref().unwrap_or("").trim();
         if prompt.is_empty() {
             return Err(AppError::Validation("prompt is empty or whitespace-only".to_string()));
