@@ -105,3 +105,8 @@ Trigger: User says "исследуй слабые места работы, ис�
 - Named Timeout Constant Extraction (Provider Reqwest) — `midjourney.rs`
 - Body Read Timeout Constant — `openai.rs`
 - Media File Size Validation in Scene Handlers — `video_transcription.rs`
+
+## Wave 243 Applied Skills
+- Named Timeout Constant Extraction (Secret Store) — `store.rs` (`InfisicalStore`)
+- Named Timeout Constant Extraction (Payment Gateway) — `x402.rs` (`X402Gateway`)
+- Empty/Whitespace Text Rejection — `train_flux_model.rs` (trigger word + model name)

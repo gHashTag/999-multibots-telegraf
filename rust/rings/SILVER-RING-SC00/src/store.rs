@@ -13,6 +13,9 @@ const INFISICAL_API_URL: &str = "https://app.infisical.com/api";
 const MAX_SECRET_CACHE_ENTRIES: usize = 1000;
 const SECRET_CACHE_TTL: Duration = Duration::from_secs(5 * 60); // 5 minutes per key
 const MAX_BODY_BYTES: usize = 1_048_576; // 1 MiB
+const REQWEST_TIMEOUT: Duration = Duration::from_secs(30);
+const REQWEST_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const REQWEST_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 const BODY_READ_TIMEOUT_SECS: u64 = 10;
 
 /// Read an HTTP response body with a hard byte cap and timeout to prevent
@@ -138,11 +141,11 @@ impl std::fmt::Debug for InfisicalStore {
 impl InfisicalStore {
     pub fn new(client_id: &str, client_secret: &str, project_id: &str, environment: &str) -> Result<Self, AppError> {
         let http = Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(REQWEST_TIMEOUT)
+            .connect_timeout(REQWEST_CONNECT_TIMEOUT)
             .redirect(reqwest::redirect::Policy::none())
             .pool_max_idle_per_host(10)
-            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .pool_idle_timeout(REQWEST_POOL_IDLE_TIMEOUT)
             .build()
             .map_err(|e| AppError::Internal(format!("Failed to build Infisical reqwest client: {}", e)))?;
         Ok(Self {

@@ -1,7 +1,12 @@
 use async_trait::async_trait;
+use std::time::Duration;
 use trios_mb_traits::{PaymentGateway, PaymentInit, PaymentVerification};
 use trios_mb_types::payment::*;
 use trios_mb_types::AppError;
+
+const REQWEST_TIMEOUT: Duration = Duration::from_secs(30);
+const REQWEST_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const REQWEST_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 
 pub struct X402Gateway {
     wallet_address: String,
@@ -12,11 +17,11 @@ pub struct X402Gateway {
 impl X402Gateway {
     pub fn new(wallet_address: &str) -> Result<Self, AppError> {
         let http = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(REQWEST_TIMEOUT)
+            .connect_timeout(REQWEST_CONNECT_TIMEOUT)
             .redirect(reqwest::redirect::Policy::none())
             .pool_max_idle_per_host(10)
-            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .pool_idle_timeout(REQWEST_POOL_IDLE_TIMEOUT)
             .build()
             .map_err(|e| AppError::Internal(format!("Failed to build x402 reqwest client: {}", e)))?;
         Ok(Self {

@@ -112,6 +112,11 @@ pub async fn handle_train_flux_model_msg(
             if let Some(text) = msg.text() {
                 const MAX_TRIGGER_WORD_LEN: usize = 64;
                 let trimmed = text.trim();
+                if trimmed.is_empty() {
+                    let err = if lang.is_russian() { "❌ Trigger word не может быть пустым." } else { "❌ Trigger word cannot be empty." };
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                    return Ok(());
+                }
                 if trimmed.len() > MAX_TRIGGER_WORD_LEN {
                     let err = if lang.is_russian() { "❌ Trigger word слишком длинный." } else { "❌ Trigger word too long." };
                     send_message_timeout(&bot, msg.chat.id, err, None).await?;
@@ -128,6 +133,11 @@ pub async fn handle_train_flux_model_msg(
             if let Some(text) = msg.text() {
                 const MAX_MODEL_NAME_LEN: usize = 64;
                 let trimmed = text.trim();
+                if trimmed.is_empty() {
+                    let err = if lang.is_russian() { "❌ Название модели не может быть пустым." } else { "❌ Model name cannot be empty." };
+                    send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                    return Ok(());
+                }
                 if trimmed.len() > MAX_MODEL_NAME_LEN {
                     let err = if lang.is_russian() { "❌ Название модели слишком длинное." } else { "❌ Model name too long." };
                     send_message_timeout(&bot, msg.chat.id, err, None).await?;
