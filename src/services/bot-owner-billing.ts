@@ -17,6 +17,7 @@ export interface DebtSummary {
   total_user_income: number
   debt: number
   breakdown: CostBreakdown[]
+  incomeByMethod: Record<string, number>
 }
 
 type NotificationLevel = 'soft' | 'warning' | 'critical'
@@ -30,7 +31,23 @@ const WEEK = 7 * DAY
 
 // -- Helpers --
 
-function fmt(n: number): string { return n.toLocaleString('ru-RU') + '⭐' }
+function fmt(n: number): string { return Math.round(n).toLocaleString('ru-RU') + '⭐' }
+
+function toStars(amount: number, currency?: string): number {
+  if (!currency || currency === 'XTR') return amount
+  if (currency === 'RUB') return Math.round(amount / 2.3) // ~2.3₽ per star
+  if (currency === 'USDC' || currency === 'USDT_TON') return Math.round(amount / 0.016) // $0.016 per star
+  if (currency === 'TON') return Math.round(amount * 3.5 / 0.016) // ~$3.5 per TON
+  return amount
+}
+
+function fmtMultiCurrency(amount: number, currency?: string): string {
+  if (!currency || currency === 'XTR') return fmt(amount)
+  if (currency === 'RUB') return `${Math.round(amount).toLocaleString('ru-RU')}₽ (≈${fmt(toStars(amount, 'RUB'))})`
+  if (currency === 'USDC' || currency === 'USDT_TON') return `$${amount.toFixed(2)} (≈${fmt(toStars(amount, currency))})`
+  if (currency === 'TON') return `${amount.toFixed(2)} TON (≈${fmt(toStars(amount, 'TON'))})`
+  return fmt(amount)
+}
 
 async function getOwnerTelegramIds(botName: string): Promise<string[]> {
   const { data, error } = await supabaseAdmin
@@ -93,17 +110,25 @@ export async function calculateOwnerDebt(botName: string): Promise<DebtSummary> 
     }
   } catch { /* owner_payments table may not exist */ }
 
-  // User income (MONEY_INCOME)
+  // User income (MONEY_INCOME) — all currencies normalized to stars
   const { data: incRaw } = await supabaseAdmin
-    .from('payments_v2').select('stars')
+    .from('payments_v2').select('stars, currency, amount')
     .eq('bot_name', botName).eq('type', 'MONEY_INCOME')
-  const total_user_income = (incRaw ?? []).reduce(
-    (s: number, r: { stars: number }) => s + (Number(r.stars) || 0), 0,
-  )
+  let total_user_income = 0
+  const incomeByMethod: Record<string, number> = {}
+  for (const r of (incRaw ?? []) as { stars: number; currency?: string; amount?: number }[]) {
+    const cur = r.currency || 'XTR'
+    const starsValue = cur === 'XTR'
+      ? (Number(r.stars) || 0)
+      : toStars(Number(r.amount || r.stars) || 0, cur)
+    total_user_income += starsValue
+    incomeByMethod[cur] = (incomeByMethod[cur] || 0) + (Number(r.amount || r.stars) || 0)
+  }
 
   return {
     bot_name: botName, total_ai_costs, total_owner_payments,
-    total_user_income, debt: total_ai_costs - total_owner_payments, breakdown,
+    total_user_income, debt: total_ai_costs - total_owner_payments,
+    breakdown, incomeByMethod,
   }
 }
 
@@ -111,25 +136,31 @@ export async function calculateOwnerDebt(botName: string): Promise<DebtSummary> 
 
 export async function generateDebtReport(botName: string): Promise<string> {
   const s = await calculateOwnerDebt(botName)
-  const lines = s.breakdown
+  const costLines = s.breakdown
     .sort((a, b) => b.total_cost - a.total_cost)
-    .map(b => `  • ${b.service_type}: ${fmt(b.total_cost)} (${b.count} ${b.count === 1 ? 'генерация' : 'генераций'})`)
+    .map(b => `  • ${b.service_type}: ${fmt(b.total_cost)} (${b.count} генер.)`)
+    .join('\n')
+
+  const incomeLines = Object.entries(s.incomeByMethod)
+    .filter(([, v]) => v > 0)
+    .map(([cur, v]) => `  • ${cur === 'XTR' ? 'Telegram Stars' : cur === 'RUB' ? 'Рубли' : cur}: ${fmtMultiCurrency(v, cur)}`)
     .join('\n')
 
   const profit = s.total_user_income - s.total_ai_costs
   const pct = s.total_user_income > 0 ? Math.round((profit / s.total_user_income) * 100) : 0
 
   let r = `📊 <b>Отчёт по боту @${s.bot_name}</b>\n\n`
-  r += `💰 Доходы от пользователей: ${fmt(s.total_user_income)}\n`
-  r += `💸 Расходы на AI: ${fmt(s.total_ai_costs)}\n`
-  if (lines) r += lines + '\n'
-  r += `\n📈 Ваша прибыль: ${fmt(profit)} (${pct}%)\n`
+  r += `💰 <b>Доходы от пользователей:</b> ${fmt(s.total_user_income)}\n`
+  if (incomeLines) r += incomeLines + '\n'
+  r += `\n💸 <b>Расходы на AI:</b> ${fmt(s.total_ai_costs)}\n`
+  if (costLines) r += costLines + '\n'
+  r += `\n📈 <b>Ваша прибыль:</b> ${fmt(profit)} (${pct}%)\n`
   if (s.total_owner_payments > 0) r += `✅ Оплачено платформе: ${fmt(s.total_owner_payments)}\n`
   if (s.debt > 0) {
-    r += `⚠️ <b>Задолженность платформе: ${fmt(s.debt)}</b>\n`
-    r += '\n💳 Оплатите задолженность чтобы бот продолжал работать'
+    r += `\n⚠️ <b>Задолженность: ${fmt(s.debt)}</b>\n`
+    r += '💳 Оплатите чтобы бот продолжал работать'
   } else {
-    r += '✅ Задолженности нет'
+    r += '\n✅ Задолженности нет — всё оплачено!'
   }
   return r
 }
