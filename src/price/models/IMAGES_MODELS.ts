@@ -286,24 +286,8 @@ export const IMAGES_MODELS: Record<string, ModelInfo> = {
     costPerImage: calculateFinalImageCostInStars(0.035),
     inputType: ['text', 'image'],
   },
-  'google/imagen-4': {
-    shortName: 'Google Imagen 4',
-    description_en: `Google Imagen 4 — photorealistic image generation with exceptional text rendering and detail. Google's most advanced image generation model, delivering stunning realism, accurate typography, and precise prompt following.\n\nKey features:\n- Exceptional photorealism and fine detail\n- Industry-leading text rendering in images\n- Strong prompt adherence and instruction following\n- Wide range of styles from photographic to artistic\n- Fast generation with consistent quality`,
-    description_ru: `Google Imagen 4 — фотореалистичная генерация с исключительной детализацией и точным текстом. Самая продвинутая модель генерации изображений Google, обеспечивающая потрясающий реализм, точную типографику и точное следование промптам.\n\nОсновные функции:\n- Исключительный фотореализм и мелкие детали\n- Лидирующий в отрасли рендеринг текста в изображениях\n- Сильное следование промптам и инструкциям\n- Широкий спектр стилей от фотографических до художественных\n- Быстрая генерация со стабильным качеством`,
-    previewImage:
-      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
-    costPerImage: calculateFinalImageCostInStars(0.04),
-    inputType: ['text'],
-  },
-  'grok/aurora': {
-    shortName: 'Grok Aurora',
-    description_en: `Grok Aurora — fast, creative image generation with strong artistic style capabilities. xAI's dedicated image model offering vibrant, stylistic outputs with excellent speed and creative interpretation of prompts.\n\nKey features:\n- Fast generation with artistic flair\n- Strong creative and stylistic capabilities\n- Vibrant color palettes and compositions\n- Good prompt interpretation for abstract concepts\n- Excellent for artistic and illustrative content`,
-    description_ru: `Grok Aurora — быстрая креативная генерация с сильными художественными стилями. Специализированная модель изображений xAI, предлагающая яркие, стилистические результаты с отличной скоростью и креативной интерпретацией промптов.\n\nОсновные функции:\n- Быстрая генерация с художественным чутьем\n- Сильные креативные и стилистические возможности\n- Яркие цветовые палитры и композиции\n- Хорошая интерпретация промптов для абстрактных концепций\n- Отлично подходит для художественного и иллюстративного контента`,
-    previewImage:
-      'https://replicate.delivery/czjl/XetPfMnnBtnyLUNiNcnl2Hneyeo8AsfsOl2AG5Znql5f3VK9E/tmpuv7lgrx7.jpg',
-    costPerImage: calculateFinalImageCostInStars(0.03),
-    inputType: ['text'],
-  },
+  // google/imagen-4 and grok/aurora — removed: no provider API integration yet
+  // TODO: add when Google Vertex AI and xAI API wrappers are implemented
   // Midjourney v7 - FLUX-based Midjourney-style generation (adminconteudosflix/midjourney-allcraft)
   'midjourney-v7': {
     shortName: 'Midjourney v7 (FLUX)',
