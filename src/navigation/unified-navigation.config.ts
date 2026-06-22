@@ -129,7 +129,7 @@ export const NAVIGATION_BUTTONS: NavigationButton[] = [
   {
     ru: '🎨 ИИ Фотошоп',
     en: '🎨 AI Photoshop',
-    mode: 'ai_photoshop',
+    mode: ModeEnum.AiPhotoshop,
     category: 'tools',
     icon: '🎨'
   },
@@ -145,7 +145,7 @@ export const NAVIGATION_BUTTONS: NavigationButton[] = [
   {
     ru: '🌀 Infinity Морфинг',
     en: '🌀 Infinity Morphing',
-    mode: 'morphing',
+    mode: ModeEnum.MorphingWizard,
     category: 'tools',
     icon: '🌀',
     requires_subscription: true
@@ -153,7 +153,7 @@ export const NAVIGATION_BUTTONS: NavigationButton[] = [
   {
     ru: '🎭 Замена лица',
     en: '🎭 Face Swap',
-    mode: 'face_swap',
+    mode: ModeEnum.FaceSwap,
     category: 'tools',
     icon: '🎭'
   },
@@ -176,21 +176,12 @@ export const NAVIGATION_BUTTONS: NavigationButton[] = [
     admin_only: true
   },
   {
-    ru: '🔍 Мониторинг конкурентов',
-    en: '🔍 Competitor Monitoring',
-    mode: 'competitor_monitoring',
-    category: 'admin',
-    icon: '🔍',
-    admin_only: true,
-    requires_subscription: true
-  },
-  {
     ru: '🎬 ИИ Рилс',
     en: '🎬 AI Reels',
-    mode: 'ai_reels',
-    category: 'video',  // Moved from admin to video category
+    mode: ModeEnum.AiReelsEntryWizard,
+    category: 'video',
     icon: '🎬',
-    admin_only: false,  // Changed: Available for NEUROTESTER and NEUROVIDEO subscriptions
+    admin_only: true,
     requires_subscription: true
   },
 
@@ -212,7 +203,7 @@ export const NAVIGATION_BUTTONS: NavigationButton[] = [
   {
     ru: '🌐 EN',
     en: '🌐 RU',
-    mode: 'language',
+    mode: ModeEnum.ChangeLanguageScene,
     category: 'navigation',
     icon: '🌐'
   },
