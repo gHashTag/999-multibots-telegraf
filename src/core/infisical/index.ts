@@ -109,18 +109,7 @@ export async function initInfisical(): Promise<void> {
       siteUrl: process.env.INFISICAL_SITE_URL || 'https://app.infisical.com'
     })
   } catch (error) {
-    logError('❌ Authentication failed:', {
-      error: error instanceof Error ? error.message : String(error),
-      errorName: error instanceof Error ? error.name : 'Unknown',
-      projectId,
-      environment,
-      stack: error instanceof Error ? error.stack : undefined,
-      clientIdLength: clientId.length,
-      clientSecretLength: clientSecret.length,
-      siteUrl: process.env.INFISICAL_SITE_URL || 'https://app.infisical.com'
-    })
-
-    logError('⚠️ Infisical unavailable, falling back to process.env secrets')
+    logInfo('⚠️ Infisical unavailable, using process.env fallback')
     isAuthenticated = false
     secretCache = {}
     for (const [key, value] of Object.entries(process.env)) {

@@ -628,7 +628,7 @@ async function startApplication() {
         `🚀 [Infisical] ${env === 'staging' ? 'Staging' : 'Production'} окружение - загружаем 10 ботов`
       )
 
-      for (let i = 1; i <= 11; i++) {
+      for (let i = 1; i <= 10; i++) {
         const tokenKey = `BOT_TOKEN_${i}`
         try {
           process.env[tokenKey] = getSecret(tokenKey)
