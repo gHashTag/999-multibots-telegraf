@@ -92,6 +92,11 @@ pub async fn handle_email_msg(
                 return Ok(());
             }
             let email = text.trim();
+            if email.is_empty() {
+                let err = if lang.is_russian() { "❌ Email не может быть пустым." } else { "❌ Email cannot be empty." };
+                send_message_timeout(&bot, msg.chat.id, err, None).await?;
+                return Ok(());
+            }
             if !validate_email(email) {
                 let err = if lang.is_russian() { "❌ Некорректный email" } else { "❌ Invalid email" };
                 send_message_timeout(&bot, msg.chat.id, err, None).await?;

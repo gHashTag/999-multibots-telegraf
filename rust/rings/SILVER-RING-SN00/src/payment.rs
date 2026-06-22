@@ -58,6 +58,11 @@ pub async fn handle_payment_msg(
     const MAX_PAYMENT_TEXT_LEN: usize = 32;
     const MAX_PAYMENT_AMOUNT: f64 = 100_000.0;
     if let Some(text) = msg.text() {
+        if text.trim().is_empty() {
+            let err = if lang.is_russian() { "❌ Введите корректную сумму." } else { "❌ Please enter a valid amount." };
+            send_message_timeout(&bot, msg.chat.id, err, None).await?;
+            return Ok(());
+        }
         if text.len() > MAX_PAYMENT_TEXT_LEN {
             let err = if lang.is_russian() { "❌ Слишком длинная сумма." } else { "❌ Amount text too long." };
             send_message_timeout(&bot, msg.chat.id, err, None).await?;

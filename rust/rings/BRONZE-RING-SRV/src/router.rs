@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::collections::HashMap;
+use std::time::Duration;
 use axum::Router;
 use axum::routing::{get, post};
 use axum::response::Response;
@@ -9,6 +10,8 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::timeout::TimeoutLayer;
 use trios_mb_traits::{Database, PaymentGateway};
 use secrecy::SecretString;
+
+const ROUTER_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Build a per-IP rate-limit layer.
 /// Returns `None` if the configuration is invalid (e.g., zero rates).
@@ -180,7 +183,7 @@ pub fn create_router(db: Arc<dyn Database>) -> Result<Router, String> {
         .merge(webhooks)
         .layer(cors)
         .layer(axum::middleware::from_fn(edge_hardening))
-        .layer(TimeoutLayer::new(std::time::Duration::from_secs(30)))
+        .layer(TimeoutLayer::new(ROUTER_TIMEOUT))
         .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
         .with_state(state))
 }
@@ -231,7 +234,7 @@ pub fn create_router_with_payments(
         .merge(payments)
         .layer(cors)
         .layer(axum::middleware::from_fn(edge_hardening))
-        .layer(TimeoutLayer::new(std::time::Duration::from_secs(30)))
+        .layer(TimeoutLayer::new(ROUTER_TIMEOUT))
         .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
         .with_state(state))
 }

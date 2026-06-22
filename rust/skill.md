@@ -110,3 +110,8 @@ Trigger: User says "исследуй слабые места работы, ис�
 - Named Timeout Constant Extraction (Secret Store) — `store.rs` (`InfisicalStore`)
 - Named Timeout Constant Extraction (Payment Gateway) — `x402.rs` (`X402Gateway`)
 - Empty/Whitespace Text Rejection — `train_flux_model.rs` (trigger word + model name)
+
+## Wave 244 Applied Skills
+- Named Timeout Constant Extraction (Router Layer) — `router.rs` (`ROUTER_TIMEOUT`)
+- Empty/Whitespace Text Rejection — `payment.rs` (payment amount)
+- Empty Text Rejection — `email.rs` (email address)
