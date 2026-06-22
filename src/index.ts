@@ -378,7 +378,7 @@ async function initializeBots() {
           const text = ctx.message?.text || ''
           if (text.startsWith('/')) return
           // Не отвечать на кнопки меню (emoji в начале = кнопка)
-          if (/^[^\w\s]/.test(text) && text.length < 30) return
+          if (/^[\u{1F300}-\u{1FAD6}\u{2600}-\u{27BF}]/u.test(text)) return
 
           const { chatWithAI } = await import('./services/aiChatService')
           const reply = await chatWithAI(
