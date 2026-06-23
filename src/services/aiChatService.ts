@@ -69,7 +69,13 @@ export async function chatWithAI(
   model?: string,
   opts?: { telegramId?: string; botName?: string }
 ): Promise<string> {
-  // Priority: DeepSeek (cheapest) → OpenAI → OpenRouter
+  // Use Replicate for chat (pay-per-use, always has balance)
+  const replicateToken = process.env.REPLICATE_API_TOKEN
+  if (replicateToken) {
+    return await chatViaReplicate(messages, replicateToken, model)
+  }
+
+  // Fallback: DeepSeek → OpenAI → OpenRouter
   const providers = [
     { key: process.env.DEEPSEEK_API_KEY, url: 'https://api.deepseek.com/v1', name: 'deepseek' },
     { key: process.env.OPENAI_API_KEY, url: undefined, name: 'openai' },
@@ -139,4 +145,37 @@ export async function chatWithAI(
   }
 
   return content
+}
+
+async function chatViaReplicate(
+  messages: ChatMessage[], token: string, _model?: string
+): Promise<string> {
+  const prompt = messages
+    .map(m => m.role === 'system' ? `[System] ${m.content}` : m.role === 'user' ? `User: ${m.content}` : `Assistant: ${m.content}`)
+    .join('\n') + '\nAssistant:'
+
+  logger.info('AI Chat via Replicate', { promptLength: prompt.length })
+
+  const resp = await fetch('https://api.replicate.com/v1/models/meta/meta-llama-3-8b-instruct/predictions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input: { prompt, max_tokens: 512, temperature: 0.7 } }),
+  })
+  const pred = await resp.json() as any
+  if (!pred.id) throw new Error(pred.detail || 'Replicate prediction failed')
+
+  // Poll for result (max 30s)
+  for (let i = 0; i < 15; i++) {
+    await new Promise(r => setTimeout(r, 2000))
+    const poll = await fetch(`https://api.replicate.com/v1/predictions/${pred.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const result = await poll.json() as any
+    if (result.status === 'succeeded') {
+      const output = Array.isArray(result.output) ? result.output.join('') : String(result.output || '')
+      return output.trim() || 'Не удалось сгенерировать ответ'
+    }
+    if (result.status === 'failed') throw new Error(result.error || 'Generation failed')
+  }
+  throw new Error('Replicate timeout')
 }
