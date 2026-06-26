@@ -3,14 +3,7 @@ import { ModeEnum } from '@/interfaces/modes'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 
 export const defaultSession: any = {
-  __scenes: {
-    data: '',
-    cursor: 0,
-    severity: 0,
-    __scenes: {},
-    subscription: null,
-    step: 0,
-  },
+  __scenes: {},
   mode: ModeEnum.TextToImage,
   prompt: '',
   selectedModel: '',
@@ -47,5 +40,6 @@ export const defaultSession: any = {
   translations: [],
   buttons: [],
   neuroPhotoInitialized: false,
+  wizardData: {},
   lastStartCommand: 0,
 }

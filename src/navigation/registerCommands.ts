@@ -1046,7 +1046,33 @@ export function createStage(): Scenes.Stage<MyContext> {
     }
   })
 
-  return new Scenes.Stage<MyContext>(scenesToRegister as any)
+  const stage = new Scenes.Stage<MyContext>(scenesToRegister as any)
+
+  // Global command interceptors — ensure /start, /menu, /help always work
+  // even when user is inside a wizard scene (stage.middleware() runs before bot.command())
+  stage.command('start', async (ctx, next) => {
+    if (ctx.scene.current) {
+      console.log('🔴 [stage.command] /start intercepted, leaving scene:', ctx.scene.current.id)
+      await ctx.scene.leave()
+    }
+    return next()
+  })
+  stage.command('menu', async (ctx, next) => {
+    if (ctx.scene.current) {
+      console.log('🔴 [stage.command] /menu intercepted, leaving scene:', ctx.scene.current.id)
+      await ctx.scene.leave()
+    }
+    return next()
+  })
+  stage.command('help', async (ctx, next) => {
+    if (ctx.scene.current) {
+      console.log('🔴 [stage.command] /help intercepted, leaving scene:', ctx.scene.current.id)
+      await ctx.scene.leave()
+    }
+    return next()
+  })
+
+  return stage
 }
 
 /**
@@ -1265,7 +1291,6 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         console.log('🔴 [DEBUG /start] CreateUserScene entered')
       } else {
         console.log('🔴 [DEBUG /start] User exists, showing main menu...')
-        await ctx.scene.leave()
         await navShowMainMenu(ctx)
         console.log('🔴 [DEBUG /start] Main menu shown OK')
       }

@@ -55,17 +55,6 @@ export const avatarsCategoryScene = new Scenes.WizardScene<MyContext>(
 )
 
 /**
- * Сцена категории "Инструменты"
- */
-export const toolsCategoryScene = new Scenes.WizardScene<MyContext>(
-  'tools_category',
-  async (ctx) => {
-    await showCategoryMenu(ctx, 'tools')
-    return ctx.scene.leave()
-  }
-)
-
-/**
  * Сцена категории "Профиль"
  */
 export const profileCategoryScene = new Scenes.WizardScene<MyContext>(
@@ -82,7 +71,6 @@ export const categoryScenes = [
   videoCategoryScene,
   audioCategoryScene,
   avatarsCategoryScene,
-  toolsCategoryScene,
   profileCategoryScene
 ]
 

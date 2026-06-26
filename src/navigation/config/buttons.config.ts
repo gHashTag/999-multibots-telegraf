@@ -138,14 +138,6 @@ export const CATEGORY_BUTTONS: Record<string, ButtonConfig> = {
     action: 'category_avatars',
     sceneId: 'avatars_category',
   },
-  tools: {
-    id: 'tools',
-    ru: '🛠️ Инструменты',
-    en: '🛠️ Tools',
-    aliases: ['инструменты', 'tools'],
-    action: 'category_tools',
-    sceneId: 'tools_category',
-  },
   profile: {
     id: 'profile',
     ru: '👤 Профиль',
