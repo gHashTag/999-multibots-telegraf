@@ -28,6 +28,11 @@ const ITEM_TYPES: { key: MarketplaceItemType; ru: string; en: string }[] = [
 
 // Step 1: Main menu
 const mainMenuStep = async (ctx: MyContext) => {
+  console.log('🟡 [DEBUG marketplace] ========== MARKETPLACE STEP 1 (mainMenu) ENTERED ==========')
+  console.log('🟡 [DEBUG marketplace] telegramId:', ctx.from?.id)
+  console.log('🟡 [DEBUG marketplace] previousScene:', ctx.scene?.current?.id || 'none')
+  console.log('🟡 [DEBUG marketplace] trigger:', ctx.message && 'text' in ctx.message ? ctx.message.text : 'callback/other')
+  console.log('🟡 [DEBUG marketplace] stack:', new Error().stack?.split('\n').slice(0, 5).join('\n'))
   const isRu = isRussianFromState(ctx)
   ctx.session.wizardData = {}
 
@@ -46,6 +51,10 @@ const mainMenuStep = async (ctx: MyContext) => {
 
 // Step 2: Awaiting input for sell flow (title, desc, type, price, content)
 const sellInputStep = async (ctx: MyContext) => {
+  console.log('🟡 [DEBUG marketplace] ========== MARKETPLACE STEP 2 (sellInput) ENTERED ==========')
+  console.log('🟡 [DEBUG marketplace] telegramId:', ctx.from?.id)
+  console.log('🟡 [DEBUG marketplace] messageText:', ctx.message && 'text' in ctx.message ? ctx.message.text : 'N/A')
+  console.log('🟡 [DEBUG marketplace] wizardData:', JSON.stringify(ctx.session?.wizardData || {}))
   const isRu = isRussianFromState(ctx)
   if (!ctx.message || !('text' in ctx.message)) {
     await ctx.reply(isRu ? 'Отправьте текстовое сообщение.' : 'Please send a text message.')

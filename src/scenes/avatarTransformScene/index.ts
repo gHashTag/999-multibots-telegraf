@@ -26,6 +26,9 @@ import { generateNanoBanana } from '@/services/generateNanoBanana'
 // Legacy fallback
 import { generateFluxKontext } from '@/services/generateFluxKontext'
 
+// 🔴 DEBUG: Log when this scene loads (import time)
+console.log('🔴 [DEBUG avatarTransform] Module loaded')
+
 // 🦸‍♂️ AI HEROES - Simplified Top 10 Most Popular Heroes + Custom Option
 const AI_HEROES = {
   male: [
@@ -903,6 +906,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.AvatarTransform,
   // Шаг 0: Объяснение ИИ Герои + выбор пола
   async ctx => {
+    console.log('🔴 [DEBUG avatarTransform] ========== STEP 0 ENTERED ==========')
+    console.log('🔴 [DEBUG avatarTransform] telegramId:', ctx.from?.id)
+    console.log('🔴 [DEBUG avatarTransform] messageText:', ctx.message && 'text' in ctx.message ? ctx.message.text : 'N/A')
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
 

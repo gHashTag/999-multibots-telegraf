@@ -1207,6 +1207,15 @@ function requirePrivateChat(ctx: MyContext): boolean {
 function registerNavigationCommands(bot: Telegraf<MyContext>): void {
   // Команда /start - полная логика авторизации и показа главного меню
   bot.command('start', async ctx => {
+    console.log('🔴 [DEBUG /start] ========== /start COMMAND FIRED ==========')
+    console.log('🔴 [DEBUG /start] chatType:', ctx.chat.type)
+    console.log('🔴 [DEBUG /start] telegramId:', ctx.from?.id)
+    console.log('🔴 [DEBUG /start] currentScene BEFORE reset:', ctx.scene?.current?.id || 'none')
+    console.log('🔴 [DEBUG /start] session BEFORE reset:', JSON.stringify({
+      mode: ctx.session?.mode,
+      wizardData: ctx.session?.wizardData ? Object.keys(ctx.session.wizardData) : 'none',
+    }))
+
     if (ctx.chat.type !== 'private') {
       return sendGroupCommandReply(ctx)
     }
@@ -1222,6 +1231,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       // Reset session
       const { defaultSession } = await import('@/store')
       ctx.session = { ...defaultSession }
+      console.log('🔴 [DEBUG /start] Session RESET done')
 
       // Handle start parameters (invite code)
       if (ctx.message && 'text' in ctx.message) {
@@ -1239,19 +1249,28 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         }
       }
 
+      console.log('🔴 [DEBUG /start] About to leave scene...')
       await ctx.scene.leave()
+      console.log('🔴 [DEBUG /start] Scene left. Checking user...')
 
       // Check if user exists
       const { getUserDetailsSubscription } = await import('@/core/supabase')
       const userDetails = await getUserDetailsSubscription(telegramId)
 
+      console.log('🔴 [DEBUG /start] userExists:', userDetails.isExist)
+
       if (!userDetails.isExist) {
+        console.log('🔴 [DEBUG /start] Entering CreateUserScene...')
         await ctx.scene.enter(ModeEnum.CreateUserScene)
+        console.log('🔴 [DEBUG /start] CreateUserScene entered')
       } else {
+        console.log('🔴 [DEBUG /start] User exists, showing main menu...')
         await ctx.scene.leave()
         await navShowMainMenu(ctx)
+        console.log('🔴 [DEBUG /start] Main menu shown OK')
       }
     } catch (error) {
+      console.log('🔴 [DEBUG /start] ERROR:', error instanceof Error ? error.message : String(error))
       logger.error('❌ [Navigation] Error in /start command:', {
         error,
         telegramId: ctx.from?.id,

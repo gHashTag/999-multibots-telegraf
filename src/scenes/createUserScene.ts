@@ -496,6 +496,8 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   }
 
   // После создания пользователя переходим в AvatarTransform для демонстрации AI
+  console.log('🔴 [DEBUG createUser] About to enter AvatarTransform scene, wasCreated:', wasCreated)
+  console.log('🔴 [DEBUG createUser] telegram_id:', telegram_id.toString())
   logger.info(
     '📸 [CreateUserScene] User created/verified, entering AvatarTransform',
     {
