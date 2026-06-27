@@ -32,12 +32,14 @@ export function setupLevelHandlers(bot: Telegraf<MyContext>) {
 
   // --- Добавляем обработчики для кнопок из startScene ---
   bot.action('go_subscribe', async ctx => {
-    await ctx.answerCbQuery() // Отвечаем на callback_query, чтобы убрать "часики"
+    await ctx.answerCbQuery()
+    await ctx.scene.leave()
     await ctx.scene.enter(ModeEnum.SubscriptionScene)
   })
 
   bot.action('go_help', async ctx => {
     await ctx.answerCbQuery()
+    await ctx.scene.leave()
     await ctx.scene.enter('helpScene')
   })
   // --- Конец добавленных обработчиков ---

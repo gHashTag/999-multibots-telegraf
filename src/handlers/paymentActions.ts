@@ -31,6 +31,7 @@ export function registerPaymentActions(bot: Telegraf<MyContext>) {
     } catch {
       // ignore
     }
+    await ctx.scene.leave()
     await ctx.scene.enter(TON_PAYMENT_SCENE_ID)
   })
 
@@ -45,6 +46,7 @@ export function registerPaymentActions(bot: Telegraf<MyContext>) {
     } catch {
       // ignore
     }
+    await ctx.scene.leave()
     await ctx.scene.enter(TON_NATIVE_PAYMENT_SCENE_ID)
   })
 
@@ -59,6 +61,7 @@ export function registerPaymentActions(bot: Telegraf<MyContext>) {
     } catch {
       // ignore
     }
+    await ctx.scene.leave()
     await ctx.scene.enter(ModeEnum.CryptoPaymentScene)
   })
 

@@ -9,6 +9,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { Markup } from 'telegraf'
 
 export async function handleTopUp(ctx: MyContext) {
+  await ctx.answerCbQuery()
   const telegramId = ctx.from?.id?.toString() || 'unknown'
 
   try {
