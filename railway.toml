@@ -7,6 +7,11 @@ healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ALWAYS"
 numReplicas = 1
+startCommand = "node dist/index.js"
+
+[deploy.environment]
+NODE_ENV = "production"
+API_PORT = "${PORT}"
 
 [service]
 name = "999-multibots-telegraf"

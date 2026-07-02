@@ -23,9 +23,9 @@ import { logger } from '@/utils/logger'
 // ✅ Webhook health verification on startup
 import { verifyWebhooksOnStartup } from '@/utils/webhookHealthCheck'
 
-// Определяем порт. Берем из process.env.API_PORT, если есть, иначе 3000 (настроено в docker-compose.yml).
+// Определяем порт. Railway/Fly/Docker предоставляют PORT; мы используем API_PORT как override.
 // LAST FIX: 2025-11-25 - изменен с 2999 на 3000 согласно WEBHOOK_502_BAD_GATEWAY_FIX
-const PORT = process.env.API_PORT || '3000'
+const PORT = process.env.API_PORT || process.env.PORT || '3000'
 
 export async function startApiServer(bot?: Telegraf): Promise<void> {
   // Если bot instance передан, инициализируем его в webhook router
