@@ -5,9 +5,15 @@ on:
     branches:
       - main
     paths:
-      - 'rust/**'
+      - 'src/**'
+      - 'Dockerfile'
       - 'Dockerfile.rust'
       - 'railway.toml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'deploy.sh'
+      - 'scripts/**'
 
 jobs:
   deploy:
