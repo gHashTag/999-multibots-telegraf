@@ -217,6 +217,8 @@ export async function notifyOwnerAboutDebt(
 
 // -- 4. disableBot --
 
+// Bots are not stopped by billing anymore — owners receive warnings and reports,
+// but service continues running. Disabling would stop all users from using the bot.
 export async function disableBot(botName: string): Promise<boolean> {
   try {
     const { getBotInstances } = await import('@/index')
@@ -225,16 +227,16 @@ export async function disableBot(botName: string): Promise<boolean> {
       logger.warn('[Billing] Bot instance not found for disable', { botName })
       return false
     }
-    await target.stop()
-    logger.warn('[Billing] Bot disabled due to debt', { botName })
+    // Keep the bot running — do NOT call target.stop(). Just notify owners.
+    logger.warn('[Billing] Bot has debt but kept running', { botName })
 
     const owners = await getOwnerTelegramIds(botName)
     for (const oid of owners) {
-      await tgSend(oid, `🛑 <b>Бот @${botName} отключён</b>\n\nПричина: неоплаченная задолженность платформе.\nОплатите задолженность для возобновления работы.`)
+      await tgSend(oid, `⚠️ <b>Бот @${botName} продолжает работать</b>\n\nОбнаружена неоплаченная задолженность платформе. Пожалуйста, погасите задолженность, чтобы избежать приостановки услуг.`)
     }
     return true
   } catch (err) {
-    logger.error('[Billing] Failed to disable bot', {
+    logger.error('[Billing] Failed to process debt bot', {
       botName, error: err instanceof Error ? err.message : String(err),
     })
     return false
