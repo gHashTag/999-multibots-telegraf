@@ -2,10 +2,20 @@ import { MyContext } from '@/interfaces'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { supabaseAdmin } from '@/core/supabase'
 import { logger } from '@/utils/logger'
+import {
+  BillingPaymentRow,
+  aiCostStars,
+  incomeToStars,
+  isRealClientIncome,
+} from '@/utils/billingFilters'
 
 const STAR_USD = 0.016
 const USD_RUB = 91
-const REAL_METHODS = new Set(['Telegram', 'Robokassa', 'TON_NATIVE', 'X402', 'CryptoBot'])
+
+const INCOME_COLUMNS =
+  'telegram_id, amount, stars, currency, payment_method, status, category, is_system_payment'
+const OUTCOME_COLUMNS =
+  'stars, cost, service_type, status, category, is_system_payment, metadata'
 
 interface BotReport {
   bot_name: string
@@ -16,20 +26,30 @@ interface BotReport {
   clients: Set<string>
 }
 
-async function fetchAll(table: string, params: string): Promise<any[]> {
-  const all: any[] = []
-  let offset = 0
-  while (true) {
+/** Supabase отдаёт максимум 1000 строк за запрос — читаем страницами. */
+async function fetchPayments(
+  botName: string,
+  type: 'MONEY_INCOME' | 'MONEY_OUTCOME',
+  columns: string
+): Promise<BillingPaymentRow[]> {
+  const PAGE = 1000
+  const rows: BillingPaymentRow[] = []
+  for (let offset = 0; ; offset += PAGE) {
     const { data, error } = await supabaseAdmin
-      .from(table)
-      .select(params)
-      .range(offset, offset + 999)
-    if (error || !data || data.length === 0) break
-    all.push(...data)
-    if (data.length < 1000) break
-    offset += 1000
+      .from('payments_v2')
+      .select(columns)
+      .eq('bot_name', botName)
+      .eq('type', type)
+      .range(offset, offset + PAGE - 1)
+    if (error) {
+      logger.error('Billing query failed', { botName, type, error: error.message })
+      break
+    }
+    if (!data || data.length === 0) break
+    rows.push(...(data as unknown as BillingPaymentRow[]))
+    if (data.length < PAGE) break
   }
-  return all
+  return rows
 }
 
 function fmtNum(n: number): string {
@@ -50,46 +70,34 @@ async function getOwnerReport(ownerTelegramId: number): Promise<string> {
   const reports: BotReport[] = []
 
   for (const bn of botNames) {
-    const income = await fetchAll('payments_v2',
-      'telegram_id,amount,stars,currency,payment_method')
-    const filteredIncome = income.filter((r: any) => r.bot_name === bn && REAL_METHODS.has(r.payment_method || ''))
-
-    // Simpler: query per bot
-    const { data: incData } = await supabaseAdmin
-      .from('payments_v2')
-      .select('telegram_id,amount,stars,currency,payment_method')
-      .eq('bot_name', bn)
-      .eq('type', 'MONEY_INCOME')
-
-    const { data: outData } = await supabaseAdmin
-      .from('payments_v2')
-      .select('stars,service_type')
-      .eq('bot_name', bn)
-      .eq('type', 'MONEY_OUTCOME')
+    const incData = await fetchPayments(bn, 'MONEY_INCOME', INCOME_COLUMNS)
+    const outData = await fetchPayments(bn, 'MONEY_OUTCOME', OUTCOME_COLUMNS)
 
     let income_stars = 0
     let income_rub = 0
     const clients = new Set<string>()
 
-    for (const r of (incData || [])) {
-      const m = r.payment_method || ''
-      if (!REAL_METHODS.has(m)) continue
-      const cur = r.currency || 'XTR'
-      if (cur === 'RUB') {
+    for (const r of incData) {
+      if (!isRealClientIncome(r)) continue
+      const stars = incomeToStars(r)
+      if (stars <= 0) continue
+      if ((r.currency || 'XTR').toUpperCase() === 'RUB') {
         income_rub += Number(r.amount) || 0
       } else {
-        income_stars += Number(r.stars) || 0
+        income_stars += stars
       }
-      if (r.telegram_id) clients.add(String(r.telegram_id))
+      const tid = (r as { telegram_id?: string | number }).telegram_id
+      if (tid) clients.add(String(tid))
     }
 
     let cost_stars = 0
     const cost_by_svc: Record<string, number> = {}
-    for (const r of (outData || [])) {
-      const s = Number(r.stars) || 0
-      cost_stars += s
+    for (const r of outData) {
+      const cost = aiCostStars(r)
+      if (cost <= 0) continue
+      cost_stars += cost
       const svc = r.service_type || 'other'
-      cost_by_svc[svc] = (cost_by_svc[svc] || 0) + s
+      cost_by_svc[svc] = (cost_by_svc[svc] || 0) + cost
     }
 
     reports.push({ bot_name: bn, income_stars, income_rub, cost_stars, cost_by_svc, clients })
@@ -168,27 +176,19 @@ async function getAllOwnersReport(): Promise<string> {
     let owner_income_rub = 0
 
     for (const bn of bots) {
-      const { data: outData } = await supabaseAdmin
-        .from('payments_v2')
-        .select('stars')
-        .eq('bot_name', bn)
-        .eq('type', 'MONEY_OUTCOME')
-
-      const cost = (outData || []).reduce((s: number, r: any) => s + (Number(r.stars) || 0), 0)
+      const outData = await fetchPayments(bn, 'MONEY_OUTCOME', OUTCOME_COLUMNS)
+      const cost = outData.reduce((s, r) => s + aiCostStars(r), 0)
       owner_debt += cost * STAR_USD * USD_RUB
 
-      const { data: incData } = await supabaseAdmin
-        .from('payments_v2')
-        .select('amount,stars,currency,payment_method')
-        .eq('bot_name', bn)
-        .eq('type', 'MONEY_INCOME')
-
-      for (const r of (incData || [])) {
-        if (!REAL_METHODS.has(r.payment_method || '')) continue
-        if ((r.currency || 'XTR') === 'RUB') {
+      const incData = await fetchPayments(bn, 'MONEY_INCOME', INCOME_COLUMNS)
+      for (const r of incData) {
+        if (!isRealClientIncome(r)) continue
+        const stars = incomeToStars(r)
+        if (stars <= 0) continue
+        if ((r.currency || 'XTR').toUpperCase() === 'RUB') {
           owner_income_rub += Number(r.amount) || 0
         } else {
-          owner_income_rub += (Number(r.stars) || 0) * STAR_USD * USD_RUB
+          owner_income_rub += stars * STAR_USD * USD_RUB
         }
       }
     }
