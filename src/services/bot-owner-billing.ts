@@ -5,6 +5,14 @@
  */
 import { logger } from '@/utils/logger'
 import { supabaseAdmin } from '@/core/supabase'
+import {
+  BillingPaymentRow,
+  aiCostStars,
+  incomeNativeAmount,
+  incomeToStars,
+  isRealClientIncome,
+  toStars,
+} from '@/utils/billingFilters'
 
 // -- Types --
 
@@ -34,22 +42,52 @@ let firstRunSkipped = false
 
 // -- Helpers --
 
+const RUB_PER_STAR = 2.3
+
 function fmt(n: number): string { return Math.round(n).toLocaleString('ru-RU') + '⭐' }
 
-function toStars(amount: number, currency?: string): number {
-  if (!currency || currency === 'XTR') return amount
-  if (currency === 'RUB') return Math.round(amount / 2.3) // ~2.3₽ per star
-  if (currency === 'USDC' || currency === 'USDT_TON') return Math.round(amount / 0.016) // $0.016 per star
-  if (currency === 'TON') return Math.round(amount * 3.5 / 0.016) // ~$3.5 per TON
-  return amount
+/** Звёзды + эквивалент в рублях — владельцы считают в рублях. */
+function fmtWithRub(n: number): string {
+  return `${fmt(n)} (≈${Math.round(n * RUB_PER_STAR).toLocaleString('ru-RU')}₽)`
 }
 
 function fmtMultiCurrency(amount: number, currency?: string): string {
-  if (!currency || currency === 'XTR') return fmt(amount)
+  if (!currency || currency === 'XTR' || currency === 'STARS') return fmt(amount)
   if (currency === 'RUB') return `${Math.round(amount).toLocaleString('ru-RU')}₽ (≈${fmt(toStars(amount, 'RUB'))})`
   if (currency === 'USDC' || currency === 'USDT_TON') return `$${amount.toFixed(2)} (≈${fmt(toStars(amount, currency))})`
   if (currency === 'TON') return `${amount.toFixed(2)} TON (≈${fmt(toStars(amount, 'TON'))})`
   return fmt(amount)
+}
+
+function currencyLabel(currency: string): string {
+  if (currency === 'XTR' || currency === 'STARS') return 'Telegram Stars'
+  if (currency === 'RUB') return 'Рубли'
+  return currency
+}
+
+/**
+ * Supabase отдаёт максимум 1000 строк за запрос — без пагинации отчёт
+ * молча обрезается, как только у бота набирается больше тысячи транзакций.
+ */
+async function fetchAllRows(
+  botName: string, type: 'MONEY_INCOME' | 'MONEY_OUTCOME', columns: string,
+): Promise<BillingPaymentRow[]> {
+  const PAGE = 1000
+  const rows: BillingPaymentRow[] = []
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabaseAdmin
+      .from('payments_v2').select(columns)
+      .eq('bot_name', botName).eq('type', type)
+      .range(offset, offset + PAGE - 1)
+    if (error) {
+      logger.error('[Billing] query fail', { botName, type, error: error.message })
+      break
+    }
+    if (!data || data.length === 0) break
+    rows.push(...(data as unknown as BillingPaymentRow[]))
+    if (data.length < PAGE) break
+  }
+  return rows
 }
 
 async function getOwnerTelegramIds(botName: string): Promise<string[]> {
@@ -80,23 +118,22 @@ async function tgSend(chatId: string, text: string, markup?: object): Promise<vo
 // -- 1. calculateOwnerDebt --
 
 export async function calculateOwnerDebt(botName: string): Promise<DebtSummary> {
-  // AI costs (MONEY_OUTCOME)
-  const { data: costsRaw, error: costsErr } = await supabaseAdmin
-    .from('payments_v2').select('amount, service_type')
-    .eq('bot_name', botName).eq('type', 'MONEY_OUTCOME')
-  if (costsErr) logger.error('[Billing] costs query fail', { botName, error: costsErr.message })
-
-  const costs = costsRaw ?? []
-  const total_ai_costs = costs.reduce(
-    (s: number, r: { amount: number }) => s + (Number(r.amount) || 0), 0,
+  // AI costs (MONEY_OUTCOME) — считаем по колонке `cost` (себестоимость),
+  // а НЕ по `amount`/`stars` (это цена для пользователя, а не наши затраты).
+  const costs = await fetchAllRows(
+    botName, 'MONEY_OUTCOME',
+    'stars, cost, service_type, status, category, is_system_payment, metadata',
   )
 
-  // Breakdown by service_type
   const bm: Record<string, { total_cost: number; count: number }> = {}
+  let total_ai_costs = 0
   for (const row of costs) {
-    const st = (row as { service_type?: string }).service_type || 'other'
+    const cost = aiCostStars(row)
+    if (cost <= 0) continue // служебные операции и незавершённые списания
+    total_ai_costs += cost
+    const st = row.service_type || 'other'
     if (!bm[st]) bm[st] = { total_cost: 0, count: 0 }
-    bm[st].total_cost += Number(row.amount) || 0
+    bm[st].total_cost += cost
     bm[st].count += 1
   }
   const breakdown = Object.entries(bm).map(([service_type, v]) => ({ service_type, ...v }))
@@ -113,19 +150,21 @@ export async function calculateOwnerDebt(botName: string): Promise<DebtSummary> 
     }
   } catch { /* owner_payments table may not exist */ }
 
-  // User income (MONEY_INCOME) — all currencies normalized to stars
-  const { data: incRaw } = await supabaseAdmin
-    .from('payments_v2').select('stars, currency, amount')
-    .eq('bot_name', botName).eq('type', 'MONEY_INCOME')
+  // User income (MONEY_INCOME) — только реальные клиентские платежи.
+  // Админские начисления, бонусы и системные корректировки доходом НЕ являются.
+  const incomeRows = await fetchAllRows(
+    botName, 'MONEY_INCOME',
+    'stars, amount, currency, payment_method, status, category, is_system_payment',
+  )
   let total_user_income = 0
   const incomeByMethod: Record<string, number> = {}
-  for (const r of (incRaw ?? []) as { stars: number; currency?: string; amount?: number }[]) {
-    const cur = r.currency || 'XTR'
-    const starsValue = cur === 'XTR'
-      ? (Number(r.stars) || 0)
-      : toStars(Number(r.amount || r.stars) || 0, cur)
+  for (const r of incomeRows) {
+    if (!isRealClientIncome(r)) continue
+    const starsValue = incomeToStars(r)
+    if (starsValue <= 0) continue
     total_user_income += starsValue
-    incomeByMethod[cur] = (incomeByMethod[cur] || 0) + (Number(r.amount || r.stars) || 0)
+    const cur = (r.currency || 'XTR').toUpperCase()
+    incomeByMethod[cur] = (incomeByMethod[cur] || 0) + incomeNativeAmount(r)
   }
 
   // Формула: доход - себестоимость = чистая прибыль. 50% прибыли → платформе.
@@ -151,7 +190,7 @@ export async function generateDebtReport(botName: string): Promise<string> {
 
   const incomeLines = Object.entries(s.incomeByMethod)
     .filter(([, v]) => v > 0)
-    .map(([cur, v]) => `  • ${cur === 'XTR' ? 'Telegram Stars' : cur === 'RUB' ? 'Рубли' : cur}: ${fmtMultiCurrency(v, cur)}`)
+    .map(([cur, v]) => `  • ${currencyLabel(cur)}: ${fmtMultiCurrency(v, cur)}`)
     .join('\n')
 
   let r = `📊 <b>Отчёт по боту @${s.bot_name}</b>\n\n`
@@ -161,23 +200,24 @@ export async function generateDebtReport(botName: string): Promise<string> {
   r += `Чистая прибыль делится 50/50\n`
   r += `50% вам, 50% платформе\n\n`
 
-  r += `💰 <b>1. Доход от клиентов:</b> ${fmt(s.total_user_income)}\n`
+  r += `💰 <b>1. Доход от клиентов:</b> ${fmtWithRub(s.total_user_income)}\n`
   if (incomeLines) r += incomeLines + '\n'
+  else r += `  • пока нет оплаченных заказов\n`
 
-  r += `\n💸 <b>2. Себестоимость AI:</b> ${fmt(s.total_ai_costs)}\n`
+  r += `\n💸 <b>2. Себестоимость AI:</b> ${fmtWithRub(s.total_ai_costs)}\n`
   if (costLines) r += costLines + '\n'
 
-  r += `\n📈 <b>3. Чистая прибыль:</b> ${fmt(s.net_profit)}\n`
+  r += `\n📈 <b>3. Чистая прибыль:</b> ${fmtWithRub(s.net_profit)}\n`
   r += `   (${fmt(s.total_user_income)} − ${fmt(s.total_ai_costs)})\n`
 
   r += `\n━━━ <b>РАСПРЕДЕЛЕНИЕ 50/50</b> ━━━\n`
-  r += `👤 Ваша доля (50%): <b>${fmt(Math.round(s.net_profit * 0.5))}</b>\n`
-  r += `🏢 Платформе (50%): <b>${fmt(s.platform_share)}</b>\n`
+  r += `👤 Ваша доля (50%): <b>${fmtWithRub(s.net_profit - s.platform_share)}</b>\n`
+  r += `🏢 Платформе (50%): <b>${fmtWithRub(s.platform_share)}</b>\n`
 
   if (s.total_owner_payments > 0) r += `\n✅ Уже оплачено: ${fmt(s.total_owner_payments)}\n`
 
   if (s.debt > 0) {
-    r += `\n⚠️ <b>К оплате: ${fmt(s.debt)}</b>\n`
+    r += `\n⚠️ <b>К оплате: ${fmtWithRub(s.debt)}</b>\n`
     r += `(${fmt(s.platform_share)} − ${fmt(s.total_owner_payments)} оплачено)`
   } else {
     r += '\n✅ Всё оплачено!'
@@ -206,7 +246,8 @@ export async function notifyOwnerAboutDebt(
     suffix = '\n\n⚠️ <b>Внимание!</b> Оплатите задолженность чтобы избежать отключения бота.'
     markup = { inline_keyboard: [[{ text: '💳 Оплатить', callback_data: `billing_pay_${botName}` }]] }
   } else {
-    suffix = '\n\n🛑 <b>КРИТИЧЕСКИ!</b> Бот будет отключён через 24 часа если задолженность не будет оплачена.'
+    // Бот НЕ останавливается (см. disableBot) — не обещаем владельцу отключение.
+    suffix = '\n\n🛑 <b>Просроченная задолженность.</b> Бот продолжает работать, но просим погасить долг платформе.'
     markup = { inline_keyboard: [[{ text: '💳 Оплатить сейчас', callback_data: `billing_pay_${botName}` }]] }
   }
 
