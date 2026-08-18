@@ -33,6 +33,13 @@ server {
         add_header Pragma "no-cache" always;
     }
 
+    # Данные — до SPA-fallback. Иначе отсутствующий manifest.json отдавался
+    # как index.html с кодом 200: парсер получал HTML вместо JSON, и поломка
+    # была не видна ни в консоли, ни в логах. Ровно так и случилось.
+    location ~* \.(json|txt|xml|webmanifest)$ {
+        try_files $uri =404;
+    }
+
     # SPA fallback. Load-bearing for a Mini App: Telegram's WebView reloads the
     # app on resume from background on some Android builds, and a 404 on a deep
     # route is a blank WebView with no way back.
