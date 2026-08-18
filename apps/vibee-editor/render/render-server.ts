@@ -46,14 +46,33 @@ const S3_ENDPOINT = process.env.AWS_ENDPOINT_URL_S3 || "https://fly.storage.tigr
 const S3_BUCKET = process.env.BUCKET_NAME || process.env.S3_BUCKET || "vibee-assets";
 const S3_PUBLIC_URL = process.env.S3_PUBLIC_URL || `${S3_ENDPOINT}/${S3_BUCKET}`;
 
+// MinIO (и большинство S3-совместимых хранилищ, кроме самого AWS) адресует
+// бакет путём, а не поддоменом. Без forcePathStyle SDK пойдёт на
+// https://<bucket>.bucket-production-8259.up.railway.app — такого хоста нет,
+// и загрузка падает на DNS, а не на правах доступа, что уводит диагностику
+// совсем не туда.
+//
+// Включается для любого своего эндпоинта; на настоящем AWS S3_ENDPOINT не
+// задан, и поведение остаётся прежним. S3_FORCE_PATH_STYLE=false — аварийный
+// выключатель, если хранилище всё-таки требует virtual-host.
+const useCustomEndpoint = Boolean(process.env.AWS_ENDPOINT_URL_S3);
+const forcePathStyle =
+  process.env.S3_FORCE_PATH_STYLE === "false" ? false : useCustomEndpoint;
+
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || "auto",
   endpoint: S3_ENDPOINT,
+  forcePathStyle,
   credentials: process.env.AWS_ACCESS_KEY_ID ? {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
   } : undefined,
 });
+console.log(
+  `🪣 S3: endpoint=${S3_ENDPOINT} bucket=${S3_BUCKET} pathStyle=${forcePathStyle} creds=${
+    process.env.AWS_ACCESS_KEY_ID ? "set" : "MISSING"
+  }`
+);
 
 // PostgreSQL Configuration
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -309,7 +328,7 @@ async function uploadToS3(
   fileBuffer: Buffer,
   filename: string,
   contentType: string
-): Promise<{ success: boolean; url?: string; key?: string; error?: string; signedUrl?: string }> {
+): Promise<{ success: boolean; url?: string; key?: string; error?: string; signedUrl?: string; directUrl?: string }> {
   const key = `assets/${Date.now()}-${filename}`;
 
   try {
