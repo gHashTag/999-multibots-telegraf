@@ -1,0 +1,270 @@
+/* ===============================
+   Layers Panel - Track & Item Tree
+   =============================== */
+
+.layers-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Add Text Button */
+.add-text-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  margin: 8px;
+  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  border: none;
+  border-radius: 6px;
+  color: #000;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.add-text-btn:hover {
+  background: linear-gradient(135deg, var(--vibee-amber-dark), var(--vibee-amber));
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+.add-text-btn:active {
+  transform: scale(0.98);
+}
+
+/* Layers List */
+.layers-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Track */
+.layer-track {
+  display: flex;
+  flex-direction: column;
+}
+
+.track-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 8px 4px;
+  background: var(--bg-darkest);
+  border-bottom: 1px solid var(--bg-elevated);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.track-header:hover {
+  background: #161616;
+}
+
+.track-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.track-expand:hover {
+  color: var(--text-muted-light);
+}
+
+.track-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.track-name {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  color: #ccc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.track-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.track-action:hover {
+  background: var(--bg-secondary);
+  color: var(--text-muted-light);
+}
+
+.track-action.inactive {
+  color: var(--bg-hover);
+}
+
+.track-action.active {
+  color: var(--vibee-amber);
+}
+
+.track-count {
+  font-size: 10px;
+  color: #555;
+  padding: 2px 6px;
+  background: var(--bg-elevated);
+  border-radius: 4px;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* Track Items */
+.track-items {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-darker);
+}
+
+.layer-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 28px;
+  border-bottom: 1px solid #151515;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.layer-item:hover {
+  background: var(--bg-elevated);
+}
+
+.layer-item.selected {
+  background: rgba(245, 158, 11, 0.15);
+  border-left: 2px solid var(--vibee-amber);
+  padding-left: 26px;
+}
+
+.item-drag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bg-hover);
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.item-drag:active {
+  cursor: grabbing;
+}
+
+.layer-item:hover .item-drag {
+  color: #666;
+}
+
+.layer-item.dragging {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px dashed var(--vibee-amber);
+  border-radius: 4px;
+  z-index: var(--z-elevated);
+}
+
+.item-color {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.item-name {
+  flex: 1;
+  font-size: 11px;
+  color: #999;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layer-item.selected .item-name {
+  color: #fff;
+}
+
+.item-frames {
+  font-size: 10px;
+  color: #555;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Selection Bar */
+.layers-selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--bg-secondary);
+}
+
+.selection-count {
+  font-size: 11px;
+  color: var(--text-muted-light);
+}
+
+.selection-delete {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--status-error);
+  border-radius: 4px;
+  color: var(--status-error);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.selection-delete:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* Scrollbar */
+.layers-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.layers-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.layers-list::-webkit-scrollbar-thumb {
+  background: var(--bg-secondary);
+  border-radius: 3px;
+}
+
+.layers-list::-webkit-scrollbar-thumb:hover {
+  background: var(--bg-tertiary);
+}

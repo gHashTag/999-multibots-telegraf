@@ -1,0 +1,112 @@
+.context-menu {
+  position: fixed;
+  z-index: var(--z-modal);
+  min-width: 180px;
+  padding: 4px 0;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: contextMenuFadeIn 0.1s ease-out;
+}
+
+@keyframes contextMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.context-menu-item:hover:not(:disabled) {
+  background: var(--color-bg-secondary);
+}
+
+.context-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.context-menu-item.danger {
+  color: #f87171;
+}
+
+.context-menu-item.danger:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.context-menu-item span:first-of-type {
+  flex: 1;
+}
+
+.context-menu-item .shortcut {
+  color: #666;
+  font-size: 10px;
+  font-family: system-ui;
+}
+
+.context-menu-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--color-bg-secondary);
+}
+
+/* Color Picker Row */
+.color-picker-row {
+  cursor: default;
+}
+
+.color-picker-row:hover {
+  background: transparent !important;
+}
+
+.color-swatches {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.color-swatch {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.color-swatch:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
+
+.color-swatch.none {
+  background: linear-gradient(
+    135deg,
+    var(--bg-input) 0%,
+    var(--bg-input) 45%,
+    var(--color-status-error) 45%,
+    var(--color-status-error) 55%,
+    var(--bg-input) 55%,
+    var(--bg-input) 100%
+  ) !important;
+  border: 1px solid var(--bg-hover);
+}

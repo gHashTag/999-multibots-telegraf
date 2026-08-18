@@ -1,0 +1,310 @@
+/* ===============================
+   EventStream Component Styles
+   Live Telegram events feed
+   =============================== */
+
+.event-stream {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-primary);
+  border-radius: 12px;
+  border: 1px solid var(--color-bg-secondary);
+  overflow: hidden;
+}
+
+/* Header */
+.event-stream-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-bg-secondary);
+}
+
+.event-stream-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #fff;
+}
+
+.event-stream-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-status-error);
+  animation: pulse 2s infinite;
+}
+
+.event-stream-status.connected {
+  background: var(--color-status-success);
+}
+
+.event-stream-status.disconnected {
+  background: var(--color-status-error);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.event-stream-count {
+  background: var(--color-bg-secondary);
+  color: #888;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.event-stream-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.event-stream-demo-btn,
+.event-stream-clear-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.event-stream-demo-btn {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--vibee-amber);
+}
+
+.event-stream-demo-btn:hover {
+  background: rgba(245, 158, 11, 0.3);
+}
+
+.event-stream-clear-btn {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--color-status-error);
+  padding: 6px;
+}
+
+.event-stream-clear-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+/* Event List */
+.event-stream-list {
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.event-stream-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.event-stream-list::-webkit-scrollbar-track {
+  background: var(--color-bg-elevated);
+}
+
+.event-stream-list::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 3px;
+}
+
+.event-stream-list::-webkit-scrollbar-thumb:hover {
+  background: #4a4a4a;
+}
+
+/* Empty State */
+.event-stream-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: #666;
+  gap: 12px;
+}
+
+.event-stream-empty svg {
+  opacity: 0.5;
+  color: var(--vibee-amber);
+}
+
+.event-stream-empty-hint {
+  font-size: 12px;
+  color: #555;
+  max-width: 280px;
+}
+
+.event-stream-demo-btn-large {
+  margin-top: 12px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, var(--vibee-amber), #d97706);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.event-stream-demo-btn-large:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
+/* Event Item */
+.event-stream-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-bg-elevated);
+  transition: background 0.15s;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.event-stream-item:hover {
+  background: var(--bg-darkest);
+}
+
+.event-stream-item:last-child {
+  border-bottom: none;
+}
+
+/* Item Icon */
+.event-stream-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(var(--event-color-rgb, 245, 158, 11), 0.15);
+  flex-shrink: 0;
+}
+
+.event-stream-item--new_lead .event-stream-item-icon {
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.event-stream-item--message .event-stream-item-icon {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.event-stream-item--trigger_match .event-stream-item-icon {
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.event-stream-item--session_status .event-stream-item-icon {
+  background: rgba(139, 92, 246, 0.15);
+}
+
+.event-stream-item--ws_connected .event-stream-item-icon {
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.event-stream-item--ws_disconnected .event-stream-item-icon,
+.event-stream-item--error .event-stream-item-icon {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.event-stream-item--action_sent .event-stream-item-icon {
+  background: rgba(6, 182, 212, 0.15);
+}
+
+/* Item Content */
+.event-stream-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.event-stream-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.event-stream-item-type {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--event-color, var(--vibee-amber));
+  letter-spacing: 0.5px;
+}
+
+.event-stream-item-chat {
+  font-size: 12px;
+  color: #888;
+  background: var(--color-bg-elevated);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.event-stream-item-trigger {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-status-success);
+  background: rgba(34, 197, 94, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.event-stream-item-desc {
+  font-size: 13px;
+  color: #ccc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Item Time */
+.event-stream-item-time {
+  font-size: 11px;
+  color: #555;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .event-stream-header {
+    padding: 10px 12px;
+  }
+
+  .event-stream-item {
+    padding: 10px 12px;
+  }
+
+  .event-stream-item-desc {
+    font-size: 12px;
+  }
+
+  .event-stream-demo-btn {
+    display: none;
+  }
+}

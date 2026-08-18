@@ -1,0 +1,122 @@
+/* Resize Handle - Draggable panel divider */
+
+.resize-handle {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  z-index: var(--z-elevated);
+  transition: background 0.15s;
+}
+
+/* Horizontal handle (between left/right panels) */
+.resize-handle.horizontal {
+  width: 6px;
+  cursor: col-resize;
+}
+
+/* Vertical handle (between top/bottom panels) */
+.resize-handle.vertical {
+  height: 6px;
+  cursor: row-resize;
+}
+
+/* Hover state */
+.resize-handle:hover {
+  background: rgba(245, 158, 11, 0.2);
+}
+
+/* Dragging state */
+.resize-handle.dragging {
+  background: rgba(245, 158, 11, 0.3);
+}
+
+/* Grip icon container */
+.resize-handle-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bg-hover);
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.resize-handle:hover .resize-handle-grip,
+.resize-handle.dragging .resize-handle-grip {
+  opacity: 1;
+  color: var(--vibee-amber);
+}
+
+/* Horizontal grip rotation */
+.resize-handle.horizontal .resize-handle-grip {
+  transform: rotate(0deg);
+}
+
+/* Vertical grip rotation */
+.resize-handle.vertical .resize-handle-grip {
+  transform: rotate(90deg);
+}
+
+/* Hit area - larger than visual for easier touch */
+.resize-handle::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+}
+
+.resize-handle.horizontal::before {
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+}
+
+.resize-handle.vertical::before {
+  left: 0;
+  right: 0;
+  top: -4px;
+  bottom: -4px;
+}
+
+/* Mobile: Larger touch target */
+@media (max-width: 1023px) {
+  .resize-handle.horizontal {
+    width: 10px;
+  }
+
+  .resize-handle.vertical {
+    height: 10px;
+  }
+
+  .resize-handle.horizontal::before {
+    left: -8px;
+    right: -8px;
+  }
+
+  .resize-handle.vertical::before {
+    top: -8px;
+    bottom: -8px;
+  }
+}
+
+/* Tablet: Always visible grip */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .resize-handle-grip {
+    opacity: 0.5;
+  }
+
+  .resize-handle {
+    background: rgba(255, 255, 255, 0.03);
+  }
+}
+
+/* Dragging overlay - prevents interaction with other elements */
+.resize-handle.dragging::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-toast);
+  cursor: inherit;
+}

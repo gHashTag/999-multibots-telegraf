@@ -1,0 +1,379 @@
+/* ===============================
+   LeadCard Styles
+   Following Editor/AssetCard patterns
+   =============================== */
+
+.lead-card {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--color-bg-elevated);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.lead-card:hover {
+  background: var(--bg-card);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.lead-card:active {
+  transform: translateY(0);
+}
+
+/* Unread state */
+.lead-card--unread {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.lead-card--unread:hover {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+/* Blocked state */
+.lead-card--blocked {
+  opacity: 0.5;
+  background: rgba(239, 68, 68, 0.05);
+}
+
+/* ===============================
+   Avatar
+   =============================== */
+
+.lead-card-avatar {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--vibee-amber, var(--vibee-amber)) 0%, #d97706 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.lead-card-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lead-card-initials {
+  font-size: 16px;
+  font-weight: 600;
+  color: #000;
+}
+
+.lead-card-urgency-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-status-error);
+  border: 2px solid var(--color-bg-elevated);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+}
+
+/* ===============================
+   Content
+   =============================== */
+
+.lead-card-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Header: Name, Username, Chat */
+.lead-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lead-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lead-card-username {
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.lead-card-chat {
+  font-size: 11px;
+  color: #888;
+  padding: 2px 8px;
+  background: var(--color-bg-secondary);
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+/* Message */
+.lead-card-message {
+  font-size: 13px;
+  color: #aaa;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  cursor: text;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.lead-card-message--expanded {
+  -webkit-line-clamp: unset;
+  display: block;
+}
+
+/* ===============================
+   Badges
+   =============================== */
+
+.lead-card-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.lead-card-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Quality badges */
+.lead-card-badge--quality-high {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--color-status-success);
+}
+
+.lead-card-badge--quality-medium {
+  background: rgba(234, 179, 8, 0.2);
+  color: #eab308;
+}
+
+.lead-card-badge--quality-low {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--color-status-error);
+}
+
+/* Intent badge */
+.lead-card-badge--intent {
+  background: rgba(99, 102, 241, 0.2);
+  color: #6366f1;
+}
+
+/* Trigger badge */
+.lead-card-badge--trigger {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--vibee-amber, var(--vibee-amber));
+}
+
+/* Status badges */
+.lead-card-badge--status-new {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--vibee-amber);
+}
+
+.lead-card-badge--status-contacted {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--color-status-success);
+}
+
+.lead-card-badge--status-qualified {
+  background: rgba(168, 85, 247, 0.2);
+  color: #a855f7;
+}
+
+.lead-card-badge--status-won {
+  background: rgba(34, 197, 94, 0.3);
+  color: var(--color-status-success);
+}
+
+.lead-card-badge--status-lost {
+  background: rgba(107, 114, 128, 0.2);
+  color: #6b7280;
+}
+
+.lead-card-badge--status-blocked {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--color-status-error);
+}
+
+/* ===============================
+   Right Side: Time + Actions
+   =============================== */
+
+.lead-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.lead-card-time {
+  font-size: 11px;
+  color: #666;
+  white-space: nowrap;
+}
+
+/* Actions */
+.lead-card-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.lead-card:hover .lead-card-actions {
+  opacity: 1;
+}
+
+.lead-card-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: var(--color-bg-secondary);
+  color: #888;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lead-card-action:hover {
+  background: var(--bg-input);
+  color: #fff;
+}
+
+.lead-card-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Action variants */
+.lead-card-action--allow:hover {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--color-status-success);
+}
+
+.lead-card-action--block:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--color-status-error);
+}
+
+.lead-card-action--reply:hover {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--vibee-amber);
+}
+
+.lead-card-action--mute:hover {
+  background: rgba(234, 179, 8, 0.2);
+  color: #eab308;
+}
+
+.lead-card-action--open:hover {
+  background: rgba(168, 85, 247, 0.2);
+  color: #a855f7;
+}
+
+/* Loading spinner */
+.lead-card-action-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ===============================
+   Mobile Responsive
+   =============================== */
+
+@media (max-width: 768px) {
+  .lead-card {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .lead-card-avatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .lead-card-initials {
+    font-size: 14px;
+  }
+
+  .lead-card-name {
+    font-size: 13px;
+  }
+
+  .lead-card-message {
+    font-size: 12px;
+    -webkit-line-clamp: 1;
+  }
+
+  .lead-card-badges {
+    gap: 4px;
+  }
+
+  .lead-card-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+
+  .lead-card-actions {
+    opacity: 1;
+    gap: 2px;
+  }
+
+  .lead-card-action {
+    width: 26px;
+    height: 26px;
+  }
+
+  .lead-card-chat {
+    display: none;
+  }
+}

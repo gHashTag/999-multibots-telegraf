@@ -1,0 +1,91 @@
+/* Swipe to Delete Component */
+
+.swipe-to-delete {
+  position: relative;
+  overflow: hidden;
+}
+
+.swipe-to-delete__delete-bg {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-right: 16px;
+  background: linear-gradient(135deg, var(--color-status-error), #dc2626);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: width 0.2s ease-out;
+}
+
+.swipe-to-delete__delete-bg:active {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+.swipe-to-delete__delete-bg svg {
+  flex-shrink: 0;
+}
+
+.swipe-to-delete__delete-bg span {
+  white-space: nowrap;
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+
+/* Hide text when not enough space */
+.swipe-to-delete__delete-bg[style*="width: 0"],
+.swipe-to-delete__delete-bg:not([style*="width"]) span {
+  opacity: 0;
+}
+
+.swipe-to-delete__content {
+  position: relative;
+  z-index: var(--z-base);
+  background: inherit;
+  will-change: transform;
+}
+
+.swipe-to-delete__content.dragging {
+  user-select: none;
+}
+
+/* Deleting animation */
+.swipe-to-delete.deleting .swipe-to-delete__content {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.swipe-to-delete.deleting .swipe-to-delete__delete-bg {
+  animation: deleteFlash 0.3s ease-out;
+}
+
+@keyframes deleteFlash {
+  0% {
+    background: linear-gradient(135deg, var(--color-status-error), #dc2626);
+  }
+  50% {
+    background: linear-gradient(135deg, #f87171, var(--color-status-error));
+  }
+  100% {
+    background: linear-gradient(135deg, var(--color-status-error), #dc2626);
+  }
+}
+
+/* Desktop: Hide swipe UI */
+@media (min-width: 1024px) {
+  .swipe-to-delete__delete-bg {
+    display: none;
+  }
+
+  .swipe-to-delete__content {
+    transform: none !important;
+  }
+}

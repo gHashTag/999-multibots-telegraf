@@ -1,0 +1,146 @@
+# Buffer-Based Adaptation (BBA) Algorithm Specification
+# Based on Stanford Research: "A Buffer-Based Approach to Rate Adaptation"
+# SIGCOMM 2014 - Huang et al.
+# Result: 10-20% rebuffer reduction
+
+name: video-bba
+version: "1.0.0"
+language: typescript
+module: video/abr
+description: Buffer-Based Adaptation algorithm for HLS quality selection
+
+behaviors:
+  - name: select_bitrate_by_buffer_level
+    given: Current buffer level and available bitrates
+    when: Next segment is requested
+    then: Bitrate is selected based on buffer occupancy using reservoir/cushion model
+    test_cases:
+      - name: low_buffer_selects_minimum
+        input: {bufferLevel: 5, reservoir: 10, cushion: 30, bitrates: [1000, 2000, 4000]}
+        expected: {selectedBitrate: 1000, reason: "buffer_below_reservoir"}
+      - name: high_buffer_selects_maximum
+        input: {bufferLevel: 40, reservoir: 10, cushion: 30, bitrates: [1000, 2000, 4000]}
+        expected: {selectedBitrate: 4000, reason: "buffer_above_cushion"}
+      - name: mid_buffer_interpolates
+        input: {bufferLevel: 20, reservoir: 10, cushion: 30, bitrates: [1000, 2000, 4000]}
+        expected: {selectedBitrate: 2000, reason: "linear_interpolation"}
+
+  - name: prevent_quality_oscillation
+    given: Recent quality switches recorded
+    when: Quality switch is about to happen
+    then: Switch is delayed if oscillation detected
+    test_cases:
+      - name: no_oscillation_allowed
+        input: {lastSwitchTime: 1000, currentTime: 2000, minInterval: 5000}
+        expected: {allowSwitch: false, reason: "too_soon"}
+      - name: switch_allowed_after_interval
+        input: {lastSwitchTime: 1000, currentTime: 7000, minInterval: 5000}
+        expected: {allowSwitch: true}
+
+  - name: adapt_to_throughput_drop
+    given: Network throughput measurements
+    when: Throughput drops significantly (>50%)
+    then:
+      - Reservoir threshold increases
+      - More conservative bitrate selection
+    test_cases:
+      - name: throughput_halved
+        input: {currentThroughput: 2500, previousThroughput: 5000}
+        expected: {reservoirMultiplier: 1.5, action: "increase_reservoir"}
+      - name: throughput_stable
+        input: {currentThroughput: 4800, previousThroughput: 5000}
+        expected: {reservoirMultiplier: 1.0, action: "maintain"}
+
+  - name: startup_phase_handling
+    given: Video just started loading
+    when: Buffer is building up
+    then: Use aggressive startup mode with lower bitrate
+    test_cases:
+      - name: startup_phase
+        input: {bufferLevel: 2, isStartup: true, maxBitrate: 4000}
+        expected: {selectedBitrate: 1000, mode: "startup"}
+      - name: exit_startup
+        input: {bufferLevel: 15, isStartup: true}
+        expected: {exitStartup: true, mode: "steady_state"}
+
+types:
+  BBAConfig:
+    reservoir: number          # Buffer threshold for min bitrate (seconds, default: 10)
+    cushion: number            # Buffer threshold for max bitrate (seconds, default: 30)
+    maxBuffer: number          # Maximum buffer size (seconds, default: 60)
+    minSwitchInterval: number  # Minimum time between switches (ms, default: 5000)
+    startupThreshold: number   # Buffer level to exit startup (seconds, default: 10)
+    enableOscillationGuard: boolean  # Prevent rapid quality changes (default: true)
+
+  BBAState:
+    currentBuffer: number      # Current buffer level in seconds
+    currentBitrate: number     # Current selected bitrate in kbps
+    lastThroughput: number     # Last measured throughput in kbps
+    avgThroughput: number      # EWMA of throughput
+    lastSwitchTime: number     # Timestamp of last quality switch
+    isStartup: boolean         # Whether in startup phase
+    switchCount: number        # Number of switches in session
+
+  BitrateDecision:
+    selectedBitrate: number    # Selected bitrate in kbps
+    selectedIndex: number      # Index in available bitrates array
+    reason: string             # Reason for selection
+    confidence: number         # 0-1 confidence score
+
+  QualityLevel:
+    index: number
+    bitrate: number            # kbps
+    width: number
+    height: number
+    label: string              # e.g., "720p", "1080p"
+
+  ThroughputSample:
+    timestamp: number
+    bytesLoaded: number
+    duration: number
+    throughput: number         # kbps
+
+functions:
+  - name: selectBitrate
+    params: {config: BBAConfig, state: BBAState, availableLevels: QualityLevel[]}
+    returns: BitrateDecision
+    description: Main BBA algorithm - select bitrate based on buffer level
+
+  - name: updateThroughput
+    params: {state: BBAState, sample: ThroughputSample}
+    returns: BBAState
+    description: Update throughput estimate using EWMA
+
+  - name: shouldSwitch
+    params: {current: QualityLevel, recommended: QualityLevel, state: BBAState, config: BBAConfig}
+    returns: boolean
+    description: Check if quality switch should happen (oscillation guard)
+
+  - name: adjustThresholds
+    params: {config: BBAConfig, throughputRatio: number}
+    returns: BBAConfig
+    description: Dynamically adjust reservoir/cushion based on network
+
+  - name: exitStartupPhase
+    params: {state: BBAState, config: BBAConfig}
+    returns: BBAState
+    description: Transition from startup to steady-state mode
+
+  - name: createDefaultConfig
+    params: {}
+    returns: BBAConfig
+    description: Create default BBA configuration
+
+  - name: integrateWithHLS
+    params: {hls: Hls, config: BBAConfig}
+    returns: void
+    description: Integrate BBA with HLS.js ABR controller
+
+imports:
+  - video-qoe-metrics
+  - hls.js
+
+completeness:
+  test_coverage: 90%
+  e2e_tests: 5
+  unit_tests: 12

@@ -1,0 +1,174 @@
+.how-it-works {
+  padding: 100px 24px;
+}
+
+.how-container {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.how-header {
+  text-align: center;
+  margin-bottom: 60px;
+}
+
+.how-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vibee-amber);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+}
+
+.how-title {
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 700;
+  background: linear-gradient(135deg, #fff 0%, #fff 60%, var(--vibee-amber-light) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 16px;
+}
+
+.how-subtitle {
+  font-size: 16px;
+  color: #9ca3af;
+  margin: 0;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
+}
+
+.how-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 48px;
+  position: relative;
+}
+
+.how-step {
+  text-align: center;
+  position: relative;
+}
+
+.step-number {
+  font-size: 48px;
+  font-weight: 800;
+  color: rgba(245, 158, 11, 0.2);
+  margin-bottom: 16px;
+}
+
+.step-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 20px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(251, 191, 36, 0.2) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vibee-amber-light);
+}
+
+.step-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 12px;
+}
+
+.step-desc {
+  font-size: 14px;
+  color: #9ca3af;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.step-connector {
+  position: absolute;
+  top: 100px;
+  right: -24px;
+  width: 48px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.5), rgba(245, 158, 11, 0.1));
+}
+
+@media (max-width: 768px) {
+  .how-it-works {
+    padding: 80px 20px;
+  }
+
+  .how-header {
+    margin-bottom: 40px;
+  }
+
+  .how-steps {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .how-step {
+    padding-bottom: 24px;
+  }
+
+  /* Vertical connector for mobile (replaces hidden horizontal) */
+  .how-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 16px;
+    background: linear-gradient(180deg, rgba(245, 158, 11, 0.5), rgba(245, 158, 11, 0.1));
+  }
+
+  .step-connector {
+    display: none;
+  }
+
+  .step-icon {
+    width: 64px;
+    height: 64px;
+  }
+
+  .step-number {
+    font-size: 40px;
+  }
+
+  .step-title {
+    font-size: 18px;
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+  .how-it-works {
+    padding: 60px 16px;
+  }
+
+  .step-icon {
+    width: 56px;
+    height: 56px;
+  }
+
+  .step-number {
+    font-size: 36px;
+  }
+
+  .step-title {
+    font-size: 16px;
+  }
+
+  .step-desc {
+    font-size: 13px;
+  }
+}

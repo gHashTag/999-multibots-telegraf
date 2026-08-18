@@ -1,0 +1,232 @@
+/* Stories Component - Instagram Style */
+
+.stories {
+  position: relative;
+  padding: 12px 0;
+  background: var(--vibee-bg);
+  border-bottom: 1px solid var(--vibee-border);
+}
+
+.stories__scroll {
+  display: flex;
+  gap: 12px;
+  padding: 0 16px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.stories__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.stories__arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--vibee-bg-elevated);
+  border: 1px solid var(--vibee-border);
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  z-index: var(--z-elevated);
+  transition: all 0.2s;
+}
+
+.stories__arrow:hover {
+  background: var(--vibee-border);
+}
+
+.stories__arrow--left {
+  left: 4px;
+}
+
+.stories__arrow--right {
+  right: 4px;
+}
+
+/* Hide arrows on mobile - use touch scroll */
+@media (max-width: 768px) {
+  .stories__arrow {
+    display: none;
+  }
+}
+
+/* Story Item */
+.story-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.story-item__avatar-wrapper {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  padding: 3px;
+  background: linear-gradient(135deg, #888 0%, var(--bg-hover) 100%);
+  border-radius: 50%;
+}
+
+.story-item--unviewed .story-item__avatar-wrapper {
+  background: linear-gradient(135deg, var(--vibee-amber) 0%, #ff6b35 50%, #f72585 100%);
+}
+
+.story-item__avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid var(--vibee-bg);
+  object-fit: cover;
+}
+
+.story-item__avatar--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--vibee-border);
+  color: var(--text-muted-light);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.story-item__name {
+  font-size: 11px;
+  color: var(--text-muted-light);
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Add Story Button */
+.story-item--add .story-item__avatar-wrapper {
+  background: var(--vibee-border);
+}
+
+.story-item__add-icon {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: var(--vibee-amber);
+  border: 2px solid var(--vibee-bg);
+  border-radius: 50%;
+  color: #000;
+}
+
+/* Story Viewer */
+.story-viewer {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+}
+
+.story-viewer__header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 16px;
+  padding-top: calc(16px + env(safe-area-inset-top, 0px));
+  background: linear-gradient(rgba(0, 0, 0, 0.6), transparent);
+  z-index: var(--z-elevated);
+}
+
+.story-viewer__progress-bars {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.story-viewer__progress-bar {
+  flex: 1;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.story-viewer__progress-fill {
+  height: 100%;
+  background: #fff;
+  transition: width 0.05s linear;
+}
+
+.story-viewer__user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.story-viewer__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.story-viewer__username {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.story-viewer__close {
+  position: absolute;
+  top: 16px;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.story-viewer__content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+.story-viewer__media {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* Mobile: Full screen */
+@media (max-width: 768px) {
+  .story-viewer__media {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}

@@ -1,0 +1,208 @@
+# specs/video-ll-hls.vibee
+# Tier 3: Low-Latency HLS (LL-HLS) Streaming
+# Scientific source: IETF draft-pantos-hls-rfc8216bis-19 (Jan 2026)
+# Target: 2-8 second latency (vs 10-30s standard HLS)
+
+name: video-ll-hls
+version: "1.0.0"
+language: typescript
+module: video/ll-hls
+description: Low-Latency HTTP Live Streaming for near-real-time video delivery
+
+behaviors:
+  - name: parse_partial_segments
+    given: HLS manifest contains EXT-X-PART tags
+    when: Playlist is downloaded
+    then: Partial segments identified and scheduled for download
+    test_cases:
+      - name: parse_part_tags
+        input: |
+          #EXT-X-PART:DURATION=0.5,URI="seg1_part1.m4s",INDEPENDENT=YES
+          #EXT-X-PART:DURATION=0.5,URI="seg1_part2.m4s"
+        expected: {parts: 2, firstIndependent: true}
+      - name: parse_part_hold_back
+        input: "#EXT-X-PART-INF:PART-TARGET=0.5"
+        expected: {partTarget: 0.5, holdBack: 1.5}
+
+  - name: calculate_hold_back
+    given: PART-HOLD-BACK specified in manifest
+    when: Client determines buffer start point
+    then: Hold back calculated as minimum 2x part duration
+    test_cases:
+      - name: standard_hold_back
+        input: {partDuration: 0.5, partHoldBack: 1.5}
+        expected: {effectiveHoldBack: 1.5, valid: true}
+      - name: invalid_hold_back
+        input: {partDuration: 0.5, partHoldBack: 0.5}
+        expected: {effectiveHoldBack: 1.0, corrected: true}
+
+  - name: enable_blocking_reload
+    given: Manifest contains CAN-BLOCK-RELOAD:YES
+    when: Client needs new parts before refresh interval
+    then: Client uses blocking playlist reload (no polling)
+    test_cases:
+      - name: blocking_supported
+        input: {canBlockReload: true, currentParts: 3}
+        expected: {useBlocking: true, queryParams: "_HLS_msn=X&_HLS_part=Y"}
+      - name: blocking_fallback
+        input: {canBlockReload: false}
+        expected: {useBlocking: false, usePolling: true}
+
+  - name: preload_hint_handling
+    given: EXT-X-PRELOAD-HINT tag present
+    when: Client ready to fetch next content
+    then: Preload hint resource fetched speculatively
+    test_cases:
+      - name: preload_part
+        input: {hintType: "PART", uri: "next_part.m4s"}
+        expected: {preloadInitiated: true, type: "PART"}
+
+  - name: measure_live_latency
+    given: LL-HLS stream is playing
+    when: Latency measurement requested
+    then: Returns time difference between live edge and playback position
+    test_cases:
+      - name: low_latency_achieved
+        input: {programDateTime: "2026-02-06T10:00:00Z", currentTime: "2026-02-06T09:59:57Z"}
+        expected: {latency: 3.0, withinTarget: true}
+
+types:
+  LLHLSConfig:
+    enabled: boolean              # Enable LL-HLS mode
+    targetLatency: number         # Target latency in seconds (2-8)
+    maxLatency: number            # Maximum tolerable latency (8-15)
+    minLatency: number            # Minimum latency (1-3)
+    partDuration: number          # Expected part duration (0.2-2.0)
+    enableBlockingReload: boolean # Use blocking playlist reload
+    enablePreloadHints: boolean   # Use preload hints
+    catchupRate: number           # Playback rate for catchup (1.0-1.1)
+    fallbackRate: number          # Playback rate to fall back (0.9-1.0)
+
+  PartSegment:
+    uri: string                   # Segment URI
+    duration: number              # Part duration in seconds
+    isIndependent: boolean        # Can be decoded independently (keyframe)
+    byteRangeStart: number | null # Byte range start (optional)
+    byteRangeLength: number | null # Byte range length (optional)
+    gap: boolean                  # Is gap (discontinuity)
+
+  PlaylistUpdate:
+    mediaSequence: number         # Current media sequence
+    partIndex: number             # Current part index within segment
+    parts: PartSegment[]          # Available parts
+    preloadHint: PreloadHint | null # Next preload hint
+    canBlockReload: boolean       # Server supports blocking
+    partHoldBack: number          # PART-HOLD-BACK value
+    programDateTime: string | null # Program date time for sync
+
+  PreloadHint:
+    type: "PART" | "MAP" | "SEGMENT"
+    uri: string
+    byteRangeStart: number | null
+    byteRangeLength: number | null
+
+  LLHLSState:
+    status: "idle" | "loading" | "playing" | "catchingUp" | "error"
+    currentLatency: number        # Current latency in seconds
+    targetLatency: number         # Target latency
+    playbackRate: number          # Current playback rate
+    partsBuffered: number         # Number of parts in buffer
+    lastMediaSequence: number     # Last loaded media sequence
+    lastPartIndex: number         # Last loaded part index
+    blockingReloadActive: boolean # Currently using blocking reload
+
+  LatencyMetrics:
+    liveEdge: number              # Live edge timestamp
+    playbackPosition: number      # Current playback timestamp
+    currentLatency: number        # Difference (liveEdge - playbackPosition)
+    avgLatency: number            # Average latency over session
+    minLatency: number            # Minimum observed latency
+    maxLatency: number            # Maximum observed latency
+    catchupEvents: number         # Times catchup was triggered
+
+functions:
+  - name: parseLLHLSManifest
+    description: Parse LL-HLS specific tags from manifest
+    params:
+      manifest: string
+    returns: PlaylistUpdate
+
+  - name: calculateEffectiveHoldBack
+    description: Calculate effective PART-HOLD-BACK (min 2x part duration)
+    params:
+      partDuration: number
+      declaredHoldBack: number
+    returns: number
+
+  - name: buildBlockingReloadURL
+    description: Build URL with _HLS_msn and _HLS_part query params
+    params:
+      baseUrl: string
+      mediaSequence: number
+      partIndex: number
+    returns: string
+
+  - name: adjustPlaybackRate
+    description: Adjust playback rate based on latency vs target
+    params:
+      currentLatency: number
+      targetLatency: number
+      config: LLHLSConfig
+    returns: number
+
+  - name: getLatencyMetrics
+    description: Get current latency statistics
+    params:
+      state: LLHLSState
+    returns: LatencyMetrics
+
+integration_points:
+  - file: src/hooks/useLLHLS.ts
+    description: React hook for LL-HLS streaming
+    exports:
+      - useLLHLS
+      - parseLLHLSManifest
+      - LLHLSState
+      - LatencyMetrics
+
+  - file: src/components/Video/LazyVideo.tsx
+    description: Integration with existing video component
+    condition: When hlsSrc points to LL-HLS manifest
+
+  - file: src/lib/bufferBasedABR.ts
+    description: BBA integration for LL-HLS
+    note: May need lower buffer thresholds for LL-HLS
+
+hls_js_integration:
+  config:
+    lowLatencyMode: true
+    backBufferLength: 0
+    maxBufferLength: 4
+    maxMaxBufferLength: 6
+    liveSyncDurationCount: 3
+    liveMaxLatencyDurationCount: 5
+
+performance_targets:
+  latency: "2-8 seconds"
+  startup_time: "<1.5 seconds"
+  catchup_smoothness: "no visible speed change"
+  rebuffer_on_catchup: "<1%"
+
+browser_support:
+  chrome: "92+"       # Full support
+  edge: "92+"         # Full support
+  safari: "14+"       # Native LL-HLS
+  firefox: "90+"      # Via HLS.js
+
+scientific_references:
+  - name: "IETF HLS 2nd Edition"
+    url: "https://datatracker.ietf.org/doc/html/draft-pantos-hls-rfc8216bis"
+    published: "January 2026"
+  - name: "Apple LL-HLS Documentation"
+    url: "https://developer.apple.com/documentation/http-live-streaming/enabling-low-latency-http-live-streaming-hls"
+  - name: "HLS.js LL-HLS RFC"
+    url: "https://video-dev.github.io/hlsjs-rfcs/docs/0001-lhls.html"
+
+imports:
+  - hls.js
+  - react

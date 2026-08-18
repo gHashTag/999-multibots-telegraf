@@ -1,0 +1,1355 @@
+/* FeedPanel.css - Social feed styles */
+
+.feed-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.feed-panel .panel-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color, var(--bg-input));
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #fff);
+}
+
+.feed-refresh {
+  margin-left: 8px;
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-secondary, #888);
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.feed-refresh:hover {
+  color: var(--text-primary, #fff);
+  background: var(--hover-bg, var(--bg-input));
+}
+
+.feed-refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Sort buttons */
+.feed-sort {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color, var(--bg-input));
+}
+
+.sort-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color, var(--bg-hover));
+  background: transparent;
+  color: var(--text-secondary, #888);
+  border-radius: 16px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sort-btn:hover {
+  background: var(--hover-bg, var(--bg-input));
+  color: var(--text-primary, #fff);
+}
+
+.sort-btn.active {
+  background: var(--primary-color, var(--vibee-amber));
+  border-color: var(--primary-color, var(--vibee-amber));
+  color: #000;
+}
+
+/* Feed list */
+.feed-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Feed card */
+.feed-card {
+  background: var(--card-bg, var(--color-bg-elevated));
+  border: 1px solid var(--border-color, var(--bg-input));
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.2s;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.feed-card:hover {
+  border-color: var(--border-hover, var(--bg-hover));
+}
+
+.feed-card-inner {
+  position: relative;  /* Required for absolute positioning of children */
+}
+
+.feed-card-thumbnail {
+  position: relative;
+  aspect-ratio: 9/16;
+  background: var(--bg-dark, var(--bg-darkest));
+  overflow: hidden;
+}
+
+.feed-card-thumbnail img,
+.feed-card-thumbnail-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.feed-card-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted, #666);
+}
+
+.feed-card-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Main video element */
+.feed-card-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Play overlay (tap to play) */
+.play-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+  color: white;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.feed-card-thumbnail.playing .play-overlay {
+  opacity: 0;
+}
+
+/* Video loading state */
+.feed-card-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  z-index: var(--z-elevated);
+  pointer-events: none;
+}
+
+/* Video error state */
+.feed-card-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.85);
+  color: var(--status-error);
+  font-size: 13px;
+  text-align: center;
+  padding: 20px;
+  z-index: calc(var(--z-elevated) + 5);
+}
+
+.feed-card-error span {
+  color: #fca5a5;
+}
+
+/* Retry button in error state */
+.feed-card-error .retry-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.feed-card-error .retry-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Poster container for lazy loading */
+.feed-card-poster {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.feed-card-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.feed-card-featured {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 8px;
+  background: var(--primary-color, var(--vibee-amber));
+  color: #000;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+/* Remix attribution badge */
+.feed-card-remix {
+  position: absolute;
+  top: 8px;
+  left: 75px; /* Positioned after featured badge */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(168, 85, 247, 0.9); /* Purple gradient */
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
+  z-index: 5;
+}
+
+.feed-card-remix:hover {
+  transform: scale(1.05);
+  background: rgba(168, 85, 247, 1);
+}
+
+/* Remix Info Modal */
+.remix-info-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.remix-info-modal {
+  background: #1a1a1a;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 320px;
+  width: 90%;
+  text-align: center;
+  animation: remixModalFadeIn 0.2s ease-out;
+}
+
+@keyframes remixModalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.remix-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.remix-info-header h3 {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.remix-icon {
+  color: #a855f7; /* Purple */
+}
+
+.remix-info-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.remix-info-text {
+  color: #ccc;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.remix-creator-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #a855f7;
+}
+
+.remix-info-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.remix-close-btn {
+  padding: 10px 24px;
+  background: #333;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.remix-close-btn:hover {
+  background: #444;
+}
+
+/* Card info */
+.feed-card-info {
+  padding: 10px;
+}
+
+.feed-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.feed-card-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.feed-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.feed-card-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #fff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.feed-card-creator {
+  font-size: 11px;
+  color: var(--text-secondary, #888);
+}
+
+.feed-card-creator-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.2s;
+}
+
+.feed-card-creator-link:hover {
+  opacity: 0.8;
+}
+
+.feed-card-creator-link .feed-card-creator {
+  color: var(--primary-color, var(--vibee-amber));
+}
+
+.feed-card-description {
+  font-size: 11px;
+  color: var(--text-secondary, #888);
+  margin: 4px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Stats */
+.feed-card-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+}
+
+.stat-btn,
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-secondary, #888);
+}
+
+.stat-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.stat-btn:hover {
+  color: var(--text-primary, #fff);
+}
+
+.like-btn.liked {
+  color: #e30b5c;
+}
+
+/* Use button */
+.feed-card-use {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--primary-color, var(--vibee-amber));
+  border: none;
+  border-radius: 6px;
+  color: #000;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.feed-card-use:hover {
+  background: var(--primary-hover, var(--vibee-amber-light));
+}
+
+.feed-card-use:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Loading states */
+.feed-loading,
+.feed-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 20px;
+  color: var(--text-secondary, #888);
+  text-align: center;
+}
+
+.feed-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  margin: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: var(--status-error);
+  font-size: 12px;
+}
+
+.feed-error button {
+  padding: 4px 12px;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 4px;
+  color: var(--status-error);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.feed-error button:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+/* Load more */
+.feed-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  border: 1px dashed var(--border-color, var(--bg-hover));
+  border-radius: 6px;
+  color: var(--text-secondary, #888);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.feed-load-more:hover {
+  background: var(--hover-bg, var(--bg-card));
+  border-color: var(--border-hover, #555);
+  color: var(--text-primary, #fff);
+}
+
+.feed-load-more:disabled {
+  cursor: not-allowed;
+}
+
+/* ========================================
+   FULLSCREEN MODE - TikTok Style
+   ======================================== */
+
+.feed-panel.fullscreen {
+  width: 100%;
+  max-width: 100vw;
+  height: 100%;
+  background: #000;
+  position: relative;
+  overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+/* Floating header - centered within feed panel */
+.feed-panel.fullscreen .panel-header {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-dropdown);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 10px 24px;
+  gap: 8px;
+}
+
+/* Hide refresh button in fullscreen to center title */
+.feed-panel.fullscreen .feed-refresh {
+  display: none;
+}
+
+/* Floating sort buttons */
+.feed-panel.fullscreen .feed-sort {
+  position: fixed;
+  top: 70px;
+  right: 100px;
+  z-index: var(--z-dropdown);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 6px;
+}
+
+/* Scroll-snap container for TikTok-like UX */
+.feed-panel.fullscreen .feed-list {
+  scroll-snap-type: y mandatory;
+  overflow-y: scroll;
+  overflow-x: hidden; /* Prevent horizontal scroll from 100vw elements */
+  height: calc(100dvh - 56px);
+  width: 100%;
+  max-width: 100vw;
+  padding: 0;
+  gap: 0;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Hide scrollbar but keep functionality */
+.feed-panel.fullscreen .feed-list::-webkit-scrollbar {
+  display: none;
+}
+
+.feed-panel.fullscreen .feed-list {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Fullscreen card - full width on mobile, 9:16 centered on desktop */
+.feed-panel.fullscreen .feed-card {
+  scroll-snap-align: start;
+  height: 100%;
+  min-height: calc(100dvh - 56px);
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  border-radius: 0;
+  border: none;
+  position: relative;
+  background: #000;
+  flex-shrink: 0;
+}
+
+/* Desktop: full width container, inner centered with 9:16 aspect */
+@media (min-width: 1024px) {
+  .feed-panel.fullscreen .feed-card {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+  }
+}
+
+/* Card inner fills container */
+.feed-panel.fullscreen .feed-card-inner {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+/* Desktop: center video with 9:16 aspect ratio */
+@media (min-width: 768px) {
+  .feed-panel.fullscreen .feed-card-inner {
+    max-width: calc((100dvh - 56px) * 0.5625); /* 9:16 aspect ratio */
+    margin: 0 auto;
+  }
+}
+
+/* Thumbnail fills entire container */
+.feed-panel.fullscreen .feed-card-thumbnail {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-height: none;
+  aspect-ratio: unset; /* Remove aspect ratio - fill entire area */
+}
+
+.feed-panel.fullscreen .feed-card-thumbnail img,
+.feed-panel.fullscreen .feed-card-thumbnail video,
+.feed-panel.fullscreen .feed-card-video,
+.feed-panel.fullscreen .feed-card-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+/* Info overlay at bottom - inside inner container */
+.feed-panel.fullscreen .feed-card-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent 0%, rgba(0, 0, 0, 0.9) 100%);
+  padding: 60px 16px 24px;
+  padding-right: 96px; /* Leave space for action buttons */
+  z-index: var(--z-elevated);
+}
+
+/* Larger text for fullscreen */
+.feed-panel.fullscreen .feed-card-name {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.feed-panel.fullscreen .feed-card-creator {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.feed-panel.fullscreen .feed-card-description {
+  font-size: 14px;
+  -webkit-line-clamp: 3;
+  margin: 8px 0;
+}
+
+.feed-panel.fullscreen .feed-card-avatar {
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--primary-color, var(--vibee-amber));
+}
+
+/* Stats row */
+.feed-panel.fullscreen .feed-card-stats {
+  gap: 20px;
+  margin: 12px 0;
+}
+
+.feed-panel.fullscreen .stat-btn,
+.feed-panel.fullscreen .stat-item {
+  font-size: 14px;
+  gap: 6px;
+}
+
+.feed-panel.fullscreen .stat-btn svg,
+.feed-panel.fullscreen .stat-item svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Large use button */
+.feed-panel.fullscreen .feed-card-use {
+  padding: 14px 24px;
+  font-size: 15px;
+  border-radius: 12px;
+  gap: 8px;
+}
+
+.feed-panel.fullscreen .feed-card-use svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Featured badge */
+.feed-panel.fullscreen .feed-card-featured {
+  top: 80px;
+  left: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+/* Loading/empty states centered */
+.feed-panel.fullscreen .feed-loading,
+.feed-panel.fullscreen .feed-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 40px;
+}
+
+.feed-panel.fullscreen .feed-loading svg,
+.feed-panel.fullscreen .feed-empty svg {
+  width: 48px;
+  height: 48px;
+}
+
+.feed-panel.fullscreen .feed-loading span,
+.feed-panel.fullscreen .feed-empty span {
+  font-size: 16px;
+}
+
+/* Error state centered */
+.feed-panel.fullscreen .feed-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 24px;
+  margin: 0;
+  border-radius: 12px;
+}
+
+.feed-panel.fullscreen .feed-error button {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+/* Load more at bottom */
+.feed-panel.fullscreen .feed-load-more {
+  margin: 20px auto;
+  max-width: 300px;
+  padding: 14px;
+  border-radius: 12px;
+}
+
+/* Scroll indicator animation - centered within feed panel */
+.feed-panel.fullscreen::after {
+  content: '';
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 40px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  animation: scrollPulse 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: var(--z-nav);
+}
+
+.feed-panel.fullscreen::before {
+  content: '↓';
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.5);
+  animation: scrollBounce 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: calc(var(--z-nav) + 1);
+}
+
+@keyframes scrollPulse {
+  0%, 100% { opacity: 0.3; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.6; transform: translateX(-50%) scale(1.1); }
+}
+
+@keyframes scrollBounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(5px); }
+}
+
+/* Hide scroll indicator when scrolled */
+.feed-panel.fullscreen .feed-list:not(:first-child)::after,
+.feed-panel.fullscreen .feed-list:not(:first-child)::before {
+  display: none;
+}
+
+/* Responsive: larger cards on desktop */
+@media (min-width: 768px) {
+  .feed-panel.fullscreen .feed-card-info {
+    padding: 100px 24px 32px;
+  }
+
+  .feed-panel.fullscreen .feed-card-name {
+    font-size: 22px;
+  }
+
+  .feed-panel.fullscreen .feed-card-description {
+    font-size: 15px;
+  }
+
+  .feed-panel.fullscreen .feed-card-avatar {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+/* ========================================
+   RIGHT-SIDE ACTION BAR (TikTok Style)
+   Transparent buttons with icons + counts
+   ======================================== */
+
+.feed-card-actions {
+  position: absolute;
+  right: 12px;
+  bottom: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  z-index: calc(var(--z-elevated) + 20); /* Above video and overlays */
+  pointer-events: auto; /* Ensure clicks work */
+}
+
+/* TikTok style - TRANSPARENT buttons, icon + count */
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: auto;
+  height: auto;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.action-btn svg {
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.7));
+  transition: transform 0.2s ease;
+}
+
+.action-btn:hover {
+  transform: scale(1.1);
+}
+
+.action-btn:hover svg {
+  transform: scale(1.1);
+}
+
+.action-btn span {
+  font-size: 12px;
+  font-weight: 500;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+/* Like button - red when liked */
+.action-btn.like-btn.liked {
+  color: #e30b5c;
+}
+
+.action-btn.like-btn.liked svg {
+  filter: drop-shadow(0 2px 8px rgba(227, 11, 92, 0.6));
+  animation: heartPop 0.3s ease;
+}
+
+@keyframes heartPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.4); }
+  100% { transform: scale(1); }
+}
+
+/* Views and uses - slightly muted */
+.action-btn.views-btn,
+.action-btn.uses-btn {
+  cursor: default;
+  opacity: 0.9;
+}
+
+.action-btn.views-btn:hover,
+.action-btn.uses-btn:hover {
+  transform: none;
+}
+
+/* Sound button */
+.action-btn.sound-btn {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.action-btn.sound-btn.unmuted {
+  color: var(--status-success);
+}
+
+.action-btn.sound-btn.unmuted svg {
+  filter: drop-shadow(0 2px 8px rgba(34, 197, 94, 0.5));
+}
+
+/* Remix button - golden accent */
+.action-btn.remix-btn {
+  color: var(--primary-color, var(--vibee-amber));
+}
+
+.action-btn.remix-btn svg {
+  filter: drop-shadow(0 2px 8px rgba(245, 158, 11, 0.5));
+}
+
+.action-btn.remix-btn:hover {
+  color: var(--primary-hover, var(--vibee-amber-light));
+}
+
+.action-btn.remix-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.action-btn.delete-btn {
+  color: rgba(255, 255, 255, 0.7);
+  padding: 6px;
+}
+
+.action-btn.delete-btn:hover {
+  color: var(--status-error);
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.action-btn.delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Hide old stats row and use button - replaced by action bar */
+.feed-card-stats,
+.feed-card-use {
+  display: none !important;
+}
+
+/* Action bar space is handled by right: 80px on info container */
+
+/* ========================================
+   FULLSCREEN MODE - Action Buttons on RIGHT
+   ======================================== */
+
+.feed-panel.fullscreen .feed-card-actions {
+  position: absolute;
+  right: 8px;
+  bottom: 120px;
+  gap: 20px;
+  z-index: calc(var(--z-elevated) + 10);
+}
+
+.feed-panel.fullscreen .action-btn {
+  gap: 4px;
+}
+
+.feed-panel.fullscreen .action-btn svg {
+  width: 32px;
+  height: 32px;
+}
+
+.feed-panel.fullscreen .action-btn span {
+  font-size: 12px;
+}
+
+/* Desktop - slightly larger */
+@media (min-width: 768px) {
+  .feed-panel.fullscreen .feed-card-actions {
+    right: 12px;
+    bottom: 140px;
+    gap: 24px;
+  }
+
+  .feed-panel.fullscreen .action-btn svg {
+    width: 36px;
+    height: 36px;
+  }
+
+  .feed-panel.fullscreen .action-btn span {
+    font-size: 13px;
+  }
+}
+
+/* ========================================
+   MOBILE RESPONSIVE - Tabs & Feed
+   ======================================== */
+
+@media (max-width: 768px) {
+  /* Hide separate header on mobile - tabs are enough */
+  .feed-panel.fullscreen .panel-header {
+    display: none;
+  }
+
+  /* Sort tabs centered at top on mobile */
+  .feed-panel.fullscreen .feed-sort {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    padding: 4px;
+    gap: 2px;
+  }
+
+  .feed-panel.fullscreen .sort-btn {
+    padding: 8px 16px;
+    font-size: 12px;
+    gap: 4px;
+  }
+
+  .feed-panel.fullscreen .sort-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .feed-panel.fullscreen .feed-card-actions {
+    right: 8px;
+    bottom: 120px;
+    gap: 18px;
+  }
+
+  .feed-panel.fullscreen .action-btn svg {
+    width: 30px;
+    height: 30px;
+  }
+
+  .feed-panel.fullscreen .action-btn span {
+    font-size: 11px;
+  }
+
+  .feed-panel.fullscreen .feed-card-info {
+    padding: 50px 14px 20px;
+    right: 65px;
+  }
+
+  .feed-panel.fullscreen .feed-card-name {
+    font-size: 15px;
+  }
+
+  .feed-panel.fullscreen .feed-card-creator {
+    font-size: 12px;
+  }
+
+  .feed-panel.fullscreen .feed-card-description {
+    font-size: 12px;
+    -webkit-line-clamp: 2;
+  }
+
+  .feed-panel.fullscreen .feed-card-avatar {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media (max-width: 480px) {
+  .feed-panel.fullscreen .feed-sort {
+    top: 65px;
+  }
+
+  .feed-panel.fullscreen .sort-btn {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+}
+
+/* ========================================
+   ADDITIONAL RESPONSIVE IMPROVEMENTS
+   ======================================== */
+
+/* Add 640px breakpoint */
+@media (max-width: 640px) {
+  .feed-list {
+    padding: 6px;
+    gap: 10px;
+  }
+
+  .feed-card-info {
+    padding: 8px;
+  }
+
+  .feed-card-header {
+    gap: 6px;
+  }
+
+  .feed-card-name {
+    font-size: 12px;
+  }
+
+  .feed-card-creator {
+    font-size: 10px;
+  }
+
+  .feed-card-use {
+    padding: 10px;
+    font-size: 13px;
+  }
+}
+
+/* Add 540px breakpoint */
+@media (max-width: 540px) {
+  .feed-panel.fullscreen .feed-card-inner {
+    max-width: 100%;
+  }
+
+  .feed-panel.fullscreen .feed-card-info {
+    right: 60px;
+    padding: 40px 12px 16px;
+  }
+
+  .feed-panel.fullscreen .feed-card-actions {
+    right: 6px;
+    bottom: 100px;
+    gap: 16px;
+  }
+
+  .feed-panel.fullscreen .action-btn svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .feed-panel.fullscreen .action-btn span {
+    font-size: 10px;
+  }
+}
+
+/* Extra small phones */
+@media (max-width: 380px) {
+  .feed-list {
+    padding: 4px;
+    gap: 8px;
+  }
+
+  .feed-card {
+    border-radius: 6px;
+  }
+
+  .feed-card-thumbnail {
+    max-height: 160px;
+  }
+
+  .feed-sort {
+    padding: 6px 8px;
+  }
+
+  .sort-btn {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  .feed-panel.fullscreen .feed-card-info {
+    right: 55px;
+    padding: 36px 10px 14px;
+  }
+
+  .feed-panel.fullscreen .feed-card-name {
+    font-size: 14px;
+  }
+
+  .feed-panel.fullscreen .feed-card-description {
+    font-size: 11px;
+  }
+
+  .feed-panel.fullscreen .feed-card-avatar {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* Safe-area support for fullscreen mode */
+@media (max-width: 768px) {
+  .feed-panel.fullscreen .feed-card {
+    height: 100%;
+    min-height: calc(100dvh - 56px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  }
+
+  .feed-panel.fullscreen .feed-card-info {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .feed-panel.fullscreen .feed-card-actions {
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .feed-panel.fullscreen::after,
+  .feed-panel.fullscreen::before {
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .feed-panel.fullscreen::before {
+    bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Delete Confirmation Modal */
+.delete-confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.15s ease-out;
+}
+
+.delete-confirm-modal {
+  background: var(--bg-secondary, var(--color-bg-elevated));
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  max-width: 280px;
+  width: 90%;
+  animation: slideUp 0.2s ease-out;
+}
+
+.delete-confirm-icon {
+  color: var(--status-error);
+  margin-bottom: 12px;
+}
+
+.delete-confirm-modal p {
+  color: var(--text-primary, #fff);
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0 0 20px;
+}
+
+.delete-confirm-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.delete-confirm-buttons button {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+}
+
+.delete-confirm-buttons .cancel-btn {
+  background: var(--bg-tertiary, var(--color-bg-secondary));
+  color: var(--text-primary, #fff);
+}
+
+.delete-confirm-buttons .cancel-btn:hover {
+  background: var(--bg-hover, var(--bg-input));
+}
+
+.delete-confirm-buttons .confirm-btn {
+  background: var(--status-error);
+  color: #fff;
+}
+
+.delete-confirm-buttons .confirm-btn:hover {
+  background: #dc2626;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

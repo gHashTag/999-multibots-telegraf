@@ -1,0 +1,383 @@
+/* ===============================
+   AccountSelector Styles
+   =============================== */
+
+.account-selector {
+  position: relative;
+  z-index: var(--z-dropdown);
+}
+
+/* ===============================
+   Button
+   =============================== */
+
+.account-selector-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--bg-secondary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 200px;
+}
+
+.account-selector-button:hover {
+  background: var(--bg-card);
+  border-color: var(--bg-tertiary);
+}
+
+.account-selector--open .account-selector-button {
+  border-color: var(--vibee-amber, var(--vibee-amber));
+}
+
+/* Avatar */
+.account-selector-avatar {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  overflow: visible; /* Allow status dot to show outside */
+  flex-shrink: 0;
+}
+
+.account-selector-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Online/Offline status dot */
+.account-selector-status {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-elevated);
+}
+
+.account-selector-status.online {
+  background: var(--status-success);
+}
+
+.account-selector-status.offline {
+  background: #6b7280;
+}
+
+/* Info */
+.account-selector-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.account-selector-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-selector-username {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Placeholder */
+.account-selector-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Chevron */
+.account-selector-chevron {
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.account-selector--open .account-selector-chevron {
+  transform: rotate(180deg);
+}
+
+/* ===============================
+   Dropdown
+   =============================== */
+
+.account-selector-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--bg-secondary);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  animation: slideDown 0.15s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* List */
+.account-selector-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.account-selector-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.account-selector-list::-webkit-scrollbar-thumb {
+  background: var(--bg-input);
+  border-radius: 2px;
+}
+
+/* Loading */
+.account-selector-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.account-selector-loading .spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Empty */
+.account-selector-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Item */
+.account-selector-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--bg-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  text-align: left;
+}
+
+.account-selector-item:last-child {
+  border-bottom: none;
+}
+
+.account-selector-item:hover {
+  background: var(--bg-card);
+}
+
+.account-selector-item.active {
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.account-selector-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.account-selector-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-selector-item-phone {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.account-selector-active-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--status-success);
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* ===============================
+   All Accounts Option
+   =============================== */
+
+.account-selector-all-selected {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--vibee-amber);
+}
+
+.account-selector-all-selected .account-selector-name {
+  color: var(--vibee-amber);
+  font-weight: 600;
+}
+
+.account-selector-count {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--vibee-amber);
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.account-selector-item-all {
+  background: rgba(245, 158, 11, 0.05);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.2) !important;
+}
+
+.account-selector-item-all:hover {
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.account-selector-item-all.active {
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.account-selector-all-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.3), rgba(217, 119, 6, 0.3));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vibee-amber);
+  flex-shrink: 0;
+}
+
+.account-selector-all-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: linear-gradient(135deg, var(--vibee-amber), #d97706);
+  color: #000;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+/* ===============================
+   Actions
+   =============================== */
+
+.account-selector-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--color-bg-primary);
+  border-top: 1px solid var(--bg-secondary);
+}
+
+.account-selector-refresh,
+.account-selector-add {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  background: var(--bg-secondary);
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted-light);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.account-selector-refresh:hover,
+.account-selector-add:hover {
+  background: var(--bg-input);
+  color: #fff;
+}
+
+.account-selector-refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.account-selector-add {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--vibee-amber, var(--vibee-amber));
+}
+
+.account-selector-add:hover {
+  background: rgba(245, 158, 11, 0.2);
+}
+
+/* ===============================
+   Mobile Responsive
+   =============================== */
+
+@media (max-width: 768px) {
+  .account-selector-button {
+    min-width: unset;
+    padding: 6px 10px;
+  }
+
+  .account-selector-info {
+    display: none;
+  }
+
+  .account-selector-placeholder span {
+    display: none;
+  }
+
+  .account-selector-dropdown {
+    min-width: 280px;
+    right: auto;
+  }
+}

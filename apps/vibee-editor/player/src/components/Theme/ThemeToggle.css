@@ -1,0 +1,44 @@
+/* ===============================
+   Theme Toggle
+   =============================== */
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--color-bg-secondary, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: 20px;
+  color: var(--color-text, #fff);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.theme-toggle:hover {
+  background: var(--color-bg-hover, rgba(255, 255, 255, 0.15));
+}
+
+.theme-toggle:active {
+  transform: scale(0.95);
+}
+
+.theme-toggle__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-toggle__label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Icon animation */
+.theme-toggle__icon svg {
+  transition: transform 0.3s ease;
+}
+
+.theme-toggle:hover .theme-toggle__icon svg {
+  transform: rotate(15deg);
+}

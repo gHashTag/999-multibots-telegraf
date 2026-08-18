@@ -1,0 +1,199 @@
+# specs/video-mse-optimization.vibee
+# Tier 3: Media Source Extensions (MSE) Buffer Optimization
+# Scientific source: W3C Media Source Extensions 2nd Edition (Oct 2025)
+# Target: Prevent QuotaExceededError, 20% memory reduction
+
+name: video-mse-optimization
+version: "1.0.0"
+language: typescript
+module: video/mse
+description: Intelligent MSE buffer management to prevent OOM and improve memory efficiency
+
+behaviors:
+  - name: proactive_buffer_cleanup
+    given: Video is playing and buffer grows beyond threshold
+    when: Buffer exceeds 45 seconds ahead of playhead
+    then: Remove segments beyond playhead + 45s
+    test_cases:
+      - name: cleanup_triggered
+        input: {currentTime: 30, bufferedEnd: 90, threshold: 45}
+        expected: {removeFrom: 75, removeTo: 90, freedBytes: ">0"}
+      - name: no_cleanup_needed
+        input: {currentTime: 30, bufferedEnd: 60, threshold: 45}
+        expected: {removeTriggered: false}
+
+  - name: prevent_quota_exceeded
+    given: SourceBuffer append operation attempted
+    when: QuotaExceededError may occur
+    then: Proactively remove old segments before append
+    test_cases:
+      - name: preemptive_cleanup
+        input: {usedQuota: 90, maxQuota: 100, pendingBytes: 15}
+        expected: {cleanupTriggered: true, bytesFreed: ">=15"}
+
+  - name: maintain_playback_buffer
+    given: Cleanup is triggered
+    when: Segments removed
+    then: Always keep 10s before current time for seek-back
+    test_cases:
+      - name: preserve_backward_buffer
+        input: {currentTime: 60, cleanupStart: 0}
+        expected: {actualCleanupStart: 0, cleanupEnd: 50}
+
+  - name: estimate_available_quota
+    given: Browser has MSE quota limits
+    when: Quota estimation requested
+    then: Returns estimated available buffer space
+    test_cases:
+      - name: chrome_quota
+        input: {browser: "chrome", videoResolution: "1080p"}
+        expected: {estimatedQuota: ">=100MB"}
+      - name: firefox_quota
+        input: {browser: "firefox"}
+        expected: {estimatedQuota: "~100MB", note: "hard limit"}
+
+  - name: platform_specific_tuning
+    given: Different browsers have different MSE behaviors
+    when: Initialization occurs
+    then: Apply platform-specific buffer settings
+    test_cases:
+      - name: safari_config
+        input: {browser: "safari"}
+        expected: {maxBuffer: 30, aggressiveCleanup: true}
+      - name: chrome_config
+        input: {browser: "chrome"}
+        expected: {maxBuffer: 60, aggressiveCleanup: false}
+
+types:
+  MSEConfig:
+    maxBufferAhead: number         # Max seconds ahead of playhead (30-60)
+    maxBufferBehind: number        # Max seconds behind playhead (10-30)
+    cleanupThreshold: number       # Trigger cleanup at this buffer level
+    quotaReserve: number           # Keep this % of quota free (10-20%)
+    enableProactiveCleanup: boolean # Clean before QuotaExceededError
+    platformOverrides: PlatformConfig[]
+
+  PlatformConfig:
+    platform: "chrome" | "firefox" | "safari" | "edge"
+    maxBuffer: number
+    cleanupStrategy: "aggressive" | "moderate" | "lazy"
+    quotaLimit: number | null      # Known quota limit (null = unknown)
+
+  BufferState:
+    bufferedRanges: TimeRange[]    # All buffered ranges
+    totalBuffered: number          # Total seconds buffered
+    bufferedAhead: number          # Seconds ahead of current time
+    bufferedBehind: number         # Seconds behind current time
+    estimatedBytes: number         # Estimated buffer size in bytes
+    quotaUsage: number             # Estimated quota usage (0-1)
+
+  TimeRange:
+    start: number
+    end: number
+
+  CleanupResult:
+    success: boolean
+    bytesFreed: number
+    rangesRemoved: TimeRange[]
+    newBufferState: BufferState
+    error: string | null
+
+  QuotaInfo:
+    estimatedTotal: number         # Estimated total quota (bytes)
+    estimatedUsed: number          # Estimated used quota (bytes)
+    estimatedAvailable: number     # Estimated available quota (bytes)
+    hardLimit: boolean             # Is this a hard limit (Firefox) or soft (Chrome)
+
+functions:
+  - name: analyzeBufferState
+    description: Analyze current SourceBuffer state
+    params:
+      sourceBuffer: SourceBuffer
+      currentTime: number
+    returns: BufferState
+
+  - name: scheduleCleanup
+    description: Schedule buffer cleanup when safe
+    params:
+      sourceBuffer: SourceBuffer
+      config: MSEConfig
+      currentTime: number
+    returns: Promise<CleanupResult>
+
+  - name: removeBufferRange
+    description: Remove specific time range from buffer
+    params:
+      sourceBuffer: SourceBuffer
+      start: number
+      end: number
+    returns: Promise<CleanupResult>
+
+  - name: estimateQuota
+    description: Estimate MSE quota for current browser
+    params: {}
+    returns: QuotaInfo
+
+  - name: getPlatformConfig
+    description: Get platform-specific buffer configuration
+    params: {}
+    returns: PlatformConfig
+
+  - name: handleQuotaExceeded
+    description: Handle QuotaExceededError gracefully
+    params:
+      sourceBuffer: SourceBuffer
+      pendingData: ArrayBuffer
+      config: MSEConfig
+    returns: Promise<boolean>
+
+integration_points:
+  - file: src/hooks/useMSEOptimization.ts
+    description: React hook for MSE buffer management
+    exports:
+      - useMSEOptimization
+      - analyzeBufferState
+      - BufferState
+      - QuotaInfo
+
+  - file: src/components/Video/LazyVideo.tsx
+    description: Integration with HLS.js via buffer monitoring
+    event: Hls.Events.BUFFER_APPENDING
+
+  - file: src/lib/bufferBasedABR.ts
+    description: Coordinate with BBA algorithm
+    note: BBA may reduce quality if quota is low
+
+browser_quotas:
+  chrome:
+    video_buffer: "~150-300MB (dynamic)"
+    behavior: "Eviction algorithm, soft limit"
+    reference: "https://developer.chrome.com/blog/quotaexceedederror"
+  firefox:
+    video_buffer: "~100MB (hard limit)"
+    behavior: "QuotaExceededError at limit"
+    reference: "https://bugzilla.mozilla.org/show_bug.cgi?id=1346455"
+  safari:
+    video_buffer: "~50-100MB"
+    behavior: "Aggressive eviction"
+    note: "May remove needed segments"
+  edge:
+    video_buffer: "Similar to Chrome"
+    behavior: "Chromium-based"
+
+performance_targets:
+  memory_reduction: "20% vs unmanaged"
+  quota_errors: "0 (prevented)"
+  seek_performance: "instant (10s behind cached)"
+  cleanup_latency: "<50ms per operation"
+
+scientific_references:
+  - name: "W3C Media Source Extensions"
+    url: "https://www.w3.org/TR/media-source-2/"
+    version: "2nd Edition (Oct 2025)"
+  - name: "Chrome MSE Buffer Management"
+    url: "https://developer.chrome.com/blog/quotaexceedederror"
+  - name: "HLS.js Buffer Controller"
+    url: "https://github.com/video-dev/hls.js/blob/master/src/controller/buffer-controller.ts"
+
+imports:
+  - react

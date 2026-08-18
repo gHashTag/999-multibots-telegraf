@@ -1,0 +1,76 @@
+.instagram-callback {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+  padding: 20px;
+}
+
+.instagram-callback__card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 48px;
+  text-align: center;
+  max-width: 400px;
+  width: 100%;
+}
+
+.instagram-callback__icon {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.instagram-callback__icon--success {
+  color: var(--color-status-success);
+}
+
+.instagram-callback__icon--error {
+  color: var(--color-status-error);
+}
+
+.instagram-callback__icon.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.instagram-callback h2 {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+}
+
+.instagram-callback p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.instagram-callback__redirect {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.instagram-callback__button {
+  margin-top: 24px;
+  padding: 12px 24px;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.instagram-callback__button:hover {
+  background: var(--primary-color-hover);
+}

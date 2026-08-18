@@ -1,0 +1,1 @@
+export { VideoProgress } from './VideoProgress';

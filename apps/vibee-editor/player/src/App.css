@@ -1,0 +1,685 @@
+/* ===============================
+   Vibee Editor - Main Layout
+   =============================== */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  /* Telegram reports the usable height via WebApp.viewportStableHeight;
+     --app-vh-stable falls back to 100dvh on the open web. */
+  height: var(--app-vh-stable, 100dvh);
+  background: var(--vibee-bg);
+  color: #fff;
+  overflow: hidden;
+  /* Smooth layout transitions */
+  transition: grid-template-columns 0.3s ease-out,
+              grid-template-rows 0.3s ease-out;
+}
+
+/* ===============================
+   Main Content Area
+   =============================== */
+
+.editor-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ===============================
+   Sidebars
+   =============================== */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-darkest);
+  border-color: var(--color-bg-elevated);
+  /* Smooth layout transitions */
+  transition: width 0.3s ease-out,
+              transform 0.3s ease-out,
+              opacity 0.3s ease-out;
+}
+
+.sidebar-left {
+  width: var(--sidebar-left-width, var(--sidebar-right-width));
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--vibee-border);
+  background: #0d0d0d;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: width 0.3s ease-out;
+}
+
+/* Hide left sidebar on mobile - replaced by BottomSheet */
+@media (max-width: 1023px) {
+  .sidebar-left {
+    display: none;
+  }
+}
+
+.sidebar-right {
+  width: var(--sidebar-right-width);
+  flex-shrink: 0;
+  border-left: 1px solid var(--vibee-border);
+}
+
+/* Hide right sidebar on mobile - replaced by BottomSheet */
+@media (max-width: 1023px) {
+  .sidebar-right {
+    display: none;
+  }
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-bg-elevated);
+  min-height: 48px;
+}
+
+.sidebar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Sidebar horizontal tabs */
+.sidebar-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px;
+  background: #0d0d0d;
+}
+
+/* Content tabs (Templates/Video/Image/Audio) */
+.sidebar-content-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  margin: 8px;
+  background: #0d0d0d;
+  border-radius: 8px;
+}
+
+.content-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.content-tab span:first-child {
+  font-size: 18px;
+}
+
+.content-tab span:last-child {
+  font-size: 10px;
+  font-weight: 500;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.content-tab:hover {
+  background: var(--color-bg-elevated);
+}
+
+.content-tab:hover span:last-child {
+  color: #999;
+}
+
+.content-tab.active {
+  background: var(--vibee-amber);
+}
+
+.content-tab.active span:last-child {
+  color: #000;
+}
+
+.sidebar-tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.sidebar-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #666;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex: 1;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.sidebar-tab:hover {
+  color: #888;
+  background: var(--color-bg-elevated);
+}
+
+.sidebar-tab.active {
+  color: var(--vibee-amber);
+  background: var(--color-bg-elevated);
+}
+
+.sidebar-tab span {
+  display: none;
+}
+
+@media (min-width: 1400px) {
+  .sidebar-tab span {
+    display: inline;
+  }
+}
+
+/* ===============================
+   Vertical Tabs (full height column)
+   =============================== */
+
+.vertical-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: #0d0d0d;
+  border-right: 1px solid var(--vibee-border);
+  flex-shrink: 0;
+  /* Smooth layout transitions */
+  transition: flex-direction 0.3s ease-out,
+              height 0.3s ease-out,
+              padding 0.3s ease-out;
+}
+
+/* Mobile: Bottom navigation bar */
+@media (max-width: 1023px) {
+  .vertical-tabs {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    flex-direction: row;
+    justify-content: space-around;
+    height: var(--nav-height);
+    padding: 8px 4px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    border-right: none;
+    border-top: 1px solid var(--vibee-border);
+    z-index: var(--z-nav);
+    background: var(--vibee-bg);
+  }
+}
+
+.vertical-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  min-width: 64px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+/* Mobile: Compact tabs */
+@media (max-width: 1023px) {
+  .vertical-tab {
+    min-width: unset;
+    flex: 1;
+    max-width: 72px;
+    padding: 6px 4px;
+    gap: 2px;
+  }
+}
+
+.vertical-tab:hover {
+  background: var(--color-bg-elevated);
+}
+
+.vertical-tab.active {
+  background: var(--vibee-amber);
+}
+
+.vertical-tab .tab-emoji {
+  font-size: 20px;
+}
+
+/* Mobile: Smaller emoji */
+@media (max-width: 1023px) {
+  .vertical-tab .tab-emoji {
+    font-size: 18px;
+  }
+}
+
+.vertical-tab .tab-label {
+  font-size: 9px;
+  font-weight: 500;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+/* Mobile: Smaller label */
+@media (max-width: 1023px) {
+  .vertical-tab .tab-label {
+    font-size: 8px;
+    letter-spacing: 0;
+  }
+}
+
+/* Hide label on very small screens */
+@media (max-width: 480px) {
+  .vertical-tab .tab-label {
+    display: none;
+  }
+}
+
+.vertical-tab:hover .tab-label {
+  color: #999;
+}
+
+.vertical-tab.active .tab-label {
+  color: #000;
+}
+
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+/* Panel Header - Vibee minimalist style */
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--vibee-amber);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+/* ===============================
+   Canvas Area
+   =============================== */
+
+.canvas-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0d0d0d;
+  position: relative;
+  overflow: hidden;
+  /* Smooth layout transitions */
+  transition: padding 0.3s ease-out;
+}
+
+/* Mobile: Account for fixed timeline and nav bar */
+@media (max-width: 1023px) {
+  .canvas-area {
+    /* Space for timeline (120px) + nav bar (64px) + safe area */
+    padding-bottom: calc(var(--timeline-height) + var(--nav-height) + env(safe-area-inset-bottom, 0px));
+    /* Ensure canvas stays above fixed elements */
+    position: relative;
+    z-index: var(--z-base, 1);
+  }
+}
+
+/* ===============================
+   Timeline Area
+   =============================== */
+
+.timeline-area {
+  height: var(--timeline-height, 220px);
+  min-height: 140px;
+  max-height: 400px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--vibee-border);
+  background: #0f0f0f;
+  overflow-y: auto;
+  /* Smooth layout transitions */
+  transition: height 0.3s ease-out,
+              min-height 0.3s ease-out,
+              max-height 0.3s ease-out,
+              bottom 0.3s ease-out;
+}
+
+/* Mobile: Fixed timeline above nav bar */
+@media (max-width: 1023px) {
+  .timeline-area {
+    position: fixed;
+    bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px));
+    left: 0;
+    right: 0;
+    min-height: unset;
+    height: var(--timeline-height);
+    max-height: var(--timeline-height);
+    z-index: var(--z-timeline);
+    border-top: 1px solid var(--vibee-border);
+    border-bottom: 1px solid var(--vibee-border);
+  }
+}
+
+/* ===============================
+   Scrollbars
+   =============================== */
+
+.sidebar-content::-webkit-scrollbar,
+.timeline-area::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.sidebar-content::-webkit-scrollbar-track,
+.timeline-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb,
+.timeline-area::-webkit-scrollbar-thumb {
+  background: var(--color-bg-secondary);
+  border-radius: 3px;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb:hover,
+.timeline-area::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
+
+/* ===============================
+   Utilities
+   =============================== */
+
+.text-muted {
+  color: #666;
+}
+
+.text-sm {
+  font-size: 12px;
+}
+
+.flex {
+  display: flex;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.gap-2 {
+  gap: 8px;
+}
+
+.gap-4 {
+  gap: 16px;
+}
+
+/* ===============================
+   Avatar Border Effect Animations
+   =============================== */
+
+@keyframes avatar-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 10px var(--pulse-color, #FFD700))
+            drop-shadow(0 0 20px var(--pulse-color, #FFD700));
+  }
+  50% {
+    filter: drop-shadow(0 0 20px var(--pulse-color, #FFD700))
+            drop-shadow(0 0 40px var(--pulse-color, #FFD700))
+            drop-shadow(0 0 60px var(--pulse-color, #FFD700));
+  }
+}
+
+@keyframes avatar-rainbow {
+  from { filter: hue-rotate(0deg); }
+  to { filter: hue-rotate(360deg); }
+}
+
+.avatar-border-pulse {
+  animation: avatar-pulse 2s ease-in-out infinite;
+}
+
+.avatar-border-rainbow {
+  animation: avatar-rainbow 3s linear infinite;
+}
+
+/* Fire animation - warm colors shifting */
+@keyframes avatar-fire {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.avatar-border-fire {
+  animation: avatar-fire 2s ease-in-out infinite;
+}
+
+/* Ocean animation - cool blue wave */
+@keyframes avatar-ocean {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.avatar-border-ocean {
+  animation: avatar-ocean 3s ease-in-out infinite;
+}
+
+/* Sunset animation - warm gradient */
+@keyframes avatar-sunset {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.avatar-border-sunset {
+  animation: avatar-sunset 4s ease-in-out infinite;
+}
+
+/* Electric animation - flickering glow */
+@keyframes avatar-electric {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px #00ffff)
+            drop-shadow(0 0 16px #0080ff);
+  }
+  25% {
+    filter: drop-shadow(0 0 12px #00ffff)
+            drop-shadow(0 0 24px #ffffff)
+            drop-shadow(0 0 36px #0080ff);
+  }
+  50% {
+    filter: drop-shadow(0 0 6px #00ffff)
+            drop-shadow(0 0 12px #0080ff);
+  }
+  75% {
+    filter: drop-shadow(0 0 16px #00ffff)
+            drop-shadow(0 0 32px #ffffff)
+            drop-shadow(0 0 48px #0080ff);
+  }
+}
+
+.avatar-border-electric {
+  animation: avatar-electric 0.5s ease-in-out infinite;
+}
+
+/* ===============================
+   Tablet Split Layout (768-1023px)
+   ===============================
+   Layout:
+   ┌──────────────────────────────────────┐
+   │ Header (48px)                        │
+   ├─────────────┬────────────────────────┤
+   │ Assets      │ Canvas                 │
+   │ (40%)       │ (60%)                  │
+   ├─────────────┴────────────────────────┤
+   │ Timeline (140px)                     │
+   └──────────────────────────────────────┘
+   =============================== */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Override: show editor as CSS grid on tablet */
+  .editor {
+    display: grid;
+    grid-template-columns: 40% 60%;
+    grid-template-rows: var(--header-height) 1fr var(--timeline-height-tablet, 140px);
+    grid-template-areas:
+      "header header"
+      "sidebar canvas"
+      "timeline timeline";
+  }
+
+  /* Header spans full width */
+  .editor > header,
+  .editor > .header {
+    grid-area: header;
+  }
+
+  /* Main content fills grid - use subgrid for proper layout */
+  .editor-main {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-row: 2 / 3;
+    grid-template-columns: subgrid;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Hide vertical tabs on tablet - sidebar is always visible */
+  .vertical-tabs {
+    display: none;
+  }
+
+  /* Left sidebar visible on tablet */
+  .sidebar-left {
+    display: flex;
+    grid-area: sidebar;
+    width: 100%;
+    border-right: 1px solid var(--vibee-border);
+    overflow-y: auto;
+  }
+
+  /* Canvas fills right column */
+  .canvas-area {
+    grid-area: canvas;
+    padding-bottom: 0; /* No extra padding needed */
+  }
+
+  /* Timeline at bottom, not fixed */
+  .timeline-area {
+    grid-area: timeline;
+    position: relative;
+    bottom: unset;
+    left: unset;
+    right: unset;
+    height: var(--timeline-height-tablet, 140px);
+    min-height: var(--timeline-height-tablet, 140px);
+    max-height: var(--timeline-height-tablet, 140px);
+    z-index: auto;
+    border-bottom: none;
+  }
+
+  /* Right sidebar - overlay on tablet */
+  .sidebar-right {
+    display: flex;
+    position: fixed;
+    right: 0;
+    top: var(--header-height);
+    bottom: var(--timeline-height-tablet, 140px);
+    width: 280px;
+    z-index: var(--z-modal);
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* ===============================
+   Tablet Landscape Mode
+   (768-1023px + landscape orientation)
+   - Wider sidebar (35%)
+   - More space for canvas (65%)
+   - Shorter timeline
+   =============================== */
+
+@media (min-width: 768px) and (max-width: 1023px) and (orientation: landscape) {
+  .editor {
+    grid-template-columns: 35% 65%;
+    grid-template-rows: var(--header-height) 1fr 100px;
+  }
+
+  /* Shorter timeline in landscape */
+  .timeline-area {
+    height: 100px;
+    min-height: 100px;
+    max-height: 100px;
+  }
+
+  /* Right sidebar positioned for landscape */
+  .sidebar-right {
+    bottom: 100px;
+  }
+}
+
+/* ===============================
+   Page Loader (Code Splitting)
+   =============================== */
+
+.page-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--vibee-bg);
+}
+
+.page-loader__spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--bg-card);
+  border-top-color: var(--vibee-amber);
+  border-radius: 50%;
+  animation: page-loader-spin 0.8s linear infinite;
+}
+
+@keyframes page-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

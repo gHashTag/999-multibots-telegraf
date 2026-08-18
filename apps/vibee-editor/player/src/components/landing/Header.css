@@ -1,0 +1,237 @@
+.landing-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-dropdown);
+  padding: 16px 0;
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.header-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--vibee-amber) 0%, var(--vibee-amber-light) 100%);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 20px;
+  color: #000;
+}
+
+.logo-icon-svg {
+  height: 50px;
+  width: auto;
+  object-fit: contain;
+}
+
+.logo-text {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+
+.header-nav {
+  display: flex;
+  gap: 32px;
+}
+
+.nav-link {
+  color: #9ca3af;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.nav-link:hover {
+  color: #fff;
+  text-decoration: none;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Single language toggle button */
+.lang-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.lang-toggle:hover {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: var(--vibee-amber-light);
+}
+
+.btn-cta {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, var(--vibee-amber) 0%, var(--vibee-amber-light) 100%);
+  color: #000;
+  text-decoration: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+  text-decoration: none;
+}
+
+/* Mobile Menu Button */
+.mobile-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.mobile-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Mobile Navigation Overlay */
+.mobile-nav-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  z-index: var(--z-dropdown);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.mobile-nav-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-nav {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 280px;
+  max-width: 85vw;
+  background: #0f0f0f;
+  padding: 80px 24px 24px;
+  z-index: var(--z-dropdown);
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mobile-nav.open {
+  transform: translateX(0);
+}
+
+.mobile-nav-link {
+  display: block;
+  padding: 16px;
+  color: #fff;
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.mobile-nav-link:hover {
+  background: rgba(245, 158, 11, 0.1);
+  text-decoration: none;
+}
+
+.mobile-nav-divider {
+  height: 1px;
+  background: var(--vibee-border);
+  margin: 16px 0;
+}
+
+.mobile-nav .btn-cta {
+  margin-top: auto;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .header-nav {
+    display: none;
+  }
+
+  .header-container {
+    padding: 0 16px;
+  }
+
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  .mobile-nav-overlay {
+    display: block;
+  }
+
+  .header-actions .btn-cta {
+    display: none;
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+  .logo-text {
+    font-size: 18px;
+  }
+
+  .lang-toggle {
+    width: 36px;
+    height: 36px;
+    font-size: 12px;
+  }
+}

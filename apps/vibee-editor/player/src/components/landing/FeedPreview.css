@@ -1,0 +1,235 @@
+.feed-preview {
+  padding: 100px 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.feed-preview-container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.feed-preview-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.feed-preview-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vibee-amber);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+}
+
+.feed-preview-title {
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 700;
+  margin: 0 0 16px;
+  background: linear-gradient(135deg, #fff 0%, #fff 60%, var(--vibee-amber-light) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.feed-preview-subtitle {
+  font-size: 16px;
+  color: #9ca3af;
+  margin: 0;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
+}
+
+/* Grid */
+.feed-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+/* Feed Item */
+.feed-item {
+  opacity: 0;
+  animation: feedItemIn 0.5s ease-out forwards;
+}
+
+@keyframes feedItemIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.feed-item-thumbnail {
+  position: relative;
+  aspect-ratio: 9/16;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--color-bg-elevated);
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.feed-item-thumbnail:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.feed-item-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.feed-item-placeholder {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    var(--color-bg-elevated) 0%,
+    var(--color-bg-secondary) 50%,
+    var(--color-bg-elevated) 100%
+  );
+}
+
+.feed-item-placeholder.loading {
+  background-size: 200% 200%;
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.feed-item-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.feed-item-thumbnail:hover .feed-item-overlay {
+  opacity: 1;
+}
+
+.feed-item-stats {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.feed-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #fff;
+}
+
+.feed-stat svg {
+  opacity: 0.8;
+}
+
+.feed-item-author {
+  font-size: 13px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.feed-item-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.feed-item-thumbnail:hover .feed-item-play {
+  opacity: 1;
+}
+
+.feed-item-play svg {
+  color: #fff;
+  margin-left: 2px;
+}
+
+/* CTA */
+.feed-preview-cta {
+  display: flex;
+  justify-content: center;
+  margin-top: 48px;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .feed-preview-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .feed-item:nth-child(n+5) {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .feed-preview {
+    padding: 60px 16px;
+  }
+
+  .feed-preview-grid {
+    gap: 12px;
+  }
+
+  .feed-item-thumbnail {
+    border-radius: 12px;
+  }
+
+  .feed-item-play {
+    width: 40px;
+    height: 40px;
+  }
+
+  .feed-item-play svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .feed-preview-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .feed-item:nth-child(n+5) {
+    display: none;
+  }
+}

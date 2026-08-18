@@ -1,0 +1,125 @@
+.legal-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: #000;
+  color: #fff;
+}
+
+.legal-content {
+  flex: 1;
+  padding: 24px 20px 60px;
+  overflow-y: auto;
+}
+
+.legal-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.legal-container h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, var(--vibee-amber), #fbbf24);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.legal-updated {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.875rem;
+  margin-bottom: 2rem;
+}
+
+.legal-container section {
+  margin-bottom: 2rem;
+}
+
+.legal-container h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--vibee-amber);
+  margin-bottom: 1rem;
+  margin-top: 2rem;
+}
+
+.legal-container h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.legal-container p {
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.7;
+  margin-bottom: 1rem;
+}
+
+.legal-container ul {
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.legal-container li {
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.7;
+  margin-bottom: 0.5rem;
+}
+
+.legal-container li strong {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.legal-container a {
+  color: var(--vibee-amber);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.legal-container a:hover {
+  color: #fbbf24;
+  text-decoration: underline;
+}
+
+.legal-back {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.legal-back a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--vibee-amber);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.legal-back a:hover {
+  color: #fbbf24;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .legal-content {
+    padding: 100px 16px 40px;
+  }
+
+  .legal-container h1 {
+    font-size: 2rem;
+  }
+
+  .legal-container h2 {
+    font-size: 1.25rem;
+  }
+
+  .legal-container h3 {
+    font-size: 1rem;
+  }
+}

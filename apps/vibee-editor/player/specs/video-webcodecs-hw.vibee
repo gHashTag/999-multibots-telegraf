@@ -1,0 +1,162 @@
+# specs/video-webcodecs-hw.vibee
+# Tier 3: WebCodecs Hardware Acceleration
+# Scientific source: W3C WebCodecs API Specification
+# Expected improvement: 20% decode speed for high-resolution content
+
+name: video-webcodecs-hw
+version: "1.0.0"
+language: typescript
+module: video/webcodecs
+description: Hardware-accelerated video decoding via WebCodecs API
+
+behaviors:
+  - name: detect_hardware_acceleration
+    given: Browser supports WebCodecs API
+    when: Hardware acceleration check requested
+    then: Returns whether GPU decoding is available
+    test_cases:
+      - name: chrome_with_gpu
+        input: {browser: "Chrome 94+", gpu: true}
+        expected: {hwAccelAvailable: true, preferredCodec: "h264"}
+      - name: firefox_no_webcodecs
+        input: {browser: "Firefox", webcodecs: false}
+        expected: {hwAccelAvailable: false, fallback: "hls.js"}
+
+  - name: select_optimal_decoder
+    given: Multiple codecs supported
+    when: Video decoding needed
+    then: Selects fastest decoder (HW > SW)
+    test_cases:
+      - name: h264_hw_preferred
+        input: {h264Hw: true, vp9Hw: false, av1Hw: false}
+        expected: {selectedCodec: "h264", acceleration: "hardware"}
+      - name: fallback_to_software
+        input: {h264Hw: false, vp9Hw: false}
+        expected: {selectedCodec: "h264", acceleration: "software"}
+
+  - name: decode_video_frame
+    given: VideoDecoder configured
+    when: Encoded frame received
+    then: Frame decoded with minimal latency
+    test_cases:
+      - name: fast_decode_1080p
+        input: {resolution: "1080p", codec: "h264", hwAccel: true}
+        expected: {decodeTime: "<5ms", memoryEfficient: true}
+
+  - name: handle_decoder_error
+    given: Hardware decoder fails
+    when: Decode error occurs
+    then: Falls back to software decoder
+    test_cases:
+      - name: hw_failure_fallback
+        input: {hwError: "DecoderError"}
+        expected: {fallbackUsed: true, recoverySuccessful: true}
+
+  - name: measure_decode_performance
+    given: Video playback active
+    when: Performance metrics requested
+    then: Returns decode stats (fps, latency, memory)
+    test_cases:
+      - name: performance_report
+        input: {duration: 10000}
+        expected: {avgFps: ">29", avgDecodeTime: "<10ms"}
+
+types:
+  WebCodecsConfig:
+    enableHardwareAcceleration: boolean   # Try GPU decoding first
+    fallbackToSoftware: boolean           # Auto-fallback on HW failure
+    preferredCodecs: string[]             # Priority order: ["h264", "vp9", "av1"]
+    maxResolution: string                 # Max resolution for HW decode
+    lowLatencyMode: boolean               # Minimize decode latency
+
+  DecoderCapabilities:
+    webcodecs: boolean                    # WebCodecs API available
+    hardwareAcceleration: boolean         # GPU decoding available
+    supportedCodecs: CodecSupport[]       # Per-codec capabilities
+    maxResolution: Resolution             # Max supported resolution
+    estimatedSpeedup: number              # vs software (e.g., 1.2 = 20% faster)
+
+  CodecSupport:
+    codec: string                         # "h264", "vp9", "av1", "hevc"
+    profile: string                       # "baseline", "main", "high"
+    hardwareAccelerated: boolean          # GPU decode available
+    maxBitrate: number                    # Max supported bitrate
+    maxResolution: Resolution             # Max supported resolution
+
+  Resolution:
+    width: number
+    height: number
+
+  DecodePerformance:
+    framesDecoded: number
+    framesDropped: number
+    avgDecodeTime: number                 # milliseconds
+    maxDecodeTime: number                 # milliseconds
+    memoryUsed: number                    # bytes
+    hwAccelerationActive: boolean
+
+  DecoderState:
+    status: "unconfigured" | "configured" | "decoding" | "error" | "closed"
+    currentCodec: string | null
+    hwAcceleration: boolean
+    lastError: string | null
+
+functions:
+  - name: detectCapabilities
+    description: Detect WebCodecs and hardware acceleration support
+    params: {}
+    returns: Promise<DecoderCapabilities>
+
+  - name: createHWDecoder
+    description: Create hardware-accelerated VideoDecoder
+    params:
+      codec: string
+      config: WebCodecsConfig
+    returns: Promise<VideoDecoder | null>
+
+  - name: decodeFrame
+    description: Decode a single video frame
+    params:
+      decoder: VideoDecoder
+      chunk: EncodedVideoChunk
+    returns: Promise<VideoFrame>
+
+  - name: getPerformanceStats
+    description: Get current decode performance metrics
+    params:
+      decoder: VideoDecoder
+    returns: DecodePerformance
+
+  - name: fallbackToSoftware
+    description: Switch from HW to SW decoder
+    params:
+      currentDecoder: VideoDecoder
+      config: WebCodecsConfig
+    returns: Promise<VideoDecoder>
+
+integration_points:
+  - file: src/hooks/useWebCodecsHW.ts
+    description: React hook for WebCodecs hardware acceleration
+    exports:
+      - useWebCodecsHW
+      - detectCapabilities
+      - DecodePerformance
+
+  - file: src/components/Video/LazyVideo.tsx
+    description: Optional integration for HW-accelerated playback
+    condition: When WebCodecs available and video is high-resolution
+
+performance_targets:
+  decode_speedup: "20%"                   # vs software decode
+  memory_reduction: "15%"                 # vs MediaSource
+  latency_reduction: "30%"                # first frame faster
+  battery_improvement: "10%"              # less CPU usage
+
+browser_support:
+  chrome: "94+"                           # Full support
+  edge: "94+"                             # Full support
+  safari: "15.4+"                         # Partial support
+  firefox: "130+"                         # Behind flag
+
+imports:
+  - react

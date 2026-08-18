@@ -1,0 +1,132 @@
+/* Video Progress Bar */
+
+.video-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 16px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: calc(var(--z-elevated) + 20);
+}
+
+.video-progress.visible {
+  opacity: 1;
+}
+
+.video-progress__bar {
+  position: relative;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  cursor: pointer;
+  overflow: visible;
+}
+
+.video-progress__bar:hover {
+  height: 6px;
+}
+
+.video-progress__buffered {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.video-progress__played {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--vibee-amber);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.video-progress__thumb {
+  position: absolute;
+  top: 50%;
+  right: -6px;
+  transform: translateY(-50%) scale(0);
+  width: 12px;
+  height: 12px;
+  background: var(--vibee-amber);
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: transform 0.15s ease;
+}
+
+.video-progress__bar:hover .video-progress__thumb,
+.video-progress.visible .video-progress__thumb {
+  transform: translateY(-50%) scale(1);
+}
+
+.video-progress__time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Mobile: Always visible, larger touch target */
+@media (max-width: 768px) {
+  .video-progress {
+    padding: 8px 12px;
+  }
+
+  .video-progress__bar {
+    height: 6px;
+  }
+
+  .video-progress__thumb {
+    width: 16px;
+    height: 16px;
+    right: -8px;
+    transform: translateY(-50%) scale(1);
+  }
+}
+
+/* Gesture Indicator */
+.gesture-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  z-index: var(--z-timeline);
+}
+
+.gesture-indicator.visible {
+  opacity: 1;
+}
+
+.gesture-indicator__icon {
+  font-size: 24px;
+}
+
+.gesture-indicator__value {
+  font-size: 20px;
+  font-weight: 600;
+}

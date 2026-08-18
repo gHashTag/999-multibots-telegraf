@@ -1,0 +1,103 @@
+/* ===============================
+   Unified bottom tab bar — Telegram Mini App + web.
+
+   9 tabs will not fit side by side on a 320px phone, so the strip scrolls
+   horizontally rather than crushing labels to unreadable widths.
+   =============================== */
+
+.tma-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+
+  /* --app-safe-bottom is written by useTelegramWebApp from
+     WebApp.safeAreaInset (Bot API 8.0+) and falls back to
+     env(safe-area-inset-bottom) on the open web. Using env() alone is wrong
+     inside the Telegram iOS WebView, where it reports 0 while the client has
+     already inset the view — the bar then sits under the home indicator. */
+  padding-bottom: var(--app-safe-bottom, 0px);
+
+  background: var(--vibee-bg-elevated, #16161a);
+  border-top: 1px solid var(--vibee-border, rgba(255, 255, 255, 0.08));
+  backdrop-filter: blur(12px);
+}
+
+.tma-tabbar__scroll {
+  display: flex;
+  align-items: stretch;
+  height: var(--app-tabbar-height, 56px);
+
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Horizontal panning only — a vertical drag here must reach the page (and,
+     inside Telegram, must not be read as "dismiss the Mini App"). */
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.tma-tabbar__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.tma-tabbar__item {
+  flex: 1 0 auto;
+  min-width: 64px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+
+  padding: 6px 8px;
+  text-decoration: none;
+  color: var(--vibee-text-muted, rgba(255, 255, 255, 0.55));
+  transition: color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tma-tabbar__item.active {
+  color: var(--vibee-accent, #f59e0b);
+}
+
+.tma-tabbar__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.tma-tabbar__label {
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- layout compensation ----
+   Applied to the scroll container rather than to each page's root class.
+   Enumerating page classes is fragile: Search's root is .leads-dashboard, not
+   .search-page, and Script/Learn have no single stable page class. */
+
+body[data-tabbar='visible'] #root {
+  padding-bottom: var(--app-tabbar-total, 56px);
+}
+
+/* The editor is fixed-height with its own internal scrolling, so padding would
+   not help — its height has to shrink instead, or its bottom controls end up
+   underneath the bar. */
+body[data-tabbar='visible'] .editor,
+body[data-tabbar='visible'] .editor-main {
+  height: calc(var(--app-vh-stable, 100dvh) - var(--app-tabbar-total, 56px));
+}
+
+@media (min-width: 768px) {
+  .tma-tabbar__label {
+    font-size: 11px;
+  }
+}

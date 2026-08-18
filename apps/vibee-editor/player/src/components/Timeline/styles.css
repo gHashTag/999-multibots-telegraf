@@ -1,0 +1,104 @@
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--color-bg-elevated);
+  border-radius: 8px;
+}
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Monaco', monospace;
+}
+
+.timeline-time {
+  color: #fff;
+}
+
+.timeline-frame {
+  color: #666;
+}
+
+.timeline-tracks {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.timeline-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #fff;
+  z-index: var(--z-elevated);
+  pointer-events: none;
+  transition: left 0.05s linear;
+}
+
+.timeline-playhead::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+.timeline-track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+}
+
+.timeline-track-label {
+  width: 50px;
+  font-size: 10px;
+  color: #888;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.timeline-track-segments {
+  flex: 1;
+  position: relative;
+  height: 100%;
+  background: var(--color-bg-primary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.timeline-segment {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  transition: opacity 0.2s;
+}
+
+.timeline-segment:hover {
+  opacity: 0.8;
+}
+
+.timeline-segment-label {
+  font-size: 9px;
+  color: #fff;
+  text-transform: uppercase;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+}

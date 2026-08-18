@@ -1,0 +1,79 @@
+server {
+    # ${PORT} is substituted at container start by docker-entrypoint.sh.
+    # Railway assigns PORT at RUNTIME and it is not always 8080 — a hardcoded
+    # port produces a successful build followed by a healthcheck timeout.
+    listen ${PORT};
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Telegram Web (web.telegram.org) runs a Mini App inside an iframe.
+    # X-Frame-Options DENY/SAMEORIGIN would render the app blank on Web+Desktop,
+    # so frame embedding is allowed for Telegram origins only.
+    add_header Content-Security-Policy "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org;" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Healthcheck — answered by nginx itself, never touches the filesystem.
+    # Must not go through the SPA fallback: that returns 200 for every path,
+    # which would make the healthcheck pass even with an empty document root.
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain always;
+        return 200 "ok\n";
+    }
+
+    # HTML entry point — never cache (references hashed JS/CSS filenames).
+    # add_header inside a location REPLACES inherited headers, so the
+    # server-level ones are repeated here.
+    location = /index.html {
+        add_header Content-Security-Policy "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org;" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+    }
+
+    # SPA fallback. Load-bearing for a Mini App: Telegram's WebView reloads the
+    # app on resume from background on some Android builds, and a 404 on a deep
+    # route is a blank WebView with no way back.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Hashed assets (JS/CSS) — immutable long cache
+    location ~* \.(js|css)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Media files — 24h cache for videos
+    location ~* \.(mp4|mp3|webm|ogg|wav|m3u8|ts)$ {
+        expires 24h;
+        add_header Cache-Control "public, immutable";
+        add_header Accept-Ranges "bytes";
+        add_header Access-Control-Allow-Origin "*";
+        add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS";
+        add_header Access-Control-Allow-Headers "Range";
+        etag on;
+
+        types {
+            video/mp4 mp4;
+            video/webm webm;
+            audio/mpeg mp3;
+            audio/ogg ogg;
+            audio/wav wav;
+            application/vnd.apple.mpegurl m3u8;
+            video/mp2t ts;
+        }
+    }
+
+    # Images/fonts — long cache
+    location ~* \.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp)$ {
+        expires 7d;
+        add_header Cache-Control "public";
+    }
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript image/svg+xml;
+    gzip_min_length 256;
+}
