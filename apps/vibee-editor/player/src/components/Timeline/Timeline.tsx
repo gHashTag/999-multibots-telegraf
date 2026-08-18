@@ -585,7 +585,10 @@ export function Timeline({ orientation = 'horizontal', hideBrowser = true }: Tim
   // ===============================
 
   // Category chips for browser
-  const CATEGORIES: AssetCategory[] = ['all', 'video', 'audio', 'image', 'avatar'];
+  // 'bot' — история генераций из Telegram-бота. Отдельная категория, а не
+  // слияние с остальными: те — ассеты ТЕКУЩЕГО проекта на таймлайне, а эта —
+  // всё, что человек когда-либо сгенерировал в боте.
+  const CATEGORIES: AssetCategory[] = ['all', 'video', 'audio', 'image', 'avatar', 'bot'];
 
   // File upload handler
   const uploadFile = useCallback(async (file: File): Promise<Asset | null> => {
