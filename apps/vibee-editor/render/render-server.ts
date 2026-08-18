@@ -933,6 +933,11 @@ function startRenderAsync(req: RenderRequest): string {
       console.log(`✅ Render ${renderId} completed: ${job.outputUrl}`);
 
       // Upload to S3, convert to HLS, and send Telegram notification
+      // Объявлено ДО try: запасная ветка публикации ниже находится после
+      // catch, то есть вне этого блока. Пока объявление было внутри try,
+      // та ветка падала с ReferenceError — а срабатывает она ровно тогда,
+      // когда S3 недоступен, то есть в момент, когда запасной путь и нужен.
+      const userInfo = job.userInfo;
       try {
         const videoBuffer = fs.readFileSync(outputPath);
         const uploadResult = await uploadToS3(videoBuffer, `render-${renderId}.${ext}`, ext === 'gif' ? 'image/gif' : 'video/mp4');
@@ -958,7 +963,6 @@ function startRenderAsync(req: RenderRequest): string {
           // Send Telegram notification with video
           const renderTimeMs = Date.now() - job.startedAt.getTime();
           const renderTimeSec = Math.round(renderTimeMs / 1000);
-          const userInfo = job.userInfo;
 
           const hlsInfo = (job as any).hlsUrl ? `\n🎬 HLS: ✅` : '';
           const caption = userInfo
@@ -1893,9 +1897,26 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    console.log(`❌ File NOT found: ${filePath}`);
+    // Этот сервер намеренно не везёт каталог public/: те же ~500MB медиа уже
+    // задеплоены вместе с редактором, и вторая копия здесь была бы чистым
+    // дублированием. Значит запрос сюда за медиа — всегда ошибка вызывающего,
+    // а не отсутствующий файл. Прошлый текст «File not found» это скрывал:
+    // из него не было видно, ни почему файла нет, ни куда идти.
+    const MEDIA_HINT = process.env.MEDIA_ORIGIN || "https://vibee-editor-production.up.railway.app";
+    console.log(
+      `❌ Media requested from the render server: ${filePath}\n` +
+      `   Этот сервер не хранит public/. Правильный адрес: ${MEDIA_HINT}${req.url}\n` +
+      `   В редакторе такие пути строит MEDIA_ORIGIN (player/src/lib/mediaUrl.ts), не RENDER_SERVER_URL.`
+    );
     res.writeHead(404, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "File not found", path: filePath }));
+    res.end(
+      JSON.stringify({
+        error: "This server does not host media",
+        requested: req.url,
+        serveFrom: `${MEDIA_HINT}${req.url}`,
+        hint: "Use MEDIA_ORIGIN in the editor, not RENDER_SERVER_URL",
+      })
+    );
   }
 
   // SSE endpoint for render progress streaming
