@@ -1353,3 +1353,15 @@
     transform: translateY(0) scale(1);
   }
 }
+
+/* Тач-цели на мобильном.
+   .sort-btn задавал высоту только через padding: 6px и выходил 28px — вдвое
+   меньше 44px, которые проект уже объявил как --touch-target в index.css и
+   применяет в PropertiesPanel/PlayerPanel. Промах по такой кнопке на телефоне
+   попадает в ленту под ней. */
+@media (max-width: 768px) {
+  .sort-btn {
+    min-height: var(--touch-target, 44px);
+    padding: 10px 14px;
+  }
+}
