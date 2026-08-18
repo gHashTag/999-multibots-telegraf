@@ -3173,6 +3173,67 @@ const server = createServer(async (req, res) => {
     }
   }
 
+  // GET /api/assets/:telegram_id — история генераций пользователя.
+  //
+  // СВЯЗАННОСТЬ АССЕТОВ. Бот пишет каждую генерацию в таблицу `assets` из 21
+  // места, но до сих пор её никто не читал: `select` по этой таблице нет ни в
+  // редакторе, ни здесь — все три ссылки на неё были `.insert()`. То есть
+  // пользователь генерировал в боте и не видел результат в мини-аппе, потому
+  // что связи между ними просто не существовало. Это её недостающая половина.
+  if (req.url?.startsWith("/api/assets/") && req.method === "GET") {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const telegram_id = url.pathname.split("/").pop();
+    if (!telegram_id) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Invalid telegram_id" }));
+      return;
+    }
+    const limit = Math.min(parseInt(url.searchParams.get("limit") || "50", 10) || 50, 200);
+    const kind = url.searchParams.get("type"); // необязательный фильтр по модели
+
+    try {
+      const pool = await getPool();
+      // telegram_id в этой таблице text — см. миграцию. Приводим явно, иначе
+      // числовой параметр не сматчится и вернётся пустой список без ошибки.
+      const params: unknown[] = [String(telegram_id), limit];
+      let typeFilter = "";
+      if (kind) {
+        typeFilter = "AND type = $3";
+        params.push(kind);
+      }
+      const result = await pool.query(
+        `SELECT id, type, public_url, text, bot_name, created_at::text
+           FROM assets
+          WHERE telegram_id = $1
+            -- Строки без играбельной ссылки бесполезны для галереи. В проде
+            -- таких 13: они появились до фикса записи и починить их нечем.
+            AND public_url LIKE 'http%'
+            ${typeFilter}
+          ORDER BY created_at DESC
+          LIMIT $2`,
+        params
+      );
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          assets: result.rows.map(r => ({
+            id: r.id,
+            type: r.type,
+            url: r.public_url,
+            prompt: r.text,
+            botName: r.bot_name,
+            createdAt: r.created_at,
+          })),
+        })
+      );
+    } catch (error) {
+      console.error("Assets error:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to fetch assets" }));
+    }
+    return;
+  }
+
   // GET /api/users/id/:telegram_id
   if (req.url?.startsWith("/api/users/id/") && req.method === "GET") {
     const telegram_id = req.url?.split("/").pop();

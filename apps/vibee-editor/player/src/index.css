@@ -186,3 +186,25 @@ a:hover {
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
 }
+
+/* ===============================
+   Тач-цели на мобильном.
+
+   --touch-target: 44px объявлен выше и применяется в PropertiesPanel,
+   PlayerPanel и PanelError, но несколько интерактивных элементов задают
+   высоту ТОЛЬКО через padding и выходят 28px — вдвое меньше. Замерено в
+   проде на 375px: .sort-btn (лента), .account-selector-button,
+   .event-stream-demo-btn-large и .leads-bottom-tab (поиск).
+
+   Промах по такой кнопке попадает в контент под ней, а не мимо.
+
+   Список явный, а не `button { min-height }`: слепое правило раздуло бы
+   плотные панели редактора и таймлайна, где мелкие контролы намеренные.
+   =============================== */
+@media (max-width: 768px) {
+  .account-selector-button,
+  .event-stream-demo-btn-large,
+  .leads-bottom-tab {
+    min-height: var(--touch-target, 44px);
+  }
+}
