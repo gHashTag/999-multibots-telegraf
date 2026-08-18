@@ -68,7 +68,12 @@ export async function uploadVideoToSupabase(
   // Опционально: сохраняем информацию о видео в таблицу assets
   try {
     const { saveVideoUrlToSupabase } = await import('@/core/supabase/saveVideoUrlToSupabase')
-    await saveVideoUrlToSupabase(telegramId, publicUrl, storagePath, 'ai_reels_inngest')
+    await saveVideoUrlToSupabase({
+      telegramId,
+      publicUrl,
+      storagePath,
+      type: 'ai_reels_inngest',
+    })
   } catch (saveError) {
     logger.warn('⚠️ [SUPABASE] Не удалось сохранить информацию в таблицу assets', {
       error: saveError,

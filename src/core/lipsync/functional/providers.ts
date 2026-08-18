@@ -184,13 +184,12 @@ const generateKlingLipSync = async (
 
       // Сохраняем в Supabase если включено
       if (input.parameters?.saveOutput !== false) {
-        const uniqueId = `kling_lipsync_${Date.now()}_${input.telegramId}`
-        await saveVideoUrlToSupabase(
-          input.telegramId,
-          uniqueId,
-          resultUrl,
-          'kling_lipsync'
-        )
+        await saveVideoUrlToSupabase({
+          telegramId: input.telegramId,
+          publicUrl: resultUrl,
+          type: 'kling_lipsync',
+          botName: input.botName,
+        })
       }
 
       return {
@@ -407,13 +406,14 @@ const generateSyncLipSync = async (
       const resultUrl = prediction.output
 
       // Сохраняем в Supabase
+      await saveVideoUrlToSupabase({
+        telegramId: input.telegramId,
+        publicUrl: resultUrl,
+        type: 'sync_lipsync2',
+        botName: input.botName,
+      })
+
       const uniqueId = `sync_lipsync2_${Date.now()}_${input.telegramId}`
-      await saveVideoUrlToSupabase(
-        input.telegramId,
-        uniqueId,
-        resultUrl,
-        'sync_lipsync2'
-      )
 
       return {
         success: true,

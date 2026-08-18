@@ -159,12 +159,12 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
       // Сохраняем в Supabase
       const modelPrefix = this.getModelPrefix(falInput.modelId)
       const uniqueId = `${modelPrefix}_${Date.now()}_${falInput.telegramId}`
-      await saveVideoUrlToSupabase(
-        falInput.telegramId,
-        uniqueId,
-        videoUrl,
-        modelPrefix
-      )
+      await saveVideoUrlToSupabase({
+        telegramId: falInput.telegramId,
+        publicUrl: videoUrl,
+        type: modelPrefix,
+        botName: falInput.bot_name,
+      })
 
       logger.info(`✅ Fal.ai ${modelName} видео успешно сгенерировано`, {
         telegramId: falInput.telegramId,

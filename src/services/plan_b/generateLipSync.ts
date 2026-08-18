@@ -1,5 +1,4 @@
 import { WEBHOOK_URL } from '@/config'
-import { saveVideoUrlToSupabase } from '@/core/supabase'
 import axios, { AxiosResponse } from 'axios'
 import { PaymentStatus } from '@/interfaces/payments.interface'
 
@@ -76,8 +75,9 @@ export async function generateLipSync(
     )
 
     if (response.data?.id) {
-      const videoId = response.data.id
-      await saveVideoUrlToSupabase(telegram_id, videoId, '', 'lipsync')
+      // Здесь есть только id задачи, ссылки ещё нет, а обновлять уже
+      // вставленные строки в assets некому — запись создавала бы строку,
+      // которая никогда не станет играбельной.
 
       if (response.status === 200) {
         return response.data

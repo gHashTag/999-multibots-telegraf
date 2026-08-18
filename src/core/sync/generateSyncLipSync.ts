@@ -112,12 +112,11 @@ export async function generateSyncLipSync(
       // Генерируем уникальный ID для сохранения
       const uniqueId = `sync_lipsync2_${Date.now()}_${telegramId}`
 
-      await saveVideoUrlToSupabase(
+      await saveVideoUrlToSupabase({
         telegramId,
-        uniqueId,
-        resultUrl,
-        'sync_lipsync2'
-      )
+        publicUrl: resultUrl,
+        type: 'sync_lipsync2',
+      })
 
       return {
         id: uniqueId,
