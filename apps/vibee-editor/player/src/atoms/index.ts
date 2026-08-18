@@ -489,3 +489,13 @@ export {
   type BeeLevel,
   type LearnProgress,
 } from './learn';
+
+// История генераций из бота: серверная половина — GET /api/assets/:telegram_id
+export {
+  botAssetsAtom,
+  botAssetsLoadingAtom,
+  botAssetsErrorAtom,
+  loadBotAssetsAtom,
+  botAssetsByDayAtom,
+  type BotAsset,
+} from './botAssets';
