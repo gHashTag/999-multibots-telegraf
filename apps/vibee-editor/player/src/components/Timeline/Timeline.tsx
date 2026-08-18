@@ -92,6 +92,12 @@ import { DragSnapLine } from './SnapIndicators';
 import { TimelineMinimap } from './TimelineMinimap';
 import { Play, Pause, SkipBack, SkipForward, ZoomIn, ZoomOut, ChevronDown, ChevronUp, Magnet, Lock, Unlock, Maximize2, Maximize, Minimize, Volume2, VolumeX, Download, Loader2, AlertTriangle, X, Undo2, Redo2, Save, Upload, RotateCcw, Trash2, GripVertical, Plus, Search } from 'lucide-react';
 import { AssetCard } from '@/components/Assets/AssetCard';
+import {
+  botAssetsAtom,
+  botAssetsLoadingAtom,
+  botAssetsErrorAtom,
+  loadBotAssetsAtom,
+} from '@/atoms';
 import type { Asset } from '@vibee/atoms';
 import { RENDER_SERVER_URL, toAbsoluteUrl } from '@/lib/mediaUrl';
 import { convertToSplitTalkingHeadProps, getAudioTrackOverride } from '@/lib/buildCompositionProps';
@@ -1585,7 +1591,47 @@ export function Timeline({ orientation = 'horizontal', hideBrowser = true }: Tim
             className="timeline-browser-assets"
             onWheel={handleBrowserWheel}
           >
-            {filteredAssets.length === 0 ? (
+            {category === 'bot' ? (
+              botLoading ? (
+                <div className="browser-empty"><span>{t('common.loading')}</span></div>
+              ) : botError ? (
+                <div className="browser-empty"><span>{botError}</span></div>
+              ) : botAssets.length === 0 ? (
+                <div className="browser-empty"><span>{t('assets.empty')}</span></div>
+              ) : (
+                botAssets.map((a) => (
+                  <div
+                    key={`bot-${a.id}`}
+                    className="browser-asset-wrapper"
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(
+                        'application/json',
+                        JSON.stringify({ type: 'asset', url: a.url, name: a.type })
+                      );
+                      e.dataTransfer.effectAllowed = 'copy';
+                    }}
+                    title={a.prompt || a.type}
+                  >
+                    <AssetCard
+                      asset={{
+                        id: `bot-${a.id}`,
+                        // В колонке type лежит имя МОДЕЛИ (veo3_fast,
+                        // fal_hummingbird), а не вид медиа — выводим из ссылки.
+                        type: /\.(mp3|wav|ogg|m4a)$/i.test(a.url)
+                          ? 'audio'
+                          : /\.(png|jpe?g|webp|gif)$/i.test(a.url)
+                            ? 'image'
+                            : 'video',
+                        name: a.prompt?.slice(0, 40) || a.type,
+                        url: a.url,
+                      } as never}
+                      size="compact"
+                    />
+                  </div>
+                ))
+              )
+            ) : filteredAssets.length === 0 ? (
               <div className="browser-empty"><span>{t('assets.empty')}</span></div>
             ) : (
               filteredAssets.map((asset) => (

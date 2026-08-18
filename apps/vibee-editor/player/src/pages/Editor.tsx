@@ -235,7 +235,11 @@ function EditorContent() {
       {/* Timeline */}
       <footer className="timeline-area">
         <ErrorBoundary fallback={<PanelError />}>
-          <Timeline />
+          {/* hideBrowser по умолчанию true, и никто не передавал false — вместе
+              с тем, что отдельный AssetBrowser не импортировался нигде, это
+              означало, что браузера ассетов в интерфейсе НЕ БЫЛО вовсе: ни
+              встроенного, ни отдельного. Взять ассет в монтаж было неоткуда. */}
+          <Timeline hideBrowser={false} />
         </ErrorBoundary>
       </footer>
 
