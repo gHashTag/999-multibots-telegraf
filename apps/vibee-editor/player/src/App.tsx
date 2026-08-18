@@ -61,7 +61,12 @@ function App() {
                 <PageTransition>
                   <Suspense fallback={<PageLoader />}>
                     <Routes>
-                  <Route path="/" element={<HomePage />} />
+                  {/* Главная открывается на ленте. Редирект, а не рендер
+                      FeedPage прямо на "/", чтобы у ленты остался один
+                      канонический URL — от него зависит подсветка таба. */}
+                  <Route path="/" element={<Navigate to="/feed" replace />} />
+                  {/* Маркетинговый лендинг переехал сюда, чтобы не пропасть. */}
+                  <Route path="/home" element={<HomePage />} />
                   <Route path="/feed" element={<FeedPage />} />
                   <Route path="/search" element={<SearchPage />} />
                   <Route path="/editor" element={<EditorPage />} />
