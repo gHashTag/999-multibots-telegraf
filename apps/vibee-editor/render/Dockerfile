@@ -28,7 +28,14 @@ COPY packages/ ./packages/
 COPY render/package.json ./render/
 WORKDIR /workspace/render
 # No lockfile ships with this package, so `npm install` rather than `npm ci`.
-RUN npm install --no-audit --no-fund
+#
+# --install-links COPIES the file:../packages/vibee-atoms dependency into
+# node_modules instead of symlinking it. Without it Remotion's webpack bundles
+# straight out of /workspace/packages/vibee-atoms/src and resolves 'jotai' by
+# walking up from there — /workspace/packages/node_modules and
+# /workspace/node_modules do not exist, so the bundle fails at startup with
+# "Can't resolve 'jotai'" and the server never opens its port.
+RUN npm install --install-links --no-audit --no-fund
 
 # Remotion downloads its own Chrome Headless Shell. Doing it at build time keeps
 # the first render from paying for the download — and makes a broken download a
