@@ -3040,8 +3040,10 @@ const server = createServer(async (req, res) => {
       // GET /api/feed/:id - Get single template
       const id = req.url?.split("/").pop();
       const userId = url.searchParams.get("user_id");
-      const pool = await getPool();
       try {
+        // getPool() внутри try: снаружи его синхронный throw при незаданном
+        // DATABASE_URL уходил из async-обработчика и убивал процесс.
+        const pool = await getPool();
         const query = `
           SELECT pt.id, pt.telegram_id, pt.creator_name, pt.creator_avatar,
           COALESCE(pt.creator_username, '') as creator_username, pt.name, pt.description,
@@ -3084,13 +3086,31 @@ const server = createServer(async (req, res) => {
       const offset = parseInt(url.searchParams.get("offset") || "0");
       const userId = url.searchParams.get("user_id");
       const search = url.searchParams.get("search") || "";
-      let searchFilter = "";
-      if (search) {
-        searchFilter = `AND (pt.name ILIKE '%${search}%' OR pt.description ILIKE '%${search}%')`;
-      }
+      // Значение search раньше вклеивалось в SQL строкой:
+      //   AND (pt.name ILIKE '%${search}%' ...)
+      // тогда как limit/offset/userId в том же запросе биндились как $1/$2/$3.
+      // Это была SQL-инъекция без аутентификации. Теперь search — тоже
+      // параметр ($4), а % экранируются, чтобы пользовательский ввод не менял
+      // семантику LIKE-шаблона.
+      const searchFilter = search
+        ? "AND (pt.name ILIKE $4 OR pt.description ILIKE $4)"
+        : "";
+      const searchPattern = search
+        ? `%${search.replace(/([\\%_])/g, "\\$1")}%`
+        : null;
+
+      // Только фиксированные варианты: ORDER BY нельзя параметризовать, поэтому
+      // подстановка допустима лишь из закрытого списка, что здесь и сделано.
       const orderBy = url.searchParams.get("sort") === "likes" ? "pt.likes_count DESC" : "pt.created_at DESC";
-      const pool = await getPool();
+
       try {
+        // getPool() внутри try, а не перед ним. Он бросает синхронно, если
+        // DATABASE_URL не задан, и снаружи try это исключение уходило из
+        // async-обработчика как unhandled rejection — Node 20 в ответ убивает
+        // процесс. Проверено в проде: два падения 18.08 в 15:09:16 и 15:09:19,
+        // стек `at getPool (render-server.ts:84:13)`, клиент получил три 502.
+        // То есть любой мог положить сервер одним GET /api/feed без авторизации.
+        const pool = await getPool();
         const query = `
           SELECT pt.id, pt.telegram_id, pt.creator_name, pt.creator_avatar,
           COALESCE(pt.creator_username, '') as creator_username, pt.name, pt.description,
@@ -3103,7 +3123,9 @@ const server = createServer(async (req, res) => {
           WHERE pt.is_public = TRUE AND pt.deleted_at IS NULL ${searchFilter}
           ORDER BY ${orderBy} LIMIT $1 OFFSET $2
         `;
-        const result = await pool.query(query, [limit, offset, userId]);
+        const params: unknown[] = [limit, offset, userId];
+        if (searchPattern !== null) params.push(searchPattern);
+        const result = await pool.query(query, params);
         const templates = result.rows.map(row => ({
           id: row.id, telegramId: row.telegram_id, creatorName: row.creator_name,
           creatorAvatar: row.creator_avatar, creatorUsername: row.creator_username,
@@ -3134,8 +3156,10 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ error: "Invalid telegram_id" }));
       return;
     }
-    const pool = await getPool();
     try {
+      // getPool() внутри try: снаружи его синхронный throw при незаданном
+      // DATABASE_URL уходил из async-обработчика и убивал процесс.
+      const pool = await getPool();
       const query = `
         SELECT DISTINCT pt.telegram_id, pt.creator_name as first_name,
         pt.creator_avatar as avatar_url, pt.creator_username as username
@@ -3176,8 +3200,10 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    const pool = await getPool();
     try {
+      // getPool() внутри try: снаружи его синхронный throw при незаданном
+      // DATABASE_URL уходил из async-обработчика и убивал процесс.
+      const pool = await getPool();
       // Try profiles table first, fallback to public_templates
       let profile = null;
 
