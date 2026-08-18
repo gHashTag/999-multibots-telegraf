@@ -73,13 +73,27 @@
 .generate-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+}
+
+/* Каждое звено этой цепочки — колоночный flex-контейнер И одновременно
+   flex-элемент вышестоящего. Без flex-shrink:0 нехватка места по высоте
+   раздаётся вниз по всей цепочке, и карточки моделей сжимались с
+   естественных 50px до 28px: при box-sizing:border-box и padding 10px под
+   две строки текста оставалось 8px, вторая строка вылезала за границу и
+   перекрывалась следующей карточкой.
+   Прокручиваться должен .generate-content — у него для этого overflow-y:auto. */
+.generate-form > *,
+.form-group,
+.model-buttons,
+.model-btn {
+  flex-shrink: 0;
 }
 
 .form-group label {
@@ -203,14 +217,17 @@
 .model-buttons {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .model-btn {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: 3px;
+  /* Страховка на случай, если высоту зажмёт ещё какой-нибудь предок:
+     карточка не станет ниже собственного содержимого. */
+  min-height: fit-content;
   padding: 10px 12px;
   background: var(--bg-elevated);
   border: 2px solid var(--bg-input);
@@ -228,11 +245,14 @@
 .model-btn .model-name {
   font-size: 12px;
   font-weight: 600;
+  /* line-height:normal обрезал выносные элементы, когда карточку зажимало */
+  line-height: 1.35;
   color: #ddd;
 }
 
 .model-btn .model-desc {
   font-size: 10px;
+  line-height: 1.4;
   color: var(--text-muted);
 }
 
@@ -1000,15 +1020,22 @@
     font-size: 8px;
   }
 
+  /* Раньше здесь padding ужимался до 10px, а шрифты до 11/9px — именно на
+     этих ширинах карточки и выглядели слипшимися. Текст остаётся мелким,
+     но вертикальный воздух возвращён, а line-height задан явно, чтобы
+     нижние выносные элементы («g», «y») не срезались. */
   .model-btn {
-    padding: 10px;
+    padding: 10px 12px;
+    gap: 3px;
   }
 
   .model-btn .model-name {
     font-size: 11px;
+    line-height: 1.35;
   }
 
   .model-btn .model-desc {
     font-size: 9px;
+    line-height: 1.4;
   }
 }
