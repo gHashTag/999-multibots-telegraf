@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition, renderStill } from "@remotion/renderer";
 import path from "node:path";
+import { authenticate, authMode } from "./auth";
 import fs from "node:fs";
 import { randomUUID, createHmac } from "node:crypto";
 import { execSync } from "node:child_process";
@@ -1048,11 +1049,35 @@ const server = createServer(async (req, res) => {
   // CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Filename");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, X-Filename, X-Api-Key, X-Telegram-Init-Data"
+  );
 
   if (req.method === "OPTIONS") {
     res.writeHead(200);
     res.end();
+    return;
+  }
+
+  // Аутентификация. До этого сервис не проверял ничего: любой мог залить 100 МБ
+  // в бакет и запускать рендеры, тратящие кредиты FAL / ElevenLabs / xAI.
+  // Подробности механизмов — в ./auth.ts.
+  const auth = authenticate(req);
+  if (auth.wouldReject) {
+    console.warn(
+      `🔒 [auth] ${auth.allowed ? "ПРОПУЩЕНО (режим warn)" : "ОТКАЗ"} ${req.method} ${req.url} — ${auth.reason}`
+    );
+  }
+  if (!auth.allowed) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        error: "unauthorized",
+        detail: auth.reason,
+        hint: "send X-Api-Key (server to server) or X-Telegram-Init-Data (Mini App)",
+      })
+    );
     return;
   }
 
@@ -3642,6 +3667,10 @@ async function main() {
 
   server.listen(Number(PORT), "0.0.0.0", () => {
     console.log(`🚀 Remotion render server running on 0.0.0.0:${PORT}`);
+    console.log(
+      `🔒 Auth: mode=${authMode()} apiKey=${process.env.RENDER_API_KEY ? "set" : "MISSING"} ` +
+      `botToken=${process.env.TELEGRAM_BOT_TOKEN ? "set" : "MISSING"}`
+    );
     console.log(`📍 HTTP Endpoints:`);
     console.log(`   GET  /health       - Health check`);
     console.log(`   GET  /compositions - List compositions`);
