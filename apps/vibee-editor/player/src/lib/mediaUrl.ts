@@ -6,7 +6,12 @@ export const RENDER_SERVER_URL = RENDER_URL;
 
 // Where the bundled media in public/ is actually served from: this app itself.
 // Absolute so the render server, which runs elsewhere, can fetch the same URL.
-const MEDIA_ORIGIN =
+//
+// Anything resolving a path that ships in this app's public/ must use this and
+// NOT RENDER_SERVER_URL. The render server has no public/ directory — pointing
+// media at it produces "File NOT found: /workspace/render/public/..." in its
+// logs while the editor silently shows nothing.
+export const MEDIA_ORIGIN =
   typeof window !== 'undefined' ? window.location.origin : RENDER_URL;
 
 /**

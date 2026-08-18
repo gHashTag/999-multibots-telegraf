@@ -14,6 +14,7 @@ import { tracksAtom } from './tracks';
 import { produce } from 'immer';
 import { CAPTION_DEFAULTS, STORAGE_KEYS, type CaptionItem, type CaptionStyle } from '@vibee/atoms';
 import { RENDER_URL } from '../config';
+import { MEDIA_ORIGIN } from '../lib/mediaUrl';
 
 // ===============================
 // Re-export atoms for external use
@@ -121,8 +122,10 @@ export const loadCaptionsAtom = atom(
       const videoDir = videoUrl.substring(0, videoUrl.lastIndexOf('/'));
       const captionsPath = `${videoDir}/captions.json`;
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      // captions.json лежит в public/ этого приложения, а не на рендер-сервере:
+      // у того каталога public/ нет вовсе.
       const fullUrl = captionsPath.startsWith('/')
-        ? (isLocalhost ? captionsPath : `${RENDER_SERVER_URL}${captionsPath}`)
+        ? (isLocalhost ? captionsPath : `${MEDIA_ORIGIN}${captionsPath}`)
         : captionsPath;
 
       // Cache-busting
@@ -253,7 +256,7 @@ export const updateDurationFromLipSyncAtom = atom(
 
         // Handle relative URLs
         if (videoUrl.startsWith('/')) {
-          video.src = `${RENDER_SERVER_URL}${videoUrl}`;
+          video.src = `${MEDIA_ORIGIN}${videoUrl}`;
         } else {
           video.src = videoUrl;
         }
