@@ -3,6 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <!-- Браузеры всё равно запрашивают /favicon.ico, если он не объявлен явно —
+         в логах это давало ровный поток 404. -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
     <!-- Telegram Mini Apps runtime. Must be a classic (non-async, non-defer)
