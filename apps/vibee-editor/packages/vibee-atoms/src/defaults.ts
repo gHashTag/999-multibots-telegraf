@@ -896,15 +896,22 @@ export const CAPTION_STYLE_PRESETS = {
 // API URLs for external services
 // ===============================
 
+// Все прежние адреса на fly.io мертвы: у vibee-render-server, vibee-api-server
+// и vibee-telegram-bridge рушится TLS-handshake, у vibee-player нет даже DNS.
+// Рендер переехал в Railway-проект 999 (сервис vibee-render).
+//
+// Это значения по умолчанию на случай, если VITE_* не заданы при сборке.
+// Указывать здесь мёртвый хост опасно: сборка без переменных выглядела бы
+// рабочей и молча ходила бы в никуда.
 export const SERVICE_ENDPOINTS = {
-  remotion: 'https://vibee-render-server.fly.dev',
-  // IMPORTANT: mcp points to render-server for database queries
-  // Zig server (vibee-api-server) is used only for AI generation endpoints
-  mcp: 'https://vibee-render-server.fly.dev',
-  // Zig API server for AI generation (accessed selectively)
+  remotion: 'https://vibee-render-production.up.railway.app',
+  // mcp ходит в тот же сервер за запросами к базе
+  mcp: 'https://vibee-render-production.up.railway.app',
+  // Ниже — сервисы, замены которым пока нет. Оставлены как есть, чтобы
+  // не выдавать несуществующий адрес за рабочий.
   zigApi: 'https://vibee-api-server.fly.dev',
   bridge: 'https://vibee-telegram-bridge.fly.dev',
-  player: 'https://vibee-player.fly.dev',
+  player: 'https://vibee-editor-production.up.railway.app',
 } as const;
 
 // ===============================
