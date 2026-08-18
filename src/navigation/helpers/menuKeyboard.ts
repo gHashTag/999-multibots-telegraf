@@ -5,12 +5,13 @@
  */
 
 import { Markup } from 'telegraf'
-import type { ReplyKeyboardMarkup } from 'telegraf/types'
+import type { ReplyKeyboardMarkup, KeyboardButton } from 'telegraf/types'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { CATEGORIES, getCategoryById, getCategoryText, getItemText } from '../config/categories.config'
 import { NAVIGATION_BUTTONS, getButtonText } from '../config/buttons.config'
+import { canShowMiniAppButton, createMiniAppButton } from '../config/miniApp.config'
 import { logSceneEnter, logMainMenuReturn } from './navigationLogger'
 import { logger } from '@/utils/logger'
 import { isUserBotOwner } from '@/core/supabase/getOwnedBots'
@@ -24,10 +25,10 @@ export function createMainMenuKeyboard(ctx: MyContext): Markup.Markup<ReplyKeybo
 
   // Кнопки категорий (3 в ряд)
   const categoryButtons = CATEGORIES.map(cat => getCategoryText(cat, isRu))
-  const rows: string[][] = []
+  const rows: KeyboardButton[][] = []
 
   for (let i = 0; i < categoryButtons.length; i += 3) {
-    const row = [categoryButtons[i]]
+    const row: KeyboardButton[] = [categoryButtons[i]]
     if (categoryButtons[i + 1]) {
       row.push(categoryButtons[i + 1])
     }
@@ -35,6 +36,12 @@ export function createMainMenuKeyboard(ctx: MyContext): Markup.Markup<ReplyKeybo
       row.push(categoryButtons[i + 2])
     }
     rows.push(row)
+  }
+
+  // Мини-апп (видеоредактор) отдельной строкой — только в личке:
+  // вне приватного чата Telegram отклоняет web_app в reply-клавиатуре.
+  if (canShowMiniAppButton(ctx.chat?.type)) {
+    rows.push([createMiniAppButton(isRu)])
   }
 
   return Markup.keyboard(rows).resize()
