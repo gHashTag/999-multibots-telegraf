@@ -13,7 +13,19 @@ server {
     client_max_body_size 32m;
 
     # Health, answered here so it does not depend on PostgREST being up.
+    #
+    # BOTH paths, deliberately. Railway resolves railwayConfigFile against the
+    # REPO ROOT, so with none set for this service it picked up the bot's
+    # /railway.toml, whose healthcheckPath is "/health" — overriding the
+    # "/healthz" set on the service. The first deploy built and ran fine and
+    # still failed, on 404s against a path this file did not serve. Answering
+    # both makes the service independent of which config wins.
     location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain always;
+        return 200 "ok\n";
+    }
+    location = /health {
         access_log off;
         add_header Content-Type text/plain always;
         return 200 "ok\n";
