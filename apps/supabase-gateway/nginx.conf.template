@@ -1,0 +1,58 @@
+server {
+    listen ${PORT};
+    server_name _;
+
+    # WHY THIS SERVICE EXISTS
+    # @supabase/supabase-js builds its REST base as `new URL('rest/v1', baseUrl)`
+    # (SupabaseClient.js:78) — the prefix is unconditional, no SUPABASE_URL value
+    # removes it. PostgREST serves tables at the ROOT. Without a rewrite the app
+    # would ask for /rest/v1/users and PostgREST would look for a table called
+    # "rest". This strips the prefix so all 351 existing call sites keep working
+    # untouched.
+
+    client_max_body_size 32m;
+
+    # Health, answered here so it does not depend on PostgREST being up.
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain always;
+        return 200 "ok\n";
+    }
+
+    # The trailing slash on proxy_pass is what performs the strip:
+    # /rest/v1/users?select=* -> /users?select=*
+    location /rest/v1/ {
+        proxy_pass http://${POSTGREST_HOST}:${POSTGREST_PORT}/;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # supabase-js sends BOTH `apikey` and `Authorization: Bearer <jwt>`,
+        # carrying the same value. PostgREST reads Authorization and ignores
+        # apikey; both are forwarded unchanged so nothing depends on which.
+        proxy_pass_request_headers on;
+
+        # PostgREST answers Range for pagination and supabase-js relies on
+        # Content-Range for .range()/counts, so buffering must not rewrite them.
+        proxy_buffering off;
+    }
+
+    # Deliberately NOT implemented, and said out loud rather than 404ing into
+    # confusion: Storage and Auth are not part of PostgREST. Storage objects
+    # live in MinIO; this app never signs anyone in (zero .auth call sites).
+    location /storage/v1/ {
+        add_header Content-Type application/json always;
+        return 501 '{"error":"storage is not served here; objects live in MinIO"}';
+    }
+    location /auth/v1/ {
+        add_header Content-Type application/json always;
+        return 501 '{"error":"auth is not served here; this deployment has no GoTrue"}';
+    }
+
+    location / {
+        add_header Content-Type application/json always;
+        return 404 '{"error":"only /rest/v1/ is proxied by this gateway"}';
+    }
+}
