@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { feedTemplatesAtom, loadFeedAtom, feedStatsAtom, loadStatsAtom } from '@/atoms';
-import { RENDER_URL } from '../../config';
 import './Hero.css';
 
 // Fallback video if no feed videos available
-const FALLBACK_VIDEO = `${RENDER_URL}/public/lipsync/lipsync.mp4`;
+// Из public/ этого приложения, а не с рендер-сервера — у того public/ нет.
+const FALLBACK_VIDEO = '/lipsync/lipsync.mp4';
 
 // Format large numbers with K/M suffix
 function formatNumber(num: number | undefined | null): string {
