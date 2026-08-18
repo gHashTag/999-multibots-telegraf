@@ -14,6 +14,13 @@ import {
   addAssetAtom,
 } from '@/atoms';
 import { Plus, Search, Loader2 } from 'lucide-react';
+import { useEffect } from 'react';
+import {
+  botAssetsAtom,
+  botAssetsLoadingAtom,
+  botAssetsErrorAtom,
+  loadBotAssetsAtom,
+} from '@/atoms';
 import { AssetCard } from '@/components/Assets/AssetCard';
 import type { Asset } from '@vibee/atoms';
 import { RENDER_SERVER_URL } from '@/lib/mediaUrl';
@@ -24,7 +31,7 @@ interface AssetBrowserProps {
   orientation?: 'horizontal' | 'vertical';
 }
 
-const CATEGORIES: AssetCategory[] = ['all', 'video', 'audio', 'image', 'avatar'];
+const CATEGORIES: AssetCategory[] = ['all', 'video', 'audio', 'image', 'avatar', 'bot'];
 
 export function AssetBrowser({ className = '', orientation = 'horizontal' }: AssetBrowserProps) {
   const { t } = useLanguage();
@@ -38,6 +45,16 @@ export function AssetBrowser({ className = '', orientation = 'horizontal' }: Ass
   const [isUploading, setIsUploading] = useAtom(browserUploadingAtom);
   const [uploadProgress, setUploadProgress] = useAtom(browserUploadProgressAtom);
   const counts = useAtomValue(categoryCounts);
+
+  // История генераций из бота. Грузится только когда её открыли: это сетевой
+  // запрос, и тянуть его при каждом монтировании браузера незачем.
+  const botAssets = useAtomValue(botAssetsAtom);
+  const botLoading = useAtomValue(botAssetsLoadingAtom);
+  const botError = useAtomValue(botAssetsErrorAtom);
+  const loadBotAssets = useSetAtom(loadBotAssetsAtom);
+  useEffect(() => {
+    if (category === 'bot') loadBotAssets();
+  }, [category, loadBotAssets]);
 
   // Local state
   const [showSearch, setShowSearch] = useState(false);
@@ -245,7 +262,50 @@ export function AssetBrowser({ className = '', orientation = 'horizontal' }: Ass
         className="asset-browser-assets"
         onWheel={handleWheel}
       >
-        {filteredAssets.length === 0 ? (
+        {category === 'bot' ? (
+          // История из бота. Каждая карточка перетаскивается на таймлайн тем же
+          // dataTransfer, что и обычный ассет — иначе связь была бы витриной,
+          // из которой ничего нельзя взять в монтаж.
+          botLoading ? (
+            <div className="browser-empty"><span>{t('common.loading')}</span></div>
+          ) : botError ? (
+            <div className="browser-empty"><span>{botError}</span></div>
+          ) : botAssets.length === 0 ? (
+            <div className="browser-empty"><span>{t('assets.empty')}</span></div>
+          ) : (
+            botAssets.map((a) => (
+              <div
+                key={`bot-${a.id}`}
+                className="browser-asset-wrapper"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(
+                    'application/json',
+                    JSON.stringify({ type: 'asset', url: a.url, name: a.type })
+                  );
+                  e.dataTransfer.effectAllowed = 'copy';
+                }}
+                title={a.prompt || a.type}
+              >
+                <AssetCard
+                  asset={{
+                    id: `bot-${a.id}`,
+                    // Тип в таблице — имя модели (veo3_fast, fal_hummingbird),
+                    // а не медиа-категория. Выводим её из расширения ссылки.
+                    type: /\.(mp3|wav|ogg|m4a)$/i.test(a.url)
+                      ? 'audio'
+                      : /\.(png|jpe?g|webp|gif)$/i.test(a.url)
+                        ? 'image'
+                        : 'video',
+                    name: a.prompt?.slice(0, 40) || a.type,
+                    url: a.url,
+                  } as Asset}
+                  size="compact"
+                />
+              </div>
+            ))
+          )
+        ) : filteredAssets.length === 0 ? (
           <div className="browser-empty"><span>{t('assets.empty')}</span></div>
         ) : (
           filteredAssets.map((asset) => (

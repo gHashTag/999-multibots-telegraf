@@ -6,7 +6,11 @@ import { BRAND_COLORS, STATUS_COLORS, type Asset } from '@vibee/atoms';
 // Asset Browser State Atoms
 // ===============================
 
-export type AssetCategory = 'all' | 'video' | 'audio' | 'image' | 'avatar';
+// 'bot' — история генераций из Telegram-бота. Отдельная категория, а не
+// смешение с остальными: остальные это ассеты ТЕКУЩЕГО проекта, лежащие на
+// таймлайне, а эта — всё, что человек когда-либо сгенерировал в боте. Их
+// объединение сделало бы обе бессмысленными.
+export type AssetCategory = 'all' | 'video' | 'audio' | 'image' | 'avatar' | 'bot';
 
 // Current filter category
 export const browserCategoryAtom = atom<AssetCategory>('all');
@@ -70,6 +74,7 @@ export const CATEGORY_CONFIG: Record<
   audio: { label: 'Audio', labelRu: 'Аудио', icon: '🎵', color: STATUS_COLORS.success },
   image: { label: 'Image', labelRu: 'Фото', icon: '🖼️', color: BRAND_COLORS.amber },
   avatar: { label: 'Avatar', labelRu: 'Аватар', icon: '👤', color: '#ec4899' },
+  bot: { label: 'From bot', labelRu: 'Из бота', icon: '🤖', color: '#3b82f6' },
 };
 
 // Get category counts
@@ -81,6 +86,10 @@ export const categoryCounts = atom((get) => {
     audio: 0,
     image: 0,
     avatar: 0,
+    // Считается не из assetsAtom: история бота живёт в botAssetsAtom и
+    // приезжает с сервера. Иначе Record<AssetCategory, number> не полон и
+    // TypeScript ругается на отсутствующий ключ.
+    bot: 0,
   };
 
   assets.forEach((asset) => {
