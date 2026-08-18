@@ -117,7 +117,13 @@ async function fetchFeed(page: number, limit: number, sort: FeedSort, userId?: n
   console.log('[Feed] Fetching:', url);
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to fetch feed: ${response.statusText}`);
+    // statusText пуст на HTTP/2 — стандарт убрал reason phrase, а Railway
+    // отдаёт всё по h2. Из-за этого в UI выводилось «Failed to fetch feed:»
+    // с обрывом на двоеточии, то есть ровно без той информации, за которой
+    // человек и смотрит на ошибку. Берём код и тело ответа.
+    const body = await response.text().catch(() => '');
+    const detail = body.slice(0, 200) || response.statusText || 'no response body';
+    throw new Error(`Failed to fetch feed: HTTP ${response.status} — ${detail}`);
   }
   const data = await response.json();
   console.log('[Feed] API response:', data);
