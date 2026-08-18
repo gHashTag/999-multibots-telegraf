@@ -1,9 +1,15 @@
 [build]
 builder = "DOCKERFILE"
-# Relative to the service's Root Directory (apps/vibee-editor), which must be
-# the parent of both render/ and packages/ — package.json depends on
-# "@vibee/atoms": "file:../packages/vibee-atoms".
-dockerfilePath = "render/Dockerfile"
+# dockerfilePath is deliberately NOT set here.
+#
+# Railway resolves the *path to this file* against the repo root (a
+# railwayConfigFile of "render/railway.toml" failed with "service config at
+# 'render/railway.toml' not found" despite the file existing at
+# apps/vibee-editor/render/railway.toml), while the service-level
+# dockerfilePath resolves against the Root Directory. Declaring the Dockerfile
+# in both places invites the two conventions to disagree, so it lives only on
+# the service: dockerfilePath = "render/Dockerfile", Root Directory =
+# apps/vibee-editor.
 
 [deploy]
 # Served by render-server.ts itself (render-server.ts:1037).
