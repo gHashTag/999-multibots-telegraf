@@ -30,12 +30,23 @@ export async function getPhotoUrl(
     }
 
     if (data && data.avatar_url) {
-      // Если URL содержит 'levels', заменяем номер шага, иначе добавляем его
+      // URL со схемой levels/N.jpg — подставляем нужный шаг.
       if (data.avatar_url.includes('levels')) {
         return data.avatar_url.replace(/levels\/\d+\.jpg/, `levels/${step}.jpg`)
-      } else {
-        return `${data.avatar_url.split('.jpg')[0]}/levels/${step}.jpg`
       }
+
+      // Иначе отдаём сохранённый URL как есть.
+      //
+      // Раньше здесь было `${avatar_url.split('.jpg')[0]}/levels/${step}.jpg`,
+      // то есть из ИМЕНИ ФАЙЛА выдумывался каталог. Проверено HEAD-запросами по
+      // всем 15 ботам: сконструированный так URL живой в 0 случаях из 15, а
+      // сохранённый avatar_url — в 11 из 15 (оставшиеся 4 это placeholder.com и
+      // example.com, которых не существовало никогда).
+      //
+      // На URL без '.jpg' — а таких среди живых значений большинство — split
+      // возвращал строку целиком, и получалось
+      // 'https://via.placeholder.com/150?text=AI/levels/1.jpg'.
+      return data.avatar_url
     }
   } catch (err) {
     logger.error('Непредвиденная ошибка при получении URL аватара:', {
