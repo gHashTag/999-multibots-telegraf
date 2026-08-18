@@ -933,6 +933,11 @@ function startRenderAsync(req: RenderRequest): string {
       console.log(`✅ Render ${renderId} completed: ${job.outputUrl}`);
 
       // Upload to S3, convert to HLS, and send Telegram notification
+      // Объявлено ДО try: запасная ветка публикации ниже находится после
+      // catch, то есть вне этого блока. Пока объявление было внутри try,
+      // та ветка падала с ReferenceError — а срабатывает она ровно тогда,
+      // когда S3 недоступен, то есть в момент, когда запасной путь и нужен.
+      const userInfo = job.userInfo;
       try {
         const videoBuffer = fs.readFileSync(outputPath);
         const uploadResult = await uploadToS3(videoBuffer, `render-${renderId}.${ext}`, ext === 'gif' ? 'image/gif' : 'video/mp4');
@@ -958,7 +963,6 @@ function startRenderAsync(req: RenderRequest): string {
           // Send Telegram notification with video
           const renderTimeMs = Date.now() - job.startedAt.getTime();
           const renderTimeSec = Math.round(renderTimeMs / 1000);
-          const userInfo = job.userInfo;
 
           const hlsInfo = (job as any).hlsUrl ? `\n🎬 HLS: ✅` : '';
           const caption = userInfo
