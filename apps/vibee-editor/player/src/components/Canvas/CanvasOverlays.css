@@ -1,0 +1,239 @@
+/* Canvas Overlays - Grid and Safe Zone */
+
+/* Grid Overlay */
+.canvas-grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-nav);
+}
+
+.canvas-grid-overlay__lines {
+  width: 100%;
+  height: 100%;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 33.333% 33.333%;
+}
+
+/* Rule of thirds - center lines highlighted */
+.canvas-grid-overlay__lines::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(245, 158, 11, 0.3);
+}
+
+.canvas-grid-overlay__lines::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(245, 158, 11, 0.3);
+}
+
+/* Safe Zone Overlay */
+.safe-zone-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-nav);
+}
+
+.safe-zone-overlay__mask {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.safe-zone-overlay__mask--top {
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.safe-zone-overlay__mask--bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+.safe-zone-overlay__mask--left {
+  left: 0;
+}
+
+.safe-zone-overlay__mask--right {
+  right: 0;
+}
+
+.safe-zone-overlay__border {
+  position: absolute;
+  border: 2px dashed rgba(245, 158, 11, 0.6);
+  border-radius: 4px;
+}
+
+.safe-zone-overlay__label {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 6px;
+  background: rgba(245, 158, 11, 0.9);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #000;
+  text-transform: uppercase;
+}
+
+/* Canvas Controls - Vertical Layout */
+.canvas-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.canvas-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted-light);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.canvas-control-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.canvas-control-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.canvas-control-btn.active {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--vibee-amber);
+}
+
+.canvas-control-btn--zoom {
+  min-width: 48px;
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas-control-badge {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--vibee-amber);
+}
+
+.canvas-control-divider {
+  width: 24px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 4px 0;
+}
+
+.canvas-control-group {
+  position: relative;
+}
+
+.canvas-control-menu {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 8px);
+  left: auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 80px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--bg-secondary);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  z-index: var(--z-dropdown);
+  animation: menuSlideIn 0.15s ease-out;
+}
+
+@keyframes menuSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.canvas-control-menu-item {
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: #ccc;
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.canvas-control-menu-item:hover {
+  background: var(--bg-card);
+}
+
+.canvas-control-menu-item.active {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--vibee-amber);
+}
+
+/* Layout Menu - items with icon + label */
+.canvas-control-menu--layout {
+  min-width: 120px;
+}
+
+.canvas-control-menu--layout .canvas-control-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  padding: 8px 16px;
+}
+
+
+/* Mobile: Larger touch targets */
+@media (max-width: 1023px) {
+  .canvas-controls {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .canvas-control-btn {
+    min-width: 36px;
+    height: 32px;
+  }
+
+  .canvas-control-menu-item {
+    padding: 12px 16px;
+    font-size: 13px;
+  }
+}

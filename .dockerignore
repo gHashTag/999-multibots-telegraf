@@ -100,3 +100,10 @@ uploads/
 *.ico
 *.bmp
 *.tiff
+
+# Telegram Mini App / video editor — built by its own Dockerfile with
+# apps/vibee-editor as the build context. Docker anchors patterns without `**`
+# at the context root, so the `packages/`, `dist/` and `*.mp4` rules above do
+# NOT match apps/vibee-editor/**. Without this line the bot image's build
+# context silently gains ~92MB of editor media.
+apps/

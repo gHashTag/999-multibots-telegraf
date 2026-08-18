@@ -1,0 +1,152 @@
+/* ===============================
+   BottomSheet Component
+   Mobile-first slide-up panel
+   =============================== */
+
+.bottomsheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: var(--z-bottomsheet);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.bottomsheet-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bottomsheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--vibee-bg-elevated);
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  z-index: calc(var(--z-bottomsheet) + 1);
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  touch-action: none;
+}
+
+.bottomsheet.open {
+  transform: translateY(0);
+}
+
+/* Height variants */
+.bottomsheet.peek {
+  max-height: 30vh;
+}
+
+.bottomsheet.half {
+  max-height: 50vh;
+}
+
+.bottomsheet.full {
+  max-height: 90vh;
+}
+
+/* Drag handle */
+.bottomsheet-handle {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 8px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.bottomsheet-handle:active {
+  cursor: grabbing;
+}
+
+.bottomsheet-handle-bar {
+  width: 40px;
+  height: 4px;
+  background: var(--vibee-border-light);
+  border-radius: 2px;
+  transition: background 0.2s;
+}
+
+.bottomsheet-handle:hover .bottomsheet-handle-bar {
+  background: var(--vibee-amber);
+}
+
+/* Header */
+.bottomsheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 12px;
+  border-bottom: 1px solid var(--vibee-border);
+}
+
+.bottomsheet-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bottomsheet-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.bottomsheet-close:hover {
+  background: var(--vibee-border);
+  color: #fff;
+}
+
+/* Content */
+.bottomsheet-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  overscroll-behavior: contain;
+}
+
+/* Scrollbar styling */
+.bottomsheet-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.bottomsheet-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.bottomsheet-content::-webkit-scrollbar-thumb {
+  background: var(--vibee-border-light);
+  border-radius: 3px;
+}
+
+/* Safe area for devices with home indicator */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .bottomsheet {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Desktop: hide bottom sheet, show as sidebar */
+@media (min-width: 1024px) {
+  .bottomsheet-overlay,
+  .bottomsheet {
+    display: none;
+  }
+}

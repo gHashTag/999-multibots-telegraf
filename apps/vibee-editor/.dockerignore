@@ -1,0 +1,23 @@
+# Build context is apps/vibee-editor. This file, NOT the repo-root
+# .dockerignore, is what Docker uses once Railway's Root Directory points here.
+#
+# public/ is deliberately NOT excluded: the app loads /lipsync/lipsync.mp4,
+# /audio/music/bgmusic.mp3 and /backgrounds/business/bg*.{mp4,av1.mp4,webm}
+# from it at runtime, and index.html prefetches two of them.
+
+**/node_modules
+**/dist
+**/.vite
+**/.tamagui
+**/.zig-cache
+**/zig-out
+**/playwright-report
+**/test-results
+
+# Secrets never belong in a build layer.
+**/.env
+**/.env.*
+!**/.env.example
+
+**/.DS_Store
+**/*.log

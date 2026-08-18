@@ -1,0 +1,447 @@
+/* ===============================
+   Micro-interactions & Animations
+   Button effects, icon animations, etc.
+   =============================== */
+
+/* ===============================
+   Button Press Effects
+   =============================== */
+
+.btn-press {
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  will-change: transform;
+}
+
+.btn-press:active {
+  transform: scale(0.95);
+}
+
+.btn-press-subtle:active {
+  transform: scale(0.98);
+}
+
+.btn-press-strong:active {
+  transform: scale(0.9);
+}
+
+/* Bounce effect */
+.btn-bounce {
+  transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.btn-bounce:active {
+  transform: scale(0.9);
+}
+
+/* ===============================
+   Icon Animations
+   =============================== */
+
+.icon-spin {
+  animation: icon-spin 1s linear infinite;
+}
+
+@keyframes icon-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.icon-pulse {
+  animation: icon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes icon-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+.icon-bounce {
+  animation: icon-bounce 1s ease infinite;
+}
+
+@keyframes icon-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.icon-shake {
+  animation: icon-shake 0.5s ease-in-out;
+}
+
+@keyframes icon-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.icon-wiggle {
+  animation: icon-wiggle 0.5s ease-in-out;
+}
+
+@keyframes icon-wiggle {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-5deg); }
+  75% { transform: rotate(5deg); }
+}
+
+/* ===============================
+   Like Heart Animation
+   =============================== */
+
+.like-heart {
+  position: relative;
+}
+
+.like-heart--active {
+  animation: like-heart-pop 0.4s cubic-bezier(0.17, 0.89, 0.32, 1.49);
+}
+
+@keyframes like-heart-pop {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.3); }
+  50% { transform: scale(0.95); }
+  75% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* Heart burst particles */
+.like-heart--active::before,
+.like-heart--active::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  background: var(--color-status-error);
+  border-radius: 50%;
+  animation: like-heart-burst 0.6s ease-out forwards;
+}
+
+.like-heart--active::before {
+  animation-delay: 0s;
+}
+
+.like-heart--active::after {
+  animation-delay: 0.1s;
+}
+
+@keyframes like-heart-burst {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--burst-x, 20px)), calc(-50% + var(--burst-y, -20px))) scale(1);
+    opacity: 0;
+  }
+}
+
+/* ===============================
+   Bookmark Animation
+   =============================== */
+
+.bookmark-anim {
+  transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.bookmark-anim--active {
+  animation: bookmark-pop 0.4s ease;
+}
+
+@keyframes bookmark-pop {
+  0% { transform: scale(1); }
+  30% { transform: scale(0.8); }
+  60% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* ===============================
+   Follow Button Animation
+   =============================== */
+
+.follow-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.follow-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transform: translateX(-100%);
+}
+
+.follow-btn--following::after {
+  animation: follow-shine 0.6s ease;
+}
+
+@keyframes follow-shine {
+  to { transform: translateX(100%); }
+}
+
+/* ===============================
+   Ripple Effect
+   =============================== */
+
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple::after {
+  content: '';
+  position: absolute;
+  top: var(--ripple-y, 50%);
+  left: var(--ripple-x, 50%);
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.4s ease, height 0.4s ease, opacity 0.4s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ripple:active::after {
+  width: 200%;
+  height: 200%;
+  opacity: 1;
+  transition: none;
+}
+
+/* ===============================
+   Skeleton Shimmer
+   =============================== */
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  animation: skeleton-shimmer 1.5s infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ===============================
+   Fade Animations
+   =============================== */
+
+.fade-in {
+  animation: fade-in 0.3s ease;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-out {
+  animation: fade-out 0.3s ease forwards;
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.fade-in-up {
+  animation: fade-in-up 0.3s ease;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-down {
+  animation: fade-in-down 0.3s ease;
+}
+
+@keyframes fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===============================
+   Scale Animations
+   =============================== */
+
+.scale-in {
+  animation: scale-in 0.2s ease;
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.scale-out {
+  animation: scale-out 0.2s ease forwards;
+}
+
+@keyframes scale-out {
+  from { transform: scale(1); opacity: 1; }
+  to { transform: scale(0.9); opacity: 0; }
+}
+
+/* ===============================
+   Slide Animations
+   =============================== */
+
+.slide-in-left {
+  animation: slide-in-left 0.3s ease;
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.slide-in-right {
+  animation: slide-in-right 0.3s ease;
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.slide-in-up {
+  animation: slide-in-up 0.3s ease;
+}
+
+@keyframes slide-in-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.slide-in-down {
+  animation: slide-in-down 0.3s ease;
+}
+
+@keyframes slide-in-down {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+
+/* ===============================
+   Hover Effects
+   =============================== */
+
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.hover-glow {
+  transition: box-shadow 0.2s ease;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+}
+
+.hover-scale {
+  transition: transform 0.2s ease;
+}
+
+.hover-scale:hover {
+  transform: scale(1.05);
+}
+
+/* ===============================
+   Loading Dots
+   =============================== */
+
+.loading-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.loading-dots span {
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 50%;
+  animation: loading-dots 1.4s infinite ease-in-out both;
+}
+
+.loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+.loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+.loading-dots span:nth-child(3) { animation-delay: 0s; }
+
+@keyframes loading-dots {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* ===============================
+   Respect Reduced Motion
+   =============================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-press,
+  .btn-press-subtle,
+  .btn-press-strong,
+  .btn-bounce,
+  .icon-spin,
+  .icon-pulse,
+  .icon-bounce,
+  .icon-shake,
+  .icon-wiggle,
+  .like-heart--active,
+  .bookmark-anim--active,
+  .follow-btn::after,
+  .ripple::after,
+  .skeleton-shimmer::after,
+  .fade-in,
+  .fade-out,
+  .fade-in-up,
+  .fade-in-down,
+  .scale-in,
+  .scale-out,
+  .slide-in-left,
+  .slide-in-right,
+  .slide-in-up,
+  .slide-in-down,
+  .hover-lift,
+  .hover-scale,
+  .loading-dots span {
+    animation: none !important;
+    transition: none !important;
+  }
+}

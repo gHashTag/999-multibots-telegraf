@@ -1,0 +1,177 @@
+/* Unified Asset Card - Design Tokens */
+:root {
+  --asset-card-radius: 4px;
+  --asset-card-height-compact: 50px;
+  --asset-card-width-compact: 80px;
+  --asset-card-height-normal: 120px;
+  --asset-card-width-normal: 140px;
+
+  /* Type colors */
+  --asset-type-video: var(--vibee-amber);
+  --asset-type-audio: #10b981;
+  --asset-type-image: #ec4899;
+  --asset-type-avatar: var(--vibee-amber);
+  --asset-type-text: #8b5cf6;
+  --asset-type-fx: #f97316;
+}
+
+/* Base Card */
+.asset-card-unified {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border-radius: var(--asset-card-radius);
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  flex-shrink: 0;
+}
+
+/* Sizes */
+.asset-card-unified.compact {
+  width: var(--asset-card-width-compact);
+  height: var(--asset-card-height-compact);
+}
+
+.asset-card-unified.normal {
+  width: var(--asset-card-width-normal);
+  height: var(--asset-card-height-normal);
+}
+
+/* Hover */
+.asset-card-unified:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  background: var(--bg-card);
+}
+
+/* Dragging */
+.asset-card-unified.dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+/* Blob URL warning */
+.asset-card-unified.blob-warning {
+  border: 1px solid rgba(234, 179, 8, 0.3);
+}
+
+/* Type Badge */
+.asset-card-badge {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  z-index: calc(var(--z-base) + 1);
+  font-size: 7px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Preview Area */
+.asset-card-preview {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--bg-darkest);
+}
+
+.asset-card-video,
+.asset-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.asset-card-audio-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.asset-card-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #555;
+  background: var(--bg-elevated);
+}
+
+/* Duration Badge */
+.asset-card-duration {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+/* Info Section */
+.asset-card-info {
+  padding: 2px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--bg-card);
+}
+
+.asset-card-name {
+  font-size: 8px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+/* Hide type label in compact mode */
+.compact .asset-card-type {
+  display: none;
+}
+
+.asset-card-type {
+  font-size: 7px;
+  color: var(--asset-color, var(--text-muted));
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Touch optimization */
+@media (pointer: coarse) {
+  .asset-card-unified.compact {
+    width: 85px;
+    height: 55px;
+  }
+
+  .asset-card-badge {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* Hover ring on selection (for timeline consistency) */
+.asset-card-unified:focus-visible {
+  outline: 2px solid var(--vibee-amber, var(--vibee-amber));
+  outline-offset: 2px;
+}

@@ -1,0 +1,15 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# Served by nginx directly (see nginx/default.conf.template). NOT "/" — the SPA
+# fallback returns 200 for every path, so "/" would pass even with an empty
+# document root.
+healthcheckPath = "/healthz"
+healthcheckTimeout = 120
+restartPolicyType = "ALWAYS"
+numReplicas = 1
+
+[service]
+name = "vibee-editor"

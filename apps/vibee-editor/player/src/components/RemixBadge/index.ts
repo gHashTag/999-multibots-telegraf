@@ -1,0 +1,1 @@
+export { RemixBadge } from './RemixBadge';

@@ -1,0 +1,358 @@
+.vibee-ml-section {
+  padding: 4rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.vibee-ml-intro {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.vibee-ml-tagline {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  color: #2563eb;
+}
+
+.vibee-ml-subtitle {
+  font-size: 1.25rem;
+  color: #64748b;
+}
+
+/* Stats Grid */
+.vibee-ml-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  margin-bottom: 4rem;
+}
+
+.vibee-ml-stat-card {
+  padding: 2rem;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.vibee-ml-stat-card.success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.vibee-ml-stat-card.info {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+}
+
+.vibee-ml-stat-card.warning {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+.vibee-ml-stat-value {
+  display: block;
+  font-size: 3rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.vibee-ml-stat-label {
+  display: block;
+  font-size: 1rem;
+  opacity: 0.9;
+}
+
+/* Advantages */
+.vibee-ml-advantages {
+  margin-bottom: 4rem;
+}
+
+.vibee-ml-advantages h3 {
+  text-align: center;
+  font-size: 2rem;
+  margin-bottom: 2rem;
+}
+
+.advantages-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.advantage-card {
+  padding: 1.5rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.advantage-card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 8px 16px rgba(59, 130, 246, 0.2);
+  transform: translateY(-4px);
+}
+
+.advantage-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.advantage-card h4 {
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: #1e293b;
+}
+
+.advantage-card p {
+  color: #64748b;
+  line-height: 1.6;
+}
+
+/* Performance Table */
+.vibee-ml-performance {
+  margin-bottom: 4rem;
+}
+
+.vibee-ml-performance h3 {
+  text-align: center;
+  font-size: 2rem;
+  margin-bottom: 2rem;
+}
+
+.performance-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.performance-table th {
+  background: #1e293b;
+  color: white;
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+}
+
+.performance-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.performance-table tr:last-child td {
+  border-bottom: none;
+}
+
+.performance-table .highlight {
+  background: #dbeafe;
+  font-weight: bold;
+  color: #1e40af;
+}
+
+.performance-table .success {
+  color: #059669;
+  font-weight: bold;
+}
+
+/* Code Example */
+.vibee-ml-code-example {
+  margin-bottom: 4rem;
+}
+
+.vibee-ml-code-example h3 {
+  text-align: center;
+  font-size: 2rem;
+  margin-bottom: 2rem;
+}
+
+.code-block {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 2rem;
+  border-radius: 12px;
+  overflow-x: auto;
+  font-family: 'Fira Code', 'Courier New', monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/* Use Cases */
+.vibee-ml-use-cases {
+  margin-bottom: 4rem;
+}
+
+.vibee-ml-use-cases h3 {
+  text-align: center;
+  font-size: 2rem;
+  margin-bottom: 2rem;
+}
+
+.use-cases-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.use-case-card {
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border-radius: 12px;
+  border-left: 4px solid #3b82f6;
+}
+
+.use-case-card h4 {
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: #1e293b;
+}
+
+.use-case-card p {
+  color: #64748b;
+  line-height: 1.6;
+}
+
+/* Trade-off */
+.vibee-ml-tradeoff {
+  margin-bottom: 4rem;
+  text-align: center;
+}
+
+.vibee-ml-tradeoff h3 {
+  font-size: 2rem;
+  margin-bottom: 2rem;
+}
+
+.tradeoff-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.tradeoff-item {
+  padding: 1.5rem;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tradeoff-item.speed {
+  background: #fef3c7;
+  border-left: 4px solid #f59e0b;
+}
+
+.tradeoff-item.reliability {
+  background: #d1fae5;
+  border-left: 4px solid #10b981;
+}
+
+.tradeoff-label {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.tradeoff-value {
+  font-size: 1.1rem;
+}
+
+/* CTA */
+.vibee-ml-cta {
+  text-align: center;
+  padding: 3rem;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border-radius: 12px;
+  color: white;
+}
+
+.vibee-ml-cta h3 {
+  font-size: 2rem;
+  margin-bottom: 2rem;
+}
+
+.cta-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.cta-button {
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1.1rem;
+  transition: all 0.3s ease;
+  display: inline-block;
+}
+
+.cta-button.primary {
+  background: #3b82f6;
+  color: white;
+}
+
+.cta-button.primary:hover {
+  background: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3);
+}
+
+.cta-button.secondary {
+  background: #10b981;
+  color: white;
+}
+
+.cta-button.secondary:hover {
+  background: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(16, 185, 129, 0.3);
+}
+
+.cta-note {
+  font-size: 1.1rem;
+  opacity: 0.9;
+  margin-top: 1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .vibee-ml-section {
+    padding: 2rem 1rem;
+  }
+
+  .vibee-ml-tagline {
+    font-size: 1.5rem;
+  }
+
+  .vibee-ml-stat-value {
+    font-size: 2rem;
+  }
+
+  .advantages-grid,
+  .use-cases-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .performance-table {
+    font-size: 0.85rem;
+  }
+
+  .performance-table th,
+  .performance-table td {
+    padding: 0.75rem 0.5rem;
+  }
+
+  .cta-buttons {
+    flex-direction: column;
+  }
+
+  .cta-button {
+    width: 100%;
+  }
+}

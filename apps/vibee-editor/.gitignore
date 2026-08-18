@@ -1,0 +1,20 @@
+# Editor-local ignores. The repo-root .gitignore covers node_modules, dist,
+# .env* and .DS_Store at any depth; these are the ones it does NOT cover.
+
+# Zig build outputs (root .gitignore has a bare `out`, which does not match)
+zig-out/
+.zig-cache/
+ai-server
+ai-server-linux
+
+# Tool caches
+.vite/
+.tamagui/
+
+# Test artifacts (root pattern is `html-report/`, a different name)
+playwright-report/
+test-results/
+
+# .env.example is documentation, not a secret — the repo-root `.env.*`
+# pattern would otherwise swallow it.
+!player/.env.example

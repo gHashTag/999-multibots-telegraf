@@ -1,0 +1,7 @@
+name = "script-worker"
+main = "cloudflare-script-worker.js"
+compatibility_date = "2024-01-01"
+account_id = "432d9909496831ab6e6c9e3254176cc3"
+
+[vars]
+ENVIRONMENT = "production"

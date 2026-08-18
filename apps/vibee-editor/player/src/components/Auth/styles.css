@@ -1,0 +1,509 @@
+/* Auth Components Styles */
+
+/* Telegram Login Button Container */
+.telegram-login-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.telegram-login-container {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Custom Telegram Login Button (fallback) - VIBEE style */
+.telegram-login-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 32px;
+  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  border: none;
+  border-radius: 12px;
+  color: #000;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 260px;
+}
+
+.telegram-login-btn:hover {
+  background: linear-gradient(135deg, var(--vibee-amber-light), #fcd34d);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4);
+}
+
+.telegram-login-btn:active {
+  transform: translateY(0);
+}
+
+.telegram-login-btn svg {
+  flex-shrink: 0;
+  color: #000;
+}
+
+/* Small variant for header */
+.telegram-login-btn.small {
+  padding: 8px 16px;
+  font-size: 13px;
+  min-width: auto;
+  gap: 8px;
+  border-radius: 8px;
+}
+
+.telegram-login-btn.small svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* User Avatar styles are now in Header/styles.css to avoid duplication */
+
+/* Paywall Modal */
+.paywall-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  padding: 20px;
+}
+
+.paywall-modal {
+  background: #1f2937;
+  border-radius: 16px;
+  max-width: 900px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.paywall-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.paywall-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.paywall-header {
+  text-align: center;
+  padding: 40px 40px 20px;
+}
+
+.paywall-icon {
+  color: var(--vibee-amber);
+  margin-bottom: 16px;
+}
+
+.paywall-header h2 {
+  color: #fff;
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+.paywall-subtitle {
+  color: #9ca3af;
+  font-size: 16px;
+  margin: 0;
+}
+
+/* Plans Grid */
+.paywall-plans {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  padding: 20px 40px;
+}
+
+@media (max-width: 768px) {
+  .paywall-plans {
+    grid-template-columns: 1fr;
+  }
+}
+
+.paywall-plan {
+  background: #111827;
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid #374151;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.paywall-plan.popular {
+  border-color: var(--vibee-amber);
+  box-shadow: 0 0 30px rgba(245, 158, 11, 0.2);
+}
+
+.plan-badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--vibee-amber);
+  color: #000;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.plan-header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.plan-name {
+  color: var(--vibee-amber);
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  letter-spacing: 1px;
+}
+
+.plan-price {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+}
+
+.price-amount {
+  color: #fff;
+  font-size: 36px;
+  font-weight: 700;
+}
+
+.price-period {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.plan-generations {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  color: var(--vibee-amber);
+  font-weight: 600;
+}
+
+.plan-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+  flex: 1;
+}
+
+.plan-features li {
+  color: #d1d5db;
+  font-size: 14px;
+  padding: 6px 0;
+  padding-left: 20px;
+  position: relative;
+}
+
+.plan-features li::before {
+  content: '\2713';
+  position: absolute;
+  left: 0;
+  color: #10b981;
+}
+
+/* Payment Methods */
+.plan-payment-methods {
+  display: flex;
+  gap: 8px;
+}
+
+.payment-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 8px;
+  background: #374151;
+  border: 1px solid #4b5563;
+  border-radius: 8px;
+  color: #e5e7eb;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.payment-btn:hover {
+  background: var(--vibee-amber);
+  border-color: var(--vibee-amber);
+  color: #000;
+}
+
+.paywall-footer {
+  text-align: center;
+  padding: 20px 40px 30px;
+  border-top: 1px solid #374151;
+}
+
+.paywall-footer p {
+  color: #6b7280;
+  font-size: 13px;
+  margin: 0;
+}
+
+/* Login Modal (simple wrapper) */
+.login-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+}
+
+.login-modal {
+  background: var(--bg-darkest);
+  border-radius: 16px;
+  padding: 40px;
+  text-align: center;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  max-width: 400px;
+}
+
+.login-modal h2 {
+  color: #fff;
+  font-size: 24px;
+  margin: 0 0 12px;
+}
+
+.login-modal p {
+  color: #9ca3af;
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+
+.login-modal-widget {
+  min-height: 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.login-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+/* Quota Display */
+.quota-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 16px;
+  font-size: 12px;
+  color: #10b981;
+}
+
+.quota-display.warning {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: var(--vibee-amber);
+}
+
+.quota-display.exhausted {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--status-error);
+}
+
+/* ========================================
+   RESPONSIVE STYLES
+   ======================================== */
+
+/* Large phones */
+@media (max-width: 640px) {
+  .paywall-header {
+    padding: 32px 24px 16px;
+  }
+
+  .paywall-header h2 {
+    font-size: 24px;
+  }
+
+  .paywall-plans {
+    padding: 16px 20px;
+    gap: 16px;
+  }
+
+  .paywall-plan {
+    padding: 20px;
+  }
+
+  .price-amount {
+    font-size: 32px;
+  }
+
+  .plan-payment-methods {
+    flex-direction: column;
+  }
+
+  .payment-btn {
+    padding: 12px 10px;
+    font-size: 13px;
+  }
+
+  .paywall-footer {
+    padding: 16px 20px 24px;
+  }
+
+  .telegram-login-btn {
+    min-width: 220px;
+    padding: 12px 24px;
+    font-size: 15px;
+  }
+
+  .login-modal {
+    padding: 32px 24px;
+    margin: 16px;
+    max-width: calc(100% - 32px);
+  }
+
+  .login-modal h2 {
+    font-size: 20px;
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+  .paywall-overlay {
+    padding: 12px;
+  }
+
+  .paywall-modal {
+    border-radius: 12px;
+  }
+
+  .paywall-header {
+    padding: 24px 16px 12px;
+  }
+
+  .paywall-header h2 {
+    font-size: 20px;
+  }
+
+  .paywall-subtitle {
+    font-size: 14px;
+  }
+
+  .paywall-plans {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+
+  .paywall-plan {
+    padding: 16px;
+  }
+
+  .plan-name {
+    font-size: 16px;
+  }
+
+  .price-amount {
+    font-size: 28px;
+  }
+
+  .plan-generations {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .plan-features li {
+    font-size: 13px;
+  }
+
+  .paywall-close {
+    top: 12px;
+    right: 12px;
+    padding: 8px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .telegram-login-btn {
+    min-width: 100%;
+    padding: 14px 20px;
+    font-size: 15px;
+    border-radius: 10px;
+  }
+}
+
+/* Extra small phones */
+@media (max-width: 380px) {
+  .paywall-header {
+    padding: 20px 12px 10px;
+  }
+
+  .paywall-header h2 {
+    font-size: 18px;
+  }
+
+  .paywall-plans {
+    padding: 10px 12px;
+  }
+
+  .paywall-plan {
+    padding: 14px;
+  }
+
+  .price-amount {
+    font-size: 24px;
+  }
+
+  .plan-features li {
+    font-size: 12px;
+    padding: 5px 0;
+  }
+
+  .paywall-footer {
+    padding: 12px 16px 20px;
+  }
+
+  .paywall-footer p {
+    font-size: 12px;
+  }
+}

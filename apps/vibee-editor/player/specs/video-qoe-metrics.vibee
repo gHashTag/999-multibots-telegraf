@@ -1,0 +1,171 @@
+# Video QoE Metrics Specification
+# Based on ITU-T P.1203 Quality of Experience model
+# Scientific source: Pensieve (MIT SIGCOMM 2017)
+
+name: video-qoe-metrics
+version: "1.0.0"
+language: typescript
+module: video/qoe
+description: Quality of Experience metrics tracking for video playback
+
+behaviors:
+  - name: track_startup_time
+    given: Video element begins loading
+    when: First frame is rendered (canplay event)
+    then: Startup time is recorded in milliseconds
+    test_cases:
+      - name: fast_startup_4g
+        input: {videoUrl: "test.mp4", networkSpeed: "4g"}
+        expected: {startupTime: "<2000ms", success: true}
+      - name: slow_startup_3g
+        input: {videoUrl: "test.mp4", networkSpeed: "3g"}
+        expected: {startupTime: "<5000ms", success: true}
+      - name: timeout_startup
+        input: {videoUrl: "test.mp4", networkSpeed: "offline"}
+        expected: {startupTime: null, success: false, error: "timeout"}
+
+  - name: track_buffering_events
+    given: Video is playing
+    when: Buffer underrun occurs (waiting event)
+    then:
+      - Buffering event is recorded with duration
+      - Cumulative buffer time is updated
+      - Rebuffer ratio is calculated
+    test_cases:
+      - name: single_buffer_event
+        input: {bufferDuration: 500, playbackDuration: 10000}
+        expected: {totalBufferTime: 500, rebufferRatio: 0.05}
+      - name: multiple_buffer_events
+        input: {bufferEvents: [500, 300, 200], playbackDuration: 20000}
+        expected: {totalBufferTime: 1000, rebufferRatio: 0.05}
+      - name: no_buffering
+        input: {bufferEvents: [], playbackDuration: 30000}
+        expected: {totalBufferTime: 0, rebufferRatio: 0}
+
+  - name: track_bitrate_changes
+    given: HLS/DASH stream is playing
+    when: Quality level changes
+    then:
+      - Bitrate switch is recorded
+      - Average bitrate is updated
+      - Bitrate variance is calculated
+    test_cases:
+      - name: stable_bitrate
+        input: {bitrateHistory: [5000, 5000, 5000]}
+        expected: {avgBitrate: 5000, variance: 0, switches: 0}
+      - name: fluctuating_bitrate
+        input: {bitrateHistory: [2000, 5000, 3000, 5000]}
+        expected: {avgBitrate: 3750, switches: 3}
+
+  - name: calculate_qoe_score
+    given: Playback session has collected metrics
+    when: QoE score is requested
+    then: Score is calculated using ITU-T P.1203 model (1-5 scale)
+    test_cases:
+      - name: excellent_qoe
+        input: {startupTime: 500, rebufferRatio: 0, avgBitrate: 5000, switches: 0}
+        expected: {qoeScore: ">4.5"}
+      - name: good_qoe
+        input: {startupTime: 1500, rebufferRatio: 0.02, avgBitrate: 3000, switches: 2}
+        expected: {qoeScore: ">3.5"}
+      - name: poor_qoe
+        input: {startupTime: 5000, rebufferRatio: 0.15, avgBitrate: 1000, switches: 10}
+        expected: {qoeScore: "<2.5"}
+
+  - name: export_metrics_to_monitoring
+    given: Session ends or checkpoint reached
+    when: Metrics export is triggered
+    then: Metrics are sent to monitoring service
+    test_cases:
+      - name: successful_export
+        input: {sessionId: "test-123", metrics: {qoeScore: 4.2}}
+        expected: {exported: true, sentryEventId: "not_null"}
+
+types:
+  QoESession:
+    id: string
+    videoId: string
+    videoUrl: string
+    startTime: number
+    endTime: number | null
+    state: "active" | "paused" | "ended"
+
+  QoEMetrics:
+    sessionId: string
+    videoId: string
+    startupTime: number
+    totalBufferingTime: number
+    bufferingEvents: number
+    rebufferRatio: number
+    avgBitrate: number
+    bitrateVariance: number
+    qualitySwitches: number
+    droppedFrames: number
+    playbackDuration: number
+    qoeScore: number
+    timestamp: number
+
+  BufferingEvent:
+    startTime: number
+    endTime: number
+    duration: number
+    bufferLevel: number
+    networkType: string
+
+  BitrateSwitch:
+    timestamp: number
+    fromBitrate: number
+    toBitrate: number
+    reason: "buffer_low" | "buffer_high" | "user_request" | "network_change"
+
+  QoEConfig:
+    trackStartup: boolean
+    trackBuffering: boolean
+    trackBitrate: boolean
+    exportInterval: number
+    minSessionDuration: number
+
+functions:
+  - name: startSession
+    params: {videoId: string, videoUrl: string, config?: QoEConfig}
+    returns: QoESession
+    description: Initialize a new QoE tracking session
+
+  - name: recordBuffering
+    params: {sessionId: string, event: BufferingEvent}
+    returns: void
+    description: Record a buffering event
+
+  - name: recordBitrateSwitch
+    params: {sessionId: string, switch: BitrateSwitch}
+    returns: void
+    description: Record a bitrate switch event
+
+  - name: endSession
+    params: {sessionId: string}
+    returns: QoEMetrics
+    description: End session and calculate final metrics
+
+  - name: calculateQoEScore
+    params: {metrics: Partial<QoEMetrics>}
+    returns: number
+    description: Calculate ITU-T P.1203 QoE score (1-5)
+
+  - name: getActiveSession
+    params: {videoId: string}
+    returns: QoESession | null
+    description: Get active session for a video
+
+  - name: exportToMonitoring
+    params: {metrics: QoEMetrics}
+    returns: Promise<void>
+    description: Export metrics to Sentry/monitoring
+
+imports:
+  - monitoring
+  - sentry
+
+completeness:
+  test_coverage: 95%
+  e2e_tests: 5
+  unit_tests: 15

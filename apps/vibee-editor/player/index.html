@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- Telegram Mini Apps runtime. Must be a classic (non-async, non-defer)
+         script in <head>: `<script type="module">` is deferred by spec, so a
+         classic head script is guaranteed to have parsed the #tgWebApp* launch
+         fragment into window.Telegram.WebApp before React boots. Must be loaded
+         from telegram.org — Telegram version-gates behaviour on this origin. -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <!-- Primary Meta Tags -->
+    <title>VIBEE - AI Video Editor | Powered by V5 Ultra-Minimal Language</title>
+    <meta name="title" content="VIBEE - AI Video Editor | Powered by V5 Ultra-Minimal Language" />
+    <meta name="description" content="Create stunning videos with AI-powered editing. Built on VIBEE V5 - 75% less boilerplate, 100x faster compilation, ML/RL integration. Generate avatars, add captions, and produce professional content in minutes." />
+    <meta name="keywords" content="AI video editor, video creation, talking avatar, AI captions, video generator, content creation, VIBEE V5, parallel computing, ML/RL, Gleam, BEAM, functional programming" />
+    <meta name="author" content="VIBEE" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://vibee-player.fly.dev/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://vibee-player.fly.dev/" />
+    <meta property="og:title" content="VIBEE - AI Video Editor | Powered by V5 Ultra-Minimal Language" />
+    <meta property="og:description" content="Create stunning videos with AI-powered editing. Built on VIBEE V5 with 75% less boilerplate, 100x faster compilation, and ML/RL integration." />
+    <meta property="og:image" content="https://vibee-player.fly.dev/og-image.png" />
+    <meta property="og:site_name" content="VIBEE" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="ru_RU" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://vibee-player.fly.dev/" />
+    <meta name="twitter:title" content="VIBEE - AI Video Editor" />
+    <meta name="twitter:description" content="Create stunning videos with AI-powered editing. Generate avatars, add captions, and produce professional content in minutes." />
+    <meta name="twitter:image" content="https://vibee-player.fly.dev/og-image.png" />
+
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#f59e0b" />
+    <meta name="msapplication-TileColor" content="#f59e0b" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VIBEE" />
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+
+    <!-- Preconnect to external resources -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://vibee-mcp.fly.dev" />
+    <link rel="dns-prefetch" href="https://vibee-render-server.fly.dev" />
+
+    <!-- Prefetch default video and audio for faster editor startup -->
+    <link rel="prefetch" href="/lipsync/lipsync.mp4" />
+    <link rel="prefetch" href="/audio/music/bgmusic.mp3" />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "VIBEE",
+      "description": "AI-powered video editor for creating professional videos with talking avatars and automatic captions",
+      "url": "https://vibee-player.fly.dev/",
+      "applicationCategory": "MultimediaApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "creator": {
+        "@type": "Organization",
+        "name": "VIBEE",
+        "url": "https://vibee-player.fly.dev/"
+      },
+      "featureList": [
+        "AI Avatar Generation",
+        "Automatic Captions",
+        "Video Templates",
+        "B-Roll Integration",
+        "Multi-language Support"
+      ]
+    }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

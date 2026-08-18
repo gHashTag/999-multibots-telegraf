@@ -1,0 +1,242 @@
+.buy-vibee {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 32px;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.05) 0%, rgba(245, 158, 11, 0.05) 100%);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(251, 191, 36, 0.1);
+}
+
+.buy-vibee-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.buy-vibee-header h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #fbbf24;
+  margin: 0 0 8px 0;
+}
+
+.buy-vibee-subtitle {
+  font-size: 1rem;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.buy-vibee-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  border-radius: 8px;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fbbf24;
+}
+
+.buy-vibee-calculator {
+  margin-bottom: 32px;
+}
+
+.input-group,
+.output-group {
+  margin-bottom: 16px;
+}
+
+.input-group label,
+.output-group label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #d1d5db;
+  margin-bottom: 8px;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #fbbf24;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid rgba(251, 191, 36, 0.3);
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.input-group input:focus {
+  border-color: #fbbf24;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.1);
+}
+
+.input-group input::-webkit-inner-spin-button,
+.input-group input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.input-error {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: #ef4444;
+}
+
+.conversion-arrow {
+  text-align: center;
+  font-size: 1.5rem;
+  color: #fbbf24;
+  margin: 8px 0;
+}
+
+.output-value {
+  padding: 12px 16px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  border: 2px solid rgba(251, 191, 36, 0.3);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.buy-vibee-actions {
+  margin-bottom: 32px;
+}
+
+.btn-buy-primary {
+  width: 100%;
+  padding: 16px 32px;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #000;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(251, 191, 36, 0.3);
+}
+
+.btn-buy-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(251, 191, 36, 0.4);
+}
+
+.btn-buy-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-buy-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.buy-vibee-note {
+  margin-top: 16px;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  text-align: center;
+}
+
+.buy-vibee-info {
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.buy-vibee-info h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #fbbf24;
+  margin: 0 0 16px 0;
+}
+
+.buy-vibee-info ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.buy-vibee-info li {
+  padding: 8px 0;
+  font-size: 0.875rem;
+  color: #d1d5db;
+  border-bottom: 1px solid rgba(251, 191, 36, 0.1);
+}
+
+.buy-vibee-info li:last-child {
+  border-bottom: none;
+}
+
+.buy-vibee-info strong {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.buy-vibee-links {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.link-secondary {
+  font-size: 0.875rem;
+  color: #fbbf24;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.link-secondary:hover {
+  color: #f59e0b;
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .buy-vibee {
+    padding: 24px 16px;
+  }
+
+  .buy-vibee-header h2 {
+    font-size: 1.5rem;
+  }
+
+  .buy-vibee-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .output-value {
+    font-size: 1.25rem;
+  }
+
+  .btn-buy-primary {
+    font-size: 1rem;
+    padding: 14px 24px;
+  }
+}

@@ -1,0 +1,13 @@
+name = "script-worker"
+main = "cloudflare-script-worker.js"
+compatibility_date = "2024-01-01"
+
+# Environment variables (set in Cloudflare dashboard or via secrets)
+# XAI_API_KEY = "your-key-here"
+
+[vars]
+ENVIRONMENT = "production"
+
+[[routes]]
+pattern = "https://script-worker.vibee-vibee.workers.dev/*"
+zone_name = "vibee-vibee.workers.dev"

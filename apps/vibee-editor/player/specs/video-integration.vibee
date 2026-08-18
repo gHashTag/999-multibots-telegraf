@@ -1,0 +1,137 @@
+# specs/video-integration.vibee
+# Single source of truth for video component integration
+# Generated code: src/components/Video/LazyVideo.tsx integration
+
+name: video-integration
+version: "1.0.0"
+language: typescript
+module: video/integration
+description: Integration of BBA algorithm and QoE metrics into LazyVideo component
+
+behaviors:
+  - name: integrate_bba_with_hls
+    given: HLS.js instance created and manifest parsed
+    when: Video starts loading
+    then: BBA controller attached and manages bitrate selection
+    test_cases:
+      - name: bba_attached_on_init
+        input: {hlsInstance: "valid", config: {reservoir: 10, cushion: 30}}
+        expected: {bbaController: "attached", abrEnabled: true}
+      - name: bba_selects_low_on_empty_buffer
+        input: {bufferLevel: 5, reservoir: 10}
+        expected: {selectedLevel: "minimum"}
+
+  - name: integrate_qoe_metrics
+    given: Video element exists
+    when: Playback events occur
+    then: QoE metrics tracked and exposed to window
+    test_cases:
+      - name: startup_time_tracked
+        input: {loadStart: 0, canPlay: 1500}
+        expected: {startupTime: 1500}
+      - name: buffering_events_counted
+        input: {waitingEvents: 3, totalBufferTime: 2000}
+        expected: {bufferingEvents: 3, rebufferRatio: "<0.1"}
+
+  - name: expose_stats_for_e2e
+    given: Video optimization hooks active
+    when: Stats requested
+    then: Stats exposed on window object for E2E tests
+    test_cases:
+      - name: qoe_metrics_exposed
+        input: {}
+        expected: {windowProperty: "__QOE_METRICS__", value: "QoEMetrics"}
+      - name: codec_info_exposed
+        input: {}
+        expected: {windowProperty: "__CODEC_INFO__", value: "CodecInfo"}
+      - name: prefetch_stats_exposed
+        input: {}
+        expected: {windowProperty: "__VIDEO_PREFETCH_STATS__", value: "PrefetchStats"}
+
+  - name: track_quality_switches
+    given: HLS.js level switch event fired
+    when: Quality changes
+    then: Switch recorded in QoE metrics
+    test_cases:
+      - name: quality_switch_recorded
+        input: {fromLevel: 720, toLevel: 1080}
+        expected: {qualitySwitches: 1, avgBitrate: "updated"}
+
+types:
+  IntegrationConfig:
+    enableBBA: boolean         # Enable BBA algorithm (default: true)
+    enableQoE: boolean         # Enable QoE tracking (default: true)
+    exposeStats: boolean       # Expose stats for E2E (default: true)
+    bbaConfig:
+      reservoir: number        # Min buffer threshold (seconds)
+      cushion: number          # Max buffer threshold (seconds)
+      maxBuffer: number        # Maximum buffer (seconds)
+      enableOscillationGuard: boolean
+
+  IntegrationState:
+    bbaController: BBAController | null
+    qoeSession: QoESession | null
+    statsExposed: boolean
+
+functions:
+  - name: setupVideoIntegration
+    description: Initialize BBA and QoE integration for HLS.js
+    params:
+      hls: Hls
+      video: HTMLVideoElement
+      config: IntegrationConfig
+    returns: IntegrationState
+
+  - name: exposeStatsToWindow
+    description: Expose metrics to window for E2E testing
+    params:
+      qoeMetrics: QoEMetrics
+      codecInfo: CodecInfo
+      prefetchStats: PrefetchStats
+    returns: void
+
+  - name: cleanupIntegration
+    description: Cleanup on unmount
+    params:
+      state: IntegrationState
+    returns: void
+
+integration_points:
+  - file: src/components/Video/LazyVideo.tsx
+    function: initHls
+    action: Call integrateWithHLS after hls.attachMedia()
+    code_hint: |
+      // After hls.attachMedia(video):
+      const bbaController = integrateWithHLS(hls, {
+        reservoir: 10,
+        cushion: 30,
+        maxBuffer: 60,
+        enableOscillationGuard: true,
+      });
+
+  - file: src/components/Video/LazyVideo.tsx
+    function: LazyVideo component
+    action: Add useQoEMetrics hook and expose to window
+    code_hint: |
+      const qoeSession = useQoEMetrics(videoRef, hlsRef);
+
+      useEffect(() => {
+        if (qoeSession) {
+          (window as any).__QOE_METRICS__ = qoeSession.getMetrics();
+        }
+      }, [qoeSession]);
+
+  - file: src/hooks/useVideoPrefetch.ts
+    action: Expose prefetch stats to window
+    code_hint: |
+      (window as any).__VIDEO_PREFETCH_STATS__ = {
+        prefetchedCount: prefetchedUrls.size,
+        cacheHitRate: cacheHits / totalRequests,
+      };
+
+imports:
+  - hls.js
+  - react
+  - ./bufferBasedABR
+  - ./useQoEMetrics
+  - ./useCodecDetection

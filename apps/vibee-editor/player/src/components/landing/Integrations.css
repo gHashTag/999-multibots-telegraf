@@ -1,0 +1,137 @@
+.integrations {
+  padding: 80px 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, transparent 0%, rgba(245, 158, 11, 0.05) 50%, transparent 100%);
+}
+
+.integrations-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.integrations-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.integrations-title {
+  font-size: clamp(24px, 3.5vw, 36px);
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 12px;
+}
+
+.integrations-subtitle {
+  font-size: 16px;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.integrations-track {
+  width: 100%;
+  overflow: hidden;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 10%,
+    black 90%,
+    transparent 100%
+  );
+}
+
+.integrations-slider {
+  display: flex;
+  gap: 24px;
+  animation: scroll 30s linear infinite;
+  width: max-content;
+}
+
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.integration-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 32px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+
+.integration-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.integration-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.integration-category {
+  font-size: 12px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Tablets */
+@media (max-width: 768px) {
+  .integrations {
+    padding: 60px 0;
+  }
+
+  .integrations-header {
+    margin-bottom: 32px;
+  }
+
+  .integrations-slider {
+    animation-duration: 40s; /* slower for readability on mobile */
+    gap: 16px;
+  }
+
+  .integration-card {
+    padding: 16px 24px;
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+  .integrations {
+    padding: 48px 0;
+  }
+
+  .integrations-container {
+    padding: 0 16px;
+  }
+
+  .integrations-slider {
+    animation-duration: 50s; /* even slower */
+    gap: 12px;
+  }
+
+  .integration-card {
+    padding: 14px 20px;
+  }
+
+  .integration-name {
+    font-size: 14px;
+  }
+
+  .integration-category {
+    font-size: 11px;
+  }
+}

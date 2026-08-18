@@ -1,0 +1,8 @@
+# Simple Alpine image with pre-built Zig binary
+FROM alpine:latest
+RUN apk add --no-cache ca-certificates curl
+COPY ai-server-linux /ai-server
+EXPOSE 3333
+ENV XAI_API_KEY=""
+ENV CARTESIA_API_KEY=""
+CMD ["/ai-server"]

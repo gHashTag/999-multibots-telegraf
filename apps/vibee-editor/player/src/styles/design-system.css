@@ -1,0 +1,440 @@
+/**
+ * VIBEE Design System
+ * Unified design tokens for consistent UI across all components
+ */
+
+/* ===============================
+   GLOBAL INTERACTIVE ELEMENTS
+   Ensure all buttons/inputs have hover effects
+   =============================== */
+
+/* All buttons get transition by default */
+button,
+[role="button"],
+.clickable {
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled),
+[role="button"]:hover:not(:disabled),
+.clickable:hover {
+  filter: brightness(1.1);
+}
+
+button:active:not(:disabled),
+[role="button"]:active:not(:disabled),
+.clickable:active {
+  filter: brightness(0.9);
+}
+
+/* All inputs get transition */
+input,
+textarea,
+select {
+  transition: all 0.15s ease;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--vibee-amber);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.1);
+}
+
+:root {
+  /* ===============================
+     SPACING SYSTEM
+     =============================== */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+
+  /* ===============================
+     BORDER RADIUS
+     =============================== */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* ===============================
+     TYPOGRAPHY
+     =============================== */
+  --font-size-xs: 10px;
+  --font-size-sm: 11px;
+  --font-size-base: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 14px;
+  --font-size-xl: 16px;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* ===============================
+     BUTTONS
+     =============================== */
+  --button-height-sm: 24px;
+  --button-height-md: 28px;
+  --button-height-lg: 32px;
+  --button-height-xl: 36px;
+
+  --button-padding-sm: 0 8px;
+  --button-padding-md: 0 12px;
+  --button-padding-lg: 0 16px;
+
+  /* ===============================
+     INPUTS
+     =============================== */
+  --input-height-sm: 24px;
+  --input-height-md: 28px;
+  --input-height-lg: 32px;
+
+  --input-padding-sm: 4px 8px;
+  --input-padding-md: 6px 10px;
+  --input-padding-lg: 8px 12px;
+
+  /* ===============================
+     SHADOWS
+     =============================== */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 8px 16px rgba(0, 0, 0, 0.6);
+
+  /* ===============================
+     TRANSITIONS
+     =============================== */
+  --transition-fast: 0.1s ease;
+  --transition-base: 0.15s ease;
+  --transition-slow: 0.3s ease;
+
+  /* ===============================
+     COMPONENT-SPECIFIC
+     =============================== */
+  
+  /* Panels */
+  --panel-padding: var(--spacing-4);
+  --panel-gap: var(--spacing-3);
+  --panel-bg: var(--bg-elevated);
+  --panel-border: var(--bg-secondary);
+
+  /* Cards */
+  --card-padding: var(--spacing-3);
+  --card-gap: var(--spacing-2);
+  --card-bg: var(--bg-elevated);
+  --card-border: var(--bg-secondary);
+  --card-radius: var(--radius-lg);
+
+  /* Sections */
+  --section-padding: var(--spacing-3);
+  --section-gap: var(--spacing-3);
+  --section-bg: var(--bg-elevated);
+  --section-border: var(--bg-secondary);
+  --section-radius: var(--radius-lg);
+
+  /* Headers */
+  --header-height: 32px;
+  --header-padding: var(--spacing-2) var(--spacing-3);
+  --header-bg: var(--bg-darker);
+  --header-border: var(--bg-elevated);
+
+  /* Items (Timeline, Assets) */
+  --item-height: 32px;
+  --item-padding: var(--spacing-2);
+  --item-gap: var(--spacing-2);
+  --item-bg: var(--bg-elevated);
+  --item-bg-hover: var(--bg-secondary);
+  --item-border: var(--bg-secondary);
+  --item-radius: var(--radius-md);
+
+  /* Buttons */
+  --btn-bg: var(--bg-elevated);
+  --btn-bg-hover: var(--bg-secondary);
+  --btn-bg-active: var(--bg-tertiary);
+  --btn-border: var(--bg-secondary);
+  --btn-text: var(--text-primary);
+  --btn-text-muted: var(--text-muted);
+
+  /* Primary Button (Amber) */
+  --btn-primary-bg: var(--vibee-amber);
+  --btn-primary-bg-hover: var(--vibee-amber-light);
+  --btn-primary-bg-active: var(--vibee-amber-dark);
+  --btn-primary-text: #000;
+
+  /* Inputs */
+  --input-bg: var(--bg-elevated);
+  --input-bg-focus: var(--bg-secondary);
+  --input-border: var(--bg-secondary);
+  --input-border-focus: var(--vibee-amber);
+  --input-text: var(--text-primary);
+  --input-placeholder: var(--text-muted);
+
+  /* Sliders */
+  --slider-track-bg: var(--bg-secondary);
+  --slider-track-fill: var(--vibee-amber);
+  --slider-thumb-bg: var(--vibee-amber);
+  --slider-thumb-border: var(--vibee-amber-light);
+
+  /* Tabs */
+  --tab-bg: transparent;
+  --tab-bg-hover: var(--bg-elevated);
+  --tab-bg-active: var(--bg-elevated);
+  --tab-text: var(--text-muted);
+  --tab-text-active: var(--vibee-amber);
+  --tab-border-active: var(--vibee-amber);
+
+  /* Badges */
+  --badge-bg: var(--bg-secondary);
+  --badge-text: var(--text-muted-light);
+  --badge-padding: 2px 6px;
+  --badge-radius: var(--radius-sm);
+
+  /* Tooltips */
+  --tooltip-bg: var(--bg-darkest);
+  --tooltip-text: var(--text-primary);
+  --tooltip-padding: 4px 8px;
+  --tooltip-radius: var(--radius-sm);
+}
+
+/* ===============================
+   UTILITY CLASSES
+   =============================== */
+
+/* Flex utilities */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-row { flex-direction: row; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.items-end { align-items: flex-end; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.justify-start { justify-content: flex-start; }
+.justify-end { justify-content: flex-end; }
+.gap-1 { gap: var(--spacing-1); }
+.gap-2 { gap: var(--spacing-2); }
+.gap-3 { gap: var(--spacing-3); }
+.gap-4 { gap: var(--spacing-4); }
+
+/* Spacing utilities */
+.p-1 { padding: var(--spacing-1); }
+.p-2 { padding: var(--spacing-2); }
+.p-3 { padding: var(--spacing-3); }
+.p-4 { padding: var(--spacing-4); }
+.m-1 { margin: var(--spacing-1); }
+.m-2 { margin: var(--spacing-2); }
+.m-3 { margin: var(--spacing-3); }
+.m-4 { margin: var(--spacing-4); }
+
+/* Text utilities */
+.text-xs { font-size: var(--font-size-xs); }
+.text-sm { font-size: var(--font-size-sm); }
+.text-base { font-size: var(--font-size-base); }
+.text-md { font-size: var(--font-size-md); }
+.text-lg { font-size: var(--font-size-lg); }
+.text-primary { color: var(--text-primary); }
+.text-muted { color: var(--text-muted); }
+.text-amber { color: var(--vibee-amber); }
+.font-medium { font-weight: var(--font-weight-medium); }
+.font-semibold { font-weight: var(--font-weight-semibold); }
+.font-bold { font-weight: var(--font-weight-bold); }
+.uppercase { text-transform: uppercase; }
+
+/* Border utilities */
+.rounded-sm { border-radius: var(--radius-sm); }
+.rounded-md { border-radius: var(--radius-md); }
+.rounded-lg { border-radius: var(--radius-lg); }
+.rounded-xl { border-radius: var(--radius-xl); }
+
+/* Background utilities */
+.bg-elevated { background: var(--bg-elevated); }
+.bg-secondary { background: var(--bg-secondary); }
+.bg-darker { background: var(--bg-darker); }
+
+/* ===============================
+   COMPONENT BASE STYLES
+   =============================== */
+
+/* Button Base */
+.btn,
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  height: var(--button-height-md);
+  padding: var(--button-padding-md);
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius-md);
+  color: var(--btn-text);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled),
+button:hover:not(:disabled) {
+  background: var(--btn-bg-hover);
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled),
+button:active:not(:disabled) {
+  background: var(--btn-bg-active);
+  transform: translateY(0);
+}
+
+.btn:disabled,
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Button Variants */
+.btn-primary {
+  background: var(--btn-primary-bg);
+  border-color: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.2);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--btn-primary-bg-hover);
+  border-color: var(--btn-primary-bg-hover);
+  box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);
+  transform: translateY(-2px);
+}
+
+.btn-primary:active:not(:disabled) {
+  background: var(--btn-primary-bg-active);
+  border-color: var(--btn-primary-bg-active);
+  box-shadow: 0 1px 2px rgba(245, 158, 11, 0.2);
+  transform: translateY(0);
+}
+
+.btn-sm {
+  height: var(--button-height-sm);
+  padding: var(--button-padding-sm);
+  font-size: var(--font-size-sm);
+}
+
+.btn-lg {
+  height: var(--button-height-lg);
+  padding: var(--button-padding-lg);
+  font-size: var(--font-size-md);
+}
+
+.btn-icon {
+  width: var(--button-height-md);
+  padding: 0;
+}
+
+.btn-icon-sm {
+  width: var(--button-height-sm);
+  height: var(--button-height-sm);
+  padding: 0;
+}
+
+/* Input Base */
+.input {
+  width: 100%;
+  height: var(--input-height-md);
+  padding: var(--input-padding-md);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
+  color: var(--input-text);
+  font-size: var(--font-size-base);
+  transition: all var(--transition-base);
+}
+
+.input:focus {
+  outline: none;
+  background: var(--input-bg-focus);
+  border-color: var(--input-border-focus);
+}
+
+.input::placeholder {
+  color: var(--input-placeholder);
+}
+
+.input-sm {
+  height: var(--input-height-sm);
+  padding: var(--input-padding-sm);
+  font-size: var(--font-size-sm);
+}
+
+/* Card Base */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--card-radius);
+  padding: var(--card-padding);
+  transition: all var(--transition-base);
+}
+
+.card:hover {
+  border-color: var(--vibee-amber);
+}
+
+/* Section Base */
+.section {
+  background: var(--section-bg);
+  border-radius: var(--section-radius);
+  padding: var(--section-padding);
+}
+
+/* Badge Base */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--badge-padding);
+  background: var(--badge-bg);
+  border-radius: var(--badge-radius);
+  color: var(--badge-text);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Tab Base */
+.tab {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--tab-bg);
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--tab-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.tab:hover {
+  background: var(--tab-bg-hover);
+  color: var(--text-primary);
+}
+
+.tab.active {
+  background: var(--tab-bg-active);
+  border-bottom-color: var(--tab-border-active);
+  color: var(--tab-text-active);
+}

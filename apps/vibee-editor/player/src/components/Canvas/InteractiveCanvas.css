@@ -1,0 +1,305 @@
+.canvas-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+/* Player Wrapper */
+.canvas-player-wrapper {
+  position: relative;
+  transform-origin: center center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* Checkered background for transparency */
+.canvas-player-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(45deg, var(--bg-elevated) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--bg-elevated) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--bg-elevated) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--bg-elevated) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+  z-index: -1;
+}
+
+/* Fullscreen mode */
+.canvas-container:fullscreen {
+  background: #000;
+}
+
+.canvas-container:fullscreen .canvas-player-wrapper {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+}
+
+/* Transcribing Overlay */
+.canvas-transcribing-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: calc(var(--z-dropdown) + 100);
+  backdrop-filter: blur(4px);
+}
+
+.transcribing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 12px;
+  color: var(--vibee-amber);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.transcribing-icon {
+  color: var(--vibee-amber);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.transcribing-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.95); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Template/Reel Name Overlay */
+.canvas-template-info {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.75);
+  padding: 12px 16px;
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: var(--z-dropdown);
+  max-width: 280px;
+}
+
+.canvas-template-info .template-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.canvas-template-info .template-creator {
+  font-size: 12px;
+  color: var(--vibee-amber);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Tablets */
+@media (max-width: 768px) {
+  .canvas-template-info {
+    max-width: 200px;
+    padding: 8px 12px;
+    left: 8px;
+    bottom: 8px;
+  }
+
+  .canvas-template-info .template-name {
+    font-size: 12px;
+  }
+
+  .canvas-template-info .template-creator {
+    font-size: 11px;
+  }
+
+  .transcribing-indicator {
+    padding: 12px 16px;
+    font-size: 13px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .canvas-template-info {
+    max-width: 160px;
+    padding: 6px 10px;
+  }
+
+  .canvas-template-info .template-name {
+    font-size: 11px;
+  }
+
+  .canvas-template-info .template-creator {
+    font-size: 10px;
+  }
+
+  .transcribing-indicator {
+    padding: 10px 14px;
+    font-size: 12px;
+    gap: 8px;
+  }
+}
+
+/* ===============================
+   Tablet Split Layout (768-1023px)
+   - Canvas fills right column (60%)
+   - Reduced padding
+   - Compact playback controls
+   =============================== */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .canvas-container {
+    gap: 12px;
+    padding: 12px;
+    padding-bottom: 8px;
+    justify-content: flex-start;
+    padding-top: 20px;
+  }
+
+  /* Player wrapper - optimized for 60% width, leave room for controls */
+  .canvas-player-wrapper {
+    /* Player will auto-scale to fit, leave room for playback controls */
+    max-height: calc(100% - var(--timeline-height-tablet, 140px));
+  }
+
+  /* Template info - compact */
+  .canvas-template-info {
+    max-width: 220px;
+    padding: 10px 14px;
+    bottom: 12px;
+    left: 12px;
+  }
+
+  .canvas-template-info .template-name {
+    font-size: 13px;
+  }
+
+  .canvas-template-info .template-creator {
+    font-size: 11px;
+  }
+
+  /* Transcribing overlay */
+  .transcribing-indicator {
+    padding: 14px 20px;
+    font-size: 14px;
+  }
+}
+
+/* ===============================
+   Canvas Drop Zone (Drag & Drop)
+   =============================== */
+
+.canvas-container.drag-over {
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.canvas-drop-zone {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: calc(var(--z-dropdown) + 200);
+  border: 3px dashed var(--vibee-amber);
+  border-radius: 12px;
+  margin: 12px;
+  animation: dropzone-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes dropzone-pulse {
+  0%, 100% {
+    border-color: var(--vibee-amber);
+    background: rgba(0, 0, 0, 0.6);
+  }
+  50% {
+    border-color: var(--vibee-amber-light);
+    background: rgba(245, 158, 11, 0.15);
+  }
+}
+
+.canvas-drop-zone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: var(--vibee-amber);
+}
+
+.canvas-drop-zone-content svg {
+  animation: dropzone-bounce 1s ease-in-out infinite;
+}
+
+@keyframes dropzone-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.canvas-drop-zone-content span {
+  font-size: 18px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ===============================
+   Canvas Controls Wrapper
+   =============================== */
+
+.canvas-controls-wrapper {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: calc(var(--z-dropdown) + 50);
+}
+
+/* Tablet - smaller controls */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .canvas-controls-wrapper {
+    top: 8px;
+    right: 8px;
+  }
+}
+
+/* Mobile - bottom position for thumb reach */
+@media (max-width: 767px) {
+  .canvas-controls-wrapper {
+    top: auto;
+    bottom: 80px;
+    right: 8px;
+  }
+}

@@ -1,0 +1,94 @@
+/* ===============================
+   Layout Settings - Compact Style
+   =============================== */
+
+.layout-settings {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-bg-secondary);
+}
+
+.layout-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #888;
+  margin-bottom: 8px;
+}
+
+.layout-settings-header svg {
+  color: var(--vibee-amber);
+  width: 12px;
+  height: 12px;
+}
+
+/* Layout options - 4 in a row */
+.layout-options {
+  display: flex;
+  gap: 4px;
+}
+
+.layout-option {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 4px;
+  background: var(--color-bg-elevated);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.layout-option:hover {
+  background: #252525;
+  color: #999;
+  border-color: var(--bg-input);
+}
+
+.layout-option.active {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: var(--vibee-amber);
+  color: var(--vibee-amber);
+}
+
+.layout-option svg {
+  width: 14px;
+  height: 14px;
+}
+
+.layout-option-label {
+  font-size: 9px;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Info section - shows current sizes */
+.layout-info {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.layout-info-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+}
+
+.layout-info-label {
+  color: #666;
+}
+
+.layout-info-value {
+  color: #888;
+  font-weight: 500;
+}

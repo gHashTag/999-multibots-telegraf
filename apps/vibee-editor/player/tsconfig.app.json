@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "types": ["vite/client"],
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Path aliases */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@compositions/*": ["./src/compositions/*"],
+      // 74 files import '@vibee/atoms'; there was no path entry for it at all.
+      "@vibee/atoms": ["../packages/vibee-atoms/src"],
+      "@vibee/atoms/*": ["../packages/vibee-atoms/src/*"],
+      // '@vibee/ui' has exactly one importer (SyncDemo.tsx) and the package
+      // does not exist in this tree. Kept only so that file still resolves.
+      "@vibee/ui": ["../packages/ui/src"],
+      "@vibee/ui/*": ["../packages/ui/src/*"]
+    },
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"]
+}

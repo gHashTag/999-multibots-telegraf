@@ -1,0 +1,73 @@
+/* Pull to Refresh Component */
+
+.pull-to-refresh {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pull-to-refresh__indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: var(--z-elevated);
+}
+
+.pull-to-refresh__indicator.visible {
+  opacity: 1;
+}
+
+.pull-to-refresh__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(245, 158, 11, 0.15);
+  border-radius: 50%;
+  color: var(--vibee-amber);
+  transition: transform 0.1s linear;
+}
+
+.pull-to-refresh__icon.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg) scale(1);
+  }
+  to {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+.pull-to-refresh__text {
+  font-size: 12px;
+  font-weight: 500;
+  color: #888;
+}
+
+.pull-to-refresh__content {
+  min-height: 100%;
+  will-change: transform;
+}
+
+/* Prevent overscroll bounce on iOS */
+@supports (-webkit-touch-callout: none) {
+  .pull-to-refresh {
+    overscroll-behavior-y: contain;
+  }
+}

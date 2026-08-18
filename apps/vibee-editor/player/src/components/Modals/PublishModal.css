@@ -1,0 +1,572 @@
+/* PublishModal.css - Share to feed modal */
+
+.publish-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  backdrop-filter: blur(4px);
+}
+
+.publish-modal {
+  position: relative;
+  width: 90%;
+  max-width: 420px;
+  background: var(--bg-dark, #1a1a1a);
+  border: 1px solid var(--border-color, var(--bg-input));
+  border-radius: 16px;
+  padding: 24px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.publish-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.publish-modal-close:hover {
+  color: var(--text-primary, #fff);
+  background: var(--hover-bg, var(--bg-input));
+}
+
+.publish-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.publish-modal-header svg {
+  color: var(--primary-color, var(--vibee-amber));
+}
+
+.publish-modal-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  margin: 0;
+}
+
+.publish-modal-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary, #888);
+  margin: 0 0 16px;
+}
+
+.publish-remix-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 20px;
+  font-size: 12px;
+  color: var(--primary-color, var(--vibee-amber));
+  margin-bottom: 16px;
+}
+
+.publish-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9/16;
+  max-height: 280px;
+  background: var(--bg-darker, var(--bg-darkest));
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.publish-preview img,
+.publish-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.publish-preview-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted, #555);
+}
+
+.publish-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.publish-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.publish-field label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #888);
+}
+
+.publish-field input,
+.publish-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-darker, var(--bg-darkest));
+  border: 1px solid var(--border-color, var(--bg-input));
+  border-radius: 8px;
+  color: var(--text-primary, #fff);
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  transition: border-color 0.2s;
+}
+
+.publish-field input:focus,
+.publish-field textarea:focus {
+  outline: none;
+  border-color: var(--primary-color, var(--vibee-amber));
+}
+
+.publish-field input::placeholder,
+.publish-field textarea::placeholder {
+  color: var(--text-muted, #555);
+}
+
+/* Social section */
+.publish-social-section {
+  margin-top: 8px;
+  padding: 12px;
+  background: rgba(100, 100, 100, 0.08);
+  border: 1px solid rgba(100, 100, 100, 0.2);
+  border-radius: 10px;
+}
+
+.publish-social-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Telegram section (legacy - keep for compatibility) */
+.publish-telegram-section {
+  margin-top: 8px;
+  padding: 12px;
+  background: rgba(0, 136, 204, 0.08);
+  border: 1px solid rgba(0, 136, 204, 0.2);
+  border-radius: 10px;
+}
+
+.publish-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #fff);
+}
+
+.publish-checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--vibee-amber);
+  cursor: pointer;
+}
+
+.publish-checkbox-label svg {
+  color: var(--vibee-amber);
+}
+
+.publish-checkbox-label svg.instagram-icon,
+.publish-checkbox-label:has(input + svg:last-of-type) svg:last-of-type {
+  color: var(--vibee-amber);
+}
+
+/* Connect Instagram button */
+.publish-connect-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: transparent;
+  border: 1px dashed rgba(245, 158, 11, 0.4);
+  border-radius: 8px;
+  color: var(--vibee-amber);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.publish-connect-btn:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.1);
+  border-style: solid;
+}
+
+.publish-connect-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.publish-connect-btn svg {
+  flex-shrink: 0;
+}
+
+.publish-connect-btn.instagram svg:first-child {
+  color: inherit;
+}
+
+.publish-connect-btn.instagram svg:nth-child(2) {
+  color: var(--vibee-amber);
+}
+
+/* Caption preview section */
+.telegram-preview-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(245, 158, 11, 0.15);
+}
+
+.telegram-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.telegram-preview-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #888);
+}
+
+.telegram-preview-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.telegram-ai-btn,
+.telegram-edit-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 6px;
+  color: var(--vibee-amber);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.telegram-ai-btn:hover:not(:disabled),
+.telegram-edit-btn:hover {
+  background: rgba(245, 158, 11, 0.25);
+}
+
+.telegram-ai-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Telegram post preview card */
+.telegram-post-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.telegram-post-card {
+  background: var(--bg-darker);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.telegram-post-video {
+  aspect-ratio: 16/9;
+  background: var(--color-bg-primary);
+}
+
+.telegram-post-video img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.telegram-post-video-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--bg-elevated) 0%, var(--color-bg-primary) 100%);
+}
+
+.telegram-post-caption {
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #fff;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.telegram-channel-badge {
+  font-size: 11px;
+  color: var(--vibee-amber);
+  margin: 0;
+  text-align: right;
+}
+
+/* Caption editor */
+.telegram-caption-editor {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-darker);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.5;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 120px;
+}
+
+.telegram-caption-editor:focus {
+  outline: none;
+  border-color: var(--vibee-amber);
+}
+
+.telegram-caption-editor::placeholder {
+  color: var(--text-muted);
+}
+
+/* Reset button */
+.telegram-reset-btn {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: var(--text-secondary, #888);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.telegram-reset-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary, #fff);
+}
+
+.publish-error {
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: var(--status-error);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.publish-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.publish-cancel,
+.publish-submit {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.publish-cancel {
+  background: transparent;
+  border: 1px solid var(--border-color, var(--bg-hover));
+  color: var(--text-secondary, #888);
+}
+
+.publish-cancel:hover {
+  background: var(--hover-bg, var(--bg-card));
+  color: var(--text-primary, #fff);
+}
+
+.publish-submit {
+  background: var(--primary-color, var(--vibee-amber));
+  border: none;
+  color: #000;
+}
+
+.publish-submit:hover:not(:disabled) {
+  background: var(--primary-hover, var(--vibee-amber-light));
+}
+
+.publish-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Success state */
+.publish-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.publish-success-icon {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(34, 197, 94, 0.2);
+  border-radius: 50%;
+  color: var(--color-status-success);
+  margin-bottom: 16px;
+  animation: scaleIn 0.3s ease-out;
+}
+
+@keyframes scaleIn {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.publish-success h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  margin: 0 0 8px;
+}
+
+.publish-success p {
+  font-size: 14px;
+  color: var(--text-secondary, #888);
+  margin: 0;
+}
+
+/* Mobile: Fullscreen modal (matching ShortcutsModal pattern) */
+@media (max-width: 768px) {
+  .publish-modal {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    animation: slideUp 0.3s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .publish-modal-header {
+    position: sticky;
+    top: 0;
+    background: var(--bg-dark, #1a1a1a);
+    z-index: var(--z-base);
+    padding-top: 16px;
+  }
+
+  .publish-modal-close {
+    min-width: 44px;
+    min-height: 44px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .publish-preview {
+    max-height: 360px;
+  }
+
+  .publish-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-dark, #1a1a1a);
+    padding: 16px 0;
+    margin: 0 -24px -24px;
+    padding-left: 24px;
+    padding-right: 24px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--border-color, var(--bg-input));
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+  .publish-modal {
+    padding: 20px 16px;
+  }
+
+  .publish-modal-header h2 {
+    font-size: 18px;
+  }
+
+  .publish-preview {
+    max-height: 300px;
+  }
+
+  .publish-actions {
+    margin: 0 -16px -20px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* Caption counter */
+.caption-counter {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.caption-counter .warning {
+  color: var(--vibee-amber);
+  font-weight: 600;
+}

@@ -1,0 +1,185 @@
+# Video Codec Detection Specification
+# Detects browser codec capabilities for optimal streaming
+# Includes WebCodecs API support detection
+
+name: video-codec
+version: "1.0.0"
+language: typescript
+module: video/codec
+description: Detect browser codec capabilities for optimal video streaming
+
+behaviors:
+  - name: detect_codec_support
+    given: Browser environment is available
+    when: Codec detection runs
+    then: Support status for all major codecs is returned
+    test_cases:
+      - name: chrome_modern
+        input: {browser: "Chrome 100+"}
+        expected: {h264: true, vp9: true, av1: true, hevc: false}
+      - name: safari_modern
+        input: {browser: "Safari 17+"}
+        expected: {h264: true, vp9: false, av1: false, hevc: true}
+      - name: firefox_modern
+        input: {browser: "Firefox 100+"}
+        expected: {h264: true, vp9: true, av1: true, hevc: false}
+
+  - name: detect_hardware_acceleration
+    given: Codec is supported
+    when: Hardware acceleration check runs
+    then: Hardware decode capability is detected via MediaCapabilities API
+    test_cases:
+      - name: h264_hw_accelerated
+        input: {codec: "avc1.42E01E", width: 1920, height: 1080}
+        expected: {supported: true, smooth: true, powerEfficient: true}
+      - name: av1_software_only
+        input: {codec: "av01.0.08M.08", width: 3840, height: 2160}
+        expected: {supported: true, smooth: false, powerEfficient: false}
+
+  - name: detect_webcodecs_support
+    given: Modern browser environment
+    when: WebCodecs API check runs
+    then: WebCodecs availability and capabilities returned
+    test_cases:
+      - name: webcodecs_available
+        input: {browser: "Chrome 94+"}
+        expected: {supported: true, videoDecoder: true, videoEncoder: true}
+      - name: webcodecs_unavailable
+        input: {browser: "Safari 15"}
+        expected: {supported: false}
+
+  - name: recommend_optimal_codec
+    given: All codec capabilities detected
+    when: Optimal codec is requested for content type
+    then: Best codec is selected with fallback chain
+    test_cases:
+      - name: hdr_content
+        input: {contentType: "hdr", capabilities: {av1: true, hevc: true, vp9: true}}
+        expected: {recommended: "av1", fallback: ["hevc", "vp9"], reason: "best_hdr_support"}
+      - name: standard_content
+        input: {contentType: "standard", capabilities: {h264: true, vp9: true}}
+        expected: {recommended: "vp9", fallback: ["h264"], reason: "better_compression"}
+      - name: legacy_browser
+        input: {contentType: "standard", capabilities: {h264: true}}
+        expected: {recommended: "h264", fallback: [], reason: "only_supported"}
+
+  - name: check_container_support
+    given: Codec is supported
+    when: Container format check runs
+    then: Supported containers for codec are returned
+    test_cases:
+      - name: mp4_container
+        input: {codec: "h264"}
+        expected: {containers: ["mp4", "mov", "m4v"]}
+      - name: webm_container
+        input: {codec: "vp9"}
+        expected: {containers: ["webm", "mp4"]}
+
+types:
+  CodecCapabilities:
+    h264: boolean
+    h265: boolean  # HEVC
+    vp8: boolean
+    vp9: boolean
+    av1: boolean
+
+  HardwareAcceleration:
+    h264Hw: boolean
+    h265Hw: boolean
+    vp9Hw: boolean
+    av1Hw: boolean
+
+  WebCodecsSupport:
+    supported: boolean
+    videoDecoder: boolean
+    videoEncoder: boolean
+    audioDecoder: boolean
+    audioEncoder: boolean
+    imageDecoder: boolean
+
+  MediaCapabilitiesInfo:
+    supported: boolean
+    smooth: boolean         # Can play without dropped frames
+    powerEfficient: boolean # Uses hardware acceleration
+
+  CodecRecommendation:
+    primary: string
+    fallback: string[]
+    reason: string
+
+  CodecConfig:
+    codec: string
+    width: number
+    height: number
+    bitrate: number
+    framerate: number
+
+  ContainerSupport:
+    mp4: boolean
+    webm: boolean
+    mkv: boolean
+    hls: boolean
+    dash: boolean
+
+  BrowserInfo:
+    name: string
+    version: string
+    engine: string
+    platform: string
+
+  FullCodecInfo:
+    capabilities: CodecCapabilities
+    hardware: HardwareAcceleration
+    webcodecs: WebCodecsSupport
+    containers: ContainerSupport
+    browser: BrowserInfo
+    recommendation: CodecRecommendation
+
+functions:
+  - name: detectCapabilities
+    params: {}
+    returns: Promise<CodecCapabilities>
+    description: Detect all codec capabilities
+
+  - name: checkHardwareAcceleration
+    params: {codec: string, config: CodecConfig}
+    returns: Promise<MediaCapabilitiesInfo>
+    description: Check hardware acceleration for specific codec/resolution
+
+  - name: detectWebCodecs
+    params: {}
+    returns: WebCodecsSupport
+    description: Detect WebCodecs API availability
+
+  - name: getRecommendation
+    params: {capabilities: CodecCapabilities, contentType: "standard" | "hdr" | "4k"}
+    returns: CodecRecommendation
+    description: Get optimal codec recommendation
+
+  - name: getFullCodecInfo
+    params: {}
+    returns: Promise<FullCodecInfo>
+    description: Get complete codec information
+
+  - name: canPlayType
+    params: {mimeType: string}
+    returns: "probably" | "maybe" | ""
+    description: Check if browser can play specific MIME type
+
+  - name: getBrowserInfo
+    params: {}
+    returns: BrowserInfo
+    description: Get current browser information
+
+  - name: isCodecStringSupported
+    params: {codecString: string}
+    returns: Promise<boolean>
+    description: Check if specific codec string is supported (e.g., "avc1.42E01E")
+
+imports:
+  - std
+
+completeness:
+  test_coverage: 85%
+  e2e_tests: 3
+  unit_tests: 10

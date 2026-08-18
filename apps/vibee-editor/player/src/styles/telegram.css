@@ -1,0 +1,61 @@
+/* ===============================
+   Telegram Mini App — layout variables.
+
+   Every --app-* property gets an open-web default here, so the JS in
+   useTelegramWebApp only ever OVERRIDES and never has to initialise. That
+   keeps the same bundle correct in a plain browser, where window.Telegram
+   exists but initData is empty.
+   =============================== */
+
+:root {
+  /* 100dvh tracks the mobile URL bar; 100vh does not. Inside the Telegram iOS
+     WebView 100vh resolves to the full screen height including the strip the
+     client's own header occupies, which is why it is never used directly. */
+  --app-vh: 100dvh;
+  --app-vh-stable: 100dvh;
+
+  /* env() is 0 inside the Telegram WebView (the client has already inset the
+     view), and correct on the open web — so it is the right default in both. */
+  --app-safe-top: env(safe-area-inset-top, 0px);
+  --app-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --app-safe-left: env(safe-area-inset-left, 0px);
+  --app-safe-right: env(safe-area-inset-right, 0px);
+
+  --app-content-safe-top: 0px;
+  --app-content-safe-bottom: 0px;
+
+  /* Height reserved for the fixed bottom tab bar, so pages can pad themselves
+     out from under it. Overridden per-breakpoint in TelegramTabBar.css. */
+  --app-tabbar-height: 56px;
+  --app-tabbar-total: calc(var(--app-tabbar-height) + var(--app-safe-bottom));
+}
+
+/* Inside Telegram only. */
+html[data-tg='1'] {
+  /* Fix the document to the reported viewport and scroll #root instead.
+     NOTE: overflow:hidden must NOT go on <body> — /learn and /templates scroll
+     the document and have no inner scroll container, so they would become
+     unscrollable. Scrolling is moved to #root, which is a real box. */
+  height: var(--app-vh-stable);
+  overflow: hidden;
+}
+
+html[data-tg='1'] body {
+  height: var(--app-vh-stable);
+  /* deliberately NOT overflow:hidden — see above */
+}
+
+html[data-tg='1'] #root {
+  height: var(--app-vh-stable);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Stops a scroll at the top edge from turning into the "drag to dismiss"
+     gesture that closes the Mini App. */
+  overscroll-behavior-y: contain;
+}
+
+/* The Telegram client draws its own header; the app's own top padding has to
+   clear the content safe area on fullscreen-capable clients (Bot API 8.0+). */
+html[data-tg='1'] .app-content-top {
+  padding-top: var(--app-content-safe-top);
+}

@@ -1,0 +1,18 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY api-package.json ./package.json
+COPY api-server.js ./api-server.js
+
+# Install dependencies
+RUN npm install --production
+
+# Set environment variables
+ENV PORT=8080
+
+EXPOSE 8080
+
+# Start the server
+CMD ["node", "api-server.js"]

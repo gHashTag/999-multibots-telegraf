@@ -1,0 +1,198 @@
+/* Snap Indicators */
+
+.snap-indicators {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: var(--z-nav);
+}
+
+.snap-indicator {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  pointer-events: none;
+}
+
+/* Passive snap point styles */
+.snap-indicator--start,
+.snap-indicator--end {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.snap-indicator--playhead {
+  background: rgba(245, 158, 11, 0.3);
+}
+
+/* Active snap line (when snapping occurs) */
+.snap-indicator--active {
+  width: 2px;
+  background: var(--vibee-amber);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+  transform: translateX(-50%);
+}
+
+.snap-indicator__glow {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(245, 158, 11, 0.3),
+    transparent
+  );
+  width: 20px;
+  left: -9px;
+  animation: snapGlow 0.3s ease-out;
+}
+
+@keyframes snapGlow {
+  from {
+    opacity: 1;
+    width: 40px;
+    left: -19px;
+  }
+  to {
+    opacity: 0.5;
+    width: 20px;
+    left: -9px;
+  }
+}
+
+.snap-indicator__pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  background: var(--vibee-amber);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: snapPulse 0.5s ease-out;
+}
+
+@keyframes snapPulse {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(3);
+  }
+}
+
+.snap-indicator__label {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 4px;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 2px;
+  font-size: 9px;
+  color: #888;
+}
+
+/* Drag snap line */
+
+.drag-snap-line {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  background: var(--vibee-amber);
+  pointer-events: none;
+  z-index: var(--z-dropdown);
+  transform: translateX(-50%);
+}
+
+.drag-snap-line::before,
+.drag-snap-line::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  background: var(--vibee-amber);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.drag-snap-line::before {
+  top: -3px;
+}
+
+.drag-snap-line::after {
+  bottom: -3px;
+}
+
+.drag-snap-line__indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--vibee-amber);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  animation: dragSnapPulse 0.6s ease-out infinite;
+}
+
+@keyframes dragSnapPulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+/* Snap feedback toast */
+
+.snap-feedback {
+  position: fixed;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(245, 158, 11, 0.9);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #000;
+  animation: snapFeedbackIn 0.2s ease-out;
+  z-index: var(--z-modal);
+}
+
+@keyframes snapFeedbackIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.snap-feedback.hiding {
+  animation: snapFeedbackOut 0.2s ease-in forwards;
+}
+
+@keyframes snapFeedbackOut {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+}
