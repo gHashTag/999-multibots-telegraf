@@ -39,6 +39,9 @@ const PUBLIC_PREFIXES = ['/renders/', '/hls/', '/public/', '/s3/', '/proxy/image
  * Публичные на чтение: это лента сообщества, она и должна читаться без ключа.
  * Запись в неё (/api/feed/publish) — нет.
  */
+// /api/assets/:telegram_id намеренно НЕ здесь: это личная история генераций
+// конкретного пользователя, а не публичная лента. Открытый GET по ней отдавал
+// бы промпты и ссылки любого, кто знает telegram_id — а он в Telegram виден.
 const PUBLIC_GET_PREFIXES = ['/api/feed', '/api/users/', '/compositions', '/api/voices']
 
 export function isPublic(req: IncomingMessage): boolean {
