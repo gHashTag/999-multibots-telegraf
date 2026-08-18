@@ -52,7 +52,8 @@ const TABS: TabItem[] = [
 
 /** Pages that own the full screen and must not be overlapped. */
 const HIDDEN_EXACT = new Set([
-  '/', // marketing landing
+  '/', // transient — redirects to /feed
+  '/home', // marketing landing
   '/privacy-policy',
   '/terms-service',
   '/terms-of-service',

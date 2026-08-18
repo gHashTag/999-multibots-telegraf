@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useTelegramWebApp } from '@/hooks/useTelegramWebApp';
 import { getWebApp, isTelegram } from '@/lib/telegram';
 
@@ -33,28 +33,39 @@ const START_PARAM_ROUTES: Record<string, string> = {
 
 const TELEGRAM_HOME = '/feed';
 
+/**
+ * Путь, с которого приложение реально стартовало, снятый ДО монтирования React.
+ *
+ * Читать location.pathname внутри эффекта нельзя: маршрут "/" редиректит на
+ * /feed через <Navigate>, чей эффект успевает отработать раньше нашего. К
+ * моменту эффекта путь уже /feed, проверка "стартовали ли мы с /" даёт false,
+ * и диплинк по start_param молча теряется.
+ */
+const LAUNCH_PATH =
+  typeof window !== 'undefined' ? window.location.pathname : '/';
+
 export function TelegramProvider() {
   useTelegramWebApp();
 
   const navigate = useNavigate();
-  const location = useLocation();
   const redirected = useRef(false);
 
   useEffect(() => {
     if (redirected.current) return;
     if (!isTelegram()) return;
-    // Only rewrite the launch route. Once the user has navigated anywhere,
-    // "/" is a deliberate choice and must be left alone.
-    if (location.pathname !== '/') return;
+    // Переписываем только маршрут запуска.
+    if (LAUNCH_PATH !== '/') return;
+
+    const startParam = getWebApp()?.initDataUnsafe?.start_param;
+    const target = startParam && START_PARAM_ROUTES[startParam];
 
     redirected.current = true;
 
-    const startParam = getWebApp()?.initDataUnsafe?.start_param;
-    const target =
-      (startParam && START_PARAM_ROUTES[startParam]) || TELEGRAM_HOME;
+    // Без start_param делать нечего: роутер уже увёл "/" на /feed.
+    if (!target || target === TELEGRAM_HOME) return;
 
     navigate(target, { replace: true });
-  }, [navigate, location.pathname]);
+  }, [navigate]);
 
   return null;
 }
