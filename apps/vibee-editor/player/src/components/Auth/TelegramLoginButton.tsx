@@ -8,6 +8,7 @@ import { userAtom, fetchQuotaAtom, fetchMyProfileAtom } from '@/atoms';
 import { useLanguage } from '@/hooks/useLanguage';
 import type { TelegramUser } from '@/atoms';
 import { RENDER_SERVER_URL } from '@/lib/mediaUrl';
+import { isTelegram } from '@/lib/telegram';
 
 // Admin Telegram ID - owner has unlimited generations
 const TELEGRAM_OWNER_ID = 144022504;
@@ -148,6 +149,17 @@ export function TelegramLoginButton({
   const handleFallbackClick = () => {
     window.open(`https://telegram.me/${botUsername}?start=login`, '_blank');
   };
+
+  // Внутри Mini App этот виджет не нужен и вреден: пользователь уже
+  // авторизован Telegram, а сам iframe грузится с oauth.telegram.org и, если
+  // домен не прописан у бота через BotFather /setdomain, показывает белый
+  // блок «Bot domain invalid» прямо в шапке. Прочитать это состояние из кода
+  // нельзя — содержимое кросс-доменного iframe недоступно, поэтому проверка
+  // widgetFailed по высоте его не ловит: iframe отрисовывается (186x28),
+  // просто с текстом ошибки внутри.
+  if (isTelegram()) {
+    return null;
+  }
 
   const useFallback = showFallback || widgetFailed;
 
