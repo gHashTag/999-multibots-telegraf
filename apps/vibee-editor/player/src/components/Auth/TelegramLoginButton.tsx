@@ -47,7 +47,17 @@ export function TelegramLoginButton({
   botUsername = 'vibee_ai_bot',
   size = 'medium',
   onSuccess,
-  showFallback = false,
+  // ПО УМОЛЧАНИЮ true, а не false.
+  //
+  // Официальный виджет отдаёт для этого домена «Bot domain invalid» — белую
+  // плашку в шапке на каждой странице. Поймать это в коде нельзя: iframe
+  // отрисовывается (186x28), просто с текстом ошибки внутри, а его содержимое
+  // на чужом origin недоступно — поэтому widgetFailed никогда не срабатывал.
+  //
+  // Запасная кнопка открывает t.me/<bot>?start=login и работает всегда,
+  // независимо от того, прописан домен в BotFather или нет. Показывать
+  // заведомо сломанный виджет вместо рабочей кнопки нечем оправдать.
+  showFallback = true,
 }: TelegramLoginButtonProps) {
   const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
