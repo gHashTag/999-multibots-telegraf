@@ -51,12 +51,11 @@ export async function generateAiServerLipSync(
     const result = await generateLipSyncViaAiServer(request)
 
     // Сохраняем задачу в базу
-    await saveVideoUrlToSupabase(
+    await saveVideoUrlToSupabase({
       telegramId,
-      result.id,
-      result.result_url || '',
-      'ai_server_lipsync'
-    )
+      publicUrl: result.result_url || '',
+      type: 'ai_server_lipsync',
+    })
 
     logger.info('✅ AiServer LipSync задача создана', {
       taskId: result.id,

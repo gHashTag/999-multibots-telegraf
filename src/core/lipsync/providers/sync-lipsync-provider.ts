@@ -135,12 +135,12 @@ export class SyncLipSyncProvider implements ILipSyncProvider {
 
         // Сохраняем в Supabase
         const uniqueId = `sync_lipsync2_${Date.now()}_${syncInput.telegramId}`
-        await saveVideoUrlToSupabase(
-          syncInput.telegramId,
-          uniqueId,
-          resultUrl,
-          'sync_lipsync2'
-        )
+        await saveVideoUrlToSupabase({
+          telegramId: syncInput.telegramId,
+          publicUrl: resultUrl,
+          type: 'sync_lipsync2',
+          botName: syncInput.bot_name,
+        })
 
         return {
           id: uniqueId,

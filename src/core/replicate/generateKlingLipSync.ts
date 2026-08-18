@@ -81,13 +81,6 @@ export async function generateKlingLipSync(
     if ((prediction as any)?.id) {
       const predictionId = (prediction as any).id
 
-      await saveVideoUrlToSupabase(
-        telegramId,
-        predictionId,
-        '',
-        'kling_lipsync'
-      )
-
       logger.info('💾 Prediction ID сохранен в Supabase', {
         telegramId,
         predictionId,
@@ -113,12 +106,11 @@ export async function generateKlingLipSync(
       // Генерируем уникальный ID для сохранения
       const uniqueId = `kling_lipsync_${Date.now()}_${telegramId}`
 
-      await saveVideoUrlToSupabase(
+      await saveVideoUrlToSupabase({
         telegramId,
-        uniqueId,
-        resultUrl,
-        'kling_lipsync'
-      )
+        publicUrl: resultUrl,
+        type: 'kling_lipsync',
+      })
 
       return {
         id: uniqueId,
@@ -137,12 +129,11 @@ export async function generateKlingLipSync(
 
       const uniqueId = `kling_lipsync_${Date.now()}_${telegramId}`
 
-      await saveVideoUrlToSupabase(
+      await saveVideoUrlToSupabase({
         telegramId,
-        uniqueId,
-        resultUrl,
-        'kling_lipsync'
-      )
+        publicUrl: resultUrl,
+        type: 'kling_lipsync',
+      })
 
       return {
         id: uniqueId,
