@@ -1,0 +1,47 @@
+{
+  "name": "vibee-render",
+  "version": "1.0.0",
+  "description": "VIBEE Remotion Video Editor",
+  "scripts": {
+    "start": "tsx render-server.ts",
+    "build": "remotion bundle",
+    "render": "remotion render",
+    "captions": "tsx scripts/auto-captions.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.948.0",
+    "@aws-sdk/lib-storage": "^3.948.0",
+    "@aws-sdk/s3-request-presigner": "^3.958.0",
+    "@remotion/bundler": "4.0.388",
+    "@remotion/captions": "^4.0.391",
+    "@remotion/cli": "4.0.388",
+    "@remotion/google-fonts": "^4.0.394",
+    "@remotion/install-whisper-cpp": "^4.0.391",
+    "@remotion/lambda": "4.0.388",
+    "@remotion/renderer": "4.0.388",
+    "@tensorflow/tfjs-node": "^4.22.0",
+    "@types/pg": "^8.12.0",
+    "@types/ws": "^8.18.1",
+    "@vibee/atoms": "file:../packages/vibee-atoms",
+    "@vladmandic/face-api": "^1.7.15",
+    "canvas": "^3.2.0",
+    "jotai": "^2.6.0",
+    "pg": "^8.13.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "4.0.388",
+    "tsx": "^4.19.2",
+    "ws": "^8.18.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  },
+  "engines": {
+    "node": ">=20.0.0 <23.0.0"
+  }
+}
