@@ -208,3 +208,16 @@ a:hover {
     min-height: var(--touch-target, 44px);
   }
 }
+
+/* Тач-цели на табах генерации.
+   Замерено на живом деплое, 375px: .generate-btn — ГЛАВНАЯ кнопка действия —
+   28px, .form-chip 28px, .header-button 28px. Промах по кнопке генерации
+   особенно дорог: человек думает, что запустил, а не запустил.
+   Карточки моделей (.model-btn) там уже 61px — их правило добавлено раньше. */
+@media (max-width: 768px) {
+  .generate-btn,
+  .form-chip,
+  .header-button {
+    min-height: var(--touch-target, 44px);
+  }
+}
