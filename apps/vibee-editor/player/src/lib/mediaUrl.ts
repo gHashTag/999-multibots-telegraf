@@ -1,8 +1,13 @@
 import type { LipSyncMainProps } from '@vibee/atoms';
 import { RENDER_URL } from '../config';
 
-// Render server URL for media assets
+// Render server URL — where render jobs are submitted.
 export const RENDER_SERVER_URL = RENDER_URL;
+
+// Where the bundled media in public/ is actually served from: this app itself.
+// Absolute so the render server, which runs elsewhere, can fetch the same URL.
+const MEDIA_ORIGIN =
+  typeof window !== 'undefined' ? window.location.origin : RENDER_URL;
 
 /**
  * Convert relative paths to absolute URLs for render server
@@ -29,20 +34,27 @@ export function toAbsoluteUrl(path: string): string {
 
   // Already absolute URL
   if (path.startsWith('http://') || path.startsWith('https://')) {
-    // Replace localhost URLs with render server's public URL
+    // Replace localhost URLs with this app's public origin
     if (path.includes('localhost:3000') || path.includes('localhost:5174') || path.includes('localhost:3333')) {
       const relativePath = path.replace(/https?:\/\/localhost:\d+/, '');
-      return `${RENDER_SERVER_URL}${relativePath}`;
+      return `${MEDIA_ORIGIN}${relativePath}`;
     }
     return path;
   }
 
-  // Relative path - prepend render server URL
+  // Relative path — resolve against THIS app's origin, not the render server's.
+  //
+  // These paths (/lipsync/lipsync.mp4, /backgrounds/business/bg*.mp4,
+  // /audio/music/bgmusic.mp3) are served from this app's own public/ directory,
+  // which is already deployed. Pointing them at the render server would mean
+  // shipping a second ~500MB copy of the same media into that image just so it
+  // could serve them back. The render server fetches them over HTTPS like any
+  // other absolute URL.
   if (path.startsWith('/')) {
-    return `${RENDER_SERVER_URL}${path}`;
+    return `${MEDIA_ORIGIN}${path}`;
   }
 
-  return `${RENDER_SERVER_URL}/${path}`;
+  return `${MEDIA_ORIGIN}/${path}`;
 }
 
 /**

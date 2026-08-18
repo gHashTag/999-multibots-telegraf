@@ -1,0 +1,180 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "talking-head-base",
+  "name": "Talking Head Instagram Reel",
+  "description": "Professional talking head template with dynamic avatar morphing, B-roll segments, and animated captions for Instagram Reels",
+  "category": "talking-head",
+  "version": "1.0.0",
+
+  "dimensions": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+
+  "duration": {
+    "minSeconds": 15,
+    "maxSeconds": 60,
+    "recommendedSeconds": 30
+  },
+
+  "safeZones": {
+    "top": 250,
+    "bottom": 320,
+    "left": 40,
+    "right": 40
+  },
+
+  "axes": {
+    "avatarPosition": {
+      "name": "Avatar Position",
+      "description": "Where the speaking avatar appears on screen",
+      "values": [
+        "circle-bottom-left",
+        "circle-bottom-right",
+        "circle-top-left",
+        "circle-top-right",
+        "side-left",
+        "side-right",
+        "fullscreen",
+        "split-horizontal",
+        "floating-center"
+      ],
+      "default": "circle-bottom-left",
+      "weight": {
+        "circle-bottom-left": 30,
+        "circle-bottom-right": 25,
+        "fullscreen": 20,
+        "side-left": 10,
+        "side-right": 10,
+        "circle-top-left": 2,
+        "circle-top-right": 1,
+        "split-horizontal": 1,
+        "floating-center": 1
+      }
+    },
+
+    "hookStyle": {
+      "name": "Hook Style",
+      "description": "Opening animation style for first 3 seconds to capture attention",
+      "values": [
+        "zoom-impact",
+        "slide-reveal",
+        "typewriter",
+        "glitch",
+        "pulse",
+        "question",
+        "none"
+      ],
+      "default": "zoom-impact",
+      "weight": {
+        "zoom-impact": 35,
+        "slide-reveal": 25,
+        "typewriter": 15,
+        "pulse": 10,
+        "question": 8,
+        "glitch": 5,
+        "none": 2
+      }
+    },
+
+    "captionStyle": {
+      "name": "Caption Style",
+      "description": "How subtitles and captions are animated on screen",
+      "values": [
+        "karaoke",
+        "bounce",
+        "modern",
+        "typewriter",
+        "word-highlight",
+        "classic",
+        "none"
+      ],
+      "default": "karaoke",
+      "weight": {
+        "karaoke": 30,
+        "bounce": 25,
+        "modern": 20,
+        "typewriter": 10,
+        "word-highlight": 8,
+        "classic": 5,
+        "none": 2
+      }
+    },
+
+    "bRollPattern": {
+      "name": "B-Roll Pattern",
+      "description": "How B-roll video clips are distributed throughout the video",
+      "values": [
+        "hook-content-cta",
+        "even-distribution",
+        "progressive",
+        "random-weighted"
+      ],
+      "default": "hook-content-cta",
+      "weight": {
+        "hook-content-cta": 40,
+        "even-distribution": 30,
+        "progressive": 20,
+        "random-weighted": 10
+      }
+    }
+  },
+
+  "excludeCombinations": [
+    {
+      "avatarPosition": ["fullscreen"],
+      "captionStyle": ["karaoke", "bounce"],
+      "reason": "Fullscreen avatar obscures animated captions - use classic or none"
+    },
+    {
+      "avatarPosition": ["split-horizontal", "split-vertical"],
+      "hookStyle": ["zoom-impact", "glitch"],
+      "reason": "Split layouts conflict with dramatic full-screen hook animations"
+    },
+    {
+      "avatarPosition": ["circle-top-left", "circle-top-right"],
+      "reason": "Top positions conflict with Instagram safe zone (top 250px UI)"
+    },
+    {
+      "avatarPosition": ["fullscreen"],
+      "bRollPattern": ["progressive", "random-weighted"],
+      "reason": "Fullscreen avatar with complex B-roll timing creates visual confusion"
+    }
+  ],
+
+  "defaultProps": {
+    "lipSyncVideo": "{{assets.placeholders.lipsync}}",
+    "backgroundVideos": ["{{assets.placeholders.broll}}"],
+    "backgroundMusic": "{{assets.placeholders.music}}",
+    "coverImage": "{{assets.placeholders.cover}}",
+
+    "avatarPosition": "circle-bottom-left",
+    "circleSizePercent": 25.2,
+    "circleBottomPercent": 15,
+    "circleLeftPx": 40,
+
+    "hookStyle": "zoom-impact",
+    "hookText": "",
+    "hookDuration": 3,
+
+    "captionStyle": "karaoke",
+    "captions": [],
+    "captionPosition": "bottom",
+    "captionFontSize": 48,
+    "captionFontColor": "#ffffff",
+    "captionHighlightColor": "#FFD700",
+
+    "bRollPattern": "hook-content-cta",
+    "bRollDuration": 4,
+    "bRollGapDuration": 1.5,
+
+    "vignetteStrength": 0.7,
+    "colorCorrection": 1.2,
+    "musicVolume": 0.3,
+    "filmGrainOpacity": 0.3,
+    "glassMorphism": true,
+
+    "coverDuration": 0.5
+  }
+}
