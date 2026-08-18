@@ -13,16 +13,40 @@ export function getWebApp(): TelegramWebApp | null {
 }
 
 /**
- * True only inside a real Mini App launch.
+ * True inside a real Mini App launch, by ANY launch method.
  *
- * telegram-web-app.js defines window.Telegram.WebApp even in a plain browser,
- * so the object's presence proves nothing. initData is non-empty only when
- * Telegram actually launched the app, which is the honest signal.
+ * Deliberately NOT keyed on initData. Telegram's docs are explicit that
+ * initData "is empty if the Mini App was launched from a keyboard button or
+ * from inline mode" — and the bot currently launches it from a reply-keyboard
+ * button, so an initData check reports false inside Telegram and the whole
+ * runtime (viewport, safe area, BackButton, swipe lock) silently never engages.
+ *
+ * telegram-web-app.js defines window.Telegram.WebApp in a plain browser too,
+ * but leaves platform as 'unknown' there; Telegram sets a real platform and
+ * appends #tgWebApp* to the launch URL. Either is a sound signal.
  */
 export function isTelegram(): boolean {
   const wa = getWebApp();
   if (!wa) return false;
-  return typeof wa.initData === 'string' && wa.initData.length > 0;
+  if (wa.platform && wa.platform !== 'unknown') return true;
+  if (typeof wa.initData === 'string' && wa.initData.length > 0) return true;
+  return (
+    typeof window !== 'undefined' && window.location.hash.includes('tgWebApp')
+  );
+}
+
+/**
+ * True only when Telegram supplied SIGNED launch data.
+ *
+ * This is the gate for anything that needs a verified user server-side.
+ * A reply-keyboard launch is inside Telegram (isTelegram() === true) but
+ * carries no hash, so it cannot be verified and must not be treated as
+ * authenticated. Use an inline button, the chat menu button, or a
+ * t.me/<bot>/<app> link when signed data is required.
+ */
+export function hasVerifiableInitData(): boolean {
+  const wa = getWebApp();
+  return !!wa && typeof wa.initData === 'string' && wa.initData.length > 0;
 }
 
 /** Compare against WebApp.version — features are gated per Bot API version. */
