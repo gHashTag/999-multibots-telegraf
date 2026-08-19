@@ -75,42 +75,52 @@ export const renderRiddleFunction = inngest.createFunction(
     //
     // Тот же запрос, выполненный первым, стоит один SELECT.
     await step.run('preflight-render-capacity', async () => {
-      const { data: server, error } = await supabase
-        .from('render_servers')
-        .select('id')
-        .eq('status', 'active')
-        .is('current_job_id', null)
-        .limit(1)
-        .maybeSingle()
-
-      if (error) {
-        // 42P01 = таблицы не существует. Это НЕ временный сбой: ферма nexrender
-        // списана целиком — таблицы render_servers нет ни в Postgres-NFrq, ни в
-        // боевом Supabase, SSH_KEY_STRING не задан, а сервер 188.137.250.69
-        // отвечает HTTP 000. Ретраить нечего, и сообщать «нет свободных
-        // серверов» неправда: их не существует как класса.
-        if ((error as { code?: string }).code === '42P01') {
-          throw new NonRetriableError(
-            'Рендер-бэкенд недоступен: ферма nexrender выведена из эксплуатации, ' +
-              'а перевод на Remotion ещё не сделан. Работа остановлена ДО трат на ' +
-              'озвучку, аватар, транскрипцию и b-roll.'
-          )
+      // ПРОВЕРЯЕТСЯ REMOTION, а не таблица render_servers.
+      //
+      // Прежняя проверка спрашивала `render_servers` — таблицы не существует
+      // ни в Postgres-NFrq, ни в боевом Supabase (42P01). Живой прогон
+      // подтвердил: задача падала здесь с «Рендер-бэкенд недоступен», то есть
+      // до неё цепочка доходила целой, а дальше идти было некуда.
+      //
+      // Ферма nexrender списана: нет SSH_KEY_STRING, нет колонки
+      // templates.aep_object_key, сервер 188.137.250.69 отвечает HTTP 000.
+      // Единственный живой рендер — Remotion на vibee-render, он отвечает
+      // {"status":"ok","bundleReady":true}.
+      //
+      // Смысл шага прежний и он важен: узнать «есть ли куда рендерить» ДО трат
+      // на озвучку, аватар, транскрипцию и b-roll. Меняется только источник
+      // ответа.
+      const base =
+        process.env.VIBEE_RENDER_URL ||
+        'https://vibee-render-production.up.railway.app'
+      let ok = false
+      let detail = ''
+      try {
+        const res = await fetch(`${base}/health`, {
+          signal: AbortSignal.timeout(10_000),
+        })
+        const body = (await res.json().catch(() => ({}))) as {
+          status?: string
+          bundleReady?: boolean
         }
-        throw new Error(
-          `Не удалось проверить наличие рендер-серверов до начала работы: ${error.message}`
-        )
+        // bundleReady обязателен: сервер отвечает раньше, чем собран бандл
+        // Remotion, и рендер в этот момент упадёт «Could not find composition».
+        ok = res.ok && body.status === 'ok' && body.bundleReady === true
+        detail = `HTTP ${res.status}, status=${body.status}, bundleReady=${body.bundleReady}`
+      } catch (e) {
+        detail = e instanceof Error ? e.message : String(e)
       }
-      if (!server) {
-        // NonRetriableError, а не Error: свободный сервер не появится сам от
-        // повторной попытки через минуту, а каждый ретрай снова прошёл бы
-        // весь платный путь.
+
+      if (!ok) {
+        // NonRetriableError: сервер не поднимется оттого, что мы спросим ещё
+        // раз через минуту, а каждый ретрай заново прошёл бы платный путь.
         throw new NonRetriableError(
-          'Нет свободных рендер-серверов. Работа остановлена ДО трат на озвучку, ' +
-            'аватар, транскрипцию и b-roll — раньше эти деньги тратились впустую.'
+          `Рендер-сервер недоступен (${detail}). Работа остановлена ДО трат на ` +
+            'озвучку, аватар, транскрипцию и b-roll.'
         )
       }
-      logger.info('✅ [Preflight] Свободный рендер-сервер есть, можно тратить')
-      return { serverId: server.id }
+      logger.info('✅ [Preflight] Remotion доступен, бандл собран', { base })
+      return { renderBase: base }
     })
 
     // ============================================
