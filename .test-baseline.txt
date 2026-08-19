@@ -532,6 +532,9 @@ src/__tests__/inngest/slugify.test.ts :: slugify trimming should remove multiple
 src/__tests__/inngest/slugify.test.ts :: slugify trimming should remove trailing dashes
 src/__tests__/inngest/slugify.test.ts :: slugify trimming should trim leading spaces
 src/__tests__/inngest/slugify.test.ts :: slugify trimming should trim trailing spaces
+src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы в списке известных нет тех, где возврат уже появился
+src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы нет новых мест, где списание раньше работы и возврата нет
+src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы разбор вообще что-то находит — иначе тест пустой
 src/__tests__/navigation/access.config.test.ts :: access.config Edge cases getParsingAccess обрабатывает пустой токен
 src/__tests__/navigation/access.config.test.ts :: access.config Edge cases isAdmin обрабатывает числа с плавающей точкой
 src/__tests__/navigation/access.config.test.ts :: access.config Edge cases isSuperAdmin обрабатывает отрицательные числа
