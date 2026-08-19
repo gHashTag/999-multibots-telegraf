@@ -356,22 +356,14 @@ export const modelTrainingV2 = inngest.createFunction(
 
         const newBalance = currentBalance - paymentAmount
 
-        await updateUserBalance(
-          telegram_id,
-          paymentAmount, // ← ИСПРАВЛЕНО: передаем сумму операции, а не новый баланс
-          PaymentType.MONEY_OUTCOME,
-          `Оплата тренировки модели ${modelName} (шагов: ${steps})`,
-          {
-            stars: paymentAmount,
-            payment_method: 'Internal',
-            bot_name,
-            language: is_ru ? 'ru' : 'en',
-            service_type: ModeEnum.DigitalAvatarBodyV2, // ← ДОБАВЛЕНО: указываем тип сервиса
-            operation_id: training.id,
-            category: 'REAL',
-            cost: paymentAmount / 1.5, // ← ДОБАВЛЕНО: себестоимость (цена ÷ наценка 50%)
-          }
-        )
+        // ЗДЕСЬ НЕ СПИСЫВАЕТСЯ. Деньги уже списаны шагом 'check-balance':
+        // processBalanceOperation не проверяет баланс, а вставляет строку
+        // MONEY_OUTCOME (src/price/helpers/processBalanceOperation.ts:120).
+        // Раньше здесь стояло второе updateUserBalance на ту же сумму — то
+        // есть одна тренировка списывалась дважды, а сообщение ниже сообщало
+        // об одном списании и показывало баланс, завышенный ровно на одну
+        // цену. Остальные девять вызывающих processBalanceOperation второй раз
+        // не списывают; лишним был этот шаг, а не общий помощник.
 
         logger.info('✅ Balance updated successfully', {
           telegramId: telegram_id,
@@ -408,12 +400,18 @@ export const modelTrainingV2 = inngest.createFunction(
           amount: paymentAmount,
           currentBalance: currentBalance,
           newBalance: currentBalance + paymentAmount,
+          refundedAmount: paymentAmount,
           step: 'refund-balance',
         })
 
         await updateUserBalance(
+          // Сумма ОПЕРАЦИИ, а не новый баланс. Стояло
+          // `currentBalance + paymentAmount` — весь прежний баланс человека
+          // начислялся ему заново поверх возврата. Тот же комментарий про
+          // «сумму операции, а не новый баланс» уже стоял в этом файле на
+          // списании; до возврата он не дошёл.
           telegram_id,
-          currentBalance + paymentAmount,
+          paymentAmount,
           PaymentType.MONEY_INCOME,
           `Refund for model training ${modelName} (steps: ${steps})`,
           {
