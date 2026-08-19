@@ -180,6 +180,24 @@ DELETE обнулил бы баланс каждого клиента.
 вызывается ли вообще функция, прежде чем объяснять через неё поведение
 системы.
 
+## Self-hosted Inngest на Railway: три отдельные причины 502
+
+Сервис `inngest/inngest` крутился в петле перезапуска. Три разные ошибки
+подряд, каждая видна только после починки предыдущей:
+
+1. `signing-key must be valid hex string: invalid byte U+006D 'm'` —
+   `INNGEST_SIGNING_KEY` был 32-символьной случайной строкой. Inngest требует
+   именно hex. `openssl rand -hex 32`.
+2. `at least one event-key is required` — `INNGEST_EVENT_KEY` не задан вовсе.
+3. Деплой уже SUCCESS, но домен всё ещё 502: у домена `targetPort: null`, а
+   Inngest слушает `INNGEST_PORT=8288`, которого Railway не знает. Помогает
+   `PORT=8288` — прокси ищет именно его.
+
+Вывод шире Inngest: «упало» на Railway — это часто очередь из нескольких
+независимых причин. Смотри логи ПОСЛЕ каждой правки, а не после всех сразу, и
+не считай зелёный статус деплоя ответом сервиса — статус был SUCCESS, пока
+домен отдавал 502.
+
 ## Self-check before reporting done
 
 1. Does the changed component actually render? (live DOM, not build)
