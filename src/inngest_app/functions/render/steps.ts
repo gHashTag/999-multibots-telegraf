@@ -1459,9 +1459,27 @@ export async function triggerRender(
     // SplitTalkingHead и другой формат пропсов. Две половины никогда не
     // соединяли.
     //
-    // Чинится не правкой здесь, а решением: либо поднять обработчик
-    // render/execute под nexrender, либо переложить renderRiddle на Remotion.
-    // И то и другое меняет продакшн-путь целиком.
+    // ПОЧЕМУ НЕЛЬЗЯ ПРОСТО СОГЛАСОВАТЬ ИМЕНА СОБЫТИЙ.
+    //
+    // Соблазн очевидный: функция render (functions/render/render.ts:45)
+    // подписана на событие 'render', и её zod-схема ждёт РОВНО те девять полей,
+    // что отправляются здесь — job_id, template_url, job_json_url,
+    // composition_name, render_type, server_url, server_port, server_user,
+    // callback_url (schemas.ts:33-45). Выглядит как две половины одного
+    // соединения с разошедшимися именами, и 'render' в проде не шлёт никто —
+    // только три места в тестах.
+    //
+    // Но соединять их незачем: путь nexrender списан целиком. Проверено:
+    //   - таблицы render_servers в базе НЕТ (to_regclass вернул НЕТ);
+    //   - SSHService.fromEnv требует SSH_KEY_STRING (ssh.service.ts:326), а в
+    //     Railway не задана ни одна переменная SSH_*/RENDER_SERVER_*/NEXRENDER_*;
+    //   - сервер, куда шёл бы SSH, — это 188.137.250.69, списанный VPS,
+    //     отвечающий HTTP 000.
+    // То есть согласование имён лишь перенесло бы отказ на шаг дальше.
+    //
+    // Остаётся один жизнеспособный путь: переложить renderRiddle на Remotion
+    // (vibee-render-production, POST /render, композиция SplitTalkingHead).
+    // Это переписывание продакшн-пути, а не правка.
     const { inngest } = await import('../../client')
 
     await inngest.send({
