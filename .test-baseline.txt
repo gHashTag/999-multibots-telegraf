@@ -184,6 +184,9 @@ src/__tests__/core/supabase/updateUserBalance.test.ts :: updateUserBalance updat
 src/__tests__/core/updateUserBalance.sign.test.ts :: updateUserBalance: знак задаёт type, а не число SERVICE_PAYMENT больше нельзя передать: его нет в PaymentType
 src/__tests__/core/updateUserBalance.sign.test.ts :: updateUserBalance: знак задаёт type, а не число отклоняет отрицательную сумму и НЕ пишет строку
 src/__tests__/core/updateUserBalance.sign.test.ts :: updateUserBalance: знак задаёт type, а не число положительную сумму пишет как есть, знак не трогает
+src/__tests__/db/table-seams.test.ts :: швы имён таблиц в списках нет имён, которые больше нигде не используются
+src/__tests__/db/table-seams.test.ts :: швы имён таблиц не появилось новых имён вне обоих известных списков
+src/__tests__/db/table-seams.test.ts :: швы имён таблиц разбор находит таблицы — иначе тест пустой
 src/__tests__/handleMenuTopUpLogic.test.ts :: TopUp Logic Integration Test should verify that notification handler improvements are in place
 src/__tests__/handleMenuTopUpLogic.test.ts :: TopUp Logic Integration Test should verify that top-up button logic is properly implemented
 src/__tests__/handlers/getPhotoUrl.test.ts :: getPhotoUrl .png тоже не ломается
