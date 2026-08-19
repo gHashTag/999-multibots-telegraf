@@ -1,5 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
+import { mirrorToOwnStorage } from '@/core/supabase/mirrorToStorage'
 
 // Telegram Bot API limit for getFile
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
@@ -69,11 +70,31 @@ export async function getUserPhotoUrl(
         return null
       }
 
-      // Формируем URL фотографии с правильным токеном
-      const photoUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
-      console.log('Generated photo URL for user', userId, ':', photoUrl.substring(0, 100) + '...')
-
-      return photoUrl
+      // ССЫЛКА СОДЕРЖИТ ТОКЕН БОТА — НАРУЖУ ЕЁ ОТДАВАТЬ НЕЛЬЗЯ.
+      //
+      // Адрес файла у Telegram имеет вид
+      //   https://api.telegram.org/file/bot<ТОКЕН>/<путь>
+      // и раньше он возвращался как есть, после чего попадал в
+      // `users.photo_url`. Проверено на живой базе: **264 строки содержат
+      // 14 разных токенов ботов**, и шесть из них на момент проверки были
+      // ДЕЙСТВУЮЩИМИ. Токен даёт полное управление ботом.
+      //
+      // Вдобавок такая ссылка живёт около часа — то есть хранилась мёртвой
+      // почти сразу после записи.
+      //
+      // Перекладываем файл к себе и отдаём СВОЙ адрес: он и без секрета, и
+      // не протухает. Если переложить не удалось, mirrorToOwnStorage вернёт
+      // исходную ссылку — тогда её нельзя сохранять, и вызывающий получает
+      // null вместо адреса с токеном.
+      const telegramUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+      const mirrored = await mirrorToOwnStorage(telegramUrl, userId, 'avatars')
+      if (mirrored === telegramUrl) {
+        logger.warn('[getUserPhotoUrl] Не удалось переложить фото — адрес с токеном не отдаём', {
+          userId,
+        })
+        return null
+      }
+      return mirrored
     } catch (getFileError: any) {
       // Если ошибка "file is too big", пробуем меньший размер
       if (getFileError?.message?.includes('file is too big') || getFileError?.response?.description?.includes('file is too big')) {
@@ -89,7 +110,13 @@ export async function getUserPhotoUrl(
             const file = await ctx.telegram.getFile(smallerPhoto.file_id)
 
             if (file.file_path) {
-              const photoUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+              // Тот же запрет: адрес с токеном наружу не уходит.
+              const telegramUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
+              const photoUrl = await mirrorToOwnStorage(telegramUrl, userId, 'avatars')
+              if (photoUrl === telegramUrl) {
+                logger.warn('[getUserPhotoUrl] Не удалось переложить фото (меньший размер)', { userId })
+                continue
+              }
               logger.info('[getUserPhotoUrl] Successfully got smaller photo', {
                 userId,
                 index: i,
