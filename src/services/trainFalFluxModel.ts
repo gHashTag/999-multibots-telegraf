@@ -85,17 +85,22 @@ export async function trainFalFluxModel(
     // ✅ STEP 4: Prepare trigger phrase
     const triggerPhrase = requestData.triggerWord || 'PORTRAIT_TOKEN'
 
-    // ✅ STEP 5: Prepare webhook URL for completion notification
-    const baseUrl = process.env.BASE_WEBHOOK_URL || process.env.API_SERVER_URL
-    const webhookUrl = baseUrl.startsWith('http')
-      ? `${baseUrl}/api/webhooks/fal-model`
-      : `https://${baseUrl}/api/webhooks/fal-model`
-
+    // ВЕБХУКА ЗДЕСЬ НЕТ И НЕ БЫЛО.
+    //
+    // Раньше на этом месте вычислялся `${baseUrl}/api/webhooks/fal-model` и
+    // писался в лог. Дальше он НИКУДА не передавался: `fal.subscribe` ниже
+    // ждёт завершения прямо в этом вызове и отдаёт прогресс через
+    // onQueueUpdate. То есть переменная существовала только чтобы попасть в
+    // лог — и указывала на маршрут, которого в приложении нет (под
+    // /api/webhooks есть только /replicate).
+    //
+    // Строка в логе выглядела как настройка вебхука и вводила в заблуждение
+    // при разборе зависших обучений: казалось, что колбэк настроен.
     logger.info('[FAL TRAINING] Configuration', {
       triggerPhrase,
-      webhookUrl,
       steps: requestData.steps,
       learning_rate: requestData.learning_rate || 0.00009,
+      completion: 'inline via fal.subscribe (вебхук не используется)',
     })
 
     // ✅ STEP 6: Submit training to Fal.ai

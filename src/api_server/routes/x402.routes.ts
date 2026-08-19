@@ -91,6 +91,44 @@ router.get('/x402-topup', async (req: Request, res: Response): Promise<void> => 
         stars: starsAmount,
       })
 
+      // ЗАЧИСЛЕНИЕ ЗАКРЫТО, ПОКА НЕТ ПРОВЕРКИ ПЛАТЕЖА.
+      //
+      // Ниже стояло зачисление баланса, у которого единственной защитой было
+      // НАЛИЧИЕ заголовка X-PAYMENT — его содержимое не проверялось ничем.
+      // При этом telegram_id и stars брались из СТРОКИ ЗАПРОСА, то есть их
+      // задаёт вызывающий. Любой человек с любым pending inv_id мог написать
+      //
+      //   GET /api/x402-topup?inv_id=…&telegram_id=<чужой>&stars=999999
+      //   X-PAYMENT: что угодно
+      //
+      // и получить эти звёзды на любой аккаунт.
+      //
+      // Сейчас роутер НЕ ПРИМОНТИРОВАН (в api_server/index.ts нет app.use для
+      // x402Router), и это единственное, что мешало. Полагаться на забытую
+      // строку нельзя: кто-нибудь её допишет, увидев неработающую оплату.
+      //
+      // Настоящей проверки в проекте нет. `validatePaymentHeader` в
+      // core/x402/index.ts существует, но НЕ ВЫЗЫВАЕТСЯ ни разу и всё равно
+      // проверяет лишь наличие четырёх полей, а не подпись. Сверки с
+      // facilitator'ом (settle/verify) нет вовсе.
+      //
+      // Поэтому отказываем явно. Чтобы включить: сверить платёж с
+      // facilitator'ом по сети И брать сумму со звёздами из строки payments_v2,
+      // а не из запроса.
+      logger.error('[x402] Зачисление отклонено: проверки платежа не существует', {
+        inv_id,
+        telegram_id_from_query: telegram_id,
+        stars_from_query: starsAmount,
+      })
+      res.status(501).json({
+        error: 'x402 settlement verification is not implemented',
+        detail:
+          'Balance crediting is disabled until the X-PAYMENT header is verified ' +
+          'against the facilitator and the amount is read from the payment record.',
+      })
+      return
+
+      // eslint-disable-next-line no-unreachable
       // Verify payment exists in database
       const { data: payment, error: paymentError } = await getPaymentByInvId(inv_id as string)
       if (paymentError || !payment) {
