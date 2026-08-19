@@ -66,6 +66,53 @@
 Заведены, код к ним обращается, записей нет ни одной. Для
 `instagram_scrapings` причина уже известна: путь парсинга не работал (PR #510).
 
+## Разделение: что нужно, а что удалить вместе с кодом
+
+Обещанный проход. Метод: обход достижимости от точек входа
+(`scripts/probe-reachability.cjs`) плюс подсчёт **настоящих** импортёров модуля —
+без файлов-бочек `index.ts`, которые реэкспортируют всё подряд и создают
+видимость использования.
+
+Различие важное: `isLimitAi.ts` достижим, потому что его реэкспортирует
+`core/supabase/index.ts`. Но **саму функцию не вызывает никто**. Файловая
+достижимость это не ловит — нужен подсчёт импортёров по символу.
+
+### Нужны: код живой (18)
+
+Конвейер рендера — `render/steps.ts` вызывается из `renderRiddle`, а он
+зарегистрирован:
+
+`render_servers`, `broll_ideas`, `broll_prompts`, `broll_videos`,
+`avatar_videos`, `heygen_api_keys`, `job_layers`, `content_plans`,
+`eleven_labs_generations`, `kie_veo3_videos`
+
+Контент-функции (зарегистрированы): `scenario_clips`, `reels_analysis`,
+`detailed_scripts`, `content_scripts`
+
+Прочее живое: `bot_skills`, `bot_skills_log` (через `skillDetector` —
+зарегистрирован — и `aiChatService`), `chat_memory` (через `aiChatService`),
+`daily_balance_stats` (через `getUserUsageCount`), `owner_payments` (через
+смонтированный `billing.routes`)
+
+### Удалить вместе с кодом: настоящих импортёров ноль (7)
+
+| таблица | модуль | импортёров кроме бочки |
+|---|---|---|
+| `ai_requests` | `isLimitAi.ts` | **0** — ограничитель запросов не подключён нигде |
+| `bots` | `getBotsFromSupabase.ts` | **0** — список ботов берётся из окружения |
+| `white_label_configs` | `whiteLabelConfig.ts` | **0** — вообще ни одного импортёра |
+| `marketplace_items` | `marketplaceService.ts` | **0** |
+| `marketplace_purchases` | `marketplaceService.ts` | **0** |
+| `service_usage_stats` | `service.utils.ts` | **0** — ни одного импортёра |
+| `voice_models` | `voiceModels.ts` | 1, и это `voiceTrainingRVC` — **не зарегистрирована** |
+
+То есть **семь таблиц заводить не нужно**: правильный ответ — удалить код,
+который к ним обращается. Это отдельная работа с понятным радиусом, и она
+уменьшает поверхность на семь несуществующих зависимостей.
+
+`clips` — пограничный случай: часть обращений из `getHistory.ts` (импортёров
+кроме бочки ноль), часть из `core/supabase/ai.ts`. Требует чтения.
+
 ## Почему я не завожу таблицы
 
 Схема — ваше решение. У каждой из 27 надо определить состав полей, связи,
