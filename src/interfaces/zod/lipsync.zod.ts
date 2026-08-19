@@ -1,20 +1,39 @@
 import { z } from 'zod'
+import { sanitizeUrl } from '@/utils/sanitize'
 
 // URL схема с валидацией
-export const URLSchema = z
-  .string()
-  .min(1, 'URL не может быть пустым')
-  .refine(
-    value => {
-      try {
-        new URL(value)
-        return true
-      } catch {
-        return false
-      }
-    },
-    { message: 'Неверный формат URL' }
-  )
+/**
+ * URL, который СЕРВЕР ПОТОМ СКАЧАЕТ.
+ *
+ * Сюда приходит `ctx.message.text` из lipSyncWizard (index.ts:133 и :250), а
+ * дальше адрес уходит в axios (file-helpers.ts). Прежняя проверка состояла
+ * ровно в том, что `new URL(value)` не бросил, — то есть пропускала любую
+ * схему и любой хост, включая `http://127.0.0.1:9000/...`.
+ *
+ * Настоящая проверка в проекте БЫЛА написана — `sanitizeUrl` в
+ * src/utils/sanitize.ts:54: она режет всё кроме http(s) и в production
+ * отклоняет localhost, 127.*, 10.*, 172.16-31.*, 192.168.*, 0.0.0.0.
+ * Импортов у неё было НОЛЬ. Подключаем.
+ */
+export const URLSchema = z.string().min(1, 'URL не может быть пустым').superRefine(
+  (value, ctx) => {
+    try {
+      sanitizeUrl(value, ['http', 'https'])
+    } catch (e) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        // Текст оставлен прежним — на него опирается
+        // lipsyncZodValidation.test.ts, и он же уходит пользователю.
+        // Причина отказа от sanitizeUrl добавляется хвостом, чтобы в логах
+        // было видно, что именно не так.
+        message:
+          e instanceof Error && !/invalid url/i.test(e.message)
+            ? `Неверный формат URL: ${e.message}`
+            : 'Неверный формат URL',
+      })
+    }
+  }
+)
 
 // Схема для файлов Telegram
 export const TelegramFileSchema = z.object({
