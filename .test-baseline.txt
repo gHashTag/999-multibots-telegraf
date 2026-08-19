@@ -589,6 +589,17 @@ src/__tests__/money/referral-reward.test.ts :: награда за пригла�
 src/__tests__/money/referral-reward.test.ts :: текст сцены приглашения обещает только выполнимое не обещает уровней и эксклюзивных функций
 src/__tests__/money/referral-reward.test.ts :: текст сцены приглашения обещает только выполнимое обещание звёзд стоит под условием включённой награды
 src/__tests__/money/referral-reward.test.ts :: текст сцены приглашения обещает только выполнимое разбор находит текст — иначе тест пустой
+src/__tests__/money/refund-needs-charge.test.ts :: возврат требует состоявшегося списания без списания возврат не выполняется
+src/__tests__/money/refund-needs-charge.test.ts :: возврат требует состоявшегося списания нельзя вернуть больше, чем заплатили
+src/__tests__/money/refund-needs-charge.test.ts :: возврат требует состоявшегося списания при сбое самой проверки возврат выполняется — и это записано в исходнике
+src/__tests__/money/refund-needs-charge.test.ts :: возврат требует состоявшегося списания проверка спрашивает данные, а не текст сообщения
+src/__tests__/money/refund-needs-charge.test.ts :: возврат требует состоявшегося списания проверка стоит ДО начисления
+src/__tests__/money/refund-needs-charge.test.ts :: возврат требует состоявшегося списания разбор находит проверку — иначе тест пустой
+src/__tests__/money/refund-needs-charge.test.ts :: поведение возврата без списаний за сутки — деньги НЕ начисляются
+src/__tests__/money/refund-needs-charge.test.ts :: поведение возврата вернуть больше, чем заплатили, нельзя
+src/__tests__/money/refund-needs-charge.test.ts :: поведение возврата второй возврат за то же списание не проходит
+src/__tests__/money/refund-needs-charge.test.ts :: поведение возврата есть списание — возврат проходит
+src/__tests__/money/refund-needs-charge.test.ts :: поведение возврата при сбое проверки возврат ВЫПОЛНЯЕТСЯ
 src/__tests__/money/refund-reason.test.ts :: возврат денег называет причину и хотя бы два разных вида причин действительно используются
 src/__tests__/money/refund-reason.test.ts :: возврат денег называет причину каждый вызов передаёт причину
 src/__tests__/money/refund-reason.test.ts :: возврат денег называет причину причина доезжает до реестра, а не остаётся в коде
