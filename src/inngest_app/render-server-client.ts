@@ -331,10 +331,13 @@ export function createRenderAvatarPayload(
           // бот, в котором человек заказал видео.
           ? `${process.env.BASE_WEBHOOK_URL}/api/telegram/ai-reels-callback` +
             (options?.botName ? `?bot=${encodeURIComponent(options.botName)}` : '')
-          // Переменной нет — отдаём null, а не строку "undefined/api/...".
-          // Отсутствие адреса render-сервер обработает как «коллбэк не нужен»;
-          // мусорный URL он бы честно попытался вызвать.
-          : null,
+          // undefined, а НЕ null. Схема объявляет callback_url как
+          // z.string().url().optional() (schemas.ts), а .optional() принимает
+          // undefined и отвергает null: "Expected string, received null".
+          // Я поставил здесь null в прошлом цикле и добавил девятую причину
+          // отказа валидации к восьми уже существующим. Проверено прогоном
+          // RenderRiddleEventDataSchema.safeParse по этому payload.
+          : undefined,
     bot_name: options?.botName,
   }
 }
