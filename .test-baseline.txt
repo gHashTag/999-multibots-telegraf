@@ -44,6 +44,12 @@ src/__tests__/api/route-seams.test.ts :: швы маршрутов api_server а
 src/__tests__/api/route-seams.test.ts :: швы маршрутов api_server в списке исключений нет тех, кого уже примонтировали
 src/__tests__/api/route-seams.test.ts :: швы маршрутов api_server каждый импортированный в index.ts роутер либо примонтирован, либо назван в списке исключений
 src/__tests__/api/route-seams.test.ts :: швы маршрутов api_server ни один маршрут не объявлен с префиксом, который уже даёт монтирование
+src/__tests__/assets/mirror-storage.test.ts :: mirrorToOwnStorage не перекладывает то, что уже лежит у нас
+src/__tests__/assets/mirror-storage.test.ts :: mirrorToOwnStorage не трогает то, что вообще не ссылка
+src/__tests__/assets/mirror-storage.test.ts :: mirrorToOwnStorage перекладывает чужой файл и отдаёт свою ссылку
+src/__tests__/assets/mirror-storage.test.ts :: mirrorToOwnStorage при отказе источника возвращает ИСХОДНУЮ ссылку, а не бросает
+src/__tests__/assets/mirror-storage.test.ts :: mirrorToOwnStorage при отказе хранилища возвращает исходную ссылку
+src/__tests__/assets/mirror-storage.test.ts :: mirrorToOwnStorage пустой ответ источника не считается успехом
 src/__tests__/assets/no-direct-insert.test.ts :: вложения сохраняются одной дверью в списке разрешённых нет файлов, которые больше не вставляют
 src/__tests__/assets/no-direct-insert.test.ts :: вложения сохраняются одной дверью нет прямых вставок в assets вне разрешённых файлов
 src/__tests__/assets/no-direct-insert.test.ts :: вложения сохраняются одной дверью разбор находит хотя бы одну вставку — иначе тест пустой

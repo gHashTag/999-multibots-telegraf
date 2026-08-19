@@ -1,5 +1,6 @@
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
+import { mirrorToOwnStorage } from './mirrorToStorage'
 
 /**
  * Запись сгенерированного медиа в таблицу `assets`.
@@ -50,74 +51,10 @@ export async function saveVideoUrlToSupabase(
   // Строка без ссылки нечитаема и починить её нечем: ни одна из веток кода
   // не обновляет уже вставленные строки, а колонки статуса в таблице нет.
   // Поэтому не пишем вовсе, а не пишем заглушку.
-  // ЗЕРКАЛИРОВАНИЕ В СВОЁ ХРАНИЛИЩЕ, до записи ссылки.
-  //
-  // ЗЕРКАЛИРОВАНИЕ В СВОЁ ХРАНИЛИЩЕ — ЧЕРЕЗ SUPABASE STORAGE, НЕ ЧЕРЕЗ S3.
-  //
-  // Поправка к моему же прежнему комментарию. Здесь было написано: «Replicate
-  // свой CDN держит долго (1214 ссылок живы, включая самую старую)». ЭТО
-  // НЕПРАВДА, и я это не проверял. Живой замер HEAD-запросами по выборке из
-  // каждого месяца:
-  //
-  //   replicate.delivery          1214 ссылок — ВСЕ отдают 404
-  //   tempfile.aiquickdraw.com     171 ссылка  — ВСЕ отдают 404
-  //   replicate.com                 96 ссылок  — ВСЕ отдают 404
-  //   v3b.fal.media                 15 ссылок  — живы
-  //
-  // То есть потеряно не 171 вложение, а 1481 из 1496. Ссылка провайдера не
-  // живёт ни у кого; вопрос только в сроке.
-  //
-  // Почему теперь Supabase Storage. Прежний вариант писал в S3 и ВСЕГДА падал
-  // в откат: регион в переменных не совпадал с endpoint, а после исправления
-  // региона приходил Access Denied. Эти доступы выдаёт владелец, и ждать их
-  // означало терять файлы дальше.
-  //
-  // Supabase Storage при этом РАБОТАЕТ уже сейчас — проверено записью,
-  // публичным чтением и удалением пробного объекта в бакете `images` теми же
-  // ключами, что есть у бота. Новых учётных данных не нужно.
-  //
-  // Отказ зеркалирования по-прежнему НЕ ломает сохранение: лучше записать
-  // ссылку провайдера, чем не записать ничего.
-  let urlToStore = publicUrl
-  try {
-    const res = await fetch(publicUrl, { signal: AbortSignal.timeout(60_000) })
-    if (!res.ok) throw new Error(`источник отдал HTTP ${res.status}`)
-    const buf = Buffer.from(await res.arrayBuffer())
-    if (!buf.length) throw new Error('источник отдал пустой ответ')
-
-    const contentType = res.headers.get('content-type') || 'application/octet-stream'
-    const ext =
-      publicUrl.split('?')[0].match(/\.([a-z0-9]{2,4})$/i)?.[1]?.toLowerCase() ||
-      (contentType.startsWith('image/') ? contentType.slice(6) : 'mp4')
-
-    // Дата в пути — чтобы файлы не сваливались в один каталог и чтобы по
-    // ассету было видно, когда он появился, даже без обращения к базе.
-    const day = new Date().toISOString().slice(0, 10)
-    const key = `assets/${day}/${telegramId}/${Date.now()}.${ext}`
-
-    const { error: upErr } = await supabase.storage
-      .from('images')
-      .upload(key, buf, { contentType, upsert: false })
-    if (upErr) throw new Error(`storage: ${upErr.message}`)
-
-    const { data } = supabase.storage.from('images').getPublicUrl(key)
-    if (!isPlayableUrl(data?.publicUrl)) throw new Error('storage не вернул ссылку')
-
-    urlToStore = data.publicUrl
-    logger.info('✅ [assets] Файл переложен в своё хранилище', {
-      telegramId: String(telegramId),
-      key,
-      bytes: buf.length,
-    })
-  } catch (e) {
-    logger.warn('⚠️ [assets] Не удалось зеркалировать в своё хранилище', {
-      telegramId: String(telegramId),
-      error: e instanceof Error ? e.message : String(e),
-      // Ссылка провайдера сохранится как есть — она протухнет, и это повод
-      // посмотреть логи, а не потерять запись.
-      fallback: 'сохраняем исходную ссылку провайдера',
-    })
-  }
+  // Файл перекладываем к себе. Подробности — в mirrorToStorage.ts и
+  // docs/audit/foreign-links.md: чужие ссылки не живут ни у одного провайдера,
+  // из 29 813 внешних адресов в базе проверенные выборки отдают 404.
+  const urlToStore = await mirrorToOwnStorage(publicUrl, telegramId, 'assets')
 
   if (!isPlayableUrl(publicUrl)) {
     logger.warn('⚠️ [assets] Пропущена запись: publicUrl не является ссылкой', {
