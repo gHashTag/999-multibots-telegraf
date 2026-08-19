@@ -711,6 +711,27 @@ Telegram: `wizardButtonHandlers.ts:58` передаёт туда `ctx.callbackQu
 провайдера сигнатура `generate(input: any)`. **`any` в интерфейсе провайдера
 прячет ровно такие ошибки** — ищи их там, где тип потерян.
 
+ЗАКРЫТО: `generate(input: any)` заменён на `generate(input: UniversalLipSyncInput)`
+(`core/lipsync/interfaces/lipsync-provider.interface.ts`). Тип слабый —
+`{ [key: string]: any }`, — но булево ему уже не соответствует, и этого хватает.
+
+Доказано пробником под конфигом ПРОЕКТА, а не рассуждением:
+
+    p.generate(true)
+    → error TS2345: Argument of type 'boolean' is not assignable to
+      parameter of type 'UniversalLipSyncInput'
+
+До правки тот же пробник компилировался чисто.
+
+Приём общий: **чтобы проверить, ловит ли тип ошибку, напиши файл, который эту
+ошибку делает, и посмотри на вывод компилятора.** Рассуждение «теперь-то
+поймает» тут ничего не стоит — я дважды за эти циклы ошибался в том, что
+компилятор увидит.
+
+Оговорка честная: в том же интерфейсе осталось шесть `any` и сам
+`UniversalLipSyncInput` — пустая индексная сигнатура. Правка закрывает
+ПОКАЗАННУЮ дыру, а не весь класс.
+
 ## Self-check before reporting done
 
 1. Does the changed component actually render? (live DOM, not build)
