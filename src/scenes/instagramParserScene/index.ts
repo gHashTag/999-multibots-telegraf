@@ -252,23 +252,17 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
         )
 
         try {
-          // Списываем баланс
-          await updateUserBalance(
-            userId.toString(),
-            cost as any,
-            PaymentType.MONEY_OUTCOME,
-            isRu
-              ? `Instagram парсинг: ${state.type === 'competitor' ? '@' : '#'}${state.target} (${count} рилсов)`
-              : `Instagram parsing: ${state.type === 'competitor' ? '@' : '#'}${state.target} (${count} reels)`,
-            {
-              service_type: 'instagram_parser',
-              target: state.target,
-              count,
-              stars: cost,
-            }
-          )
-
-          // Запускаем парсинг
+          // СНАЧАЛА ЗАПУСК, ПОТОМ СПИСАНИЕ.
+          //
+          // Раньше было наоборот: деньги списывались здесь, а запуск шёл
+          // следом — и `generateInstagramScraping` возвращала
+          // `success: true`, ничего не запустив (отправка события в ней была
+          // закомментирована). Человек платил, видел «анализ запущен» и не
+          // получал ничего. Измерено: 28 списаний у трёх человек на 94 звезды
+          // при нуле запусков.
+          //
+          // Порядок «сначала работа, потом деньги» убирает целый класс таких
+          // случаев: если запуск не удался, списывать не за что.
           const { generateInstagramScraping } = await import(
             '@/services/generateInstagramScraping'
           )
@@ -282,6 +276,24 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
             ctx,
             ctx.botInfo?.username || 'telegram_bot'
           )
+
+          if (result?.success) {
+            // Списываем баланс только после успешного запуска
+            await updateUserBalance(
+              userId.toString(),
+              cost as any,
+              PaymentType.MONEY_OUTCOME,
+              isRu
+                ? `Instagram парсинг: ${state.type === 'competitor' ? '@' : '#'}${state.target} (${count} рилсов)`
+                : `Instagram parsing: ${state.type === 'competitor' ? '@' : '#'}${state.target} (${count} reels)`,
+              {
+                service_type: 'instagram_parser',
+                target: state.target,
+                count,
+                stars: cost,
+              }
+            )
+          }
 
           if (result?.success) {
             // Сохраняем запись о парсинге для статистики
@@ -337,8 +349,15 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
               ])
             )
           } else {
+            // Показываем причину от сервиса, а не общее «ошибка».
+            // Сообщение сервиса прямо говорит, что деньги не списаны — это
+            // важнее самого отказа: иначе человек не знает, потерял он звёзды
+            // или нет.
             await ctx.editMessageText(
-              isRu ? '❌ Ошибка запуска парсинга' : '❌ Parsing start error'
+              result?.message ||
+                (isRu
+                  ? '❌ Не удалось запустить парсинг. Средства не списаны.'
+                  : '❌ Could not start parsing. You have not been charged.')
             )
           }
         } catch (error) {

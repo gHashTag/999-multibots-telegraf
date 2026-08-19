@@ -104,8 +104,13 @@ export async function generateInstagramScraping(
       `📤 [${process.env.NODE_ENV?.toUpperCase()}] Отправляем событие через Inngest SDK...`
     )
 
+    // Имя события — 'instagram/scraper-v2'. Здесь стояло 'instagram/scraper',
+    // а единственный подписчик объявлен как
+    // `{ event: 'instagram/scraper-v2' }` (instagramScraper-v2.ts:1196).
+    // Событие с прежним именем не взял бы никто — и об этом не сообщила бы ни
+    // одна ошибка: Inngest просто не находит подписчика.
     const inngestEvent = {
-      name: 'instagram/scraper',
+      name: 'instagram/scraper-v2',
       data: eventData,
       user: {
         external_id: telegram_id, // Для отслеживания пользователя (шифруется)
@@ -114,50 +119,48 @@ export async function generateInstagramScraping(
       id: `instagram-scraper-${telegram_id}-${username_or_id}-${Date.now()}`,
     }
 
-    console.log(
-      '🔥 [DEBUG] Final Inngest event payload:',
-      JSON.stringify(inngestEvent, null, 2)
-    )
-
-    logger.info('📤 [Instagram Scraper] About to send event to Inngest', {
+    logger.info('📤 [Instagram Scraper] Подготовлено событие', {
       eventName: inngestEvent.name,
       eventId: inngestEvent.id,
       userId: telegram_id,
+      debugSessionId,
       environment: process.env.NODE_ENV,
     })
 
-    // ВРЕМЕННО: inngest отключён
-    // const sendResult = await inngest.send(inngestEvent)
-    const sendResult = { ids: ['disabled'] }
-
-    console.log('🔥 [DEBUG] Inngest send result:', sendResult)
-    logger.info('✅ [Instagram Scraper] Event sent to Inngest with result', {
-      sendResult,
+    // ОТКАЗЫВАЕМ ЧЕСТНО. Отправка события здесь отключена строкой
+    // `// const sendResult = await inngest.send(inngestEvent)` с пометкой
+    // «ВРЕМЕННО». Дальше стояло `const sendResult = { ids: ['disabled'] }`,
+    // запись в лог «✅ Событие успешно отправлено в Inngest» и
+    // `return { success: true, message: '🚀 Анализ запущен! Результаты будут
+    // готовы через несколько минут.' }`.
+    //
+    // То есть функция ЛГАЛА трижды: в логе, в коде возврата и в тексте
+    // пользователю. А вызывающая сцена (instagramParserScene) списывала за это
+    // деньги ДО вызова и смотрела только на `result.success`.
+    //
+    // Измерено: 28 списаний service_type='instagram_parser' у трёх человек на
+    // 94 звезды. Ни одного запуска при этом не было.
+    //
+    // Включить нельзя: RAPIDAPI_INSTAGRAM_KEY в проде НЕ ЗАДАНА, и функция
+    // instagramScraperV2 без неё всё равно упадёт. То есть «раскомментировать»
+    // — не починка, а перенос отказа на шаг позже, уже после списания.
+    //
+    // Что нужно, чтобы включить: задать RAPIDAPI_INSTAGRAM_KEY и
+    // RAPIDAPI_INSTAGRAM_HOST, затем заменить этот блок на
+    // `await inngest.send(inngestEvent)`.
+    logger.error('❌ [Instagram Scraper] Отправка отключена — отказываем явно', {
+      description: 'Inngest send is disabled in code; refusing instead of faking success',
       telegram_id,
-    })
-
-    // ✅ ИСПРАВЛЕНО: Используем локальный Inngest endpoint
-    const localInngestUrl = 'localhost:3000/api/inngest'
-    console.log(
-      `✅ [${process.env.NODE_ENV?.toUpperCase()}] Event sent via SDK to LOCAL Inngest:`,
-      localInngestUrl
-    )
-    console.log(
-      `🔥 [DEBUG] Event sent with debug_session_id: ${debugSessionId}`
-    )
-    console.log(`🔥 [DEBUG] Check ai-server logs for this session_id!`)
-
-    logger.info('✅ [Instagram Scraper] Событие успешно отправлено в Inngest', {
-      description: 'Event successfully sent to Inngest',
-      telegram_id,
+      eventName: inngestEvent.name,
+      rapidapi_key_set: Boolean(process.env.RAPIDAPI_INSTAGRAM_KEY),
     })
 
     return {
-      success: true,
-      eventId: 'sent', // Простое подтверждение отправки
+      success: false,
+      error: 'instagram scraping is disabled: inngest send is commented out and RAPIDAPI_INSTAGRAM_KEY is not set',
       message: isRu
-        ? '🚀 Анализ конкурентов Instagram запущен! Результаты будут готовы через несколько минут.'
-        : '🚀 Instagram competitor analysis started! Results will be ready in a few minutes.',
+        ? '⚠️ Анализ конкурентов Instagram сейчас недоступен: обработчик отключён. Средства не списаны.'
+        : '⚠️ Instagram competitor analysis is unavailable: the handler is switched off. You have not been charged.',
     }
   } catch (error) {
     console.error('🔥 [DEBUG] Full error object:', error)

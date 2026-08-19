@@ -145,9 +145,12 @@ export class CompetitorMonitoringApiService {
         try {
           const inngestUrl = `${this.apiUrl}/api/inngest`
           
-          // Формируем правильный запрос для Instagram Scraper
+          // Формируем правильный запрос для Instagram Scraper.
+          // Имя было "instagram/scraper" — на него никто не подписан.
+          // Единственный подписчик объявлен как
+          // `{ event: 'instagram/scraper-v2' }` (instagramScraper-v2.ts:1177).
           const inngestEvent = {
-            name: "instagram/scraper",
+            name: 'instagram/scraper-v2',
             data: {
               username_or_id: competitorUsername.replace('@', ''),
               project_id: parseInt(userTelegramId), // Используем telegram_id как project_id

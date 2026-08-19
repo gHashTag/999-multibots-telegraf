@@ -340,6 +340,11 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
+      // Возврат ниже обязан знать, было ли вообще списание. После переноса
+      // списания под проверку успеха исключение может случиться ДО него — и
+      // безусловный возврат тогда начислил бы деньги, которых никто не брал.
+      let charged = false
+
       try {
         // Убираем клавиатуру
         await ctx.reply(
@@ -347,21 +352,14 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
           Markup.removeKeyboard()
         )
 
-        // Списываем баланс
-        await updateUserBalance(
-          userId.toString(),
-          sessionData.cost,
-          PaymentType.MONEY_OUTCOME,
-          isRu
-            ? `Instagram парсинг: ${sessionData.type === 'competitor' ? '@' : '#'}${sessionData.target} (${sessionData.count} рилсов)`
-            : `Instagram parsing: ${sessionData.type === 'competitor' ? '@' : '#'}${sessionData.target} (${sessionData.count} reels)`,
-          {
-            service_type: 'instagram_parser',
-            target: sessionData.target,
-            count: sessionData.count,
-            stars: sessionData.cost,
-          }
-        )
+        // СНАЧАЛА ЗАПУСК, ПОТОМ СПИСАНИЕ — списание перенесено ниже, под
+        // проверку `result.success`.
+        //
+        // Здесь была прямая ложь пользователю: списание стояло ДО вызова, а
+        // ветка неудачи сообщала «💰 Средства не были списаны». Возврат делался
+        // только в `catch`, то есть при ИСКЛЮЧЕНИИ, — а `success: false` без
+        // исключения оставлял человека и без услуги, и без денег, да ещё с
+        // сообщением, что деньги на месте.
 
         // Отправляем запрос на ai-server
         const result = await generateInstagramScraping(
@@ -376,6 +374,23 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
         )
 
         if (result && result.success) {
+          // Списываем только после подтверждённого запуска.
+          await updateUserBalance(
+            userId.toString(),
+            sessionData.cost,
+            PaymentType.MONEY_OUTCOME,
+            isRu
+              ? `Instagram парсинг: ${sessionData.type === 'competitor' ? '@' : '#'}${sessionData.target} (${sessionData.count} рилсов)`
+              : `Instagram parsing: ${sessionData.type === 'competitor' ? '@' : '#'}${sessionData.target} (${sessionData.count} reels)`,
+            {
+              service_type: 'instagram_parser',
+              target: sessionData.target,
+              count: sessionData.count,
+              stars: sessionData.cost,
+            }
+          )
+          charged = true
+
           await ctx.reply(
             isRu
               ? `✅ Запрос принят сервером!\n\n` +
@@ -416,9 +431,19 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
       } catch (error) {
         logger.error('Instagram parser wizard error', { error, userId, sessionData })
 
+        // Возвращаем деньги ТОЛЬКО если списание действительно состоялось.
+        // Безусловный возврат после переноса списания стал бы начислением из
+        // воздуха: исключение может прилететь до того, как деньги взяли.
+        if (!charged) {
+          logger.info('Instagram parser: списания не было, возврат не нужен', {
+            userId,
+            target: sessionData.target,
+          })
+        }
+
         // Возвращаем деньги при ошибке
         try {
-          await updateUserBalance(
+          if (charged) await updateUserBalance(
             userId.toString(),
             sessionData.cost,
             PaymentType.MONEY_INCOME,
