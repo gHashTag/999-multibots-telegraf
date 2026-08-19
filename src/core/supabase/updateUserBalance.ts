@@ -372,20 +372,48 @@ export const updateUserBalance = async (
         .eq('telegram_id', telegram_id)
         .single()
 
+      // ЗДЕСЬ ЧЕЛОВЕК УЖЕ ЗАПЛАТИЛ. Отказ означает, что деньги списаны на
+      // стороне платёжной системы, а звёзды не зачислены.
+      //
+      // Прежние сообщения — «Пользователь не найден при создании транзакции» —
+      // не давали этого понять: по логу это выглядело как обычная неудачная
+      // выборка. Между тем ветка срабатывает только для MONEY_INCOME, то есть
+      // ВСЕГДА на пополнении, и путь сюда ведёт прямо от вебхука Robokassa
+      // (inngest_app/functions/payments/paymentProcessing.ts:159).
+      //
+      // Асимметрия проверки: списание (MONEY_OUTCOME) при отсутствии профиля
+      // проходит — там ошибка только пишется в лог, — а зачисление отклоняется.
+      // Получается, потратить можно, а получить нельзя.
+      //
+      // Измерено: 44 плательщика с настоящей (не миграционной) активностью не
+      // имеют строки в users, 13 из них с положительным балансом на 15 712
+      // звёзд. Разбор — docs/audit/ghost-payers.md.
+      //
+      // Семантику НЕ меняю: создавать профиль по факту оплаты — продуктовое
+      // решение (какой bot_name, какой язык, что с рефералами). Но отказ
+      // теперь видно и по нему можно поставить оповещение.
+      const moneyArrivedBlindly = {
+        description: 'PAYMENT RECEIVED BUT NOT CREDITED: no users row',
+        alert: 'ДЕНЬГИ ПОЛУЧЕНЫ, ЗВЁЗДЫ НЕ ЗАЧИСЛЕНЫ — нет профиля в users',
+        telegram_id,
+        type,
+        amount: safeAmount,
+        inv_id: metadata?.inv_id ?? null,
+        payment_method: metadata?.payment_method ?? null,
+        bot_name: metadata?.bot_name ?? null,
+        operation_description: description,
+      }
+
       if (userError) {
-        logger.error('❌ Пользователь не найден при создании транзакции:', {
-          description: 'User not found during transaction creation',
-          telegram_id,
+        logger.error('💸❌ Пополнение отклонено: профиля нет в users', {
+          ...moneyArrivedBlindly,
           error: userError.message,
         })
         return false
       }
 
       if (!userData) {
-        logger.error('❌ Пользователь не найден (нет данных):', {
-          description: 'User not found (no data)',
-          telegram_id,
-        })
+        logger.error('💸❌ Пополнение отклонено: профиля нет в users (пустой ответ)', moneyArrivedBlindly)
         return false
       }
     }

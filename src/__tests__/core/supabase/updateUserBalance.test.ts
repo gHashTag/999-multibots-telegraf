@@ -172,9 +172,20 @@ describe('updateUserBalance', () => {
       )
 
       expect(result).toBe(false)
+      // Проверяем не формулировку, а СМЫСЛ: в записи должно быть видно, что
+      // человек заплатил и не получил звёзды, и должны быть поля, по которым
+      // случай можно найти (inv_id, способ оплаты, сумма).
+      //
+      // Раньше здесь стояло stringContaining('не найден') — тест держал
+      // конкретное слово, а не контракт, и падал от переписанного текста, хотя
+      // поведение не менялось.
       expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('не найден'),
-        expect.any(Object)
+        expect.any(String),
+        expect.objectContaining({
+          description: 'PAYMENT RECEIVED BUT NOT CREDITED: no users row',
+          telegram_id: '123456789',
+          amount: 50,
+        })
       )
     })
 
