@@ -1352,9 +1352,9 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       })
 
       console.log('🔴 [STEP 6] Payload structure:', {
-        hasHeygenSettings: !!payload.avatar_settings.heygen,
-        hasHedraSettings: !!payload.avatar_settings.hedra,
-        hasFalSettings: !!payload.avatar_settings.fal,
+        hasHeygenSettings: payload.avatar_gen_service === 'heygen',
+        hasHedraSettings: payload.avatar_gen_service === 'hedra',
+        hasFalSettings: payload.avatar_gen_service === 'fal',
       })
 
       // 💰 Шаблон 2: Динамическая стоимость по длине lip-sync
@@ -1428,39 +1428,23 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           eleven_labs_api_key_prefix:
             payload.eleven_labs_api_key?.substring(0, 10) || 'MISSING',
           kie_api_key_present: !!payload.kie_api_key,
+          // Плоская форма: avatar_settings больше не разделён по сервисам,
+          // сервис указан отдельным полем avatar_gen_service.
+          avatar_gen_service: payload.avatar_gen_service,
           avatar_settings: {
-            // ✅ NEW: Логируем heygen или hedra в зависимости от выбора
-            heygen: payload.avatar_settings.heygen
-              ? {
-                  avatar_id: payload.avatar_settings.heygen.avatar_id,
-                  voice_id: payload.avatar_settings.heygen.voice_id,
-                  avatar_speech_length:
-                    payload.avatar_settings.heygen.avatar_speech.length,
-                  api_key_present: !!payload.avatar_settings.heygen.api_key,
-                }
-              : null,
-            hedra: payload.avatar_settings.hedra
-              ? {
-                  avatar_id: payload.avatar_settings.hedra.avatar_id,
-                  voice_id: payload.avatar_settings.hedra.voice_id,
-                  avatar_photo_url:
-                    payload.avatar_settings.hedra.avatar_photo_url.substring(
-                      0,
-                      50
-                    ),
-                  avatar_speech_length:
-                    payload.avatar_settings.hedra.avatar_speech.length,
-                  api_key_present: !!payload.avatar_settings.hedra.api_key,
-                }
-              : null,
+            avatar_id: payload.avatar_settings.avatar_id,
+            voice_id: payload.avatar_settings.voice_id,
+            avatar_speech_length: payload.avatar_settings.avatar_speech.length,
+            avatar_photo_url_present: !!payload.avatar_settings.avatar_photo_url,
+            api_key_present: !!payload.avatar_settings.api_key,
           },
           intro_text_1: payload.intro_text_1.text,
           intro_text_2: payload.intro_text_2.text,
         })
 
         console.log('🔴 [STEP 6] CRITICAL: Payload voice_id:', {
-          heygen: payload.avatar_settings.heygen?.voice_id || null,
-          hedra: payload.avatar_settings.hedra?.voice_id || null,
+          heygen: payload.avatar_settings.voice_id || null,
+          hedra: payload.avatar_settings.voice_id || null,
         })
         console.log(
           '🔴 [STEP 6] CRITICAL: Payload eleven_labs_api_key (first 10 chars):',
