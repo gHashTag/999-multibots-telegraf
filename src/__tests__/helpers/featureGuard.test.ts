@@ -384,4 +384,34 @@ describe('Integration scenarios', () => {
     expect(ctx.reply).not.toHaveBeenCalled()
     expect(markFeatureAsSeen).not.toHaveBeenCalled()
   })
+
+  // ГРАНИЦА ОТКАЗА ПРИ СБОЕ.
+  //
+  // checkFeatureAccess теперь возвращает false, если проверка баланса упала
+  // (решение владельца продукта). Важно, что это касается ТОЛЬКО платных
+  // описанных режимов: ветки `!info` и `!info.isPaid` возвращают true ДО
+  // блока try, поэтому бесплатные и неописанные сценарии сбой не блокирует.
+  //
+  // Из 82 режимов ModeEnum в FEATURE_INFO описаны 13, и все платные. Если бы
+  // отказ задевал остальные 69, авария в базе закрывала бы людям вход в
+  // меню баланса и смену языка.
+  describe('отказ при сбое: границы', () => {
+    beforeEach(() => {
+      vi.mocked(getUserBalance).mockRejectedValue(new Error('база недоступна'))
+    })
+
+    it('платный описанный режим — ОТКАЗ', async () => {
+      const ctx = createMockContext()
+      const result = await checkFeatureAccess(ctx as any, ModeEnum.NeuroPhoto)
+      expect(result).toBe(false)
+    })
+
+    it('НЕописанный режим — доступ, сбой его не касается', async () => {
+      const ctx = createMockContext()
+      // ModeEnum.Balance в мок FEATURE_INFO не входит: ветка `!info` сработает
+      // раньше try, и падение getUserBalance до неё просто не дойдёт.
+      const result = await checkFeatureAccess(ctx as any, ModeEnum.Balance)
+      expect(result).toBe(true)
+    })
+  })
 })
