@@ -1,5 +1,6 @@
 import { saveVideoUrlToSupabase } from '@/core/supabase/saveVideoUrlToSupabase'
 import { logger } from '@/utils/logger'
+import { PUBLIC_URL } from '@/config'
 import { 
   generateLipSyncViaAiServer,
   getLipSyncStatusFromAiServer,
@@ -69,15 +70,13 @@ export async function generateAiServerLipSync(
              result.status === 'failed' ? 'failed' : 'starting',
       output: result.result_url,
       error: result.error,
+      // Домен берётся из конфигурации. Здесь был зашит three-head-dragon.shop —
+      // старый сервер (188.137.250.69), не отвечающий ни по https, ни по http,
+      // ни по IP. Эти ссылки отдаются как адреса статуса и отмены задачи, то
+      // есть вели в никуда.
       urls: {
-        get: `${
-          // ✅ ИСПРАВЛЕНО: Используем только наш домен
-          'https://three-head-dragon.shop'
-        }/api/lipsync/${result.id}`,
-        cancel: `${
-          // ✅ ИСПРАВЛЕНО: Используем только наш домен
-          'https://three-head-dragon.shop'
-        }/api/lipsync/${result.id}/cancel`,
+        get: `${PUBLIC_URL}/api/lipsync/${result.id}`,
+        cancel: `${PUBLIC_URL}/api/lipsync/${result.id}/cancel`,
       },
     } as AiServerLipSyncResponse
 
@@ -117,15 +116,13 @@ export async function getAiServerLipSyncStatus(
              result.status === 'failed' ? 'failed' : 'processing',
       output: result.result_url,
       error: result.error,
+      // Домен берётся из конфигурации. Здесь был зашит three-head-dragon.shop —
+      // старый сервер (188.137.250.69), не отвечающий ни по https, ни по http,
+      // ни по IP. Эти ссылки отдаются как адреса статуса и отмены задачи, то
+      // есть вели в никуда.
       urls: {
-        get: `${
-          // ✅ ИСПРАВЛЕНО: Используем только наш домен
-          'https://three-head-dragon.shop'
-        }/api/lipsync/${result.id}`,
-        cancel: `${
-          // ✅ ИСПРАВЛЕНО: Используем только наш домен
-          'https://three-head-dragon.shop'
-        }/api/lipsync/${result.id}/cancel`,
+        get: `${PUBLIC_URL}/api/lipsync/${result.id}`,
+        cancel: `${PUBLIC_URL}/api/lipsync/${result.id}/cancel`,
       },
     } as AiServerLipSyncResponse
 

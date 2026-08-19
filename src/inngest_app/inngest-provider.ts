@@ -46,8 +46,14 @@ class InngestProvider {
     // BOT инстанс (наш основной сервер)
     const botEventKey = process.env.INNGEST_EVENT_KEY
     const botSigningKey = process.env.INNGEST_SIGNING_KEY
+    // BOT_INNGEST_BASE_URL добавлен в цепочку. INNGEST_BASE_URL в проде НЕ
+    // задана, а BOT_INNGEST_BASE_URL задана и указывает на Railway-домен
+    // бота — проверено. Без неё baseUrl клиента (строки ниже) уезжал на
+    // three-head-dragon.shop → 188.137.250.69, старый сервер, не отвечающий ни
+    // по одному протоколу.
     const botBaseUrl =
       process.env.INNGEST_BASE_URL ||
+      process.env.BOT_INNGEST_BASE_URL ||
       'https://three-head-dragon.shop/api/inngest'
 
     if (botEventKey) {
