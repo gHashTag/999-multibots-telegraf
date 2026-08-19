@@ -3,10 +3,21 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
+import { ADMIN_IDS_ARRAY } from '@/config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
-// Список админов (можно вынести в конфиг)
-const ADMIN_IDS = [144022504, 1254048880, 352374518, 1852726961] // Ваши админ ID
+// Список админов берётся из ОДНОГО источника — переменной ADMIN_IDS через
+// config. Раньше здесь лежал свой захардкоженный массив из четырёх ID, и
+// «можно вынести в конфиг» в комментарии никто не выполнил.
+//
+// Расхождение было реальным: в проде ADMIN_IDS содержит ПЯТЬ идентификаторов,
+// и 435572800 в захардкоженный список не входил. Этот человек был админом
+// везде, кроме команд из этого файла, — и получал отказ без объяснения, потому
+// что для него это выглядело как обычная ошибка доступа.
+//
+// Побочный эффект осознанный: если ADMIN_IDS не задана, массив пуст и
+// админских прав нет НИ У КОГО. Для привилегий это верное поведение — отказ по
+// умолчанию, — а факт пустого списка виден в логе config при старте.
 
 // Кэш для предотвращения дублирования операций
 const operationCache = new Map<string, number>()
@@ -16,7 +27,7 @@ const OPERATION_CACHE_TTL = 5000 // 5 секунд
  * Проверяет, является ли пользователь админом
  */
 function isAdmin(telegramId: number): boolean {
-  return ADMIN_IDS.includes(telegramId)
+  return ADMIN_IDS_ARRAY.includes(telegramId)
 }
 
 /**
