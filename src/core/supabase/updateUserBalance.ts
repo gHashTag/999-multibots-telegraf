@@ -28,6 +28,23 @@ type BalanceUpdateMetadata = {
  * Создает или обновляет запись о транзакции в таблице payments
  * @returns Promise<boolean> - успешно ли выполнено добавление/обновление записи
  */
+/**
+ * СОГЛАШЕНИЕ О ЗНАКЕ: направление задаёт `type`, а НЕ знак `amount`.
+ *
+ * Сумма нормализуется через `Math.abs`, то есть знак игнорируется полностью.
+ * Из 65 вызовов пять передают отрицательное число для списания — например
+ * faceSwapWizard/index.ts:196 и processServiceBalanceOperation.ts:77 с
+ * комментарием «Pass negative amount for expense». Сегодня каждый минус
+ * сопровождается MONEY_OUTCOME или SERVICE_PAYMENT, поэтому расхождения нет —
+ * проверено по всем пяти.
+ *
+ * Избыточность всё равно опасна: `updateUserBalance(id, -500, MONEY_INCOME)`
+ * НАЧИСЛИТ 500, а написавший будет уверен, что списал. Компилятор не поможет —
+ * `number` включает отрицательные, а «положительное конечное» без
+ * branded-типа не выразить.
+ *
+ * Передавайте ПОЛОЖИТЕЛЬНУЮ сумму и правильный `type`. Минус не значит ничего.
+ */
 export const updateUserBalance = async (
   telegram_id: string,
   amount: number,
