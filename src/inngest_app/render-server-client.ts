@@ -2,8 +2,8 @@
  * Render Server Client
  * Клиент для взаимодействия с render-server на Railway
  *
- * Server: https://render-v3-production.up.railway.app
- * Inngest: https://render-v3-production.up.railway.app/api/inngest
+ * Server: https://vibee-render-production.up.railway.app
+ * Inngest: https://vibee-render-production.up.railway.app/api/inngest
  * Functions: render, render-avatar-video, render-riddle
  *
  * Использует inngestProvider для управления RENDER инстансом
@@ -15,7 +15,19 @@ import { createHmac } from 'crypto'
 
 logger.info('📦 [RENDER CLIENT] Module loaded, inngestProvider imported')
 
-const RENDER_SERVER_URL = 'https://render-v3-production.up.railway.app'
+// render-v3-production.up.railway.app НЕ СУЩЕСТВУЕТ. Край Railway отвечает
+// {"status":"error","code":404,"message":"Application not found"} на каждый
+// путь, включая /health и /api/inngest — проверено запросами.
+//
+// То есть AI Reels и все задачи рендера уходили в никуда. Это не недавняя
+// поломка: адресата не было. Отсюда и то, что рендер ни разу не доходил до
+// чата — работа отправлялась хосту, которого никогда не было.
+//
+// vibee-render-production рядом отвечает {"status":"ok","bundleReady":true}.
+// Переопределяется через VIBEE_RENDER_URL, чтобы следующий переезд не требовал
+// правки кода.
+const RENDER_SERVER_URL =
+  process.env.VIBEE_RENDER_URL || 'https://vibee-render-production.up.railway.app'
 
 /**
  * Создает подпись для Inngest запроса
