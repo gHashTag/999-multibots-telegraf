@@ -13,6 +13,23 @@ import { RenderConfig } from './helpers/config'
 import type { RenderEventData } from './types'
 import axios from 'axios'
 import { supabase } from '@/core/supabase'
+// ⚠️ ЭТО ЗАГЛУШКИ, А НЕ НАСТОЯЩИЙ ELEVENLABS.
+//
+// '@/services/elevenLabs' резолвится в ФАЙЛ src/services/elevenLabs.ts, а не в
+// каталог src/services/elevenLabs/index.ts — файл выигрывает у каталога.
+// В этом файле:
+//   generateSpeech   → возвращает `https://stub.elevenlabs.com/audio/<ts>.mp3`
+//   transcribeAudio  → возвращает слова "Stub / transcription / from / buffer"
+// Оба печатают в лог "[ELEVENLABS STUB]".
+//
+// Следствия для пайплайна render-riddle:
+//   - у Hedra avatar_speech_url — несуществующий домен, аватар делать не из чего;
+//   - субтитры, если их положить в композицию, покажут "STUB TRANSCRIPTION FROM BUFFER".
+//
+// Настоящая интеграция в проекте ЕСТЬ, но в другом месте:
+// src/core/elevenlabs/createAudioFileFromText.ts и соседние — они ходят в
+// api.elevenlabs.io. Переезд на Remotion обязан заменить и это, иначе получится
+// рабочий рендер фиктивной речи.
 import { generateSpeech, transcribeAudio } from '@/services/elevenLabs'
 import { KieAIService } from '@/services/kieAI'
 import { HeyGenService } from '@/services/heygenService'

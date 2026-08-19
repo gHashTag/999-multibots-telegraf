@@ -506,6 +506,27 @@ try/catch визарда не срабатывает никогда.
 Починено остановкой ДО списания с прямым сообщением. Убирать визард из
 регистрации — продуктовое решение, не техническое.
 
+## Речь в рендер-пайплайне — заглушка, и файл перекрывает каталог
+
+`steps.ts:16` импортирует `generateSpeech` и `transcribeAudio` из
+`@/services/elevenLabs`. Это резолвится в **файл** `src/services/elevenLabs.ts`,
+а не в каталог `src/services/elevenLabs/index.ts` — файл выигрывает у каталога.
+
+В файле — заглушки: `generateSpeech` возвращает
+`https://stub.elevenlabs.com/audio/<ts>.mp3`, `transcribeAudio` — слова
+`Stub / transcription / from / buffer`. Оба логируют `[ELEVENLABS STUB]`.
+
+То есть даже если бы рендер-бэкенд существовал, Hedra получала бы речь с
+несуществующего домена, а субтитры показали бы «STUB TRANSCRIPTION FROM BUFFER».
+
+Настоящая интеграция в проекте есть — `src/core/elevenlabs/*`, ходит в
+`api.elevenlabs.io`. Заглушка задевает только рендер-пайплайн: импортов всего
+два (`steps.ts`, `renderAvatarVideo.ts`).
+
+Общий урок: **при `moduleResolution: node` файл `x.ts` перекрывает каталог
+`x/index.ts` молча.** Если в проекте есть и то и другое с одинаковыми
+экспортами — проверь `tsc --explainFiles`, какой из них реально в программе.
+
 ## Self-check before reporting done
 
 1. Does the changed component actually render? (live DOM, not build)
