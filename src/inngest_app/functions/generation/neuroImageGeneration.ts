@@ -27,6 +27,26 @@ import { PaymentType } from '@/interfaces/payments.interface'
 import { slugify } from 'inngest'
 import { createInngestFailureHandler } from '@/inngest_app/client'
 
+/**
+ * ⚠️ ЭТА ФУНКЦИЯ, ПОХОЖЕ, НЕ ЗАПУСКАЕТСЯ.
+ *
+ * Она подписана на 'neuro/photo.generate'. Это событие встречается во всём
+ * репозитории ровно дважды — в этом объявлении и в таком же в неиспользуемой
+ * копии src/inngest_app/functions/neuroImageGeneration.ts. Отправителя нет
+ * нигде.
+ *
+ * Живой путь нейрофото другой: сцена neuroPhotoWizard вызывает
+ * generateNeuroPhotoHybrid напрямую (src/scenes/neuroPhotoWizard/index.ts:275),
+ * без Inngest. Там своя обработка ошибок, включая ответ про NSFW и запасной
+ * План Б.
+ *
+ * Уведомление пользователя ниже добавлено ДО того, как это выяснилось, —
+ * четвёртый случай правки в файле, который никто не выполняет. Оставлено:
+ * оно корректно и заработает, если функцию когда-нибудь начнут вызывать. Но
+ * считать, что оно что-то чинит сегодня, нельзя.
+ *
+ * Проверять такие случаи: npm run check:events
+ */
 export const neuroImageGeneration = inngest.createFunction(
   {
     id: slugify('neuro-image-generation'),
