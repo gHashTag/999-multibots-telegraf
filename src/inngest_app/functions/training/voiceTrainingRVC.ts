@@ -91,13 +91,23 @@ export const voiceTrainingStart = inngest.createFunction(
     // Step 2: Запустить обучение на Replicate
     const trainingResult = await step.run('start-replicate-training', async () => {
       try {
-        const webhookUrl = `${process.env.API_BASE_URL || process.env.BASE_WEBHOOK_URL}/api/webhooks/voice-training`
-
+        // ВЕБХУК НЕ ПЕРЕДАЁМ. Здесь стоял адрес
+        // `${…}/api/webhooks/voice-training`, а такого маршрута в приложении
+        // НЕТ — единственный маршрут под /api/webhooks это /replicate. Replicate
+        // повторяет неудавшиеся вебхуки, то есть мы годами генерировали серию
+        // запросов в 404.
+        //
+        // Работу и так делает опрос: шаг 'wait-for-completion' ниже спрашивает
+        // статус каждые 30 секунд до 60 раз. Комментарий там честно говорил
+        // «используем polling как fallback» — на деле это был не fallback, а
+        // единственный работающий механизм.
+        //
+        // Если понадобится вебхук: сперва завести маршрут, потом сюда вернуть
+        // адрес. Указывать несуществующий — хуже, чем не указывать никакого.
         const result = await startVoiceTraining({
           telegram_id,
           audioUrl,
           modelName,
-          webhookUrl,
         })
 
         logger.info('[VOICE_TRAINING] Replicate training started', {
