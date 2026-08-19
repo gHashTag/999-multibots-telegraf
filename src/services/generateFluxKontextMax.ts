@@ -359,7 +359,7 @@ export const generateFluxKontextMax = async (
       const originalMsg = saveError instanceof Error ? saveError.message : String(saveError)
       console.error('🚨 [FluxKontextMax] Failed to save prompt:', saveError)
       // Refund user if database save fails
-      await refundUser(ctx, FLUX_KONTEXT_MAX_MODEL.costPerImage)
+      await refundUser(ctx, FLUX_KONTEXT_MAX_MODEL.costPerImage, { reason: "generation_failed" })
       throw new Error(`Failed to save generation record: ${originalMsg}`)
     }
 
@@ -434,7 +434,7 @@ export const generateFluxKontextMax = async (
 
     // Refund user - ONLY if not a welcome gift (no charge was made)
     if (!params.is_welcome_gift) {
-      await refundUser(params.ctx, FLUX_KONTEXT_MAX_MODEL.costPerImage)
+      await refundUser(params.ctx, FLUX_KONTEXT_MAX_MODEL.costPerImage, { reason: "generation_failed" })
     }
 
     throw error

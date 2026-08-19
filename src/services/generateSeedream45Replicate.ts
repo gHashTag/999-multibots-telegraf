@@ -454,7 +454,7 @@ export async function generateSeedream45Replicate(
     }
 
     // Refund user
-    await refundUser(params.ctx, totalCost)
+    await refundUser(params.ctx, totalCost, { reason: "generation_failed" })
 
     // Send notification to admins
     try {

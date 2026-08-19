@@ -206,7 +206,7 @@ export const generateSeedEdit3 = async (
       })
 
       // ✅ Refund user on API failure (silent mode if needed)
-      await refundUser(ctx, totalCost, params.silent || false)
+      await refundUser(ctx, totalCost, { silent: params.silent || false, reason: "generation_failed" })
 
       throw error
     }
@@ -329,7 +329,7 @@ export const generateSeedEdit3 = async (
     // ✅ Refund on any outer error (if not already refunded in inner catch)
     try {
       if (totalCost > 0 && params.ctx) {
-        await refundUser(params.ctx, totalCost, params.silent || false)
+        await refundUser(params.ctx, totalCost, { silent: params.silent || false, reason: "generation_failed" })
         logger.info('💰 Balance refunded after SeedEdit3 error', {
           telegram_id: params.telegram_id,
           refundAmount: totalCost,

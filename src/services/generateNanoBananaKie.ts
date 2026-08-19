@@ -216,7 +216,7 @@ export async function generateNanoBananaKie({
     // ✅ ВОЗВРАТ БАЛАНСА при ошибке генерации
     try {
       if (costPerImage > 0 && ctx) {
-        await refundUser(ctx, costPerImage, true) // silent refund
+        await refundUser(ctx, costPerImage, { silent: true, reason: "generation_failed" }) // silent refund
         logger.info('💰 Balance refunded after NanoBananaKie error', {
           telegram_id,
           refundAmount: costPerImage,

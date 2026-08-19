@@ -189,7 +189,7 @@ export const generateFluxKontextPro = async (
       })
 
       // ✅ Refund user on API failure (silent mode if needed)
-      await refundUser(ctx, totalCost, params.silent || false)
+      await refundUser(ctx, totalCost, { silent: params.silent || false, reason: "generation_failed" })
 
       throw error
     }

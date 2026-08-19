@@ -1210,7 +1210,7 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     // ✅ ВОЗВРАТ БАЛАНСА при ошибке генерации
     try {
       if (typeof paymentAmount === 'number' && paymentAmount > 0) {
-        await refundUser(ctx, paymentAmount, true) // silent refund
+        await refundUser(ctx, paymentAmount, { silent: true, reason: "generation_failed" }) // silent refund
         logger.info('💰 Balance refunded after morphing error', {
           telegramId: ctx.from?.id,
           refundAmount: paymentAmount,

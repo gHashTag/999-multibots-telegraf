@@ -274,7 +274,7 @@ export class CancelButtonService {
           telegramId: ctx.from?.id,
           amount: paymentAmount,
         })
-        await refundUser(ctx, paymentAmount, false) // НЕ silent - показываем пользователю
+        await refundUser(ctx, paymentAmount, { silent: false, reason: "user_cancelled" }) // НЕ silent - показываем пользователю
         ctx.session.paymentAmount = 0 // Очищаем после возврата
       }
 

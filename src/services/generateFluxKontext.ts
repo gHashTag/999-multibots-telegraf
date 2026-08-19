@@ -522,7 +522,7 @@ export const generateFluxKontext = async (
     // ✅ ВОЗВРАТ БАЛАНСА при ошибке генерации (если баланс был списан)
     try {
       if (paymentAmount > 0 && params.ctx && !errorMessageToUser.includes('Недостаточно звёзд') && !errorMessageToUser.includes('Not enough stars')) {
-        await refundUser(params.ctx, paymentAmount, true) // silent refund
+        await refundUser(params.ctx, paymentAmount, { silent: true, reason: "generation_failed" }) // silent refund
         logger.info('💰 Balance refunded after FLUX Kontext error', {
           telegram_id: params.telegram_id,
           refundAmount: paymentAmount,
@@ -1284,7 +1284,7 @@ export const upscaleFluxKontextImage = async (params: {
         amount: upscaleCost,
       })
       try {
-        await refundUser(params.ctx, upscaleCost)
+        await refundUser(params.ctx, upscaleCost, { reason: "generation_failed" })
       } catch (refundError) {
         logger.error('Failed to refund user after upscaling failure', {
           telegram_id: params.telegram_id,
