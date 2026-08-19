@@ -46,11 +46,23 @@ class InngestProvider {
     // BOT инстанс (наш основной сервер)
     const botEventKey = process.env.INNGEST_EVENT_KEY
     const botSigningKey = process.env.INNGEST_SIGNING_KEY
-    // BOT_INNGEST_BASE_URL добавлен в цепочку. INNGEST_BASE_URL в проде НЕ
-    // задана, а BOT_INNGEST_BASE_URL задана и указывает на Railway-домен
-    // бота — проверено. Без неё baseUrl клиента (строки ниже) уезжал на
-    // three-head-dragon.shop → 188.137.250.69, старый сервер, не отвечающий ни
-    // по одному протоколу.
+    // ВАЖНО: это значение НЕ влияет на доставку событий. Оно попадает только
+    // в логи.
+    //
+    // Проверено по коду: botClient создаётся как new Inngest({ name, eventKey })
+    // — baseUrl туда не передаётся. Поле baseUrl кладётся в this.configs и
+    // встречается дальше лишь в трёх logger-вызовах (строки ~173, ~184, ~210).
+    // Отправка идёт через config.client.send(). Общий клиент в client.ts тоже
+    // создаётся без baseUrl, поэтому SDK берёт свой умолчательный адрес:
+    // node_modules/inngest/helpers/consts.js:180 — defaultInngestEventBaseUrl =
+    // "https://inn.gs/". Сам SDK читает INNGEST_BASE_URL из окружения
+    // напрямую (envKeys.InngestBaseUrl), а в проде она не задана.
+    //
+    // Вывод: события уходят в Inngest Cloud, и мёртвый three-head-dragon.shop
+    // никогда на это не влиял. В PR #422 я написал обратное — что baseUrl
+    // используется клиентом и правка «не декоративна». Это было неверно.
+    // BOT_INNGEST_BASE_URL в цепочке оставлен: пусть в логах стоит живой хост,
+    // а не адрес сервера, которого нет.
     const botBaseUrl =
       process.env.INNGEST_BASE_URL ||
       process.env.BOT_INNGEST_BASE_URL ||
