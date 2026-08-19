@@ -3,6 +3,7 @@ import { getReferalsCountAndUserData } from '../../core/supabase'
 import { MyContext } from '../../interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { REFERRAL_BONUS_STARS } from '@/core/referral/rewardInviter'
 
 export const inviteScene = new Scenes.BaseScene<MyContext>('inviteScene')
 
@@ -15,18 +16,21 @@ inviteScene.enter(async ctx => {
   try {
     const { count } = await getReferalsCountAndUserData(telegram_id)
 
+    // Обещаем ровно то, что выполняем.
+    //
+    // Прежний текст обещал три вещи: бонусные звёзды, доступ к эксклюзивным
+    // функциям и повышение уровня. Проверено по данным: наград за приглашение
+    // в реестре платежей НЕТ НИ ОДНОЙ (17 136 строк), а `level` равен нулю у
+    // 2351 профиля из 2354. Не выполнялась ни одна из трёх.
+    //
+    // Теперь про звёзды написано, только если награда включена
+    // (REFERRAL_BONUS_STARS), и названа настоящая сумма.
+    const bonus = REFERRAL_BONUS_STARS
+    const rewardLine = bonus > 0 ? (isRu ? `\n\n🎁 За каждого друга, который запустит бота по вашей ссылке, вы получаете ${bonus} звёзд.` : `\n\n🎁 For every friend who starts the bot via your link you get ${bonus} stars.`) : ''
+
     const introText = isRu
-      ? `🎁 Пригласите друга и откройте для себя новые возможности! Отправьте ему эту ссылку, и пусть он присоединится к нашему сообществу. 
-      \nЧто вы получите?
-      - Бонусные звезды для использования в боте.
-      - Доступ к эксклюзивным функциям и возможностям.
-      - Повышение уровня и доступ к новым функциям.
-      \n<b>Рефаралы:</b> ${count}`
-      : `🎁 Invite a friend and unlock new opportunities! Send them this link and let them join our community. 🎁 What do you get?
-      - Bonus stars for use in the bot.
-      - Access to exclusive features and capabilities.
-      - Level up and access to new features.
-      \n<b>Referrals:</b> ${count}`
+      ? `🔗 Пригласите друга — отправьте ему эту ссылку.${rewardLine}\n\n<b>Приглашено:</b> ${count}`
+      : `🔗 Invite a friend — send them this link.${rewardLine}\n\n<b>Invited:</b> ${count}`
 
     const linkText = `<a href="https://t.me/${botUsername}?start=${telegram_id}">https://t.me/${botUsername}?start=${telegram_id}</a>`
 

@@ -325,12 +325,30 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       console.log('CASE: Sending referral notifications')
 
       if (ctx.session.inviteCode) {
+        // Награда пригласившему. Начисляется ДО уведомления, чтобы в самом
+        // уведомлении можно было честно назвать сумму. Если награда выключена
+        // (по умолчанию), выдачи нет — и обещания в сцене приглашения тоже.
+        const { rewardInviter } = await import('@/core/referral/rewardInviter')
+        const reward = await rewardInviter({
+          inviterTelegramId: ctx.session.inviteCode,
+          newUserTelegramId: telegram_id.toString(),
+          botName: ctx.botInfo.username,
+        })
+
+        const isRu = isRussianFromState(ctx)
+        const rewardLine = reward.rewarded
+          ? isRu
+            ? `\n\n🎁 Вам начислено ${reward.stars} звёзд.`
+            : `\n\n🎁 You received ${reward.stars} stars.`
+          : ''
+
         try {
           await ctx.telegram.sendMessage(
             ctx.session.inviteCode,
-            isRussianFromState(ctx)
+            (isRu
               ? `🔗 Новый пользователь @${finalUsername} зарегистрировался по вашей ссылке!`
-              : `🔗 New user @${finalUsername} registered using your link!`
+              : `🔗 New user @${finalUsername} registered using your link!`) +
+              rewardLine
           )
           logger.info('✉️ [CreateUserScene] Уведомление пригласившему отправлено', {
             telegramId: telegram_id.toString(),
