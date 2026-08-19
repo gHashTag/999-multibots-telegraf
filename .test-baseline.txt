@@ -568,6 +568,11 @@ src/__tests__/money/payment-record-not-silent.test.ts :: запись плате
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа ошибка вставки БРОСАЕТ, а не молчит
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа повтор той же записи НЕ бросает — строка уже есть
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа успешная вставка не бросает
+src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты звёзды начисляются ДО отметки «оплачено»
+src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты подпись проверяется раньше любых изменений
+src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты при неудаче начисления обработчик отвечает неуспехом
+src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты разбор находит ключевые шаги — иначе тест пустой
+src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты человеку сообщают об успехе ПОСЛЕ отметки
 src/__tests__/navigation/access.config.test.ts :: access.config Edge cases getParsingAccess обрабатывает пустой токен
 src/__tests__/navigation/access.config.test.ts :: access.config Edge cases isAdmin обрабатывает числа с плавающей точкой
 src/__tests__/navigation/access.config.test.ts :: access.config Edge cases isSuperAdmin обрабатывает отрицательные числа
@@ -2067,6 +2072,7 @@ src/__tests__/security/callback-token.test.ts :: метка обратного �
 src/__tests__/security/callback-token.test.ts :: метка обратного вызова разная для разных номеров — чужую не переиспользуешь
 src/__tests__/security/callback-token.test.ts :: метка обратного вызова своя метка проходит проверку
 src/__tests__/security/no-secrets-in-repo.test.ts :: в репозитории нет новых секретов в списке долга нет файлов, которые уже вычищены
+src/__tests__/security/no-secrets-in-repo.test.ts :: в репозитории нет новых секретов нет секретов в файлах вне списка известного долга
 src/__tests__/security/no-secrets-in-repo.test.ts :: в репозитории нет новых секретов самопроверка: шаблоны срабатывают на заведомых образцах
 src/__tests__/security/no-token-in-urls.test.ts :: токен бота не уходит в адресах разбор находит места, где такой адрес строится — иначе тест пустой
 src/__tests__/security/no-token-in-urls.test.ts :: токен бота не уходит в адресах такой адрес не возвращается из функции
