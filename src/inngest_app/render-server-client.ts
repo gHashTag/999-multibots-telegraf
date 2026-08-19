@@ -324,7 +324,13 @@ export function createRenderAvatarPayload(
       options?.callbackUrl !== undefined
         ? options.callbackUrl
         : process.env.BASE_WEBHOOK_URL
-          ? `${process.env.BASE_WEBHOOK_URL}/api/telegram/ai-reels-callback`
+          // bot_name кладётся В САМ URL. Иначе он теряется: sendCallback
+          // (functions/render/helpers/renderSteps.ts:315) шлёт ровно
+          // { download_url } и никаких метаданных, а render.ts знает только
+          // job_id и callback_url. Здесь же бот известен достоверно — это тот
+          // бот, в котором человек заказал видео.
+          ? `${process.env.BASE_WEBHOOK_URL}/api/telegram/ai-reels-callback` +
+            (options?.botName ? `?bot=${encodeURIComponent(options.botName)}` : '')
           // Переменной нет — отдаём null, а не строку "undefined/api/...".
           // Отсутствие адреса render-сервер обработает как «коллбэк не нужен»;
           // мусорный URL он бы честно попытался вызвать.

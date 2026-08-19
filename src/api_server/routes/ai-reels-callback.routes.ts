@@ -2,6 +2,7 @@ import express from 'express'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
 import { defaultBot, getBotByName } from '@/core/bot'
+import { supabase } from '@/core/supabase'
 import axios from 'axios'
 import { Input } from 'telegraf'
 import {
@@ -113,6 +114,7 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
     // Обработка в зависимости от статуса
     if (status === 'completed') {
       await handleCompletedRender(telegramId, {
+        bot_name: (req.query?.bot as string) || undefined,
         ...payload,
         job_id: jobId,
         result_url: videoUrl,
@@ -180,28 +182,55 @@ async function handleCompletedRender(
   // Определяем правильного бота в начале функции
   let botName = payload.bot_name || payload.metadata?.bot_name
 
-  // ✅ FIX: Если bot_name нет в payload, ищем бота по владельцу (telegramId)
+  // bot_name В PAYLOAD НЕ ПРИХОДИТ НИКОГДА.
+  //
+  // sendCallback (functions/render/helpers/renderSteps.ts:315) шлёт ровно
+  // { download_url: downloadUrl } — ни bot_name, ни telegram_id, ни metadata.
+  // Значит эта ветка берётся ВСЕГДА, и раньше она упиралась в захардкоженную
+  // карту из пяти владельцев. Для всех остальных botName оставался undefined,
+  // и готовое видео уходило через defaultBot — то есть человеку писал не тот
+  // бот, в котором он его заказывал, либо не писал никто.
+  //
+  // ЗАПАСНОЙ путь — на случай старых задач, чей callback_url собран без ?bot=.
+  //
+  // users.bot_name заполнен у всех 2341 пользователя, но означает он «бот, через
+  // которого человек зарегистрировался», а не «бот, которым он владеет».
+  // Проверено: по всем четырём владельцам из прежней захардкоженной карты база
+  // даёт ДРУГОЕ значение (144022504 → HaimGroupMedia_bot против
+  // neuro_blogger_bot в карте), а пятого владельца в users нет вовсе. То есть
+  // карта и база противоречат друг другу, и достоверен только ?bot= выше.
+  // База — приближение, но лучше карты из пяти строк, которая расходится с
+  // данными и не покрывает никого больше.
   if (!botName) {
-    // Hardcoded маппинг известных владельцев → боты
-    const OWNER_TO_BOT: Record<string, string> = {
-      '7669741878': 'HaimGroupMedia_bot',
-      '144022504': 'neuro_blogger_bot',
-      '1254048880': 'MetaMuse_Manifest_bot',
-      '352374518': 'ZavaraBot',
-      '1852726961': 'LeeSolarbot',
-      // Добавляй сюда других по мере необходимости
-    }
+    try {
+      const { data, error: dbError } = await supabase
+        .from('users')
+        .select('bot_name')
+        .eq('telegram_id', telegramId.toString())
+        .maybeSingle()
 
-    botName = OWNER_TO_BOT[telegramId]
-
-    if (botName) {
-      logger.info('✅ [AI REELS CALLBACK] Found bot by owner telegramId', {
+      if (dbError) {
+        logger.warn('⚠️ [AI REELS CALLBACK] Не удалось спросить бота у базы', {
+          telegramId,
+          error: dbError.message,
+        })
+      } else if (data?.bot_name) {
+        botName = data.bot_name
+        logger.info('✅ [AI REELS CALLBACK] Бот определён по базе', {
+          telegramId,
+          botName,
+        })
+      } else {
+        logger.warn('⚠️ [AI REELS CALLBACK] У пользователя нет bot_name в базе', {
+          telegramId,
+        })
+      }
+    } catch (e) {
+      // Падать нельзя: ниже есть defaultBot, и лучше отдать видео хоть
+      // каким-то ботом, чем не отдать вовсе.
+      logger.error('❌ [AI REELS CALLBACK] Ошибка запроса bot_name', {
         telegramId,
-        botName
-      })
-    } else {
-      logger.warn('⚠️ [AI REELS CALLBACK] No bot mapping for owner', {
-        telegramId
+        error: e instanceof Error ? e.message : String(e),
       })
     }
   }
