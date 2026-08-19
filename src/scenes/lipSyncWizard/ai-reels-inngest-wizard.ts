@@ -18,6 +18,7 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { calculateLipSyncCostStars } from '@/config/lipsync-models.config'
 import { WAN25ModelType, calculateWAN25CostStars } from '@/config/wan25-config'
+import { PUBLIC_URL } from '@/config'
 
 export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
   'ai_reels_inngest_wizard',
@@ -332,7 +333,14 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
         audioUrl: audioUrl || undefined,
         resolution,
         botName: ctx.botInfo?.username || 'unknown_bot',
-        webhookUrl: `https://three-head-dragon.shop/api/telegram/ai-reels-callback`,
+        // Домен берётся из конфигурации, а не зашивается. Здесь стояло
+        // https://three-head-dragon.shop — старый сервер (188.137.250.69), с
+        // которого проект переехал на Railway и который не отвечает вовсе.
+        // Этот URL уходит внешнему провайдеру как адрес коллбэка, а сразу
+        // после него человеку пишут «списано N ⭐» и «вы получите уведомление
+        // когда видео будет готово». Деньги списывались за результат, которому
+        // некуда вернуться.
+        webhookUrl: `${PUBLIC_URL}/api/telegram/ai-reels-callback`,
       })
 
       await ctx.reply(

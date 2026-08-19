@@ -219,6 +219,14 @@ const BASE_PAYMENT_URL = isDev
   : API_SERVER_URL ||
     RESULT_URL2?.split('/payment-success')[0] ||
     process.env.SERVER_PUBLIC_URL ||
+    // BASE_WEBHOOK_URL добавлен в цепочку. Он ЕСТЬ в проде и указывает на
+    // Railway-домен бота, а три переменные выше не заданы ни одна — проверено.
+    // Без него прод сваливался в fallback ниже, то есть ResultURL Robokassa
+    // (серверный webhook подтверждения платежа, helper.ts:128) указывал на
+    // three-head-dragon.shop → 188.137.250.69. Это старый сервер, с которого
+    // проект переехал на Railway; он не отвечает ни по http, ни по https, ни
+    // по IP — HTTP 000 на всех четырёх проверках.
+    process.env.BASE_WEBHOOK_URL ||
     'https://three-head-dragon.shop'
 
 export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
