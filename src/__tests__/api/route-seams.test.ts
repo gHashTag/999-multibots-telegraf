@@ -37,12 +37,22 @@ function parseImports(src: string): Map<string, string> {
   return out
 }
 
-/** app.use('/mount', fooRouter) */
+/**
+ * app.use('/mount', fooRouter) — а также с промежуточными обработчиками:
+ * app.use('/mount', requireInternalKey, fooRouter).
+ *
+ * Роутер — ПОСЛЕДНИЙ аргумент. Первая версия брала второй, и когда перед
+ * роутером появился охранник, тест решил, что diagnosticRouter и billingRouter
+ * никуда не примонтированы. Поймала проверка npm run test:gate.
+ */
 function parseMounts(src: string): Array<{ mount: string; varName: string }> {
-  return [...src.matchAll(/app\.use\(\s*['"]([^'"]+)['"]\s*,\s*(\w+)/g)].map(m => ({
-    mount: m[1],
-    varName: m[2],
-  }))
+  const out: Array<{ mount: string; varName: string }> = []
+  for (const m of src.matchAll(/app\.use\(\s*['"]([^'"]+)['"]\s*,([^)]+)\)/g)) {
+    const args = m[2].split(',').map(x => x.trim()).filter(Boolean)
+    if (!args.length) continue
+    out.push({ mount: m[1], varName: args[args.length - 1] })
+  }
+  return out
 }
 
 function routeFileFor(rel: string): string {

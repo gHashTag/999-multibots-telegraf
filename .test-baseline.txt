@@ -8,6 +8,10 @@ scripts/tests/pagination.test.ts :: Pagination Tests Should handle empty result 
 scripts/tests/pagination.test.ts :: Pagination Tests Should handle pagination with mock data
 scripts/tests/pagination.test.ts :: Pagination Tests Should maintain consistent telegram_id across pagination
 scripts/tests/pagination.test.ts :: Pagination Tests Should simulate production scenario (16217 records)
+src/__tests__/api/protected-routes.test.ts :: внутренние маршруты закрыты в списке открытых нет тех, кого уже закрыли
+src/__tests__/api/protected-routes.test.ts :: внутренние маршруты закрыты каждый открытый роутер назван с причиной
+src/__tests__/api/protected-routes.test.ts :: внутренние маршруты закрыты разбор находит монтирования — иначе тест пустой
+src/__tests__/api/protected-routes.test.ts :: внутренние маршруты закрыты роутеры с внутренними данными закрыты служебным ключом
 src/__tests__/api/robokassaWebhook.test.ts :: Robokassa Webhook Handler 1. Валидация подписи Robokassa должен валидировать корректную подпись
 src/__tests__/api/robokassaWebhook.test.ts :: Robokassa Webhook Handler 1. Валидация подписи Robokassa должен отклонять некорректную подпись
 src/__tests__/api/robokassaWebhook.test.ts :: Robokassa Webhook Handler 1. Валидация подписи Robokassa должен проверять подпись с правильным форматом
