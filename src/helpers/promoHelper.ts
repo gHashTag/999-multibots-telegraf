@@ -130,10 +130,18 @@ async function activatePromoSubscription(
 }
 
 /**
- * Checks if a user has already received promo bonus and subscription of a specific type
- * @param telegram_id - User's Telegram ID
- * @param promoType - Type of promo to check
- * @returns Promise<boolean> - True if user already received this promo
+ * Получал ли человек это промо раньше.
+ *
+ * ОТКАЗ ЗАКРЫТЫЙ. Если проверить не удалось — считаем, что получал, и НЕ
+ * выдаём. Раньше здесь стояло обратное, с комментарием «assume not received on
+ * error to be safe»: безопасно для человека, но не для кошелька. Сбой запроса
+ * к базе выдавал 1303 звезды (цена 2999 ₽) повторно и столько раз, сколько
+ * длился сбой.
+ *
+ * Цена ошибки несимметрична: не выдать промо — человек нажимает ссылку ещё раз;
+ * выдать лишний раз — деньги ушли безвозвратно.
+ *
+ * @returns true — «выдавать нельзя» (получал или проверить не смогли)
  */
 export async function hasReceivedPromo(
   telegram_id: string,
@@ -158,12 +166,15 @@ export async function hasReceivedPromo(
       .limit(1)
 
     if (bonusError) {
-      logger.error('❌ [PromoHelper] Error checking promo history', {
-        telegram_id,
-        promoType,
-        error: bonusError.message,
-      })
-      return false
+      logger.error(
+        '❌ [PromoHelper] Проверка промо не удалась — промо НЕ выдаём',
+        {
+          telegram_id,
+          promoType,
+          error: bonusError.message,
+        }
+      )
+      return true
     }
 
     const hasReceived = promoBonuses && promoBonuses.length > 0
@@ -176,12 +187,15 @@ export async function hasReceivedPromo(
 
     return hasReceived
   } catch (error) {
-    logger.error('❌ [PromoHelper] Exception during promo check', {
-      telegram_id,
-      promoType,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
-    return false // Assume not received on error to be safe
+    logger.error(
+      '❌ [PromoHelper] Исключение при проверке промо — промо НЕ выдаём',
+      {
+        telegram_id,
+        promoType,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    )
+    return true // отказ закрытый: не смогли проверить — не выдаём
   }
 }
 
@@ -220,7 +234,8 @@ export async function processPromoLink(
       config.promoType
     )
     if (alreadyReceived) {
-      logger.info('🚫 [PromoHelper] User already received this promo', {
+      // Либо получал раньше, либо проверить не удалось — см. hasReceivedPromo.
+      logger.info('🚫 [PromoHelper] Промо не выдаём: получал или не проверили', {
         telegram_id,
         promo_type: config.promoType,
       })

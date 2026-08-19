@@ -136,7 +136,15 @@ describe('promoHelper', () => {
       expect(result).toBe(true)
     })
 
-    it('should return false on database error', async () => {
+    /**
+     * ПОПРАВКА К ПРЕЖНЕЙ ВЕРСИИ ЭТИХ ДВУХ ПРОВЕРОК. Раньше здесь стояло
+     * «при отказе базы вернуть false», то есть «не получал» — и промо
+     * выдавалось. Цена: 1303 звезды (2999 ₽) каждый раз, пока длится сбой.
+     *
+     * Цена ошибки несимметрична: не выдать — человек нажмёт ссылку ещё раз;
+     * выдать лишний раз — деньги не вернуть. Поэтому отказ закрытый.
+     */
+    it('при отказе базы отвечает «выдавать нельзя»', async () => {
       const mockChain = {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
@@ -151,23 +159,23 @@ describe('promoHelper', () => {
 
       const result = await hasReceivedPromo(telegramId, promoType)
 
-      expect(result).toBe(false)
+      expect(result).toBe(true)
       expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Error checking promo history'),
+        expect.stringContaining('промо НЕ выдаём'),
         expect.any(Object)
       )
     })
 
-    it('should return false on exception', async () => {
+    it('при исключении отвечает «выдавать нельзя»', async () => {
       mockSupabase.from.mockImplementation(() => {
         throw new Error('Connection failed')
       })
 
       const result = await hasReceivedPromo(telegramId, promoType)
 
-      expect(result).toBe(false)
+      expect(result).toBe(true)
       expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Exception during promo check'),
+        expect.stringContaining('промо НЕ выдаём'),
         expect.any(Object)
       )
     })
@@ -239,10 +247,45 @@ describe('promoHelper', () => {
         const result = await processPromoLink(telegramId, 'neurovideo', botName)
 
         expect(result).toBe(false)
+        expect(mockDirectPaymentProcessor).not.toHaveBeenCalled()
         expect(logger.info).toHaveBeenCalledWith(
-          expect.stringContaining('User already received this promo'),
+          expect.stringContaining('Промо не выдаём'),
           expect.any(Object)
         )
+      })
+
+      /**
+       * Главное свойство: при неизвестном состоянии деньги не уходят.
+       * Проверяем не возвращаемое значение, а факт — начисления не было.
+       */
+      it('при отказе проверки начисление НЕ происходит', async () => {
+        const mockChain = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          contains: vi.fn().mockReturnThis(),
+          not: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockResolvedValue({
+            data: null,
+            error: { message: 'отказ базы' },
+          }),
+        }
+        mockSupabase.from.mockReturnValue(mockChain)
+
+        const result = await processPromoLink(telegramId, 'neurovideo', botName)
+
+        expect(result).toBe(false)
+        expect(mockDirectPaymentProcessor).not.toHaveBeenCalled()
+      })
+
+      it('при исключении в проверке начисление НЕ происходит', async () => {
+        mockSupabase.from.mockImplementation(() => {
+          throw new Error('соединение с базой потеряно')
+        })
+
+        const result = await processPromoLink(telegramId, 'neurovideo', botName)
+
+        expect(result).toBe(false)
+        expect(mockDirectPaymentProcessor).not.toHaveBeenCalled()
       })
     })
 
