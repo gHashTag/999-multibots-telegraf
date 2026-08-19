@@ -679,14 +679,29 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.leave()
         }
 
-        // Списываем средства
-        await updateUserBalance(
+        // Списываем средства.
+        //
+        // Было `-estimatedCost` с типом SERVICE_PAYMENT — списание молча не
+        // происходило: SERVICE_PAYMENT нет в OperationTypeEnum, по которому
+        // валидируется запись, zod бросал, updateUserBalance возвращала false,
+        // и никто это false не проверял. В payments_v2 ноль строк с
+        // service_type='ai_reels_heygen'.
+        const charged = await updateUserBalance(
           telegramId,
-          -estimatedCost,
-          PaymentType.SERVICE_PAYMENT,
+          estimatedCost,
+          PaymentType.MONEY_OUTCOME,
           `AI Reels HeyGen`,
           { bot_name: ctx.botInfo?.username || 'unknown_bot', service_type: 'ai_reels_heygen' }
         )
+
+        if (!charged) {
+          await ctx.reply(
+            isRu
+              ? '❌ Не удалось списать средства. Генерация отменена, деньги не тронуты.'
+              : '❌ Could not charge your balance. Generation cancelled, nothing was taken.'
+          )
+          return ctx.scene.leave()
+        }
 
         // Создаем payload
         const payload = createRenderAvatarPayload(

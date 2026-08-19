@@ -45,8 +45,11 @@ vi.mock('@/utils/logger', () => ({
 }))
 
 vi.mock('@/interfaces/payments.interface', () => ({
+  // SERVICE_PAYMENT убран из мока вслед за настоящим enum: этого типа не
+  // знает OperationTypeEnum, по которому валидируется запись в payments_v2,
+  // поэтому списание с ним молча не происходило.
   PaymentType: {
-    SERVICE_PAYMENT: 'service_payment',
+    MONEY_OUTCOME: 'money_outcome',
     MONEY_INCOME: 'money_income',
   },
 }))

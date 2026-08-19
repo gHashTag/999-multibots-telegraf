@@ -625,11 +625,15 @@ export const falRenderWizard = new Scenes.WizardScene<MyContext>(
       )
       return ctx.scene.leave()
 
-      // Списание средств
+      // Списание средств. Код ниже недостижим (см. return выше), но остаётся
+      // как заготовка на день, когда обработчик Fal напишут. Тип и знак
+      // исправлены здесь же, чтобы заготовка не воскресила прежнюю ошибку:
+      // SERVICE_PAYMENT не проходит валидацию записи, а минус у суммы при
+      // MONEY_OUTCOME начисляет деньги вместо списания.
       await updateUserBalance(
         telegramId,
-        -estimatedCost,
-        PaymentType.SERVICE_PAYMENT,
+        estimatedCost,
+        PaymentType.MONEY_OUTCOME,
         'AI Reels Fal',
         {
           bot_name: ctx.botInfo?.username || 'unknown_bot',

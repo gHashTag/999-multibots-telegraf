@@ -66,8 +66,11 @@ vi.mock('@/utils/logger', () => ({
 }))
 
 vi.mock('@/interfaces/payments.interface', () => ({
+  // SERVICE_PAYMENT убран из мока вслед за настоящим enum: этого типа не
+  // знает OperationTypeEnum, по которому валидируется запись в payments_v2,
+  // поэтому списание с ним молча не происходило.
   PaymentType: {
-    SERVICE_PAYMENT: 'service_payment',
+    MONEY_OUTCOME: 'money_outcome',
     MONEY_INCOME: 'money_income',
   },
 }))
@@ -454,11 +457,19 @@ describe('heygenRenderWizard (HeyGen Avatar Video Generation)', () => {
       }
     })
 
+    // ВНИМАНИЕ: этот тест вызывает мок напрямую и проверяет, что мок вызвали.
+    // Сам визард он не исполняет и поймать регрессию не может. Оставлен как
+    // документация ожидаемых аргументов, пока не написан настоящий тест.
+    //
+    // Аргументы исправлены: раньше здесь стояли -50 и 'service_payment' —
+    // ровно та комбинация, при которой списание молча не происходило
+    // (SERVICE_PAYMENT нет в OperationTypeEnum, запись отбрасывалась zod'ом).
+    // Тест фиксировал дефект как ожидаемое поведение.
     it('должен списывать средства через updateUserBalance', async () => {
       await updateUserBalance(
         '223757230',
-        -50,
-        'service_payment',
+        50,
+        'money_outcome',
         'AI Reels HeyGen',
         { bot_name: 'test_bot', service_type: 'ai_reels_heygen' }
       )

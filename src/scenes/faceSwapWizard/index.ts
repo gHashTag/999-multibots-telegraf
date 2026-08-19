@@ -193,7 +193,10 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
     // Charge user
     const charged = await updateUserBalance(
       telegramId!,
-      -requiredStars,
+      // Минус убран: направление задаёт `type`. Отрицательный MONEY_OUTCOME
+      // начисляет деньги вместо списания. Спасала подмена суммы на
+      // metadata.stars внутри updateUserBalance — случайность, не замысел.
+      requiredStars,
       PaymentType.MONEY_OUTCOME,
       'Face Swap - Replicate',
       {
