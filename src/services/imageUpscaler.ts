@@ -316,7 +316,7 @@ export const upscaleImage = async (
         amount: upscaleCost,
       })
       try {
-        await refundUser(params.ctx, upscaleCost)
+        await refundUser(params.ctx, upscaleCost, { reason: "generation_failed" })
       } catch (refundError) {
         logger.error('Failed to refund user after upscaling failure', {
           telegram_id: params.telegram_id,

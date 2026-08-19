@@ -283,7 +283,7 @@ export const generateTextToImageDirect = async (
           totalImages: num_images,
         })
 
-        await refundUser(ctx, failedImageCost, true) // silent refund
+        await refundUser(ctx, failedImageCost, { silent: true, reason: "partial_failure" }) // silent refund
 
         // Если это была первая/единственная картинка - прокидываем ошибку дальше
         if (num_images === 1 || i === 0) {

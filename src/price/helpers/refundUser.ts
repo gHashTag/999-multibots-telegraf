@@ -5,11 +5,41 @@ import { createMainMenuKeyboard } from '@/navigation'
 import { PaymentType } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
+/**
+ * Почему деньги вернули. Раньше этого не записывалось, и по данным нельзя было
+ * отличить «человек передумал» от «у нас не получилось».
+ *
+ * Цена незнания: 171 возврат у 126 человек, из них 89 за один декабрь 2025 —
+ * месяц, когда возвращаемость упала с 25% до 12%. Что это было — всплеск
+ * отказов генерации или всплеск нажатий «Отмена» — установить УЖЕ НЕЛЬЗЯ.
+ * Обе дороги писали одну и ту же строку «Refund for cancelled generation».
+ *
+ * Отдельно: у возвратов в реестре `service_type` всегда пуст — updateUserBalance
+ * заполняет его только для списаний. Поэтому услуга кладётся в metadata.
+ */
+export type RefundReason =
+  /** Человек нажал «Отмена». */
+  | 'user_cancelled'
+  /** Генерация не удалась целиком. */
+  | 'generation_failed'
+  /** Часть картинок из пачки не получилась. */
+  | 'partial_failure'
+
+export interface RefundOptions {
+  /** Не писать человеку сообщение о возврате. */
+  silent?: boolean
+  /** Обязателен: без него возврат снова станет неотличимым. */
+  reason: RefundReason
+  /** Что именно генерировали — в реестр попадёт через metadata. */
+  service?: string
+}
+
 export async function refundUser(
   ctx: MyContext,
   paymentAmount: number,
-  silent: boolean = false
+  options: RefundOptions
 ) {
+  const { silent = false, reason, service } = options
   if (!ctx.from) {
     console.error('refundUser: ctx.from is undefined')
     return
@@ -33,8 +63,12 @@ export async function refundUser(
     telegramIdStr,
     amountToRefund,
     PaymentType.MONEY_INCOME,
-    'Refund for cancelled generation',
-    { bot_name: bot_name }
+    `Refund (${reason})`,
+    {
+      bot_name: bot_name,
+      refund_reason: reason,
+      refund_service: service ?? ctx.session?.mode ?? null,
+    } as any
   )
 
   // Проверяем булевый результат напрямую
@@ -73,12 +107,19 @@ export async function refundUser(
 
   // ✅ Only send success message if NOT in silent mode
   if (!silent) {
+    // Человеку важно знать, вернули ли деньги потому, что ОН отменил, или
+    // потому, что у НАС не вышло. Второе — повод извиниться, а не отчитаться.
+    const headline =
+      reason === 'user_cancelled'
+        ? isRu
+          ? 'Возвращено звёзд за отменённую генерацию'
+          : 'Stars refunded for the cancelled generation'
+        : isRu
+          ? 'Генерация не удалась, звёзды возвращены'
+          : 'Generation failed, stars refunded'
+
     await ctx.reply(
-      `${
-        isRu
-          ? 'Возвращено звезд за отмененную генерацию'
-          : 'Stars refunded for cancelled generation'
-      }: ${amountToRefund.toFixed(2)} ⭐️\n${
+      `${headline}: ${amountToRefund.toFixed(2)} ⭐️\n${
         isRu ? 'Текущий баланс' : 'Current balance'
       }: ${displayBalance.toFixed(2)} ⭐️`,
       createMainMenuKeyboard(ctx)

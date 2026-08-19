@@ -435,7 +435,7 @@ export async function generateNanoBananaProReplicate(
     }
 
     // Refund user
-    await refundUser(params.ctx, totalCost)
+    await refundUser(params.ctx, totalCost, { reason: "generation_failed" })
 
     // Send notification to admins
     try {

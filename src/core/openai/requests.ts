@@ -161,7 +161,7 @@ export const answerAi = async (
           )
           const nanoBananaPrice = imageModelPrices['fal-ai/nano-banana-pro']
           const costPerImage = nanoBananaPrice?.costPerImage || 10
-          await refundUser(ctx, costPerImage, true)
+          await refundUser(ctx, costPerImage, { silent: true, reason: "generation_failed" })
         } catch (refundError) {
           logger.error('[answerAi] Failed to refund balance', {
             telegramId,

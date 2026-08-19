@@ -209,7 +209,7 @@ export const generateQwenImageEdit = async (
       })
 
       // ✅ Refund user on API failure (silent mode if needed)
-      await refundUser(params.ctx, totalCost, params.silent || false)
+      await refundUser(params.ctx, totalCost, { silent: params.silent || false, reason: "generation_failed" })
 
       throw error
     }
@@ -331,7 +331,7 @@ export const generateQwenImageEdit = async (
     // ✅ Refund on any outer error (if not already refunded in inner catch)
     try {
       if (totalCost > 0 && params.ctx) {
-        await refundUser(params.ctx, totalCost, params.silent || false)
+        await refundUser(params.ctx, totalCost, { silent: params.silent || false, reason: "generation_failed" })
         logger.info('💰 Balance refunded after QwenImageEdit error', {
           telegram_id: params.telegram_id,
           refundAmount: totalCost,

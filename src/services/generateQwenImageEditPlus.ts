@@ -374,7 +374,7 @@ export const generateQwenImageEditPlus = async (
       const originalMsg = saveError instanceof Error ? saveError.message : String(saveError)
       console.error('🚨 [QwenEditPlus] Failed to save prompt:', saveError)
       // Refund user if database save fails
-      await refundUser(ctx, totalCost)
+      await refundUser(ctx, totalCost, { reason: "generation_failed" })
       throw new Error(`Failed to save generation record: ${originalMsg}`)
     }
 
@@ -398,7 +398,7 @@ export const generateQwenImageEditPlus = async (
     await params.ctx.reply(errorMessage)
 
     // Refund user
-    await refundUser(params.ctx, totalCost)
+    await refundUser(params.ctx, totalCost, { reason: "generation_failed" })
 
     throw error
   }

@@ -74,7 +74,7 @@ export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
         if (ctx.from) {
           const paymentAmount = ctx.session.paymentAmount || 0
           console.log('paymentAmount', paymentAmount)
-          await refundUser(ctx, paymentAmount)
+          await refundUser(ctx, paymentAmount, { reason: "user_cancelled" })
         }
       }
       return ctx.scene.leave()
