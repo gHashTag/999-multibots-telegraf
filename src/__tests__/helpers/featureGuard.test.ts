@@ -196,13 +196,13 @@ describe('checkFeatureAccess', () => {
       expect(result).toBe(false)
     })
 
-    it('should return true on error (fail-open)', async () => {
+    it('should return FALSE on error (fail-closed): отказ по решению владельца продукта', async () => {
       const ctx = createMockContext()
       ;(hasUserSeenFeature as Mock).mockRejectedValue(new Error('DB error'))
 
       const result = await checkFeatureAccess(ctx, ModeEnum.NeuroPhoto)
 
-      expect(result).toBe(true)
+      expect(result).toBe(false)
     })
 
     it('should handle English language correctly', async () => {
