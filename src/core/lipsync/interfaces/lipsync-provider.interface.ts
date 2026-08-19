@@ -1,3 +1,4 @@
+import type { UniversalLipSyncInput } from '../schemas/lipsync-schemas'
 /**
  * LipSync provider interface
  */
@@ -9,7 +10,14 @@ export interface ILipSyncProvider {
   readonly providerName: string
   readonly supportedModels: string[]
   generateLipSync(params: any): Promise<any>
-  generate(input: any): Promise<any>
+  // input: UniversalLipSyncInput, а НЕ any.
+  //
+  // Пока здесь стояло `any`, компилятор не мог возразить против
+  // `provider.generate(validatedInput)` в lipsync-model-manager.ts:186, где
+  // validatedInput был булевым `true` — результатом заглушки-валидатора.
+  // Тип слабый (`{ [key: string]: any }`), но булево ему уже не соответствует,
+  // и именно этого достаточно, чтобы такая ошибка не прошла молча снова.
+  generate(input: UniversalLipSyncInput): Promise<any>
   getStatus(taskId: string): Promise<any>
   getModelsConfig(): LipSyncModelConfig[]
   supportsModel(modelId: string): boolean
