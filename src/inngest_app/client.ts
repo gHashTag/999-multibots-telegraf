@@ -72,43 +72,43 @@ export const isInngestConfigured = (): boolean => {
 // Export event names for type safety
 export const INNGEST_EVENTS = {
   // Content events
-  ANALYZE_COMPETITOR_REELS: 'content/analyze-competitor-reels',
-  EXTRACT_TOP_CONTENT: 'content/extract-top-content',
-  FIND_COMPETITORS: 'content/find-competitors',
-  GENERATE_CONTENT_SCRIPTS: 'content/generate-content-scripts',
+  ANALYZE_COMPETITOR_REELS: 'instagram/analyze-reels',
+  EXTRACT_TOP_CONTENT: 'instagram/extract-top',
+  FIND_COMPETITORS: 'instagram/find-competitors',
+  GENERATE_CONTENT_SCRIPTS: 'instagram/generate-scripts',
   GENERATE_DETAILED_SCRIPT: 'content/generate-detailed-script',
   GENERATE_SCENARIO_CLIPS: 'content/generate-scenario-clips',
 
   // Instagram events
   INSTAGRAM_SCRAPER_V2: 'instagram/scraper-v2',
-  INSTAGRAM_SCRAPER_V2_SIMPLE: 'instagram/scraper-v2-simple',
+  INSTAGRAM_SCRAPER_V2_SIMPLE: 'instagram/test-reels',
 
   // Monitoring events
-  CRITICAL_ERROR_MONITOR: 'monitoring/critical-error',
-  LOG_MONITOR: 'monitoring/log-monitor',
+  CRITICAL_ERROR_MONITOR: 'app/error.critical',
+  LOG_MONITOR: 'logs/monitor.trigger',
 
   // Training events
-  MODEL_TRAINING_V2: 'training/model-v2',
-  MORPH_IMAGES: 'training/morph-images',
+  MODEL_TRAINING_V2: 'model/training.v2.requested',
+  MORPH_IMAGES: 'morph/images.requested',
 
   // Generation events
-  NEURO_IMAGE_GENERATION: 'generation/neuro-image',
+  NEURO_IMAGE_GENERATION: 'neuro/photo.generate',
 
   // Payment events
-  PAYMENT_PROCESSING: 'payments/process',
+  PAYMENT_PROCESSING: 'payment/process-ai-server',
 
   // Broadcast events
-  BROADCAST_MESSAGE: 'broadcast/message',
+  BROADCAST_MESSAGE: 'broadcast/send-message',
 
   // Render events
-  RENDER: 'render/main',
+  RENDER: 'render',
   RENDER_AVATAR_VIDEO: 'render/avatar-video',
-  RENDER_RIDDLE: 'render/riddle',
+  RENDER_RIDDLE: 'render-riddle',
 
   // Existing events
-  GENERATE_AI_REELS: 'video/generate-ai-reels',
-  GENERATE_ADVANCED_LOOPING: 'video/advanced-looping',
-  GENERATE_MODEL_TRAINING: 'training/generate-model',
+  GENERATE_AI_REELS: 'ai-reels/generate',
+  GENERATE_ADVANCED_LOOPING: 'reels/generate-advanced-loop',
+  GENERATE_MODEL_TRAINING: 'model/training.start',
 
   // Welcome events
   WELCOME_AVATAR_GENERATE: 'user/welcome.avatar.generate',

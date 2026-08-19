@@ -39,70 +39,65 @@ describe('inngest client', () => {
   })
 
   describe('INNGEST_EVENTS', () => {
-    it('should export content events', async () => {
-      const { INNGEST_EVENTS } = await import('@/inngest_app/client')
+    /**
+     * Раньше здесь было девять тестов, сверявших константы с ЗАХАРДКОЖЕННЫМИ
+     * строками: `expect(INNGEST_EVENTS.RENDER_RIDDLE).toBe('render/riddle')`.
+     *
+     * Такой тест не проверяет ничего: он повторяет то же значение, что и файл
+     * с константами, и потому был зелёным всё время, пока 17 из 24 констант
+     * называли события, на которые НИКТО не подписан. Функция renderRiddle
+     * объявлена как `{ event: 'render-riddle' }` — без слэша, — а константа
+     * говорила 'render/riddle'. Отправка по константе уходила в пустоту, и
+     * Inngest не считал это ошибкой.
+     *
+     * Настоящий контракт другой: **каждое имя обязано совпадать с тем, на что
+     * реально подписана хоть одна функция.** Его и проверяем — по исходникам,
+     * а не по копии той же строки.
+     *
+     * Полная проверка всех карт имён живёт в
+     * src/__tests__/inngest/event-seams.test.ts.
+     */
+    it('каждая константа называет событие, на которое кто-то подписан', async () => {
+      const fs = await import('fs')
+      const path = await import('path')
 
-      expect(INNGEST_EVENTS.ANALYZE_COMPETITOR_REELS).toBe('content/analyze-competitor-reels')
-      expect(INNGEST_EVENTS.EXTRACT_TOP_CONTENT).toBe('content/extract-top-content')
-      expect(INNGEST_EVENTS.FIND_COMPETITORS).toBe('content/find-competitors')
-      expect(INNGEST_EVENTS.GENERATE_CONTENT_SCRIPTS).toBe('content/generate-content-scripts')
-      expect(INNGEST_EVENTS.GENERATE_DETAILED_SCRIPT).toBe('content/generate-detailed-script')
-      expect(INNGEST_EVENTS.GENERATE_SCENARIO_CLIPS).toBe('content/generate-scenario-clips')
+      const strip = (s: string) =>
+        s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+      const files: string[] = []
+      ;(function walk(dir: string) {
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+          if (e.name === 'node_modules' || e.name === '__tests__') continue
+          const p = path.join(dir, e.name)
+          if (e.isDirectory()) walk(p)
+          else if (p.endsWith('.ts') && !p.includes('/test/')) files.push(p)
+        }
+      })('src')
+
+      const listeners = new Set<string>()
+      for (const f of files) {
+        for (const m of strip(fs.readFileSync(f, 'utf8')).matchAll(
+          /\bevent:\s*['"]([a-zA-Z0-9_./-]+)['"]/g
+        )) {
+          listeners.add(m[1])
+        }
+      }
+      // Страховка от самого себя: если разбор перестанет находить подписчиков,
+      // проверка ниже станет зелёной и бессмысленной.
+      expect(listeners.size).toBeGreaterThan(20)
+
+      const { INNGEST_EVENTS } = await import('@/inngest_app/client')
+      const orphans = Object.entries(INNGEST_EVENTS)
+        .filter(([, value]) => !listeners.has(value as string))
+        .map(([key, value]) => `${key} = '${value}'`)
+
+      expect(orphans).toEqual([])
     })
 
-    it('should export instagram events', async () => {
+    it('значения уникальны — две константы не могут звать одно и то же', async () => {
       const { INNGEST_EVENTS } = await import('@/inngest_app/client')
-
-      expect(INNGEST_EVENTS.INSTAGRAM_SCRAPER_V2).toBe('instagram/scraper-v2')
-      expect(INNGEST_EVENTS.INSTAGRAM_SCRAPER_V2_SIMPLE).toBe('instagram/scraper-v2-simple')
-    })
-
-    it('should export monitoring events', async () => {
-      const { INNGEST_EVENTS } = await import('@/inngest_app/client')
-
-      expect(INNGEST_EVENTS.CRITICAL_ERROR_MONITOR).toBe('monitoring/critical-error')
-      expect(INNGEST_EVENTS.LOG_MONITOR).toBe('monitoring/log-monitor')
-    })
-
-    it('should export training events', async () => {
-      const { INNGEST_EVENTS } = await import('@/inngest_app/client')
-
-      expect(INNGEST_EVENTS.MODEL_TRAINING_V2).toBe('training/model-v2')
-      expect(INNGEST_EVENTS.MORPH_IMAGES).toBe('training/morph-images')
-    })
-
-    it('should export generation events', async () => {
-      const { INNGEST_EVENTS } = await import('@/inngest_app/client')
-
-      expect(INNGEST_EVENTS.NEURO_IMAGE_GENERATION).toBe('generation/neuro-image')
-    })
-
-    it('should export payment events', async () => {
-      const { INNGEST_EVENTS } = await import('@/inngest_app/client')
-
-      expect(INNGEST_EVENTS.PAYMENT_PROCESSING).toBe('payments/process')
-    })
-
-    it('should export broadcast events', async () => {
-      const { INNGEST_EVENTS } = await import('@/inngest_app/client')
-
-      expect(INNGEST_EVENTS.BROADCAST_MESSAGE).toBe('broadcast/message')
-    })
-
-    it('should export render events', async () => {
-      const { INNGEST_EVENTS } = await import('@/inngest_app/client')
-
-      expect(INNGEST_EVENTS.RENDER).toBe('render/main')
-      expect(INNGEST_EVENTS.RENDER_AVATAR_VIDEO).toBe('render/avatar-video')
-      expect(INNGEST_EVENTS.RENDER_RIDDLE).toBe('render/riddle')
-    })
-
-    it('should export existing video events', async () => {
-      const { INNGEST_EVENTS } = await import('@/inngest_app/client')
-
-      expect(INNGEST_EVENTS.GENERATE_AI_REELS).toBe('video/generate-ai-reels')
-      expect(INNGEST_EVENTS.GENERATE_ADVANCED_LOOPING).toBe('video/advanced-looping')
-      expect(INNGEST_EVENTS.GENERATE_MODEL_TRAINING).toBe('training/generate-model')
+      const values = Object.values(INNGEST_EVENTS)
+      expect(new Set(values).size).toBe(values.length)
     })
   })
 
@@ -167,8 +162,12 @@ describe('inngest client', () => {
         prompt: 'test prompt',
       })
 
+      // Имя берём из той же константы, что и вызов: тест проверяет, что
+      // sendInngestEvent передаёт имя без изменений, а не то, какое оно.
+      // Правильность самого имени проверяет соседний тест — сверкой с тем, на
+      // что подписаны функции.
       expect(mockSend).toHaveBeenCalledWith({
-        name: 'generation/neuro-image',
+        name: INNGEST_EVENTS.NEURO_IMAGE_GENERATION,
         data: { userId: '123', prompt: 'test prompt' },
       })
       // Check that success was logged (without arguments check due to module init logs)
@@ -205,7 +204,7 @@ describe('inngest client', () => {
       expect(logger.info).toHaveBeenCalledWith(
         expect.stringContaining('Sending event'),
         expect.objectContaining({
-          eventName: 'broadcast/message',
+          eventName: INNGEST_EVENTS.BROADCAST_MESSAGE,
           dataKeys: ['message', 'targets'],
         })
       )

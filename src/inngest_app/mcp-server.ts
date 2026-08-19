@@ -308,22 +308,35 @@ class InngestMCPServer {
     };
   }
 
+  /**
+   * Имена событий, на которые функции ДЕЙСТВИТЕЛЬНО подписаны.
+   *
+   * До правки здесь были неверны ВСЕ ДЕВЯТЬ строк: карта сочиняла красивые
+   * имена вида 'render/riddle', 'training/morph', 'payment/process', а функции
+   * объявлены через `{ event: 'render-riddle' }`, `'morph/images.requested'`,
+   * `'payment/process-ai-server'`. Отправка при этом не давала ошибки —
+   * Inngest принимает любое событие и просто не находит подписчика. То есть
+   * MCP-сервер не мог запустить ни одну функцию из тех, что перечисляет, и
+   * сообщал об успехе.
+   *
+   * Значения сверены с литералами в `createFunction`. Регрессия закрыта
+   * тестом src/__tests__/inngest/event-seams.test.ts: он проверяет, что каждое
+   * значение этой карты совпадает с именем, на которое кто-то подписан.
+   */
   private getFunctionEventName(functionId: string): string {
-    // Map function IDs to event names
     const eventMap: Record<string, string> = {
-      'ai-reels-callback': 'ai-reels/callback',
-      'render': 'render/start',
-      'renderAvatarVideo': 'render/avatar',
-      'renderRiddle': 'render/riddle',
-      'modelTrainingV2': 'training/model.v2',
-      'morphImages': 'training/morph',
-      'neuroImageGeneration': 'generation/neuro-image',
-      'paymentProcessing': 'payment/process',
-      'broadcastMessage': 'broadcast/message',
-      // Add more mappings as needed
-    };
+      'ai-reels-callback': 'ai-reels-callback',
+      render: 'render',
+      renderAvatarVideo: 'render/avatar-video',
+      renderRiddle: 'render-riddle',
+      modelTrainingV2: 'model/training.v2.requested',
+      morphImages: 'morph/images.requested',
+      neuroImageGeneration: 'neuro/photo.generate',
+      paymentProcessing: 'payment/process-ai-server',
+      broadcastMessage: 'broadcast/send-message',
+    }
 
-    return eventMap[functionId] || functionId;
+    return eventMap[functionId] || functionId
   }
 
   async start() {
