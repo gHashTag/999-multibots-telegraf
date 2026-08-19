@@ -9,6 +9,7 @@ import { Logger } from 'inngest'
 import { NonRetriableError } from 'inngest'
 import { SSHService } from './helpers/ssh.service'
 import { S3Service } from './helpers/s3.service'
+import fs from 'node:fs'
 import { RenderConfig } from './helpers/config'
 import type { RenderEventData } from './types'
 import axios from 'axios'
@@ -31,6 +32,7 @@ import { supabase } from '@/core/supabase'
 // api.elevenlabs.io. Переезд на Remotion обязан заменить и это, иначе получится
 // рабочий рендер фиктивной речи.
 import { generateSpeech, transcribeAudio } from '@/services/elevenLabs'
+import { createAudioFileFromText } from '@/core/elevenlabs/createAudioFileFromText'
 import { KieAIService } from '@/services/kieAI'
 import { HeyGenService } from '@/services/heygenService'
 import { HedraService } from '@/services/hedra'
@@ -1029,18 +1031,43 @@ export async function generateSpeechAudio(
       return audioUrl
     }
 
-    // Generate new speech (includes upload to S3 and DB records)
-    const audioUrl = await generateSpeech(
-      {
-        text: avatar_speech,
-        voice_id: voice_id,
-        model_id: 'eleven_multilingual_v2',
-        output_format: 'mp3_44100_128'
-      },
-      eleven_labs_api_key,
-      user_id,
-      job_id
+    // НАСТОЯЩИЙ синтез, а не заглушка.
+    //
+    // generateSpeech из '@/services/elevenLabs' — заглушка: она возвращала
+    // `https://stub.elevenlabs.com/audio/<ts>.mp3`, домен которого не
+    // существует, и пайплайн принимал это за успех. Теперь она бросает.
+    //
+    // Настоящий синтез — createAudioFileFromText (src/core/elevenlabs/), он
+    // ходит в api.elevenlabs.io/v1/text-to-speech/{voice_id}. Но отдаёт он
+    // ПУТЬ К ВРЕМЕННОМУ ФАЙЛУ (os.tmpdir()/audio_<ts>.mp3, строка 188), а не
+    // URL. Поэтому файл кладётся в S3 тем же приёмом, что и остальные
+    // артефакты этого пайплайна: generatePresignedUploadUrl → PUT →
+    // generateGetUrl (см. шаг upload-to-s3, steps.ts:300-328).
+    const localAudioPath = await createAudioFileFromText({
+      text: avatar_speech,
+      voice_id,
+      telegram_id: user_id,
+    })
+
+    // S3Service создаётся локально в каждом шаге этого файла (строки 137, 265,
+    // 874, 898) — держусь того же приёма, а не тащу общий экземпляр.
+    const s3Service = new S3Service()
+    const audioObjectKey = `jobs/${job_id}/speech.mp3`
+    const audioUpload = await s3Service.generatePresignedUploadUrl(
+      audioObjectKey,
+      'audio/mpeg',
+      604800,
+      logger
     )
+    const audioBuffer = await fs.promises.readFile(localAudioPath)
+    await axios.put(audioUpload.url, audioBuffer, {
+      headers: { 'Content-Type': 'audio/mpeg' },
+      maxBodyLength: Infinity,
+    })
+    // Временный файл больше не нужен; его отсутствие не повод падать.
+    await fs.promises.unlink(localAudioPath).catch(() => {})
+
+    const audioUrl = await s3Service.generateGetUrl(audioObjectKey, 604800, logger)
 
     logger.info(`✅ Generated and uploaded speech audio: ${audioUrl}`)
     return audioUrl
