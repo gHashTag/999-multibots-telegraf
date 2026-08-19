@@ -6,9 +6,11 @@ import { logger } from '@/utils/logger'
  */
 
 // ✅ ИСПРАВЛЕНО: Используем только наш домен для lipsync
+// AI_SERVER_URL в проде не задана; раньше цепочка сваливалась на
+// three-head-dragon.shop — старый сервер, HTTP 000 по всем протоколам.
 const AI_SERVER_URL =
   process.env.AI_SERVER_URL ||
-  'https://three-head-dragon.shop'
+  process.env.BASE_WEBHOOK_URL
 
 export interface AiServerLipSyncRequest {
   video_url: string

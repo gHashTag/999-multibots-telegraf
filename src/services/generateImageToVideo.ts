@@ -42,7 +42,7 @@ async function notifyAdminAboutServerIssue(
       `🎬 Model: ${videoModel}\n` +
       `❌ Error: ${error}\n` +
       `🔄 Используется прямой внешний API\n\n` +
-      `⚠️ Проверьте сервер: https://three-head-dragon.shop`
+      `⚠️ Проверьте доступность сервера генерации`
     
     for (const adminId of adminIds) {
       await botResult.bot.telegram.sendMessage(adminId, errorMessage, {

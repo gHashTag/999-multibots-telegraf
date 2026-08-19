@@ -53,7 +53,9 @@ export async function uploadTelegramFileLocal(
     const PUBLIC_URL =
       process.env.NODE_ENV === 'development'
         ? 'http://localhost:3000' // Локальный development
-        : 'https://three-head-dragon.shop' // Только наш домен в production
+        // Был зашит three-head-dragon.shop — старый сервер, не отвечающий
+        // вовсе. По этому адресу наружу отдавались ссылки на файлы.
+        : process.env.BASE_WEBHOOK_URL
 
     console.log(
       '🌐 [uploadLocal] Using public URL for Replicate access:',

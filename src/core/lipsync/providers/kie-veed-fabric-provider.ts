@@ -401,7 +401,11 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
           ? `${process.env.LOCAL_SERVER_URL}/api/video-callback`
           : process.env.API_SERVER_URL
             ? `${process.env.API_SERVER_URL}/api/video-callback`
-            : 'https://three-head-dragon.shop/api/video-callback'
+            : process.env.BASE_WEBHOOK_URL
+              ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
+              // Ни одной переменной нет — лучше без коллбэка, чем на мёртвый
+              // three-head-dragon.shop (188.137.250.69, HTTP 000).
+              : undefined
 
       logger.info('🔗 [KIE PROVIDER] Callback URL определен', {
         callback_url: callbackUrl,

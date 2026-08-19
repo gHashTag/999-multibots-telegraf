@@ -8,7 +8,7 @@ import { logger } from '@/utils/logger'
 // Используем заглушку, если переменная не установлена
 const PUBLIC_URL =
   process.env.SERVER_PUBLIC_URL ||
-  'https://three-head-dragon.shop'
+  process.env.BASE_WEBHOOK_URL
 
 export async function generateNeuroImage(
   prompt: string,

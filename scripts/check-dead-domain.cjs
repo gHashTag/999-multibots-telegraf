@@ -24,11 +24,17 @@ const soft = []   // последний fallback после env — в прод�
     const p = path.join(d, e.name)
     if (e.isDirectory()) { if (!/node_modules|__tests__/.test(p)) walk(p) }
     else if (/\.ts$/.test(p)) {
-      fs.readFileSync(p, 'utf8').split('\n').forEach((line, i) => {
+      const arr = fs.readFileSync(p, 'utf8').split('\n')
+      arr.forEach((line, i) => {
         if (!line.includes(DEAD)) return
         const code = line.trim()
         // комментарий — не нарушение
         if (code.startsWith('//') || code.startsWith('*') || code.startsWith('/*')) return
+        // Явный маркер исключения. Нужен там, где домен упомянут НАМЕРЕННО —
+        // например в детекторе, который предупреждает, что webhook указывает
+        // на мёртвый хост. Ставится комментарием на предыдущей строке.
+        const prev = (arr[i - 1] || '').trim()
+        if (prev.includes('dead-domain-ok')) return
         // Отличаем ОПАСНОЕ от инертного.
         //
         // Инертное — домен как последний fallback после переменных окружения:
@@ -56,7 +62,11 @@ if (hits.length) {
   console.error(`❌ ${DEAD} ЗАШИТ БЕЗ АЛЬТЕРНАТИВЫ (${hits.length}) — исполняется всегда:\n`)
   hits.forEach(h => console.error('   ' + h))
   console.error('\nБерите адрес из конфигурации: PUBLIC_URL / BASE_WEBHOOK_URL.')
-  // Намеренно НЕ падаем. Разделение «зашито/fallback» здесь грубое: часть
+  console.error('Если упоминание намеренное — поставьте // dead-domain-ok: причина на строке выше.')
+  process.exit(1)
+  // ВОРОТА ВКЛЮЧЕНЫ. Список вычищен до нуля, поэтому падение здесь означает
+  // именно возврат мёртвого домена, а не унаследованный долг.
+  // Прежний комментарий про «намеренно не падаем»: Разделение «зашито/fallback» здесь грубое: часть
   // строк выше — просто текст предупреждений, часть — многострочные цепочки,
   // где || стоит на предыдущей строке. Делать из этого ворота сборки значило
   // бы ломать сборку на ложных срабатываниях. Это трекер: список сокращается

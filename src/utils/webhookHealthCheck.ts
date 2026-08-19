@@ -1,9 +1,10 @@
 import { logger } from './logger'
 
 // 🛡️ SECURITY: Allowed webhook domains (whitelist)
+// three-head-dragon.shop и 188.137.250.69 убраны: это старый сервер, не
+// отвечающий ни по одному протоколу. Держать мёртвый хост в белом списке
+// значит разрешать webhook-адреса, которые заведомо не сработают.
 const ALLOWED_WEBHOOK_DOMAINS = [
-  'three-head-dragon.shop',
-  '188.137.250.69',
   'localhost',
   'fly.dev',
   'up.railway.app',

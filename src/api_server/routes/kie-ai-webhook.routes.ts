@@ -1936,7 +1936,7 @@ router.post('/kie-ai/sora-callback-test', async (req: any, res: any) => {
       message: 'Test task created successfully',
       taskId: testTaskId,
       telegramId,
-      nextStep: `Send webhook callback to trigger video delivery: curl -X POST https://three-head-dragon.shop/api/kie-ai/sora-callback -H "Content-Type: application/json" -d '{"code":200,"data":{"taskId":"${testTaskId}","state":"success","resultJson":"{\\"resultUrls\\":[\\"https://via.placeholder.com/1920x1080.mp4\\"]}"}}' `,
+      nextStep: `Send webhook callback to trigger video delivery: curl -X POST ${process.env.BASE_WEBHOOK_URL}/api/kie-ai/sora-callback -H "Content-Type: application/json" -d '{"code":200,"data":{"taskId":"${testTaskId}","state":"success","resultJson":"{\\"resultUrls\\":[\\"https://via.placeholder.com/1920x1080.mp4\\"]}"}}' `,
     })
   } catch (error) {
     logger.error('❌ [SORA DEBUG] Error in test endpoint', {
