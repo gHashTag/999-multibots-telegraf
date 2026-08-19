@@ -41,24 +41,19 @@ export class ElevenLabsService {
   }
 
   async transcribeAudioFromUrl(audioUrl: string): Promise<TranscriptionResponse> {
-    console.log(`[ELEVENLABS STUB] Transcribing audio from URL: ${audioUrl}`)
-
-    return {
-      id: `transcription_${Date.now()}`,
-      text: 'Stub transcription text',
-      words: [
-        { text: 'Stub', start: 0, end: 0.5 },
-        { text: 'transcription', start: 0.5, end: 1.5 },
-        { text: 'text', start: 1.5, end: 2.0 }
-      ],
-      result: {
-        words: [
-          { text: 'Stub', start: 0, end: 0.5 },
-          { text: 'transcription', start: 0.5, end: 1.5 },
-          { text: 'text', start: 1.5, end: 2.0 }
-        ]
-      }
-    }
+    // ПАДАЕМ, а не возвращаем выдуманные слова.
+    //
+    // Раньше отсюда возвращалось "Stub transcription text" с таймингами
+    // 0…2.0 с. Эти слова идут в субтитры, то есть на готовом видео появилось
+    // бы "STUB TRANSCRIPTION TEXT" — и никто выше по стеку не смог бы отличить
+    // это от настоящей расшифровки.
+    //
+    // Настоящей транскрипции в проекте НЕТ вообще: grep по speech-to-text и
+    // api.elevenlabs.io даёт только синтез речи и работу с голосами. Это не
+    // «забыли подключить», а незакрытая интеграция.
+    throw new Error(
+      `transcribeAudioFromUrl: транскрипция не реализована (заглушка src/services/elevenLabs.ts). URL: ${audioUrl}`
+    )
   }
 }
 
@@ -80,7 +75,21 @@ export async function generateSpeech(
   })
 
   // Return stub URL
-  return `https://stub.elevenlabs.com/audio/${Date.now()}.mp3`
+  // ПАДАЕМ, а не возвращаем выдуманный URL.
+  //
+  // Раньше здесь отдавался `https://stub.elevenlabs.com/audio/<ts>.mp3` —
+  // домен, которого не существует. Пайплайн render-riddle принимал это за
+  // успех и шёл дальше: Hedra получала «речь» с несуществующего адреса, а
+  // отказ всплывал позже и без причины.
+  //
+  // Настоящий синтез в проекте ЕСТЬ — src/core/elevenlabs/createAudioFileFromText.ts,
+  // он ходит в api.elevenlabs.io/v1/text-to-speech/{voice_id}. Проводка сюда —
+  // отдельная работа: у него другая сигнатура и он отдаёт файл, а не URL.
+  // До тех пор молчаливая подделка хуже честного отказа.
+  throw new Error(
+    'generateSpeech: используется заглушка src/services/elevenLabs.ts. ' +
+      'Настоящий синтез — src/core/elevenlabs/createAudioFileFromText.ts, он сюда не подключён.'
+  )
 }
 
 /**
@@ -102,22 +111,12 @@ export async function transcribeAudio(
     model
   })
 
-  return {
-    id: `transcription_${Date.now()}`,
-    text: 'Stub transcription from buffer',
-    words: [
-      { text: 'Stub', start: 0, end: 0.5 },
-      { text: 'transcription', start: 0.5, end: 1.5 },
-      { text: 'from', start: 1.5, end: 2.0 },
-      { text: 'buffer', start: 2.0, end: 2.5 }
-    ],
-    result: {
-      words: [
-        { text: 'Stub', start: 0, end: 0.5 },
-        { text: 'transcription', start: 0.5, end: 1.5 },
-        { text: 'from', start: 1.5, end: 2.0 },
-        { text: 'buffer', start: 2.0, end: 2.5 }
-      ]
-    }
-  }
+  // ПАДАЕМ. Это та самая функция, которую зовёт шаг 'generate-transcription'
+  // в renderRiddle (steps.ts:1089). Её слова идут прямо в субтитры готового
+  // ролика — молчаливая подделка означала бы "STUB TRANSCRIPTION FROM BUFFER"
+  // поверх видео, неотличимое выше по стеку от настоящей расшифровки.
+  throw new Error(
+    'transcribeAudio: транскрипция не реализована (заглушка src/services/elevenLabs.ts). ' +
+      'В проекте нет ни одной интеграции speech-to-text — это незакрытая работа, а не забытая проводка.'
+  )
 }
