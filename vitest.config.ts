@@ -4,6 +4,33 @@ import path from 'path'
 export default defineConfig({
   test: {
     globals: true,
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      // Эти 11 файлов импортируют из 'bun:test' и под vitest НЕ ЗАПУСКАЮТСЯ
+      // никогда: "Cannot find package 'bun:test'". Для них есть свой раннер —
+      // npm run test:bun. Пока они попадали в общий прогон, npm test выдавал
+      // 99 упавших файлов из 182, и отличить новую поломку от постоянного шума
+      // было нельзя — то есть прогон не нёс никакого сигнала.
+      //
+      // Это НЕ сокрытие падений: перечисленные файлы падали на этапе загрузки
+      // модуля, ни один assert в них не исполнялся.
+      'src/__tests__/fal-markup-verification.test.ts',
+      'src/__tests__/fal-veed-fabric-simple.test.ts',
+      'src/__tests__/fal-veed-fabric-integration.test.ts',
+      'src/__tests__/fal-debug.test.ts',
+      'src/__tests__/fal-veed-fabric-provider.test.ts',
+      'src/__tests__/ai-reels-fal-integration.test.ts',
+      'src/__tests__/fal-pricing-update.test.ts',
+      'src/__tests__/ai-reels-fal-provider.test.ts',
+      'src/__tests__/ai-reels-debug.test.ts',
+      'src/__tests__/ai-reels-template1.test.ts',
+      'src/__tests__/services/ai-models.test.ts',
+      // Playwright-спеки редактора. Корневой прогон vitest дотягивался до
+      // apps/ и пытался их выполнить: "Playwright Test did not expect
+      // test.describe() to be called here". У Playwright свой раннер.
+      'apps/**/e2e/**',
+    ],
   },
   resolve: {
     alias: {
