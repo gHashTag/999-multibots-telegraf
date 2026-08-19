@@ -1,13 +1,20 @@
 #!/usr/bin/env node
 /**
- * Убирает из `users.photo_url` адреса, содержащие ТОКЕН БОТА.
+ * Убирает из базы адреса, содержащие ТОКЕН БОТА.
  *
  * ПО УМОЛЧАНИЮ — СУХОЙ ПРОГОН. Запись только по флагу `--apply`.
  *
- * Что нашлось живым замером: 264 строки в `users.photo_url` содержат адреса
- * вида `https://api.telegram.org/file/bot<ТОКЕН>/<путь>`. Разных токенов — 14,
- * и шесть из них на момент проверки ДЕЙСТВУЮЩИЕ. Токен даёт полное управление
- * ботом.
+ * Что нашлось живым замером (scripts/probe-secrets-in-db.cjs):
+ *
+ *   users.photo_url                 264 вхождения
+ *   payments_v2.metadata.image_url    5 вхождений
+ *
+ * Разных токенов — 17, и ВОСЕМЬ из них на момент проверки ДЕЙСТВУЮЩИЕ. Токен
+ * даёт полное управление ботом.
+ *
+ * Прошлая версия скрипта знала только про `users.photo_url` — второе место
+ * нашлось, когда я стал искать по СОДЕРЖИМОМУ всех полей, включая вложенные
+ * объекты в `metadata`.
  *
  * Информация при этом не теряется: такие адреса живут около часа, то есть все
  * 264 давно мертвы. Удаляется мёртвая ссылка вместе с секретом.
@@ -46,6 +53,11 @@ async function fetchAll(table, select) {
 async function main() {
   const rows = await fetchAll('users', 'id,telegram_id,photo_url,bot_name')
   const bad = rows.filter(r => TOKEN_URL.test(String(r.photo_url || '')))
+
+  // Второе место: вложенный объект в платежах.
+  const pays = await fetchAll('payments_v2', 'id,telegram_id,metadata')
+  const badPays = pays.filter(r => TOKEN_URL.test(JSON.stringify(r.metadata || {})))
+  console.log(`строк с токеном в payments_v2.metadata: ${badPays.length}`)
 
   const botIds = new Set()
   for (const r of bad) {
@@ -88,7 +100,25 @@ async function main() {
     if (res.ok) done++
     else console.log(`  ✗ id=${r.id}: ${res.status}`)
   }
-  console.log(`очищено строк: ${done} из ${bad.length}`)
+  console.log(`очищено строк users: ${done} из ${bad.length}`)
+
+  // Платежи: чистим только поле с адресом внутри metadata, остальное не трогаем —
+  // это финансовая запись.
+  let donePays = 0
+  for (const r of badPays) {
+    const meta = { ...(r.metadata || {}) }
+    for (const [k, v] of Object.entries(meta)) {
+      if (typeof v === 'string' && TOKEN_URL.test(v)) delete meta[k]
+    }
+    const res = await fetch(`${url}/rest/v1/payments_v2?id=eq.${r.id}`, {
+      method: 'PATCH',
+      headers: { ...H, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ metadata: meta }),
+    })
+    if (res.ok) donePays++
+    else console.log(`  ✗ payments id=${r.id}: ${res.status}`)
+  }
+  console.log(`очищено строк payments_v2: ${donePays} из ${badPays.length}`)
 }
 
 main().catch(e => {
