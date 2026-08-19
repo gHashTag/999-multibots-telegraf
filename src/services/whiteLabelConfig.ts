@@ -1,3 +1,19 @@
+/**
+ * ⚠️ ЭТОТ МОДУЛЬ НЕ ИСПОЛНЯЕТСЯ.
+ *
+ * Импортёров нет вообще — даже через реэкспорт.
+ *
+ * Кроме того, таблиц white_label_configs в базе НЕТ — проверено
+ * запросом к PostgREST (код 42P01). Даже если модуль подключить, он не
+ * заработает без схемы.
+ *
+ * Замеры: docs/audit/table-seams.md, docs/audit/unregistered-functions.md.
+ * Инструменты: scripts/probe-table-seams.cjs, scripts/probe-reachability.cjs.
+ *
+ * Не удаляю: это может быть незаконченная работа, а не мусор — решение о
+ * судьбе за владельцем. Пометка нужна, чтобы следующий читатель не принял
+ * код за рабочий и не потратил время, как потратил я.
+ */
 import { supabaseAdmin } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
