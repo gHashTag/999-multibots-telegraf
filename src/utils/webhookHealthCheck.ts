@@ -1,4 +1,5 @@
 import { logger } from './logger'
+import { buildCallbackToken } from './callbackToken'
 
 // 🛡️ SECURITY: Allowed webhook domains (whitelist)
 // three-head-dragon.shop и 188.137.250.69 убраны: это старый сервер, не
@@ -68,8 +69,11 @@ function validateWebhookUrl(url: string): boolean {
 export async function getAvailableCallbackUrl(
   telegramId?: string | number
 ): Promise<string | null> {
+  // Метка в адресе — единственная наша защита: подписи от поставщика нет.
+  // Подробности — в utils/callbackToken.ts.
+  const token = telegramId ? buildCallbackToken(telegramId) : null
   const endpoint = telegramId
-    ? `/api/video-callback/${telegramId}`
+    ? `/api/video-callback/${telegramId}${token ? `?cb=${token}` : ''}`
     : '/api/video-callback'
 
   // Plan A: HTTPS через reverse proxy (предпочтительный)

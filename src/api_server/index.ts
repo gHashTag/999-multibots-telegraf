@@ -103,8 +103,20 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
   app.use('/api/webhooks', replicateWebhookRouter)
 
   // Регистрируем локальные routes для изоляции от внешнего сервера
-  app.use('/api', voiceAvatarRouter)
-  app.use('/api', neuroPhotoRouter)
+  // ГЕНЕРАЦИЯ — ТОЛЬКО СО СЛУЖЕБНЫМ КЛЮЧОМ.
+  //
+  // Оба маршрута брали `telegram_id` ИЗ ТЕЛА ЗАПРОСА и не проверяли ничего.
+  // Проверено живым запросом к проду: POST без ключа доходит до обработчика.
+  //
+  // Что это давало постороннему:
+  //   - запустить генерацию, списав звёзды с ЛЮБОГО номера на выбор —
+  //     generateNeuroPhotoHybrid считает стоимость и проводит оплату, а при
+  //     неудаче пишет «Failed to process payment, check your balance»;
+  //   - потратить наш бюджет у поставщика: План Б зовёт replicate.run().
+  //
+  // Номер в Telegram не секрет и перебирается, так что защиты не было никакой.
+  app.use('/api', requireInternalKey, voiceAvatarRouter)
+  app.use('/api', requireInternalKey, neuroPhotoRouter)
   app.use('/api', competitorRouter)
 
   // ДИАГНОСТИКА И БИЛЛИНГ — ТОЛЬКО СО СЛУЖЕБНЫМ КЛЮЧОМ.

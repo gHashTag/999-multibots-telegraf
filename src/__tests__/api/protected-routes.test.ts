@@ -30,6 +30,11 @@ const strip = (s: string) =>
 const MUST_BE_PROTECTED: Record<string, string> = {
   diagnosticRouter: 'отдаёт чужие модели и обучения по номеру, плюс настройки',
   billingRouter: 'отдаёт финансы по всем ботам',
+  voiceAvatarRouter:
+    'запускает генерацию по telegram_id ИЗ ТЕЛА запроса — посторонний мог ' +
+    'тратить чужой баланс и наш бюджет у поставщика',
+  neuroPhotoRouter:
+    'то же: считает стоимость, проводит оплату и зовёт replicate.run()',
 }
 
 /**
@@ -43,8 +48,6 @@ const MUST_STAY_OPEN: Record<string, string> = {
   aiReelsCallbackRouter: 'обратные вызовы рендера',
   replicateWebhookRouter: 'обратные вызовы Replicate',
   githubAutoFixerRouter: 'обратные вызовы GitHub, подпись проверяется внутри',
-  voiceAvatarRouter: 'вызывается изнутри, ключ добавить отдельной задачей',
-  neuroPhotoRouter: 'вызывается изнутри, ключ добавить отдельной задачей',
   competitorRouter: 'отвечает 501, данных не отдаёт',
 }
 

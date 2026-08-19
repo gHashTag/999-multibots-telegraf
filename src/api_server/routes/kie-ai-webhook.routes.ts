@@ -10,6 +10,7 @@ import {
   createVideoCompletionKeyboard,
   getVideoCompletionMessage,
 } from '@/helpers/videoCompletionKeyboard'
+import { verifyCallbackToken } from '@/utils/callbackToken'
 // ✅ EMERGENCY DISABLE: asyncLipSyncManager import causing TypeScript errors
 // import { asyncLipSyncManager } from '@/core/lipsync/async-lipsync-manager'
 
@@ -360,6 +361,8 @@ router.post('/video-callback/:telegramId', async (req: any, res: any) => {
     })
 
     const telegramIdFromUrl = req.params.telegramId
+    // Метка, которую мы сами положили в адрес обратного вызова.
+    const callbackToken = req.query.cb
     const payload = req.body
 
     // ✅ FIX: Игнорируем тестовые запросы от startup health check
@@ -418,13 +421,13 @@ router.post('/video-callback/:telegramId', async (req: any, res: any) => {
         logger.info(
           '🎬 [UNIVERSAL VIDEO WEBHOOK] Render Server webhook detected'
         )
-        await processGenericVideoWebhook(payload, telegramIdFromUrl)
+        await processGenericVideoWebhook(payload, telegramIdFromUrl, callbackToken)
         break
 
       case 'replicate':
         logger.info('🔄 [UNIVERSAL VIDEO WEBHOOK] Replicate webhook detected')
         // TODO: Implement replicate handler if needed
-        await processGenericVideoWebhook(payload, telegramIdFromUrl)
+        await processGenericVideoWebhook(payload, telegramIdFromUrl, callbackToken)
         break
 
       case 'unknown':
@@ -435,7 +438,7 @@ router.post('/video-callback/:telegramId', async (req: any, res: any) => {
             payload,
           }
         )
-        await processGenericVideoWebhook(payload, telegramIdFromUrl)
+        await processGenericVideoWebhook(payload, telegramIdFromUrl, callbackToken)
         break
     }
   } catch (error) {
@@ -459,6 +462,8 @@ router.post('/video-callback', async (req: any, res: any) => {
 
     const telegramIdFromUrl = req.params.telegramId
     const botNameFromQuery = req.query.bot_name
+    // Метка, которую мы сами положили в адрес обратного вызова.
+    const callbackToken = req.query.cb
 
     // ✅ FIX: Игнорируем тестовые запросы от startup health check (не логируем как ошибку)
     const payload = req.body
@@ -512,14 +517,14 @@ router.post('/video-callback', async (req: any, res: any) => {
         logger.info(
           '🎬 [UNIVERSAL VIDEO WEBHOOK] Render Server webhook detected'
         )
-        await processGenericVideoWebhook(payload, telegramIdFromUrl)
+        await processGenericVideoWebhook(payload, telegramIdFromUrl, callbackToken)
         break
       default:
         logger.warn(
           '⚠️ [UNIVERSAL VIDEO WEBHOOK] Unknown provider, attempting generic processing',
           { payload }
         )
-        await processGenericVideoWebhook(payload, telegramIdFromUrl)
+        await processGenericVideoWebhook(payload, telegramIdFromUrl, callbackToken)
         break
     }
   } catch (error) {
@@ -683,7 +688,10 @@ function normalizeKiePayload(payload: any): KieAiWebhookPayload {
  */
 async function processGenericVideoWebhook(
   payload: any,
-  telegramIdFromUrl?: string
+  telegramIdFromUrl?: string,
+  // Метка из адреса обратного вызова. Без неё прямая отправка не выполняется —
+  // см. пояснение ниже и utils/callbackToken.ts.
+  callbackToken?: unknown
 ): Promise<void> {
   // ✅ FIX: Игнорируем тестовые health check запросы (не логируем как ошибку)
   if (payload?.test === true) {
@@ -740,8 +748,32 @@ async function processGenericVideoWebhook(
     hasVideoUrl: !!videoUrl,
   })
 
+  // ПРЯМАЯ ОТПРАВКА — ТОЛЬКО ПО НАШЕЙ МЕТКЕ.
+  //
+  // Эта ветка берёт получателя из адреса, ссылку на видео из тела и шлёт
+  // человеку, не сверяясь ни с какой задачей. Без проверки посторонний мог
+  // заставить бота прислать любому пользователю что угодно — от имени бота,
+  // которому тот доверяет.
+  //
+  // Подписи от поставщика нет, но адрес составляем мы сами, поэтому кладём в
+  // него метку (utils/callbackToken.ts) и проверяем здесь. Метка привязана к
+  // номеру получателя: подсмотрев чужую, не отправишь другому.
+  //
+  // Без метки прямая отправка НЕ выполняется — запрос уходит в запасной путь
+  // ниже, который сверяется с реальной задачей.
+  const tokenOk = telegramIdFromUrl
+    ? verifyCallbackToken(telegramIdFromUrl, callbackToken)
+    : false
+
+  if (telegramIdFromUrl && videoUrl && success && !tokenOk) {
+    logger.warn('⛔ [VIDEO WEBHOOK] Прямая отправка отклонена: метка не совпала', {
+      telegramId: telegramIdFromUrl,
+      hasToken: Boolean(callbackToken),
+    })
+  }
+
   // ✅ НОВАЯ ЛОГИКА: Если есть telegramId в URL и videoUrl - отправляем напрямую!
-  if (telegramIdFromUrl && videoUrl && success) {
+  if (telegramIdFromUrl && videoUrl && success && tokenOk) {
     logger.info(
       '🚀 [GENERIC VIDEO WEBHOOK] Direct send mode - telegramId from URL',
       {
