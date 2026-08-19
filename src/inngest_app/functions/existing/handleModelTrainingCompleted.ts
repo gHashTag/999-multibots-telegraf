@@ -15,6 +15,7 @@ import { createInngestFailureHandler } from '@/inngest_app/client'
 import { supabase } from '@/core/supabase'
 import { getBotByNameAdapter } from '@/inngest_app/services/bot-adapter'
 import { getUserLanguageFromDB } from '@/core/supabase/getUserLanguage'
+import { buildModelUrl } from '@/core/replicate/buildModelUrl'
 
 interface TrainingCompletedEvent {
   name: 'model/training.completed'
@@ -148,14 +149,45 @@ export function createHandleModelTrainingCompletedFunction(inngest: any) {
             let versionHash = null
 
             if (eventData.status === 'succeeded' && eventData.output) {
-              // Format model_url as owner/name:version for Replicate API compatibility
-              versionHash = eventData.output.version
+              // ССЫЛКА НА МОДЕЛЬ СОБИРАЛАСЬ НЕВЕРНО — ДВЕ ОШИБКИ СРАЗУ.
+              //
+              // Было:
+              //   modelUrl = `${replicateUsername}/${modelName}:${versionHash}`
+              //
+              // 1. `modelName` — это `trainingRecord.model_name`, то есть имя,
+              //    которое ввёл ЧЕЛОВЕК: «Anneya», «My_lenA», «Мой аватар».
+              //    Настоящее имя модели у Replicate другое — приведённый к
+              //    нижнему регистру слаг с меткой времени.
+              // 2. `eventData.output.version` — это уже ПОЛНАЯ ссылка вида
+              //    `owner/slug:hash`, а не голый хеш.
+              //
+              // В итоге в базу писалось
+              //   jalisawallet-coder/Anneya:jalisawallet-coder/anneya-1773937126432:d365…
+              // — путь, которого не существует.
+              //
+              // Проверено на живых данных: у трёх человек (2025-12-20,
+              // 2026-02-06, 2026-03-19) в базе такой мусор, при этом настоящие
+              // модели ЖИВЫ и отвечают 200:
+              //   ghashtag/moy-avatar-1766257198919
+              //   jalisawallet-coder/my-lena-1770401829279
+              //   jalisawallet-coder/anneya-1773937126432
+              // То есть модели не потеряны — потеряна ссылка на них.
+              //
+              // Правильное значение уже пришло от Replicate: если в `version`
+              // есть и `/`, и `:`, это готовая ссылка, её и берём. Составлять
+              // самим нужно только когда пришёл голый хеш — так было раньше, и
+              // те старые записи (`ghashtag/tatizaharova:78bd…`) исправны.
+              const rawVersion = String(eventData.output.version || '')
               const replicateUsername =
                 process.env.REPLICATE_USERNAME || 'ghashtag'
-              const modelName = trainingRecord.model_name || 'model'
 
-              // Create full model reference: owner/name:version
-              modelUrl = `${replicateUsername}/${modelName}:${versionHash}`
+              modelUrl = buildModelUrl(
+                rawVersion,
+                replicateUsername,
+                String(trainingRecord.model_name || '')
+              )
+              versionHash = modelUrl.split(':').pop() || null
+
               updateData.model_url = modelUrl
               updateData.weights = eventData.output.weights
               updateData.result = 'SUCCESS'
