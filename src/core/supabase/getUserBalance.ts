@@ -8,6 +8,17 @@ import { logger } from '@/utils/logger'
  * Вызывает SQL-функцию get_user_balance
  * ВСЕГДА получает свежие данные из БД (кэширование убрано)
  */
+/**
+ * Баланс НЕ УДАЛОСЬ УЗНАТЬ — это не то же самое, что баланс равен нулю.
+ * Бросается только когда самой функции/таблицы нет в базе.
+ */
+export class BalanceUnavailableError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'BalanceUnavailableError'
+  }
+}
+
 export const getUserBalance = async (
   telegram_id: TelegramId,
   bot_name?: string
@@ -42,6 +53,29 @@ export const getUserBalance = async (
         error_details: error,
         telegram_id: normalizedId,
       })
+
+      // «Функции нет» — это НЕ нулевой баланс, и молча выдавать 0 здесь нельзя.
+      //
+      // Функция get_user_balance живёт только внутри проекта Supabase: её
+      // определения нет ни в sql/, ни в migrations/. В перенесённой базе на
+      // Railway её нет — там из RPC доступны только семь builtin'ов pgcrypto.
+      // То есть в день переключения этот вызов начал бы возвращать ошибку у
+      // ВСЕХ, `return 0` превратил бы её в «нулевой баланс», и каждый платящий
+      // пользователь увидел бы «Недостаточно средств» вместо своих денег —
+      // со стороны человека это неотличимо от кражи.
+      //
+      // Отличаем именно отсутствие объекта: PGRST202 (PostgREST не нашёл
+      // функцию), 42883 (undefined_function), 42P01 (undefined_table).
+      // Нулевым балансом это быть не может по определению, поэтому падаем
+      // громко. Остальные ошибки ведут себя как раньше: менять контракт у 57
+      // мест вызова вслепую — отдельная работа с другим радиусом.
+      const code = (error as { code?: string }).code
+      if (code === 'PGRST202' || code === '42883' || code === '42P01') {
+        throw new BalanceUnavailableError(
+          `get_user_balance недоступна (${code}): баланс не определён, а не равен нулю. ${error.message}`
+        )
+      }
+
       return 0
     }
 
@@ -62,6 +96,9 @@ export const getUserBalance = async (
       error_details: error,
       telegram_id,
     })
+    // Без этого пробрасывания throw выше ловился бы здесь же и снова
+    // превращался в 0 — правка выглядела бы сделанной и не делала ничего.
+    if (error instanceof BalanceUnavailableError) throw error
     return 0
   }
 }
