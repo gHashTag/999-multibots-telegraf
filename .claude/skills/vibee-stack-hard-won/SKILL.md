@@ -415,6 +415,43 @@ undefined ВСЕГДА, и выбор бота падал на захардко�
 иначе; сравнение выше опровергло это ДО отправки. Прежде чем строить логику на
 колонке — проверь, что она значит, на данных, а не по названию.
 
+## AI Reels падает на ПЕРВОЙ строке, а не на render/execute
+
+Несколько циклов я считал осиротевшее событие `render/execute` последним
+обрывом. Это пятый обрыв, а не последний. Пайплайн умирает раньше всех трат:
+
+`renderRiddle.ts:57` первой же строкой вызывает
+`validateRenderRiddleEventData(event.data)`, и payload, который строит
+`createRenderAvatarPayload` и шлют ВСЕ ЧЕТЫРЕ визарда, эту схему НЕ ПРОХОДИТ.
+Проверено прогоном `RenderRiddleEventDataSchema.safeParse` — восемь причин, для
+любого из трёх сервисов:
+
+    kie_api_key            Invalid KIE API key
+    eleven_labs_api_key    Invalid ElevenLabs API key
+    avatar_gen_service     must be "hedra" or "heygen"   ← 'fal' схемой не принят
+    avatar_settings.avatar_speech   Required
+    avatar_settings.api_key         Required
+    cover_url              Invalid cover URL   ← пустая строка не проходит .url()
+    circle_position        Required
+    circle_scale           Required
+
+Отсюда правило: **прежде чем чинить звено, прогони вход через его собственную
+схему.** Одна команда `safeParse` даёт больше, чем цикл чтения кода — и она бы
+сэкономила несколько циклов, потраченных на звенья ниже по течению.
+
+Ещё: путь nexrender списан целиком — нет таблицы `render_servers` НИ в
+Postgres-NFrq, НИ в боевом Supabase (42P01), нет `SSH_KEY_STRING`, нет колонки
+`templates.aep_object_key`, которую читает `steps.ts:1404`, а живой Remotion на
+`Instagram_Story` отвечает 400 со списком реальных композиций. Согласовывать
+имена событий бессмысленно.
+
+## zod: .optional() принимает undefined, но НЕ null
+
+Я поставил `callback_url: null` для случая «переменной нет» — и добавил девятую
+причину отказа к восьми существующим: `Expected string, received null`.
+`z.string().url().optional()` — это `string | undefined`, без `null`.
+Для «значения нет» в zod-схемах ставь `undefined`.
+
 ## Self-check before reporting done
 
 1. Does the changed component actually render? (live DOM, not build)
