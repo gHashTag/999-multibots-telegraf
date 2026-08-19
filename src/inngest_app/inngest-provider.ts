@@ -66,7 +66,7 @@ class InngestProvider {
     const botBaseUrl =
       process.env.INNGEST_BASE_URL ||
       process.env.BOT_INNGEST_BASE_URL ||
-      'https://three-head-dragon.shop/api/inngest'
+      ''
 
     if (botEventKey) {
       // Создаем Inngest client для отправки событий

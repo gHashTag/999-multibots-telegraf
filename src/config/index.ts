@@ -215,7 +215,13 @@ const BASE_PAYMENT_URL = isDev
   ? CLOUDFLARE_TUNNEL_URL || // 🌐 Приоритет: Cloudflare Tunnel для dev
     API_SERVER_URL ||
     process.env.SERVER_PUBLIC_URL ||
-    'https://three-head-dragon.shop' // ⚠️ КРИТИЧНО: Robokassa требует публичный URL!
+    process.env.BASE_WEBHOOK_URL ||
+    // Последним — пусто, а НЕ three-head-dragon.shop. Мёртвый хост в конце
+    // цепочки не страхует: он превращал «ничего не настроено» в «настроено на
+    // сервер, которого нет», и ResultURL Robokassa уходил в никуда молча.
+    // Пустая строка попадает в проверку helper.ts:83, которая бросает
+    // «UNIFIED_RESULT_URL is missing or empty» — отказ громкий и понятный.
+    ''
   : API_SERVER_URL ||
     RESULT_URL2?.split('/payment-success')[0] ||
     process.env.SERVER_PUBLIC_URL ||
@@ -227,7 +233,7 @@ const BASE_PAYMENT_URL = isDev
     // проект переехал на Railway; он не отвечает ни по http, ни по https, ни
     // по IP — HTTP 000 на всех четырёх проверках.
     process.env.BASE_WEBHOOK_URL ||
-    'https://three-head-dragon.shop'
+    ''
 
 export const UNIFIED_RESULT_URL = `${BASE_PAYMENT_URL}/payment-success`
 
@@ -280,7 +286,7 @@ if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging')
 export const API_SERVER_URL_FINAL =
   API_SERVER_URL ||
   process.env.BASE_WEBHOOK_URL ||
-  'https://three-head-dragon.shop'
+  ''
 
 // ✅ УПРОЩЕННАЯ СХЕМА: Один PUBLIC_URL для всех окружений
 // В dev: ngrok/cloudflare tunnel (устанавливается автоматически в src/index.ts)

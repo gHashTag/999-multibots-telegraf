@@ -86,7 +86,7 @@ export async function trainFalFluxModel(
     const triggerPhrase = requestData.triggerWord || 'PORTRAIT_TOKEN'
 
     // ✅ STEP 5: Prepare webhook URL for completion notification
-    const baseUrl = process.env.BASE_WEBHOOK_URL || process.env.API_SERVER_URL || 'https://three-head-dragon.shop'
+    const baseUrl = process.env.BASE_WEBHOOK_URL || process.env.API_SERVER_URL
     const webhookUrl = baseUrl.startsWith('http')
       ? `${baseUrl}/api/webhooks/fal-model`
       : `https://${baseUrl}/api/webhooks/fal-model`

@@ -66,7 +66,7 @@ export async function getAvailableModels(
       headers: {
         Authorization: `Bearer ${openRouterApiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://three-head-dragon.shop',
+        'HTTP-Referer': process.env.BASE_WEBHOOK_URL || '',
         'X-Title': 'Vibee Bot',
       },
     })

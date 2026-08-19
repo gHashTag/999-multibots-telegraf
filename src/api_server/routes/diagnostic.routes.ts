@@ -353,8 +353,10 @@ router.get('/diagnostic/training-config', async (_req: any, res: any) => {
     if (!process.env.BASE_WEBHOOK_URL) {
       config.warnings.push('CRITICAL: BASE_WEBHOOK_URL not set - Replicate webhooks will NOT be received! Set it in Infisical.')
     }
+    // dead-domain-ok: это ДЕТЕКТОР мёртвого домена, а не ссылка на него.
     if (baseWebhookUrl.includes('three-head-dragon')) {
-      config.warnings.push('CRITICAL: Webhook URL points to VPS (three-head-dragon.shop), not fly.io! Replicate webhooks will go to wrong server!')
+      // dead-domain-ok: текст предупреждения обязан называть домен, иначе оно бесполезно.
+      config.warnings.push('CRITICAL: Webhook URL points at three-head-dragon.shop — the decommissioned VPS (188.137.250.69), not the Railway app. Replicate webhooks will be lost.')
     }
     if (!process.env.INNGEST_EVENT_KEY) {
       config.warnings.push('WARNING: INNGEST_EVENT_KEY not set - Inngest events may not be delivered')

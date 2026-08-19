@@ -91,7 +91,7 @@ export const voiceTrainingStart = inngest.createFunction(
     // Step 2: Запустить обучение на Replicate
     const trainingResult = await step.run('start-replicate-training', async () => {
       try {
-        const webhookUrl = `${process.env.API_BASE_URL || 'https://three-head-dragon.shop'}/api/webhooks/voice-training`
+        const webhookUrl = `${process.env.API_BASE_URL || process.env.BASE_WEBHOOK_URL}/api/webhooks/voice-training`
 
         const result = await startVoiceTraining({
           telegram_id,
