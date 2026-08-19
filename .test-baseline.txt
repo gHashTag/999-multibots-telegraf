@@ -484,6 +484,12 @@ src/__tests__/inngest/event-seams.test.ts :: швы событий Inngest в с
 src/__tests__/inngest/event-seams.test.ts :: швы событий Inngest каждое имя в INNGEST_EVENTS соответствует реальному подписчику
 src/__tests__/inngest/event-seams.test.ts :: швы событий Inngest карта MCP-сервера ведёт на реальных подписчиков
 src/__tests__/inngest/event-seams.test.ts :: швы событий Inngest нашлись подписчики — иначе тест ничего не проверяет
+src/__tests__/inngest/model-url-format.test.ts :: сборка ссылки на обученную модель в результате ровно одно двоеточие и один слэш
+src/__tests__/inngest/model-url-format.test.ts :: сборка ссылки на обученную модель готовую ссылку от Replicate берёт как есть
+src/__tests__/inngest/model-url-format.test.ts :: сборка ссылки на обученную модель из голого хеша собирает owner/slug:hash
+src/__tests__/inngest/model-url-format.test.ts :: сборка ссылки на обученную модель не приписывает имя человека к готовой ссылке
+src/__tests__/inngest/model-url-format.test.ts :: сборка ссылки на обученную модель приводит имя с пробелами и кириллицей к допустимому слагу
+src/__tests__/inngest/model-url-format.test.ts :: сборка ссылки на обученную модель пустое имя не даёт ссылку с пустым слагом
 src/__tests__/inngest/modelTrainingV2.test.ts :: modelTrainingV2 (BFL API) 1. Валидация пользователя должен выбросить ошибку если пользователь не найден
 src/__tests__/inngest/modelTrainingV2.test.ts :: modelTrainingV2 (BFL API) 1. Валидация пользователя должен повысить уровень пользователя с 0 до 1
 src/__tests__/inngest/modelTrainingV2.test.ts :: modelTrainingV2 (BFL API) 1. Валидация пользователя должен проверить существование пользователя
