@@ -71,8 +71,13 @@ async function createVoiceViaAiServer({
     logger.warn('[createVoiceViaAiServer] ConfigManager error, using environment fallback', {
       error: error.message
     })
-    // ✅ ИСПРАВЛЕНО: Используем только наш домен для voice services
-    AI_SERVER_URL = process.env.API_SERVER_URL || 'https://three-head-dragon.shop'
+    // API_SERVER_URL в проде НЕ задана, а BASE_WEBHOOK_URL задана и указывает
+    // на Railway-домен бота — проверено. Раньше здесь стоял литерал
+    // three-head-dragon.shop (старый сервер, 188.137.250.69, не отвечает ни по
+    // одному протоколу), и из-за него проверка ниже была недостижима: строка
+    // всегда истинна, поэтому throw не срабатывал никогда, а запрос уходил на
+    // мёртвый хост и падал сетевой ошибкой без внятной причины.
+    AI_SERVER_URL = process.env.API_SERVER_URL || process.env.BASE_WEBHOOK_URL
     if (!AI_SERVER_URL) {
       throw new Error('AI Server URL not available')
     }
