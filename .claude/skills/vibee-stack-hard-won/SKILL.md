@@ -255,6 +255,31 @@ typecheck прошёл, PR ушёл.
 Inngest ему не видны, поэтому 16 — это кандидаты на проверку, а не
 доказанный ноль.
 
+## Мёртвый домен three-head-dragon.shop в цепочках fallback
+
+`three-head-dragon.shop` резолвится в `188.137.250.69` — СТАРЫЙ сервер, с
+которого проект переехал на Railway. Он не отвечает: HTTP 000 по https, по
+http, по голому IP и по самому пути коллбэка.
+
+Домен стоит последним элементом в десятках цепочек вида
+`process.env.X || 'https://three-head-dragon.shop'`. Опасность не в самом
+fallback, а в повторяющейся ошибке: **нужная переменная в проде задана, но её
+забыли внести именно в ЭТУ цепочку.** Найдено трижды подряд:
+
+| Цепочка | Что было не так |
+|---|---|
+| `BASE_PAYMENT_URL` | `BASE_WEBHOOK_URL` задана, но её не было в цепочке → ResultURL Robokassa (серверное подтверждение оплаты) уезжал на мёртвый хост |
+| `botBaseUrl` в `inngest-provider.ts` | `BOT_INNGEST_BASE_URL` задана, в цепочке только `INNGEST_BASE_URL`, которой нет |
+| `webhookUrl` в AI Reels, `urls.get/cancel` в lipsync | Зашито вообще без альтернативы |
+
+Правило: увидел `env.X || 'literal-домен'` — проверь, какие переменные РЕАЛЬНО
+заданы в Railway, а не какие выглядят правильными в коде. Одна команда:
+`railway variables -s <сервис> --kv | grep URL`.
+
+Трекер: `npm run check:dead-domain`. Он намеренно НЕ роняет сборку — деление
+«зашито / fallback» грубое и даёт ложные срабатывания на тексте предупреждений
+и многострочных цепочках. Ворота можно включить, когда список опустеет.
+
 ## Self-check before reporting done
 
 1. Does the changed component actually render? (live DOM, not build)
