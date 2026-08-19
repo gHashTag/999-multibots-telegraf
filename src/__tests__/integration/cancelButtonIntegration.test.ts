@@ -8,7 +8,12 @@ import { ModeEnum } from '@/interfaces/modes'
  * Без моков - проверка реальной интеграции
  */
 describe('handleHelpCancel Integration Tests', () => {
-  let mockContext: Partial<MyContext>
+  // Partial<MyContext> сохраняет readonly у полей Telegraf-контекста
+  // (message, callbackQuery), поэтому присваивание им — TS2540 «Cannot assign
+  // to ... because it is a read-only property». Тесты по природе своей мутируют
+  // контекст между сценариями, поэтому здесь нужен изменяемый тип.
+  type MutableCtx = { -readonly [K in keyof MyContext]?: MyContext[K] }
+  let mockContext: MutableCtx
   let mockSceneEnter: any
   let mockSceneLeave: any
   let mockReply: any
