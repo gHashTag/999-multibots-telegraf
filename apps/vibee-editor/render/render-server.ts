@@ -2,7 +2,7 @@ import { createServer, IncomingMessage } from "node:http";
 import os from "node:os";
 import { WebSocketServer, WebSocket } from "ws";
 import { bundle } from "@remotion/bundler";
-import { renderMedia, selectComposition, renderStill } from "@remotion/renderer";
+import { renderMedia, selectComposition, renderStill, getCompositions } from "@remotion/renderer";
 import path from "node:path";
 import { authenticate, authMode } from "./auth";
 import fs from "node:fs";
@@ -1559,56 +1559,37 @@ const server = createServer(async (req, res) => {
 
   // List compositions
   if (req.url === "/compositions" && req.method === "GET") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        compositions: [
-          { id: "TextOverlay", description: "Animated text with title and subtitle" },
-          { id: "VideoIntro", description: "Brand intro animation" },
-          { id: "DynamicVideo", description: "Data-driven video with message" },
-          { id: "LipSyncMain", description: "Avatar lip-sync video template" },
-          { id: "LipSyncBusiness", description: "Business theme with lipsync avatar and B-roll" },
-          { id: "SplitTalkingHead", description: "Split layout with talking head, B-roll and TikTok-style captions" },
-        ],
-      })
-    );
-    return;
-  }
-
-  // Transcribe video to captions
-  if (req.url === "/transcribe" && req.method === "POST") {
-    let body = "";
-    req.on("data", (chunk) => { body += chunk; });
-    req.on("end", async () => {
-      try {
-        const { videoUrl, language = "ru", fps = 30 } = JSON.parse(body);
-
-        if (!videoUrl) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "videoUrl is required" }));
-          return;
-        }
-
-        console.log(`🎤 Transcribing: ${videoUrl} (${language})`);
-        const result = await transcribeVideo(videoUrl, language, fps);
-
-        console.log(`✅ Transcription complete: ${result.captions.length} captions`);
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({
-          success: true,
-          captions: result.captions,
-          segments: result.segments,
-        }));
-      } catch (error) {
-        console.error("❌ Transcription error:", error);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({
-          success: false,
-          error: error instanceof Error ? error.message : "Transcription failed"
-        }));
-      }
-    });
+    // Список берётся ИЗ БАНДЛА, а не из захардкоженного массива.
+    //
+    // Раньше здесь лежали шесть записей: TextOverlay, VideoIntro, DynamicVideo,
+    // LipSyncMain, LipSyncBusiness, SplitTalkingHead. В src/Root.tsx
+    // зарегистрирована РОВНО ОДНА — SplitTalkingHead. Пяти из шести не
+    // существует.
+    //
+    // Клиент выбирал шаблон из этого списка, POST /render принимался с
+    // success:true и renderId, и только потом задача падала с
+    // "Could not find composition with ID TextOverlay". Проверено запросом.
+    // getCompositions читает тот же бандл, которым рендерит, поэтому список
+    // не может разойтись с реальностью.
+    try {
+      const comps = await getCompositions(bundleLocation);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          compositions: comps.map(c => ({
+            id: c.id,
+            width: c.width,
+            height: c.height,
+            fps: c.fps,
+            durationInFrames: c.durationInFrames,
+          })),
+        })
+      );
+    } catch (error) {
+      console.error("Compositions error:", error);
+      res.writeHead(503, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "bundle not ready" }));
+    }
     return;
   }
 
