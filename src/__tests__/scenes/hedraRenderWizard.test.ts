@@ -45,8 +45,11 @@ vi.mock('@/utils/logger', () => ({
 }))
 
 vi.mock('@/interfaces/payments.interface', () => ({
+  // SERVICE_PAYMENT убран из мока вслед за настоящим enum: этого типа не
+  // знает OperationTypeEnum, по которому валидируется запись в payments_v2,
+  // поэтому списание с ним молча не происходило.
   PaymentType: {
-    SERVICE_PAYMENT: 'service_payment',
+    MONEY_OUTCOME: 'money_outcome',
     MONEY_INCOME: 'money_income',
   },
 }))
@@ -438,11 +441,17 @@ describe('hedraRenderWizard (Hedra Avatar Video Generation)', () => {
       }
     })
 
+    // ВНИМАНИЕ: тест вызывает мок напрямую и проверяет, что мок вызвали —
+    // визард не исполняется, регрессию такой тест не поймает. Оставлен как
+    // документация аргументов.
+    //
+    // Было -45 и 'service_payment': комбинация, при которой списание молча не
+    // происходило. Тест закреплял дефект как норму.
     it('должен списывать средства через updateUserBalance', async () => {
       await updateUserBalance(
         '223757230',
-        -45,
-        'service_payment',
+        45,
+        'money_outcome',
         'AI Reels Hedra',
         { bot_name: 'test_bot', service_type: 'hedra_render' }
       )

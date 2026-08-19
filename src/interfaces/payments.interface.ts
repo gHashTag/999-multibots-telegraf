@@ -47,12 +47,26 @@ export enum PaymentStatus {
 /**
  * Типы платежных операций.
  * ВАЖНО: Значения должны соответствовать enum `operation_type` в базе данных Supabase.
+ *
+ * SERVICE_PAYMENT ОТСЮДА УБРАН, и добавлять его обратно нельзя.
+ *
+ * Записи проверяются схемой CreatePaymentV2Schema, а её OperationTypeEnum
+ * (src/interfaces/zod/payment.zod.ts) такого значения не знает. Три визарда —
+ * hedra, heygen, fal — годами звали updateUserBalance с этим типом: zod бросал,
+ * функция возвращала false, возвращаемое значение никто не проверял, генерация
+ * шла дальше. В payments_v2 ровно 0 строк с service_type hedra_render,
+ * ai_reels_heygen и fal_render — списания не было ни разу.
+ *
+ * Если понадобится отдельный тип для оплаты услуг, сначала заведите его в
+ * OperationTypeEnum И в балансовой функции get_user_balance (она живёт внутри
+ * базы, её определения в репозитории нет). Иначе новый тип попадёт в ветку
+ * «всё, что не MONEY_OUTCOME» и будет НАЧИСЛЯТЬ деньги вместо списания —
+ * проверено опытным путём, scripts/probe-balance-formula.cjs.
  */
 export enum PaymentType {
   MONEY_INCOME = 'MONEY_INCOME',
   MONEY_OUTCOME = 'MONEY_OUTCOME',
   REFUND = 'REFUND',
-  SERVICE_PAYMENT = 'SERVICE_PAYMENT',
 }
 
 export interface BasePayment {

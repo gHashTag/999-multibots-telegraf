@@ -528,17 +528,36 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      // Списание средств
-      await updateUserBalance(
+      // Списание средств.
+      //
+      // Раньше здесь стояло `-estimatedCost` и тип SERVICE_PAYMENT. Это НЕ
+      // списывало ничего: SERVICE_PAYMENT есть в enum PaymentType, но его нет
+      // в OperationTypeEnum, по которому CreatePaymentV2Schema проверяет
+      // запись. Zod бросал, updateUserBalance возвращала false — а результат
+      // никто не смотрел, и генерация шла дальше. В payments_v2 ровно 0 строк
+      // с service_type='hedra_render' при живом сценарии.
+      //
+      // Знак задаёт `type`, а не минус у суммы: балансовая функция считает
+      // income − outcome, поэтому отрицательный outcome НАЧИСЛЯЕТ деньги.
+      const charged = await updateUserBalance(
         telegramId,
-        -estimatedCost,
-        PaymentType.SERVICE_PAYMENT,
+        estimatedCost,
+        PaymentType.MONEY_OUTCOME,
         'AI Reels Hedra',
         {
           bot_name: ctx.botInfo?.username || 'unknown_bot',
           service_type: 'hedra_render',
         }
       )
+
+      if (!charged) {
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось списать средства. Генерация отменена, деньги не тронуты.'
+            : '❌ Could not charge your balance. Generation cancelled, nothing was taken.'
+        )
+        return ctx.scene.leave()
+      }
 
       // Получаем voice_id пользователя
       const { getVoiceId } = await import('@/core/supabase/getVoiceId')

@@ -74,7 +74,11 @@ export const processServiceBalanceOperation = async ({
     // Используем существующую updateUserBalance
     const updateSuccess = await updateUserBalance(
       telegram_id,
-      -paymentAmount, // Pass negative amount for expense
+      // Было `-paymentAmount` с комментарием «Pass negative amount for expense».
+      // Минус здесь ничего не выражал: направление задаёт `type`. Работало это
+      // только потому, что updateUserBalance подменяла сумму на положительную
+      // из metadata.paymentAmount ниже — то есть было безопасно случайно.
+      paymentAmount,
       PaymentType.MONEY_OUTCOME, // Correctly use the Enum member
       description,
       {
