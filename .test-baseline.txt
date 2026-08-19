@@ -2049,6 +2049,9 @@ src/__tests__/scenes/voiceAvatarWizard.test.ts :: voiceAvatarWizard (Voice Avata
 src/__tests__/scenes/voiceAvatarWizard.test.ts :: voiceAvatarWizard (Voice Avatar Creation) 8. Обработка ошибок должен показывать ошибку создания аватара на русском
 src/__tests__/scenes/voiceAvatarWizard.test.ts :: voiceAvatarWizard (Voice Avatar Creation) 9. Проверка file_id должен обрабатывать отсутствие file_id
 src/__tests__/scenes/voiceAvatarWizard.test.ts :: voiceAvatarWizard (Voice Avatar Creation) 9. Проверка file_id должен показывать ошибку file_id на русском
+src/__tests__/security/callback-protection.test.ts :: обратные вызовы закрыты меткой каждый опасный обработчик проверяет метку
+src/__tests__/security/callback-protection.test.ts :: обратные вызовы закрыты меткой каждый построитель адреса кладёт метку
+src/__tests__/security/callback-protection.test.ts :: обратные вызовы закрыты меткой проверка стоит ДО отправки, а не после
 src/__tests__/security/callback-token.test.ts :: без настроенного ключа метка не строится и проверка не проходит
 src/__tests__/security/callback-token.test.ts :: метка обратного вызова в метке нет самого ключа
 src/__tests__/security/callback-token.test.ts :: метка обратного вызова метка от другого номера не проходит

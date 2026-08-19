@@ -75,10 +75,26 @@ router.post('/replicate', async (req: any, res: any) => {
       .single()
 
     if (!trainingRecord) {
-      logger.warn('[REPLICATE WEBHOOK] Training record not found (will be handled in Inngest)', {
+      // ОТКАЗЫВАЕМ, а не «пусть Inngest разберётся».
+      //
+      // Подписи Replicate мы не проверяем (секрет вебхука не настроен), то
+      // есть этот адрес принимает POST от кого угодно. Единственное, что
+      // отличает настоящий вызов от поддельного, — существование обучения с
+      // таким идентификатором у нас в базе. Прежний код слал событие ВСЁ
+      // РАВНО, и эта проверка не защищала ни от чего.
+      //
+      // Сегодня подписчика у события нет (functions/existing/
+      // handleModelTrainingCompleted не зарегистрирована, см.
+      // docs/audit/unregistered-functions.md), поэтому вреда пока не было. Но
+      // когда её подключат, поддельный вызов смог бы пометить чужое обучение
+      // завершённым и подсунуть свою ссылку на модель.
+      logger.warn('[REPLICATE WEBHOOK] Обучение с таким идентификатором не найдено — событие не шлём', {
         training_id: payload.id,
       })
-      // Все равно отправляем событие - Inngest функция обработает ошибку
+      return res.status(404).json({
+        success: false,
+        error: 'unknown training id',
+      })
     } else {
       logger.info('[REPLICATE WEBHOOK] Training record found, sending to Inngest', {
         training_id: payload.id,

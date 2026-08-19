@@ -13,6 +13,7 @@ import { logger } from '@/utils/logger'
 import { RenderRiddleEventDataSchema } from '@/inngest_app/functions/render/schemas'
 import { inngestProvider } from './inngest-provider'
 import { createHmac } from 'crypto'
+import { buildCallbackToken } from '@/utils/callbackToken'
 
 logger.info('📦 [RENDER CLIENT] Module loaded, inngestProvider imported')
 
@@ -338,8 +339,18 @@ export function createRenderAvatarPayload(
           // { download_url } и никаких метаданных, а render.ts знает только
           // job_id и callback_url. Здесь же бот известен достоверно — это тот
           // бот, в котором человек заказал видео.
+          // МЕТКА В АДРЕСЕ. Обработчик берёт получателя из ТЕЛА запроса
+          // (`payload.metadata.telegram_id`) и шлёт ему видео по ссылке
+          // оттуда же — не сверяясь ни с какой задачей. Подписи от
+          // рендер-сервера нет.
+          //
+          // Тот же приём, что уже закрыл /api/video-callback (PR #527): адрес
+          // составляем мы, значит можем положить метку и проверить на входе.
+          // Метка привязана к получателю, поэтому чужая не поможет отправить
+          // что-то другому.
           ? `${process.env.BASE_WEBHOOK_URL}/api/telegram/ai-reels-callback` +
-            (options?.botName ? `?bot=${encodeURIComponent(options.botName)}` : '')
+            `?cb=${buildCallbackToken(telegramId) ?? ''}` +
+            (options?.botName ? `&bot=${encodeURIComponent(options.botName)}` : '')
           // undefined, а НЕ null. Схема объявляет callback_url как
           // z.string().url().optional() (schemas.ts), а .optional() принимает
           // undefined и отвергает null: "Expected string, received null".
