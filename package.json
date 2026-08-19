@@ -87,7 +87,8 @@
     "test:models:batch": "npx tsx tests/video-models-test.ts batch",
     "user:check-models": "bun run scripts/users/check-user-models.ts",
     "user:check-models:remote": "chmod +x scripts/users/check-models-remote.sh && ./scripts/users/check-models-remote.sh",
-    "user:force-exit": "bun run scripts/users/force-exit-scene.ts"
+    "user:force-exit": "bun run scripts/users/force-exit-scene.ts",
+    "check:events": "node scripts/orphan-events.cjs"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

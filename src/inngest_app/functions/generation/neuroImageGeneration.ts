@@ -35,7 +35,7 @@ export const neuroImageGeneration = inngest.createFunction(
     onFailure: createInngestFailureHandler('neuro-image-generation'),
   },
   { event: 'neuro/photo.generate' },
-  async ({ event, step }) => {
+  async ({ event, step, attempt }) => {
     try {
       const {
         prompt,
@@ -398,13 +398,42 @@ export const neuroImageGeneration = inngest.createFunction(
         telegram_id: event.data.telegram_id,
       })
 
-      await inngest.send({
-        name: 'neuro/photo.failed',
-        data: {
-          ...event.data,
-          error: error.message,
-        },
-      })
+      // Раньше здесь отправлялось событие 'neuro/photo.failed' — и НИКТО его
+      // не слушал. Проверено сверкой отправок с подписками
+      // (scripts/orphan-events.cjs): строка встречается только в двух send и
+      // ни в одной подписке. То есть генерация падала, человек платил и не
+      // получал ни картинки, ни сообщения об ошибке — только тишину.
+      //
+      // Пишем напрямую. getBotByName в этом файле уже используется выше, так
+      // что новой зависимости не появляется.
+      //
+      // Только на ПОСЛЕДНЕЙ попытке: у функции retries: 3, иначе человек
+      // получил бы четыре одинаковых сообщения об одной неудаче.
+      const isLastAttempt = attempt >= 3
+      if (isLastAttempt) {
+        try {
+          const { telegram_id, bot_name, is_ru } = event.data
+          const { bot } = getBotByName(bot_name)
+          if (bot && telegram_id) {
+            await bot.telegram.sendMessage(
+              telegram_id.toString(),
+              // Про списание сказано «не списаны», а не «будут возвращены»:
+              // единственное updateUserBalance в этом файле стоит в шаге
+              // 'deduct-balance-final', ПОСЛЕ успешной генерации. При сбое
+              // деньги не снимались, и обещать возврат было бы неправдой.
+              is_ru
+                ? '❌ Не удалось сгенерировать изображение. Средства за эту попытку не списаны. Попробуйте ещё раз чуть позже.'
+                : '❌ Image generation failed. You were not charged for this attempt. Please try again a little later.'
+            )
+          }
+        } catch (notifyError) {
+          // Сообщить не удалось — это не повод потерять исходную ошибку.
+          logger.error('Не удалось уведомить пользователя о сбое генерации', {
+            error: notifyError instanceof Error ? notifyError.message : String(notifyError),
+            telegram_id: event.data.telegram_id,
+          })
+        }
+      }
 
       throw error
     }
