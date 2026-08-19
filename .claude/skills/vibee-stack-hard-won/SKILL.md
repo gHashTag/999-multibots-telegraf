@@ -75,16 +75,26 @@ own folder, then confirm the element exists in the live DOM.
   handler and Node 20 kills the process — a one-request DoS.
 - `type` in `assets` holds the **model name** (`veo3_fast`), not the media kind.
   Derive video/audio/image from the URL extension.
-- The bot does **not** call `vibee-render`. `render-server-client.ts:18`
-  hardcodes `render-v3-production.up.railway.app`, and **that host does not
-  exist** — Railway's edge answers
-  `{"status":"error","code":404,"message":"Application not found"}` on every
-  path including `/health` and `/api/inngest`.
-  So the bot's AI Reels and render pipeline send jobs nowhere. This is not a
-  recent breakage; there is no destination. Fixing it means repointing that
-  constant at `vibee-render-production.up.railway.app`, which answers
-  `{"status":"ok","bundleReady":true}` — but that reroutes a production
-  pipeline, so do it with full context and verify a job end to end.
+- The bot does **not** call `vibee-render` — но причина НЕ та, которую я
+  записал здесь раньше. Прошлая версия этой строки утверждала, что всё дело в
+  захардкоженном несуществующем хосте в `render-server-client.ts`. Это было
+  неверно: функция, которая туда ходит (`sendDirectToRenderServer`), **нигде не
+  вызывается**. Мёртвый код.
+
+  Настоящая цепочка: визард → `sendRenderAvatarVideoEvent` → Inngest
+  (инстанс RENDER, ключи заданы) → `renderRiddleFunction` внутри самого бота.
+  Она рабочая: функция зарегистрирована, бот отдаёт `/api/inngest`, health 200.
+
+  Обрыв — в самом конце. Последний шаг шлёт событие **`render/execute`, у
+  которого нет ни одного подписчика**: строка встречается во всём `src/` ровно
+  один раз (сам `send`), а из 33 подписок render-события это `render`,
+  `render-riddle` и `render/avatar-video`. Пайплайн тратит деньги у четырёх
+  провайдеров и возвращает `success:true`, не отрендерив ничего.
+
+  Причина архитектурная: путь рассчитан на ферму nexrender с шаблонами After
+  Effects по SSH (`.aep`, `server_url/port/user`,
+  `composition_name='Instagram_Story'`), а `vibee-render` — это Remotion с
+  единственной композицией `SplitTalkingHead`. Две половины не соединяли.
 
 ## Сервис может врать о самом себе
 
@@ -156,6 +166,19 @@ DELETE обнулил бы баланс каждого клиента.
 Ошибка настоящая и чинить её стоит — но называть латентный дефект активной
 утечкой значит потратить чужое доверие. Перед словом «эксплуатируется» сходи
 в таблицу и посчитай.
+
+## Не доверяй собственной прошлой записи
+
+Я записал в этот файл как факт, что рендер бота «шлёт задачи в никуда» из-за
+несуществующего хоста. Следующий цикл потратил время, идя по этому следу, и
+выяснил, что функция с тем хостом вообще не вызывается, а обрыв совсем в другом
+месте.
+
+Записанный неверный факт хуже отсутствия записи: он выглядит как проверенное
+знание и экономит ровно ту проверку, которая бы его опровергла. Если запись
+опирается на чтение кода, а не на живой запрос — так и помечай. И проверяй,
+вызывается ли вообще функция, прежде чем объяснять через неё поведение
+системы.
 
 ## Self-check before reporting done
 
