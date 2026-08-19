@@ -2049,6 +2049,13 @@ src/__tests__/scenes/voiceAvatarWizard.test.ts :: voiceAvatarWizard (Voice Avata
 src/__tests__/scenes/voiceAvatarWizard.test.ts :: voiceAvatarWizard (Voice Avatar Creation) 8. Обработка ошибок должен показывать ошибку создания аватара на русском
 src/__tests__/scenes/voiceAvatarWizard.test.ts :: voiceAvatarWizard (Voice Avatar Creation) 9. Проверка file_id должен обрабатывать отсутствие file_id
 src/__tests__/scenes/voiceAvatarWizard.test.ts :: voiceAvatarWizard (Voice Avatar Creation) 9. Проверка file_id должен показывать ошибку file_id на русском
+src/__tests__/security/callback-token.test.ts :: без настроенного ключа метка не строится и проверка не проходит
+src/__tests__/security/callback-token.test.ts :: метка обратного вызова в метке нет самого ключа
+src/__tests__/security/callback-token.test.ts :: метка обратного вызова метка от другого номера не проходит
+src/__tests__/security/callback-token.test.ts :: метка обратного вызова одна и та же для одного номера
+src/__tests__/security/callback-token.test.ts :: метка обратного вызова пустое, отсутствующее и не-строка не проходят
+src/__tests__/security/callback-token.test.ts :: метка обратного вызова разная для разных номеров — чужую не переиспользуешь
+src/__tests__/security/callback-token.test.ts :: метка обратного вызова своя метка проходит проверку
 src/__tests__/security/no-secrets-in-repo.test.ts :: в репозитории нет новых секретов в списке долга нет файлов, которые уже вычищены
 src/__tests__/security/no-secrets-in-repo.test.ts :: в репозитории нет новых секретов нет секретов в файлах вне списка известного долга
 src/__tests__/security/no-secrets-in-repo.test.ts :: в репозитории нет новых секретов самопроверка: шаблоны срабатывают на заведомых образцах
