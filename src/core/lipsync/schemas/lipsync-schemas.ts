@@ -64,9 +64,36 @@ export interface LipSyncModelManagerConfig {
   cacheExpirationHours: number
 }
 
-// Валидация
-export function validateLipSyncInput(input: any): boolean {
-  return true // Упрощенная валидация
+/**
+ * ЗАГЛУШКА. Падает вместо того, чтобы возвращать `true`.
+ *
+ * Раньше тело было `return true // Упрощенная валидация`, и это значение
+ * использовалось НЕ как признак валидности, а КАК САМИ ДАННЫЕ:
+ * lipsync-model-manager.ts:120 кладёт результат в `validatedInput`, а затем
+ *   :131 logRequest(validatedInput)            → в лог уходит `true`
+ *   :136 (validatedInput as any).telegramId    → undefined
+ *   :141 cacheManager.generateKey(validatedInput) → ОДИН ключ на всех
+ *   :186 provider.generate(validatedInput)     → провайдер получает `true`
+ * Компилятор молчал: у провайдера сигнатура `generate(input: any)`.
+ *
+ * Общий ключ кэша означал бы, что один пользователь получает результат другого.
+ * Сегодня это НЕ происходит: LipSyncModelManager создаётся только внутри
+ * getLipSyncManager() (core/lipsync/index.ts:121), у которой ноль вызовов —
+ * проверено. То есть мина, а не пожар.
+ *
+ * Настоящий валидатор в проекте есть: `validateLipSyncInput` в
+ * core/lipsync/functional/validators.ts — он возвращает разобранный вход и
+ * бросает LipSyncValidationError. Именно его и ждёт код менеджера.
+ *
+ * Пока подключение не сделано, эта функция обязана падать: тот, кто оживит
+ * менеджер, узнает об этом сразу, а не через чужие результаты в кэше.
+ */
+export function validateLipSyncInput(input: any): never {
+  throw new LipSyncValidationError(
+    'validateLipSyncInput из schemas — заглушка. Используйте валидатор из ' +
+      'core/lipsync/functional/validators.ts: он возвращает разобранный вход, ' +
+      'а не булево, и код менеджера рассчитан именно на это.'
+  )
 }
 
 export class LipSyncValidationError extends Error {
