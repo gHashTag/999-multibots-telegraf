@@ -10,6 +10,7 @@
  */
 
 import { logger } from '@/utils/logger'
+import { RenderRiddleEventDataSchema } from '@/inngest_app/functions/render/schemas'
 import { inngestProvider } from './inngest-provider'
 import { createHmac } from 'crypto'
 
@@ -257,7 +258,7 @@ export function createRenderAvatarPayload(
     hasFalApiKey: !!options?.falApiKey,
   })
 
-  return {
+  const payload: RenderRiddlePayload = {
     job_id: `telegram-${telegramId}-${Date.now()}`,
     eleven_labs_api_key: process.env.ELEVENLABS_API_KEY || '',
     kie_api_key: process.env.KIE_AI_API_KEY || '',
@@ -348,4 +349,30 @@ export function createRenderAvatarPayload(
           : undefined,
     bot_name: options?.botName,
   }
+
+  // ПРОВЕРКА ЗДЕСЬ, СИНХРОННО, ДО СПИСАНИЯ.
+  //
+  // Все четыре визарда сначала списывают деньги, потом отправляют событие, и
+  // только потом renderRiddle.ts:57 валидирует вход — асинхронно, в другом
+  // процессе. Отправка события при этом ПРОХОДИТ УСПЕШНО, поэтому try/catch
+  // визарда отказ не видит: человеку уже написано «💰 Списано», а задача
+  // отвергнута там, куда визард не смотрит.
+  //
+  // Эта функция вызывается ДО списания во всех четырёх. Бросок отсюда попадает
+  // в catch визарда, деньги остаются на месте, и человек получает причину, а
+  // не тишину.
+  const check = RenderRiddleEventDataSchema.safeParse(payload)
+  if (!check.success) {
+    const why = check.error.issues
+      .map(i => `${i.path.join('.') || '(корень)'}: ${i.message}`)
+      .join('; ')
+    logger.error('❌ [RENDER PAYLOAD] Payload не проходит схему render-riddle', {
+      telegramId,
+      avatarService: options?.avatarService,
+      issues: why,
+    })
+    throw new Error(`Задача не может быть выполнена: ${why}`)
+  }
+
+  return payload
 }
