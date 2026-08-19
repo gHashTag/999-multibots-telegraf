@@ -27,6 +27,8 @@
     "build:nocheck": "tsc --skipLibCheck --skipDefaultLibCheck && bun run build:alias",
     "test": "cross-env SUPABASE_URL=TEST_URL SUPABASE_SERVICE_KEY=TEST_KEY bun run vitest",
     "test:bun": "bun test",
+    "test:gate": "node scripts/test-gate.cjs",
+    "test:gate:save": "node scripts/test-gate.cjs --save",
     "test:enhanced-neurophoto": "npx tsx tests/run-enhanced-neurophoto-tests.ts",
     "test:inngest": "cd src/inngest_app && vitest run",
     "test:inngest:unit": "cd src/inngest_app && vitest run test/unit",
