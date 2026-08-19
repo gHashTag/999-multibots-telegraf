@@ -2045,6 +2045,9 @@ src/__tests__/scenes/voiceAvatarWizard.test.ts :: voiceAvatarWizard (Voice Avata
 src/__tests__/scenes/voiceAvatarWizard.test.ts :: voiceAvatarWizard (Voice Avatar Creation) 8. Обработка ошибок должен показывать ошибку создания аватара на русском
 src/__tests__/scenes/voiceAvatarWizard.test.ts :: voiceAvatarWizard (Voice Avatar Creation) 9. Проверка file_id должен обрабатывать отсутствие file_id
 src/__tests__/scenes/voiceAvatarWizard.test.ts :: voiceAvatarWizard (Voice Avatar Creation) 9. Проверка file_id должен показывать ошибку file_id на русском
+src/__tests__/security/no-secrets-in-repo.test.ts :: в репозитории нет новых секретов в списке долга нет файлов, которые уже вычищены
+src/__tests__/security/no-secrets-in-repo.test.ts :: в репозитории нет новых секретов нет секретов в файлах вне списка известного долга
+src/__tests__/security/no-secrets-in-repo.test.ts :: в репозитории нет новых секретов самопроверка: шаблоны срабатывают на заведомых образцах
 src/__tests__/security/no-token-in-urls.test.ts :: токен бота не уходит в адресах разбор находит места, где такой адрес строится — иначе тест пустой
 src/__tests__/security/no-token-in-urls.test.ts :: токен бота не уходит в адресах такой адрес не возвращается из функции
 src/__tests__/security/no-token-in-urls.test.ts :: токен бота не уходит в адресах такой адрес не кладётся в поля профиля
