@@ -107,28 +107,35 @@ export async function saveVideoUrlHelper(
   videoPath: string,
   modelId: string // Changed 'type' to 'modelId' for clarity
 ): Promise<void> {
+  // ВТОРАЯ ДВЕРЬ В ТУ ЖЕ ТАБЛИЦУ — теперь ведёт через общий путь.
+  //
+  // Здесь стояла собственная вставка в `assets` со ссылкой ПРОВАЙДЕРА. То есть
+  // зеркалирование, добавленное в saveVideoUrlToSupabase, эту дорогу не
+  // закрывало: видео из videoGenerator по-прежнему сохранялись ссылкой,
+  // которая протухнет.
+  //
+  // Замер по хостам показал, чего это стоит: 1481 ссылка из 1496 уже отдаёт
+  // 404 (replicate.delivery, replicate.com, tempfile.aiquickdraw.com — все;
+  // живы только 15 у fal).
+  //
+  // Делегируем, а не копируем зеркалирование: две копии логики разъедутся, и
+  // разъедутся молча — ровно так и вышло в прошлый раз.
+  const { saveVideoUrlToSupabase } = await import('@/core/supabase/saveVideoUrlToSupabase')
+
   logger.info('[saveVideoUrlHelper] Called', {
     telegramId,
     videoUrl,
     videoPath,
     modelId,
   })
-  const { error } = await supabase.from('assets').insert({
-    type: modelId, // Use modelId as type
-    trigger_word: 'video', // Keep as video?
-    telegram_id: telegramId.toString(),
-    storage_path: videoPath,
-    public_url: videoUrl,
-    text: 'Generated video', // Keep generic text?
-  })
 
-  if (error) {
-    logger.error('Ошибка при сохранении URL видео в Supabase:', {
-      telegramId,
-      error,
-    })
-    throw new Error(`Supabase save video URL failed: ${error.message}`) // Throw error to be caught by caller
-  } else {
-    logger.info('URL видео успешно сохранен в Supabase', { telegramId })
-  }
+  await saveVideoUrlToSupabase({
+    telegramId,
+    publicUrl: videoUrl,
+    storagePath: videoPath,
+    type: modelId,
+    triggerWord: 'video',
+    text: 'Generated video',
+  })
 }
+

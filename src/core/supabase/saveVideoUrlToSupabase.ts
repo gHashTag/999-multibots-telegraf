@@ -52,48 +52,69 @@ export async function saveVideoUrlToSupabase(
   // Поэтому не пишем вовсе, а не пишем заглушку.
   // ЗЕРКАЛИРОВАНИЕ В СВОЁ ХРАНИЛИЩЕ, до записи ссылки.
   //
-  // Раньше сюда клалась ссылка ПРОВАЙДЕРА, и это уже стоило данных: из 1496
-  // ассетов 171 указывает на tempfile.aiquickdraw.com, и ВСЕ 171 отдают 404 —
-  // проверено. Это временный файлохостинг KIE, а не хранилище. Replicate свой
-  // CDN держит долго (1214 ссылок живы, включая самую старую), поэтому проблема
-  // выглядела несуществующей.
+  // ЗЕРКАЛИРОВАНИЕ В СВОЁ ХРАНИЛИЩЕ — ЧЕРЕЗ SUPABASE STORAGE, НЕ ЧЕРЕЗ S3.
   //
-  // Полагаться на срок жизни чужой ссылки нельзя ни у одного провайдера.
+  // Поправка к моему же прежнему комментарию. Здесь было написано: «Replicate
+  // свой CDN держит долго (1214 ссылок живы, включая самую старую)». ЭТО
+  // НЕПРАВДА, и я это не проверял. Живой замер HEAD-запросами по выборке из
+  // каждого месяца:
   //
-  // Отказ зеркалирования НЕ должен ломать сохранение: лучше записать ссылку
-  // провайдера, чем не записать ничего. Поэтому весь блок в try, а при любой
-  // неудаче остаётся исходный URL и предупреждение в лог.
+  //   replicate.delivery          1214 ссылок — ВСЕ отдают 404
+  //   tempfile.aiquickdraw.com     171 ссылка  — ВСЕ отдают 404
+  //   replicate.com                 96 ссылок  — ВСЕ отдают 404
+  //   v3b.fal.media                 15 ссылок  — живы
   //
-  // ⚠️ СЕЙЧАС ЭТОТ БЛОК ВСЕГДА ПАДАЕТ В ОТКАТ. Проверено живым прогоном:
-  //   AWS_REGION=ru-7  → "region 'ru-7' is wrong; expecting 'ru-1'"
-  //   AWS_REGION=ru-1  → "Access Denied"
-  // То есть у ключей нет прав на запись в AWS_S3_FRONTEND_BUCKET, а регион в
-  // переменных не тот, которого ждёт endpoint. Пока это не исправлено, код
-  // ниже отрабатывает вхолостую и сохраняется ссылка провайдера — то есть
-  // ровно прежнее поведение, без ухудшения.
+  // То есть потеряно не 171 вложение, а 1481 из 1496. Ссылка провайдера не
+  // живёт ни у кого; вопрос только в сроке.
   //
-  // Чинить это надо в доступах S3, а не здесь: нужен ключ с правом записи и
-  // согласованный с endpoint регион. Оба — учётные данные, их выдаёт владелец.
+  // Почему теперь Supabase Storage. Прежний вариант писал в S3 и ВСЕГДА падал
+  // в откат: регион в переменных не совпадал с endpoint, а после исправления
+  // региона приходил Access Denied. Эти доступы выдаёт владелец, и ждать их
+  // означало терять файлы дальше.
+  //
+  // Supabase Storage при этом РАБОТАЕТ уже сейчас — проверено записью,
+  // публичным чтением и удалением пробного объекта в бакете `images` теми же
+  // ключами, что есть у бота. Новых учётных данных не нужно.
+  //
+  // Отказ зеркалирования по-прежнему НЕ ломает сохранение: лучше записать
+  // ссылку провайдера, чем не записать ничего.
   let urlToStore = publicUrl
   try {
-    const { S3Service } = await import(
-      '@/inngest_app/functions/render/helpers/s3.service'
-    )
-    const s3 = new S3Service()
     const res = await fetch(publicUrl, { signal: AbortSignal.timeout(60_000) })
     if (!res.ok) throw new Error(`источник отдал HTTP ${res.status}`)
     const buf = Buffer.from(await res.arrayBuffer())
-    const ext = (publicUrl.split('?')[0].match(/\.([a-z0-9]{2,4})$/i)?.[1] || 'mp4').toLowerCase()
-    const key = `assets/${telegramId}/${Date.now()}.${ext}`
-    await s3.uploadFile(key, res.headers.get('content-type') || 'video/mp4', buf)
-    const mirrored = await s3.generateGetUrl(key, 604800)
-    if (isPlayableUrl(mirrored)) urlToStore = mirrored
+    if (!buf.length) throw new Error('источник отдал пустой ответ')
+
+    const contentType = res.headers.get('content-type') || 'application/octet-stream'
+    const ext =
+      publicUrl.split('?')[0].match(/\.([a-z0-9]{2,4})$/i)?.[1]?.toLowerCase() ||
+      (contentType.startsWith('image/') ? contentType.slice(6) : 'mp4')
+
+    // Дата в пути — чтобы файлы не сваливались в один каталог и чтобы по
+    // ассету было видно, когда он появился, даже без обращения к базе.
+    const day = new Date().toISOString().slice(0, 10)
+    const key = `assets/${day}/${telegramId}/${Date.now()}.${ext}`
+
+    const { error: upErr } = await supabase.storage
+      .from('images')
+      .upload(key, buf, { contentType, upsert: false })
+    if (upErr) throw new Error(`storage: ${upErr.message}`)
+
+    const { data } = supabase.storage.from('images').getPublicUrl(key)
+    if (!isPlayableUrl(data?.publicUrl)) throw new Error('storage не вернул ссылку')
+
+    urlToStore = data.publicUrl
+    logger.info('✅ [assets] Файл переложен в своё хранилище', {
+      telegramId: String(telegramId),
+      key,
+      bytes: buf.length,
+    })
   } catch (e) {
     logger.warn('⚠️ [assets] Не удалось зеркалировать в своё хранилище', {
-      telegramId,
+      telegramId: String(telegramId),
       error: e instanceof Error ? e.message : String(e),
-      // Ссылка провайдера сохранится как есть — она может протухнуть, и это
-      // повод посмотреть логи, а не потерять запись.
+      // Ссылка провайдера сохранится как есть — она протухнет, и это повод
+      // посмотреть логи, а не потерять запись.
       fallback: 'сохраняем исходную ссылку провайдера',
     })
   }
