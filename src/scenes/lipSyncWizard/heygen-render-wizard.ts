@@ -721,7 +721,45 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
           }
         )
 
-        const { eventId } = await sendRenderAvatarVideoEvent(payload)
+        // ВОЗВРАТ ПРИ НЕУДАЧНОЙ ОТПРАВКЕ.
+        //
+        // Деньги уже списаны выше. Если отправка события не удастся, человек
+        // останется без видео и без звёзд, а внешний catch скажет лишь
+        // «обратитесь в поддержку».
+        //
+        // Дыру открыл я сам в PR #506: до него списание здесь молча не
+        // происходило (тип SERVICE_PAYMENT не проходил валидацию записи),
+        // поэтому неудачная отправка ничего не стоила. Починив списание, я
+        // сделал этот путь платным — и обязан был закрыть возврат тем же
+        // движением. Соседний hedra-render-wizard так и устроен (:631).
+        let eventId: string
+        try {
+          ;({ eventId } = await sendRenderAvatarVideoEvent(payload))
+        } catch (sendError) {
+          logger.error('❌ [HEYGEN RENDER] Ошибка отправки события — возвращаю средства', {
+            telegramId,
+            cost: estimatedCost,
+            error: sendError instanceof Error ? sendError.message : String(sendError),
+          })
+
+          await updateUserBalance(
+            telegramId,
+            estimatedCost,
+            PaymentType.MONEY_INCOME,
+            'Refund: HeyGen Render error',
+            {
+              bot_name: ctx.botInfo?.username || 'unknown_bot',
+              service_type: 'refund',
+            }
+          )
+
+          await ctx.reply(
+            isRu
+              ? '❌ Произошла ошибка при отправке запроса. Средства возвращены.'
+              : '❌ Error sending request. Funds refunded.'
+          )
+          return ctx.scene.leave()
+        }
 
         await ctx.reply(
           isRu
