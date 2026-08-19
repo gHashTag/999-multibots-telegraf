@@ -75,8 +75,16 @@ own folder, then confirm the element exists in the live DOM.
   handler and Node 20 kills the process — a one-request DoS.
 - `type` in `assets` holds the **model name** (`veo3_fast`), not the media kind.
   Derive video/audio/image from the URL extension.
-- The bot does **not** call `vibee-render`. `render-server-client.ts` hardcodes
-  `render-v3-production.up.railway.app` — a different, unverified service.
+- The bot does **not** call `vibee-render`. `render-server-client.ts:18`
+  hardcodes `render-v3-production.up.railway.app`, and **that host does not
+  exist** — Railway's edge answers
+  `{"status":"error","code":404,"message":"Application not found"}` on every
+  path including `/health` and `/api/inngest`.
+  So the bot's AI Reels and render pipeline send jobs nowhere. This is not a
+  recent breakage; there is no destination. Fixing it means repointing that
+  constant at `vibee-render-production.up.railway.app`, which answers
+  `{"status":"ok","bundleReady":true}` — but that reroutes a production
+  pipeline, so do it with full context and verify a job end to end.
 
 ## Self-check before reporting done
 
