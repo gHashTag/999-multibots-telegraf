@@ -24,6 +24,7 @@ import {
 } from '@/navigation/helpers/sceneTransition'
 import { ModeEnum } from '@/interfaces/modes'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
+import type { MutableCtx } from '../helpers/mutableContext'
 
 // Mock logger
 vi.mock('@/utils/logger', () => ({
@@ -36,7 +37,7 @@ vi.mock('@/utils/logger', () => ({
 }))
 
 describe('SceneTransition', () => {
-  let mockContext: Partial<MyContext>
+  let mockContext: MutableCtx
   let mockSceneEnter: Mock
   let mockSceneLeave: Mock
 

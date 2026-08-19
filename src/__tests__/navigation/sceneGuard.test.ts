@@ -65,9 +65,10 @@ vi.mock('@/navigation/middleware/buttonMatcher', () => ({
 
 import { goBack, goToMainMenu } from '@/navigation/helpers/sceneTransition'
 import { matchButton, isMainMenuButton, isCancelButton, isBackButton } from '@/navigation/middleware/buttonMatcher'
+import type { MutableCtx } from '../helpers/mutableContext'
 
 describe('sceneGuard', () => {
-  let mockContext: Partial<MyContext>
+  let mockContext: MutableCtx
   let mockSceneEnter: Mock
   let mockSceneLeave: Mock
 

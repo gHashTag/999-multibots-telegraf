@@ -23,9 +23,10 @@ vi.mock('@/helpers/centralizedLanguage', () => ({
 }))
 
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import type { MutableCtx } from '../helpers/mutableContext'
 
 describe('messages', () => {
-  let mockContext: Partial<MyContext>
+  let mockContext: MutableCtx
   let mockReply: Mock
 
   beforeEach(() => {

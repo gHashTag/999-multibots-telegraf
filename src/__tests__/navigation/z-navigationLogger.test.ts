@@ -24,9 +24,10 @@ import {
   withNavigationLogging,
   createNavigationLoggingMiddleware
 } from '@/navigation/helpers/navigationLogger'
+import type { MutableCtx } from '../helpers/mutableContext'
 
 describe('navigationLogger', () => {
-  let mockContext: Partial<MyContext>
+  let mockContext: MutableCtx
   let consoleLogSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {

@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi, Mock, afterEach } from 'vitest'
 import { ModeEnum } from '../../interfaces/modes'
+import type { MutableCtx } from '../helpers/mutableContext'
 
 // Mock all dependencies BEFORE importing the module under test
 vi.mock('@fal-ai/client', () => ({
@@ -98,7 +99,7 @@ import { generateNeuroPhotoDirect } from '../../services/generateNeuroPhotoDirec
 import { MyContext } from '../../interfaces'
 
 describe('generateNeuroPhotoDirect', () => {
-  let mockContext: Partial<MyContext>
+  let mockContext: MutableCtx
   let mockBot: any
   let mockTelegram: any
 
