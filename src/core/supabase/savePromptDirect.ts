@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { mirrorToOwnStorage } from './mirrorToStorage'
 import { ModeEnum } from '@/interfaces/modes'
 
 export const savePromptDirect = async (
@@ -9,13 +10,20 @@ export const savePromptDirect = async (
   telegram_id?: string,
   status?: string
 ): Promise<number | null> => {
+  // Перекладываем файл к себе — см. пояснение в savePrompt.ts и
+  // docs/audit/foreign-links.md. Вторая дверь в ту же таблицу, и закрывать её
+  // надо тем же движением, иначе правка в одном месте ничего не меняет.
+  const storedMediaUrl = media_url
+    ? await mirrorToOwnStorage(media_url, telegram_id ?? 'unknown', 'prompts')
+    : media_url
+
   // Проверяем, существует ли уже такой промпт в таблице
   const { data: existingPrompt, error: selectError } = await supabase
     .from('prompts_history')
     .select('prompt_id')
     .eq('prompt', prompt)
     .eq('model_type', model_type)
-    .eq('media_url', media_url)
+    .eq('media_url', storedMediaUrl)
     .eq('telegram_id', telegram_id)
     .maybeSingle()
 
@@ -34,7 +42,7 @@ export const savePromptDirect = async (
     .insert({
       prompt: prompt,
       model_type: model_type,
-      media_url: media_url,
+      media_url: storedMediaUrl,
       telegram_id: telegram_id,
       status: status,
       mode,
