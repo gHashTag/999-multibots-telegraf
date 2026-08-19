@@ -26,10 +26,17 @@ export default defineConfig({
       'src/__tests__/ai-reels-debug.test.ts',
       'src/__tests__/ai-reels-template1.test.ts',
       'src/__tests__/services/ai-models.test.ts',
-      // Playwright-спеки редактора. Корневой прогон vitest дотягивался до
-      // apps/ и пытался их выполнить: "Playwright Test did not expect
-      // test.describe() to be called here". У Playwright свой раннер.
-      'apps/**/e2e/**',
+      // ВЕСЬ apps/, а не только e2e.
+      //
+      // Сначала здесь стояло 'apps/**/e2e/**' — Playwright-спеки редактора,
+      // которые корневой vitest пытался выполнить своим раннером. Но проблема
+      // шире: у apps/vibee-editor/player СВОЙ раннер и свои зависимости
+      // (package.json: "test": "vitest"), поэтому корневой прогон падает на
+      // его импортах — "Cannot find package 'jotai'", 'jotai/utils'. Ещё
+      // 4 файла, не выполняющих ни одного assert.
+      //
+      // Тесты редактора запускаются из его собственного каталога.
+      'apps/**',
     ],
   },
   resolve: {
