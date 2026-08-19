@@ -507,6 +507,10 @@ src/__tests__/inngest/modelTrainingV2.test.ts :: modelTrainingV2 (BFL API) 8. С
 src/__tests__/inngest/modelTrainingV2.test.ts :: modelTrainingV2 (BFL API) 9. Обработка ошибок и возврат средств должен вернуть средства при ошибке
 src/__tests__/inngest/modelTrainingV2.test.ts :: modelTrainingV2 (BFL API) 9. Обработка ошибок и возврат средств должен отправить уведомление об ошибке пользователю
 src/__tests__/inngest/modelTrainingV2.test.ts :: modelTrainingV2 (BFL API) 9. Обработка ошибок и возврат средств должен уведомить администратора об ошибке
+src/__tests__/inngest/registration.test.ts :: регистрация функций Inngest в списке исключений нет несуществующих файлов
+src/__tests__/inngest/registration.test.ts :: регистрация функций Inngest в списке исключений нет тех, кого уже подключили
+src/__tests__/inngest/registration.test.ts :: регистрация функций Inngest каждая определённая функция либо зарегистрирована, либо названа с причиной
+src/__tests__/inngest/registration.test.ts :: регистрация функций Inngest разбор находит определения и регистрации — иначе тест пустой
 src/__tests__/inngest/slugify.test.ts :: slugify basic transformations should convert to lowercase
 src/__tests__/inngest/slugify.test.ts :: slugify basic transformations should handle mixed separators
 src/__tests__/inngest/slugify.test.ts :: slugify basic transformations should handle multiple consecutive spaces
@@ -950,6 +954,7 @@ src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest
 src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest Bot extractPromoFromContext должен извлекать промо-параметр из /start promo neurovideo
 src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest Bot processPromoLink должен вернуть false для неизвестного типа промо
 src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest Bot processPromoLink должен успешно обработать neurophoto промо
+src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest Bot processPromoLink должен успешно обработать neurovideo промо
 src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest Bot Интеграционный тест промо-ссылок полный цикл обработки neurophoto промо-ссылки
 src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest Bot Интеграционный тест промо-ссылок полный цикл обработки neurovideo промо-ссылки
 src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest Bot Конфигурация промо-ссылок проверка URL промо-ссылок
