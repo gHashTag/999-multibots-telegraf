@@ -56,9 +56,24 @@ export async function generateImageFromPrompt(
       console.warn('⚠️ [generateImageFromPrompt] Received Buffer instead of URL')
     }
 
-    // Если ничего не сработало, возвращаем заглушку
-    console.warn('⚠️ [generateImageFromPrompt] All local AI services failed, returning placeholder')
-    return "https://example.com/generated_image.png"
+    // ВОЗВРАЩАТЬ ВЫДУМАННУЮ ССЫЛКУ НЕЛЬЗЯ.
+    //
+    // Ниже стояло `return "https://example.com/generated_image.png"` — адрес,
+    // которого не существует. Вызывающий получал строку, похожую на успех, и
+    // не мог отличить её от настоящей картинки.
+    //
+    // В этом проекте такое уже стоило денег: generateInstagramScraping
+    // возвращала `success: true`, ничего не запустив, а сцены списывали за это
+    // звёзды — 28 списаний, 94 звезды, ноль запусков (PR #510). И заглушки
+    // ElevenLabs возвращали выдуманный адрес аудио, из-за чего отказ всплывал
+    // на три шага позже и без причины.
+    //
+    // Честный отказ дешевле: вызывающий сразу знает, что картинки нет.
+    console.warn('⚠️ [generateImageFromPrompt] All local AI services failed')
+    throw new Error(
+      'generateImageFromPrompt: ни один способ генерации не сработал. ' +
+        'Раньше здесь возвращался выдуманный адрес — вызывающий принимал его за картинку.'
+    )
   } catch (error) {
     console.error("Ошибка генерации изображения:", error)
     throw error
