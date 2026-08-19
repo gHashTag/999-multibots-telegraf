@@ -180,19 +180,37 @@ rublePaymentScene.enter(async ctx => {
 
       const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
-      await setPayments({
-        telegram_id: userId.toString(),
-        OutSum: amountRub.toString(),
-        InvId: invId.toString(),
-        currency: Currency.RUB,
-        stars: stars,
-        status: PaymentStatus.PENDING,
-        payment_method: 'Robokassa',
-        type: PaymentType.MONEY_INCOME,
-        subscription_type: subscriptionType as SubscriptionType,
-        bot_name,
-        language: ctx.from?.language_code ?? 'en',
-      })
+      // Ошибка здесь означает, что записи платежа НЕТ. Отправлять человека
+      // платить по ссылке в таком случае нельзя: деньги спишутся, а обратный
+      // вызов не найдёт платёж по inv_id и звёзды не начислятся.
+      try {
+        await setPayments({
+          telegram_id: userId.toString(),
+          OutSum: amountRub.toString(),
+          InvId: invId.toString(),
+          currency: Currency.RUB,
+          stars: stars,
+          status: PaymentStatus.PENDING,
+          payment_method: 'Robokassa',
+          type: PaymentType.MONEY_INCOME,
+          subscription_type: subscriptionType as SubscriptionType,
+          bot_name,
+          language: ctx.from?.language_code ?? 'en',
+        })
+      } catch (paymentRecordError) {
+        logger.error('❌ Не удалось создать запись платежа — ссылку не выдаём', {
+          error:
+            paymentRecordError instanceof Error
+              ? paymentRecordError.message
+              : String(paymentRecordError),
+        })
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось подготовить платёж. Попробуйте ещё раз через минуту — деньги не списаны.'
+            : '❌ Could not prepare the payment. Please try again in a minute — nothing was charged.'
+        )
+        return ctx.scene.leave()
+      }
 
       logger.info(
         `[${ModeEnum.RublePaymentScene}] PENDING SUBSCRIPTION payment saved for InvId: ${invId}, Sub: ${subscriptionType}`,
@@ -491,19 +509,37 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
 
     const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
-    await setPayments({
-      telegram_id: userId.toString(),
-      OutSum: amountRub.toString(),
-      InvId: invId.toString(),
-      currency: Currency.RUB,
-      stars: stars,
-      status: PaymentStatus.PENDING,
-      payment_method: 'Robokassa',
-      type: PaymentType.MONEY_INCOME,
-      subscription_type: null,
-      bot_name,
-      language: ctx.from?.language_code ?? 'en',
-    })
+      // Ошибка здесь означает, что записи платежа НЕТ. Отправлять человека
+      // платить по ссылке в таком случае нельзя: деньги спишутся, а обратный
+      // вызов не найдёт платёж по inv_id и звёзды не начислятся.
+      try {
+      await setPayments({
+        telegram_id: userId.toString(),
+        OutSum: amountRub.toString(),
+        InvId: invId.toString(),
+        currency: Currency.RUB,
+        stars: stars,
+        status: PaymentStatus.PENDING,
+        payment_method: 'Robokassa',
+        type: PaymentType.MONEY_INCOME,
+        subscription_type: null,
+        bot_name,
+        language: ctx.from?.language_code ?? 'en',
+      })
+      } catch (paymentRecordError) {
+        logger.error('❌ Не удалось создать запись платежа — ссылку не выдаём', {
+          error:
+            paymentRecordError instanceof Error
+              ? paymentRecordError.message
+              : String(paymentRecordError),
+        })
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось подготовить платёж. Попробуйте ещё раз через минуту — деньги не списаны.'
+            : '❌ Could not prepare the payment. Please try again in a minute — nothing was charged.'
+        )
+        return ctx.scene.leave()
+      }
 
     logger.info(
       `[${
@@ -694,24 +730,42 @@ rublePaymentScene.action(/test_subscription_1rub:(.+):(\d+)/, async ctx => {
 
     const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
-    await setPayments({
-      telegram_id: userId.toString(),
-      OutSum: testAmount.toString(),
-      InvId: invId.toString(),
-      currency: Currency.RUB,
-      stars: testStars,
-      status: PaymentStatus.PENDING,
-      payment_method: 'Robokassa',
-      type: PaymentType.MONEY_INCOME,
-      subscription_type: subscriptionType as SubscriptionType,
-      bot_name,
-      language: ctx.from?.language_code ?? 'en',
-      metadata: {
-        admin_test: true,
-        original_amount: originalStars,
-        test_amount: testAmount,
-      },
-    })
+      // Ошибка здесь означает, что записи платежа НЕТ. Отправлять человека
+      // платить по ссылке в таком случае нельзя: деньги спишутся, а обратный
+      // вызов не найдёт платёж по inv_id и звёзды не начислятся.
+      try {
+      await setPayments({
+        telegram_id: userId.toString(),
+        OutSum: testAmount.toString(),
+        InvId: invId.toString(),
+        currency: Currency.RUB,
+        stars: testStars,
+        status: PaymentStatus.PENDING,
+        payment_method: 'Robokassa',
+        type: PaymentType.MONEY_INCOME,
+        subscription_type: subscriptionType as SubscriptionType,
+        bot_name,
+        language: ctx.from?.language_code ?? 'en',
+        metadata: {
+          admin_test: true,
+          original_amount: originalStars,
+          test_amount: testAmount,
+        },
+      })
+      } catch (paymentRecordError) {
+        logger.error('❌ Не удалось создать запись платежа — ссылку не выдаём', {
+          error:
+            paymentRecordError instanceof Error
+              ? paymentRecordError.message
+              : String(paymentRecordError),
+        })
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось подготовить платёж. Попробуйте ещё раз через минуту — деньги не списаны.'
+            : '❌ Could not prepare the payment. Please try again in a minute — nothing was charged.'
+        )
+        return ctx.scene.leave()
+      }
 
     logger.info(
       `[${ModeEnum.RublePaymentScene}] PENDING ADMIN TEST SUBSCRIPTION payment saved for InvId: ${invId}, Sub: ${subscriptionType}`,

@@ -157,23 +157,41 @@ cryptoPaymentScene.action(/crypto_topup_(\d+)/, async ctx => {
     })
 
     // Save PENDING payment to database
-    await setPayments({
-      telegram_id: userId.toString(),
-      OutSum: option.amountUsd.toString(),
-      InvId: invId,
-      currency: Currency.USDC,
-      stars: option.stars,
-      status: PaymentStatus.PENDING,
-      payment_method: PaymentMethod.X402,
-      type: PaymentType.MONEY_INCOME,
-      subscription_type: null,
-      bot_name,
-      language: ctx.from?.language_code ?? 'en',
-      metadata: {
-        network: getX402Config().network,
-        protocol: 'x402',
-      },
-    })
+      // Ошибка здесь означает, что записи платежа НЕТ. Отправлять человека
+      // платить по ссылке в таком случае нельзя: деньги спишутся, а обратный
+      // вызов не найдёт платёж по inv_id и звёзды не начислятся.
+      try {
+      await setPayments({
+        telegram_id: userId.toString(),
+        OutSum: option.amountUsd.toString(),
+        InvId: invId,
+        currency: Currency.USDC,
+        stars: option.stars,
+        status: PaymentStatus.PENDING,
+        payment_method: PaymentMethod.X402,
+        type: PaymentType.MONEY_INCOME,
+        subscription_type: null,
+        bot_name,
+        language: ctx.from?.language_code ?? 'en',
+        metadata: {
+          network: getX402Config().network,
+          protocol: 'x402',
+        },
+      })
+      } catch (paymentRecordError) {
+        logger.error('❌ Не удалось создать запись платежа — ссылку не выдаём', {
+          error:
+            paymentRecordError instanceof Error
+              ? paymentRecordError.message
+              : String(paymentRecordError),
+        })
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось подготовить платёж. Попробуйте ещё раз через минуту — деньги не списаны.'
+            : '❌ Could not prepare the payment. Please try again in a minute — nothing was charged.'
+        )
+        return ctx.scene.leave()
+      }
 
     logger.info('[CryptoPaymentScene] PENDING payment created', {
       telegram_id: userId,

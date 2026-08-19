@@ -561,6 +561,10 @@ src/__tests__/inngest/slugify.test.ts :: slugify trimming should trim trailing s
 src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы в списке известных нет тех, где возврат уже появился
 src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы нет новых мест, где списание раньше работы и возврата нет
 src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы разбор вообще что-то находит — иначе тест пустой
+src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа в тексте ошибки есть номер счёта — по нему ищут в поддержке
+src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа ошибка вставки БРОСАЕТ, а не молчит
+src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа повтор той же записи НЕ бросает — строка уже есть
+src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа успешная вставка не бросает
 src/__tests__/navigation/access.config.test.ts :: access.config Edge cases getParsingAccess обрабатывает пустой токен
 src/__tests__/navigation/access.config.test.ts :: access.config Edge cases isAdmin обрабатывает числа с плавающей точкой
 src/__tests__/navigation/access.config.test.ts :: access.config Edge cases isSuperAdmin обрабатывает отрицательные числа
