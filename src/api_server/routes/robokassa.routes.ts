@@ -156,22 +156,48 @@ async function handlePaymentSuccess(req: any, res: any) {
       return res.status(200).send('OK')
     }
 
-    // ОТМЕТКА «ОПЛАЧЕНО» ПЕРЕНЕСЕНА ВНИЗ — ПОСЛЕ НАЧИСЛЕНИЯ.
+    // ОТМЕТКА «ОПЛАЧЕНО» — ЭТО И ЕСТЬ НАЧИСЛЕНИЕ. Она должна стоять здесь.
     //
-    // Раньше платёж помечался COMPLETED здесь, ДО зачисления звёзд. Дальше
-    // updateUserBalance мог не сработать — и это только писалось в журнал,
-    // после чего человеку уходило «оплата прошла успешно».
+    // ПОПРАВКА К МОЕЙ ЖЕ ПРАВКЕ (PR #532). Я перенёс эту отметку вниз, под
+    // вызов updateUserBalance, рассудив: «сначала начислить, потом пометить».
+    // Рассуждение верное вообще, но неверное здесь — я не проверил, ЧТО
+    // именно начисляет звёзды.
     //
-    // Хуже всего то, что починить это было нельзя даже повтором: Robokassa
-    // повторяет вызов при неуспешном ответе, но повтор упирался в проверку
-    // выше — «платёж уже обработан, 200 OK» — и звёзды не начислялись никогда.
+    // Измерено по данным: баланс считается как сумма stars по строкам со
+    // статусом COMPLETED. То есть **сама эта строка и есть начисление**.
+    // На один номер счёта приходится ровно одна строка (16 681 уникальный
+    // inv_id на 17 136 строк, дублей ноль) — вставка второй блокируется
+    // уникальностью, и код это прямо обрабатывает как код 23505.
     //
-    // Отказ в зачислении не выдуман: updateUserBalance отклоняет MONEY_INCOME,
-    // если у человека нет строки в users (docs/audit/ghost-payers.md).
+    // Значит, updateUserBalance ниже — вторичный шаг: он делает то же самое
+    // обновление по inv_id, сбрасывает кэш и пишет журнал. Его неудача НЕ
+    // должна отменять начисление.
     //
-    // Теперь порядок обратный: сначала начисляем, потом помечаем. Если
-    // начисление не удалось, платёж остаётся PENDING, ответ неуспешный, и
-    // повтор от Robokassa доводит дело до конца.
+    // Мой перенос делал ровно это: при отказе updateUserBalance строка
+    // оставалась PENDING, и человек НЕ получал звёзды — хотя до правки
+    // получал. Хуже всего, что отказ вероятнее всего у тех, у кого нет строки
+    // в users, — то есть у тех, кого я и собирался защитить.
+    const { error: updateError } = await supabaseAdmin
+      .from('payments_v2')
+      .update({
+        status: PaymentStatus.COMPLETED,
+        payment_date: new Date().toISOString(),
+      })
+      .eq('inv_id', InvId)
+
+    if (updateError) {
+      logger.error('❌ Error updating payment status', {
+        InvId,
+        error: updateError,
+      })
+      return res.status(500).send('Database error')
+    }
+
+    logger.info('✅ Payment status updated to COMPLETED', {
+      InvId,
+      telegram_id: payment.telegram_id,
+      subscription_type: payment.subscription,
+    })
 
     // Определяем количество звезд и тип подписки из суммы платежа
     const numericOutSum = Number(OutSum)
@@ -230,47 +256,24 @@ async function handlePaymentSuccess(req: any, res: any) {
           stars_added: stars,
         })
       } else {
-        // НЕ ПОМЕЧАЕМ ОПЛАЧЕННЫМ И НЕ ГОВОРИМ ЧЕЛОВЕКУ, ЧТО ВСЁ ХОРОШО.
+        // ЗАПРОС НЕ РОНЯЕМ: звёзды уже начислены отметкой COMPLETED выше.
         //
-        // Деньги у платёжной системы уже списаны, а звёзды не начислены.
-        // Оставляем платёж PENDING: тогда повтор вызова от Robokassa пройдёт
-        // проверку «уже обработан» и попробует снова.
+        // Здесь неудачен вторичный шаг — обновление по inv_id, сброс кэша и
+        // журнал. Ронять из-за него значило бы заставить платёжную систему
+        // повторять успешный по сути вызов.
         //
-        // Формулировка совпадает с той, что в updateUserBalance, — чтобы одна
-        // и та же строка находила оба места в журналах.
-        logger.error('💸❌ ДЕНЬГИ ПОЛУЧЕНЫ, ЗВЁЗДЫ НЕ НАЧИСЛЕНЫ', {
-          description: 'PAYMENT RECEIVED BUT NOT CREDITED: balance update failed',
+        // Но и молчать нельзя: если этот шаг падает, что-то не так с
+        // профилем человека (updateUserBalance отклоняет MONEY_INCOME без
+        // строки в users) — это повод посмотреть, а не пропустить.
+        logger.error('⚠️ Вторичное обновление баланса не удалось (звёзды начислены отметкой)', {
+          description: 'secondary balance update failed; credit already applied via status',
           InvId,
           telegram_id: payment.telegram_id,
           stars,
           bot_name: payment.bot_name,
         })
-        return res.status(500).send('Balance update failed')
       }
     }
-
-    // Только теперь платёж считается обработанным.
-    const { error: updateError } = await supabaseAdmin
-      .from('payments_v2')
-      .update({
-        status: PaymentStatus.COMPLETED,
-        payment_date: new Date().toISOString(),
-      })
-      .eq('inv_id', InvId)
-
-    if (updateError) {
-      logger.error('❌ Error updating payment status', {
-        InvId,
-        error: updateError,
-      })
-      return res.status(500).send('Database error')
-    }
-
-    logger.info('✅ Payment status updated to COMPLETED', {
-      InvId,
-      telegram_id: payment.telegram_id,
-      subscription_type: payment.subscription,
-    })
 
     // Отправляем уведомления
     await sendPaymentSuccessNotification(payment, stars, subscription)
