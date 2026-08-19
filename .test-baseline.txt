@@ -380,10 +380,10 @@ src/__tests__/helpers/promoHelper.test.ts :: promoHelper getPromoConfig unknown 
 src/__tests__/helpers/promoHelper.test.ts :: promoHelper getPromoConfig unknown promo types should return null for empty string
 src/__tests__/helpers/promoHelper.test.ts :: promoHelper getPromoConfig unknown promo types should return null for unknown promo type
 src/__tests__/helpers/promoHelper.test.ts :: promoHelper hasReceivedPromo should query with correct filters
-src/__tests__/helpers/promoHelper.test.ts :: promoHelper hasReceivedPromo should return false on database error
-src/__tests__/helpers/promoHelper.test.ts :: promoHelper hasReceivedPromo should return false on exception
 src/__tests__/helpers/promoHelper.test.ts :: promoHelper hasReceivedPromo should return false when user has not received promo
 src/__tests__/helpers/promoHelper.test.ts :: promoHelper hasReceivedPromo should return true when user has received promo
+src/__tests__/helpers/promoHelper.test.ts :: promoHelper hasReceivedPromo при исключении отвечает «выдавать нельзя»
+src/__tests__/helpers/promoHelper.test.ts :: promoHelper hasReceivedPromo при отказе базы отвечает «выдавать нельзя»
 src/__tests__/helpers/promoHelper.test.ts :: promoHelper processPromoLink error handling should return false on exception
 src/__tests__/helpers/promoHelper.test.ts :: promoHelper processPromoLink error handling should return false when payment fails
 src/__tests__/helpers/promoHelper.test.ts :: promoHelper processPromoLink logging should log promo processing start
@@ -394,6 +394,8 @@ src/__tests__/helpers/promoHelper.test.ts :: promoHelper processPromoLink succes
 src/__tests__/helpers/promoHelper.test.ts :: promoHelper processPromoLink successful processing should use default bot name if not provided
 src/__tests__/helpers/promoHelper.test.ts :: promoHelper processPromoLink validation should return false for unknown promo type
 src/__tests__/helpers/promoHelper.test.ts :: promoHelper processPromoLink validation should return false if user already received promo
+src/__tests__/helpers/promoHelper.test.ts :: promoHelper processPromoLink validation при исключении в проверке начисление НЕ происходит
+src/__tests__/helpers/promoHelper.test.ts :: promoHelper processPromoLink validation при отказе проверки начисление НЕ происходит
 src/__tests__/helpers/sanitizeModelName.test.ts :: isValidReplicateModelName invalid names should reject leading dash
 src/__tests__/helpers/sanitizeModelName.test.ts :: isValidReplicateModelName invalid names should reject leading underscore
 src/__tests__/helpers/sanitizeModelName.test.ts :: isValidReplicateModelName invalid names should reject spaces
