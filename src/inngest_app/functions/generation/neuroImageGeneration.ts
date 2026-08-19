@@ -286,7 +286,8 @@ export const neuroImageGeneration = inngest.createFunction(
               prompt,
               model_url,
               imageUrl,
-              telegram_id
+              telegram_id,
+              'success'
             )
 
             if (!prompt_id) {

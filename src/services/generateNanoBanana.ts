@@ -349,7 +349,8 @@ export async function generateNanoBanana(
         validatedInput.prompt,
         NANO_BANANA_MODEL.name,
         imageUrl,
-        typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id
+        typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
+        'success'
       )
 
       console.log('🍌 [NanoBanana] Prompt saved to database:', {

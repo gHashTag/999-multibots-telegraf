@@ -348,7 +348,8 @@ export async function generateNanoBananaProReplicate(
         validatedInput.prompt,
         NANO_BANANA_PRO_MODEL.name,
         imageUrl,
-        typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id
+        typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
+        'success'
       )
 
       console.log('🍌 [NanoBananaPro] Prompt saved to database:', {

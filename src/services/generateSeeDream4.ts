@@ -353,7 +353,8 @@ export const generateSeeDream4 = async (
         validatedInput.prompt,
         SEEDREAM4_MODEL.name,
         imageUrl,
-        Number(telegram_id)
+        Number(telegram_id),
+        'success'
       )
 
       console.log('🎭 [SeeDream4] Prompt saved to database:', {

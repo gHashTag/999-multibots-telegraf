@@ -1,11 +1,25 @@
 import { supabase } from '@/core/supabase'
 import { mirrorToOwnStorage } from './mirrorToStorage'
 
+/**
+ * Чем кончилась генерация. Раньше эта функция не умела записывать исход
+ * ВООБЩЕ — колонка `status` оставалась пустой у всего, что шло через неё.
+ *
+ * Цена: на вопрос «часто ли у нас не получается» ответить нечем. Пустой
+ * статус ничего не значит — им помечено и удачное, и неудачное. В сентябре
+ * 2025 таких 279 при нуле возвратов, в марте 2026 — 233 из 303.
+ *
+ * Параметр обязательный намеренно: значение по умолчанию рано или поздно
+ * проставит «успех» там, где успеха не было.
+ */
+export type PromptOutcome = 'success' | 'failed'
+
 export const savePrompt = async (
   prompt: string,
   model_type: string,
-  media_url?: string,
-  telegram_id?: number
+  media_url: string | undefined,
+  telegram_id: number | undefined,
+  outcome: PromptOutcome
 ): Promise<number | null> => {
   // ПЕРЕКЛАДЫВАЕМ ФАЙЛ К СЕБЕ, прежде чем сохранять ссылку.
   //
@@ -48,6 +62,7 @@ export const savePrompt = async (
       model_type: model_type,
       media_url: storedMediaUrl,
       telegram_id: telegram_id,
+      status: outcome,
     })
     .select()
     .single()

@@ -316,7 +316,8 @@ export const generateQwenImageEditPlus = async (
         validatedInput.prompt,
         QWEN_IMAGE_EDIT_PLUS_MODEL.name,
         primaryImageUrl,
-        Number(telegram_id)
+        Number(telegram_id),
+        'success'
       )
 
       console.log('🎨 [QwenEditPlus] Prompt saved to database:', {
