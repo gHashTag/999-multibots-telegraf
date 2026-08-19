@@ -598,6 +598,33 @@ export const falRenderWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
+      // ОСТАНОВКА ДО СПИСАНИЯ.
+      //
+      // Этот визард шлёт avatar_gen_service: 'fal', а
+      // RenderRiddleEventDataSchema принимает только 'hedra' и 'heygen'
+      // (schemas.ts). renderRiddle.ts:57 валидирует вход ПЕРВОЙ строкой и
+      // отвергает такую задачу — проверено прогоном safeParse. Ветки для fal
+      // там тоже нет: после `if hedra` / `else if heygen` (renderRiddle.ts:130
+      // и :177) ничего не следует, и сервиса генерации аватара через fal в
+      // проекте не существует вовсе.
+      //
+      // Отказ происходит АСИНХРОННО, внутри Inngest-функции, уже после того
+      // как здесь списаны деньги (ниже) и человеку написано «💰 Списано».
+      // Обработчик ошибок этого визарда не срабатывает: отправка события
+      // проходит успешно. То есть деньги уходили за задачу, которая не могла
+      // выполниться ни при каких условиях.
+      //
+      // Убирать сам визард из регистрации — продуктовое решение, не моё.
+      // Поэтому останавливаемся здесь, до списания, и говорим прямо.
+      await ctx.reply(
+        isRu
+          ? '⚠️ Генерация через Fal сейчас недоступна: обработчик для неё ещё не реализован. ' +
+              'Средства не списаны. Воспользуйтесь HeyGen или Hedra.'
+          : '⚠️ Fal generation is unavailable: its handler is not implemented yet. ' +
+              'You have not been charged. Please use HeyGen or Hedra instead.'
+      )
+      return ctx.scene.leave()
+
       // Списание средств
       await updateUserBalance(
         telegramId,
