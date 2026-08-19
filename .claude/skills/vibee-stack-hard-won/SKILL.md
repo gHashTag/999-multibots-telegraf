@@ -86,6 +86,36 @@ own folder, then confirm the element exists in the live DOM.
   `{"status":"ok","bundleReady":true}` — but that reroutes a production
   pipeline, so do it with full context and verify a job end to end.
 
+## Сервис может врать о самом себе
+
+`GET /compositions` на рендер-сервере отдавал захардкоженный список из шести
+шаблонов. В `render/src/Root.tsx` зарегистрирован **один** — `SplitTalkingHead`.
+Пяти из шести не существовало.
+
+Обнаружилось только когда я впервые реально дёрнул рендер:
+
+    POST /render {"compositionId":"TextOverlay"}
+      -> 202 {"success":true,"renderId":"e0db6704-..."}
+    ...через 15 секунд
+      -> {"status":"failed","error":"Could not find composition with ID
+          TextOverlay. Available compositions: SplitTalkingHead"}
+
+Два отдельных дефекта в одной цепочке, и оба класса «принять и упасть позже»:
+
+1. **Список возможностей, написанный руками, расходится с кодом.** Он не может
+   не разойтись — ничто их не связывает. Списки надо выводить из источника
+   (`getCompositions(bundleLocation)` читает тот самый бандл, которым рендерят).
+2. **Проверка на входе была только на непустую строку.** Существование
+   проверял воркер — асинхронно, когда клиент уже показал человеку прогресс.
+   Всё, что можно проверить в момент приёма задачи, надо проверять в момент
+   приёма.
+
+Отдельно: `defaultProps` у `SplitTalkingHead` ссылаются на `/public/b-rolls/*`
+и `/public/lipsync/lipsync.mp4` — каталога `public/` в приложении рендера нет
+вообще, все пять путей отдают 404. Продакшн это не задевает: бот идёт через
+`/api/inngest` (`render-riddle`) и передаёт абсолютные URL в payload. Прежде чем
+чинить «сломанное», проверь, ходит ли туда продакшн — иначе чинишь декорацию.
+
 ## Self-check before reporting done
 
 1. Does the changed component actually render? (live DOM, not build)
