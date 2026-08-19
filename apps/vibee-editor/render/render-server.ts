@@ -306,6 +306,15 @@ async function preDownloadS3Asset(url: string): Promise<string> {
 // Bundle once at startup for better performance
 let bundleLocation: string;
 
+// Список композиций бандла, закэшированный на время жизни процесса: бандл после
+// старта не меняется, а getCompositions поднимает headless-браузер — дёргать его
+// на каждый POST /render дорого.
+let compositionsCache: Awaited<ReturnType<typeof getCompositions>> | null = null;
+async function knownCompositions() {
+  if (!compositionsCache) compositionsCache = await getCompositions(bundleLocation);
+  return compositionsCache;
+}
+
 async function initBundle() {
   console.log("📦 Creating Remotion bundle...");
   bundleLocation = await bundle({
@@ -1572,7 +1581,7 @@ const server = createServer(async (req, res) => {
     // getCompositions читает тот же бандл, которым рендерит, поэтому список
     // не может разойтись с реальностью.
     try {
-      const comps = await getCompositions(bundleLocation);
+      const comps = await knownCompositions();
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
@@ -2334,6 +2343,28 @@ const server = createServer(async (req, res) => {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "compositionId is required" }));
           return;
+        }
+
+        // Существует ли такая композиция — проверяется ЗДЕСЬ, а не в рендере.
+        //
+        // Раньше проверялось только что строка непустая. POST с
+        // compositionId "TextOverlay" получал 202 и renderId, а падал через
+        // ~15 секунд: "Could not find composition with ID TextOverlay".
+        // Замерено. Клиент к тому моменту уже показал человеку прогресс.
+        try {
+          const available = (await knownCompositions()).map(c => c.id);
+          if (!available.includes(renderReq.compositionId)) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+              error: `Unknown compositionId "${renderReq.compositionId}"`,
+              available,
+            }));
+            return;
+          }
+        } catch (e) {
+          // Бандл не готов — это не повод отвергать задачу: рендер всё равно
+          // ждёт бандл сам. Пропускаем дальше, как было до проверки.
+          console.warn("Composition check skipped:", e instanceof Error ? e.message : e);
         }
 
         // Start render asynchronously and return immediately
