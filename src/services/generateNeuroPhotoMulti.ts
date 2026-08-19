@@ -1,5 +1,6 @@
 import axios, { isAxiosError } from 'axios'
-import { isDev, SECRET_API_KEY, API_SERVER_URL } from '@/config'
+import { SECRET_API_KEY } from '@/config'
+import { getAiServerUrl } from '@/config/aiServer'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
@@ -148,13 +149,32 @@ export async function generateNeuroPhotoMulti(
 
   try {
     // PLAN A: Try server processing
+    //
+    // Пропускаем План А, если отдельного AI-сервера нет. В проде
+    // API_SERVER_URL НЕ ЗАДАНА, и шаблон ниже давал строку
+    // "undefined/generate/neuro-photo-multi": axios падал с ERR_INVALID_URL
+    // на каждом запросе. Результат человек всё равно получал по Плану Б, но в
+    // логах оставалась ошибка, неотличимая от сетевой, — при разборе
+    // инцидентов она уводит в сторону.
+    //
+    // Бросаем, а не возвращаем: ниже стоит catch, который и есть переход к
+    // Плану Б. Отдельная ветка выхода дублировала бы его.
+    const aiServerUrl = getAiServerUrl()
+    if (!aiServerUrl) {
+      logger.info('⏭️ [MULTI] Отдельный AI-сервер не настроен — сразу План Б', {
+        telegram_id,
+        description: 'AI server is not configured; skipping Plan A entirely',
+      })
+      throw new Error('AI server is not configured')
+    }
+
     logger.info('🌐 [MULTI] Attempting server processing', {
       telegram_id,
     })
 
     await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
 
-    const url = `${API_SERVER_URL}/generate/neuro-photo-multi`
+    const url = `${aiServerUrl}/generate/neuro-photo-multi`
 
     const serverPayload = {
       prompt,

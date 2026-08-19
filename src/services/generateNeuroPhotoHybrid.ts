@@ -5,6 +5,7 @@ import {
   API_SERVER_URL_FINAL,
   LOCAL_SERVER_URL,
 } from '@/config'
+import { getAiServerUrl } from '@/config/aiServer'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
@@ -185,8 +186,26 @@ export async function generateNeuroPhotoHybrid(
 
     await ctx.telegram.sendChatAction(ctx.chat.id, 'typing')
 
-    // ✅ ИСПРАВЛЕНИЕ: Используем API_SERVER_URL_FINAL с fallback
-    const url = `${API_SERVER_URL_FINAL}/generate/neuro-photo`
+    // Адрес берём у getAiServerUrl, а НЕ у API_SERVER_URL_FINAL.
+    //
+    // API_SERVER_URL_FINAL откатывается на BASE_WEBHOOK_URL, то есть на САМ
+    // БОТ. В проде, где API_SERVER_URL не задана, План А стучался на
+    // `https://<наш бот>/generate/neuro-photo` — проверено живым запросом,
+    // это 404. Такой откат превращает «сервер не настроен» в «настроен
+    // неправильно»: по логам не отличить от «сервер лежит».
+    //
+    // Бросаем, а не возвращаем: ниже стоит catch, который и есть переход к
+    // Плану Б.
+    const aiServerUrl = getAiServerUrl()
+    if (!aiServerUrl) {
+      logger.info('⏭️ [HYBRID] Отдельный AI-сервер не настроен — сразу План Б', {
+        telegram_id,
+        description: 'AI server is not configured; skipping Plan A entirely',
+      })
+      throw new Error('AI server is not configured')
+    }
+
+    const url = `${aiServerUrl}/generate/neuro-photo`
 
     const serverPayload = {
       prompt,
