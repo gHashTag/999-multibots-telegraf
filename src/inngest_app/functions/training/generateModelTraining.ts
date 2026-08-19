@@ -544,7 +544,20 @@ export const generateModelTraining = inngest.createFunction(
               learning_rate: 0.0001,
               wandb_project: 'flux_train_replicate',
             },
-            webhook: `${API_URL}/webhooks/replicate`,
+            // ПРЕФИКС /api ОБЯЗАТЕЛЕН. Здесь было `${API_URL}/webhooks/replicate`,
+            // а роутер смонтирован на `/api/webhooks` (api_server/index.ts:102) —
+            // других монтирований `/webhooks` в приложении нет. API_URL это голый
+            // origin без суффикса. То есть Replicate звала несуществующий адрес,
+            // ответ «обучение готово» не доходил никогда, и строка навсегда
+            // оставалась в running/starting.
+            //
+            // Измерено в базе: 17 обучений висят от 250 до 465 дней. У восьми
+            // из них рядом по времени есть оплата — 3410 звёзд за модели,
+            // которых люди так и не получили.
+            //
+            // Соседние места собирали URL правильно: createModelTrainingLocal.ts:218
+            // и existing/generateModelTrainingFunction.ts:232 — с `/api`.
+            webhook: `${API_URL}/api/webhooks/replicate`,
             webhook_events_filter: ['completed'],
           }
         )
@@ -552,7 +565,7 @@ export const generateModelTraining = inngest.createFunction(
         logger.info('🚀 Training ID:', training.id)
         // Логируем фактический URL вебхука, который будет использован Replicate
         logger.info('⚙️ Replicate Webhook URL for this training', {
-          url: `${API_URL}/webhooks/replicate`,
+          url: `${API_URL}/api/webhooks/replicate`,
           api_url_from_config: API_URL, // Логируем значение API_URL из конфига
           raw_webhook_url_env: process.env.WEBHOOK_URL, // Логируем значение из process.env напрямую
           raw_origin_env: process.env.ORIGIN, // Логируем ORIGIN для сравнения
