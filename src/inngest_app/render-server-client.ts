@@ -51,7 +51,7 @@ export interface RenderRiddlePayload {
   job_id: string
   eleven_labs_api_key: string
   kie_api_key: string
-  cover_url: string
+  cover_url?: string
   intro_text_1: {
     text: string
     position: [number, number]
@@ -62,28 +62,19 @@ export interface RenderRiddlePayload {
     position: [number, number]
     font_size: number
   }
+  // Плоская форма — та, что объявлена AvatarSettingsSchema (schemas.ts:21)
+  // и та, что читает renderRiddle (renderRiddle.ts:140-188).
   avatar_settings: {
-    heygen: {
-      api_key: string
-      avatar_id: string
-      voice_id: string
-      avatar_speech: string
-    } | null
-    hedra: {
-      api_key: string
-      avatar_photo_url: string
-      avatar_id: string
-      voice_id: string
-      avatar_speech: string
-    } | null
-    fal: {
-      api_key: string
-      avatar_photo_url: string
-      voice_id: string
-      avatar_speech: string
-      resolution?: '720p' | '1080p'
-    } | null
+    avatar_speech: string
+    voice_id?: string
+    avatar_photo_url?: string
+    avatar_id?: string
+    api_key: string
   }
+  avatar_gen_service: 'hedra' | 'heygen' | 'fal'
+  heygen_api_key?: string
+  circle_position: [number, number, number]
+  circle_scale: [number, number, number]
   callback_url: string | null
   bot_name?: string // Добавляем для определения бота при callback
 }
@@ -97,8 +88,8 @@ export async function sendRenderAvatarVideoEvent(
 ): Promise<{ eventId: string }> {
   logger.info('🎬 [RENDER SERVER] Sending avatar video event', {
     jobId: payload.job_id,
-    hasHeygenSettings: !!payload.avatar_settings.heygen,
-    hasHedraSettings: !!payload.avatar_settings.hedra,
+    hasHeygenSettings: payload.avatar_gen_service === 'heygen',
+    hasHedraSettings: payload.avatar_gen_service === 'hedra',
   })
 
   try {
@@ -144,8 +135,8 @@ export async function sendDirectToRenderServer(
 ): Promise<{ eventId: string }> {
   logger.info('🎬 [RENDER SERVER DIRECT] Sending direct request to Railway', {
     jobId: payload.job_id,
-    hasHeygenSettings: !!payload.avatar_settings.heygen,
-    hasHedraSettings: !!payload.avatar_settings.hedra,
+    hasHeygenSettings: payload.avatar_gen_service === 'heygen',
+    hasHedraSettings: payload.avatar_gen_service === 'hedra',
     url: RENDER_SERVER_URL,
   })
 
@@ -235,6 +226,8 @@ export function createRenderAvatarPayload(
     botName?: string
     // HeyGen набор аватаров для выбора API ключа
     heygenAvatarSet?: string
+    circlePosition?: [number, number, number]
+    circleScale?: [number, number, number]
   }
 ): RenderRiddlePayload {
   const isHeygen = options?.avatarService === 'heygen'
@@ -268,7 +261,9 @@ export function createRenderAvatarPayload(
     job_id: `telegram-${telegramId}-${Date.now()}`,
     eleven_labs_api_key: process.env.ELEVENLABS_API_KEY || '',
     kie_api_key: process.env.KIE_AI_API_KEY || '',
-    cover_url: options?.coverUrl || '',
+    // undefined, а не '': схема объявляет cover_url как z.string().url(),
+    // и пустая строка её не проходит.
+    cover_url: options?.coverUrl || undefined,
     intro_text_1: {
       text: options?.introText1 || '',
       position: [540, 860],
@@ -279,34 +274,47 @@ export function createRenderAvatarPayload(
       position: [540, 960],
       font_size: 75,
     },
+    // ПЛОСКАЯ форма, а не { heygen, hedra, fal }.
+    //
+    // Вложенную форму не потребляет никто: renderRiddle читает
+    // data.avatar_settings.avatar_speech / .voice_id / .avatar_photo_url /
+    // .api_key / .avatar_id напрямую (renderRiddle.ts:140-188), и ровно это
+    // объявляет AvatarSettingsSchema (schemas.ts:21-27). То есть схема и
+    // потребитель согласны между собой, а расходился с ними сборщик payload.
+    //
+    // Проверено прогоном RenderRiddleEventDataSchema.safeParse: до этой правки
+    // payload не проходил валидацию по восьми пунктам, и renderRiddle.ts:57
+    // бросал на первой же строке — раньше любых трат.
     avatar_settings: {
-      heygen: isHeygen
-        ? {
-            api_key: heygenApiKey, // Используем выбранный токен
-            avatar_id: options?.heygenAvatarId || '',
-            voice_id: voiceId,
-            avatar_speech: text,
-          }
-        : null,
-      hedra: !isHeygen && !isFal
-        ? {
-            api_key: process.env.HEDRA_API_KEY || '',
-            avatar_photo_url: avatarPhotoUrl,
+      avatar_speech: text,
+      voice_id: voiceId,
+      api_key: isHeygen
+        ? heygenApiKey
+        : isFal
+          ? options?.falApiKey || process.env.FAL_API_KEY || ''
+          : process.env.HEDRA_API_KEY || '',
+      // Hedra и Fal работают от фото, HeyGen — от готового аватара.
+      ...(isHeygen
+        ? { avatar_id: options?.heygenAvatarId || '' }
+        : {
+            avatar_photo_url: avatarPhotoUrl || undefined,
             avatar_id: `avatar-${telegramId}-${Date.now()}`,
-            voice_id: voiceId,
-            avatar_speech: text,
-          }
-        : null,
-      fal: isFal
-        ? {
-            api_key: options?.falApiKey || process.env.FAL_API_KEY || '',
-            avatar_photo_url: avatarPhotoUrl,
-            voice_id: voiceId,
-            avatar_speech: text,
-            resolution: options?.falResolution || '720p',
-          }
-        : null,
+          }),
     },
+    // Схема требует эти три поля, а сборщик их не клал вовсе.
+    // avatar_gen_service: 'fal' схемой НЕ принимается, и это не опечатка —
+    // renderRiddle не имеет ветки для fal (есть только hedra и heygen,
+    // renderRiddle.ts:111 и :143). Пока ветки нет, fal-задачи должны
+    // отвергаться валидацией громко, а не проходить и падать глубже.
+    avatar_gen_service: isHeygen ? 'heygen' : isFal ? 'fal' : 'hedra',
+    // Схема требует heygen_api_key ОТДЕЛЬНЫМ полем верхнего уровня, помимо
+    // avatar_settings.api_key: у неё есть refine «HeyGen requires
+    // heygen_api_key». Поле не заполнялось вовсе.
+    heygen_api_key: isHeygen ? heygenApiKey || undefined : undefined,
+    // ТРИ числа кортежем, а не { x, y }: схема объявляет их как
+    // z.tuple([z.number(), z.number(), z.number()]) (schemas.ts:13).
+    circle_position: options?.circlePosition ?? [0.5, 0.5, 0],
+    circle_scale: options?.circleScale ?? [1, 1, 1],
     // Адрес, КУДА ВЕРНЁТСЯ ГОТОВОЕ ВИДЕО. Здесь был зашит
     // three-head-dragon.shop — старый сервер (188.137.250.69), отвечающий
     // HTTP 000 по всем протоколам.
