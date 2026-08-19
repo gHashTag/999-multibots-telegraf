@@ -14,6 +14,19 @@ router.post('/generate/neuro-photo-sync', async (req, res) => {
       aspect_ratio
     } = req.body
 
+    // ПОМЕТКА ПРОИСХОЖДЕНИЯ. Всё, что пришло сюда, должно быть отличимо в
+    // данных от того, что человек сделал в боте.
+    //
+    // Зачем: маршрут был открыт всем (закрыто в PR #527), и когда я пошёл
+    // искать следы использования, выяснилось, что ИХ НЕЛЬЗЯ ОТЛИЧИТЬ.
+    // `directPaymentProcessor` записывает service_type жёстко, а bot_name
+    // берёт от вызывающего — то есть запись через API и через бота выглядят
+    // одинаково. «Следов не найдено» в такой ситуации не значит ничего.
+    //
+    // Поэтому если бот не назван, пишем `api-route`: дальше это видно в
+    // payments_v2.bot_name и в assets.bot_name.
+    const originBotName = bot_name || 'api-route'
+
     // Создаем минимальный контекст для API роута
     const mockCtx = {
       session: {
@@ -36,7 +49,7 @@ router.post('/generate/neuro-photo-sync', async (req, res) => {
       num_images,
       telegram_id,
       mockCtx,
-      bot_name,
+      originBotName,
       aspect_ratio
     )
 
