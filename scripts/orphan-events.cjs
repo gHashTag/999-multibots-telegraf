@@ -58,13 +58,42 @@ for (const f of files) {
 const orphans = [...sent.keys()].filter(e => !subscribed.has(e)).sort()
 const unused = [...subscribed.keys()].filter(e => !sent.has(e)).sort()
 
+// Какие функции РЕАЛЬНО зарегистрированы. Подписка без отправителя у
+// зарегистрированной функции = функция недостижима: она развёрнута, выглядит
+// живой, и не может быть запущена ничем в этом коде.
+//
+// Эта половина важнее списка осиротевших событий, и именно её я однажды
+// пролистал: скрипт напечатал 'neuro/photo.generate', а я всё равно правил тот
+// файл, считая его рабочим. Поэтому теперь она печатается ПЕРВОЙ и с явным
+// словом «НЕДОСТИЖИМА».
+let registeredSrc = ''
+try {
+  registeredSrc = fs.readFileSync(
+    path.resolve(__dirname, '..', 'src', 'inngest_app', 'registerFunctions.ts'),
+    'utf8'
+  )
+} catch {}
+const isRegistered = file => {
+  const base = path.basename(file, '.ts')
+  return registeredSrc.includes(`/${base}'`) || registeredSrc.includes(`/${base}"`)
+}
+const unreachable = unused.filter(e => subscribed.get(e).some(loc => isRegistered(loc.split(':')[0])))
+
 console.log(`отправляется событий:  ${sent.size}`)
 console.log(`подписок:              ${subscribed.size}`)
+console.log()
+console.log('ОГОВОРКА: скрипт видит только отправителей ВНУТРИ этого репозитория.')
+console.log('Функцию могут запускать извне — вебхук, панель Inngest, другой сервис.')
+console.log('Список ниже — кандидаты на проверку, а не приговор.')
+console.log()
+console.log(`🚨 ЗАРЕГИСТРИРОВАНА, НО НЕДОСТИЖИМА ИЗ КОДА — триггер никто не шлёт (${unreachable.length}):`)
+for (const e of unreachable) console.log(`   ${e}\n      ← ${subscribed.get(e).join(', ')}`)
 console.log()
 console.log(`❌ ОТПРАВЛЯЕТСЯ, НО НИКТО НЕ СЛУШАЕТ (${orphans.length}):`)
 for (const e of orphans) console.log(`   ${e}\n      ← ${sent.get(e).join(', ')}`)
 console.log()
-console.log(`⚠️  ПОДПИСКА ЕСТЬ, НО НИКТО НЕ ШЛЁТ (${unused.length}):`)
-for (const e of unused) console.log(`   ${e}  (${subscribed.get(e)[0]})`)
+console.log(`⚠️  ПОДПИСКА ЕСТЬ, НО НИКТО НЕ ШЛЁТ, функция НЕ зарегистрирована (${unused.length - unreachable.length}):`)
+for (const e of unused.filter(x => !unreachable.includes(x)))
+  console.log(`   ${e}  (${subscribed.get(e)[0]})`)
 
-process.exitCode = orphans.length ? 1 : 0
+process.exitCode = orphans.length || unreachable.length ? 1 : 0
