@@ -84,6 +84,18 @@ export const renderRiddleFunction = inngest.createFunction(
         .maybeSingle()
 
       if (error) {
+        // 42P01 = таблицы не существует. Это НЕ временный сбой: ферма nexrender
+        // списана целиком — таблицы render_servers нет ни в Postgres-NFrq, ни в
+        // боевом Supabase, SSH_KEY_STRING не задан, а сервер 188.137.250.69
+        // отвечает HTTP 000. Ретраить нечего, и сообщать «нет свободных
+        // серверов» неправда: их не существует как класса.
+        if ((error as { code?: string }).code === '42P01') {
+          throw new NonRetriableError(
+            'Рендер-бэкенд недоступен: ферма nexrender выведена из эксплуатации, ' +
+              'а перевод на Remotion ещё не сделан. Работа остановлена ДО трат на ' +
+              'озвучку, аватар, транскрипцию и b-roll.'
+          )
+        }
         throw new Error(
           `Не удалось проверить наличие рендер-серверов до начала работы: ${error.message}`
         )
