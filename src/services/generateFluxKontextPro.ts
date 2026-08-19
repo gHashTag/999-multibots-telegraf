@@ -233,7 +233,8 @@ export const generateFluxKontextPro = async (
       finalPrompt,
       FLUX_KONTEXT_PRO_MODEL.name,
       imageUrl,
-      Number(telegram_id)
+      Number(telegram_id),
+      'success'
     )
 
     logger.info('⚡ [FluxKontextPro] Prompt saved to database:', {

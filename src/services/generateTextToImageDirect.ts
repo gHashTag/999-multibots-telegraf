@@ -208,7 +208,8 @@ export const generateTextToImageDirect = async (
           prompt,
           modelId,
           imageLocalUrl,
-          Number(telegram_id)
+          Number(telegram_id),
+          'success'
         )
 
         const image = await downloadFile(imageUrl)

@@ -318,7 +318,8 @@ export const generateFluxKontext = async (
       `KONTEXT EDIT: ${prompt}`,
       modelKey,
       imageLocalUrl,
-      Number(telegram_id)
+      Number(telegram_id),
+      'success'
     )
 
     console.log('🔥 [CRITICAL] Prompt saved:', {
@@ -829,7 +830,8 @@ export const generateAdvancedFluxKontext = async (
       `FLUX KONTEXT [${mode.toUpperCase()}]: ${prompt}`,
       modelKey,
       imageLocalUrl,
-      Number(telegram_id)
+      Number(telegram_id),
+      'success'
     )
 
     if (prompt_id === null) {
@@ -1200,7 +1202,8 @@ export const upscaleFluxKontextImage = async (params: {
       `FLUX KONTEXT UPSCALED: ${originalPrompt || 'Image upscaling'}`,
       'philz1337x/clarity-upscaler',
       imageLocalUrl,
-      Number(telegram_id)
+      Number(telegram_id),
+      'success'
     )
 
     if (prompt_id === null) {

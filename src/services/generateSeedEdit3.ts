@@ -250,7 +250,8 @@ export const generateSeedEdit3 = async (
       finalPrompt,
       SEEDEDIT3_MODEL.name,
       imageUrl,
-      Number(telegram_id)
+      Number(telegram_id),
+      'success'
     )
 
     logger.info('🎯 [SeedEdit3] Prompt saved to database:', {

@@ -368,7 +368,8 @@ export async function generateSeedream45Replicate(
         validatedInput.prompt,
         SEEDREAM_45_MODEL.name,
         imageUrl,
-        typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id
+        typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
+        'success'
       )
 
       console.log('🌱 [Seedream45] Prompt saved to database:', {

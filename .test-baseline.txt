@@ -578,6 +578,10 @@ src/__tests__/money/payment-record-not-silent.test.ts :: запись плате
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа ошибка вставки БРОСАЕТ, а не молчит
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа повтор той же записи НЕ бросает — строка уже есть
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа успешная вставка не бросает
+src/__tests__/money/prompt-outcome.test.ts :: исход генерации записывается исход попадает в таблицу, а не только в подпись функции
+src/__tests__/money/prompt-outcome.test.ts :: исход генерации записывается каждый вызов передаёт исход
+src/__tests__/money/prompt-outcome.test.ts :: исход генерации записывается разбор находит вызовы — иначе тест пустой
+src/__tests__/money/prompt-outcome.test.ts :: исход генерации записывается у исхода нет значения по умолчанию
 src/__tests__/money/referral-reward.test.ts :: награда за приглашение выключенная награда не доходит до начисления
 src/__tests__/money/referral-reward.test.ts :: награда за приглашение номер счёта не содержит времени и случайности
 src/__tests__/money/referral-reward.test.ts :: награда за приглашение номер счёта одинаков при повторе той же пары

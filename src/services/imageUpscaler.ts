@@ -167,7 +167,8 @@ export const upscaleImage = async (
       `IMAGE UPSCALER: ${originalPrompt || 'Manual image upscaling'}`,
       'philz1337x/clarity-upscaler',
       imageLocalUrl,
-      Number(telegram_id)
+      Number(telegram_id),
+      'success'
     )
 
     if (prompt_id === null) {

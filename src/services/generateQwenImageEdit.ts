@@ -253,7 +253,8 @@ export const generateQwenImageEdit = async (
       finalPrompt,
       QWEN_IMAGE_EDIT_MODEL.name,
       imageUrl,
-      Number(telegram_id)
+      Number(telegram_id),
+      'success'
     )
 
     logger.info('🔥 [QwenImageEdit] Prompt saved to database:', {

@@ -296,7 +296,8 @@ export const generateFluxKontextMax = async (
         validatedInput.prompt,
         FLUX_KONTEXT_MAX_MODEL.name,
         imageUrl,
-        Number(telegram_id)
+        Number(telegram_id),
+        'success'
       )
 
       console.log('🤖 [FluxKontextMax] Prompt saved to database:', {
