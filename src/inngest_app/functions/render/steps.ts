@@ -1441,7 +1441,27 @@ export async function triggerRender(
     const render_id = uuidv4()
 
 
-    // Trigger render via Inngest event
+    // ⚠️ У СОБЫТИЯ 'render/execute' НЕТ НИ ОДНОГО ПОДПИСЧИКА.
+    //
+    // Проверено: во всём src/ строка 'render/execute' встречается ровно один
+    // раз — вот в этом send. Из 33 подписок функций бота на render-события
+    // подписаны только 'render', 'render-riddle' и 'render/avatar-video'.
+    //
+    // То есть весь пайплайн render-riddle отрабатывает десять шагов (озвучка
+    // ElevenLabs, аватар HeyGen/Hedra, транскрипция, генерация b-roll — всё за
+    // реальные деньги), отправляет это событие в пустоту и возвращает
+    // success:true. Видео не рендерится никогда.
+    //
+    // Причина архитектурная, а не опечатка: этот путь рассчитан на ферму
+    // nexrender с шаблонами After Effects по SSH (отсюда template_url с .aep,
+    // server_url/port/user и composition_name='Instagram_Story'). Сервис
+    // vibee-render — это Remotion, у него в бандле одна композиция
+    // SplitTalkingHead и другой формат пропсов. Две половины никогда не
+    // соединяли.
+    //
+    // Чинится не правкой здесь, а решением: либо поднять обработчик
+    // render/execute под nexrender, либо переложить renderRiddle на Remotion.
+    // И то и другое меняет продакшн-путь целиком.
     const { inngest } = await import('../../client')
 
     await inngest.send({

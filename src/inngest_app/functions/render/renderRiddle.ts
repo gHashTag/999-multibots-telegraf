@@ -17,6 +17,7 @@
  */
 
 import { inngest } from '@/inngest_app/client'
+import { supabase } from '@/core/supabase'
 import { NonRetriableError } from 'inngest'
 import type { RenderRiddleEventData } from './types'
 import {
@@ -61,6 +62,44 @@ export const renderRiddleFunction = inngest.createFunction(
     const user_id = process.env.DEFAULT_ADMIN_ID || 'default-admin'
     const template_id = 'riddle'
     const composition_name = 'Instagram_Story'
+
+    // ============================================
+    // STEP -1: ЕСТЬ ЛИ КУДА РЕНДЕРИТЬ — ДО того, как потрачены деньги
+    // ============================================
+    //
+    // Проверка «есть ли свободный рендер-сервер» стояла ДЕСЯТЫМ шагом, внутри
+    // triggerRender (steps.ts:1419). К этому моменту уже оплачены: озвучка
+    // ElevenLabs, генерация аватара HeyGen/Hedra, транскрипция OpenAI и
+    // генерация всех b-roll через KIE/FAL. Если свободного сервера нет, всё
+    // это сгорает, а человек не получает ничего.
+    //
+    // Тот же запрос, выполненный первым, стоит один SELECT.
+    await step.run('preflight-render-capacity', async () => {
+      const { data: server, error } = await supabase
+        .from('render_servers')
+        .select('id')
+        .eq('status', 'active')
+        .is('current_job_id', null)
+        .limit(1)
+        .maybeSingle()
+
+      if (error) {
+        throw new Error(
+          `Не удалось проверить наличие рендер-серверов до начала работы: ${error.message}`
+        )
+      }
+      if (!server) {
+        // NonRetriableError, а не Error: свободный сервер не появится сам от
+        // повторной попытки через минуту, а каждый ретрай снова прошёл бы
+        // весь платный путь.
+        throw new NonRetriableError(
+          'Нет свободных рендер-серверов. Работа остановлена ДО трат на озвучку, ' +
+            'аватар, транскрипцию и b-roll — раньше эти деньги тратились впустую.'
+        )
+      }
+      logger.info('✅ [Preflight] Свободный рендер-сервер есть, можно тратить')
+      return { serverId: server.id }
+    })
 
     // ============================================
     // STEP 0: Load template JSON from database
