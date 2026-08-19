@@ -22,6 +22,7 @@ import { allInngestFunctions } from '../inngest_app/registerFunctions'
 import { logger } from '@/utils/logger'
 // ✅ Webhook health verification on startup
 import { verifyWebhooksOnStartup } from '@/utils/webhookHealthCheck'
+import { requireInternalKey } from './middleware/requireInternalKey'
 
 // Определяем порт. Railway/Fly/Docker предоставляют PORT; мы используем API_PORT как override.
 // LAST FIX: 2025-11-25 - изменен с 2999 на 3000 согласно WEBHOOK_502_BAD_GATEWAY_FIX
@@ -106,11 +107,22 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
   app.use('/api', neuroPhotoRouter)
   app.use('/api', competitorRouter)
 
-  // Регистрируем диагностические роуты
-  app.use('/api', diagnosticRouter)
-
-  // Регистрируем роуты биллинга владельцев ботов
-  app.use('/api', billingRouter)
+  // ДИАГНОСТИКА И БИЛЛИНГ — ТОЛЬКО СО СЛУЖЕБНЫМ КЛЮЧОМ.
+  //
+  // До этой правки оба роутера отдавали внутренние данные любому, кто знает
+  // адрес. Проверено живыми запросами к проду:
+  //
+  //   GET /api/billing                     финансы по всем ботам
+  //   GET /api/billing/:botName            то же по одному
+  //   GET /api/models/:telegramId          чужие обученные модели по номеру
+  //   GET /api/diagnostic/trainings/:id    чужие обучения по номеру
+  //   GET /api/diagnostic/trainings-recent последние обучения по всем
+  //   GET /api/diagnostic/training-config  настройки, включая начала ключей
+  //
+  // Номер в Telegram не секрет и легко перебирается, поэтому «знать URL»
+  // защитой не было.
+  app.use('/api', requireInternalKey, diagnosticRouter)
+  app.use('/api', requireInternalKey, billingRouter)
 
   // White-label B2B config endpoints
   app.get('/api/whitelabel/landing', (_req: any, res: any) => {
