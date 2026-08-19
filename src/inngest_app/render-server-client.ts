@@ -307,10 +307,28 @@ export function createRenderAvatarPayload(
           }
         : null,
     },
+    // Адрес, КУДА ВЕРНЁТСЯ ГОТОВОЕ ВИДЕО. Здесь был зашит
+    // three-head-dragon.shop — старый сервер (188.137.250.69), отвечающий
+    // HTTP 000 по всем протоколам.
+    //
+    // Ни один из четырёх render-визардов не передаёт callbackUrl (grep
+    // "callbackUrl" по src/scenes/ пуст), поэтому ветка с мёртвым доменом
+    // бралась ВСЕГДА. При этом визарды списывают звёзды и пишут «вы получите
+    // уведомление когда видео будет готово». Готовый ролик уходил в никуда.
+    //
+    // process.env читается ЗДЕСЬ, а не через импортируемую константу из
+    // config: config/index.ts вычисляет свои значения на импорте модуля, а
+    // секреты в этом проекте подтягиваются из Infisical позже — константа
+    // могла бы застыть как undefined.
     callback_url:
       options?.callbackUrl !== undefined
         ? options.callbackUrl
-        : 'https://three-head-dragon.shop/api/telegram/ai-reels-callback',
+        : process.env.BASE_WEBHOOK_URL
+          ? `${process.env.BASE_WEBHOOK_URL}/api/telegram/ai-reels-callback`
+          // Переменной нет — отдаём null, а не строку "undefined/api/...".
+          // Отсутствие адреса render-сервер обработает как «коллбэк не нужен»;
+          // мусорный URL он бы честно попытался вызвать.
+          : null,
     bot_name: options?.botName,
   }
 }
