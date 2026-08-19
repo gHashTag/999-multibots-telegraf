@@ -9,6 +9,7 @@ import {
   createVideoCompletionKeyboard,
   getVideoCompletionMessage,
 } from '@/helpers/videoCompletionKeyboard'
+import { verifyCallbackToken } from '@/utils/callbackToken'
 
 const router: Router = express.Router()
 
@@ -107,6 +108,25 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
       logger.error('❌ [AI REELS CALLBACK] Cannot extract Telegram ID', {
         jobId,
         metadata: payload.metadata,
+      })
+      return
+    }
+
+    // ПРОВЕРКА МЕТКИ. Получатель берётся из ТЕЛА запроса, ссылка на видео —
+    // оттуда же, и дальше это уходит человеку от имени бота. Без проверки
+    // посторонний мог прислать кому угодно что угодно: подписи от
+    // рендер-сервера нет, а POST принимается любой.
+    //
+    // Адрес обратного вызова составляем мы сами (render-server-client.ts),
+    // поэтому кладём в него метку, привязанную к получателю. Тот же приём уже
+    // закрыл /api/video-callback (PR #527).
+    //
+    // Отказ ЗАКРЫТЫЙ: без совпавшей метки ничего не отправляем.
+    if (!verifyCallbackToken(telegramId, req.query?.cb)) {
+      logger.warn('⛔ [AI REELS CALLBACK] Отклонено: метка не совпала', {
+        jobId,
+        telegramId,
+        hasToken: Boolean(req.query?.cb),
       })
       return
     }
