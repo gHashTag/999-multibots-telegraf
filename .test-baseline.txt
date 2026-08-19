@@ -561,6 +561,14 @@ src/__tests__/inngest/slugify.test.ts :: slugify trimming should trim trailing s
 src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы в списке известных нет тех, где возврат уже появился
 src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы нет новых мест, где списание раньше работы и возврата нет
 src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы разбор вообще что-то находит — иначе тест пустой
+src/__tests__/money/money-invariants.test.ts :: карта денег: места выдачи в списке нет файлов, где выдачи уже нет
+src/__tests__/money/money-invariants.test.ts :: карта денег: места выдачи нет мест выдачи денег вне перечисленных
+src/__tests__/money/money-invariants.test.ts :: карта денег: места выдачи разбор находит места — иначе тест пустой
+src/__tests__/money/money-invariants.test.ts :: карта денег: места выдачи разбор не принимает сравнение за присвоение
+src/__tests__/money/money-invariants.test.ts :: карта денег: типы операций SERVICE_PAYMENT не возвращён
+src/__tests__/money/money-invariants.test.ts :: карта денег: типы операций разбор находит объявление типов — иначе тест пустой
+src/__tests__/money/money-invariants.test.ts :: карта денег: типы операций ровно один тип списывает — остальные прибавляют
+src/__tests__/money/money-invariants.test.ts :: карта денег: типы операций список типов ровно такой, каким он измерен
 src/__tests__/money/no-fabricated-returns.test.ts :: нет выдуманных возвратов в списке разрешённых нет файлов, где таких возвратов уже нет
 src/__tests__/money/no-fabricated-returns.test.ts :: нет выдуманных возвратов нет выдуманных возвратов вне разрешённых файлов
 src/__tests__/money/no-fabricated-returns.test.ts :: нет выдуманных возвратов разбор что-то находит — иначе тест пустой
