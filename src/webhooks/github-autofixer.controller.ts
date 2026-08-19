@@ -68,7 +68,28 @@ export class GitHubAutoFixerController {
   }
 
   private validateWebhookSignature(req: any): boolean {
-    if (!this.webhookSecret) return true // Skip validation in dev
+    // ОТКАЗ ПРИ ОТСУТСТВИИ СЕКРЕТА, а не пропуск.
+    //
+    // Здесь стояло `return true`. Значение webhookSecret — это
+    // `process.env.GITHUB_WEBHOOK_SECRET || ''` (строка 14), а сама переменная
+    // объявлена `.optional()` в env-validator.ts:46 и в проде НЕ ЗАДАНА
+    // (проверено). То есть проверка подписи возвращала true КАЖДОМУ, а
+    // единственный второй барьер — validateGitHubHeaders — смотрит лишь на
+    // префикс User-Agent и наличие X-GitHub-Event, оба подделываются curl'ом.
+    //
+    // Сегодня это не эксплуатируется: маршрут POST /webhooks/github/pr-issues
+    // не смонтирован, живой запрос отдаёт 404. Но «не подключено» — не защита,
+    // а отсрочка: тот, кто смонтирует роутер, получит открытый эндпоинт и
+    // никакого сигнала об этом.
+    //
+    // Отказ по умолчанию: без секрета вебхук не работает вовсе, и это видно
+    // сразу, а не после инцидента.
+    if (!this.webhookSecret) {
+      console.error(
+        '[github-autofixer] GITHUB_WEBHOOK_SECRET не задан — вебхук отклоняет все запросы'
+      )
+      return false
+    }
 
     const signature = req.headers['x-hub-signature-256'] as string
     if (!signature) return false
