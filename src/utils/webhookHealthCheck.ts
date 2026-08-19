@@ -78,9 +78,13 @@ export async function getAvailableCallbackUrl(
 
   // Plan B: Direct HTTPS via nginx reverse proxy (fallback)
   // LAST FIX: 2025-12-06 - изменен на HTTPS через nginx согласно конфигурации three-head-dragon.shop
+  // planB отсутствует, если DIRECT_WEBHOOK_URL не задан (в проде не задан).
+  // Раньше здесь подставлялся three-head-dragon.shop — старый сервер, не
+  // отвечающий вовсе. «Запасной» адрес, который гарантированно мёртв, не
+  // страхует, а добавляет таймаут и маскирует настоящую причину отказа planA.
   const planB = process.env.DIRECT_WEBHOOK_URL
     ? `${process.env.DIRECT_WEBHOOK_URL}${endpoint}`
-    : `https://three-head-dragon.shop${endpoint}` // HTTPS via nginx reverse proxy
+    : null
 
   // 🛡️ SECURITY: Validate all URLs against whitelist
   const urls = [planA, planB].filter(Boolean) as string[]
@@ -186,7 +190,7 @@ export async function testAllWebhookUrls(): Promise<{
 
   const planB = process.env.DIRECT_WEBHOOK_URL
     ? `${process.env.DIRECT_WEBHOOK_URL}${endpoint}`
-    : `https://three-head-dragon.shop${endpoint}`
+    : null
 
   const testUrl = async (url: string | null) => {
     if (!url) {
@@ -253,7 +257,7 @@ export async function verifyWebhooksOnStartup(): Promise<{
   logger.info('🚀 [WEBHOOK STARTUP] Starting webhook health verification...')
 
   const baseWebhookUrl = process.env.BASE_WEBHOOK_URL || null
-  const directWebhookUrl = process.env.DIRECT_WEBHOOK_URL || 'https://three-head-dragon.shop'
+  const directWebhookUrl = process.env.DIRECT_WEBHOOK_URL || null
 
   // Проверяем конфигурацию
   if (!baseWebhookUrl) {
