@@ -46,11 +46,12 @@ vi.mock('@/helpers/centralizedLanguage', () => ({
 
 import { showMainMenu } from '@/navigation'
 import { handleTechSupport } from '@/commands/handleTechSupport'
+import type { MutableCtx } from '../helpers/mutableContext'
 
 describe('registerGlobalNavigationMiddleware', () => {
   let mockBot: any
   let registeredMiddleware: ((ctx: MyContext, next: () => Promise<void>) => Promise<void>) | null = null
-  let mockContext: Partial<MyContext>
+  let mockContext: MutableCtx
   let mockNext: Mock
 
   beforeEach(() => {

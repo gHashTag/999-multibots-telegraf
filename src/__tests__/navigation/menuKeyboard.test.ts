@@ -44,9 +44,10 @@ vi.mock('@/helpers/centralizedLanguage', () => ({
 }))
 
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import type { MutableCtx } from '../helpers/mutableContext'
 
 describe('menuKeyboard', () => {
-  let mockContext: Partial<MyContext>
+  let mockContext: MutableCtx
   let mockReply: Mock
   let mockSceneLeave: Mock
 

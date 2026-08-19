@@ -25,12 +25,13 @@ vi.mock('@/helpers/centralizedLanguage', () => ({
 
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import type { Mock } from 'vitest'
+import type { MutableCtx } from '../helpers/mutableContext'
 
 /**
  * Тесты для handleHelpCancel
  */
 describe('handleHelpCancel Integration Tests', () => {
-  let mockContext: Partial<MyContext>
+  let mockContext: MutableCtx
   let mockSceneEnter: any
   let mockSceneLeave: any
   let mockReply: any

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, Mock } from 'vitest'
 import { CancelButtonService, handleHelpCancel, createCancelButton, cancelHelpArray } from '@/navigation/services/CancelButtonService'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
+import type { MutableCtx } from '../helpers/mutableContext'
 
 // Create mock function
 const mockIsRussianFromState = vi.fn(() => true)
@@ -26,7 +27,7 @@ vi.mock('@/navigation/helpers/menuKeyboard', () => ({
 }))
 
 describe('CancelButtonService', () => {
-  let mockContext: Partial<MyContext>
+  let mockContext: MutableCtx
   let mockSceneEnter: Mock
   let mockSceneLeave: Mock
 
