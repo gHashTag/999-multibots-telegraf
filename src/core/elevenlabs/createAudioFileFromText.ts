@@ -102,6 +102,31 @@ async function generateTTSViaAiServer({
   throw new Error('AI Server unavailable, fallback required')
 }
 
+/**
+ * Ключ ElevenLabs должен начинаться с `sk_`.
+ *
+ * В проде в ELEVENLABS_API_KEY лежит НЕ ключ, а его идентификатор — 64 символа
+ * без префикса. Проверено живым запросом: GET /v1/voices отвечает 400 и
+ * {"code":"invalid_api_key","message":"API key ID used as API key - only valid
+ * API keys can be used. API keys start with 'sk_'"}.
+ *
+ * Без этой проверки синтез падал бы на каждом вызове невнятной 400-й из
+ * середины SDK, и по логам это выглядело бы как сбой ElevenLabs, а не как
+ * неверная переменная окружения.
+ */
+function assertElevenLabsKey(key: string | undefined): asserts key is string {
+  if (!key) {
+    throw new Error('ELEVENLABS_API_KEY не задан')
+  }
+  if (!key.startsWith('sk_')) {
+    throw new Error(
+      'ELEVENLABS_API_KEY похож на идентификатор ключа, а не на сам ключ: ' +
+        'настоящий начинается с "sk_" и показывается только при создании или ротации. ' +
+        'Синтез речи работать не будет, пока переменная не заменена.'
+    )
+  }
+}
+
 export const createAudioFileFromText = async ({
   text,
   voice_id,
@@ -111,6 +136,8 @@ export const createAudioFileFromText = async ({
   voice_id: string
   telegram_id?: string
 }): Promise<string> => {
+  assertElevenLabsKey(process.env.ELEVENLABS_API_KEY)
+
   // 🔧 ENHANCED LOGGING: Улучшенное логирование входных данных
   const logData = {
     voice_id,
