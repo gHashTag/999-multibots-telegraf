@@ -1,0 +1,23 @@
+{
+  // Проверка типов ДЛЯ ТЕСТОВ.
+  //
+  // Основной tsconfig.json намеренно исключает __tests__, *.test.ts и прочее
+  // (строки 70-76), поэтому `npm run typecheck` показывает 0 ошибок, ничего не
+  // зная о тестах. Из-за этого в них годами жили ссылки на символы, которых
+  // нет в коде вовсе: createGenerateModelTrainingFunction (реальный экспорт —
+  // generateModelTraining), aiReelsCallbackFunctionData (не определён нигде).
+  // Такие тесты не проходили ни разу с момента написания.
+  //
+  // Отдельный файл, а не правка основного: включение тестов в сборку — это
+  // другой радиус, а здесь нужна только диагностика.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    // globals.d.ts лежит в корне пакета vitest, а не в dist — без явного пути
+    // tsc не находил его и падал с TS2688, не дойдя до самих файлов.
+    "typeRoots": ["./node_modules/@types", "./node_modules"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.test.ts", "src/__tests__/**/*.ts", "node_modules/vitest/globals.d.ts"],
+  "exclude": ["dist", "apps"]
+}
