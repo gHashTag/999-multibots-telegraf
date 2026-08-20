@@ -275,6 +275,23 @@ async function handlePaymentSuccess(req: any, res: any) {
       }
     }
 
+    // Награда пригласившему — за ПЕРВОЕ пополнение приглашённого, а не за
+    // регистрацию. По нашим данным из 738 пришедших по ссылке пополняли
+    // только 33 (4%), поэтому платить за приход значит платить двадцать пять
+    // раз за одного плательщика. Разбор: docs/audit/referral-economics.md.
+    //
+    // Функция сама молчит, пока REFERRAL_BONUS_STARS равен нулю, и не может
+    // заплатить дважды: номер счёта складывается из пары «кто → кого».
+    //
+    // Не роняет обработку: пополнение важнее награды.
+    const { rewardInviterOnFirstTopUp } = await import(
+      '@/core/referral/rewardOnFirstTopUp'
+    )
+    await rewardInviterOnFirstTopUp({
+      invitedTelegramId: payment.telegram_id,
+      botName: payment.bot_name || 'unknown_bot',
+    })
+
     // Отправляем уведомления
     await sendPaymentSuccessNotification(payment, stars, subscription)
 
