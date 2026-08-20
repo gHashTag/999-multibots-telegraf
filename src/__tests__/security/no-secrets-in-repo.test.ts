@@ -36,6 +36,16 @@ const PATTERNS: Rule[] = [
  */
 const KNOWN_DEBT: Record<string, string> = {
   'CLAUDE.md': 'токены Fly.io — проверено, недействительны, но убрать надо',
+  // Четыре файла с кириллицей в имени. Они лежали здесь всё время, но
+  // выпадали из осмотра: `git ls-files` без `-z` экранирует не-ASCII имена, и
+  // проверка существования файла их отбрасывала. Найдены при сверке пункта
+  // «ключ в 11 файлах» — их пятнадцать.
+  'scripts/financial/ПОЛУЧИТЬ_ВСЕ_С_ПАГИНАЦИЕЙ_PAYMENTS_V2.js':
+    'служебный ключ Supabase — РАБОТАЕТ',
+  'scripts/financial/ПОЛУЧИТЬ_ДАННЫЕ_PAYMENTS_V2.js': 'служебный ключ Supabase — РАБОТАЕТ',
+  'scripts/financial/ПОЛУЧИТЬ_РЕАЛЬНЫЕ_ДАННЫЕ_PMSV2.js': 'служебный ключ Supabase — РАБОТАЕТ',
+  'scripts/financial/ПРОВЕРКА_ВСЕХ_БОТОВ_В_БД.js': 'служебный ключ Supabase — РАБОТАЕТ',
+
   'scripts/financial/check-all-bots-precise.js': 'служебный ключ Supabase — РАБОТАЕТ',
   'scripts/financial/check-all-bots.js': 'служебный ключ Supabase — РАБОТАЕТ',
   'scripts/financial/check-lee-solar.js': 'служебный ключ Supabase — РАБОТАЕТ',
@@ -61,9 +71,23 @@ const SELF_CHECK: Array<[string, string]> = [
   ['токен GitHub', 'ghp_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq'],
 ]
 
+/**
+ * Файлы под контролем версий.
+ *
+ * ОБЯЗАТЕЛЬНО `-z`. Без него git ЭКРАНИРУЕТ имена с не-ASCII символами:
+ *
+ *   "scripts/financial/\320\237\320\236\320\233\320\243\320\247..."
+ *
+ * Такое имя не открывается, проверка `fs.existsSync` его отбрасывает, и файл
+ * молча выпадает из осмотра. Так из осмотра выпадали 50 файлов, и в четырёх из
+ * них лежит служебный ключ базы. Найдено при попытке проверить, актуален ли
+ * пункт «ключ в 11 файлах»: их оказалось 15.
+ *
+ * `-z` разделяет имена нулевым байтом и ничего не экранирует.
+ */
 function trackedFiles(): string[] {
-  return execSync('git ls-files', { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
-    .split('\n')
+  return execSync('git ls-files -z', { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+    .split('\0')
     .filter(Boolean)
 }
 
