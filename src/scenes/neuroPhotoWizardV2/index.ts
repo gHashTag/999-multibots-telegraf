@@ -90,10 +90,18 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
 
       const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
 
+      // «Моделей нет» — не вся правда, если обучение шло и застряло.
+      // Подробности — в core/supabase/getStuckTrainings.ts.
+      const { getStuckTrainings, stuckTrainingsMessage } = await import(
+        '@/core/supabase/getStuckTrainings'
+      )
+      const stuck = await getStuckTrainings(telegramId)
+
       await ctx.reply(
-        isRu
+        (isRu
           ? `❌ У вас пока нет обученных моделей.\n\n💡 Используйте "🤖 Цифровое тело аватара", чтобы создать свою первую модель!\n\nА пока можете попробовать тестовую модель.`
-          : `❌ You don't have any trained models yet.\n\n💡 Use "🤖 Digital avatar body" to create your first model!\n\nMeanwhile, you can try the test model.`,
+          : `❌ You don't have any trained models yet.\n\n💡 Use "🤖 Digital avatar body" to create your first model!\n\nMeanwhile, you can try the test model.`) +
+          (stuck.length ? '\n\n' + stuckTrainingsMessage(stuck, isRu) : ''),
         {
           reply_markup: {
             keyboard: (
