@@ -612,6 +612,11 @@ src/__tests__/money/robokassa-order.test.ts :: порядок обработки
 src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты подпись проверяется раньше любых изменений
 src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты разбор находит ключевые шаги — иначе тест пустой
 src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты человеку сообщают об успехе ПОСЛЕ отметки
+src/__tests__/money/unchecked-money-result.test.ts :: результат денежной операции не выбрасывается в списке долга нет уже вычищенных файлов
+src/__tests__/money/unchecked-money-result.test.ts :: результат денежной операции не выбрасывается долг не растёт ни в одном файле
+src/__tests__/money/unchecked-money-result.test.ts :: результат денежной операции не выбрасывается новых файлов с выброшенным результатом не появилось
+src/__tests__/money/unchecked-money-result.test.ts :: результат денежной операции не выбрасывается разбор находит места — иначе тест пустой
+src/__tests__/money/unchecked-money-result.test.ts :: результат денежной операции не выбрасывается разбор не считает присвоение выброшенным результатом
 src/__tests__/navigation/access.config.test.ts :: access.config Edge cases getParsingAccess обрабатывает пустой токен
 src/__tests__/navigation/access.config.test.ts :: access.config Edge cases isAdmin обрабатывает числа с плавающей точкой
 src/__tests__/navigation/access.config.test.ts :: access.config Edge cases isSuperAdmin обрабатывает отрицательные числа

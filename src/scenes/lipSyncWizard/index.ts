@@ -19,6 +19,7 @@ import { logger } from '@/utils/logger'
 import { FalVeedFabricProvider } from '@/core/lipsync/providers/fal-veed-fabric-provider'
 import { getLipSyncModelById, calculateLipSyncCostStars } from '@/config/lipsync-models.config'
 import { convertAudioToMp3, needsAudioConversion } from '@/helpers/video-helpers'
+import { refundAndTell } from '@/price/helpers/refundAndTell'
 
 const MAX_FILE_SIZE = LIPSYNC_CONSTANTS.MAX_FILE_SIZE
 
@@ -442,24 +443,23 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
         telegramId,
       })
 
-      // Возвращаем средства при ошибке
-      await updateUserBalance(
-        telegramId,
-        lipSyncCost,
-        PaymentType.MONEY_INCOME,
-        'LipSync refund - generation error',
-        { bot_name: ctx.botInfo?.username || 'unknown_bot' }
-      )
-
       const errorMessage = error instanceof z.ZodError
         ? error.errors.map(e => e.message).join(', ')
         : error instanceof Error ? error.message : 'Неизвестная ошибка'
 
-      await ctx.reply(
-        isRu
-          ? `❌ Ошибка при обработке: ${errorMessage}. Средства возвращены.`
-          : `❌ Processing error: ${errorMessage}. Funds refunded.`
-      )
+      // Возвращаем средства при ошибке — и говорим правду о том, вернулись ли
+      // они: начисление может не пройти.
+      await refundAndTell({
+        ctx,
+        telegramId,
+        amount: lipSyncCost,
+        description: 'LipSync refund - generation error',
+        reason: {
+          ru: `Ошибка при обработке: ${errorMessage}`,
+          en: `Processing error: ${errorMessage}`,
+        },
+        isRu,
+      })
     }
     
     } catch (error) {
