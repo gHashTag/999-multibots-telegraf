@@ -92,7 +92,8 @@
     "user:force-exit": "bun run scripts/users/force-exit-scene.ts",
     "check:events": "node scripts/orphan-events.cjs",
     "check:dead-domain": "node scripts/check-dead-domain.cjs",
-    "typecheck:tests": "tsc --noEmit -p tsconfig.test.json"
+    "typecheck:tests": "tsc --noEmit -p tsconfig.test.json",
+    "test:network": "DETECT_NETWORK=1 vitest run --silent && node scripts/report-network-tests.cjs"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

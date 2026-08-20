@@ -4,6 +4,7 @@ import path from 'path'
 export default defineConfig({
   test: {
     globals: true,
+    setupFiles: process.env.DETECT_NETWORK ? ['scripts/detect-network-tests.mjs'] : [],
     exclude: [
       '**/node_modules/**',
       '**/dist/**',

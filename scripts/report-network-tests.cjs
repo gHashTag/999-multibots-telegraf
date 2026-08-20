@@ -1,0 +1,48 @@
+#!/usr/bin/env node
+/**
+ * Отчёт после `npm run test:network`: кто из тестов ходил в сеть по-настоящему.
+ *
+ * Зачем. Тест, делающий настоящий сетевой вызов, зависит от того, что ответит
+ * чужой сервер, — и однажды отвечает иначе. Так `saveVideoUrlToSupabase.test.ts`
+ * стал «зелёным со второго раза»: он не заглушал зеркалирование, которое
+ * СКАЧИВАЕТ файл, и проходил лишь потому, что адрес не существует.
+ *
+ * Единичный флак обесценивает проверку постепенно: если часть красного
+ * считается шумом, «регрессий нет» перестаёт что-либо значить.
+ */
+const fs = require('fs')
+
+const LOG = process.env.NETWORK_LOG || '/tmp/vitest-network.log'
+const MARK = LOG + '.mark'
+
+const loads = fs.existsSync(MARK)
+  ? fs.readFileSync(MARK, 'utf8').split('\n').filter(Boolean).length
+  : 0
+
+if (loads === 0) {
+  console.error(
+    '❌ Наблюдатель не подключился ни к одному файлу тестов — отчёт бессмыслен.\n' +
+      '   Проверьте setupFiles в vitest.config.ts и переменную DETECT_NETWORK.'
+  )
+  process.exit(2)
+}
+
+const calls = fs.existsSync(LOG)
+  ? fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean)
+  : []
+
+console.log(`наблюдатель подключился к ${loads} файлам тестов`)
+console.log(`настоящих сетевых вызовов: ${calls.length}`)
+
+if (!calls.length) {
+  console.log('✅ Ни один тест не ходит в сеть.')
+  process.exit(0)
+}
+
+const byUrl = {}
+for (const c of calls) byUrl[c] = (byUrl[c] || 0) + 1
+console.log('\nкуда ходили:')
+for (const [u, n] of Object.entries(byUrl).sort((a, b) => b[1] - a[1])) {
+  console.log(`  ${String(n).padStart(4)}  ${u}`)
+}
+process.exit(1)
