@@ -18,6 +18,7 @@ import {
   calculateLipSyncCost,
 } from '@/config/lipsync-models.config'
 import { FalVeo31Provider } from '@/core/lipsync/providers/fal-veo31-provider'
+import { refundAndTell } from '@/price/helpers/refundAndTell'
 
 // Интерфейс для aiReels теперь определен в MySession interface
 
@@ -1067,20 +1068,19 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             error: lipSyncResult,
           })
 
-          // Возврат средств
-          await updateUserBalance(
+          // Возврат средств. Обещать возврат, не проверив начисление, значит
+          // молча оставлять человека без денег.
+          await refundAndTell({
+            ctx,
             telegramId,
-            totalCost,
-            PaymentType.MONEY_INCOME,
-            'AI Reels refund - Fal.ai lip-sync failed',
-            { bot_name: ctx.botInfo?.username || 'unknown_bot' }
-          )
-
-          await ctx.reply(
-            isRu
-              ? `❌ Ошибка генерации lip-sync видео\n💰 Средства возвращены: ${totalCost.toFixed(2)}⭐`
-              : `❌ Lip-sync generation failed\n💰 Refunded: ${totalCost.toFixed(2)}⭐`
-          )
+            amount: totalCost,
+            description: 'AI Reels refund - Fal.ai lip-sync failed',
+            reason: {
+              ru: `Ошибка генерации lip-sync видео (${totalCost.toFixed(2)}⭐)`,
+              en: `Lip-sync generation failed (${totalCost.toFixed(2)}⭐)`,
+            },
+            isRu,
+          })
 
           return ctx.scene.leave()
         }

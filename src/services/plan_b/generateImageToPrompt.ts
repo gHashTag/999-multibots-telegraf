@@ -325,7 +325,10 @@ export async function generateImageToPrompt(
 
     if (newBalance !== undefined && costPerImage !== undefined) {
       try {
-        await directPaymentProcessor({
+        // Результат проверяем: directPaymentProcessor при неудаче НЕ бросает,
+        // а возвращает success: false. Без проверки человеку сообщали бы о
+        // возврате, которого не было, и никто бы не узнал.
+        const refund = await directPaymentProcessor({
           telegram_id,
           amount: costPerImage,
           type: PaymentType.REFUND,
@@ -335,14 +338,25 @@ export async function generateImageToPrompt(
           inv_id: `refund-${telegram_id}-${Date.now()}-${uuidv4()}`,
           metadata: { is_ru },
         })
-        console.log(`Refunded ${costPerImage} stars to user ${telegram_id}`)
-        // await bot.telegram.sendMessage(
+
+        if (!refund.success) {
+          console.error(
+            '💸❌ REFUND FAILED — деньги НЕ возвращены',
+            telegram_id,
+            costPerImage,
+            refund.error
+          )
+        }
+
         await ctx.telegram.sendMessage(
-          // Changed to ctx.telegram.sendMessage
           telegram_id,
-          is_ru
-            ? 'Средства возвращены из-за ошибки.'
-            : 'Funds refunded due to error.'
+          refund.success
+            ? is_ru
+              ? 'Средства возвращены из-за ошибки.'
+              : 'Funds refunded due to error.'
+            : is_ru
+              ? 'Произошла ошибка. Вернуть звёзды автоматически не удалось — напишите в поддержку.'
+              : 'An error occurred. Automatic refund failed — please contact support.'
         )
       } catch (refundError) {
         console.error(

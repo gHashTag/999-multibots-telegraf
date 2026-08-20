@@ -33,6 +33,7 @@ import {
 } from '@/price/helpers/modelsCost'
 import { sendInngestEvent, INNGEST_EVENTS } from '@/inngest_app/client'
 import { supabase } from '@/core/supabase/client'
+import { refundAndTell } from '@/price/helpers/refundAndTell'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WIZARD SETUP
@@ -379,18 +380,16 @@ voiceTrainingWizard.action('confirm_training', async ctx => {
         telegramId,
         error: uploadError.message,
       })
-      // Refund
-      await updateUserBalance(
+      // Возврат. Сообщение зависит от того, прошло ли начисление на самом деле.
+      await refundAndTell({
+        ctx,
         telegramId,
-        cost,
-        PaymentType.REFUND,
-        'Voice training refund - upload error'
-      )
-      await ctx.reply(
-        isRu
-          ? '❌ Ошибка загрузки аудио. Средства возвращены.'
-          : '❌ Audio upload error. Funds refunded.'
-      )
+        amount: cost,
+        description: 'Voice training refund - upload error',
+        reason: { ru: 'Ошибка загрузки аудио', en: 'Audio upload error' },
+        isRu,
+        type: PaymentType.REFUND,
+      })
       return ctx.scene.leave()
     }
 

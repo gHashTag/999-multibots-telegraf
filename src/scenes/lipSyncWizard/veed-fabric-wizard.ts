@@ -7,6 +7,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { lipSyncOrchestrator } from '@/core/lipsync/lipsync-orchestrator'
 import { LipSyncInputBuilder } from '@/core/lipsync/schemas/lipsync-schemas'
 import { logger } from '@/utils/logger'
+import { refundAndTell } from '@/price/helpers/refundAndTell'
 import {
   LIPSYNC_MODELS,
   getAvailableLipSyncModels,
@@ -763,20 +764,19 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
               telegramId,
             })
 
-            // Возврат средств
-            await updateUserBalance(
+            // Возврат средств. Говорим человеку то, что произошло на самом
+            // деле: начисление может не пройти.
+            await refundAndTell({
+              ctx,
               telegramId,
-              cost,
-              PaymentType.MONEY_INCOME,
-              'Lip-sync refund - TTS error',
-              { bot_name: ctx.botInfo?.username || 'unknown_bot' }
-            )
-
-            await ctx.reply(
-              isRu
-                ? '❌ Ошибка генерации голоса. Средства возвращены.'
-                : '❌ Error generating voice. Funds refunded.'
-            )
+              amount: cost,
+              description: 'Lip-sync refund - TTS error',
+              reason: {
+                ru: 'Ошибка генерации голоса',
+                en: 'Error generating voice',
+              },
+              isRu,
+            })
             return ctx.scene.leave()
           }
         }
@@ -863,20 +863,18 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             textLength: text?.length || 0,
           })
 
-          // Возврат средств
-          await updateUserBalance(
+          // Возврат средств. Сообщение зависит от того, прошло ли начисление.
+          await refundAndTell({
+            ctx,
             telegramId,
-            cost,
-            PaymentType.MONEY_INCOME,
-            'Lip-sync refund - startup error',
-            { bot_name: ctx.botInfo?.username || 'unknown_bot' }
-          )
-
-          await ctx.reply(
-            isRu
-              ? `❌ Ошибка запуска генерации. Средства возвращены.`
-              : `❌ Error starting generation. Funds refunded.`
-          )
+            amount: cost,
+            description: 'Lip-sync refund - startup error',
+            reason: {
+              ru: 'Ошибка запуска генерации',
+              en: 'Error starting generation',
+            },
+            isRu,
+          })
         }
 
         return ctx.scene.leave()
