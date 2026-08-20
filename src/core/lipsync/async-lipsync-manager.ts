@@ -423,23 +423,17 @@ export class AsyncLipSyncManager {
     }
 
     try {
-      // Возврат средств
-      await updateUserBalance(
-        job.telegramId,
-        job.cost,
-        PaymentType.MONEY_INCOME,
+      // Возврат средств. Текст зависит от того, прошло ли начисление.
+      const moneyLine = await this.refundAndDescribe(
+        job,
         'LipSync refund - generation error',
-        {
-          bot_name: job.botInfo?.username || 'unknown_bot',
-          error_code: result.code,
-          job_id: job.id,
-        }
+        { error_code: result.code }
       )
 
       await this.bot.telegram.sendMessage(
         job.chatId,
         `❌ Ошибка генерации: ${result.message}\n\n` +
-          `💰 Средства возвращены: ${job.cost.toFixed(2)}⭐\n` +
+          `${moneyLine}\n` +
           `🔍 Код ошибки: ${result.code}`,
         { parse_mode: 'HTML' }
       )
@@ -459,6 +453,53 @@ export class AsyncLipSyncManager {
     }
   }
 
+
+  /**
+   * Возврат с честным сообщением.
+   *
+   * Раньше в обоих местах ниже стояло: вызвать updateUserBalance, выбросить
+   * результат и написать человеку «Средства возвращены». А функция при неудаче
+   * НЕ бросает — она возвращает false: не прошла проверка схемы, не удалась
+   * вставка или у человека нет строки в `users` (таких плательщиков 44,
+   * docs/audit/ghost-payers.md). То есть фраза говорилась и тем, кому не
+   * вернули, и заметить это было нельзя.
+   *
+   * Тот же дефект уже исправлен в пяти визардах (PR #544) — здесь шестое и
+   * седьмое места того же класса.
+   *
+   * @returns строка о деньгах для сообщения человеку
+   */
+  private async refundAndDescribe(
+    job: AsyncLipSyncJob,
+    description: string,
+    extraMetadata: Record<string, unknown> = {}
+  ): Promise<string> {
+    const refunded = await updateUserBalance(
+      job.telegramId,
+      job.cost,
+      PaymentType.MONEY_INCOME,
+      description,
+      {
+        bot_name: job.botInfo?.username || 'unknown_bot',
+        job_id: job.id,
+        ...extraMetadata,
+      } as any
+    )
+
+    if (!refunded) {
+      logger.error('💸❌ REFUND FAILED — деньги НЕ возвращены', {
+        alert: 'ЧЕЛОВЕКУ НЕ ВЕРНУЛИ ЗВЁЗДЫ ПОСЛЕ НЕУДАЧНОЙ ГЕНЕРАЦИИ',
+        jobId: job.id,
+        telegramId: job.telegramId,
+        amount: job.cost,
+        description,
+      })
+      return '💰 Вернуть звёзды автоматически не удалось — напишите в поддержку, приложив это сообщение.'
+    }
+
+    return `💰 Средства возвращены: ${job.cost.toFixed(2)}⭐`
+  }
+
   /**
    * Отправляет критическую ошибку с возвратом средств
    */
@@ -472,22 +513,16 @@ export class AsyncLipSyncManager {
     }
 
     try {
-      // Возврат средств
-      await updateUserBalance(
-        job.telegramId,
-        job.cost,
-        PaymentType.MONEY_INCOME,
-        'LipSync refund - critical error',
-        {
-          bot_name: job.botInfo?.username || 'unknown_bot',
-          job_id: job.id,
-        }
+      // Возврат средств. Текст зависит от того, прошло ли начисление.
+      const moneyLine = await this.refundAndDescribe(
+        job,
+        'LipSync refund - critical error'
       )
 
       await this.bot.telegram.sendMessage(
         job.chatId,
         `❌ Произошла критическая ошибка при генерации.\n\n` +
-          `💰 Средства возвращены: ${job.cost.toFixed(2)}⭐\n` +
+          `${moneyLine}\n` +
           `🛠️ Попробуйте позже или обратитесь в поддержку.`,
         { parse_mode: 'HTML' }
       )

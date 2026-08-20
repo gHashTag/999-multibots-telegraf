@@ -38,10 +38,13 @@ const CHECKABLE = [
 /**
  * Известный долг: файл → сколько выброшенных результатов в нём осталось.
  * Числа должны только уменьшаться.
+ *
+ * Список работает: `async-lipsync-manager.ts` был здесь с двумя записями, оба
+ * места починены (PR по «утверждениям в сообщениях»), и проверка «в списке нет
+ * вычищенных файлов» сама потребовала убрать запись.
  */
 const DEBT: Record<string, number> = {
   'src/api_server/routes/x402.routes.ts': 2,
-  'src/core/lipsync/async-lipsync-manager.ts': 2,
   'src/core/supabase/updateUserBalance.ts': 1,
   'src/handlers/handleTextToVideoDirect.ts': 1,
   'src/inngest_app/functions/generation/neuroImageGeneration.ts': 1,
