@@ -35,9 +35,29 @@ export interface SaveAssetParams {
 const isPlayableUrl = (v: unknown): v is string =>
   typeof v === 'string' && /^https?:\/\//.test(v)
 
+/**
+ * ЗАЧЕМ ВОЗВРАЩАЕТ ЗНАЧЕНИЕ. Раньше возвращала void и на обеих ветках отказа
+ * молча выходила: ссылка не похожа на ссылку — предупреждение и выход; вставка
+ * не удалась — ошибка и выход. Вызывающий не мог отличить записанное от
+ * незаписанного.
+ *
+ * Цена, измеренная по данным. Доля списаний, у которых рядом есть след работы:
+ *
+ *   neuro_photo          97-100% во все 17 месяцев   ← так выглядит исправная запись
+ *   image_to_video       7-38%, а с января 2026 — 0% при сотне списаний
+ *   digital_avatar_body  0-54%
+ *   text_to_video        0-36%
+ *
+ * neuro_photo здесь — отрицательный контроль: он доказывает, что сам способ
+ * замера рабочий, и что у картинок след пишется исправно.
+ *
+ * Что это значит для видео: **по данным нельзя сказать, получил человек видео
+ * или нет**. Не «не получил» — именно «неизвестно». Разбор:
+ * docs/audit/paid-nothing-made.md.
+ */
 export async function saveVideoUrlToSupabase(
   params: SaveAssetParams
-): Promise<void> {
+): Promise<boolean> {
   const {
     telegramId,
     publicUrl,
@@ -57,12 +77,13 @@ export async function saveVideoUrlToSupabase(
   const urlToStore = await mirrorToOwnStorage(publicUrl, telegramId, 'assets')
 
   if (!isPlayableUrl(publicUrl)) {
-    logger.warn('⚠️ [assets] Пропущена запись: publicUrl не является ссылкой', {
+    logger.error('🎬❌ [assets] РЕЗУЛЬТАТ НЕ ЗАПИСАН: publicUrl не является ссылкой', {
+      alert: 'ГЕНЕРАЦИЯ ОПЛАЧЕНА, СЛЕДА В assets НЕТ',
       telegramId: String(telegramId),
       type,
       received: String(publicUrl).slice(0, 80),
     })
-    return
+    return false
   }
 
   const { error } = await supabase.from('assets').insert({
@@ -81,13 +102,15 @@ export async function saveVideoUrlToSupabase(
   })
 
   if (error) {
-    logger.error('❌ [assets] Не удалось сохранить ассет', {
+    logger.error('🎬❌ [assets] РЕЗУЛЬТАТ НЕ ЗАПИСАН: вставка не удалась', {
+      alert: 'ГЕНЕРАЦИЯ ОПЛАЧЕНА, СЛЕДА В assets НЕТ',
       telegramId: String(telegramId),
       type,
       error: error.message,
     })
-    return
+    return false
   }
 
   logger.info('💾 [assets] Ассет сохранён', { telegramId: String(telegramId), type })
+  return true
 }

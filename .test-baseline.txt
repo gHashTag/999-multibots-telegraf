@@ -57,6 +57,12 @@ src/__tests__/assets/mirror-storage.test.ts :: mirrorToOwnStorage пустой �
 src/__tests__/assets/no-direct-insert.test.ts :: вложения сохраняются одной дверью в списке разрешённых нет файлов, которые больше не вставляют
 src/__tests__/assets/no-direct-insert.test.ts :: вложения сохраняются одной дверью нет прямых вставок в assets вне разрешённых файлов
 src/__tests__/assets/no-direct-insert.test.ts :: вложения сохраняются одной дверью разбор находит хотя бы одну вставку — иначе тест пустой
+src/__tests__/assets/video-record-outcome.test.ts :: запись результата видео сообщает об отказе вызывающий проверяет результат, а не выбрасывает его
+src/__tests__/assets/video-record-outcome.test.ts :: запись результата видео сообщает об отказе обе ветки отказа возвращают false
+src/__tests__/assets/video-record-outcome.test.ts :: запись результата видео сообщает об отказе отказ записи попадает в журнал как ошибка, а не как предупреждение
+src/__tests__/assets/video-record-outcome.test.ts :: запись результата видео сообщает об отказе разбор находит функцию — иначе тест пустой
+src/__tests__/assets/video-record-outcome.test.ts :: запись результата видео сообщает об отказе успешная ветка возвращает true
+src/__tests__/assets/video-record-outcome.test.ts :: запись результата видео сообщает об отказе функция возвращает признак, а не void
 src/__tests__/billingFilters.test.ts :: aiCostStars берёт колонку cost, а не цену для пользователя
 src/__tests__/billingFilters.test.ts :: aiCostStars возвращает 0 для неизвестных сервисов и незавершённых списаний
 src/__tests__/billingFilters.test.ts :: aiCostStars не считает служебные операции себестоимостью AI
@@ -106,7 +112,7 @@ src/__tests__/core/saveVideoUrlToSupabase.test.ts :: saveVideoUrlToSupabase trig
 src/__tests__/core/saveVideoUrlToSupabase.test.ts :: saveVideoUrlToSupabase trigger_word по умолчанию video, но переопределяется
 src/__tests__/core/saveVideoUrlToSupabase.test.ts :: saveVideoUrlToSupabase НЕ пишет строку при пустой ссылке — обновить её потом нечем
 src/__tests__/core/saveVideoUrlToSupabase.test.ts :: saveVideoUrlToSupabase НЕ пишет строку, если вместо ссылки пришёл служебный id
-src/__tests__/core/saveVideoUrlToSupabase.test.ts :: saveVideoUrlToSupabase ошибка вставки логируется и не роняет вызывающий код
+src/__tests__/core/saveVideoUrlToSupabase.test.ts :: saveVideoUrlToSupabase ошибка вставки не роняет вызывающий код, но видна ему
 src/__tests__/core/saveVideoUrlToSupabase.test.ts :: saveVideoUrlToSupabase пишет bot_name — колонка есть, но 80% строк в проде с NULL
 src/__tests__/core/saveVideoUrlToSupabase.test.ts :: saveVideoUrlToSupabase пишет промпт в text, а не захардкоженное «Generated video»
 src/__tests__/core/saveVideoUrlToSupabase.test.ts :: saveVideoUrlToSupabase пишет ссылку в public_url, а не в storage_path
