@@ -63,16 +63,24 @@ describe('answerAi', () => {
         'ru'
       )
 
-      expect(result).toEqual({
+      // Стоимость в ответе появилась вместе с учётом генераций и с тех пор
+      // возвращается всегда. Проверка ждала форму без неё и падала — это была
+      // устаревшая проверка, а не дефект кода.
+      expect(result).toMatchObject({
         type: 'image',
         imageUrl: 'https://example.com/image.png',
       })
-      expect(mockGenerateNanoBananaPro).toHaveBeenCalledWith({
-        prompt: 'Супермена',
-        numImages: 1,
-        aspectRatio: '1:1',
-        resolution: '1K',
-      })
+      expect(typeof (result as { cost: number }).cost).toBe('number')
+      // Соотношение сторон в коде 9:16 (вертикаль для Telegram), а не 1:1;
+      // и telegramId передаётся всегда. Проверка ждала старых значений.
+      expect(mockGenerateNanoBananaPro).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: 'Супермена',
+          numImages: 1,
+          aspectRatio: '9:16',
+          resolution: '1K',
+        })
+      )
     })
 
     it('должна извлекать промпт из запроса (убирать ключевые слова)', async () => {
@@ -115,15 +123,32 @@ describe('answerAi', () => {
 
       const result = await answerAi('google/gemini-3-pro', mockUserData, 'make image of superman', 'en')
 
-      expect(result).toEqual({
+      // Стоимость в ответе появилась вместе с учётом генераций и с тех пор
+      // возвращается всегда. Проверка ждала форму без неё и падала — это была
+      // устаревшая проверка, а не дефект кода.
+      expect(result).toMatchObject({
         type: 'image',
         imageUrl: 'https://example.com/image.png',
       })
+      expect(typeof (result as { cost: number }).cost).toBe('number')
     })
   })
 
-  describe('2. Обычные текстовые запросы через OpenRouter', () => {
-    it('должна использовать OpenRouter API для обычных запросов', async () => {
+  /**
+   * ПОЧЕМУ ЭТОТ БЛОК ПЕРЕПИСАН.
+   *
+   * Проверки описывали архитектуру, которой больше нет: они ждали, что
+   * обычный текстовый запрос уходит в OpenRouter, и подставляли
+   * OPENROUTER_API_KEY. Код давно ходит иначе — основной путь xAI Grok
+   * (GROK_API_KEY), затем GLM, затем DeepSeek, затем OpenAI. Из-за этого
+   * четыре проверки падали месяцами: файл был красным наполовину и не
+   * защищал ничего, в том числе код генерации изображений рядом.
+   *
+   * Удалять их нельзя — пропала бы причина. Переписаны под то, что код делает
+   * на самом деле.
+   */
+  describe('2. Обычные текстовые запросы: цепочка поставщиков', () => {
+    it('основной путь — xAI Grok', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -139,33 +164,45 @@ describe('answerAi', () => {
 
       global.fetch = mockFetch
 
+      process.env.GROK_API_KEY = 'test-grok-key'
+
       const result = await answerAi('deepseek/deepseek-chat', mockUserData, 'Hello', 'en')
 
       expect(typeof result).toBe('string')
       expect(result).toBe('Hello, this is a test response')
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://openrouter.ai/api/v1/chat/completions',
+        'https://api.x.ai/v1/chat/completions',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
-            Authorization: 'Bearer test-openrouter-key',
+            Authorization: 'Bearer test-grok-key',
           }),
         })
       )
     })
 
-    it('должна обрабатывать ошибки OpenRouter API', async () => {
+    it('когда не отвечает ни один поставщик — ошибка называет их все', async () => {
+      // Раньше здесь ждали 'OpenRouter API error: 401'. Такой ошибки код не
+      // бросает: он перебирает поставщиков и падает только когда кончились
+      // все. Сообщение перечисляет их поимённо — по нему видно, что искать.
+      process.env.GROK_API_KEY = 'test-grok-key'
+      delete process.env.GLM_API_KEY
+
       const mockFetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 401,
         text: async () => 'Unauthorized',
       })
-
       global.fetch = mockFetch
+
+      const { openai } = await import('@/core/openai')
+      ;(openai.chat.completions.create as Mock).mockRejectedValue(
+        new Error('deepseek недоступен')
+      )
 
       await expect(
         answerAi('deepseek/deepseek-chat', mockUserData, 'Hello', 'en')
-      ).rejects.toThrow('OpenRouter API error: 401 - Unauthorized')
+      ).rejects.toThrow('All AI providers failed')
     })
 
     it('должна использовать fallback на DeepSeek если OpenRouter недоступен', async () => {
@@ -237,7 +274,7 @@ describe('answerAi', () => {
   })
 
   describe('4. System prompt', () => {
-    it('должна включать system prompt в запрос к OpenRouter', async () => {
+    it('system prompt уходит поставщику вместе с запросом', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -246,6 +283,7 @@ describe('answerAi', () => {
       })
 
       global.fetch = mockFetch
+      process.env.GROK_API_KEY = 'test-grok-key'
 
       await answerAi('deepseek/deepseek-chat', mockUserData, 'Hello', 'en', 'You are a helpful assistant')
 
@@ -259,19 +297,28 @@ describe('answerAi', () => {
   })
 
   describe('5. Edge cases', () => {
-    it('должна обрабатывать пустой ответ от OpenRouter', async () => {
+    it('пустой ответ поставщика не выдаётся за ответ', async () => {
+      // Раньше ждали 'Empty response from OpenRouter'. Пустой ответ теперь
+      // означает переход к следующему поставщику; когда кончились все —
+      // общая ошибка. Главное свойство то же: пустота НЕ выдаётся человеку
+      // за ответ.
+      process.env.GROK_API_KEY = 'test-grok-key'
+      delete process.env.GLM_API_KEY
+
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({
-          choices: [{ message: {} }],
-        }),
+        json: async () => ({ choices: [{ message: {} }] }),
       })
-
       global.fetch = mockFetch
+
+      const { openai } = await import('@/core/openai')
+      ;(openai.chat.completions.create as Mock).mockRejectedValue(
+        new Error('deepseek недоступен')
+      )
 
       await expect(
         answerAi('deepseek/deepseek-chat', mockUserData, 'Hello', 'en')
-      ).rejects.toThrow('Empty response from OpenRouter')
+      ).rejects.toThrow('All AI providers failed')
     })
 
     it('должна обрабатывать ошибки сети', async () => {

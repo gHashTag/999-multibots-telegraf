@@ -103,10 +103,16 @@ src/__tests__/core/getUserBalance.test.ts :: getUserBalance: «не смог у�
 src/__tests__/core/getUserBalance.test.ts :: getUserBalance: «не смог узнать» не равно «ноль» прочие ошибки по-прежнему дают 0, контракт не сломан
 src/__tests__/core/openai/requests.test.ts :: answerAi 1. Gemini модель + запрос на изображение должна возвращать текстовую ошибку если Nano Banana Pro не удалось
 src/__tests__/core/openai/requests.test.ts :: answerAi 1. Gemini модель + запрос на изображение должна извлекать промпт из запроса (убирать ключевые слова)
-src/__tests__/core/openai/requests.test.ts :: answerAi 2. Обычные текстовые запросы через OpenRouter должна использовать fallback на DeepSeek если OpenRouter недоступен
+src/__tests__/core/openai/requests.test.ts :: answerAi 1. Gemini модель + запрос на изображение должна использовать Nano Banana Pro для Gemini модели с запросом на изображение
+src/__tests__/core/openai/requests.test.ts :: answerAi 1. Gemini модель + запрос на изображение должна определять запросы на изображение на английском
+src/__tests__/core/openai/requests.test.ts :: answerAi 2. Обычные текстовые запросы: цепочка поставщиков должна использовать fallback на DeepSeek если OpenRouter недоступен
+src/__tests__/core/openai/requests.test.ts :: answerAi 2. Обычные текстовые запросы: цепочка поставщиков когда не отвечает ни один поставщик — ошибка называет их все
+src/__tests__/core/openai/requests.test.ts :: answerAi 2. Обычные текстовые запросы: цепочка поставщиков основной путь — xAI Grok
 src/__tests__/core/openai/requests.test.ts :: answerAi 3. Определение запросов на изображение НЕ должна использовать Nano Banana Pro для Gemini без запроса на изображение
 src/__tests__/core/openai/requests.test.ts :: answerAi 3. Определение запросов на изображение НЕ должна использовать Nano Banana Pro для не-Gemini моделей
+src/__tests__/core/openai/requests.test.ts :: answerAi 4. System prompt system prompt уходит поставщику вместе с запросом
 src/__tests__/core/openai/requests.test.ts :: answerAi 5. Edge cases должна обрабатывать ошибки сети
+src/__tests__/core/openai/requests.test.ts :: answerAi 5. Edge cases пустой ответ поставщика не выдаётся за ответ
 src/__tests__/core/saveVideoUrlToSupabase.test.ts :: saveVideoUrlToSupabase storage_path без значения — пустая строка, не null (колонка NOT NULL)
 src/__tests__/core/saveVideoUrlToSupabase.test.ts :: saveVideoUrlToSupabase storage_path сохраняется, когда файл действительно у нас
 src/__tests__/core/saveVideoUrlToSupabase.test.ts :: saveVideoUrlToSupabase telegram_id всегда строка
