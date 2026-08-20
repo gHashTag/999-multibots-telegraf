@@ -24,6 +24,7 @@ import {
 } from '@/inngest_app/render-server-client'
 import { HEYGEN_AVATAR_SETS, getVoiceIdForAvatar } from './heygen-avatars-config'
 import { videoTaskStore } from '@/services/video-task-store'
+import { refundAndTell } from '@/price/helpers/refundAndTell'
 
 logger.info('📦 [AI REELS RENDER WIZARD] Module loaded')
 
@@ -1527,23 +1528,20 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
         logger.error('❌ [AI REELS RENDER] Error sending event', { error })
 
-        // Возврат средств при ошибке
-        await updateUserBalance(
+        // Возврат средств при ошибке. Говорим человеку то, что
+        // произошло: начисление может не пройти — updateUserBalance
+        // при неудаче не бросает, а возвращает false.
+        await refundAndTell({
+          ctx,
           telegramId,
-          estimatedCost,
-          PaymentType.MONEY_INCOME,
-          `Refund: AI Reels Render error`,
-          {
-            bot_name: ctx.botInfo?.username || 'unknown_bot',
-            service_type: 'refund',
-          }
-        )
-
-        await ctx.reply(
-          isRu
-            ? '❌ Произошла ошибка при отправке запроса. Средства возвращены.'
-            : '❌ Error sending request. Funds refunded.'
-        )
+          amount: estimatedCost,
+          description: 'Refund: AI Reels Render error',
+          reason: {
+            ru: 'Произошла ошибка при отправке запроса',
+            en: 'An error occurred while sending the request',
+          },
+          isRu,
+        })
       }
 
       // Очистка сессии

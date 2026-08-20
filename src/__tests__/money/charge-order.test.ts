@@ -94,9 +94,13 @@ function findChargeBeforeWork(): Array<{ file: string; line: number; what: strin
         if (!found) continue
 
         const tail = lines.slice(found[0], Math.min(found[0] + TAIL, lines.length)).join('\n')
+        // `refundAndTell` — общая функция возврата, появившаяся позже этой
+        // проверки (PR #544). Без неё в списке разбор считал возвратом только
+        // прямые вызовы и объявлял нарушением как раз те места, где возврат
+        // сделан правильнее прежнего.
         const hasRefund =
           /MONEY_INCOME|PaymentType\.REFUND|refund/i.test(tail) &&
-          /updateUserBalance|refundUser|processBalance/.test(tail)
+          /updateUserBalance|refundUser|refundAndTell|processBalance/.test(tail)
 
         if (!hasRefund) hits.push({ file: f, line: i + 1, what })
         break

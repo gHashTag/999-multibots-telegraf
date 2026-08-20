@@ -23,6 +23,7 @@ import {
   createRenderAvatarPayload,
 } from '@/inngest_app/render-server-client'
 import { calculateAIReelsPrice, formatPriceMessage } from '@/helpers/ai-reels-pricing'
+import { refundAndTell } from '@/price/helpers/refundAndTell'
 
 logger.info('📦 [FAL RENDER WIZARD] Module loaded')
 
@@ -715,23 +716,20 @@ export const falRenderWizard = new Scenes.WizardScene<MyContext>(
       } catch (error) {
         logger.error('❌ [FAL RENDER] Error sending event', { error })
 
-        // Возврат средств при ошибке
-        await updateUserBalance(
+        // Возврат средств при ошибке. Говорим человеку то, что
+        // произошло: начисление может не пройти — updateUserBalance
+        // при неудаче не бросает, а возвращает false.
+        await refundAndTell({
+          ctx,
           telegramId,
-          estimatedCost,
-          PaymentType.MONEY_INCOME,
-          'Refund: Fal Render error',
-          {
-            bot_name: ctx.botInfo?.username || 'unknown_bot',
-            service_type: 'refund',
-          }
-        )
-
-        await ctx.reply(
-          isRu
-            ? '❌ Произошла ошибка при отправке запроса. Средства возвращены.'
-            : '❌ Error sending request. Funds refunded.'
-        )
+          amount: estimatedCost,
+          description: 'Refund: Fal Render error',
+          reason: {
+            ru: 'Произошла ошибка при отправке запроса',
+            en: 'An error occurred while sending the request',
+          },
+          isRu,
+        })
       }
 
       // Очистка сессии

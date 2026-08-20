@@ -441,9 +441,11 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
           })
         }
 
-        // Возвращаем деньги при ошибке
+        // Возвращаем деньги при ошибке. Если списания не было, возвращать
+        // нечего — тогда и сообщать о возврате не надо.
+        let refunded = !charged
         try {
-          if (charged) await updateUserBalance(
+          if (charged) refunded = await updateUserBalance(
             userId.toString(),
             sessionData.cost,
             PaymentType.MONEY_INCOME,
@@ -459,15 +461,31 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
           )
         } catch (refundError) {
           logger.error('Failed to refund user', { refundError, userId, sessionData })
+          refunded = false
+        }
+
+        // Про возврат говорим по факту. updateUserBalance при неудаче НЕ
+        // бросает — она возвращает false (нет строки в users, не прошла
+        // схема, не удалась вставка), поэтому одного try/catch мало.
+        if (!refunded) {
+          logger.error('💸❌ REFUND FAILED — деньги НЕ возвращены', {
+            alert: 'ЧЕЛОВЕКУ НЕ ВЕРНУЛИ ЗВЁЗДЫ ПОСЛЕ НЕУДАЧНОГО ПАРСИНГА',
+            userId,
+            amount: sessionData.cost,
+          })
         }
 
         await ctx.reply(
           isRu
             ? '❌ Произошла ошибка при отправке запроса на сервер.\n\n' +
-              '💰 Средства возвращены на баланс.\n' +
+              (refunded
+                ? '💰 Средства возвращены на баланс.\n'
+                : '💰 Вернуть звёзды автоматически не удалось — напишите в поддержку, приложив это сообщение.\n') +
               'Попробуйте позже или обратитесь в поддержку.'
             : '❌ Error occurred while sending request to server.\n\n' +
-              '💰 Funds have been refunded to your balance.\n' +
+              (refunded
+                ? '💰 Funds have been refunded to your balance.\n'
+                : '💰 Automatic refund failed — please contact support and quote this message.\n') +
               'Try again later or contact support.'
         )
       }
