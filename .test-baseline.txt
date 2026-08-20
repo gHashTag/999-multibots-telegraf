@@ -1024,6 +1024,19 @@ src/__tests__/navigation/z-navigationLogger.test.ts :: navigationLogger logScene
 src/__tests__/navigation/z-navigationLogger.test.ts :: navigationLogger withNavigationLogging() возвращает функцию
 src/__tests__/navigation/z-navigationLogger.test.ts :: navigationLogger withNavigationLogging() оборачивает функцию
 src/__tests__/navigation/z-navigationLogger.test.ts :: navigationLogger withNavigationLogging() пробрасывает ошибки
+src/__tests__/observability/writers-have-callers.test.ts :: наблюдаемость: у каждого писателя есть зовущий 'исход генерации' — кто-то зовёт именно этот символ
+src/__tests__/observability/writers-have-callers.test.ts :: наблюдаемость: у каждого писателя есть зовущий 'исход генерации' — правка на месте
+src/__tests__/observability/writers-have-callers.test.ts :: наблюдаемость: у каждого писателя есть зовущий 'награда за приглашение' — кто-то зовёт именно этот символ
+src/__tests__/observability/writers-have-callers.test.ts :: наблюдаемость: у каждого писателя есть зовущий 'награда за приглашение' — правка на месте
+src/__tests__/observability/writers-have-callers.test.ts :: наблюдаемость: у каждого писателя есть зовущий 'правда о возврате' — кто-то зовёт именно этот символ
+src/__tests__/observability/writers-have-callers.test.ts :: наблюдаемость: у каждого писателя есть зовущий 'правда о возврате' — правка на месте
+src/__tests__/observability/writers-have-callers.test.ts :: наблюдаемость: у каждого писателя есть зовущий 'признак записи видео' — кто-то зовёт именно этот символ
+src/__tests__/observability/writers-have-callers.test.ts :: наблюдаемость: у каждого писателя есть зовущий 'признак записи видео' — правка на месте
+src/__tests__/observability/writers-have-callers.test.ts :: наблюдаемость: у каждого писателя есть зовущий 'причина возврата' — кто-то зовёт именно этот символ
+src/__tests__/observability/writers-have-callers.test.ts :: наблюдаемость: у каждого писателя есть зовущий 'причина возврата' — правка на месте
+src/__tests__/observability/writers-have-callers.test.ts :: наблюдаемость: у каждого писателя есть зовущий 'проверка признака записи' — кто-то зовёт именно этот символ
+src/__tests__/observability/writers-have-callers.test.ts :: наблюдаемость: у каждого писателя есть зовущий 'проверка признака записи' — правка на месте
+src/__tests__/observability/writers-have-callers.test.ts :: наблюдаемость: у каждого писателя есть зовущий каждый писатель действительно экспортирует свой символ
 src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest Bot extractInviteCodeFromContext должен извлекать реферальный код из /start 123456789
 src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest Bot extractInviteCodeFromContext не должен извлекать код из /start promo neurovideo
 src/__tests__/promoLinks.test.ts :: Промо-ссылки в MetaMuse Manifest Bot extractInviteCodeFromContext не должен извлекать код из промо-команд
