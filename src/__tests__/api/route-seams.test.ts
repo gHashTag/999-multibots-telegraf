@@ -69,7 +69,23 @@ function declaredRoutes(file: string): Array<{ method: string; declPath: string 
 const imports = parseImports(indexSrc)
 const mounts = parseMounts(indexSrc)
 
+/**
+ * Файлы роутеров, которые разбор не смог открыть.
+ *
+ * Раньше здесь стоял молчаливый `continue`. Если бы `routeFileFor` перестал
+ * разрешать пути, ВСЕ роутеры отбрасывались бы, и весь этот разбор проходил бы
+ * зелёным, ничего не осмотрев. Такая слепота уже случилась в осмотре секретов:
+ * он не видел 50 файлов и молчал (docs/audit/tool-blindness.md).
+ */
+const skipped: string[] = []
+
 describe('швы маршрутов api_server', () => {
+  it('разбор открыл все файлы роутеров — иначе проверки ниже пусты', () => {
+    // Проверка должна идти ПЕРВОЙ: она объясняет, чего стоят остальные.
+    expect(imports.size).toBeGreaterThan(3)
+    expect(mounts.length).toBeGreaterThan(3)
+  })
+
   it('ни один маршрут не объявлен с префиксом, который уже даёт монтирование', () => {
     const doubled: string[] = []
 
@@ -77,7 +93,10 @@ describe('швы маршрутов api_server', () => {
       const rel = imports.get(varName)
       if (!rel) continue
       const file = routeFileFor(rel)
-      if (!fs.existsSync(file)) continue
+      if (!fs.existsSync(file)) {
+        skipped.push(`${varName} → ${file}`)
+        continue
+      }
       if (mount === '/') continue
 
       for (const { method, declPath } of declaredRoutes(file)) {
@@ -117,7 +136,10 @@ describe('швы маршрутов api_server', () => {
     for (const [varName, rel] of imports) {
       if (!/Router$/i.test(varName)) continue
       const file = routeFileFor(rel)
-      if (!fs.existsSync(file)) continue
+      if (!fs.existsSync(file)) {
+        skipped.push(`${varName} → ${file}`)
+        continue
+      }
       if (!declaredRoutes(file).length) continue
       if (mountedVars.has(varName)) continue
       if (DELIBERATELY_UNMOUNTED[varName]) continue
@@ -152,7 +174,10 @@ describe('швы маршрутов api_server', () => {
         continue
       }
       const file = routeFileFor(rel)
-      if (!fs.existsSync(file)) continue
+      if (!fs.existsSync(file)) {
+        skipped.push(`${varName} → ${file}`)
+        continue
+      }
       for (const { declPath } of declaredRoutes(file)) {
         const full = (mount === '/' ? '' : mount) + declPath
         real.add(full.replace(/\/$/, '') || '/')
@@ -225,5 +250,11 @@ describe('швы маршрутов api_server', () => {
     // Здесь ловится `${API_URL}/webhooks/replicate` — ровно тот случай, из-за
     // которого 17 обучений остались без ответа.
     expect(bad).toEqual([])
+  })
+
+  it('ни один файл роутера не был пропущен из-за неразрешённого пути', () => {
+    // Счётчик наполняется проверками выше. Пустой список означает, что каждый
+    // импортированный роутер действительно осмотрен.
+    expect(skipped).toEqual([])
   })
 })

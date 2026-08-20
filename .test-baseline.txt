@@ -48,6 +48,8 @@ src/__tests__/api/route-seams.test.ts :: швы маршрутов api_server а
 src/__tests__/api/route-seams.test.ts :: швы маршрутов api_server в списке исключений нет тех, кого уже примонтировали
 src/__tests__/api/route-seams.test.ts :: швы маршрутов api_server каждый импортированный в index.ts роутер либо примонтирован, либо назван в списке исключений
 src/__tests__/api/route-seams.test.ts :: швы маршрутов api_server ни один маршрут не объявлен с префиксом, который уже даёт монтирование
+src/__tests__/api/route-seams.test.ts :: швы маршрутов api_server ни один файл роутера не был пропущен из-за неразрешённого пути
+src/__tests__/api/route-seams.test.ts :: швы маршрутов api_server разбор открыл все файлы роутеров — иначе проверки ниже пусты
 src/__tests__/assets/mirror-storage.test.ts :: mirrorToOwnStorage не перекладывает то, что уже лежит у нас
 src/__tests__/assets/mirror-storage.test.ts :: mirrorToOwnStorage не трогает то, что вообще не ссылка
 src/__tests__/assets/mirror-storage.test.ts :: mirrorToOwnStorage перекладывает чужой файл и отдаёт свою ссылку
@@ -2205,6 +2207,12 @@ src/__tests__/services/generateNeuroPhotoDirect.test.ts :: generateNeuroPhotoDir
 src/__tests__/services/generateNeuroPhotoDirect.test.ts :: generateNeuroPhotoDirect 7. Обработка ошибок должна обрабатывать ошибку если пользователь не найден
 src/__tests__/services/generateNeuroPhotoDirect.test.ts :: generateNeuroPhotoDirect 8. Интеграция с Pulse Analytics должна отправлять данные в Pulse после генерации
 src/__tests__/services/generateNeuroPhotoDirect.test.ts :: generateNeuroPhotoDirect 9. Сохранение в сессию для upscaler должна сохранять URL и prompt в сессию
+src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча в src нет исходников с расширением, которое обходы не смотрят
+src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча в списке разрешённых нет инструментов, которые так уже не делают
+src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча все файлы .ts в src читаются как текст
+src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча ни один инструмент не перечисляет файлы без -z
+src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча перечисление БЕЗ -z действительно теряет файлы — иначе проверка выше пустая
+src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча перечисление через git с -z открывается целиком
 src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities handleButtonError should execute fallback action synchronously
 src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities handleButtonError should handle async fallback action
 src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities handleButtonError should handle fallback action that throws
