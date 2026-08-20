@@ -93,8 +93,8 @@ function main() {
   console.log(`самопроверка пройдена: ${SELF_CHECK.length} образцов`)
 
   // --- 1. Файлы в рабочем дереве, ОТСЛЕЖИВАЕМЫЕ git ---------------------
-  const tracked = execSync('git ls-files', { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
-    .split('\n')
+  const tracked = execSync('git ls-files -z', { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+    .split('\0')
     .filter(Boolean)
   const inFiles = new Map()
   for (const f of tracked) {
