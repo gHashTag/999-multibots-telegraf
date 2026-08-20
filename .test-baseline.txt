@@ -582,6 +582,10 @@ src/__tests__/money/money-invariants.test.ts :: карта денег: типы 
 src/__tests__/money/no-fabricated-returns.test.ts :: нет выдуманных возвратов в списке разрешённых нет файлов, где таких возвратов уже нет
 src/__tests__/money/no-fabricated-returns.test.ts :: нет выдуманных возвратов нет выдуманных возвратов вне разрешённых файлов
 src/__tests__/money/no-fabricated-returns.test.ts :: нет выдуманных возвратов разбор что-то находит — иначе тест пустой
+src/__tests__/money/no-invented-price.test.ts :: цена не выдумывается в двух починенных местах выдуманных чисел больше нет
+src/__tests__/money/no-invented-price.test.ts :: цена не выдумывается в денежных путях не появилось новых выдуманных цен
+src/__tests__/money/no-invented-price.test.ts :: цена не выдумывается перед списанием цена проверяется, а не подставляется
+src/__tests__/money/no-invented-price.test.ts :: цена не выдумывается разбор ловит выдуманную цену на заведомом образце
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа в тексте ошибки есть номер счёта — по нему ищут в поддержке
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа ошибка вставки БРОСАЕТ, а не молчит
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа повтор той же записи НЕ бросает — строка уже есть

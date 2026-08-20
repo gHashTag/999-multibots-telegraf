@@ -55,7 +55,11 @@ export async function handleImageToVideoDirect(
     return is_ru ? config.nameRu : config.name
   }
 
-  const getImageToVideoPrice = (modelId: string, aspectRatio?: string): number => {
+  /** Цена или `null`, если посчитать не удалось. Выдумывать нельзя. */
+  const getImageToVideoPrice = (
+    modelId: string,
+    aspectRatio?: string
+  ): number | null => {
     try {
       // Для моделей с разрешением (Seedance, WAN)
       if (modelId === 'seedance-1-pro') {
@@ -66,17 +70,34 @@ export async function handleImageToVideoDirect(
       // Для остальных моделей
       return getUnifiedModelPrice(modelId)
     } catch (error) {
+      // ЦЕНА НЕ ВЫДУМЫВАЕТСЯ. Здесь стояло `return 40 // Fallback price`:
+      // если расчёт падал, с человека списывали сорок звёзд независимо от
+      // того, сколько услуга стоит на самом деле — она может стоить и пять, и
+      // двести.
+      //
+      // Асимметрия та же, что и в остальных денежных местах: отказать —
+      // человек попробует ещё раз; списать не ту сумму — деньги ушли, и он об
+      // этом даже не узнает, потому что в сообщении будет выдуманное число.
       logger.error('[handleImageToVideoDirect] Price calculation failed', {
         modelId,
         aspectRatio,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
-      return 40 // Fallback price
+      return null
     }
   }
 
   const modelName = getModelDisplayName(modelId, is_ru, aspectRatio)
   const price = getImageToVideoPrice(modelId, aspectRatio)
+
+  if (price === null) {
+    await ctx.reply(
+      is_ru
+        ? '❌ Не удалось определить стоимость для этой модели. Деньги не списаны. Попробуйте другую модель или напишите в поддержку.'
+        : '❌ Could not determine the price for this model. You have not been charged. Try another model or contact support.'
+    )
+    return
+  }
 
   // ✅ CHECK BALANCE BEFORE GENERATION
   const { checkUserBalance } = await import('@/helpers/checkUserBalance')
