@@ -83,14 +83,20 @@ describe('швы событий Inngest', () => {
 
   it('каждое имя в INNGEST_EVENTS соответствует реальному подписчику', () => {
     const bad: string[] = []
+    // Считаем осмотренные файлы: если оба исчезнут или переедут, цикл станет
+    // пустым и проверка пройдёт, ничего не проверив. Такая слепота уже
+    // случалась в осмотре секретов (docs/audit/tool-blindness.md).
+    let looked = 0
     for (const file of ['src/inngest_app/client.ts', 'src/inngest_app/inngestClient.ts']) {
       if (!fs.existsSync(file)) continue
+      looked++
       for (const [key, value, line] of collectMapValues(file, 'export const INNGEST_EVENTS')) {
         if (!listeners.has(value)) bad.push(`${file}:${line}  ${key} = '${value}'`)
       }
     }
     // Константа «для типобезопасности», указывающая в пустоту, хуже голой
     // строки: ей доверяют.
+    expect(looked, 'ни одного файла с INNGEST_EVENTS не открыто').toBeGreaterThan(0)
     expect(bad).toEqual([])
   })
 
