@@ -129,7 +129,7 @@ export async function saveVideoUrlHelper(
     modelId,
   })
 
-  await saveVideoUrlToSupabase({
+  const saved = await saveVideoUrlToSupabase({
     telegramId,
     publicUrl: videoUrl,
     storagePath: videoPath,
@@ -137,5 +137,18 @@ export async function saveVideoUrlHelper(
     triggerWord: 'video',
     text: 'Generated video',
   })
+
+  // Молчать здесь нельзя: именно этот путь обслуживает image_to_video, у
+  // которого с января 2026 НИ ОДНО списание не имеет следа в assets при сотне
+  // списаний. Пока отказ не виден в журнале, вопрос «получил ли человек
+  // видео» остаётся без ответа (docs/audit/paid-nothing-made.md).
+  if (!saved) {
+    logger.error('🎬❌ [saveVideoUrlHelper] Видео НЕ записано в assets', {
+      alert: 'ГЕНЕРАЦИЯ ОПЛАЧЕНА, СЛЕДА НЕТ',
+      telegramId,
+      modelId,
+      videoUrl: String(videoUrl).slice(0, 80),
+    })
+  }
 }
 

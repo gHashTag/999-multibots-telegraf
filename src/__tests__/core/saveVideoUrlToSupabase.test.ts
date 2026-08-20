@@ -70,14 +70,20 @@ describe('saveVideoUrlToSupabase', () => {
   })
 
   it('НЕ пишет строку, если вместо ссылки пришёл служебный id', async () => {
-    await saveVideoUrlToSupabase({
+    // ПОПРАВКА К ПРЕЖНЕЙ ВЕРСИИ. Проверялось, что случай попадает в
+    // предупреждения. Предупреждений в этом проекте тысячи, они тонут — а
+    // случай означает «генерация оплачена, следа нет». Теперь это ошибка с
+    // отдельной формулировкой, и функция возвращает false, чтобы вызывающий
+    // мог узнать об отказе.
+    const ok = await saveVideoUrlToSupabase({
       telegramId: '144022504',
       publicUrl: 'kling_lipsync_1755229300876_144022504',
       type: 'kling_lipsync',
     })
 
     expect(insert).not.toHaveBeenCalled()
-    expect(logger.warn).toHaveBeenCalled()
+    expect(ok).toBe(false)
+    expect(logger.error).toHaveBeenCalled()
   })
 
   it('НЕ пишет строку при пустой ссылке — обновить её потом нечем', async () => {
@@ -134,7 +140,12 @@ describe('saveVideoUrlToSupabase', () => {
     expect(row().storage_path).toBe('videos/a.mp4')
   })
 
-  it('ошибка вставки логируется и не роняет вызывающий код', async () => {
+  it('ошибка вставки не роняет вызывающий код, но видна ему', async () => {
+    // ПОПРАВКА К ПРЕЖНЕЙ ВЕРСИИ. Проверялось, что функция возвращает
+    // undefined. Это и было дефектом: вызывающий не мог отличить записанное от
+    // незаписанного, и вопрос «получил ли человек видео» оставался без ответа
+    // (docs/audit/paid-nothing-made.md). Ронять по-прежнему нельзя — видео уже
+    // сгенерировано и отправлено; но отказ обязан быть видимым.
     insert.mockResolvedValue({ error: { message: 'boom' } })
 
     await expect(
@@ -143,7 +154,7 @@ describe('saveVideoUrlToSupabase', () => {
         publicUrl: 'https://example.com/a.mp4',
         type: 'video',
       })
-    ).resolves.toBeUndefined()
+    ).resolves.toBe(false)
 
     expect(logger.error).toHaveBeenCalled()
   })
