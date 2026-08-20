@@ -618,6 +618,12 @@ src/__tests__/money/robokassa-order.test.ts :: порядок обработки
 src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты подпись проверяется раньше любых изменений
 src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты разбор находит ключевые шаги — иначе тест пустой
 src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты человеку сообщают об успехе ПОСЛЕ отметки
+src/__tests__/money/stuck-trainings-visible.test.ts :: застрявшее обучение видно человеку в тексте названы срок и то, что деньги вернут
+src/__tests__/money/stuck-trainings-visible.test.ts :: застрявшее обучение видно человеку долгое обучение попадает в список
+src/__tests__/money/stuck-trainings-visible.test.ts :: застрявшее обучение видно человеку недавнее обучение в список НЕ попадает
+src/__tests__/money/stuck-trainings-visible.test.ts :: застрявшее обучение видно человеку при отказе базы возвращается пусто, а не падение
+src/__tests__/money/stuck-trainings-visible.test.ts :: застрявшее обучение видно человеку свежее обучение застрявшим не считается
+src/__tests__/money/stuck-trainings-visible.test.ts :: застрявшее обучение видно человеку сцены действительно показывают это сообщение
 src/__tests__/money/unchecked-money-result.test.ts :: результат денежной операции не выбрасывается в списке долга нет уже вычищенных файлов
 src/__tests__/money/unchecked-money-result.test.ts :: результат денежной операции не выбрасывается долг не растёт ни в одном файле
 src/__tests__/money/unchecked-money-result.test.ts :: результат денежной операции не выбрасывается новых файлов с выброшенным результатом не появилось

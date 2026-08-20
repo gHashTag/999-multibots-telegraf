@@ -95,12 +95,21 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     const { subscriptionType } = await getReferalsCountAndUserData(telegramId)
 
     if (!userModels || userModels.length === 0) {
-      await ctx.reply(
-        isRu
-          ? '❌ У вас нет обученных моделей для нейрофото.\n\nИспользуйте команду "🤖 Цифровое тело аватара", в главном меню, чтобы создать свою ИИ модель для генерации нейрофото с вашим лицом. '
-          : "❌ You don't have any trained models for neurophotos.\n\nUse the '🤖  Digital avatar body' command in the main menu to create your AI model for generating neurophotos with your face."
+      // «Моделей нет» — не вся правда, если обучение шло и застряло. У
+      // @Ludmila две записи висят в running с июля 2025; она заплатила 1210
+      // звёзд и видела только это сообщение. Скажем прямо, что застряло.
+      const { getStuckTrainings, stuckTrainingsMessage } = await import(
+        '@/core/supabase/getStuckTrainings'
       )
-      
+      const stuck = await getStuckTrainings(telegramId)
+
+      await ctx.reply(
+        (isRu
+          ? '❌ У вас нет обученных моделей для нейрофото.\n\nИспользуйте команду "🤖 Цифровое тело аватара", в главном меню, чтобы создать свою ИИ модель для генерации нейрофото с вашим лицом. '
+          : "❌ You don't have any trained models for neurophotos.\n\nUse the '🤖  Digital avatar body' command in the main menu to create your AI model for generating neurophotos with your face.") +
+          (stuck.length ? '\n\n' + stuckTrainingsMessage(stuck, isRu) : '')
+      )
+
       // ✅ ИСПРАВЛЕНО: Используем CancelButtonService для правильного показа меню
       const { CancelButtonService } = await import('@/navigation')
       await CancelButtonService.executeMainMenu(ctx)
