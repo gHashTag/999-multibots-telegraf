@@ -1,4 +1,20 @@
 /**
+ * ЭТОТ МОДУЛЬ НЕ ИСПОЛНЯЕТСЯ.
+ *
+ * Зарегистрирована другая копия — `functions/generation/neuroImageGeneration`
+ * (registerFunctions.ts:31). Эта не импортируется НИКЕМ, кроме тестов, и
+ * отличается от живой на 244 строки: то есть это не свежий дубль, а
+ * разошедшаяся ветка.
+ *
+ * Проверено `scripts/probe-will-it-write.cjs`, зафиксировано в
+ * `src/__tests__/inngest/registration.test.ts` (список
+ * DELIBERATELY_UNREGISTERED).
+ *
+ * Пометка здесь, а не только в тесте, потому что правку в этот файл вносят
+ * открыв именно его: на этой неделе я сам добавил сюда параметр `outcome`,
+ * не заметив, что файл мёртв. Удаление — решение владельца: расхождение в 244
+ * строки может содержать нужную работу.
+ *
  * Neuro Image Generation Inngest Function
  * Adapted from ai-server for multibots-telegraf
  */
