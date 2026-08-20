@@ -21,6 +21,26 @@ vi.mock('@/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 
+/**
+ * ЗАЧЕМ ЭТА ЗАГЛУШКА. Без неё тест ходил в сеть по-настоящему:
+ * saveVideoUrlToSupabase зовёт mirrorToOwnStorage, а тот СКАЧИВАЕТ файл по
+ * адресу из аргумента и кладёт его в наше хранилище.
+ *
+ * Проверки проходили только потому, что зеркалирование по контракту при любой
+ * неудаче возвращает исходную ссылку — а `https://replicate.delivery/xezq/abc/
+ * out.mp4` не существует. То есть тест зависел от того, что сеть ОТКАЖЕТ.
+ *
+ * Отсюда и нестабильность: `npm run test:gate` поймал этот файл как «зелёный
+ * со второго раза». Единичный флак обесценивает проверку постепенно —
+ * «регрессий нет» перестаёт что-либо значить, если часть красного считается
+ * шумом.
+ *
+ * Зеркалирование проверяется отдельно, в src/__tests__/assets/mirror-storage.test.ts.
+ */
+vi.mock('@/core/supabase/mirrorToStorage', () => ({
+  mirrorToOwnStorage: vi.fn(async (url: string) => url),
+}))
+
 import { saveVideoUrlToSupabase } from '@/core/supabase/saveVideoUrlToSupabase'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
