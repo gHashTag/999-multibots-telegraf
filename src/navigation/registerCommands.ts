@@ -108,6 +108,7 @@ import expenseAnalysisCommand from '@/commands/expenseAnalysisCommand'
 import { setupAutoFixerCommands } from '@/commands/autofixer/autofixer.command'
 import { autoFixerConfigScene } from '@/commands/autofixer/autofixer-config.scene'
 import { requireAdmin } from '@/middleware/adminOnly'
+import { handlePromoReelCommand } from '@/handlers/promoReelCommand'
 import { setupAutonomousMonitor } from '@/commands/autonomousMonitor'
 import {
   createBusinessMiddleware,
@@ -349,6 +350,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     // 👑 АДМИНСКИЕ КОМАНДЫ
     bot.command('addbalance', requireAdmin(), handleAddBalanceCommand)
     bot.command('checkbalance', requireAdmin(), handleCheckBalanceCommand)
+    // Промо-рилс через удалённый рендер (vibee-render на Railway) — первый
+    // живой мост бота к рендер-серверу; бесплатный, без списаний.
+    bot.command('promoreel', requireAdmin(), handlePromoReelCommand)
 
     // 🤖 АВТОФИКСЕР КОМАНДЫ
     setupAutoFixerCommands(bot)
