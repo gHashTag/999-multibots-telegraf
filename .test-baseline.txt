@@ -600,6 +600,11 @@ src/__tests__/money/prompt-outcome.test.ts :: исход генерации за
 src/__tests__/money/prompt-outcome.test.ts :: исход генерации записывается каждый вызов передаёт исход
 src/__tests__/money/prompt-outcome.test.ts :: исход генерации записывается разбор находит вызовы — иначе тест пустой
 src/__tests__/money/prompt-outcome.test.ts :: исход генерации записывается у исхода нет значения по умолчанию
+src/__tests__/money/referral-on-topup.test.ts :: награда за первое пополнение приглашённого есть пригласивший — награда уходит ему по telegram_id
+src/__tests__/money/referral-on-topup.test.ts :: награда за первое пополнение приглашённого отказ базы не роняет обработку пополнения
+src/__tests__/money/referral-on-topup.test.ts :: награда за первое пополнение приглашённого у кого нет пригласившего — награды нет
+src/__tests__/money/referral-on-topup.test.ts :: награда привязана к пополнению, а не к приходу награда стоит ПОСЛЕ отметки об оплате
+src/__tests__/money/referral-on-topup.test.ts :: награда привязана к пополнению, а не к приходу обработчик оплаты зовёт награду
 src/__tests__/money/referral-reward.test.ts :: награда за приглашение выключенная награда не доходит до начисления
 src/__tests__/money/referral-reward.test.ts :: награда за приглашение номер счёта не содержит времени и случайности
 src/__tests__/money/referral-reward.test.ts :: награда за приглашение номер счёта одинаков при повторе той же пары
