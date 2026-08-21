@@ -3,12 +3,32 @@ import { fetchCaptions } from "./lib/fetchCaptions";
 import { getVideoMetadata } from "@remotion/media-utils";
 import { Composition } from "remotion";
 import { SplitTalkingHead, SplitTalkingHeadSchema } from "./compositions/SplitTalkingHead";
+import { RelaunchReel, RelaunchReelSchema } from "./compositions/RelaunchReel";
 import { resolveMediaPath } from "./shared/mediaPath";
 import { CAPTION_DEFAULTS, DEFAULT_MUSIC_VOLUME, DEFAULT_AVATAR_CONFIG } from "./constants/captions";
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
+      {/* RelaunchReel — промо «рилсы прямо в боте». Без внешних медиа:
+          рендерится где угодно без сети, в отличие от SplitTalkingHead. */}
+      <Composition
+        id="RelaunchReel"
+        component={RelaunchReel}
+        durationInFrames={540}
+        fps={30}
+        width={1080}
+        height={1920}
+        schema={RelaunchReelSchema}
+        defaultProps={{
+          botHandle: "@neuro_blogger_bot",
+          ctaCommand: "/start",
+          accentA: "#7C3AED",
+          accentB: "#06B6D4",
+          accentC: "#F472B6",
+        }}
+      />
+
       {/* SplitTalkingHead - Main template */}
       <Composition
         id="SplitTalkingHead"

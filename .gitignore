@@ -435,3 +435,8 @@ mobile/node_modules/
 .metro-health-check*
 # Stars withdrawal session
 scripts/stars-withdrawal/session.json
+
+# Python venvs и артефакты локального рендера
+tools/tts/.venv/
+tools/tts/*.wav
+apps/vibee-editor/render/out/
