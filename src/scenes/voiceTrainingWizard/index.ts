@@ -46,6 +46,13 @@ interface WizardState {
   modelName?: string
 }
 
+/**
+ * Получатель события мёртв: voiceTrainingRVC не зарегистрирована, таблицы
+ * voice_models в базе нет. Пока это так — сцена отказывает на входе, не
+ * взяв денег. Подробности у блока отказа в шаге 1.
+ */
+const VOICE_TRAINING_DISCONNECTED = true
+
 export const voiceTrainingWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.VoiceTraining,
 
@@ -62,6 +69,27 @@ export const voiceTrainingWizard = new Scenes.WizardScene<MyContext>(
     }
 
     logger.info('[VOICE_TRAINING] Wizard started', { telegramId })
+
+    // ЧЕСТНЫЙ ОТКАЗ: услуга не может быть оказана, поэтому не продаётся.
+    //
+    // Событие voice/training.start никто не слушает — voiceTrainingRVC не
+    // зарегистрирована (src/__tests__/inngest/registration.test.ts), а
+    // таблицы voice_models в базе нет (HTTP 404). Сцена же до сих пор
+    // списывала 100⭐, падала на записи в БД и возвращала деньги — измерено:
+    // единственная попытка за всю историю (2025-12-16) прошла ровно этот круг
+    // (scripts/probe-training-charges.cjs).
+    //
+    // Тот же приём, что с парсингом Instagram (PR #510): отправитель
+    // отказывает честно, пока получатель мёртв. Включать обратно — поставить
+    // false ПОСЛЕ регистрации функции и создания таблицы.
+    if (VOICE_TRAINING_DISCONNECTED) {
+      await ctx.reply(
+        isRu
+          ? '🚧 Обучение голоса временно недоступно.\n\nМы работаем над этим. Загляните позже.'
+          : '🚧 Voice training is temporarily unavailable.\n\nWe are working on it. Please check back later.'
+      )
+      return ctx.scene.leave()
+    }
 
     // Инициализация состояния
     ctx.session.wizardData = {
@@ -219,7 +247,9 @@ export const voiceTrainingWizard = new Scenes.WizardScene<MyContext>(
       Markup.inlineKeyboard([
         [
           Markup.button.callback(
-            isRu ? `✅ Начать обучение (${cost}⭐)` : `✅ Start training (${cost}⭐)`,
+            isRu
+              ? `✅ Начать обучение (${cost}⭐)`
+              : `✅ Start training (${cost}⭐)`,
             'confirm_training'
           ),
         ],
@@ -253,29 +283,29 @@ async function showInstructions(ctx: MyContext, isRu: boolean) {
 
   const text = isRu
     ? `🎤 *Обучение голоса для AI Cover*\n\n` +
-        `Загрузите аудио с вашим голосом для обучения модели.\n\n` +
-        `📋 *Требования:*\n` +
-        `• Длительность: ${minAudioDuration} сек - ${maxAudioDuration / 60} мин\n` +
-        `• Форматы: MP3, WAV, OGG, M4A, FLAC\n` +
-        `• Качество: чистый голос без музыки и шума\n\n` +
-        `💡 *Рекомендации:*\n` +
-        `• Говорите чётко и естественно\n` +
-        `• Используйте тихое место\n` +
-        `• Избегайте эха и фонового шума\n\n` +
-        `💰 *Стоимость:* ${cost}⭐ (один раз)\n` +
-        `⏱️ *Время обучения:* 5-10 минут`
+      `Загрузите аудио с вашим голосом для обучения модели.\n\n` +
+      `📋 *Требования:*\n` +
+      `• Длительность: ${minAudioDuration} сек - ${maxAudioDuration / 60} мин\n` +
+      `• Форматы: MP3, WAV, OGG, M4A, FLAC\n` +
+      `• Качество: чистый голос без музыки и шума\n\n` +
+      `💡 *Рекомендации:*\n` +
+      `• Говорите чётко и естественно\n` +
+      `• Используйте тихое место\n` +
+      `• Избегайте эха и фонового шума\n\n` +
+      `💰 *Стоимость:* ${cost}⭐ (один раз)\n` +
+      `⏱️ *Время обучения:* 5-10 минут`
     : `🎤 *Voice Training for AI Cover*\n\n` +
-        `Upload audio with your voice to train the model.\n\n` +
-        `📋 *Requirements:*\n` +
-        `• Duration: ${minAudioDuration} sec - ${maxAudioDuration / 60} min\n` +
-        `• Formats: MP3, WAV, OGG, M4A, FLAC\n` +
-        `• Quality: clean voice without music and noise\n\n` +
-        `💡 *Recommendations:*\n` +
-        `• Speak clearly and naturally\n` +
-        `• Use a quiet place\n` +
-        `• Avoid echo and background noise\n\n` +
-        `💰 *Cost:* ${cost}⭐ (one time)\n` +
-        `⏱️ *Training time:* 5-10 minutes`
+      `Upload audio with your voice to train the model.\n\n` +
+      `📋 *Requirements:*\n` +
+      `• Duration: ${minAudioDuration} sec - ${maxAudioDuration / 60} min\n` +
+      `• Formats: MP3, WAV, OGG, M4A, FLAC\n` +
+      `• Quality: clean voice without music and noise\n\n` +
+      `💡 *Recommendations:*\n` +
+      `• Speak clearly and naturally\n` +
+      `• Use a quiet place\n` +
+      `• Avoid echo and background noise\n\n` +
+      `💰 *Cost:* ${cost}⭐ (one time)\n` +
+      `⏱️ *Training time:* 5-10 minutes`
 
   await ctx.reply(text, {
     parse_mode: 'Markdown',
@@ -318,6 +348,18 @@ voiceTrainingWizard.action('confirm_training', async ctx => {
   const isRu = isRussianFromState(ctx)
   const telegramId = ctx.from?.id?.toString()
 
+  // Дублирует отказ на входе: сегодня сюда не добраться (сессии in-memory),
+  // но при переезде на персистентные сессии старая клавиатура снова смогла бы
+  // списать за мёртвую услугу.
+  if (VOICE_TRAINING_DISCONNECTED) {
+    await ctx.reply(
+      isRu
+        ? '🚧 Обучение голоса временно недоступно.'
+        : '🚧 Voice training is temporarily unavailable.'
+    )
+    return ctx.scene.leave()
+  }
+
   if (!telegramId) {
     await ctx.reply(isRu ? '❌ Ошибка авторизации' : '❌ Authorization error')
     return ctx.scene.leave()
@@ -326,12 +368,22 @@ voiceTrainingWizard.action('confirm_training', async ctx => {
   const state = ctx.session.wizardData as WizardState
   if (!state?.audioFileId) {
     await ctx.reply(
-      isRu ? '❌ Аудио не найдено. Попробуйте снова.' : '❌ Audio not found. Try again.'
+      isRu
+        ? '❌ Аудио не найдено. Попробуйте снова.'
+        : '❌ Audio not found. Try again.'
     )
     return ctx.scene.leave()
   }
 
   const cost = getVoiceTrainingCost()
+  // Списание состоялось? Возврат в catch разрешён только при true: проверка
+  // баланса ниже означает «денег хватало», а не «деньги списаны». Ошибка ДО
+  // списания иначе оборачивалась возвратом несписанного — класс «возврат без
+  // списания», docs/audit/first-touch.md (126 из 171 возврата).
+  let charged = false
+  // Возврат уже выполнялся? Если reply внутри refundAndTell бросит ПОСЛЕ
+  // успешного начисления, внешний catch не должен начислить второй раз.
+  let refundHandled = false
 
   try {
     // 1. Проверка баланса
@@ -346,12 +398,27 @@ voiceTrainingWizard.action('confirm_training', async ctx => {
     }
 
     // 2. Списание баланса
-    await updateUserBalance(
+    charged = await updateUserBalance(
       telegramId,
       cost,
       PaymentType.MONEY_OUTCOME,
       'Voice training'
     )
+    if (!charged) {
+      // Результат раньше выбрасывался: отказ списания (гонка баланса,
+      // отклонённая вставка) запускал обучение бесплатно — тот же класс,
+      // из-за которого три визарда годами не списывали (SERVICE_PAYMENT).
+      logger.error('[VOICE_TRAINING] Charge failed — training not started', {
+        telegramId,
+        cost,
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Не удалось списать средства. Попробуйте ещё раз.'
+          : '❌ Failed to deduct the stars. Please try again.'
+      )
+      return ctx.scene.leave()
+    }
 
     logger.info('[VOICE_TRAINING] Balance deducted', {
       telegramId,
@@ -381,6 +448,7 @@ voiceTrainingWizard.action('confirm_training', async ctx => {
         error: uploadError.message,
       })
       // Возврат. Сообщение зависит от того, прошло ли начисление на самом деле.
+      refundHandled = true
       await refundAndTell({
         ctx,
         telegramId,
@@ -451,26 +519,32 @@ voiceTrainingWizard.action('confirm_training', async ctx => {
       error: error instanceof Error ? error.message : String(error),
     })
 
-    // Попытка возврата средств
-    try {
-      await updateUserBalance(
+    if (charged && !refundHandled) {
+      // Раньше результат возврата выбрасывался (updateUserBalance не бросает,
+      // а возвращает false — try/catch вокруг него ничего не ловил), и
+      // «Средства возвращены» говорилось, не зная этого. Сообщение теперь
+      // зависит от того, вернулись ли звёзды на самом деле.
+      await refundAndTell({
+        ctx,
         telegramId,
-        cost,
-        PaymentType.REFUND,
-        'Voice training refund - error'
-      )
-    } catch (refundError) {
-      logger.error('[VOICE_TRAINING] Refund failed', {
-        telegramId,
-        error: refundError instanceof Error ? refundError.message : String(refundError),
+        amount: cost,
+        description: 'Voice training refund - error',
+        reason: { ru: 'Произошла ошибка', en: 'An error occurred' },
+        isRu,
+        type: PaymentType.REFUND,
       })
+    } else if (!charged) {
+      // Списания не было — возвращать нечего.
+      await ctx.reply(
+        isRu
+          ? '❌ Произошла ошибка. Средства не списывались.'
+          : '❌ An error occurred. No funds were deducted.'
+      )
+    } else {
+      // Возврат уже отработан веткой выше, упала только доставка сообщения —
+      // о деньгах не утверждаем ничего, чтобы не соврать.
+      await ctx.reply(isRu ? '❌ Произошла ошибка.' : '❌ An error occurred.')
     }
-
-    await ctx.reply(
-      isRu
-        ? '❌ Произошла ошибка. Средства возвращены. Попробуйте позже.'
-        : '❌ An error occurred. Funds refunded. Try again later.'
-    )
     return ctx.scene.leave()
   }
 })
