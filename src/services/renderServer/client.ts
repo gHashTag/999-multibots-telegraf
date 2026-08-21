@@ -47,7 +47,9 @@ export async function renderOnServer(params: {
 
   const headers: Record<string, string> = {}
   if (process.env.RENDER_API_KEY) {
-    headers.Authorization = `Bearer ${process.env.RENDER_API_KEY}`
+    // Именно X-Api-Key: сервер отвечает 401 на Authorization: Bearer —
+    // проверено живым запросом («no X-Api-Key and no Telegram initData»).
+    headers['X-Api-Key'] = process.env.RENDER_API_KEY
   }
 
   const submit = await axios.post(

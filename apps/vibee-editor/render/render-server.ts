@@ -38,8 +38,17 @@ function getVideoDuration(videoPath: string): number {
 const PORT = process.env.PORT || 3333;
 const OUTPUT_DIR = process.env.OUTPUT_DIR || "./out";
 
-// Optimal concurrency based on CPU cores (75% of available cores, min 2)
-const OPTIMAL_CONCURRENCY = Math.max(2, Math.floor(os.cpus().length * 0.75));
+// Параллельность рендера. «75% ядер» на Railway смертельно: os.cpus() видит
+// ядра ХОСТА (48), сервер открывал 36 вкладок Chrome, каждая декодировала
+// видео — и контейнер умирал по памяти мгновенным «Page crashed!» на КАЖДОМ
+// рендере с настоящим видео (замерено 21.08.2026, renderId 65365cbe и
+// 97d2e93b). Память контейнера не растёт вместе с ядрами хоста, поэтому
+// потолок фиксированный, а не относительный. RENDER_CONCURRENCY — ручка.
+const OPTIMAL_CONCURRENCY = Math.max(
+  1,
+  Number(process.env.RENDER_CONCURRENCY) ||
+    Math.min(4, Math.floor(os.cpus().length * 0.75))
+);
 console.log(`🔧 CPU cores: ${os.cpus().length}, using concurrency: ${OPTIMAL_CONCURRENCY}`);
 
 // S3/Tigris Configuration
