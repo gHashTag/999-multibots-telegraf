@@ -42,7 +42,17 @@ const PUBLIC_PREFIXES = ['/renders/', '/hls/', '/public/', '/s3/', '/proxy/image
 // /api/assets/:telegram_id намеренно НЕ здесь: это личная история генераций
 // конкретного пользователя, а не публичная лента. Открытый GET по ней отдавал
 // бы промпты и ссылки любого, кто знает telegram_id — а он в Telegram виден.
-const PUBLIC_GET_PREFIXES = ['/api/feed', '/api/users/', '/compositions', '/api/voices']
+// /templates рядом с /compositions: это витрина шаблонов (описания, поля,
+// правила канона), а не чьи-то данные. Мини-апп показывает её до входа,
+// иначе выбрать шаблон можно только вслепую. Рендер по шаблону — POST /render —
+// по-прежнему требует ключа.
+const PUBLIC_GET_PREFIXES = [
+  '/api/feed',
+  '/api/users/',
+  '/compositions',
+  '/templates',
+  '/api/voices',
+]
 
 export function isPublic(req: IncomingMessage): boolean {
   const url = (req.url || '').split('?')[0]

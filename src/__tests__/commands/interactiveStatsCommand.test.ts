@@ -81,8 +81,10 @@ describe('interactiveStatsCommand', () => {
   })
 
   describe('Production bots list', () => {
-    it('should have all 11 production bots defined', () => {
-      // The list of all 11 production bots that super-admin should see
+    it('should have all 12 production bots defined', () => {
+      // The list of all 12 production bots that super-admin should see.
+      // Пин против src/commands/interactiveStatsCommand.ts (PRODUCTION_BOTS):
+      // добавил бота туда — добавь и сюда.
       const EXPECTED_PRODUCTION_BOTS = [
         'neuro_blogger_bot',
         'MetaMuse_Manifest_bot',
@@ -95,11 +97,12 @@ describe('interactiveStatsCommand', () => {
         'AI_STARS_bot',
         'HaimGroupMedia_bot',
         'OM_AI_Digital_studio_bot',
+        't27ai_bot',
       ]
 
-      expect(EXPECTED_PRODUCTION_BOTS).toHaveLength(11)
+      expect(EXPECTED_PRODUCTION_BOTS).toHaveLength(12)
       expect(EXPECTED_PRODUCTION_BOTS).toContain('neuro_blogger_bot')
-      expect(EXPECTED_PRODUCTION_BOTS).toContain('OM_AI_Digital_studio_bot')
+      expect(EXPECTED_PRODUCTION_BOTS).toContain('t27ai_bot')
     })
   })
 

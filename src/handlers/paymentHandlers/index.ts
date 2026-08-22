@@ -76,6 +76,114 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
     return
   }
 
+  // 🏛 Клуб «Золотая Литейная» (@t27ai_bot): payload `foundry-<tier>_<stars>_<ts>`.
+  // Ветка стоит ДО общего разбора: иначе parts[0] не найдётся в
+  // paymentOptionsPlans и оплата клуба молча запишется как пополнение баланса.
+  if (payload?.startsWith('foundry-')) {
+    const { parseFoundryPayload, replyClubWelcome } = await import(
+      '@/handlers/foundryClub'
+    )
+    const club = parseFoundryPayload(payload)
+    try {
+      if (!club) {
+        throw new Error(`Malformed foundry payload: ${payload}`)
+      }
+      await setPayments({
+        telegram_id: normalizedUserId,
+        OutSum: club.stars.toString(),
+        InvId: payload,
+        currency: Currency.XTR,
+        stars: club.stars,
+        status: PaymentStatus.COMPLETED,
+        payment_method: 'Telegram',
+        subscription_type: club.tier.subscriptionType,
+        bot_name: botUsername,
+        language: ctx.from?.language_code ?? 'en',
+        type: PaymentType.MONEY_INCOME,
+        metadata: {
+          telegram_payment_charge_id: telegramPaymentChargeId,
+          provider_payment_charge_id: providerPaymentChargeId,
+          invoice_payload: payload,
+          username,
+          club: 'golden_foundry',
+          club_tier: club.tier.key,
+        },
+      })
+
+      // Компенсирующее списание. get_user_balance суммирует все COMPLETED
+      // MONEY_INCOME без фильтра по subscription_type, поэтому без этой записи
+      // взнос за клуб целиком превратился бы в расходуемый баланс генераций
+      // (12499⭐ членства = 12499⭐ на видео за счёт владельца). Пара
+      // income+outcome оставляет доход видимым в отчётах, а баланс — нулевым.
+      await setPayments({
+        telegram_id: normalizedUserId,
+        OutSum: club.stars.toString(),
+        InvId: `${payload}_membership`,
+        currency: Currency.XTR,
+        stars: club.stars,
+        status: PaymentStatus.COMPLETED,
+        payment_method: 'Telegram',
+        subscription_type: null,
+        bot_name: botUsername,
+        language: ctx.from?.language_code ?? 'en',
+        type: PaymentType.MONEY_OUTCOME,
+        service_type: 'golden_foundry_membership',
+        cost: 0,
+        metadata: {
+          invoice_payload: payload,
+          username,
+          club: 'golden_foundry',
+          club_tier: club.tier.key,
+          note: 'membership fee is not a spendable balance top-up',
+        },
+      })
+
+      const { getSubScribeChannel } = await import(
+        '@/handlers/getSubScribeChannel'
+      )
+      const channelId = await getSubScribeChannel(ctx).catch(() => null)
+      await replyClubWelcome(ctx, club.tier, channelId)
+
+      await notifyBotOwners(botUsername, {
+        username,
+        telegram_id: userId.toString(),
+        amount: club.stars,
+        stars: club.stars,
+        subscription: `Golden Foundry / ${club.tier.key}`,
+      })
+      await telegramLogService.logPayment({
+        telegramId: userId.toString(),
+        username,
+        amount: club.stars,
+        currency: 'XTR',
+        stars: club.stars,
+        method: 'Telegram Stars',
+        botName: botUsername,
+      })
+
+      logger.info('[handleSuccessfulPayment] Golden Foundry membership paid', {
+        telegram_id: normalizedUserId,
+        tier: club.tier.key,
+        stars: club.stars,
+      })
+      await ctx.scene.leave()
+    } catch (error) {
+      // Деньги уже списаны Telegram'ом: не молчим и не маскируем.
+      logger.error('❌ [handleSuccessfulPayment] Foundry branch failed', {
+        error: error instanceof Error ? error.message : String(error),
+        telegram_id: normalizedUserId,
+        payload,
+      })
+      await ctx.reply(
+        isRu
+          ? 'Оплата прошла, но при активации клуба возникла ошибка. Напишите admin@t27.ai — активируем вручную.'
+          : 'The payment went through, but club activation failed. Write to admin@t27.ai — we will activate it manually.'
+      )
+      await ctx.scene.leave()
+    }
+    return
+  }
+
   let subscriptionType: SubscriptionType | null = null
   let starsFromPayload: number | null = null
   let purchasedPlanText: string | null = null

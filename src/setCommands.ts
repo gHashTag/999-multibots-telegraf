@@ -59,27 +59,32 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
 
     // Устанавливаем команды только для приватных чатов
     // ✅ УДАЛЕН /menu - теперь /start показывает главное меню напрямую
-    await bot.telegram.setMyCommands(
-      [
-        {
-          command: 'start',
-          description: '📟 Главное меню / Main menu',
-        },
-        {
-          command: 'support',
-          description: '🛠 Tech Support / Техподдержка',
-        },
-        {
-          command: 'price',
-          description: '⭐️ Price / Цена',
-        },
-      ],
+    const privateCommands = [
       {
-        scope: {
-          type: 'all_private_chats',
-        },
-      }
-    )
+        command: 'start',
+        description: '📟 Главное меню / Main menu',
+      },
+      {
+        command: 'support',
+        description: '🛠 Tech Support / Техподдержка',
+      },
+      {
+        command: 'price',
+        description: '⭐️ Price / Цена',
+      },
+    ]
+    // Клубный бот показывает вход в «Золотую Литейную» прямо в меню
+    if (botName === 't27ai_bot') {
+      privateCommands.splice(1, 0, {
+        command: 'club',
+        description: '🏛 Золотая Литейная / Golden Foundry',
+      })
+    }
+    await bot.telegram.setMyCommands(privateCommands, {
+      scope: {
+        type: 'all_private_chats',
+      },
+    })
 
     // Устанавливаем команды для владельца бота (опционально - может не сработать если владелец не начал чат)
     // ✅ УДАЛЕН /menu - теперь /start показывает главное меню напрямую

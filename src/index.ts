@@ -601,10 +601,10 @@ async function startApplication() {
     } else if (env === 'staging' || env === 'prod') {
       // ✅ STAGING/PRODUCTION: 10 ботов (BOT_TOKEN_1-10)
       console.log(
-        `🚀 [Infisical] ${env === 'staging' ? 'Staging' : 'Production'} окружение - загружаем 10 ботов`
+        `🚀 [Infisical] ${env === 'staging' ? 'Staging' : 'Production'} окружение - загружаем 12 ботов`
       )
 
-      for (let i = 1; i <= 10; i++) {
+      for (let i = 1; i <= 12; i++) {
         const tokenKey = `BOT_TOKEN_${i}`
         try {
           process.env[tokenKey] = getSecret(tokenKey)

@@ -35,6 +35,7 @@ const BOT_TOKENS_ALL: string[] = [
   process.env.BOT_TOKEN_9,
   process.env.BOT_TOKEN_10,
   process.env.BOT_TOKEN_11,
+  process.env.BOT_TOKEN_12,
 ]
 
 // 🔐 Продакшн токены (BOT_TOKEN_1-11)
@@ -50,6 +51,7 @@ const BOT_TOKENS_PROD: string[] = [
   process.env.BOT_TOKEN_9,
   process.env.BOT_TOKEN_10,
   process.env.BOT_TOKEN_11,
+  process.env.BOT_TOKEN_12,
 ].filter(Boolean)
 
 // Маппинг имен ботов на токены (зависит от окружения)
@@ -66,6 +68,8 @@ export const BOT_NAMES: Record<BotName, string> = {
   ['AI_STARS_bot']: process.env.BOT_TOKEN_9,
   ['HaimGroupMedia_bot']: process.env.BOT_TOKEN_10,
   ['OM_AI_Digital_studio_bot']: process.env.BOT_TOKEN_11,
+  // Клуб «Золотая Литейная» (Golden Foundry)
+  ['t27ai_bot']: process.env.BOT_TOKEN_12,
 
   // Dev боты (BOT_TOKEN_1-2 в dev)
   ['ai_koshey_bot']: process.env.BOT_TOKEN_1,
@@ -262,6 +266,7 @@ export function getBotNameByUsername(username: string): {
     haimgroupmedia_bot: 'HaimGroupMedia_bot', // case-insensitive
     OM_AI_Digital_studio_bot: 'OM_AI_Digital_studio_bot',
     om_ai_digital_studio_bot: 'OM_AI_Digital_studio_bot', // case-insensitive
+    t27ai_bot: 't27ai_bot',
     // Dev боты
     ai_koshey_bot: 'ai_koshey_bot',
     clip_maker_neuro_bot: 'clip_maker_neuro_bot',

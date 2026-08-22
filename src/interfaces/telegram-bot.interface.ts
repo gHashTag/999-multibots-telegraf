@@ -176,6 +176,7 @@ export type BotName =
   | 'TestNeurocoder_bot'
   | 'HaimGroupMedia_bot'
   | 'OM_AI_Digital_studio_bot'
+  | 't27ai_bot'
 
 export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   cursor: number
@@ -273,6 +274,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   }
   email?: string
   inviteCode?: string
+  /** Deep-link t.me/t27ai_bot?start=foundry: показать клуб после регистрации */
+  foundryDeepLink?: boolean
   inviter?: string
   paymentAmount?: number
   botName?: string

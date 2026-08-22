@@ -5,6 +5,7 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition, renderStill, getCompositions } from "@remotion/renderer";
 import path from "node:path";
 import { authenticate, authMode } from "./auth";
+import { TEMPLATE_CARDS } from "./src/templates/registry";
 import fs from "node:fs";
 import { randomUUID, createHmac } from "node:crypto";
 import { execSync } from "node:child_process";
@@ -1563,6 +1564,41 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Generation failed" }));
       }
     });
+    return;
+  }
+
+  // Витрина шаблонов для мини-аппа: человеку нужен не только id композиции,
+  // но и что это за шаблон, какие поля заполнять и по каким правилам канона.
+  //
+  // Витрина НЕ является источником правды о существовании шаблона: список
+  // пересекается с реальным бандлом (тот же урок, что и у /compositions —
+  // рукописный список неизбежно расходится с кодом). Наружу уходят только те
+  // карточки, которые действительно можно отрендерить.
+  if (req.url === "/templates" && req.method === "GET") {
+    try {
+      const comps = await knownCompositions();
+      const byId = new Map(comps.map(c => [c.id, c]));
+      const templates = TEMPLATE_CARDS.filter(t => byId.has(t.id)).map(t => {
+        const c = byId.get(t.id)!;
+        return {
+          ...t,
+          width: c.width,
+          height: c.height,
+          fps: c.fps,
+          durationInFrames: c.durationInFrames,
+        };
+      });
+      const missing = TEMPLATE_CARDS.filter(t => !byId.has(t.id)).map(t => t.id);
+      if (missing.length) {
+        console.warn("[templates] карточки без композиции в бандле:", missing.join(", "));
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ templates }));
+    } catch (error) {
+      console.error("Templates error:", error);
+      res.writeHead(503, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "bundle not ready" }));
+    }
     return;
   }
 
