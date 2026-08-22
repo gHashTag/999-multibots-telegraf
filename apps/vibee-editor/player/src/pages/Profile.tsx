@@ -14,6 +14,7 @@ import { Header } from '@/components/Header';
 import { ProfileHeader, ProfileTabs, ProfileEdit } from '@/components/Profile';
 import { TelegramLoginButton } from '@/components/Auth';
 import '@/components/Profile/Profile.css';
+import { LoginModal } from '@/components/Auth/LoginModal';
 
 export function ProfilePage() {
   const { t } = useLanguage();
@@ -107,21 +108,7 @@ export function ProfilePage() {
         </div>
 
         {/* Login Modal */}
-        {showLoginModal && (
-          <div className="login-modal-overlay" onClick={() => setShowLoginModal(false)}>
-            <div className="login-modal" onClick={(e) => e.stopPropagation()}>
-              <h2>{t('login.title')}</h2>
-              <p>{t('login.subtitle')}</p>
-              <div className="login-modal-widget">
-                <TelegramLoginButton
-                  onSuccess={() => setShowLoginModal(false)}
-                  size="large"
-                  showFallback={true}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        <LoginModal />
       </div>
     </>
   );

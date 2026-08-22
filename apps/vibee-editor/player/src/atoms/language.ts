@@ -219,6 +219,14 @@ const en: Translations = {
 
   // Login Modal
   "login.title": "Login to Export",
+  "login.tgSignedTitle": "You are already signed in",
+  "login.tgSignedBody": "Telegram already identified you — no separate login exists inside the Mini App.",
+  "login.tgContinue": "Continue",
+  "templates.canons": "Server templates",
+  "templates.noneOnServer": "The server has no renderable templates yet.",
+  "common.close": "Close",
+  "login.tgUnsignedTitle": "Open the app from the menu button",
+  "login.tgUnsignedBody": "This launch carries no signed data, so the server cannot verify who you are. Open the app from the bot's menu button or an inline button, and everything will work.",
   "login.subtitle": "Sign in with Telegram to get 3 free video renders!",
   "login.button": "Login",
   "login.buttonFull": "Sign in with Telegram",
@@ -1705,6 +1713,14 @@ const ru: Translations = {
 
   // Login Modal
   "login.title": "Войдите для экспорта",
+  "login.tgSignedTitle": "Вы уже вошли",
+  "login.tgSignedBody": "Telegram уже определил вас — отдельного входа внутри мини-аппа не существует.",
+  "login.tgContinue": "Продолжить",
+  "templates.canons": "Шаблоны сервера",
+  "templates.noneOnServer": "На сервере пока нет шаблонов, готовых к рендеру.",
+  "common.close": "Закрыть",
+  "login.tgUnsignedTitle": "Откройте приложение кнопкой меню",
+  "login.tgUnsignedBody": "Этот запуск не несёт подписанных данных, и сервер не может подтвердить, кто вы. Откройте приложение через кнопку меню бота или инлайн-кнопку — и всё заработает.",
   "login.subtitle": "Войдите через Telegram и получите 3 бесплатных рендера!",
   "login.button": "Войти",
   "login.buttonFull": "Войти через Telegram",

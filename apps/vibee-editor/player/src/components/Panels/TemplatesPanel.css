@@ -153,3 +153,31 @@
   border-color: rgba(245, 158, 11, 0.3);
   color: var(--vibee-amber);
 }
+
+/* Каноны сервера — отдельная секция над личными пресетами */
+.template-section {
+  margin-bottom: 20px;
+}
+.template-section-title {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin: 0 0 8px 2px;
+}
+.template-empty {
+  padding: 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  font-size: 13px;
+  opacity: 0.75;
+}
+.template-error {
+  border-color: rgba(255, 120, 120, 0.4);
+  opacity: 1;
+}
+.template-card-meta {
+  font-size: 11px;
+  opacity: 0.55;
+  margin-top: 2px;
+}

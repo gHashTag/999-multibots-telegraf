@@ -26,6 +26,7 @@ import { X, Zap, Keyboard, Instagram, Link2, Unlink, Loader2 } from 'lucide-reac
 import { TelegramLoginButton, UserAvatar, PaywallModal } from '@/components/Auth';
 import { RemixBadge } from '@/components/RemixBadge';
 import './styles.css';
+import { LoginModal } from '@/components/Auth/LoginModal';
 
 // Page navigation tabs - 5 main tabs
 const NAV_TABS = [
@@ -541,21 +542,7 @@ export function Header({ wsStatus, wsClientId }: HeaderProps) {
       <PaywallModal />
 
       {/* Login Modal */}
-      {showLoginModal && (
-        <div className="login-modal-overlay" onClick={() => setShowLoginModal(false)}>
-          <div className="login-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>{t('login.title')}</h2>
-            <p>{t('login.subtitle')}</p>
-            <div className="login-modal-widget">
-              <TelegramLoginButton
-                onSuccess={() => setShowLoginModal(false)}
-                size="large"
-                showFallback={true}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <LoginModal />
 
       </header>
     </>

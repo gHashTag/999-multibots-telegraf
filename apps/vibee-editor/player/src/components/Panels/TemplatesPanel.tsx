@@ -1,6 +1,12 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { templatesAtom, selectedTemplateIdAtom, selectTemplateAtom, removeTemplateAtom, addTemplateAtom, saveCurrentSettingsAtom, templateSettingsAtom, coverImageAtom, type Template } from '@/atoms';
+import {
+  serverTemplatesAtom,
+  serverTemplatesLoadingAtom,
+  serverTemplatesErrorAtom,
+  loadServerTemplatesAtom,
+} from '@/atoms/serverTemplates';
 import { useLanguage } from '@/hooks/useLanguage';
 import { LayoutTemplate, Check, Trash2, Plus, Download, Upload } from 'lucide-react';
 import './TemplatesPanel.css';
@@ -19,6 +25,17 @@ export function TemplatesPanel() {
   const templateSettings = useAtomValue(templateSettingsAtom);
   const currentCoverImage = useAtomValue(coverImageAtom);
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+
+  // Настоящие шаблоны сервера. Локальный массив остаётся личными
+  // пресетами человека, но выбирать КАНОН (нуар / сплит / гравюра) можно
+  // только из того, что сервер реально умеет отрендерить.
+  const serverTemplates = useAtomValue(serverTemplatesAtom);
+  const serverLoading = useAtomValue(serverTemplatesLoadingAtom);
+  const serverError = useAtomValue(serverTemplatesErrorAtom);
+  const loadServerTemplates = useSetAtom(loadServerTemplatesAtom);
+  useEffect(() => {
+    void loadServerTemplates();
+  }, [loadServerTemplates]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExportSettings = () => {
@@ -106,6 +123,46 @@ export function TemplatesPanel() {
 
   return (
     <div className="templates-panel">
+      {/* Каноны сервера: единственный источник правды о том, что рендерится */}
+      <div className="template-section">
+        <div className="template-section-title">{t('templates.canons')}</div>
+        {serverLoading ? (
+          <div className="template-empty">{t('common.loading')}</div>
+        ) : serverError ? (
+          <div className="template-empty template-error">{serverError}</div>
+        ) : serverTemplates.length === 0 ? (
+          <div className="template-empty">{t('templates.noneOnServer')}</div>
+        ) : (
+          <div className="template-grid">
+            {serverTemplates.map(tpl => (
+              <div
+                key={tpl.id}
+                className={`template-card ${selectedTemplateId === tpl.id ? 'selected' : ''}`}
+                onClick={() => selectTemplate(tpl.id)}
+                title={tpl.about}
+              >
+                <div
+                  className="template-card-cover"
+                  style={{
+                    backgroundImage: tpl.poster ? `url(${tpl.poster})` : undefined,
+                    borderColor: tpl.accent,
+                  }}
+                />
+                <div className="template-card-body">
+                  <div className="template-card-name" style={{ color: tpl.accent }}>
+                    {tpl.title}
+                  </div>
+                  <div className="template-card-desc">{tpl.tagline}</div>
+                  <div className="template-card-meta">
+                    {tpl.width}×{tpl.height} · {tpl.fps} fps
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Grid of template cards */}
       <div className="template-grid">
         {templates.map((template) => {

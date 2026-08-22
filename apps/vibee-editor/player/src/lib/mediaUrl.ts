@@ -47,6 +47,16 @@ export function toAbsoluteUrl(path: string): string {
     return path;
   }
 
+  // Пути рендер-сервера резолвятся против НЕГО, а не против редактора.
+  //
+  // POST /upload возвращает относительный /s3/<key>, а /renders/<id>.mp4 —
+  // готовый файл. Оба живут на рендер-сервере. Склейка с origin редактора
+  // давала 404 на его собственном nginx: человек загружал файл, получал
+  // «успех» и пустое место вместо ассета.
+  if (path.startsWith('/s3/') || path.startsWith('/renders/') || path.startsWith('/hls/')) {
+    return `${RENDER_SERVER_URL}${path}`;
+  }
+
   // Relative path — resolve against THIS app's origin, not the render server's.
   //
   // These paths (/lipsync/lipsync.mp4, /backgrounds/business/bg*.mp4,

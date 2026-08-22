@@ -57,7 +57,6 @@ const HIDDEN_EXACT = new Set([
   '/privacy-policy',
   '/terms-service',
   '/terms-of-service',
-  '/token',
 ]);
 const HIDDEN_PREFIXES = ['/instagram/'];
 

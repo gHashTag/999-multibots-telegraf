@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAtomValue, useSetAtom, useAtom } from 'jotai';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useToast } from '@/hooks/useToast';
+import { authHeaders, explainApiError } from '@/lib/apiFetch';
 import {
   projectAtom,
   tracksAtom,
@@ -160,6 +161,14 @@ export function Timeline({ orientation = 'horizontal', hideBrowser = true }: Tim
 
   // Jotai atoms - прямое использование
   const project = useAtomValue(projectAtom);
+  // Вкладка «ассеты бота» читала botAssets/botLoading/botError, которых в
+  // файле не было объявлено вообще: атомы импортировались, но ни один
+  // useAtomValue их не разворачивал. Вкладка падала на первом же рендере.
+  const botAssets = useAtomValue(botAssetsAtom);
+  const botLoading = useAtomValue(botAssetsLoadingAtom);
+  const botError = useAtomValue(botAssetsErrorAtom);
+  const loadBotAssets = useSetAtom(loadBotAssetsAtom);
+
   const tracks = useAtomValue(tracksAtom);
   const currentFrame = useAtomValue(currentFrameAtom);
   const isPlaying = useAtomValue(isPlayingAtom);
@@ -187,6 +196,13 @@ export function Timeline({ orientation = 'horizontal', hideBrowser = true }: Tim
   // Browser atoms
   const filteredAssets = useAtomValue(filteredAssetsAtom);
   const [category, setCategory] = useAtom(browserCategoryAtom);
+
+  // История генераций бота подтягивается при переходе на вкладку, а не при
+  // монтировании: запрос защищённый и незачем дёргать его тем, кто вкладку
+  // не открывал.
+  useEffect(() => {
+    if (category === 'bot') void loadBotAssets();
+  }, [category, loadBotAssets]);
   const [browserSearch, setBrowserSearch] = useAtom(browserSearchAtom);
   const [isUploading, setIsUploading] = useAtom(browserUploadingAtom);
   const [uploadProgress, setUploadProgress] = useAtom(browserUploadProgressAtom);
@@ -1239,7 +1255,7 @@ export function Timeline({ orientation = 'horizontal', hideBrowser = true }: Tim
       if (user) {
         fetch(`${RENDER_SERVER_URL}/api/notify/render-start`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders(),
           body: JSON.stringify({
             telegram_id: user.id,
             username: user.username,
@@ -1253,7 +1269,9 @@ export function Timeline({ orientation = 'horizontal', hideBrowser = true }: Tim
       console.log('[Export] Sending render request to:', `${RENDER_SERVER_URL}/render`);
       const renderRes = await fetch(`${RENDER_SERVER_URL}/render`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // Без подписи сервер в режиме enforce отвечает 401, и рендер не
+        // стартует вообще — именно это выглядело как «кнопка не работает».
+        headers: authHeaders(),
         body: JSON.stringify({
           type: 'video',
           compositionId: DEFAULT_COMPOSITION_ID,
@@ -1273,6 +1291,22 @@ export function Timeline({ orientation = 'horizontal', hideBrowser = true }: Tim
       });
 
       console.log('[Export] Render response status:', renderRes.status);
+      if (!renderRes.ok) {
+        // Раньше статус не проверялся: тело 401 {error, detail, hint}
+        // проваливалось в ветку неуспеха, и человек видел общий текст вместо
+        // настоящей причины.
+        let detail = '';
+        try {
+          const body = await renderRes.json();
+          detail = body?.detail || body?.error || '';
+        } catch {
+          detail = '';
+        }
+        const err: any = new Error(detail || `HTTP ${renderRes.status}`);
+        err.status = renderRes.status;
+        err.detail = detail;
+        throw err;
+      }
       const result = await renderRes.json();
       console.log('[Export] Render result:', result);
 
