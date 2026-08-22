@@ -25,6 +25,7 @@ import {
   useVideoConfig,
   spring,
   interpolate,
+  OffthreadVideo,
 } from 'remotion';
 import { z } from 'zod';
 import { Captions, type Caption } from '../components/Captions';
@@ -348,10 +349,9 @@ const BRollLayer: React.FC<BRollLayerProps> = ({ segment, width, height, segment
             }}
           />
         ) : (
-          <Video
+          <OffthreadVideo
             src={resolveMediaPath(segment.bRollUrl)}
             startFrom={0}
-            pauseWhenBuffering
             style={{
               width: '100%',
               height: '100%',
@@ -869,11 +869,10 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
 
             // Video element
             const videoElement = (
-              <Video
+              <OffthreadVideo
                 src={resolveMediaPath(lipSyncVideo)}
                 volume={videoVolume}
-                pauseWhenBuffering
-                style={{
+                    style={{
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
@@ -940,11 +939,10 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
               : {};
 
             const videoElement = (
-              <Video
+              <OffthreadVideo
                 src={resolveMediaPath(lipSyncVideo)}
                 volume={videoVolume}
-                pauseWhenBuffering
-                style={{
+                    style={{
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
