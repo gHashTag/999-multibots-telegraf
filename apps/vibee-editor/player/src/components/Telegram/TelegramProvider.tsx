@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSetAtom } from 'jotai';
 import { useTelegramWebApp } from '@/hooks/useTelegramWebApp';
 import { getWebApp, isTelegram } from '@/lib/telegram';
+import { telegramAutoLoginAtom } from '@/atoms/telegramAuth';
 
 // ===============================
 // Mounts the Telegram runtime wiring. Must render INSIDE <BrowserRouter>
@@ -49,6 +51,16 @@ export function TelegramProvider() {
 
   const navigate = useNavigate();
   const redirected = useRef(false);
+  const autoLogin = useSetAtom(telegramAutoLoginAtom);
+
+  // Личность берётся из launch-данных сразу на монтировании. Без этого
+  // userAtom внутри мини-аппа не заполнялся вообще ничем, и человек упирался
+  // в модалку «Login to Export», у которой внутри Telegram нет ни одной
+  // кнопки.
+  useEffect(() => {
+    const r = autoLogin();
+    if (r?.applied) console.log('[TelegramAuth] вход из launch-данных');
+  }, [autoLogin]);
 
   useEffect(() => {
     if (redirected.current) return;

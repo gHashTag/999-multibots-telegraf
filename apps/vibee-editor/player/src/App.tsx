@@ -26,7 +26,6 @@ const TemplatesPage = lazy(() => import('@/pages/Templates'));
 const InstagramCallbackPage = lazy(() => import('@/pages/InstagramCallback'));
 const PrivacyPolicyPage = lazy(() => import('@/pages/PrivacyPolicy'));
 const TermsServicePage = lazy(() => import('@/pages/TermsService'));
-const TokenPage = lazy(() => import('@/pages/Token'));
 const LearnPage = lazy(() => import('@/pages/Learn'));
 
 // Redirect /profile to /:username for current user
@@ -79,7 +78,6 @@ function App() {
                   <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
                   <Route path="/terms-service" element={<TermsServicePage />} />
                   <Route path="/terms-of-service" element={<TermsServicePage />} />
-                  <Route path="/token" element={<TokenPage />} />
                   <Route path="/learn" element={<LearnPage />} />
                   <Route path="/profile" element={<ProfileRedirect />} />
                   <Route path="/:username" element={<ProfilePage />} />

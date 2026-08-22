@@ -29,7 +29,35 @@ import type { IncomingMessage } from 'node:http'
 // или режима.
 const mode = () => (process.env.RENDER_AUTH_MODE || 'warn').toLowerCase()
 const apiKey = () => process.env.RENDER_API_KEY || ''
-const botToken = () => process.env.TELEGRAM_BOT_TOKEN || ''
+
+/**
+ * ВСЕ токены ботов платформы, а не один.
+ *
+ * initData подписывается токеном ТОГО бота, из которого открыли мини-апп, а
+ * ботов на платформе двенадцать. Пока здесь читался один TELEGRAM_BOT_TOKEN,
+ * вход работал ровно из одного бота, а из остальных человек упирался в
+ * «Login to Export» без объяснения причины.
+ *
+ * Второй, более коварный случай, который это же чинит: TELEGRAM_BOT_TOKEN мог
+ * содержать УСТАРЕВШИЙ токен того же бота (id совпадает, строка нет) — тогда
+ * подпись не сходилась вообще ни у кого, а симптом выглядел как «мини-апп
+ * сломался». Перебор списка переживает ротацию одного значения.
+ *
+ * В имени токена бот не закодирован, поэтому подходящий ищется перебором.
+ * HMAC дешёвый: двенадцать проверок — микросекунды.
+ */
+const botTokens = (): string[] => {
+  const out: string[] = []
+  const push = (t?: string) => {
+    const v = (t || '').trim()
+    if (v && !out.includes(v)) out.push(v)
+  }
+  push(process.env.TELEGRAM_BOT_TOKEN)
+  for (let i = 1; i <= 20; i++) push(process.env[`BOT_TOKEN_${i}`])
+  push(process.env.BOT_TOKEN_TEST_1)
+  push(process.env.BOT_TOKEN_TEST_2)
+  return out
+}
 
 /** Открыто всегда: health для Railway и отдача уже отрендеренных файлов. */
 const PUBLIC_EXACT = new Set(['/health'])
@@ -69,9 +97,16 @@ export function isPublic(req: IncomingMessage): boolean {
  * где data_check_string — все пары кроме hash, отсортированные по ключу,
  * склеенные через \n.
  */
-export function verifyTelegramInitData(initData: string): { ok: boolean; reason?: string } {
-  const token = botToken()
-  if (!token) return { ok: false, reason: 'TELEGRAM_BOT_TOKEN not set on the server' }
+export function verifyTelegramInitData(initData: string): {
+  ok: boolean
+  reason?: string
+  /** id бота, чьей подписью initData сошлась — для журнала и атрибуции. */
+  botId?: string
+} {
+  const tokens = botTokens()
+  if (!tokens.length) {
+    return { ok: false, reason: 'no bot tokens configured on the server' }
+  }
   if (!initData) return { ok: false, reason: 'empty initData' }
 
   let params: URLSearchParams
@@ -90,13 +125,27 @@ export function verifyTelegramInitData(initData: string): { ok: boolean; reason?
     .map(([k, v]) => `${k}=${v}`)
     .join('\n')
 
-  const secret = crypto.createHmac('sha256', 'WebAppData').update(token).digest()
-  const expected = crypto.createHmac('sha256', secret).update(checkString).digest('hex')
-
-  // timingSafeEqual бросает на разной длине, поэтому длину сверяем заранее.
-  if (expected.length !== hash.length) return { ok: false, reason: 'hash length mismatch' }
-  if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(hash))) {
-    return { ok: false, reason: 'hash mismatch' }
+  // Подпись сверяется с КАЖДЫМ известным токеном: initData подписан ботом, из
+  // которого открыли мини-апп, и заранее неизвестно каким именно.
+  let matchedBotId: string | undefined
+  for (const token of tokens) {
+    const secret = crypto.createHmac('sha256', 'WebAppData').update(token).digest()
+    const expected = crypto.createHmac('sha256', secret).update(checkString).digest('hex')
+    // timingSafeEqual бросает на разной длине, поэтому длину сверяем заранее.
+    if (expected.length !== hash.length) continue
+    if (crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(hash))) {
+      matchedBotId = token.split(':')[0]
+      break
+    }
+  }
+  if (!matchedBotId) {
+    // Причина названа полно: «hash mismatch» без числа ботов отправлял
+    // диагностику в подпись, тогда как дело обычно в устаревшем или
+    // отсутствующем токене нужного бота.
+    return {
+      ok: false,
+      reason: `hash mismatch: подпись не сошлась ни с одним из ${tokens.length} известных токенов ботов`,
+    }
   }
 
   // Просроченный launch. Подпись остаётся валидной вечно, поэтому без этой
@@ -105,7 +154,7 @@ export function verifyTelegramInitData(initData: string): { ok: boolean; reason?
   const ageHours = (Date.now() / 1000 - authDate) / 3600
   if (!authDate || ageHours > 24) return { ok: false, reason: `initData is ${ageHours.toFixed(1)}h old` }
 
-  return { ok: true }
+  return { ok: true, botId: matchedBotId }
 }
 
 export interface AuthResult {
