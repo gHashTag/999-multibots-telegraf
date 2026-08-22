@@ -21,6 +21,7 @@ import {
   handleClubCommand,
   registerClubActions,
 } from '@/handlers/foundryClub'
+import { handleFactoryCommand } from '@/handlers/factoryCommand'
 import { Scenes } from 'telegraf'
 import { message } from 'telegraf/filters'
 
@@ -358,6 +359,9 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
       await handleClubCommand(ctx)
     })
     registerClubActions(bot)
+
+    // 🏭 КОНТЕНТ-ЗАВОД: рилс из текста. Админская — прогон платный.
+    bot.command('factory', requireAdmin(), handleFactoryCommand)
 
     // 👑 АДМИНСКИЕ КОМАНДЫ
     bot.command('addbalance', requireAdmin(), handleAddBalanceCommand)
