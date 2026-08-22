@@ -5,6 +5,14 @@ export enum SubscriptionType {
   PRO = 'PRO',
   STUDIO = 'STUDIO',
 
+  // --- Клуб «Золотая Литейная» (@t27ai_bot) ---
+  // Отдельный продукт: НЕ участвует в getSubscriptionTier / приоритете
+  // платформенных подписок. Активность клуба читается напрямую из
+  // payments_v2.subscription_type (см. handlers/foundryClub).
+  CLUB_APPRENTICE = 'CLUB_APPRENTICE',
+  CLUB_MASTER = 'CLUB_MASTER',
+  CLUB_FOUNDER = 'CLUB_FOUNDER',
+
   // --- Legacy types (kept for backward compatibility) ---
   /** @deprecated Maps to PRO tier. Use SubscriptionType.PRO instead. */
   NEUROPHOTO = 'NEUROPHOTO',

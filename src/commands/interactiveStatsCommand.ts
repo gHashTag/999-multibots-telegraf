@@ -156,6 +156,7 @@ async function showBotSelection(
         'AI_STARS_bot',
         'HaimGroupMedia_bot',
         'OM_AI_Digital_studio_bot',
+        't27ai_bot',
       ]
       availableBots = PRODUCTION_BOTS
     } else {

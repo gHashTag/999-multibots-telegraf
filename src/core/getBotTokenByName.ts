@@ -11,6 +11,7 @@ const botNameToTokenEnvMap: Record<string, string> = {
   Gaia_Kamskaia_bot: 'BOT_TOKEN_7',
   Kaya_easy_art_bot: 'BOT_TOKEN_8',
   AI_STARS_bot: 'BOT_TOKEN_9',
+  t27ai_bot: 'BOT_TOKEN_12', // Клуб «Золотая Литейная»
   ai_koshey_bot: 'BOT_TOKEN_TEST_1', // Тестовый бот 1
   clip_maker_neuro_bot: 'BOT_TOKEN_TEST_2', // Тестовый бот 2
   // Добавьте других ботов по мере необходимости

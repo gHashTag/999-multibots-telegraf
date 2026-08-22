@@ -17,6 +17,10 @@ import { getReferalsCountAndUserData } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { defaultSession } from '@/store'
 import { extractPromoFromContext } from '@/helpers/contextUtils'
+import {
+  handleClubCommand,
+  registerClubActions,
+} from '@/handlers/foundryClub'
 import { Scenes } from 'telegraf'
 import { message } from 'telegraf/filters'
 
@@ -345,6 +349,15 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
     // 🎯 ИНТЕРАКТИВНАЯ КОМАНДА СТАТИСТИКИ
     setupInteractiveStats(bot)
+
+    // 🏛 КЛУБ «ЗОЛОТАЯ ЛИТЕЙНАЯ» (Golden Foundry, @t27ai_bot)
+    bot.command(['club', 'foundry'], async ctx => {
+      if (ctx.chat.type !== 'private') {
+        return sendGroupCommandReply(ctx)
+      }
+      await handleClubCommand(ctx)
+    })
+    registerClubActions(bot)
 
     // 👑 АДМИНСКИЕ КОМАНДЫ
     bot.command('addbalance', requireAdmin(), handleAddBalanceCommand)
@@ -1071,6 +1084,13 @@ export function createStage(): Scenes.Stage<MyContext> {
     }
     return next()
   })
+  stage.command(['club', 'foundry'], async (ctx, next) => {
+    if (ctx.scene.current) {
+      console.log('🔴 [stage.command] /club intercepted, leaving scene:', ctx.scene.current.id)
+      await ctx.scene.leave()
+    }
+    return next()
+  })
 
   return stage
 }
@@ -1259,7 +1279,8 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
       ctx.session = { ...defaultSession }
       console.log('🔴 [DEBUG /start] Session RESET done')
 
-      // Handle start parameters (invite code)
+      // Handle start parameters (invite code / клуб)
+      let wantsFoundryClub = false
       if (ctx.message && 'text' in ctx.message) {
         const parts = ctx.message.text.split(' ')
         if (parts.length > 1) {
@@ -1271,6 +1292,10 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
           if (!promoInfo?.isPromo && /^\d+$/.test(startParam)) {
             ctx.session.inviteCode = startParam
             logger.info('Referral code set', { telegramId, startParam })
+          } else if (/^(club|foundry)$/i.test(startParam)) {
+            // Ссылка с лендинга t27.ai/foundry: t.me/t27ai_bot?start=foundry
+            wantsFoundryClub = true
+            logger.info('Foundry deep-link', { telegramId, startParam })
           }
         }
       }
@@ -1289,6 +1314,9 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         console.log('🔴 [DEBUG /start] Entering CreateUserScene...')
         await ctx.scene.enter(ModeEnum.CreateUserScene)
         console.log('🔴 [DEBUG /start] CreateUserScene entered')
+      } else if (wantsFoundryClub) {
+        console.log('🔴 [DEBUG /start] Foundry deep-link, showing club...')
+        await handleClubCommand(ctx)
       } else {
         console.log('🔴 [DEBUG /start] User exists, showing main menu...')
         await navShowMainMenu(ctx)
