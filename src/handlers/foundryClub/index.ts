@@ -73,12 +73,6 @@ export function getClubTierByKey(key: string): ClubTier | undefined {
   return CLUB_TIERS.find(t => t.key === key)
 }
 
-export function getClubTierBySubscriptionType(
-  type: string
-): ClubTier | undefined {
-  return CLUB_TIERS.find(t => t.subscriptionType === type)
-}
-
 /**
  * Разбирает payload инвойса клуба вида `foundry-master_3999_1755859200000`.
  * Возвращает null, если это не клубный payload или он повреждён.
@@ -96,8 +90,32 @@ export function parseFoundryPayload(
   return { tier, stars }
 }
 
-/** Питч клуба + кнопки уровней. Доступно всем: /club, /foundry, deep-link. */
+export const CLUB_BOT_USERNAME = 't27ai_bot'
+const CLUB_BOT_LINK = `https://t.me/${CLUB_BOT_USERNAME}?start=foundry`
+
+/**
+ * Клуб продаётся только в @t27ai_bot: registerCommands вешает команды на все
+ * боты платформы, а оплата в чужом боте записала бы доход чужому владельцу
+ * (bot_name берётся из ctx.botInfo) и дала бы кнопку не на тот канал.
+ */
+function isClubBot(ctx: MyContext): boolean {
+  return ctx.botInfo?.username === CLUB_BOT_USERNAME
+}
+
+async function redirectToClubBot(ctx: MyContext): Promise<void> {
+  const isRu = isRussianFromState(ctx)
+  await ctx.reply(
+    isRu
+      ? `🏛 Клуб «Золотая Литейная» живёт в отдельном боте: ${CLUB_BOT_LINK}`
+      : `🏛 The Golden Foundry club lives in its own bot: ${CLUB_BOT_LINK}`
+  )
+}
+
+/** Питч клуба + кнопки уровней. /club, /foundry, deep-link — только в клубном боте. */
 export async function handleClubCommand(ctx: MyContext): Promise<void> {
+  if (!isClubBot(ctx)) {
+    return redirectToClubBot(ctx)
+  }
   const isRu = isRussianFromState(ctx)
 
   const text = isRu
@@ -142,6 +160,10 @@ export function registerClubActions(bot: Telegraf<MyContext>): void {
   bot.action(/^club_buy_(apprentice|master|founder)$/, async ctx => {
     await ctx.answerCbQuery() // ВСЕГДА первой строкой
 
+    if (!isClubBot(ctx)) {
+      return redirectToClubBot(ctx)
+    }
+
     const isRu = isRussianFromState(ctx)
     const tier = getClubTierByKey(ctx.match[1])
     if (!tier) {
@@ -153,9 +175,10 @@ export function registerClubActions(bot: Telegraf<MyContext>): void {
     }
 
     const loc = isRu ? tier.ru : tier.en
-    // Формат payload закреплён: parseFoundryPayload() и ветка клуба в
-    // handleSuccessfulPayment разбирают именно `foundry-<tier>_<stars>_<ts>`.
-    const payload = `${FOUNDRY_PAYLOAD_PREFIX}${tier.key}_${tier.stars}_${Date.now()}`
+    // Формат payload закреплён: parseFoundryPayload() читает первые два
+    // сегмента `foundry-<tier>_<stars>`; telegram_id в хвосте делает inv_id
+    // уникальным даже при двух оплатах в одну миллисекунду.
+    const payload = `${FOUNDRY_PAYLOAD_PREFIX}${tier.key}_${tier.stars}_${ctx.from?.id ?? 0}_${Date.now()}`
 
     try {
       await ctx.replyWithInvoice({
@@ -220,19 +243,41 @@ Next steps:
 
 Questions: admin@t27.ai`
 
-  const buttons: { text: string; url: string }[][] = []
-  if (channelId) {
-    const url = channelId.startsWith('@')
-      ? `https://t.me/${channelId.slice(1)}`
-      : channelId.startsWith('http')
-      ? channelId
-      : `https://t.me/${channelId}`
-    buttons.push([
-      { text: isRu ? '🏛 Войти в Литейную' : '🏛 Enter the Foundry', url },
-    ])
+  if (!channelId) {
+    // Канал клуба не настроен (нет строки avatars для клубного бота).
+    // Обещать кнопку, которой нет, нельзя: человек уже заплатил.
+    logger.error('[foundryClub] Paid membership but club channel is not set', {
+      telegram_id: ctx.from?.id,
+      tier: tier.key,
+      hint: 'INSERT INTO avatars (telegram_id, bot_name, "group") — канал клуба',
+    })
+    await ctx.reply(
+      isRu
+        ? `🏛 Добро пожаловать в Золотую Литейную, уровень «${loc.name}»!
+
+Оплата получена. Инвайт в закрытый канал придёт сюда в течение суток — канал сейчас подключается.
+
+Присылай свой RTL прямо в этот чат. Вопросы: admin@t27.ai`
+        : `🏛 Welcome to the Golden Foundry, tier "${loc.name}"!
+
+Payment received. The invite to the private channel will arrive here within a day — the channel is being set up.
+
+Send your RTL right here in this chat. Questions: admin@t27.ai`
+    )
+    return
   }
 
+  const url = channelId.startsWith('@')
+    ? `https://t.me/${channelId.slice(1)}`
+    : channelId.startsWith('http')
+    ? channelId
+    : `https://t.me/${channelId}`
+
   await ctx.reply(text, {
-    reply_markup: buttons.length ? { inline_keyboard: buttons } : undefined,
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: isRu ? '🏛 Войти в Литейную' : '🏛 Enter the Foundry', url }],
+      ],
+    },
   })
 }

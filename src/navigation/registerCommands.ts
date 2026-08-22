@@ -1293,8 +1293,11 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
             ctx.session.inviteCode = startParam
             logger.info('Referral code set', { telegramId, startParam })
           } else if (/^(club|foundry)$/i.test(startParam)) {
-            // Ссылка с лендинга t27.ai/foundry: t.me/t27ai_bot?start=foundry
+            // Ссылка с лендинга t27.ai/foundry: t.me/t27ai_bot?start=foundry.
+            // В сессию тоже: новый пользователь сперва уходит в CreateUserScene,
+            // и локальная переменная до показа клуба не доживает.
             wantsFoundryClub = true
+            ctx.session.foundryDeepLink = true
             logger.info('Foundry deep-link', { telegramId, startParam })
           }
         }

@@ -523,6 +523,15 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       wasCreated,
     }
   )
+  // Пришедшего по ссылке клуба ведём к клубу, а не в общий онбординг:
+  // иначе платный funnel с лендинга t27.ai/foundry обрывается молча.
+  if (ctx.session.foundryDeepLink) {
+    ctx.session.foundryDeepLink = undefined
+    const { handleClubCommand } = await import('@/handlers/foundryClub')
+    await handleClubCommand(ctx)
+    return ctx.scene.leave()
+  }
+
   return ctx.scene.enter(ModeEnum.AvatarTransform)
 }
 

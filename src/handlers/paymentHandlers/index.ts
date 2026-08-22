@@ -110,6 +110,34 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
         },
       })
 
+      // Компенсирующее списание. get_user_balance суммирует все COMPLETED
+      // MONEY_INCOME без фильтра по subscription_type, поэтому без этой записи
+      // взнос за клуб целиком превратился бы в расходуемый баланс генераций
+      // (12499⭐ членства = 12499⭐ на видео за счёт владельца). Пара
+      // income+outcome оставляет доход видимым в отчётах, а баланс — нулевым.
+      await setPayments({
+        telegram_id: normalizedUserId,
+        OutSum: club.stars.toString(),
+        InvId: `${payload}_membership`,
+        currency: Currency.XTR,
+        stars: club.stars,
+        status: PaymentStatus.COMPLETED,
+        payment_method: 'Telegram',
+        subscription_type: null,
+        bot_name: botUsername,
+        language: ctx.from?.language_code ?? 'en',
+        type: PaymentType.MONEY_OUTCOME,
+        service_type: 'golden_foundry_membership',
+        cost: 0,
+        metadata: {
+          invoice_payload: payload,
+          username,
+          club: 'golden_foundry',
+          club_tier: club.tier.key,
+          note: 'membership fee is not a spendable balance top-up',
+        },
+      })
+
       const { getSubScribeChannel } = await import(
         '@/handlers/getSubScribeChannel'
       )

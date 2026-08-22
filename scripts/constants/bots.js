@@ -16,7 +16,8 @@ module.exports = {
     'NeuroLenaAssistant_bot',
     'NeurostylistShtogrina_bot',
     'Kaya_easy_art_bot',
-    'OM_AI_Digital_studio_bot'
+    'OM_AI_Digital_studio_bot',
+    't27ai_bot'
   ],
 
   /**
@@ -80,6 +81,7 @@ module.exports = {
     'NeurostylistShtogrina_bot',
     'Kaya_easy_art_bot',
     'OM_AI_Digital_studio_bot',
+    't27ai_bot',
     'ai_koshey_bot',
     'clip_maker_neuro_bot'
   ],

@@ -7,8 +7,9 @@ export enum SubscriptionType {
 
   // --- Клуб «Золотая Литейная» (@t27ai_bot) ---
   // Отдельный продукт: НЕ участвует в getSubscriptionTier / приоритете
-  // платформенных подписок. Активность клуба читается напрямую из
-  // payments_v2.subscription_type (см. handlers/foundryClub).
+  // платформенных подписок. Значения маркируют строку дохода в payments_v2;
+  // автоматической проверки «активен ли клуб» пока нет — доступ выдаётся
+  // инвайтом в закрытый канал (handlers/foundryClub).
   CLUB_APPRENTICE = 'CLUB_APPRENTICE',
   CLUB_MASTER = 'CLUB_MASTER',
   CLUB_FOUNDER = 'CLUB_FOUNDER',

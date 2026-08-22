@@ -274,6 +274,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   }
   email?: string
   inviteCode?: string
+  /** Deep-link t.me/t27ai_bot?start=foundry: показать клуб после регистрации */
+  foundryDeepLink?: boolean
   inviter?: string
   paymentAmount?: number
   botName?: string
