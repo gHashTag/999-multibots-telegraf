@@ -112,7 +112,12 @@ export function TabletPlaybackControls() {
 
         <button
           className="tablet-play-btn"
-          onClick={() => togglePlay()}
+          // Событие прокидывается ОБЯЗАТЕЛЬНО: Remotion Player привязывает
+          // разрешение на воспроизведение к жесту пользователя, и play(undefined)
+          // на iOS даёт немое видео или тишину. В Timeline.tsx этот же вызов
+          // сделан правильно и помечен комментарием «CRITICAL» — здесь событие
+          // просто забыли передать.
+          onClick={e => togglePlay(e)}
           aria-label={isPlaying ? 'Pause' : 'Play'}
         >
           {isPlaying ? <Pause size={24} /> : <Play size={24} />}
