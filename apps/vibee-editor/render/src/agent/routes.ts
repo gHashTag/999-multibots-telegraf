@@ -32,7 +32,7 @@ import { resolveProvider } from './provider'
  * читать и от чьего имени публиковать, а «telegram_id в аргументах» означал
  * бы, что любой желающий публикует от чужого имени.
  */
-function agentKeyOwner(key: string): string | null {
+export function agentKeyOwner(key: string): string | null {
   const raw = process.env.AGENT_KEYS || ''
   for (const pair of raw.split(',')) {
     const [k, id] = pair.split(':').map(s => s.trim())
@@ -190,6 +190,23 @@ export async function handleMcp(
  * initData — заголовок. Обходить это через строку запроса значит класть
  * подпись в адрес, откуда она попадает в логи прокси.
  */
+/**
+ * Личность для чата: подпись мини-аппа ИЛИ ключ агента.
+ *
+ * Ключ агента добавлен НАРОЧНО и по прямой просьбе владельца: коннектор, через
+ * который агента можно тестировать напрямую, curl-ом, без Telegram. initData
+ * подделать нельзя (в этом смысл), а форжить её ради теста — значит ослабить
+ * проверку навсегда. Ключ же привязан к человеку и отзывается одной строкой.
+ */
+export function chatIdentity(
+  req: IncomingMessage,
+  verified: string | null
+): string | null {
+  if (verified) return verified
+  const key = (req.headers['x-agent-key'] as string | undefined) || ''
+  return key ? agentKeyOwner(key) : null
+}
+
 export async function handleAgentChat(
   req: IncomingMessage,
   res: ServerResponse,
