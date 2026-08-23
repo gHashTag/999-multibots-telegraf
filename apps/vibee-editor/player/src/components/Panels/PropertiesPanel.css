@@ -1202,3 +1202,24 @@
 .properties-tab.active {
   box-shadow: inset 0 -2px 0 var(--vibee-amber);
 }
+
+/* Подписи вкладок обрезались по нижней кромке.
+   Причина не в самой вкладке: глобальное правило design-system.css
+   `button { height: var(--button-height-md) }` задаёт ВСЕМ кнопкам жёсткие
+   28px, а здесь внутри столбик — иконка 18px, зазор 4px и подпись. Контент
+   не помещался, и слова «Avatar», «Layout», «Effects» срезало наполовину
+   (замерено: высота ярлыка 8px при обрезке).
+
+   Высота считается по содержимому, а нижняя граница держит цель касания. */
+.properties-tab {
+  height: auto;
+  min-height: var(--touch-target, 44px);
+  padding: 8px 4px 10px;
+}
+
+.properties-tab .tab-label {
+  /* Строка не должна обрезаться по высоте: у неё своя line-height, и без
+     неё подпись съезжала под нижний край вкладки. */
+  line-height: 1.25;
+  overflow: visible;
+}

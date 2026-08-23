@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { X } from 'lucide-react';
 import './BottomSheet.css';
 
@@ -7,8 +7,16 @@ export interface BottomSheetProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
+  /** Стартовая высота. Дальше человек управляет ею сам — ручкой. */
   height?: 'peek' | 'half' | 'full';
 }
+
+/** Насколько нужно протянуть, чтобы состояние переключилось. */
+const DRAG_THRESHOLD = 60;
+/** Протяжка вниз из нижнего состояния на столько — закрыть. */
+const CLOSE_THRESHOLD = 100;
+
+const ORDER: Array<'peek' | 'half' | 'full'> = ['peek', 'half', 'full'];
 
 export function BottomSheet({
   isOpen,
@@ -21,53 +29,97 @@ export function BottomSheet({
   const startY = useRef(0);
   const currentY = useRef(0);
   const isDragging = useRef(false);
+  const moved = useRef(false);
 
-  // Handle touch start
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    startY.current = e.touches[0].clientY;
-    isDragging.current = true;
-    if (sheetRef.current) {
-      sheetRef.current.style.transition = 'none';
-    }
+  /**
+   * Высота — состояние, а не константа.
+   *
+   * Раньше лист открывался на фиксированные 50vh и остаться мог только такими:
+   * ручка умела лишь закрыть его протяжкой вниз. Форма свойств в половине
+   * экрана не помещалась, а нижняя навигация ещё и лежала поверх — человек
+   * видел обрезанные подписи и не мог добраться до полей.
+   *
+   * Теперь ручка работает как принято: тап переключает половину и полный
+   * экран, протяжка вверх раскрывает, вниз — складывает и на нижней ступени
+   * закрывает.
+   */
+  const [detent, setDetent] = useState<'peek' | 'half' | 'full'>(height);
+
+  // Каждое новое открытие начинается со стартовой высоты, а не с той, на
+  // которой человек закрыл лист в прошлый раз.
+  useEffect(() => {
+    if (isOpen) setDetent(height);
+  }, [isOpen, height]);
+
+  const expand = useCallback(() => {
+    setDetent(d => ORDER[Math.min(ORDER.indexOf(d) + 1, ORDER.length - 1)]);
   }, []);
 
-  // Handle touch move
+  const collapse = useCallback(() => {
+    setDetent(d => {
+      const i = ORDER.indexOf(d);
+      if (i <= 0) {
+        onClose();
+        return d;
+      }
+      return ORDER[i - 1];
+    });
+  }, [onClose]);
+
+  /** Тап по ручке: полный экран и обратно. */
+  const handleHandleClick = useCallback(() => {
+    if (moved.current) return; // это была протяжка, а не тап
+    setDetent(d => (d === 'full' ? 'half' : 'full'));
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    startY.current = e.touches[0].clientY;
+    currentY.current = e.touches[0].clientY;
+    isDragging.current = true;
+    moved.current = false;
+    if (sheetRef.current) sheetRef.current.style.transition = 'none';
+  }, []);
+
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!isDragging.current) return;
     currentY.current = e.touches[0].clientY;
     const deltaY = currentY.current - startY.current;
+    if (Math.abs(deltaY) > 4) moved.current = true;
 
-    // Only allow dragging down
+    // Вверх лист не уезжает физически — вверх он РАСТЁТ, это делает смена
+    // ступени на отпускании. За пальцем следует только движение вниз.
     if (deltaY > 0 && sheetRef.current) {
       sheetRef.current.style.transform = `translateY(${deltaY}px)`;
     }
   }, []);
 
-  // Handle touch end
   const handleTouchEnd = useCallback(() => {
     isDragging.current = false;
+    const deltaY = currentY.current - startY.current;
+
     if (sheetRef.current) {
       sheetRef.current.style.transition = '';
-      const deltaY = currentY.current - startY.current;
-
-      // transform снимается В ОБЕИХ ветках. Раньше при закрытии свайпом он
-      // оставался уехавшим вниз, и следующее открытие рисовало лист за краем
-      // экрана — визуально «панель больше не открывается».
+      // transform снимается ВСЕГДА. Раньше при закрытии свайпом он оставался
+      // уехавшим вниз, и следующее открытие рисовало лист за краем экрана —
+      // визуально «панель больше не открывается».
       sheetRef.current.style.transform = '';
-      if (deltaY > 100) {
-        onClose();
-      }
     }
+
+    if (deltaY <= -DRAG_THRESHOLD) {
+      expand();
+    } else if (deltaY >= CLOSE_THRESHOLD && detent === ORDER[0]) {
+      onClose();
+    } else if (deltaY >= DRAG_THRESHOLD) {
+      collapse();
+    }
+
     startY.current = 0;
     currentY.current = 0;
-  }, [onClose]);
+  }, [detent, expand, collapse, onClose]);
 
-  // Handle escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
+      if (e.key === 'Escape' && isOpen) onClose();
     };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
@@ -93,32 +145,33 @@ export function BottomSheet({
 
   return (
     <>
-      {/* Backdrop overlay */}
       <div
         className={`bottomsheet-overlay ${isOpen ? 'open' : ''}`}
         onClick={onClose}
         aria-hidden="true"
       />
 
-      {/* Sheet */}
       <div
         ref={sheetRef}
-        className={`bottomsheet ${isOpen ? 'open' : ''} ${height}`}
+        className={`bottomsheet ${isOpen ? 'open' : ''} ${detent}`}
         role="dialog"
         aria-modal="true"
         aria-label={title || 'Panel'}
       >
-        {/* Drag handle */}
-        <div
+        {/* Ручка: тап раскрывает на весь экран, протяжка меняет высоту */}
+        <button
+          type="button"
           className="bottomsheet-handle"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
+          onClick={handleHandleClick}
+          aria-label={detent === 'full' ? 'Свернуть панель' : 'Раскрыть панель на весь экран'}
+          aria-expanded={detent === 'full'}
         >
-          <div className="bottomsheet-handle-bar" />
-        </div>
+          <span className="bottomsheet-handle-bar" />
+        </button>
 
-        {/* Header */}
         {title && (
           <div className="bottomsheet-header">
             <span className="bottomsheet-title">{title}</span>
@@ -132,10 +185,7 @@ export function BottomSheet({
           </div>
         )}
 
-        {/* Content */}
-        <div className="bottomsheet-content">
-          {children}
-        </div>
+        <div className="bottomsheet-content">{children}</div>
       </div>
     </>
   );

@@ -150,3 +150,87 @@
     display: none;
   }
 }
+
+/* ===============================
+   Слои и высоты листа
+   ===============================
+   Лист имел z-index 61 (--z-bottomsheet + 1), а нижняя навигация — жёстко
+   прописанные 1000. Панель свойств открывалась ПОД навигацией: та срезала
+   низ листа вместе с подписями вкладок, и человек видел обрезанные слова
+   «Avatar», «Layout», «Effects».
+
+   Модальный лист обязан быть выше навигации — вместе со своим затемнением,
+   иначе тап по «затемнённой» навигации всё ещё уводит с экрана. */
+.bottomsheet-overlay {
+  z-index: var(--z-overlay, 2000);
+}
+
+.bottomsheet {
+  z-index: calc(var(--z-overlay, 2000) + 1);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ступени высоты. Полная — почти весь экран, чтобы форма помещалась целиком;
+   верхняя полоска оставлена нарочно: она показывает, что под листом
+   что-то есть, и по ней можно закрыть. */
+.bottomsheet.peek {
+  height: 30vh;
+  max-height: 30vh;
+}
+
+.bottomsheet.half {
+  height: 55vh;
+  max-height: 55vh;
+}
+
+.bottomsheet.full {
+  height: calc(100dvh - 24px);
+  max-height: calc(100dvh - 24px);
+}
+
+/* Плавный переход между ступенями, а не рывок. */
+.bottomsheet {
+  transition:
+    transform 0.28s cubic-bezier(0.32, 0.72, 0, 1),
+    height 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Ручка — кнопка: тап по ней раскрывает лист. Зона нажатия во всю ширину и
+   не меньше пальца, сама полоска остаётся тонкой. */
+.bottomsheet-handle {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0 6px;
+  background: none;
+  border: 0;
+  cursor: grab;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottomsheet-handle:active {
+  cursor: grabbing;
+}
+
+.bottomsheet-handle-bar {
+  display: block;
+  width: 44px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--vibee-accent, #f5a623);
+  opacity: 0.9;
+}
+
+/* Содержимое скроллится само и не пускает прокрутку наружу. */
+.bottomsheet-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+}
