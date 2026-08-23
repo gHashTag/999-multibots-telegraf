@@ -537,6 +537,7 @@ const en: Translations = {
 
   // Tab Tooltips
   'tabs.feed': 'Feed',
+  'tabs.blog': 'Blog',
   'tabs.search': 'Search',
   'tabs.profile': 'Profile',
   'tabs.script': 'Script',
@@ -2173,6 +2174,7 @@ const ru: Translations = {
 
   // Tab Tooltips
   'tabs.feed': 'Лента',
+  'tabs.blog': 'Блог',
   'tabs.search': 'Поиск',
   'tabs.profile': 'Профиль',
   'tabs.script': 'Сценарий',

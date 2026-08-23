@@ -42,9 +42,10 @@ import { LoginModal } from '@/components/Auth/LoginModal'
 import { brandingAtom, loadBrandingAtom } from '@/atoms/branding'
 import { isTelegram } from '@/lib/telegram'
 
-// Page navigation tabs - 5 main tabs
+// Page navigation tabs - 6 main tabs
 const NAV_TABS = [
   { id: 'feed', emoji: '🌐', labelKey: 'tabs.feed', route: '/feed' },
+  { id: 'blog', emoji: '📜', labelKey: 'tabs.blog', route: '/blog' },
   { id: 'search', emoji: '🔍', labelKey: 'tabs.search', route: '/search' },
   { id: 'editor', emoji: '▶️', labelKey: 'tabs.editor', route: '/editor' },
   {

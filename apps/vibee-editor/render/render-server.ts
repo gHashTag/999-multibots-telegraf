@@ -1213,6 +1213,9 @@ interface WebhookPayload {
 
 const renderJobs = new Map<string, RenderJob>()
 
+/** Кэш RSS-блога t27.ai для GET /api/blog (см. обработчик ниже). */
+let blogCache: { at: number; data: unknown } | null = null
+
 // Clean up old jobs after 1 hour
 setInterval(() => {
   const oneHourAgo = Date.now() - 60 * 60 * 1000
@@ -4226,6 +4229,74 @@ const server = createServer(async (req, res) => {
   {
     const feedUrl = new URL(req.url || '', `http://${req.headers.host}`)
     const feedPath = feedUrl.pathname
+
+    // GET /api/blog — прокси RSS-блога t27.ai.
+    //
+    // Блог живёт на сайте (https://t27.ai/rss.xml), а мини-апп — тут: RSS с
+    // чужого домена браузер не прочтёт из-за CORS, поэтому читаем сами и
+    // отдаём готовый JSON. Публичен как и сам блог. Кэш 10 минут: RSS
+    // обновляется редко, а дёргать сайт на каждый заход ленты незачем.
+    if (feedPath === '/api/blog' && req.method === 'GET') {
+      if (blogCache && Date.now() - blogCache.at < 10 * 60 * 1000) {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify(blogCache.data))
+        return
+      }
+      try {
+        const rssResponse = await fetch('https://t27.ai/rss.xml', {
+          headers: { 'User-Agent': 'vibee-render-blog-proxy' },
+        })
+        if (!rssResponse.ok) throw new Error(`t27.ai RSS: HTTP ${rssResponse.status}`)
+        const xml = await rssResponse.text()
+        const pick = (block: string, tag: string): string => {
+          const m = block.match(
+            new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i')
+          )
+          if (!m) return ''
+          //CDATA и базовые entity — декодируем сразу, иначе текст блога
+          //приходит в UI с &quot; и &amp; вместо кавычек и амперсандов
+          const decode = (s: string) =>
+            s
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;|&apos;/g, "'")
+              .replace(/&amp;/g, '&')
+          return decode(
+            m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '')
+          ).trim()
+        }
+        const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)]
+          .slice(0, 30)
+          .map(([, block]) => ({
+            title: pick(block, 'title'),
+            link: pick(block, 'link'),
+            pubDate: pick(block, 'pubDate'),
+            description: pick(block, 'description'),
+          }))
+          .filter(it => it.title && it.link)
+        const data = {
+          ok: true,
+          title: pick(xml, 'title'),
+          description: pick(xml, 'description'),
+          items,
+        }
+        blogCache = { at: Date.now(), data }
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify(data))
+      } catch (error) {
+        console.error('[Blog] RSS error:', error)
+        // Кэш просроченный всё же лучше пустоты: отдаём, если есть.
+        if (blogCache) {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify(blogCache.data))
+          return
+        }
+        res.writeHead(502, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: String(error) }))
+      }
+      return
+    }
 
     // GET /api/feed/stats — сводка для лендинга.
     // Объявлен ДО общего GET-матчера, иначе тот перехватит путь по префиксу.

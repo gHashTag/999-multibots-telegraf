@@ -19,6 +19,7 @@ const EditorPage = lazy(() => import('@/pages/Editor'));
 const ChatPage = lazy(() => import('@/pages/Chat'));
 const ProfilePage = lazy(() => import('@/pages/Profile'));
 const FeedPage = lazy(() => import('@/pages/Feed'));
+const BlogPage = lazy(() => import('@/pages/Blog'));
 const SearchPage = lazy(() => import('@/pages/Search'));
 const GeneratePage = lazy(() => import('@/pages/Generate'));
 const ScriptPage = lazy(() => import('@/pages/Script'));
@@ -67,6 +68,8 @@ function App() {
                   {/* Маркетинговый лендинг переехал сюда, чтобы не пропасть. */}
                   <Route path="/home" element={<HomePage />} />
                   <Route path="/feed" element={<FeedPage />} />
+                  {/* Блог t27.ai через RSS-прокси — тот же канон дизайна. */}
+                  <Route path="/blog" element={<BlogPage />} />
                   <Route path="/search" element={<SearchPage />} />
                   <Route path="/editor" element={<EditorPage />} />
                   <Route path="/generate" element={<Navigate to="/generate/script" replace />} />
