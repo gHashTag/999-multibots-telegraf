@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAtomValue, useSetAtom, useAtom } from 'jotai';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useToast } from '@/hooks/useToast';
-import { authHeaders, explainApiError } from '@/lib/apiFetch';
+import { authHeaders, explainApiError, apiFetch } from '@/lib/apiFetch';
+import { getInitData } from '@/lib/telegram';
 import {
   projectAtom,
   tracksAtom,
@@ -305,6 +306,57 @@ export function Timeline({ orientation = 'horizontal', hideBrowser = true }: Tim
   }, []);
 
   // Helper: Subscribe to render progress via SSE
+  /**
+   * Запасной канал прогресса: обычный опрос статуса с подписью в заголовке.
+   *
+   * Нужен, когда поток SSE оборвался — на мобильной сети это обычное дело, а
+   * сворачивание приложения Telegram рвёт соединение почти всегда. Без опроса
+   * человек терял готовый файл: рендер завершался, но узнать об этом было
+   * неоткуда.
+   */
+  const pollRenderProgress = useCallback(
+    (renderId: string, projectName: string) => {
+      let stopped = false;
+      const tick = async () => {
+        if (stopped) return;
+        try {
+          const data = await apiFetch<any>(`${RENDER_SERVER_URL}/render/${renderId}`);
+          setExportingAction({ exporting: true, progress: data?.progress || 0 });
+
+          if (data?.status === 'completed' && data?.outputUrl) {
+            stopped = true;
+            clearRenderSession();
+            logRender();
+            const downloadUrl = data.outputUrl.startsWith('http')
+              ? data.outputUrl
+              : `${RENDER_SERVER_URL}${data.outputUrl}`;
+            await downloadFile(downloadUrl, `${projectName}.mp4`);
+            setExportingAction({ exporting: false, progress: 0 });
+            return;
+          }
+          if (data?.status === 'failed') {
+            stopped = true;
+            clearRenderSession();
+            toast.error(`${t('editor.exportFailed')}: ${data.error || t('editor.unknownError')}`);
+            setExportingAction({ exporting: false, progress: 0 });
+            return;
+          }
+        } catch (e) {
+          // Причина называется вслух: тихий сброс — это и есть та самая
+          // «кнопка сама отжимается».
+          stopped = true;
+          clearRenderSession();
+          toast.error(`${t('editor.exportFailed')}: ${explainApiError(e)}`);
+          setExportingAction({ exporting: false, progress: 0 });
+          return;
+        }
+        setTimeout(tick, 3000);
+      };
+      void tick();
+    },
+    [setExportingAction, clearRenderSession, logRender, t]
+  );
+
   const subscribeToRenderProgress = useCallback((renderId: string, projectName: string) => {
     console.log('[Export] Subscribing to SSE for renderId:', renderId);
 
@@ -313,7 +365,14 @@ export function Timeline({ orientation = 'horizontal', hideBrowser = true }: Tim
       eventSourceRef.current.close();
     }
 
-    const sseUrl = `${RENDER_SERVER_URL}/render/${renderId}/status`;
+    // EventSource не умеет ставить заголовки, поэтому подпись уходит строкой
+    // запроса — сервер проверяет её тем же HMAC. Без этого поток прогресса
+    // получал 401, срабатывал onerror, и кнопка «Экспорт» отжималась через
+    // пару секунд, хотя рендер продолжался.
+    const initData = getInitData();
+    const sseUrl =
+      `${RENDER_SERVER_URL}/render/${renderId}/status` +
+      (initData ? `?initData=${encodeURIComponent(initData)}` : '');
     const eventSource = new EventSource(sseUrl);
     eventSourceRef.current = eventSource;
 
@@ -374,9 +433,11 @@ export function Timeline({ orientation = 'horizontal', hideBrowser = true }: Tim
       console.error('[Export] SSE error:', error);
       eventSource.close();
       eventSourceRef.current = null;
-      // Don't clear session - render may still be running
-      // User can reconnect on next page load
-      setExportingAction({ exporting: false, progress: 0 });
+      // Рендер на сервере ПРОДОЛЖАЕТСЯ — обрыв потока прогресса не повод
+      // считать экспорт неудавшимся. Раньше здесь молча сбрасывалось
+      // состояние: кнопка отжималась, сообщения не было, файл в итоге не
+      // приходил. Переходим на опрос, а сессию не трогаем.
+      pollRenderProgress(renderId, projectName);
     };
   }, [templateProps, logRender, setExportingAction, clearRenderSession, t]);
 

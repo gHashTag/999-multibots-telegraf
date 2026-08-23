@@ -178,9 +178,22 @@ export function authenticate(req: IncomingMessage): AuthResult {
     }
   }
 
+  // Подпись читается из заголовка ИЛИ из строки запроса.
+  //
+  // EventSource (SSE прогресса рендера) физически не умеет ставить заголовки —
+  // это ограничение самого браузерного API. Пока подпись принималась только
+  // заголовком, поток прогресса получал 401, срабатывал onerror, и кнопка
+  // «Экспорт» молча отжималась через пару секунд, хотя рендер на сервере шёл
+  // дальше. Человек видел «кнопка не работает».
+  //
+  // Отдавать SSE без проверки было бы проще, но статус чужого рендера — не
+  // публичные данные. Подпись в query проверяется тем же HMAC и так же
+  // протухает через сутки.
+  const url = new URL(req.url || '/', 'http://localhost')
   const initData =
     (req.headers['x-telegram-init-data'] as string | undefined) ||
     (req.headers['x-telegram-initdata'] as string | undefined) ||
+    url.searchParams.get('initData') ||
     ''
   if (initData) {
     const v = verifyTelegramInitData(initData)

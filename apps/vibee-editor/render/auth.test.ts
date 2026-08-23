@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import crypto from 'node:crypto'
-import { verifyTelegramInitData } from './auth'
+import { verifyTelegramInitData, authenticate } from './auth'
 
 /**
  * Подпись initData выдаёт ТОТ бот, из которого открыли мини-апп. Ботов на
@@ -56,5 +56,29 @@ describe('verifyTelegramInitData', () => {
 
   it('без единого токена не пропускает никого', () => {
     expect(verifyTelegramInitData(sign(MAIN, fresh())).ok).toBe(false)
+  })
+})
+
+describe('подпись в строке запроса (SSE)', () => {
+  it('EventSource не умеет заголовки — подпись должна приниматься из query', () => {
+    process.env.BOT_TOKEN_1 = MAIN
+    const initData = sign(MAIN, fresh())
+    const req = {
+      url: `/render/abc/status?initData=${encodeURIComponent(initData)}`,
+      method: 'GET',
+      headers: {},
+    } as unknown as import('node:http').IncomingMessage
+    expect(authenticate(req).allowed).toBe(true)
+  })
+
+  it('подделка в query не проходит', () => {
+    process.env.BOT_TOKEN_1 = MAIN
+    const bad = sign('999:not-ours', fresh())
+    const req = {
+      url: `/render/abc/status?initData=${encodeURIComponent(bad)}`,
+      method: 'GET',
+      headers: {},
+    } as unknown as import('node:http').IncomingMessage
+    expect(authenticate(req).allowed).toBe(false)
   })
 })
