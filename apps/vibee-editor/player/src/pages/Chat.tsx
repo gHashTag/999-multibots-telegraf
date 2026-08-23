@@ -101,9 +101,21 @@ function ChatPage() {
         setMessages(prev => prev.map(m => (m.id === agentId ? fn(m) : m)))
 
       try {
+        // Личность: обычно подпись Telegram (authHeaders ставит
+        // X-Telegram-Init-Data). В DEV на localhost подписи нет — тогда, если
+        // задан VITE_AGENT_KEY, идём ключом агента. Ветка ТОЛЬКО для
+        // import.meta.env.DEV: ключ в прод-сборку не попадает, иначе он
+        // оказался бы в браузерном бандле у всех.
+        const headers = authHeaders()
+        const devKey = import.meta.env.DEV
+          ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
+          : undefined
+        if (devKey && !headers.has('X-Telegram-Init-Data')) {
+          headers.set('X-Agent-Key', devKey)
+        }
         const res = await fetch(`${API_BASE}/api/agent/chat`, {
           method: 'POST',
-          headers: authHeaders(),
+          headers,
           body: JSON.stringify({ messages: history }),
         })
         if (!res.ok || !res.body) {
@@ -178,8 +190,17 @@ function ChatPage() {
     <div className="chat-page">
       <Header />
       <div className="chat-title">
-        <h1>Агент Trinity S³AI</h1>
-        <p>Смотрит в приложение своими инструментами и делает, а не советует</p>
+        <img
+          className="chat-title__logo"
+          src="/t27-logo.svg"
+          alt="Trinity S³AI"
+        />
+        <div className="chat-title__text">
+          <h1>Агент Trinity S³AI</h1>
+          <p>
+            Смотрит в приложение своими инструментами и делает, а не советует
+          </p>
+        </div>
       </div>
 
       <div className="chat-container" ref={scrollRef}>

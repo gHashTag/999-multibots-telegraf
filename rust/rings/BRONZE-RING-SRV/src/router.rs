@@ -263,7 +263,8 @@ pub fn create_router_with_payments(
 
     let payments = apply_rate_limit(
         Router::new()
-            .route("/api/payment-success", post(crate::payment_webhooks::robokassa_callback)),
+            .route("/api/payment-success", post(crate::payment_webhooks::robokassa_callback))
+            .layer(axum::extract::DefaultBodyLimit::max(16 * 1024)),
         PAYMENT_RATE_PER_SECOND, PAYMENT_RATE_BURST,
     )?;
 
