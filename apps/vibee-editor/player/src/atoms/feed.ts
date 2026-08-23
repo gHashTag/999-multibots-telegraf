@@ -74,38 +74,80 @@ export const currentFeedIndexAtom = atom(0);
 // API Functions
 // ===============================
 
-// Transform snake_case API response to camelCase FeedTemplate
+/**
+ * Приводит ответ ленты к FeedTemplate.
+ *
+ * Читаем ОБА написания. Сервер (`GET /api/feed`) отдаёт camelCase —
+ * creatorName, videoUrl, templateSettings, — а этот преобразователь ждал
+ * только snake_case. Совпадений не было НИ ПО ОДНОМУ полю, поэтому каждое
+ * падало в значение по умолчанию: автор становился «Anonymous», дата —
+ * undefined и дальше «NaNmo», обложка и видео пропадали, настройки шаблона
+ * превращались в пустой объект. Карточка выглядела пустой, и шаблон нельзя
+ * было взять в работу.
+ *
+ * Поддерживаем оба вида, а не переписываем контракт сервера: им может
+ * пользоваться и другой клиент.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const pick = (raw: any, ...keys: string[]) => {
+  for (const k of keys) {
+    if (raw?.[k] !== undefined && raw?.[k] !== null) return raw[k];
+  }
+  return undefined;
+};
+
+/**
+ * Дата из Postgres в ISO. `created_at::text` даёт «2026-08-23 08:26:26+00»:
+ * пробел вместо T и смещение без двоеточия — Safari и часть движков читают
+ * это как Invalid Date, и в карточке появлялось «NaNmo».
+ */
+const toIso = (v: unknown): string | undefined => {
+  if (typeof v !== 'string' || !v) return undefined;
+  const iso = v.replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00');
+  return Number.isNaN(Date.parse(iso)) ? undefined : iso;
+};
+
+/** jsonb может прийти объектом или строкой — принимаем оба. */
+const asObject = (v: unknown, fallback: unknown) => {
+  if (v == null) return fallback;
+  if (typeof v !== 'string') return v;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return fallback;
+  }
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function transformTemplate(raw: any): FeedTemplate {
   return {
     id: raw.id,
-    telegramId: raw.telegram_id,
-    creatorName: raw.creator_name || 'Anonymous',
-    creatorAvatar: raw.creator_avatar,
-    creatorUsername: raw.creator_username,
+    telegramId: pick(raw, 'telegram_id', 'telegramId'),
+    creatorName: pick(raw, 'creator_name', 'creatorName') || 'Anonymous',
+    creatorAvatar: pick(raw, 'creator_avatar', 'creatorAvatar'),
+    creatorUsername: pick(raw, 'creator_username', 'creatorUsername'),
     name: raw.name,
     description: raw.description,
-    thumbnailUrl: raw.thumbnail_url,
-    videoUrl: raw.video_url,
-    templateSettings: typeof raw.template_settings === 'string'
-      ? JSON.parse(raw.template_settings || '{}')
-      : raw.template_settings || {},
-    assets: typeof raw.assets === 'string'
-      ? JSON.parse(raw.assets || '[]')
-      : raw.assets || [],
-    tracks: typeof raw.tracks === 'string'
-      ? JSON.parse(raw.tracks || '[]')
-      : raw.tracks || [],
-    likesCount: raw.likes_count || 0,
-    viewsCount: raw.views_count || 0,
-    usesCount: raw.uses_count || 0,
-    isLiked: raw.is_liked || false,
-    isFeatured: raw.is_featured || false,
-    createdAt: raw.created_at,
+    thumbnailUrl: pick(raw, 'thumbnail_url', 'thumbnailUrl'),
+    videoUrl: pick(raw, 'video_url', 'videoUrl'),
+    templateSettings: asObject(pick(raw, 'template_settings', 'templateSettings'), {}),
+    assets: asObject(pick(raw, 'assets'), []),
+    tracks: asObject(pick(raw, 'tracks'), []),
+    likesCount: pick(raw, 'likes_count', 'likesCount') || 0,
+    viewsCount: pick(raw, 'views_count', 'viewsCount') || 0,
+    usesCount: pick(raw, 'uses_count', 'usesCount') || 0,
+    isLiked: pick(raw, 'is_liked', 'isLiked') || false,
+    isFeatured: pick(raw, 'is_featured', 'isFeatured') || false,
+    // Postgres отдаёт «2026-08-23 08:26:26.635176+00»: пробел вместо T и
+    // смещение без двоеточия. new Date() на таком в части движков возвращает
+    // Invalid Date, и в карточке появлялось «NaNmo». Приводим к ISO.
+    // Пустая строка, а не undefined: поле объявлено обязательным, а карточка
+    // умеет показать «дата неизвестна» лучше, чем «NaNmo».
+    createdAt: toIso(pick(raw, 'created_at', 'createdAt')) ?? '',
     // Remix attribution
-    parentTemplateId: raw.parent_template_id,
-    originalCreatorName: raw.original_creator_name,
-    originalCreatorAvatar: raw.original_creator_avatar,
+    parentTemplateId: pick(raw, 'parent_template_id', 'parentTemplateId'),
+    originalCreatorName: pick(raw, 'original_creator_name', 'originalCreatorName'),
+    originalCreatorAvatar: pick(raw, 'original_creator_avatar', 'originalCreatorAvatar'),
   };
 }
 
