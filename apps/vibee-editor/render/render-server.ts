@@ -3206,6 +3206,72 @@ const server = createServer(async (req, res) => {
           console.warn("[Feed] Could not look up creator username:", e);
         }
 
+        /**
+         * jsonb-поля принимаются и объектом, и строкой с JSON.
+         *
+         * Драйвер сам сериализует объект, поэтому УЖЕ сериализованная строка
+         * попадала в jsonb как JSON-скаляр «строка», а не как объект: клиенту
+         * приходил template_settings строкой, и compositionId читался как
+         * undefined — карточку из ленты нельзя было применить к себе.
+         * Поймано на живой публикации трёх канонических шаблонов.
+         */
+        const asJson = (v: unknown, fallback: string): string => {
+          if (v == null) return fallback;
+          if (typeof v === "string") {
+            try {
+              JSON.parse(v);
+              return v; // уже валидный JSON — повторно не кодируем
+            } catch {
+              return fallback;
+            }
+          }
+          return JSON.stringify(v);
+        };
+
+        const settingsJson = asJson(data.template_settings, "{}");
+        const assetsJson = asJson(data.assets, "[]");
+        const tracksJson = asJson(data.tracks, "[]");
+
+        /**
+         * Повторная публикация шаблона с тем же именем ОБНОВЛЯЕТ запись.
+         * Метода удаления у ленты нет, поэтому автор, поправивший описание или
+         * образец, иначе получал две карточки одного шаблона и не мог убрать
+         * старую.
+         */
+        const existing = await pool.query(
+          `SELECT id FROM public_templates WHERE telegram_id = $1 AND name = $2 LIMIT 1`,
+          [String(data.telegram_id), data.name || "Untitled"]
+        );
+
+        if (existing.rows.length > 0) {
+          const upd = await pool.query(
+            `UPDATE public_templates
+             SET creator_name = $2, creator_avatar = $3, creator_username = $4,
+                 description = $5, thumbnail_url = $6, video_url = $7,
+                 template_settings = $8::jsonb, assets = $9::jsonb, tracks = $10::jsonb,
+                 is_public = TRUE
+             WHERE id = $1
+             RETURNING id, created_at::text`,
+            [
+              existing.rows[0].id,
+              data.creator_name || "Anonymous",
+              data.creator_avatar || null,
+              creatorUsername,
+              data.description || null,
+              data.thumbnail_url || null,
+              data.video_url,
+              settingsJson,
+              assetsJson,
+              tracksJson,
+            ]
+          );
+          const row = upd.rows[0];
+          console.log(`✅ [Feed] Updated template ID=${row.id} by ${data.creator_name}`);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: true, id: row.id, createdAt: row.created_at, updated: true }));
+          return;
+        }
+
         const result = await pool.query(
           `INSERT INTO public_templates (
             telegram_id, creator_name, creator_avatar, creator_username,
@@ -3224,9 +3290,9 @@ const server = createServer(async (req, res) => {
             data.description || null,
             data.thumbnail_url || null,
             data.video_url,
-            data.template_settings || "{}",
-            data.assets || "[]",
-            data.tracks || "[]",
+            settingsJson,
+            assetsJson,
+            tracksJson,
             data.parent_template_id || null,
             data.original_creator_id || null,
           ]
