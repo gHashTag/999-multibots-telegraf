@@ -210,12 +210,18 @@ export const TOOLS: AgentTool[] = [
         50
       )
       const r = await ctx.pool.query(
-        `SELECT id, type, storage_path, trigger_word, created_at::text
+        `SELECT id, type, COALESCE(public_url,'') AS public_url,
+                storage_path, trigger_word, created_at::text
          FROM assets WHERE telegram_id = $1
          ORDER BY created_at DESC LIMIT $2`,
         [ctx.telegramId, limit]
       )
-      return { всего: r.rows.length, файлы: r.rows }
+      return {
+        всего: r.rows.length,
+        файлы: r.rows,
+        подсказка:
+          'у файлов с public_url отдавай ссылку человеку — в чате она станет живым превью',
+      }
     },
   },
 
