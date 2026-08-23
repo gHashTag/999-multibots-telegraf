@@ -70,3 +70,53 @@
     width: 320px;
   }
 }
+
+/* Переключатель типа генерации.
+   Живёт под шапкой и над формой: с одной вкладки «ИИ» надо иметь возможность
+   порулить всеми четырьмя типами, не открывая выпадающее меню.
+   Высота 44px — минимальная цель касания из --touch-target; на узком экране
+   подписи прячутся, остаются иконки, и четыре цели укладываются в 375px. */
+.gen-switch {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--vibee-border, rgba(255, 255, 255, 0.08));
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.gen-switch::-webkit-scrollbar {
+  display: none;
+}
+.gen-switch__item {
+  flex: 1 1 0;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  white-space: nowrap;
+  color: var(--vibee-text-muted, rgba(255, 255, 255, 0.55));
+  background: transparent;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+.gen-switch__item.is-active {
+  color: #000;
+  background: var(--vibee-accent, #f59e0b);
+}
+.gen-switch__label {
+  font-size: 13px;
+}
+
+/* Ниже 420px подписи не помещаются рядом с иконками так, чтобы цель осталась
+   44px. Прячем подписи, а не сжимаем цель: сжатая цель промахивается. */
+@media (max-width: 420px) {
+  .gen-switch__label {
+    display: none;
+  }
+}
