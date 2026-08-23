@@ -37,7 +37,7 @@ const CATALOG: Record<
   zai: {
     base: process.env.ZAI_BASE_URL || 'https://api.z.ai/api/paas/v4',
     env: 'GLM_API_KEY',
-    model: 'glm-4.6',
+    model: 'glm-5.3',
     thinking: true,
   },
   openai: {
@@ -46,6 +46,65 @@ const CATALOG: Record<
     model: 'gpt-4o-mini',
     thinking: false,
   },
+}
+
+/**
+ * ВСЕ настроенные провайдеры по порядку предпочтения.
+ *
+ * Нужны именно все, а не первый попавшийся: ключ может быть ЗАДАН и при этом
+ * не работать. Измерено 2026-08-23 на живых ключах проекта:
+ *   z.ai   — ключ валиден, но баланс нулевой: 429, код 1113
+ *            «Insufficient balance or no resource package»;
+ *   OpenAI — 401 «Incorrect API key provided».
+ * Провайдер, выбранный по наличию переменной, в обоих случаях дал бы отказ,
+ * а человек увидел бы «агент не отвечает» без единой подсказки почему.
+ * Поэтому петля перебирает их и собирает причины отказа по каждому.
+ */
+export function allProviders(): Provider[] {
+  const wanted = (process.env.AGENT_PROVIDER || '').toLowerCase() as ProviderId
+  const order: ProviderId[] =
+    wanted === 'zai' || wanted === 'openai'
+      ? [wanted, wanted === 'zai' ? 'openai' : 'zai']
+      : ['zai', 'openai']
+  const out: Provider[] = []
+  for (const id of order) {
+    const c = CATALOG[id]
+    const key = process.env[c.env]
+    if (!key) continue
+    out.push({
+      id,
+      base: c.base,
+      model: (id === order[0] && process.env.AGENT_MODEL) || c.model,
+      key,
+      thinking: c.thinking,
+    })
+  }
+  return out
+}
+
+/**
+ * Человеческий диагноз по ответу провайдера.
+ *
+ * «429» и «401» сами по себе ничего не говорят владельцу. Нулевой баланс и
+ * протухший ключ чинятся совершенно по-разному, и путать их дорого.
+ */
+export function diagnose(id: ProviderId, status: number, body: string): string {
+  const b = body.toLowerCase()
+  if (b.includes('insufficient balance') || b.includes('1113')) {
+    return `${id}: на ключе нет средств — пополните баланс в кабинете провайдера`
+  }
+  if (
+    status === 401 ||
+    b.includes('incorrect api key') ||
+    b.includes('invalid api key')
+  ) {
+    return `${id}: ключ недействителен — перевыпустите и обновите переменную`
+  }
+  if (status === 404 && b.includes('model')) {
+    return `${id}: такой модели нет — проверьте AGENT_MODEL`
+  }
+  if (status === 429) return `${id}: превышен лимит запросов`
+  return `${id}: ответил ${status} — ${body.slice(0, 200)}`
 }
 
 export function resolveProvider(): Provider {

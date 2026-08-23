@@ -20,7 +20,7 @@
  *    показывать пятисотку там, где был связный ответ.
  */
 import { TOOLS_BY_NAME, toOpenAITools, type ToolContext } from './tools'
-import { resolveProvider } from './provider'
+import { allProviders, diagnose } from './provider'
 
 const MAX_STEPS = 8
 
@@ -72,87 +72,109 @@ async function* streamModel(
   | { kind: 'content'; text: string }
   | { kind: 'done'; message: any }
 > {
-  const p = resolveProvider()
-  const body: Record<string, unknown> = {
-    model: p.model,
-    messages,
-    tools: toOpenAITools(),
-    tool_choice: 'auto',
-    temperature: 0.3,
-    stream: true,
-  }
-  // Режим размышления есть только у GLM. Подставлять его OpenAI нельзя —
-  // неизвестное поле там ошибка, а не игнор.
-  if (p.thinking) body.thinking = { type: 'enabled' }
-
-  const r = await fetch(`${p.base}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${p.key}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
-  if (!r.ok || !r.body) {
-    // Тело ОБЯЗАТЕЛЬНО в сообщении: голый код не отличает протухший ключ от
-    // исчерпанной квоты, и диагноз по логам становится невозможен.
-    const t = await r.text().catch(() => '')
-    throw new Error(`${p.id} ответил ${r.status}: ${t.slice(0, 400)}`)
+  const providers = allProviders()
+  if (!providers.length) {
+    throw new Error(
+      'Ключ модели не задан. Нужен GLM_API_KEY или OPENAI_API_KEY. ' +
+        'Взять: railway variables --kv | grep -E "GLM_API_KEY|OPENAI_API_KEY"'
+    )
   }
 
-  const reader = (r.body as any).getReader()
-  const decoder = new TextDecoder()
-  let buf = ''
-  // Собираем сообщение целиком параллельно потоку: вызовы инструментов
-  // приходят кусками и нужны в собранном виде.
-  const acc: any = { role: 'assistant', content: '', tool_calls: [] }
+  // Перебираем настроенных провайдеров: заданный ключ ещё не значит рабочий.
+  // Собираем ПРИЧИНЫ отказа по каждому — иначе владелец увидит «не отвечает»
+  // и не узнает, что дело в нулевом балансе или протухшем ключе.
+  const причины: string[] = []
+  for (const p of providers) {
+    const body: Record<string, unknown> = {
+      model: p.model,
+      messages,
+      tools: toOpenAITools(),
+      tool_choice: 'auto',
+      temperature: 0.3,
+      stream: true,
+    }
+    // Режим размышления есть только у GLM. Подставлять его OpenAI нельзя —
+    // неизвестное поле там ошибка, а не игнор.
+    if (p.thinking) body.thinking = { type: 'enabled' }
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buf += decoder.decode(value, { stream: true })
-    const lines = buf.split('\n')
-    buf = lines.pop() ?? ''
-    for (const line of lines) {
-      const s = line.trim()
-      if (!s.startsWith('data:')) continue
-      const payload = s.slice(5).trim()
-      if (payload === '[DONE]') continue
-      let j: any
-      try {
-        j = JSON.parse(payload)
-      } catch {
-        continue
-      }
-      const d = j.choices?.[0]?.delta
-      if (!d) continue
-      if (d.reasoning_content) {
-        acc.reasoning = (acc.reasoning || '') + d.reasoning_content
-        yield { kind: 'reasoning', text: d.reasoning_content }
-      }
-      if (d.content) {
-        acc.content += d.content
-        yield { kind: 'content', text: d.content }
-      }
-      if (d.tool_calls) {
-        for (const tc of d.tool_calls) {
-          const i = tc.index ?? 0
-          acc.tool_calls[i] ??= {
-            id: '',
-            type: 'function',
-            function: { name: '', arguments: '' },
+    let r: Response
+    try {
+      r = await fetch(`${p.base}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${p.key}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+    } catch (e) {
+      причины.push(`${p.id}: сеть недоступна — ${String(e).slice(0, 120)}`)
+      continue
+    }
+
+    if (!r.ok || !r.body) {
+      const t = await r.text().catch(() => '')
+      причины.push(diagnose(p.id, r.status, t))
+      continue
+    }
+
+    const reader = (r.body as any).getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+    const acc: any = { role: 'assistant', content: '', tool_calls: [] }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      const lines = buf.split('\n')
+      buf = lines.pop() ?? ''
+      for (const line of lines) {
+        const str = line.trim()
+        if (!str.startsWith('data:')) continue
+        const payload = str.slice(5).trim()
+        if (payload === '[DONE]') continue
+        let j: any
+        try {
+          j = JSON.parse(payload)
+        } catch {
+          continue
+        }
+        const d = j.choices?.[0]?.delta
+        if (!d) continue
+        if (d.reasoning_content) {
+          yield { kind: 'reasoning', text: d.reasoning_content }
+        }
+        if (d.content) {
+          acc.content += d.content
+          yield { kind: 'content', text: d.content }
+        }
+        if (d.tool_calls) {
+          for (const tc of d.tool_calls) {
+            const i = tc.index ?? 0
+            acc.tool_calls[i] ??= {
+              id: '',
+              type: 'function',
+              function: { name: '', arguments: '' },
+            }
+            if (tc.id) acc.tool_calls[i].id = tc.id
+            if (tc.function?.name)
+              acc.tool_calls[i].function.name += tc.function.name
+            if (tc.function?.arguments)
+              acc.tool_calls[i].function.arguments += tc.function.arguments
           }
-          if (tc.id) acc.tool_calls[i].id = tc.id
-          if (tc.function?.name)
-            acc.tool_calls[i].function.name += tc.function.name
-          if (tc.function?.arguments)
-            acc.tool_calls[i].function.arguments += tc.function.arguments
         }
       }
     }
+    if (!acc.tool_calls.length) delete acc.tool_calls
+    yield { kind: 'done', message: acc }
+    return
   }
-  if (!acc.tool_calls.length) delete acc.tool_calls
-  yield { kind: 'done', message: acc }
+
+  throw new Error(
+    'Ни один провайдер модели не ответил.\n' +
+      причины.map(c => '  • ' + c).join('\n')
+  )
 }
 
 /**
