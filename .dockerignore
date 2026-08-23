@@ -66,6 +66,10 @@ worktrees/
 
 # Scripts
 scripts/
+# ...кроме одного файла: его зовёт `prepare` сразу после npm install, и без
+# него сборка падает с 'Cannot find module'. Внутри он видит, что .git в
+# образе нет, и выходит с нулём — хуки в контейнере не нужны.
+!scripts/install-hooks.cjs
 
 # Large directories NOT needed in build
 avatar_brain/

@@ -50,7 +50,7 @@
     "mobile:ios": "cd mobile && npm run ios",
     "mobile:web": "cd mobile && npm run web",
     "predev": "./scripts/worktree-env-sync.sh && pkill -f 'bun.*src/index.ts' || true && node scripts/kill-port.cjs 2999 3001 8288",
-    "prepare": "lefthook install",
+    "prepare": "node scripts/install-hooks.cjs",
     "prestart": "./scripts/worktree-env-sync.sh",
     "report:bot": "npx tsx scripts/generateFinancialReport.ts -b",
     "report:financial": "npx tsx scripts/generateFinancialReport.ts",
