@@ -109,3 +109,29 @@ export const saveAvatarPhotoAtom = atom(
     }
   }
 )
+
+/** Убрать фото из профиля. Сервер удаляет только СВОИ avatar_photo —
+ *  историю генераций этим путём не стереть. */
+export const deleteAvatarPhotoAtom = atom(
+  null,
+  async (get, set, id: number): Promise<boolean> => {
+    set(avatarPhotosErrorAtom, null)
+    try {
+      const res = await fetch(
+        `${RENDER_URL}/api/assets?id=${encodeURIComponent(id)}`,
+        { method: 'DELETE', headers: avatarHeaders() }
+      )
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        throw new Error(
+          `HTTP ${res.status} — ${body.slice(0, 160) || 'no body'}`
+        )
+      }
+      await set(loadAvatarPhotosAtom)
+      return true
+    } catch (e) {
+      set(avatarPhotosErrorAtom, e instanceof Error ? e.message : String(e))
+      return false
+    }
+  }
+)

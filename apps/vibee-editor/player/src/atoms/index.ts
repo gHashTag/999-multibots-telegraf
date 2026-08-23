@@ -508,5 +508,6 @@ export {
   avatarPhotosErrorAtom,
   loadAvatarPhotosAtom,
   saveAvatarPhotoAtom,
+  deleteAvatarPhotoAtom,
   type AvatarPhoto,
 } from './avatarPhotos'
