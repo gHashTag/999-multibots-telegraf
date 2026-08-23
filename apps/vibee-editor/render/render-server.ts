@@ -1925,7 +1925,101 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  // POST /api/generate/video - Generate video using Kling/Veo3
+  /**
+   * Fallback-видео через Replicate (seedance-1-lite).
+   *
+   * Прежний путь звал внешний MCP с инструментами ai_kling_create_video —
+   * которых не существует ни в одном сервисе проекта: video_generate много
+   * месяцев отвечал 500 на любой запрос. Пока у проекта нет собственного
+   * видео-MCP, честным путём является Replicate, как у картинок.
+   */
+  async function generateVideoViaReplicate(
+    prompt: string,
+    durationSec: number,
+    aspectRatio: string
+  ): Promise<string> {
+    const REPLICATE_TOKEN =
+      process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
+    if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
+
+    const create = await fetch(
+      // wan-2.5-t2v-fast стабильно падал E002 на стороне Replicate
+      // (проверено прямым curl 24.08); seedance-1-lite принимает те же поля.
+      'https://api.replicate.com/v1/models/bytedance/seedance-1-lite/predictions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${REPLICATE_TOKEN}`,
+        },
+        body: JSON.stringify({
+          input: {
+            prompt,
+            duration: durationSec >= 8 ? 10 : 5,
+            aspect_ratio: aspectRatio || '9:16',
+            resolution: '720p',
+          },
+        }),
+      }
+    )
+    if (!create.ok) {
+      throw new Error(`Replicate video failed: ${create.status} - ${await create.text()}`)
+    }
+    let data = await create.json()
+    let predictionUrl: string | null = data?.urls?.get ?? null
+    // Видео тяжелее картинки: даём модели до 8 минут.
+    const deadline = Date.now() + 480_000
+    while (
+      predictionUrl &&
+      data.output == null &&
+      !data.error &&
+      data.status !== 'succeeded' &&
+      data.status !== 'failed' &&
+      Date.now() < deadline
+    ) {
+      await new Promise(r => setTimeout(r, 5000))
+      const poll = await fetch(predictionUrl, {
+        headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` },
+      })
+      if (!poll.ok) break
+      data = await poll.json()
+    }
+    if (data.error) throw new Error(`Replicate video: ${String(data.error).slice(0, 200)}`)
+    const output = data.output
+    const url = Array.isArray(output) ? output[0] : output
+    if (typeof url !== 'string') {
+      throw new Error(`Replicate video not ready (${data.status || 'timeout'})`)
+    }
+    // Ссылка replicate.delivery живёт ограниченное время — забираем файл в
+    // наше S3, как у картинок: иначе лента через час показывает пустоту.
+    try {
+      const vid = await fetch(url)
+      if (vid.ok) {
+        const bytes = Buffer.from(await vid.arrayBuffer())
+        const up = await fetch(
+          `${process.env.SELF_URL || 'http://127.0.0.1:' + (process.env.PORT || '3000')}/upload`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'video/mp4',
+              'X-Filename': `agent-video-${Date.now()}.mp4`,
+            },
+            body: new Uint8Array(bytes),
+          }
+        )
+        const upData: any = await up.json().catch(() => null)
+        if (up.ok && upData?.directUrl) return upData.directUrl as string
+      }
+    } catch (e) {
+      console.warn(
+        '🎬 [Generate] S3-перекладка видео не удалась, отдаю прямую ссылку:',
+        String(e).slice(0, 120)
+      )
+    }
+    return url
+  }
+
+  // POST /api/generate/video - Generate video (MCP Kling/Veo3 → Replicate fallback)
   if (req.url === '/api/generate/video' && req.method === 'POST') {
     let body = ''
     req.on('data', chunk => {
@@ -2026,14 +2120,42 @@ const server = createServer(async (req, res) => {
 
         throw new Error('Video generation timeout')
       } catch (error) {
-        console.error('❌ [Generate] Video error:', error)
-        res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify({
-            success: false,
-            error: error instanceof Error ? error.message : 'Generation failed',
-          })
+        // MCP-путь исторически ведёт в никуда (см. комментарий у helper).
+        // Прежде чем отдать ошибку, пробуем Replicate — как у картинок.
+        console.warn(
+          '🎬 [Generate] Video MCP недоступен:',
+          String(error).slice(0, 140),
+          '— включаю Replicate fallback'
         )
+        try {
+          const b = JSON.parse(body || '{}')
+          const videoUrl = await generateVideoViaReplicate(
+            String(b.prompt || ''),
+            parseInt(String(b.duration || '5'), 10) || 5,
+            String(b.aspect_ratio || '9:16')
+          )
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: true,
+              url: videoUrl,
+              id: `replicate-${Date.now()}`,
+              provider: 'replicate/seedance-1-lite',
+            })
+          )
+        } catch (fallbackError) {
+          console.error('❌ [Generate] Video error:', fallbackError)
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: false,
+              error:
+                fallbackError instanceof Error
+                  ? fallbackError.message
+                  : 'Generation failed',
+            })
+          )
+        }
       }
     })
     return
