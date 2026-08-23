@@ -24,10 +24,10 @@ const en: Translations = {
   'nav.getStarted': 'Get Started',
 
   // Hero
-  'hero.badge': 'Social network for creators',
-  'hero.title': 'Create viral reels in minutes',
+  'hero.badge': 'Agentic vibe-reels',
+  'hero.title': 'Your agent makes the reels',
   'hero.subtitle':
-    'Social network for creators. AI generates professional videos. Upload a photo, describe an idea — get a ready-made reel.',
+    'Connect any agent over MCP — it reads your feed, your files and templates, and publishes reels for you. Or just chat with the built-in one. You describe the vibe; the agent does the work.',
   'cta.try': 'Try Free',
   'cta.demo': 'Watch Demo',
   'cta.createReel': 'Create your first reel',
@@ -1635,10 +1635,10 @@ const ru: Translations = {
   'nav.getStarted': 'Начать',
 
   // Hero
-  'hero.badge': 'Соцсеть для креаторов',
-  'hero.title': 'Создавай вирусные рилс за минуты',
+  'hero.badge': 'Агентный вайбрилс',
+  'hero.title': 'Рилсы делает твой агент',
   'hero.subtitle':
-    'Социальная сеть для креаторов. AI генерирует профессиональные видео. Загрузи фото, опиши идею — получи готовый рилс.',
+    'Подключи любого агента по MCP — он читает твою ленту, файлы и шаблоны и публикует рилсы за тебя. Или просто поговори со встроенным. Ты задаёшь вайб — агент делает работу.',
   'cta.try': 'Попробовать',
   'cta.demo': 'Смотреть демо',
   'cta.createReel': 'Создать первый рилс',
