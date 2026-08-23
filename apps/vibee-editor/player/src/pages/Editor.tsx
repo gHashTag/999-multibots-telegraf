@@ -1,7 +1,7 @@
 import React, { useEffect, Suspense, useRef, useState } from 'react';
 import { useSetAtom, useAtomValue, useAtom } from 'jotai';
 import { useSearchParams } from 'react-router-dom';
-import { loadCaptionsAtom, updateDurationFromLipSyncAtom, lipSyncVideoAtom, transcribeVideoAtom, ensureAudioTrackAtom, ensureVoiceTrackAtom, ensureImageTrackAtom, selectedItemIdsAtom, sidebarTabAtom, type SidebarTab } from '@/atoms';
+import { loadCaptionsAtom, updateDurationFromLipSyncAtom, lipSyncVideoAtom, transcribeVideoAtom, ensureAudioTrackAtom, ensureVoiceTrackAtom, ensureImageTrackAtom, selectedItemIdsAtom, sidebarTabAtom, clearSelectionAtom, type SidebarTab } from '@/atoms';
 import { layoutPresetAtom, LAYOUT_PRESETS, publishModalOpenAtom } from '@/atoms/ui';
 import { useAutoRecordHistory, useAutoSaveTemplateSettings } from '@/atoms/hooks';
 import { AssetsPanel } from '@/components/Panels/AssetsPanel';
@@ -37,6 +37,7 @@ function EditorContent() {
   const ensureVoiceTrack = useSetAtom(ensureVoiceTrackAtom);
   const ensureImageTrack = useSetAtom(ensureImageTrackAtom);
   const selectedItemIds = useAtomValue(selectedItemIdsAtom);
+  const clearSelection = useSetAtom(clearSelectionAtom);
   const layoutPreset = useAtomValue(layoutPresetAtom);
   const prevLipSyncRef = useRef<string | null>(null);
 
@@ -249,7 +250,12 @@ function EditorContent() {
       {isMobile && !isTablet && selectedItemIds.length > 0 && (
         <BottomSheet
           isOpen={selectedItemIds.length > 0}
-          onClose={() => {}}
+          // Закрытие снимает выделение. Пустая заглушка здесь означала, что
+          // ни крестик, ни свайп, ни Escape, ни тап по подложке не закрывают
+          // лист: подложка остаётся поверх редактора с pointer-events, скролл
+          // остаётся заблокирован, и Play с Export становятся физически
+          // недоступны. Любой тап по клипу убивал сессию до перезагрузки.
+          onClose={clearSelection}
           title={t('panels.properties')}
           height="half"
         >

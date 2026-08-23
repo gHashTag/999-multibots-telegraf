@@ -143,9 +143,23 @@ export const TrackItem = memo(function TrackItem({ item, pxPerFrame, isSelected,
     };
   }, [snapSettings.enabled, snapPoints]);
 
-  const handleMouseDown = (e: React.MouseEvent, type: 'drag' | 'resize-left' | 'resize-right') => {
+  /**
+   * Pointer, а не mouse: pointer-события покрывают и мышь, и палец, и стилус
+   * одним кодом, а координата e.clientX у них одинаковая. Пока здесь были
+   * только mouse-события, клип на телефоне нельзя было ни передвинуть, ни
+   * подрезать — при том, что CSS уже делал вид, что тач поддержан
+   * (touch-action: none на ручке глушил ещё и прокрутку в этой полосе).
+   */
+  const handleMouseDown = (e: React.PointerEvent, type: 'drag' | 'resize-left' | 'resize-right') => {
     e.stopPropagation();
     e.preventDefault();
+    // Захват указателя: дальнейшие move/up приходят на этот же элемент, даже
+    // если палец ушёл за его границы.
+    try {
+      (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    } catch {
+      /* капчур не критичен: без него работают глобальные слушатели ниже */
+    }
 
     // Prevent drag/resize if track is locked
     if (isLocked) return;
@@ -222,11 +236,13 @@ export const TrackItem = memo(function TrackItem({ item, pxPerFrame, isSelected,
   // Add/remove global event listeners for drag/resize
   useEffect(() => {
     if (isDragging || isResizing) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('pointermove', handleMouseMove);
+      window.addEventListener('pointerup', handleMouseUp);
+      window.addEventListener('pointercancel', handleMouseUp);
       return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
+        window.removeEventListener('pointermove', handleMouseMove);
+        window.removeEventListener('pointerup', handleMouseUp);
+        window.removeEventListener('pointercancel', handleMouseUp);
       };
     }
   }, [isDragging, isResizing, handleMouseMove, handleMouseUp]);
@@ -267,7 +283,7 @@ export const TrackItem = memo(function TrackItem({ item, pxPerFrame, isSelected,
       }}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
-      onMouseDown={(e) => handleMouseDown(e, 'drag')}
+      onPointerDown={(e) => handleMouseDown(e, 'drag')}
       onContextMenu={handleContextMenu}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -279,7 +295,7 @@ export const TrackItem = memo(function TrackItem({ item, pxPerFrame, isSelected,
       {/* Left resize handle */}
       <div
         className="track-item-handle left"
-        onMouseDown={(e) => handleMouseDown(e, 'resize-left')}
+        onPointerDown={(e) => handleMouseDown(e, 'resize-left')}
       />
 
       {/* Thumbnail for video/avatar tracks */}
@@ -329,7 +345,7 @@ export const TrackItem = memo(function TrackItem({ item, pxPerFrame, isSelected,
       {/* Right resize handle */}
       <div
         className="track-item-handle right"
-        onMouseDown={(e) => handleMouseDown(e, 'resize-right')}
+        onPointerDown={(e) => handleMouseDown(e, 'resize-right')}
       />
 
       {/* Context Menu */}

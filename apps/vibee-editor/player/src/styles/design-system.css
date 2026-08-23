@@ -438,3 +438,21 @@ button:disabled {
   border-bottom-color: var(--tab-border-active);
   color: var(--tab-text-active);
 }
+
+
+/* На сенсорных экранах iOS зумит вьюпорт при фокусе в поле со шрифтом меньше
+   16px и НЕ откатывает зум обратно — интерфейс остаётся увеличенным, и часть
+   элементов уезжает за край. Одно правило закрывает все поля разом. */
+@media (pointer: coarse) {
+  /* :where() держит специфичность на нуле и потому проигрывает точечным
+     правилам вроде .transport-left .project-name-input { font-size: 12px }.
+     Здесь нужен обратный эффект — перебить их, поэтому специфичность
+     поднята классом html[data-touch], который ставит useTelegramWebApp,
+     а !important оставлен как последняя мера: зум iOS не откатывается,
+     и цена промаха выше цены грубого правила. */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

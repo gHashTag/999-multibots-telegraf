@@ -6,7 +6,11 @@
     <!-- Браузеры всё равно запрашивают /favicon.ico, если он не объявлен явно —
          в логах это давало ровный поток 404. -->
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- interactiveWidget=resizes-content: на Android клавиатура сжимает контент,
+         а не накрывает его — иначе поле ввода уезжает под клавиатуру.
+         maximum-scale — страховка от зума при фокусе (основное лечение —
+         font-size: 16px на сенсорных, см. design-system.css). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
 
     <!-- Telegram Mini Apps runtime. Must be a classic (non-async, non-defer)
          script in <head>: `<script type="module">` is deferred by spec, so a
