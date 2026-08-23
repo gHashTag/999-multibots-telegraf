@@ -54,7 +54,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  z-index: calc(var(--z-elevated) + 1); /* Above header-tabs to ensure logo is visible */
+  z-index: calc(
+    var(--z-elevated) + 1
+  ); /* Above header-tabs to ensure logo is visible */
   position: relative;
 }
 
@@ -289,7 +291,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-light)
+  );
   border-radius: 6px;
   font-weight: 700;
   font-size: 18px;
@@ -299,6 +305,16 @@
   height: 50px;
   width: auto;
   object-fit: contain;
+}
+
+/* Место под логотип, пока сервер не сказал, чей он.
+   Ширина равна типичной ширине нашего знака при высоте 50px — так соседние
+   элементы шапки не дёргаются в момент подстановки бренда. Ничего не рисует:
+   любой видимый знак здесь был бы чужим для партнёра. */
+.logo-placeholder {
+  display: inline-block;
+  height: 50px;
+  width: 94px;
 }
 
 .logo-text {
@@ -356,13 +372,21 @@
 }
 
 .export-button {
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-light)
+  );
   color: #000;
   font-weight: 600;
 }
 
 .export-button:hover {
-  background: linear-gradient(135deg, var(--vibee-amber-dark), var(--vibee-amber));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber-dark),
+    var(--vibee-amber)
+  );
   box-shadow: 0 2px 12px rgba(245, 158, 11, 0.3);
 }
 
@@ -372,7 +396,11 @@
 }
 
 .export-button.exporting {
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-light)
+  );
   color: #000;
   cursor: wait;
 }
@@ -382,8 +410,12 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* WebSocket status indicator */
@@ -431,8 +463,13 @@
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 /* Blob Warning Dialog */
@@ -533,12 +570,20 @@
 }
 
 .blob-warning-btn.primary {
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-light)
+  );
   color: #000;
 }
 
 .blob-warning-btn.primary:hover {
-  background: linear-gradient(135deg, var(--vibee-amber-dark), var(--vibee-amber));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber-dark),
+    var(--vibee-amber)
+  );
 }
 
 /* Undo/Redo Group */
@@ -551,16 +596,19 @@
   border-radius: 8px;
 }
 
-.undo-btn, .redo-btn {
+.undo-btn,
+.redo-btn {
   padding: 6px 8px !important;
 }
 
-.undo-btn:disabled, .redo-btn:disabled {
+.undo-btn:disabled,
+.redo-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
 }
 
-.undo-btn:not(:disabled):hover, .redo-btn:not(:disabled):hover {
+.undo-btn:not(:disabled):hover,
+.redo-btn:not(:disabled):hover {
   background: var(--bg-input);
   color: #fff;
 }
@@ -785,7 +833,7 @@
 }
 
 .connection-info .instagram-icon {
-  color: #E1306C;
+  color: #e1306c;
 }
 
 .connection-details {
@@ -824,7 +872,7 @@
 .connection-btn.connect {
   background: rgba(225, 48, 108, 0.15);
   border: 1px solid rgba(225, 48, 108, 0.3);
-  color: #E1306C;
+  color: #e1306c;
 }
 
 .connection-btn.connect:hover:not(:disabled) {
@@ -1185,7 +1233,11 @@
 }
 
 .save-template-btn.primary {
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-light)
+  );
   color: #000;
   font-weight: 600;
 }
@@ -1532,7 +1584,6 @@
     display: none;
   }
 }
-
 
 /* Внутри Telegram нижняя навигация ровно одна — .tma-tabbar. Вторая панель
    .header-tabs при <=1023px тоже становится position: fixed; bottom: 0 и
