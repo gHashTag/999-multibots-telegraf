@@ -36,6 +36,12 @@ for tool in whoami feed_stats templates_list feed_analytics my_assets soul_get; 
   check "$tool" "" "$err"
 done
 
+say "— Честность описаний (trust) —"
+desc=$(curl -s -m 10 http://127.0.0.1:3333/mcp -H "X-Agent-Key: $KEY" -H 'Content-Type: application/json' --data @/tmp/rc-req.json > /dev/null; printf '%s' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' > /tmp/rc-req.json; curl -s -m 10 http://127.0.0.1:3333/mcp -H "X-Agent-Key: $KEY" -H 'Content-Type: application/json' --data @/tmp/rc-req.json)
+echo "$desc" | grep -q 'seedance-1-lite' && say "  ✅ video_generate говорит правду о провайдере" || { say "  ❌ video_generate не упоминает seedance"; fail=1; }
+echo "$desc" | grep -q 'ТОЛЬКО при валидном ключе' && say "  ✅ audio_generate честен про ключ" || { say "  ❌ audio_generate потерял честную оговорку"; fail=1; }
+echo "$desc" | grep -q 'flux-schnell' && say "  ✅ image_generate называет реальную модель" || { say "  ❌ image_generate не упоминает flux-schnell"; fail=1; }
+
 say "— Прокси блога —"
 items=$(curl -s -m 15 http://127.0.0.1:3333/api/blog | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('items',[])))" 2>/dev/null)
 [ "$items" -gt 0 ] 2>/dev/null && say "  ✅ /api/blog ($items постов)" || { say "  ❌ /api/blog пуст"; fail=1; }
