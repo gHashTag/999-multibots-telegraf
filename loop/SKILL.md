@@ -31,3 +31,4 @@ description: Эксплуатация Trinity S³AI (vibee-editor): локаль
 - Перед правками агентских инструментов читать `loop/LOOP_REPORT.md` (что уже сделано и что в плане).
 
 9. Блог: прокси GET /api/blog (RSS t27.ai, кэш 10 мин, entity-декод в прокси — браузеру отдаётся чистый текст). Страница pages/Blog.tsx: Header монтируется САМОЙ страницей (App его не ставит), lazy-роуту нужен default export. Таб — NAV_TABS в Header.tsx, переводы tabs.blog в atoms/language.ts (два блока: EN и RU).
+10. Автопилот: при <2 тем в запасе сам дописывает в topics.json темы из свежих постов блога (/api/blog). topics.json — мутируемая очередь, не переписывай её руками поверх.
