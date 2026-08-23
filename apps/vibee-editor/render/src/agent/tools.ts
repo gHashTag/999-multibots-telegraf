@@ -584,7 +584,7 @@ export const TOOLS: AgentTool[] = [
       const week = rows.filter(
         (x: any) => Date.now() - Date.parse(x.created_at) < 7 * 86400_000
       )
-      return {
+      const result = {
         постов: rows.length,
         просмотров: sum('views_count'),
         звёзд: sum('stars_count'),
@@ -596,7 +596,28 @@ export const TOOLS: AgentTool[] = [
           ? { id: best.id, name: best.name, просмотров: best.views_count }
           : null,
         за_7_дней: { постов: week.length, просмотров: week.reduce((a: number, x: any) => a + Number(x.views_count || 0), 0) },
+      } as Record<string, unknown>
+      // A/B заголовков: стиль лежит в template_settings.ab_style
+      // (кладёт автопилот). Посты без метки в «прочие» не попадают —
+      // они и есть контрольная группа до начала эксперимента.
+      try {
+        const ab = await ctx.pool.query(
+          `SELECT template_settings->>'ab_style' AS style,
+                  COUNT(*)::int AS постов,
+                  COALESCE(SUM(views_count),0)::int AS просмотров
+           FROM public_templates
+           WHERE telegram_id = $1 AND is_public = TRUE AND deleted_at IS NULL
+             AND template_settings->>'ab_style' IS NOT NULL
+           GROUP BY 1`,
+          [ctx.telegramId]
+        )
+        if (ab.rows.length) {
+          result['заголовки_AB'] = ab.rows
+        }
+      } catch {
+        /* нет колонки-метки — эксперимент ещё не начат */
       }
+      return result
     },
   },
 

@@ -205,8 +205,20 @@ async function main() {
 
   // 4. Сборка рилса. Текстовая гравюра TrinityBlogReel не стоит ни копейки.
   const today = new Date().toISOString().slice(0, 10)
+  // A/B заголовков: чётный пост дня — тема как есть (A), нечётный —
+  // измеримая цифра выносится вперёд (B). Стиль пишется в
+  // template_settings.ab_style, аналитика потом покажет, что смотрят.
+  const abStyle = state.postsToday % 2 === 0 ? 'A' : 'B'
+  let title = topic.title
+  if (abStyle === 'B') {
+    const plate = (topic.plates || []).find((pl: any) => /\d/.test(String(pl.value)))
+    if (plate && !title.startsWith(String(plate.value))) {
+      title = `${plate.value}: ${title}`
+    }
+  }
+  log(`A/B — стиль ${abStyle}${abStyle === 'B' ? ` (${title.slice(0, 50)})` : ''}`)
   const props: Record<string, unknown> = {
-    title: topic.title,
+    title,
     subtitle: topic.subtitle,
     dateline: `${today} · 1 min`,
     tags: topic.tags,
@@ -258,10 +270,10 @@ async function main() {
   // 5. Публикация с каноническим текстом и хештегами.
   const hashtags = ['#TrinityS3AI', '#t27', ...topic.tags.map(t => '#' + t)]
   const pub = await call('feed_publish', {
-    name: topic.title,
+    name: title,
     description: `${topic.subtitle}. ${topic.lesson}.\n\n${hashtags.join(' ')}`,
     video_url: reel.url,
-    template_settings: { compositionId: 'TrinityBlogReel', props },
+    template_settings: { compositionId: 'TrinityBlogReel', props, ab_style: abStyle },
   })
   if (!pub?.опубликовано) {
     log(`публикация отклонена: ${JSON.stringify(pub).slice(0, 200)}`)
