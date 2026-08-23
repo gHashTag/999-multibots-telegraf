@@ -74,6 +74,73 @@ curl -sN https://vibee-render-production.up.railway.app/api/agent/chat \
 
 ---
 
+## Готовые конфиги для популярных клиентов
+
+Эндпоинт один и тот же: `https://vibee-render-production.up.railway.app/mcp`,
+авторизация — заголовок `X-Agent-Key: ТВОЙ_КЛЮЧ`.
+
+### Claude Code
+
+```bash
+claude mcp add --transport http t27-agent \
+  https://vibee-render-production.up.railway.app/mcp \
+  --header "X-Agent-Key: ТВОЙ_КЛЮЧ"
+```
+
+Проверка: `/mcp` в списке (`claude mcp list`), затем в сессии спросите
+«вызови t27-agent tools/list». Ключ лежит в `~/.claude.json` конкретной
+машины — коммитить его в репо нельзя.
+
+### Codex CLI (`~/.codex/config.toml`)
+
+```toml
+[mcp_servers.t27-agent]
+url = "https://vibee-render-production.up.railway.app/mcp"
+http_headers = { "X-Agent-Key" = "ТВОЙ_КЛЮЧ" }
+```
+
+После правки — `codex` новой сессией; в `/status` сервер должен показаться
+connected. Инструменты видны как `t27-agent__feed_stats` и т.д.
+
+### Gemini CLI (`~/.gemini/settings.json`)
+
+```json
+{
+  "mcpServers": {
+    "t27-agent": {
+      "httpUrl": "https://vibee-render-production.up.railway.app/mcp",
+      "headers": { "X-Agent-Key": "ТВОЙ_КЛЮЧ" }
+    }
+  }
+}
+```
+
+Запуск: `gemini`; проверка — «посмотри инструменты t27-agent и вызови
+feed_stats».
+
+### Cursor / любой клиент с `.mcp.json`
+
+```json
+{
+  "mcpServers": {
+    "t27-agent": {
+      "type": "http",
+      "url": "https://vibee-render-production.up.railway.app/mcp",
+      "headers": { "X-Agent-Key": "ТВОЙ_КЛЮЧ" }
+    }
+  }
+}
+```
+
+### Голос ответов
+
+Подключённый агент наследует голос бренда из [SOUL.md](../../SOUL.md):
+числа вместо прилагательных, честные границы. Если просите его сделать
+пост — он пойдёт через `feed_publish`, а текст напишет по канону
+(хештеги обязательны, инструмент сам отклонит без них).
+
+---
+
 ## Инструменты
 
 | Инструмент       | Что делает                                                   | Меняет данные |

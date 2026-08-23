@@ -824,6 +824,11 @@ const en: Translations = {
   'generate.saveRecording': 'Save',
   'generate.imageSource': 'Avatar Image',
   'generate.uploadImage': 'Upload Photo',
+  'generate.myPhotos': 'My photos — one photo, all content',
+  'generate.myPhotosEmpty':
+    'No saved photos yet: upload one and save it — lipsync will take the face from here',
+  'generate.saveToAvatar': 'Save photo to avatar',
+  'generate.savedToAvatar': 'Saved',
   'generate.results': 'Results',
   'generate.dragHint': 'Drag to timeline',
   'generate.addToTimeline': 'Add to timeline',
@@ -2436,6 +2441,11 @@ const ru: Translations = {
   'generate.saveRecording': 'Сохранить',
   'generate.imageSource': 'Фото аватара',
   'generate.uploadImage': 'Загрузить фото',
+  'generate.myPhotos': 'Мои фото — одно фото, весь контент',
+  'generate.myPhotosEmpty':
+    'Сохранённых фото пока нет: загрузите одно и сохраните — липсинк будет брать лицо отсюда',
+  'generate.saveToAvatar': 'Сохранить фото в аватар',
+  'generate.savedToAvatar': 'Сохранено',
   'generate.results': 'Результаты',
   'generate.dragHint': 'Перетащите на таймлайн',
   'generate.addToTimeline': 'Добавить на таймлайн',
