@@ -21,6 +21,9 @@
  */
 import { TOOLS_BY_NAME, toOpenAITools, type ToolContext } from './tools'
 import { allProviders, diagnose } from './provider'
+import { readFileSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const MAX_STEPS = 8
 
@@ -64,6 +67,51 @@ const SYSTEM = `Ты — агент внутри приложения Trinity S�
   Если человек просит сгенерировать — объясни это честно.
 
 Отвечай по-русски, коротко, числами из инструментов, а не примерными.`
+
+/**
+ * SOUL.md — голос владельца (см. корень репо). Один файл настраивает тон
+ * и чата, и всех постов, которые агент публикует: изменил файл — изменился
+ * голос everywhere. Читается лениво и один раз: файл редкий, а читать его
+ * на каждый заход диалога — трата. Кандидаты путей покрывают локальный
+ * запуск из исходников и Railway, где репо лежит целиком.
+ */
+let soulCache: string | null | undefined
+function soul(): string | null {
+  if (soulCache !== undefined) return soulCache
+  const here = dirname(fileURLToPath(import.meta.url))
+  const candidates = [
+    process.env.SOUL_MD_PATH,
+    join(here, '../../../../../../SOUL.md'),
+    join(process.cwd(), 'SOUL.md'),
+  ].filter(Boolean) as string[]
+  for (const p of candidates) {
+    try {
+      const text = readFileSync(p, 'utf8').trim()
+      if (text) {
+        soulCache = text
+        return soulCache
+      }
+    } catch {
+      // файла нет по этому пути — пробуем следующий
+    }
+  }
+  console.warn('[agent] SOUL.md не найден, агент говорит без голоса владельца')
+  soulCache = null
+  return null
+}
+
+function systemPrompt(): string {
+  const s = soul()
+  if (!s) return SYSTEM
+  return (
+    SYSTEM +
+    '\n\nГОЛОС ВЛАДЕЛЬЦА (SOUL.md). Когда пишешь текст поста, заголовок или ' +
+    'описание для публикации — делай это голосом ниже: измерение вместо ' +
+    'прилагательного, границы честно, ретракции без страха. В обычных ' +
+    'ответах оставайся собой — кратким исполнителем.\n\n' +
+    s
+  )
+}
 
 async function* streamModel(
   messages: ChatMessage[]
@@ -188,7 +236,7 @@ export async function* runAgent(
   ctx: ToolContext
 ): AsyncGenerator<AgentEvent> {
   const messages: ChatMessage[] = [
-    { role: 'system', content: SYSTEM },
+    { role: 'system', content: systemPrompt() },
     ...history,
   ]
 

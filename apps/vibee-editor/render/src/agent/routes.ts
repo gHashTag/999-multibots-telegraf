@@ -41,7 +41,7 @@ export function agentKeyOwner(key: string): string | null {
   return null
 }
 
-function readBody(req: IncomingMessage): Promise<string> {
+export function readBody(req: IncomingMessage): Promise<string> {
   return new Promise(resolve => {
     let b = ''
     req.on('data', (c: Buffer) => {

@@ -4,6 +4,7 @@ import {
   handleMcpCard,
   handleAgentChat,
   chatIdentity,
+  readBody,
 } from './src/agent/routes'
 import os from 'node:os'
 import { WebSocketServer, WebSocket } from 'ws'
@@ -4145,6 +4146,74 @@ const server = createServer(async (req, res) => {
       }
       return
     }
+  }
+
+  // POST /api/assets — сохранить фото в профиль аватара.
+  //
+  // Настройки аватара: человек грузит фото ОДИН раз, и дальше весь контент
+  // (липсинк, будущие генерации) делается от него. Таблица assets уже
+  // связывает файлы с telegram_id; тип avatar_photo отличает «лицо человека»
+  // от сгенерированных файлов. Личность — как у агента: подпись initData
+  // или ключ агента; telegram_id из тела не принимается никогда.
+  if (req.url?.split('?')[0] === '/api/assets' && req.method === 'POST') {
+    const who = chatIdentity(req, verifiedTelegramId(req))
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: 'не удалось определить пользователя',
+          detail:
+            'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
+        })
+      )
+      return
+    }
+    let body: any
+    try {
+      body = JSON.parse(await readBody(req))
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'тело запроса не разобрано как JSON' }))
+      return
+    }
+    const url: string = String(body.url ?? '')
+    // Только http(s)-ссылки: файл уже должен лежать в хранилище (клиент
+    // грузит через /upload). Принять произвольную строку значило бы
+    // записать в профиль мусор, который галерея потом отфильтрует.
+    if (!/^https?:\/\//.test(url)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({ error: 'нужна http(s)-ссылка на файл в поле url' })
+      )
+      return
+    }
+    const type: string =
+      typeof body.type === 'string' && body.type ? body.type : 'avatar_photo'
+    try {
+      const pool = await getPool()
+      // NOT NULL-колонки (storage_path, trigger_word) получают пустую
+      // строку — тот же приём, что у бота в saveVideoUrlToSupabase.
+      const r = await pool.query(
+        `INSERT INTO assets (type, trigger_word, telegram_id, storage_path,
+                             public_url, text, bot_name)
+         VALUES ($1, '', $2, '', $3, NULL, 'miniapp')
+         RETURNING id, created_at::text`,
+        [type, String(who), url]
+      )
+      res.writeHead(201, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          ok: true,
+          id: r.rows[0]?.id,
+          createdAt: r.rows[0]?.created_at,
+        })
+      )
+    } catch (error) {
+      console.error('[POST /api/assets] error:', error)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'не удалось сохранить файл' }))
+    }
+    return
   }
 
   // GET /api/assets/:telegram_id — история генераций пользователя.
