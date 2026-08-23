@@ -4470,6 +4470,18 @@ const server = createServer(async (req, res) => {
 
   if (req.url?.startsWith('/api/feed') && req.method === 'GET') {
     const url = new URL(req.url || '', `http://${req.headers.host}`)
+    // Колонка звёзд создаётся лениво, но читать ленту обязаны и ДО первой
+    // звезды: без этого SELECT с stars_count падал 500 на свежей базе.
+    // IF NOT EXISTS — идемпотентно, после первого прогона это no-op.
+    try {
+      const pool = await getPool()
+      await pool.query(
+        `ALTER TABLE public_templates
+           ADD COLUMN IF NOT EXISTS stars_count int NOT NULL DEFAULT 0`
+      )
+    } catch (e) {
+      console.warn('[feed] stars_count ensure failed:', e)
+    }
     if (req.url?.match(/\/api\/feed\/\d+/)) {
       // GET /api/feed/:id - Get single template
       // pathname, а НЕ req.url. `req.url.split("/").pop()` отдавал id ВМЕСТЕ
