@@ -3810,14 +3810,17 @@ const server = createServer(async (req, res) => {
     return
   }
   if (req.url?.split('?')[0] === '/api/agent/chat' && req.method === 'POST') {
-    // telegram_id берётся из ПОДТВЕРЖДЁННОЙ подписи, а не из тела запроса:
-    // иначе любой публиковал бы от чужого имени.
-    const who = verifiedTelegramId(req)
+    // Личность: подпись мини-аппа ИЛИ ключ агента (коннектор для тестов).
+    // telegram_id никогда не берётся из тела: иначе любой публиковал бы от
+    // чужого имени.
+    const who = chatIdentity(req, verifiedTelegramId(req))
     if (!who) {
       res.writeHead(401, { 'Content-Type': 'application/json' })
       res.end(
         JSON.stringify({
-          error: 'не удалось определить пользователя из подписи',
+          error: 'не удалось определить пользователя',
+          detail:
+            'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
         })
       )
       return
