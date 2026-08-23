@@ -44,8 +44,12 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Sort buttons */
@@ -107,7 +111,7 @@
 }
 
 .feed-card-inner {
-  position: relative;  /* Required for absolute positioning of children */
+  position: relative; /* Required for absolute positioning of children */
 }
 
 .feed-card-thumbnail {
@@ -117,11 +121,21 @@
   overflow: hidden;
 }
 
+/* contain, а НЕ cover.
+   Замерено на 375x812: карточка получает 375x756 (высота экрана минус
+   таббар), и эта явная высота перекрывает объявленный выше aspect-ratio 9/16
+   — соотношение выходит 0.496 вместо 0.563. При cover видео масштабируется
+   до 425x756 и срезается по 64 исходных пикселя с КАЖДОЙ стороны, то есть
+   11.8% ширины кадра.
+   Для ленты фотографий это нормально, здесь — нет: рилсы собираются как
+   готовая композиция 1080x1920, где шапка, адрес и титры прижаты к краям.
+   Именно их и срезало. contain показывает кадр целиком, каким он
+   отрендерен. */
 .feed-card-thumbnail img,
 .feed-card-thumbnail-video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .feed-card-placeholder {
@@ -138,7 +152,10 @@
   left: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* Тот же кадр, что и у основного видео: при cover превью и видео
+     показывали разную часть композиции, и в момент старта картинка
+     «прыгала». */
+  object-fit: contain;
 }
 
 /* Main video element */
@@ -260,7 +277,9 @@
   font-weight: 600;
   border-radius: 12px;
   cursor: pointer;
-  transition: transform 0.2s, background 0.2s;
+  transition:
+    transform 0.2s,
+    background 0.2s;
   z-index: 5;
 }
 
@@ -840,13 +859,25 @@
 }
 
 @keyframes scrollPulse {
-  0%, 100% { opacity: 0.3; transform: translateX(-50%) scale(1); }
-  50% { opacity: 0.6; transform: translateX(-50%) scale(1.1); }
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: translateX(-50%) scale(1.1);
+  }
 }
 
 @keyframes scrollBounce {
-  0%, 100% { transform: translateX(-50%) translateY(0); }
-  50% { transform: translateX(-50%) translateY(5px); }
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(5px);
+  }
 }
 
 /* Hide scroll indicator when scrolled */
@@ -941,9 +972,15 @@
 }
 
 @keyframes heartPop {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.4); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.4);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 /* Views and uses - slightly muted */
@@ -1245,7 +1282,10 @@
 @media (max-width: 768px) {
   .feed-panel.fullscreen .feed-card {
     height: 100%;
-    min-height: calc(100dvh - 56px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    min-height: calc(
+      100dvh - 56px - env(safe-area-inset-top, 0px) -
+        env(safe-area-inset-bottom, 0px)
+    );
   }
 
   .feed-panel.fullscreen .feed-card-info {
@@ -1339,8 +1379,12 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
