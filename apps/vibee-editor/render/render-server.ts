@@ -755,7 +755,14 @@ async function initBundle() {
   console.log('📦 Creating Remotion bundle...')
   bundleLocation = await bundle({
     entryPoint: path.resolve('./src/index.ts'),
-    webpackOverride: config => config,
+    // @vibee/atoms приходит в node_modules симлинком на ../packages: без
+    // symlinks:false webpack резолвит его по реальному пути и ищет jotai
+    // оттуда, поднимаясь до корня репо, где jotai нет. С флагом резолв идёт
+    // от симлинка — и находит jotai рядом, в node_modules рендера.
+    webpackOverride: config => {
+      config.resolve = { ...config.resolve, symlinks: false }
+      return config
+    },
   })
   console.log('✅ Bundle ready at:', bundleLocation)
 
@@ -1684,6 +1691,68 @@ const server = createServer(async (req, res) => {
   const MCP_URL = process.env.MCP_URL || SERVICE_ENDPOINTS.mcp
   const FAL_KEY = process.env.FAL_KEY
 
+  /**
+   * Fallback-генерация картинки через Replicate (flux-schnell).
+   *
+   * Основной путь — FAL, но его баланс кончается в самый неподходящий
+   * момент, а агенту нельзя отвечать «производство недоступно», когда в
+   * окружении лежит живой ключ Replicate. Prefer: wait держит запрос до
+   * готовности — flux-schnell отдаёт картинку за секунды, отдельная
+   * очередь не нужна.
+   */
+  async function generateImageViaReplicate(
+    prompt: string,
+    aspectRatio: string
+  ): Promise<string> {
+    const REPLICATE_TOKEN =
+      process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
+    if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
+
+    const response = await fetch(
+      'https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${REPLICATE_TOKEN}`,
+          Prefer: 'wait',
+        },
+        body: JSON.stringify({
+          input: { prompt, aspect_ratio: aspectRatio, output_format: 'jpg' },
+        }),
+      }
+    )
+    if (!response.ok) {
+      const text = await response.text()
+      throw new Error(`Replicate failed: ${response.status} - ${text}`)
+    }
+    let data = await response.json()
+    // Prefer: wait не гарантирует готовность: официальный модельный эндпоинт
+    // может ответить «processing» раньше, чем flux соберёт картинку. Дожидаемся
+    // сами, опрашивая предсказание.
+    let predictionUrl: string | null = data?.urls?.get ?? null
+    const deadline = Date.now() + 180_000
+    while (
+      predictionUrl &&
+      data.output == null &&
+      !data.error &&
+      Date.now() < deadline
+    ) {
+      await new Promise(r => setTimeout(r, 2500))
+      const poll = await fetch(predictionUrl, {
+        headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` },
+      })
+      if (!poll.ok) break
+      data = await poll.json()
+    }
+    const output = data.output
+    const url = Array.isArray(output) ? output[0] : output
+    if (typeof url !== 'string') {
+      throw new Error('Replicate did not return an image URL')
+    }
+    return url
+  }
+
   // Supported fal.ai image models
   const FAL_IMAGE_MODELS: Record<string, string> = {
     'fal-ai/flux-pro/v1.1-ultra': 'fal-ai/flux-pro/v1.1-ultra',
@@ -1707,6 +1776,12 @@ const server = createServer(async (req, res) => {
           `📷 [Generate] Photo: ${model}, prompt: "${prompt.substring(0, 50)}..."`
         )
 
+        // FAL — основной путь, но падение по чужому балансу не должно
+        // останавливать производство: ниже уходим на Replicate.
+        let falSubmitError = !FAL_KEY
+          ? 'FAL_KEY not configured'
+          : null
+
         // Convert width/height to aspect ratio for FAL
         const getAspectRatio = (w: number, h: number): string => {
           if (w === h) return '1:1'
@@ -1720,27 +1795,49 @@ const server = createServer(async (req, res) => {
           FAL_IMAGE_MODELS[model] || 'fal-ai/nano-banana-pro'
 
         // Submit job to FAL queue
-        const submitResponse = await fetch(
-          `https://queue.fal.run/${modelEndpoint}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Key ${FAL_KEY}`,
-            },
-            body: JSON.stringify({
-              prompt,
-              aspect_ratio: aspectRatio,
-              num_images: 1,
-            }),
-          }
-        )
+        const submitResponse = FAL_KEY
+          ? await fetch(`https://queue.fal.run/${modelEndpoint}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Key ${FAL_KEY}`,
+              },
+              body: JSON.stringify({
+                prompt,
+                aspect_ratio: aspectRatio,
+                num_images: 1,
+              }),
+            }).catch(e => {
+              console.warn('📷 [Generate] FAL unreachable:', String(e))
+              return null as any
+            })
+          : null
 
-        if (!submitResponse.ok) {
+        if (submitResponse && !submitResponse.ok) {
           const errorText = await submitResponse.text()
-          throw new Error(
-            `FAL submit failed: ${submitResponse.status} - ${errorText}`
+          falSubmitError = `FAL submit failed: ${submitResponse.status} - ${errorText}`
+        } else if (!submitResponse) {
+          falSubmitError = 'FAL unreachable'
+        }
+
+        if (falSubmitError) {
+          console.warn(
+            `📷 [Generate] FAL недоступен (${falSubmitError.slice(0, 140)}), включаю Replicate`
           )
+          const replicateUrl = await generateImageViaReplicate(
+            prompt,
+            aspectRatio
+          )
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: true,
+              url: replicateUrl,
+              id: `replicate-${Date.now()}`,
+              provider: 'replicate/flux-schnell',
+            })
+          )
+          return
         }
 
         const submitResult = await submitResponse.json()
