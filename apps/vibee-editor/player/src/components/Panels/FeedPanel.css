@@ -162,7 +162,9 @@
 .feed-card-video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* contain по той же причине, что у .feed-card-thumbnail-video выше:
+     рилс — готовая композиция 1080x1920 с брендингом по краям. */
+  object-fit: contain;
 }
 
 /* Play overlay (tap to play) */
@@ -246,7 +248,11 @@
 .feed-card-poster img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* Постер — это то, что человек видит, ПОКА видео не запустилось, то есть
+     большую часть времени в остановленной ленте. Если он обрезан по-другому,
+     чем видео, кадр «прыгает» на старте, а до старта показывает не то, что
+     отрендерено. */
+  object-fit: contain;
 }
 
 .feed-card-featured {
@@ -699,13 +705,16 @@
   aspect-ratio: unset; /* Remove aspect ratio - fill entire area */
 }
 
+/* Полноэкранный режим перекрывал ВСЕ правила выше и возвращал cover — то
+   есть починка кадра в нём не работала бы вовсе. Здесь обрезка вреднее
+   всего: именно так рилс и смотрят. */
 .feed-panel.fullscreen .feed-card-thumbnail img,
 .feed-panel.fullscreen .feed-card-thumbnail video,
 .feed-panel.fullscreen .feed-card-video,
 .feed-panel.fullscreen .feed-card-preview {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   background: #000;
 }
 
