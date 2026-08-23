@@ -50,11 +50,12 @@ export function BottomSheet({
       sheetRef.current.style.transition = '';
       const deltaY = currentY.current - startY.current;
 
-      // Close if dragged more than 100px down
+      // transform снимается В ОБЕИХ ветках. Раньше при закрытии свайпом он
+      // оставался уехавшим вниз, и следующее открытие рисовало лист за краем
+      // экрана — визуально «панель больше не открывается».
+      sheetRef.current.style.transform = '';
       if (deltaY > 100) {
         onClose();
-      } else {
-        sheetRef.current.style.transform = '';
       }
     }
     startY.current = 0;
@@ -72,14 +73,20 @@ export function BottomSheet({
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
-  // Prevent body scroll when open
+  // Внутри Telegram скроллит #root, а не body (styles/telegram.css), поэтому
+  // блокировка только body не работала: фон продолжал ехать под открытым
+  // листом. Ставим класс на html и глушим оба.
   useEffect(() => {
+    const html = document.documentElement;
     if (isOpen) {
+      html.classList.add('sheet-open');
       document.body.style.overflow = 'hidden';
     } else {
+      html.classList.remove('sheet-open');
       document.body.style.overflow = '';
     }
     return () => {
+      html.classList.remove('sheet-open');
       document.body.style.overflow = '';
     };
   }, [isOpen]);

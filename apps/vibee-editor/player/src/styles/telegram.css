@@ -59,3 +59,9 @@ html[data-tg='1'] #root {
 html[data-tg='1'] .app-content-top {
   padding-top: var(--app-content-safe-top);
 }
+
+/* Открытый bottom sheet не должен пускать фон в прокрутку. Внутри Telegram
+   скроллит именно #root, поэтому блокировки body одной недостаточно. */
+html.sheet-open #root {
+  overflow: hidden;
+}

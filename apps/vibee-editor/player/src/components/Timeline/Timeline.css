@@ -832,8 +832,12 @@
 .timeline-tracks-wrapper {
   flex: 1;
   overflow-x: auto;
-  overflow-y: visible;
-  touch-action: pan-x pinch-zoom;
+  /* visible не даёт прокрутить: дорожки видны в DOM, но пальцем не доехать. */
+  overflow-y: auto;
+  /* pan-y обязателен: дорожек больше, чем помещается (scrollHeight 204 при
+     clientHeight 160), и без него до нижних нельзя доехать пальцем вообще.
+     pinch-zoom не нужен — пинч перехватывается вручную в Timeline.tsx. */
+  touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -1070,6 +1074,9 @@
   cursor: ew-resize;
   background: transparent;
   touch-action: none;
+  /* Ручка шириной в несколько пикселей пальцем не берётся. Расширяем только
+     зону попадания, внешний вид не трогаем. */
+  position: relative;
 }
 
 .track-item-handle:hover {
@@ -2168,4 +2175,85 @@
 .speed-btn:hover:not(:disabled) {
   transform: scale(1.2);
   background: var(--bg-secondary);
+}
+
+/* ===============================
+   Панель управления на телефоне
+   ===============================
+   Ряд собран как flex с justify-content: flex-end и без переноса. Как только
+   содержимое шире экрана, лишнее уезжает ЗА ЛЕВЫЙ КРАЙ: замерено на 390px —
+   группа .transport-left стояла на left: -283px, то есть имя проекта,
+   громкость, скорость и даже воспроизведение были физически недоступны.
+
+   Делаем ряд горизонтально прокручиваемым и прижимаем к началу, а кнопку
+   экспорта — главное действие — держим на виду всегда. */
+@media (max-width: 640px) {
+  .timeline-transport {
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .timeline-transport::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Без этого flex сжимает группы вместо прокрутки, и кнопки становятся
+     меньше пальца. */
+  .transport-left,
+  .transport-center,
+  .transport-right {
+    flex-shrink: 0;
+  }
+
+  /* Экспорт не должен уезжать вместе с лентой: до него нужно дотянуться в
+     любой момент, не прокручивая панель обратно. Прижимаем ВСЮ правую группу
+     и даём ей фон — тогда прочие элементы уходят под неё, а не срезаются. */
+  .transport-right {
+    position: sticky;
+    right: 0;
+    margin-left: auto;
+    padding-left: 8px;
+    background: var(--bg-darkest);
+    box-shadow: -12px 0 12px -8px var(--bg-darkest);
+    z-index: 2;
+  }
+
+  /* Цель касания не меньше пальца — 44px по рекомендации платформ. */
+  .timeline-transport .transport-btn,
+  .timeline-transport .speed-btn {
+    min-width: var(--touch-target, 44px);
+    min-height: var(--touch-target, 44px);
+  }
+}
+
+/* Цели касания на телефоне.
+   В index.css объявлен --touch-target: 44px, но эти элементы задавали высоту
+   одними отступами и по факту меряли 25-32px — палец в них не попадает.
+   Перечисляем поимённо: правило вида `button { min-height }` раздуло бы
+   плотные панели редактора. */
+@media (max-width: 640px) {
+  .export-btn-large {
+    min-height: var(--touch-target, 44px);
+  }
+
+  .transport-left .project-name-input {
+    min-height: var(--touch-target, 44px);
+  }
+
+  .canvas-control-btn {
+    min-width: var(--touch-target, 44px);
+    min-height: var(--touch-target, 44px);
+  }
+}
+
+/* Хит-зона ручек тримминга под палец: сама ручка остаётся тонкой. */
+@media (pointer: coarse) {
+  .track-item-handle::after {
+    content: '';
+    position: absolute;
+    inset: -8px -12px;
+  }
 }
