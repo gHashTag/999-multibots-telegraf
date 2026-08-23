@@ -40,8 +40,56 @@ const PORT = process.env.PORT || 3333;
 const OUTPUT_DIR = process.env.OUTPUT_DIR || "./out";
 
 // Optimal concurrency based on CPU cores (75% of available cores, min 2)
-const OPTIMAL_CONCURRENCY = Math.max(2, Math.floor(os.cpus().length * 0.75));
-console.log(`🔧 CPU cores: ${os.cpus().length}, using concurrency: ${OPTIMAL_CONCURRENCY}`);
+/**
+ * Конкурентность рендера по РЕАЛЬНОЙ доле контейнера, а не по ядрам хоста.
+ *
+ * os.cpus() внутри контейнера отдаёт ядра ХОСТА — на Railway это 48. Отсюда
+ * получалось 36 параллельных вкладок Chrome, каждая со своими процессами
+ * ffmpeg/ffprobe. Контейнеру столько процессов не выделено, и рендер падал на
+ * ровном месте:
+ *
+ *   spawn .../ffprobe EAGAIN
+ *
+ * EAGAIN на spawn — это не «файл битый» и не «кодек не тот», это упёрлись в
+ * лимит процессов. Симптом со стороны человека: экспорт доходит до ~38% и
+ * обрывается.
+ *
+ * Настоящую долю CPU знает cgroup: v2 пишет её в cpu.max («квота период»),
+ * v1 — в cpu.cfs_quota_us / cpu.cfs_period_us. Если квоты нет (голое железо),
+ * возвращаемся к ядрам, но всё равно упираемся в потолок: больше восьми
+ * вкладок Chrome не ускоряют рендер, а лишь приближают тот же EAGAIN.
+ */
+function containerCpuCount(): number {
+  try {
+    const v2 = fs.readFileSync("/sys/fs/cgroup/cpu.max", "utf-8").trim();
+    const [quota, period] = v2.split(/\s+/);
+    if (quota && quota !== "max") {
+      const n = Number(quota) / Number(period || 100000);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  } catch {
+    /* не cgroup v2 — пробуем v1 */
+  }
+  try {
+    const q = Number(fs.readFileSync("/sys/fs/cgroup/cpu/cpu.cfs_quota_us", "utf-8").trim());
+    const p = Number(fs.readFileSync("/sys/fs/cgroup/cpu/cpu.cfs_period_us", "utf-8").trim());
+    if (q > 0 && p > 0) return q / p;
+  } catch {
+    /* квоты нет — считаем по ядрам */
+  }
+  return os.cpus().length;
+}
+
+const CONCURRENCY_CEILING = Number(process.env.RENDER_CONCURRENCY_MAX || 4);
+const cpuShare = containerCpuCount();
+const OPTIMAL_CONCURRENCY = Math.max(
+  1,
+  Math.min(CONCURRENCY_CEILING, Math.floor(cpuShare))
+);
+console.log(
+  `🔧 CPU: ядер у хоста ${os.cpus().length}, доля контейнера ${cpuShare.toFixed(2)}, ` +
+    `конкурентность ${OPTIMAL_CONCURRENCY} (потолок ${CONCURRENCY_CEILING})`
+);
 
 // S3/Tigris Configuration
 const S3_ENDPOINT = process.env.AWS_ENDPOINT_URL_S3 || "https://fly.storage.tigris.dev";
@@ -866,15 +914,11 @@ function startRenderAsync(req: RenderRequest): string {
           disableWebSecurity: true,
           gl: null,  // Disable WebGL - no X11/display needed
           headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-gpu',
-            '--disable-software-rasterizer',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-          ],
+          // Флагов Chrome здесь БЫТЬ НЕ МОЖЕТ: ChromiumOptions в Remotion 4.0.388 не
+          // знает поля args, и весь список (--no-sandbox, --disable-dev-shm-usage и
+          // прочие) молча игнорировался. Он выглядел как защита от нехватки памяти,
+          // которой на самом деле не было. Нехватку процессов лечим конкурентностью
+          // по доле контейнера — см. containerCpuCount() выше.
         },
         timeoutInMilliseconds: 300000, // 5 minutes for slow video loading
       });
@@ -899,17 +943,11 @@ function startRenderAsync(req: RenderRequest): string {
             disableWebSecurity: true,
             gl: null,  // Disable WebGL - no X11/display needed
             headless: true,
-            args: [
-              '--no-sandbox',
-              '--disable-setuid-sandbox',
-              '--disable-gpu',
-              '--disable-software-rasterizer',
-              '--disable-dev-shm-usage',
-              '--disable-accelerated-2d-canvas',
-              '--no-first-run',
-              '--no-zygote',
-              '--single-process',
-            ],
+            // Флагов Chrome здесь БЫТЬ НЕ МОЖЕТ: ChromiumOptions в Remotion 4.0.388 не
+            // знает поля args, и весь список (--no-sandbox, --disable-dev-shm-usage и
+            // прочие) молча игнорировался. Он выглядел как защита от нехватки памяти,
+            // которой на самом деле не было. Нехватку процессов лечим конкурентностью
+            // по доле контейнера — см. containerCpuCount() выше.
           },
           timeoutInMilliseconds: 300000, // 5 minutes for slow video loading
         });
@@ -939,15 +977,11 @@ function startRenderAsync(req: RenderRequest): string {
           disableWebSecurity: true,
           gl: null,  // Disable WebGL - no X11/display needed
           headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-gpu',
-            '--disable-software-rasterizer',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-          ],
+          // Флагов Chrome здесь БЫТЬ НЕ МОЖЕТ: ChromiumOptions в Remotion 4.0.388 не
+          // знает поля args, и весь список (--no-sandbox, --disable-dev-shm-usage и
+          // прочие) молча игнорировался. Он выглядел как защита от нехватки памяти,
+          // которой на самом деле не было. Нехватку процессов лечим конкурентностью
+          // по доле контейнера — см. containerCpuCount() выше.
         },
         timeoutInMilliseconds: 300000, // 5 minutes for slow video loading
         onProgress: ({ progress }) => {
@@ -2239,13 +2273,11 @@ const server = createServer(async (req, res) => {
                 disableWebSecurity: true,
                 gl: null,
                 headless: true,
-                args: [
-                  '--no-sandbox',
-                  '--disable-setuid-sandbox',
-                  '--disable-gpu',
-                  '--disable-software-rasterizer',
-                  '--disable-dev-shm-usage',
-                ],
+                // Флагов Chrome здесь БЫТЬ НЕ МОЖЕТ: ChromiumOptions в Remotion 4.0.388 не
+                // знает поля args, и весь список (--no-sandbox, --disable-dev-shm-usage и
+                // прочие) молча игнорировался. Он выглядел как защита от нехватки памяти,
+                // которой на самом деле не было. Нехватку процессов лечим конкурентностью
+                // по доле контейнера — см. containerCpuCount() выше.
               },
               timeoutInMilliseconds: 300000, // 5 minutes for slow video loading
             });
@@ -2272,11 +2304,11 @@ const server = createServer(async (req, res) => {
                 disableWebSecurity: true,
                 gl: null,
                 headless: true,
-                args: [
-                  '--no-sandbox',
-                  '--disable-setuid-sandbox',
-                  '--disable-gpu',
-                ],
+                // Флагов Chrome здесь БЫТЬ НЕ МОЖЕТ: ChromiumOptions в Remotion 4.0.388 не
+                // знает поля args, и весь список (--no-sandbox, --disable-dev-shm-usage и
+                // прочие) молча игнорировался. Он выглядел как защита от нехватки памяти,
+                // которой на самом деле не было. Нехватку процессов лечим конкурентностью
+                // по доле контейнера — см. containerCpuCount() выше.
               },
               timeoutInMilliseconds: 300000, // 5 minutes for slow video loading
               onProgress: ({ progress }) => {
