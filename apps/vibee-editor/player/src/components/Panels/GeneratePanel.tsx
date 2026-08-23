@@ -64,6 +64,7 @@ import {
   avatarPhotosErrorAtom,
   loadAvatarPhotosAtom,
   saveAvatarPhotoAtom,
+  deleteAvatarPhotoAtom,
 } from '@/atoms/avatarPhotos'
 import { useEditorStore } from '@/store/editorStore'
 import './GeneratePanel.css'
@@ -251,6 +252,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   const avatarPhotosError = useAtomValue(avatarPhotosErrorAtom)
   const loadAvatarPhotos = useSetAtom(loadAvatarPhotosAtom)
   const saveAvatarPhoto = useSetAtom(saveAvatarPhotoAtom)
+  const deleteAvatarPhoto = useSetAtom(deleteAvatarPhotoAtom)
   const [isSavingAvatarPhoto, setIsSavingAvatarPhoto] = useState(false)
   const [avatarPhotoSaved, setAvatarPhotoSaved] = useState(false)
   useEffect(() => {
@@ -1299,18 +1301,30 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
               ) : (
                 <div className="avatar-photos-grid">
                   {avatarPhotos.map(p => (
-                    <button
+                    <div
                       key={p.id}
-                      type="button"
                       className={`avatar-photo-tile ${lipsyncImageUrl === p.url ? 'active' : ''}`}
-                      onClick={() => {
-                        setLipsyncImageUrl(p.url)
-                        setAvatarPhotoSaved(true)
-                      }}
-                      title={p.createdAt}
                     >
-                      <img src={toAbsoluteUrl(p.url)} alt="" loading="lazy" />
-                    </button>
+                      <button
+                        type="button"
+                        className="avatar-photo-select"
+                        onClick={() => {
+                          setLipsyncImageUrl(p.url)
+                          setAvatarPhotoSaved(true)
+                        }}
+                        title={p.createdAt}
+                      >
+                        <img src={toAbsoluteUrl(p.url)} alt="" loading="lazy" />
+                      </button>
+                      <button
+                        type="button"
+                        className="avatar-photo-remove"
+                        onClick={() => void deleteAvatarPhoto(p.id)}
+                        title={t('generate.remove')}
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}

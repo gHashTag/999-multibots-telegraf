@@ -1439,7 +1439,7 @@ const server = createServer(async (req, res) => {
 
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
   res.setHeader(
     'Access-Control-Allow-Headers',
     'Content-Type, X-Filename, X-Api-Key, X-Agent-Key, X-Telegram-Init-Data'
@@ -4212,6 +4212,62 @@ const server = createServer(async (req, res) => {
       console.error('[POST /api/assets] error:', error)
       res.writeHead(500, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ error: 'не удалось сохранить файл' }))
+    }
+    return
+  }
+
+  // DELETE /api/assets?id=… — убрать фото из профиля аватара.
+  //
+  // Удалять можно ТОЛЬКО свои строки типа avatar_photo: генерации — это
+  // история, её стирать нельзя; чужие строки — нельзя тем более. Владелец
+  // определяется так же, как в POST: подпись или ключ агента.
+  if (req.url?.split('?')[0] === '/api/assets' && req.method === 'DELETE') {
+    const who = chatIdentity(req, verifiedTelegramId(req))
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: 'не удалось определить пользователя',
+          detail:
+            'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
+        })
+      )
+      return
+    }
+    // База URL нужна только чтобы разобрать query; заголовок Host в ней
+    // не участвует — его содержимое чужое, тянуть его в разбор незачем.
+    const query = new URL(req.url || '/', 'http://localhost').searchParams
+    const rawId = parseInt(query.get('id') || '', 10)
+    if (!Number.isInteger(rawId) || rawId <= 0) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'нужен корректный id в ?id=' }))
+      return
+    }
+    try {
+      const pool = await getPool()
+      // rowCount 0 = не нашлось СВОЕЙ avatar_photo с таким id; сообщаем
+      // именно это, а не «удалено», иначе клиент поверит в успех.
+      const r = await pool.query(
+        `DELETE FROM assets
+          WHERE id = $1 AND telegram_id = $2 AND type = 'avatar_photo'`,
+        [rawId, String(who)]
+      )
+      if ((r.rowCount ?? 0) === 0) {
+        res.writeHead(404, { 'Content-Type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            error:
+              'не найдено: можно удалять только свои фото из профиля аватара',
+          })
+        )
+        return
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true }))
+    } catch (error) {
+      console.error('[DELETE /api/assets] error:', error)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'не удалось удалить файл' }))
     }
     return
   }
