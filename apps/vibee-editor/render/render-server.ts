@@ -85,10 +85,14 @@ function ffArg(v: string | number): string {
 
 /**
  * Ответ JSON единым местом: тип всегда application/json; сериализация
- * только здесь. (Тот же приём, что json() в agent/routes.ts.)
+ * только здесь. nosniff запрещает браузеру угадывать тип ответа —
+ * даже если в данных окажется разметка, она не будет исполнена как HTML.
  */
 function sendJson(res: any, code: number, obj: unknown): void {
-  res.writeHead(code, { 'Content-Type': 'application/json' })
+  res.writeHead(code, {
+    'Content-Type': 'application/json',
+    'X-Content-Type-Options': 'nosniff',
+  })
   res.end(JSON.stringify(obj))
 }
 
