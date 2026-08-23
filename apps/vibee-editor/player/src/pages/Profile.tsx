@@ -1,38 +1,41 @@
-import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { UserX } from 'lucide-react';
+import { useEffect, useState } from 'react'
+import { useParams, Link } from 'react-router-dom'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { UserX } from 'lucide-react'
 import {
   viewedProfileAtom,
   profileLoadingAtom,
   profileErrorAtom,
   loadProfileAtom,
   showLoginModalAtom,
-} from '@/atoms';
-import { useLanguage } from '@/hooks/useLanguage';
-import { Header } from '@/components/Header';
-import { ProfileHeader, ProfileTabs, ProfileEdit } from '@/components/Profile';
-import { TelegramLoginButton } from '@/components/Auth';
-import '@/components/Profile/Profile.css';
-import { LoginModal } from '@/components/Auth/LoginModal';
+} from '@/atoms'
+import { useLanguage } from '@/hooks/useLanguage'
+import { Header } from '@/components/Header'
+import { ProfileHeader, ProfileTabs, ProfileEdit } from '@/components/Profile'
+import { SoulEditor } from '@/components/Profile/SoulEditor'
+import { myProfileAtom } from '@/atoms'
+import { TelegramLoginButton } from '@/components/Auth'
+import '@/components/Profile/Profile.css'
+import { LoginModal } from '@/components/Auth/LoginModal'
 
 export function ProfilePage() {
-  const { t } = useLanguage();
-  const { username } = useParams<{ username: string }>();
+  const { t } = useLanguage()
+  const { username } = useParams<{ username: string }>()
 
-  const profile = useAtomValue(viewedProfileAtom);
-  const loading = useAtomValue(profileLoadingAtom);
-  const error = useAtomValue(profileErrorAtom);
-  const loadProfile = useSetAtom(loadProfileAtom);
-  const [showLoginModal, setShowLoginModal] = useAtom(showLoginModalAtom);
+  const profile = useAtomValue(viewedProfileAtom)
+  const myProfile = useAtomValue(myProfileAtom)
+  const loading = useAtomValue(profileLoadingAtom)
+  const error = useAtomValue(profileErrorAtom)
+  const loadProfile = useSetAtom(loadProfileAtom)
+  const [showLoginModal, setShowLoginModal] = useAtom(showLoginModalAtom)
 
-  const [showEdit, setShowEdit] = useState(false);
+  const [showEdit, setShowEdit] = useState(false)
 
   useEffect(() => {
     if (username) {
-      loadProfile(username);
+      loadProfile(username)
     }
-  }, [username, loadProfile]);
+  }, [username, loadProfile])
 
   if (loading) {
     return (
@@ -41,23 +44,39 @@ export function ProfilePage() {
         <div className="profile-page">
           <div className="profile-page__container">
             {/* Skeleton Cover */}
-            <div className="skeleton" style={{ height: 200, borderRadius: '1rem 1rem 0 0' }} />
+            <div
+              className="skeleton"
+              style={{ height: 200, borderRadius: '1rem 1rem 0 0' }}
+            />
 
             {/* Skeleton Header */}
             <div className="profile-header" style={{ marginTop: -60 }}>
               <div className="profile-header__top">
-                <div className="skeleton skeleton-avatar" style={{ width: 130, height: 130 }} />
+                <div
+                  className="skeleton skeleton-avatar"
+                  style={{ width: 130, height: 130 }}
+                />
                 <div className="profile-header__info" style={{ flex: 1 }}>
-                  <div className="skeleton skeleton-text skeleton-text--lg" style={{ marginBottom: 8 }} />
-                  <div className="skeleton skeleton-text skeleton-text--sm" style={{ marginBottom: 16 }} />
+                  <div
+                    className="skeleton skeleton-text skeleton-text--lg"
+                    style={{ marginBottom: 8 }}
+                  />
+                  <div
+                    className="skeleton skeleton-text skeleton-text--sm"
+                    style={{ marginBottom: 16 }}
+                  />
                   <div className="skeleton skeleton-text skeleton-text--md" />
                 </div>
               </div>
 
               {/* Skeleton Stats */}
               <div className="profile-stats">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="skeleton" style={{ height: 80, borderRadius: 12 }} />
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div
+                    key={i}
+                    className="skeleton"
+                    style={{ height: 80, borderRadius: 12 }}
+                  />
                 ))}
               </div>
             </div>
@@ -65,15 +84,19 @@ export function ProfilePage() {
             {/* Skeleton Tabs */}
             <div className="profile-tabs" style={{ marginTop: 24 }}>
               <div className="profile-tabs__header">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="skeleton" style={{ flex: 1, height: 48 }} />
+                {[1, 2, 3].map(i => (
+                  <div
+                    key={i}
+                    className="skeleton"
+                    style={{ flex: 1, height: 48 }}
+                  />
                 ))}
               </div>
             </div>
           </div>
         </div>
       </>
-    );
+    )
   }
 
   if (error || !profile) {
@@ -93,7 +116,7 @@ export function ProfilePage() {
           </div>
         </div>
       </>
-    );
+    )
   }
 
   return (
@@ -105,13 +128,18 @@ export function ProfilePage() {
           <ProfileTabs />
 
           <ProfileEdit isOpen={showEdit} onClose={() => setShowEdit(false)} />
+
+          {/* SOUL и скиллы — только на СВОЁМ профиле: чужая карточка голоса
+              и чужой список возможностей не должны быть видны постороннему. */}
+          {myProfile?.telegram_id &&
+            profile.telegram_id === myProfile.telegram_id && <SoulEditor />}
         </div>
 
         {/* Login Modal */}
         <LoginModal />
       </div>
     </>
-  );
+  )
 }
 
-export default ProfilePage;
+export default ProfilePage

@@ -254,8 +254,41 @@ export async function* runAgent(
   history: ChatMessage[],
   ctx: ToolContext
 ): AsyncGenerator<AgentEvent> {
+  // ЛИЧНЫЙ SOUL звонящего: у каждого человека свой голос и свои границы,
+  // агент пишет посты от его имени — значит, должен знать его SOUL так же,
+  // как голос владельца. Нет SOUL — работает на общем голосе бренда.
+  let personalSoul: string | null = null
+  try {
+    await ctx.pool.query(
+      `CREATE TABLE IF NOT EXISTS user_soul (
+         telegram_id text PRIMARY KEY,
+         content     text NOT NULL,
+         updated_at  timestamptz NOT NULL DEFAULT now()
+       )`
+    )
+    const r = await ctx.pool.query(
+      `SELECT content FROM user_soul WHERE telegram_id = $1`,
+      [ctx.telegramId]
+    )
+    personalSoul = r.rows[0]?.content ?? null
+  } catch (e) {
+    // SOUL — усиление, не блокировка: без него чат обязан работать.
+    console.warn('[agent] личный SOUL не прочитан:', String(e).slice(0, 120))
+  }
+
   const messages: ChatMessage[] = [
-    { role: 'system', content: systemPrompt() },
+    {
+      role: 'system',
+      content: personalSoul
+        ? systemPrompt() +
+          '\n\nЛИЧНЫЙ SOUL ЧЕЛОВЕКА, С КОТОРЫМ ТЫ ГОВОРИШЬ. Тексты постов, ' +
+          'идеи и тон — подстраивай под него; голос бренда t27 остаётся ' +
+          'правилом честности (числа, границы), но ЧЕЙ это контент и каким ' +
+          'голосом — решает этот SOUL. Человек может просить править его ' +
+          'через soul_edit — это его скилл, помогай с этим.\n\n' +
+          personalSoul
+        : systemPrompt(),
+    },
     ...history,
   ]
 
