@@ -161,6 +161,34 @@ export function Timeline({ orientation = 'horizontal', hideBrowser = true }: Tim
   const projectImportRef = useRef<HTMLInputElement>(null);
 
   // Jotai atoms - прямое использование
+  /**
+   * Публикуем РЕАЛЬНУЮ высоту таймлайна в CSS-переменную.
+   *
+   * .canvas-area резервировала место снизу формулой из констант
+   * (--timeline-height + --nav-height), и на 390x844 это давало 284px при
+   * фактических 218 — между превью и таймлайном зияли 57 мёртвых пикселей, а
+   * видео недополучало высоту. Константа не может знать ни фактическую высоту
+   * с транспортом, ни то, что человек растянул таймлайн руками.
+   */
+  const timelineRootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = timelineRootRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const publish = () => {
+      document.documentElement.style.setProperty(
+        '--timeline-actual-h',
+        `${Math.round(el.getBoundingClientRect().height)}px`
+      );
+    };
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty('--timeline-actual-h');
+    };
+  }, []);
+
   const project = useAtomValue(projectAtom);
   // Вкладка «ассеты бота» читала botAssets/botLoading/botError, которых в
   // файле не было объявлено вообще: атомы импортировались, но ни один
@@ -1408,7 +1436,7 @@ export function Timeline({ orientation = 'horizontal', hideBrowser = true }: Tim
   };
 
   return (
-    <div className="timeline" role="region" aria-label={t('timeline.title')}>
+    <div className="timeline" ref={timelineRootRef} role="region" aria-label={t('timeline.title')}>
       {/* Transport Controls - 3-column layout: LEFT | CENTER | RIGHT */}
       <div className="timeline-transport" role="toolbar" aria-label={t('timeline.controls')}>
         {/* LEFT: Project name + Volume + Speed */}

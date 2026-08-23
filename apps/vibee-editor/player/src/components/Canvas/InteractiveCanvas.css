@@ -299,7 +299,12 @@
 @media (max-width: 767px) {
   .canvas-controls-wrapper {
     top: auto;
-    bottom: 80px;
-    right: 8px;
+    bottom: 8px;
+    /* Ряд центрируется, а не жмётся к правому краю: так он не залезает на
+       кадр сбоку и до него одинаково удобно дотянуться любой рукой. */
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: calc(100% - 16px);
   }
 }
