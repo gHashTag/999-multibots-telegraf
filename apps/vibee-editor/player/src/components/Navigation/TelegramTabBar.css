@@ -91,9 +91,22 @@ body[data-tabbar='visible'] #root {
 /* The editor is fixed-height with its own internal scrolling, so padding would
    not help — its height has to shrink instead, or its bottom controls end up
    underneath the bar. */
-body[data-tabbar='visible'] .editor,
-body[data-tabbar='visible'] .editor-main {
+body[data-tabbar='visible'] .editor {
   height: calc(var(--app-vh-stable, 100dvh) - var(--app-tabbar-total, 56px));
+}
+
+/* .editor-main ОПРЕДЕЛЁННУЮ высоту получать не должно.
+   Это средняя ячейка сетки .editor (шапка / основное / таймлайн). Пока она
+   получала ту же высоту, что и вся сетка, средняя дорожка разрешалась в полную
+   высоту, и шапка с таймлайном выдавливались НИЖЕ контейнера. У .editor стоит
+   overflow: hidden, докрутиться туда нельзя.
+
+   Замерено на планшете 820x900: grid-template-rows «32px 843px 140px» при
+   высоте .editor 843 — панель транспорта вместе с Play, Export и таймкодом
+   оказывалась на y=876, то есть целиком за нижней кромкой и под навигацией.
+   min-height: 0 позволяет дорожке сжаться до остатка. */
+body[data-tabbar='visible'] .editor-main {
+  min-height: 0;
 }
 
 @media (min-width: 768px) {
