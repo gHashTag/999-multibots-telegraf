@@ -1541,3 +1541,30 @@
 html[data-tg='1'] .header-tabs {
   display: none;
 }
+
+/* White-label шапка: аватар и имя бота вместо нашего логотипа. */
+.logo-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.logo-brand-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.logo-brand-title {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  /* Имена ботов бывают длинными, а место в шапке телефона одно. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 42vw;
+}

@@ -351,7 +351,14 @@
 @media (max-width: 1023px) {
   .canvas-area {
     /* Space for timeline (120px) + nav bar (64px) + safe area */
-    padding-bottom: calc(var(--timeline-height) + var(--nav-height) + env(safe-area-inset-bottom, 0px));
+    /* Резерв под таймлайн берётся из ЕГО РЕАЛЬНОЙ высоты (её публикует сам
+       Timeline через ResizeObserver), а не из констант: те давали 284px при
+       фактических 218, и превью теряло 57px впустую. Константы остаются
+       фолбэком на первый кадр, пока наблюдатель не отработал. */
+    padding-bottom: calc(
+      var(--timeline-actual-h, var(--timeline-height)) +
+      var(--app-tabbar-total, calc(var(--nav-height) + env(safe-area-inset-bottom, 0px)))
+    );
     /* Ensure canvas stays above fixed elements */
     position: relative;
     z-index: var(--z-base, 1);
@@ -381,7 +388,10 @@
 @media (max-width: 1023px) {
   .timeline-area {
     position: fixed;
-    bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px));
+    /* Та же переменная, что и у резерва под превью: пока таймлайн считал
+       отступ от --nav-height (64px), а панель занимала 57px, канва и таймлайн
+       перекрывались на 8px. Одна величина на обе стороны — перекрытия нет. */
+    bottom: var(--app-tabbar-total, calc(var(--nav-height) + env(safe-area-inset-bottom, 0px)));
     left: 0;
     right: 0;
     min-height: unset;
@@ -681,5 +691,27 @@
 @keyframes page-loader-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* Превью во всю доступную высоту (телефон).
+   Просили «видео на 100% по высоте»: канва занимает ровно то, что осталось от
+   экрана после шапки, таймлайна и нижней панели — без мёртвой зоны между
+   превью и таймлайном (замерено 57-65px впустую). Высоты берутся фактические,
+   их публикуют сами компоненты. */
+@media (max-width: 767px) {
+  .canvas-area {
+    padding-bottom: 0;
+    height: calc(
+      100dvh - var(--app-header-h, 48px) - var(--timeline-actual-h, 220px) -
+        var(--app-tabbar-total, 64px)
+    );
+    min-height: 0;
+  }
+
+  .canvas-container {
+    height: 100%;
+    max-height: 100%;
+    width: 100%;
   }
 }

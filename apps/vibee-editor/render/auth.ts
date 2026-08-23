@@ -79,6 +79,10 @@ const PUBLIC_GET_PREFIXES = [
   '/api/users/',
   '/compositions',
   '/templates',
+  // /branding отдаёт бренд только при ПОДТВЕРЖДЁННОЙ подписи, иначе
+  // {branded:false} — сам маршрут безопасно открыть, решение внутри.
+  // /branding/avatar/<id> — картинка, она и так публична в Telegram.
+  '/branding',
   '/api/voices',
 ]
 

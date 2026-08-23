@@ -27,6 +27,7 @@ import { TelegramLoginButton, UserAvatar, PaywallModal } from '@/components/Auth
 import { RemixBadge } from '@/components/RemixBadge';
 import './styles.css';
 import { LoginModal } from '@/components/Auth/LoginModal';
+import { brandingAtom, loadBrandingAtom } from '@/atoms/branding';
 
 // Page navigation tabs - 5 main tabs
 const NAV_TABS = [
@@ -106,6 +107,14 @@ export function Header({ wsStatus, wsClientId }: HeaderProps) {
   // User actions
   const fetchQuota = useSetAtom(fetchQuotaAtom);
   const logout = useSetAtom(logoutAtom);
+
+  // White label: внутри мини-аппа шапка носит имя и аватар бота владельца,
+  // а не наш логотип. Бренд подтверждается подписью на сервере.
+  const branding = useAtomValue(brandingAtom);
+  const loadBranding = useSetAtom(loadBrandingAtom);
+  useEffect(() => {
+    void loadBranding();
+  }, [loadBranding]);
   const setShowLoginModal = useSetAtom(showLoginModalAtom);
   const setSidebarTab = useSetAtom(sidebarTabAtom);
 
@@ -221,7 +230,20 @@ export function Header({ wsStatus, wsClientId }: HeaderProps) {
       <header className="header" role="banner">
         <div className="header-left">
           <Link to="/" className="logo">
-            <img src="/logo.svg" alt="VIBEE" className="logo-icon-svg" />
+            {branding.branded ? (
+              <span className="logo-brand">
+                {branding.avatarUrl ? (
+                  <img
+                    src={branding.avatarUrl}
+                    alt={branding.title || ''}
+                    className="logo-brand-avatar"
+                  />
+                ) : null}
+                <span className="logo-brand-title">{branding.title}</span>
+              </span>
+            ) : (
+              <img src="/logo.svg" alt="VIBEE" className="logo-icon-svg" />
+            )}
           </Link>
         </div>
 

@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition, renderStill, getCompositions } from "@remotion/renderer";
 import path from "node:path";
-import { authenticate, authMode } from "./auth";
+import { authenticate, authMode, verifyTelegramInitData } from "./auth";
 import { TEMPLATE_CARDS } from "./src/templates/registry";
 import fs from "node:fs";
 import { randomUUID, createHmac } from "node:crypto";
@@ -362,6 +362,66 @@ let compositionsCache: Awaited<ReturnType<typeof getCompositions>> | null = null
 async function knownCompositions() {
   if (!compositionsCache) compositionsCache = await getCompositions(bundleLocation);
   return compositionsCache;
+}
+
+
+/**
+ * Имя и аватар бота по его id — для white-label шапки мини-аппа.
+ *
+ * Токен ищем среди тех же переменных, что и проверка подписи: у бота, чьей
+ * подписью пришли данные, токен на сервере обязан быть, иначе подпись бы не
+ * сошлась.
+ *
+ * Кэш на процесс: getMe и getUserProfilePhotos на каждый заход — лишние два
+ * круга к Telegram, а имя бота меняется в лучшем случае раз в жизни.
+ */
+const brandingCache = new Map<string, { title: string; username: string; avatarUrl: string | null }>();
+
+async function getBotBranding(botId: string) {
+  const cached = brandingCache.get(botId);
+  if (cached) return cached;
+
+  const tokens: string[] = [];
+  const push = (t?: string) => {
+    const v = (t || "").trim();
+    if (v && !tokens.includes(v)) tokens.push(v);
+  };
+  push(process.env.TELEGRAM_BOT_TOKEN);
+  for (let i = 1; i <= 20; i++) push(process.env[`BOT_TOKEN_${i}`]);
+
+  const token = tokens.find(t => t.split(":")[0] === botId);
+  if (!token) throw new Error(`токена бота ${botId} нет на сервере`);
+
+  const me = await fetch(`https://api.telegram.org/bot${token}/getMe`).then(r => r.json() as any);
+  if (!me?.ok) throw new Error(`getMe: ${me?.description || "отказ"}`);
+
+  let avatarUrl: string | null = null;
+  try {
+    const photos = await fetch(
+      `https://api.telegram.org/bot${token}/getUserProfilePhotos?user_id=${botId}&limit=1`
+    ).then(r => r.json() as any);
+    const fileId = photos?.result?.photos?.[0]?.slice(-1)?.[0]?.file_id;
+    if (fileId) {
+      const file = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`).then(
+        r => r.json() as any
+      );
+      if (file?.ok?.valueOf() && file.result?.file_path) {
+        // Ссылка на файл содержит токен, поэтому наружу отдаём её через свой
+        // прокси-маршрут, а не напрямую.
+        avatarUrl = `/branding/avatar/${botId}`;
+      }
+    }
+  } catch (e) {
+    console.warn("[branding] аватар не получен:", e);
+  }
+
+  const brand = {
+    title: me.result.first_name as string,
+    username: me.result.username as string,
+    avatarUrl,
+  };
+  brandingCache.set(botId, brand);
+  return brand;
 }
 
 async function initBundle() {
@@ -1598,6 +1658,88 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Generation failed" }));
       }
     });
+    return;
+  }
+
+  /**
+   * Аватар бота через себя: прямая ссылка Telegram на файл содержит ТОКЕН
+   * бота, и отдавать её в браузер нельзя — это утечка учётных данных.
+   */
+  const avatarMatch = (req.url || "").split("?")[0].match(/^\/branding\/avatar\/(\d+)$/);
+  if (avatarMatch && req.method === "GET") {
+    const botId = avatarMatch[1];
+    try {
+      const tokens: string[] = [];
+      const push = (t?: string) => {
+        const v = (t || "").trim();
+        if (v && !tokens.includes(v)) tokens.push(v);
+      };
+      push(process.env.TELEGRAM_BOT_TOKEN);
+      for (let i = 1; i <= 20; i++) push(process.env[`BOT_TOKEN_${i}`]);
+      const token = tokens.find(t => t.split(":")[0] === botId);
+      if (!token) throw new Error("нет токена");
+
+      const photos = await fetch(
+        `https://api.telegram.org/bot${token}/getUserProfilePhotos?user_id=${botId}&limit=1`
+      ).then(r => r.json() as any);
+      const fileId = photos?.result?.photos?.[0]?.slice(-1)?.[0]?.file_id;
+      if (!fileId) throw new Error("аватара нет");
+      const file = await fetch(
+        `https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`
+      ).then(r => r.json() as any);
+      const img = await fetch(
+        `https://api.telegram.org/file/bot${token}/${file.result.file_path}`
+      );
+      const buf = Buffer.from(await img.arrayBuffer());
+      res.writeHead(200, {
+        "Content-Type": img.headers.get("content-type") || "image/jpeg",
+        "Cache-Control": "public, max-age=86400",
+      });
+      res.end(buf);
+    } catch (e) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "avatar not available" }));
+    }
+    return;
+  }
+
+  /**
+   * Брендирование мини-аппа под бота, из которого его открыли (white label).
+   *
+   * Приложение продаётся вместе с ботами, поэтому в шапке должно стоять имя и
+   * аватар КОНКРЕТНОГО бота, а не «VIBEE». Какой это бот, честно знает только
+   * подпись initData: она сделана токеном именно того бота, и verify возвращает
+   * его id. Брать бренд из параметра URL было бы нельзя — его подделает кто
+   * угодно.
+   *
+   * Имя и аватар берём у самого Telegram (getMe + getUserProfilePhotos) и
+   * держим в памяти: getMe на каждый заход мини-аппа — лишний круг к API.
+   */
+  if (req.url?.split("?")[0] === "/branding" && req.method === "GET") {
+    const auth = authenticate(req);
+    const initData =
+      (req.headers["x-telegram-init-data"] as string | undefined) ||
+      new URL(req.url || "/", "http://localhost").searchParams.get("initData") ||
+      "";
+    const verified = initData ? verifyTelegramInitData(initData) : { ok: false as const };
+
+    if (!auth.allowed || !("botId" in verified) || !verified.botId) {
+      // Без подтверждённой подписи бренд неизвестен — отдаём дефолт, а не
+      // выдумываем. Пустой ответ заставил бы клиент гадать.
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ branded: false }));
+      return;
+    }
+
+    try {
+      const brand = await getBotBranding(verified.botId);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ branded: true, ...brand }));
+    } catch (e) {
+      console.warn("[branding] не удалось получить бренд бота:", e);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ branded: false }));
+    }
     return;
   }
 

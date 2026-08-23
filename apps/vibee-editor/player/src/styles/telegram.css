@@ -65,3 +65,16 @@ html[data-tg='1'] .app-content-top {
 html.sheet-open #root {
   overflow: hidden;
 }
+
+/* Полная высота, занятая нижней навигацией: сама панель плюс безопасная зона.
+   Внутри WebView env(safe-area-inset-bottom) равен нулю, поэтому опираться на
+   него одного нельзя — на iPhone с индикатором дом нижние пиксели уезжали
+   под панель. */
+:root {
+  /* Высоту публикует сам таб-бар (ResizeObserver): константа --nav-height
+     (64px) расходится с фактическими 57px, и разница уходила в мёртвую зону
+     под превью. */
+  --app-tabbar-total: calc(
+    var(--tabbar-actual-h, var(--nav-height, 64px)) + var(--app-safe-bottom, 0px)
+  );
+}

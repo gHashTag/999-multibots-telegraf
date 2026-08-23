@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
 import {
@@ -61,6 +61,30 @@ const HIDDEN_EXACT = new Set([
 const HIDDEN_PREFIXES = ['/instagram/'];
 
 export function TelegramTabBar() {
+  /**
+   * Реальная высота нижней панели в CSS-переменную: константа --nav-height
+   * (64px) расходится с фактическими 57px, и на этой разнице превью теряло
+   * высоту, а нижние пиксели таймлайна уезжали под панель.
+   */
+  const tabbarRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = tabbarRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const publish = () => {
+      document.documentElement.style.setProperty(
+        '--tabbar-actual-h',
+        `${Math.round(el.getBoundingClientRect().height)}px`
+      );
+    };
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty('--tabbar-actual-h');
+    };
+  }, []);
+
   const { t } = useLanguage();
   const location = useLocation();
   const myProfile = useAtomValue(myProfileAtom);
@@ -90,7 +114,7 @@ export function TelegramTabBar() {
       : undefined);
 
   return (
-    <nav className="tma-tabbar" aria-label="Primary">
+    <nav ref={tabbarRef} className="tma-tabbar" aria-label="Primary">
       <div className="tma-tabbar__scroll">
         {TABS.map(tab => {
           // ProfileRedirect resolves /profile to /:username, but linking
