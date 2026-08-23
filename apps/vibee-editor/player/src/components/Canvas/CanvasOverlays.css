@@ -257,3 +257,16 @@
     margin: 0 2px;
   }
 }
+
+/* Зазоры панели холста на телефоне: 4px между кнопками 44x44 — промахи.
+   Разводим до 10px и добавляем воздух по краям. */
+@media (max-width: 767px) {
+  .canvas-controls {
+    gap: 10px;
+    padding: 8px 12px;
+  }
+
+  .canvas-controls .canvas-control-divider {
+    margin: 0 2px;
+  }
+}

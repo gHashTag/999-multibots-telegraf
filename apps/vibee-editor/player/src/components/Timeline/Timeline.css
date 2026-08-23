@@ -2274,3 +2274,57 @@
     width: 72px;
   }
 }
+
+/* ===============================
+   Мобильная раскладка панели: главные действия по краям
+   ===============================
+   Замерено на проде (390px): .transport-center с кнопкой Play стояла на
+   left:502 — за экраном. Прокрутка её возвращала, но главное действие не
+   должно требовать прокрутки.
+
+   Раскладка: воспроизведение слева, экспорт справа — оба закреплены и видны
+   всегда; имя проекта, громкость, скорость и файловые операции прокручиваются
+   между ними. */
+@media (max-width: 640px) {
+  .timeline-transport {
+    gap: 12px;
+    padding: 8px 10px;
+  }
+
+  /* Воспроизведение — первым и всегда на виду. */
+  .transport-center {
+    order: 1;
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: var(--bg-darkest);
+    padding-right: 10px;
+    box-shadow: 12px 0 12px -8px var(--bg-darkest);
+  }
+
+  .transport-left {
+    order: 2;
+  }
+
+  .transport-right {
+    order: 3;
+  }
+
+  /* Между целями касания нужен зазор: при 4px палец задевает соседнюю
+     кнопку. 12px — минимум, при котором промахи прекращаются. */
+  .transport-center,
+  .transport-left,
+  .transport-right {
+    gap: 12px;
+  }
+
+  .transport-left .transport-file-ops,
+  .transport-right .transport-file-ops {
+    gap: 12px;
+  }
+
+  /* Разделители не должны съедать зазор: они и так только линии. */
+  .timeline-transport .transport-divider {
+    margin: 0;
+  }
+}

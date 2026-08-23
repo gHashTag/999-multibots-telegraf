@@ -1568,3 +1568,15 @@ html[data-tg='1'] .header-tabs {
   white-space: nowrap;
   max-width: 42vw;
 }
+
+/* Вкладки шапки на телефоне слипались вплотную (замерено: зазор 0). */
+@media (max-width: 767px) {
+  .header-tabs {
+    gap: 8px;
+    padding: 0 8px;
+  }
+
+  .header-tab {
+    padding: 8px 12px;
+  }
+}

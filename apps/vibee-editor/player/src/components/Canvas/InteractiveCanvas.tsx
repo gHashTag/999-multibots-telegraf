@@ -28,7 +28,7 @@ import {
   lipSyncVideoAtom,
   backgroundMusicAtom,
 } from '@/atoms';
-import { useIsTablet } from '@/hooks/useMediaQuery';
+import { useIsTablet, useMediaQuery } from '@/hooks/useMediaQuery';
 import { SplitTalkingHead, type SplitTalkingHeadProps, type Segment } from '@compositions/SplitTalkingHead';
 import { Loader2, Mic, Upload } from 'lucide-react';
 import { convertPropsToAbsoluteUrls, toAbsoluteUrl } from '@/lib/mediaUrl';
@@ -42,6 +42,16 @@ import './InteractiveCanvas.css';
 
 export function InteractiveCanvas() {
   const playerRef = useRef<PlayerRef>(null);
+
+  /**
+   * Встроенные кнопки плеера на телефоне выключены.
+   *
+   * Player рисуется в размере композиции (1080x1920) и масштабируется CSS до
+   * ~25%, поэтому его собственные кнопки уменьшаются вместе с видео: замерено
+   * 6x9, 6x6 и 4x9 пикселей — попасть пальцем невозможно. Своя панель
+   * управления с целями 44px уже есть, а clickToPlay оставляет тап по кадру.
+   */
+  const isNarrow = !useMediaQuery('(min-width: 768px)');
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoZoom, setAutoZoom] = useState(0.3);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -479,8 +489,8 @@ export function InteractiveCanvas() {
             width: project.width,
             height: project.height,
           }}
-          controls={true}
-          showVolumeControls={true}
+          controls={!isNarrow}
+          showVolumeControls={!isNarrow}
           loop
           clickToPlay={true}
           playbackRate={playbackRate}
