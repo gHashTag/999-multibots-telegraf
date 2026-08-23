@@ -227,6 +227,25 @@ async function main() {
       log(`картинка не получилась (${String(e).slice(0, 120)}) — рендерю без неё`)
     }
   }
+  // B-roll: сгенерированное видео ложится в медальон композиции (овал,
+  // grayscale) — визуальный уровень канала растёт без смены канона.
+  // Проходит общий суточный лимит генераций: дорогой режим, не дефолт.
+  if (process.argv.includes('--with-video')) {
+    try {
+      const vid = await call('video_generate', {
+        prompt: `кинематографичный b-roll к посту «${topic.title}»: ${topic.subtitle}. Медленно, крупно, без текста в кадре`,
+        duration: 5,
+        aspect_ratio: '9:16',
+      })
+      if (vid?.сделано && typeof vid.url === 'string') {
+        props.avatarVideo = vid.url
+      } else {
+        log(`b-roll не получился (${JSON.stringify(vid).slice(0, 140)}) — рендерю без него`)
+      }
+    } catch (e) {
+      log(`b-roll упал (${String(e).slice(0, 120)}) — рендерю без него`)
+    }
+  }
   const reel = await call('reel_render', {
     compositionId: 'TrinityBlogReel',
     props,
