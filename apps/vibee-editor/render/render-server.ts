@@ -1441,7 +1441,7 @@ const server = createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, X-Filename, X-Api-Key, X-Telegram-Init-Data'
+    'Content-Type, X-Filename, X-Api-Key, X-Agent-Key, X-Telegram-Init-Data'
   )
 
   if (req.method === 'OPTIONS') {
