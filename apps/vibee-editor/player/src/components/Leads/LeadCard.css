@@ -26,12 +26,12 @@
 
 /* Unread state */
 .lead-card--unread {
-  background: rgba(245, 158, 11, 0.08);
-  border-color: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.08);
+  border-color: rgba(0, 255, 136, 0.2);
 }
 
 .lead-card--unread:hover {
-  background: rgba(245, 158, 11, 0.12);
+  background: rgba(0, 255, 136, 0.12);
 }
 
 /* Blocked state */
@@ -49,7 +49,11 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--vibee-amber, var(--vibee-amber)) 0%, #d97706 100%);
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber, var(--vibee-amber)) 0%,
+    #00cc66 100%
+  );
   display: flex;
   align-items: center;
   justify-content: center;
@@ -82,8 +86,15 @@
 }
 
 @keyframes pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.2); opacity: 0.8; }
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
 }
 
 /* ===============================
@@ -196,13 +207,13 @@
 
 /* Trigger badge */
 .lead-card-badge--trigger {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   color: var(--vibee-amber, var(--vibee-amber));
 }
 
 /* Status badges */
 .lead-card-badge--status-new {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   color: var(--vibee-amber);
 }
 
@@ -297,7 +308,7 @@
 }
 
 .lead-card-action--reply:hover {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   color: var(--vibee-amber);
 }
 
@@ -322,8 +333,12 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ===============================

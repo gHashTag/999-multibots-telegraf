@@ -98,8 +98,8 @@
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.3);
   border-radius: 6px;
   color: var(--vibee-amber, var(--vibee-amber));
   font-size: 12px;
@@ -108,7 +108,7 @@
 }
 
 .lead-feed-mark-read:hover {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
 }
 
 .lead-feed-unread-count {
@@ -139,8 +139,13 @@
 }
 
 @keyframes blink {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* ===============================
@@ -193,8 +198,12 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ===============================

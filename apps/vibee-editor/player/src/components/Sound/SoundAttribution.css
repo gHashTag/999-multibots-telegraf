@@ -55,7 +55,9 @@
 }
 
 @keyframes sound-disc-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .sound-attribution__info {
@@ -123,8 +125,12 @@
 }
 
 @keyframes slide-up {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 .sound-detail__header {
@@ -246,7 +252,7 @@
 }
 
 .sound-detail__btn--saved {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   color: var(--vibee-amber);
 }
 
@@ -269,7 +275,13 @@
 }
 
 .sound-marquee--animate {
-  mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 10%,
+    black 90%,
+    transparent
+  );
 }
 
 .sound-marquee--animate .sound-marquee__text {
@@ -279,6 +291,10 @@
 }
 
 @keyframes marquee {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
 }

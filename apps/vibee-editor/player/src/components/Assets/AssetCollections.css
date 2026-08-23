@@ -70,7 +70,7 @@
 }
 
 .collection-item.active {
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
 }
 
 .collection-item--all {
@@ -385,7 +385,7 @@
 }
 
 .collection-picker__item.selected {
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
   color: var(--vibee-amber);
 }
 

@@ -13,8 +13,12 @@
 }
 
 @keyframes notifications-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .notifications-center {
@@ -31,8 +35,12 @@
 }
 
 @keyframes notifications-slide-in {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 @media (max-width: 480px) {
@@ -203,7 +211,7 @@
 }
 
 .notification-item--unread {
-  background: rgba(245, 158, 11, 0.05);
+  background: rgba(0, 255, 136, 0.05);
 }
 
 .notification-item--unread::before {

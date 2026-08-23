@@ -1,6 +1,11 @@
 .landing-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--color-bg-primary) 0%, #0f0f23 50%, #1a1a2e 100%);
+  background: linear-gradient(
+    135deg,
+    var(--color-bg-primary) 0%,
+    #0f0f23 50%,
+    #1a1a2e 100%
+  );
   color: #fff;
 }
 
@@ -23,10 +28,10 @@ html {
 }
 
 .landing-page::-webkit-scrollbar-thumb {
-  background: rgba(245, 158, 11, 0.5);
+  background: rgba(0, 255, 136, 0.5);
   border-radius: 4px;
 }
 
 .landing-page::-webkit-scrollbar-thumb:hover {
-  background: rgba(245, 158, 11, 0.7);
+  background: rgba(0, 255, 136, 0.7);
 }

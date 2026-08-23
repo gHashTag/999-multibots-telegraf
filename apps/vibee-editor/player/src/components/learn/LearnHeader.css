@@ -64,13 +64,17 @@
 
 /* Honey */
 .stat-item.honey {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.1));
-  border: 1px solid rgba(245, 158, 11, 0.4);
+  background: linear-gradient(
+    135deg,
+    rgba(0, 255, 136, 0.2),
+    rgba(0, 255, 136, 0.1)
+  );
+  border: 1px solid rgba(0, 255, 136, 0.4);
 }
 
 .stat-item.honey:hover {
-  border-color: rgba(245, 158, 11, 0.6);
-  box-shadow: 0 0 16px rgba(245, 158, 11, 0.2);
+  border-color: rgba(0, 255, 136, 0.6);
+  box-shadow: 0 0 16px rgba(0, 255, 136, 0.2);
 }
 
 .stat-item.honey.honey-gained {
@@ -78,8 +82,14 @@
 }
 
 @keyframes honeyPulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); box-shadow: 0 0 24px rgba(245, 158, 11, 0.4); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 0 24px rgba(0, 255, 136, 0.4);
+  }
 }
 
 /* Level */
@@ -112,7 +122,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f59e0b, #d97706);
+  background: linear-gradient(135deg, #00ff88, #00cc66);
   border: 2px solid rgba(10, 10, 10, 0.95);
   border-radius: 50%;
   font-size: 0.65rem;
@@ -140,11 +150,11 @@
 
 .level-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+  background: linear-gradient(90deg, #00ff88, #4dffab);
   border-radius: 4px;
   transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   min-width: 8px;
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
 }
 
 /* Streak */
@@ -171,7 +181,7 @@
 }
 
 .stat-item.honey .stat-value {
-  color: #fbbf24;
+  color: #4dffab;
 }
 
 .stat-item.streak .stat-value {

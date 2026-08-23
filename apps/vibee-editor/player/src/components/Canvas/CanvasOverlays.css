@@ -25,7 +25,7 @@
   left: 0;
   right: 0;
   height: 1px;
-  background: rgba(245, 158, 11, 0.3);
+  background: rgba(0, 255, 136, 0.3);
 }
 
 .canvas-grid-overlay__lines::after {
@@ -35,7 +35,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgba(245, 158, 11, 0.3);
+  background: rgba(0, 255, 136, 0.3);
 }
 
 /* Safe Zone Overlay */
@@ -73,7 +73,7 @@
 
 .safe-zone-overlay__border {
   position: absolute;
-  border: 2px dashed rgba(245, 158, 11, 0.6);
+  border: 2px dashed rgba(0, 255, 136, 0.6);
   border-radius: 4px;
 }
 
@@ -82,7 +82,7 @@
   top: 8px;
   left: 8px;
   padding: 2px 6px;
-  background: rgba(245, 158, 11, 0.9);
+  background: rgba(0, 255, 136, 0.9);
   border-radius: 4px;
   font-size: 10px;
   font-weight: 600;
@@ -132,7 +132,7 @@
 }
 
 .canvas-control-btn.active {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   color: var(--vibee-amber);
 }
 
@@ -202,7 +202,7 @@
 }
 
 .canvas-control-menu-item.active {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.15);
   color: var(--vibee-amber);
 }
 
@@ -218,7 +218,6 @@
   text-align: left;
   padding: 8px 16px;
 }
-
 
 /* Mobile: Larger touch targets */
 @media (max-width: 1023px) {

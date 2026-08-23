@@ -21,7 +21,7 @@
   font-size: 2.5rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
-  background: linear-gradient(135deg, var(--vibee-amber), #fbbf24);
+  background: linear-gradient(135deg, var(--vibee-amber), #4dffab);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -81,7 +81,7 @@
 }
 
 .legal-container a:hover {
-  color: #fbbf24;
+  color: #4dffab;
   text-decoration: underline;
 }
 
@@ -102,7 +102,7 @@
 }
 
 .legal-back a:hover {
-  color: #fbbf24;
+  color: #4dffab;
 }
 
 /* Responsive */

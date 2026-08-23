@@ -29,7 +29,11 @@
 .logo-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, var(--vibee-amber) 0%, var(--vibee-amber-light) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber) 0%,
+    var(--vibee-amber-light) 100%
+  );
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -94,14 +98,18 @@
 }
 
 .lang-toggle:hover {
-  background: rgba(245, 158, 11, 0.2);
-  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(0, 255, 136, 0.2);
+  border-color: rgba(0, 255, 136, 0.4);
   color: var(--vibee-amber-light);
 }
 
 .btn-cta {
   padding: 10px 20px;
-  background: linear-gradient(135deg, var(--vibee-amber) 0%, var(--vibee-amber-light) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber) 0%,
+    var(--vibee-amber-light) 100%
+  );
   color: #000;
   text-decoration: none;
   border-radius: 8px;
@@ -112,7 +120,7 @@
 
 .btn-cta:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 255, 136, 0.4);
   text-decoration: none;
 }
 
@@ -186,7 +194,7 @@
 }
 
 .mobile-nav-link:hover {
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
   text-decoration: none;
 }
 

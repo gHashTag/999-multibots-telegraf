@@ -1023,7 +1023,7 @@
 }
 
 .action-btn.remix-btn svg {
-  filter: drop-shadow(0 2px 8px rgba(245, 158, 11, 0.5));
+  filter: drop-shadow(0 2px 8px rgba(0, 255, 136, 0.5));
 }
 
 .action-btn.remix-btn:hover {

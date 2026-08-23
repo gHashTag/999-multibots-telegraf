@@ -1,80 +1,80 @@
-import React, { Component, type ReactNode } from 'react';
+import React, { Component, type ReactNode } from 'react'
 
 // Inline brand colors to avoid importing @vibee/atoms at top-level
 // This prevents circular dependency issues with Jotai atoms
 const BRAND_COLORS = {
-  amber: '#f59e0b',
-  amberLight: '#fbbf24',
-  amberDark: '#d97706',
-} as const;
+  amber: '#00ff88',
+  amberLight: '#4dffab',
+  amberDark: '#00cc66',
+} as const
 
 const STATUS_COLORS = {
   error: '#ef4444',
   success: '#22c55e',
-  warning: '#f59e0b',
+  warning: '#00ff88',
   info: '#3b82f6',
-} as const;
+} as const
 
 interface Props {
-  children: ReactNode;
-  fallback?: ReactNode;
+  children: ReactNode
+  fallback?: ReactNode
 }
 
 interface State {
-  hasError: boolean;
-  error: Error | null;
-  errorInfo: React.ErrorInfo | null;
+  hasError: boolean
+  error: Error | null
+  errorInfo: React.ErrorInfo | null
 }
 
 class ErrorBoundaryClass extends Component<Props, State> {
   constructor(props: Props) {
-    super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
+    super(props)
+    this.state = { hasError: false, error: null, errorInfo: null }
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
-    return { hasError: true, error };
+    return { hasError: true, error }
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
-    this.setState({ errorInfo });
+    console.error('ErrorBoundary caught an error:', error, errorInfo)
+    this.setState({ errorInfo })
 
     // Auto-reload on chunk load failure (happens after deploy when old chunks are gone)
     const isChunkLoadError =
       error.message.includes('Failed to fetch dynamically imported module') ||
       error.message.includes('Loading chunk') ||
-      error.message.includes('ChunkLoadError');
+      error.message.includes('ChunkLoadError')
 
     if (isChunkLoadError) {
-      console.log('Chunk load error detected, reloading page...');
+      console.log('Chunk load error detected, reloading page...')
       // Small delay to prevent reload loop
-      const lastReload = sessionStorage.getItem('chunk-reload-time');
-      const now = Date.now();
+      const lastReload = sessionStorage.getItem('chunk-reload-time')
+      const now = Date.now()
       if (!lastReload || now - parseInt(lastReload) > 10000) {
-        sessionStorage.setItem('chunk-reload-time', now.toString());
-        window.location.reload();
+        sessionStorage.setItem('chunk-reload-time', now.toString())
+        window.location.reload()
       }
     }
   }
 
   handleReset = () => {
-    this.setState({ hasError: false, error: null, errorInfo: null });
-  };
+    this.setState({ hasError: false, error: null, errorInfo: null })
+  }
 
   handleReload = () => {
-    window.location.reload();
-  };
+    window.location.reload()
+  }
 
   handleClearStorage = () => {
-    localStorage.removeItem('vibee-editor-storage-v4');
-    window.location.reload();
-  };
+    localStorage.removeItem('vibee-editor-storage-v4')
+    window.location.reload()
+  }
 
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
-        return this.props.fallback;
+        return this.props.fallback
       }
 
       return (
@@ -85,34 +85,42 @@ class ErrorBoundaryClass extends Component<Props, State> {
           onReload={this.handleReload}
           onClearStorage={this.handleClearStorage}
         />
-      );
+      )
     }
 
-    return this.props.children;
+    return this.props.children
   }
 }
 
 interface ErrorFallbackProps {
-  error: Error | null;
-  errorInfo: React.ErrorInfo | null;
-  onReset: () => void;
-  onReload: () => void;
-  onClearStorage: () => void;
+  error: Error | null
+  errorInfo: React.ErrorInfo | null
+  onReset: () => void
+  onReload: () => void
+  onClearStorage: () => void
 }
 
-function ErrorFallback({ error, errorInfo, onReset, onReload, onClearStorage }: ErrorFallbackProps) {
-  const [showDetails, setShowDetails] = React.useState(false);
+function ErrorFallback({
+  error,
+  errorInfo,
+  onReset,
+  onReload,
+  onClearStorage,
+}: ErrorFallbackProps) {
+  const [showDetails, setShowDetails] = React.useState(false)
 
   // Inline styles as fallback when Tailwind CSS fails to load
   const styles = {
     container: {
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 50%, #0f0f0f 100%)',
+      background:
+        'linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 50%, #0f0f0f 100%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '16px',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontFamily:
+        '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     },
     card: {
       maxWidth: '420px',
@@ -128,7 +136,7 @@ function ErrorFallback({ error, errorInfo, onReset, onReload, onClearStorage }: 
       width: '72px',
       height: '72px',
       borderRadius: '50%',
-      background: `linear-gradient(135deg, ${BRAND_COLORS.amber}33, rgba(251, 191, 36, 0.1))`,
+      background: `linear-gradient(135deg, ${BRAND_COLORS.amber}33, rgba(77, 255, 170, 0.1))`,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -151,7 +159,7 @@ function ErrorFallback({ error, errorInfo, onReset, onReload, onClearStorage }: 
     buttonPrimary: {
       width: '100%',
       padding: '14px 24px',
-      background: `linear-gradient(135deg, ${BRAND_COLORS.amber}, #fbbf24)`,
+      background: `linear-gradient(135deg, ${BRAND_COLORS.amber}, #4dffab)`,
       color: '#000000',
       fontWeight: '600',
       fontSize: '15px',
@@ -230,7 +238,7 @@ function ErrorFallback({ error, errorInfo, onReset, onReload, onClearStorage }: 
       display: 'block',
       textAlign: 'center' as const,
     },
-  };
+  }
 
   return (
     <div style={styles.container}>
@@ -245,13 +253,13 @@ function ErrorFallback({ error, errorInfo, onReset, onReload, onClearStorage }: 
         <button
           onClick={onReset}
           style={styles.buttonPrimary}
-          onMouseOver={(e) => {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = `0 6px 20px ${BRAND_COLORS.amber}66`;
+          onMouseOver={e => {
+            e.currentTarget.style.transform = 'translateY(-2px)'
+            e.currentTarget.style.boxShadow = `0 6px 20px ${BRAND_COLORS.amber}66`
           }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = `0 4px 14px ${BRAND_COLORS.amber}4d`;
+          onMouseOut={e => {
+            e.currentTarget.style.transform = 'translateY(0)'
+            e.currentTarget.style.boxShadow = `0 4px 14px ${BRAND_COLORS.amber}4d`
           }}
         >
           🔄 Try Again
@@ -260,11 +268,11 @@ function ErrorFallback({ error, errorInfo, onReset, onReload, onClearStorage }: 
         <button
           onClick={onReload}
           style={styles.buttonSecondary}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'rgba(75, 85, 99, 0.5)';
+          onMouseOver={e => {
+            e.currentTarget.style.background = 'rgba(75, 85, 99, 0.5)'
           }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'rgba(55, 65, 81, 0.5)';
+          onMouseOut={e => {
+            e.currentTarget.style.background = 'rgba(55, 65, 81, 0.5)'
           }}
         >
           🔃 Reload Page
@@ -273,11 +281,11 @@ function ErrorFallback({ error, errorInfo, onReset, onReload, onClearStorage }: 
         <button
           onClick={onClearStorage}
           style={styles.buttonDanger}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+          onMouseOver={e => {
+            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'
           }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+          onMouseOut={e => {
+            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'
           }}
         >
           🗑️ Clear Data & Reload
@@ -319,13 +327,16 @@ function ErrorFallback({ error, errorInfo, onReset, onReload, onClearStorage }: 
 
         <p style={styles.footer}>
           If the problem persists, contact us at{' '}
-          <a href="https://telegram.me/vibee_super_agent" style={{ color: BRAND_COLORS.amber, textDecoration: 'none' }}>
+          <a
+            href="https://telegram.me/vibee_super_agent"
+            style={{ color: BRAND_COLORS.amber, textDecoration: 'none' }}
+          >
             @vibee_super_agent
           </a>
         </p>
       </div>
     </div>
-  );
+  )
 }
 
-export const ErrorBoundary = ErrorBoundaryClass;
+export const ErrorBoundary = ErrorBoundaryClass

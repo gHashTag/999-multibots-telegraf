@@ -48,8 +48,13 @@
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .event-stream-count {
@@ -82,12 +87,12 @@
 }
 
 .event-stream-demo-btn {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   color: var(--vibee-amber);
 }
 
 .event-stream-demo-btn:hover {
-  background: rgba(245, 158, 11, 0.3);
+  background: rgba(0, 255, 136, 0.3);
 }
 
 .event-stream-clear-btn {
@@ -149,7 +154,7 @@
 .event-stream-demo-btn-large {
   margin-top: 12px;
   padding: 10px 20px;
-  background: linear-gradient(135deg, var(--vibee-amber), #d97706);
+  background: linear-gradient(135deg, var(--vibee-amber), #00cc66);
   color: #000;
   border: none;
   border-radius: 8px;
@@ -161,7 +166,7 @@
 
 .event-stream-demo-btn-large:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 255, 136, 0.4);
 }
 
 /* Event Item */
@@ -202,12 +207,12 @@
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: rgba(var(--event-color-rgb, 245, 158, 11), 0.15);
+  background: rgba(var(--event-color-rgb, 0, 255, 136), 0.15);
   flex-shrink: 0;
 }
 
 .event-stream-item--new_lead .event-stream-item-icon {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.15);
 }
 
 .event-stream-item--message .event-stream-item-icon {

@@ -133,7 +133,7 @@
 }
 
 .header-submenu-item:hover {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.15);
   color: #fff;
 }
 
@@ -204,7 +204,7 @@
 }
 
 .header-tab.active {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.15);
 }
 
 /* Tab emoji */
@@ -323,6 +323,27 @@
   color: #fff;
 }
 
+/* Дефолтный логотип открытого веба: знак t27 + словомарк, как на t27.ai */
+.logo-t27 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-t27-mark {
+  height: 30px;
+  width: 30px;
+  object-fit: contain;
+}
+
+.logo-t27-text {
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: 0.01em;
+  color: #fff;
+  white-space: nowrap;
+}
+
 /* Project name input */
 .project-name-input {
   width: clamp(120px, 20vw, 200px);
@@ -387,7 +408,7 @@
     var(--vibee-amber-dark),
     var(--vibee-amber)
   );
-  box-shadow: 0 2px 12px rgba(245, 158, 11, 0.3);
+  box-shadow: 0 2px 12px rgba(0, 255, 136, 0.3);
 }
 
 .export-button:disabled {
@@ -635,7 +656,7 @@
 }
 
 .lang-btn.active {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   color: var(--vibee-amber);
 }
 
@@ -1024,8 +1045,8 @@
 }
 
 .quota-display.warning {
-  background: rgba(245, 158, 11, 0.1);
-  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(0, 255, 136, 0.1);
+  border-color: rgba(0, 255, 136, 0.3);
   color: var(--vibee-amber);
 }
 
@@ -1048,9 +1069,9 @@
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
   border-radius: 20px;
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  border: 1px solid rgba(0, 255, 136, 0.3);
   flex-shrink: 0;
 }
 
@@ -1126,7 +1147,7 @@
   border-radius: 16px;
   padding: 40px;
   text-align: center;
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  border: 1px solid rgba(0, 255, 136, 0.3);
   max-width: 400px;
 }
 
@@ -1243,7 +1264,7 @@
 }
 
 .save-template-btn.primary:hover:not(:disabled) {
-  box-shadow: 0 2px 12px rgba(245, 158, 11, 0.4);
+  box-shadow: 0 2px 12px rgba(0, 255, 136, 0.4);
 }
 
 .save-template-btn.primary:disabled {
@@ -1570,7 +1591,7 @@
 }
 
 .layout-btn.active {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   color: var(--vibee-amber);
 }
 

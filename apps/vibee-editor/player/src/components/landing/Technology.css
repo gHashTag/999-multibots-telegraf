@@ -13,7 +13,11 @@
   transform: translateX(-50%);
   width: 1200px;
   height: 1200px;
-  background: radial-gradient(circle, rgba(245, 158, 11, 0.1) 0%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(0, 255, 136, 0.1) 0%,
+    transparent 70%
+  );
   pointer-events: none;
 }
 
@@ -33,10 +37,10 @@
 .technology-badge {
   display: inline-block;
   padding: 8px 16px;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.2);
   border-radius: 100px;
-  color: #f59e0b;
+  color: #00ff88;
   font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
@@ -80,9 +84,9 @@
 
 .technology-card:hover {
   transform: translateY(-8px);
-  border-color: rgba(245, 158, 11, 0.3);
+  border-color: rgba(0, 255, 136, 0.3);
   background: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 20px 40px rgba(245, 158, 11, 0.1);
+  box-shadow: 0 20px 40px rgba(0, 255, 136, 0.1);
 }
 
 .technology-icon {
@@ -93,7 +97,7 @@
   align-items: center;
   justify-content: center;
   margin-bottom: 24px;
-  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 255, 136, 0.2);
 }
 
 .technology-emoji {
@@ -131,7 +135,7 @@
 }
 
 .technology-feature svg {
-  color: #f59e0b;
+  color: #00ff88;
   flex-shrink: 0;
 }
 
@@ -141,8 +145,8 @@
   gap: 32px;
   margin-bottom: 64px;
   padding: 48px;
-  background: rgba(245, 158, 11, 0.05);
-  border: 1px solid rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.05);
+  border: 1px solid rgba(0, 255, 136, 0.1);
   border-radius: 16px;
 }
 
@@ -153,7 +157,7 @@
 .technology-stat-value {
   font-size: 48px;
   font-weight: 800;
-  color: #f59e0b;
+  color: #00ff88;
   margin-bottom: 8px;
   line-height: 1;
 }
@@ -178,24 +182,24 @@
   align-items: center;
   gap: 12px;
   padding: 16px 32px;
-  background: #f59e0b;
+  background: #00ff88;
   color: #000000;
   font-size: 16px;
   font-weight: 600;
   border-radius: 12px;
   text-decoration: none;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 255, 136, 0.3);
 }
 
 .technology-cta-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.4);
-  background: #fbbf24;
+  box-shadow: 0 8px 24px rgba(0, 255, 136, 0.4);
+  background: #4dffab;
 }
 
 .technology-cta-link {
-  color: #f59e0b;
+  color: #00ff88;
   font-size: 16px;
   font-weight: 600;
   text-decoration: none;
@@ -203,7 +207,7 @@
 }
 
 .technology-cta-link:hover {
-  color: #fbbf24;
+  color: #4dffab;
   text-decoration: underline;
 }
 

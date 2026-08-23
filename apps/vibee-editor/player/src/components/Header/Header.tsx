@@ -342,7 +342,15 @@ export function Header({ wsStatus, wsClientId }: HeaderProps) {
             ) : !branding.resolved && isTelegram() ? (
               <span className="logo-placeholder" aria-hidden="true" />
             ) : (
-              <img src="/logo.svg" alt="VIBEE" className="logo-icon-svg" />
+              <span className="logo-t27">
+                <img
+                  src="/t27-mark.svg"
+                  alt=""
+                  aria-hidden="true"
+                  className="logo-t27-mark"
+                />
+                <span className="logo-t27-text">Trinity S³AI</span>
+              </span>
             )}
           </Link>
         </div>

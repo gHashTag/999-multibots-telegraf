@@ -39,7 +39,11 @@
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-light)
+  );
   border: none;
   border-radius: 8px;
   color: #000;
@@ -51,7 +55,7 @@
 
 .panel-error__btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
 }
 
 /* ========================================

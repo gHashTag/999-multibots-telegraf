@@ -57,7 +57,7 @@
 .upload-zone-compact:hover {
   border-color: var(--vibee-amber);
   color: var(--vibee-amber);
-  background: rgba(245, 158, 11, 0.05);
+  background: rgba(0, 255, 136, 0.05);
 }
 
 /* Empty state */
@@ -164,8 +164,12 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .upload-filename {
@@ -289,7 +293,11 @@
 
 /* Vinyl record thumbnail for audio */
 .vinyl-thumbnail {
-  background: linear-gradient(135deg, var(--color-bg-elevated) 0%, var(--color-bg-primary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--color-bg-elevated) 0%,
+    var(--color-bg-primary) 100%
+  );
   padding: 8px;
 }
 
@@ -301,7 +309,7 @@
   position: relative;
   box-shadow:
     0 0 0 2px var(--bg-input),
-    inset 0 0 10px rgba(0,0,0,0.5);
+    inset 0 0 10px rgba(0, 0, 0, 0.5);
 }
 
 .vinyl-grooves {
@@ -325,12 +333,16 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--vibee-amber) 0%, var(--vibee-amber-dark) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber) 0%,
+    var(--vibee-amber-dark) 100%
+  );
   display: flex;
   align-items: center;
   justify-content: center;
   color: #000;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .vinyl-label::after {
@@ -348,8 +360,12 @@
 }
 
 @keyframes vinyl-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .asset-card-duration {
@@ -359,7 +375,7 @@
   font-size: 10px;
   font-weight: 600;
   color: #fff;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
 .asset-card-warning {
@@ -376,7 +392,11 @@
   left: 0;
   right: 0;
   padding: 20px 6px 5px 6px;
-  background: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.85) 100%);
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.85) 100%
+  );
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -507,11 +527,11 @@
 /* Blob URL Warning */
 .asset-item.blob-warning {
   border: 1px solid var(--vibee-amber);
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
 }
 
 .asset-item.blob-warning:hover {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.15);
 }
 
 .blob-badge {
@@ -531,7 +551,7 @@
 
 .upload-btn:hover:not(:disabled) {
   transform: translateY(-1px) scale(1.05);
-  box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);
+  box-shadow: 0 4px 8px rgba(0, 255, 136, 0.3);
 }
 
 .upload-btn:active:not(:disabled) {
@@ -559,7 +579,7 @@
 
 .upload-zone-compact:hover {
   border-color: var(--vibee-amber);
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
   transform: scale(1.02);
 }
 

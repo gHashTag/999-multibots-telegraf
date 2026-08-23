@@ -46,7 +46,7 @@
 }
 
 .vibee-ml-stat-card.warning {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%);
   color: white;
 }
 
@@ -243,7 +243,7 @@
 
 .tradeoff-item.speed {
   background: #fef3c7;
-  border-left: 4px solid #f59e0b;
+  border-left: 4px solid #00ff88;
 }
 
 .tradeoff-item.reliability {

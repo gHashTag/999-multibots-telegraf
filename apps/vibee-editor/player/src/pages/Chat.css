@@ -18,7 +18,9 @@
 
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  /* Таббар фиксированный (56px): без вычета он накрывает нижнюю часть
+     страницы, и поле ввода оказывается под ним. */
+  height: calc(var(--app-vh-stable, 100dvh) - var(--app-tabbar-total, 56px));
   background: var(--t27-bg);
   color: var(--t27-text);
   font-family:

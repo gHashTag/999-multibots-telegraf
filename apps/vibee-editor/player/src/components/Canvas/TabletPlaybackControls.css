@@ -58,13 +58,17 @@
   justify-content: center;
   width: 56px;
   height: 56px;
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-light)
+  );
   border: none;
   border-radius: 50%;
   color: #000;
   cursor: pointer;
   transition: all 0.15s;
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
 }
 
 .tablet-play-btn:hover {
@@ -115,7 +119,11 @@
   top: 0;
   left: 0;
   height: 100%;
-  background: linear-gradient(90deg, var(--vibee-amber), var(--vibee-amber-light));
+  background: linear-gradient(
+    90deg,
+    var(--vibee-amber),
+    var(--vibee-amber-light)
+  );
   border-radius: 3px;
   transition: width 0.05s linear;
 }

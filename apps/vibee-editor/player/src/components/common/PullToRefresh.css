@@ -35,7 +35,7 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.15);
   border-radius: 50%;
   color: var(--vibee-amber);
   transition: transform 0.1s linear;

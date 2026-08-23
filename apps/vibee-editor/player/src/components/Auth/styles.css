@@ -20,7 +20,11 @@
   justify-content: center;
   gap: 12px;
   padding: 14px 32px;
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-light)
+  );
   border: none;
   border-radius: 12px;
   color: #000;
@@ -34,7 +38,7 @@
 .telegram-login-btn:hover {
   background: linear-gradient(135deg, var(--vibee-amber-light), #fcd34d);
   transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4);
+  box-shadow: 0 4px 20px rgba(0, 255, 136, 0.4);
 }
 
 .telegram-login-btn:active {
@@ -83,7 +87,7 @@
   max-height: 90vh;
   overflow-y: auto;
   position: relative;
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(0, 255, 136, 0.2);
 }
 
 .paywall-close {
@@ -152,7 +156,7 @@
 
 .paywall-plan.popular {
   border-color: var(--vibee-amber);
-  box-shadow: 0 0 30px rgba(245, 158, 11, 0.2);
+  box-shadow: 0 0 30px rgba(0, 255, 136, 0.2);
 }
 
 .plan-badge {
@@ -206,7 +210,7 @@
   justify-content: center;
   gap: 8px;
   padding: 12px;
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
   border-radius: 8px;
   margin-bottom: 16px;
   color: var(--vibee-amber);
@@ -293,7 +297,7 @@
   border-radius: 16px;
   padding: 40px;
   text-align: center;
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  border: 1px solid rgba(0, 255, 136, 0.3);
   max-width: 400px;
 }
 
@@ -340,8 +344,8 @@
 }
 
 .quota-display.warning {
-  background: rgba(245, 158, 11, 0.1);
-  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(0, 255, 136, 0.1);
+  border-color: rgba(0, 255, 136, 0.3);
   color: var(--vibee-amber);
 }
 

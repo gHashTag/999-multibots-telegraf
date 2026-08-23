@@ -22,14 +22,14 @@
 }
 
 .snap-indicator--playhead {
-  background: rgba(245, 158, 11, 0.3);
+  background: rgba(0, 255, 136, 0.3);
 }
 
 /* Active snap line (when snapping occurs) */
 .snap-indicator--active {
   width: 2px;
   background: var(--vibee-amber);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
   transform: translateX(-50%);
 }
 
@@ -39,7 +39,7 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(245, 158, 11, 0.3),
+    rgba(0, 255, 136, 0.3),
     transparent
   );
   width: 20px;
@@ -162,7 +162,7 @@
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: rgba(245, 158, 11, 0.9);
+  background: rgba(0, 255, 136, 0.9);
   border-radius: 8px;
   font-size: 12px;
   font-weight: 500;

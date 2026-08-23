@@ -103,13 +103,21 @@
 }
 
 .add-caption-btn {
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-light)
+  );
   color: #000;
 }
 
 .add-caption-btn:hover {
-  background: linear-gradient(135deg, var(--vibee-amber-dark), var(--vibee-amber));
-  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber-dark),
+    var(--vibee-amber)
+  );
+  box-shadow: 0 2px 8px rgba(0, 255, 136, 0.3);
 }
 
 .upload-caption-btn {
@@ -205,7 +213,7 @@
 
 .caption-item.current {
   border-color: var(--vibee-amber);
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
 }
 
 .caption-timing {
@@ -521,12 +529,12 @@
 }
 
 .font-option:hover {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.15);
   color: #fff;
 }
 
 .font-option.selected {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   color: var(--vibee-amber);
 }
 

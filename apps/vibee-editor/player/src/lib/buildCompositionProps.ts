@@ -3,9 +3,17 @@
  * Used by BOTH the preview (InteractiveCanvas) and the export (Timeline).
  * This guarantees that what you see in the preview is exactly what gets rendered.
  */
-import type { SplitTalkingHeadProps, Segment } from '@compositions/SplitTalkingHead';
-import type { LipSyncMainProps, TrackItem, Asset, Track } from '@vibee/atoms';
-import { DEFAULT_MUSIC_VOLUME, BRAND_COLORS, DEFAULT_WIDTH, DEFAULT_HEIGHT } from '@vibee/atoms';
+import type {
+  SplitTalkingHeadProps,
+  Segment,
+} from '@compositions/SplitTalkingHead'
+import type { LipSyncMainProps, TrackItem, Asset, Track } from '@vibee/atoms'
+import {
+  DEFAULT_MUSIC_VOLUME,
+  BRAND_COLORS,
+  DEFAULT_WIDTH,
+  DEFAULT_HEIGHT,
+} from '@vibee/atoms'
 
 /**
  * Convert LipSyncMainProps + timeline track data into SplitTalkingHeadProps.
@@ -20,10 +28,12 @@ export function convertToSplitTalkingHeadProps(
   assets: Asset[],
   avatarSettingsTab: 'split' | 'fullscreen'
 ): SplitTalkingHeadProps {
-  const segments: Segment[] = [];
+  const segments: Segment[] = []
 
   // Sort items by startFrame to ensure correct order
-  const sortedItems = [...videoTrackItems].sort((a, b) => a.startFrame - b.startFrame);
+  const sortedItems = [...videoTrackItems].sort(
+    (a, b) => a.startFrame - b.startFrame
+  )
 
   if (sortedItems.length === 0) {
     // Default split with cover image B-roll
@@ -35,12 +45,12 @@ export function convertToSplitTalkingHeadProps(
       bRollType: 'image',
       caption: '',
       layout: 'top-half',
-    });
+    })
   } else {
     // Use actual timeline positions from video track items
-    let lastEndFrame = 0;
+    let lastEndFrame = 0
 
-    sortedItems.forEach((item) => {
+    sortedItems.forEach(item => {
       // Add fullscreen segment for gap before this b-roll (if any)
       if (item.startFrame > lastEndFrame) {
         segments.push({
@@ -48,16 +58,16 @@ export function convertToSplitTalkingHeadProps(
           startFrame: lastEndFrame,
           durationFrames: item.startFrame - lastEndFrame,
           caption: '',
-        });
+        })
       }
 
       // Get URL from item directly or via assetId lookup
-      let bRollUrl: string | undefined;
+      let bRollUrl: string | undefined
       if ('url' in item && item.url) {
-        bRollUrl = item.url as string;
+        bRollUrl = item.url as string
       } else if (item.assetId) {
-        const asset = assets.find((a) => a.id === item.assetId);
-        bRollUrl = asset?.url;
+        const asset = assets.find(a => a.id === item.assetId)
+        bRollUrl = asset?.url
       }
 
       if (!bRollUrl) {
@@ -65,7 +75,7 @@ export function convertToSplitTalkingHeadProps(
           itemId: item.id,
           assetId: item.assetId,
           hasDirectUrl: 'url' in item,
-        });
+        })
       }
 
       // Add split segment with B-roll at timeline position
@@ -85,10 +95,10 @@ export function convertToSplitTalkingHeadProps(
         // Content panning inside container
         cropX: (item as any).cropX,
         cropY: (item as any).cropY,
-      });
+      })
 
-      lastEndFrame = item.startFrame + item.durationInFrames;
-    });
+      lastEndFrame = item.startFrame + item.durationInFrames
+    })
 
     // Add final fullscreen segment if there's remaining time
     if (lastEndFrame < durationInFrames) {
@@ -97,7 +107,7 @@ export function convertToSplitTalkingHeadProps(
         startFrame: lastEndFrame,
         durationFrames: durationInFrames - lastEndFrame,
         caption: '',
-      });
+      })
     }
   }
 
@@ -148,15 +158,17 @@ export function convertToSplitTalkingHeadProps(
     // Avatar border effects
     avatarBorderEffect: props.avatarBorderEffect ?? 'none',
     avatarBorderColor: props.avatarBorderColor ?? BRAND_COLORS.amber,
-    avatarBorderColor2: props.avatarBorderColor2 ?? '#fbbf24',
+    avatarBorderColor2: props.avatarBorderColor2 ?? '#4dffab',
     avatarBorderWidth: props.avatarBorderWidth ?? 4,
     avatarBorderIntensity: props.avatarBorderIntensity ?? 0.8,
     // Image overlays from Image track
     imageOverlays: imageTrackItems
       .map(item => {
-        const asset = item.assetId ? assets.find(a => a.id === item.assetId) : null;
-        const url = asset?.url || '';
-        if (!url) return null;
+        const asset = item.assetId
+          ? assets.find(a => a.id === item.assetId)
+          : null
+        const url = asset?.url || ''
+        if (!url) return null
         return {
           url,
           startFrame: item.startFrame,
@@ -167,10 +179,10 @@ export function convertToSplitTalkingHeadProps(
           height: item.height || 1920,
           rotation: item.rotation || 0,
           opacity: item.opacity ?? 1,
-        };
+        }
       })
       .filter((o): o is NonNullable<typeof o> => o !== null),
-  };
+  }
 }
 
 /**
@@ -181,18 +193,18 @@ export function getAudioTrackOverride(
   tracks: Track[],
   assets: Asset[]
 ): { audioTrackUrl: string | null; audioTrackVolume: number } {
-  const audioTrack = tracks.find((t) => t.type === 'audio');
+  const audioTrack = tracks.find(t => t.type === 'audio')
   if (!audioTrack || audioTrack.items.length === 0) {
-    return { audioTrackUrl: null, audioTrackVolume: DEFAULT_MUSIC_VOLUME };
+    return { audioTrackUrl: null, audioTrackVolume: DEFAULT_MUSIC_VOLUME }
   }
 
   // Use the last added audio item (most recent)
-  const lastAudioItem = audioTrack.items[audioTrack.items.length - 1];
-  const volume = (lastAudioItem as any)?.volume ?? DEFAULT_MUSIC_VOLUME;
+  const lastAudioItem = audioTrack.items[audioTrack.items.length - 1]
+  const volume = (lastAudioItem as any)?.volume ?? DEFAULT_MUSIC_VOLUME
 
   // Get URL from asset
-  const asset = assets.find(a => a.id === lastAudioItem.assetId);
-  const url = asset?.url || null;
+  const asset = assets.find(a => a.id === lastAudioItem.assetId)
+  const url = asset?.url || null
 
-  return { audioTrackUrl: url, audioTrackVolume: volume };
+  return { audioTrackUrl: url, audioTrackVolume: volume }
 }

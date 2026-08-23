@@ -192,8 +192,9 @@ function ChatPage() {
       <div className="chat-title">
         <img
           className="chat-title__logo"
-          src="/t27-logo.svg"
-          alt="Trinity S³AI"
+          src="/t27-mark.svg"
+          alt=""
+          aria-hidden="true"
         />
         <div className="chat-title__text">
           <h1>Агент Trinity S³AI</h1>
