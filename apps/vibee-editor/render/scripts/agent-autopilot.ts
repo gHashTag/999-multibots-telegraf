@@ -85,6 +85,35 @@ async function call(name: string, args: Record<string, unknown> = {}) {
   return d.result.structuredContent
 }
 
+/**
+ * Темы из свежих постов блога t27.ai: заголовок и суть поста уже написаны
+ * владельцем — остаётся собрать рилс-визитку. Вызывается, когда рукотворная
+ * очередь близка к концу: производство не должно замолкать только потому,
+ * что восемь тем кончились.
+ */
+async function blogTopics(published: string[]): Promise<Topic[]> {
+  try {
+    const r = await fetch(`${BASE}/api/blog`)
+    if (!r.ok) return []
+    const d = (await r.json()) as { items?: { title: string; description: string; pubDate: string }[] }
+    return (d.items || [])
+      .filter(it => it.title && !published.includes(it.title))
+      .slice(0, 5)
+      .map(it => ({
+        title: it.title,
+        subtitle: (it.description || '').slice(0, 110).trim(),
+        lesson: 'Весь разбор с числами и единицами — на t27.ai',
+        tags: ['блог', 't27'],
+        plates: [
+          { label: 'полный разбор', value: 't27.ai/#/blog' },
+          { label: 'формат', value: 'измерение, не обещание' },
+        ],
+      }))
+  } catch {
+    return []
+  }
+}
+
 async function main() {
   const withImage = process.argv.includes('--with-image')
   const state = readState()
@@ -103,15 +132,27 @@ async function main() {
     log(`нет ${TOPICS_FILE} — нечего производить, добавь темы`)
     return
   }
+
+  // 2a. Доподливка из блога: рукотворных тем осталось меньше двух — тянем
+  // свежие посты t27.ai. Это то же живое производство, а не выдумка.
+  const mine = await call('feed_list', { mine: true, limit: 50 })
+  const names: string[] = (mine?.записи || []).map((x: any) => String(x.name))
+  if (topics.length - state.nextTopic < 2) {
+    const fromBlog = await blogTopics([...names, ...topics.map(t => t.title)])
+    if (fromBlog.length) {
+      topics.push(...fromBlog)
+      fs.mkdirSync(LOOP_DIR, { recursive: true })
+      fs.writeFileSync(TOPICS_FILE, JSON.stringify(topics, null, 2))
+      log(`очередь пополнилась из блога: +${fromBlog.length} тем`)
+    }
+  }
+
   if (!topics.length) {
     log('очередь тем пуста')
     return
   }
   const topic = topics[state.nextTopic % topics.length]
-
   // 3. Дубль-защита: название не должно встречаться в моих последних постах.
-  const mine = await call('feed_list', { mine: true, limit: 50 })
-  const names: string[] = (mine?.записи || []).map((x: any) => String(x.name))
   if (names.some(n => n === topic.title)) {
     log(`тема «${topic.title}» уже опубликована — двигаю очередь дальше`)
     writeState({ ...state, nextTopic: state.nextTopic + 1 })
