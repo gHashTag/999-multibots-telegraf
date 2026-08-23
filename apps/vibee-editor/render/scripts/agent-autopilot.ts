@@ -62,9 +62,12 @@ function readState(): State {
   try {
     const raw = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
     if (raw.date === today) s = raw
-    // Новый день обнуляет СЧЁТЧИК, но не интервал: последний пост был
-    // вчера вечером — сегодня рано утром всё ещё слишком скоро.
-    else if (raw.lastPostAt) s.lastPostAt = raw.lastPostAt
+    // Новый день обнуляет СЧЁТЧИК, но не очередь и не интервал: иначе
+    // автопилот начинал бы день с прокрутки уже опубликованных тем.
+    else {
+      if (Number.isInteger(raw.nextTopic)) s.nextTopic = raw.nextTopic
+      if (raw.lastPostAt) s.lastPostAt = raw.lastPostAt
+    }
   } catch {
     /* первый запуск — состояние ещё не создано */
   }

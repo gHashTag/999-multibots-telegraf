@@ -93,10 +93,26 @@ async function main() {
       return m && now - Date.parse(m[1]) < 12 * 3_600_000
     })
     lines.push(`## Журнал цикла (12 ч, ${recent.length} записей)`)
-    lines.push(...recent.map(l => l.replace('^- '.length ? /^- / : /^- /, '- ')))
+    lines.push(...recent)
     if (!recent.length) lines.push('- записи за 12 часов: см. LOOP_STATE.md целиком')
   } catch {
     lines.push('## Журнал — не прочитался')
+  }
+  lines.push('')
+
+  // 4. Стек: сводка сама говорит, живо ли то, что её производит.
+  lines.push('## Стек')
+  for (const [name, url] of [
+    ['render :3333', `${BASE}/health`],
+    ['player :5173', 'http://localhost:5173'],
+    ['бэкенд :2999', 'http://localhost:2999/health'],
+  ]) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(5000) })
+      lines.push(`- ${name}: ${r.ok ? 'жив' : `ответ ${r.status}`}`)
+    } catch {
+      lines.push(`- ${name}: НЕ ОТВЕЧАЕТ`)
+    }
   }
   lines.push('')
   lines.push('---')
