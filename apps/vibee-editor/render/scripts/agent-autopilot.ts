@@ -45,6 +45,9 @@ interface State {
   date: string
   postsToday: number
   nextTopic: number
+  /** ISO-момент последней публикации: посты разносятся по дню, а не
+   *  выстреливаются четырьмя подряд в первый час новой ночи. */
+  lastPostAt?: string
 }
 
 function log(line: string) {
@@ -59,6 +62,9 @@ function readState(): State {
   try {
     const raw = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
     if (raw.date === today) s = raw
+    // Новый день обнуляет СЧЁТЧИК, но не интервал: последний пост был
+    // вчера вечером — сегодня рано утром всё ещё слишком скоро.
+    else if (raw.lastPostAt) s.lastPostAt = raw.lastPostAt
   } catch {
     /* первый запуск — состояние ещё не создано */
   }
@@ -165,6 +171,20 @@ async function main() {
   if (state.postsToday >= MAX_POSTS_PER_DAY) {
     log(`пост-лимит на сегодня исчерпан (${state.postsToday}/${MAX_POSTS_PER_DAY}) — молчу`)
     return
+  }
+
+  // 1a. Разнос по времени: 4 поста в первый час ночи — это спам, а не
+  // конвейер. Минимум MIN_HOURS_BETWEEN_POSTS между публикациями.
+  const MIN_HOURS_BETWEEN_POSTS = 3
+  if (state.lastPostAt) {
+    const elapsedH = (Date.now() - Date.parse(state.lastPostAt)) / 3_600_000
+    if (elapsedH < MIN_HOURS_BETWEEN_POSTS) {
+      log(
+        `пост был ${elapsedH.toFixed(1)} ч назад — разнос по дню, следующий не раньше ` +
+          `${MIN_HOURS_BETWEEN_POSTS} ч`
+      )
+      return
+    }
   }
 
   // 2. Очередь тем. Пустая очередь — рабочая пауза, а не ошибка.
@@ -284,6 +304,7 @@ async function main() {
     ...state,
     postsToday: state.postsToday + 1,
     nextTopic: topicIndex + 1,
+    lastPostAt: new Date().toISOString(),
   })
   log(
     `опубликован рилс «${topic.title}» (id ${pub.id}): ${reel.url} — ` +
