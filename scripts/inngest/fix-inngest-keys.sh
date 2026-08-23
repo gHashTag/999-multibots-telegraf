@@ -4,6 +4,18 @@ set -e
 # 🎯 Автоматическое исправление Inngest Keys
 # Этот скрипт сделает всё за вас
 
+# 🔐 Учётка Infisical (Machine Identity) — ТОЛЬКО из окружения.
+# Она открывает доступ ко ВСЕМ секретам проекта, в скрипт её не зашивать.
+# Где взять: railway variables --kv | grep INFISICAL_
+#   либо https://app.infisical.com → project "999" → Access Control
+#         → Machine Identities → Client ID / Client Secret
+for VAR in INFISICAL_CLIENT_ID INFISICAL_CLIENT_SECRET INFISICAL_PROJECT_ID; do
+  if [ -z "${!VAR}" ]; then
+    echo "❌ $VAR не задан. Взять: railway variables --kv | grep INFISICAL_" >&2
+    exit 1
+  fi
+done
+
 echo "🔑 ======================================="
 echo "🔑  Inngest Keys FIX - Автоматическое решение"
 echo "🔑 ======================================="
@@ -77,10 +89,11 @@ add_to_infisical() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
 
-    # Установка переменных окружения для Infisical
-    export INFISICAL_CLIENT_ID="88fcf0cd-cce9-4844-bad2-8e19b4bad3ed"
-    export INFISICAL_CLIENT_SECRET="b377e7a60b669ea2317f339dc6cb79ce49d588a7bbed92433bb2a73dedff3314"
-    export INFISICAL_PROJECT_ID="fd763fa3-35d5-4045-93bd-1795c5f00fc3"
+    # Переменные окружения Infisical проверены в начале скрипта.
+    # Пробрасываем их в дочерний процесс infisical CLI.
+    export INFISICAL_CLIENT_ID
+    export INFISICAL_CLIENT_SECRET
+    export INFISICAL_PROJECT_ID
 
     echo "🔄 Добавляем INNGEST_EVENT_KEY в Infisical (production)..."
     infisical secrets set --env=production --name=INNGEST_EVENT_KEY --value="$EVENT_KEY" || {

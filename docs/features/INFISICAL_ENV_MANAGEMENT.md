@@ -8,10 +8,10 @@
 {
   "avatar_settings": {
     "heygen": {
-      "api_key": "",  // ❌ ПУСТО!
+      "api_key": "", // ❌ ПУСТО!
       "voice_id": "dc9cd149b0d741d6934a1d95e3f3ef00"
     },
-    "eleven_labs_api_key": ""  // ❌ ПУСТО!
+    "eleven_labs_api_key": "" // ❌ ПУСТО!
   }
 }
 ```
@@ -40,6 +40,7 @@
 ```
 
 **Что делает скрипт:**
+
 - Экспортирует все секреты из Infisical Cloud
 - Удаляет кавычки (Docker Compose не понимает кавычки)
 - Добавляет обратно `INFISICAL_*` credentials (они не экспортируются)
@@ -57,11 +58,24 @@ infisical export \
   | sed "s/'//g" > /tmp/restored.env
 
 # 2. Добавить Infisical credentials обратно
+#
+# Машинная учётка НЕ хранится в этом файле — она открывает доступ ко ВСЕМ
+# 50+ секретам проекта. Настоящие значения взять так:
+#   railway variables --kv | grep INFISICAL_
+#   либо Infisical Dashboard → https://app.infisical.com → project "999"
+#        → Access Control → Machine Identities → Client ID / Client Secret
+#
+# Сначала экспортировать их в шелл. Проверки ниже падают ГРОМКО, если
+# переменная не задана, — так недозаполненный .env не уедет на production.
+: "${INFISICAL_CLIENT_ID:?INFISICAL_CLIENT_ID не задан. Взять: railway variables --kv | grep INFISICAL_CLIENT_ID}"
+: "${INFISICAL_CLIENT_SECRET:?INFISICAL_CLIENT_SECRET не задан. Взять: railway variables --kv | grep INFISICAL_CLIENT_SECRET}"
+: "${INFISICAL_PROJECT_ID:?INFISICAL_PROJECT_ID не задан. Взять: railway variables --kv | grep INFISICAL_PROJECT_ID}"
+
 cat >> /tmp/restored.env <<EOF
 
-INFISICAL_CLIENT_ID=88fcf0cd-cce9-4844-bad2-8e19b4bad3ed
-INFISICAL_CLIENT_SECRET=b377e7a60b669ea2317f339dc6cb79ce49d588a7bbed92433bb2a73dedff3314
-INFISICAL_PROJECT_ID=fd763fa3-35d5-4045-93bd-1795c5f00fc3
+INFISICAL_CLIENT_ID=${INFISICAL_CLIENT_ID}
+INFISICAL_CLIENT_SECRET=${INFISICAL_CLIENT_SECRET}
+INFISICAL_PROJECT_ID=${INFISICAL_PROJECT_ID}
 EOF
 
 # 3. Загрузить на production
@@ -134,6 +148,7 @@ docker exec 999-multibots printenv | grep -E 'HEYGEN|ELEVENLABS'
    - Добавить в CI/CD pipeline
 
 3. **Регулярно ротировать ключи**
+
    ```bash
    # Обновить в Infisical
    infisical secrets set HEYGEN_HAIM_API_KEY='new_key_here' \
@@ -151,15 +166,17 @@ docker exec 999-multibots printenv | grep -E 'HEYGEN|ELEVENLABS'
 ### ❌ Плохие практики
 
 1. **НЕ хардкодить ключи в код**
+
    ```typescript
    // ❌ ПЛОХО
-   const apiKey = "sk_V2_hgu_kBLbUbWT3dT_..."
+   const apiKey = 'sk_V2_hgu_kBLbUbWT3dT_...'
 
    // ✅ ХОРОШО
    const apiKey = process.env.HEYGEN_HAIM_API_KEY || ''
    ```
 
 2. **НЕ коммитить .env**
+
    ```gitignore
    # .gitignore
    .env
@@ -168,6 +185,7 @@ docker exec 999-multibots printenv | grep -E 'HEYGEN|ELEVENLABS'
    ```
 
 3. **НЕ использовать кавычки в .env** (Docker Compose не понимает)
+
    ```bash
    # ❌ ПЛОХО
    HEYGEN_API_KEY='sk_V2_hgu_...'
@@ -201,6 +219,7 @@ docker exec 999-multibots printenv | grep -E 'HEYGEN|ELEVENLABS'
 **Причина:** `.env` файл не содержит ключи или Docker Compose не прочитал файл.
 
 **Решение:**
+
 ```bash
 # 1. Проверить .env на сервере
 ssh prod999 "grep 'HEYGEN_HAIM_API_KEY' /root/bot-farm/.env"
@@ -215,11 +234,12 @@ ssh prod999 "cd /root/bot-farm && docker compose restart app"
 ssh prod999 "docker exec 999-multibots printenv | grep HEYGEN"
 ```
 
-### Проблема: "INFISICAL_* variable is not set" в Docker Compose
+### Проблема: "INFISICAL\_\* variable is not set" в Docker Compose
 
 **Причина:** `INFISICAL_*` credentials не добавлены в `docker-compose.yml`
 
 **Решение:**
+
 ```yaml
 # docker-compose.yml
 services:
@@ -235,6 +255,7 @@ services:
 **Причина:** Неправильные credentials или нет доступа к проекту.
 
 **Решение:**
+
 ```bash
 # Проверить credentials
 echo $INFISICAL_CLIENT_ID

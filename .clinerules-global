@@ -46,10 +46,21 @@ NODE_ENV=development  # development | production
 ```
 
 **Локальный .env (в .gitignore)**
+
+Значения ниже — ПЛЕЙСХОЛДЕРЫ. Настоящие брать так:
+```bash
+railway variables --kv | grep INFISICAL_
+# либо Infisical Dashboard → https://app.infisical.com → project "999"
+#      → Access Control → Machine Identities → Client ID / Client Secret
 ```
-INFISICAL_CLIENT_ID=88fcf0cd-cce9-4844-bad2-8e19b4bad3ed
-INFISICAL_CLIENT_SECRET=b377e7a60b669ea2317f339dc6cb79ce49d588a7bbed92433bb2a73dedff3314
-INFISICAL_PROJECT_ID=fd763fa3-35d5-4045-93bd-1795c5f00fc3
+
+⚠️ Эта машинная учётка открывает доступ ко ВСЕМ секретам проекта (50+).
+Её значения не должны попадать ни в git, ни в документацию, ни в логи.
+
+```
+INFISICAL_CLIENT_ID=<взять-в-Infisical-или-Railway>
+INFISICAL_CLIENT_SECRET=<взять-в-Infisical-или-Railway>
+INFISICAL_PROJECT_ID=<взять-в-Infisical-или-Railway>
 INFISICAL_ENVIRONMENT=dev
 NODE_ENV=development
 ```

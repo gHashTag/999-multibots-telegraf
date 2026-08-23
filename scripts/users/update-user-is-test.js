@@ -5,9 +5,15 @@
 
 const { createClient } = require('@supabase/supabase-js')
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://yuukfqcsdhkyxegfwlcb.supabase.co'
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1dWtmcWNzZGhreXhlZ2Z3bGNiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNTcyNDg0MywiZXhwIjoyMDUxMzAwODQzfQ.ilyzrMPwTYrjZfn3FZBJBM1GYTk-gQTKY9Qr86-KP_o'
+const SUPABASE_URL =
+  process.env.SUPABASE_URL || 'https://yuukfqcsdhkyxegfwlcb.supabase.co'
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+if (!SUPABASE_SERVICE_KEY) {
+  console.error(
+    'SUPABASE_SERVICE_ROLE_KEY не задан. Возьмите: railway variables --kv | grep SUPABASE'
+  )
+  process.exit(1)
+}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
@@ -25,15 +31,17 @@ async function updateUser() {
     if (error) {
       console.error('❌ Ошибка:', error.message)
       console.log('\nПоле is_test может не существовать в таблице users')
-      console.log('Решение: колонка должна быть добавлена через миграцию или вручную')
-      
+      console.log(
+        'Решение: колонка должна быть добавлена через миграцию или вручную'
+      )
+
       // Все равно создаем запись о том, что пользователь - тестовый
       console.log('\n2️⃣ Добавляем флаг в metadata...')
       const { data: metaData, error: metaError } = await supabase
         .from('users')
-        .update({ 
+        .update({
           username: 'test_user_5732975798',
-          metadata: { is_test: true }
+          metadata: { is_test: true },
         })
         .eq('telegram_id', '5732975798')
         .select()
@@ -80,8 +88,9 @@ async function updateUser() {
     console.log('   ✅ Платеж помечен как тестовый: ДА')
     console.log('   ✅ Пользователь в payments_v2.is_test: TRUE')
     console.log('   ⚠️  Поле users.is_test: требует миграции БД')
-    console.log('\n💡 Пользователь 5732975798 считается тестовым по платежам!\n')
-
+    console.log(
+      '\n💡 Пользователь 5732975798 считается тестовым по платежам!\n'
+    )
   } catch (err) {
     console.error('\n❌ ОШИБКА:', err.message)
     process.exit(1)

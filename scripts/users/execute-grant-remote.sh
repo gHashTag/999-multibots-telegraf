@@ -3,6 +3,13 @@
 # Script to grant subscription to user 7912847443 on production server
 # Server: 212.86.115.30 (as specified by user)
 
+# service_role ключ берётся только из окружения. Пустая строка вместо ключа
+# даёт невнятную ошибку от Supabase, поэтому падаем сразу и громко.
+if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+  echo "SUPABASE_SERVICE_ROLE_KEY не задан. Возьмите: railway variables --kv | grep SUPABASE" >&2
+  exit 1
+fi
+
 echo "=========================================="
 echo "Connecting to production server..."
 echo "Server: root@212.86.115.30"
@@ -12,7 +19,7 @@ echo "=========================================="
 SCRIPT_CONTENT='const { createClient } = require("@supabase/supabase-js");
 
 const SUPABASE_URL = "https://yuukfqcsdhkyxegfwlcb.supabase.co";
-const SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1dWtmcWNzZGhreXhlZ2Z3bGNiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNTcyNDg0MywiZXhwIjoyMDUxMzAwODQzfQ.ilyzrMPwTYrjZfn3FZBJBM1GYTk-gQTKY9Qr86-KP_o";
+const SUPABASE_SERVICE_ROLE_KEY = "'"$SUPABASE_SERVICE_ROLE_KEY"'";
 
 const TELEGRAM_ID = "7912847443";
 

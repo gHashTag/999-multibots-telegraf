@@ -1,6 +1,6 @@
 ---
-name: "Restore .env from Infisical"
-description: "Automatically diagnose and restore corrupted .env files from Infisical Cloud when API keys are empty or missing in production"
+name: 'Restore .env from Infisical'
+description: 'Automatically diagnose and restore corrupted .env files from Infisical Cloud when API keys are empty or missing in production'
 ---
 
 # Restore .env from Infisical
@@ -8,9 +8,10 @@ description: "Automatically diagnose and restore corrupted .env files from Infis
 ## When to Use This Skill
 
 Automatically activate when detecting:
+
 - User mentions "пустые API ключи", "api_key is empty", "env восстановить"
 - Empty API keys in production logs or requests
-- HEYGEN_*, ELEVENLABS_* environment variables missing
+- HEYGEN*\*, ELEVENLABS*\* environment variables missing
 - Секреты не работают / secrets not working
 
 ## Quick Diagnosis
@@ -51,11 +52,24 @@ infisical export \
   | sed "s/'//g" > /tmp/prod.env
 
 # Step 2: Add Infisical credentials back
-cat >> /tmp/prod.env <<'EOF'
+#
+# The machine identity is NOT stored in this file — it unlocks ALL 50+ project
+# secrets. Take the real values from:
+#   railway variables --kv | grep INFISICAL_
+#   or Infisical Dashboard -> https://app.infisical.com -> project "999"
+#      -> Access Control -> Machine Identities -> Client ID / Client Secret
+#
+# Export them into the shell first; the checks below abort loudly if unset,
+# so a half-filled .env never reaches production.
+: "${INFISICAL_CLIENT_ID:?INFISICAL_CLIENT_ID is not set. Get it: railway variables --kv | grep INFISICAL_CLIENT_ID}"
+: "${INFISICAL_CLIENT_SECRET:?INFISICAL_CLIENT_SECRET is not set. Get it: railway variables --kv | grep INFISICAL_CLIENT_SECRET}"
+: "${INFISICAL_PROJECT_ID:?INFISICAL_PROJECT_ID is not set. Get it: railway variables --kv | grep INFISICAL_PROJECT_ID}"
 
-INFISICAL_CLIENT_ID=88fcf0cd-cce9-4844-bad2-8e19b4bad3ed
-INFISICAL_CLIENT_SECRET=b377e7a60b669ea2317f339dc6cb79ce49d588a7bbed92433bb2a73dedff3314
-INFISICAL_PROJECT_ID=fd763fa3-35d5-4045-93bd-1795c5f00fc3
+cat >> /tmp/prod.env <<EOF
+
+INFISICAL_CLIENT_ID=${INFISICAL_CLIENT_ID}
+INFISICAL_CLIENT_SECRET=${INFISICAL_CLIENT_SECRET}
+INFISICAL_PROJECT_ID=${INFISICAL_PROJECT_ID}
 EOF
 
 # Step 3: Upload to production
@@ -87,7 +101,9 @@ ELEVENLABS_VOICE_HAIM=dc9cd149b0d741d6934a1d95e3f3ef00
 ## Common Issues & Fixes
 
 ### Issue 1: Quotes in .env
+
 **Problem**: Docker Compose doesn't understand single quotes
+
 ```bash
 # ❌ Wrong
 HEYGEN_API_KEY='sk_V2_hgu_...'
@@ -100,8 +116,10 @@ sed "s/'//g" .env > .env.fixed
 ```
 
 ### Issue 2: Infisical credentials missing from docker-compose.yml
+
 **Problem**: Environment variables not declared
 **Fix**: Add to docker-compose.yml → services.app.environment:
+
 ```yaml
 - INFISICAL_CLIENT_ID=${INFISICAL_CLIENT_ID}
 - INFISICAL_CLIENT_SECRET=${INFISICAL_CLIENT_SECRET}
@@ -109,7 +127,8 @@ sed "s/'//g" .env > .env.fixed
 ```
 
 ### Issue 3: Infisical doesn't export its own credentials
-**Problem**: After export, INFISICAL_* vars are missing
+
+**Problem**: After export, INFISICAL\_\* vars are missing
 **Fix**: Always append them manually (script does this automatically)
 
 ## Performance Metrics
@@ -122,6 +141,7 @@ sed "s/'//g" .env > .env.fixed
 ## Verification Checklist
 
 After restoration, verify:
+
 - [ ] `.env` file exists on production server
 - [ ] `.env` has 70+ lines
 - [ ] All 6 avatar keys present
@@ -141,11 +161,13 @@ After restoration, verify:
 ## Safety Notes
 
 **Always create backup before modifying .env:**
+
 ```bash
 ssh prod999 "cp /root/bot-farm/.env /root/bot-farm/.env.backup.$(date +%Y%m%d_%H%M%S)"
 ```
 
 **Never commit .env to git:**
+
 - .env is in .gitignore
 - Only .env.example should be in repository
 - All real secrets live in Infisical Cloud
@@ -153,6 +175,7 @@ ssh prod999 "cp /root/bot-farm/.env /root/bot-farm/.env.backup.$(date +%Y%m%d_%H
 ## Success Indicators
 
 After successful restoration:
+
 ```bash
 # Check bot logs
 ssh prod999 "docker logs --tail 30 999-multibots | grep '✅'"
@@ -165,6 +188,7 @@ ssh prod999 "docker logs --tail 30 999-multibots | grep '✅'"
 ## Troubleshooting
 
 If restoration fails, check:
+
 1. Infisical credentials are correct
 2. Network access to Infisical Cloud
 3. Docker Compose syntax is valid
