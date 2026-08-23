@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import './BottomSheet.css';
 
@@ -8,7 +9,7 @@ export interface BottomSheetProps {
   title?: string;
   children: React.ReactNode;
   /** Стартовая высота. Дальше человек управляет ею сам — ручкой. */
-  height?: 'peek' | 'half' | 'full';
+  height?: 'half' | 'full';
 }
 
 /** Насколько нужно протянуть, чтобы состояние переключилось. */
@@ -16,7 +17,14 @@ const DRAG_THRESHOLD = 60;
 /** Протяжка вниз из нижнего состояния на столько — закрыть. */
 const CLOSE_THRESHOLD = 100;
 
-const ORDER: Array<'peek' | 'half' | 'full'> = ['peek', 'half', 'full'];
+/**
+ * Ступени. Их ДВЕ, а не три.
+ *
+ * Была ещё peek на 30vh, и она оказалась тупиком: тап по ручке переключает
+ * full и half, вернуться в peek было нечем, а видно в ней почти ничего —
+ * ровно то, что владелец описал словами «нижнее меню плохо видно».
+ */
+const ORDER: Array<'half' | 'full'> = ['half', 'full'];
 
 export function BottomSheet({
   isOpen,
@@ -43,7 +51,7 @@ export function BottomSheet({
    * экран, протяжка вверх раскрывает, вниз — складывает и на нижней ступени
    * закрывает.
    */
-  const [detent, setDetent] = useState<'peek' | 'half' | 'full'>(height);
+  const [detent, setDetent] = useState<'half' | 'full'>(height);
 
   // Каждое новое открытие начинается со стартовой высоты, а не с той, на
   // которой человек закрыл лист в прошлый раз.
@@ -93,10 +101,16 @@ export function BottomSheet({
     }
   }, []);
 
-  const handleTouchEnd = useCallback(() => {
+  /**
+   * Сброс перетаскивания. Вынесен отдельно, потому что нужен ДВУМ событиям.
+   *
+   * touchstart ставит transition: none, а снимал это только touchend. Telegram
+   * отменяет касание своим жестом закрытия мини-аппа — touchend тогда не
+   * приходит вовсе, transition остаётся none навсегда, и лист до перезагрузки
+   * меняет высоту рывком вместо плавного хода.
+   */
+  const resetDrag = useCallback(() => {
     isDragging.current = false;
-    const deltaY = currentY.current - startY.current;
-
     if (sheetRef.current) {
       sheetRef.current.style.transition = '';
       // transform снимается ВСЕГДА. Раньше при закрытии свайпом он оставался
@@ -104,6 +118,13 @@ export function BottomSheet({
       // визуально «панель больше не открывается».
       sheetRef.current.style.transform = '';
     }
+    startY.current = 0;
+    currentY.current = 0;
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    const deltaY = currentY.current - startY.current;
+    resetDrag();
 
     if (deltaY <= -DRAG_THRESHOLD) {
       expand();
@@ -112,10 +133,7 @@ export function BottomSheet({
     } else if (deltaY >= DRAG_THRESHOLD) {
       collapse();
     }
-
-    startY.current = 0;
-    currentY.current = 0;
-  }, [detent, expand, collapse, onClose]);
+  }, [detent, expand, collapse, onClose, resetDrag]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -143,7 +161,14 @@ export function BottomSheet({
     };
   }, [isOpen]);
 
-  return (
+  /**
+   * Портал в body. Без него z-index — обещание, а не гарантия: .page-transition
+   * на 150 мс после каждой навигации вешает transform и opacity, а любой из
+   * них создаёт контекст наложения, и position: fixed внутри перестаёт
+   * считаться от окна. Сейчас не стреляет только потому, что лист открывается
+   * позже этих 150 мс.
+   */
+  return createPortal(
     <>
       <div
         className={`bottomsheet-overlay ${isOpen ? 'open' : ''}`}
@@ -165,6 +190,7 @@ export function BottomSheet({
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
+          onTouchCancel={resetDrag}
           onClick={handleHandleClick}
           aria-label={detent === 'full' ? 'Свернуть панель' : 'Раскрыть панель на весь экран'}
           aria-expanded={detent === 'full'}
@@ -187,7 +213,8 @@ export function BottomSheet({
 
         <div className="bottomsheet-content">{children}</div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }
 
