@@ -8,8 +8,8 @@
 
 /** The raw WebApp object, or null when not running inside Telegram. */
 export function getWebApp(): TelegramWebApp | null {
-  if (typeof window === 'undefined') return null;
-  return window.Telegram?.WebApp ?? null;
+  if (typeof window === 'undefined') return null
+  return window.Telegram?.WebApp ?? null
 }
 
 /**
@@ -26,13 +26,13 @@ export function getWebApp(): TelegramWebApp | null {
  * appends #tgWebApp* to the launch URL. Either is a sound signal.
  */
 export function isTelegram(): boolean {
-  const wa = getWebApp();
-  if (!wa) return false;
-  if (wa.platform && wa.platform !== 'unknown') return true;
-  if (typeof wa.initData === 'string' && wa.initData.length > 0) return true;
+  const wa = getWebApp()
+  if (!wa) return false
+  if (wa.platform && wa.platform !== 'unknown') return true
+  if (typeof wa.initData === 'string' && wa.initData.length > 0) return true
   return (
     typeof window !== 'undefined' && window.location.hash.includes('tgWebApp')
-  );
+  )
 }
 
 /**
@@ -45,30 +45,30 @@ export function isTelegram(): boolean {
  * t.me/<bot>/<app> link when signed data is required.
  */
 export function hasVerifiableInitData(): boolean {
-  const wa = getWebApp();
-  return !!wa && typeof wa.initData === 'string' && wa.initData.length > 0;
+  const wa = getWebApp()
+  return !!wa && typeof wa.initData === 'string' && wa.initData.length > 0
 }
 
 /** Compare against WebApp.version — features are gated per Bot API version. */
 export function isVersionAtLeast(version: string): boolean {
-  const wa = getWebApp();
-  if (!wa) return false;
+  const wa = getWebApp()
+  if (!wa) return false
   try {
-    return wa.isVersionAtLeast(version);
+    return wa.isVersionAtLeast(version)
   } catch {
-    return false;
+    return false
   }
 }
 
 /** The launch user, when Telegram supplied one. Never trust this for auth — */
 /** initData must be verified server-side against the bot token first. */
 export function getTelegramUser(): TelegramWebAppUser | null {
-  return getWebApp()?.initDataUnsafe?.user ?? null;
+  return getWebApp()?.initDataUnsafe?.user ?? null
 }
 
 /** Raw initData string, to be sent to the backend for HMAC verification. */
 export function getInitData(): string {
-  return getWebApp()?.initData ?? '';
+  return getWebApp()?.initData ?? ''
 }
 
 /**
@@ -77,41 +77,65 @@ export function getInitData(): string {
  */
 export const haptic = {
   selection(): void {
-    const wa = getWebApp();
+    const wa = getWebApp()
     if (wa?.HapticFeedback) {
       try {
-        wa.HapticFeedback.selectionChanged();
-        return;
+        wa.HapticFeedback.selectionChanged()
+        return
       } catch {
         /* fall through to the web path */
       }
     }
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      navigator.vibrate(10);
+      navigator.vibrate(10)
     }
   },
 
-  impact(style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft' = 'light'): void {
-    const wa = getWebApp();
+  impact(
+    style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft' = 'light'
+  ): void {
+    const wa = getWebApp()
     if (wa?.HapticFeedback) {
       try {
-        wa.HapticFeedback.impactOccurred(style);
-        return;
+        wa.HapticFeedback.impactOccurred(style)
+        return
       } catch {
         /* fall through */
       }
     }
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      navigator.vibrate(10);
+      navigator.vibrate(10)
     }
   },
 
   notification(type: 'error' | 'success' | 'warning'): void {
-    const wa = getWebApp();
+    const wa = getWebApp()
     try {
-      wa?.HapticFeedback?.notificationOccurred(type);
+      wa?.HapticFeedback?.notificationOccurred(type)
     } catch {
       /* no-op */
     }
   },
-};
+}
+
+/**
+ * Оплатить инвойс Telegram (в т.ч. Stars) внутри мини-аппа.
+ * Резолвится статусом инвойса: 'paid' | 'cancelled' | 'failed'.
+ * Вне Telegram (открытый веб) инвойс открыть нельзя — 'unsupported'.
+ */
+export function openInvoice(
+  url: string
+): Promise<'paid' | 'cancelled' | 'failed' | 'unsupported'> {
+  return new Promise(resolve => {
+    const wa = getWebApp()
+    if (!wa?.openInvoice) {
+      resolve('unsupported')
+      return
+    }
+    try {
+      wa.openInvoice(url, status => resolve(status))
+    } catch {
+      resolve('failed')
+    }
+  })
+}

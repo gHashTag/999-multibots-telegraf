@@ -19,6 +19,7 @@ import type {
 } from '@vibee/atoms'
 import { userAtom } from './user'
 import { API_BASE } from '../config'
+import { openInvoice } from '../lib/telegram'
 import { apiFetch } from '../lib/apiFetch'
 
 // Re-export feed types for backward compatibility (types are now in @vibee/atoms)
@@ -149,6 +150,7 @@ function transformTemplate(raw: any): FeedTemplate {
     usesCount: pick(raw, 'uses_count', 'usesCount') || 0,
     isLiked: pick(raw, 'is_liked', 'isLiked') || false,
     isFeatured: pick(raw, 'is_featured', 'isFeatured') || false,
+    starsCount: pick(raw, 'stars_count', 'starsCount') || 0,
     // Postgres отдаёт «2026-08-23 08:26:26.635176+00»: пробел вместо T и
     // смещение без двоеточия. new Date() на таком в части движков возвращает
     // Invalid Date, и в карточке появлялось «NaNmo». Приводим к ISO.
@@ -216,6 +218,47 @@ async function likeTemplate(
     liked: data.is_liked ?? data.liked ?? false,
     likesCount: data.likes_count ?? 0,
   }
+}
+
+/**
+ * Подарить звезду Telegram автору ролика. Полный контур:
+ * 1. сервер создаёт инвойс Stars (XTR) и строку pending;
+ * 2. клиент открывает инвойс — человек платит внутри Telegram;
+ * 3. бот подтверждает оплату серверу (звезда падает автору на баланс);
+ * 4. мы пингуем статус (до ~6 раз × 1.5 с) и возвращаем свежий stars_count.
+ */
+async function starTemplate(
+  id: number
+): Promise<{
+  status: 'paid' | 'cancelled' | 'failed' | 'unsupported' | 'pending'
+  starsCount: number | null
+}> {
+  const created = await apiFetch<{ invoice_url?: string; payload?: string }>(
+    `${API_BASE}/api/feed/${id}/star`,
+    { method: 'POST' }
+  )
+  if (!created.invoice_url || !created.payload) {
+    throw new Error('server did not return an invoice')
+  }
+  const invoiceResult = await openInvoice(created.invoice_url)
+  if (invoiceResult !== 'paid') {
+    return { status: invoiceResult, starsCount: null }
+  }
+  // Оплата прошла, но вебхук бота может добежать чуть позже — пингуем.
+  for (let i = 0; i < 6; i++) {
+    await new Promise(r => setTimeout(r, 1500))
+    try {
+      const st = await apiFetch<{ status?: string; stars_count?: number }>(
+        `${API_BASE}/api/feed/${id}/star?payload=${encodeURIComponent(created.payload)}`
+      )
+      if (st.status === 'paid') {
+        return { status: 'paid', starsCount: st.stars_count ?? null }
+      }
+    } catch {
+      /* следующий пинг */
+    }
+  }
+  return { status: 'pending', starsCount: null }
 }
 
 interface PublishUserInfo {
@@ -463,6 +506,39 @@ export const likeTemplateAtom = atom(
       )
     } finally {
       likingTemplates.delete(templateId)
+    }
+  }
+)
+
+const starringTemplates = new Set<number>()
+
+/**
+ * Подарить звезду автору. Возвращает итоговый статус — карточка покажет
+ * честное сообщение (звезда на балансе автора / отмена / вне Telegram).
+ */
+export const starTemplateAtom = atom(
+  null,
+  async (
+    get,
+    set,
+    templateId: number
+  ): Promise<'paid' | 'cancelled' | 'failed' | 'unsupported' | 'pending'> => {
+    if (starringTemplates.has(templateId)) return 'pending'
+    starringTemplates.add(templateId)
+    try {
+      const result = await starTemplate(templateId)
+      if (result.starsCount != null) {
+        const currentTemplates = get(feedTemplatesAtom)
+        set(
+          feedTemplatesAtom,
+          currentTemplates.map(t =>
+            t.id === templateId ? { ...t, starsCount: result.starsCount! } : t
+          )
+        )
+      }
+      return result.status
+    } finally {
+      starringTemplates.delete(templateId)
     }
   }
 )

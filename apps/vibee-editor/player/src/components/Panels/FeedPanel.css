@@ -980,6 +980,21 @@
   animation: heartPop 0.3s ease;
 }
 
+/* ⭐ Звезда = платный лайк (Telegram Stars, автору на баланс).
+   Золото бренда t27: #FFD700 — единственное золотое пятно в экшн-баре. */
+.action-btn.star-btn {
+  color: #ffd700;
+}
+
+.action-btn.star-btn svg {
+  filter: drop-shadow(0 2px 8px rgba(255, 215, 0, 0.45));
+}
+
+.action-btn.star-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 @keyframes heartPop {
   0% {
     transform: scale(1);

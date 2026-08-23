@@ -290,6 +290,7 @@ export {
   loadMoreFeedAtom,
   changeFeedSortAtom,
   likeTemplateAtom,
+  starTemplateAtom,
   trackViewAtom,
   deleteTemplateAtom,
   useTemplateAtom,
