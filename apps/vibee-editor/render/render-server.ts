@@ -1,4 +1,5 @@
 import { createServer, IncomingMessage } from 'node:http'
+import { handleMcp, handleMcpCard, handleAgentChat } from './src/agent/routes'
 import os from 'node:os'
 import { WebSocketServer, WebSocket } from 'ws'
 import { bundle } from '@remotion/bundler'
@@ -9,7 +10,12 @@ import {
   getCompositions,
 } from '@remotion/renderer'
 import path from 'node:path'
-import { authenticate, authMode, verifyTelegramInitData } from './auth'
+import {
+  authenticate,
+  authMode,
+  verifyTelegramInitData,
+  verifiedTelegramId,
+} from './auth'
 import { TEMPLATE_CARDS } from './src/templates/registry'
 import fs from 'node:fs'
 import { randomUUID, createHmac } from 'node:crypto'
@@ -3784,6 +3790,34 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ success: false, error: String(error) }))
       }
     })
+    return
+  }
+
+  // ── Агент: чат мини-аппа и MCP для любого внешнего агента ──────────────
+  // GET /mcp публичен намеренно: агент, которому дали голый адрес, первым
+  // делом делает GET, и «405» стоит ему витка, ничего не объяснив.
+  if (req.url?.split('?')[0] === '/mcp' && req.method === 'GET') {
+    handleMcpCard(res)
+    return
+  }
+  if (req.url?.split('?')[0] === '/mcp' && req.method === 'POST') {
+    await handleMcp(req, res, getPool)
+    return
+  }
+  if (req.url?.split('?')[0] === '/api/agent/chat' && req.method === 'POST') {
+    // telegram_id берётся из ПОДТВЕРЖДЁННОЙ подписи, а не из тела запроса:
+    // иначе любой публиковал бы от чужого имени.
+    const who = verifiedTelegramId(req)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: 'не удалось определить пользователя из подписи',
+        })
+      )
+      return
+    }
+    await handleAgentChat(req, res, String(who), getPool)
     return
   }
 

@@ -61,7 +61,13 @@ const botTokens = (): string[] => {
 
 /** Открыто всегда: health для Railway и отдача уже отрендеренных файлов. */
 const PUBLIC_EXACT = new Set(['/health'])
-const PUBLIC_PREFIXES = ['/renders/', '/hls/', '/public/', '/s3/', '/proxy/image']
+const PUBLIC_PREFIXES = [
+  '/renders/',
+  '/hls/',
+  '/public/',
+  '/s3/',
+  '/proxy/image',
+]
 
 /**
  * Публичные на чтение: это лента сообщества, она и должна читаться без ключа.
@@ -84,13 +90,18 @@ const PUBLIC_GET_PREFIXES = [
   // /branding/avatar/<id> — картинка, она и так публична в Telegram.
   '/branding',
   '/api/voices',
+  // GET /mcp — карточка подключения для внешних агентов. Публичная нарочно:
+  // без неё агент, получивший адрес, упирается в 401 и не узнаёт, что делать.
+  // Сами инструменты закрыты ключом, который проверяется внутри обработчика.
+  '/mcp',
 ]
 
 export function isPublic(req: IncomingMessage): boolean {
   const url = (req.url || '').split('?')[0]
   if (PUBLIC_EXACT.has(url)) return true
   if (PUBLIC_PREFIXES.some(p => url.startsWith(p))) return true
-  if (req.method === 'GET' && PUBLIC_GET_PREFIXES.some(p => url.startsWith(p))) return true
+  if (req.method === 'GET' && PUBLIC_GET_PREFIXES.some(p => url.startsWith(p)))
+    return true
   return false
 }
 
@@ -133,8 +144,14 @@ export function verifyTelegramInitData(initData: string): {
   // которого открыли мини-апп, и заранее неизвестно каким именно.
   let matchedBotId: string | undefined
   for (const token of tokens) {
-    const secret = crypto.createHmac('sha256', 'WebAppData').update(token).digest()
-    const expected = crypto.createHmac('sha256', secret).update(checkString).digest('hex')
+    const secret = crypto
+      .createHmac('sha256', 'WebAppData')
+      .update(token)
+      .digest()
+    const expected = crypto
+      .createHmac('sha256', secret)
+      .update(checkString)
+      .digest('hex')
     // timingSafeEqual бросает на разной длине, поэтому длину сверяем заранее.
     if (expected.length !== hash.length) continue
     if (crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(hash))) {
@@ -156,7 +173,8 @@ export function verifyTelegramInitData(initData: string): {
   // проверки одна утёкшая ссылка работала бы всегда.
   const authDate = Number(params.get('auth_date') || 0)
   const ageHours = (Date.now() / 1000 - authDate) / 3600
-  if (!authDate || ageHours > 24) return { ok: false, reason: `initData is ${ageHours.toFixed(1)}h old` }
+  if (!authDate || ageHours > 24)
+    return { ok: false, reason: `initData is ${ageHours.toFixed(1)}h old` }
 
   return { ok: true, botId: matchedBotId }
 }
@@ -214,7 +232,39 @@ export function authenticate(req: IncomingMessage): AuthResult {
     allowed: mode() !== 'enforce',
     wouldReject: true,
     via: 'none',
-    reason: apiKey() ? 'no X-Api-Key and no Telegram initData' : 'RENDER_API_KEY not configured',
+    reason: apiKey()
+      ? 'no X-Api-Key and no Telegram initData'
+      : 'RENDER_API_KEY not configured',
+  }
+}
+
+/**
+ * telegram_id ТОЛЬКО из ПРОВЕРЕННОЙ подписи.
+ *
+ * Отдельная функция нужна, потому что authenticate() отвечает лишь «пустить
+ * или нет», а инструментам агента надо знать, ЧЬИ данные читать и от чьего
+ * имени публиковать. Брать идентификатор из тела запроса нельзя: тогда любой,
+ * кто умеет писать JSON, читал бы чужие черновики и публиковал за других.
+ *
+ * Возвращает null, если подпись отсутствует или не сошлась. Пустая строка
+ * здесь была бы хуже: она молча превратилась бы в «пользователь ноль».
+ */
+export function verifiedTelegramId(req: IncomingMessage): string | null {
+  const url = new URL(req.url || '/', 'http://localhost')
+  const initData =
+    (req.headers['x-telegram-init-data'] as string | undefined) ||
+    (req.headers['x-telegram-initdata'] as string | undefined) ||
+    url.searchParams.get('initData') ||
+    ''
+  if (!initData) return null
+  if (!verifyTelegramInitData(initData).ok) return null
+  try {
+    const raw = new URLSearchParams(initData).get('user')
+    if (!raw) return null
+    const id = JSON.parse(raw)?.id
+    return id != null ? String(id) : null
+  } catch {
+    return null
   }
 }
 
