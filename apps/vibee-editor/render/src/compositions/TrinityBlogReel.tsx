@@ -50,8 +50,11 @@ const BG = '#0A0A0A';
  * Заголовок поста не переводим: он приходит из блога как есть.
  */
 const UI = {
-  ru: { masthead: 'ТРОИЦА', min: 'мин', read: 'чтения', ribbon: 'Trinity S3AI — измерено, не заявлено' },
-  en: { masthead: 'TRINITY', min: 'min', read: 'read', ribbon: 'Trinity S3AI — measured, not claimed' },
+  // Имя компании КАНОНИЧНО и не переводится: Trinity S³AI на обоих языках.
+  // Прежняя русская «ТРОИЦА» была переводом названия — так у компании
+  // появлялось два имени, и материалы переставали читаться как одно издание.
+  ru: { masthead: 'Trinity S³AI', min: 'мин', read: 'чтения', ribbon: 'Trinity S³AI — измерено, не заявлено' },
+  en: { masthead: 'Trinity S³AI', min: 'min', read: 'read', ribbon: 'Trinity S³AI — measured, not claimed' },
 } as const;
 
 export const TrinityBlogReelSchema = z.object({
