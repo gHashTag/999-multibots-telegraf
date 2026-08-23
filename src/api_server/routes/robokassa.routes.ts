@@ -196,7 +196,9 @@ async function handlePaymentSuccess(req: any, res: any) {
     logger.info('✅ Payment status updated to COMPLETED', {
       InvId,
       telegram_id: payment.telegram_id,
-      subscription_type: payment.subscription,
+      // Колонка называется subscription_type; payment.subscription не
+      // существует в payments_v2 и всегда писала в журнал undefined.
+      subscription_type: (payment as { subscription_type?: string }).subscription_type,
     })
 
     // Определяем количество звезд и тип подписки из суммы платежа
@@ -206,19 +208,40 @@ async function handlePaymentSuccess(req: any, res: any) {
       return res.status(400).send('Invalid OutSum')
     }
 
-    let stars = 0
-    let subscription = payment.subscription || ''
+    /**
+     * Звёзды и тариф берутся ИЗ САМОЙ СТРОКИ ПЛАТЕЖА, а не восстанавливаются
+     * из таблиц цен по сумме.
+     *
+     * Строку создаёт сцена в момент выставления счёта и пишет туда ровно те
+     * значения, по которым счёт выставлен (rublePaymentScene: stars,
+     * subscription_type, bot_name). Восстановление по сумме было обречено:
+     * продаются BASIC 299 / PRO 699 / STUDIO 1999 (price/priceCalculator), а
+     * SUBSCRIPTION_PLANS здесь знает 1110 / 2999 / 75000, PAYMENT_OPTIONS —
+     * 100 / 500 / 1000 / 2000 / 5000 / 10000. Ни одна цена подписки не
+     * совпадает, поэтому stars оставался нулём.
+     *
+     * Второе: поле называется subscription_type, а не subscription — в
+     * payments_v2 колонки `subscription` нет вовсе, она есть только в
+     * TS-интерфейсе. `payment.subscription` всегда undefined.
+     *
+     * Итог для человека был такой: купил подписку за 299 рублей, подписка
+     * активировалась, а бот написал «Ваш баланс пополнен на 0⭐ звезд!» —
+     * без подтверждения тарифа и без приглашения в чат сообщества.
+     */
+    let stars = Number(payment.stars) || 0
+    let subscription = (payment as { subscription_type?: string }).subscription_type || ''
 
-    // Проверяем, соответствует ли сумма одному из тарифов подписки
-    if (SUBSCRIPTION_AMOUNTS[numericOutSum]) {
+    // Таблицы цен остаются ЗАПАСНЫМ путём — на случай строки без stars
+    // (старые записи), но приоритет всегда у того, что записано при выставлении.
+    if (!stars && SUBSCRIPTION_AMOUNTS[numericOutSum]) {
       const plan = SUBSCRIPTION_PLANS.find(p => p.ru_price === numericOutSum)
       if (plan) {
         stars = plan.stars_price
-        subscription = plan.callback_data
+        subscription = subscription || plan.callback_data
       }
     }
     // Если не подписка, проверяем стандартные варианты пополнения
-    else {
+    else if (!stars) {
       const option = PAYMENT_OPTIONS.find(opt => opt.amount === numericOutSum)
       if (option) {
         stars = option.stars
