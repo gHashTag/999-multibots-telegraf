@@ -531,12 +531,21 @@
     position: sticky;
     bottom: 0;
     background: var(--bg-dark, #1a1a1a);
-    padding: 16px 0;
-    margin: 0 -24px -24px;
-    padding-left: 24px;
-    padding-right: 24px;
-    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    /* БЕЗ негативных маргинов: раньше -24px/-16px растягивали кнопку
+       вплотную к краям экрана, и она сливалась со сторонами. Теперь
+       полоса живёт внутри паддингов модалки — кнопка с боковыми
+       отступами, как у остального контента. */
+    padding: 12px 0;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid var(--border-color, var(--bg-input));
+  }
+
+  /* Компактнее: кнопка не должна доминировать на мобильном экране */
+  .publish-cancel,
+  .publish-submit {
+    padding: 10px 14px;
+    font-size: 13px;
+    border-radius: 10px;
   }
 }
 
@@ -552,12 +561,6 @@
 
   .publish-preview {
     max-height: 300px;
-  }
-
-  .publish-actions {
-    margin: 0 -16px -20px;
-    padding-left: 16px;
-    padding-right: 16px;
   }
 }
 
