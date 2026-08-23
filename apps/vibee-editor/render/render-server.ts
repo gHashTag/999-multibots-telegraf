@@ -4287,6 +4287,22 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ error: 'Invalid telegram_id' }))
       return
     }
+    // ЛИЧНАЯ ИСТОРИЯ — только своя. Общий гвард пропускает этот префикс
+    // (хендлеры здесь проверяют сами), поэтому сверяем подписанта/ключ
+    // агента с запрошенным id. До этой правки проверялась лишь валидность
+    // подписи: подписанный человек мог подставить ЧУЖОЙ id в путь.
+    const who = chatIdentity(req, verifiedTelegramId(req))
+    if (!who || String(who) !== String(telegram_id)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: 'история доступна только её владельцу',
+          detail:
+            'подпись Telegram или ключ агента должны совпадать с telegram_id в пути',
+        })
+      )
+      return
+    }
     const limit = Math.min(
       parseInt(url.searchParams.get('limit') || '50', 10) || 50,
       200
