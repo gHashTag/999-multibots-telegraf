@@ -60,7 +60,7 @@
 }
 
 .tma-tabbar__item.active {
-  color: var(--vibee-accent, #f59e0b);
+  color: var(--vibee-accent, #00ff88);
 }
 
 .tma-tabbar__icon {

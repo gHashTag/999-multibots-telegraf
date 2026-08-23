@@ -107,7 +107,7 @@
 }
 .gen-switch__item.is-active {
   color: #000;
-  background: var(--vibee-accent, #f59e0b);
+  background: var(--vibee-accent, #00ff88);
 }
 .gen-switch__label {
   font-size: 13px;

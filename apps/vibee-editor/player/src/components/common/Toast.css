@@ -2,7 +2,9 @@
 
 .toast-container {
   position: fixed;
-  bottom: calc(var(--nav-height, 64px) + env(safe-area-inset-bottom, 0px) + 16px);
+  bottom: calc(
+    var(--nav-height, 64px) + env(safe-area-inset-bottom, 0px) + 16px
+  );
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -130,7 +132,7 @@
 }
 
 .toast__action:hover {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
 }
 
 .toast__close {

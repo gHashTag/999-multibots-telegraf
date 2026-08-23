@@ -12,8 +12,12 @@
 }
 
 @keyframes dm-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .dm-container {
@@ -30,8 +34,12 @@
 }
 
 @keyframes dm-slide-in {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 @media (max-width: 480px) {
@@ -144,7 +152,7 @@
 }
 
 .dm-conversation--unread {
-  background: rgba(245, 158, 11, 0.05);
+  background: rgba(0, 255, 136, 0.05);
 }
 
 .dm-conversation__avatar {
@@ -152,7 +160,11 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-dark));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-dark)
+  );
   display: flex;
   align-items: center;
   justify-content: center;
@@ -267,7 +279,11 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-dark));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-dark)
+  );
   display: flex;
   align-items: center;
   justify-content: center;

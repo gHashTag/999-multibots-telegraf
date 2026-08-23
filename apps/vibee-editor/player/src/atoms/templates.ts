@@ -2,10 +2,27 @@
 // Templates Atoms - Video templates management
 // ===============================
 
-import { atom, type Getter, type Setter } from 'jotai';
-import { atomWithStorage } from 'jotai/utils';
-import type { Asset, Track, CaptionStyle, AvatarAnimation, AvatarBorderEffect } from '@vibee/atoms';
-import { STORAGE_KEYS, DEFAULT_MUSIC_VOLUME, DEFAULT_SPLIT_AVATAR, DEFAULT_FULLSCREEN_AVATAR, DEFAULT_AVATAR_CONFIG, DEFAULT_VIGNETTE_STRENGTH, DEFAULT_COLOR_CORRECTION, DEFAULT_CAPTIONS, DEFAULT_ASSETS, DEFAULT_TRACKS } from '@vibee/atoms';
+import { atom, type Getter, type Setter } from 'jotai'
+import { atomWithStorage } from 'jotai/utils'
+import type {
+  Asset,
+  Track,
+  CaptionStyle,
+  AvatarAnimation,
+  AvatarBorderEffect,
+} from '@vibee/atoms'
+import {
+  STORAGE_KEYS,
+  DEFAULT_MUSIC_VOLUME,
+  DEFAULT_SPLIT_AVATAR,
+  DEFAULT_FULLSCREEN_AVATAR,
+  DEFAULT_AVATAR_CONFIG,
+  DEFAULT_VIGNETTE_STRENGTH,
+  DEFAULT_COLOR_CORRECTION,
+  DEFAULT_CAPTIONS,
+  DEFAULT_ASSETS,
+  DEFAULT_TRACKS,
+} from '@vibee/atoms'
 import {
   // Media
   lipSyncVideoAtom,
@@ -40,7 +57,7 @@ import {
   // Captions
   captionStyleAtom,
   showCaptionsAtom,
-} from './derived/templateProps';
+} from './derived/templateProps'
 
 // ===============================
 // Per-Template Settings Interface
@@ -48,37 +65,37 @@ import {
 
 export interface TemplateSettings {
   // Media
-  lipSyncVideo?: string;
-  coverImage?: string;
-  backgroundMusic?: string;
-  musicVolume?: number;
-  coverDuration?: number;
+  lipSyncVideo?: string
+  coverImage?: string
+  backgroundMusic?: string
+  musicVolume?: number
+  coverDuration?: number
   // Effects
-  vignetteStrength?: number;
-  colorCorrection?: number;
+  vignetteStrength?: number
+  colorCorrection?: number
   // Legacy avatar settings
-  circleSizePercent?: number;
-  circleBottomPercent?: number;
-  circleLeftPercent?: number;
-  faceOffsetX?: number;
-  faceOffsetY?: number;
-  faceScale?: number;
-  isCircleAvatar?: boolean;
-  avatarBorderRadius?: number;
+  circleSizePercent?: number
+  circleBottomPercent?: number
+  circleLeftPercent?: number
+  faceOffsetX?: number
+  faceOffsetY?: number
+  faceScale?: number
+  isCircleAvatar?: boolean
+  avatarBorderRadius?: number
   // Avatar mode settings (CONSOLIDATED - replaces 12 individual settings)
-  splitAvatarSettings?: AvatarModeSettings;
-  fullscreenAvatarSettings?: AvatarModeSettings;
+  splitAvatarSettings?: AvatarModeSettings
+  fullscreenAvatarSettings?: AvatarModeSettings
   // Animation
-  avatarAnimation?: AvatarAnimation;
+  avatarAnimation?: AvatarAnimation
   // Border effect
-  avatarBorderEffect?: AvatarBorderEffect;
-  avatarBorderColor?: string;
-  avatarBorderColor2?: string;
-  avatarBorderWidth?: number;
-  avatarBorderIntensity?: number;
+  avatarBorderEffect?: AvatarBorderEffect
+  avatarBorderColor?: string
+  avatarBorderColor2?: string
+  avatarBorderWidth?: number
+  avatarBorderIntensity?: number
   // Captions
-  captionStyle?: CaptionStyle;
-  showCaptions?: boolean;
+  captionStyle?: CaptionStyle
+  showCaptions?: boolean
 }
 
 // ===============================
@@ -122,7 +139,7 @@ export function captureCurrentSettings(get: Getter): TemplateSettings {
     // Captions
     captionStyle: get(captionStyleAtom),
     showCaptions: get(showCaptionsAtom),
-  };
+  }
 }
 
 /**
@@ -130,62 +147,86 @@ export function captureCurrentSettings(get: Getter): TemplateSettings {
  */
 export function applySettings(set: Setter, settings: TemplateSettings): void {
   // Media
-  if (settings.lipSyncVideo !== undefined) set(lipSyncVideoAtom, settings.lipSyncVideo);
-  if (settings.coverImage !== undefined) set(coverImageAtom, settings.coverImage);
-  if (settings.backgroundMusic !== undefined) set(backgroundMusicAtom, settings.backgroundMusic);
-  if (settings.musicVolume !== undefined) set(musicVolumeAtom, settings.musicVolume);
-  if (settings.coverDuration !== undefined) set(coverDurationAtom, settings.coverDuration);
+  if (settings.lipSyncVideo !== undefined)
+    set(lipSyncVideoAtom, settings.lipSyncVideo)
+  if (settings.coverImage !== undefined)
+    set(coverImageAtom, settings.coverImage)
+  if (settings.backgroundMusic !== undefined)
+    set(backgroundMusicAtom, settings.backgroundMusic)
+  if (settings.musicVolume !== undefined)
+    set(musicVolumeAtom, settings.musicVolume)
+  if (settings.coverDuration !== undefined)
+    set(coverDurationAtom, settings.coverDuration)
   // Effects
-  if (settings.vignetteStrength !== undefined) set(vignetteStrengthAtom, settings.vignetteStrength);
-  if (settings.colorCorrection !== undefined) set(colorCorrectionAtom, settings.colorCorrection);
+  if (settings.vignetteStrength !== undefined)
+    set(vignetteStrengthAtom, settings.vignetteStrength)
+  if (settings.colorCorrection !== undefined)
+    set(colorCorrectionAtom, settings.colorCorrection)
   // Legacy avatar settings
-  if (settings.circleSizePercent !== undefined) set(circleSizePercentAtom, settings.circleSizePercent);
-  if (settings.circleBottomPercent !== undefined) set(circleBottomPercentAtom, settings.circleBottomPercent);
-  if (settings.circleLeftPercent !== undefined) set(circleLeftPercentAtom, settings.circleLeftPercent);
-  if (settings.faceOffsetX !== undefined) set(faceOffsetXAtom, settings.faceOffsetX);
-  if (settings.faceOffsetY !== undefined) set(faceOffsetYAtom, settings.faceOffsetY);
-  if (settings.faceScale !== undefined) set(faceScaleAtom, settings.faceScale);
-  if (settings.isCircleAvatar !== undefined) set(isCircleAvatarAtom, settings.isCircleAvatar);
-  if (settings.avatarBorderRadius !== undefined) set(avatarBorderRadiusAtom, settings.avatarBorderRadius);
+  if (settings.circleSizePercent !== undefined)
+    set(circleSizePercentAtom, settings.circleSizePercent)
+  if (settings.circleBottomPercent !== undefined)
+    set(circleBottomPercentAtom, settings.circleBottomPercent)
+  if (settings.circleLeftPercent !== undefined)
+    set(circleLeftPercentAtom, settings.circleLeftPercent)
+  if (settings.faceOffsetX !== undefined)
+    set(faceOffsetXAtom, settings.faceOffsetX)
+  if (settings.faceOffsetY !== undefined)
+    set(faceOffsetYAtom, settings.faceOffsetY)
+  if (settings.faceScale !== undefined) set(faceScaleAtom, settings.faceScale)
+  if (settings.isCircleAvatar !== undefined)
+    set(isCircleAvatarAtom, settings.isCircleAvatar)
+  if (settings.avatarBorderRadius !== undefined)
+    set(avatarBorderRadiusAtom, settings.avatarBorderRadius)
   // Avatar mode settings (CONSOLIDATED - 12 → 2)
-  if (settings.splitAvatarSettings !== undefined) set(splitAvatarSettingsAtom, settings.splitAvatarSettings);
-  if (settings.fullscreenAvatarSettings !== undefined) set(fullscreenAvatarSettingsAtom, settings.fullscreenAvatarSettings);
+  if (settings.splitAvatarSettings !== undefined)
+    set(splitAvatarSettingsAtom, settings.splitAvatarSettings)
+  if (settings.fullscreenAvatarSettings !== undefined)
+    set(fullscreenAvatarSettingsAtom, settings.fullscreenAvatarSettings)
   // Animation
-  if (settings.avatarAnimation !== undefined) set(avatarAnimationAtom, settings.avatarAnimation);
+  if (settings.avatarAnimation !== undefined)
+    set(avatarAnimationAtom, settings.avatarAnimation)
   // Border effect
-  if (settings.avatarBorderEffect !== undefined) set(avatarBorderEffectAtom, settings.avatarBorderEffect);
-  if (settings.avatarBorderColor !== undefined) set(avatarBorderColorAtom, settings.avatarBorderColor);
-  if (settings.avatarBorderColor2 !== undefined) set(avatarBorderColor2Atom, settings.avatarBorderColor2);
-  if (settings.avatarBorderWidth !== undefined) set(avatarBorderWidthAtom, settings.avatarBorderWidth);
-  if (settings.avatarBorderIntensity !== undefined) set(avatarBorderIntensityAtom, settings.avatarBorderIntensity);
+  if (settings.avatarBorderEffect !== undefined)
+    set(avatarBorderEffectAtom, settings.avatarBorderEffect)
+  if (settings.avatarBorderColor !== undefined)
+    set(avatarBorderColorAtom, settings.avatarBorderColor)
+  if (settings.avatarBorderColor2 !== undefined)
+    set(avatarBorderColor2Atom, settings.avatarBorderColor2)
+  if (settings.avatarBorderWidth !== undefined)
+    set(avatarBorderWidthAtom, settings.avatarBorderWidth)
+  if (settings.avatarBorderIntensity !== undefined)
+    set(avatarBorderIntensityAtom, settings.avatarBorderIntensity)
   // Captions
-  if (settings.captionStyle !== undefined) set(captionStyleAtom, settings.captionStyle);
-  if (settings.showCaptions !== undefined) set(showCaptionsAtom, settings.showCaptions);
+  if (settings.captionStyle !== undefined)
+    set(captionStyleAtom, settings.captionStyle)
+  if (settings.showCaptions !== undefined)
+    set(showCaptionsAtom, settings.showCaptions)
 }
 
 export interface Template {
-  id: string;
-  name: string;
-  description: string;
-  thumbnail?: string;
-  compositionId: string;
+  id: string
+  name: string
+  description: string
+  thumbnail?: string
+  compositionId: string
   // Default props for the template
-  defaultProps: Record<string, unknown>;
+  defaultProps: Record<string, unknown>
   // Assets used in the template
-  assets?: Asset[];
+  assets?: Asset[]
   // Tracks (timeline items)
-  tracks?: Track[];
+  tracks?: Track[]
   // Created timestamp
-  createdAt?: number;
+  createdAt?: number
   // Is user-created (can be deleted)
-  isUserCreated?: boolean;
+  isUserCreated?: boolean
 }
 
 // Caption style used across templates
 const BASE_CAPTION_STYLE = {
   fontSize: 70,
   textColor: '#FFFF00',
-  highlightColor: '#f59e0b',
+  highlightColor: '#00ff88',
   backgroundColor: '#00000099',
   bottomPercent: 20,
   maxWidthPercent: 85,
@@ -193,7 +234,7 @@ const BASE_CAPTION_STYLE = {
   showShadow: true,
   fontId: 'Montserrat',
   fontFamily: 'Montserrat',
-};
+}
 
 // Default built-in templates
 const DEFAULT_TEMPLATES: Template[] = [
@@ -275,19 +316,19 @@ const DEFAULT_TEMPLATES: Template[] = [
     createdAt: 1770289060811,
     isUserCreated: true,
   },
-];
+]
 
 // Available templates - persisted in localStorage
 export const templatesAtom = atomWithStorage<Template[]>(
   STORAGE_KEYS.templates,
   DEFAULT_TEMPLATES
-);
+)
 
 // Currently selected template ID
 export const selectedTemplateIdAtom = atomWithStorage<string | null>(
   STORAGE_KEYS.selectedTemplate,
   'vibee-reel-1'
-);
+)
 
 // Per-template settings — baked production defaults for base template
 const DEFAULT_TEMPLATE_SETTINGS: Record<string, TemplateSettings> = {
@@ -336,7 +377,7 @@ const DEFAULT_TEMPLATE_SETTINGS: Record<string, TemplateSettings> = {
     captionStyle: {
       fontSize: 70,
       textColor: '#FFFF00',
-      highlightColor: '#f59e0b',
+      highlightColor: '#00ff88',
       backgroundColor: '#00000099',
       bottomPercent: 20,
       maxWidthPercent: 85,
@@ -347,117 +388,111 @@ const DEFAULT_TEMPLATE_SETTINGS: Record<string, TemplateSettings> = {
     },
     showCaptions: true,
   },
-};
+}
 
 // Per-template settings storage
-export const templateSettingsAtom = atomWithStorage<Record<string, TemplateSettings>>(
-  STORAGE_KEYS.templateSettings,
-  DEFAULT_TEMPLATE_SETTINGS
-);
+export const templateSettingsAtom = atomWithStorage<
+  Record<string, TemplateSettings>
+>(STORAGE_KEYS.templateSettings, DEFAULT_TEMPLATE_SETTINGS)
 
 // Derived: Get selected template
-export const selectedTemplateAtom = atom((get) => {
-  const templates = get(templatesAtom);
-  const selectedId = get(selectedTemplateIdAtom);
-  return templates.find((t) => t.id === selectedId) || templates[0];
-});
+export const selectedTemplateAtom = atom(get => {
+  const templates = get(templatesAtom)
+  const selectedId = get(selectedTemplateIdAtom)
+  return templates.find(t => t.id === selectedId) || templates[0]
+})
 
 // Action: Select template (with save/load settings)
-export const selectTemplateAtom = atom(
-  null,
-  (get, set, templateId: string) => {
-    const templates = get(templatesAtom);
-    const template = templates.find((t) => t.id === templateId);
-    if (!template) return;
+export const selectTemplateAtom = atom(null, (get, set, templateId: string) => {
+  const templates = get(templatesAtom)
+  const template = templates.find(t => t.id === templateId)
+  if (!template) return
 
-    const currentId = get(selectedTemplateIdAtom);
+  const currentId = get(selectedTemplateIdAtom)
 
-    // 1. Save current settings to the old template
-    if (currentId && currentId !== templateId) {
-      const currentSettings = captureCurrentSettings(get);
-      const allSettings = get(templateSettingsAtom);
-      set(templateSettingsAtom, {
-        ...allSettings,
-        [currentId]: currentSettings,
-      });
-    }
-
-    // 2. Load settings from the new template
-    const allSettings = get(templateSettingsAtom);
-    const savedSettings = allSettings[templateId];
-
-    if (savedSettings) {
-      // Use saved settings
-      applySettings(set, savedSettings);
-    } else if (template.defaultProps) {
-      // Use default props for new template
-      applySettings(set, template.defaultProps as TemplateSettings);
-    }
-
-    // 3. Set new template ID
-    set(selectedTemplateIdAtom, templateId);
-  }
-);
-
-// Action: Save current settings to selected template
-export const saveCurrentSettingsAtom = atom(
-  null,
-  (get, set) => {
-    const currentId = get(selectedTemplateIdAtom);
-    if (!currentId) return;
-
-    const currentSettings = captureCurrentSettings(get);
-    const allSettings = get(templateSettingsAtom);
+  // 1. Save current settings to the old template
+  if (currentId && currentId !== templateId) {
+    const currentSettings = captureCurrentSettings(get)
+    const allSettings = get(templateSettingsAtom)
     set(templateSettingsAtom, {
       ...allSettings,
       [currentId]: currentSettings,
-    });
+    })
   }
-);
+
+  // 2. Load settings from the new template
+  const allSettings = get(templateSettingsAtom)
+  const savedSettings = allSettings[templateId]
+
+  if (savedSettings) {
+    // Use saved settings
+    applySettings(set, savedSettings)
+  } else if (template.defaultProps) {
+    // Use default props for new template
+    applySettings(set, template.defaultProps as TemplateSettings)
+  }
+
+  // 3. Set new template ID
+  set(selectedTemplateIdAtom, templateId)
+})
+
+// Action: Save current settings to selected template
+export const saveCurrentSettingsAtom = atom(null, (get, set) => {
+  const currentId = get(selectedTemplateIdAtom)
+  if (!currentId) return
+
+  const currentSettings = captureCurrentSettings(get)
+  const allSettings = get(templateSettingsAtom)
+  set(templateSettingsAtom, {
+    ...allSettings,
+    [currentId]: currentSettings,
+  })
+})
 
 // Action: Add new template
 export const addTemplateAtom = atom(
   null,
-  (get, set, newTemplate: Omit<Template, 'id' | 'createdAt' | 'isUserCreated'>) => {
-    const templates = get(templatesAtom);
-    const id = `user-template-${Date.now()}`;
+  (
+    get,
+    set,
+    newTemplate: Omit<Template, 'id' | 'createdAt' | 'isUserCreated'>
+  ) => {
+    const templates = get(templatesAtom)
+    const id = `user-template-${Date.now()}`
     const template: Template = {
       ...newTemplate,
       id,
       createdAt: Date.now(),
       isUserCreated: true,
-    };
-    set(templatesAtom, [...templates, template]);
-    set(selectedTemplateIdAtom, id);
-    return template;
+    }
+    set(templatesAtom, [...templates, template])
+    set(selectedTemplateIdAtom, id)
+    return template
   }
-);
+)
 
 // Action: Remove user-created template
-export const removeTemplateAtom = atom(
-  null,
-  (get, set, templateId: string) => {
-    const templates = get(templatesAtom);
-    const template = templates.find((t) => t.id === templateId);
+export const removeTemplateAtom = atom(null, (get, set, templateId: string) => {
+  const templates = get(templatesAtom)
+  const template = templates.find(t => t.id === templateId)
 
-    // Only allow removing user-created templates
-    if (!template?.isUserCreated) {
-      console.warn('[Templates] Cannot remove built-in template');
-      return false;
-    }
-
-    const newTemplates = templates.filter((t) => t.id !== templateId);
-    set(templatesAtom, newTemplates);
-
-    // Select first template if current was removed
-    const selectedId = get(selectedTemplateIdAtom);
-    if (selectedId === templateId && newTemplates.length > 0) {
-      set(selectedTemplateIdAtom, newTemplates[0].id);
-    }
-
-    return true;
+  // Only allow removing user-created templates
+  if (!template?.isUserCreated) {
+    console.warn('[Templates] Cannot remove built-in template')
+    return false
   }
-);
+
+  const newTemplates = templates.filter(t => t.id !== templateId)
+  set(templatesAtom, newTemplates)
+
+  // Select first template if current was removed
+  const selectedId = get(selectedTemplateIdAtom)
+  if (selectedId === templateId && newTemplates.length > 0) {
+    set(selectedTemplateIdAtom, newTemplates[0].id)
+  }
+
+  return true
+})
 
 // ===============================
 // Auto-Save Settings
@@ -470,26 +505,23 @@ export const removeTemplateAtom = atom(
  */
 export const settingsWatchAtom = atom((get): string => {
   // Read all setting atoms to subscribe to them
-  const settings = captureCurrentSettings(get);
+  const settings = captureCurrentSettings(get)
   // Return JSON hash for change detection
-  return JSON.stringify(settings);
-});
+  return JSON.stringify(settings)
+})
 
 /**
  * Action atom to save current settings to the selected template.
  * Called by useAutoSaveTemplateSettings hook with debounce.
  */
-export const autoSaveSettingsAtom = atom(
-  null,
-  (get, set) => {
-    const currentId = get(selectedTemplateIdAtom);
-    if (!currentId) return;
+export const autoSaveSettingsAtom = atom(null, (get, set) => {
+  const currentId = get(selectedTemplateIdAtom)
+  if (!currentId) return
 
-    const settings = captureCurrentSettings(get);
-    set(templateSettingsAtom, (prev) => ({
-      ...prev,
-      [currentId]: settings,
-    }));
-    console.log('[Templates] Auto-saved settings for:', currentId);
-  }
-);
+  const settings = captureCurrentSettings(get)
+  set(templateSettingsAtom, prev => ({
+    ...prev,
+    [currentId]: settings,
+  }))
+  console.log('[Templates] Auto-saved settings for:', currentId)
+})

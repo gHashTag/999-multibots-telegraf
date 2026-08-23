@@ -2,10 +2,14 @@
   max-width: 600px;
   margin: 0 auto;
   padding: 32px;
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.05) 0%, rgba(245, 158, 11, 0.05) 100%);
-  border: 1px solid rgba(251, 191, 36, 0.2);
+  background: linear-gradient(
+    135deg,
+    rgba(77, 255, 170, 0.05) 0%,
+    rgba(0, 255, 136, 0.05) 100%
+  );
+  border: 1px solid rgba(77, 255, 170, 0.2);
   border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(251, 191, 36, 0.1);
+  box-shadow: 0 8px 32px rgba(77, 255, 170, 0.1);
 }
 
 .buy-vibee-header {
@@ -16,7 +20,7 @@
 .buy-vibee-header h2 {
   font-size: 2rem;
   font-weight: 700;
-  color: #fbbf24;
+  color: #4dffab;
   margin: 0 0 8px 0;
 }
 
@@ -38,7 +42,7 @@
   flex-direction: column;
   padding: 16px;
   background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(251, 191, 36, 0.2);
+  border: 1px solid rgba(77, 255, 170, 0.2);
   border-radius: 8px;
 }
 
@@ -53,7 +57,7 @@
 .stat-value {
   font-size: 1rem;
   font-weight: 600;
-  color: #fbbf24;
+  color: #4dffab;
 }
 
 .buy-vibee-calculator {
@@ -79,17 +83,17 @@
   padding: 12px 16px;
   font-size: 1.125rem;
   font-weight: 600;
-  color: #fbbf24;
+  color: #4dffab;
   background: rgba(0, 0, 0, 0.5);
-  border: 2px solid rgba(251, 191, 36, 0.3);
+  border: 2px solid rgba(77, 255, 170, 0.3);
   border-radius: 8px;
   outline: none;
   transition: all 0.2s;
 }
 
 .input-group input:focus {
-  border-color: #fbbf24;
-  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.1);
+  border-color: #4dffab;
+  box-shadow: 0 0 0 3px rgba(77, 255, 170, 0.1);
 }
 
 .input-group input::-webkit-inner-spin-button,
@@ -108,7 +112,7 @@
 .conversion-arrow {
   text-align: center;
   font-size: 1.5rem;
-  color: #fbbf24;
+  color: #4dffab;
   margin: 8px 0;
 }
 
@@ -116,9 +120,9 @@
   padding: 12px 16px;
   font-size: 1.5rem;
   font-weight: 700;
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.1);
-  border: 2px solid rgba(251, 191, 36, 0.3);
+  color: #4dffab;
+  background: rgba(77, 255, 170, 0.1);
+  border: 2px solid rgba(77, 255, 170, 0.3);
   border-radius: 8px;
   text-align: center;
 }
@@ -133,17 +137,17 @@
   font-size: 1.125rem;
   font-weight: 700;
   color: #000;
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  background: linear-gradient(135deg, #4dffab 0%, #00ff88 100%);
   border: none;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 4px 16px rgba(251, 191, 36, 0.3);
+  box-shadow: 0 4px 16px rgba(77, 255, 170, 0.3);
 }
 
 .btn-buy-primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 24px rgba(251, 191, 36, 0.4);
+  box-shadow: 0 6px 24px rgba(77, 255, 170, 0.4);
 }
 
 .btn-buy-primary:active:not(:disabled) {
@@ -165,7 +169,7 @@
 .buy-vibee-info {
   padding: 24px;
   background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(251, 191, 36, 0.2);
+  border: 1px solid rgba(77, 255, 170, 0.2);
   border-radius: 8px;
   margin-bottom: 24px;
 }
@@ -173,7 +177,7 @@
 .buy-vibee-info h3 {
   font-size: 1.125rem;
   font-weight: 600;
-  color: #fbbf24;
+  color: #4dffab;
   margin: 0 0 16px 0;
 }
 
@@ -187,7 +191,7 @@
   padding: 8px 0;
   font-size: 0.875rem;
   color: #d1d5db;
-  border-bottom: 1px solid rgba(251, 191, 36, 0.1);
+  border-bottom: 1px solid rgba(77, 255, 170, 0.1);
 }
 
 .buy-vibee-info li:last-child {
@@ -195,7 +199,7 @@
 }
 
 .buy-vibee-info strong {
-  color: #fbbf24;
+  color: #4dffab;
   font-weight: 600;
 }
 
@@ -208,13 +212,13 @@
 
 .link-secondary {
   font-size: 0.875rem;
-  color: #fbbf24;
+  color: #4dffab;
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .link-secondary:hover {
-  color: #f59e0b;
+  color: #00ff88;
   text-decoration: underline;
 }
 

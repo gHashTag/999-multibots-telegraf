@@ -7,8 +7,16 @@
 }
 
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-    Ubuntu, Cantarell, sans-serif;
+  font-family:
+    'Outfit',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    sans-serif;
   line-height: 1.5;
   font-weight: 400;
   color-scheme: dark;
@@ -59,15 +67,15 @@
   --z-tooltip: 10000;
 
   /* Color System - Base Colors */
-  --color-bg-primary: #0a0a0a;
-  --color-bg-primary-rgb: 10, 10, 10;
+  --color-bg-primary: #000000;
+  --color-bg-primary-rgb: 0, 0, 0;
   --color-bg-elevated: #1a1a1a;
   --color-bg-elevated-rgb: 26, 26, 26;
   --color-bg-secondary: #2a2a2a;
   --color-bg-secondary-rgb: 42, 42, 42;
-  --color-brand-amber: #f59e0b;
-  --color-brand-amber-rgb: 245, 158, 11;
-  --color-brand-amber-light-rgb: 251, 191, 36;
+  --color-brand-amber: #00ff88;
+  --color-brand-amber-rgb: 0, 255, 136;
+  --color-brand-amber-light-rgb: 77, 255, 170;
   --color-status-error: #ef4444;
   --color-status-error-rgb: 239, 68, 68;
   --color-status-error-dark: #dc2626;
@@ -75,8 +83,8 @@
   --color-status-success-rgb: 34, 197, 94;
 
   /* Background Colors (matches @vibee/atoms BG_COLORS + EDITOR_COLORS) */
-  --bg-primary: #0a0a0a;
-  --bg-darker: #0d0d0d;
+  --bg-primary: #000000;
+  --bg-darker: #050505;
   --bg-darkest: #111111;
   --bg-elevated: #1a1a1a;
   --bg-surface: #1a1a1a;
@@ -88,12 +96,12 @@
   --bg-hover: #444444;
 
   /* VIBEE Brand Colors (matches @vibee/atoms BRAND_COLORS) */
-  --vibee-amber: #f59e0b;
-  --vibee-amber-light: #fbbf24;
-  --vibee-amber-dark: #d97706;
-  --vibee-gold: #FFD700;
-  --vibee-red: #FF6B6B;
-  --vibee-bright-yellow: #FFFF00;
+  --vibee-amber: #00ff88;
+  --vibee-amber-light: #4dffab;
+  --vibee-amber-dark: #00cc66;
+  --vibee-gold: #ffd700;
+  --vibee-red: #ff6b6b;
+  --vibee-bright-yellow: #ffff00;
 
   /* Legacy aliases (for backward compatibility) */
   --vibee-bg: var(--bg-primary);
@@ -103,7 +111,7 @@
 
   /* Timeline Colors (matches @vibee/atoms TIMELINE_COLORS) */
   --timeline-playhead: #f43f5e;
-  --timeline-guide: #FF3B30;
+  --timeline-guide: #ff3b30;
   --timeline-selection: #3b82f6;
   --timeline-snap: #22c55e;
 
@@ -115,7 +123,7 @@
 
   /* Text Colors */
   --text-primary: #ffffff;
-  --text-muted: #666666;
+  --text-muted: #888888;
   --text-muted-light: #888888;
 }
 
@@ -131,7 +139,12 @@ body {
   height: var(--app-vh-stable, 100dvh);
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   margin: 0;
 }
 

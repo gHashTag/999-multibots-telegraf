@@ -327,7 +327,11 @@
 .batch-uniform-btn {
   width: 100%;
   padding: 10px;
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-light)
+  );
   border: none;
   border-radius: 6px;
   color: #000;
@@ -338,7 +342,11 @@
 }
 
 .batch-uniform-btn:hover {
-  background: linear-gradient(135deg, var(--vibee-amber-dark), var(--vibee-amber));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber-dark),
+    var(--vibee-amber)
+  );
 }
 
 .batch-hint {
@@ -481,13 +489,21 @@
 
 .caption-action-btn.add {
   flex: 1;
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-light)
+  );
   color: #000;
   font-weight: 600;
 }
 
 .caption-action-btn.add:hover {
-  background: linear-gradient(135deg, var(--vibee-amber-dark), var(--vibee-amber));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber-dark),
+    var(--vibee-amber)
+  );
 }
 
 .caption-action-btn.transcribe {
@@ -536,7 +552,7 @@
 
 .caption-item-mini.current {
   border-color: var(--vibee-amber);
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
 }
 
 .caption-timing-mini {
@@ -598,8 +614,12 @@
 }
 
 @keyframes spinning {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .spinning {
@@ -647,7 +667,7 @@
 }
 
 .layout-btn.active {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   border-color: var(--vibee-amber);
   color: var(--vibee-amber);
 }
@@ -860,12 +880,12 @@
 }
 
 .font-list-mini button:hover {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.15);
   color: #fff;
 }
 
 .font-list-mini button.selected {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   color: var(--vibee-amber);
 }
 
@@ -1177,7 +1197,7 @@
 
 .property-input-wrapper:focus-within {
   border-color: var(--vibee-amber);
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.1);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.1);
 }
 
 /* Sliders */

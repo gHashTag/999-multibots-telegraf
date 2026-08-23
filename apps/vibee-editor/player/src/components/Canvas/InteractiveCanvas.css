@@ -26,12 +26,17 @@
   content: '';
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(45deg, var(--bg-elevated) 25%, transparent 25%),
+  background-image:
+    linear-gradient(45deg, var(--bg-elevated) 25%, transparent 25%),
     linear-gradient(-45deg, var(--bg-elevated) 25%, transparent 25%),
     linear-gradient(45deg, transparent 75%, var(--bg-elevated) 75%),
     linear-gradient(-45deg, transparent 75%, var(--bg-elevated) 75%);
   background-size: 16px 16px;
-  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0px;
   z-index: -1;
 }
 
@@ -63,8 +68,8 @@
   align-items: center;
   gap: 12px;
   padding: 16px 24px;
-  background: rgba(245, 158, 11, 0.15);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: rgba(0, 255, 136, 0.15);
+  border: 1px solid rgba(0, 255, 136, 0.3);
   border-radius: 12px;
   color: var(--vibee-amber);
   font-size: 14px;
@@ -81,13 +86,24 @@
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(0.95); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.95);
+  }
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Template/Reel Name Overlay */
@@ -219,7 +235,7 @@
    =============================== */
 
 .canvas-container.drag-over {
-  background: rgba(245, 158, 11, 0.05);
+  background: rgba(0, 255, 136, 0.05);
 }
 
 .canvas-drop-zone {
@@ -238,13 +254,14 @@
 }
 
 @keyframes dropzone-pulse {
-  0%, 100% {
+  0%,
+  100% {
     border-color: var(--vibee-amber);
     background: rgba(0, 0, 0, 0.6);
   }
   50% {
     border-color: var(--vibee-amber-light);
-    background: rgba(245, 158, 11, 0.15);
+    background: rgba(0, 255, 136, 0.15);
   }
 }
 
@@ -261,7 +278,8 @@
 }
 
 @keyframes dropzone-bounce {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {

@@ -1,36 +1,36 @@
-import { useLanguage } from '@/hooks/useLanguage';
-import { BRAND_COLORS } from '@vibee/atoms';
-import './Features.css';
+import { useLanguage } from '@/hooks/useLanguage'
+import { BRAND_COLORS } from '@vibee/atoms'
+import './Features.css'
 
 const features = [
   {
     emoji: '🎬',
     titleKey: 'features.reels.title',
     descKey: 'features.reels.desc',
-    gradient: `linear-gradient(135deg, ${BRAND_COLORS.amber} 0%, #fbbf24 100%)`,
+    gradient: `linear-gradient(135deg, ${BRAND_COLORS.amber} 0%, #4dffab 100%)`,
   },
   {
     emoji: '🌐',
     titleKey: 'features.feed.title',
     descKey: 'features.feed.desc',
-    gradient: `linear-gradient(135deg, ${BRAND_COLORS.amber} 0%, #fcd34d 100%)`,
+    gradient: `linear-gradient(135deg, ${BRAND_COLORS.amber} 0%, #80ffbe 100%)`,
   },
   {
     emoji: '🤖',
     titleKey: 'features.avatars.title',
     descKey: 'features.avatars.desc',
-    gradient: `linear-gradient(135deg, ${BRAND_COLORS.amber} 0%, #fbbf24 100%)`,
+    gradient: `linear-gradient(135deg, ${BRAND_COLORS.amber} 0%, #4dffab 100%)`,
   },
   {
     emoji: '📈',
     titleKey: 'features.analytics.title',
     descKey: 'features.analytics.desc',
-    gradient: `linear-gradient(135deg, ${BRAND_COLORS.amber} 0%, #fcd34d 100%)`,
+    gradient: `linear-gradient(135deg, ${BRAND_COLORS.amber} 0%, #80ffbe 100%)`,
   },
-];
+]
 
 export function Features() {
-  const { t } = useLanguage();
+  const { t } = useLanguage()
 
   return (
     <section className="features" id="features">
@@ -61,5 +61,5 @@ export function Features() {
         </div>
       </div>
     </section>
-  );
+  )
 }

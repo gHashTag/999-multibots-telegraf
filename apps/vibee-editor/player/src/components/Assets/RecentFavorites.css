@@ -44,7 +44,7 @@
 }
 
 .recent-favorites__tab.active {
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
   color: var(--vibee-amber);
 }
 
@@ -57,7 +57,7 @@
 }
 
 .recent-favorites__tab.active .recent-favorites__badge {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
 }
 
 .recent-favorites__chevron {
@@ -217,7 +217,7 @@
 }
 
 .recent-asset__fav:hover {
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
   color: var(--vibee-amber);
 }
 

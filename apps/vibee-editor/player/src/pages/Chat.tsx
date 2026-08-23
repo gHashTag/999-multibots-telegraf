@@ -189,14 +189,11 @@ function ChatPage() {
   return (
     <div className="chat-page">
       <Header />
+      {/* Бренд (знак + Trinity S³AI) уже стоит в Header выше — здесь его
+          не повторяем, иначе название дублируется на экране дважды. */}
       <div className="chat-title">
-        <img
-          className="chat-title__logo"
-          src="/t27-logo.svg"
-          alt="Trinity S³AI"
-        />
         <div className="chat-title__text">
-          <h1>Агент Trinity S³AI</h1>
+          <h1>Агент</h1>
           <p>
             Смотрит в приложение своими инструментами и делает, а не советует
           </p>

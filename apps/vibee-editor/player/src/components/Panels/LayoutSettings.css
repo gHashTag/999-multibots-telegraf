@@ -52,7 +52,7 @@
 }
 
 .layout-option.active {
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
   border-color: var(--vibee-amber);
   color: var(--vibee-amber);
 }

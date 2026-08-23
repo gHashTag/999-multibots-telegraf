@@ -17,8 +17,8 @@
 .feed-preview-badge {
   display: inline-block;
   padding: 6px 14px;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.2);
   border-radius: 100px;
   font-size: 12px;
   font-weight: 600;
@@ -32,7 +32,12 @@
   font-size: clamp(28px, 4vw, 40px);
   font-weight: 700;
   margin: 0 0 16px;
-  background: linear-gradient(135deg, #fff 0%, #fff 60%, var(--vibee-amber-light) 100%);
+  background: linear-gradient(
+    135deg,
+    #fff 0%,
+    #fff 60%,
+    var(--vibee-amber-light) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -79,7 +84,9 @@
   overflow: hidden;
   background: var(--color-bg-elevated);
   cursor: pointer;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition:
+    transform 0.3s,
+    box-shadow 0.3s;
 }
 
 .feed-item-thumbnail:hover {
@@ -112,8 +119,12 @@
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .feed-item-overlay {
@@ -169,7 +180,9 @@
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity 0.3s, transform 0.3s;
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
 }
 
 .feed-item-thumbnail:hover .feed-item-play {
@@ -194,7 +207,7 @@
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .feed-item:nth-child(n+5) {
+  .feed-item:nth-child(n + 5) {
     display: none;
   }
 }
@@ -229,7 +242,7 @@
     gap: 8px;
   }
 
-  .feed-item:nth-child(n+5) {
+  .feed-item:nth-child(n + 5) {
     display: none;
   }
 }

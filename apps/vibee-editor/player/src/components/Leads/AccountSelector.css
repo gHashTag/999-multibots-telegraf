@@ -176,8 +176,12 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Empty */
@@ -212,7 +216,7 @@
 }
 
 .account-selector-item.active {
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
 }
 
 .account-selector-item-info {
@@ -269,30 +273,34 @@
 .account-selector-count {
   font-size: 11px;
   padding: 2px 6px;
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   color: var(--vibee-amber);
   border-radius: 4px;
   font-weight: 600;
 }
 
 .account-selector-item-all {
-  background: rgba(245, 158, 11, 0.05);
-  border-bottom: 1px solid rgba(245, 158, 11, 0.2) !important;
+  background: rgba(0, 255, 136, 0.05);
+  border-bottom: 1px solid rgba(0, 255, 136, 0.2) !important;
 }
 
 .account-selector-item-all:hover {
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
 }
 
 .account-selector-item-all.active {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.15);
 }
 
 .account-selector-all-icon {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.3), rgba(217, 119, 6, 0.3));
+  background: linear-gradient(
+    135deg,
+    rgba(0, 255, 136, 0.3),
+    rgba(217, 119, 6, 0.3)
+  );
   display: flex;
   align-items: center;
   justify-content: center;
@@ -303,7 +311,7 @@
 .account-selector-all-badge {
   font-size: 11px;
   padding: 2px 8px;
-  background: linear-gradient(135deg, var(--vibee-amber), #d97706);
+  background: linear-gradient(135deg, var(--vibee-amber), #00cc66);
   color: #000;
   border-radius: 10px;
   font-weight: 700;
@@ -350,12 +358,12 @@
 }
 
 .account-selector-add {
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(0, 255, 136, 0.1);
   color: var(--vibee-amber, var(--vibee-amber));
 }
 
 .account-selector-add:hover {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
 }
 
 /* ===============================

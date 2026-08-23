@@ -42,7 +42,7 @@
   justify-content: center;
   width: 48px;
   height: 48px;
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   border-radius: 12px;
   color: var(--vibee-amber);
 }
@@ -83,8 +83,13 @@
 }
 
 @keyframes icon-swipe-up {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 .hint-swipe-down .gesture-hint__icon {
@@ -92,8 +97,13 @@
 }
 
 @keyframes icon-swipe-down {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(8px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(8px);
+  }
 }
 
 .hint-double-tap .gesture-hint__icon {
@@ -101,9 +111,17 @@
 }
 
 @keyframes icon-double-tap {
-  0%, 100% { transform: scale(1); }
-  25%, 75% { transform: scale(0.9); }
-  50% { transform: scale(1.1); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  25%,
+  75% {
+    transform: scale(0.9);
+  }
+  50% {
+    transform: scale(1.1);
+  }
 }
 
 .hint-long-press .gesture-hint__icon {
@@ -111,8 +129,15 @@
 }
 
 @keyframes icon-long-press {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(0.95); opacity: 0.8; }
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
 }
 
 .hint-swipe-right .gesture-hint__icon {
@@ -120,8 +145,13 @@
 }
 
 @keyframes icon-swipe-right {
-  0%, 100% { transform: translateX(0); }
-  50% { transform: translateX(8px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(8px);
+  }
 }
 
 .hint-pull-down .gesture-hint__icon {
@@ -129,8 +159,13 @@
 }
 
 @keyframes icon-pull-down {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(8px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(8px);
+  }
 }
 
 /* Swipe Indicator */
@@ -170,8 +205,13 @@
 }
 
 @keyframes swipe-indicator-pulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.8; }
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 
 /* Onboarding Gestures */
@@ -188,8 +228,12 @@
 }
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .onboarding-gestures__content {
@@ -207,7 +251,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.15);
   border-radius: 50%;
   margin-bottom: 32px;
   color: var(--vibee-amber);

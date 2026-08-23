@@ -13,9 +13,9 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   letter-spacing: 0.08em;
-  color: var(--vibee-accent, #f59e0b);
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: var(--vibee-accent, #00ff88);
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.25);
   border-radius: 20px;
   padding: 4px 12px;
   margin-bottom: 16px;
@@ -82,7 +82,7 @@
   min-height: 44px;
   border: 0;
   border-radius: 8px;
-  background: var(--vibee-accent, #f59e0b);
+  background: var(--vibee-accent, #00ff88);
   color: #000;
   font-weight: 600;
   font-size: 14px;

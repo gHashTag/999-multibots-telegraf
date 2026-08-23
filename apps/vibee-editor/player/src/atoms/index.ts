@@ -21,7 +21,7 @@
 // 🎬 CORE - Editor fundamentals
 // ===============================
 
-export { projectAtom } from './project';
+export { projectAtom } from './project'
 
 export {
   tracksAtom,
@@ -55,7 +55,7 @@ export {
   resetTracksAtom,
   updateItemLayoutAtom,
   setAllVideoItemsLayoutAtom,
-} from './tracks';
+} from './tracks'
 
 export {
   assetsAtom,
@@ -70,7 +70,7 @@ export {
   toggleSelectionModeAtom,
   toggleAssetSelectionAtom,
   clearAssetSelectionAtom,
-} from './assets';
+} from './assets'
 
 // ===============================
 // ▶️ PLAYBACK - Player controls
@@ -89,7 +89,7 @@ export {
   pauseAtom,
   seekToAtom,
   togglePlayAtom,
-} from './playback';
+} from './playback'
 
 // ===============================
 // 🎯 SELECTION - Item selection
@@ -107,7 +107,7 @@ export {
   selectAllAtom,
   selectRangeAtom,
   pasteItemsAtom,
-} from './selection';
+} from './selection'
 
 // ===============================
 // 🖥️ UI - Interface state
@@ -134,7 +134,7 @@ export {
   // Marker navigation
   goToNextMarkerAtom,
   goToPrevMarkerAtom,
-} from './ui';
+} from './ui'
 
 // ===============================
 // 🎨 TEMPLATE - Video composition props
@@ -195,7 +195,7 @@ export {
   captionsAtom,
   captionStyleAtom,
   showCaptionsAtom,
-} from './derived';
+} from './derived'
 
 // ===============================
 // ↩️ HISTORY - Undo/Redo
@@ -208,7 +208,7 @@ export {
   canRedoAtom,
   recordSnapshotAtom,
   clearHistoryAtom,
-} from './history';
+} from './history'
 
 // ===============================
 // 💬 CAPTIONS - Transcription & loading
@@ -221,7 +221,7 @@ export {
   updateDurationFromLipSyncAtom,
   transcribeVideoAtom,
   transcribingAtom,
-} from './captions';
+} from './captions'
 
 // ===============================
 // 📋 TEMPLATES - Saved presets
@@ -242,7 +242,7 @@ export {
   autoSaveSettingsAtom,
   type Template,
   type TemplateSettings,
-} from './templates';
+} from './templates'
 
 // ===============================
 // 👤 USER - Auth & subscription
@@ -271,7 +271,7 @@ export {
   type RenderQuota,
   type SubscriptionInfo,
   type InstagramStatus,
-} from './user';
+} from './user'
 
 // ===============================
 // 📱 FEED - Social templates
@@ -304,7 +304,7 @@ export {
   type FeedStats,
   type PublishData,
   type RemixSource,
-} from './feed';
+} from './feed'
 
 // ===============================
 // 👥 PROFILE - User profiles & follows
@@ -336,7 +336,7 @@ export {
   type UserProfile,
   type FollowUser,
   type SocialLink,
-} from './profile';
+} from './profile'
 
 // ===============================
 // 📦 ASSET BROWSER - Horizontal browser state
@@ -354,7 +354,7 @@ export {
   categoryCounts,
   CATEGORY_CONFIG,
   type AssetCategory,
-} from './assetBrowser';
+} from './assetBrowser'
 
 // ===============================
 // 📥 LEADS - Telegram Lead Management
@@ -415,7 +415,7 @@ export {
   type TelegramSession,
   type Trigger,
   type LeadStats,
-} from './leads';
+} from './leads'
 
 // ===============================
 // 📝 SCRIPT - AI Script Generator
@@ -463,7 +463,7 @@ export {
   type PlatformCaption,
   type Platform,
   type ScriptTemplate,
-} from './script';
+} from './script'
 
 // ===============================
 // Learn / Education
@@ -488,7 +488,7 @@ export {
   // Types
   type BeeLevel,
   type LearnProgress,
-} from './learn';
+} from './learn'
 
 // История генераций из бота: серверная половина — GET /api/assets/:telegram_id
 export {
@@ -498,4 +498,15 @@ export {
   loadBotAssetsAtom,
   botAssetsByDayAtom,
   type BotAsset,
-} from './botAssets';
+} from './botAssets'
+
+// Профиль аватара: фото человека (assets type='avatar_photo'), от которого
+// делается весь контент. Один раз загрузил — липсинк берёт лицо отсюда.
+export {
+  avatarPhotosAtom,
+  avatarPhotosLoadingAtom,
+  avatarPhotosErrorAtom,
+  loadAvatarPhotosAtom,
+  saveAvatarPhotoAtom,
+  type AvatarPhoto,
+} from './avatarPhotos'

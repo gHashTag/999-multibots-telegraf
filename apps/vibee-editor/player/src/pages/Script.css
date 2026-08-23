@@ -113,8 +113,13 @@
 }
 
 @keyframes pulse-voice {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
 }
 
 .script-select {
@@ -161,7 +166,7 @@
 }
 
 .script-chip.active {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.15);
   border-color: var(--vibee-amber);
   color: var(--vibee-amber);
 }
@@ -174,7 +179,7 @@
   justify-content: center;
   gap: 8px;
   padding: 14px;
-  background: linear-gradient(135deg, var(--vibee-amber), #fbbf24);
+  background: linear-gradient(135deg, var(--vibee-amber), #4dffab);
   border: none;
   border-radius: 8px;
   color: #000;
@@ -187,7 +192,7 @@
 
 .script-generate-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
 }
 
 .script-generate-btn:disabled {
@@ -210,8 +215,12 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* History & Clear Buttons */
@@ -395,7 +404,7 @@
 .script-segment-count {
   font-size: 12px;
   color: var(--vibee-amber);
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.15);
   padding: 4px 8px;
   border-radius: 4px;
 }
@@ -446,7 +455,7 @@
 
 .script-voiceover-edit:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+  box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.2);
 }
 
 /* Output Actions */
@@ -477,13 +486,13 @@
 }
 
 .script-action-btn.primary {
-  background: rgba(245, 158, 11, 0.15);
-  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(0, 255, 136, 0.15);
+  border-color: rgba(0, 255, 136, 0.3);
   color: var(--vibee-amber);
 }
 
 .script-action-btn.primary:hover {
-  background: rgba(245, 158, 11, 0.25);
+  background: rgba(0, 255, 136, 0.25);
 }
 
 /* B-Roll List */
@@ -575,7 +584,7 @@
 }
 
 .script-platform-tab.active {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.15);
   border-color: var(--vibee-amber);
   color: var(--vibee-amber);
 }
@@ -590,8 +599,8 @@
 
 .script-hashtag {
   padding: 4px 10px;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.2);
   border-radius: 4px;
   font-size: 12px;
   color: var(--vibee-amber);
@@ -614,8 +623,8 @@
 .script-tips {
   margin-top: 20px;
   padding: 12px;
-  background: rgba(245, 158, 11, 0.05);
-  border: 1px solid rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.05);
+  border: 1px solid rgba(0, 255, 136, 0.15);
   border-radius: 8px;
 }
 
@@ -738,8 +747,8 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  background: rgba(245, 158, 11, 0.15);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: rgba(0, 255, 136, 0.15);
+  border: 1px solid rgba(0, 255, 136, 0.3);
   border-radius: 6px;
   color: var(--vibee-amber);
   cursor: pointer;
@@ -747,7 +756,7 @@
 }
 
 .script-template-save-btn:hover:not(:disabled) {
-  background: rgba(245, 158, 11, 0.25);
+  background: rgba(0, 255, 136, 0.25);
 }
 
 .script-template-save-btn:disabled {
@@ -907,15 +916,24 @@
 
 /* Loading Skeleton */
 .script-skeleton {
-  background: linear-gradient(90deg, var(--bg-elevated) 25%, #252525 50%, var(--bg-elevated) 75%);
+  background: linear-gradient(
+    90deg,
+    var(--bg-elevated) 25%,
+    #252525 50%,
+    var(--bg-elevated) 75%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
   border-radius: 4px;
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .script-skeleton-title {

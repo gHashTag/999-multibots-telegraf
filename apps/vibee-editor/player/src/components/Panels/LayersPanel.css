@@ -16,7 +16,11 @@
   gap: 6px;
   padding: 10px 16px;
   margin: 8px;
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-light)
+  );
   border: none;
   border-radius: 6px;
   color: #000;
@@ -27,8 +31,12 @@
 }
 
 .add-text-btn:hover {
-  background: linear-gradient(135deg, var(--vibee-amber-dark), var(--vibee-amber));
-  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber-dark),
+    var(--vibee-amber)
+  );
+  box-shadow: 0 2px 8px rgba(0, 255, 136, 0.3);
 }
 
 .add-text-btn:active {
@@ -166,7 +174,7 @@
 }
 
 .layer-item.selected {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(0, 255, 136, 0.15);
   border-left: 2px solid var(--vibee-amber);
   padding-left: 26px;
 }
@@ -189,7 +197,7 @@
 }
 
 .layer-item.dragging {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   border: 1px dashed var(--vibee-amber);
   border-radius: 4px;
   z-index: var(--z-elevated);

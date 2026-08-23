@@ -17,8 +17,12 @@
   gap: 40px;
   padding: 32px 40px;
   margin-bottom: 48px;
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(251, 191, 36, 0.05));
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: linear-gradient(
+    135deg,
+    rgba(0, 255, 136, 0.1),
+    rgba(77, 255, 170, 0.05)
+  );
+  border: 1px solid rgba(0, 255, 136, 0.2);
   border-radius: 16px;
 }
 
@@ -62,7 +66,11 @@
 
 .newsletter-form button {
   padding: 12px 24px;
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-light));
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber),
+    var(--vibee-amber-light)
+  );
   border: none;
   border-radius: 8px;
   color: #000;
@@ -75,7 +83,7 @@
 
 .newsletter-form button:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
 }
 
 .newsletter-form button:disabled {
@@ -122,7 +130,11 @@
 .footer-logo .logo-icon {
   width: 32px;
   height: 32px;
-  background: linear-gradient(135deg, var(--vibee-amber) 0%, var(--vibee-amber-light) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber) 0%,
+    var(--vibee-amber-light) 100%
+  );
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -168,7 +180,7 @@
 }
 
 .social-link:hover {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   color: var(--vibee-amber-light);
 }
 

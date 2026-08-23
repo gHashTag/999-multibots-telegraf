@@ -1,6 +1,10 @@
 .pricing {
   padding: 100px 24px;
-  background: linear-gradient(180deg, transparent 0%, rgba(245, 158, 11, 0.03) 100%);
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 255, 136, 0.03) 100%
+  );
 }
 
 .pricing-container {
@@ -16,8 +20,8 @@
 .pricing-header-badge {
   display: inline-block;
   padding: 6px 14px;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.2);
   border-radius: 100px;
   font-size: 12px;
   font-weight: 600;
@@ -30,7 +34,12 @@
 .pricing-title {
   font-size: clamp(28px, 4vw, 40px);
   font-weight: 700;
-  background: linear-gradient(135deg, #fff 0%, #fff 60%, var(--vibee-amber-light) 100%);
+  background: linear-gradient(
+    135deg,
+    #fff 0%,
+    #fff 60%,
+    var(--vibee-amber-light) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -65,8 +74,12 @@
 }
 
 .pricing-card.highlighted {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.1) 100%);
-  border-color: rgba(245, 158, 11, 0.3);
+  background: linear-gradient(
+    135deg,
+    rgba(0, 255, 136, 0.15) 0%,
+    rgba(77, 255, 170, 0.1) 100%
+  );
+  border-color: rgba(0, 255, 136, 0.3);
   transform: scale(1.02);
 }
 
@@ -79,7 +92,11 @@
   top: -12px;
   left: 50%;
   transform: translateX(-50%);
-  background: linear-gradient(135deg, var(--vibee-amber) 0%, var(--vibee-amber-light) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber) 0%,
+    var(--vibee-amber-light) 100%
+  );
   color: #000;
   padding: 6px 16px;
   border-radius: 20px;
@@ -149,12 +166,16 @@
 }
 
 .pricing-cta.primary {
-  background: linear-gradient(135deg, var(--vibee-amber) 0%, var(--vibee-amber-light) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--vibee-amber) 0%,
+    var(--vibee-amber-light) 100%
+  );
   color: #000;
 }
 
 .pricing-cta.primary:hover {
-  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4);
+  box-shadow: 0 4px 20px rgba(0, 255, 136, 0.4);
   text-decoration: none;
 }
 

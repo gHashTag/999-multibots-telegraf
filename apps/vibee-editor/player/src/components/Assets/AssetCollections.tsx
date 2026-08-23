@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react'
 import {
   Folder,
   FolderPlus,
@@ -9,29 +9,29 @@ import {
   Trash2,
   Plus,
   X,
-} from 'lucide-react';
-import { useLanguage } from '@/hooks/useLanguage';
-import { BRAND_COLORS, STATUS_COLORS } from '@vibee/atoms';
-import './AssetCollections.css';
+} from 'lucide-react'
+import { useLanguage } from '@/hooks/useLanguage'
+import { BRAND_COLORS, STATUS_COLORS } from '@vibee/atoms'
+import './AssetCollections.css'
 
 export interface Collection {
-  id: string;
-  name: string;
-  color?: string;
-  assetIds: string[];
-  parentId?: string;
-  createdAt: number;
+  id: string
+  name: string
+  color?: string
+  assetIds: string[]
+  parentId?: string
+  createdAt: number
 }
 
 interface AssetCollectionsProps {
-  collections: Collection[];
-  activeCollectionId: string | null;
-  onSelectCollection: (id: string | null) => void;
-  onCreateCollection: (name: string, parentId?: string) => void;
-  onRenameCollection: (id: string, name: string) => void;
-  onDeleteCollection: (id: string) => void;
-  onAddToCollection: (collectionId: string, assetIds: string[]) => void;
-  onRemoveFromCollection: (collectionId: string, assetIds: string[]) => void;
+  collections: Collection[]
+  activeCollectionId: string | null
+  onSelectCollection: (id: string | null) => void
+  onCreateCollection: (name: string, parentId?: string) => void
+  onRenameCollection: (id: string, name: string) => void
+  onDeleteCollection: (id: string) => void
+  onAddToCollection: (collectionId: string, assetIds: string[]) => void
+  onRemoveFromCollection: (collectionId: string, assetIds: string[]) => void
 }
 
 export function AssetCollections({
@@ -42,80 +42,87 @@ export function AssetCollections({
   onRenameCollection,
   onDeleteCollection,
 }: AssetCollectionsProps) {
-  const { t } = useLanguage();
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [isCreating, setIsCreating] = useState(false);
-  const [newCollectionName, setNewCollectionName] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState('');
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const { t } = useLanguage()
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [isCreating, setIsCreating] = useState(false)
+  const [newCollectionName, setNewCollectionName] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
 
   // Build tree structure
   const rootCollections = useMemo(() => {
-    return collections.filter((c) => !c.parentId);
-  }, [collections]);
+    return collections.filter(c => !c.parentId)
+  }, [collections])
 
   const getChildren = useCallback(
     (parentId: string) => {
-      return collections.filter((c) => c.parentId === parentId);
+      return collections.filter(c => c.parentId === parentId)
     },
     [collections]
-  );
+  )
 
   const toggleExpand = useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
+    setExpandedIds(prev => {
+      const next = new Set(prev)
       if (next.has(id)) {
-        next.delete(id);
+        next.delete(id)
       } else {
-        next.add(id);
+        next.add(id)
       }
-      return next;
-    });
-  }, []);
+      return next
+    })
+  }, [])
 
   const handleCreateSubmit = useCallback(() => {
     if (newCollectionName.trim()) {
-      onCreateCollection(newCollectionName.trim());
-      setNewCollectionName('');
-      setIsCreating(false);
+      onCreateCollection(newCollectionName.trim())
+      setNewCollectionName('')
+      setIsCreating(false)
     }
-  }, [newCollectionName, onCreateCollection]);
+  }, [newCollectionName, onCreateCollection])
 
   const handleRenameSubmit = useCallback(() => {
     if (editingId && editingName.trim()) {
-      onRenameCollection(editingId, editingName.trim());
-      setEditingId(null);
-      setEditingName('');
+      onRenameCollection(editingId, editingName.trim())
+      setEditingId(null)
+      setEditingName('')
     }
-  }, [editingId, editingName, onRenameCollection]);
+  }, [editingId, editingName, onRenameCollection])
 
   const startEditing = useCallback((collection: Collection) => {
-    setEditingId(collection.id);
-    setEditingName(collection.name);
-    setMenuOpenId(null);
-  }, []);
+    setEditingId(collection.id)
+    setEditingName(collection.name)
+    setMenuOpenId(null)
+  }, [])
 
   const handleDelete = useCallback(
     (id: string) => {
-      onDeleteCollection(id);
-      setMenuOpenId(null);
+      onDeleteCollection(id)
+      setMenuOpenId(null)
       if (activeCollectionId === id) {
-        onSelectCollection(null);
+        onSelectCollection(null)
       }
     },
     [onDeleteCollection, activeCollectionId, onSelectCollection]
-  );
+  )
 
-  const defaultColors = [BRAND_COLORS.amber, '#10b981', '#fbbf24', '#8b5cf6', '#ec4899', STATUS_COLORS.error];
+  const defaultColors = [
+    BRAND_COLORS.amber,
+    '#10b981',
+    '#4dffab',
+    '#8b5cf6',
+    '#ec4899',
+    STATUS_COLORS.error,
+  ]
 
   const renderCollection = (collection: Collection, depth: number = 0) => {
-    const children = getChildren(collection.id);
-    const hasChildren = children.length > 0;
-    const isExpanded = expandedIds.has(collection.id);
-    const isActive = activeCollectionId === collection.id;
-    const isEditing = editingId === collection.id;
-    const showMenu = menuOpenId === collection.id;
+    const children = getChildren(collection.id)
+    const hasChildren = children.length > 0
+    const isExpanded = expandedIds.has(collection.id)
+    const isActive = activeCollectionId === collection.id
+    const isEditing = editingId === collection.id
+    const showMenu = menuOpenId === collection.id
 
     return (
       <div key={collection.id} className="collection-item-wrapper">
@@ -129,7 +136,11 @@ export function AssetCollections({
             onClick={() => toggleExpand(collection.id)}
             style={{ visibility: hasChildren ? 'visible' : 'hidden' }}
           >
-            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            {isExpanded ? (
+              <ChevronDown size={14} />
+            ) : (
+              <ChevronRight size={14} />
+            )}
           </button>
 
           {/* Folder icon */}
@@ -145,13 +156,13 @@ export function AssetCollections({
               type="text"
               className="collection-item__input"
               value={editingName}
-              onChange={(e) => setEditingName(e.target.value)}
+              onChange={e => setEditingName(e.target.value)}
               onBlur={handleRenameSubmit}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleRenameSubmit();
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleRenameSubmit()
                 if (e.key === 'Escape') {
-                  setEditingId(null);
-                  setEditingName('');
+                  setEditingId(null)
+                  setEditingName('')
                 }
               }}
               autoFocus
@@ -162,7 +173,9 @@ export function AssetCollections({
               onClick={() => onSelectCollection(collection.id)}
             >
               {collection.name}
-              <span className="collection-item__count">{collection.assetIds.length}</span>
+              <span className="collection-item__count">
+                {collection.assetIds.length}
+              </span>
             </button>
           )}
 
@@ -181,7 +194,10 @@ export function AssetCollections({
                   <Edit3 size={14} />
                   {t('actions.rename') || 'Rename'}
                 </button>
-                <button onClick={() => handleDelete(collection.id)} className="danger">
+                <button
+                  onClick={() => handleDelete(collection.id)}
+                  className="danger"
+                >
                   <Trash2 size={14} />
                   {t('actions.delete') || 'Delete'}
                 </button>
@@ -193,12 +209,12 @@ export function AssetCollections({
         {/* Children */}
         {hasChildren && isExpanded && (
           <div className="collection-children">
-            {children.map((child) => renderCollection(child, depth + 1))}
+            {children.map(child => renderCollection(child, depth + 1))}
           </div>
         )}
       </div>
-    );
-  };
+    )
+  }
 
   return (
     <div className="asset-collections">
@@ -224,7 +240,9 @@ export function AssetCollections({
         onClick={() => onSelectCollection(null)}
       >
         <Folder size={16} className="collection-item__icon" />
-        <span className="collection-item__name">{t('assets.allAssets') || 'All Assets'}</span>
+        <span className="collection-item__name">
+          {t('assets.allAssets') || 'All Assets'}
+        </span>
       </button>
 
       {/* Create new collection form */}
@@ -234,25 +252,28 @@ export function AssetCollections({
             type="text"
             className="collection-create__input"
             value={newCollectionName}
-            onChange={(e) => setNewCollectionName(e.target.value)}
+            onChange={e => setNewCollectionName(e.target.value)}
             placeholder={t('assets.collectionName') || 'Collection name...'}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleCreateSubmit();
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleCreateSubmit()
               if (e.key === 'Escape') {
-                setIsCreating(false);
-                setNewCollectionName('');
+                setIsCreating(false)
+                setNewCollectionName('')
               }
             }}
             autoFocus
           />
-          <button className="collection-create__btn" onClick={handleCreateSubmit}>
+          <button
+            className="collection-create__btn"
+            onClick={handleCreateSubmit}
+          >
             <Plus size={14} />
           </button>
           <button
             className="collection-create__cancel"
             onClick={() => {
-              setIsCreating(false);
-              setNewCollectionName('');
+              setIsCreating(false)
+              setNewCollectionName('')
             }}
           >
             <X size={14} />
@@ -262,7 +283,7 @@ export function AssetCollections({
 
       {/* Collection list */}
       <div className="asset-collections__list">
-        {rootCollections.map((collection) => renderCollection(collection))}
+        {rootCollections.map(collection => renderCollection(collection))}
       </div>
 
       {/* Empty state */}
@@ -276,15 +297,15 @@ export function AssetCollections({
         </div>
       )}
     </div>
-  );
+  )
 }
 
 // Mini collection picker for adding assets to collections
 interface CollectionPickerProps {
-  collections: Collection[];
-  selectedIds: string[];
-  onToggle: (collectionId: string) => void;
-  onClose: () => void;
+  collections: Collection[]
+  selectedIds: string[]
+  onToggle: (collectionId: string) => void
+  onClose: () => void
 }
 
 export function CollectionPicker({
@@ -293,7 +314,7 @@ export function CollectionPicker({
   onToggle,
   onClose,
 }: CollectionPickerProps) {
-  const { t } = useLanguage();
+  const { t } = useLanguage()
 
   return (
     <div className="collection-picker">
@@ -304,7 +325,7 @@ export function CollectionPicker({
         </button>
       </div>
       <div className="collection-picker__list">
-        {collections.map((collection) => (
+        {collections.map(collection => (
           <button
             key={collection.id}
             className={`collection-picker__item ${
@@ -312,7 +333,10 @@ export function CollectionPicker({
             }`}
             onClick={() => onToggle(collection.id)}
           >
-            <Folder size={14} style={{ color: collection.color || BRAND_COLORS.amber }} />
+            <Folder
+              size={14}
+              style={{ color: collection.color || BRAND_COLORS.amber }}
+            />
             <span>{collection.name}</span>
             {selectedIds.includes(collection.id) && (
               <span className="collection-picker__check">✓</span>
@@ -321,5 +345,5 @@ export function CollectionPicker({
         ))}
       </div>
     </div>
-  );
+  )
 }

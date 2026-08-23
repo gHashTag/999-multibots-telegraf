@@ -61,7 +61,7 @@
 }
 
 .toast--warning {
-  border-color: rgba(245, 158, 11, 0.3);
+  border-color: rgba(0, 255, 136, 0.3);
 }
 
 .toast--warning .toast__icon {
@@ -69,7 +69,7 @@
 }
 
 .toast--info {
-  border-color: rgba(245, 158, 11, 0.3);
+  border-color: rgba(0, 255, 136, 0.3);
 }
 
 .toast--info .toast__icon {
@@ -89,8 +89,12 @@
 }
 
 @keyframes toast-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .toast__icon {
@@ -132,7 +136,7 @@
 }
 
 .toast__action:hover {
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(0, 255, 136, 0.2);
   border-color: var(--vibee-amber);
 }
 
