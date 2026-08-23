@@ -129,13 +129,33 @@ body[data-tabbar='visible'] .editor-main {
 }
 
 .tma-tabbar__scroll.has-end {
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
 }
 
 .tma-tabbar__scroll.has-start.has-end {
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 28px,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 28px,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
 }
 
 .tma-tabbar__scroll.has-start:not(.has-end) {
@@ -143,15 +163,26 @@ body[data-tabbar='visible'] .editor-main {
   mask-image: linear-gradient(to right, transparent 0, #000 28px);
 }
 
-/* Воздух вокруг вкладок: при padding 6px 8px соседние подписи слипались. */
+/* Шаг вкладок.
+   Прошлая правка разводила соседние подписи, чтобы они не читались как одна
+   полоса: padding 6px 12px, min-width 72px, gap 8px. Вышло слишком широко —
+   шаг 80px при девяти вкладках даёт полосу 720px, и на экране 375px видно
+   меньше пяти, остальные молча уезжают вправо.
+   Здесь шаг 52px: девять вкладок укладываются в 468px, на том же экране
+   видно семь. Просвет между целями касания остаётся, ширина 48px не опускает
+   цель ниже 44px из --touch-target. */
 .tma-tabbar__item {
-  padding: 6px 12px;
-  min-width: 72px;
+  padding: 6px 6px;
+  min-width: 48px;
 }
 
-/* Между вкладками нижней панели был зазор 0 — соседние подписи читались как
-   одна полоса. Небольшой просвет разделяет цели касания. */
 .tma-tabbar__scroll {
-  gap: 8px;
-  padding: 0 8px;
+  gap: 4px;
+  padding: 0 6px;
+}
+
+/* Подпись сужается вместе с вкладкой, иначе она распирает её изнутри и
+   min-width перестаёт что-либо решать. */
+.tma-tabbar__label {
+  max-width: 48px;
 }
