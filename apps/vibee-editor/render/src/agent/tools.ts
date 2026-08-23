@@ -559,6 +559,48 @@ export const TOOLS: AgentTool[] = [
   },
 
   {
+    name: 'feed_analytics',
+    description:
+      'Аналитика МОИХ постов: просмотры, звёзды, ремиксы, лучший пост и средние. ' +
+      'Основа выбора тем: что человек смотрит — то и производить. Цифры честные: ' +
+      'нулевые просмотры означают «не смотрели», а не «сломалось».',
+    parameters: noArgs,
+    async handler(_a, ctx) {
+      const r = await ctx.pool.query(
+        `SELECT id, name, views_count, likes_count, uses_count,
+                stars_count, created_at::text
+         FROM public_templates
+         WHERE telegram_id = $1 AND is_public = TRUE AND deleted_at IS NULL
+         ORDER BY created_at DESC`,
+        [ctx.telegramId]
+      )
+      const rows = r.rows
+      const sum = (k: string) =>
+        rows.reduce((acc: number, x: any) => acc + (Number(x[k]) || 0), 0)
+      const best = rows.reduce(
+        (b: any, x: any) => (Number(x.views_count) > Number(b?.views_count ?? -1) ? x : b),
+        null
+      )
+      const week = rows.filter(
+        (x: any) => Date.now() - Date.parse(x.created_at) < 7 * 86400_000
+      )
+      return {
+        постов: rows.length,
+        просмотров: sum('views_count'),
+        звёзд: sum('stars_count'),
+        ремиксов: sum('uses_count'),
+        среднее_просмотров: rows.length
+          ? Math.round(sum('views_count') / rows.length * 10) / 10
+          : 0,
+        лучший_пост: best
+          ? { id: best.id, name: best.name, просмотров: best.views_count }
+          : null,
+        за_7_дней: { постов: week.length, просмотров: week.reduce((a: number, x: any) => a + Number(x.views_count || 0), 0) },
+      }
+    },
+  },
+
+  {
     name: 'soul_get',
     description:
       'Прочитать ЛИЧНЫЙ SOUL.md владельца: кем он себя считает, каким голосом писать его посты, ' +
