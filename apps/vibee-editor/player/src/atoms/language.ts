@@ -912,7 +912,7 @@ const en: Translations = {
   // Bottom Navigation
   'nav.feed': 'Feed',
   'nav.search': 'Search',
-  'nav.create': 'Create',
+  'nav.create': 'Editor',
   'nav.profile': 'Profile',
   'nav.learn': 'Learn',
   'nav.agent': 'Agent',
@@ -2531,7 +2531,7 @@ const ru: Translations = {
   // Bottom Navigation
   'nav.feed': 'Лента',
   'nav.search': 'Поиск',
-  'nav.create': 'Создать',
+  'nav.create': 'Редактор',
   'nav.profile': 'Профиль',
   'nav.learn': 'Обучение',
   'nav.agent': 'Агент',

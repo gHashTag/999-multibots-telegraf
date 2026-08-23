@@ -987,6 +987,36 @@
     font-size: 9px;
   }
 
+  /* Пара «разрешение + соотношение» в один столбец: на 320–400px две
+     колонки дают чипам по 60px, и «1080p» не влезает без переноса. */
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  /* Чипы равной ширины: три на ряд (9:16 / 1:1 / 16:9 и 5с/10с/15с),
+     а не рваная сетка из переноса по содержимому. */
+  .form-chips {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .form-chip {
+    padding: 8px 4px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Карточка модели: описание не обрезается о край, а переносится;
+     переносу мешал fit-content + отсутствие min-width в flex-цепочке. */
+  .model-btn {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
   .form-select,
   .form-input {
     padding: 10px 12px;
