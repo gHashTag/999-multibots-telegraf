@@ -14,7 +14,9 @@ const botConfigPath = './src/core/bot/index.ts'
 const botConfigContent = fs.readFileSync(botConfigPath, 'utf8')
 
 // Извлекаем маппинг ботов
-const botMappingMatch = botConfigContent.match(/export const BOT_NAMES: Record<BotName, string> = \{[\s\S]*?\}/)
+const botMappingMatch = botConfigContent.match(
+  /export const BOT_NAMES: Record<BotName, string> = \{[\s\S]*?\}/
+)
 if (!botMappingMatch) {
   console.log('❌ Не удалось найти маппинг ботов')
   process.exit(1)
@@ -38,7 +40,9 @@ lines.forEach((line, index) => {
 
     console.log(`  ${botName}`)
     console.log(`    └─ Токен: ${tokenEnv}`)
-    console.log(`    └─ Статус: ${tokenEnv === 'BOT_TOKEN_11' ? '🎯 ЦЕЛЕВОЙ БОТ' : 'Обычный'}`)
+    console.log(
+      `    └─ Статус: ${tokenEnv === 'BOT_TOKEN_11' ? '🎯 ЦЕЛЕВОЙ БОТ' : 'Обычный'}`
+    )
     console.log('')
   }
 })
@@ -51,10 +55,14 @@ console.log('\n1️⃣ BOT_TOKEN_11 (для OM_AI_Digital_studio_bot):')
 if (process.env.BOT_TOKEN_11) {
   console.log(`   ✅ УСТАНОВЛЕН`)
   console.log(`   📏 Длина: ${process.env.BOT_TOKEN_11.length} символов`)
-  console.log(`   🔒 Первые 10 символов: ${process.env.BOT_TOKEN_11.substring(0, 10)}...`)
+  console.log(
+    `   🔒 Первые 10 символов: ${process.env.BOT_TOKEN_11.substring(0, 10)}...`
+  )
 } else {
   console.log(`   ❌ НЕ УСТАНОВЛЕН!`)
-  console.log(`   💥 Это причина, почему бот @OM_AI_Digital_studio_bot не отвечает!`)
+  console.log(
+    `   💥 Это причина, почему бот @OM_AI_Digital_studio_bot не отвечает!`
+  )
 }
 
 // Проверяем остальные токены для сравнения
@@ -77,8 +85,14 @@ if (!process.env.BOT_TOKEN_11) {
   console.log('🔧 Что нужно сделать:')
   console.log('   1. Зайти в Infisical Dashboard')
   console.log('   2. Найти проект: fd763fa3-35d5-4045-93bd-1795c5f00fc3')
-  console.log('   3. Добавить переменную BOT_TOKEN_11 со значением:')
-  console.log('      8546804869:AAGYO9teJWJLVSsVj2U9nmyr5N80lIq7bvU')
+  console.log('   3. Добавить переменную BOT_TOKEN_11 со значением токена бота')
+  console.log(
+    '      (взять у @BotFather: /mybots -> @OM_AI_Digital_studio_bot -> API Token).'
+  )
+  console.log(
+    '      Раньше значение было вписано прямо сюда, в исходник — токен утёк'
+  )
+  console.log('      и отозван, вписывать его в код снова НЕЛЬЗЯ.')
   console.log('   4. Перезапустить сервер')
 } else {
   console.log('✅ BOT_TOKEN_11 установлен')

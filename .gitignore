@@ -435,3 +435,14 @@ mobile/node_modules/
 .metro-health-check*
 # Stars withdrawal session
 scripts/stars-withdrawal/session.json
+
+# Выгрузки платёжных данных и отчёты, которые генерируются локально.
+# Попали сюда после того, как `git add -A` едва не отправил в репозиторий
+# payments_data.json (171 362 строки реальных платежей) и три xlsx-манифеста
+# по ботам. Данные клиентов в git — это необратимо, как и секрет.
+payments_data*.json
+OUTCOME_ANALYSIS_REPORT.json
+DATA_QUALITY_REPORT.json
+MULTI_BOT_FARM_DASHBOARD_*.xlsx
+MetaMuse_*.xlsx
+*robokassa-url.txt

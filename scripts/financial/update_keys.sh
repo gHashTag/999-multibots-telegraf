@@ -1,12 +1,27 @@
 #!/bin/bash
 # Update Inngest keys in Infisical
 
+# 🔐 Учётка Infisical (Machine Identity) — ТОЛЬКО из окружения.
+# Она открывает доступ ко ВСЕМ секретам проекта, в скрипт её не зашивать.
+# Где взять: railway variables --kv | grep INFISICAL_
+#   либо https://app.infisical.com → project "999" → Access Control
+#         → Machine Identities → Client ID / Client Secret
+for VAR in INFISICAL_CLIENT_ID INFISICAL_CLIENT_SECRET INFISICAL_PROJECT_ID; do
+  if [ -z "${!VAR}" ]; then
+    echo "❌ $VAR не задан. Взять: railway variables --kv | grep INFISICAL_" >&2
+    exit 1
+  fi
+done
+
 echo "🔑 Обновляем ключи INNGEST в Infisical..."
 
-# Get auth token
-TOKEN=$(curl -s -X POST "https://api.infisical.com/api/v2/auth/universal-auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{"clientId":"88fcf0cd-cce9-4844-bad2-8e19b4bad3ed","clientSecret":"b377e7a60b669ea2317f339dc6cb79ce49d588a7bbed92433bb2a73dedff3314"}' \
+# Get auth token.
+# Тело запроса собирается node-ом из окружения и уходит в curl через stdin:
+# так секрет не попадает в argv (виден в `ps`) и не ломается о кавычки.
+TOKEN=$(node -e 'process.stdout.write(JSON.stringify({clientId: process.env.INFISICAL_CLIENT_ID, clientSecret: process.env.INFISICAL_CLIENT_SECRET}))' \
+  | curl -s -X POST "https://api.infisical.com/api/v2/auth/universal-auth/login" \
+      -H "Content-Type: application/json" \
+      --data-binary @- \
   | node -e 'process.stdin.once("data", d => console.log(JSON.parse(d).accessToken))')
 
 if [ -z "$TOKEN" ]; then
@@ -21,7 +36,7 @@ RESPONSE=$(curl -s -X POST "https://api.infisical.com/api/v2/secrets/batch" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{
-    \"workspaceId\": \"fd763fa3-35d5-4045-93bd-1795c5f00fc3\",
+    \"workspaceId\": \"$INFISICAL_PROJECT_ID\",
     \"environment\": \"prod\",
     \"type\": \"shared\",
     \"secrets\": [

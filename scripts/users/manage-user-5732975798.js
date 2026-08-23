@@ -8,9 +8,15 @@
 const { createClient } = require('@supabase/supabase-js')
 
 // Supabase connection (production-ready)
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://yuukfqcsdhkyxegfwlcb.supabase.co'
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1dWtmcWNzZGhreXhlZ2Z3bGNiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNTcyNDg0MywiZXhwIjoyMDUxMzAwODQzfQ.ilyzrMPwTYrjZfn3FZBJBM1GYTk-gQTKY9Qr86-KP_o'
+const SUPABASE_URL =
+  process.env.SUPABASE_URL || 'https://yuukfqcsdhkyxegfwlcb.supabase.co'
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+if (!SUPABASE_SERVICE_KEY) {
+  console.error(
+    'SUPABASE_SERVICE_ROLE_KEY не задан. Возьмите: railway variables --kv | grep SUPABASE'
+  )
+  process.exit(1)
+}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
@@ -38,7 +44,7 @@ async function manageUser() {
           telegram_id: TELEGRAM_ID,
           username: 'test_user_5732975798',
           language: 'ru',
-          is_test: true
+          is_test: true,
         })
         .select()
         .single()
@@ -56,7 +62,7 @@ async function manageUser() {
     console.log('\n2️⃣ Добавляем поле is_test...')
     try {
       await supabase.rpc('exec_sql', {
-        query: `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_test BOOLEAN DEFAULT FALSE;`
+        query: `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_test BOOLEAN DEFAULT FALSE;`,
       })
       console.log('   ✅ Колонка готова')
     } catch (e) {
@@ -100,8 +106,8 @@ async function manageUser() {
         metadata: {
           manual_override: true,
           reason: 'Test user',
-          original_subscription_type: 'NEUROVIDEO'
-        }
+          original_subscription_type: 'NEUROVIDEO',
+        },
       })
       .select()
       .single()
@@ -136,13 +142,15 @@ async function manageUser() {
       console.log('\n=== ПОДПИСКА ===')
       console.log('Тип:', verifyPayments[0].subscription_type)
       console.log('Статус:', verifyPayments[0].status)
-      console.log('is_test:', verifyPayments[0].is_test ? '✅ TRUE' : '❌ FALSE')
+      console.log(
+        'is_test:',
+        verifyPayments[0].is_test ? '✅ TRUE' : '❌ FALSE'
+      )
     }
 
     console.log('\n🎉 ГОТОВО!')
     console.log('   ✅ Пользователь помечен как тестовый')
     console.log('   ✅ Подписка NEUROVIDEO добавлена\n')
-
   } catch (err) {
     console.error('\n❌ ОШИБКА:', err.message)
     console.error(err.stack)

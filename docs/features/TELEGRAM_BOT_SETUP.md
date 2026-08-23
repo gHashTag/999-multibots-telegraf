@@ -5,8 +5,15 @@
 ## ✅ Что уже настроено
 
 - ✅ Бот создан: `AGENT_TELEGRAM_BOT`
-- ✅ Токен: `8309813696:AAG2QWKlmUSQ3BBDupoEv1RQ0m63KcKS-IQ`
-- ✅ Токен сохранен в Infisical
+- ✅ Токен: `1234567890:AA-ПРИМЕР-НЕ-НАСТОЯЩИЙ-ТОКЕН` — это плейсхолдер, а не рабочее значение
+- ✅ Настоящий токен лежит в секретах и в репозиторий не коммитится.
+  Взять его так:
+
+  ```bash
+  railway variables --kv | grep AGENT_TELEGRAM_BOT
+  # либо: Infisical Dashboard → project 999-agents-telegraf → AGENT_TELEGRAM_BOT
+  ```
+
 - ✅ Код бота готов: `.claude/mcp-servers/autonomous-monitor/admin-bot.ts`
 
 ## 🚀 Запуск за 3 шага
@@ -47,6 +54,7 @@ npm run build
 ```
 
 **Ожидаемый вывод:**
+
 ```
 🤖 Starting Autonomous Monitor Admin Bot
 ========================================
@@ -70,6 +78,7 @@ npm run build
 3. Увидеть главное меню
 
 **Главное меню:**
+
 ```
 🤖 Autonomous Monitor Admin Bot
 
@@ -88,6 +97,7 @@ npm run build
 ## 📱 Основные команды
 
 ### Мониторинг
+
 ```
 /status  - Статус сервера и контейнера
 /logs    - Просмотр логов (50/100/200/500 строк)
@@ -96,12 +106,14 @@ npm run build
 ```
 
 ### Управление
+
 ```
 /restart - Перезапуск контейнера (с подтверждением)
 /deploy  - Полный деплой (git pull + rebuild)
 ```
 
 ### Помощь
+
 ```
 /help    - Список команд
 /start   - Главное меню
@@ -114,6 +126,7 @@ npm run build
 **Ты:** `/status`
 
 **Бот:**
+
 ```
 🟢 Production Status
 
@@ -141,6 +154,7 @@ Network: 1.2 MB / 850 kB
 **Ты:** `/logs`
 
 **Бот:**
+
 ```
 📋 Выбери количество строк для просмотра:
 
@@ -153,10 +167,15 @@ Network: 1.2 MB / 850 kB
 **Нажимаешь:** `📄 100 строк`
 
 **Бот отправляет:**
+
 ```
+
 ```
+
 [последние 100 строк логов из Docker]
+
 ```
+
 ```
 
 ### Пример 3: Найти ошибки
@@ -164,6 +183,7 @@ Network: 1.2 MB / 850 kB
 **Ты:** `/errors`
 
 **Бот:**
+
 ```
 🚨 Обнаружено ошибок: 2 типов
 
@@ -185,6 +205,7 @@ Network: 1.2 MB / 850 kB
 **Ты:** `/restart`
 
 **Бот:**
+
 ```
 ⚠️ Подтверждение перезапуска
 
@@ -201,6 +222,7 @@ Network: 1.2 MB / 850 kB
 **Нажимаешь:** `✅ Да, перезапустить`
 
 **Бот:**
+
 ```
 🔄 Начинаю перезапуск контейнера...
 ✅ Контейнер перезапущен успешно!
@@ -214,6 +236,7 @@ Network: 1.2 MB / 850 kB
 **Ты:** `/deploy`
 
 **Бот:**
+
 ```
 🚀 Deploy to Production
 
@@ -235,6 +258,7 @@ Downtime: ~20-30 секунд
 **Нажимаешь:** `✅ Да, деплой`
 
 **Бот:**
+
 ```
 🚀 Деплой начат
 
@@ -248,7 +272,9 @@ Downtime: ~20-30 секунд
 Проверяю логи...
 📋 Логи:
 ```
+
 [логи запуска]
+
 ```
 
 ✅ Деплой прошел успешно, ошибок не обнаружено!
@@ -285,12 +311,14 @@ Downtime: ~20-30 секунд
 ### Подтверждения
 
 Критичные действия требуют подтверждения:
+
 - ✅ Restart (требует нажатия кнопки)
 - ✅ Deploy (требует нажатия кнопки)
 
 ### Все в Infisical
 
 Секреты не хранятся локально:
+
 - ✅ `AGENT_TELEGRAM_BOT` - токен бота
 - ✅ `ADMIN_TELEGRAM_ID` - ID админа
 
@@ -301,14 +329,21 @@ Downtime: ~20-30 секунд
 **Проблема:** `INFISICAL_CLIENT_ID not set`
 
 **Решение:**
-```bash
-# Проверить .env
-cat .env | grep INFISICAL
 
-# Должно быть:
-# INFISICAL_CLIENT_ID=88fcf0cd-cce9-4844-bad2-8e19b4bad3ed
-# INFISICAL_CLIENT_SECRET=b377e7a60b669ea2317f339dc6cb79ce49d588a7bbed92433bb2a73dedff3314
-# INFISICAL_PROJECT_ID=fd763fa3-35d5-4045-93bd-1795c5f00fc3
+```bash
+# Проверить, что переменные есть (значения не печатаем!)
+grep -c '^INFISICAL_CLIENT_ID=' .env
+grep -c '^INFISICAL_CLIENT_SECRET=' .env
+grep -c '^INFISICAL_PROJECT_ID=' .env
+# Каждая команда должна вернуть 1
+
+# Если чего-то нет — взять настоящие значения:
+#   railway variables --kv | grep INFISICAL_
+#   либо Infisical Dashboard → https://app.infisical.com → project "999"
+#        → Access Control → Machine Identities → Client ID / Client Secret
+#
+# ⚠️ Эта машинная учётка открывает доступ ко ВСЕМ секретам проекта (50+).
+#    Её значения не коммитить и не вставлять в документацию.
 ```
 
 ### Бот не отвечает
@@ -316,6 +351,7 @@ cat .env | grep INFISICAL
 **Проблема:** Бот не отвечает на команды
 
 **Решение:**
+
 ```bash
 # 1. Проверить что бот запущен
 ps aux | grep admin-bot
@@ -337,6 +373,7 @@ pkill -f admin-bot
 **Проблема:** `Permission denied (publickey)`
 
 **Решение:**
+
 ```bash
 # Проверить SSH ключ
 ls -la ~/.ssh/zomro
@@ -353,6 +390,7 @@ ssh -i ~/.ssh/zomro root@212.86.115.30 'echo OK'
 **Проблема:** Бот пишет "ADMIN_TELEGRAM_ID not set"
 
 **Решение:**
+
 ```bash
 # 1. Добавить в Infisical
 # Dashboard → 999-agents-telegraf → dev

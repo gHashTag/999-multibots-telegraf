@@ -3,6 +3,13 @@
 # Grant NEUROVIDEO subscription to user 7912847443
 # Production server: root@212.86.115.30
 
+# service_role ключ берётся только из окружения. Пустая строка вместо ключа
+# даёт невнятную ошибку от Supabase, поэтому падаем сразу и громко.
+if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+  echo "SUPABASE_SERVICE_ROLE_KEY не задан. Возьмите: railway variables --kv | grep SUPABASE" >&2
+  exit 1
+fi
+
 echo "=========================================="
 echo "GRANTING SUBSCRIPTION ON PRODUCTION"
 echo "User ID: 7912847443"
@@ -16,7 +23,7 @@ const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
   'https://yuukfqcsdhkyxegfwlcb.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1dWtmcWNzZGhreXhlZ2Z3bGNiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNTcyNDg0MywiZXhwIjoyMDUxMzAwODQzfQ.ilyzrMPwTYrjZfn3FZBJBM1GYTk-gQTKY9Qr86-KP_o'
+  '$SUPABASE_SERVICE_ROLE_KEY'
 );
 
 const TELEGRAM_ID = '7912847443';
