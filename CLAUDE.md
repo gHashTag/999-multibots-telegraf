@@ -5,10 +5,12 @@
 **ЕДИНСТВЕННЫЙ источник правды для навигации: `/src/navigation/`**
 
 NEVER use or create navigation code outside of `/src/navigation/`:
+
 - `/src/services/NavigationService.ts` - DEPRECATED, TO BE DELETED
 - `/src/menu/` - DEPRECATED, TO BE DELETED
 
 ALL navigation imports MUST come from `@/navigation`:
+
 ```typescript
 // ✅ CORRECT
 import { showMainMenu, createMainMenuKeyboard } from '@/navigation'
@@ -34,6 +36,7 @@ import { showMainMenu } from '@/services/NavigationService'
 ## 🎯 Project Overview
 
 Multi-bot platform для генерации AI-контента (видео, изображения, музыка, LipSync):
+
 - 43+ Telegram scenes (wizards)
 - 10+ AI providers с failover
 - User subscription system
@@ -151,36 +154,34 @@ npm test -- neuroPhotoWizard.test.ts
 npm test -- --coverage
 ```
 
-### 3. Deployment (fly.io)
+### 3. Деплой (Railway)
 
 ```bash
-# 🚀 FLY.IO DEPLOYMENT
-# App: 999-multibots-telegraf
-# Org: Abbie Connell (slug: personal)
-# Region: ams (Amsterdam)
-# Config: fly.toml
+# Проект Railway: 999. Сервис бота: 999-multibots-telegraf.
+# Деплой идёт САМ при merge в main — руками ничего запускать не нужно.
 
-# FLY_API_TOKEN (ОБЯЗАТЕЛЬНО для деплоя!):
-export FLY_API_TOKEN="fm2_lJPECAAAAAAAERO3xBBOw6Ug8TSQzgFqM5JlingBwrVodHRwczovL2FwaS5mbHkuaW8vdjGUAJLOABYNhB8Lk7lodHRwczovL2FwaS5mbHkuaW8vYWFhL3YxxDy14JcudNiTKpR7YyXiNPx5nMM04C0KuNaMfjzAKEJ+DPY/UJHrWD2b7egQrZR1QQdDzHwzyle2+fncItzETpFf9R1miIZotnHSAMndMsENUxaeKEtUjNfqFYa2K5eLUe9anwSXU8lskCxvIvbyfErxqukuRjktxO3u2e/ws2ryJNKxCRhIMzWavRkdRsQgilHPR6P7dyZTKUpAtNFt2MpEsFEk7xXvjD1yf2NxVP8=,fm2_lJPETpFf9R1miIZotnHSAMndMsENUxaeKEtUjNfqFYa2K5eLUe9anwSXU8lskCxvIvbyfErxqukuRjktxO3u2e/ws2ryJNKxCRhIMzWavRkdRsQQoykebr28CiaqhDiq209BlMO5aHR0cHM6Ly9hcGkuZmx5LmlvL2FhYS92MZgEks5phBzazwAAAAElfDr4F84AFStKCpHOABUrSgzEEPoda7NE0D3cm0Yw8/2KnFzEIDNqhlN8HnBRxLPbPqbtBc8KlWSLai98e3BSaOI5XOrB"
+railway link                                  # один раз
+railway service 999-multibots-telegraf        # привязать сервис
 
-# Deploy command:
-flyctl deploy --remote-only --app 999-multibots-telegraf
+railway deployment list                       # состояние последних сборок
+railway logs                                  # логи сервиса
+railway variables --kv                        # имена и значения переменных
+railway variables --set KEY=VALUE             # задать переменную
+```
 
-# Set secrets:
-flyctl secrets set KEY=VALUE --app 999-multibots-telegraf
+**Про fly.io.** Раздел с командами `flyctl` и токеном жил здесь по инерции.
+Проверено 2026-08-23: `https://999-multibots-telegraf.fly.dev/health` не
+отвечает вовсе (код 000, соединение не устанавливается), а рабочие деплои
+идут в Railway. Инструкция вела на мёртвую площадку, поэтому убрана.
 
-# View logs:
-flyctl logs --app 999-multibots-telegraf
+**Токены в этом файле больше не хранятся.** Раньше здесь лежали открытым
+текстом `FLY_API_TOKEN`, `INNGEST_EVENT_KEY` и `INNGEST_SIGNING_KEY`. Файл
+отслеживается git и уходит в репозиторий вместе с кодом — значение в нём
+равносильно опубликованному. Секрет берётся из Railway или Infisical:
 
-# Status:
-flyctl status --app 999-multibots-telegraf
-
-# SSH into machine:
-flyctl ssh console --app 999-multibots-telegraf
-
-# ВАЖНО: НЕ использовать flyctl auth login!
-# Всегда через export FLY_API_TOKEN=...
-# Аккаунт: Abbie Connell (НЕ Leela Chakra / geyakamskaya@gmail.com!)
+```bash
+railway variables --kv | grep '^ИМЯ='         # значение из окружения сервиса
+infisical secrets get ИМЯ                     # значение из Infisical
 ```
 
 ### 4. Secret Management (Infisical)
@@ -189,11 +190,10 @@ flyctl ssh console --app 999-multibots-telegraf
 # RULE: Only 5 variables in .env (local)
 # All other secrets MUST be in Infisical
 
-# 🚨 IMPORTANT RULE FOR AGENTS:
-# DO NOT ASK USER FOR KEYS! All keys are already documented in .env file!
-# - INNGEST_EVENT_KEY: 4JiBiCBZ8en7jNonnsAPXCFiLVkrt1uEXklGcDzaQ6SCBV9p7-UBlQlTrze-x_WPRTihikB_uhAGhbkwGhnu4Q
-# - INNGEST_SIGNING_KEY: signkey-test-c4167464e900701832920c98bb2ec6e6e3c59fd2b27c62e1f4140dada01e4597
-# Use predefined values from .env documentation!
+# 🚨 ПРАВИЛО: значения ключей НЕ хранятся в документации и не вставляются
+# в файлы репозитория. Читать их из Railway (`railway variables --kv`)
+# или Infisical (`infisical secrets get ИМЯ`). Значение, попавшее в
+# отслеживаемый файл, придётся ОТЗЫВАТЬ, а не удалять.
 
 # Local .env (5 variables only):
 INFISICAL_CLIENT_ID=xxx
@@ -371,47 +371,47 @@ Code Quality:
 
 ```typescript
 // ❌ WRONG
-const text = ctx.message.text;
+const text = ctx.message.text
 
 // ✅ CORRECT
 if (!ctx.message || !('text' in ctx.message)) {
-  await ctx.reply('Send a text message');
-  return;
+  await ctx.reply('Send a text message')
+  return
 }
-const text = ctx.message.text;
+const text = ctx.message.text
 ```
 
 ### Issue 2: "400: Bad Request: query is too old"
 
 ```typescript
 // ❌ WRONG
-myScene.action('button', async (ctx) => {
+myScene.action('button', async ctx => {
   // Some logic
-  await ctx.answerCbQuery(); // TOO LATE!
-});
+  await ctx.answerCbQuery() // TOO LATE!
+})
 
 // ✅ CORRECT
-myScene.action('button', async (ctx) => {
-  await ctx.answerCbQuery(); // FIRST LINE!
+myScene.action('button', async ctx => {
+  await ctx.answerCbQuery() // FIRST LINE!
   // Rest of logic
-});
+})
 ```
 
 ### Issue 3: Session not initialized
 
 ```typescript
 // ❌ WRONG (step 2 tries to use wizardData)
-async (ctx) => {
-  ctx.session.wizardData.name = 'test'; // Error!
+async ctx => {
+  ctx.session.wizardData.name = 'test' // Error!
 }
 
 // ✅ CORRECT (initialize in step 1)
-async (ctx) => {
+async ctx => {
   ctx.session.wizardData = {
     step: 1,
     name: '',
     // all fields
-  };
+  }
 }
 ```
 
@@ -419,21 +419,21 @@ async (ctx) => {
 
 ```typescript
 // ❌ WRONG (race condition)
-const balance = await getBalance(userId);
+const balance = await getBalance(userId)
 if (balance >= cost) {
-  await deductBalance(userId, cost);
-  await generateContent();
+  await deductBalance(userId, cost)
+  await generateContent()
 }
 
 // ✅ CORRECT (atomic transaction)
 const { data, error } = await supabase.rpc('deduct_balance', {
   p_telegram_id: userId,
-  p_amount: cost
-});
+  p_amount: cost,
+})
 if (!error && data) {
-  await generateContent();
+  await generateContent()
 } else {
-  await ctx.reply('Insufficient balance');
+  await ctx.reply('Insufficient balance')
 }
 ```
 
@@ -444,57 +444,57 @@ if (!error && data) {
 ### Pattern 1: Scene Structure
 
 ```typescript
-import { Scenes } from 'telegraf';
-import { MyContext } from '../../types/MyContext';
-import { isRussianFromState } from '../../helpers/centralizedLanguage';
+import { Scenes } from 'telegraf'
+import { MyContext } from '../../types/MyContext'
+import { isRussianFromState } from '../../helpers/centralizedLanguage'
 
 const myWizard = new Scenes.WizardScene<MyContext>(
   'myWizard',
 
   // Step 1: Initialize
-  async (ctx) => {
-    const isRu = await isRussianFromState(ctx);
+  async ctx => {
+    const isRu = await isRussianFromState(ctx)
 
     ctx.session.wizardData = {
       step: 1,
       // Initialize all fields
-    };
+    }
 
     await ctx.reply(
       isRu ? 'Привет!' : 'Hello!',
       Markup.inlineKeyboard([
-        [Markup.button.callback(isRu ? 'Далее' : 'Next', 'next')]
+        [Markup.button.callback(isRu ? 'Далее' : 'Next', 'next')],
       ])
-    );
+    )
 
-    return ctx.wizard.next();
+    return ctx.wizard.next()
   },
 
   // Step 2: Process input
-  async (ctx) => {
+  async ctx => {
     if (!ctx.message || !('text' in ctx.message)) {
-      await ctx.reply('Send text');
-      return;
+      await ctx.reply('Send text')
+      return
     }
 
     // Business logic via service
-    await myService.process(ctx.message.text);
+    await myService.process(ctx.message.text)
 
-    return ctx.scene.leave();
+    return ctx.scene.leave()
   }
-);
+)
 
 // Action handlers
-myWizard.action('next', async (ctx) => {
-  await ctx.answerCbQuery(); // FIRST LINE!
+myWizard.action('next', async ctx => {
+  await ctx.answerCbQuery() // FIRST LINE!
 
-  const isRu = await isRussianFromState(ctx);
-  await ctx.reply(isRu ? 'Отлично!' : 'Great!');
+  const isRu = await isRussianFromState(ctx)
+  await ctx.reply(isRu ? 'Отлично!' : 'Great!')
 
-  return ctx.wizard.next();
-});
+  return ctx.wizard.next()
+})
 
-export default myWizard;
+export default myWizard
 ```
 
 ### Pattern 2: Service Layer (Business Logic)
@@ -502,8 +502,8 @@ export default myWizard;
 ```typescript
 // src/services/myFeature/myService.ts
 
-import { supabase } from '../supabase/client';
-import { logger } from '../../helpers/logger';
+import { supabase } from '../supabase/client'
+import { logger } from '../../helpers/logger'
 
 export async function processUserRequest(
   telegramId: string,
@@ -512,44 +512,43 @@ export async function processUserRequest(
   try {
     // 1. Validate input
     if (!input || input.length === 0) {
-      throw new Error('Invalid input');
+      throw new Error('Invalid input')
     }
 
     // 2. Check balance
-    const user = await getUserByTelegramId(telegramId);
+    const user = await getUserByTelegramId(telegramId)
     if (user.balance < COST) {
-      return { success: false };
+      return { success: false }
     }
 
     // 3. Deduct balance (atomic)
     const { data, error } = await supabase.rpc('deduct_balance', {
       p_telegram_id: telegramId,
-      p_amount: COST
-    });
+      p_amount: COST,
+    })
 
     if (error || !data) {
-      throw new Error('Balance deduction failed');
+      throw new Error('Balance deduction failed')
     }
 
     // 4. Process (could be Inngest for long operations)
-    const result = await aiProvider.generate(input);
+    const result = await aiProvider.generate(input)
 
     // 5. Save to database
-    await saveResult(telegramId, result);
+    await saveResult(telegramId, result)
 
-    logger.info('Request processed', { telegramId });
+    logger.info('Request processed', { telegramId })
 
-    return { success: true, result };
-
+    return { success: true, result }
   } catch (error) {
-    logger.error('Process failed', { error, telegramId });
+    logger.error('Process failed', { error, telegramId })
 
     // Refund if needed
     if (balanceDeducted) {
-      await refundBalance(telegramId, COST);
+      await refundBalance(telegramId, COST)
     }
 
-    throw error;
+    throw error
   }
 }
 ```
@@ -559,7 +558,7 @@ export async function processUserRequest(
 ```typescript
 // src/services/inngest/functions/trainModel.ts
 
-import { inngest } from '../client';
+import { inngest } from '../client'
 
 export const trainModel = inngest.createFunction(
   {
@@ -567,46 +566,46 @@ export const trainModel = inngest.createFunction(
     retries: 3,
     concurrency: {
       limit: 2,
-      key: 'event.data.userId'
-    }
+      key: 'event.data.userId',
+    },
   },
   { event: 'model/train.requested' },
   async ({ event, step }) => {
-    const { userId, modelData } = event.data;
+    const { userId, modelData } = event.data
 
     // Step 1: Prepare data (can be retried independently)
     const preparedData = await step.run('prepare-data', async () => {
-      return await prepareTrainingData(modelData);
-    });
+      return await prepareTrainingData(modelData)
+    })
 
     // Step 2: Train model (1-2 hours)
     const trainedModel = await step.run('train-model', async () => {
       return await replicateClient.trainings.create({
         version: 'model-version',
         input: preparedData,
-        webhook: process.env.INNGEST_WEBHOOK_URL
-      });
-    });
+        webhook: process.env.INNGEST_WEBHOOK_URL,
+      })
+    })
 
     // Step 3: Wait for completion (webhook)
     await step.waitForEvent('model/train.completed', {
       timeout: '2h',
       match: 'data.trainingId',
-      if: `async.data.trainingId == '${trainedModel.id}'`
-    });
+      if: `async.data.trainingId == '${trainedModel.id}'`,
+    })
 
     // Step 4: Save result
     await step.run('save-result', async () => {
       await supabase.from('models').insert({
         user_id: userId,
         model_id: trainedModel.id,
-        status: 'completed'
-      });
-    });
+        status: 'completed',
+      })
+    })
 
-    return { success: true, modelId: trainedModel.id };
+    return { success: true, modelId: trainedModel.id }
   }
-);
+)
 ```
 
 ---
@@ -722,6 +721,7 @@ Skills хранятся ТОЛЬКО в директории `.claude/skills/` �
 ```
 
 **❌ НЕПРАВИЛЬНО:**
+
 - ~~`.claude-skills/`~~ - неправильная директория
 - ~~`.clinerules-global`~~ - это НЕ место для skills, только для глобальных правил
 - ~~`CLAUDE.md`~~ - это документация проекта, не skills
@@ -733,37 +733,44 @@ Skills хранятся ТОЛЬКО в директории `.claude/skills/` �
 
 ```markdown
 ---
-name: "Skill Name"
-description: "When and how to use this skill"
+name: 'Skill Name'
+description: 'When and how to use this skill'
 ---
 
 # Skill Name
 
 ## When to Use This Skill
+
 [Detailed activation triggers]
 
 ## Quick Diagnosis
+
 [Fast problem detection]
 
 ## Solution Steps
+
 [Step-by-step instructions]
 
 ## Common Issues
+
 [Known problems and fixes]
 
 ## Related Resources
+
 [Links to docs, scripts, etc.]
 ```
 
 ### 🔧 Когда создавать новый Skill
 
 **Создавай Skill когда:**
+
 1. Решение проблемы требует 5+ шагов
 2. Проблема повторяется регулярно
 3. Есть чёткие триггеры для активации
 4. Требуется специализированное знание
 
 **НЕ создавай Skill для:**
+
 1. Одноразовых задач
 2. Простых команд (1-2 шага)
 3. Общих правил (используй CLAUDE.md)
@@ -771,6 +778,7 @@ description: "When and how to use this skill"
 ### 📚 Существующие Skills
 
 **Production Skills (в `.claude/skills/`):**
+
 - `fix-empty-api-keys/` - Исправление пустых API ключей в payload (ElevenLabs, HeyGen)
 - `restore-env-from-infisical/` - Восстановление .env из Infisical
 - `telegram-scene-builder/` - Создание Telegram wizards
@@ -795,11 +803,13 @@ ls -d .claude-skills/ 2>/dev/null && echo "❌ НЕПРАВИЛЬНО!"
 ### 💡 Как использовать Skills в работе
 
 **Claude автоматически загружает Skills когда:**
+
 1. Видит триггерные фразы из `description`
 2. Контекст задачи совпадает с `When to Use This Skill`
 3. Пользователь явно упоминает проблему, описанную в Skill
 
 **Пример активации:**
+
 ```
 User: "У меня пустые API ключи в запросе"
 → Claude загружает: restore-env-from-infisical
@@ -810,12 +820,14 @@ User: "У меня пустые API ключи в запросе"
 ### 📖 Документация vs Skills
 
 **CLAUDE.md (документация):**
+
 - Общая структура проекта
 - Правила разработки
 - Deployment процессы
 - Архитектурные решения
 
 **Skills (специализированные инструкции):**
+
 - Конкретные проблемы и решения
 - Пошаговые инструкции
 - Автоматическая активация по триггерам
@@ -833,6 +845,7 @@ User: "У меня пустые API ключи в запросе"
 ### ⚠️ Типичные ошибки
 
 **❌ НЕ ДЕЛАЙ:**
+
 ```bash
 # Неправильная директория
 mkdir .claude-skills/
@@ -845,6 +858,7 @@ echo "## SKILL:" >> .clinerules-global
 ```
 
 **✅ ПРАВИЛЬНО:**
+
 ```bash
 # Создать новый Skill
 mkdir -p .claude/skills/my-skill/
