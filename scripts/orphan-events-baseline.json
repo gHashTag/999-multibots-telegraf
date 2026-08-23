@@ -1,0 +1,27 @@
+{
+  "orphans": [
+    "instagram/scrape-similar-users",
+    "neuro/photo.failed",
+    "render/execute",
+    "telegram/send-admin-notification",
+    "test/hello.world"
+  ],
+  "unreachable": [
+    "ai-reels-callback",
+    "app/error.critical",
+    "broadcast/send-message",
+    "content/generate-detailed-script",
+    "content/generate-scenario-clips",
+    "instagram/extract-top",
+    "instagram/generate-scripts",
+    "instagram/scraper-v2",
+    "logs/monitor.trigger",
+    "model/training.v2.requested",
+    "morph/images.requested",
+    "neuro/photo.generate",
+    "payment/process-ai-server",
+    "reels/generate-advanced-loop",
+    "render",
+    "render/avatar-video"
+  ]
+}

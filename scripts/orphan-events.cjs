@@ -15,12 +15,13 @@ const files = []
 ;(function walk(d) {
   for (const e of fs.readdirSync(d, { withFileTypes: true })) {
     const p = path.join(d, e.name)
-    if (e.isDirectory()) { if (!/node_modules|__tests__|\/test\//.test(p)) walk(p) }
-    else if (/\.ts$/.test(p) && !/\.test\.ts$/.test(p)) files.push(p)
+    if (e.isDirectory()) {
+      if (!/node_modules|__tests__|\/test\//.test(p)) walk(p)
+    } else if (/\.ts$/.test(p) && !/\.test\.ts$/.test(p)) files.push(p)
   }
 })(ROOT)
 
-const sent = new Map()      // event -> [file:line]
+const sent = new Map() // event -> [file:line]
 const subscribed = new Map()
 
 // Отправка: .send({ ... name: 'x' ... }) — name может быть на другой строке,
@@ -75,25 +76,96 @@ try {
 } catch {}
 const isRegistered = file => {
   const base = path.basename(file, '.ts')
-  return registeredSrc.includes(`/${base}'`) || registeredSrc.includes(`/${base}"`)
+  return (
+    registeredSrc.includes(`/${base}'`) || registeredSrc.includes(`/${base}"`)
+  )
 }
-const unreachable = unused.filter(e => subscribed.get(e).some(loc => isRegistered(loc.split(':')[0])))
+const unreachable = unused.filter(e =>
+  subscribed.get(e).some(loc => isRegistered(loc.split(':')[0]))
+)
 
 console.log(`отправляется событий:  ${sent.size}`)
 console.log(`подписок:              ${subscribed.size}`)
 console.log()
-console.log('ОГОВОРКА: скрипт видит только отправителей ВНУТРИ этого репозитория.')
-console.log('Функцию могут запускать извне — вебхук, панель Inngest, другой сервис.')
+console.log(
+  'ОГОВОРКА: скрипт видит только отправителей ВНУТРИ этого репозитория.'
+)
+console.log(
+  'Функцию могут запускать извне — вебхук, панель Inngest, другой сервис.'
+)
 console.log('Список ниже — кандидаты на проверку, а не приговор.')
 console.log()
-console.log(`🚨 ЗАРЕГИСТРИРОВАНА, НО НЕДОСТИЖИМА ИЗ КОДА — триггер никто не шлёт (${unreachable.length}):`)
-for (const e of unreachable) console.log(`   ${e}\n      ← ${subscribed.get(e).join(', ')}`)
+console.log(
+  `🚨 ЗАРЕГИСТРИРОВАНА, НО НЕДОСТИЖИМА ИЗ КОДА — триггер никто не шлёт (${unreachable.length}):`
+)
+for (const e of unreachable)
+  console.log(`   ${e}\n      ← ${subscribed.get(e).join(', ')}`)
 console.log()
 console.log(`❌ ОТПРАВЛЯЕТСЯ, НО НИКТО НЕ СЛУШАЕТ (${orphans.length}):`)
-for (const e of orphans) console.log(`   ${e}\n      ← ${sent.get(e).join(', ')}`)
+for (const e of orphans)
+  console.log(`   ${e}\n      ← ${sent.get(e).join(', ')}`)
 console.log()
-console.log(`⚠️  ПОДПИСКА ЕСТЬ, НО НИКТО НЕ ШЛЁТ, функция НЕ зарегистрирована (${unused.length - unreachable.length}):`)
+console.log(
+  `⚠️  ПОДПИСКА ЕСТЬ, НО НИКТО НЕ ШЛЁТ, функция НЕ зарегистрирована (${unused.length - unreachable.length}):`
+)
 for (const e of unused.filter(x => !unreachable.includes(x)))
   console.log(`   ${e}  (${subscribed.get(e)[0]})`)
 
-process.exitCode = orphans.length || unreachable.length ? 1 : 0
+// BASELINE. На момент подключения скрипта к pre-push в репозитории уже было
+// 16 недостижимых функций и осиротевшие события — долг, накопленный годами.
+// Ворота «падать при любом совпадении» блокировали бы КАЖДЫЙ push, и их бы
+// отключили в тот же день; ворота, которые никогда не падают, бесполезны.
+//
+// Поэтому падаем только на НОВОМ. Уже известное остаётся в выводе с числом,
+// чтобы долг не исчез из виду: молча урезанный список читается как «всё
+// чисто», хотя это не так.
+//
+// Обновить базу после починки:  node scripts/orphan-events.cjs --update-baseline
+const BASELINE_PATH = path.resolve(__dirname, 'orphan-events-baseline.json')
+const current = { orphans, unreachable }
+
+if (process.argv.includes('--update-baseline')) {
+  fs.writeFileSync(BASELINE_PATH, JSON.stringify(current, null, 2) + '\n')
+  console.log(
+    `\n💾 База обновлена: ${orphans.length} осиротевших, ${unreachable.length} недостижимых.`
+  )
+  process.exitCode = 0
+} else {
+  let baseline = { orphans: [], unreachable: [] }
+  try {
+    baseline = JSON.parse(fs.readFileSync(BASELINE_PATH, 'utf8'))
+  } catch {
+    // Базы нет — ведём себя как раньше, падая на любом совпадении.
+    // Молча пропустить здесь значит превратить ворота в украшение.
+  }
+  const newOrphans = orphans.filter(e => !baseline.orphans.includes(e))
+  const newUnreachable = unreachable.filter(
+    e => !baseline.unreachable.includes(e)
+  )
+  const fixed =
+    baseline.orphans.filter(e => !orphans.includes(e)).length +
+    baseline.unreachable.filter(e => !unreachable.includes(e)).length
+
+  console.log()
+  console.log(
+    `📋 База: ${baseline.orphans.length} осиротевших + ${baseline.unreachable.length} недостижимых — известный долг, он НЕ блокирует.`
+  )
+  if (fixed)
+    console.log(
+      `✅ Починено с прошлого раза: ${fixed}. Обновите базу: --update-baseline`
+    )
+
+  if (newOrphans.length || newUnreachable.length) {
+    console.log()
+    console.log(
+      '🛑 НОВОЕ — этого не было раньше, добавлено вашими изменениями:'
+    )
+    for (const e of newOrphans)
+      console.log(`   отправляется, никто не слушает: ${e}`)
+    for (const e of newUnreachable)
+      console.log(`   зарегистрирована, но недостижима: ${e}`)
+    process.exitCode = 1
+  } else {
+    process.exitCode = 0
+  }
+}
