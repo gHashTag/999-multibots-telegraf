@@ -1,196 +1,258 @@
-import { useCallback, useState, useRef, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { likeTemplateAtom, useTemplateAtom, deleteTemplateAtom, trackViewAtom, userAtom, feedMutedAtom, currentlyPlayingFeedIdAtom, type FeedTemplate } from '@/atoms';
-import { useLanguage } from '@/hooks/useLanguage';
-import { LikeAnimation } from '@/components/LikeAnimation';
-import { Heart, Eye, Users, Play, Loader2, Sparkles, Trash2, AlertCircle, RefreshCw, Volume2, VolumeX, Info } from 'lucide-react';
-import './FeedPanel.css';
+import { useCallback, useState, useRef, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import {
+  likeTemplateAtom,
+  starTemplateAtom,
+  useTemplateAtom,
+  deleteTemplateAtom,
+  trackViewAtom,
+  userAtom,
+  feedMutedAtom,
+  currentlyPlayingFeedIdAtom,
+  type FeedTemplate,
+} from '@/atoms'
+import { useLanguage } from '@/hooks/useLanguage'
+import { haptic } from '@/lib/telegram'
+import { LikeAnimation } from '@/components/LikeAnimation'
+import {
+  Heart,
+  Eye,
+  Users,
+  Play,
+  Loader2,
+  Sparkles,
+  Trash2,
+  AlertCircle,
+  RefreshCw,
+  Volume2,
+  VolumeX,
+  Info,
+  Star,
+} from 'lucide-react'
+import './FeedPanel.css'
 
 interface FeedCardProps {
-  template: FeedTemplate;
+  template: FeedTemplate
 }
 
 export function FeedCard({ template }: FeedCardProps) {
-  const { t } = useLanguage();
-  const navigate = useNavigate();
-  const user = useAtomValue(userAtom);
-  const likeTemplate = useSetAtom(likeTemplateAtom);
-  const useTemplate = useSetAtom(useTemplateAtom);
-  const deleteTemplate = useSetAtom(deleteTemplateAtom);
-  const trackView = useSetAtom(trackViewAtom);
-  const [isUsing, setIsUsing] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isHovering, setIsHovering] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [videoError, setVideoError] = useState<string | null>(null);
-  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
-  const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
-  const [globalMuted, setGlobalMuted] = useAtom(feedMutedAtom); // Global muted state
-  const [currentlyPlayingId, setCurrentlyPlayingId] = useAtom(currentlyPlayingFeedIdAtom); // Only ONE video plays sound
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showRemixInfo, setShowRemixInfo] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage()
+  const navigate = useNavigate()
+  const user = useAtomValue(userAtom)
+  const likeTemplate = useSetAtom(likeTemplateAtom)
+  const starTemplate = useSetAtom(starTemplateAtom)
+  const [isStarring, setIsStarring] = useState(false)
+  const useTemplate = useSetAtom(useTemplateAtom)
+  const deleteTemplate = useSetAtom(deleteTemplateAtom)
+  const trackView = useSetAtom(trackViewAtom)
+  const [isUsing, setIsUsing] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isHovering, setIsHovering] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [videoError, setVideoError] = useState<string | null>(null)
+  const [isVideoLoaded, setIsVideoLoaded] = useState(false)
+  const [shouldLoadVideo, setShouldLoadVideo] = useState(false)
+  const [globalMuted, setGlobalMuted] = useAtom(feedMutedAtom) // Global muted state
+  const [currentlyPlayingId, setCurrentlyPlayingId] = useAtom(
+    currentlyPlayingFeedIdAtom
+  ) // Only ONE video plays sound
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showRemixInfo, setShowRemixInfo] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
 
   // Video is muted if: global muted OR not the currently playing video
-  const isThisVideoActive = currentlyPlayingId === template.id;
-  const effectiveMuted = globalMuted || !isThisVideoActive;
+  const isThisVideoActive = currentlyPlayingId === template.id
+  const effectiveMuted = globalMuted || !isThisVideoActive
 
   // Check if current user is admin or author
-  const isAdmin = user?.is_admin === true;
-  const isAuthor = user && template.telegramId === user.id;
-  const canDelete = isAdmin || isAuthor;
+  const isAdmin = user?.is_admin === true
+  const isAuthor = user && template.telegramId === user.id
+  const canDelete = isAdmin || isAuthor
 
   // Lazy load video when card is near viewport (200px before visible)
   useEffect(() => {
-    const card = cardRef.current;
-    if (!card) return;
+    const card = cardRef.current
+    if (!card) return
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          console.log('[FeedCard] Card in viewport, loading video:', template.id);
-          setShouldLoadVideo(true);
-          observer.disconnect(); // Only need to trigger once
+          console.log(
+            '[FeedCard] Card in viewport, loading video:',
+            template.id
+          )
+          setShouldLoadVideo(true)
+          observer.disconnect() // Only need to trigger once
         }
       },
       { rootMargin: '200px' } // Start loading 200px before visible
-    );
+    )
 
-    observer.observe(card);
-    return () => observer.disconnect();
-  }, [template.id]);
+    observer.observe(card)
+    return () => observer.disconnect()
+  }, [template.id])
 
   // Click to play/pause video (TikTok-style)
   const handleCardClick = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || !shouldLoadVideo) return;
+    const video = videoRef.current
+    if (!video || !shouldLoadVideo) return
 
     if (isPlaying) {
-      video.pause();
-      setIsPlaying(false);
+      video.pause()
+      setIsPlaying(false)
     } else {
-      video.play().catch(() => {});
-      setIsPlaying(true);
+      video.play().catch(() => {})
+      setIsPlaying(true)
     }
-  }, [isPlaying, shouldLoadVideo]);
+  }, [isPlaying, shouldLoadVideo])
 
   // Auto-play when card scrolls into view (IntersectionObserver)
   // Sets this video as the "active" one for sound
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !shouldLoadVideo) return;
+    const video = videoRef.current
+    if (!video || !shouldLoadVideo) return
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && entry.intersectionRatio > 0.7) {
-          video.play().catch(() => {}); // Ignore autoplay errors
-          setIsPlaying(true);
+          video.play().catch(() => {}) // Ignore autoplay errors
+          setIsPlaying(true)
           // This video is now the active one (gets sound)
-          setCurrentlyPlayingId(template.id);
+          setCurrentlyPlayingId(template.id)
         } else {
-          video.pause();
-          setIsPlaying(false);
+          video.pause()
+          setIsPlaying(false)
         }
       },
       { threshold: 0.7 }
-    );
+    )
 
-    observer.observe(video);
-    return () => observer.disconnect();
-  }, [template.videoUrl, shouldLoadVideo, template.id, setCurrentlyPlayingId]);
+    observer.observe(video)
+    return () => observer.disconnect()
+  }, [template.videoUrl, shouldLoadVideo, template.id, setCurrentlyPlayingId])
 
   // Sync video muted state: muted if global muted OR not the active video
   useEffect(() => {
-    const video = videoRef.current;
+    const video = videoRef.current
     if (video) {
-      video.muted = effectiveMuted;
+      video.muted = effectiveMuted
     }
-  }, [effectiveMuted]);
+  }, [effectiveMuted])
 
-  const handleLike = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    likeTemplate(template.id);
-  }, [likeTemplate, template.id]);
+  const handleLike = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      likeTemplate(template.id)
+    },
+    [likeTemplate, template.id]
+  )
+
+  // ⭐ Звезда = платный лайк: 1 Telegram Star падает автору на баланс.
+  // Двойной тап звезду НЕ шлёт (случайная оплата), только кнопка.
+  const handleStar = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (isStarring) return
+      setIsStarring(true)
+      try {
+        const status = await starTemplate(template.id)
+        if (status === 'paid') haptic.notification('success')
+        else if (status === 'cancelled') haptic.selection()
+        else haptic.notification('error')
+      } catch {
+        haptic.notification('error')
+      } finally {
+        setIsStarring(false)
+      }
+    },
+    [isStarring, starTemplate, template.id]
+  )
 
   // Sound toggle (toggles global muted state for the active video)
-  const handleSoundToggle = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    // If clicking sound on a non-active video, make it active first
-    if (!isThisVideoActive) {
-      setCurrentlyPlayingId(template.id);
-    }
-    setGlobalMuted(prev => !prev);
-  }, [setGlobalMuted, isThisVideoActive, setCurrentlyPlayingId, template.id]);
+  const handleSoundToggle = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      // If clicking sound on a non-active video, make it active first
+      if (!isThisVideoActive) {
+        setCurrentlyPlayingId(template.id)
+      }
+      setGlobalMuted(prev => !prev)
+    },
+    [setGlobalMuted, isThisVideoActive, setCurrentlyPlayingId, template.id]
+  )
 
   // Double-tap like handler
   const handleDoubleTapLike = useCallback(() => {
     if (!template.isLiked) {
-      likeTemplate(template.id);
+      likeTemplate(template.id)
     }
-  }, [likeTemplate, template.id, template.isLiked]);
+  }, [likeTemplate, template.id, template.isLiked])
 
-  const handleUse = useCallback(async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsUsing(true);
-    try {
-      await useTemplate(template.id);
-      // Navigate to avatar generation page to record cameo
-      navigate('/generate/avatar');
-    } finally {
-      setIsUsing(false);
-    }
-  }, [useTemplate, template.id, navigate]);
+  const handleUse = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+      setIsUsing(true)
+      try {
+        await useTemplate(template.id)
+        // Navigate to avatar generation page to record cameo
+        navigate('/generate/avatar')
+      } finally {
+        setIsUsing(false)
+      }
+    },
+    [useTemplate, template.id, navigate]
+  )
 
   const handleDeleteClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowDeleteConfirm(true);
-  }, []);
+    e.stopPropagation()
+    setShowDeleteConfirm(true)
+  }, [])
 
   const handleDeleteConfirm = useCallback(async () => {
-    setShowDeleteConfirm(false);
-    setIsDeleting(true);
+    setShowDeleteConfirm(false)
+    setIsDeleting(true)
     try {
-      await deleteTemplate(template.id);
+      await deleteTemplate(template.id)
     } catch (error) {
-      console.error('Failed to delete:', error);
+      console.error('Failed to delete:', error)
     } finally {
-      setIsDeleting(false);
+      setIsDeleting(false)
     }
-  }, [deleteTemplate, template.id]);
+  }, [deleteTemplate, template.id])
 
   const formatCount = (count: number | undefined | null): string => {
-    if (count === undefined || count === null || isNaN(count)) return '0';
-    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
-    return count.toString();
-  };
+    if (count === undefined || count === null || isNaN(count)) return '0'
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`
+    return count.toString()
+  }
 
   // Format relative time with better granularity
   const formatDate = (dateStr: string): string => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffSec = Math.floor(diffMs / 1000);
-    const diffMin = Math.floor(diffSec / 60);
-    const diffHour = Math.floor(diffMin / 60);
-    const diffDay = Math.floor(diffHour / 24);
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffSec = Math.floor(diffMs / 1000)
+    const diffMin = Math.floor(diffSec / 60)
+    const diffHour = Math.floor(diffMin / 60)
+    const diffDay = Math.floor(diffHour / 24)
 
-    if (diffMin < 1) return t('feed.justNow') || 'now';
-    if (diffMin < 60) return `${diffMin}m`;
-    if (diffHour < 24) return `${diffHour}h`;
-    if (diffDay < 7) return `${diffDay}d`;
-    if (diffDay < 30) return `${Math.floor(diffDay / 7)}w`;
-    return `${Math.floor(diffDay / 30)}mo`;
-  };
+    if (diffMin < 1) return t('feed.justNow') || 'now'
+    if (diffMin < 60) return `${diffMin}m`
+    if (diffHour < 24) return `${diffHour}h`
+    if (diffDay < 7) return `${diffDay}d`
+    if (diffDay < 30) return `${Math.floor(diffDay / 7)}w`
+    return `${Math.floor(diffDay / 30)}mo`
+  }
 
   // Retry loading video after error
   const handleRetry = useCallback(() => {
-    setVideoError(null);
-    setIsVideoLoaded(false);
-    videoRef.current?.load();
-  }, []);
+    setVideoError(null)
+    setIsVideoLoaded(false)
+    videoRef.current?.load()
+  }, [])
 
   return (
     <div
@@ -220,25 +282,31 @@ export function FeedCard({ template }: FeedCardProps) {
                   preload="metadata"
                   className="feed-card-video"
                   onLoadedData={() => {
-                    console.log('[FeedCard] Video loaded:', template.videoUrl);
-                    setIsVideoLoaded(true);
+                    console.log('[FeedCard] Video loaded:', template.videoUrl)
+                    setIsVideoLoaded(true)
                   }}
                   onCanPlay={() => {
                     // Auto-play when can play
-                    const video = videoRef.current;
+                    const video = videoRef.current
                     if (video) {
-                      video.play().catch(() => {});
+                      video.play().catch(() => {})
                     }
                   }}
-                  onError={(e) => {
-                    const video = e.currentTarget;
-                    console.error('[FeedCard] Video error:', template.videoUrl, video.error);
-                    setVideoError(video.error?.message || 'Failed to load video');
+                  onError={e => {
+                    const video = e.currentTarget
+                    console.error(
+                      '[FeedCard] Video error:',
+                      template.videoUrl,
+                      video.error
+                    )
+                    setVideoError(
+                      video.error?.message || 'Failed to load video'
+                    )
                   }}
                   onPlay={() => {
-                    setIsPlaying(true);
+                    setIsPlaying(true)
                     // Track view when video starts playing
-                    trackView(template.id);
+                    trackView(template.id)
                   }}
                   onPause={() => setIsPlaying(false)}
                 />
@@ -247,7 +315,13 @@ export function FeedCard({ template }: FeedCardProps) {
                   <div className="feed-card-error">
                     <AlertCircle size={32} />
                     <span>{t('feed.videoError') || 'Video error'}</span>
-                    <button onClick={(e) => { e.stopPropagation(); handleRetry(); }} className="retry-btn">
+                    <button
+                      onClick={e => {
+                        e.stopPropagation()
+                        handleRetry()
+                      }}
+                      className="retry-btn"
+                    >
                       <RefreshCw size={16} />
                       {t('feed.retry') || 'Retry'}
                     </button>
@@ -277,11 +351,14 @@ export function FeedCard({ template }: FeedCardProps) {
             )}
 
             {/* Play overlay - visible when paused */}
-            {!isPlaying && shouldLoadVideo && template.videoUrl && isVideoLoaded && (
-              <div className="play-overlay">
-                <Play size={64} fill="white" />
-              </div>
-            )}
+            {!isPlaying &&
+              shouldLoadVideo &&
+              template.videoUrl &&
+              isVideoLoaded && (
+                <div className="play-overlay">
+                  <Play size={64} fill="white" />
+                </div>
+              )}
 
             {template.isFeatured && (
               <div className="feed-card-featured">Featured</div>
@@ -312,13 +389,19 @@ export function FeedCard({ template }: FeedCardProps) {
             {effectiveMuted ? <VolumeX size={32} /> : <Volume2 size={32} />}
           </button>
 
+          {/* ⭐ Звезда вместо бесплатного лайка: 1 Telegram Star автору на баланс */}
           <button
-            className={`action-btn like-btn ${template.isLiked ? 'liked' : ''}`}
-            onClick={handleLike}
-            title={t('feed.like')}
+            className={`action-btn star-btn ${isStarring ? 'starring' : ''}`}
+            onClick={handleStar}
+            disabled={isStarring}
+            title={t('feed.star')}
           >
-            <Heart size={32} fill={template.isLiked ? 'currentColor' : 'none'} />
-            <span>{formatCount(template.likesCount)}</span>
+            {isStarring ? (
+              <Loader2 size={32} className="spin" />
+            ) : (
+              <Star size={32} fill="currentColor" />
+            )}
+            <span>{formatCount(template.starsCount)}</span>
           </button>
 
           <div className="action-btn views-btn">
@@ -368,7 +451,7 @@ export function FeedCard({ template }: FeedCardProps) {
               <Link
                 to={`/${template.creatorUsername}`}
                 className="feed-card-creator-link"
-                onClick={(e) => e.stopPropagation()}
+                onClick={e => e.stopPropagation()}
               >
                 {template.creatorAvatar && (
                   <img
@@ -380,7 +463,8 @@ export function FeedCard({ template }: FeedCardProps) {
                 <div className="feed-card-meta">
                   <span className="feed-card-name">{template.name}</span>
                   <span className="feed-card-creator">
-                    @{template.creatorUsername} · {formatDate(template.createdAt)}
+                    @{template.creatorUsername} ·{' '}
+                    {formatDate(template.createdAt)}
                   </span>
                 </div>
               </Link>
@@ -411,12 +495,21 @@ export function FeedCard({ template }: FeedCardProps) {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="delete-confirm-overlay" onClick={() => setShowDeleteConfirm(false)}>
-          <div className="delete-confirm-modal" onClick={e => e.stopPropagation()}>
+        <div
+          className="delete-confirm-overlay"
+          onClick={() => setShowDeleteConfirm(false)}
+        >
+          <div
+            className="delete-confirm-modal"
+            onClick={e => e.stopPropagation()}
+          >
             <Trash2 size={32} className="delete-confirm-icon" />
             <p>{t('feed.deleteConfirm') || 'Delete this video?'}</p>
             <div className="delete-confirm-buttons">
-              <button className="cancel-btn" onClick={() => setShowDeleteConfirm(false)}>
+              <button
+                className="cancel-btn"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
                 {t('common.cancel') || 'Cancel'}
               </button>
               <button className="confirm-btn" onClick={handleDeleteConfirm}>
@@ -429,7 +522,10 @@ export function FeedCard({ template }: FeedCardProps) {
 
       {/* Remix Info Modal */}
       {showRemixInfo && template.parentTemplateId && (
-        <div className="remix-info-overlay" onClick={() => setShowRemixInfo(false)}>
+        <div
+          className="remix-info-overlay"
+          onClick={() => setShowRemixInfo(false)}
+        >
           <div className="remix-info-modal" onClick={e => e.stopPropagation()}>
             <div className="remix-info-header">
               <Sparkles size={24} className="remix-icon" />
@@ -438,7 +534,9 @@ export function FeedCard({ template }: FeedCardProps) {
             <div className="remix-info-content">
               <p className="remix-info-text">
                 {t('feed.basedOn') || 'Based on a template by'}{' '}
-                {template.originalCreatorName || t('feed.unknownCreator') || 'Unknown Creator'}
+                {template.originalCreatorName ||
+                  t('feed.unknownCreator') ||
+                  'Unknown Creator'}
               </p>
               {template.originalCreatorAvatar && (
                 <img
@@ -449,7 +547,10 @@ export function FeedCard({ template }: FeedCardProps) {
               )}
             </div>
             <div className="remix-info-actions">
-              <button className="remix-close-btn" onClick={() => setShowRemixInfo(false)}>
+              <button
+                className="remix-close-btn"
+                onClick={() => setShowRemixInfo(false)}
+              >
                 {t('common.close') || 'Close'}
               </button>
             </div>
@@ -457,5 +558,5 @@ export function FeedCard({ template }: FeedCardProps) {
         </div>
       )}
     </div>
-  );
+  )
 }

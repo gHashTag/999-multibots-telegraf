@@ -25,7 +25,105 @@ import {
 import { TEMPLATE_CARDS } from './src/templates/registry'
 import fs from 'node:fs'
 import { randomUUID, createHmac } from 'node:crypto'
-import { execSync } from 'node:child_process'
+import { execSync, execFileSync } from 'node:child_process'
+
+/**
+ * Валидация URL для серверного fetch. Правило: только http/https; для
+ * адресов, пришедших ОТ КЛИЕНТА (webhook), приватные/зацикленные хосты
+ * запрещены — иначе любой запрос превращается в зонд внутренней сети
+ * (SSRF). Для адресов из ENV оператора (сервис-в-сервис, напр. MCP_URL)
+ * приватные допустимы: внутренние контейнеры — легальная топология.
+ */
+function assertFetchable(
+  url: string,
+  opts: { allowPrivate?: boolean } = {}
+): URL {
+  let u: URL
+  try {
+    u = new URL(url)
+  } catch {
+    throw new Error(`некорректный URL: ${String(url).slice(0, 60)}`)
+  }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') {
+    throw new Error(`только http/https, получено ${u.protocol}`)
+  }
+  if (!opts.allowPrivate) {
+    const h = u.hostname.toLowerCase()
+    const priv =
+      h === 'localhost' ||
+      h.endsWith('.localhost') ||
+      h === '::1' ||
+      h === '0.0.0.0' ||
+      /^127\./.test(h) ||
+      /^10\./.test(h) ||
+      /^192\.168\./.test(h) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
+      /^169\.254\./.test(h) ||
+      /^f[cd][0-9a-f]{2}:/.test(h) ||
+      /^fe[89ab][0-9a-f]:/.test(h)
+    if (priv) {
+      throw new Error('приватные и зацикленные адреса запрещены')
+    }
+  }
+  return u
+}
+
+/**
+ * Аргумент для ffmpeg/ffprobe, пришедший из данных (путь, число, имя):
+ * не может начинаться с дефиса — иначе «значение» станет опцией
+ * (option injection). Литералы в массивах аргументов не оборачиваем.
+ */
+function ffArg(v: string | number): string {
+  const s = String(v)
+  // Белый список символов + запрет ведущего дефиса: значение физически
+  // не может сформировать опцию ffmpeg (--flag / -f) или shell-метасимвол.
+  if (s.startsWith('-') || !/^[A-Za-z0-9_.\/:%+= ]+$/.test(s)) {
+    throw new Error(`аргумент не прошёл белый список: ${s.slice(0, 40)}`)
+  }
+  return s
+}
+
+/**
+ * Ответ JSON единым местом: тип всегда application/json; сериализация
+ * только здесь. (Тот же приём, что json() в agent/routes.ts.)
+ */
+function sendJson(res: any, code: number, obj: unknown): void {
+  res.writeHead(code, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify(obj))
+}
+
+/**
+ * Прокси-картинки: скачать изображение Telegram. assertFetchable отсекает
+ * не-http(s) и приватные адреса; белый список оставляет только хосты
+ * Telegram. Не-изображение — ошибка: прокси не является транслятором
+ * произвольного контента.
+ */
+async function fetchTelegramImage(url: string): Promise<{
+  status: number
+  contentType: string
+  data: Buffer
+}> {
+  const target = assertFetchable(url)
+  const host = target.hostname.toLowerCase()
+  const telegramOnly =
+    host === 't.me' ||
+    host.endsWith('.t.me') ||
+    host === 'telegram.org' ||
+    host.endsWith('.telegram.org')
+  if (!telegramOnly) {
+    throw new Error('прокси принимает только адреса Telegram')
+  }
+  const r = await fetch(target)
+  const contentType = r.headers.get('content-type') || ''
+  if (!contentType.startsWith('image/')) {
+    throw new Error('по адресу не изображение')
+  }
+  return {
+    status: r.status,
+    contentType,
+    data: Buffer.from(await r.arrayBuffer()),
+  }
+}
 import {
   S3Client,
   PutObjectCommand,
@@ -52,8 +150,18 @@ const SERVICE_ENDPOINTS = {
 // Get video duration using ffprobe
 function getVideoDuration(videoPath: string): number {
   try {
-    const result = execSync(
-      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`,
+    // execFileSync без шелла: путь с пробелом/кавычкой — аргумент, а не код
+    const result = execFileSync(
+      'ffprobe',
+      [
+        '-v',
+        'error',
+        '-show_entries',
+        'format=duration',
+        '-of',
+        'default=noprint_wrappers=1:nokey=1',
+        ffArg(videoPath),
+      ],
       { encoding: 'utf-8' }
     ).trim()
     return parseFloat(result)
@@ -520,8 +628,24 @@ async function preDownloadS3Asset(url: string): Promise<string> {
     // Transcode to H.264 (Chrome-compatible) using ffmpeg
     console.log(`🔄 Transcoding to H.264...`)
     try {
-      execSync(
-        `ffmpeg -i "${downloadPath}" -c:v libx264 -preset fast -crf 23 -c:a aac -movflags +faststart -y "${outputPath}"`,
+      execFileSync(
+        'ffmpeg',
+        [
+          '-i',
+          ffArg(downloadPath),
+          '-c:v',
+          'libx264',
+          '-preset',
+          'fast',
+          '-crf',
+          '23',
+          '-c:a',
+          'aac',
+          '-movflags',
+          '+faststart',
+          '-y',
+          ffArg(outputPath),
+        ],
         { stdio: 'pipe', timeout: 300000 }
       )
 
@@ -733,19 +857,38 @@ async function convertToHLSAndUploadToTigris(
 
       const playlistPath = path.join(renditionDir, 'playlist.m3u8')
 
-      // FFmpeg HLS command with optimized settings
-      const ffmpegCmd =
-        `ffmpeg -i "${videoPath}" ` +
-        `-vf "scale=${config.width}:${config.height}" ` +
-        `-c:v libx264 -preset fast -b:v ${config.bitrate}k ` +
-        `-c:a aac -b:a 128k ` +
-        `-hls_time 4 ` + // 4 second segments for faster start
-        `-hls_list_size 0 ` +
-        `-hls_segment_filename "${renditionDir}/seg%03d.ts" ` +
-        `-f hls "${playlistPath}" -y`
-
+      // FFmpeg HLS: аргументы массивом — никакого шелла, никакой интерполяции
       console.log(`🎬 [HLS] Creating ${quality} rendition...`)
-      execSync(ffmpegCmd, { stdio: 'pipe', timeout: 300000 })
+      execFileSync(
+        'ffmpeg',
+        [
+          '-i',
+          ffArg(videoPath),
+          '-vf',
+          `scale=${ffArg(config.width)}:${ffArg(config.height)}`,
+          '-c:v',
+          'libx264',
+          '-preset',
+          'fast',
+          '-b:v',
+          `${ffArg(config.bitrate)}k`,
+          '-c:a',
+          'aac',
+          '-b:a',
+          '128k',
+          '-hls_time',
+          '4',
+          '-hls_list_size',
+          '0',
+          '-hls_segment_filename',
+          ffArg(path.join(renditionDir, 'seg%03d.ts')),
+          '-f',
+          'hls',
+          ffArg(playlistPath),
+          '-y',
+        ],
+        { stdio: 'pipe', timeout: 300000 }
+      )
 
       // Upload all segment files to Tigris
       const files = fs.readdirSync(renditionDir)
@@ -869,6 +1012,9 @@ async function sendWebhook(
   const retryDelays = [0, 5000, 15000]
 
   try {
+    // Webhook URL приходит от клиента: только публичные http/https-хосты.
+    // SSRF-зонд внутренней сети отсекается здесь, до fetch.
+    const target = assertFetchable(url)
     const body = JSON.stringify(payload)
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -879,7 +1025,7 @@ async function sendWebhook(
       headers['X-Vibee-Signature'] = `sha256=${signature}`
     }
 
-    const response = await fetch(url, {
+    const response = await fetch(target, {
       method: 'POST',
       headers,
       body,
@@ -1693,7 +1839,12 @@ const server = createServer(async (req, res) => {
           : 'ai_kie_create_video'
         const mode = model.includes('pro') ? 'pro' : 'std'
 
-        const mcpResponse = await fetch(`${MCP_URL}/mcp`, {
+        // MCP_URL задаёт оператор (ENV): приватные хосты легальны для
+        // сервис-в-сервис топологии, но протокол всё равно только http/https.
+        const mcpTarget = assertFetchable(`${MCP_URL}/mcp`, {
+          allowPrivate: true,
+        })
+        const mcpResponse = await fetch(mcpTarget, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1729,19 +1880,22 @@ const server = createServer(async (req, res) => {
           for (let i = 0; i < 100; i++) {
             // Max 5 minutes
             await new Promise(r => setTimeout(r, 3000))
-            const statusResp = await fetch(`${MCP_URL}/mcp`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                jsonrpc: '2.0',
-                method: 'tools/call',
-                params: {
-                  name: pollTool,
-                  arguments: { task_id: taskId },
-                },
-                id: Date.now(),
-              }),
-            })
+            const statusResp = await fetch(
+              assertFetchable(`${MCP_URL}/mcp`, { allowPrivate: true }),
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  jsonrpc: '2.0',
+                  method: 'tools/call',
+                  params: {
+                    name: pollTool,
+                    arguments: { task_id: taskId },
+                  },
+                  id: Date.now(),
+                }),
+              }
+            )
             const statusResult = await statusResp.json()
             const statusContent = statusResult.result?.content?.[0]?.text
             if (statusContent) {
@@ -2493,8 +2647,24 @@ const server = createServer(async (req, res) => {
 
       // Convert to H.264
       console.log(`🔄 Converting to H.264: ${cachePath}`)
-      execSync(
-        `ffmpeg -i "${tempPath}" -c:v libx264 -preset fast -crf 23 -c:a aac -movflags +faststart -y "${cachePath}"`,
+      execFileSync(
+        'ffmpeg',
+        [
+          '-i',
+          ffArg(tempPath),
+          '-c:v',
+          'libx264',
+          '-preset',
+          'fast',
+          '-crf',
+          '23',
+          '-c:a',
+          'aac',
+          '-movflags',
+          '+faststart',
+          '-y',
+          ffArg(cachePath),
+        ],
         { stdio: 'pipe', timeout: 300000 }
       )
 
@@ -3211,21 +3381,36 @@ const server = createServer(async (req, res) => {
 
               const playlistPath = path.join(renditionDir, 'playlist.m3u8')
 
-              // FFmpeg HLS command
-              const ffmpegCmd =
-                `ffmpeg -i "${inputPath}" ` +
-                `-vf "scale=${config.width}:${config.height}" ` +
-                `-c:v libx264 -preset fast -b:v ${config.bitrate}k ` +
-                `-c:a aac -b:a 128k ` +
-                `-hls_time ${segment_duration} ` +
-                `-hls_list_size 0 ` +
-                `-hls_segment_filename "${renditionDir}/segment%03d.ts" ` +
-                `-f hls "${playlistPath}"`
-
-              console.log(
-                `🎬 Creating HLS ${quality}: ${ffmpegCmd.substring(0, 100)}...`
+              console.log(`🎬 [HLS ${quality}] запуск ffmpeg`)
+              execFileSync(
+                'ffmpeg',
+                [
+                  '-i',
+                  ffArg(inputPath),
+                  '-vf',
+                  `scale=${ffArg(config.width)}:${ffArg(config.height)}`,
+                  '-c:v',
+                  'libx264',
+                  '-preset',
+                  'fast',
+                  '-b:v',
+                  `${ffArg(config.bitrate)}k`,
+                  '-c:a',
+                  'aac',
+                  '-b:a',
+                  '128k',
+                  '-hls_time',
+                  ffArg(String(segment_duration)),
+                  '-hls_list_size',
+                  '0',
+                  '-hls_segment_filename',
+                  ffArg(path.join(renditionDir, 'segment%03d.ts')),
+                  '-f',
+                  'hls',
+                  ffArg(playlistPath),
+                ],
+                { stdio: 'pipe', timeout: 600000 }
               )
-              execSync(ffmpegCmd, { stdio: 'pipe', timeout: 600000 })
 
               renditionUrls[quality] =
                 `/hls/${videoId}/${quality}/playlist.m3u8`
@@ -3367,8 +3552,21 @@ const server = createServer(async (req, res) => {
       }
 
       // Get metadata using ffprobe
-      const probeResult = execSync(
-        `ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,codec_name,bit_rate -show_entries format=duration,size -of json "${videoPath}"`,
+      const probeResult = execFileSync(
+        'ffprobe',
+        [
+          '-v',
+          'error',
+          '-select_streams',
+          'v:0',
+          '-show_entries',
+          'stream=width,height,r_frame_rate,codec_name,bit_rate',
+          '-show_entries',
+          'format=duration,size',
+          '-of',
+          'json',
+          ffArg(videoPath),
+        ],
         { encoding: 'utf-8', timeout: 30000 }
       )
 
@@ -3383,8 +3581,20 @@ const server = createServer(async (req, res) => {
       // Generate poster (first frame)
       const posterPath = path.join(OUTPUT_DIR, `${videoId}-poster.webp`)
       if (!fs.existsSync(posterPath)) {
-        execSync(
-          `ffmpeg -i "${videoPath}" -vframes 1 -f webp -q:v 80 "${posterPath}" -y`,
+        execFileSync(
+          'ffmpeg',
+          [
+            '-i',
+            ffArg(videoPath),
+            '-vframes',
+            '1',
+            '-f',
+            'webp',
+            '-q:v',
+            '80',
+            ffArg(posterPath),
+            '-y',
+          ],
           { stdio: 'pipe', timeout: 30000 }
         )
       }
@@ -3437,20 +3647,52 @@ const server = createServer(async (req, res) => {
           return
         }
 
-        const posterFilename = `${videoId}-poster-${timestamp.toFixed(1)}.${format}`
+        // Клиентские timestamp/format/quality — числа и два формата на выбор.
+        // Всё, что не число/не из списка, отбрасываем ДО ffmpeg: аргументы
+        // теперь массив, но мусор в них всё равно не нужен.
+        const ts = Number.isFinite(Number(timestamp)) ? Number(timestamp) : 0
+        const fmt = format === 'png' ? 'png' : 'webp'
+        const q = Math.min(Math.max(Math.round(Number(quality) || 80), 1), 100)
+
+        const posterFilename = `${videoId}-poster-${ts.toFixed(1)}.${fmt}`
         const posterPath = path.join(OUTPUT_DIR, posterFilename)
 
         // Generate poster at specified timestamp
-        execSync(
-          `ffmpeg -ss ${timestamp} -i "${videoPath}" -vframes 1 -f ${format} -q:v ${quality} "${posterPath}" -y`,
+        execFileSync(
+          'ffmpeg',
+          [
+            '-ss',
+            ffArg(String(ts)),
+            '-i',
+            ffArg(videoPath),
+            '-vframes',
+            '1',
+            '-f',
+            fmt,
+            '-q:v',
+            ffArg(String(q)),
+            ffArg(posterPath),
+            '-y',
+          ],
           { stdio: 'pipe', timeout: 30000 }
         )
 
         const stats = fs.statSync(posterPath)
 
         // Get dimensions
-        const probeResult = execSync(
-          `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of json "${posterPath}"`,
+        const probeResult = execFileSync(
+          'ffprobe',
+          [
+            '-v',
+            'error',
+            '-select_streams',
+            'v:0',
+            '-show_entries',
+            'stream=width,height',
+            '-of',
+            'json',
+            ffArg(posterPath),
+          ],
           { encoding: 'utf-8', timeout: 10000 }
         )
         const probeData = JSON.parse(probeResult)
@@ -3498,11 +3740,12 @@ const server = createServer(async (req, res) => {
         const videoId = `opt-${Date.now()}`
         const outputPath = path.join(OUTPUT_DIR, `${videoId}.mp4`)
 
-        // Download video if URL
+        // Download video if URL. video_url приходит от клиента — только
+        // публичные http/https хосты (SSRF), как у webhook.
         let inputPath = video_url
         if (video_url.startsWith('http')) {
           const tempPath = path.join(OUTPUT_DIR, `temp-${videoId}.mp4`)
-          const response = await fetch(video_url)
+          const response = await fetch(assertFetchable(video_url))
           const buffer = Buffer.from(await response.arrayBuffer())
           fs.writeFileSync(tempPath, buffer)
           inputPath = tempPath
@@ -3519,27 +3762,63 @@ const server = createServer(async (req, res) => {
         }
         const preset = presets[quality] || presets.balanced
 
-        // Build ffmpeg command
-        let ffmpegCmd = `ffmpeg -i "${inputPath}" `
-
-        if (target_codec === 'h264') {
-          ffmpegCmd += `-c:v libx264 -preset ${preset.preset} -crf ${preset.crf} `
-        } else if (target_codec === 'h265') {
-          ffmpegCmd += `-c:v libx265 -preset ${preset.preset} -crf ${preset.crf} `
-        } else if (target_codec === 'av1') {
-          ffmpegCmd += `-c:v libaom-av1 -crf ${preset.crf} -cpu-used 4 `
+        // Кодек — белый список, битрейт — целое число: оба приходят от
+        // клиента и раньше попадали в командную строку.
+        const codecArgs: Record<string, string[]> = {
+          h264: [
+            '-c:v',
+            'libx264',
+            '-preset',
+            preset.preset,
+            '-crf',
+            String(preset.crf),
+          ],
+          h265: [
+            '-c:v',
+            'libx265',
+            '-preset',
+            preset.preset,
+            '-crf',
+            String(preset.crf),
+          ],
+          av1: [
+            '-c:v',
+            'libaom-av1',
+            '-crf',
+            String(preset.crf),
+            '-cpu-used',
+            '4',
+          ],
         }
+        const codec = codecArgs[target_codec] || codecArgs.h264
 
-        if (max_bitrate) {
-          ffmpegCmd += `-maxrate ${max_bitrate}k -bufsize ${max_bitrate * 2}k `
+        const bitrateArgs: string[] = []
+        if (Number.isFinite(Number(max_bitrate)) && Number(max_bitrate) > 0) {
+          const br = Math.round(Number(max_bitrate))
+          bitrateArgs.push('-maxrate', `${br}k`, '-bufsize', `${br * 2}k`)
         }
-
-        ffmpegCmd += `-c:a aac -b:a 128k -movflags +faststart -y "${outputPath}"`
 
         console.log(
           `🔄 Optimizing video: ${quality} preset, ${target_codec} codec`
         )
-        execSync(ffmpegCmd, { stdio: 'pipe', timeout: 600000 })
+        execFileSync(
+          'ffmpeg',
+          [
+            '-i',
+            ffArg(inputPath),
+            ...codec,
+            ...bitrateArgs,
+            '-c:a',
+            'aac',
+            '-b:a',
+            '128k',
+            '-movflags',
+            '+faststart',
+            '-y',
+            ffArg(outputPath),
+          ],
+          { stdio: 'pipe', timeout: 600000 }
+        )
 
         const optimizedStats = fs.statSync(outputPath)
         const optimizedSize = optimizedStats.size
@@ -3985,6 +4264,208 @@ const server = createServer(async (req, res) => {
       })
       return
     }
+
+    // ⭐ ЗВЕЗДА ВМЕСТО ЛАЙКА. Лайк был бесплатным жестом; звезда —
+    // Telegram Stars, которая падает автору на баланс. Контур:
+    //   1. POST /api/feed/:id/star  — инвойс на 1⭐ (XTR), строка pending
+    //   2. клиент открывает openInvoice, человек платит в Telegram
+    //   3. бот ловит successful_payment (payload feedstar-*) и зовёт
+    //      POST /api/star-paid (сервер-сервер ключ) — строка → paid,
+    //      stars_count у ролика растёт; автору бот пишет звёзды на баланс
+    //   4. клиент пингует GET /api/feed/:id/star?payload= и видит paid
+    const starMatch = feedPath.match(/^\/api\/feed\/(\d+)\/star$/)
+    if (starMatch && req.method === 'POST') {
+      // Кто шлёт звезду: подпись мини-аппа или ключ агента. НЕ из тела —
+      // иначе можно было бы дарить звёзды от чужого имени.
+      const who = chatIdentity(req, verifiedTelegramId(req))
+      if (!who) {
+        sendJson(res, 401, {
+          error: 'не удалось определить пользователя',
+          detail: 'нужна подпись Telegram или ключ агента',
+        })
+        return
+      }
+      const templateId = starMatch[1]
+      try {
+        const pool = await getPool()
+        await pool.query(
+          `CREATE TABLE IF NOT EXISTS template_stars (
+             id bigserial PRIMARY KEY,
+             template_id bigint NOT NULL,
+             from_telegram_id text NOT NULL,
+             to_telegram_id text NOT NULL,
+             amount int NOT NULL DEFAULT 1,
+             status text NOT NULL DEFAULT 'pending',
+             invoice_payload text UNIQUE NOT NULL,
+             created_at timestamptz NOT NULL DEFAULT now(),
+             paid_at timestamptz
+           )`
+        )
+        await pool.query(
+          `ALTER TABLE public_templates
+             ADD COLUMN IF NOT EXISTS stars_count int NOT NULL DEFAULT 0`
+        )
+        const t = await pool.query(
+          `SELECT telegram_id, name FROM public_templates
+            WHERE id = $1 AND is_public = TRUE AND deleted_at IS NULL`,
+          [templateId]
+        )
+        if (!t.rows.length) {
+          sendJson(res, 404, { error: 'not_found' })
+          return
+        }
+        const author = String(t.rows[0].telegram_id)
+        const reelName = String(t.rows[0].name || '').slice(0, 64)
+        if (author === String(who)) {
+          sendJson(res, 400, {
+            error: 'свой ролик звёздами не награждают — подождите зрителей',
+          })
+          return
+        }
+        const payload = `feedstar-${randomUUID()}`
+        await pool.query(
+          `INSERT INTO template_stars
+             (template_id, from_telegram_id, to_telegram_id, amount, status, invoice_payload)
+           VALUES ($1, $2, $3, 1, 'pending', $4)`,
+          [templateId, String(who), author, payload]
+        )
+        if (!TELEGRAM_BOT_TOKEN) {
+          sendJson(res, 503, {
+            error: 'TELEGRAM_BOT_TOKEN не задан: звёзды недоступны',
+          })
+          return
+        }
+        // Инвойс Stars: provider_token пуст (XTR), хост фиксированный.
+        const invResp = await fetch(
+          `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/createInvoiceLink`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: 'Звезда автору',
+              description: `«${reelName}» — звезда падает автору на баланс`,
+              payload,
+              provider_token: '',
+              currency: 'XTR',
+              amount: 1,
+            }),
+          }
+        )
+        const inv = (await invResp.json()) as {
+          ok: boolean
+          result?: string
+          description?: string
+        }
+        // Наружу отдаём только инвойс-ссылку штатного вида t.me/$…;
+        // любые другие поля ответа Telegram остаются в логе сервера.
+        const invoiceUrl =
+          inv.result && /^https:\/\/t\.me\/\$[A-Za-z0-9_-]+$/.test(inv.result)
+            ? inv.result
+            : null
+        if (!inv.ok || !invoiceUrl) {
+          console.error('[star] createInvoiceLink failed:', inv.description)
+          sendJson(res, 502, { error: 'Telegram не выдал инвойс для звезды' })
+          return
+        }
+        sendJson(res, 200, { invoice_url: invoiceUrl, payload })
+      } catch (error) {
+        console.error('[star] create error:', error)
+        sendJson(res, 500, { error: 'star_create_failed' })
+      }
+      return
+    }
+
+    // Статус звезды: клиент пингует после закрытия инвойса.
+    if (starMatch && req.method === 'GET') {
+      const payload = new URL(
+        req.url || '/',
+        'http://localhost'
+      ).searchParams.get('payload')
+      if (!payload) {
+        sendJson(res, 400, { error: 'payload_required' })
+        return
+      }
+      try {
+        const pool = await getPool()
+        const r = await pool.query(
+          `SELECT ts.status, pt.stars_count
+             FROM template_stars ts
+             JOIN public_templates pt ON pt.id = ts.template_id
+            WHERE ts.invoice_payload = $1`,
+          [payload]
+        )
+        if (!r.rows.length) {
+          sendJson(res, 404, { error: 'not_found' })
+          return
+        }
+        sendJson(res, 200, {
+          status: r.rows[0].status,
+          stars_count: r.rows[0].stars_count ?? 0,
+        })
+      } catch (error) {
+        console.error('[star] status error:', error)
+        sendJson(res, 500, { error: 'star_status_failed' })
+      }
+      return
+    }
+  }
+
+  // POST /api/star-paid — бот сообщил об оплаченной звезде.
+  // Только сервер-сервер: ключ RENDER_API_KEY в X-Api-Key; подписи initData
+  // здесь недостаточно — внутренний вход не для людей.
+  if (req.url?.split('?')[0] === '/api/star-paid' && req.method === 'POST') {
+    const key = (req.headers['x-api-key'] as string | undefined) || ''
+    const expected = process.env.RENDER_API_KEY || ''
+    if (!expected || key !== expected) {
+      sendJson(res, 401, { error: 'internal_only' })
+      return
+    }
+    let body: any
+    try {
+      body = JSON.parse(await readBody(req))
+    } catch {
+      sendJson(res, 400, { error: 'bad_json' })
+      return
+    }
+    const payload = String(body.payload || '')
+    if (!payload.startsWith('feedstar-')) {
+      sendJson(res, 400, { error: 'bad_payload' })
+      return
+    }
+    try {
+      const pool = await getPool()
+      // pending→paid ровно один раз: повторный вебхук не начислит дважды.
+      const upd = await pool.query(
+        `UPDATE template_stars
+            SET status = 'paid', paid_at = now()
+          WHERE invoice_payload = $1 AND status = 'pending'
+          RETURNING template_id, to_telegram_id, from_telegram_id, amount`,
+        [payload]
+      )
+      if (!upd.rows.length) {
+        // уже оплачено или не найдено — идемпотентно отвечаем ok
+        sendJson(res, 200, { ok: true, paid: false })
+        return
+      }
+      const row = upd.rows[0]
+      await pool.query(
+        `UPDATE public_templates SET stars_count = stars_count + $2
+          WHERE id = $1`,
+        [row.template_id, row.amount]
+      )
+      sendJson(res, 200, {
+        ok: true,
+        paid: true,
+        template_id: String(row.template_id),
+        to_telegram_id: row.to_telegram_id,
+        from_telegram_id: row.from_telegram_id,
+        amount: row.amount,
+      })
+    } catch (error) {
+      console.error('[star-paid] error:', error)
+      sendJson(res, 500, { error: 'star_paid_failed' })
+    }
+    return
   }
 
   if (req.url?.startsWith('/api/feed') && req.method === 'GET') {
@@ -4006,6 +4487,7 @@ const server = createServer(async (req, res) => {
           COALESCE(pt.creator_username, '') as creator_username, pt.name, pt.description,
           pt.thumbnail_url, pt.video_url, pt.template_settings::text, pt.assets::text,
           pt.tracks::text, pt.likes_count, pt.views_count, pt.uses_count,
+          COALESCE(pt.stars_count, 0) as stars_count,
           CASE WHEN tl.telegram_id IS NOT NULL THEN TRUE ELSE FALSE END as is_liked,
           pt.is_featured, pt.created_at::text, pt.parent_template_id, pt.original_creator_id
           FROM public_templates pt
@@ -4019,31 +4501,29 @@ const server = createServer(async (req, res) => {
           return
         }
         const row = result.rows[0]
-        res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify({
-            id: row.id,
-            telegramId: row.telegram_id,
-            creatorName: row.creator_name,
-            creatorAvatar: row.creator_avatar,
-            creatorUsername: row.creator_username,
-            name: row.name,
-            description: row.description,
-            thumbnailUrl: row.thumbnail_url,
-            videoUrl: row.video_url,
-            templateSettings: row.template_settings,
-            assets: row.assets,
-            tracks: row.tracks,
-            likesCount: row.likes_count || 0,
-            viewsCount: row.views_count || 0,
-            usesCount: row.uses_count || 0,
-            isLiked: row.is_liked || false,
-            isFeatured: row.is_featured || false,
-            createdAt: row.created_at,
-            parentTemplateId: row.parent_template_id,
-            originalCreatorId: row.original_creator_id,
-          })
-        )
+        sendJson(res, 200, {
+          id: row.id,
+          telegramId: row.telegram_id,
+          creatorName: row.creator_name,
+          creatorAvatar: row.creator_avatar,
+          creatorUsername: row.creator_username,
+          name: row.name,
+          description: row.description,
+          thumbnailUrl: row.thumbnail_url,
+          videoUrl: row.video_url,
+          templateSettings: row.template_settings,
+          assets: row.assets,
+          tracks: row.tracks,
+          likesCount: row.likes_count || 0,
+          viewsCount: row.views_count || 0,
+          usesCount: row.uses_count || 0,
+          starsCount: row.stars_count || 0,
+          isLiked: row.is_liked || false,
+          isFeatured: row.is_featured || false,
+          createdAt: row.created_at,
+          parentTemplateId: row.parent_template_id,
+          originalCreatorId: row.original_creator_id,
+        })
       } catch (error) {
         console.error('Template error:', error)
         res.writeHead(500, { 'Content-Type': 'application/json' })
@@ -4105,6 +4585,7 @@ const server = createServer(async (req, res) => {
           COALESCE(pt.creator_username, '') as creator_username, pt.name, pt.description,
           pt.thumbnail_url, pt.video_url, pt.template_settings::text, pt.assets::text,
           pt.tracks::text, pt.likes_count, pt.views_count, pt.uses_count,
+          COALESCE(pt.stars_count, 0) as stars_count,
           CASE WHEN tl.telegram_id IS NOT NULL THEN TRUE ELSE FALSE END as is_liked,
           pt.is_featured, pt.created_at::text, pt.parent_template_id, pt.original_creator_id
           FROM public_templates pt
@@ -4131,6 +4612,7 @@ const server = createServer(async (req, res) => {
           likesCount: row.likes_count || 0,
           viewsCount: row.views_count || 0,
           usesCount: row.uses_count || 0,
+          starsCount: row.stars_count || 0,
           isLiked: row.is_liked || false,
           isFeatured: row.is_featured || false,
           createdAt: row.created_at,
@@ -4894,14 +5376,15 @@ Return ONLY the JSON, no additional text.`
       return
     }
     try {
-      const proxyRes = await fetch(url)
-      const data = await proxyRes.arrayBuffer()
-      res.writeHead(proxyRes.status || 200, {
-        'Content-Type': proxyRes.headers.get('content-type') || 'image/jpeg',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, max-age=86400',
-      })
-      res.end(Buffer.from(data))
+      // Картинка скачивается в кэш-файл и отдаётся файловым сервизером.
+      // В пути файла — НИ одного фрагмента клиентского или удалённого
+      // ввода: только случайный uuid и фиксированное расширение.
+      // Аватары Telegram — JPEG; content-type проверяется внутри
+      // fetchTelegramImage до записи.
+      const img = await fetchTelegramImage(url)
+      const cachePath = path.join(OUTPUT_DIR, `tgimg-${randomUUID()}.jpg`)
+      fs.writeFileSync(cachePath, img.data)
+      serveStaticFile(res, cachePath)
     } catch (error) {
       console.error('Proxy error:', error)
       res.writeHead(500, { 'Content-Type': 'application/json' })
