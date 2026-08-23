@@ -29,3 +29,5 @@ description: Эксплуатация Trinity S³AI (vibee-editor): локаль
 - Автопилот: `cd apps/vibee-editor/render && LOOP_DIR=<repo>/loop npx tsx scripts/agent-autopilot.ts` — сам рендерит и публикует рилс из очереди. Лимиты: 4 поста/день, 60 платных генераций/день (в tools.ts), дубль-защита по названию.
 - **Не ломать прошлую работу**: не `git reset/checkout` без stash, не убивать порты 2999/3333/5173 (сначала health-check `curl localhost:3333/health`), не переустанавливать deps без нужды, коммитить только в ветку `loop/agent-improvements`, в main не лезть, на прод не деплоить без явного разрешения владельца.
 - Перед правками агентских инструментов читать `loop/LOOP_REPORT.md` (что уже сделано и что в плане).
+
+9. Блог: прокси GET /api/blog (RSS t27.ai, кэш 10 мин, entity-декод в прокси — браузеру отдаётся чистый текст). Страница pages/Blog.tsx: Header монтируется САМОЙ страницей (App его не ставит), lazy-роуту нужен default export. Таб — NAV_TABS в Header.tsx, переводы tabs.blog в atoms/language.ts (два блока: EN и RU).
