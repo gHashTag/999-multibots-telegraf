@@ -1,0 +1,116 @@
+.agent-connect {
+  padding: 64px 20px;
+  display: flex;
+  justify-content: center;
+}
+.agent-connect__inner {
+  width: 100%;
+  max-width: 720px;
+  text-align: center;
+}
+.agent-connect__badge {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--vibee-accent, #f59e0b);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 20px;
+  padding: 4px 12px;
+  margin-bottom: 16px;
+}
+.agent-connect__title {
+  font-size: clamp(28px, 5vw, 44px);
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--vibee-text, #fff);
+}
+.agent-connect__lead {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--vibee-text-muted, #9a9aa2);
+  max-width: 560px;
+  margin: 0 auto 28px;
+}
+.agent-connect__panel {
+  text-align: left;
+  background: var(--vibee-bg-elevated, #141417);
+  border: 1px solid var(--vibee-border, rgba(255, 255, 255, 0.1));
+  border-radius: 12px;
+  overflow: hidden;
+}
+.agent-connect__panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--vibee-text-muted, #9a9aa2);
+  border-bottom: 1px solid var(--vibee-border, rgba(255, 255, 255, 0.08));
+}
+.agent-connect__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3fb950;
+}
+.agent-connect__code {
+  width: 100%;
+  border: 0;
+  resize: none;
+  background: transparent;
+  color: #d8d8dd;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 14px;
+  box-sizing: border-box;
+  outline: none;
+}
+.agent-connect__actions {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--vibee-border, rgba(255, 255, 255, 0.08));
+  flex-wrap: wrap;
+}
+/* Кнопка касания не ниже 44px — из --touch-target проекта. */
+.agent-connect__copy {
+  flex: 1 1 160px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--vibee-accent, #f59e0b);
+  color: #000;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.agent-connect__copy:hover {
+  filter: brightness(1.08);
+}
+.agent-connect__try {
+  flex: 1 1 160px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--vibee-border, rgba(255, 255, 255, 0.18));
+  color: var(--vibee-text, #fff);
+  text-decoration: none;
+  font-size: 14px;
+  transition: background 0.15s ease;
+}
+.agent-connect__try:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.agent-connect__note {
+  font-size: 13px;
+  color: var(--vibee-text-muted, #9a9aa2);
+  margin: 18px auto 0;
+  max-width: 520px;
+}

@@ -2,6 +2,7 @@ import {
   Header,
   Hero,
   FeedPreview,
+  AgentConnect,
   Features,
   Technology,
   CreatorShowcase,
@@ -9,8 +10,8 @@ import {
   HowItWorks,
   Pricing,
   Footer,
-} from '@/components/landing';
-import './Home.css';
+} from '@/components/landing'
+import './Home.css'
 
 function HomePage() {
   return (
@@ -18,6 +19,7 @@ function HomePage() {
       <Header />
       <main>
         <Hero />
+        <AgentConnect />
         <FeedPreview />
         <Features />
         <Technology />
@@ -28,7 +30,7 @@ function HomePage() {
       </main>
       <Footer />
     </div>
-  );
+  )
 }
 
-export default HomePage;
+export default HomePage
