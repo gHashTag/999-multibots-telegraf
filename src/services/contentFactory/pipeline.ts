@@ -89,7 +89,7 @@ function buildProps(
       music: musicUrl || '',
       musicVolume: ctx.canon.musicVolume,
       brand: {
-        masthead: 'TRINITY',
+        masthead: 'Trinity S³AI',
         eyebrow: 'Закрытый клуб · набор волнами',
         name: 'Золотая Литейная',
         cta: 't27.ai/foundry',

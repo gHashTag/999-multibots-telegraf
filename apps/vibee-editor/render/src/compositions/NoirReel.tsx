@@ -90,7 +90,7 @@ export const NoirReelSchema = z.object({
       sub: z.string(),
     })
     .default({
-      masthead: 'TRINITY',
+      masthead: 'Trinity S³AI',
       eyebrow: 'Закрытый клуб · набор волнами',
       name: 'Золотая Литейная',
       cta: 't27.ai/foundry',

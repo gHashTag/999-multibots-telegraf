@@ -48,7 +48,7 @@ const Root: React.FC = () =>
       music: '',
       musicVolume: 0.07,
       brand: {
-        masthead: 'TRINITY',
+        masthead: 'Trinity S³AI',
         eyebrow: 'Закрытый клуб · набор волнами',
         name: 'Золотая Литейная',
         cta: 't27.ai/foundry',
