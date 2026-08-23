@@ -14,6 +14,10 @@ RUN apt-get update && apt-get install -y \
 
 COPY package.json ./
 COPY package-lock.json* ./
+# scripts/install-hooks.cjs нужен ДО npm install: npm выполняет `prepare`
+# сразу после установки, а prepare зовёт этот файл. Без него сборка падает
+# с 'Cannot find module'. Сам скрипт видит, что .git нет, и молча выходит.
+COPY scripts/install-hooks.cjs ./scripts/
 RUN npm install --omit=dev
 
 # Stage 2: Builder с esbuild
@@ -25,6 +29,7 @@ RUN npm install -g esbuild
 
 COPY package.json ./
 COPY package-lock.json* ./
+COPY scripts/install-hooks.cjs ./scripts/
 RUN npm install
 
 COPY . .
