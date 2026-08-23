@@ -10,7 +10,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 1000;
+  z-index: var(--z-tabbar, 900);
 
   /* --app-safe-bottom is written by useTelegramWebApp from
      WebApp.safeAreaInset (Bot API 8.0+) and falls back to
