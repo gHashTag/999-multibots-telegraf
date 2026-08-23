@@ -32,3 +32,4 @@ description: Эксплуатация Trinity S³AI (vibee-editor): локаль
 
 9. Блог: прокси GET /api/blog (RSS t27.ai, кэш 10 мин, entity-декод в прокси — браузеру отдаётся чистый текст). Страница pages/Blog.tsx: Header монтируется САМОЙ страницей (App его не ставит), lazy-роуту нужен default export. Таб — NAV_TABS в Header.tsx, переводы tabs.blog в atoms/language.ts (два блока: EN и RU).
 10. Автопилот: при <2 тем в запасе сам дописывает в topics.json темы из свежих постов блога (/api/blog). topics.json — мутируемая очередь, не переписывай её руками поверх.
+11. Replicate-видео: wan-2.5-t2v-fast стабильно E002 (их сторона) — юзай bytedance/seedance-1-lite (принимает aspect_ratio+duration, НЕ size). Ссылки replicate.delivery и fal — ВРЕМЕННЫЕ: перекладывай файл в S3 через POST /upload сразу.

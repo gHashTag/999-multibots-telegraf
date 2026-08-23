@@ -5,3 +5,5 @@
 - 2026-08-23T20:06:23.719Z опубликован рилс «Ретракция — тоже результат» (id 6): https://bucket-production-8259.up.railway.app/vibee-assets/renders/1787515578338-31cfddf8-a7d5-45ee-a2f9-4bb632aefea5.mp4 — пост 2/4 за 2026-08-23
 - 2026-08-23T20:08:24.310Z опубликован рилс «Конформанс-скамья на открытом потоке» (id 7): https://bucket-production-8259.up.railway.app/vibee-assets/renders/1787515695018-fb7d7729-febf-4730-a1f6-fcecfdb3ce2d.mp4 — пост 3/4 за 2026-08-23
 - 2026-08-23T20:09:19Z цикл №2: аудит чист, автопилот публикует (id 6,7; 3/4), очередь тем самоподполняется из блога, конкурент-находка: Revid MCP
+- 2026-08-23T20:18:51.040Z опубликован рилс «Три состояния достаточно» (id 8): https://bucket-production-8259.up.railway.app/vibee-assets/renders/1787516325630-9d713c65-23a1-479d-97eb-e3a9a19aa5b9.mp4 — пост 4/4 за 2026-08-23
+- 2026-08-23T20:31:42Z цикл №3: video_generate починен (seedance-1-lite→S3, asset 1558), автопилот 4/4 (id 8), wan-E002 опыт
