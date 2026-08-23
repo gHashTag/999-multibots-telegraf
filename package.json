@@ -16,6 +16,7 @@
     "check:merge": "./scripts/pre-merge-check.sh",
     "check:quick": "./scripts/quick-build-check.sh",
     "check:translations": "bun run scripts/check_ai_stars_translations.ts",
+    "dashboard": "node scripts/dashboard.cjs",
     "deploy": "chmod +x scripts/deploy.sh && ./scripts/deploy.sh",
     "deploy:check": "chmod +x scripts/js-error-check.sh && ./scripts/js-error-check.sh",
     "deploy:check:fix": "chmod +x scripts/js-error-check.sh && ./scripts/js-error-check.sh --fix",
