@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
 import {
@@ -66,6 +66,37 @@ export function TelegramTabBar() {
    * (64px) расходится с фактическими 57px, и на этой разнице превью теряло
    * высоту, а нижние пиксели таймлайна уезжали под панель.
    */
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Активная вкладка подтягивается в видимую часть.
+   *
+   * Вкладок девять, влезает шесть — три уезжают вправо. Полоса прокручивалась
+   * и раньше, но об этом ничто не сообщало: человек видел шесть вкладок и
+   * считал, что других нет. Если он оказался на «Профиле» (например по
+   * прямой ссылке), активная вкладка была за краем — интерфейс выглядел так,
+   * будто ничего не выбрано.
+   */
+
+  /** Подсказка «есть ещё»: тень у того края, за которым спрятаны вкладки. */
+  const [edges, setEdges] = useState({ start: false, end: false });
+  useEffect(() => {
+    const sc = scrollRef.current;
+    if (!sc) return;
+    const update = () => {
+      const max = sc.scrollWidth - sc.clientWidth;
+      setEdges({ start: sc.scrollLeft > 4, end: sc.scrollLeft < max - 4 });
+    };
+    update();
+    sc.addEventListener('scroll', update, { passive: true });
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    ro?.observe(sc);
+    return () => {
+      sc.removeEventListener('scroll', update);
+      ro?.disconnect();
+    };
+  }, []);
+
   const tabbarRef = useRef<HTMLElement>(null);
   useEffect(() => {
     const el = tabbarRef.current;
@@ -88,6 +119,16 @@ export function TelegramTabBar() {
   const { t } = useLanguage();
   const location = useLocation();
   const myProfile = useAtomValue(myProfileAtom);
+
+  // Активная вкладка подтягивается в видимую часть: вкладок девять, влезает
+  // шесть, и по прямой ссылке на «Профиль» активная оказывалась за краем —
+  // интерфейс выглядел так, будто ничего не выбрано.
+  useEffect(() => {
+    const sc = scrollRef.current;
+    if (!sc) return;
+    const active = sc.querySelector<HTMLElement>('.tma-tabbar__item.is-active, [aria-current]');
+    active?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [location.pathname]);
 
   const hidden =
     HIDDEN_EXACT.has(location.pathname) ||
@@ -115,7 +156,10 @@ export function TelegramTabBar() {
 
   return (
     <nav ref={tabbarRef} className="tma-tabbar" aria-label="Primary">
-      <div className="tma-tabbar__scroll">
+      <div
+        ref={scrollRef}
+        className={`tma-tabbar__scroll${edges.start ? ' has-start' : ''}${edges.end ? ' has-end' : ''}`}
+      >
         {TABS.map(tab => {
           // ProfileRedirect resolves /profile to /:username, but linking
           // straight there avoids a redirect hop when the profile is loaded.
