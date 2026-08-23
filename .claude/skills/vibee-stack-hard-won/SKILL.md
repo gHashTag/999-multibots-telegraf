@@ -1,6 +1,6 @@
 ---
-name: "VIBEE stack: hard-won lessons"
-description: "Read BEFORE touching the vibee editor, render server, Railway services or the Supabase→Railway migration. Encodes defects that a passing build does NOT catch, dead-code traps that made three separate fixes land in files nobody renders, and the verification rules that caught them. Use when editing apps/vibee-editor, deploying to Railway project 999, or changing anything the bot writes to the assets table."
+name: 'VIBEE stack: hard-won lessons'
+description: 'Read BEFORE touching the vibee editor, render server, Railway services or the Supabase→Railway migration. Encodes defects that a passing build does NOT catch, dead-code traps that made three separate fixes land in files nobody renders, and the verification rules that caught them. Use when editing apps/vibee-editor, deploying to Railway project 999, or changing anything the bot writes to the assets table.'
 ---
 
 # VIBEE stack: hard-won lessons
@@ -21,6 +21,7 @@ This codebase has a repeated pattern: a component is built, committed, and wired
 to nothing. Three separate fixes landed in such files before anyone noticed.
 
 Confirmed dead or previously dead:
+
 - `VerticalTabs`, `BottomNavigation` — exported, rendered nowhere. Superseded by
   `TelegramTabBar`.
 - `components/AssetBrowser/AssetBrowser.tsx` — **not imported anywhere**.
@@ -36,6 +37,7 @@ own folder, then confirm the element exists in the live DOM.
 ## Traps by area
 
 ### Railway
+
 - `railwayConfigFile` resolves against the **repo root**; service-level
   `dockerfilePath` resolves against the **Root Directory**. Two conventions.
 - A service's **first** deployment races the Root Directory setting and builds
@@ -47,6 +49,7 @@ own folder, then confirm the element exists in the live DOM.
 - Serve **both** `/health` and `/healthz`: which config wins is not obvious.
 
 ### Supabase → Railway Postgres
+
 - `SUPABASE_SERVICE_KEY` is **misnamed**: its JWT decodes to `role=anon`. The
   real one is `SUPABASE_SERVICE_ROLE_KEY`. `getSupabaseKey()` prefers the former,
   so the bot has been querying as anon.
@@ -60,6 +63,7 @@ own folder, then confirm the element exists in the live DOM.
   overwrites `process.env` with every secret at boot.
 
 ### The editor
+
 - `supabase-js` always appends `rest/v1` to the base URL (`SupabaseClient.js:78`).
   A bare PostgREST needs a path-stripping gateway.
 - `response.statusText` is **empty on HTTP/2**, which is all Railway serves.
@@ -71,6 +75,7 @@ own folder, then confirm the element exists in the live DOM.
   (`MEDIA_ORIGIN`), never the render server, which has no `public/`.
 
 ### The render server
+
 - `getPool()` throws **synchronously**. Outside a `try` it escapes an async
   handler and Node 20 kills the process — a one-request DoS.
 - `type` in `assets` holds the **model name** (`veo3_fast`), not the media kind.
@@ -237,10 +242,10 @@ typecheck прошёл, PR ушёл.
 
 Подтверждено трижды, каждый раз с живым двойником рядом:
 
-| Inngest-функция (недостижима) | Что работает на самом деле |
-|---|---|
-| `neuro/photo.generate` | `generateNeuroPhotoHybrid`, прямой вызов из визарда |
-| `broadcast/send-message` | `services/plan_b/broadcast.service.ts` |
+| Inngest-функция (недостижима) | Что работает на самом деле                                                                             |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `neuro/photo.generate`        | `generateNeuroPhotoHybrid`, прямой вызов из визарда                                                    |
+| `broadcast/send-message`      | `services/plan_b/broadcast.service.ts`                                                                 |
 | `model/training.v2.requested` | v1 `generateModelTraining` — все 105 платежей за тренировку это `digital_avatar_body`, ни одного `_v2` |
 
 Отсюда следствия, которые уже стоили нескольких циклов:
@@ -266,11 +271,11 @@ http, по голому IP и по самому пути коллбэка.
 fallback, а в повторяющейся ошибке: **нужная переменная в проде задана, но её
 забыли внести именно в ЭТУ цепочку.** Найдено трижды подряд:
 
-| Цепочка | Что было не так |
-|---|---|
-| `BASE_PAYMENT_URL` | `BASE_WEBHOOK_URL` задана, но её не было в цепочке → ResultURL Robokassa (серверное подтверждение оплаты) уезжал на мёртвый хост |
-| `botBaseUrl` в `inngest-provider.ts` | `BOT_INNGEST_BASE_URL` задана, в цепочке только `INNGEST_BASE_URL`, которой нет |
-| `webhookUrl` в AI Reels, `urls.get/cancel` в lipsync | Зашито вообще без альтернативы |
+| Цепочка                                              | Что было не так                                                                                                                  |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `BASE_PAYMENT_URL`                                   | `BASE_WEBHOOK_URL` задана, но её не было в цепочке → ResultURL Robokassa (серверное подтверждение оплаты) уезжал на мёртвый хост |
+| `botBaseUrl` в `inngest-provider.ts`                 | `BOT_INNGEST_BASE_URL` задана, в цепочке только `INNGEST_BASE_URL`, которой нет                                                  |
+| `webhookUrl` в AI Reels, `urls.get/cancel` в lipsync | Зашито вообще без альтернативы                                                                                                   |
 
 Правило: увидел `env.X || 'literal-домен'` — проверь, какие переменные РЕАЛЬНО
 заданы в Railway, а не какие выглядят правильными в коде. Одна команда:
@@ -286,8 +291,7 @@ fallback, а в повторяющейся ошибке: **нужная пере
 была настоящая ошибка. Причина: tsc раскрашивает вывод, между словом `error` и
 кодом `TS2688` стоят ANSI-последовательности, и литерал `error TS` не совпадает.
 
-Я на этом основании заявил себе «в тестах 0 ошибок типов». Настоящее число —
-1230. Всегда `--pretty false` (или `NO_COLOR=1`), когда считаешь ошибки грепом.
+Я на этом основании заявил себе «в тестах 0 ошибок типов». Настоящее число — 1230. Всегда `--pretty false` (или `NO_COLOR=1`), когда считаешь ошибки грепом.
 
 Тот же класс: `grep -c` на пустом выводе даёт `0`, что неотличимо от «проверка
 прошла». Смотри код возврата, а не только число.
@@ -459,6 +463,7 @@ undefined ВСЕГДА, и выбор бота падал на захардко�
 которую ЧИТАЕТ потребитель, а не та, которую пишет отправитель.
 
 Мелочи, каждая стоила отдельного прогона `safeParse`:
+
 - `circle_position` / `circle_scale` — это `z.tuple([number, number, number])`,
   а не `{x, y}`;
 - `cover_url: ''` не проходит `z.string().url()` — нужно `undefined`;
@@ -535,6 +540,7 @@ try/catch визарда не срабатывает никогда.
 `generatePresignedUploadUrl` → PUT → `generateGetUrl`.
 
 Три детали этого API не угадываются, каждая стоила отдельной компиляции:
+
 - сигнатура `(objectKey, contentType, expiresIn, logger)`, а НЕ
   `(objectKey, expiresIn, logger)`;
 - возвращается объект `PresignedUploadUrl { url, object_key, content_type }`,
@@ -563,6 +569,7 @@ try/catch визарда не срабатывает никогда.
 показал 6 ошибок вместо 655, и на секунду это выглядело блестящей победой.
 
 Два правила:
+
 1. Вставлять после ЗАКРЫТИЯ блока импортов (считать скобки), а не после
    последней строки, начинающейся со слова `import`.
 2. **Резкое улучшение счёта — повод перепроверить, а не радоваться.** Если
@@ -640,6 +647,7 @@ Telegram: `wizardButtonHandlers.ts:58` передаёт туда `ctx.callbackQu
 заметно, ложное обещание — нет.
 
 Рядом нашлись ещё два того же рода:
+
 - `validateCallbackData` проверяла пустоту и длину под комментарием «добавить
   правила по мере необходимости»; префикс не проверялся вовсе, и middleware
   пропускал любую строку до 64 символов;
@@ -695,10 +703,10 @@ Telegram: `wizardButtonHandlers.ts:58` передаёт туда `ctx.callbackQu
 За неделю нашлось пять заглушек, возвращавших успех. Правильное действие для
 каждой оказалось разным, и решает его один вопрос — «кто её вызывает»:
 
-| заглушка | вызывается | что сделано |
-|---|---|---|
-| `generateSpeech`, `transcribeAudio` (elevenLabs.ts) | да, но путь и так мёртв | **бросают** — молчаливая подделка хуже отказа |
-| `validateLipSyncInput` (lipsync-schemas.ts) | НЕТ (`getLipSyncManager` без вызовов) | **бросает** — мина обезврежена, поведение не тронуто |
+| заглушка                                             | вызывается                             | что сделано                                                       |
+| ---------------------------------------------------- | -------------------------------------- | ----------------------------------------------------------------- |
+| `generateSpeech`, `transcribeAudio` (elevenLabs.ts)  | да, но путь и так мёртв                | **бросают** — молчаливая подделка хуже отказа                     |
+| `validateLipSyncInput` (lipsync-schemas.ts)          | НЕТ (`getLipSyncManager` без вызовов)  | **бросает** — мина обезврежена, поведение не тронуто              |
 | `validateProjectInStep`, `ensureProjectsTableExists` | ДА, из двух зарегистрированных функций | **только комментарий** — бросок сломал бы живой поиск конкурентов |
 
 Правило: **заглушка, которая врёт, плоха; заглушка, которая роняет живую
@@ -866,6 +874,7 @@ payload, а валидация сработала верно. Все четыр�
     трат на озвучку, аватар, транскрипцию и b-roll.
 
 То есть подтверждено ЖИВЫМ ПРОГОНОМ:
+
 - валидация входа проходит (звено 1 работает);
 - preflight, добавленный ранее, срабатывает и останавливает ДО трат у четырёх
   провайдеров — ровно как задумано;
@@ -915,6 +924,7 @@ payload, а валидация сработала верно. Все четыр�
     api.hedra.com          0   НЕТ ВОВСЕ
 
 То есть масштаб задачи неоднородный:
+
 - ElevenLabs, KIE, FAL, Replicate — работа СВОДИТСЯ К ПРОВОДКЕ, код написан;
 - HeyGen — есть только `heygenAvatarDetails.ts` (детали аватара), а генерацию
   видео пайплайн берёт из заглушки `HeyGenService`
@@ -1284,6 +1294,7 @@ ElevenLabs: молчаливая подделка успеха опаснее о
 одинаково: тишиной.
 
 Две детали, без которых список превращается в глушилку:
+
 1. значение — не `true`, а ТЕКСТ ПРИЧИНЫ;
 2. отдельная проверка, что в списке нет тех, кого уже примонтировали — иначе
    исключение переживёт свою причину и молча прикроет следующую ошибку.
@@ -1351,6 +1362,7 @@ Robokassa: человек заплатил, деньги ушли, звёзды 
 не выполняется. Следа нет вообще.
 
 Нашлось этим способом:
+
 - карта MCP-сервера — неверны были ВСЕ ДЕВЯТЬ имён, ни одну функцию из
   перечисленных запустить было нельзя
 - `INNGEST_EVENTS` — 17 констант из 24 называли события без подписчика
@@ -2145,6 +2157,7 @@ Telegram. При том что итерацией раньше я нашёл и�
 проду: доходит до обработчика.
 
 Что это давало постороннему:
+
 - запустить генерацию, списав звёзды с ЛЮБОГО номера на выбор;
 - потратить наш бюджет у поставщика — План Б зовёт `replicate.run()`.
 
@@ -2971,3 +2984,95 @@ OpenAI). Файл при этом сторожил код генерации и�
 3. Does the endpoint answer from the caller's origin? (CORS, auth headers)
 4. For data: counts AND exact sums as text, not counts alone.
 5. Say plainly what was NOT verified. A green build is not verification.
+
+## Ворота, которые годами отчитывались об успехе, ничего не проверяя
+
+Задача звучала как «настроить lefthook». Заменять оказалось нечего: ни один
+гейт в репозитории не работал. Четыре независимых причины, и каждая по
+отдельности давала зелёный результат.
+
+1. **ESLint не запускался ни разу.** Конфига не было вообще — ни файлом, ни
+   полем `eslintConfig`. Без него ESLint 8 берёт парсер espree и падает на
+   первой строке КАЖДОГО файла: `Parsing error: The keyword 'import' is
+reserved`. Плагины при этом стояли в devDependencies, скрипт `lint` был,
+   `lint-staged` звался из pre-commit — всё выглядело настроенным.
+2. **Код возврата не проверялся.** Хук печатал `✅ Все проверки пройдены`
+   сразу после `pnpm exec lint-staged`, без `if` и без `set -e`.
+3. **Хуки физически не срабатывали.** `core.hooksPath` указывал на `.husky`,
+   а установщик писал в `.git/hooks` — git туда просто не смотрел.
+4. **lefthook пропускал команды молча.** Первый же прогон pre-push:
+   `summary: (done in 0.30 seconds)`, exit 0, и пять строк `(skip) no matching
+push files`. Хук отчитался об успехе, не выполнив ни одной команды.
+
+Отдельно — **гвард секретов, который считался единственным работающим**. Он
+искал ТРИ имени переменных в форме `ИМЯ="…`. Проверка живым прогоном: строка
+вида `bot<цифры>:<35 символов>` прошла насквозь, гвард сказал ОК. Плюс он
+исключал `*.md`, `CLAUDE.md` и `.claude/` — ровно те файлы, где секреты в этом
+репозитории и лежат. Плюс его фолбэк на диапазон коммитов не срабатывал
+никогда, потому что `git diff --cached` возвращает 0 и при пустом выводе, —
+значит на pre-push проверялась пустая строка.
+
+**Правило: гейт считается существующим только после проверки в ОБЕ стороны.**
+Пропускает чистое — половина ответа. Надо ещё подсунуть заведомо грязное и
+увидеть exit 1. Каждая из перечисленных дыр обнаружилась именно так и никак
+иначе; чтение конфигов показывало исправную систему.
+
+Практические следствия для этого репозитория:
+
+- `skip_empty` в lefthook v2 НЕ существует (`lefthook validate` это скажет).
+  Валидные ключи команды: env, exclude, fail_text, file_types, files, glob,
+  interactive, only, priority, root, run, skip, stage_fixed, tags, timeout,
+  use_stdin. Ручной `lefthook run pre-push` без stdin от git пропускает всё —
+  проверять надо НАСТОЯЩИМ `git push`.
+- `use_stdin: true` нужен pre-push команде, которой нужны ref'ы от git
+  (`local_ref local_sha remote_ref remote_sha`). Без него скрипт их не увидит.
+- `prepare: lefthook install` в package.json обязателен, иначе свежий клон
+  хуков не получит вовсе. `npm i -D lefthook` в этом окружении поставил пакет,
+  но в package.json его НЕ записал — проверять глазами.
+
+## Гейт поверх накопленного долга: baseline, а не «падать на всём»
+
+В репозитории 208 падающих тестов из 2699, 30 ошибок линта, 16 недостижимых
+Inngest-функций. Ворота «падать при любом совпадении» заблокировали бы каждый
+коммит и были бы отключены в тот же день — то есть снова стали бы фикцией.
+
+Рабочая форма: **падать только на НОВОМ**.
+
+- линт и тесты — только по изменённым файлам (`{staged_files}`,
+  `vitest related --run {push_files}`);
+- `orphan-events` — база в `scripts/orphan-events-baseline.json`, обновляется
+  флагом `--update-baseline`;
+- известный долг ОСТАЁТСЯ в выводе с числом. Молча урезанный список читается
+  как «всё чисто», хотя это не так.
+
+Проверять baseline тоже надо в обе стороны: с базой exit 0, а после добавления
+нового осиротевшего события — exit 1.
+
+## img2img: незаданная деталь наследуется всей серией
+
+Владелец заметил, что золотой значок на лацкане во всех кадрах смотрит вверх
+(△), а на эталонном фото — вниз (▽).
+
+В промпте стояло `a small gold triangular lapel pin`. Про ориентацию не
+сказано ничего, и flux-kontext-pro нарисовал вершину вверх — его умолчание.
+Дальше сработало наследование: первый такой кадр стал исходником для
+следующих img2img, и перевёрнутый значок разошёлся по четырём сценам, потому
+что каждая новая копировала его с ПРЕДЫДУЩЕЙ картинки, а не с эталона.
+
+Два вывода:
+
+1. **Identity-модель держит лицо и одежду, но мелкую геометрию переписывает
+   свободно.** Значок, эмблема, форма оправы, надпись на бейдже — всё, что
+   мельче головы, надо называть словами, иначе будет взято умолчание модели.
+2. **Ошибка в звене цепочки img2img не остаётся в одном кадре.** Чинить надо
+   ЭТАЛОН и пересобирать серию с него, а не править кадры по одному.
+
+Формулировка, которая сработала: `POINTING DOWN — an INVERTED triangle, apex
+at the BOTTOM, flat base at the TOP. It is NOT an upward pyramid.` Отрицание
+(`NOT an upward pyramid`) нужно отдельной фразой: без него модель возвращалась
+к умолчанию.
+
+Тот же класс уже был в этом проекте дважды: белые очки вместо чёрных
+вайфареров и повторяющиеся одинаковые сцены. Всякий раз причина одна —
+деталь не названа в промпте, а проверка велась по общему впечатлению кадра,
+а не по конкретному элементу. Смотреть надо кропом на сам элемент.
