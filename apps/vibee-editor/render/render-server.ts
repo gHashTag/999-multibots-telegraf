@@ -1,5 +1,10 @@
 import { createServer, IncomingMessage } from 'node:http'
-import { handleMcp, handleMcpCard, handleAgentChat } from './src/agent/routes'
+import {
+  handleMcp,
+  handleMcpCard,
+  handleAgentChat,
+  chatIdentity,
+} from './src/agent/routes'
 import os from 'node:os'
 import { WebSocketServer, WebSocket } from 'ws'
 import { bundle } from '@remotion/bundler'
