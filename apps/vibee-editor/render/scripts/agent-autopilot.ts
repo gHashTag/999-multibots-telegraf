@@ -114,6 +114,49 @@ async function blogTopics(published: string[]): Promise<Topic[]> {
   }
 }
 
+/**
+ * Выбор темы по отклику: смотрим, какие ХЕШТЕГИ носили прошлые посты и
+ * сколько у них просмотров, и из окна ближайших тем берём ту, чьи теги
+ * исторически смотрят лучше. Данных нет (или все по нулям) — берём первую:
+ * детерминированность важнее псевдослучайности.
+ */
+function pickTopic(
+  topics: Topic[],
+  from: number,
+  published: { description?: string; views_count?: number }[]
+): number {
+  const scores = new Map<string, number[]>()
+  for (const post of published) {
+    const tags = String(post.description || '').match(/#[\wа-яё]+/gi) || []
+    for (const tag of tags) {
+      const key = tag.toLowerCase()
+      scores.set(key, [...(scores.get(key) || []), Number(post.views_count) || 0])
+    }
+  }
+  const tagScore = (tag: string) => {
+    const vals = scores.get('#' + tag.toLowerCase())
+    if (!vals || !vals.length) return null
+    return vals.reduce((a, b) => a + b, 0) / vals.length
+  }
+  const window = [0, 1, 2]
+    .map(k => from + k)
+    .filter(i => i < topics.length)
+  if (window.length <= 1) return from
+  let bestIdx = window[0]
+  let bestScore = -1
+  for (const i of window) {
+    const topic = topics[i]
+    const vals = topic.tags.map(tagScore).filter((v): v is number => v != null)
+    // Нет данных по тегам — тема не получает преимущества: только нули.
+    const score = vals.length ? vals.reduce((a, b) => a + b, 0) : 0
+    if (score > bestScore) {
+      bestScore = score
+      bestIdx = i
+    }
+  }
+  return bestIdx
+}
+
 async function main() {
   const withImage = process.argv.includes('--with-image')
   const state = readState()
@@ -151,11 +194,12 @@ async function main() {
     log('очередь тем пуста')
     return
   }
-  const topic = topics[state.nextTopic % topics.length]
+  const topicIndex = pickTopic(topics, state.nextTopic, mine?.записи || [])
+  const topic = topics[topicIndex]
   // 3. Дубль-защита: название не должно встречаться в моих последних постах.
   if (names.some(n => n === topic.title)) {
     log(`тема «${topic.title}» уже опубликована — двигаю очередь дальше`)
-    writeState({ ...state, nextTopic: state.nextTopic + 1 })
+    writeState({ ...state, nextTopic: topicIndex + 1 })
     return
   }
 
@@ -208,7 +252,7 @@ async function main() {
   writeState({
     ...state,
     postsToday: state.postsToday + 1,
-    nextTopic: state.nextTopic + 1,
+    nextTopic: topicIndex + 1,
   })
   log(
     `опубликован рилс «${topic.title}» (id ${pub.id}): ${reel.url} — ` +
