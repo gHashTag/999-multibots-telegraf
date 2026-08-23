@@ -32,10 +32,16 @@ const CATALOG: Record<
   ProviderId,
   { base: string; env: string; model: string; thinking: boolean }
 > = {
-  // z.ai — международный вход Zhipu. Тот же ключ работает и на
-  // open.bigmodel.cn; адрес вынесен в переменную на случай смены.
+  // z.ai — КОДЕРСКИЙ эндпоинт, а не обычный pay-as-you-go.
+  //
+  // Это не деталь. Ключи проекта — от кодерской подписки GLM, и она живёт на
+  // /api/coding/paas/v4. Обычный /api/paas/v4 биллит поштучно и на этих
+  // ключах отвечает 429 «Insufficient balance» (код 1113) — что и выглядело
+  // как «баланс 0», хотя подписка активна. Проверено 2026-08-23 на пяти
+  // ключах: на обычном эндпоинте 0 из 5, на кодерском 4 из 5.
+  // Адрес всё равно вынесен в переменную ZAI_BASE_URL на случай смены.
   zai: {
-    base: process.env.ZAI_BASE_URL || 'https://api.z.ai/api/paas/v4',
+    base: process.env.ZAI_BASE_URL || 'https://api.z.ai/api/coding/paas/v4',
     env: 'GLM_API_KEY',
     model: 'glm-5.3',
     thinking: true,
