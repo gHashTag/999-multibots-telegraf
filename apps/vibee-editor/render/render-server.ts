@@ -1990,7 +1990,14 @@ const server = createServer(async (req, res) => {
   }
 
   // SSE endpoint for render progress streaming
-  const sseMatch = req.url?.match(/^\/render\/([^/]+)\/status$/);
+  //
+  // Матчим ПУТЬ без строки запроса: подпись для EventSource приходит именно
+  // параметром (?initData=...), потому что заголовки этот API ставить не
+  // умеет. Регулярка по сырому req.url на такой ссылке не срабатывала, запрос
+  // проваливался мимо маршрута и отвечал 404 — прогресс не приходил, а кнопка
+  // «Экспорт» отжималась.
+  const ssePath = (req.url || "").split("?")[0];
+  const sseMatch = ssePath.match(/^\/render\/([^/]+)\/status$/);
   if (sseMatch && req.method === "GET") {
     const renderId = sseMatch[1];
     const job = renderJobs.get(renderId);
@@ -2056,7 +2063,8 @@ const server = createServer(async (req, res) => {
   }
 
   // Get render status (polling alternative to SSE)
-  const statusMatch = req.url?.match(/^\/render\/([^/]+)$/);
+  // Тот же приём: путь без query, иначе ?initData ломает совпадение.
+  const statusMatch = (req.url || "").split("?")[0].match(/^\/render\/([^/]+)$/);
   if (statusMatch && req.method === "GET") {
     const renderId = statusMatch[1];
     const job = renderJobs.get(renderId);
