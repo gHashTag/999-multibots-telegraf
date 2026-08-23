@@ -24,6 +24,7 @@ import type { IncomingMessage, ServerResponse } from 'http'
 import { TOOLS_BY_NAME, toMcpTools } from './tools'
 import { runAgent, type ChatMessage } from './chat'
 import { resolveProvider } from './provider'
+import { verifiedTelegramId } from '../../auth'
 
 /**
  * Ключи внешних агентов: AGENT_KEYS="ключ1:telegramId,ключ2:telegramId".
@@ -105,16 +106,20 @@ export async function handleMcp(
   res: ServerResponse,
   getPool: () => any
 ) {
-  const key = (req.headers['x-agent-key'] as string | undefined) || ''
-  const owner = key ? agentKeyOwner(key) : null
+  // Личность ДВЕ: ключ агента (внешний клиент, привязан к человеку) ИЛИ
+  // подпись initData (сам мини-апп). Раньше был только ключ — и профиль
+  // внутри Telegram не мог вызвать собственные инструменты человека,
+  // хотя подпись доказывает то же самое и не слабее.
+  const owner = chatIdentity(req, verifiedTelegramId(req))
   if (!owner) {
+    // Сообщение константно и не отражает содержимое заголовков: любое
+    // эхо чужого ввода — путь к инъекции, даже в JSON.
     return json(res, 401, {
       jsonrpc: '2.0',
       error: {
         code: -32001,
-        message: key
-          ? 'Ключ не распознан. Проверьте X-Agent-Key или попросите новый у владельца.'
-          : 'Нужен заголовок X-Agent-Key. Карточка подключения: GET этот же адрес.',
+        message:
+          'Нужна подпись Telegram (X-Telegram-Init-Data) или корректный ключ агента (X-Agent-Key). Карточка: GET этот же адрес.',
       },
     })
   }

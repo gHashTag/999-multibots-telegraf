@@ -274,6 +274,92 @@ export const TOOLS: AgentTool[] = [
       return r.rows[0]
     },
   },
+
+  {
+    name: 'soul_get',
+    description:
+      'Прочитать ЛИЧНЫЙ SOUL.md владельца: кем он себя считает, каким голосом писать его посты, ' +
+      'какие у него темы и границы. Если SOUL пуст — предложи человеку заполнить его вместе: ' +
+      'задай 3-4 вопроса (кто ты, чем зарабатываешь, какой тон запрещён, чего избегать).',
+    parameters: noArgs,
+    async handler(_a, ctx) {
+      await ctx.pool.query(
+        `CREATE TABLE IF NOT EXISTS user_soul (
+           telegram_id text PRIMARY KEY,
+           content     text NOT NULL,
+           updated_at  timestamptz NOT NULL DEFAULT now()
+         )`
+      )
+      const r = await ctx.pool.query(
+        `SELECT content, updated_at::text FROM user_soul WHERE telegram_id = $1`,
+        [ctx.telegramId]
+      )
+      if (!r.rows.length) {
+        return {
+          есть: false,
+          подсказка:
+            'SOUL пуст. Заполни вместе с человеком через soul_edit — или предложи ему раздел в профиле.',
+        }
+      }
+      return {
+        есть: true,
+        обновлён: r.rows[0].updated_at,
+        soul: r.rows[0].content,
+      }
+    },
+  },
+
+  {
+    name: 'soul_edit',
+    description:
+      'Записать ЛИЧНЫЙ SOUL.md владельца — как свой скилл: агент правит по просьбе человека ' +
+      '(«добавь в мой SOUL, что я фотографирую в горах», «сделай тон мягче»). ' +
+      'Структура свободная, но полезны блоки: кто я, чем зарабатываю, тон голоса, что запрещено. ' +
+      'Полная перезапись: передавай весь текст целиком.',
+    parameters: {
+      type: 'object',
+      properties: {
+        soul: {
+          type: 'string',
+          description: 'полный текст личного SOUL.md (markdown), до 32 КБ',
+        },
+      },
+      required: ['soul'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const soul = String(args.soul ?? '')
+      // Лимит как у честного поля профиля: SOUL — это карточка голоса,
+      // не дневник. 32 КБ хватает на страницу текста с запасом.
+      if (!soul.trim()) {
+        return {
+          сохранено: false,
+          причина: 'пустой SOUL не сохраняем — удалять нечем',
+        }
+      }
+      if (soul.length > 32_768) {
+        return {
+          сохранено: false,
+          причина: `слишком длинно: ${soul.length} символов, лимит 32768`,
+        }
+      }
+      await ctx.pool.query(
+        `CREATE TABLE IF NOT EXISTS user_soul (
+           telegram_id text PRIMARY KEY,
+           content     text NOT NULL,
+           updated_at  timestamptz NOT NULL DEFAULT now()
+         )`
+      )
+      await ctx.pool.query(
+        `INSERT INTO user_soul (telegram_id, content)
+         VALUES ($1, $2)
+         ON CONFLICT (telegram_id)
+         DO UPDATE SET content = EXCLUDED.content, updated_at = now()`,
+        [ctx.telegramId, soul]
+      )
+      return { сохранено: true, символов: soul.length }
+    },
+  },
 ]
 
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
