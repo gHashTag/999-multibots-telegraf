@@ -9,7 +9,7 @@
 
 /* Header */
 .chat-title {
-  background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+  background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
   padding: 24px 20px;
   text-align: center;
   box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
@@ -80,7 +80,7 @@
 }
 
 .message.user .message-content {
-  background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+  background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
   color: white;
   box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
 }
@@ -106,7 +106,7 @@
 .typing-dot {
   width: 8px;
   height: 8px;
-  background: #8B5CF6;
+  background: #8b5cf6;
   border-radius: 50%;
   animation: typing 1.4s infinite;
 }
@@ -120,7 +120,9 @@
 }
 
 @keyframes typing {
-  0%, 60%, 100% {
+  0%,
+  60%,
+  100% {
     transform: translateY(0);
     opacity: 0.7;
   }
@@ -142,7 +144,7 @@
   padding: 10px 16px;
   background: var(--bg-elevated);
   color: #ffffff;
-  border: 1px solid #8B5CF6;
+  border: 1px solid #8b5cf6;
   border-radius: 20px;
   cursor: pointer;
   font-size: 14px;
@@ -150,7 +152,7 @@
 }
 
 .suggestion-btn:hover {
-  background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+  background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
   border-color: transparent;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
@@ -221,7 +223,7 @@
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #8B5CF6 0%, #EC4899 100%);
+  background: linear-gradient(90deg, #8b5cf6 0%, #ec4899 100%);
   transition: width 0.3s ease;
   border-radius: 4px;
 }
@@ -255,11 +257,11 @@
 
 .file-upload-btn:hover {
   background: var(--bg-secondary);
-  border-color: #8B5CF6;
+  border-color: #8b5cf6;
   transform: translateY(-2px);
 }
 
-.file-upload-btn input[type="file"] {
+.file-upload-btn input[type='file'] {
   display: none;
 }
 
@@ -282,7 +284,7 @@
 }
 
 .chat-input:focus {
-  border-color: #8B5CF6;
+  border-color: #8b5cf6;
   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
 }
 
@@ -292,7 +294,7 @@
 
 .send-btn {
   padding: 14px 24px;
-  background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+  background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
   color: white;
   border: none;
   border-radius: 24px;
@@ -420,4 +422,43 @@
   .chat-input {
     padding: 12px 14px;
   }
+}
+
+/* Поток размышления агента: сворачиваемый, чтобы не забивать ответ, но был
+   виден по желанию — человек хочет понимать, ПОЧЕМУ агент сделал так. */
+.thinking-toggle {
+  background: none;
+  border: none;
+  color: var(--vibee-text-muted, #888);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 0;
+  margin-bottom: 4px;
+}
+.thinking-body {
+  font-size: 12px;
+  color: var(--vibee-text-muted, #888);
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid var(--vibee-border, rgba(255, 255, 255, 0.12));
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  border-radius: 0 6px 6px 0;
+}
+/* Чипы вызванных инструментов — видно, что агент реально смотрел, а не выдумал. */
+.tool-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.tool-chip {
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  color: var(--vibee-accent, #f59e0b);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 12px;
+  padding: 2px 8px;
 }
