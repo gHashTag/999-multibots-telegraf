@@ -198,7 +198,7 @@ function ProfileTokens({ isOwn }: { isOwn: boolean }) {
   if (tokens === null || !isOwn) return null
   return (
     <div className="profile-tokens">
-      💰 {tokens} токенов · картинка 1 · рилс 2 · видео 5
+      💰 {tokens} токенов · картинка 1 · рилс 1 · видео 20
     </div>
   )
 }

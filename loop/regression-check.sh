@@ -44,6 +44,15 @@ echo "$desc" | grep -q 'seedance-1-lite' && say "  ✅ video_generate говор
 echo "$desc" | grep -q 'ТОЛЬКО при валидном ключе' && say "  ✅ audio_generate честен про ключ" || { say "  ❌ audio_generate потерял честную оговорку"; fail=1; }
 echo "$desc" | grep -q 'flux-schnell' && say "  ✅ image_generate называет реальную модель" || { say "  ❌ image_generate не упоминает flux-schnell"; fail=1; }
 
+say "— Инварианты прайса (PRICING.md) —"
+printf '%s' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"my_balance","arguments":{}}}' > /tmp/rc-req.json
+prices_ok=$(curl -s -m 10 http://127.0.0.1:3333/mcp -H "X-Agent-Key: $KEY" -H 'Content-Type: application/json' --data @/tmp/rc-req.json | python3 -c "
+import json,sys
+p=json.load(sys.stdin)['result']['structuredContent']['прайс']
+ok = p.get('image_generate')==1 and p.get('reel_render')==1 and p.get('audio_generate')==6 and p.get('video_generate')==20
+print('ok' if ok else 'bad')" 2>/dev/null)
+[ "$prices_ok" = "ok" ] && say "  ✅ цены от себестоимости: картинка 1 · рилс 1 · озвучка 6 · видео 20" || { say "  ❌ прайс нарушает инвариант (ожидалось 1/1/6/20)"; fail=1; }
+
 say "— Прокси блога —"
 items=$(curl -s -m 15 http://127.0.0.1:3333/api/blog | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('items',[])))" 2>/dev/null)
 [ "$items" -gt 0 ] 2>/dev/null && say "  ✅ /api/blog ($items постов)" || { say "  ❌ /api/blog пуст"; fail=1; }
