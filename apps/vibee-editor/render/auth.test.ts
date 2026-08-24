@@ -14,14 +14,20 @@ const sign = (token: string, params: Record<string, string>): string => {
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([k, v]) => `${k}=${v}`)
     .join('\n')
-  const secret = crypto.createHmac('sha256', 'WebAppData').update(token).digest()
+  const secret = crypto
+    .createHmac('sha256', 'WebAppData')
+    .update(token)
+    .digest()
   const hash = crypto.createHmac('sha256', secret).update(check).digest('hex')
   return new URLSearchParams({ ...params, hash }).toString()
 }
 
 const CLUB = '111111:club-token'
 const MAIN = '222222:main-token'
-const fresh = () => ({ auth_date: String(Math.floor(Date.now() / 1000)), user: '{"id":1}' })
+const fresh = () => ({
+  auth_date: String(Math.floor(Date.now() / 1000)),
+  user: '{"id":1}',
+})
 
 describe('verifyTelegramInitData', () => {
   beforeEach(() => {
@@ -50,7 +56,10 @@ describe('verifyTelegramInitData', () => {
 
   it('отвергает просроченный launch, даже с верной подписью', () => {
     process.env.BOT_TOKEN_1 = MAIN
-    const old = { auth_date: String(Math.floor(Date.now() / 1000) - 90000), user: '{}' }
+    const old = {
+      auth_date: String(Math.floor(Date.now() / 1000) - 90000),
+      user: '{}',
+    }
     expect(verifyTelegramInitData(sign(MAIN, old)).ok).toBe(false)
   })
 
@@ -91,4 +100,22 @@ describe('подпись в строке запроса (SSE)', () => {
     } as unknown as import('node:http').IncomingMessage
     expect(authenticate(req).allowed).toBe(false)
   })
+})
+describe('public media authentication', () => {
+  it.each(['GET', 'HEAD'] as const)(
+    'keeps stable public media readable without exposing a credential for %s',
+    method => {
+      const req = {
+        url: '/media/images/relaunch/noir-close.jpg',
+        method,
+        headers: {},
+      } as unknown as import('node:http').IncomingMessage
+
+      expect(authenticate(req)).toMatchObject({
+        allowed: true,
+        wouldReject: false,
+        via: 'public',
+      })
+    }
+  )
 })

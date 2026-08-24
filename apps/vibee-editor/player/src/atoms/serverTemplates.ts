@@ -45,6 +45,30 @@ export const serverTemplatesLoadingAtom = atom<boolean>(false)
 /** Пусто — значит ошибки не было. Пустой список шаблонов это другое состояние. */
 export const serverTemplatesErrorAtom = atom<string>('')
 
+export function resolveServerTemplateMediaUrl(
+  value: string | undefined,
+  renderUrl = RENDER_URL
+): string | undefined {
+  if (!value || value.startsWith('//')) return undefined
+  try {
+    const resolved = value.startsWith('/')
+      ? new URL(value, renderUrl)
+      : new URL(value)
+    if (resolved.protocol !== 'https:' && resolved.protocol !== 'http:') {
+      return undefined
+    }
+    return resolved.toString()
+  } catch {
+    return undefined
+  }
+}
+
+const withRenderMediaOrigin = (template: ServerTemplate): ServerTemplate => ({
+  ...template,
+  poster: resolveServerTemplateMediaUrl(template.poster),
+  sample: resolveServerTemplateMediaUrl(template.sample),
+})
+
 export const loadServerTemplatesAtom = atom(null, async (get, set) => {
   if (get(serverTemplatesLoadingAtom)) return
   set(serverTemplatesLoadingAtom, true)
@@ -53,7 +77,12 @@ export const loadServerTemplatesAtom = atom(null, async (get, set) => {
     const data = await apiFetch<{ templates?: ServerTemplate[] }>(
       `${RENDER_URL}/templates`
     )
-    set(serverTemplatesAtom, Array.isArray(data?.templates) ? data.templates : [])
+    set(
+      serverTemplatesAtom,
+      Array.isArray(data?.templates)
+        ? data.templates.map(withRenderMediaOrigin)
+        : []
+    )
   } catch (e) {
     // Причина показывается человеку: молчаливый пустой список неотличим от
     // «шаблонов нет», и чинить такое вслепую невозможно.

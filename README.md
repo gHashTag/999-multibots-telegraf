@@ -145,6 +145,24 @@ npm run mobile       # Только мобильное приложение
   - Automated recommendations
   - Quick actions (grant access, etc.)
 
+### Проверки и локальная разработка
+
+| Command                         | Result                                                         |
+| ------------------------------- | -------------------------------------------------------------- |
+| `make install`                  | Reproducible root, player, and render installs                 |
+| `make test-safe-beta`           | Focused auth, profile, MCP, policy, and immutable-lock suites  |
+| `make test-e2e-safe-beta`       | Isolated Agent/header QA at 390, 720, and 1024 px              |
+| `make test-supabase-exit`       | Zero-Supabase runtime/egress and stable media proxy contract   |
+| `make test`                     | All unit suites                                                |
+| `make typecheck`                | Root, player, and render type checks                           |
+| `make build`                    | Root, Mini App, and render bundles                             |
+| `make audit`                    | Dependency audits for every workspace                          |
+| `make remotion-versions`        | Remotion/Zod alignment check                                   |
+| `make security-scan`            | Credential-pattern guard                                       |
+| `make verify-editor`            | SAFE BETA player/render release matrix                         |
+| `make verify-supabase-exit-app` | Supabase-free player/render typecheck, build, scan, and diff   |
+| `make verify`                   | Full repository release gate, including `tri` regress/selftest |
+
 **📋 Документация агентов**: [.claude/agents/README.md](.claude/agents/README.md)
 
 ## 🤖 Workflow для AI-ассистентов
@@ -159,6 +177,33 @@ npm run mobile       # Только мобильное приложение
 2. **Завершение задачи** → создать новый PR
 3. **НИКОГДА не переиспользовать** закрытые или существующие PR
 4. **Один PR = одна фича/исправление**
+
+## Supabase exit
+
+The migration has two independent release lanes. The Mini App is static and
+render uses Railway PostgreSQL plus S3-compatible storage; they can ship without
+the root bot. Their production artifact fails closed if a Supabase credential
+or host remains configured, and public template media is served through the
+stable `/media/<key>` proxy with GET, HEAD, and single-range support. The proxy
+defaults to the `images/relaunch/` allowlist, rejects active content types, and
+does not turn the shared object bucket into a public file browser. Additional
+public prefixes require an explicit `PUBLIC_MEDIA_PREFIXES` setting. Relative
+media paths returned by render are resolved against `VITE_RENDER_URL`, never
+against the separately deployed player origin.
+
+The root bot is not part of that release. It still has broad `supabase-js`,
+Storage, RPC, and Edge Function seams and requires a separately reviewed direct
+PostgreSQL/MinIO/webhook cutover. The temporary private PostgREST compatibility
+gateway is not considered full removal. No source or destination data is
+deleted during migration.
+
+The authoritative manifest, backup/restore, reconciliation, cutover, and
+rollback requirements are in
+[`docs/migrations/SUPABASE_EXIT_CONTRACT.md`](docs/migrations/SUPABASE_EXIT_CONTRACT.md).
+
+## Verification and release policy
+
+Before an editor/render SAFE BETA review:
 
 #### 📋 Алгоритм работы:
 
