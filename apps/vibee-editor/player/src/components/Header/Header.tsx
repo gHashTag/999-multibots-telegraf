@@ -191,6 +191,25 @@ export function Header({ wsStatus, wsClientId }: HeaderProps) {
   useEffect(() => {
     void loadBranding()
   }, [loadBranding])
+
+  /**
+   * Заголовок вкладки — часть того же бренда, что и шапка.
+   *
+   * Выше объяснено, почему вспышка «VIBEE перед именем партнёра» в шапке —
+   * не косметика. Во вкладке браузера то же имя стояло НАВСЕГДА: в index.html
+   * зашито «VIBEE - AI Video Editor», и `document.title` не менял никто
+   * (грепом по всему src — ноль совпадений). То есть партнёр, купивший
+   * приложение под своим именем, видел чужое в каждой вкладке.
+   *
+   * Ждём `resolved`, а не `branded`: до ответа сервера неизвестно, чей это
+   * бот, и переписывать заголовок раньше времени значит воспроизвести ту же
+   * вспышку, только в заголовке.
+   */
+  useEffect(() => {
+    if (!branding.resolved) return
+    const next = branding.title || t('app.title')
+    if (next && document.title !== next) document.title = next
+  }, [branding.resolved, branding.title, t])
   const setShowLoginModal = useSetAtom(showLoginModalAtom)
   const setSidebarTab = useSetAtom(sidebarTabAtom)
 

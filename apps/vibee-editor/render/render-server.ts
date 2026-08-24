@@ -24,7 +24,7 @@ import {
 } from './auth'
 import { TEMPLATE_CARDS } from './src/templates/registry'
 import fs from 'node:fs'
-import { randomUUID, createHmac } from 'node:crypto'
+import { randomUUID, createHmac, createHash } from 'node:crypto'
 import { execSync, execFileSync } from 'node:child_process'
 
 /**
@@ -177,12 +177,36 @@ import {
   loadModels,
 } from './src/lib/faceDetection'
 import { Pool } from 'pg'
-// Inlined to avoid workspace dependency in Docker
+/**
+ * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
+ *
+ * ВСЕ ЧЕТЫРЕ значения указывали на fly.dev — площадку, с которой проект ушёл
+ * на Railway. Проверено 24.08.2026 запросом, а не чтением:
+ *
+ *   vibee-telegram-bridge.fly.dev   NXDOMAIN — хоста НЕ СУЩЕСТВУЕТ
+ *   vibee-player.fly.dev            NXDOMAIN — хоста НЕ СУЩЕСТВУЕТ
+ *   vibee-render-server.fly.dev     DNS есть, но это тоже мёртвая площадка
+ *
+ * В этом же файле уже стояли комментарии «fly.dev мёртв давно» — то есть про
+ * это знали и чинили точечно (см. проксирование ниже), а сами константы
+ * остались. Так и живёт: одно место починено, источник — нет.
+ *
+ * Что заменено на живое (Railway, проверено HTTP 200):
+ *   remotion / mcp — этот же сервис; свой адрес берём из переменной, а не
+ *     угадываем: сервис может стоять за своим доменом.
+ *   player — адрес мини-аппа, он попадает В ТЕКСТ ПОСТА как ссылка «смотреть
+ *     ленту». То есть мёртвый player давал мёртвую ссылку читателю.
+ *
+ * bridge заменить НЕ НА ЧТО: хоста нет, и в Railway сервиса-моста тоже нет.
+ * Оставлен как есть и помечен — см. обработчик post_to_telegram, где отказ
+ * больше не молчит.
+ */
 const SERVICE_ENDPOINTS = {
-  remotion: 'https://vibee-render-server.fly.dev',
-  mcp: 'https://vibee-render-server.fly.dev',
-  bridge: 'https://vibee-telegram-bridge.fly.dev',
-  player: 'https://vibee-player.fly.dev',
+  remotion: process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app',
+  mcp: process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app',
+  // dead-domain-ok: замены нет, отказ теперь виден в ответе публикации
+  bridge: process.env.TELEGRAM_BRIDGE_URL || 'https://vibee-telegram-bridge.fly.dev',
+  player: process.env.PLAYER_URL || 'https://vibee-editor-production.up.railway.app',
 } as const
 
 // Get video duration using ffprobe
@@ -785,7 +809,72 @@ async function getBotBranding(botId: string) {
   return brand
 }
 
+/**
+ * Отпечаток исходников композиций — чтобы устаревший образ был ВИДЕН снаружи.
+ *
+ * Зачем это вообще. 24.08.2026 сервис перезапустился на старом образе и
+ * несколько минут пёк ролики прежним бандлом — уже после того, как правка
+ * была в main и проверена живым рендером. Снаружи отличить свежий бандл от
+ * старого было нечем: /health отдавал только `status` и `bundleReady`, а оба
+ * равно бодры и у правильного образа, и у протухшего. Причину пришлось
+ * восстанавливать по совпадению времён в журнале деплоев.
+ *
+ * Почему хеш исходников, а не номер коммита: коммит пришлось бы получать от
+ * Railway (переменных RAILWAY_GIT_* у сервиса нет) или прокидывать через
+ * build-arg, то есть зависеть от механизма, который сам может отвалиться
+ * молча. Хеш сервер считает по файлам, которые у него РЕАЛЬНО лежат, и
+ * ответ означает ровно то, что нужно: «вот из этих исходников я рисую».
+ *
+ * Сверять — тем же расчётом, а не похожим:
+ *   node .claude/loop-opus/render-fingerprint.mjs --compare
+ *
+ * Рецепт нарочно вынесен в скрипт, а не записан сюда шелл-строкой: в хеш
+ * входят и ИМЕНА файлов (переименование композиции меняет вывод рендера не
+ * меньше правки её тела), и повторить это конвейером из cat нельзя — при
+ * первой же попытке я написал в комментарий рецепт, который дал бы другое
+ * число. Две реализации одного правила расходятся молча.
+ *
+ * Совпало с полем `compositions` в /health — образ свежий. Разошлось —
+ * сервис крутит не тот код, и никакой зелёный статус деплоя этого не отменяет.
+ */
+let compositionsFingerprint: string | null = null
+
+/**
+ * Когда поднялся ЭТОТ экземпляр. Вместе с отпечатком отвечает на второй
+ * вопрос происшествия: «сервис перезапускался или всё это время был один?»
+ * По журналу деплоев это восстанавливается плохо — статусы SKIPPED и REMOVED
+ * не говорят, какой образ в итоге обслуживал запрос.
+ */
+const startedAtIso = new Date().toISOString()
+
+function computeCompositionsFingerprint(): string | null {
+  try {
+    const dir = path.resolve('./src/compositions')
+    if (!fs.existsSync(dir)) return null
+    const files = fs
+      .readdirSync(dir)
+      .filter(f => f.endsWith('.tsx') || f.endsWith('.ts'))
+      .sort() // порядок обязан быть устойчивым, иначе хеш «меняется» сам по себе
+    if (files.length === 0) return null
+    const h = createHash('sha1')
+    for (const f of files) {
+      // Имя в хеш тоже: переименование композиции меняет вывод рендера
+      // ничуть не меньше, чем правка её тела.
+      h.update(f)
+      h.update(fs.readFileSync(path.join(dir, f)))
+    }
+    return `${h.digest('hex').slice(0, 12)}+${files.length}`
+  } catch (e) {
+    // Молча вернуть null нельзя: отсутствие отпечатка неотличимо от
+    // «не смог посчитать», а это разные вещи для того, кто диагностирует.
+    console.warn('[fingerprint] не посчитан:', (e as Error).message)
+    return null
+  }
+}
+
 async function initBundle() {
+  compositionsFingerprint = computeCompositionsFingerprint()
+  console.log(`🔖 Отпечаток композиций: ${compositionsFingerprint ?? 'НЕ ПОСЧИТАН'}`)
   console.log('📦 Creating Remotion bundle...')
   bundleLocation = await bundle({
     entryPoint: path.resolve('./src/index.ts'),
@@ -1669,7 +1758,16 @@ const server = createServer(async (req, res) => {
   // Health check
   if (req.url === '/health' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ status: 'ok', bundleReady: !!bundleLocation }))
+    res.end(
+      JSON.stringify({
+        status: 'ok',
+        bundleReady: !!bundleLocation,
+        // Из каких исходников этот экземпляр рисует. Разошёлся с репозиторием
+        // — крутится не тот образ, сколько бы деплой ни рапортовал SUCCESS.
+        compositions: compositionsFingerprint,
+        startedAt: startedAtIso,
+      })
+    )
     return
   }
 
@@ -4278,11 +4376,29 @@ const server = createServer(async (req, res) => {
         // написан здесь второй раз, а рендер ходил сюда по сети к самому себе.
         const row = await publishTemplateRow(data)
 
-        // Post to Telegram if requested
+        /**
+         * Публикация в Telegram-канал.
+         *
+         * Отказ БОЛЬШЕ НЕ МОЛЧИТ. Раньше здесь стоял `catch` с одним
+         * `console.warn`, а ответ всё равно уходил `success: true`. Человеку
+         * в мини-аппе галочка «Также опубликовать в Telegram» подтверждала
+         * успех, которого не было: адрес моста — `vibee-telegram-bridge.fly.dev`,
+         * и он отвечает NXDOMAIN, то есть хоста не существует вовсе.
+         *
+         * Сколько это стоило: за всё время ни один ролик не ушёл в канал, а
+         * лента внутри приложения набрала 22 просмотра на 12 роликов. Продукт
+         * производил контент, которого никто не видел, и об этом ничего не
+         * сообщал.
+         *
+         * Публикацию в ленту при этом НЕ роняем: запись в базе уже сделана и
+         * она полезна сама по себе. Меняется только честность ответа — он
+         * теперь говорит, что именно получилось, а что нет.
+         */
+        let telegram: { posted: boolean; error?: string } | undefined
         if (data.post_to_telegram) {
+          const bridgeUrl = SERVICE_ENDPOINTS.bridge
           try {
-            const bridgeUrl = SERVICE_ENDPOINTS.bridge
-            await fetch(`${bridgeUrl}/api/post-to-channel`, {
+            const r = await fetch(`${bridgeUrl}/api/post-to-channel`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -4293,8 +4409,21 @@ const server = createServer(async (req, res) => {
                 template_id: row.id,
               }),
             })
+            // statusText пуст на HTTP/2 — берём код, как и в остальных местах.
+            telegram = r.ok
+              ? { posted: true }
+              : { posted: false, error: `мост ответил HTTP ${r.status}` }
+            if (!r.ok) {
+              console.error(
+                `[Feed] Публикация в канал НЕ состоялась: HTTP ${r.status} от ${bridgeUrl}`
+              )
+            }
           } catch (e) {
-            console.warn('[Feed] Telegram post failed:', e)
+            const reason = e instanceof Error ? e.message : String(e)
+            telegram = { posted: false, error: `мост недоступен: ${reason}` }
+            console.error(
+              `[Feed] Публикация в канал НЕ состоялась: ${bridgeUrl} — ${reason}`
+            )
           }
         }
 
@@ -4304,6 +4433,10 @@ const server = createServer(async (req, res) => {
             success: true,
             id: row.id,
             updated: row.updated,
+            // Присутствует, только если публикацию в канал ПРОСИЛИ. Клиент по
+            // этому полю понимает, показывать ли человеку «опубликовано в
+            // Telegram» или «в ленту добавлено, в канал не ушло».
+            telegram,
             template: {
               id: row.id,
               telegram_id: data.telegram_id,

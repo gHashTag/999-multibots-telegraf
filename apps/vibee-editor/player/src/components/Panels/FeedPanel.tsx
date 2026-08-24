@@ -90,6 +90,11 @@ export function FeedPanel({ fullscreen = false }: FeedPanelProps) {
 
       {error && (
         <div className="feed-error">
+          {/* Текст приходит уже локализованным: атом зовёт getErrorMessage,
+              который знает язык и сам подбирает формулировку и подсказку
+              действия. Оборачивать в t() не нужно — и вредно, потому что
+              t() на неизвестном ключе вернул бы аргумент как есть, скрыв
+              ошибку в цепочке. */}
           {error}
           <button onClick={handleRefresh}>{t('feed.retry')}</button>
         </div>

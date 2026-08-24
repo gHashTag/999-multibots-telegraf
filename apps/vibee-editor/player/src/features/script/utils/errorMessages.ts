@@ -19,9 +19,32 @@ export interface ErrorInfo {
   retryable: boolean;
 }
 
+/**
+ * Обрыв связи в разных движках выглядит по-разному.
+ *
+ * Проверка `error.message.includes('fetch')` ловит только Chrome («Failed to
+ * fetch»). Safari бросает «Load failed», Firefox — «NetworkError when
+ * attempting to fetch resource», React Native — «Network request failed».
+ * Для человека это один и тот же случай: связи нет.
+ *
+ * Тип идёт первым и один сам по себе достаточен: `fetch` бросает именно
+ * `TypeError`, когда запрос не ушёл вовсе. Проверка по тексту — второй слой,
+ * на случай если движок обернул сбой в свой класс. Полагаться ТОЛЬКО на
+ * текст нельзя, но как страховка поверх типа она уместна.
+ */
+const NETWORK_MESSAGE =
+  /failed to fetch|load failed|networkerror|network request failed|connection refused/i
+
+// Предикат типа, а не просто boolean: иначе внутри ветки `error` остаётся
+// unknown и обращение к .message не проходит проверку типов.
+function isNetworkError(error: unknown): error is Error {
+  if (error instanceof TypeError) return true
+  return error instanceof Error && NETWORK_MESSAGE.test(error.message)
+}
+
 export function parseError(error: unknown): ErrorInfo {
   // Network errors
-  if (error instanceof TypeError && error.message.includes('fetch')) {
+  if (isNetworkError(error)) {
     return {
       type: 'network',
       message: error.message,
@@ -124,12 +147,30 @@ export function parseError(error: unknown): ErrorInfo {
   };
 }
 
-export function getErrorMessage(error: unknown, lang: 'ru' | 'en'): string {
+/**
+ * @param includeAction подставлять ли подсказку действия в текст.
+ *
+ * По умолчанию `true` — поведение прежних вызывающих не меняется.
+ *
+ * Отключать нужно там, где рядом СТОИТ КНОПКА этого действия. В ленте
+ * выходило так: «Ошибка сети. Проверьте подключение к интернету. Проверьте
+ * соединение и попробуйте снова» — и вплотную кнопка «Повторить». Человеку
+ * дважды говорят одно и то же, причём второй раз словами, а не кнопкой,
+ * которую видно.
+ *
+ * Подсказка не удалена из данных, а стала выбором места показа: там, где
+ * кнопки нет (страница генерации скрипта), она несёт смысл.
+ */
+export function getErrorMessage(
+  error: unknown,
+  lang: 'ru' | 'en',
+  { includeAction = true }: { includeAction?: boolean } = {}
+): string {
   const errorInfo = parseError(error);
   const message = lang === 'ru' ? errorInfo.userMessageRu : errorInfo.userMessage;
   const action = lang === 'ru' ? errorInfo.actionRu : errorInfo.action;
 
-  if (action) {
+  if (action && includeAction) {
     return `${message} ${action}`;
   }
 

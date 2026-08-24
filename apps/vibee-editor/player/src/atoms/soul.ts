@@ -1,6 +1,8 @@
 import { atom } from 'jotai'
 import { RENDER_URL } from '../config'
 import { getInitData } from '../lib/telegram'
+import { getErrorMessage } from '../features/script/utils/errorMessages'
+import { languageAtom } from './language'
 
 // ===============================
 // Личный SOUL.md человека: кем он себя считает и каким голосом писать
@@ -54,14 +56,14 @@ async function callTool<T>(
   return (data?.result?.structuredContent ?? data?.result) as T
 }
 
-export const loadSoulAtom = atom(null, async (_get, set) => {
+export const loadSoulAtom = atom(null, async (get, set) => {
   set(soulErrorAtom, null)
   try {
     const r = await callTool<{ есть: boolean; soul?: string }>('soul_get')
     set(soulAtom, r.есть && typeof r.soul === 'string' ? r.soul : null)
     set(soulLoadedAtom, true)
   } catch (e) {
-    set(soulErrorAtom, e instanceof Error ? e.message : String(e))
+    set(soulErrorAtom, getErrorMessage(e, get(languageAtom)))
     set(soulAtom, null)
     set(soulLoadedAtom, true)
   }
@@ -89,7 +91,7 @@ export const saveSoulAtom = atom(
       set(soulAtom, soul)
       return true
     } catch (e) {
-      set(soulErrorAtom, e instanceof Error ? e.message : String(e))
+      set(soulErrorAtom, getErrorMessage(e, get(languageAtom)))
       return false
     } finally {
       set(soulSavingAtom, false)

@@ -31,9 +31,30 @@ describe('parseError', () => {
   it('should detect network errors', () => {
     const error = new TypeError('Failed to fetch');
     const result = parseError(error);
-    
+
     expect(result.type).toBe('network');
     expect(result.retryable).toBe(true);
+  });
+
+  // Обрыв связи в разных движках выглядит по-разному, а для человека это
+  // один и тот же случай. Прежняя проверка искала подстроку «fetch» и
+  // распознавала только Chrome; Safari и Firefox уходили в 'unknown' —
+  // то есть человек видел «что-то пошло не так» вместо «нет связи».
+  it.each([
+    ['Safari', 'Load failed'],
+    ['Firefox', 'NetworkError when attempting to fetch resource'],
+    ['React Native', 'Network request failed'],
+  ])('should detect network errors reported by %s', (_engine, message) => {
+    const result = parseError(new Error(message));
+
+    expect(result.type).toBe('network');
+    expect(result.retryable).toBe(true);
+  });
+
+  // Граница: обычная ошибка приложения НЕ должна выглядеть как обрыв связи,
+  // иначе человеку предложат «проверить соединение» там, где дело не в нём.
+  it('should not mistake an ordinary error for a network failure', () => {
+    expect(parseError(new Error('Something went wrong')).type).not.toBe('network');
   });
 
   it('should handle unknown errors', () => {
@@ -101,5 +122,23 @@ describe('getRetryDelay', () => {
   it('should return 3s for network errors', () => {
     const error = new TypeError('fetch failed');
     expect(getRetryDelay(error)).toBe(3000);
+  });
+});
+
+describe('getErrorMessage — подсказка действия', () => {
+  // Там, где рядом стоит кнопка «Повторить», подсказка «попробуйте снова»
+  // повторяет её словами. Отключается флагом, а не удалением из данных:
+  // на экранах без кнопки она несёт смысл.
+  it('includes the action hint by default', () => {
+    const message = getErrorMessage(new TypeError('Failed to fetch'), 'ru');
+    expect(message).toContain('Проверьте соединение');
+  });
+
+  it('omits the action hint when asked', () => {
+    const message = getErrorMessage(new TypeError('Failed to fetch'), 'ru', {
+      includeAction: false,
+    });
+    expect(message).toBe('Ошибка сети. Проверьте подключение к интернету.');
+    expect(message).not.toContain('попробуйте снова');
   });
 });
