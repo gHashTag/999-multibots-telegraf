@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { myProfileAtom } from '@/atoms'
 import { useAtomValue, useSetAtom } from 'jotai';
-import { Grid, Users, Video, UserPlus } from 'lucide-react';
+import { ProfileFilesGrid } from './ProfileFilesGrid'
+import { Grid, Users, Video, UserPlus, FolderOpen } from 'lucide-react';
 import {
   viewedProfileAtom,
   userAtom,
@@ -16,8 +18,8 @@ import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import { UserCard } from './UserCard';
 import { ProfileTemplatesGrid } from './ProfileTemplatesGrid';
 
-type TabId = 'templates' | 'followers' | 'following';
-const TAB_ORDER: TabId[] = ['templates', 'followers', 'following'];
+type TabId = 'templates' | 'files' | 'followers' | 'following';
+const TAB_ORDER: TabId[] = ['templates', 'files', 'followers', 'following'];
 
 export function ProfileTabs() {
   const { t } = useLanguage();
@@ -69,11 +71,21 @@ export function ProfileTabs() {
 
   if (!profile) return null;
 
+  // Файлы — только на СВОЁМ профиле: чужие генерации — не публичный контент.
+  // DEV-коннектор (VITE_AGENT_KEY) — это сам владелец ключа: без логина
+  // Telegram профиль считается своим только в dev-сборке, в прод не попадает.
+  const devOwner =
+    import.meta.env.DEV && !!import.meta.env.VITE_AGENT_KEY
+  const isOwn =
+    currentUser?.telegram_id === profile.telegram_id || devOwner
   const tabs = [
     { id: 'templates' as const, icon: <Grid size={18} />, label: t('profile.templates'), count: profile.templates_count },
+    ...(isOwn
+      ? [{ id: 'files' as const, icon: <FolderOpen size={18} />, label: 'Файлы', count: undefined }]
+      : []),
     { id: 'followers' as const, icon: <Users size={18} />, label: t('profile.followers'), count: profile.followers_count },
     { id: 'following' as const, icon: <Users size={18} />, label: t('profile.following'), count: profile.following_count },
-  ];
+  ].filter(Boolean);
 
   return (
     <div className="profile-tabs">
@@ -95,6 +107,8 @@ export function ProfileTabs() {
         {activeTab === 'templates' && (
           <ProfileTemplatesGrid username={profile.username} />
         )}
+
+        {activeTab === 'files' && <ProfileFilesGrid />}
 
         {activeTab === 'followers' && (
           <div className="profile-tabs__users">
