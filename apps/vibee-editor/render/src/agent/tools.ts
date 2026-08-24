@@ -50,6 +50,19 @@ const selfBase = () =>
   process.env.SELF_URL || 'http://127.0.0.1:' + (process.env.PORT || '3000')
 
 /**
+ * Self-call инструментов. На проде гвард в режиме enforce: вызов самого
+ * себя без ключа отбивается 401 (локальный warn это маскировал — второй
+ * случай ловушки «новый маршрут режется гвардом»). Представляемся
+ * серверным ключом, как это делает бот.
+ */
+function selfFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers || {})
+  const key = process.env.RENDER_API_KEY
+  if (key) headers.set('X-Api-Key', key)
+  return fetch(url, { ...init, headers })
+}
+
+/**
  * Суточный лимит платных генераций на человека. Без него автономный цикл
  * (или просто любопытный агент) способен выкачать баланс провайдера за
  * одну ночь. Считаем по уже созданным файлам с bot_name='agent' — это
@@ -185,7 +198,7 @@ export const TOOLS: AgentTool[] = [
       'при одной существующей.',
     parameters: noArgs,
     async handler() {
-      const r = await fetch(`${selfBase()}/compositions`)
+      const r = await selfFetch(`${selfBase()}/compositions`)
       if (!r.ok) {
         // Молчать нельзя: пустой список читается как «шаблонов нет».
         return { ошибка: `рендер не отдал список композиций: HTTP ${r.status}` }
@@ -336,7 +349,7 @@ export const TOOLS: AgentTool[] = [
         }
       }
       const base = selfBase()
-      const gen = await fetch(`${base}/api/generate/image`, {
+      const gen = await selfFetch(`${base}/api/generate/image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -352,12 +365,12 @@ export const TOOLS: AgentTool[] = [
       }
       // Ссылка FAL живёт ограниченное время — сразу забираем файл в наше S3,
       // иначе через час и лента, и рендер показывали бы битую картинку.
-      const img = await fetch(genData.url)
+      const img = await fetch(genData.url) // внешний провайдер — ключ не нужен
       if (!img.ok) {
         return { сделано: false, причина: `картинка сгенерирована, но не скачалась: HTTP ${img.status}`, fal_url: genData.url }
       }
       const bytes = Buffer.from(await img.arrayBuffer())
-      const up = await fetch(`${base}/upload`, {
+      const up = await selfFetch(`${base}/upload`, {
         method: 'POST',
         headers: {
           'Content-Type': img.headers.get('content-type') || 'image/jpeg',
@@ -403,14 +416,14 @@ export const TOOLS: AgentTool[] = [
       const base = selfBase()
       let voiceId = args.voice_id ? String(args.voice_id) : ''
       if (!voiceId) {
-        const v = await fetch(`${base}/api/voices`)
+        const v = await selfFetch(`${base}/api/voices`)
         const vData: any = await v.json().catch(() => null)
         voiceId = vData?.voices?.[0]?.voice_id || ''
       }
       if (!voiceId) {
         return { сделано: false, причина: 'не нашёлся ни один голос — проверь ELEVENLABS_API_KEY' }
       }
-      const gen = await fetch(`${base}/api/generate/audio`, {
+      const gen = await selfFetch(`${base}/api/generate/audio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: String(args.text), voice_id: voiceId }),
@@ -457,7 +470,7 @@ export const TOOLS: AgentTool[] = [
           причина: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`,
         }
       }
-      const gen = await fetch(`${selfBase()}/api/generate/video`, {
+      const gen = await selfFetch(`${selfBase()}/api/generate/video`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -501,7 +514,7 @@ export const TOOLS: AgentTool[] = [
     },
     async handler(args) {
       const base = selfBase()
-      const start = await fetch(`${base}/render/template`, {
+      const start = await selfFetch(`${base}/render/template`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -522,7 +535,7 @@ export const TOOLS: AgentTool[] = [
       const deadline = Date.now() + 6 * 60 * 1000
       while (Date.now() < deadline) {
         await new Promise(r => setTimeout(r, 4000))
-        const st = await fetch(`${base}/render/${renderId}`)
+        const st = await selfFetch(`${base}/render/${renderId}`)
         const stData: any = await st.json().catch(() => null)
         if (stData?.status === 'completed') {
           const url = stData.publicUrl || stData.outputUrl
@@ -549,7 +562,7 @@ export const TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args) {
-      const st = await fetch(`${selfBase()}/render/${encodeURIComponent(String(args.renderId))}`)
+      const st = await selfFetch(`${selfBase()}/render/${encodeURIComponent(String(args.renderId))}`)
       const stData: any = await st.json().catch(() => null)
       if (!st.ok) {
         return { ошибка: `рендер не найден: HTTP ${st.status}` }
