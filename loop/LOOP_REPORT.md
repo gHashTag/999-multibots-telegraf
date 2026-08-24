@@ -1329,3 +1329,17 @@
 1. **«setdomain для app.t27.ai»** — @BotFather → /setdomain → @t27ai_bot → https://app.t27.ai: виджет входа на брендовом домене.
 2. **«Оплатить инвойс»** — t.me/$ZIBu69H2YUiZEwAAjrVxRaJ-ahE — уже на брендовом доверии.
 3. **«Тихий режим»** — всё само: ночь b-roll, MORNING с кассой утром.
+
+---
+
+# ЦИКЛ №84 — 2026-08-24T16:10Z (дежурство; setdomain ждёт)
+
+**Проверено:** сердцебиение 15 мин (легитим); стек 3/3 зелёный; регресс ✅; автопилот 4/4 молчит (норма), очередь 18 тем. Виджет для origin app.t27.ai пока «Bot domain invalid» — /setdomain у @t27ai_bot ещё не выполнен (напоминание владельцу: @BotFather → /setdomain → https://app.t27.ai).
+
+**Конкуренты (официальный канон входа):** /setdomain — обязателен для виджета на домене (core.telegram.org); кнопки входа — web_app-ключ в InlineKeyboardButton (не url), иначе внешняя вкладка вместо мини-аппа; deep links t.me/<bot>/<app> — прямые входы; initData-валидация HMAC у нас уже серверная.
+
+## Три варианта для владельца (цикл №84)
+
+1. **«setdomain»** — @BotFather → /setdomain → @t27ai_bot → https://app.t27.ai.
+2. **«Оплатить инвойс»** — t.me/$ZIBu69H2YUiZEwAAjrVxRaJ-ahE.
+3. **«Тихий режим»** — всё само: ночь b-roll, MORNING с кассой.

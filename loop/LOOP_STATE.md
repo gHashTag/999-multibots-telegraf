@@ -176,3 +176,5 @@
 - 2026-08-24T15:10Z цикл №81: app.t27.ai пуст в DNS (NS=Unstoppable, t27.ai на GitHub Pages — панель умеет записи); CLI-гость не может в домены — владельцу 4 шага: Railway custom domain → UD CNAME app→vibee-editor… → BotFather /setdomain
 - 2026-08-24T14:19:00.691Z пост-лимит на сегодня исчерпан (4/4) — молчу
 - 2026-08-24T15:40Z цикл №83: app.t27.ai ЖИВ (CNAME→Railway, HTTPS, 200) — владельцу остался /setdomain у @t27ai_bot; бренд-домен = 2× доверие, +34-39% конверсия
+- 2026-08-24T14:33:47.021Z пост-лимит на сегодня исчерпан (4/4) — молчу
+- 2026-08-24T16:10Z цикл №84: дежурство; виджет app.t27.ai ждёт /setdomain; канон входа: web_app-кнопки + t.me/<bot>/<app> deep links
