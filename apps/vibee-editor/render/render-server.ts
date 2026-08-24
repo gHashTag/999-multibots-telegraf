@@ -4385,6 +4385,151 @@ const server = createServer(async (req, res) => {
     const feedUrl = new URL(req.url || '', `http://${req.headers.host}`)
     const feedPath = feedUrl.pathname
 
+    // ============================================================
+    // STARS-КАССА: покупка токенов звёздами Telegram.
+    //
+    // Поток: мини-апп зовёт POST /api/tokens/invoice → мы создаём
+    // invoice-ссылку через Bot API (валюта XTR) → Telegram.WebApp.
+    // openInvoice(link) → Telegram шлёт боту pre_checkout_query и
+    // successful_payment на наш вебхук → вебхук пополняет user_tokens.
+    // Верификация серверная: клиентскому «оплатил» не верим.
+    //
+    // ФЕЯ СПИТ ДО ТОКЕНА КАССИРА: нужен ОТДЕЛЬНЫЙ бот (токен в
+    // TOKENS_PAYMENT_BOT_TOKEN) — боты 1..12 заняты polling бэкенда,
+    // setWebhook на них конфликтует. Владелец даёт токен — фея проснётся.
+    // ============================================================
+    {
+      const PACKS: Record<string, { tokens: number; stars: number; title: string }> = {
+        '10': { tokens: 10, stars: 15, title: '10 токенов Trinity' },
+        '50': { tokens: 50, stars: 65, title: '50 токенов Trinity' },
+        '150': { tokens: 150, stars: 175, title: '150 токенов Trinity' },
+      }
+      const PAY_BOT = process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
+
+      if (feedPath === '/api/tokens/packs' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            ok: true,
+            включено: !!PAY_BOT,
+            пакеты: Object.entries(PACKS).map(([id, p]) => ({
+              id,
+              токенов: p.tokens,
+              звёзд: p.stars,
+            })),
+            подсказка: PAY_BOT
+              ? 'открой invoice и оплати звёздами'
+              : 'касса ждёт токен бота-кассира от владельца',
+          })
+        )
+        return
+      }
+
+      if (feedPath === '/api/tokens/invoice' && req.method === 'POST') {
+        const who = chatIdentity(req, verifiedTelegramId(req))
+        if (!who) {
+          res.writeHead(401, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: 'нужна подпись или ключ агента' }))
+          return
+        }
+        if (!PAY_BOT) {
+          res.writeHead(503, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: 'касса не настроена: TOKENS_PAYMENT_BOT_TOKEN не задан',
+            })
+          )
+          return
+        }
+        try {
+          const body = JSON.parse((await readBody(req)) || '{}')
+          const pack = PACKS[String(body.pack)]
+          if (!pack) throw new Error('неизвестный пакет')
+          const tg =
+            await fetch(`https://api.telegram.org/bot${PAY_BOT}/createInvoiceLink`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                title: pack.title,
+                description: 'Токены для генераций в Trinity S³AI',
+                payload: `tokens:${pack.tokens}:${who}`,
+                currency: 'XTR',
+                prices: [{ label: pack.title, amount: pack.stars }],
+              }),
+            })
+          const tgd = await tg.json()
+          if (!tgd.ok) throw new Error('Bot API: ' + JSON.stringify(tgd).slice(0, 200))
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: true, link: tgd.result }))
+        } catch (e) {
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: String(e).slice(0, 300) }))
+        }
+        return
+      }
+
+      // Вебхук бота-кассира: секрет в пути, чтобы гвард и злоумышленники
+      // мимо не прошли. Telegram шлёт сюда pre_checkout и successful_payment.
+      const WH_SECRET = process.env.STARS_WEBHOOK_SECRET || ''
+      const whMatch = req.url?.match(/^\/api\/telegram\/stars-wh\/([a-zA-Z0-9_-]+)$/)
+      if (whMatch && req.method === 'POST') {
+        if (!WH_SECRET || whMatch[1] !== WH_SECRET || !PAY_BOT) {
+          res.writeHead(404, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'not found' }))
+          return
+        }
+        try {
+          const upd = JSON.parse((await readBody(req)) || '{}')
+          if (upd.pre_checkout_query) {
+            await fetch(
+              `https://api.telegram.org/bot${PAY_BOT}/answerPreCheckoutQuery`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  pre_checkout_query_id: upd.pre_checkout_query.id,
+                  ok: true,
+                }),
+              }
+            )
+          } else if (upd.successful_payment) {
+            // tokens:<amount>:<telegram_id> — единственный источник правды.
+            const m = String(upd.successful_payment.invoice_payload || '').match(
+              /^tokens:(\d+):(.+)$/
+            )
+            const amount = m ? Number(m[1]) : 0
+            const tid = m ? m[2] : ''
+            if (amount > 0 && tid) {
+              const pool = await getPool()
+              await pool.query(
+                `CREATE TABLE IF NOT EXISTS user_tokens (
+                   telegram_id text PRIMARY KEY,
+                   balance int NOT NULL,
+                   updated_at timestamptz NOT NULL DEFAULT now()
+                 )`
+              )
+              await pool.query(
+                `INSERT INTO user_tokens (telegram_id, balance)
+                 VALUES ($1, $2)
+                 ON CONFLICT (telegram_id)
+                 DO UPDATE SET balance = user_tokens.balance + $2, updated_at = now()`,
+                [tid, amount]
+              )
+              console.log(`💰 [STARS] +${amount} токенов пользователю ${tid}`)
+            }
+          }
+          res.writeHead(200)
+          res.end()
+        } catch (e) {
+          console.error('[STARS] webhook error:', e)
+          res.writeHead(200)
+          res.end()
+        }
+        return
+      }
+    }
+
     // GET /api/blog — прокси RSS-блога t27.ai.
     //
     // Блог живёт на сайте (https://t27.ai/rss.xml), а мини-апп — тут: RSS с

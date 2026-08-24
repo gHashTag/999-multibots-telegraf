@@ -265,3 +265,46 @@
   font-size: 13px;
   letter-spacing: 0.02em;
 }
+
+/* Пополнение токенов: пакеты под чипом баланса */
+.chat-tokens {
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.chat-topup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chat-topup__pack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 14px;
+  border: 1px solid #2a2820;
+  border-radius: 12px;
+  background: #0d0d0c;
+  color: #e6e0d2;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.chat-topup__pack:hover {
+  border-color: var(--vibee-gold);
+}
+
+.chat-topup__pack span {
+  color: var(--vibee-gold);
+  font-size: 12px;
+}
+
+.chat-topup__note {
+  width: 100%;
+  margin: 0;
+  color: #8a8578;
+  font-size: 12px;
+}

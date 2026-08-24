@@ -172,6 +172,11 @@ async function ensureSkillsTable(ctx: ToolContext): Promise<void> {
        UNIQUE (telegram_id, name)
      )`
   )
+  // Маркетплейс: публичность скилла — отдельная колонка, приватность
+  // по умолчанию; витрина читает только is_public.
+  await ctx.pool.query(
+    `ALTER TABLE user_skills ADD COLUMN IF NOT EXISTS is_public boolean NOT NULL DEFAULT false`
+  )
 }
 
 /** Списание с честным отказом: недостаток — это ответ, а не исключение. */
@@ -918,6 +923,87 @@ export const TOOLS: AgentTool[] = [
       )
       if (!r.rows.length) return { удалено: false, причина: 'скилл не найден (или чужой)' }
       return { удалено: true, имя: r.rows[0].name }
+    },
+  },
+
+  {
+    name: 'skills_publish',
+    description:
+      'Сделать свой скилл публичным (или обратно приватным) — попасть на витрину ' +
+      'маркета: другие смогут установить его себе копией. Бесплатно.',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer' },
+        public: { type: 'boolean', description: 'true — опубликовать, false — скрыть' },
+      },
+      required: ['id', 'public'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      await ensureSkillsTable(ctx)
+      const r = await ctx.pool.query(
+        `UPDATE user_skills SET is_public = $3, updated_at = now()
+         WHERE id = $1 AND telegram_id = $2 RETURNING name`,
+        [args.id, ctx.telegramId, args.public === true]
+      )
+      if (!r.rows.length) return { опубликовано: false, причина: 'скилл не найден' }
+      return {
+        опубликовано: args.public === true,
+        имя: r.rows[0].name,
+        витрина: args.public === true ? 'скилл виден в skills_market' : 'скрыт с витрины',
+      }
+    },
+  },
+
+  {
+    name: 'skills_market',
+    description:
+      'Витрина публичных скиллов других людей: имя, выдержка, автор. Установка — ' +
+      'skills_install (копия к себе, правишь свободно). Бесплатно.',
+    parameters: noArgs,
+    async handler(_a, ctx) {
+      await ensureSkillsTable(ctx)
+      const r = await ctx.pool.query(
+        `SELECT s.id, s.name, left(s.content, 160) AS excerpt,
+                COALESCE(u.username, 'автор') AS author
+         FROM user_skills s
+         LEFT JOIN users u ON u.telegram_id = s.telegram_id
+         WHERE s.is_public = TRUE AND s.telegram_id <> $1
+         ORDER BY s.updated_at DESC LIMIT 50`,
+        [ctx.telegramId]
+      )
+      return { на_витрине: r.rows.length, скиллы: r.rows }
+    },
+  },
+
+  {
+    name: 'skills_install',
+    description:
+      'Установить публичный скилл с витрины себе (копия). Бесплатно.',
+    parameters: {
+      type: 'object',
+      properties: { id: { type: 'integer', description: 'id с витрины skills_market' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      await ensureSkillsTable(ctx)
+      const src = await ctx.pool.query(
+        `SELECT name, content FROM user_skills WHERE id = $1 AND is_public = TRUE`,
+        [args.id]
+      )
+      if (!src.rows.length) return { установлено: false, причина: 'скилла нет на витрине' }
+      const { name, content } = src.rows[0]
+      const r = await ctx.pool.query(
+        `INSERT INTO user_skills (telegram_id, name, content)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (telegram_id, name) DO UPDATE
+           SET content = EXCLUDED.content, updated_at = now()
+         RETURNING id`,
+        [ctx.telegramId, name, content]
+      )
+      return { установлено: true, id: r.rows[0].id, имя: name }
     },
   },
 

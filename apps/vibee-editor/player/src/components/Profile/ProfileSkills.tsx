@@ -7,7 +7,7 @@
  * золото — только на главном действии.
  */
 import { useCallback, useEffect, useState } from 'react'
-import { Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react'
+import { Globe, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 
@@ -22,6 +22,9 @@ type Draft = { id: number | null; name: string; content: string }
 
 export function ProfileSkills() {
   const [skills, setSkills] = useState<Skill[] | null>(null)
+  const [market, setMarket] = useState<
+    { id: number; name: string; excerpt: string; author: string }[] | null
+  >(null)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
@@ -54,11 +57,33 @@ export function ProfileSkills() {
   const load = useCallback(async () => {
     const r = await call('skills_list')
     setSkills(Array.isArray(r['скиллы']) ? r['скиллы'] : [])
+    const m = await call('skills_market')
+    setMarket(Array.isArray(m['скиллы']) ? m['скиллы'] : [])
   }, [call])
 
   useEffect(() => {
     load().catch(() => setSkills([]))
   }, [load])
+
+  const publish = async (id: number, pub: boolean) => {
+    setBusy(true)
+    try {
+      await call('skills_publish', { id, public: pub })
+      await load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const install = async (id: number) => {
+    setBusy(true)
+    try {
+      await call('skills_install', { id })
+      await load()
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const save = async () => {
     if (!draft) return
@@ -148,6 +173,12 @@ export function ProfileSkills() {
                   >
                     <Pencil size={14} />
                   </button>
+                  <button
+                    title={(sk as { is_public?: boolean }).is_public ? 'Скрыть с витрины' : 'На витрину маркета'}
+                    onClick={() => publish(sk.id, !(sk as { is_public?: boolean }).is_public)}
+                  >
+                    <Globe size={14} />
+                  </button>
                   <button title="Удалить" onClick={() => remove(sk.id, sk.name)}>
                     <Trash2 size={14} />
                   </button>
@@ -156,6 +187,31 @@ export function ProfileSkills() {
               <p className="profile-skills__content">{sk.content}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {market && market.length > 0 && (
+        <div className="profile-skills__market">
+          <p className="profile-skills__hint">Витрина скиллов сообщества</p>
+          <div className="profile-skills__list">
+            {market.map(mk => (
+              <div key={mk.id} className="profile-skills__card">
+                <div className="profile-skills__card-head">
+                  <span className="profile-skills__name">{mk.name}</span>
+                  <button
+                    className="profile-skills__install"
+                    disabled={busy}
+                    onClick={() => install(mk.id)}
+                  >
+                    <Plus size={12} /> Установить
+                  </button>
+                </div>
+                <p className="profile-skills__content">
+                  {mk.excerpt}… <span className="profile-skills__author">@{mk.author}</span>
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

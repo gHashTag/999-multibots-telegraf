@@ -52,7 +52,49 @@ function ChatPage() {
   const [busy, setBusy] = useState(false)
   const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({})
   const [tokens, setTokens] = useState<number | null>(null)
+  const [topUp, setTopUp] = useState(false)
+  const [topUpNote, setTopUpNote] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Пополнение: инвойс создаёт сервер (XTR), открывает Telegram.WebApp.
+  // Серверной верификацией занимается вебхук кассира — клиенту не верим.
+  const buy = async (pack: string) => {
+    setTopUpNote(null)
+    try {
+      const headers = authHeaders()
+      const devKey = import.meta.env.DEV
+        ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
+        : undefined
+      if (devKey && !headers.has('X-Telegram-Init-Data')) {
+        headers.set('X-Agent-Key', devKey)
+      }
+      const res = await fetch(`${API_BASE}/api/tokens/invoice`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ pack }),
+      })
+      const d = await res.json()
+      if (!d.ok) {
+        setTopUpNote(String(d.error ?? 'не получилось'))
+        return
+      }
+      const wa = (window as any).Telegram?.WebApp
+      if (wa?.openInvoice) {
+        wa.openInvoice(d.link, (status: string) => {
+          if (status === 'paid') {
+            setTopUpNote('Оплачено! Токены придут в течение минуты')
+            setTimeout(() => setTokens(null), 30_000)
+          } else if (status === 'failed') {
+            setTopUpNote('Оплата не прошла')
+          }
+        })
+      } else {
+        setTopUpNote('Покупка доступна внутри Telegram')
+      }
+    } catch {
+      setTopUpNote('сеть подвела — попробуй ещё')
+    }
+  }
 
   // Баланс токенов — в шапке чата: человек видит цену генераций всегда,
   // а не после первой списанной. Бесплатный инструмент, те же заголовки,
@@ -234,7 +276,20 @@ function ChatPage() {
             Смотрит в приложение своими инструментами и делает, а не советует
           </p>
           {tokens !== null && (
-            <div className="chat-tokens">💰 {tokens} токенов</div>
+            <button className="chat-tokens" onClick={() => setTopUp(v => !v)}>
+              💰 {tokens} токенов · пополнить
+            </button>
+          )}
+          {topUp && (
+            <div className="chat-topup">
+              {[10, 50, 150].map(p => (
+                <button key={p} className="chat-topup__pack" onClick={() => buy(String(p))}>
+                  {p} токенов
+                  <span>{p === 10 ? '15 ⭐' : p === 50 ? '65 ⭐' : '175 ⭐'}</span>
+                </button>
+              ))}
+              {topUpNote && <p className="chat-topup__note">{topUpNote}</p>}
+            </div>
           )}
         </div>
       </div>
