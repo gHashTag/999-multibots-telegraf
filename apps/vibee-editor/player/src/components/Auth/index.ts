@@ -1,2 +1,6 @@
-export { TelegramLoginButton, UserAvatar } from './TelegramLoginButton';
-export { PaywallModal } from './PaywallModal';
+export {
+  TelegramAuthConfigurationAlert,
+  TelegramLoginButton,
+  UserAvatar,
+} from './TelegramLoginButton'
+export { PaywallModal } from './PaywallModal'

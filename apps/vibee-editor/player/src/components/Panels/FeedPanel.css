@@ -140,10 +140,20 @@
 
 .feed-card-placeholder {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   height: 100%;
+  padding: 24px;
   color: var(--text-muted, #666);
+  text-align: center;
+}
+
+.feed-card-placeholder span {
+  max-width: 240px;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .feed-card-preview {
@@ -216,6 +226,12 @@
 
 .feed-card-error span {
   color: #fca5a5;
+}
+
+.feed-card-error small {
+  max-width: 260px;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.4;
 }
 
 /* Retry button in error state */
@@ -411,6 +427,17 @@
   object-fit: cover;
 }
 
+.feed-card-avatar--placeholder {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-color, var(--vibee-amber));
+  color: #111;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .feed-card-meta {
   display: flex;
   flex-direction: column;
@@ -427,6 +454,15 @@
   text-overflow: ellipsis;
 }
 
+.feed-card-author-name {
+  color: var(--text-primary, #fff);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .feed-card-creator {
   font-size: 11px;
   color: var(--text-secondary, #888);
@@ -434,6 +470,8 @@
 
 .feed-card-creator-link {
   display: flex;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: 8px;
   text-decoration: none;

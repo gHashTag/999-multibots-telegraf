@@ -2,8 +2,19 @@
 // Ключ берётся ТОЛЬКО из секрета воркера: wrangler secret put XAI_API_KEY
 // Хардкодить ключ в теле воркера нельзя - он уезжает в деплой-артефакт Cloudflare как открытый текст.
 
+export const SAFE_BETA_LOCKED = true
+
 export default {
   async fetch(request, env) {
+    if (SAFE_BETA_LOCKED) {
+      return Response.json(
+        {
+          success: false,
+          error: 'SAFE_BETA_PAID_DISABLED',
+        },
+        { status: 423 }
+      )
+    }
     const cors = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',

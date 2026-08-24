@@ -13,22 +13,22 @@
 /// <reference lib="webworker" />
 
 interface WorkerMessage {
-  type: 'init' | 'decode' | 'seek' | 'close' | 'getFrame';
-  data?: any;
+  type: 'init' | 'decode' | 'seek' | 'close' | 'getFrame'
+  data?: any
 }
 
 interface DecoderConfig {
-  codec: string;
-  width: number;
-  height: number;
-  hardwareAcceleration?: 'prefer-hardware' | 'prefer-software' | 'no-preference';
+  codec: string
+  width: number
+  height: number
+  hardwareAcceleration?: 'prefer-hardware' | 'prefer-software' | 'no-preference'
 }
 
-let canvas: OffscreenCanvas | null = null;
-let ctx: OffscreenCanvasRenderingContext2D | null = null;
-let decoder: VideoDecoder | null = null;
-let pendingFrames: VideoFrame[] = [];
-let isInitialized = false;
+let canvas: OffscreenCanvas | null = null
+let ctx: OffscreenCanvasRenderingContext2D | null = null
+let decoder: VideoDecoder | null = null
+let pendingFrames: VideoFrame[] = []
+let isInitialized = false
 
 /**
  * Initialize decoder with OffscreenCanvas
@@ -38,20 +38,20 @@ async function initDecoder(
   config: DecoderConfig
 ): Promise<boolean> {
   try {
-    canvas = offscreenCanvas;
-    ctx = canvas.getContext('2d');
+    canvas = offscreenCanvas
+    ctx = canvas.getContext('2d')
 
     if (!ctx) {
-      throw new Error('Failed to get 2D context from OffscreenCanvas');
+      throw new Error('Failed to get 2D context from OffscreenCanvas')
     }
 
     // Check WebCodecs support
-    if (!('VideoDecoder' in self)) {
+    if (typeof VideoDecoder === 'undefined') {
       self.postMessage({
         type: 'error',
         error: 'WebCodecs VideoDecoder not supported in this worker',
-      });
-      return false;
+      })
+      return false
     }
 
     // Check codec support
@@ -60,21 +60,21 @@ async function initDecoder(
       codedWidth: config.width,
       codedHeight: config.height,
       hardwareAcceleration: config.hardwareAcceleration || 'prefer-hardware',
-    });
+    })
 
     if (!supported.supported) {
       self.postMessage({
         type: 'error',
         error: `Codec ${config.codec} not supported`,
-      });
-      return false;
+      })
+      return false
     }
 
     // Create decoder
     decoder = new VideoDecoder({
       output: handleDecodedFrame,
       error: handleDecoderError,
-    });
+    })
 
     decoder.configure({
       codec: config.codec,
@@ -82,18 +82,21 @@ async function initDecoder(
       codedHeight: config.height,
       hardwareAcceleration: config.hardwareAcceleration || 'prefer-hardware',
       optimizeForLatency: true,
-    });
+    })
 
-    isInitialized = true;
+    isInitialized = true
 
-    self.postMessage({ type: 'initialized', data: { config: supported.config } });
-    return true;
+    self.postMessage({
+      type: 'initialized',
+      data: { config: supported.config },
+    })
+    return true
   } catch (error) {
     self.postMessage({
       type: 'error',
       error: error instanceof Error ? error.message : 'Init failed',
-    });
-    return false;
+    })
+    return false
   }
 }
 
@@ -102,21 +105,21 @@ async function initDecoder(
  */
 function handleDecodedFrame(frame: VideoFrame): void {
   if (!ctx || !canvas) {
-    frame.close();
-    return;
+    frame.close()
+    return
   }
 
   // Store frame for later use or render immediately
-  pendingFrames.push(frame);
+  pendingFrames.push(frame)
 
   // Keep only last 3 frames to avoid memory bloat
   while (pendingFrames.length > 3) {
-    const oldFrame = pendingFrames.shift();
-    oldFrame?.close();
+    const oldFrame = pendingFrames.shift()
+    oldFrame?.close()
   }
 
   // Render to canvas
-  ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(frame, 0, 0, canvas.width, canvas.height)
 
   // Notify main thread
   self.postMessage({
@@ -127,7 +130,7 @@ function handleDecodedFrame(frame: VideoFrame): void {
       width: frame.codedWidth,
       height: frame.codedHeight,
     },
-  });
+  })
 }
 
 /**
@@ -137,24 +140,24 @@ function handleDecoderError(error: DOMException): void {
   self.postMessage({
     type: 'error',
     error: error.message,
-  });
+  })
 }
 
 /**
  * Decode an encoded video chunk
  */
 function decodeChunk(chunkData: {
-  data: ArrayBuffer;
-  timestamp: number;
-  type: 'key' | 'delta';
-  duration?: number;
+  data: ArrayBuffer
+  timestamp: number
+  type: 'key' | 'delta'
+  duration?: number
 }): void {
   if (!decoder || decoder.state !== 'configured') {
     self.postMessage({
       type: 'error',
       error: 'Decoder not configured',
-    });
-    return;
+    })
+    return
   }
 
   try {
@@ -163,14 +166,14 @@ function decodeChunk(chunkData: {
       timestamp: chunkData.timestamp,
       duration: chunkData.duration,
       data: chunkData.data,
-    });
+    })
 
-    decoder.decode(chunk);
+    decoder.decode(chunk)
   } catch (error) {
     self.postMessage({
       type: 'error',
       error: error instanceof Error ? error.message : 'Decode failed',
-    });
+    })
   }
 }
 
@@ -179,18 +182,18 @@ function decodeChunk(chunkData: {
  */
 async function getCurrentFrame(): Promise<void> {
   if (!canvas) {
-    self.postMessage({ type: 'error', error: 'Canvas not initialized' });
-    return;
+    self.postMessage({ type: 'error', error: 'Canvas not initialized' })
+    return
   }
 
   try {
-    const bitmap = await createImageBitmap(canvas);
-    self.postMessage({ type: 'bitmap', data: bitmap }, [bitmap]);
+    const bitmap = await createImageBitmap(canvas)
+    self.postMessage({ type: 'bitmap', data: bitmap }, [bitmap])
   } catch (error) {
     self.postMessage({
       type: 'error',
       error: error instanceof Error ? error.message : 'Failed to create bitmap',
-    });
+    })
   }
 }
 
@@ -199,54 +202,54 @@ async function getCurrentFrame(): Promise<void> {
  */
 async function closeDecoder(): Promise<void> {
   if (decoder) {
-    await decoder.flush();
-    decoder.close();
-    decoder = null;
+    await decoder.flush()
+    decoder.close()
+    decoder = null
   }
 
   // Close all pending frames
   for (const frame of pendingFrames) {
-    frame.close();
+    frame.close()
   }
-  pendingFrames = [];
+  pendingFrames = []
 
-  canvas = null;
-  ctx = null;
-  isInitialized = false;
+  canvas = null
+  ctx = null
+  isInitialized = false
 
-  self.postMessage({ type: 'closed' });
+  self.postMessage({ type: 'closed' })
 }
 
 /**
  * Message handler
  */
 self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
-  const { type, data } = event.data;
+  const { type, data } = event.data
 
   switch (type) {
     case 'init':
-      await initDecoder(data.canvas, data.config);
-      break;
+      await initDecoder(data.canvas, data.config)
+      break
 
     case 'decode':
-      decodeChunk(data);
-      break;
+      decodeChunk(data)
+      break
 
     case 'getFrame':
-      await getCurrentFrame();
-      break;
+      await getCurrentFrame()
+      break
 
     case 'close':
-      await closeDecoder();
-      break;
+      await closeDecoder()
+      break
 
     default:
       self.postMessage({
         type: 'error',
         error: `Unknown message type: ${type}`,
-      });
+      })
   }
-};
+}
 
 // Export for TypeScript
-export {};
+export {}

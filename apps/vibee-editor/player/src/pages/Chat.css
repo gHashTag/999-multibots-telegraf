@@ -20,7 +20,9 @@
   flex-direction: column;
   /* Таббар фиксированный (56px): без вычета он накрывает нижнюю часть
      страницы, и поле ввода оказывается под ним. */
-  height: calc(var(--app-vh-stable, 100dvh) - var(--app-tabbar-total, 56px));
+  min-height: calc(
+    var(--app-vh-stable, 100dvh) - var(--app-tabbar-total, 56px)
+  );
   background: var(--t27-bg);
   color: var(--t27-text);
   font-family:
@@ -55,9 +57,20 @@
   color: var(--t27-muted);
 }
 
+/* SAFE BETA is an onboarding/control surface, not a live transcript. Keep the
+   document as the single scroll owner: nested height clamps hid the primary
+   draft action and MCP registry with no visible affordance. */
+.chat-page > .agent-control {
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+}
+
 .chat-container {
-  flex: 1;
-  overflow-y: auto;
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
   padding: 18px;
 }
 .chat-messages {
@@ -95,6 +108,13 @@
   /* Реплика человека — акцентная, но не кричащая: тонкая зелёная рамка. */
   background: rgba(0, 255, 136, 0.08);
   border-color: rgba(0, 255, 136, 0.35);
+}
+
+.chat-model-lock {
+  max-width: 760px;
+  color: #d9c27a;
+  border-color: rgba(255, 217, 138, 0.24);
+  background: rgba(255, 217, 138, 0.06);
 }
 
 /* Размышление агента — сворачиваемое, приглушённое. */
@@ -251,60 +271,4 @@
 .send-btn:disabled {
   opacity: 0.5;
   cursor: default;
-}
-
-/* Баланс токенов в шапке чата: цена генераций видна до первого списания */
-.chat-tokens {
-  display: inline-block;
-  margin-top: 6px;
-  padding: 4px 12px;
-  border: 1px solid #2a2820;
-  border-radius: 999px;
-  background: #0d0d0c;
-  color: var(--vibee-gold);
-  font-size: 13px;
-  letter-spacing: 0.02em;
-}
-
-/* Пополнение токенов: пакеты под чипом баланса */
-.chat-tokens {
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.chat-topup {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.chat-topup__pack {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 14px;
-  border: 1px solid #2a2820;
-  border-radius: 12px;
-  background: #0d0d0c;
-  color: #e6e0d2;
-  font-size: 13px;
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-
-.chat-topup__pack:hover {
-  border-color: var(--vibee-gold);
-}
-
-.chat-topup__pack span {
-  color: var(--vibee-gold);
-  font-size: 12px;
-}
-
-.chat-topup__note {
-  width: 100%;
-  margin: 0;
-  color: #8a8578;
-  font-size: 12px;
 }

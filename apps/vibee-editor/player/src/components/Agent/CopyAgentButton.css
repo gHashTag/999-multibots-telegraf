@@ -1,0 +1,16 @@
+.copy-agent {
+  display: grid;
+  gap: 6px;
+}
+
+.copy-agent button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.copy-agent [role='status'] {
+  color: #ffd98a;
+  line-height: 1.4;
+}

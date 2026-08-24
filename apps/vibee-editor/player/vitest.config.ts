@@ -1,6 +1,6 @@
-import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
-import path from 'path';
+import { configDefaults, defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
+import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
@@ -19,12 +19,7 @@ export default defineConfig({
      * имён: имена меняются, а «у этого каталога свой запуск» — свойство
      * устойчивое.
      */
-    exclude: [
-      '**/node_modules/**',
-      '**/dist/**',
-      'e2e/**',
-      '**/*.spec.ts',
-    ],
+    exclude: [...configDefaults.exclude, 'e2e/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -52,4 +47,4 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-});
+})

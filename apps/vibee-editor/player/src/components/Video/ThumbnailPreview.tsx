@@ -8,61 +8,62 @@
  * @see https://www.fastpix.io/blog/create-video-previews-with-sprite-sheets-for-streaming
  */
 
-import { useState, useEffect, useMemo, memo, CSSProperties } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react'
+import type { CSSProperties } from 'react'
 
 interface VTTCue {
-  startTime: number;
-  endTime: number;
-  spriteUrl: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  startTime: number
+  endTime: number
+  spriteUrl: string
+  x: number
+  y: number
+  width: number
+  height: number
 }
 
 interface ThumbnailPreviewProps {
   /** URL to sprite sheet image */
-  spriteUrl: string;
+  spriteUrl: string
   /** URL to WebVTT file with thumbnail coordinates */
-  vttUrl: string;
+  vttUrl: string
   /** Current playback time in seconds */
-  currentTime: number;
+  currentTime: number
   /** Additional CSS class */
-  className?: string;
+  className?: string
   /** Additional inline styles */
-  style?: CSSProperties;
+  style?: CSSProperties
   /** Called when thumbnail changes */
-  onThumbnailChange?: (cue: VTTCue | null) => void;
+  onThumbnailChange?: (cue: VTTCue | null) => void
 }
 
 /**
  * Parse WebVTT file content into cues
  */
 function parseVTT(vttContent: string): VTTCue[] {
-  const cues: VTTCue[] = [];
-  const lines = vttContent.trim().split('\n');
+  const cues: VTTCue[] = []
+  const lines = vttContent.trim().split('\n')
 
-  let i = 0;
+  let i = 0
 
   // Skip WEBVTT header
   while (i < lines.length && !lines[i].includes('-->')) {
-    i++;
+    i++
   }
 
   while (i < lines.length) {
-    const line = lines[i].trim();
+    const line = lines[i].trim()
 
     // Parse timestamp line
     if (line.includes('-->')) {
-      const [startStr, endStr] = line.split('-->').map((s) => s.trim());
-      const startTime = parseTimestamp(startStr);
-      const endTime = parseTimestamp(endStr);
+      const [startStr, endStr] = line.split('-->').map(s => s.trim())
+      const startTime = parseTimestamp(startStr)
+      const endTime = parseTimestamp(endStr)
 
       // Next line should be the sprite URL with coordinates
-      i++;
+      i++
       if (i < lines.length) {
-        const urlLine = lines[i].trim();
-        const match = urlLine.match(/(.+)#xywh=(\d+),(\d+),(\d+),(\d+)/);
+        const urlLine = lines[i].trim()
+        const match = urlLine.match(/(.+)#xywh=(\d+),(\d+),(\d+),(\d+)/)
 
         if (match) {
           cues.push({
@@ -73,36 +74,36 @@ function parseVTT(vttContent: string): VTTCue[] {
             y: parseInt(match[3], 10),
             width: parseInt(match[4], 10),
             height: parseInt(match[5], 10),
-          });
+          })
         }
       }
     }
 
-    i++;
+    i++
   }
 
-  return cues;
+  return cues
 }
 
 /**
  * Parse VTT timestamp (HH:MM:SS.mmm) to seconds
  */
 function parseTimestamp(timestamp: string): number {
-  const parts = timestamp.split(':');
-  let seconds = 0;
+  const parts = timestamp.split(':')
+  let seconds = 0
 
   if (parts.length === 3) {
     // HH:MM:SS.mmm
-    seconds += parseInt(parts[0], 10) * 3600;
-    seconds += parseInt(parts[1], 10) * 60;
-    seconds += parseFloat(parts[2]);
+    seconds += parseInt(parts[0], 10) * 3600
+    seconds += parseInt(parts[1], 10) * 60
+    seconds += parseFloat(parts[2])
   } else if (parts.length === 2) {
     // MM:SS.mmm
-    seconds += parseInt(parts[0], 10) * 60;
-    seconds += parseFloat(parts[1]);
+    seconds += parseInt(parts[0], 10) * 60
+    seconds += parseFloat(parts[1])
   }
 
-  return seconds;
+  return seconds
 }
 
 /**
@@ -116,63 +117,69 @@ export const ThumbnailPreview = memo(function ThumbnailPreview({
   style = {},
   onThumbnailChange,
 }: ThumbnailPreviewProps) {
-  const [cues, setCues] = useState<VTTCue[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [cues, setCues] = useState<VTTCue[]>([])
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Load and parse VTT file
   useEffect(() => {
-    let isCancelled = false;
+    let isCancelled = false
 
     async function loadVTT() {
       try {
-        const response = await fetch(vttUrl);
+        const response = await fetch(vttUrl)
         if (!response.ok) {
-          throw new Error(`Failed to load VTT: ${response.status}`);
+          throw new Error(`Failed to load VTT: ${response.status}`)
         }
-        const text = await response.text();
+        const text = await response.text()
 
         if (!isCancelled) {
-          const parsedCues = parseVTT(text);
-          setCues(parsedCues);
-          setIsLoaded(true);
-          setError(null);
+          const parsedCues = parseVTT(text)
+          setCues(parsedCues)
+          setIsLoaded(true)
+          setError(null)
         }
       } catch (err) {
         if (!isCancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load thumbnails');
-          setIsLoaded(false);
+          setError(
+            err instanceof Error ? err.message : 'Failed to load thumbnails'
+          )
+          setIsLoaded(false)
         }
       }
     }
 
-    loadVTT();
+    loadVTT()
 
     return () => {
-      isCancelled = true;
-    };
-  }, [vttUrl]);
+      isCancelled = true
+    }
+  }, [vttUrl])
 
   // Find current cue based on time
   const currentCue = useMemo(() => {
-    if (!isLoaded || cues.length === 0) return null;
+    if (!isLoaded || cues.length === 0) return null
 
-    return cues.find((cue) => currentTime >= cue.startTime && currentTime < cue.endTime) || null;
-  }, [cues, currentTime, isLoaded]);
+    return (
+      cues.find(
+        cue => currentTime >= cue.startTime && currentTime < cue.endTime
+      ) || null
+    )
+  }, [cues, currentTime, isLoaded])
 
   // Notify parent of thumbnail change
   useEffect(() => {
-    onThumbnailChange?.(currentCue);
-  }, [currentCue, onThumbnailChange]);
+    onThumbnailChange?.(currentCue)
+  }, [currentCue, onThumbnailChange])
 
   if (error || !isLoaded || !currentCue) {
-    return null;
+    return null
   }
 
   // Build full sprite URL (relative to VTT location)
   const fullSpriteUrl = spriteUrl.startsWith('http')
     ? spriteUrl
-    : new URL(currentCue.spriteUrl, new URL(vttUrl, window.location.href)).href;
+    : new URL(currentCue.spriteUrl, new URL(vttUrl, window.location.href)).href
 
   return (
     <div
@@ -191,48 +198,48 @@ export const ThumbnailPreview = memo(function ThumbnailPreview({
       role="img"
       aria-label={`Video preview at ${Math.floor(currentTime)} seconds`}
     />
-  );
-});
+  )
+})
 
 /**
  * Hook for thumbnail preview functionality
  */
 export function useThumbnailPreview(vttUrl: string) {
-  const [cues, setCues] = useState<VTTCue[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [cues, setCues] = useState<VTTCue[]>([])
+  const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
-    let isCancelled = false;
+    let isCancelled = false
 
     fetch(vttUrl)
-      .then((r) => r.text())
-      .then((text) => {
+      .then(r => r.text())
+      .then(text => {
         if (!isCancelled) {
-          setCues(parseVTT(text));
-          setIsLoaded(true);
+          setCues(parseVTT(text))
+          setIsLoaded(true)
         }
       })
       .catch(() => {
         if (!isCancelled) {
-          setIsLoaded(false);
+          setIsLoaded(false)
         }
-      });
+      })
 
     return () => {
-      isCancelled = true;
-    };
-  }, [vttUrl]);
+      isCancelled = true
+    }
+  }, [vttUrl])
 
   const getThumbnail = (time: number): VTTCue | null => {
-    if (!isLoaded) return null;
-    return cues.find((cue) => time >= cue.startTime && time < cue.endTime) || null;
-  };
+    if (!isLoaded) return null
+    return cues.find(cue => time >= cue.startTime && time < cue.endTime) || null
+  }
 
   return {
     isLoaded,
     cues,
     getThumbnail,
-  };
+  }
 }
 
-export default ThumbnailPreview;
+export default ThumbnailPreview

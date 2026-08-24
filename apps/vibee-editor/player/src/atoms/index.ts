@@ -491,7 +491,7 @@ export {
   type LearnProgress,
 } from './learn'
 
-// История генераций из бота: серверная половина — GET /api/assets/:telegram_id
+// История генераций из бота: legacy owner-id route is disabled in SAFE BETA.
 export {
   botAssetsAtom,
   botAssetsLoadingAtom,
