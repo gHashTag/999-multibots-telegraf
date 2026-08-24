@@ -5,9 +5,26 @@
 // ===============================
 
 import { API_BASE } from '../config';
+import { getInitData } from './telegram';
 
 // Use Vibee MCP for AI generations (not render server)
 const API_URL = API_BASE;
+
+/**
+ * Подпись личности для платных генераций. На проде общий гвард режет
+ * POST /api/generate/* без X-Telegram-Init-Data — без этого заголовка
+ * страница Generate получала 401 из ниоткуда. В DEV (вне мини-аппа)
+ * подписи нет — подставляем ключ агента из VITE_AGENT_KEY.
+ */
+function authHeaders(): Record<string, string> {
+  const initData = getInitData();
+  if (initData) return { 'X-Telegram-Init-Data': initData };
+  const devKey = import.meta.env.DEV
+    ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
+    : undefined;
+  if (devKey) return { 'X-Agent-Key': devKey };
+  return {};
+}
 
 export interface GenerateImageParams {
   model: string;       // 'flux-pro-1.1', 'flux-dev', 'flux-lora'
@@ -61,7 +78,7 @@ export async function generateImage(params: GenerateImageParams): Promise<Genera
 
   const response = await fetch(`${API_URL}/api/generate/image`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({
       model: params.model,
       prompt: params.prompt,
@@ -169,7 +186,7 @@ export async function generateImageViaReplicate(params: {
 export async function generateVideo(params: GenerateVideoParams): Promise<GenerateResult> {
   const response = await fetch(`${API_URL}/api/generate/video`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({
       model: params.model,
       prompt: params.prompt,
@@ -192,7 +209,7 @@ export async function generateVideo(params: GenerateVideoParams): Promise<Genera
 export async function generateAudio(params: GenerateAudioParams): Promise<GenerateResult> {
   const response = await fetch(`${API_URL}/api/generate/audio`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({
       text: params.text,
       voice_id: params.voiceId,
@@ -214,7 +231,7 @@ export async function generateAudio(params: GenerateAudioParams): Promise<Genera
 export async function generateLipsync(params: GenerateLipsyncParams): Promise<GenerateResult> {
   const response = await fetch(`${API_URL}/api/generate/lipsync`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({
       audio_url: params.audioUrl,
       image_url: params.imageUrl,
