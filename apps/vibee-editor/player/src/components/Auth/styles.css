@@ -523,3 +523,12 @@
     font-size: 12px;
   }
 }
+
+/* Подсказка fallback-входа: вместо молчаливого перехода к боту —
+   честный рабочий путь в мини-аппе */
+.telegram-login-hint {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: #8a8578;
+  text-align: center;
+}
