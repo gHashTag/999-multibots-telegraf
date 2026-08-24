@@ -45,15 +45,27 @@ const log = {
     console.warn(`[IG-WARN] ${msg}`, data || ''),
 }
 
-// Database connection pool
-const dbPool = new Pool({
-  connectionString:
-    process.env.NEON_DATABASE_URL ||
-    'postgresql://neondb_owner:npg_vXnxbypES56V@ep-proud-grass-aegoipez-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require',
-  ssl: {
-    rejectUnauthorized: false,
-  },
-})
+// Database connection is intentionally lazy: importing/registering Inngest
+// functions must not open a socket, and a missing secret must fail closed.
+let dbPool: import('pg').Pool | null = null
+
+export function getDbPool(): import('pg').Pool {
+  const connectionString = process.env.NEON_DATABASE_URL?.trim()
+  if (!connectionString) {
+    throw new Error('NEON_DATABASE_URL is required')
+  }
+
+  if (!dbPool) {
+    dbPool = new Pool({
+      connectionString,
+      ssl: {
+        rejectUnauthorized: false,
+      },
+    })
+  }
+
+  return dbPool
+}
 
 // Instagram API Integration with Zod validation
 class InstagramAPI {

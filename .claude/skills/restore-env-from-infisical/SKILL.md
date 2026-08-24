@@ -42,7 +42,7 @@ ssh prod999 "grep -E 'HEYGEN|ELEVENLABS' /root/bot-farm/.env | wc -l"
 
 If script is unavailable or fails:
 
-```bash
+````bash
 # Step 1: Export from Infisical (remove quotes)
 infisical export \
   --projectId=fd763fa3-35d5-4045-93bd-1795c5f00fc3 \
@@ -81,22 +81,22 @@ ssh prod999 "cd /root/bot-farm && docker compose restart app"
 # Wait for startup
 sleep 15
 
-# Step 5: Verify keys loaded
-ssh prod999 "docker exec 999-multibots printenv | grep -E 'HEYGEN|ELEVENLABS' | sort"
-```
+## Step 5: Verify key presence without printing values
 
-## Expected API Keys
+```bash
+ssh prod999 "docker exec 999-multibots sh -c 'for key in HEYGEN_COCOAGE_API_KEY HEYGEN_HAIM_API_KEY ELEVENLABS_API_KEY ELEVENLABS_HAIM_API_KEY ELEVENLABS_VOICE_COCOAGE ELEVENLABS_VOICE_HAIM; do if printenv \"\$key\" >/dev/null; then echo \"\$key=present\"; else echo \"\$key=missing\"; fi; done'"
+````
 
-After restoration, verify these 6 keys are present:
+## Expected secret names
 
-```
-HEYGEN_COCOAGE_API_KEY=sk_V2_hgu_kZgKPoImFA5_7wlQLLXqKLr2mag1hIM9caNiPtAYmjkj
-HEYGEN_HAIM_API_KEY=sk_V2_hgu_kBLbUbWT3dT_i0NzHVIT9R8GNZR3xu8Ccw8RT6gIBNPJ
-ELEVENLABS_API_KEY=737d2f8b185450984e1525893f0327f48736fe9e9d850d52cb63834337ca7dc4
-ELEVENLABS_HAIM_API_KEY=737d2f8b185450984e1525893f0327f48736fe9e9d850d52cb63834337ca7dc4
-ELEVENLABS_VOICE_COCOAGE=2b2e1f15157b454487f1250ffe586d7a
-ELEVENLABS_VOICE_HAIM=dc9cd149b0d741d6934a1d95e3f3ef00
-```
+After restoration, verify presence only. Never print or copy the values:
+
+- `HEYGEN_COCOAGE_API_KEY`
+- `HEYGEN_HAIM_API_KEY`
+- `ELEVENLABS_API_KEY`
+- `ELEVENLABS_HAIM_API_KEY`
+- `ELEVENLABS_VOICE_COCOAGE`
+- `ELEVENLABS_VOICE_HAIM`
 
 ## Common Issues & Fixes
 

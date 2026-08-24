@@ -108,6 +108,11 @@ const PATTERNS: Rule[] = [
     'полный доступ к базе',
   ],
   ['токен Fly.io', /fm2_[A-Za-z0-9+/=]{40,}/gi, 'управление развёртыванием'],
+  [
+    'credentialed database URL',
+    /(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^:\s/$<{]+:[^@\s$<{]+@/gi,
+    'прямой доступ к базе в обход secret store',
+  ],
 ]
 
 /**
@@ -206,6 +211,10 @@ const SELF_CHECK: Array<[string, string]> = [
     'ключ xAI',
     'XAI_API_KEY=xai-qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq', // secret-guard-ok: выдуманный образец самопроверки
   ],
+  [
+    'credentialed database URL',
+    'postgresql://example_user:example_password@example.invalid/example', // secret-guard-ok: выдуманный образец самопроверки
+  ],
 ]
 
 /**
@@ -234,6 +243,7 @@ const NEGATIVE_CHECK: string[] = [
   'sha256 = 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
   'const apiKey = process.env.XAI_API_KEY // база: https://api.x.ai/v1',
   'BOT_TOKEN=<взять: infisical secrets get BOT_TOKEN_1>',
+  'DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@database.invalid/app',
 ]
 
 /**

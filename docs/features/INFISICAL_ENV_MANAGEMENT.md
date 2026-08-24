@@ -88,16 +88,8 @@ ssh prod999 "cd /root/bot-farm && docker compose down && docker compose up -d"
 ### 3. **Проверка загрузки ключей**
 
 ```bash
-# Проверить переменные в контейнере
-docker exec 999-multibots printenv | grep -E 'HEYGEN|ELEVENLABS'
-
-# Должно показать:
-# HEYGEN_COCOAGE_API_KEY=sk_V2_hgu_kZgKPoImFA5_...
-# HEYGEN_HAIM_API_KEY=sk_V2_hgu_kBLbUbWT3dT_i0Nz...
-# ELEVENLABS_API_KEY=737d2f8b185450984e1525893f0327f4...
-# ELEVENLABS_HAIM_API_KEY=737d2f8b185450984e1525893f...
-# ELEVENLABS_VOICE_COCOAGE=2b2e1f15157b454487f1250ffe586d7a
-# ELEVENLABS_VOICE_HAIM=dc9cd149b0d741d6934a1d95e3f3ef00
+# Проверить наличие переменных, не печатая значения
+docker exec 999-multibots sh -c 'for key in HEYGEN_COCOAGE_API_KEY HEYGEN_HAIM_API_KEY ELEVENLABS_API_KEY ELEVENLABS_HAIM_API_KEY ELEVENLABS_VOICE_COCOAGE ELEVENLABS_VOICE_HAIM; do if printenv "$key" >/dev/null; then echo "$key=present"; else echo "$key=missing"; fi; done'
 ```
 
 ## 🏗️ Архитектура секретов

@@ -5,13 +5,14 @@ description: Security best practices for Telegram bots with payment integration.
 
 # 🔐 Security Expert - Хранитель Безопасности
 
-**Sanskrit Wisdom**: 🕉️ *"रक्षणं सर्वधर्मेषु"* (Rakshanam Sarva Dharmeshu) - "Защита превыше всех обязанностей"
+**Sanskrit Wisdom**: 🕉️ _"रक्षणं सर्वधर्मेषु"_ (Rakshanam Sarva Dharmeshu) - "Защита превыше всех обязанностей"
 
 **Философия**: "Security is not a feature. Security is a foundation. One vulnerability = total compromise."
 
 ## 🎯 Core Knowledge
 
 Этот Skill обеспечивает безопасность через:
+
 - 🔐 API key management (Infisical patterns)
 - 🛡️ Authentication & Authorization
 - 💉 SQL injection prevention
@@ -31,33 +32,34 @@ description: Security best practices for Telegram bots with payment integration.
 
 ```typescript
 // ❌ КРИТИЧЕСКАЯ ОШИБКА - ключ в коде
-const HEYGEN_API_KEY = 'hey_abc123xyz456';
+const HEYGEN_API_KEY = 'hey_abc123xyz456' // secret-guard-ok: intentionally fake insecure training example
 
 export async function generateAvatar() {
   const response = await fetch('https://api.heygen.com/v1/generate', {
     headers: {
-      'X-Api-Key': HEYGEN_API_KEY  // ❌ Exposed in git!
-    }
-  });
+      'X-Api-Key': HEYGEN_API_KEY, // ❌ Exposed in git!
+    },
+  })
 }
 
 // ✅ ПРАВИЛЬНО - ключ из Infisical/env
-import { getSecret } from '@/core/infisical/client';
+import { getSecret } from '@/core/infisical/client'
 
 export async function generateAvatar() {
-  const apiKey = await getSecret('HEYGEN_API_KEY');
+  const apiKey = await getSecret('HEYGEN_API_KEY')
 
   const response = await fetch('https://api.heygen.com/v1/generate', {
     headers: {
-      'X-Api-Key': apiKey
-    }
-  });
+      'X-Api-Key': apiKey,
+    },
+  })
 }
 ```
 
 ### Principle 2: Only 5 Variables in .env
 
 **Правило из проекта**: `.env` содержит ТОЛЬКО:
+
 ```bash
 # .env (ONLY these 5 variables)
 INFISICAL_CLIENT_ID=xxx
@@ -73,15 +75,13 @@ BOT_TOKEN=xxx (deprecated, use Infisical)
 
 ```typescript
 // ❌ BAD - one API key for dev and prod
-const apiKey = await getSecret('HEYGEN_API_KEY');
+const apiKey = await getSecret('HEYGEN_API_KEY')
 
 // ✅ GOOD - environment-specific keys
-const environment = process.env.NODE_ENV || 'development';
+const environment = process.env.NODE_ENV || 'development'
 const apiKey = await getSecret(
-  environment === 'production'
-    ? 'HEYGEN_API_KEY_PROD'
-    : 'HEYGEN_API_KEY_DEV'
-);
+  environment === 'production' ? 'HEYGEN_API_KEY_PROD' : 'HEYGEN_API_KEY_DEV'
+)
 ```
 
 ### Audit Checklist: API Keys
@@ -132,24 +132,21 @@ echo "✅ API key audit complete"
 
 ```typescript
 // ✅ GOOD - verify Telegram user authenticity
-import { verifyTelegramWebAppData } from '@/helpers/telegram-auth';
+import { verifyTelegramWebAppData } from '@/helpers/telegram-auth'
 
 export async function handleWebhook(req: Request): Promise<Response> {
-  const initData = req.headers.get('X-Telegram-Init-Data');
+  const initData = req.headers.get('X-Telegram-Init-Data')
 
   // Verify signature
-  const isValid = verifyTelegramWebAppData(
-    initData,
-    process.env.BOT_TOKEN
-  );
+  const isValid = verifyTelegramWebAppData(initData, process.env.BOT_TOKEN)
 
   if (!isValid) {
-    return new Response('Unauthorized', { status: 401 });
+    return new Response('Unauthorized', { status: 401 })
   }
 
   // Extract user data
-  const userData = parseTelegramInitData(initData);
-  const user = await getUserByTelegramId(userData.user.id);
+  const userData = parseTelegramInitData(initData)
+  const user = await getUserByTelegramId(userData.user.id)
 
   // ... proceed with authenticated user ...
 }
@@ -159,26 +156,24 @@ export function verifyTelegramWebAppData(
   initData: string,
   botToken: string
 ): boolean {
-  const params = new URLSearchParams(initData);
-  const hash = params.get('hash');
-  params.delete('hash');
+  const params = new URLSearchParams(initData)
+  const hash = params.get('hash')
+  params.delete('hash')
 
   // Create data-check-string
   const dataCheckString = Array.from(params.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => `${key}=${value}`)
-    .join('\n');
+    .join('\n')
 
   // Calculate expected hash
-  const secretKey = createHmac('sha256', 'WebAppData')
-    .update(botToken)
-    .digest();
+  const secretKey = createHmac('sha256', 'WebAppData').update(botToken).digest()
 
   const expectedHash = createHmac('sha256', secretKey)
     .update(dataCheckString)
-    .digest('hex');
+    .digest('hex')
 
-  return hash === expectedHash;
+  return hash === expectedHash
 }
 ```
 
@@ -190,75 +185,75 @@ export function verifyTelegramWebAppData(
 export enum UserRole {
   USER = 'user',
   PREMIUM = 'premium',
-  ADMIN = 'admin'
+  ADMIN = 'admin',
 }
 
 export interface AuthorizedContext extends Context {
   user: {
-    id: string;
-    telegramId: string;
-    role: UserRole;
-    permissions: string[];
-  };
+    id: string
+    telegramId: string
+    role: UserRole
+    permissions: string[]
+  }
 }
 
 // Middleware для проверки роли
 export function requireRole(allowedRoles: UserRole[]) {
   return async (ctx: Context, next: () => Promise<void>) => {
-    const user = await getUserByTelegramId(ctx.from.id);
+    const user = await getUserByTelegramId(ctx.from.id)
 
     if (!user) {
-      await ctx.reply('❌ Пользователь не найден');
-      return;
+      await ctx.reply('❌ Пользователь не найден')
+      return
     }
 
     if (!allowedRoles.includes(user.role as UserRole)) {
-      await ctx.reply('❌ Недостаточно прав');
-      return;
+      await ctx.reply('❌ Недостаточно прав')
+      return
     }
 
     // Attach user to context
-    (ctx as AuthorizedContext).user = user;
-    await next();
-  };
+    ;(ctx as AuthorizedContext).user = user
+    await next()
+  }
 }
 
 // Usage
-bot.command('admin', requireRole([UserRole.ADMIN]), async (ctx) => {
+bot.command('admin', requireRole([UserRole.ADMIN]), async ctx => {
   // Only admins can access
-  await ctx.reply('Admin panel...');
-});
+  await ctx.reply('Admin panel...')
+})
 ```
 
 ### Pattern 3: Admin-Only Commands
 
 ```typescript
 // ✅ EXISTING in project - src/middleware/adminOnly.ts
-import { Context } from 'telegraf';
+import { Context } from 'telegraf'
 
-const ADMIN_IDS = [144022504]; // Your Telegram ID
+const ADMIN_IDS = [144022504] // Your Telegram ID
 
 export function adminOnly() {
   return async (ctx: Context, next: () => Promise<void>) => {
     if (!ctx.from) {
-      return;
+      return
     }
 
     if (!ADMIN_IDS.includes(ctx.from.id)) {
-      await ctx.reply('❌ Только для администраторов');
-      return;
+      await ctx.reply('❌ Только для администраторов')
+      return
     }
 
-    await next();
-  };
+    await next()
+  }
 }
 
 // Usage
-bot.command('debug', adminOnly(), async (ctx) => {
+bot.command('debug', adminOnly(), async ctx => {
   // Only you can access
-  const stats = await getDatabaseStats();
-  await ctx.reply(`Debug info:\n${JSON.stringify(stats, null, 2)}`);
-});
+  const stats = await getDatabaseStats()
+  await ctx.reply(`Debug info:\n${JSON.stringify(stats, null, 2)}`)
+})
 ```
 
 ---
@@ -272,9 +267,9 @@ bot.command('debug', adminOnly(), async (ctx) => {
 async function getUserByEmail(email: string) {
   // Direct string interpolation = DANGER!
   const { data } = await supabase.rpc('get_user', {
-    query: `SELECT * FROM users WHERE email = '${email}'`
-  });
-  return data;
+    query: `SELECT * FROM users WHERE email = '${email}'`,
+  })
+  return data
 }
 
 // Attacker input: email = "' OR '1'='1"
@@ -286,10 +281,10 @@ async function getUserByEmail(email: string) {
   const { data } = await supabase
     .from('users')
     .select('*')
-    .eq('email', email)  // ✅ Supabase escapes automatically
-    .single();
+    .eq('email', email) // ✅ Supabase escapes automatically
+    .single()
 
-  return data;
+  return data
 }
 ```
 
@@ -299,25 +294,22 @@ async function getUserByEmail(email: string) {
 // ✅ Input validation before DB query
 async function getUserByEmail(email: string) {
   // 1. Validate format
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (!emailRegex.test(email)) {
-    throw new Error('Invalid email format');
+    throw new Error('Invalid email format')
   }
 
   // 2. Sanitize (remove dangerous characters)
-  const sanitizedEmail = email
-    .toLowerCase()
-    .trim()
-    .replace(/['"]/g, '');  // Remove quotes
+  const sanitizedEmail = email.toLowerCase().trim().replace(/['"]/g, '') // Remove quotes
 
   // 3. Query with validated input
   const { data } = await supabase
     .from('users')
     .select('*')
     .eq('email', sanitizedEmail)
-    .single();
+    .single()
 
-  return data;
+  return data
 }
 ```
 
@@ -331,7 +323,7 @@ const { data, error } = await supabase
   .eq('telegram_id', telegramId)
   .gte('balance', minBalance)
   .order('created_at', { ascending: false })
-  .limit(10);
+  .limit(10)
 
 // All parameters are automatically escaped
 // No SQL injection possible
@@ -344,38 +336,32 @@ const { data, error } = await supabase
 ### Pattern 1: Sanitize User Input (Telegram Messages)
 
 ```typescript
-import DOMPurify from 'isomorphic-dompurify';
+import DOMPurify from 'isomorphic-dompurify'
 
 // ❌ DANGEROUS - direct use of user input
 async function sendCustomMessage(ctx: Context, userText: string) {
   await ctx.replyWithHTML(
-    `<b>Your message:</b> ${userText}`  // ❌ XSS if userText contains <script>
-  );
+    `<b>Your message:</b> ${userText}` // ❌ XSS if userText contains <script>
+  )
 }
 
 // ✅ SAFE - sanitize HTML
 async function sendCustomMessage(ctx: Context, userText: string) {
   // Remove all HTML tags
   const sanitized = DOMPurify.sanitize(userText, {
-    ALLOWED_TAGS: [],  // No HTML allowed
-    ALLOWED_ATTR: []
-  });
+    ALLOWED_TAGS: [], // No HTML allowed
+    ALLOWED_ATTR: [],
+  })
 
-  await ctx.replyWithHTML(
-    `<b>Your message:</b> ${sanitized}`
-  );
+  await ctx.replyWithHTML(`<b>Your message:</b> ${sanitized}`)
 }
 
 // Alternative: Use Markdown instead of HTML
 async function sendCustomMessage(ctx: Context, userText: string) {
   // Telegram MarkdownV2 escaping
-  const escaped = userText
-    .replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
+  const escaped = userText.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&')
 
-  await ctx.reply(
-    `*Your message:* ${escaped}`,
-    { parse_mode: 'MarkdownV2' }
-  );
+  await ctx.reply(`*Your message:* ${escaped}`, { parse_mode: 'MarkdownV2' })
 }
 ```
 
@@ -385,46 +371,43 @@ async function sendCustomMessage(ctx: Context, userText: string) {
 // ❌ DANGEROUS - user-provided URL without validation
 async function sendLinkToUser(ctx: Context, url: string) {
   await ctx.reply(
-    `Check this link: ${url}`,  // ❌ Could be javascript:alert(1)
+    `Check this link: ${url}`, // ❌ Could be javascript:alert(1)
     {
       reply_markup: {
-        inline_keyboard: [[
-          { text: 'Open', url }  // ❌ Dangerous!
-        ]]
-      }
+        inline_keyboard: [
+          [
+            { text: 'Open', url }, // ❌ Dangerous!
+          ],
+        ],
+      },
     }
-  );
+  )
 }
 
 // ✅ SAFE - validate URL scheme
 async function sendLinkToUser(ctx: Context, url: string) {
   try {
-    const parsed = new URL(url);
+    const parsed = new URL(url)
 
     // Only allow safe schemes
-    const allowedSchemes = ['http:', 'https:'];
+    const allowedSchemes = ['http:', 'https:']
     if (!allowedSchemes.includes(parsed.protocol)) {
-      throw new Error('Invalid URL scheme');
+      throw new Error('Invalid URL scheme')
     }
 
     // Optional: whitelist domains
-    const allowedDomains = ['heygen.com', 'fal.ai', 'replicate.com'];
+    const allowedDomains = ['heygen.com', 'fal.ai', 'replicate.com']
     if (!allowedDomains.some(d => parsed.hostname.endsWith(d))) {
-      throw new Error('Domain not whitelisted');
+      throw new Error('Domain not whitelisted')
     }
 
-    await ctx.reply(
-      `Check this link: ${url}`,
-      {
-        reply_markup: {
-          inline_keyboard: [[
-            { text: 'Open', url }
-          ]]
-        }
-      }
-    );
+    await ctx.reply(`Check this link: ${url}`, {
+      reply_markup: {
+        inline_keyboard: [[{ text: 'Open', url }]],
+      },
+    })
   } catch (error) {
-    await ctx.reply('❌ Invalid URL');
+    await ctx.reply('❌ Invalid URL')
   }
 }
 ```
@@ -438,43 +421,43 @@ async function sendLinkToUser(ctx: Context, url: string) {
 ```typescript
 // src/webhooks/robokassa-webhook.ts
 
-import crypto from 'crypto';
+import crypto from 'crypto'
 
 export async function handleRobokassaWebhook(req: Request): Promise<Response> {
-  const params = await req.json();
+  const params = await req.json()
 
   // 1. Extract signature
-  const receivedSignature = params.SignatureValue;
+  const receivedSignature = params.SignatureValue
 
   // 2. Calculate expected signature
-  const password2 = await getSecret('ROBOKASSA_PASSWORD_2');
+  const password2 = await getSecret('ROBOKASSA_PASSWORD_2')
 
   const signatureString = [
     params.OutSum,
     params.InvId,
     password2,
-    params.Shp_user_id
-  ].join(':');
+    params.Shp_user_id,
+  ].join(':')
 
   const expectedSignature = crypto
     .createHash('md5')
     .update(signatureString)
     .digest('hex')
-    .toUpperCase();
+    .toUpperCase()
 
   // 3. Verify signature
   if (receivedSignature !== expectedSignature) {
-    console.error('❌ Invalid Robokassa signature');
-    return new Response('Invalid signature', { status: 403 });
+    console.error('❌ Invalid Robokassa signature')
+    return new Response('Invalid signature', { status: 403 })
   }
 
   // 4. Process payment
-  const userId = params.Shp_user_id;
-  const amount = parseFloat(params.OutSum);
+  const userId = params.Shp_user_id
+  const amount = parseFloat(params.OutSum)
 
-  await processSuccessfulPayment(userId, amount);
+  await processSuccessfulPayment(userId, amount)
 
-  return new Response(`OK${params.InvId}`, { status: 200 });
+  return new Response(`OK${params.InvId}`, { status: 200 })
 }
 ```
 
@@ -483,20 +466,20 @@ export async function handleRobokassaWebhook(req: Request): Promise<Response> {
 ```typescript
 // Telegram sends X-Telegram-Bot-Api-Secret-Token header
 export async function handleTelegramWebhook(req: Request): Promise<Response> {
-  const secretToken = await getSecret('TELEGRAM_WEBHOOK_SECRET');
-  const receivedToken = req.headers.get('X-Telegram-Bot-Api-Secret-Token');
+  const secretToken = await getSecret('TELEGRAM_WEBHOOK_SECRET')
+  const receivedToken = req.headers.get('X-Telegram-Bot-Api-Secret-Token')
 
   // Verify secret token
   if (receivedToken !== secretToken) {
-    console.error('❌ Invalid Telegram webhook token');
-    return new Response('Forbidden', { status: 403 });
+    console.error('❌ Invalid Telegram webhook token')
+    return new Response('Forbidden', { status: 403 })
   }
 
   // Process update
-  const update = await req.json();
-  await bot.handleUpdate(update);
+  const update = await req.json()
+  await bot.handleUpdate(update)
 
-  return new Response('OK', { status: 200 });
+  return new Response('OK', { status: 200 })
 }
 ```
 
@@ -504,28 +487,30 @@ export async function handleTelegramWebhook(req: Request): Promise<Response> {
 
 ```typescript
 // Prevent duplicate webhook processing
-const processedWebhooks = new Set<string>();
+const processedWebhooks = new Set<string>()
 
 export async function handleWebhook(req: Request): Promise<Response> {
-  const webhookId = req.headers.get('X-Webhook-Id') ||
-                    crypto.randomUUID();
+  const webhookId = req.headers.get('X-Webhook-Id') || crypto.randomUUID()
 
   // Check if already processed
   if (processedWebhooks.has(webhookId)) {
-    console.log(`⚠️  Duplicate webhook ignored: ${webhookId}`);
-    return new Response('Already processed', { status: 200 });
+    console.log(`⚠️  Duplicate webhook ignored: ${webhookId}`)
+    return new Response('Already processed', { status: 200 })
   }
 
   // Process webhook
-  await processPayment(req);
+  await processPayment(req)
 
   // Mark as processed (with TTL)
-  processedWebhooks.add(webhookId);
-  setTimeout(() => {
-    processedWebhooks.delete(webhookId);
-  }, 24 * 60 * 60 * 1000);  // 24 hours
+  processedWebhooks.add(webhookId)
+  setTimeout(
+    () => {
+      processedWebhooks.delete(webhookId)
+    },
+    24 * 60 * 60 * 1000
+  ) // 24 hours
 
-  return new Response('OK', { status: 200 });
+  return new Response('OK', { status: 200 })
 }
 ```
 
@@ -537,84 +522,90 @@ export async function handleWebhook(req: Request): Promise<Response> {
 
 ```typescript
 // ✅ EXISTING - from project analysis
-import rateLimit from 'express-rate-limit';
+import rateLimit from 'express-rate-limit'
 
 // Fixed trust proxy setting (was vulnerability)
-app.set('trust proxy', 1);  // ✅ Trust only first proxy (nginx)
+app.set('trust proxy', 1) // ✅ Trust only first proxy (nginx)
 
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,  // 15 minutes
-  max: 100,  // Max 100 requests per 15 minutes
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Max 100 requests per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
 
   // Get real IP from X-Forwarded-For (nginx)
-  keyGenerator: (req) => {
-    return req.headers['x-forwarded-for']?.split(',')[0].trim() ||
-           req.ip ||
-           'unknown';
+  keyGenerator: req => {
+    return (
+      req.headers['x-forwarded-for']?.split(',')[0].trim() ||
+      req.ip ||
+      'unknown'
+    )
   },
 
   handler: (req, res) => {
     res.status(429).json({
       error: 'Too many requests',
-      retryAfter: req.rateLimit.resetTime
-    });
-  }
-});
+      retryAfter: req.rateLimit.resetTime,
+    })
+  },
+})
 
-app.use('/api/', limiter);
+app.use('/api/', limiter)
 ```
 
 ### Pattern 2: Per-User Rate Limiting (Telegram)
 
 ```typescript
 // Rate limit per Telegram user
-const userRateLimits = new Map<number, {
-  count: number;
-  resetAt: number;
-}>();
+const userRateLimits = new Map<
+  number,
+  {
+    count: number
+    resetAt: number
+  }
+>()
 
 export function rateLimitPerUser(maxRequests: number, windowMs: number) {
   return async (ctx: Context, next: () => Promise<void>) => {
-    const userId = ctx.from?.id;
-    if (!userId) return;
+    const userId = ctx.from?.id
+    if (!userId) return
 
-    const now = Date.now();
-    const userLimit = userRateLimits.get(userId);
+    const now = Date.now()
+    const userLimit = userRateLimits.get(userId)
 
     // Reset if window expired
     if (!userLimit || now > userLimit.resetAt) {
       userRateLimits.set(userId, {
         count: 1,
-        resetAt: now + windowMs
-      });
-      await next();
-      return;
+        resetAt: now + windowMs,
+      })
+      await next()
+      return
     }
 
     // Check limit
     if (userLimit.count >= maxRequests) {
-      const resetIn = Math.ceil((userLimit.resetAt - now) / 1000);
+      const resetIn = Math.ceil((userLimit.resetAt - now) / 1000)
       await ctx.reply(
         `⏳ Слишком много запросов. Попробуйте через ${resetIn} сек.`
-      );
-      return;
+      )
+      return
     }
 
     // Increment count
-    userLimit.count++;
-    await next();
-  };
+    userLimit.count++
+    await next()
+  }
 }
 
 // Usage
-bot.command('generate',
-  rateLimitPerUser(5, 60 * 1000),  // 5 requests per minute
-  async (ctx) => {
+bot.command(
+  'generate',
+  rateLimitPerUser(5, 60 * 1000), // 5 requests per minute
+  async ctx => {
     // ... generation logic ...
   }
-);
+)
 ```
 
 ### Pattern 3: Cost-Based Rate Limiting
@@ -622,55 +613,56 @@ bot.command('generate',
 ```typescript
 // Rate limit based on operation cost (AI generations are expensive)
 interface UserCostTracker {
-  totalCost: number;
-  resetAt: number;
+  totalCost: number
+  resetAt: number
 }
 
-const userCosts = new Map<number, UserCostTracker>();
+const userCosts = new Map<number, UserCostTracker>()
 
 export function rateLimitByCost(maxCost: number, windowMs: number) {
   return async (ctx: Context, cost: number, next: () => Promise<void>) => {
-    const userId = ctx.from?.id;
-    if (!userId) return;
+    const userId = ctx.from?.id
+    if (!userId) return
 
-    const now = Date.now();
-    const tracker = userCosts.get(userId);
+    const now = Date.now()
+    const tracker = userCosts.get(userId)
 
     if (!tracker || now > tracker.resetAt) {
       userCosts.set(userId, {
         totalCost: cost,
-        resetAt: now + windowMs
-      });
-      await next();
-      return;
+        resetAt: now + windowMs,
+      })
+      await next()
+      return
     }
 
     if (tracker.totalCost + cost > maxCost) {
       await ctx.reply(
         `⚠️ Превышен лимит операций.\n` +
-        `Лимит: ${maxCost} credits\n` +
-        `Использовано: ${tracker.totalCost}\n` +
-        `Сброс через: ${Math.ceil((tracker.resetAt - now) / 60000)} мин`
-      );
-      return;
+          `Лимит: ${maxCost} credits\n` +
+          `Использовано: ${tracker.totalCost}\n` +
+          `Сброс через: ${Math.ceil((tracker.resetAt - now) / 60000)} мин`
+      )
+      return
     }
 
-    tracker.totalCost += cost;
-    await next();
-  };
+    tracker.totalCost += cost
+    await next()
+  }
 }
 
 // Usage
 async function generateHeyGenAvatar(ctx: Context) {
-  const HEYGEN_COST = 50;  // credits
+  const HEYGEN_COST = 50 // credits
 
-  await rateLimitByCost(200, 60 * 60 * 1000)(  // 200 credits per hour
+  await rateLimitByCost(200, 60 * 60 * 1000)(
+    // 200 credits per hour
     ctx,
     HEYGEN_COST,
     async () => {
       // ... generation logic ...
     }
-  );
+  )
 }
 ```
 
@@ -681,6 +673,7 @@ async function generateHeyGenAvatar(ctx: Context) {
 ### 1. A01:2021 - Broken Access Control ✅
 
 **Covered by**:
+
 - Role-based access control (RBAC)
 - Admin-only middleware
 - Telegram user verification
@@ -688,6 +681,7 @@ async function generateHeyGenAvatar(ctx: Context) {
 ### 2. A02:2021 - Cryptographic Failures ✅
 
 **Covered by**:
+
 - Infisical for secrets management
 - HTTPS only (nginx configuration)
 - Webhook signature verification
@@ -695,6 +689,7 @@ async function generateHeyGenAvatar(ctx: Context) {
 ### 3. A03:2021 - Injection ✅
 
 **Covered by**:
+
 - Parameterized queries (Supabase)
 - Input validation
 - HTML sanitization
@@ -702,6 +697,7 @@ async function generateHeyGenAvatar(ctx: Context) {
 ### 4. A04:2021 - Insecure Design ⚠️
 
 **Need to check**:
+
 - Threat modeling
 - Secure design patterns
 - Defense in depth
@@ -709,6 +705,7 @@ async function generateHeyGenAvatar(ctx: Context) {
 ### 5. A05:2021 - Security Misconfiguration ✅
 
 **Covered by**:
+
 - Environment-specific configs
 - Secure defaults
 - Error handling (no sensitive info in errors)
@@ -716,6 +713,7 @@ async function generateHeyGenAvatar(ctx: Context) {
 ### 6. A06:2021 - Vulnerable Components ⚠️
 
 **Need to check**:
+
 - `npm audit` regularly
 - Dependency updates
 - Known CVEs in dependencies
@@ -723,6 +721,7 @@ async function generateHeyGenAvatar(ctx: Context) {
 ### 7. A07:2021 - Auth Failures ✅
 
 **Covered by**:
+
 - Telegram authentication
 - Session management
 - Password hashing (if implemented)
@@ -730,6 +729,7 @@ async function generateHeyGenAvatar(ctx: Context) {
 ### 8. A08:2021 - Data Integrity Failures ✅
 
 **Covered by**:
+
 - Webhook signature verification
 - Idempotency keys
 - Atomic database transactions
@@ -737,6 +737,7 @@ async function generateHeyGenAvatar(ctx: Context) {
 ### 9. A09:2021 - Logging Failures ⚠️
 
 **Need to implement**:
+
 - Security event logging
 - Log monitoring
 - Alerting on suspicious activity
@@ -744,6 +745,7 @@ async function generateHeyGenAvatar(ctx: Context) {
 ### 10. A10:2021 - SSRF ⚠️
 
 **Need to check**:
+
 - URL validation (implemented above)
 - Whitelist external domains
 - Network segmentation
@@ -902,19 +904,22 @@ Together: Secure and quality code
 ## 🕉️ Sanskrit Wisdom for Security
 
 ### On Vigilance
-*"सदा सावधानम्"* (Sada Savadhanam)
+
+_"सदा सावधानम्"_ (Sada Savadhanam)
 "Всегда будь бдителен"
 
 → Security требует постоянной vigilance
 
 ### On Defense
-*"रक्षणं परमं धर्मः"* (Rakshanam Paramam Dharmah)
+
+_"रक्षणं परमं धर्मः"_ (Rakshanam Paramam Dharmah)
 "Защита - высший долг"
 
 → Защита данных пользователей - твой долг
 
 ### On Prevention
-*"प्रतिरोधः उत्तमः चिकित्सा"* (Pratirodha Uttamah Chikitsa)
+
+_"प्रतिरोधः उत्तमः चिकित्सा"_ (Pratirodha Uttamah Chikitsa)
 "Предотвращение - лучшее лечение"
 
 → Предотврати уязвимости до их эксплуатации

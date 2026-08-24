@@ -1,87 +1,45 @@
-# GLM-4.7 Integration Guide
+# z.ai GLM integration
 
-## API Key Addition to Infisical
+Trinity S³AI prefers the z.ai coding endpoint for Agent chat. Secrets are
+configured only in the deployment secret store; never paste a credential into
+this repository, a command history, a URL, the browser DOM or logs.
 
-The GLM-4.7 API key needs to be added to Infisical cloud.
+## Required production variables
 
-### Via Infisical Dashboard
+| Variable         | Purpose                 | Safe example                          |
+| ---------------- | ----------------------- | ------------------------------------- |
+| `AGENT_PROVIDER` | Preferred provider      | `zai`                                 |
+| `GLM_API_KEY`    | z.ai credential         | `<set-in-secret-store>`               |
+| `ZAI_BASE_URL`   | Coding API base         | `https://api.z.ai/api/coding/paas/v4` |
+| `AGENT_MODEL`    | Optional model override | `glm-5.3`                             |
 
-1. Go to: https://app.infisical.com/
-2. Select project: `999-multibots-telegraf` (ID: fd763fa3-35d5-4045-93bd-1795c5f00fc3)
-3. Select environment: `prod`
-4. Click "Add Secret"
-5. Enter:
-   - Name: `GLM_API_KEY`
-   - Value: `fcbb5dadc5ea462284f5475a04daa174.Ei5KkZb0WQMwasmd`
-6. Click "Save"
+The server may retain an OpenAI fallback only when its key is valid. A present
+but rejected key is not a healthy provider.
 
-### Via Infisical CLI (if installed)
+## Safe setup
 
-```bash
-# Set secret for production
-infisical secrets set --env=prod --secret-name=GLM_API_KEY --secret-value="fcbb5dadc5ea462284f5475a04daa174.Ei5KkZb0WQMwasmd"
+1. Create or rotate the key in the provider console.
+2. Set `GLM_API_KEY` through Railway or the approved secret manager UI. Do not
+   pass the value on a shared command line.
+3. Set `AGENT_PROVIDER=zai` and keep the coding base URL above unless the
+   provider publishes a migration.
+4. Run the repository provider-health test. It reports only provider/status,
+   never the credential.
+5. Revoke any key that has ever appeared in Git, chat, logs or screenshots.
 
-# Verify
-infisical secrets list --env=prod | grep GLM_API_KEY
-```
+## Runtime behavior
 
-## Fallback Chain Order
-
-The AI chat fallback chain is now:
-
-1. **Grok (grok-2-latest)** - Primary (xAI)
-   - Status: Out of credits (429 error)
-   
-2. **GLM-4.7 (glm-4)** - Fallback 1 (Zhipu AI) ⭐ NEW
-   - Status: Should work
-   
-3. **DeepSeek (deepseek-chat)** - Fallback 2
-   - Status: No balance (402 error)
-   
-4. **OpenAI (gpt-4o-mini)** - Fallback 3
-   - Status: Should work
-
-## Provider Details
-
-### GLM-4.7 (Zhipu AI)
-
-- **Provider**: Zhipu AI (智谱)
-- **Base URL**: https://open.bigmodel.cn/api/paas/v4
-- **Model**: glm-4
-- **Documentation**: https://open.bigmodel.cn/
-
-### Code Implementation
-
-Files created/modified:
-
-- `src/core/openai/glm-provider.ts` - New GLM provider
-- `src/core/openai/requests.ts` - Updated fallback chain
-- `src/core/openai/index.ts` - Exported GLM provider
-- `src/index.ts` - Added GLM_API_KEY to Infisical load list
-- `scripts/infisical/check-infisical-keys.ts` - Added GLM check
-
-## Testing
-
-After adding the key to Infisical, restart the bot:
-
-```bash
-# Check if key is loaded
-npm run test:infisical
-
-# Restart bot
-npm run dev
-```
+Provider selection is implemented in
+`apps/vibee-editor/render/src/agent/provider.ts`. The Agent tries configured
+providers in preference order and returns a redacted diagnosis for 401, quota
+and model errors. SAFE BETA exposes only read and draft tools; provider access
+does not enable generation, charges or publication.
 
 ## Troubleshooting
 
-### Issue: GLM_API_KEY not found in logs
-
-**Solution**: Add key to Infisical following the instructions above.
-
-### Issue: GLM API returns 401 Unauthorized
-
-**Solution**: Check API key format. Zhipu AI keys should be in format: `id.secret`
-
-### Issue: GLM fallback not triggered
-
-**Solution**: Check `src/core/openai/requests.ts` logs for fallback chain execution.
+- `401`: rotate the credential and update the secret store.
+- `429` or provider balance error: check the coding subscription/quota.
+- model `404`: remove the override or choose a model supported by the coding
+  endpoint.
+- missing key: verify presence in the target service/environment without
+  printing the value.

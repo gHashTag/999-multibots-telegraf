@@ -56,16 +56,15 @@ export const HAIM_AVATARS: HeyGenAvatar[] = [
 /**
  * ✅ БЕЗОПАСНО: API ключи читаются из переменных окружения (.env)
  * Добавьте в .env файл:
- * HEYGEN_COCOAGE_API_KEY=YOUR_HEYGEN_API_KEY_HERE
- * HEYGEN_HAIM_API_KEY=YOUR_HEYGEN_API_KEY_HERE
+ * HEYGEN_COCOAGE_API_KEY=YOUR_<set-via-secret-store>
+ * HEYGEN_HAIM_API_KEY=YOUR_<set-via-secret-store>
  */
 export const HEYGEN_AVATAR_SETS: Record<string, HeyGenAvatarSet> = {
   cocoage: {
     name: 'Cocoage',
     apiKey: process.env.HEYGEN_COCOAGE_API_KEY || '',
     voiceId:
-      process.env.HEYGEN_COCOAGE_VOICE_ID ||
-      '2b2e1f15157b454487f1250ffe586d7a', // Голос Дианы "Вау" для Cocoage
+      process.env.HEYGEN_COCOAGE_VOICE_ID || '2b2e1f15157b454487f1250ffe586d7a', // Голос Дианы "Вау" для Cocoage
     avatars: COCOAGE_AVATARS,
   },
   haim: {
