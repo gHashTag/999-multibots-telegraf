@@ -419,7 +419,7 @@ export const loadFeedAtom = atom(null, async (get, set, refresh?: boolean) => {
      * попадают — они приходят как Error с осмысленным текстом, и его
      * терять не надо.
      */
-    set(feedErrorAtom, getErrorMessage(error, get(languageAtom)))
+    set(feedErrorAtom, getErrorMessage(error, get(languageAtom), { includeAction: false }))
   } finally {
     set(feedLoadingAtom, false)
     isLoadingFeed = false

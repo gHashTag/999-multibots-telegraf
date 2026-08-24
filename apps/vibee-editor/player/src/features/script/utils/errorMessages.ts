@@ -147,12 +147,30 @@ export function parseError(error: unknown): ErrorInfo {
   };
 }
 
-export function getErrorMessage(error: unknown, lang: 'ru' | 'en'): string {
+/**
+ * @param includeAction подставлять ли подсказку действия в текст.
+ *
+ * По умолчанию `true` — поведение прежних вызывающих не меняется.
+ *
+ * Отключать нужно там, где рядом СТОИТ КНОПКА этого действия. В ленте
+ * выходило так: «Ошибка сети. Проверьте подключение к интернету. Проверьте
+ * соединение и попробуйте снова» — и вплотную кнопка «Повторить». Человеку
+ * дважды говорят одно и то же, причём второй раз словами, а не кнопкой,
+ * которую видно.
+ *
+ * Подсказка не удалена из данных, а стала выбором места показа: там, где
+ * кнопки нет (страница генерации скрипта), она несёт смысл.
+ */
+export function getErrorMessage(
+  error: unknown,
+  lang: 'ru' | 'en',
+  { includeAction = true }: { includeAction?: boolean } = {}
+): string {
   const errorInfo = parseError(error);
   const message = lang === 'ru' ? errorInfo.userMessageRu : errorInfo.userMessage;
   const action = lang === 'ru' ? errorInfo.actionRu : errorInfo.action;
 
-  if (action) {
+  if (action && includeAction) {
     return `${message} ${action}`;
   }
 

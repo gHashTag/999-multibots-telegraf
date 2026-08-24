@@ -124,3 +124,21 @@ describe('getRetryDelay', () => {
     expect(getRetryDelay(error)).toBe(3000);
   });
 });
+
+describe('getErrorMessage — подсказка действия', () => {
+  // Там, где рядом стоит кнопка «Повторить», подсказка «попробуйте снова»
+  // повторяет её словами. Отключается флагом, а не удалением из данных:
+  // на экранах без кнопки она несёт смысл.
+  it('includes the action hint by default', () => {
+    const message = getErrorMessage(new TypeError('Failed to fetch'), 'ru');
+    expect(message).toContain('Проверьте соединение');
+  });
+
+  it('omits the action hint when asked', () => {
+    const message = getErrorMessage(new TypeError('Failed to fetch'), 'ru', {
+      includeAction: false,
+    });
+    expect(message).toBe('Ошибка сети. Проверьте подключение к интернету.');
+    expect(message).not.toContain('попробуйте снова');
+  });
+});
