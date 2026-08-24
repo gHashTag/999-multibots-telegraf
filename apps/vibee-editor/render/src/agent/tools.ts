@@ -79,6 +79,74 @@ async function generationsLeftToday(ctx: ToolContext): Promise<number> {
   return DAILY_GENERATION_CAP - (r.rows[0]?.n ?? 0)
 }
 
+/**
+ * ТОКЕНЫ — валюта генераций. Старт даём даром (20), дальше человек
+ * пополняет звёздами Telegram (канал пополнения — за владельцем).
+ * Прайс фиксирован и виден человеку везде: в чате, в my_balance и в
+ * каждом результате платного инструмента.
+ */
+export const TOKEN_PRICES: Record<string, number> = {
+  image_generate: 1,
+  video_generate: 5,
+  audio_generate: 2,
+  reel_render: 2,
+}
+const TOKEN_START = 20
+
+async function ensureTokenRow(ctx: ToolContext): Promise<number> {
+  await ctx.pool.query(
+    `CREATE TABLE IF NOT EXISTS user_tokens (
+       telegram_id text PRIMARY KEY,
+       balance     int NOT NULL,
+       updated_at  timestamptz NOT NULL DEFAULT now()
+     )`
+  )
+  const r = await ctx.pool.query(
+    `INSERT INTO user_tokens (telegram_id, balance)
+     VALUES ($1, $2)
+     ON CONFLICT (telegram_id) DO UPDATE SET telegram_id = EXCLUDED.telegram_id
+     RETURNING balance`,
+    [ctx.telegramId, TOKEN_START]
+  )
+  return r.rows[0].balance
+}
+
+/** Списание с честным отказом: недостаток — это ответ, а не исключение. */
+async function spendTokens(
+  ctx: ToolContext,
+  tool: string
+): Promise<{ ok: boolean; потрачено?: number; осталось?: number; причина?: string }> {
+  const price = TOKEN_PRICES[tool]
+  if (!price) return { ok: true }
+  const balance = await ensureTokenRow(ctx)
+  if (balance < price) {
+    return {
+      ok: false,
+      причина:
+        `не хватает токенов: нужно ${price}, есть ${balance}. ` +
+        'Пополняется звёздами Telegram — скажи человеку и предложи бесплатные действия (лента, SOUL, ремикс из готовых файлов)',
+    }
+  }
+  const r = await ctx.pool.query(
+    `UPDATE user_tokens SET balance = balance - $2, updated_at = now()
+     WHERE telegram_id = $1 RETURNING balance`,
+    [ctx.telegramId, price]
+  )
+  return { ok: true, потрачено: price, осталось: r.rows[0].balance }
+}
+
+/** Допишет стоимость к результату инструмента, если она есть. */
+async function withTokens<T extends object>(
+  ctx: ToolContext,
+  tool: string,
+  result: T
+): Promise<T & { токены?: { потрачено: number; осталось: number } }> {
+  const price = TOKEN_PRICES[tool]
+  if (!price) return result
+  const balance = await ensureTokenRow(ctx)
+  return { ...result, токены: { потрачено: price, осталось: balance } }
+}
+
 export const TOOLS: AgentTool[] = [
   {
     name: 'whoami',
@@ -348,6 +416,8 @@ export const TOOLS: AgentTool[] = [
             'Скажи человеку честно и предложи собрать ролик из уже готовых файлов (my_assets).',
         }
       }
+      const charge = await spendTokens(ctx, 'image_generate')
+      if (!charge.ok) return { сделано: false, причина: charge.причина }
       const base = selfBase()
       const gen = await selfFetch(`${base}/api/generate/image`, {
         method: 'POST',
@@ -388,12 +458,12 @@ export const TOOLS: AgentTool[] = [
          RETURNING id, created_at::text`,
         [ctx.telegramId, upData.directUrl, String(args.prompt)]
       )
-      return {
+      return withTokens(ctx, 'image_generate', {
         сделано: true,
         url: upData.directUrl,
         id: r.rows[0]?.id,
         подсказка: 'ссылка готова: отдай её в reel_render как слой или в feed_publish',
-      }
+      })
     },
   },
 
@@ -413,6 +483,8 @@ export const TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args, ctx) {
+      const charge = await spendTokens(ctx, 'audio_generate')
+      if (!charge.ok) return { сделано: false, причина: charge.причина }
       const base = selfBase()
       let voiceId = args.voice_id ? String(args.voice_id) : ''
       if (!voiceId) {
@@ -442,7 +514,11 @@ export const TOOLS: AgentTool[] = [
          RETURNING id, created_at::text`,
         [ctx.telegramId, direct, String(args.text).slice(0, 500)]
       )
-      return { сделано: true, url: direct, id: r.rows[0]?.id }
+      return withTokens(ctx, 'audio_generate', {
+        сделано: true,
+        url: direct,
+        id: r.rows[0]?.id,
+      })
     },
   },
 
@@ -470,6 +546,8 @@ export const TOOLS: AgentTool[] = [
           причина: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца`,
         }
       }
+      const charge = await spendTokens(ctx, 'video_generate')
+      if (!charge.ok) return { сделано: false, причина: charge.причина }
       const gen = await selfFetch(`${selfBase()}/api/generate/video`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -490,7 +568,11 @@ export const TOOLS: AgentTool[] = [
          RETURNING id, created_at::text`,
         [ctx.telegramId, genData.url, String(args.prompt)]
       )
-      return { сделано: true, url: genData.url, id: r.rows[0]?.id }
+      return withTokens(ctx, 'video_generate', {
+        сделано: true,
+        url: genData.url,
+        id: r.rows[0]?.id,
+      })
     },
   },
 
@@ -512,7 +594,9 @@ export const TOOLS: AgentTool[] = [
       required: ['compositionId'],
       additionalProperties: false,
     },
-    async handler(args) {
+    async handler(args, ctx) {
+      const charge = await spendTokens(ctx, 'reel_render')
+      if (!charge.ok) return { началось: false, причина: charge.причина }
       const base = selfBase()
       const start = await selfFetch(`${base}/render/template`, {
         method: 'POST',
@@ -539,10 +623,8 @@ export const TOOLS: AgentTool[] = [
         const stData: any = await st.json().catch(() => null)
         if (stData?.status === 'completed') {
           const url = stData.publicUrl || stData.outputUrl
-          if (url && !url.startsWith('http')) {
-            return { готово: true, renderId, url: `${base}${url}` }
-          }
-          return { готово: true, renderId, url }
+          const full = url && !url.startsWith('http') ? `${base}${url}` : url
+          return withTokens(ctx, 'reel_render', { готово: true, renderId, url: full })
         }
         if (stData?.status === 'failed') {
           return { готово: false, renderId, причина: `рендер упал: ${String(stData.error || 'без подробностей')}` }
@@ -569,6 +651,29 @@ export const TOOLS: AgentTool[] = [
       }
       const url = stData.publicUrl || stData.outputUrl
       return { ...stData, url: url && !url.startsWith('http') ? `${selfBase()}${url}` : url }
+    },
+  },
+
+  {
+    name: 'my_balance',
+    description:
+      'Баланс токенов человека и прайс генераций. Бесплатно. Говори баланс сам после ' +
+      'каждой платной операции (поле «токены» приходит в результате) — человек всегда ' +
+      'видит, сколько что стоит и сколько осталось.',
+    parameters: noArgs,
+    async handler(_a, ctx) {
+      const balance = await ensureTokenRow(ctx)
+      const прайс: Record<string, number> = {}
+      for (const [k, v] of Object.entries(TOKEN_PRICES)) прайс[k] = v
+      return {
+        баланс_токенов: balance,
+        прайс: прайс,
+        бесплатно: [
+          'whoami, feed_list, feed_get, my_assets, templates_list, feed_stats',
+          'feed_analytics, my_balance, soul_get, soul_edit, render_status',
+          'публикация feed_publish',
+        ].join(', '),
+      }
     },
   },
 

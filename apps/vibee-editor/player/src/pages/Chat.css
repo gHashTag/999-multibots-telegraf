@@ -252,3 +252,16 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* Баланс токенов в шапке чата: цена генераций видна до первого списания */
+.chat-tokens {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 12px;
+  border: 1px solid #2a2820;
+  border-radius: 999px;
+  background: #0d0d0c;
+  color: var(--vibee-gold);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}

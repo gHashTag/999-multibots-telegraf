@@ -51,7 +51,40 @@ function ChatPage() {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({})
+  const [tokens, setTokens] = useState<number | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Баланс токенов — в шапке чата: человек видит цену генераций всегда,
+  // а не после первой списанной. Бесплатный инструмент, те же заголовки,
+  // что и чат.
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const headers = authHeaders()
+        const devKey = import.meta.env.DEV
+          ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
+          : undefined
+        if (devKey && !headers.has('X-Telegram-Init-Data')) {
+          headers.set('X-Agent-Key', devKey)
+        }
+        const res = await fetch(`${API_BASE}/mcp`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: { name: 'my_balance', arguments: {} },
+          }),
+        })
+        const d = await res.json()
+        const bal = d?.result?.structuredContent?.['баланс_токенов']
+        if (typeof bal === 'number') setTokens(bal)
+      } catch {
+        /* баланс — украшение, а не блокировщик чата */
+      }
+    })()
+  }, [])
 
   useEffect(() => {
     setMessages([
@@ -60,8 +93,10 @@ function ChatPage() {
         role: 'assistant',
         text:
           'Привет! Я агент Trinity S³AI. Я не просто отвечаю — я смотрю в приложение ' +
-          'своими инструментами: читаю ленту, твои файлы и шаблоны, публикую рилсы. ' +
-          'Спроси что-нибудь про ленту или скажи, что хочешь сделать.',
+          'своими инструментами: читаю ленту, твои файлы и шаблоны, публикую рилсы.\n\n' +
+          '💰 Цены: картинка — 1 токен, озвучка — 2, рилс — 2, видео — 5. ' +
+          'Баланс виден вверху. Бесплатно: лента, файлы, SOUL, аналитика, публикация.\n\n' +
+          'С чего начнём? Могу сразу сделать картинку за 1 токен — только скажи тему.',
       },
     ])
   }, [])
@@ -198,6 +233,9 @@ function ChatPage() {
           <p>
             Смотрит в приложение своими инструментами и делает, а не советует
           </p>
+          {tokens !== null && (
+            <div className="chat-tokens">💰 {tokens} токенов</div>
+          )}
         </div>
       </div>
 

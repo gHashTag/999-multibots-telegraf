@@ -172,7 +172,12 @@ function pickTopic(
 
 async function main() {
   const withImage = process.argv.includes('--with-image')
-  const state = readState()
+  // Последний пост дня автоматически с b-roll: один видео-слой в день —
+  // визуальный апгрейд канала при стабильном расходе (1 генерация/день).
+  const forceVideo = process.argv.includes('--with-video')
+  const state0 = readState()
+  const withVideo = forceVideo || state0.postsToday === MAX_POSTS_PER_DAY - 1
+  const state = state0
 
   // 1. Лимит постов на сегодня — главный предохранитель автономности.
   if (state.postsToday >= MAX_POSTS_PER_DAY) {
@@ -276,8 +281,8 @@ async function main() {
   }
   // B-roll: сгенерированное видео ложится в медальон композиции (овал,
   // grayscale) — визуальный уровень канала растёт без смены канона.
-  // Проходит общий суточный лимит генераций: дорогой режим, не дефолт.
-  if (process.argv.includes('--with-video')) {
+  // Автоматически — на последнем посте дня; вручную — флагом.
+  if (withVideo) {
     try {
       const vid = await call('video_generate', {
         prompt: `кинематографичный b-roll к посту «${topic.title}»: ${topic.subtitle}. Медленно, крупно, без текста в кадре`,
