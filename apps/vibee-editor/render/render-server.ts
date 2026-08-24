@@ -209,80 +209,6 @@ const SERVICE_ENDPOINTS = {
   player: process.env.PLAYER_URL || 'https://vibee-editor-production.up.railway.app',
 } as const
 
-/**
- * Публикация готового ролика в Telegram-канал — НАПРЯМУЮ через Bot API.
- *
- * Почему не через «мост». Раньше здесь стоял запрос к
- * vibee-telegram-bridge.fly.dev — отдельному сервису, которого НЕ СУЩЕСТВУЕТ
- * (NXDOMAIN, проверено запросом). Ни один ролик за всё время в канал не ушёл,
- * а публикация при этом отвечала успехом.
- *
- * Поднимать мост заново не нужно: у этого сервиса УЖЕ есть токены ботов
- * (BOT_TOKEN_1..12 в переменных Railway), а Telegram принимает ссылку на видео
- * прямо в sendVideo — скачивать и перезаливать не требуется. Лишний сервис в
- * цепочке — это ещё одно место, которое может тихо умереть, как и умерло.
- *
- * НАЗНАЧЕНИЕ КАНАЛА — РЕШЕНИЕ ВЛАДЕЛЬЦА, не догадка кода. Пока переменные не
- * заданы, функция ничего не отправляет и честно говорит об этом. Выбрать
- * канал «по умолчанию» значило бы начать публиковать от чужого имени в чужое
- * место — это делается по явному указанию, а не по инициативе.
- *
- *   TELEGRAM_CHANNEL_ID         @имя_канала или -100…
- *   TELEGRAM_CHANNEL_BOT_TOKEN  токен бота, от имени которого постим
- */
-async function postReelToChannel(input: {
-  videoUrl?: string
-  caption: string
-}): Promise<{ posted: boolean; error?: string }> {
-  const chatId = process.env.TELEGRAM_CHANNEL_ID
-  const token = process.env.TELEGRAM_CHANNEL_BOT_TOKEN
-
-  if (!chatId || !token) {
-    const missing = [
-      !chatId && 'TELEGRAM_CHANNEL_ID',
-      !token && 'TELEGRAM_CHANNEL_BOT_TOKEN',
-    ]
-      .filter(Boolean)
-      .join(' и ')
-    // Не ошибка сервиса, а незаданная настройка — и говорим именно так,
-    // чтобы читающий понял, что чинить, а не пошёл искать поломку.
-    return { posted: false, error: `канал не настроен: не задано ${missing}` }
-  }
-  if (!input.videoUrl) {
-    return { posted: false, error: 'нечего публиковать: у ролика нет video_url' }
-  }
-
-  // Telegram режет подпись на 1024 символах и отвечает отказом, если длиннее.
-  const caption = input.caption.slice(0, 1024)
-
-  try {
-    const r = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        video: input.videoUrl,
-        caption,
-        supports_streaming: true,
-      }),
-    })
-    const body = (await r.json().catch(() => ({}))) as {
-      ok?: boolean
-      description?: string
-    }
-    if (r.ok && body.ok) return { posted: true }
-    // description от Telegram информативен («chat not found», «bot was blocked»)
-    // — отдаём его как есть, он полезнее нашего пересказа.
-    const why = body.description || `HTTP ${r.status}`
-    console.error(`[Feed] Публикация в канал ${chatId} НЕ состоялась: ${why}`)
-    return { posted: false, error: `Telegram отказал: ${why}` }
-  } catch (e) {
-    const reason = e instanceof Error ? e.message : String(e)
-    console.error(`[Feed] Публикация в канал ${chatId} НЕ состоялась: ${reason}`)
-    return { posted: false, error: `Telegram недоступен: ${reason}` }
-  }
-}
-
 // Get video duration using ffprobe
 function getVideoDuration(videoPath: string): number {
   try {
@@ -4470,12 +4396,35 @@ const server = createServer(async (req, res) => {
          */
         let telegram: { posted: boolean; error?: string } | undefined
         if (data.post_to_telegram) {
-          telegram = await postReelToChannel({
-            videoUrl: data.video_url,
-            caption:
-              data.telegram_caption ||
-              `🎬 ${data.name}\n👤 ${data.creator_name}\n🔗 ${SERVICE_ENDPOINTS.player}/feed\n\n#vibee #reels #ai`,
-          })
+          const bridgeUrl = SERVICE_ENDPOINTS.bridge
+          try {
+            const r = await fetch(`${bridgeUrl}/api/post-to-channel`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                video_url: data.video_url,
+                caption:
+                  data.telegram_caption ||
+                  `🎬 ${data.name}\n👤 ${data.creator_name}\n🔗 ${SERVICE_ENDPOINTS.player}/feed\n\n#vibee #reels #ai`,
+                template_id: row.id,
+              }),
+            })
+            // statusText пуст на HTTP/2 — берём код, как и в остальных местах.
+            telegram = r.ok
+              ? { posted: true }
+              : { posted: false, error: `мост ответил HTTP ${r.status}` }
+            if (!r.ok) {
+              console.error(
+                `[Feed] Публикация в канал НЕ состоялась: HTTP ${r.status} от ${bridgeUrl}`
+              )
+            }
+          } catch (e) {
+            const reason = e instanceof Error ? e.message : String(e)
+            telegram = { posted: false, error: `мост недоступен: ${reason}` }
+            console.error(
+              `[Feed] Публикация в канал НЕ состоялась: ${bridgeUrl} — ${reason}`
+            )
+          }
         }
 
         res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -6463,6 +6412,43 @@ async function main() {
     console.log(`   POST /transcribe   - Transcribe audio to captions (RU/EN)`)
     console.log(`🔌 WebSocket: ws://0.0.0.0:${PORT} (real-time sync)`)
     console.log(`📦 S3 Bucket: ${S3_BUCKET}`)
+
+    // САМОВОССТАНОВЛЕНИЕ ВЕБХУКА КАССИРА. Рестарт соседнего сервиса ботов
+    // (общий main) периодически сбивает setWebhook кассира звёзд, а все
+    // сервисы рестартуют вместе на каждом деплое. Рендер поднимается
+    // последним — и молча возвращает вебхук. Идемпотентно: лишний
+    // setWebhook с теми же параметрами безвреден.
+    const payBot = process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
+    const whSecret = process.env.STARS_WEBHOOK_SECRET || ''
+    const selfUrl = process.env.SELF_URL || ''
+    if (payBot && whSecret && selfUrl) {
+      setTimeout(() => {
+        fetch(
+          `https://api.telegram.org/bot${payBot}/setWebhook`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: `${selfUrl}/api/telegram/stars-wh/${whSecret}`,
+              allowed_updates: ['pre_checkout_query', 'successful_payment'],
+            }),
+          }
+        )
+          .then(r => r.json())
+          .then(d =>
+            console.log(
+              '💰 [cashier] вебхук самовосстановлен:',
+              d.ok ? 'ok' : JSON.stringify(d).slice(0, 120)
+            )
+          )
+          .catch(e =>
+            console.warn(
+              '💰 [cashier] вебхук не восстановился:',
+              String(e).slice(0, 120)
+            )
+          )
+      }, 30_000)
+    }
   })
 }
 
