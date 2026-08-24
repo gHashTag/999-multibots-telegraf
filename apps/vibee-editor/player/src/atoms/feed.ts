@@ -149,6 +149,7 @@ function transformTemplate(raw: any): FeedTemplate {
     viewsCount: pick(raw, 'views_count', 'viewsCount') || 0,
     usesCount: pick(raw, 'uses_count', 'usesCount') || 0,
     isLiked: pick(raw, 'is_liked', 'isLiked') || false,
+    isStarred: pick(raw, 'is_starred', 'isStarred') || false,
     isFeatured: pick(raw, 'is_featured', 'isFeatured') || false,
     starsCount: pick(raw, 'stars_count', 'starsCount') || 0,
     // Postgres отдаёт «2026-08-23 08:26:26.635176+00»: пробел вместо T и
@@ -227,9 +228,7 @@ async function likeTemplate(
  * 3. бот подтверждает оплату серверу (звезда падает автору на баланс);
  * 4. мы пингуем статус (до ~6 раз × 1.5 с) и возвращаем свежий stars_count.
  */
-async function starTemplate(
-  id: number
-): Promise<{
+async function starTemplate(id: number): Promise<{
   status: 'paid' | 'cancelled' | 'failed' | 'unsupported' | 'pending'
   starsCount: number | null
 }> {
@@ -527,12 +526,23 @@ export const starTemplateAtom = atom(
     starringTemplates.add(templateId)
     try {
       const result = await starTemplate(templateId)
-      if (result.starsCount != null) {
+      if (result.status === 'paid') {
+        // Звезда оплачена: у ЭТОГО юзера звезда теперь «активна»,
+        // счётчик — из ответа сервера (или +1, если пинг не успел).
         const currentTemplates = get(feedTemplatesAtom)
         set(
           feedTemplatesAtom,
           currentTemplates.map(t =>
-            t.id === templateId ? { ...t, starsCount: result.starsCount! } : t
+            t.id === templateId
+              ? {
+                  ...t,
+                  isStarred: true,
+                  starsCount:
+                    result.starsCount != null
+                      ? result.starsCount
+                      : t.starsCount + 1,
+                }
+              : t
           )
         )
       }

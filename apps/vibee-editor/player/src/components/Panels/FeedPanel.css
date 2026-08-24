@@ -981,12 +981,17 @@
 }
 
 /* ⭐ Звезда = платный лайк (Telegram Stars, автору на баланс).
-   Золото бренда t27: #FFD700 — единственное золотое пятно в экшн-баре. */
+   Золото бренда t27: #FFD700 — единственное золотое пятно в экшн-баре.
+   Не подарена — контур (полу-прозрачное золото); подарена — залита. */
 .action-btn.star-btn {
+  color: rgba(255, 215, 0, 0.55);
+}
+
+.action-btn.star-btn.starred {
   color: #ffd700;
 }
 
-.action-btn.star-btn svg {
+.action-btn.star-btn.starred svg {
   filter: drop-shadow(0 2px 8px rgba(255, 215, 0, 0.45));
 }
 

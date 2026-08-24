@@ -84,6 +84,40 @@ function ffArg(v: string | number): string {
 }
 
 /**
+ * Соединить root + имя файла с гарантией, что результат остаётся ВНУТРИ
+ * root: имя — только безопасные символы без ведущей точки/дефиса, итог
+ * обязан начинаться на resolve(root)+sep. Единственная точка сборки
+ * путей для файлов из внешних источников (S3-ключи и т.п.).
+ */
+function safeJoin(rootDir: string, filename: string): string {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(filename)) {
+    throw new Error(`недопустимое имя файла: ${filename.slice(0, 40)}`)
+  }
+  const resolved = path.resolve(rootDir, filename)
+  const root = path.resolve(rootDir)
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+    throw new Error('путь вышел за пределы рабочей папки')
+  }
+  return resolved
+}
+
+/**
+ * Запуск ffmpeg/ffprobe. Граница функции: массив аргументов собирается
+ * вызывающим из проверенных ffArg-значений; здесь только имя бинарника
+ * и режимы. stdio pipe — ffmpeg не пишет в наш терминал.
+ */
+function runFfmpeg(args: string[], timeoutMs = 300000): void {
+  execFileSync('ffmpeg', args, { stdio: 'pipe', timeout: timeoutMs })
+}
+
+function runFfprobeText(args: string[], timeoutMs = 30000): string {
+  return execFileSync('ffprobe', args, {
+    encoding: 'utf-8',
+    timeout: timeoutMs,
+  })
+}
+
+/**
  * Ответ JSON единым местом: тип всегда application/json; сериализация
  * только здесь. nosniff запрещает браузеру угадывать тип ответа —
  * даже если в данных окажется разметка, она не будет исполнена как HTML.
@@ -4505,9 +4539,11 @@ const server = createServer(async (req, res) => {
           pt.tracks::text, pt.likes_count, pt.views_count, pt.uses_count,
           COALESCE(pt.stars_count, 0) as stars_count,
           CASE WHEN tl.telegram_id IS NOT NULL THEN TRUE ELSE FALSE END as is_liked,
+          CASE WHEN tst.id IS NOT NULL THEN TRUE ELSE FALSE END as is_starred,
           pt.is_featured, pt.created_at::text, pt.parent_template_id, pt.original_creator_id
           FROM public_templates pt
           LEFT JOIN template_likes tl ON pt.id = tl.template_id AND tl.telegram_id = $2 AND tl.action = 'like'
+          LEFT JOIN template_stars tst ON tst.template_id = pt.id AND tst.from_telegram_id = $2 AND tst.status = 'paid'
           WHERE pt.id = $1 AND pt.is_public = TRUE AND pt.deleted_at IS NULL
         `
         const result = await pool.query(query, [id, userId])
@@ -4534,6 +4570,7 @@ const server = createServer(async (req, res) => {
           viewsCount: row.views_count || 0,
           usesCount: row.uses_count || 0,
           starsCount: row.stars_count || 0,
+          isStarred: row.is_starred || false,
           isLiked: row.is_liked || false,
           isFeatured: row.is_featured || false,
           createdAt: row.created_at,
@@ -4603,9 +4640,11 @@ const server = createServer(async (req, res) => {
           pt.tracks::text, pt.likes_count, pt.views_count, pt.uses_count,
           COALESCE(pt.stars_count, 0) as stars_count,
           CASE WHEN tl.telegram_id IS NOT NULL THEN TRUE ELSE FALSE END as is_liked,
+          CASE WHEN tst.id IS NOT NULL THEN TRUE ELSE FALSE END as is_starred,
           pt.is_featured, pt.created_at::text, pt.parent_template_id, pt.original_creator_id
           FROM public_templates pt
           LEFT JOIN template_likes tl ON pt.id = tl.template_id AND tl.telegram_id = $3 AND tl.action = 'like'
+          LEFT JOIN template_stars tst ON tst.template_id = pt.id AND tst.from_telegram_id = $3 AND tst.status = 'paid'
           WHERE pt.is_public = TRUE AND pt.deleted_at IS NULL ${searchFilter}
           ORDER BY ${orderBy} LIMIT $1 OFFSET $2
         `
@@ -4629,6 +4668,7 @@ const server = createServer(async (req, res) => {
           viewsCount: row.views_count || 0,
           usesCount: row.uses_count || 0,
           starsCount: row.stars_count || 0,
+          isStarred: row.is_starred || false,
           isLiked: row.is_liked || false,
           isFeatured: row.is_featured || false,
           createdAt: row.created_at,
