@@ -46,6 +46,31 @@ say "— Прокси блога —"
 items=$(curl -s -m 15 http://127.0.0.1:3333/api/blog | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('items',[])))" 2>/dev/null)
 [ "$items" -gt 0 ] 2>/dev/null && say "  ✅ /api/blog ($items постов)" || { say "  ❌ /api/blog пуст"; fail=1; }
 
+say "— Лента: живой GET (ловит 500 на свежей схеме) —"
+feed_probe() { # $1=base
+  curl -s -m 15 "$1/api/feed?limit=2" | python3 -c '
+import json,sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+ts = d.get("templates")
+if not isinstance(ts, list) or not ts:
+    sys.exit(1)
+t = ts[0]
+if "starsCount" not in t or "isStarred" not in t:
+    sys.exit(2)
+sys.exit(0)' 2>/dev/null
+}
+feed_probe http://127.0.0.1:3333
+rc=$?
+[ $rc -eq 0 ] && say "  ✅ локальная лента: 200, templates, starsCount+isStarred" || { say "  ❌ локальная лента: код $rc (0=нет полей схемы звёзд, 1/2=500/пусто)"; fail=1; }
+if [ "${REGRESS_PROBE_PROD:-0}" = "1" ]; then
+  feed_probe https://vibee-render-production.up.railway.app
+  rc=$?
+  [ $rc -eq 0 ] && say "  ✅ прод-лента: 200, поля звёзд на месте" || { say "  ❌ ПРОД-ЛЕНТА СЛОМАНА (код $rc) — это прод, чинить немедленно"; fail=1; }
+fi
+
 say "— Очередь и состояние —"
 python3 - <<'PYEOF'
 import json, sys
