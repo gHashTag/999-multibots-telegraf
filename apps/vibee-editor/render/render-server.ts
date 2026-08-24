@@ -5342,6 +5342,163 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  // POST /api/users/sync-from-telegram — синк профиля из данных Telegram.
+  //
+  // Раньше профиль показывал автора ПОСЛЕДНЕГО ПОСТА (fallback на
+  // public_templates): имя и аватар из Telegram никуда не сохранялись —
+  // автологин заполнял только userAtom в памяти клиента. Теперь подпись
+  // initData (или dev-ключ владельца) даёт серверу verified id + user,
+  // и профиль upsert'ится по-настоящему: users + profiles.
+  if (req.url?.split('?')[0] === '/api/users/sync-from-telegram' && req.method === 'POST') {
+    try {
+      const pool = await getPool()
+      let tgId = ''
+      let firstName = ''
+      let lastName = ''
+      let username = ''
+      let photoUrl: string | null = null
+
+      const initRaw = (req.headers['x-telegram-init-data'] as string) || ''
+      if (initRaw) {
+        const params = new URLSearchParams(initRaw)
+        try {
+          const u = JSON.parse(params.get('user') || '{}')
+          tgId = String(u.id ?? '')
+          firstName = String(u.first_name ?? '')
+          lastName = String(u.last_name ?? '')
+          username = String(u.username ?? '')
+          photoUrl = u.photo_url ?? null
+        } catch {
+          /* повреждённый user — ответим честной ошибкой ниже */
+        }
+      }
+      // Dev-коннектор: тело доверяем ТОЛЬКО если совпало с владельцем ключа.
+      if (!tgId) {
+        const keyOwner = chatIdentity(req, null)
+        if (keyOwner) {
+          let body: any = {}
+          try {
+            body = JSON.parse((await readBody(req)) || '{}')
+          } catch {}
+          if (String(body.id) === keyOwner) {
+            tgId = keyOwner
+            firstName = String(body.first_name ?? '')
+            lastName = String(body.last_name ?? '')
+            username = String(body.username ?? '')
+            photoUrl = body.photo_url ?? null
+          }
+        }
+      }
+      if (!tgId) {
+        res.writeHead(401, { 'Content-Type': 'application/json' })
+        res.end(
+          JSON.stringify({ error: 'нужна подпись Telegram (initData) или ключ владельца' })
+        )
+        return
+      }
+      const display = [firstName, lastName].filter(Boolean).join(' ') || 'Автор'
+      // profiles может не существовать вовсе (на этой базе её нет) —
+      // создаём по канону профиля; затем UNIQUE по telegram_id для upsert.
+      await pool.query(
+        `CREATE TABLE IF NOT EXISTS profiles (
+           id serial PRIMARY KEY,
+           telegram_id text,
+           username text,
+           display_name text,
+           bio text DEFAULT '',
+           avatar_url text,
+           cover_url text,
+           social_links jsonb DEFAULT '[]',
+           is_public boolean DEFAULT TRUE,
+           is_verified boolean DEFAULT FALSE,
+           created_at timestamptz DEFAULT now()
+         )`
+      )
+      await pool
+        .query(`CREATE UNIQUE INDEX IF NOT EXISTS profiles_tg_uniq ON profiles (telegram_id)`)
+        .catch(async () => {
+          await pool.query(
+            `DELETE FROM profiles p USING profiles q
+             WHERE p.telegram_id = q.telegram_id AND p.id < q.id`
+          )
+          await pool.query(
+            `CREATE UNIQUE INDEX IF NOT EXISTS profiles_tg_uniq ON profiles (telegram_id)`
+          )
+        })
+      // users: telegram_id не уникален в этой базе (PK id, uniq user_id) —
+      // честный update-then-insert вместо ON CONFLICT.
+      {
+        const upd = await pool.query(
+          `UPDATE users SET username = $2, first_name = $3
+           WHERE telegram_id = $1 RETURNING id`,
+          [tgId, username || null, display]
+        )
+        if (!upd.rows.length) {
+          await pool.query(
+            `INSERT INTO users (telegram_id, username, first_name)
+             VALUES ($1, $2, $3)`,
+            [tgId, username || null, display]
+          )
+        }
+      }
+      await pool.query(
+        `INSERT INTO profiles (telegram_id, username, display_name, avatar_url)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (telegram_id)
+         DO UPDATE SET username = EXCLUDED.username,
+                       display_name = EXCLUDED.display_name,
+                       avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url)`,
+        [tgId, username || null, display, photoUrl]
+      ).catch(async e => {
+        // profiles может не иметь telegram_id-конфликта/колонок — чиним схему
+        // один раз и повторяем upsert.
+        if (String(e).includes('does not exist') || String(e).includes('constraint')) {
+          await pool.query(
+            `CREATE TABLE IF NOT EXISTS profiles (
+               id serial PRIMARY KEY,
+               telegram_id text UNIQUE,
+               username text,
+               display_name text,
+               bio text DEFAULT '',
+               avatar_url text,
+               cover_url text,
+               social_links jsonb DEFAULT '[]',
+               is_public boolean DEFAULT TRUE,
+               is_verified boolean DEFAULT FALSE,
+               created_at timestamptz DEFAULT now()
+             )`
+          )
+          await pool.query(
+            `INSERT INTO profiles (telegram_id, username, display_name, avatar_url)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (telegram_id)
+             DO UPDATE SET username = EXCLUDED.username,
+                           display_name = EXCLUDED.display_name,
+                           avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url)`,
+            [tgId, username || null, display, photoUrl]
+          )
+        } else {
+          throw e
+        }
+      })
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          ok: true,
+          telegram_id: tgId,
+          username: username || null,
+          display_name: display,
+          avatar_url: photoUrl,
+        })
+      )
+    } catch (error) {
+      console.error('[sync-from-telegram] error:', error)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: String(error).slice(0, 300) }))
+    }
+    return
+  }
+
   // GET /api/users/id/:telegram_id
   if (req.url?.startsWith('/api/users/id/') && req.method === 'GET') {
     const telegram_id = req.url?.split('/').pop()
@@ -5377,7 +5534,11 @@ const server = createServer(async (req, res) => {
       const row = result.rows[0]
       let avatarUrl = row.avatar_url
       if (avatarUrl && avatarUrl.includes('t.me/')) {
-        avatarUrl = `https://vibee-render-server.fly.dev/proxy/image?url=${encodeURIComponent(avatarUrl)}`
+        // fly.dev мёртв давно: проксируем своим путём, он публичен.
+        const self =
+          process.env.SELF_URL ||
+          'https://vibee-render-production.up.railway.app'
+        avatarUrl = `${self}/proxy/image?url=${encodeURIComponent(avatarUrl)}`
       }
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(
@@ -5445,7 +5606,10 @@ const server = createServer(async (req, res) => {
           }
           let avatarUrl = row.avatar_url
           if (avatarUrl && avatarUrl.includes('t.me/')) {
-            avatarUrl = `https://vibee-render-server.fly.dev/proxy/image?url=${encodeURIComponent(avatarUrl)}`
+            const self =
+              process.env.SELF_URL ||
+              'https://vibee-render-production.up.railway.app'
+            avatarUrl = `${self}/proxy/image?url=${encodeURIComponent(avatarUrl)}`
           }
           profile = {
             id: String(row.id),
@@ -5485,7 +5649,7 @@ const server = createServer(async (req, res) => {
           const row = fallbackResult.rows[0]
           let avatarUrl = row.creator_avatar
           if (avatarUrl && avatarUrl.includes('t.me/')) {
-            avatarUrl = `https://vibee-render-server.fly.dev/proxy/image?url=${encodeURIComponent(avatarUrl)}`
+            avatarUrl = `${process.env.SELF_URL || 'https://vibee-render-production.up.railway.app'}/proxy/image?url=${encodeURIComponent(avatarUrl)}`
           }
           profile = {
             id: String(row.telegram_id),
@@ -5547,7 +5711,7 @@ const server = createServer(async (req, res) => {
             const row = tidResult.rows[0]
             let avatarUrl = row.creator_avatar
             if (avatarUrl && avatarUrl.includes('t.me/')) {
-              avatarUrl = `https://vibee-render-server.fly.dev/proxy/image?url=${encodeURIComponent(avatarUrl)}`
+              avatarUrl = `${process.env.SELF_URL || 'https://vibee-render-production.up.railway.app'}/proxy/image?url=${encodeURIComponent(avatarUrl)}`
             }
             profile = {
               id: String(row.telegram_id),
