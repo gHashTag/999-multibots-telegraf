@@ -187,24 +187,43 @@ export const fetchMyProfileAtom = atom(
     }
 
     try {
-      const params = new URLSearchParams();
-      if (user.username) params.set('username', user.username);
-      if (user.first_name) params.set('display_name', user.first_name);
-      if (user.photo_url) params.set('avatar_url', user.photo_url);
-
-      const url = `${API_BASE}/api/users/id/${user.id}?${params.toString()}`;
-      console.log('[fetchMyProfile] Fetching:', url);
-
-      const response = await fetch(url);
+      // Синк с Telegram: сервер достаёт личность из подписи initData и
+      // upsert'ит users+profiles — имя, username и аватар попадают в
+      // профиль по-настоящему (раньше они жили только в памяти клиента).
+      const response = await fetch(`${API_BASE}/api/users/sync-from-telegram`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          id: user.id,
+          first_name: user.first_name,
+          username: user.username,
+          photo_url: user.photo_url,
+        }),
+      });
 
       if (response.ok) {
         const data = await response.json();
-        console.log('[fetchMyProfile] Success:', data);
-        const profile = transformProfile(data);
+        const profile: MyProfile = {
+          telegram_id: String(data.telegram_id ?? user.id),
+          username: data.username ?? user.username ?? '',
+          display_name: data.display_name ?? user.first_name ?? '',
+          bio: '',
+          avatar_url: data.avatar_url ?? null,
+          cover_url: null,
+          social_links: [],
+          is_public: true,
+          is_verified: false,
+          created_at: new Date().toISOString(),
+          templates_count: 0,
+          followers_count: 0,
+          following_count: 0,
+          total_views: 0,
+          total_likes: 0,
+        };
         set(myProfileAtom, profile);
         return profile;
       } else {
-        console.error('[fetchMyProfile] Error:', response.status, await response.text());
+        console.error('[fetchMyProfile] sync error:', response.status);
       }
       return null;
     } catch (error) {
