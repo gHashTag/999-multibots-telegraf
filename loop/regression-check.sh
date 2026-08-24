@@ -36,7 +36,7 @@ n=$(curl -s -m 10 http://127.0.0.1:3333/mcp -H "X-Agent-Key: $KEY" -H 'Content-T
 check "инструментов в реестре" 23 "$n"
 
 say "— Дешёвые живые вызовы —"
-for tool in whoami feed_stats templates_list feed_analytics my_assets soul_get; do
+for tool in whoami feed_stats templates_list feed_analytics my_assets soul_get skills_list; do
   printf '%s' "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":{}}}" > /tmp/rc-req.json
   err=$(curl -s -m 20 http://127.0.0.1:3333/mcp -H "X-Agent-Key: $KEY" -H 'Content-Type: application/json' --data @/tmp/rc-req.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('error',{}).get('code',''))" 2>/dev/null)
   check "$tool" "" "$err"
