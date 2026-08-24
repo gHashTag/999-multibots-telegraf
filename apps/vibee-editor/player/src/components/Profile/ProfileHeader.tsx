@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { User, Users, Video, Eye, Heart, Settings, CheckCircle, Camera } from 'lucide-react';
 import {
@@ -7,8 +7,11 @@ import {
   followUserAtom,
   unfollowUserAtom,
   showLoginModalAtom,
+  myProfileAtom,
 } from '@/atoms';
 import { useLanguage } from '@/hooks/useLanguage';
+import { API_BASE } from '@/config'
+import { authHeaders } from '@/lib/apiFetch'
 import { FollowButton } from './FollowButton';
 import { SocialLinks } from './SocialLinks';
 
@@ -18,7 +21,8 @@ interface ProfileHeaderProps {
 
 export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
   const { t } = useLanguage();
-  const profile = useAtomValue(viewedProfileAtom);
+  const profile = useAtomValue(viewedProfileAtom)
+  const myProfile = useAtomValue(myProfileAtom);
   const user = useAtomValue(userAtom);
   const follow = useSetAtom(followUserAtom);
   const unfollow = useSetAtom(unfollowUserAtom);
@@ -134,6 +138,12 @@ export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
         </div>
 
         {/* Stats Cards with Glassmorphism */}
+        <ProfileTokens
+          isOwn={
+            (!!myProfile && myProfile.telegram_id === profile.telegram_id) ||
+            (import.meta.env.DEV && !!import.meta.env.VITE_AGENT_KEY)
+          }
+        />
         <div className="profile-stats">
           {stats.map((stat, index) => (
             <div key={index} className="profile-stat-card">
@@ -146,4 +156,49 @@ export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
       </div>
     </>
   );
+}
+
+/**
+ * Токены в шапке СВОЕГО профиля: цена генераций видна там же, где
+ * человек решает, что делать дальше. Бесплатный my_balance.
+ * Показываем и чужим профилям только если баланс запросился — он
+ * и запросится только у подписанного (своего), для чужих fetch
+ * вернёт чужой баланс только по своей подписи, поэтому скрыто.
+ */
+function ProfileTokens({ isOwn }: { isOwn: boolean }) {
+  const [tokens, setTokens] = useState<number | null>(null)
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const headers = authHeaders()
+        const devKey = import.meta.env.DEV
+          ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
+          : undefined
+        if (devKey && !headers.has('X-Telegram-Init-Data')) {
+          headers.set('X-Agent-Key', devKey)
+        }
+        const res = await fetch(`${API_BASE}/mcp`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: { name: 'my_balance', arguments: {} },
+          }),
+        })
+        const d = await res.json()
+        const bal = d?.result?.structuredContent?.['баланс_токенов']
+        if (typeof bal === 'number') setTokens(bal)
+      } catch {
+        /* баланс — не блокировщик профиля */
+      }
+    })()
+  }, [])
+  if (tokens === null || !isOwn) return null
+  return (
+    <div className="profile-tokens">
+      💰 {tokens} токенов · картинка 1 · рилс 2 · видео 5
+    </div>
+  )
 }

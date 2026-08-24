@@ -1422,3 +1422,90 @@
     font-size: 0.9rem;
   }
 }
+
+/* Файлы профиля: галерея сгенерированного — вся работа человека
+   на одном экране, в каноне Trinity (тёмная плитка, крем, золото на CTA) */
+.profile-files {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.profile-files__item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #1c1b18;
+  background: #0d0d0c;
+}
+
+.profile-files__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.25s;
+}
+
+.profile-files__item:hover img {
+  transform: scale(1.05);
+}
+
+.profile-files__media {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #cfc8b8;
+  text-decoration: none;
+}
+
+.profile-files__type {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  display: flex;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(5, 5, 5, 0.75);
+  color: #cfc8b8;
+}
+
+.profile-files__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 16px;
+  color: #8a8578;
+  font-size: 14px;
+  text-align: center;
+}
+
+.profile-files__cta {
+  padding: 10px 20px;
+  border: 1px solid var(--vibee-gold);
+  border-radius: 999px;
+  color: var(--vibee-gold);
+  text-decoration: none;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+
+.profile-files__cta:hover {
+  background: rgba(255, 215, 0, 0.08);
+}
+
+/* Токены в шапке профиля */
+.profile-tokens {
+  margin: 10px 0 2px;
+  padding: 8px 14px;
+  display: inline-block;
+  border: 1px solid #2a2820;
+  border-radius: 999px;
+  background: #0d0d0c;
+  color: var(--vibee-gold);
+  font-size: 13px;
+}
