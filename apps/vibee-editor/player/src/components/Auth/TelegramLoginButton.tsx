@@ -65,6 +65,7 @@ export function TelegramLoginButton({
   const fetchQuota = useSetAtom(fetchQuotaAtom);
   const fetchMyProfile = useSetAtom(fetchMyProfileAtom);
   const [widgetFailed, setWidgetFailed] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
 
   useEffect(() => {
     // Define global callback for Telegram widget
@@ -157,7 +158,10 @@ export function TelegramLoginButton({
 
   // Fallback: Open bot directly in Telegram
   const handleFallbackClick = () => {
-    window.open(`https://telegram.me/${botUsername}?start=login`, '_blank');
+    // Раньше здесь был переход t.me/<bot>?start=login — но бот-кассир не
+    // отвечает на сообщения (и не должен), и человек упирался в тишину.
+    // Честный путь: войти из самого Telegram, открыв мини-апп бота.
+    setHint('Вход — из Telegram: открой мини-апп у @' + botUsername);
   };
 
   // Внутри Mini App этот виджет не нужен и вреден: пользователь уже
@@ -189,6 +193,7 @@ export function TelegramLoginButton({
         /* Native Telegram widget for header */
         <div ref={containerRef} className="telegram-login-container" />
       )}
+      {hint && <p className="telegram-login-hint">{hint}</p>}
     </div>
   );
 }
