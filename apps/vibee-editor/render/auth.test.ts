@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import crypto from 'node:crypto'
 import { verifyTelegramInitData, authenticate } from './auth'
 
@@ -60,6 +60,16 @@ describe('verifyTelegramInitData', () => {
 })
 
 describe('подпись в строке запроса (SSE)', () => {
+  // Тестируем политику безопасности, а не локальный warn-режим: подделка
+  // обязана отвергаться там, где гвард реально включён — на проде (enforce).
+  const prevMode = process.env.RENDER_AUTH_MODE
+  beforeEach(() => {
+    process.env.RENDER_AUTH_MODE = 'enforce'
+  })
+  afterEach(() => {
+    process.env.RENDER_AUTH_MODE = prevMode
+  })
+
   it('EventSource не умеет заголовки — подпись должна приниматься из query', () => {
     process.env.BOT_TOKEN_1 = MAIN
     const initData = sign(MAIN, fresh())
