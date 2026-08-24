@@ -316,24 +316,40 @@ export const rippleDeleteAtom = atom(
 
       if (itemsToDelete.length === 0) return track;
 
-      let shiftedItems = [...track.items];
-      for (const deletedItem of itemsToDelete) {
-        const gapSize = deletedItem.durationInFrames;
-        const gapStart = deletedItem.startFrame;
-
-        shiftedItems = shiftedItems.map((item) => {
-          if (itemIds.includes(item.id)) return item;
-          if (item.startFrame > gapStart) {
-            return { ...item, startFrame: Math.max(0, item.startFrame - gapSize) };
-          }
-          return item;
+      /**
+       * Сдвиг считается ОДНИМ проходом по ИСХОДНЫМ позициям.
+       *
+       * Раньше здесь был цикл по удаляемым: на каждом шаге выжившие двигались,
+       * а сравнение шло с исходным началом дыры. После первого шага элемент
+       * вставал ровно НА место следующего удаляемого, и строгое `>` переставало
+       * срабатывать.
+       *
+       * Замер на тесте «multiple deletions» — элементы 0/50/100 по 50 кадров,
+       * удаляем первые два:
+       *   шаг 1: дыра в 0, третий едет 100 -> 50
+       *   шаг 2: дыра в 50, третий УЖЕ на 50, условие 50 > 50 ложно
+       *   итог: 50 вместо 0 — на дорожке осталась дыра в полсекунды
+       *
+       * Одиночное удаление при этом работало, поэтому дефект и не был виден:
+       * он проявляется только при выделении нескольких клипов сразу.
+       *
+       * Новый расчёт не зависит ни от порядка, ни от накопления: для каждого
+       * выжившего суммируем длительности всех удалённых, начинавшихся раньше
+       * него. Исходные позиции при этом не мутируются.
+       */
+      const deletedIds = new Set(itemIds);
+      const items = track.items
+        .filter((i) => !deletedIds.has(i.id))
+        .map((item) => {
+          const shift = itemsToDelete
+            .filter((d) => d.startFrame < item.startFrame)
+            .reduce((sum, d) => sum + d.durationInFrames, 0);
+          return shift
+            ? { ...item, startFrame: Math.max(0, item.startFrame - shift) }
+            : item;
         });
-      }
 
-      return {
-        ...track,
-        items: shiftedItems.filter((i) => !itemIds.includes(i.id)),
-      };
+      return { ...track, items };
     }));
   }
 );
