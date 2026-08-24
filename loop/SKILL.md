@@ -37,3 +37,4 @@ description: Эксплуатация Trinity S³AI (vibee-editor): локаль
 13. Файловый state.json автопилота: при смене даты обнуляй ТОЛЬКО счётчик постов — nextTopic и lastPostAt обязаны переживать ночь, иначе утро уходит на прокрутку дублей.
 14. loop/regression-check.sh — первый шаг каждого витка: полный аудит без платных вызовов. Провал любой строки = приоритет витка.
 15. УТРЕННИЕ ВИТКИ (первые два после 00:00 UTC): обновляй сводку — cd apps/vibee-editor/render && LOOP_DIR=<repo>/loop AGENT_KEYS="$(railway variables list -s vibee-render -e production --kv | grep ^AGENT_KEYS= | cut -d= -f2-)" SELF_URL=http://127.0.0.1:3333 npx tsx scripts/morning-summary.ts — владелец читает loop/MORNING.md одним файлом.
+15. Merge ветки цикла с main конфликтует в LOOP_REPORT.md (append-only файлы): дописывай разделы ТОЛЬКО в конец и проверяй пункт плана после каждого merge.
