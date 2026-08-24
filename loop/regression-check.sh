@@ -8,7 +8,7 @@
 # Запуск из любого места: zsh loop/regression-check.sh
 # Ключ агента берётся из Railway CLI и в вывод не печатается.
 
-cd /Users/playom/999-multibots-telegraf || exit 1
+cd "$HOME/999-multibots-telegraf" || exit 1
 KEY=$(railway variables list -s vibee-render -e production --kv 2>/dev/null | grep ^AGENT_KEYS= | cut -d= -f2- | cut -d: -f1)
 [ -n "$KEY" ] || { echo "FAIL: нет ключа агента (railway link?)"; exit 1 }
 
