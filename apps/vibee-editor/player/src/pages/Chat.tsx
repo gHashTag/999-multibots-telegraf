@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Header } from '@/components/Header'
+import { ChatAssets } from '@/components/Chat/ChatAssets'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 import './Chat.css'
@@ -230,7 +231,13 @@ function ChatPage() {
                   ))}
                 </div>
               ) : null}
-              {m.text ? <div className="message-content">{m.text}</div> : null}
+              {/* Ассеты — живыми превью: картинка показывается картинкой,
+                  видео плеером, аудио плеером. Голые ссылки не смотрятся. */}
+              {m.text ? (
+                <div className="message-content">
+                  <ChatAssets text={m.text} />
+                </div>
+              ) : null}
               {!m.text && m.role === 'assistant' && busy ? (
                 <div className="typing-indicator">
                   <div className="typing-dot" />

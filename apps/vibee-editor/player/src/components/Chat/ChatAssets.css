@@ -1,0 +1,96 @@
+/* Ассеты в чате — канон Trinity: тёмная карточка, кремовый текст,
+   золото на hover. Превью — главное, ссылка расходится в фон. */
+
+.chat-assets {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chat-assets__text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.chat-assets__text a {
+  color: var(--vibee-gold);
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(255, 215, 0, 0.4);
+}
+
+.chat-assets__text a:hover {
+  border-bottom-style: solid;
+}
+
+/* Картинка: превью по ширине пузыря, максимум — «приличный» размер,
+   клик — оригинал. Скруглённая, с тонкой кремовой рамкой. */
+.chat-assets__image-link {
+  display: block;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #2a2820;
+  transition: border-color 0.2s;
+}
+
+.chat-assets__image-link:hover {
+  border-color: rgba(255, 215, 0, 0.5);
+}
+
+.chat-assets__image {
+  display: block;
+  width: 100%;
+  max-height: 340px;
+  object-fit: cover;
+  background: #0d0d0c;
+}
+
+/* Видео: вертикальные рилсы не должны растягиваться на всю высоту экрана */
+.chat-assets__video {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  border-radius: 14px;
+  border: 1px solid #2a2820;
+  background: #000;
+}
+
+.chat-assets__audio {
+  display: block;
+  width: 100%;
+  height: 44px;
+  border-radius: 10px;
+}
+
+/* Инлайн-код из ответов модели: тёмная плашка, моноширинный */
+.chat-assets__code {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: #1a1916;
+  border: 1px solid #2a2820;
+  color: #cfc8b8;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 13px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+/* Обычная ссылка отдельной строкой (когда модель дала её без текста) */
+.chat-assets__link {
+  color: var(--vibee-gold);
+  text-decoration: none;
+  font-size: 13px;
+  border-bottom: 1px dotted rgba(255, 215, 0, 0.4);
+  word-break: break-all;
+}
+
+.chat-assets__link:hover {
+  border-bottom-style: solid;
+}

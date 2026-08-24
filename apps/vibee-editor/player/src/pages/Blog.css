@@ -1,0 +1,137 @@
+/* Блог t27.ai — канон Trinity: матовый чёрный, кремовая гравюра,
+   золото только на заголовке. Никаких чистых #fff — только крем. */
+
+.blog-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: #050505;
+}
+
+.blog-main {
+  flex: 1;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  /* Шапка закреплена сверху — контент стартует ниже неё */
+  padding: calc(var(--header-height, 56px) + 24px) 20px 80px;
+  box-sizing: border-box;
+}
+
+.blog-header {
+  margin-bottom: 28px;
+}
+
+.blog-title {
+  margin: 0 0 8px;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  /* Единственное золотое пятно экрана */
+  color: var(--vibee-gold);
+}
+
+.blog-subtitle {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #cfc8b8; /* кремовый, не белый */
+}
+
+.blog-loading {
+  padding: 48px 0;
+  text-align: center;
+  color: #8a8578;
+  font-size: 14px;
+}
+
+.blog-error {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--vibee-red);
+  font-size: 14px;
+}
+
+.blog-retry {
+  margin-top: 12px;
+  padding: 10px 28px;
+  background: transparent;
+  border: 1px solid #cfc8b8;
+  border-radius: 999px;
+  color: #cfc8b8;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.blog-retry:hover {
+  border-color: var(--vibee-gold);
+  color: var(--vibee-gold);
+}
+
+.blog-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.blog-item {
+  border: 1px solid #1c1b18;
+  border-radius: 14px;
+  background: #0d0d0c;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.blog-item:hover {
+  border-color: #3a372e;
+  transform: translateY(-1px);
+}
+
+.blog-item-link {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 20px;
+  text-decoration: none;
+}
+
+.blog-item-date {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a8578;
+}
+
+.blog-item-title {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #e6e0d2;
+}
+
+.blog-item:hover .blog-item-title {
+  color: var(--vibee-gold);
+}
+
+.blog-item-description {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #a39d8d;
+  /* Три строки и ни строчкой больше: блог читают на сайте */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.blog-item-read {
+  font-size: 13px;
+  color: #8a8578;
+}
+
+.blog-item:hover .blog-item-read {
+  color: #cfc8b8;
+}

@@ -789,7 +789,14 @@ async function initBundle() {
   console.log('📦 Creating Remotion bundle...')
   bundleLocation = await bundle({
     entryPoint: path.resolve('./src/index.ts'),
-    webpackOverride: config => config,
+    // @vibee/atoms приходит в node_modules симлинком на ../packages: без
+    // symlinks:false webpack резолвит его по реальному пути и ищет jotai
+    // оттуда, поднимаясь до корня репо, где jotai нет. С флагом резолв идёт
+    // от симлинка — и находит jotai рядом, в node_modules рендера.
+    webpackOverride: config => {
+      config.resolve = { ...config.resolve, symlinks: false }
+      return config
+    },
   })
   console.log('✅ Bundle ready at:', bundleLocation)
 
@@ -1239,6 +1246,9 @@ interface WebhookPayload {
 }
 
 const renderJobs = new Map<string, RenderJob>()
+
+/** Кэш RSS-блога t27.ai для GET /api/blog (см. обработчик ниже). */
+let blogCache: { at: number; data: unknown } | null = null
 
 // Clean up old jobs after 1 hour
 setInterval(() => {
@@ -1718,6 +1728,68 @@ const server = createServer(async (req, res) => {
   const MCP_URL = process.env.MCP_URL || SERVICE_ENDPOINTS.mcp
   const FAL_KEY = process.env.FAL_KEY
 
+  /**
+   * Fallback-генерация картинки через Replicate (flux-schnell).
+   *
+   * Основной путь — FAL, но его баланс кончается в самый неподходящий
+   * момент, а агенту нельзя отвечать «производство недоступно», когда в
+   * окружении лежит живой ключ Replicate. Prefer: wait держит запрос до
+   * готовности — flux-schnell отдаёт картинку за секунды, отдельная
+   * очередь не нужна.
+   */
+  async function generateImageViaReplicate(
+    prompt: string,
+    aspectRatio: string
+  ): Promise<string> {
+    const REPLICATE_TOKEN =
+      process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
+    if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
+
+    const response = await fetch(
+      'https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${REPLICATE_TOKEN}`,
+          Prefer: 'wait',
+        },
+        body: JSON.stringify({
+          input: { prompt, aspect_ratio: aspectRatio, output_format: 'jpg' },
+        }),
+      }
+    )
+    if (!response.ok) {
+      const text = await response.text()
+      throw new Error(`Replicate failed: ${response.status} - ${text}`)
+    }
+    let data = await response.json()
+    // Prefer: wait не гарантирует готовность: официальный модельный эндпоинт
+    // может ответить «processing» раньше, чем flux соберёт картинку. Дожидаемся
+    // сами, опрашивая предсказание.
+    let predictionUrl: string | null = data?.urls?.get ?? null
+    const deadline = Date.now() + 180_000
+    while (
+      predictionUrl &&
+      data.output == null &&
+      !data.error &&
+      Date.now() < deadline
+    ) {
+      await new Promise(r => setTimeout(r, 2500))
+      const poll = await fetch(predictionUrl, {
+        headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` },
+      })
+      if (!poll.ok) break
+      data = await poll.json()
+    }
+    const output = data.output
+    const url = Array.isArray(output) ? output[0] : output
+    if (typeof url !== 'string') {
+      throw new Error('Replicate did not return an image URL')
+    }
+    return url
+  }
+
   // Supported fal.ai image models
   const FAL_IMAGE_MODELS: Record<string, string> = {
     'fal-ai/flux-pro/v1.1-ultra': 'fal-ai/flux-pro/v1.1-ultra',
@@ -1741,6 +1813,12 @@ const server = createServer(async (req, res) => {
           `📷 [Generate] Photo: ${model}, prompt: "${prompt.substring(0, 50)}..."`
         )
 
+        // FAL — основной путь, но падение по чужому балансу не должно
+        // останавливать производство: ниже уходим на Replicate.
+        let falSubmitError = !FAL_KEY
+          ? 'FAL_KEY not configured'
+          : null
+
         // Convert width/height to aspect ratio for FAL
         const getAspectRatio = (w: number, h: number): string => {
           if (w === h) return '1:1'
@@ -1754,27 +1832,49 @@ const server = createServer(async (req, res) => {
           FAL_IMAGE_MODELS[model] || 'fal-ai/nano-banana-pro'
 
         // Submit job to FAL queue
-        const submitResponse = await fetch(
-          `https://queue.fal.run/${modelEndpoint}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Key ${FAL_KEY}`,
-            },
-            body: JSON.stringify({
-              prompt,
-              aspect_ratio: aspectRatio,
-              num_images: 1,
-            }),
-          }
-        )
+        const submitResponse = FAL_KEY
+          ? await fetch(`https://queue.fal.run/${modelEndpoint}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Key ${FAL_KEY}`,
+              },
+              body: JSON.stringify({
+                prompt,
+                aspect_ratio: aspectRatio,
+                num_images: 1,
+              }),
+            }).catch(e => {
+              console.warn('📷 [Generate] FAL unreachable:', String(e))
+              return null as any
+            })
+          : null
 
-        if (!submitResponse.ok) {
+        if (submitResponse && !submitResponse.ok) {
           const errorText = await submitResponse.text()
-          throw new Error(
-            `FAL submit failed: ${submitResponse.status} - ${errorText}`
+          falSubmitError = `FAL submit failed: ${submitResponse.status} - ${errorText}`
+        } else if (!submitResponse) {
+          falSubmitError = 'FAL unreachable'
+        }
+
+        if (falSubmitError) {
+          console.warn(
+            `📷 [Generate] FAL недоступен (${falSubmitError.slice(0, 140)}), включаю Replicate`
           )
+          const replicateUrl = await generateImageViaReplicate(
+            prompt,
+            aspectRatio
+          )
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: true,
+              url: replicateUrl,
+              id: `replicate-${Date.now()}`,
+              provider: 'replicate/flux-schnell',
+            })
+          )
+          return
         }
 
         const submitResult = await submitResponse.json()
@@ -1859,7 +1959,101 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  // POST /api/generate/video - Generate video using Kling/Veo3
+  /**
+   * Fallback-видео через Replicate (seedance-1-lite).
+   *
+   * Прежний путь звал внешний MCP с инструментами ai_kling_create_video —
+   * которых не существует ни в одном сервисе проекта: video_generate много
+   * месяцев отвечал 500 на любой запрос. Пока у проекта нет собственного
+   * видео-MCP, честным путём является Replicate, как у картинок.
+   */
+  async function generateVideoViaReplicate(
+    prompt: string,
+    durationSec: number,
+    aspectRatio: string
+  ): Promise<string> {
+    const REPLICATE_TOKEN =
+      process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
+    if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
+
+    const create = await fetch(
+      // wan-2.5-t2v-fast стабильно падал E002 на стороне Replicate
+      // (проверено прямым curl 24.08); seedance-1-lite принимает те же поля.
+      'https://api.replicate.com/v1/models/bytedance/seedance-1-lite/predictions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${REPLICATE_TOKEN}`,
+        },
+        body: JSON.stringify({
+          input: {
+            prompt,
+            duration: durationSec >= 8 ? 10 : 5,
+            aspect_ratio: aspectRatio || '9:16',
+            resolution: '720p',
+          },
+        }),
+      }
+    )
+    if (!create.ok) {
+      throw new Error(`Replicate video failed: ${create.status} - ${await create.text()}`)
+    }
+    let data = await create.json()
+    let predictionUrl: string | null = data?.urls?.get ?? null
+    // Видео тяжелее картинки: даём модели до 8 минут.
+    const deadline = Date.now() + 480_000
+    while (
+      predictionUrl &&
+      data.output == null &&
+      !data.error &&
+      data.status !== 'succeeded' &&
+      data.status !== 'failed' &&
+      Date.now() < deadline
+    ) {
+      await new Promise(r => setTimeout(r, 5000))
+      const poll = await fetch(predictionUrl, {
+        headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` },
+      })
+      if (!poll.ok) break
+      data = await poll.json()
+    }
+    if (data.error) throw new Error(`Replicate video: ${String(data.error).slice(0, 200)}`)
+    const output = data.output
+    const url = Array.isArray(output) ? output[0] : output
+    if (typeof url !== 'string') {
+      throw new Error(`Replicate video not ready (${data.status || 'timeout'})`)
+    }
+    // Ссылка replicate.delivery живёт ограниченное время — забираем файл в
+    // наше S3, как у картинок: иначе лента через час показывает пустоту.
+    try {
+      const vid = await fetch(url)
+      if (vid.ok) {
+        const bytes = Buffer.from(await vid.arrayBuffer())
+        const up = await fetch(
+          `${process.env.SELF_URL || 'http://127.0.0.1:' + (process.env.PORT || '3000')}/upload`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'video/mp4',
+              'X-Filename': `agent-video-${Date.now()}.mp4`,
+            },
+            body: new Uint8Array(bytes),
+          }
+        )
+        const upData: any = await up.json().catch(() => null)
+        if (up.ok && upData?.directUrl) return upData.directUrl as string
+      }
+    } catch (e) {
+      console.warn(
+        '🎬 [Generate] S3-перекладка видео не удалась, отдаю прямую ссылку:',
+        String(e).slice(0, 120)
+      )
+    }
+    return url
+  }
+
+  // POST /api/generate/video - Generate video (MCP Kling/Veo3 → Replicate fallback)
   if (req.url === '/api/generate/video' && req.method === 'POST') {
     let body = ''
     req.on('data', chunk => {
@@ -1960,14 +2154,42 @@ const server = createServer(async (req, res) => {
 
         throw new Error('Video generation timeout')
       } catch (error) {
-        console.error('❌ [Generate] Video error:', error)
-        res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify({
-            success: false,
-            error: error instanceof Error ? error.message : 'Generation failed',
-          })
+        // MCP-путь исторически ведёт в никуда (см. комментарий у helper).
+        // Прежде чем отдать ошибку, пробуем Replicate — как у картинок.
+        console.warn(
+          '🎬 [Generate] Video MCP недоступен:',
+          String(error).slice(0, 140),
+          '— включаю Replicate fallback'
         )
+        try {
+          const b = JSON.parse(body || '{}')
+          const videoUrl = await generateVideoViaReplicate(
+            String(b.prompt || ''),
+            parseInt(String(b.duration || '5'), 10) || 5,
+            String(b.aspect_ratio || '9:16')
+          )
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: true,
+              url: videoUrl,
+              id: `replicate-${Date.now()}`,
+              provider: 'replicate/seedance-1-lite',
+            })
+          )
+        } catch (fallbackError) {
+          console.error('❌ [Generate] Video error:', fallbackError)
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: false,
+              error:
+                fallbackError instanceof Error
+                  ? fallbackError.message
+                  : 'Generation failed',
+            })
+          )
+        }
       }
     })
     return
@@ -4163,6 +4385,74 @@ const server = createServer(async (req, res) => {
   {
     const feedUrl = new URL(req.url || '', `http://${req.headers.host}`)
     const feedPath = feedUrl.pathname
+
+    // GET /api/blog — прокси RSS-блога t27.ai.
+    //
+    // Блог живёт на сайте (https://t27.ai/rss.xml), а мини-апп — тут: RSS с
+    // чужого домена браузер не прочтёт из-за CORS, поэтому читаем сами и
+    // отдаём готовый JSON. Публичен как и сам блог. Кэш 10 минут: RSS
+    // обновляется редко, а дёргать сайт на каждый заход ленты незачем.
+    if (feedPath === '/api/blog' && req.method === 'GET') {
+      if (blogCache && Date.now() - blogCache.at < 10 * 60 * 1000) {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify(blogCache.data))
+        return
+      }
+      try {
+        const rssResponse = await fetch('https://t27.ai/rss.xml', {
+          headers: { 'User-Agent': 'vibee-render-blog-proxy' },
+        })
+        if (!rssResponse.ok) throw new Error(`t27.ai RSS: HTTP ${rssResponse.status}`)
+        const xml = await rssResponse.text()
+        const pick = (block: string, tag: string): string => {
+          const m = block.match(
+            new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i')
+          )
+          if (!m) return ''
+          //CDATA и базовые entity — декодируем сразу, иначе текст блога
+          //приходит в UI с &quot; и &amp; вместо кавычек и амперсандов
+          const decode = (s: string) =>
+            s
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;|&apos;/g, "'")
+              .replace(/&amp;/g, '&')
+          return decode(
+            m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '')
+          ).trim()
+        }
+        const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)]
+          .slice(0, 30)
+          .map(([, block]) => ({
+            title: pick(block, 'title'),
+            link: pick(block, 'link'),
+            pubDate: pick(block, 'pubDate'),
+            description: pick(block, 'description'),
+          }))
+          .filter(it => it.title && it.link)
+        const data = {
+          ok: true,
+          title: pick(xml, 'title'),
+          description: pick(xml, 'description'),
+          items,
+        }
+        blogCache = { at: Date.now(), data }
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify(data))
+      } catch (error) {
+        console.error('[Blog] RSS error:', error)
+        // Кэш просроченный всё же лучше пустоты: отдаём, если есть.
+        if (blogCache) {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify(blogCache.data))
+          return
+        }
+        res.writeHead(502, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: String(error) }))
+      }
+      return
+    }
 
     // GET /api/feed/stats — сводка для лендинга.
     // Объявлен ДО общего GET-матчера, иначе тот перехватит путь по префиксу.
