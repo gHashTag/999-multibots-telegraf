@@ -90,7 +90,11 @@ export function FeedPanel({ fullscreen = false }: FeedPanelProps) {
 
       {error && (
         <div className="feed-error">
-          {error}
+          {/* Атом кладёт сюда либо ключ перевода, либо готовое сообщение
+              сервера. t() возвращает сам аргумент, если ключа нет, — значит
+              одно и то же выражение обслуживает оба случая и текст сервера
+              не теряется. */}
+          {t(error)}
           <button onClick={handleRefresh}>{t('feed.retry')}</button>
         </div>
       )}

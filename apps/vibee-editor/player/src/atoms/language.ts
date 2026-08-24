@@ -584,6 +584,10 @@ const en: Translations = {
   // Заголовок вкладки, когда бренд партнёра не задан. Канон имени —
   // «Trinity S³AI» с надстрочной тройкой, как в шапке и в рилсах.
   'app.title': 'Trinity S³AI — reels on autopilot',
+  // Обрыв связи. Говорим, что потерял человек и что делать, а не какой
+  // запрос не удался: «Failed to fetch» от браузера не значит для него ничего.
+  'feed.errorNetwork': 'No connection — the feed could not be loaded',
+  'feed.errorGeneric': 'The feed could not be loaded',
   'feed.videoError': 'Video failed to load',
   'feed.deleteConfirm': 'Delete this video?',
 
@@ -2235,6 +2239,8 @@ const ru: Translations = {
   'feed.remix': 'Ремикс',
   'feed.remixBasedOn': 'Сделано на основе другого шаблона',
   'app.title': 'Trinity S³AI — рилсы на автопилоте',
+  'feed.errorNetwork': 'Нет связи — лента не загрузилась',
+  'feed.errorGeneric': 'Не удалось загрузить ленту',
   'feed.videoError': 'Не удалось загрузить видео',
   'feed.deleteConfirm': 'Удалить это видео?',
 
