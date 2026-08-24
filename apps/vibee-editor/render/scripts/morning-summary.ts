@@ -24,6 +24,33 @@ const LOOP_DIR = process.env.LOOP_DIR || path.resolve(process.cwd(), '../../../l
 const OUT = path.join(LOOP_DIR, 'MORNING.md')
 const LOG = path.join(LOOP_DIR, 'LOOP_STATE.md')
 
+/** Касса звёзд: инвойсы/погашения/звёзды за сутки. Опционально — без
+ *  DATABASE_URL сводка просто не показывает секцию (никаких крашей). */
+async function cashierSection(): Promise<string[]> {
+  if (!process.env.DATABASE_URL) return []
+  const { Pool } = await import('pg')
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+  try {
+    const inv = await pool.query(
+      `SELECT count(*)::int AS total,
+              count(*) FILTER (WHERE redeemed)::int AS paid,
+              coalesce(sum(stars) FILTER (WHERE redeemed), 0)::int AS stars
+         FROM token_invoices
+        WHERE created_at > now() - interval '24 hours'`
+    )
+    const r = inv.rows[0]
+    return [
+      `## Касса звёзд (24 ч)`,
+      `- инвойсов: ${r.total}, оплачено: ${r.paid}, звёзд получено: ${r.stars}`,
+      r.paid > 0
+        ? `- экономика живая: покупки прошли, токены зачислены (вебхук + verify)`
+        : `- покупок пока нет — инвойс живёт в чате агента, напомни человеку`,
+    ]
+  } finally {
+    await pool.end()
+  }
+}
+
 async function call(name: string, args: Record<string, unknown> = {}) {
   const r = await fetch(`${BASE}/mcp`, {
     method: 'POST',
@@ -64,6 +91,14 @@ async function main() {
     }
   } catch (e) {
     lines.push(`## Отклик — не собрался: ${String(e).slice(0, 160)}`)
+  }
+  lines.push('')
+
+  // 1a. Касса звёзд — экономика в сводке с первого дня продаж.
+  try {
+    lines.push(...(await cashierSection()))
+  } catch (e) {
+    lines.push(`## Касса — не собралась: ${String(e).slice(0, 120)}`)
   }
   lines.push('')
 
