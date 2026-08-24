@@ -565,6 +565,22 @@
 
 .profile-tabs__content {
   padding: 1.5rem;
+  /* Скролл внутри таба: списки (скиллы, файлы, блог) бывают длинными,
+     а страница профиля не прокручивается — контент уезжал вниз мимо
+     экрана. Ограничиваем высоту и даём тонкий канонический скролл. */
+  max-height: 62vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #2a2820 transparent;
+}
+
+.profile-tabs__content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.profile-tabs__content::-webkit-scrollbar-thumb {
+  background: #2a2820;
+  border-radius: 3px;
 }
 
 .profile-tabs__users {
@@ -1717,4 +1733,55 @@
 .profile-skills__author {
   color: #8a8578;
   font-size: 12px;
+}
+
+/* Блог канала в профиле: компактные строки вместо больших карточек
+   страницы /blog — профиль о человеке, блог рядом, не главный */
+.profile-blog {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-blog__item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid #1c1b18;
+  border-radius: 12px;
+  background: #0d0d0c;
+  text-decoration: none;
+  transition: border-color 0.2s;
+}
+
+.profile-blog__item:hover {
+  border-color: #3a372e;
+}
+
+.profile-blog__date {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a8578;
+}
+
+.profile-blog__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e6e0d2;
+}
+
+.profile-blog__item:hover .profile-blog__title {
+  color: var(--vibee-gold);
+}
+
+.profile-blog__desc {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #a39d8d;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

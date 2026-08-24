@@ -3,7 +3,8 @@ import { myProfileAtom } from '@/atoms'
 import { useAtomValue, useSetAtom } from 'jotai';
 import { ProfileFilesGrid } from './ProfileFilesGrid'
 import { ProfileSkills } from './ProfileSkills'
-import { Grid, Users, Video, UserPlus, FolderOpen, Wand2 } from 'lucide-react';
+import { ProfileBlog } from './ProfileBlog'
+import { Grid, Users, Video, UserPlus, FolderOpen, Wand2, BookOpen } from 'lucide-react';
 import {
   viewedProfileAtom,
   userAtom,
@@ -19,8 +20,8 @@ import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import { UserCard } from './UserCard';
 import { ProfileTemplatesGrid } from './ProfileTemplatesGrid';
 
-type TabId = 'templates' | 'files' | 'skills' | 'followers' | 'following';
-const TAB_ORDER: TabId[] = ['templates', 'files', 'skills', 'followers', 'following'];
+type TabId = 'templates' | 'files' | 'skills' | 'blog' | 'followers' | 'following';
+const TAB_ORDER: TabId[] = ['templates', 'files', 'skills', 'blog', 'followers', 'following'];
 
 export function ProfileTabs() {
   const { t } = useLanguage();
@@ -87,6 +88,7 @@ export function ProfileTabs() {
           { id: 'skills' as const, icon: <Wand2 size={18} />, label: 'Скиллы', count: undefined },
         ]
       : []),
+    { id: 'blog' as const, icon: <BookOpen size={18} />, label: 'Блог', count: undefined },
     { id: 'followers' as const, icon: <Users size={18} />, label: t('profile.followers'), count: profile.followers_count },
     { id: 'following' as const, icon: <Users size={18} />, label: t('profile.following'), count: profile.following_count },
   ].filter(Boolean);
@@ -115,6 +117,8 @@ export function ProfileTabs() {
         {activeTab === 'files' && <ProfileFilesGrid />}
 
         {activeTab === 'skills' && <ProfileSkills />}
+
+        {activeTab === 'blog' && <ProfileBlog />}
 
         {activeTab === 'followers' && (
           <div className="profile-tabs__users">
