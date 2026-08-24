@@ -24,7 +24,7 @@ import {
 } from './auth'
 import { TEMPLATE_CARDS } from './src/templates/registry'
 import fs from 'node:fs'
-import { randomUUID, createHmac } from 'node:crypto'
+import { randomUUID, createHmac, createHash } from 'node:crypto'
 import { execSync, execFileSync } from 'node:child_process'
 
 /**
@@ -785,7 +785,72 @@ async function getBotBranding(botId: string) {
   return brand
 }
 
+/**
+ * Отпечаток исходников композиций — чтобы устаревший образ был ВИДЕН снаружи.
+ *
+ * Зачем это вообще. 24.08.2026 сервис перезапустился на старом образе и
+ * несколько минут пёк ролики прежним бандлом — уже после того, как правка
+ * была в main и проверена живым рендером. Снаружи отличить свежий бандл от
+ * старого было нечем: /health отдавал только `status` и `bundleReady`, а оба
+ * равно бодры и у правильного образа, и у протухшего. Причину пришлось
+ * восстанавливать по совпадению времён в журнале деплоев.
+ *
+ * Почему хеш исходников, а не номер коммита: коммит пришлось бы получать от
+ * Railway (переменных RAILWAY_GIT_* у сервиса нет) или прокидывать через
+ * build-arg, то есть зависеть от механизма, который сам может отвалиться
+ * молча. Хеш сервер считает по файлам, которые у него РЕАЛЬНО лежат, и
+ * ответ означает ровно то, что нужно: «вот из этих исходников я рисую».
+ *
+ * Сверять — тем же расчётом, а не похожим:
+ *   node .claude/loop-opus/render-fingerprint.mjs --compare
+ *
+ * Рецепт нарочно вынесен в скрипт, а не записан сюда шелл-строкой: в хеш
+ * входят и ИМЕНА файлов (переименование композиции меняет вывод рендера не
+ * меньше правки её тела), и повторить это конвейером из cat нельзя — при
+ * первой же попытке я написал в комментарий рецепт, который дал бы другое
+ * число. Две реализации одного правила расходятся молча.
+ *
+ * Совпало с полем `compositions` в /health — образ свежий. Разошлось —
+ * сервис крутит не тот код, и никакой зелёный статус деплоя этого не отменяет.
+ */
+let compositionsFingerprint: string | null = null
+
+/**
+ * Когда поднялся ЭТОТ экземпляр. Вместе с отпечатком отвечает на второй
+ * вопрос происшествия: «сервис перезапускался или всё это время был один?»
+ * По журналу деплоев это восстанавливается плохо — статусы SKIPPED и REMOVED
+ * не говорят, какой образ в итоге обслуживал запрос.
+ */
+const startedAtIso = new Date().toISOString()
+
+function computeCompositionsFingerprint(): string | null {
+  try {
+    const dir = path.resolve('./src/compositions')
+    if (!fs.existsSync(dir)) return null
+    const files = fs
+      .readdirSync(dir)
+      .filter(f => f.endsWith('.tsx') || f.endsWith('.ts'))
+      .sort() // порядок обязан быть устойчивым, иначе хеш «меняется» сам по себе
+    if (files.length === 0) return null
+    const h = createHash('sha1')
+    for (const f of files) {
+      // Имя в хеш тоже: переименование композиции меняет вывод рендера
+      // ничуть не меньше, чем правка её тела.
+      h.update(f)
+      h.update(fs.readFileSync(path.join(dir, f)))
+    }
+    return `${h.digest('hex').slice(0, 12)}+${files.length}`
+  } catch (e) {
+    // Молча вернуть null нельзя: отсутствие отпечатка неотличимо от
+    // «не смог посчитать», а это разные вещи для того, кто диагностирует.
+    console.warn('[fingerprint] не посчитан:', (e as Error).message)
+    return null
+  }
+}
+
 async function initBundle() {
+  compositionsFingerprint = computeCompositionsFingerprint()
+  console.log(`🔖 Отпечаток композиций: ${compositionsFingerprint ?? 'НЕ ПОСЧИТАН'}`)
   console.log('📦 Creating Remotion bundle...')
   bundleLocation = await bundle({
     entryPoint: path.resolve('./src/index.ts'),
@@ -1669,7 +1734,16 @@ const server = createServer(async (req, res) => {
   // Health check
   if (req.url === '/health' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ status: 'ok', bundleReady: !!bundleLocation }))
+    res.end(
+      JSON.stringify({
+        status: 'ok',
+        bundleReady: !!bundleLocation,
+        // Из каких исходников этот экземпляр рисует. Разошёлся с репозиторием
+        // — крутится не тот образ, сколько бы деплой ни рапортовал SUCCESS.
+        compositions: compositionsFingerprint,
+        startedAt: startedAtIso,
+      })
+    )
     return
   }
 
