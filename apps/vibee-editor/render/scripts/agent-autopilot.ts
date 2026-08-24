@@ -309,15 +309,29 @@ async function main() {
     process.exit(1)
   }
 
-  // 5. Публикация с каноническим текстом и хештегами.
-  const hashtags = ['#TrinityS3AI', '#t27', ...topic.tags.map(t => '#' + t)]
-  // Честная маркировка: рилс собрал агент. Законы 2026 (Калифорния SB 942,
-  // EU AI Act) требуют раскрытия AI-контента; наш канон честности — тем более.
-  // ⭐ CTA: звезда в ленте — не лайк, а Telegram Star на баланс автора;
-  // 10 постов дали 0 звёзд — люди не знают, что звезда платная и куда идёт.
+  // 5. Публикация: текст СРАЗУ готов к переносу в Instagram — первая строка
+  // хук (IG обрезает всё после неё в превью), тело с абзацами, CTA звезды,
+  // блок хештегов в конце (3–5, не больше — размытие охвата), честная
+  // AI-маркировка (SB 942 / EU AI Act).
+  const hashtags = [
+    '#TrinityS3AI',
+    '#t27',
+    ...topic.tags.map(t => '#' + t),
+  ].slice(0, 5)
+  const igText = [
+    title,
+    '',
+    `${topic.subtitle}. ${topic.lesson}.`,
+    '',
+    'Понравилось? Тапни ⭐ под роликом — звезда падает автору на баланс.',
+    '',
+    hashtags.join(' '),
+    '',
+    '🤖 Собрано агентом Trinity.',
+  ].join('\n')
   const pub = await call('feed_publish', {
     name: title,
-    description: `${topic.subtitle}. ${topic.lesson}.\n\nПонравилось? Тапни ⭐ под роликом — звезда падает автору на баланс.\n\n${hashtags.join(' ')}\n\n🤖 Собрано агентом Trinity.`,
+    description: igText,
     video_url: reel.url,
     template_settings: {
       compositionId: 'TrinityBlogReel',
