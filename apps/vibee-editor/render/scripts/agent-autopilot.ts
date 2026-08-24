@@ -29,7 +29,8 @@ if (!KEY) {
 }
 
 const MAX_POSTS_PER_DAY = 4
-const LOOP_DIR = process.env.LOOP_DIR || path.resolve(process.cwd(), '../../../loop')
+const LOOP_DIR =
+  process.env.LOOP_DIR || path.resolve(process.cwd(), '../../../loop')
 const STATE_FILE = path.join(LOOP_DIR, 'state.json')
 const TOPICS_FILE = path.join(LOOP_DIR, 'topics.json')
 const LOG_FILE = path.join(LOOP_DIR, 'LOOP_STATE.md')
@@ -104,7 +105,9 @@ async function blogTopics(published: string[]): Promise<Topic[]> {
   try {
     const r = await fetch(`${BASE}/api/blog`)
     if (!r.ok) return []
-    const d = (await r.json()) as { items?: { title: string; description: string; pubDate: string }[] }
+    const d = (await r.json()) as {
+      items?: { title: string; description: string; pubDate: string }[]
+    }
     return (d.items || [])
       .filter(it => it.title && !published.includes(it.title))
       .slice(0, 5)
@@ -139,7 +142,10 @@ function pickTopic(
     const tags = String(post.description || '').match(/#[\wа-яё]+/gi) || []
     for (const tag of tags) {
       const key = tag.toLowerCase()
-      scores.set(key, [...(scores.get(key) || []), Number(post.views_count) || 0])
+      scores.set(key, [
+        ...(scores.get(key) || []),
+        Number(post.views_count) || 0,
+      ])
     }
   }
   const tagScore = (tag: string) => {
@@ -147,9 +153,7 @@ function pickTopic(
     if (!vals || !vals.length) return null
     return vals.reduce((a, b) => a + b, 0) / vals.length
   }
-  const window = [0, 1, 2]
-    .map(k => from + k)
-    .filter(i => i < topics.length)
+  const window = [0, 1, 2].map(k => from + k).filter(i => i < topics.length)
   if (window.length <= 1) return from
   let bestIdx = window[0]
   let bestScore = -1
@@ -172,7 +176,9 @@ async function main() {
 
   // 1. Лимит постов на сегодня — главный предохранитель автономности.
   if (state.postsToday >= MAX_POSTS_PER_DAY) {
-    log(`пост-лимит на сегодня исчерпан (${state.postsToday}/${MAX_POSTS_PER_DAY}) — молчу`)
+    log(
+      `пост-лимит на сегодня исчерпан (${state.postsToday}/${MAX_POSTS_PER_DAY}) — молчу`
+    )
     return
   }
 
@@ -234,12 +240,16 @@ async function main() {
   const abStyle = state.postsToday % 2 === 0 ? 'A' : 'B'
   let title = topic.title
   if (abStyle === 'B') {
-    const plate = (topic.plates || []).find((pl: any) => /\d/.test(String(pl.value)))
+    const plate = (topic.plates || []).find((pl: any) =>
+      /\d/.test(String(pl.value))
+    )
     if (plate && !title.startsWith(String(plate.value))) {
       title = `${plate.value}: ${title}`
     }
   }
-  log(`A/B — стиль ${abStyle}${abStyle === 'B' ? ` (${title.slice(0, 50)})` : ''}`)
+  log(
+    `A/B — стиль ${abStyle}${abStyle === 'B' ? ` (${title.slice(0, 50)})` : ''}`
+  )
   const props: Record<string, unknown> = {
     title,
     subtitle: topic.subtitle,
@@ -259,7 +269,9 @@ async function main() {
       })
       if (img?.сделано && typeof img.url === 'string') props.posterUrl = img.url
     } catch (e) {
-      log(`картинка не получилась (${String(e).slice(0, 120)}) — рендерю без неё`)
+      log(
+        `картинка не получилась (${String(e).slice(0, 120)}) — рендерю без неё`
+      )
     }
   }
   // B-roll: сгенерированное видео ложится в медальон композиции (овал,
@@ -275,7 +287,9 @@ async function main() {
       if (vid?.сделано && typeof vid.url === 'string') {
         props.avatarVideo = vid.url
       } else {
-        log(`b-roll не получился (${JSON.stringify(vid).slice(0, 140)}) — рендерю без него`)
+        log(
+          `b-roll не получился (${JSON.stringify(vid).slice(0, 140)}) — рендерю без него`
+        )
       }
     } catch (e) {
       log(`b-roll упал (${String(e).slice(0, 120)}) — рендерю без него`)
@@ -294,11 +308,17 @@ async function main() {
   const hashtags = ['#TrinityS3AI', '#t27', ...topic.tags.map(t => '#' + t)]
   // Честная маркировка: рилс собрал агент. Законы 2026 (Калифорния SB 942,
   // EU AI Act) требуют раскрытия AI-контента; наш канон честности — тем более.
+  // ⭐ CTA: звезда в ленте — не лайк, а Telegram Star на баланс автора;
+  // 10 постов дали 0 звёзд — люди не знают, что звезда платная и куда идёт.
   const pub = await call('feed_publish', {
     name: title,
-    description: `${topic.subtitle}. ${topic.lesson}.\n\n${hashtags.join(' ')}\n\n🤖 Собрано агентом Trinity.`,
+    description: `${topic.subtitle}. ${topic.lesson}.\n\nПонравилось? Тапни ⭐ под роликом — звезда падает автору на баланс.\n\n${hashtags.join(' ')}\n\n🤖 Собрано агентом Trinity.`,
     video_url: reel.url,
-    template_settings: { compositionId: 'TrinityBlogReel', props, ab_style: abStyle },
+    template_settings: {
+      compositionId: 'TrinityBlogReel',
+      props,
+      ab_style: abStyle,
+    },
   })
   if (!pub?.опубликовано) {
     log(`публикация отклонена: ${JSON.stringify(pub).slice(0, 200)}`)
