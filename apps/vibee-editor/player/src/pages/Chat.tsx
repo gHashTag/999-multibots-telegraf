@@ -99,9 +99,32 @@ function ChatPage() {
                 )
               } else {
                 setTopUpNote(
-                  'Оплата прошла — зачисление подтвердится в течение минуты'
+                  'Оплата прошла — проверяю зачисление ещё пару раз…'
                 )
-                setTimeout(() => setTokens(t => (t === null ? null : t)), 60_000)
+                // Транзакция звёзд появляется в Bot API с задержкой:
+                // держим обещание реальными повторами, а не пустым таймером.
+                for (let attempt = 0; attempt < 3; attempt++) {
+                  await new Promise(r => setTimeout(r, 25_000))
+                  try {
+                    const r2 = await fetch(`${API_BASE}/api/tokens/verify`, {
+                      method: 'POST',
+                      headers,
+                    })
+                    const vd2 = await r2.json()
+                    if (vd2?.ok) {
+                      setTokens(vd2['баланс'])
+                      setTopUpNote(
+                        `Зачислено ${vd2['зачислено_токенов']} токенов! Баланс: ${vd2['баланс']}`
+                      )
+                      return
+                    }
+                  } catch {
+                    /* сеть шалит — следующая попытка через 25с */
+                  }
+                }
+                setTopUpNote(
+                  'Оплата видна Telegram — зачисление догонит при следующем входе в чат'
+                )
               }
             } catch {
               setTopUpNote('Оплата прошла — зачисление подтвердится чуть позже')
@@ -144,6 +167,26 @@ function ChatPage() {
         const d = await res.json()
         const bal = d?.result?.structuredContent?.['баланс_токенов']
         if (typeof bal === 'number') setTokens(bal)
+
+        // Вебхук кассира периодически спит (бот живёт в polling у бэкенда),
+        // и оплата, совершённая «мимо» verify, повисала бы незачисленной.
+        // Тихий фоновый verify при входе: гасит забытые инвойсы прошлого
+        // визита по первоисточнику getStarTransactions.
+        try {
+          const vres = await fetch(`${API_BASE}/api/tokens/verify`, {
+            method: 'POST',
+            headers,
+          })
+          const vd = await vres.json()
+          if (vd?.ok) {
+            setTokens(vd['баланс'])
+            setTopUpNote(
+              `Зачислено ${vd['зачислено_токенов']} токенов — оплата прошлого визита дошла`
+            )
+          }
+        } catch {
+          /* авто-verify — фоновый, тишина нормальна */
+        }
       } catch {
         /* баланс — украшение, а не блокировщик чата */
       }
