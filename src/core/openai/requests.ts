@@ -16,7 +16,6 @@ async function nanoBananaPricePerImage(): Promise<number | null> {
   return typeof price === 'number' && price > 0 ? price : null
 }
 
-
 type UserData = {
   username: string
   first_name: string
@@ -107,11 +106,14 @@ export const answerAi = async (
       // сумму: отказ человек переживёт и повторит, деньги — нет.
       const costPerImage = nanoBananaPrice?.costPerImage
       if (typeof costPerImage !== 'number' || costPerImage <= 0) {
-        logger.error('❌ [NanoBananaPro] Цена модели неизвестна — генерация отменена', {
-          alert: 'ЦЕНА НЕ ОПРЕДЕЛЕНА, СПИСАНИЯ НЕ БЫЛО',
-          model: 'fal-ai/nano-banana-pro',
-          telegramId: String(telegramId),
-        })
+        logger.error(
+          '❌ [NanoBananaPro] Цена модели неизвестна — генерация отменена',
+          {
+            alert: 'ЦЕНА НЕ ОПРЕДЕЛЕНА, СПИСАНИЯ НЕ БЫЛО',
+            model: 'fal-ai/nano-banana-pro',
+            telegramId: String(telegramId),
+          }
+        )
         await ctx?.reply?.(
           isRu || languageCode === 'ru'
             ? '❌ Не удалось определить стоимость генерации. Деньги не списаны, попробуйте позже.'
@@ -191,12 +193,18 @@ export const answerAi = async (
             // Возврат на выдуманную сумму — это либо недоплата, либо
             // создание звёзд из воздуха. Лучше громко не вернуть, чем тихо
             // вернуть не столько.
-            logger.error('❌ [NanoBananaPro] Цена неизвестна — возврат не сделан', {
-              alert: 'ВОЗВРАТ НЕ ВЫПОЛНЕН: НЕ ЗНАЕМ СУММУ',
-              telegramId: String(telegramId),
-            })
+            logger.error(
+              '❌ [NanoBananaPro] Цена неизвестна — возврат не сделан',
+              {
+                alert: 'ВОЗВРАТ НЕ ВЫПОЛНЕН: НЕ ЗНАЕМ СУММУ',
+                telegramId: String(telegramId),
+              }
+            )
           } else {
-            await refundUser(ctx, costPerImage, { silent: true, reason: "generation_failed" })
+            await refundUser(ctx, costPerImage, {
+              silent: true,
+              reason: 'generation_failed',
+            })
           }
         } catch (refundError) {
           logger.error('[answerAi] Failed to refund balance', {
@@ -218,31 +226,28 @@ export const answerAi = async (
         model: grokModel,
       })
 
-      const response = await fetch(
-        'https://api.x.ai/v1/chat/completions',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${grokApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: grokModel,
-            messages: [
-              {
-                role: 'system',
-                content: systemPrompt
-                  ? systemPrompt + '\n' + initialPrompt
-                  : initialPrompt,
-              },
-              {
-                role: 'user',
-                content: prompt,
-              },
-            ],
-          }),
-        }
-      )
+      const response = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${grokApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: grokModel,
+          messages: [
+            {
+              role: 'system',
+              content: systemPrompt
+                ? systemPrompt + '\n' + initialPrompt
+                : initialPrompt,
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+        }),
+      })
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -251,9 +256,7 @@ export const answerAi = async (
           error: errorText,
           model: grokModel,
         })
-        throw new Error(
-          `xAI Grok API error: ${response.status} - ${errorText}`
-        )
+        throw new Error(`xAI Grok API error: ${response.status} - ${errorText}`)
       }
 
       const data = await response.json()
@@ -280,12 +283,12 @@ export const answerAi = async (
     logger.warn('[answerAi] GROK_API_KEY not found')
   }
 
-  // ✅ Fallback 1: GLM-4.7 (Zhipu AI)
+  // ✅ Fallback 1: Z.AI coder model (OpenAI-compatible API)
   const glmApiKey = process.env.GLM_API_KEY
   if (glmApiKey) {
     try {
-      logger.info('[answerAi] Using GLM-4.7 as fallback', {
-        model: 'glm-4',
+      logger.info('[answerAi] Using Z.AI coder model as fallback', {
+        model: process.env.GLM_MODEL || 'glm-5.3',
       })
 
       const glmProvider = new GLMProvider(glmApiKey)
@@ -304,11 +307,8 @@ export const answerAi = async (
 
       return content
     } catch (glmError) {
-      logger.error('[answerAi] GLM-4.7 fallback failed', {
-        error:
-          glmError instanceof Error
-            ? glmError.message
-            : String(glmError),
+      logger.error('[answerAi] Z.AI coder fallback failed', {
+        error: glmError instanceof Error ? glmError.message : String(glmError),
       })
     }
   } else {
@@ -415,6 +415,6 @@ export const answerAi = async (
   }
 
   throw new Error(
-    'All AI providers failed (Grok, GLM-4.7, DeepSeek, OpenAI). Check API keys and balances.'
+    'All AI providers failed (Grok, Z.AI coder, DeepSeek, OpenAI). Check API keys and balances.'
   )
 }
