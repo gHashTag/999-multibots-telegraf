@@ -13,6 +13,7 @@ COMPOSE ?= docker compose
 .PHONY: help doctor install install-root install-player install-render \
 	dev-bot dev-player dev-render compose-up compose-down compose-status \
 	test test-root test-player test-render test-safe-beta test-e2e-safe-beta \
+	test-supabase-exit verify-supabase-exit-app \
 	typecheck typecheck-root typecheck-player typecheck-render \
 	build build-root build-player build-render \
 	audit audit-root audit-player audit-render remotion-versions \
@@ -94,6 +95,19 @@ test-safe-beta: ## Run the focused auth, identity, MCP and immutable-lock suites
 
 test-e2e-safe-beta: ## Verify Agent/header geometry at 390, 720 and 1024px on an isolated port.
 	@cd $(PLAYER_DIR) && $(NPM) run test:e2e:safe-beta
+
+test-supabase-exit: ## Prove the player/render lane has no Supabase runtime or egress.
+	@cd $(ROOT_DIR) && $(NODE) scripts/tests/supabase-exit-runtime.test.mjs
+	@cd $(RENDER_DIR) && $(NPM) exec -- vitest run \
+		auth.test.ts \
+		src/runtime/supabaseExit.test.ts \
+		src/storage/mediaProxy.test.ts \
+		src/templates/registry.test.ts
+	@cd $(PLAYER_DIR) && $(NPM) exec -- vitest run \
+		src/atoms/serverTemplates.test.ts
+
+verify-supabase-exit-app: test-supabase-exit typecheck-player typecheck-render build-player build-render security-scan diff-check ## Verify the independently releasable player/render migration lane.
+	@cd $(ROOT_DIR) && $(NODE) scripts/tests/supabase-exit-runtime.test.mjs --require-artifacts
 
 typecheck: typecheck-root typecheck-player typecheck-render ## Type-check every application.
 

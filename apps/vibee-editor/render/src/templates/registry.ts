@@ -39,8 +39,7 @@ export interface TemplateCard {
   rules: string[]
 }
 
-const STORAGE =
-  'https://yuukfqcsdhkyxegfwlcb.supabase.co/storage/v1/object/public/images/relaunch'
+const STORAGE = '/media/images/relaunch'
 
 export const TEMPLATE_CARDS: TemplateCard[] = [
   {
@@ -61,9 +60,19 @@ export const TEMPLATE_CARDS: TemplateCard[] = [
         hint: 'Смонтированные планы липсинка, все на одном аудио',
       },
       { key: 'captions', label: 'Титры пословно', kind: 'captions' },
-      { key: 'music', label: 'Музыка', kind: 'media', hint: 'Chill Memphis Phonk' },
+      {
+        key: 'music',
+        label: 'Музыка',
+        kind: 'media',
+        hint: 'Chill Memphis Phonk',
+      },
       { key: 'brand.eyebrow', label: 'Надстрочник', kind: 'text' },
-      { key: 'brand.name', label: 'Имя (золотом)', kind: 'text', required: true },
+      {
+        key: 'brand.name',
+        label: 'Имя (золотом)',
+        kind: 'text',
+        required: true,
+      },
       { key: 'brand.cta', label: 'Кнопка-адрес', kind: 'text', required: true },
       { key: 'brand.sub', label: 'Подпись под кнопкой', kind: 'text' },
     ],
@@ -84,7 +93,12 @@ export const TEMPLATE_CARDS: TemplateCard[] = [
     accent: '#FFFF00',
     fields: [
       { key: 'lipSyncVideo', label: 'Липсинк', kind: 'media', required: true },
-      { key: 'segments', label: 'Сегменты и биролл', kind: 'list', required: true },
+      {
+        key: 'segments',
+        label: 'Сегменты и биролл',
+        kind: 'list',
+        required: true,
+      },
       { key: 'captions', label: 'Титры пословно', kind: 'captions' },
       { key: 'backgroundMusic', label: 'Музыка', kind: 'media' },
       { key: 'ctaText', label: 'Призыв', kind: 'text' },
@@ -103,7 +117,12 @@ export const TEMPLATE_CARDS: TemplateCard[] = [
       'Научная витрина блога. Матовый чёрный фон с зерном, кремово-серебряная гравюра, золотом — исключительно заголовок поста. Пять актов: шапка, заголовок, таблички с измеренными числами, вывод, колофон.',
     accent: '#C9A24B',
     fields: [
-      { key: 'title', label: 'Заголовок (золотом)', kind: 'text', required: true },
+      {
+        key: 'title',
+        label: 'Заголовок (золотом)',
+        kind: 'text',
+        required: true,
+      },
       { key: 'subtitle', label: 'Подзаголовок', kind: 'text' },
       { key: 'dateline', label: 'Дата и время чтения', kind: 'text' },
       { key: 'plates', label: 'Таблички с числами', kind: 'list' },

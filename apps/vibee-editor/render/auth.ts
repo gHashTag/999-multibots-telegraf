@@ -123,6 +123,7 @@ const PUBLIC_PREFIXES = [
   '/hls/',
   '/public/',
   '/s3/',
+  '/media/',
   '/proxy/image',
   // /api/assets* пропускается общим гвардом НАМЕРЕННО: каждый хендлер
   // проверяет личность сам. POST/DELETE — через Telegram подпись;

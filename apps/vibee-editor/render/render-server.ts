@@ -30,6 +30,11 @@ import {
   runSafeBetaPublishingAction,
   safeBetaStatus,
 } from './src/runtime/safeBeta'
+import { assertSupabaseFreeRuntime } from './src/runtime/supabaseExit'
+import {
+  publicMediaPrefixes,
+  serveMediaRequest,
+} from './src/storage/mediaProxy'
 import { loadOrCreateOwnProfile } from './src/profile/verifiedProfile'
 import { TEMPLATE_CARDS } from './src/templates/registry'
 import fs from 'node:fs'
@@ -186,6 +191,9 @@ import {
   loadModels,
 } from './src/lib/faceDetection'
 import { Pool } from 'pg'
+
+assertSupabaseFreeRuntime(process.env)
+const PUBLIC_MEDIA_PREFIXES = publicMediaPrefixes(process.env)
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -1750,7 +1758,10 @@ const server = createServer(async (req, res) => {
 
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET, HEAD, POST, DELETE, OPTIONS'
+  )
   res.setHeader(
     'Access-Control-Allow-Headers',
     'Content-Type, X-Filename, X-Api-Key, X-Telegram-Init-Data'
@@ -2945,6 +2956,19 @@ const server = createServer(async (req, res) => {
     serveStaticFile(res, filePath)
     return
   }
+
+  // Stable self-hosted media proxy. Public URLs never reveal the MinIO/S3
+  // endpoint or credentials and browser seeking works through Range/HEAD.
+  if (
+    await serveMediaRequest(
+      req,
+      res,
+      s3Client,
+      S3_BUCKET,
+      PUBLIC_MEDIA_PREFIXES
+    )
+  )
+    return
 
   // S3 video proxy with HEVC → H.264 conversion for browser compatibility
   if (req.url?.startsWith('/s3/') && req.method === 'GET') {

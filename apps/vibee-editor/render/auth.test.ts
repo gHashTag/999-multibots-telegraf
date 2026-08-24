@@ -193,6 +193,23 @@ describe('подпись в строке запроса (SSE)', () => {
 })
 
 describe('production authentication result', () => {
+  it.each(['GET', 'HEAD'] as const)(
+    'keeps stable public media readable without exposing a credential for %s',
+    method => {
+      const req = {
+        url: '/media/images/relaunch/noir-close.jpg',
+        method,
+        headers: {},
+      } as unknown as import('node:http').IncomingMessage
+
+      expect(authenticate(req)).toMatchObject({
+        allowed: true,
+        wouldReject: false,
+        via: 'public',
+      })
+    }
+  )
+
   it('defaults to enforce so an unauthenticated protected request becomes 401', () => {
     delete process.env.RENDER_AUTH_MODE
 
