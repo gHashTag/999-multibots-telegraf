@@ -552,8 +552,8 @@
 }
 
 .profile-tabs__tab--active {
-  color: var(--color-primary, var(--vibee-amber));
-  border-bottom: 2px solid var(--color-primary, var(--vibee-amber));
+  color: var(--vibee-gold);
+  border-bottom: 2px solid var(--vibee-gold);
 }
 
 .profile-tabs__count {
@@ -1095,8 +1095,22 @@
 /* Profile Page */
 .profile-page {
   min-height: 100vh;
-  background: var(--bg-primary, var(--color-bg-primary));
+  background: #050505;
   padding: 2rem;
+
+  /* Канон Trinity: матовый чёрный вместо серых общих переменных.
+     Профиль раньше наследовал серые --bg-* приложения и выглядел
+     чужим рядом с чёрными Blog/Chat/Files. Переопределяем ВНУТРИ
+     scope профиля — остальное приложение не трогаем: elevated-карточки
+     #0d0d0c, вторичные поверхности чуть теплее, рамки кремово-тёмные. */
+  --bg-primary: #050505;
+  --bg-elevated: #0d0d0c;
+  --bg-secondary: #111110;
+  --bg-tertiary: #161511;
+  --bg-input: #1c1b18;
+  --bg-surface-hover: #1a1916;
+  --bg-hover: #1f1e1a;
+  --bg-card: #0d0d0c;
 }
 
 /* Mobile */
