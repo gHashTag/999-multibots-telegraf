@@ -1509,3 +1509,169 @@
   color: var(--vibee-gold);
   font-size: 13px;
 }
+
+/* Скиллы: папка правил с CRUD — канон Trinity */
+.profile-skills__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.profile-skills__hint {
+  color: #8a8578;
+  font-size: 13px;
+}
+
+.profile-skills__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--vibee-gold);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--vibee-gold);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.profile-skills__add:hover {
+  background: rgba(255, 215, 0, 0.08);
+}
+
+.profile-skills__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-skills__card {
+  padding: 14px 16px;
+  border: 1px solid #1c1b18;
+  border-radius: 12px;
+  background: #0d0d0c;
+}
+
+.profile-skills__card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.profile-skills__name {
+  color: #e6e0d2;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.profile-skills__actions {
+  display: flex;
+  gap: 4px;
+}
+
+.profile-skills__actions button {
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #8a8578;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.profile-skills__actions button:hover {
+  color: var(--vibee-gold);
+  background: rgba(255, 215, 0, 0.06);
+}
+
+.profile-skills__content {
+  margin: 0;
+  color: #a39d8d;
+  font-size: 13px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.profile-skills__modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 16px;
+}
+
+.profile-skills__editor {
+  width: min(560px, 100%);
+  padding: 18px;
+  border: 1px solid #2a2820;
+  border-radius: 16px;
+  background: #0d0d0c;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-skills__editor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #e6e0d2;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.profile-skills__editor-head button {
+  padding: 6px;
+  border: none;
+  background: transparent;
+  color: #8a8578;
+  cursor: pointer;
+}
+
+.profile-skills__input,
+.profile-skills__textarea {
+  padding: 10px 12px;
+  border: 1px solid #2a2820;
+  border-radius: 10px;
+  background: #050505;
+  color: #e6e0d2;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.profile-skills__textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
+.profile-skills__note {
+  margin: 0;
+  color: var(--vibee-red);
+  font-size: 13px;
+}
+
+.profile-skills__save {
+  padding: 10px;
+  border: 1px solid var(--vibee-gold);
+  border-radius: 999px;
+  background: rgba(255, 215, 0, 0.1);
+  color: var(--vibee-gold);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.profile-skills__save:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

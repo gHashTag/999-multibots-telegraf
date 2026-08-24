@@ -159,6 +159,21 @@ async function ensureTokenRow(ctx: ToolContext): Promise<number> {
   return r.rows[0].balance
 }
 
+/** Таблица скиллов создаётся лениво при первом обращении — как user_soul. */
+async function ensureSkillsTable(ctx: ToolContext): Promise<void> {
+  await ctx.pool.query(
+    `CREATE TABLE IF NOT EXISTS user_skills (
+       id          serial PRIMARY KEY,
+       telegram_id text NOT NULL,
+       name        text NOT NULL,
+       content     text NOT NULL,
+       created_at  timestamptz NOT NULL DEFAULT now(),
+       updated_at  timestamptz NOT NULL DEFAULT now(),
+       UNIQUE (telegram_id, name)
+     )`
+  )
+}
+
 /** Списание с честным отказом: недостаток — это ответ, а не исключение. */
 async function spendTokens(
   ctx: ToolContext,
@@ -785,6 +800,124 @@ export const TOOLS: AgentTool[] = [
         /* нет колонки-метки — эксперимент ещё не начат */
       }
       return result
+    },
+  },
+
+  /**
+   * СКИЛЛЫ — папка правил человека: как писать его рилсы, какие tone
+   * запрещены, каноны ниш. В отличие от SOUL (голос владельца целиком),
+   * скилл — отдельный переиспользуемый навык: создать, поправить,
+   * удалить. Агент видит их все в skills_list и применяет к генерациям.
+   */
+  {
+    name: 'skills_list',
+    description:
+      'Все скиллы человека с полным содержимым. Применяй их к своим ответам и ' +
+      'генерациям: если есть скилл про тон рилсов — пиши посты по нему. Бесплатно.',
+    parameters: noArgs,
+    async handler(_a, ctx) {
+      await ensureSkillsTable(ctx)
+      const r = await ctx.pool.query(
+        `SELECT id, name, content, updated_at::text
+         FROM user_skills WHERE telegram_id = $1 ORDER BY updated_at DESC`,
+        [ctx.telegramId]
+      )
+      return {
+        всего: r.rows.length,
+        скиллы: r.rows,
+        подсказка: 'применяй их к текстам постов и тонам; изменение — через skills_update',
+      }
+    },
+  },
+
+  {
+    name: 'skills_create',
+    description:
+      'Создать скилл: именованное правило для агента (например «Тон рилсов: без жаргона, ' +
+      'числа с единицами»). Появляется в skills_list и применяется к генерациям. Бесплатно.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'короткое имя скилла' },
+        content: { type: 'string', description: 'текст правила, до 8 КБ' },
+      },
+      required: ['name', 'content'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const name = String(args.name || '').trim()
+      const content = String(args.content || '').trim()
+      if (!name || !content) {
+        return { создано: false, причина: 'нужны непустые name и content' }
+      }
+      if (name.length > 100) return { создано: false, причина: 'имя до 100 символов' }
+      if (content.length > 8192) {
+        return { создано: false, причина: `слишком длинно: ${content.length} > 8192` }
+      }
+      await ensureSkillsTable(ctx)
+      const dup = await ctx.pool.query(
+        `SELECT id FROM user_skills WHERE telegram_id = $1 AND name = $2`,
+        [ctx.telegramId, name]
+      )
+      if (dup.rows.length) {
+        return { создано: false, причина: `скилл «${name}» уже есть — используй skills_update` }
+      }
+      const r = await ctx.pool.query(
+        `INSERT INTO user_skills (telegram_id, name, content)
+         VALUES ($1, $2, $3) RETURNING id, created_at::text`,
+        [ctx.telegramId, name, content]
+      )
+      return { создано: true, id: r.rows[0].id, имя: name }
+    },
+  },
+
+  {
+    name: 'skills_update',
+    description:
+      'Обновить скилл по id (имя можно оставить прежним). Бесплатно.',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', description: 'идентификатор скилла из skills_list' },
+        name: { type: 'string' },
+        content: { type: 'string', description: 'полный новый текст' },
+      },
+      required: ['id', 'content'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      await ensureSkillsTable(ctx)
+      const r = await ctx.pool.query(
+        `UPDATE user_skills
+         SET name = COALESCE(NULLIF($3, ''), name), content = $2, updated_at = now()
+         WHERE id = $1 AND telegram_id = $4
+         RETURNING id, name`,
+        [args.id, String(args.content || ''), String(args.name || ''), ctx.telegramId]
+      )
+      if (!r.rows.length) {
+        return { обновлено: false, причина: 'скилл не найден (или чужой)' }
+      }
+      return { обновлено: true, id: r.rows[0].id, имя: r.rows[0].name }
+    },
+  },
+
+  {
+    name: 'skills_delete',
+    description: 'Удалить скилл по id. Бесплатно.',
+    parameters: {
+      type: 'object',
+      properties: { id: { type: 'integer' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      await ensureSkillsTable(ctx)
+      const r = await ctx.pool.query(
+        `DELETE FROM user_skills WHERE id = $1 AND telegram_id = $2 RETURNING name`,
+        [args.id, ctx.telegramId]
+      )
+      if (!r.rows.length) return { удалено: false, причина: 'скилл не найден (или чужой)' }
+      return { удалено: true, имя: r.rows[0].name }
     },
   },
 
