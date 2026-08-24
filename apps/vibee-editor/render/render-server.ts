@@ -1815,9 +1815,7 @@ const server = createServer(async (req, res) => {
 
         // FAL — основной путь, но падение по чужому балансу не должно
         // останавливать производство: ниже уходим на Replicate.
-        let falSubmitError = !FAL_KEY
-          ? 'FAL_KEY not configured'
-          : null
+        let falSubmitError = !FAL_KEY ? 'FAL_KEY not configured' : null
 
         // Convert width/height to aspect ratio for FAL
         const getAspectRatio = (w: number, h: number): string => {
@@ -1997,7 +1995,9 @@ const server = createServer(async (req, res) => {
       }
     )
     if (!create.ok) {
-      throw new Error(`Replicate video failed: ${create.status} - ${await create.text()}`)
+      throw new Error(
+        `Replicate video failed: ${create.status} - ${await create.text()}`
+      )
     }
     let data = await create.json()
     let predictionUrl: string | null = data?.urls?.get ?? null
@@ -2018,7 +2018,8 @@ const server = createServer(async (req, res) => {
       if (!poll.ok) break
       data = await poll.json()
     }
-    if (data.error) throw new Error(`Replicate video: ${String(data.error).slice(0, 200)}`)
+    if (data.error)
+      throw new Error(`Replicate video: ${String(data.error).slice(0, 200)}`)
     const output = data.output
     const url = Array.isArray(output) ? output[0] : output
     if (typeof url !== 'string') {
@@ -2027,22 +2028,20 @@ const server = createServer(async (req, res) => {
     // Ссылка replicate.delivery живёт ограниченное время — забираем файл в
     // наше S3, как у картинок: иначе лента через час показывает пустоту.
     try {
-      const vid = await fetch(url)
+      // Санитайзер отсекает не-http(s) и приватные/зацикленные адреса:
+      // URL приходит из ответа внешнего API (SSRF-гвард, как у webhook).
+      const videoUrl = assertFetchable(url)
+      const vid = await fetch(videoUrl)
       if (vid.ok) {
         const bytes = Buffer.from(await vid.arrayBuffer())
-        const up = await fetch(
-          `${process.env.SELF_URL || 'http://127.0.0.1:' + (process.env.PORT || '3000')}/upload`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'video/mp4',
-              'X-Filename': `agent-video-${Date.now()}.mp4`,
-            },
-            body: new Uint8Array(bytes),
-          }
+        // В наше S3 — напрямую в процессе, без HTTP-вызова самому себе:
+        // тот же uploadToS3, что стоит за /upload.
+        const up = await uploadToS3(
+          bytes,
+          `agent-video-${Date.now()}.mp4`,
+          'video/mp4'
         )
-        const upData: any = await up.json().catch(() => null)
-        if (up.ok && upData?.directUrl) return upData.directUrl as string
+        if (up.success && up.directUrl) return up.directUrl
       }
     } catch (e) {
       console.warn(
@@ -4402,7 +4401,8 @@ const server = createServer(async (req, res) => {
         const rssResponse = await fetch('https://t27.ai/rss.xml', {
           headers: { 'User-Agent': 'vibee-render-blog-proxy' },
         })
-        if (!rssResponse.ok) throw new Error(`t27.ai RSS: HTTP ${rssResponse.status}`)
+        if (!rssResponse.ok)
+          throw new Error(`t27.ai RSS: HTTP ${rssResponse.status}`)
         const xml = await rssResponse.text()
         const pick = (block: string, tag: string): string => {
           const m = block.match(
@@ -4419,7 +4419,9 @@ const server = createServer(async (req, res) => {
               .replace(/&#39;|&apos;/g, "'")
               .replace(/&amp;/g, '&')
           return decode(
-            m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '')
+            m[1]
+              .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+              .replace(/<[^>]+>/g, '')
           ).trim()
         }
         const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)]
