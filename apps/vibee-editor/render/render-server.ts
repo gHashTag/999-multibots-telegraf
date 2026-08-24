@@ -4460,8 +4460,127 @@ const server = createServer(async (req, res) => {
             })
           const tgd = await tg.json()
           if (!tgd.ok) throw new Error('Bot API: ' + JSON.stringify(tgd).slice(0, 200))
+          // Pending-чек: verify потом ищет звёзд-транзакцию от этого
+          // человека на эту сумму после этого момента (вебхук-независимо).
+          try {
+            const pool = await getPool()
+            await pool.query(
+              `CREATE TABLE IF NOT EXISTS token_invoices (
+                 id serial PRIMARY KEY,
+                 telegram_id text NOT NULL,
+                 tokens int NOT NULL,
+                 stars int NOT NULL,
+                 created_at timestamptz NOT NULL DEFAULT now(),
+                 redeemed boolean NOT NULL DEFAULT false
+               )`
+            )
+            await pool.query(
+              `INSERT INTO token_invoices (telegram_id, tokens, stars)
+               VALUES ($1, $2, $3)`,
+              [who, pack.tokens, pack.stars]
+            )
+          } catch (e) {
+            console.warn('[STARS] pending-чек не записался:', String(e).slice(0, 120))
+          }
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ ok: true, link: tgd.result }))
+        } catch (e) {
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: String(e).slice(0, 300) }))
+        }
+        return
+      }
+
+      // POST /api/tokens/verify — вебхук-независимое подтверждение оплаты.
+      //
+      // Вебхук кассира периодически слетает (процессы бэкеда забирают
+      // бота в polling), поэтому опираемся на первоисточник: Bot API
+      // getStarTransactions. Клиент зовёт verify после «paid»; сервер
+      // ищет звёзд-транзакцию от этого человека на сумму пакета после
+      // создания инвойса и зачитывает её один раз (UNIQUE-пометка).
+      if (feedPath === '/api/tokens/verify' && req.method === 'POST') {
+        const who = chatIdentity(req, verifiedTelegramId(req))
+        if (!who) {
+          res.writeHead(401, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: 'нужна подпись или ключ' }))
+          return
+        }
+        try {
+          const pool = await getPool()
+          await pool.query(
+            `CREATE TABLE IF NOT EXISTS token_invoices (
+               id serial PRIMARY KEY,
+               telegram_id text NOT NULL,
+               tokens int NOT NULL,
+               stars int NOT NULL,
+               created_at timestamptz NOT NULL DEFAULT now(),
+               redeemed boolean NOT NULL DEFAULT false
+             )`
+          )
+          const pend = await pool.query(
+            `SELECT id, tokens, stars, created_at FROM token_invoices
+             WHERE telegram_id = $1 AND redeemed = FALSE
+             ORDER BY created_at DESC LIMIT 10`,
+            [who]
+          )
+          if (!pend.rows.length) {
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ ok: false, причина: 'неоплаченных инвойсов нет' }))
+            return
+          }
+          const st = await fetch(
+            `https://api.telegram.org/bot${PAY_BOT}/getStarTransactions?limit=100`
+          ).then(r => r.json())
+          const txs = st?.result?.transactions || []
+          // Гасим самый свежий подходящий pending: сумма совпала,
+          // транзакция новее инвойса, от этого пользователя.
+          for (const row of pend.rows) {
+            const match = txs.find(
+              (t: any) =>
+                Number(t.amount) === row.stars &&
+                t.source?.user?.id === Number(who) &&
+                Date.parse(t.date * 1000 || t.date) >
+                  Date.parse(row.created_at) - 60_000
+            )
+            if (match) {
+              const upd = await pool.query(
+                `UPDATE token_invoices SET redeemed = TRUE, star_tx_id = $2
+                 WHERE id = $1 AND redeemed = FALSE RETURNING id`,
+                [row.id, match.id]
+              )
+              if (upd.rows.length) {
+                await pool.query(
+                  `CREATE TABLE IF NOT EXISTS user_tokens (
+                     telegram_id text PRIMARY KEY,
+                     balance int NOT NULL,
+                     updated_at timestamptz NOT NULL DEFAULT now()
+                   )`
+                )
+                await pool.query(
+                  `INSERT INTO user_tokens (telegram_id, balance)
+                   VALUES ($1, $2)
+                   ON CONFLICT (telegram_id)
+                   DO UPDATE SET balance = user_tokens.balance + $2, updated_at = now()`,
+                  [who, row.tokens]
+                )
+                const bal = await pool.query(
+                  `SELECT balance FROM user_tokens WHERE telegram_id = $1`,
+                  [who]
+                )
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(
+                  JSON.stringify({
+                    ok: true,
+                    зачислено_токенов: row.tokens,
+                    баланс: bal.rows[0].balance,
+                  })
+                )
+                return
+              }
+            }
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, причина: 'оплаты пока не видно — попробуй через минуту' }))
         } catch (e) {
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ ok: false, error: String(e).slice(0, 300) }))

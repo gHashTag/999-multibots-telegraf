@@ -80,10 +80,32 @@ function ChatPage() {
       }
       const wa = (window as any).Telegram?.WebApp
       if (wa?.openInvoice) {
-        wa.openInvoice(d.link, (status: string) => {
+        wa.openInvoice(d.link, async (status: string) => {
           if (status === 'paid') {
-            setTopUpNote('Оплачено! Токены придут в течение минуты')
-            setTimeout(() => setTokens(null), 30_000)
+            setTopUpNote('Оплачено! Проверяю зачисление…')
+            // Верификация по первоисточнику (getStarTransactions):
+            // вебхук может спать, звёзды — не спят.
+            try {
+              const vres = await fetch(`${API_BASE}/api/tokens/verify`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ pack }),
+              })
+              const vd = await vres.json()
+              if (vd.ok) {
+                setTokens(vd['баланс'])
+                setTopUpNote(
+                  `Зачислено ${vd['зачислено_токенов']} токенов! Баланс: ${vd['баланс']}`
+                )
+              } else {
+                setTopUpNote(
+                  'Оплата прошла — зачисление подтвердится в течение минуты'
+                )
+                setTimeout(() => setTokens(t => (t === null ? null : t)), 60_000)
+              }
+            } catch {
+              setTopUpNote('Оплата прошла — зачисление подтвердится чуть позже')
+            }
           } else if (status === 'failed') {
             setTopUpNote('Оплата не прошла')
           }
