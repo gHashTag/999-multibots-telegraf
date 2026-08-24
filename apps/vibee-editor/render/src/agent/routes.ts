@@ -88,9 +88,9 @@ const CARD = () => {
       'удаление записей ленты',
     ],
     производство: [
-      'image_generate: картинка по описанию (FAL) — файл сразу в S3',
-      'audio_generate: озвучка текста (ElevenLabs)',
-      'video_generate: видеофрагмент по описанию (Kling/Veo3)',
+      'image_generate: картинка по описанию (Replicate flux-schnell) — файл сразу в S3',
+      'audio_generate: озвучка текста (ElevenLabs; только при валидном ключе аккаунта)',
+      'video_generate: видеофрагмент по описанию (Replicate seedance-1-lite) — mp4 в S3',
       'reel_render: сборка рилса в mp4 (Remotion), ждёт окончания',
     ],
     совет:
