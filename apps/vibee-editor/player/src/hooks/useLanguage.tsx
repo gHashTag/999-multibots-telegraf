@@ -6,7 +6,7 @@
 
 import { useAtom, useAtomValue } from 'jotai';
 import { languageAtom, translateAtom, type Language } from '@/atoms/language';
-import { type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 export type { Language };
 
@@ -14,6 +14,29 @@ export type { Language };
 export function useLanguage() {
   const [lang, setLang] = useAtom(languageAtom);
   const t = useAtomValue(translateAtom);
+
+  /**
+   * Держим <html lang> в согласии с языком интерфейса.
+   *
+   * Замерено в живом приложении: документ отдавал lang="en", пока весь
+   * интерфейс был русским, — и менять его не пытался никто (грепом по
+   * documentElement.lang во всём src не было НИ ОДНОГО совпадения).
+   *
+   * Чем это платят: скринридер читает русские подписи английскими
+   * правилами произношения, а браузер предлагает перевести страницу,
+   * которая уже на языке читателя.
+   *
+   * Синхронизация живёт здесь, а не в App.tsx, потому что язык и так
+   * приходит только через этот хук — вторая точка правды разъехалась бы
+   * с первой. Присваивание идемпотентно: у всех вызывающих значение из
+   * одного атома, и запись идёт только при реальном расхождении.
+   */
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (document.documentElement.lang !== lang) {
+      document.documentElement.lang = lang;
+    }
+  }, [lang]);
 
   return { lang, setLang, t };
 }
