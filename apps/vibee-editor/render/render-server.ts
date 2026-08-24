@@ -201,6 +201,25 @@ import { Pool } from 'pg'
  * Оставлен как есть и помечен — см. обработчик post_to_telegram, где отказ
  * больше не молчит.
  */
+/**
+ * Собственный домен проекта — то, что видит человек в подписи поста.
+ *
+ * Отдельно от SERVICE_ENDPOINTS.player НАМЕРЕННО: player — это служебный адрес
+ * мини-аппа, по которому ходит код (сейчас домен Railway). А в тексте поста
+ * должен стоять адрес бренда, а не адрес инфраструктуры.
+ *
+ * Замер 24.08.2026: t27.ai отвечает 200, но отдаёт научный сайт TRINITY
+ * (GitHub Pages), а НЕ ленту рилсов — поэтому `/feed` там даёт 404, и путь к
+ * ленте сюда не дописывается.
+ *
+ * Решено вести ленту на app.t27.ai. Домен ЕЩЁ НЕ СУЩЕСТВУЕТ (NXDOMAIN), и
+ * поставить его умолчанием значило бы положить в каждый пост мёртвую ссылку —
+ * ровно то, что чинилось в PR #666. Поэтому умолчание остаётся живым t27.ai,
+ * а переключение — одна переменная CANONICAL_SITE=app.t27.ai, когда DNS
+ * настроен и домен отвечает.
+ */
+const CANONICAL_SITE = process.env.CANONICAL_SITE || 't27.ai'
+
 const SERVICE_ENDPOINTS = {
   remotion: process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app',
   mcp: process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app',
@@ -4474,7 +4493,11 @@ const server = createServer(async (req, res) => {
             videoUrl: data.video_url,
             caption:
               data.telegram_caption ||
-              `🎬 ${data.name}\n👤 ${data.creator_name}\n🔗 ${SERVICE_ENDPOINTS.player}/feed\n\n#vibee #reels #ai`,
+              // Подпись поста — ТОЛЬКО по-русски: канал русскоязычный, и
+              // английские хвосты в нём читаются как чужой шаблон. Прежняя
+              // строка была наполовину английской (#vibee #reels #ai) и вела
+              // на служебный адрес Railway вместо собственного домена.
+              `🎬 ${data.name}\n\n👤 ${data.creator_name}\n🔗 ${CANONICAL_SITE}\n\n#рилс #нейросети #TrinityS3AI`,
           })
         }
 
