@@ -177,12 +177,36 @@ import {
   loadModels,
 } from './src/lib/faceDetection'
 import { Pool } from 'pg'
-// Inlined to avoid workspace dependency in Docker
+/**
+ * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
+ *
+ * ВСЕ ЧЕТЫРЕ значения указывали на fly.dev — площадку, с которой проект ушёл
+ * на Railway. Проверено 24.08.2026 запросом, а не чтением:
+ *
+ *   vibee-telegram-bridge.fly.dev   NXDOMAIN — хоста НЕ СУЩЕСТВУЕТ
+ *   vibee-player.fly.dev            NXDOMAIN — хоста НЕ СУЩЕСТВУЕТ
+ *   vibee-render-server.fly.dev     DNS есть, но это тоже мёртвая площадка
+ *
+ * В этом же файле уже стояли комментарии «fly.dev мёртв давно» — то есть про
+ * это знали и чинили точечно (см. проксирование ниже), а сами константы
+ * остались. Так и живёт: одно место починено, источник — нет.
+ *
+ * Что заменено на живое (Railway, проверено HTTP 200):
+ *   remotion / mcp — этот же сервис; свой адрес берём из переменной, а не
+ *     угадываем: сервис может стоять за своим доменом.
+ *   player — адрес мини-аппа, он попадает В ТЕКСТ ПОСТА как ссылка «смотреть
+ *     ленту». То есть мёртвый player давал мёртвую ссылку читателю.
+ *
+ * bridge заменить НЕ НА ЧТО: хоста нет, и в Railway сервиса-моста тоже нет.
+ * Оставлен как есть и помечен — см. обработчик post_to_telegram, где отказ
+ * больше не молчит.
+ */
 const SERVICE_ENDPOINTS = {
-  remotion: 'https://vibee-render-server.fly.dev',
-  mcp: 'https://vibee-render-server.fly.dev',
-  bridge: 'https://vibee-telegram-bridge.fly.dev',
-  player: 'https://vibee-player.fly.dev',
+  remotion: process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app',
+  mcp: process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app',
+  // dead-domain-ok: замены нет, отказ теперь виден в ответе публикации
+  bridge: process.env.TELEGRAM_BRIDGE_URL || 'https://vibee-telegram-bridge.fly.dev',
+  player: process.env.PLAYER_URL || 'https://vibee-editor-production.up.railway.app',
 } as const
 
 // Get video duration using ffprobe
@@ -4352,11 +4376,29 @@ const server = createServer(async (req, res) => {
         // написан здесь второй раз, а рендер ходил сюда по сети к самому себе.
         const row = await publishTemplateRow(data)
 
-        // Post to Telegram if requested
+        /**
+         * Публикация в Telegram-канал.
+         *
+         * Отказ БОЛЬШЕ НЕ МОЛЧИТ. Раньше здесь стоял `catch` с одним
+         * `console.warn`, а ответ всё равно уходил `success: true`. Человеку
+         * в мини-аппе галочка «Также опубликовать в Telegram» подтверждала
+         * успех, которого не было: адрес моста — `vibee-telegram-bridge.fly.dev`,
+         * и он отвечает NXDOMAIN, то есть хоста не существует вовсе.
+         *
+         * Сколько это стоило: за всё время ни один ролик не ушёл в канал, а
+         * лента внутри приложения набрала 22 просмотра на 12 роликов. Продукт
+         * производил контент, которого никто не видел, и об этом ничего не
+         * сообщал.
+         *
+         * Публикацию в ленту при этом НЕ роняем: запись в базе уже сделана и
+         * она полезна сама по себе. Меняется только честность ответа — он
+         * теперь говорит, что именно получилось, а что нет.
+         */
+        let telegram: { posted: boolean; error?: string } | undefined
         if (data.post_to_telegram) {
+          const bridgeUrl = SERVICE_ENDPOINTS.bridge
           try {
-            const bridgeUrl = SERVICE_ENDPOINTS.bridge
-            await fetch(`${bridgeUrl}/api/post-to-channel`, {
+            const r = await fetch(`${bridgeUrl}/api/post-to-channel`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -4367,8 +4409,21 @@ const server = createServer(async (req, res) => {
                 template_id: row.id,
               }),
             })
+            // statusText пуст на HTTP/2 — берём код, как и в остальных местах.
+            telegram = r.ok
+              ? { posted: true }
+              : { posted: false, error: `мост ответил HTTP ${r.status}` }
+            if (!r.ok) {
+              console.error(
+                `[Feed] Публикация в канал НЕ состоялась: HTTP ${r.status} от ${bridgeUrl}`
+              )
+            }
           } catch (e) {
-            console.warn('[Feed] Telegram post failed:', e)
+            const reason = e instanceof Error ? e.message : String(e)
+            telegram = { posted: false, error: `мост недоступен: ${reason}` }
+            console.error(
+              `[Feed] Публикация в канал НЕ состоялась: ${bridgeUrl} — ${reason}`
+            )
           }
         }
 
@@ -4378,6 +4433,10 @@ const server = createServer(async (req, res) => {
             success: true,
             id: row.id,
             updated: row.updated,
+            // Присутствует, только если публикацию в канал ПРОСИЛИ. Клиент по
+            // этому полю понимает, показывать ли человеку «опубликовано в
+            // Telegram» или «в ленту добавлено, в канал не ушло».
+            telegram,
             template: {
               id: row.id,
               telegram_id: data.telegram_id,
