@@ -108,6 +108,10 @@ const PUBLIC_PREFIXES = [
 // по-прежнему требует ключа.
 const PUBLIC_GET_PREFIXES = [
   '/api/feed',
+  // Блог t27.ai через наш прокси: это тот же публичный контент сайта,
+  // просто без CORS. На проде (enforce) без этой строки гвард резал
+  // GET /api/blog — локально (warn) это не ловилось.
+  '/api/blog',
   '/api/users/',
   '/compositions',
   '/templates',
