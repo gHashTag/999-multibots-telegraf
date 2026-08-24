@@ -21,6 +21,7 @@ import { userAtom } from './user'
 import { API_BASE } from '../config'
 import { openInvoice } from '../lib/telegram'
 import { apiFetch } from '../lib/apiFetch'
+import { toErrorText } from '../lib/errorText'
 
 // Re-export feed types for backward compatibility (types are now in @vibee/atoms)
 export type {
@@ -417,17 +418,7 @@ export const loadFeedAtom = atom(null, async (get, set, refresh?: boolean) => {
      * попадают — они приходят как Error с осмысленным текстом, и его
      * терять не надо.
      */
-    const isOffline =
-      error instanceof TypeError ||
-      (error instanceof Error && /failed to fetch|networkerror|load failed/i.test(error.message))
-    set(
-      feedErrorAtom,
-      isOffline
-        ? 'feed.errorNetwork'
-        : error instanceof Error
-          ? error.message
-          : 'feed.errorGeneric'
-    )
+    set(feedErrorAtom, toErrorText(error))
   } finally {
     set(feedLoadingAtom, false)
     isLoadingFeed = false
