@@ -32,85 +32,172 @@ async function notifyAdmin(message: string) {
 
 async function checkFalAi(): Promise<ProviderStatus> {
   const key = process.env.FAL_KEY
-  if (!key) return { name: 'fal.ai', available: false, reason: 'FAL_KEY not set', lastCheck: Date.now() }
+  if (!key)
+    return {
+      name: 'fal.ai',
+      available: false,
+      reason: 'FAL_KEY not set',
+      lastCheck: Date.now(),
+    }
 
   try {
     const resp = await fetch('https://queue.fal.run/fal-ai/flux-schnell', {
       method: 'POST',
-      headers: { Authorization: `Key ${key}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Key ${key}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({}),
     })
     const body = await resp.text()
     if (body.includes('Exhausted balance') || body.includes('locked')) {
-      return { name: 'fal.ai', available: false, reason: 'Balance exhausted', lastCheck: Date.now() }
+      return {
+        name: 'fal.ai',
+        available: false,
+        reason: 'Balance exhausted',
+        lastCheck: Date.now(),
+      }
     }
     return { name: 'fal.ai', available: true, lastCheck: Date.now() }
   } catch {
-    return { name: 'fal.ai', available: false, reason: 'API unreachable', lastCheck: Date.now() }
+    return {
+      name: 'fal.ai',
+      available: false,
+      reason: 'API unreachable',
+      lastCheck: Date.now(),
+    }
   }
 }
 
 async function checkReplicate(): Promise<ProviderStatus> {
   const token = process.env.REPLICATE_API_TOKEN
-  if (!token) return { name: 'replicate', available: false, reason: 'Token not set', lastCheck: Date.now() }
+  if (!token)
+    return {
+      name: 'replicate',
+      available: false,
+      reason: 'Token not set',
+      lastCheck: Date.now(),
+    }
 
   try {
     const resp = await fetch('https://api.replicate.com/v1/account', {
       headers: { Authorization: `Bearer ${token}` },
     })
-    if (resp.status === 401) return { name: 'replicate', available: false, reason: 'Invalid token', lastCheck: Date.now() }
+    if (resp.status === 401)
+      return {
+        name: 'replicate',
+        available: false,
+        reason: 'Invalid token',
+        lastCheck: Date.now(),
+      }
     return { name: 'replicate', available: resp.ok, lastCheck: Date.now() }
   } catch {
-    return { name: 'replicate', available: false, reason: 'API unreachable', lastCheck: Date.now() }
+    return {
+      name: 'replicate',
+      available: false,
+      reason: 'API unreachable',
+      lastCheck: Date.now(),
+    }
   }
 }
 
-async function checkOpenAI(): Promise<ProviderStatus> {
-  const key = process.env.OPENAI_API_KEY
-  if (!key) return { name: 'openai', available: false, reason: 'Key not set', lastCheck: Date.now() }
+async function checkZai(): Promise<ProviderStatus> {
+  const key = process.env.GLM_API_KEY
+  if (!key)
+    return {
+      name: 'zai',
+      available: false,
+      reason: 'GLM_API_KEY not set',
+      lastCheck: Date.now(),
+    }
 
   try {
-    const resp = await fetch('https://api.openai.com/v1/models', {
+    const base =
+      process.env.ZAI_BASE_URL || 'https://api.z.ai/api/coding/paas/v4'
+    const resp = await fetch(`${base}/models`, {
       headers: { Authorization: `Bearer ${key}` },
     })
     if (resp.status === 401 || resp.status === 429) {
-      return { name: 'openai', available: false, reason: `HTTP ${resp.status}`, lastCheck: Date.now() }
+      return {
+        name: 'zai',
+        available: false,
+        reason: `HTTP ${resp.status}`,
+        lastCheck: Date.now(),
+      }
     }
-    return { name: 'openai', available: resp.ok, lastCheck: Date.now() }
+    return { name: 'zai', available: resp.ok, lastCheck: Date.now() }
   } catch {
-    return { name: 'openai', available: false, reason: 'API unreachable', lastCheck: Date.now() }
+    return {
+      name: 'zai',
+      available: false,
+      reason: 'API unreachable',
+      lastCheck: Date.now(),
+    }
   }
 }
 
 async function checkElevenLabs(): Promise<ProviderStatus> {
   const key = process.env.ELEVENLABS_API_KEY
-  if (!key) return { name: 'elevenlabs', available: false, reason: 'Key not set', lastCheck: Date.now() }
+  if (!key)
+    return {
+      name: 'elevenlabs',
+      available: false,
+      reason: 'Key not set',
+      lastCheck: Date.now(),
+    }
 
   try {
     const resp = await fetch('https://api.elevenlabs.io/v1/user/subscription', {
       headers: { 'xi-api-key': key },
     })
-    if (!resp.ok) return { name: 'elevenlabs', available: false, reason: `HTTP ${resp.status}`, lastCheck: Date.now() }
+    if (!resp.ok)
+      return {
+        name: 'elevenlabs',
+        available: false,
+        reason: `HTTP ${resp.status}`,
+        lastCheck: Date.now(),
+      }
     const data = await resp.json()
     const charsLeft = (data.character_limit || 0) - (data.character_count || 0)
     if (charsLeft < 1000) {
-      return { name: 'elevenlabs', available: false, reason: `Only ${charsLeft} chars left`, lastCheck: Date.now() }
+      return {
+        name: 'elevenlabs',
+        available: false,
+        reason: `Only ${charsLeft} chars left`,
+        lastCheck: Date.now(),
+      }
     }
     return { name: 'elevenlabs', available: true, lastCheck: Date.now() }
   } catch {
-    return { name: 'elevenlabs', available: false, reason: 'API unreachable', lastCheck: Date.now() }
+    return {
+      name: 'elevenlabs',
+      available: false,
+      reason: 'API unreachable',
+      lastCheck: Date.now(),
+    }
   }
 }
 
-export async function checkAllProviders(): Promise<Record<string, ProviderStatus>> {
+export async function checkAllProviders(): Promise<
+  Record<string, ProviderStatus>
+> {
   const checks = await Promise.allSettled([
     checkFalAi(),
     checkReplicate(),
-    checkOpenAI(),
+    checkZai(),
     checkElevenLabs(),
   ])
 
-  const results = checks.map(r => r.status === 'fulfilled' ? r.value : { name: 'unknown', available: false, reason: 'Check failed', lastCheck: Date.now() })
+  const results = checks.map(r =>
+    r.status === 'fulfilled'
+      ? r.value
+      : {
+          name: 'unknown',
+          available: false,
+          reason: 'Check failed',
+          lastCheck: Date.now(),
+        }
+  )
   const alerts: string[] = []
 
   for (const status of results) {
@@ -118,7 +205,9 @@ export async function checkAllProviders(): Promise<Record<string, ProviderStatus
     providerStatuses[status.name] = status
 
     if (!status.available) {
-      logger.error(`🚨 Provider ${status.name} is DOWN`, { reason: status.reason })
+      logger.error(`🚨 Provider ${status.name} is DOWN`, {
+        reason: status.reason,
+      })
       if (!prev || prev.available) {
         alerts.push(`🔴 <b>${status.name}</b> — ${status.reason}`)
       }
@@ -129,7 +218,9 @@ export async function checkAllProviders(): Promise<Record<string, ProviderStatus
   }
 
   if (alerts.length > 0) {
-    await notifyAdmin(`⚡ <b>Provider Alert</b>\n\n${alerts.join('\n')}\n\n🕐 ${new Date().toISOString()}`)
+    await notifyAdmin(
+      `⚡ <b>Provider Alert</b>\n\n${alerts.join('\n')}\n\n🕐 ${new Date().toISOString()}`
+    )
   }
 
   return providerStatuses

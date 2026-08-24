@@ -20,7 +20,7 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
         .from('avatars')
         .select('telegram_id')
         .eq('bot_name', botName)
-        .single()
+        .maybeSingle()
 
       if (error) {
         console.warn('⚠️ Не удалось найти владельца бота в БД:', {
@@ -118,12 +118,16 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
       })
     } catch (ownerError) {
       // Это нормально - владелец может ещё не начать чат с ботом
-      console.log('ℹ️ Команды для владельца не установлены (владелец ещё не начал чат с ботом):', {
-        description: 'Owner commands not set - owner has not started chat with bot yet',
-        botName,
-        ownerTelegramId,
-        hint: 'Owner should press /start in bot to enable personalized commands',
-      })
+      console.log(
+        'ℹ️ Команды для владельца не установлены (владелец ещё не начал чат с ботом):',
+        {
+          description:
+            'Owner commands not set - owner has not started chat with bot yet',
+          botName,
+          ownerTelegramId,
+          hint: 'Owner should press /start in bot to enable personalized commands',
+        }
+      )
     }
 
     console.log('✅ Команды бота успешно установлены:', {
