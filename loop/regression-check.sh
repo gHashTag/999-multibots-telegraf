@@ -8,6 +8,10 @@
 # Запуск из любого места: zsh loop/regression-check.sh
 # Ключ агента берётся из Railway CLI и в вывод не печатается.
 
+# Витки иногда зовут этот файл bash'ем — системный bash 3.2 не парсит
+# zsh-скрипт (syntax error на EOF). Перехожу на zsh сам, зовут как угодно.
+if [ -z "${ZSH_VERSION:-}" ]; then exec zsh "$0" "$@"; fi
+
 cd "$HOME/999-multibots-telegraf" || exit 1
 KEY=$(railway variables list -s vibee-render -e production --kv 2>/dev/null | grep ^AGENT_KEYS= | cut -d= -f2- | cut -d: -f1)
 [ -n "$KEY" ] || { echo "FAIL: нет ключа агента (railway link?)"; exit 1 }
