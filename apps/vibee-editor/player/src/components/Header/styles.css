@@ -33,6 +33,26 @@
   border-bottom: 1px solid var(--bg-elevated);
 }
 
+/* Connection diagnostics are a separate row so they cannot squeeze the logo,
+   navigation, or login controls at narrow widths. */
+.header-diagnostic-alert {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--header-diagnostic-height, 34px);
+  padding: 8px max(16px, env(safe-area-inset-right)) 8px
+    max(16px, env(safe-area-inset-left));
+  color: #f4d98d;
+  background: #17140b;
+  border-bottom: 1px solid rgba(244, 217, 141, 0.24);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
 /* Mobile responsive header */
 @media (max-width: 640px) {
   .header {
@@ -40,6 +60,11 @@
     padding: 0 12px;
     padding-left: max(12px, env(safe-area-inset-left));
     padding-right: max(12px, env(safe-area-inset-right));
+  }
+
+  .header-diagnostic-alert {
+    padding: 8px max(12px, env(safe-area-inset-right)) 8px
+      max(12px, env(safe-area-inset-left));
   }
 }
 
@@ -146,25 +171,10 @@
   font-weight: 500;
 }
 
-/* Mobile/Tablet: Fixed bottom navigation - clean design */
+/* Mobile/tablet navigation lives in TelegramTabBar. */
 @media (max-width: 1023px) {
   .header-tabs {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    top: auto;
-    transform: none;
-    justify-content: stretch;
-    padding: 8px 0;
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
-    background: var(--bg-darker);
-    border: none;
-    border-top: 1px solid var(--bg-elevated);
-    border-radius: 0;
-    box-shadow: none;
-    z-index: var(--z-dropdown);
-    gap: 0;
+    display: none;
   }
 
   .header-tabs-indicator {
@@ -184,6 +194,10 @@
     justify-content: center;
     align-items: center;
   }
+}
+
+.header-auth-alert {
+  overflow-wrap: anywhere;
 }
 
 /* Individual tab - minimal */

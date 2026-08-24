@@ -1,9 +1,8 @@
-import { useCallback, useState, useRef, useEffect } from 'react'
+import { useCallback, useState, useRef, useEffect, useReducer } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   likeTemplateAtom,
-  starTemplateAtom,
   useTemplateAtom,
   deleteTemplateAtom,
   trackViewAtom,
@@ -15,6 +14,15 @@ import {
 import { useLanguage } from '@/hooks/useLanguage'
 import { haptic } from '@/lib/telegram'
 import { LikeAnimation } from '@/components/LikeAnimation'
+import {
+  canRetryMedia,
+  classifyVideoElementError,
+  createFeedMediaState,
+  feedMediaReasonLabel,
+  feedMediaReducer,
+  isFeedVideoUrl,
+} from '@/lib/feedMedia'
+import { feedAuthorProfilePath } from '@/lib/feedAuthor'
 import {
   Heart,
   Eye,
@@ -28,7 +36,6 @@ import {
   Volume2,
   VolumeX,
   Info,
-  Star,
 } from 'lucide-react'
 import './FeedPanel.css'
 
@@ -41,8 +48,6 @@ export function FeedCard({ template }: FeedCardProps) {
   const navigate = useNavigate()
   const user = useAtomValue(userAtom)
   const likeTemplate = useSetAtom(likeTemplateAtom)
-  const starTemplate = useSetAtom(starTemplateAtom)
-  const [isStarring, setIsStarring] = useState(false)
   const useTemplate = useSetAtom(useTemplateAtom)
   const deleteTemplate = useSetAtom(deleteTemplateAtom)
   const trackView = useSetAtom(trackViewAtom)
@@ -50,8 +55,12 @@ export function FeedCard({ template }: FeedCardProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isHovering, setIsHovering] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [videoError, setVideoError] = useState<string | null>(null)
-  const [isVideoLoaded, setIsVideoLoaded] = useState(false)
+  const [avatarFailed, setAvatarFailed] = useState(false)
+  const [mediaState, dispatchMedia] = useReducer(
+    feedMediaReducer,
+    undefined,
+    () => createFeedMediaState(template.videoUrl, template.thumbnailUrl)
+  )
   const [shouldLoadVideo, setShouldLoadVideo] = useState(false)
   const [globalMuted, setGlobalMuted] = useAtom(feedMutedAtom) // Global muted state
   const [currentlyPlayingId, setCurrentlyPlayingId] = useAtom(
@@ -61,6 +70,28 @@ export function FeedCard({ template }: FeedCardProps) {
   const [showRemixInfo, setShowRemixInfo] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+  const hasUsableVideoUrl = isFeedVideoUrl(template.videoUrl)
+  const isVideoLoaded = mediaState.status === 'ready'
+  const videoError =
+    mediaState.status === 'error'
+      ? feedMediaReasonLabel(mediaState.reason)
+      : null
+  const authorProfilePath = feedAuthorProfilePath(
+    template.creatorUsername,
+    template.telegramId
+  )
+
+  // Cards may be reused when an audited record receives a corrected source.
+  // Reset the bounded lifecycle instead of preserving the old decoder error.
+  useEffect(() => {
+    videoRef.current?.pause()
+    setIsPlaying(false)
+    dispatchMedia({
+      type: 'source_changed',
+      videoUrl: template.videoUrl,
+      thumbnailUrl: template.thumbnailUrl,
+    })
+  }, [template.videoUrl, template.thumbnailUrl])
 
   // Video is muted if: global muted OR not the currently playing video
   const isThisVideoActive = currentlyPlayingId === template.id
@@ -79,10 +110,6 @@ export function FeedCard({ template }: FeedCardProps) {
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          console.log(
-            '[FeedCard] Card in viewport, loading video:',
-            template.id
-          )
           setShouldLoadVideo(true)
           observer.disconnect() // Only need to trigger once
         }
@@ -93,6 +120,29 @@ export function FeedCard({ template }: FeedCardProps) {
     observer.observe(card)
     return () => observer.disconnect()
   }, [template.id])
+
+  // A media element may remain forever in "loading" without firing error
+  // (stalled range response, CORS policy, broken container). Surface that as
+  // a timeout instead of leaving a normal-looking black card indefinitely.
+  useEffect(() => {
+    if (!shouldLoadVideo || mediaState.status !== 'idle') return
+    dispatchMedia({ type: 'load_started' })
+  }, [shouldLoadVideo, mediaState.status])
+
+  useEffect(() => {
+    if (mediaState.status !== 'loading') return
+    const timeout = window.setTimeout(() => {
+      const video = videoRef.current
+      if (video) {
+        video.pause()
+        video.removeAttribute('src')
+        video.load()
+      }
+      setIsPlaying(false)
+      dispatchMedia({ type: 'timeout' })
+    }, 12_000)
+    return () => window.clearTimeout(timeout)
+  }, [mediaState.status, mediaState.attempts])
 
   // Click to play/pause video (TikTok-style)
   const handleCardClick = useCallback(() => {
@@ -149,27 +199,6 @@ export function FeedCard({ template }: FeedCardProps) {
     [likeTemplate, template.id]
   )
 
-  // ⭐ Звезда = платный лайк: 1 Telegram Star падает автору на баланс.
-  // Двойной тап звезду НЕ шлёт (случайная оплата), только кнопка.
-  const handleStar = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (isStarring) return
-      setIsStarring(true)
-      try {
-        const status = await starTemplate(template.id)
-        if (status === 'paid') haptic.notification('success')
-        else if (status === 'cancelled') haptic.selection()
-        else haptic.notification('error')
-      } catch {
-        haptic.notification('error')
-      } finally {
-        setIsStarring(false)
-      }
-    },
-    [isStarring, starTemplate, template.id]
-  )
-
   // Sound toggle (toggles global muted state for the active video)
   const handleSoundToggle = useCallback(
     (e: React.MouseEvent) => {
@@ -196,8 +225,8 @@ export function FeedCard({ template }: FeedCardProps) {
       setIsUsing(true)
       try {
         await useTemplate(template.id)
-        // Navigate to avatar generation page to record cameo
-        navigate('/generate/avatar')
+        // SAFE BETA preserves remix-as-draft in the local editor.
+        navigate('/editor')
       } finally {
         setIsUsing(false)
       }
@@ -232,6 +261,7 @@ export function FeedCard({ template }: FeedCardProps) {
   // Format relative time with better granularity
   const formatDate = (dateStr: string): string => {
     const date = new Date(dateStr)
+    if (!dateStr || Number.isNaN(date.getTime())) return 'дата неизвестна'
     const now = new Date()
     const diffMs = now.getTime() - date.getTime()
     const diffSec = Math.floor(diffMs / 1000)
@@ -249,10 +279,17 @@ export function FeedCard({ template }: FeedCardProps) {
 
   // Retry loading video after error
   const handleRetry = useCallback(() => {
-    setVideoError(null)
-    setIsVideoLoaded(false)
-    videoRef.current?.load()
-  }, [])
+    if (!canRetryMedia(mediaState)) return
+    dispatchMedia({ type: 'retry' })
+    window.setTimeout(() => {
+      const video = videoRef.current
+      if (!video || !template.videoUrl || !isFeedVideoUrl(template.videoUrl)) {
+        return
+      }
+      video.src = template.videoUrl
+      video.load()
+    }, 0)
+  }, [mediaState, template.videoUrl])
 
   return (
     <div
@@ -269,7 +306,7 @@ export function FeedCard({ template }: FeedCardProps) {
             onClick={handleCardClick}
           >
             {/* Lazy load video - only render when near viewport */}
-            {shouldLoadVideo && template.videoUrl ? (
+            {shouldLoadVideo && hasUsableVideoUrl ? (
               <>
                 <video
                   ref={videoRef}
@@ -278,13 +315,9 @@ export function FeedCard({ template }: FeedCardProps) {
                   muted={effectiveMuted}
                   loop
                   playsInline
-                  crossOrigin="anonymous"
                   preload="metadata"
                   className="feed-card-video"
-                  onLoadedData={() => {
-                    console.log('[FeedCard] Video loaded:', template.videoUrl)
-                    setIsVideoLoaded(true)
-                  }}
+                  onLoadedData={() => dispatchMedia({ type: 'video_ready' })}
                   onCanPlay={() => {
                     // Auto-play when can play
                     const video = videoRef.current
@@ -294,14 +327,10 @@ export function FeedCard({ template }: FeedCardProps) {
                   }}
                   onError={e => {
                     const video = e.currentTarget
-                    console.error(
-                      '[FeedCard] Video error:',
-                      template.videoUrl,
-                      video.error
-                    )
-                    setVideoError(
-                      video.error?.message || 'Failed to load video'
-                    )
+                    dispatchMedia({
+                      type: 'video_error',
+                      reason: classifyVideoElementError(video.error?.code),
+                    })
                   }}
                   onPlay={() => {
                     setIsPlaying(true)
@@ -315,16 +344,21 @@ export function FeedCard({ template }: FeedCardProps) {
                   <div className="feed-card-error">
                     <AlertCircle size={32} />
                     <span>{t('feed.videoError') || 'Video error'}</span>
-                    <button
-                      onClick={e => {
-                        e.stopPropagation()
-                        handleRetry()
-                      }}
-                      className="retry-btn"
-                    >
-                      <RefreshCw size={16} />
-                      {t('feed.retry') || 'Retry'}
-                    </button>
+                    <small>{videoError}</small>
+                    {canRetryMedia(mediaState) ? (
+                      <button
+                        onClick={e => {
+                          e.stopPropagation()
+                          handleRetry()
+                        }}
+                        className="retry-btn"
+                      >
+                        <RefreshCw size={16} />
+                        {t('feed.retry') || 'Retry'}
+                      </button>
+                    ) : (
+                      <small>Нужно исправить файл или перерендерить</small>
+                    )}
                   </div>
                 )}
                 {/* Loading indicator - show while video is loading */}
@@ -337,7 +371,18 @@ export function FeedCard({ template }: FeedCardProps) {
             ) : template.thumbnailUrl ? (
               // Show poster/thumbnail before video loads
               <div className="feed-card-poster">
-                <img src={template.thumbnailUrl} alt={template.name} />
+                {mediaState.posterStatus === 'ready' ? (
+                  <img
+                    src={template.thumbnailUrl}
+                    alt={template.name}
+                    onError={() => dispatchMedia({ type: 'poster_error' })}
+                  />
+                ) : (
+                  <div className="feed-card-placeholder">
+                    <AlertCircle size={24} />
+                    <span>{feedMediaReasonLabel(mediaState.reason)}</span>
+                  </div>
+                )}
                 {!shouldLoadVideo && (
                   <div className="feed-card-loading">
                     <Loader2 size={32} className="spinning" />
@@ -346,14 +391,24 @@ export function FeedCard({ template }: FeedCardProps) {
               </div>
             ) : (
               <div className="feed-card-placeholder">
-                <Play size={24} />
+                <AlertCircle size={24} />
+                <span>{feedMediaReasonLabel(mediaState.reason)}</span>
+              </div>
+            )}
+
+            {/* Missing/invalid URLs never create a video element, so render
+                the same honest failure surface outside the video branch. */}
+            {videoError && !hasUsableVideoUrl && (
+              <div className="feed-card-error">
+                <AlertCircle size={32} />
+                <span>{videoError}</span>
               </div>
             )}
 
             {/* Play overlay - visible when paused */}
             {!isPlaying &&
               shouldLoadVideo &&
-              template.videoUrl &&
+              hasUsableVideoUrl &&
               isVideoLoaded && (
                 <div className="play-overlay">
                   <Play size={64} fill="white" />
@@ -387,26 +442,6 @@ export function FeedCard({ template }: FeedCardProps) {
             title={effectiveMuted ? 'Unmute' : 'Mute'}
           >
             {effectiveMuted ? <VolumeX size={32} /> : <Volume2 size={32} />}
-          </button>
-
-          {/* ⭐ Звезда вместо бесплатного лайка: 1 Telegram Star автору на баланс.
-              Контурная, пока ЭТОТ юзер ещё не подарил звезду; закрашивается
-              золотом после первой оплаченной звезды. */}
-          <button
-            className={`action-btn star-btn ${template.isStarred ? 'starred' : ''} ${isStarring ? 'starring' : ''}`}
-            onClick={handleStar}
-            disabled={isStarring}
-            title={t('feed.star')}
-          >
-            {isStarring ? (
-              <Loader2 size={32} className="spin" />
-            ) : (
-              <Star
-                size={32}
-                fill={template.isStarred ? 'currentColor' : 'none'}
-              />
-            )}
-            <span>{formatCount(template.starsCount)}</span>
           </button>
 
           <div className="action-btn views-btn">
@@ -452,45 +487,38 @@ export function FeedCard({ template }: FeedCardProps) {
         {/* Info overlay at bottom */}
         <div className="feed-card-info">
           <div className="feed-card-header">
-            {template.creatorUsername ? (
-              <Link
-                to={`/${template.creatorUsername}`}
-                className="feed-card-creator-link"
-                onClick={e => e.stopPropagation()}
-              >
-                {template.creatorAvatar && (
-                  <img
-                    src={template.creatorAvatar}
-                    alt={template.creatorName}
-                    className="feed-card-avatar"
-                  />
-                )}
-                <div className="feed-card-meta">
-                  <span className="feed-card-name">{template.name}</span>
-                  <span className="feed-card-creator">
-                    @{template.creatorUsername} ·{' '}
-                    {formatDate(template.createdAt)}
-                  </span>
-                </div>
-              </Link>
-            ) : (
-              <>
-                {template.creatorAvatar && (
-                  <img
-                    src={template.creatorAvatar}
-                    alt={template.creatorName}
-                    className="feed-card-avatar"
-                  />
-                )}
-                <div className="feed-card-meta">
-                  <span className="feed-card-name">{template.name}</span>
-                  <span className="feed-card-creator">
-                    {template.creatorName} · {formatDate(template.createdAt)}
-                  </span>
-                </div>
-              </>
-            )}
+            <Link
+              to={authorProfilePath}
+              className="feed-card-creator-link"
+              onClick={e => e.stopPropagation()}
+            >
+              {template.creatorAvatar && !avatarFailed ? (
+                <img
+                  src={template.creatorAvatar}
+                  alt={template.creatorName}
+                  className="feed-card-avatar"
+                  onError={() => setAvatarFailed(true)}
+                />
+              ) : (
+                <span className="feed-card-avatar feed-card-avatar--placeholder">
+                  {(template.creatorName || '?').slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <div className="feed-card-meta">
+                <span className="feed-card-author-name">
+                  {template.creatorName}
+                </span>
+                <span className="feed-card-creator">
+                  {template.creatorUsername
+                    ? `@${template.creatorUsername}`
+                    : 'Профиль Telegram'}{' '}
+                  · {formatDate(template.createdAt)}
+                </span>
+              </div>
+            </Link>
           </div>
+
+          <div className="feed-card-name">{template.name}</div>
 
           {template.description && (
             <p className="feed-card-description">{template.description}</p>

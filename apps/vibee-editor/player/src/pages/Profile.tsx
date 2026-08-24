@@ -12,8 +12,6 @@ import {
 import { useLanguage } from '@/hooks/useLanguage'
 import { Header } from '@/components/Header'
 import { ProfileHeader, ProfileTabs, ProfileEdit } from '@/components/Profile'
-import { SoulEditor } from '@/components/Profile/SoulEditor'
-import { myProfileAtom } from '@/atoms'
 import { TelegramLoginButton } from '@/components/Auth'
 import '@/components/Profile/Profile.css'
 import { LoginModal } from '@/components/Auth/LoginModal'
@@ -23,7 +21,6 @@ export function ProfilePage() {
   const { username } = useParams<{ username: string }>()
 
   const profile = useAtomValue(viewedProfileAtom)
-  const myProfile = useAtomValue(myProfileAtom)
   const loading = useAtomValue(profileLoadingAtom)
   const error = useAtomValue(profileErrorAtom)
   const loadProfile = useSetAtom(loadProfileAtom)
@@ -128,11 +125,6 @@ export function ProfilePage() {
           <ProfileTabs />
 
           <ProfileEdit isOpen={showEdit} onClose={() => setShowEdit(false)} />
-
-          {/* SOUL и скиллы — только на СВОЁМ профиле: чужая карточка голоса
-              и чужой список возможностей не должны быть видны постороннему. */}
-          {myProfile?.telegram_id &&
-            profile.telegram_id === myProfile.telegram_id && <SoulEditor />}
         </div>
 
         {/* Login Modal */}

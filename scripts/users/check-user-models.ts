@@ -29,7 +29,7 @@ async function initializeInfisical() {
     }
 
     process.env.SUPABASE_URL = supabaseUrl
-    process.env.SUPABASE_SERVICE_ROLE_KEY = supabaseServiceKey
+    process.env.SUPABASE_SERVICE_ROLE_KEY = supabaseServiceKey // secret-guard-ok: runtime value fetched from Infisical, no literal credential
     process.env.SUPABASE_ANON_KEY = supabaseAnonKey
 
     console.log('✅ Infisical инициализирован успешно\n')
@@ -61,15 +61,15 @@ interface ModelTraining {
 
 function getStatusEmoji(status: string): string {
   const emojiMap: Record<string, string> = {
-    'pending': '⏳',
-    'processing': '🔄',
-    'succeeded': '✅',
-    'SUCCESS': '✅',
-    'failed': '❌',
-    'FAILED': '❌',
-    'canceled': '🚫',
-    'starting': '🚀',
-    'completed': '✅'
+    pending: '⏳',
+    processing: '🔄',
+    succeeded: '✅',
+    SUCCESS: '✅',
+    failed: '❌',
+    FAILED: '❌',
+    canceled: '🚫',
+    starting: '🚀',
+    completed: '✅',
   }
   return emojiMap[status] || '❓'
 }
@@ -85,10 +85,14 @@ async function checkUserModels(telegramId: string): Promise<void> {
         console.log(`👤 Пользователь найден:`)
         console.log(`   Username: @${user.username || 'не указан'}`)
         console.log(`   Bot: ${user.bot_name || 'не указан'}`)
-        console.log(`   Created: ${new Date(user.created_at).toLocaleString('ru-RU')}\n`)
+        console.log(
+          `   Created: ${new Date(user.created_at).toLocaleString('ru-RU')}\n`
+        )
       }
     } catch (err) {
-      console.warn(`⚠️ Не удалось получить данные пользователя, продолжаю проверку моделей...\n`)
+      console.warn(
+        `⚠️ Не удалось получить данные пользователя, продолжаю проверку моделей...\n`
+      )
     }
 
     // 2. ВСЕ МОДЕЛИ (используем только telegram_id)
@@ -122,7 +126,9 @@ async function checkUserModels(telegramId: string): Promise<void> {
       console.log(`   Gender: ${model.gender || 'не указано'}`)
       console.log(`   Steps: ${model.steps || 'не указано'}`)
       console.log(`   Bot: ${model.bot_name || 'не указано'}`)
-      console.log(`   Replicate Training ID: ${model.replicate_training_id || 'не указано'}`)
+      console.log(
+        `   Replicate Training ID: ${model.replicate_training_id || 'не указано'}`
+      )
       console.log(`   ZIP URL: ${model.zip_url ? '✅ Есть' : '❌ Нет'}`)
 
       if (model.model_url) {
@@ -131,8 +137,12 @@ async function checkUserModels(telegramId: string): Promise<void> {
         console.log(`   Model URL: ❌ Нет`)
       }
 
-      console.log(`   Создано: ${new Date(model.created_at).toLocaleString('ru-RU')}`)
-      console.log(`   Обновлено: ${new Date(model.updated_at).toLocaleString('ru-RU')}`)
+      console.log(
+        `   Создано: ${new Date(model.created_at).toLocaleString('ru-RU')}`
+      )
+      console.log(
+        `   Обновлено: ${new Date(model.updated_at).toLocaleString('ru-RU')}`
+      )
 
       if (model.error) {
         console.log(`   ⚠️ Ошибка: ${model.error}`)
@@ -165,8 +175,12 @@ async function checkUserModels(telegramId: string): Promise<void> {
     })
 
     // 5. Успешные модели
-    const successModels = allModels.filter((m: ModelTraining) =>
-      (m.status === 'succeeded' || m.status === 'SUCCESS' || m.status === 'completed') && m.model_url
+    const successModels = allModels.filter(
+      (m: ModelTraining) =>
+        (m.status === 'succeeded' ||
+          m.status === 'SUCCESS' ||
+          m.status === 'completed') &&
+        m.model_url
     )
     console.log(`\n✅ Успешных моделей с URL: ${successModels.length}`)
     if (successModels.length > 0) {
@@ -176,11 +190,16 @@ async function checkUserModels(telegramId: string): Promise<void> {
     }
 
     // 6. Модели с ошибками
-    const errorModels = allModels.filter((m: ModelTraining) => m.error || m.status === 'failed' || m.status === 'FAILED')
+    const errorModels = allModels.filter(
+      (m: ModelTraining) =>
+        m.error || m.status === 'failed' || m.status === 'FAILED'
+    )
     if (errorModels.length > 0) {
       console.log(`\n⚠️ Модели с ошибками: ${errorModels.length}`)
       errorModels.forEach((m: ModelTraining, i: number) => {
-        console.log(`   ${i + 1}. ${m.model_name}: ${m.error || 'Статус failed'}`)
+        console.log(
+          `   ${i + 1}. ${m.model_name}: ${m.error || 'Статус failed'}`
+        )
       })
     }
 
@@ -199,12 +218,13 @@ async function checkUserModels(telegramId: string): Promise<void> {
     } else {
       console.log(`✅ Последние ${history?.length || 0} генераций:`)
       history?.forEach((h: any, i: number) => {
-        console.log(`   ${i + 1}. ${h.model_type || 'не указано'} - ${h.status} - ${new Date(h.created_at).toLocaleString('ru-RU')}`)
+        console.log(
+          `   ${i + 1}. ${h.model_type || 'не указано'} - ${h.status} - ${new Date(h.created_at).toLocaleString('ru-RU')}`
+        )
       })
     }
 
     console.log('\n✅ Проверка завершена!')
-
   } catch (error) {
     console.error(`❌ Критическая ошибка:`, error)
     process.exit(1)
@@ -216,7 +236,9 @@ const telegramId = process.argv[2]
 
 if (!telegramId) {
   console.error('❌ Укажите Telegram ID пользователя')
-  console.error('Использование: bun run scripts/users/check-user-models.ts <telegram_id>')
+  console.error(
+    'Использование: bun run scripts/users/check-user-models.ts <telegram_id>'
+  )
   console.error('Пример: bun run scripts/users/check-user-models.ts 5439920152')
   process.exit(1)
 }
@@ -228,7 +250,7 @@ initializeInfisical()
     console.log('\n🎉 Готово!')
     process.exit(0)
   })
-  .catch((error) => {
+  .catch(error => {
     console.error('\n❌ Ошибка выполнения:', error)
     process.exit(1)
   })

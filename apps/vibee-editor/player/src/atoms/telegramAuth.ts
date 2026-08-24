@@ -32,13 +32,16 @@ import {
 export const telegramAutoLoginAtom = atom(null, (get, set) => {
   if (!isTelegram()) return { applied: false, reason: 'не Telegram' as const }
 
-  if (get(userAtom)) return { applied: false, reason: 'уже вошли' as const }
-
   const tgUser = getTelegramUser()
   if (!tgUser) {
     // Запуск с reply-кнопки не несёт ни подписи, ни пользователя. Это не
     // ошибка приложения, и врать «войдите» тут нечестно: войти неоткуда.
     return { applied: false, reason: 'запуск без данных пользователя' as const }
+  }
+
+  const existing = get(userAtom)
+  if (existing?.id === tgUser.id) {
+    return { applied: false, reason: 'уже вошли' as const }
   }
 
   const user: TelegramUser = {
@@ -53,7 +56,12 @@ export const telegramAutoLoginAtom = atom(null, (get, set) => {
   }
 
   set(userAtom, user)
-  return { applied: true, reason: 'вход из launch-данных' as const }
+  return {
+    applied: true,
+    reason: existing
+      ? ('профиль синхронизирован с launch-данными' as const)
+      : ('вход из launch-данных' as const),
+  }
 })
 
 /**

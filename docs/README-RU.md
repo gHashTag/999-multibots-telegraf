@@ -96,7 +96,7 @@ ORIGIN=https://your-domain.com
 
 # База данных
 SUPABASE_URL=your-supabase-url
-SUPABASE_SERVICE_KEY=your-supabase-key
+SUPABASE_SERVICE_KEY=<set-via-secret-store>
 ```
 
 ## 📚 Документация

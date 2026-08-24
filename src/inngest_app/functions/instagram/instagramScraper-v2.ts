@@ -45,15 +45,27 @@ const log = {
     console.warn(`[IG-WARN] ${msg}`, data || ''),
 }
 
-// Database connection pool
-const dbPool = new Pool({
-  connectionString:
-    process.env.NEON_DATABASE_URL ||
-    'postgresql://neondb_owner:npg_vXnxbypES56V@ep-proud-grass-aegoipez-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require',
-  ssl: {
-    rejectUnauthorized: false,
-  },
-})
+// Database connection is intentionally lazy: importing/registering Inngest
+// functions must not open a socket, and a missing secret must fail closed.
+let dbPool: import('pg').Pool | null = null
+
+export function getDbPool(): import('pg').Pool {
+  const connectionString = process.env.NEON_DATABASE_URL?.trim()
+  if (!connectionString) {
+    throw new Error('NEON_DATABASE_URL is required')
+  }
+
+  if (!dbPool) {
+    dbPool = new Pool({
+      connectionString,
+      ssl: {
+        rejectUnauthorized: false,
+      },
+    })
+  }
+
+  return dbPool
+}
 
 // Instagram API Integration with Zod validation
 class InstagramAPI {
@@ -375,7 +387,7 @@ class InstagramDatabase {
     users: ValidatedInstagramUser[],
     projectId?: number
   ): Promise<DatabaseSaveResult> {
-    const client = await dbPool.connect()
+    const client = await getDbPool().connect()
     let saved = 0
     let duplicatesSkipped = 0
 
@@ -441,7 +453,7 @@ class InstagramDatabase {
   async createSingleUser(
     userData: CreateInstagramUserEvent
   ): Promise<CreateUserResult> {
-    const client = await dbPool.connect()
+    const client = await getDbPool().connect()
 
     try {
       // Ensure table exists
@@ -630,7 +642,7 @@ class InstagramDatabase {
     reels: ValidatedInstagramReel[],
     projectId?: number
   ): Promise<ReelsSaveResult> {
-    const client = await dbPool.connect()
+    const client = await getDbPool().connect()
     let saved = 0
     let duplicatesSkipped = 0
     let userId = ''
@@ -1480,7 +1492,7 @@ export const instagramScraperV2 = inngest.createFunction(
           let allReelsData: any[] = []
           if (scrape_reels && reelsResults.length > 0) {
             // Собираем все рилсы из результатов
-            const client = await dbPool.connect()
+            const client = await getDbPool().connect()
             try {
               const reelsQuery = `
               SELECT * FROM instagram_user_reels 

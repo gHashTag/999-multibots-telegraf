@@ -79,12 +79,14 @@
 ### 🔴 КРИТИЧЕСКИЕ ФУНКЦИИ
 
 #### 1. ai-reels-callback (Callback)
+
 **Файл:** `ai-reels-callback.ts`
 **Описание:** Обработка callback'а от Railway render-server
 **Событие:** `ai-reels-callback`
 **Статус:** ✅ Перенесено и работает
 
 **Параметры:**
+
 ```typescript
 {
   job_id: string              // ID задачи в формате telegram-{id}-{timestamp}
@@ -98,6 +100,7 @@
 ```
 
 **Использование:**
+
 ```javascript
 await inngest.send({
   name: 'ai-reels-callback',
@@ -105,8 +108,8 @@ await inngest.send({
     job_id: 'telegram-123456789-1699123456',
     status: 'completed',
     download_url: 'https://example.com/video.mp4',
-    metadata: { telegram_id: '123456789' }
-  }
+    metadata: { telegram_id: '123456789' },
+  },
 })
 ```
 
@@ -115,36 +118,42 @@ await inngest.send({
 ### 🎨 CONTENT ФУНКЦИИ (6)
 
 #### 2. analyzeCompetitorReels
+
 **Файл:** `content/analyzeCompetitorReels.ts`
 **Описание:** Анализ конкурентных Reels
 **Событие:** `analyze-competitor-reels`
 **Статус:** ✅ Перенесено
 
 #### 3. extractTopContent
+
 **Файл:** `content/extractTopContent.ts`
 **Описание:** Извлечение топ контента
 **Событие:** `extract-top-content`
 **Статус:** ✅ Перенесено
 
 #### 4. findCompetitors
+
 **Файл:** `content/findCompetitors.ts`
 **Описание:** Поиск конкурентов
 **Событие:** `find-competitors`
 **Статус:** ✅ Перенесено
 
 #### 5. generateContentScripts
+
 **Файл:** `content/generateContentScripts.ts`
 **Описание:** Генерация скриптов контента
 **Событие:** `generate-content-scripts`
 **Статус:** ✅ Перенесено
 
 #### 6. generateDetailedScript
+
 **Файл:** `content/generateDetailedScript.ts`
 **Описание:** Генерация детальных скриптов
 **Событие:** `generate-detailed-script`
 **Статус:** ✅ Перенесено
 
 #### 7. generateScenarioClips
+
 **Файл:** `content/generateScenarioClips.ts`
 **Описание:** Генерация сценариев клипов
 **Событие:** `generate-scenario-clips`
@@ -155,12 +164,14 @@ await inngest.send({
 ### 🎬 RENDER ФУНКЦИИ (3)
 
 #### 8. render
+
 **Файл:** `render/render.ts`
 **Описание:** Основной рендер видео через nexrender
 **Событие:** `render`
 **Статус:** ✅ Перенесено
 
 **Параметры:**
+
 ```typescript
 {
   job_id: string
@@ -176,12 +187,14 @@ await inngest.send({
 ```
 
 #### 9. renderAvatarVideo
+
 **Файл:** `render/renderAvatarVideo.ts`
 **Описание:** Рендер аватар видео с HeyGen
 **Событие:** `render-avatar-video`
 **Статус:** ✅ Перенесено
 
 #### 10. renderRiddle
+
 **Файл:** `render/renderRiddle.ts`
 **Описание:** Рендер загадок
 **Событие:** `render-riddle`
@@ -192,12 +205,14 @@ await inngest.send({
 ### 🎓 TRAINING ФУНКЦИИ (2)
 
 #### 11. modelTrainingV2
+
 **Файл:** `training/modelTrainingV2.ts`
 **Описание:** Тренировка моделей через Replicate
 **Событие:** `model-training-v2`
 **Статус:** ✅ Перенесено
 
 #### 12. morphImages
+
 **Файл:** `training/morphImages.ts`
 **Описание:** Морфинг изображений
 **Событие:** `morph-images`
@@ -208,14 +223,17 @@ await inngest.send({
 ### 📱 INSTAGRAM ФУНКЦИИ (2)
 
 #### 13. instagramScraperV2
+
 **Файл:** `instagram/instagramScraper-v2.ts`
 **Описание:** Скрапинг Instagram постов
 **События:**
+
 - `instagram-scraper-v2` (основная функция)
 - `create-instagram-user` (создание пользователя)
-**Статус:** ✅ Перенесено
+  **Статус:** ✅ Перенесено
 
 #### 14. instagramScraperV2Simple
+
 **Файл:** `instagram/instagramScraper-v2-simple.ts`
 **Описание:** Упрощенный скрапинг
 **Событие:** `instagram-scraper-v2-simple`
@@ -226,26 +244,31 @@ await inngest.send({
 ### 📊 MONITORING ФУНКЦИИ (4)
 
 #### 15. criticalErrorMonitor
+
 **Файл:** `monitoring/criticalErrorMonitor.ts`
 **Описание:** Мониторинг критических ошибок
 **События:**
+
 - `critical-error-monitor` (мониторинг)
 - `health-check` (проверка здоровья)
-**Статус:** ✅ Перенесено
+  **Статус:** ✅ Перенесено
 
 #### 16. logMonitor
+
 **Файл:** `monitoring/logMonitor.ts`
 **Описание:** Мониторинг логов системы
 **События:**
+
 - `log-monitor` (мониторинг)
 - `trigger-log-monitor` (триггер)
-**Статус:** ✅ Перенесено
+  **Статус:** ✅ Перенесено
 
 ---
 
 ### ⚡ GENERATION ФУНКЦИИ (1)
 
 #### 17. neuroImageGeneration
+
 **Файл:** `generation/neuroImageGeneration.ts`
 **Описание:** Генерация нейроизображений
 **Событие:** `neuro-image-generation`
@@ -256,6 +279,7 @@ await inngest.send({
 ### 💰 PAYMENT ФУНКЦИИ (1)
 
 #### 18. paymentProcessing
+
 **Файл:** `payments/paymentProcessing.ts`
 **Описание:** Обработка платежей
 **Событие:** `payment-processing`
@@ -266,6 +290,7 @@ await inngest.send({
 ### 📢 BROADCAST ФУНКЦИИ (1)
 
 #### 19. broadcastMessage
+
 **Файл:** `broadcast/broadcastMessage.ts`
 **Описание:** Рассылка сообщений
 **Событие:** `broadcast-message`
@@ -276,18 +301,21 @@ await inngest.send({
 ### 🔄 EXISTING ФУНКЦИИ (3)
 
 #### 20. generateAIReelsFunction
+
 **Файл:** `existing/generateAIReelsFunction.ts`
 **Описание:** Генерация AI Reels
 **Событие:** `generate-ai-reels`
 **Статус:** ✅ Перенесено
 
 #### 21. generateAdvancedLoopingVideoFunction
+
 **Файл:** `existing/generateAdvancedLoopingVideoFunction.ts`
 **Описание:** Генерация зацикленных видео
 **Событие:** `generate-advanced-looping-video`
 **Статус:** ✅ Перенесено
 
 #### 22. generateModelTrainingFunction
+
 **Файл:** `existing/generateModelTrainingFunction.ts`
 **Описание:** Генерация тренировки моделей
 **Событие:** `generate-model-training`
@@ -298,6 +326,7 @@ await inngest.send({
 ### 🧪 ТЕСТОВЫЕ ФУНКЦИИ (3)
 
 #### 23. testSimpleFunction
+
 **Файл:** `testSimpleFunction.ts`
 **Описание:** Простая тестовая функция
 **Событие:** `test-simple`
@@ -305,6 +334,7 @@ await inngest.send({
 **⚠️ ВНИМАНИЕ:** Используется для разработки
 
 #### 24. testAdvancedLoopFunction
+
 **Файл:** `testAdvancedLoopFunction.ts`
 **Описание:** Продвинутая тестовая функция
 **Событие:** `test-advanced-loop`
@@ -312,6 +342,7 @@ await inngest.send({
 **⚠️ ВНИМАНИЕ:** Используется для разработки
 
 #### 25. testSimpleMessageFunction
+
 **Файл:** `testSimpleMessageFunction.ts`
 **Описание:** Тестовая функция сообщений
 **Событие:** `test-simple-message`
@@ -325,15 +356,18 @@ await inngest.send({
 ### Основные endpoints
 
 #### 1. Inngest Functions API
+
 **URL:** `https://three-head-dragon.shop/api/inngest`
 **Методы:** GET, POST
 
 **GET** - Health Check:
+
 ```bash
 curl https://three-head-dragon.shop/api/inngest
 ```
 
 **POST** - Отправка события:
+
 ```bash
 curl -X POST https://three-head-dragon.shop/api/inngest \
   -H "Content-Type: application/json" \
@@ -347,16 +381,19 @@ curl -X POST https://three-head-dragon.shop/api/inngest \
 ```
 
 #### 2. AI Reels Callback
+
 **URL:** `https://three-head-dragon.shop/api/telegram/ai-reels-callback`
 **Методы:** GET, POST
 
 **GET** - Health Check:
+
 ```bash
 curl https://three-head-dragon.shop/api/telegram/ai-reels-callback
 # Ответ: {"status": "ok", "service": "ai-reels-callback", "timestamp": "..."}
 ```
 
 **POST** - Webhook от Railway:
+
 ```bash
 curl -X POST https://three-head-dragon.shop/api/telegram/ai-reels-callback \
   -H "Content-Type: application/json" \
@@ -377,6 +414,7 @@ curl -X POST https://three-head-dragon.shop/api/telegram/ai-reels-callback \
 ### Переменные окружения
 
 #### Обязательные
+
 ```bash
 # Inngest
 BOT_INNGEST_EVENT_KEY=your_event_key_here
@@ -387,10 +425,11 @@ TELEGRAM_BOT_TOKEN=your_bot_token
 
 # Supabase
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_SERVICE_ROLE_KEY=<set-via-secret-store>
 ```
 
 #### Дополнительные
+
 ```bash
 # Render Server
 RENDER_SERVER_URL=https://your-render-server.com
@@ -407,17 +446,20 @@ S3_BUCKET_NAME=your-bucket
 ### Настройка клиента
 
 **Файл:** `src/inngest_app/client.ts`
+
 ```typescript
 const config = {
   name: 'telegram-bot-client',
   id: 'telegram-bot-client',
-  baseUrl: process.env.NODE_ENV === 'development'
-    ? 'http://localhost:3000'
-    : 'https://three-head-dragon.shop/api/inngest',
+  baseUrl:
+    process.env.NODE_ENV === 'development'
+      ? 'http://localhost:3000'
+      : 'https://three-head-dragon.shop/api/inngest',
   isDev: process.env.NODE_ENV === 'development',
-  eventKey: process.env.NODE_ENV === 'production'
-    ? process.env.BOT_INNGEST_EVENT_KEY
-    : undefined,
+  eventKey:
+    process.env.NODE_ENV === 'production'
+      ? process.env.BOT_INNGEST_EVENT_KEY
+      : undefined,
 }
 ```
 
@@ -428,6 +470,7 @@ const config = {
 ### Просмотр логов
 
 #### Docker контейнер
+
 ```bash
 # Все логи
 docker logs 999-multibots
@@ -440,6 +483,7 @@ docker logs 999-multibots | grep "[ФУНКЦИЯ]"
 ```
 
 #### Фильтрация по функции
+
 ```bash
 # Логи AI Reels Callback
 docker logs 999-multibots | grep "AI REELS CALLBACK"
@@ -454,6 +498,7 @@ docker logs 999-multibots | grep -i "error\|Error\|ERROR"
 ### Мониторинг статуса
 
 #### Health Checks
+
 ```bash
 # Проверка Inngest API
 curl -s https://three-head-dragon.shop/api/inngest
@@ -466,6 +511,7 @@ curl -s https://three-head-dragon.shop/health
 ```
 
 #### Статистика функций
+
 ```javascript
 // Получить статистику зарегистрированных функций
 import { getFunctionStatus } from '@/inngest_app/registerFunctions'
@@ -486,9 +532,11 @@ console.log(status)
 ### Ручное тестирование
 
 #### Полный план тестирования
+
 См. файл: `ПЛАН_РУЧНОГО_ТЕСТИРОВАНИЯ_INNGEST.md`
 
 #### Быстрые тесты
+
 ```bash
 # Тест 1: Health Check
 curl https://three-head-dragon.shop/api/telegram/ai-reels-callback
@@ -505,11 +553,15 @@ curl -X POST https://three-head-dragon.shop/api/telegram/ai-reels-callback \
 ```
 
 #### Проверка регистрации функций
+
 ```javascript
 import { allInngestFunctions } from '@/inngest_app/registerFunctions'
 
 console.log(`Всего зарегистрировано: ${allInngestFunctions.length} функций`)
-console.log('Функции:', allInngestFunctions.map(f => f.name))
+console.log(
+  'Функции:',
+  allInngestFunctions.map(f => f.name)
+)
 ```
 
 ### Автоматическое тестирование
@@ -517,6 +569,7 @@ console.log('Функции:', allInngestFunctions.map(f => f.name))
 **❌ НЕТ АВТОМАТИЧЕСКИХ ТЕСТОВ**
 
 Все функции требуют ручного тестирования через:
+
 - Postman/Insomnia
 - curl команды
 - Взаимодействие через Telegram бота
@@ -528,24 +581,30 @@ console.log('Функции:', allInngestFunctions.map(f => f.name))
 ### Проблема: Функция не запускается
 
 #### Диагностика
+
 1. Проверить регистрацию:
+
 ```javascript
 import { allInngestFunctions } from '@/inngest_app/registerFunctions'
 console.log(allInngestFunctions.map(f => f.name))
 ```
 
 2. Проверить логи:
+
 ```bash
 docker logs 999-multibots | grep -i "error"
 ```
 
 3. Проверить health check:
+
 ```bash
 curl https://three-head-dragon.shop/api/inngest
 ```
 
 #### Решение
+
 1. Перезапустить контейнер:
+
 ```bash
 docker restart 999-multibots
 ```
@@ -558,12 +617,15 @@ docker restart 999-multibots
 ### Проблема: MODULE_NOT_FOUND
 
 #### Диагностика
+
 ```bash
 docker logs 999-multibots | grep "MODULE_NOT_FOUND"
 ```
 
 #### Решение
+
 1. Проверить импорт в файле:
+
 ```typescript
 // НЕПРАВИЛЬНО:
 import { inngest } from '@/core/inngest/clients'
@@ -579,15 +641,18 @@ import { inngest } from '../../../inngest_app/client'
 ### Проблема: Callback не работает
 
 #### Диагностика
+
 ```bash
 curl https://three-head-dragon.shop/api/telegram/ai-reels-callback
 # Должен вернуть: {"status": "ok", ...}
 ```
 
 #### Решение
+
 1. Проверить регистрацию роута в `src/api_server/index.ts`
 2. Проверить проксирование в nginx
 3. Проверить логи:
+
 ```bash
 docker logs 999-multibots | grep "AI REELS CALLBACK"
 ```
@@ -599,18 +664,21 @@ docker logs 999-multibots | grep "AI REELS CALLBACK"
 ### Отслеживаемые метрики
 
 #### Функции
+
 - Количество вызовов каждой функции
 - Время выполнения
 - Количество ошибок
 - Статус успешности
 
 #### Система
+
 - Загрузка CPU/Memory
 - Использование диска
 - Сетевые запросы
 - Размер базы данных
 
 #### Бизнес-метрики
+
 - Количество обработанных callback'ов
 - Количество отправленных видео
 - Количество сгенерированного контента
@@ -619,11 +687,13 @@ docker logs 999-multibots | grep "AI REELS CALLBACK"
 ### Инструменты мониторинга
 
 #### Встроенные
+
 - `criticalErrorMonitor` - мониторинг критических ошибок
 - `logMonitor` - мониторинг логов
 - `healthCheck` - проверка здоровья системы
 
 #### Внешние
+
 - Логи Docker
 - Supabase Analytics
 - Telegram Bot Logs
@@ -633,6 +703,7 @@ docker logs 999-multibots | grep "AI REELS CALLBACK"
 ## 🔄 ЖИЗНЕННЫЙ ЦИКЛ ФУНКЦИИ
 
 ### 1. Создание функции
+
 ```typescript
 // 1. Создать файл в /src/inngest_app/functions/категория/
 // 2. Написать функцию:
@@ -651,6 +722,7 @@ export const myFunction = inngest.createFunction(
 ```
 
 ### 2. Регистрация
+
 ```typescript
 // Добавить в registerFunctions.ts
 import { myFunction } from './functions/категория/файл'
@@ -662,17 +734,20 @@ export const allInngestFunctions = [
 ```
 
 ### 3. Экспорт
+
 ```typescript
 // Добавить в index.ts
 export { myFunction } from './functions/категория/файл'
 ```
 
 ### 4. Тестирование
+
 - Ручное тестирование
 - Проверка health check
 - Проверка в логах
 
 ### 5. Деплой
+
 ```bash
 git add .
 git commit -m "feat: добавить новую функцию"
@@ -690,7 +765,7 @@ git push origin production
 import { inngest } from '@/inngest_app/client'
 
 // Внутри Telegram бота
-bot.on('video', async (ctx) => {
+bot.on('video', async ctx => {
   // ... обработка видео
 
   // Отправить на рендер
@@ -700,7 +775,7 @@ bot.on('video', async (ctx) => {
       telegram_id: ctx.from.id,
       video_url: ctx.message.video.file_id,
       // ... другие параметры
-    }
+    },
   })
 })
 ```
@@ -734,8 +809,9 @@ await inngest.send({
     server_url: 'render-server.com',
     server_port: 22,
     server_user: 'ubuntu',
-    callback_url: 'https://three-head-dragon.shop/api/telegram/ai-reels-callback'
-  }
+    callback_url:
+      'https://three-head-dragon.shop/api/telegram/ai-reels-callback',
+  },
 })
 ```
 
@@ -746,21 +822,25 @@ await inngest.send({
 ### При возникновении проблем
 
 1. **Проверить логи:**
+
 ```bash
 docker logs 999-multibots --tail=200 | grep -i error
 ```
 
 2. **Проверить статус сервиса:**
+
 ```bash
 curl https://three-head-dragon.shop/api/telegram/ai-reels-callback
 ```
 
 3. **Перезапустить контейнер:**
+
 ```bash
 docker restart 999-multibots
 ```
 
 4. **Проверить Git коммит:**
+
 ```bash
 git log --oneline -1
 # Должен быть: 6a0799c4

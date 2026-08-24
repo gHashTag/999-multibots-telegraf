@@ -17,14 +17,15 @@ if (typeof vi.mocked !== 'function') {
 // ============================================
 process.env.NODE_ENV = 'test'
 process.env.FAL_KEY = 'test-fal-key'
-process.env.FAL_DEFAULT_LORA_PATH = 'https://test.fal.media/test-lora.safetensors'
+process.env.FAL_DEFAULT_LORA_PATH =
+  'https://test.fal.media/test-lora.safetensors'
 process.env.FAL_LORA_TRIGGER = 'NEURO_SAGE'
 process.env.FAL_DEFAULT_LORA_SCALE = '1.0'
 process.env.SUPABASE_URL = 'http://localhost:54321'
-process.env.SUPABASE_SERVICE_KEY = 'test-service-key'
-process.env.REPLICATE_API_KEY = 'test-replicate-key'
+process.env.SUPABASE_SERVICE_KEY = 'test-service-key' // secret-guard-ok: inert test sentinel
+process.env.REPLICATE_API_KEY = 'test-replicate-key' // secret-guard-ok: inert test sentinel
 process.env.OPENAI_API_KEY = 'test-openai-key'
-process.env.ELEVENLABS_API_KEY = 'test-elevenlabs-key'
+process.env.ELEVENLABS_API_KEY = 'test-elevenlabs-key' // secret-guard-ok: inert test sentinel
 process.env.HEYGEN_API_KEY = 'test-heygen-key'
 process.env.HEDRA_API_KEY = 'test-hedra-key'
 

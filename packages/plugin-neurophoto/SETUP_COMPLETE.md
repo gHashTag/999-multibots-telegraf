@@ -7,6 +7,7 @@
 Плагин теперь поддерживает **персонализированную генерацию** изображений с вами!
 
 #### Ваша LoRA настроена:
+
 - **URL**: `https://v3b.fal.media/files/b/elephant/YpfnIK7JlNO7vZTsGanfo_pytorch_lora_weights.safetensors`
 - **Триггер**: `NEURO_SAGE` (автоматически добавляется)
 - **Формат**: 9:16 (768x1365) - идеально для соцсетей
@@ -123,21 +124,25 @@ packages/plugin-neurophoto/
 ## 🎯 Примеры использования
 
 ### Профессиональные фото:
+
 ```
 создай профессиональное фото меня в офисе, деловой костюм
 ```
 
 ### Social Media:
+
 ```
 нарисуй меня на фоне города, urban style, evening
 ```
 
 ### Креативные:
+
 ```
 покажи меня в стиле киберпанк, neon lights
 ```
 
 ### Casual:
+
 ```
 сделай фото меня на пляже, sunset, relaxed
 ```
@@ -161,16 +166,18 @@ packages/plugin-neurophoto/
 ## 💰 Стоимость
 
 ### Fal.ai Pricing:
+
 - **$0.035** за мегапиксель
 - 768x1365 ≈ 1MP
 - **~$0.035** за изображение
 - **$10** = примерно **285 изображений**
 
 ### Сравнение:
-| Провайдер | Стоимость | LoRA | Качество |
-|-----------|-----------|------|----------|
-| Fal.ai | $0.035/img | ✅ Да | ⭐️⭐️⭐️⭐️⭐️ |
-| Replicate | Free tier | ❌ Нет | ⭐️⭐️⭐️⭐️ |
+
+| Провайдер | Стоимость  | LoRA   | Качество        |
+| --------- | ---------- | ------ | --------------- |
+| Fal.ai    | $0.035/img | ✅ Да  | ⭐️⭐️⭐️⭐️⭐️ |
+| Replicate | Free tier  | ❌ Нет | ⭐️⭐️⭐️⭐️    |
 
 ---
 
@@ -193,7 +200,7 @@ FAL_DEFAULT_LORA_SCALE=1.5
 
 ```bash
 IMAGE_PROVIDER=replicate
-REPLICATE_API_KEY=r8_your_key_here
+REPLICATE_API_KEY=<set-via-secret-store>
 ```
 
 ---
@@ -211,15 +218,19 @@ REPLICATE_API_KEY=r8_your_key_here
 ## 🐛 Troubleshooting
 
 ### Проблема: "Fal.ai service not found"
+
 **Решение**: Проверьте что IMAGE_PROVIDER=fal в .env
 
 ### Проблема: "403 Forbidden"
+
 **Решение**: Добавьте кредиты на https://fal.ai/dashboard
 
 ### Проблема: "No trigger word effect"
+
 **Решение**: Убедитесь что FAL_LORA_TRIGGER=NEURO_SAGE установлен
 
 ### Проблема: Изображения не похожи
+
 **Решение**: Увеличьте FAL_DEFAULT_LORA_SCALE до 1.5
 
 ---
@@ -239,6 +250,7 @@ REPLICATE_API_KEY=r8_your_key_here
 ## 📊 Статистика проекта
 
 ### Версия: 0.2.0
+
 - **Создано**: 2025-01-12
 - **Провайдеров**: 2 (Replicate + Fal.ai)
 - **Сервисов**: 2
@@ -250,6 +262,7 @@ REPLICATE_API_KEY=r8_your_key_here
 - **Build**: Успешно ✅
 
 ### Что нового в v0.2.0:
+
 - ✅ Fal.ai интеграция
 - ✅ LoRA поддержка
 - ✅ NEURO_SAGE триггер
@@ -263,6 +276,7 @@ REPLICATE_API_KEY=r8_your_key_here
 ## 🚀 Следующие улучшения (Roadmap):
 
 ### Phase 3 (Planning):
+
 - [ ] MCP для работы с любыми Replicate моделями
 - [ ] Выбор разных LoRA в команде
 - [ ] Настройка aspect ratio в runtime

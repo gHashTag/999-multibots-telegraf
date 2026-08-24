@@ -56,18 +56,55 @@
   border-radius: 50%;
   background: #3fb950;
 }
-.agent-connect__code {
-  width: 100%;
-  border: 0;
-  resize: none;
-  background: transparent;
-  color: #d8d8dd;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12.5px;
-  line-height: 1.5;
-  padding: 14px;
-  box-sizing: border-box;
-  outline: none;
+
+.agent-connect__dot--blocked {
+  background: #d8a23f;
+}
+
+.agent-connect__registry-status {
+  margin: 0;
+  padding: 14px 14px 8px;
+  color: var(--vibee-text-muted, #9a9aa2);
+  font-size: 13px;
+}
+
+.agent-connect__tools {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 14px 14px;
+  list-style: none;
+}
+
+.agent-connect__tools li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.035);
+  border-radius: 8px;
+}
+
+.agent-connect__tools code {
+  color: var(--vibee-accent, #00ff88);
+}
+
+.agent-connect__tools span {
+  color: var(--vibee-text-muted, #9a9aa2);
+  font-size: 12px;
+}
+
+.agent-connect__blocked {
+  display: grid;
+  gap: 6px;
+  margin: 8px 14px 14px;
+  padding: 12px;
+  color: #f2d493;
+  background: rgba(216, 162, 63, 0.08);
+  border: 1px solid rgba(216, 162, 63, 0.22);
+  border-radius: 9px;
+  font-size: 13px;
+  line-height: 1.45;
 }
 .agent-connect__actions {
   display: flex;
@@ -76,24 +113,8 @@
   border-top: 1px solid var(--vibee-border, rgba(255, 255, 255, 0.08));
   flex-wrap: wrap;
 }
-/* Кнопка касания не ниже 44px — из --touch-target проекта. */
-.agent-connect__copy {
-  flex: 1 1 160px;
-  min-height: 44px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--vibee-accent, #00ff88);
-  color: #000;
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  transition: filter 0.15s ease;
-}
-.agent-connect__copy:hover {
-  filter: brightness(1.08);
-}
 .agent-connect__try {
-  flex: 1 1 160px;
+  flex: 1 1 100%;
   min-height: 44px;
   display: flex;
   align-items: center;

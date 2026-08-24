@@ -17,9 +17,9 @@ describe('AI Reels с fal провайдером - Тесты', () => {
     process.env = {
       ...originalEnv,
       FAL_KEY: 'test-fal-key',
-      ELEVENLABS_API_KEY: 'test-elevenlabs-key',
+      ELEVENLABS_API_KEY: 'test-elevenlabs-key', // secret-guard-ok: inert test sentinel
       SUPABASE_URL: 'https://test.supabase.co',
-      SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
+      SUPABASE_SERVICE_ROLE_KEY: 'test-service-key', // secret-guard-ok: inert test sentinel
     }
   })
 

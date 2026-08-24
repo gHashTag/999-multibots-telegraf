@@ -41,8 +41,8 @@ yarn add @999-agents/plugin-neurophoto
 
 ```typescript
 // src/character.ts
-import { Character } from '@elizaos/core';
-import { neurophotoPlugin } from '@999-agents/plugin-neurophoto';
+import { Character } from '@elizaos/core'
+import { neurophotoPlugin } from '@999-agents/plugin-neurophoto'
 
 export const character: Character = {
   name: 'MyAgent',
@@ -59,14 +59,14 @@ export const character: Character = {
     REPLICATE_API_KEY: process.env.REPLICATE_API_KEY, // From .env
     // Optional: DEFAULT_MODEL: 'black-forest-labs/flux-pro',
   },
-};
+}
 ```
 
 ### 3. Configure Environment
 
 ```bash
 # .env
-REPLICATE_API_KEY=r8_your_replicate_api_key_here
+REPLICATE_API_KEY=<set-via-secret-store>
 ```
 
 ### 4. Start Using!
@@ -81,22 +81,22 @@ create image of a cat in space
 
 ## 📖 Commands
 
-| Command | Description | Example |
-|---------|-------------|---------|
+| Command                | Description                        | Example                      |
+| ---------------------- | ---------------------------------- | ---------------------------- |
 | `/neurophoto <prompt>` | Generate image with English prompt | `/neurophoto cyberpunk city` |
-| `нарисуй <описание>` | Generate image in Russian | `нарисуй закат на море` |
-| `create image <desc>` | Natural language command | `create image of a dragon` |
+| `нарисуй <описание>`   | Generate image in Russian          | `нарисуй закат на море`      |
+| `create image <desc>`  | Natural language command           | `create image of a dragon`   |
 
 ## ⚙️ Configuration
 
 ### Environment Variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `REPLICATE_API_KEY` | ✅ Yes | - | Your Replicate API key |
-| `DEFAULT_MODEL` | ❌ No | `flux-schnell` | Model to use for generation |
-| `REPLICATE_TIMEOUT` | ❌ No | `300000` | Timeout in milliseconds |
-| `REPLICATE_MAX_RETRIES` | ❌ No | `3` | Max retry attempts |
+| Variable                | Required | Default        | Description                 |
+| ----------------------- | -------- | -------------- | --------------------------- |
+| `REPLICATE_API_KEY`     | ✅ Yes   | -              | Your Replicate API key      |
+| `DEFAULT_MODEL`         | ❌ No    | `flux-schnell` | Model to use for generation |
+| `REPLICATE_TIMEOUT`     | ❌ No    | `300000`       | Timeout in milliseconds     |
+| `REPLICATE_MAX_RETRIES` | ❌ No    | `3`            | Max retry attempts          |
 
 ### Available Models
 
@@ -120,7 +120,7 @@ settings: {
 ### Basic Usage
 
 ```typescript
-import { neurophotoPlugin } from '@999-agents/plugin-neurophoto';
+import { neurophotoPlugin } from '@999-agents/plugin-neurophoto'
 
 export const character: Character = {
   name: 'ArtBot',
@@ -128,13 +128,13 @@ export const character: Character = {
   settings: {
     REPLICATE_API_KEY: process.env.REPLICATE_API_KEY,
   },
-};
+}
 ```
 
 ### With Custom Model
 
 ```typescript
-import { neurophotoPlugin, DEFAULT_MODELS } from '@999-agents/plugin-neurophoto';
+import { neurophotoPlugin, DEFAULT_MODELS } from '@999-agents/plugin-neurophoto'
 
 export const character: Character = {
   name: 'ProArtBot',
@@ -143,13 +143,13 @@ export const character: Character = {
     REPLICATE_API_KEY: process.env.REPLICATE_API_KEY,
     DEFAULT_MODEL: DEFAULT_MODELS.FLUX_PRO, // High-quality model
   },
-};
+}
 ```
 
 ### Multiple Plugins
 
 ```typescript
-import { neurophotoPlugin } from '@999-agents/plugin-neurophoto';
+import { neurophotoPlugin } from '@999-agents/plugin-neurophoto'
 
 export const character: Character = {
   name: 'MultiBot',
@@ -162,7 +162,7 @@ export const character: Character = {
   settings: {
     REPLICATE_API_KEY: process.env.REPLICATE_API_KEY,
   },
-};
+}
 ```
 
 ## 🧪 Development
