@@ -78,7 +78,7 @@ export function PaywallModal({ onClose }: PaywallModalProps) {
     if (!plan) return;
 
     // Redirect to Telegram bot with payment deeplink
-    const telegramUrl = `https://telegram.me/vibee_ai_bot?start=subscribe_${planId}_${paymentMethod}`;
+    const telegramUrl = `https://telegram.me/t27ai_bot?start=subscribe_${planId}_${paymentMethod}`;
     window.open(telegramUrl, '_blank');
 
     console.log('[Paywall] Subscribe clicked:', { planId, paymentMethod, user: user.id });

@@ -44,7 +44,7 @@ const TelegramIcon = () => (
 );
 
 export function TelegramLoginButton({
-  botUsername = 'vibee_ai_bot',
+  botUsername = 't27ai_bot',
   size = 'medium',
   onSuccess,
   // ПО УМОЛЧАНИЮ true, а не false.
