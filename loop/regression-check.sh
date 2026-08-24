@@ -84,6 +84,14 @@ if [ "${REGRESS_PROBE_PROD:-0}" = "1" ]; then
   feed_probe https://vibee-render-production.up.railway.app
   rc=$?
   [ $rc -eq 0 ] && say "  ✅ прод-лента: 200, поля звёзд на месте" || { say "  ❌ ПРОД-ЛЕНТА СЛОМАНА (код $rc) — это прод, чинить немедленно"; fail=1; }
+  # Фронт мини-аппа живёт на другом домене, чем API: владелец заходит на
+  # /feed — зондим и его, иначе упавший фронт видит только человек.
+  # Переменную нельзя называть path: в zsh она связана с PATH и цикл
+  # молча обнуляет окружение (курьёз, купленный этим витком).
+  for fpath in "/" "/feed"; do
+    code=$(curl -s -m 15 -o /dev/null -w '%{http_code}' "https://vibee-editor-production.up.railway.app$fpath")
+    check "прод-фронт $fpath" 200 "$code"
+  done
 fi
 
 say "— Очередь и состояние —"
