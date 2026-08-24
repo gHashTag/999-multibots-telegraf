@@ -31,9 +31,30 @@ describe('parseError', () => {
   it('should detect network errors', () => {
     const error = new TypeError('Failed to fetch');
     const result = parseError(error);
-    
+
     expect(result.type).toBe('network');
     expect(result.retryable).toBe(true);
+  });
+
+  // Обрыв связи в разных движках выглядит по-разному, а для человека это
+  // один и тот же случай. Прежняя проверка искала подстроку «fetch» и
+  // распознавала только Chrome; Safari и Firefox уходили в 'unknown' —
+  // то есть человек видел «что-то пошло не так» вместо «нет связи».
+  it.each([
+    ['Safari', 'Load failed'],
+    ['Firefox', 'NetworkError when attempting to fetch resource'],
+    ['React Native', 'Network request failed'],
+  ])('should detect network errors reported by %s', (_engine, message) => {
+    const result = parseError(new Error(message));
+
+    expect(result.type).toBe('network');
+    expect(result.retryable).toBe(true);
+  });
+
+  // Граница: обычная ошибка приложения НЕ должна выглядеть как обрыв связи,
+  // иначе человеку предложат «проверить соединение» там, где дело не в нём.
+  it('should not mistake an ordinary error for a network failure', () => {
+    expect(parseError(new Error('Something went wrong')).type).not.toBe('network');
   });
 
   it('should handle unknown errors', () => {

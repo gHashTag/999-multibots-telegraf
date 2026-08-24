@@ -21,7 +21,8 @@ import { userAtom } from './user'
 import { API_BASE } from '../config'
 import { openInvoice } from '../lib/telegram'
 import { apiFetch } from '../lib/apiFetch'
-import { toErrorText } from '../lib/errorText'
+import { getErrorMessage } from '../features/script/utils/errorMessages'
+import { languageAtom } from './language'
 
 // Re-export feed types for backward compatibility (types are now in @vibee/atoms)
 export type {
@@ -418,7 +419,7 @@ export const loadFeedAtom = atom(null, async (get, set, refresh?: boolean) => {
      * попадают — они приходят как Error с осмысленным текстом, и его
      * терять не надо.
      */
-    set(feedErrorAtom, toErrorText(error))
+    set(feedErrorAtom, getErrorMessage(error, get(languageAtom)))
   } finally {
     set(feedLoadingAtom, false)
     isLoadingFeed = false

@@ -19,9 +19,32 @@ export interface ErrorInfo {
   retryable: boolean;
 }
 
+/**
+ * Обрыв связи в разных движках выглядит по-разному.
+ *
+ * Проверка `error.message.includes('fetch')` ловит только Chrome («Failed to
+ * fetch»). Safari бросает «Load failed», Firefox — «NetworkError when
+ * attempting to fetch resource», React Native — «Network request failed».
+ * Для человека это один и тот же случай: связи нет.
+ *
+ * Тип идёт первым и один сам по себе достаточен: `fetch` бросает именно
+ * `TypeError`, когда запрос не ушёл вовсе. Проверка по тексту — второй слой,
+ * на случай если движок обернул сбой в свой класс. Полагаться ТОЛЬКО на
+ * текст нельзя, но как страховка поверх типа она уместна.
+ */
+const NETWORK_MESSAGE =
+  /failed to fetch|load failed|networkerror|network request failed|connection refused/i
+
+// Предикат типа, а не просто boolean: иначе внутри ветки `error` остаётся
+// unknown и обращение к .message не проходит проверку типов.
+function isNetworkError(error: unknown): error is Error {
+  if (error instanceof TypeError) return true
+  return error instanceof Error && NETWORK_MESSAGE.test(error.message)
+}
+
 export function parseError(error: unknown): ErrorInfo {
   // Network errors
-  if (error instanceof TypeError && error.message.includes('fetch')) {
+  if (isNetworkError(error)) {
     return {
       type: 'network',
       message: error.message,
