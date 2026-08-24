@@ -389,9 +389,11 @@ export function FeedCard({ template }: FeedCardProps) {
             {effectiveMuted ? <VolumeX size={32} /> : <Volume2 size={32} />}
           </button>
 
-          {/* ⭐ Звезда вместо бесплатного лайка: 1 Telegram Star автору на баланс */}
+          {/* ⭐ Звезда вместо бесплатного лайка: 1 Telegram Star автору на баланс.
+              Контурная, пока ЭТОТ юзер ещё не подарил звезду; закрашивается
+              золотом после первой оплаченной звезды. */}
           <button
-            className={`action-btn star-btn ${isStarring ? 'starring' : ''}`}
+            className={`action-btn star-btn ${template.isStarred ? 'starred' : ''} ${isStarring ? 'starring' : ''}`}
             onClick={handleStar}
             disabled={isStarring}
             title={t('feed.star')}
@@ -399,7 +401,10 @@ export function FeedCard({ template }: FeedCardProps) {
             {isStarring ? (
               <Loader2 size={32} className="spin" />
             ) : (
-              <Star size={32} fill="currentColor" />
+              <Star
+                size={32}
+                fill={template.isStarred ? 'currentColor' : 'none'}
+              />
             )}
             <span>{formatCount(template.starsCount)}</span>
           </button>

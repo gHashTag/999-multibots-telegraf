@@ -552,6 +552,8 @@ export interface FeedTemplate {
   isFeatured: boolean
   /** Звёзды Telegram, подаренные ролику (падают автору на баланс). */
   starsCount: number
+  /** Дарил ли ЭТОТ юзер звезду ролику (оплаченная строка template_stars). */
+  isStarred: boolean
   createdAt: string
   // Remix attribution
   parentTemplateId?: number
