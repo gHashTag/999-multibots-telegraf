@@ -1675,3 +1675,32 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* Витрина маркета скиллов */
+.profile-skills__market {
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid #1c1b18;
+}
+
+.profile-skills__install {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border: 1px solid var(--vibee-gold);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--vibee-gold);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.profile-skills__install:disabled {
+  opacity: 0.4;
+}
+
+.profile-skills__author {
+  color: #8a8578;
+  font-size: 12px;
+}
