@@ -44,11 +44,33 @@ export class CacheService {
   }
 
   /**
+   * Приводит ключ к пространству кэша.
+   *
+   * `set`/`get`/`clear` работали по СЫРОМУ ключу, а `clearAll`, `getStats` и
+   * `clearOldEntries` смотрят только на записи с CACHE_PREFIX. Пока
+   * единственный потребитель (atoms/script.ts) зовёт `generateKey()`, который
+   * префикс добавляет сам, расхождения не видно — в проде кэш очищается.
+   *
+   * Но любой будущий вызов `set('foo', …)` в обход `generateKey` молча создал
+   * бы запись, которую не удаляет ни одна из трёх чисток и не видит
+   * статистика. Плюс она заняла бы имя `foo` в общем localStorage, где лежат
+   * и не наши ключи.
+   *
+   * Поэтому нормализация здесь, а не «договоримся всегда звать generateKey»:
+   * договорённость, которую ничто не проверяет, живёт до первого нового
+   * вызывающего. Уже префиксованный ключ не трогаем — формат хранения у
+   * действующих записей не меняется.
+   */
+  private static withPrefix(key: string): string {
+    return key.startsWith(CACHE_PREFIX) ? key : CACHE_PREFIX + key;
+  }
+
+  /**
    * Get cached data
    */
   static get<T>(key: string): T | null {
     try {
-      const item = localStorage.getItem(key);
+      const item = localStorage.getItem(this.withPrefix(key));
       if (!item) return null;
 
       const entry: CacheEntry<T> = JSON.parse(item);
@@ -56,7 +78,9 @@ export class CacheService {
 
       // Check if expired
       if (now - entry.timestamp > entry.ttl) {
-        localStorage.removeItem(key);
+        // Тоже через withPrefix: читали префиксованный ключ, а удаляли сырой,
+        // то есть протухшая запись оставалась лежать навсегда.
+        localStorage.removeItem(this.withPrefix(key));
         return null;
       }
 
@@ -78,7 +102,7 @@ export class CacheService {
         ttl,
       };
 
-      localStorage.setItem(key, JSON.stringify(entry));
+      localStorage.setItem(this.withPrefix(key), JSON.stringify(entry));
     } catch (error) {
       console.error('Cache set error:', error);
       // If localStorage is full, clear old entries
@@ -86,7 +110,7 @@ export class CacheService {
         this.clearOldEntries();
         // Try again
         try {
-          localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now(), ttl }));
+          localStorage.setItem(this.withPrefix(key), JSON.stringify({ data, timestamp: Date.now(), ttl }));
         } catch {
           // If still fails, ignore
         }
@@ -107,7 +131,7 @@ export class CacheService {
   static clear(key?: string): void {
     try {
       if (key) {
-        localStorage.removeItem(key);
+        localStorage.removeItem(this.withPrefix(key));
       } else {
         this.clearAll();
       }

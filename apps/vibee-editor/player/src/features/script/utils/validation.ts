@@ -196,12 +196,17 @@ export function validatePartialOutput(output: unknown): {
 // ============================================================
 
 export function sanitizeTopic(topic: string): string {
+  // Порядок важен: trim стоял ПЕРВЫМ, и после удаления префикса «system:»
+  // оставался ведущий пробел — «system: тема» превращалось в « тема».
+  // Тест на это был написан и ни разу не исполнялся: прогон падал на
+  // отсутствующем src/test/setup.ts до первого assert'а.
   return topic
-    .trim()
     // Remove potential prompt injection attempts
     .replace(/system:|assistant:|user:/gi, '')
     // Remove excessive whitespace
     .replace(/\s+/g, ' ')
+    // Обрезаем ПОСЛЕ удаления префикса, иначе очистка сама оставляет мусор
+    .trim()
     // Limit length
     .slice(0, 200);
 }
