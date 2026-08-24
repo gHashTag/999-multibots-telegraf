@@ -4800,17 +4800,32 @@ const server = createServer(async (req, res) => {
 
   if (req.url?.startsWith('/api/feed') && req.method === 'GET') {
     const url = new URL(req.url || '', `http://${req.headers.host}`)
-    // Колонка звёзд создаётся лениво, но читать ленту обязаны и ДО первой
-    // звезды: без этого SELECT с stars_count падал 500 на свежей базе.
-    // IF NOT EXISTS — идемпотентно, после первого прогона это no-op.
+    // Схема звёзд создаётся лениво, но читать ленту обязаны и ДО первой
+    // звезды: GET делает LEFT JOIN по template_stars и SELECT stars_count —
+    // без таблицы/колонки лента падает 500 на свежей базе (так и случилось
+    // в проде 24.08: таблицу создавал только POST /:id/star, до которого
+    // дело не дошло). IF NOT EXISTS — идемпотентно, дальше это no-op.
     try {
       const pool = await getPool()
+      await pool.query(
+        `CREATE TABLE IF NOT EXISTS template_stars (
+           id bigserial PRIMARY KEY,
+           template_id bigint NOT NULL,
+           from_telegram_id text NOT NULL,
+           to_telegram_id text NOT NULL,
+           amount int NOT NULL DEFAULT 1,
+           status text NOT NULL DEFAULT 'pending',
+           invoice_payload text UNIQUE NOT NULL,
+           created_at timestamptz NOT NULL DEFAULT now(),
+           paid_at timestamptz
+         )`
+      )
       await pool.query(
         `ALTER TABLE public_templates
            ADD COLUMN IF NOT EXISTS stars_count int NOT NULL DEFAULT 0`
       )
     } catch (e) {
-      console.warn('[feed] stars_count ensure failed:', e)
+      console.warn('[feed] stars schema ensure failed:', e)
     }
     if (req.url?.match(/\/api\/feed\/\d+/)) {
       // GET /api/feed/:id - Get single template
