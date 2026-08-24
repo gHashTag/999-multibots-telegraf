@@ -292,9 +292,11 @@ async function main() {
 
   // 5. Публикация с каноническим текстом и хештегами.
   const hashtags = ['#TrinityS3AI', '#t27', ...topic.tags.map(t => '#' + t)]
+  // Честная маркировка: рилс собрал агент. Законы 2026 (Калифорния SB 942,
+  // EU AI Act) требуют раскрытия AI-контента; наш канон честности — тем более.
   const pub = await call('feed_publish', {
     name: title,
-    description: `${topic.subtitle}. ${topic.lesson}.\n\n${hashtags.join(' ')}`,
+    description: `${topic.subtitle}. ${topic.lesson}.\n\n${hashtags.join(' ')}\n\n🤖 Собрано агентом Trinity.`,
     video_url: reel.url,
     template_settings: { compositionId: 'TrinityBlogReel', props, ab_style: abStyle },
   })
