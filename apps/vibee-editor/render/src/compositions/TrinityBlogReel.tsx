@@ -522,16 +522,20 @@ const SceneClub: React.FC<Props> = ({ club }) => {
 const SceneColophon: React.FC<Props> = ({ invariant, url, year, lang }) => {
   const frame = useCurrentFrame()
   // invariant задан явно — уважаем его; иначе берём фразу издания на языке ролика.
-  const ribbon = invariant ? `Trinity S3AI — ${invariant}` : UI[lang].ribbon
+  const ribbon = invariant ? `Trinity S³AI — ${invariant}` : UI[lang].ribbon
   return (
-    <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center' }}>
+    <AbsoluteFill
+      style={{ justifyContent: 'center', alignItems: 'center', padding: 110 }}
+    >
       <div
         style={{
           ...rise(frame, 4),
           fontFamily: cormorant,
           fontSize: 36,
           letterSpacing: 4,
+          textAlign: 'center',
           color: CREAM,
+          maxWidth: 780,
           opacity: 0.9,
         }}
       >
