@@ -22,6 +22,7 @@
 ## 🛠 Технологии
 
 ### Backend
+
 - [Bun](https://bun.sh/) - Fast JavaScript runtime
 - [TypeScript](https://www.typescriptlang.org/) - Типизированный JavaScript
 - [Telegraf](https://telegraf.js.org/) - Telegram Bot Framework
@@ -32,6 +33,7 @@
 - [Nginx](https://nginx.org/) - Прокси-сервер для webhook
 
 ### Mobile
+
 - [React Native](https://reactnative.dev/) - Мобильные приложения
 - [Expo](https://expo.dev/) - Инструменты разработки React Native
 - [TypeScript](https://www.typescriptlang.org/) - Типизированный JavaScript
@@ -47,6 +49,7 @@
 - **Логи безопасности**: Отдельный поток для событий безопасности
 
 ### Файлы логов:
+
 - `logs/app-YYYY-MM-DD.log` - Все события приложения
 - `logs/error-YYYY-MM-DD.log` - Только ошибки
 - `logs/security-YYYY-MM-DD.log` - События безопасности
@@ -56,6 +59,7 @@
 ## 🚀 Быстрый Старт
 
 ### Установка
+
 ```bash
 # Установить зависимости
 npm install
@@ -65,6 +69,7 @@ npm run mobile:install
 ```
 
 ### Запуск
+
 ```bash
 # Запустить ВСЁ (Backend + Expo + Webhooks)
 npm run start:all
@@ -81,24 +86,29 @@ npm run mobile       # Только мобильное приложение
 Полная документация проекта организована в папке [docs/](docs/):
 
 ### 🚀 Разработка
+
 - [Настройка среды разработки](docs/DEVELOPMENT/DEV_ENVIRONMENT_SETUP.md)
 - [Автоматизированное развертывание](docs/DEPLOYMENT/AUTOMATED_DEPLOYMENT.md)
 - [Архитектура системы](docs/DEVELOPMENT/ARCHITECTURE.md)
 - [Мобильное приложение Vibee](./VIBEE_MOBILE_SETUP.md)
 
 ### 🔒 Безопасность
+
 - [Принципы безопасности](docs/SECURITY/SECURITY.md)
 - [Тестирование API интеграции](docs/SECURITY/API_INTEGRATION_TEST_REPORT.md)
 
 ### ⚡ Функции
+
 - [Интеграция автофиксера](docs/FEATURES/AUTOFIXER_INTEGRATION.md)
 - [LipSync инструкции](docs/FEATURES/LIPSYNC_ADMIN_ONLY_INSTRUCTIONS.md)
 
 ### 🎨 AI-модели
+
 - [Nano Banana Pro - Полная документация](docs/NANO_BANANA_PRO.md)
 - [Nano Banana Pro - Краткая сводка](docs/NANO_BANANA_PRO_SUMMARY_RU.md)
 
 ### 📋 Планирование
+
 - [Дорожная карта проекта](docs/ROADMAP.md)
 - [Руководство по участию](docs/DEVELOPMENT/CONTRIBUTING.md)
 
@@ -144,16 +154,18 @@ npm run mobile       # Только мобильное приложение
 **Для Claude Code, ChatGPT и других AI-инструментов:**
 
 #### 🔄 Обязательный процесс:
+
 1. **Новая задача** → создать новую ветку
 2. **Завершение задачи** → создать новый PR
 3. **НИКОГДА не переиспользовать** закрытые или существующие PR
 4. **Один PR = одна фича/исправление**
 
 #### 📋 Алгоритм работы:
+
 ```bash
 # Для каждой НОВОЙ задачи:
 git checkout main
-git pull origin main  
+git pull origin main
 git checkout -b type/task-description
 
 # Примеры:
@@ -169,6 +181,7 @@ gh pr create --title "type: заголовок" --base main
 ```
 
 #### 🏷️ Соглашения об именовании веток:
+
 - `feat/` - новые функции
 - `fix/` - исправления багов
 - `docs/` - документация
@@ -177,6 +190,7 @@ gh pr create --title "type: заголовок" --base main
 - `refactor/` - рефакторинг
 
 #### 🎯 Почему это важно:
+
 - ✅ Чистая история git
 - ✅ Упрощенный код-ревью
 - ✅ Правильное отслеживание изменений
@@ -285,23 +299,28 @@ ORIGIN=https://your-domain.com
 
 # База данных (получить в https://supabase.com)
 SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_SERVICE_KEY=your_supabase_service_key_here
+# secret-guard-ok: the next value is a documented placeholder, not a credential
+SUPABASE_SERVICE_KEY=your_supabase_service_key_here # secret-guard-ok: documented placeholder, not a credential
 ```
 
 ## 📚 Документация
 
 ### 📖 Основная документация
+
 - [ROADMAP.md](ROADMAP.md) - План развития проекта
 - [DEPLOYMENT.md](DEPLOYMENT.md) - Инструкции по деплою
 
 ### 🤖 Документация команд
+
 - [🤖 КОМАНДЫ_СИСТЕМЫ.md](КОМАНДЫ_СИСТЕМЫ.md) - **ЕДИНЫЙ СПРАВОЧНИК ВСЕХ КОМАНД**
 
 ### 📊 Аналитические скрипты
+
 - [📊 ANALYTICS_SCRIPTS.md](ANALYTICS_SCRIPTS.md) - **БЫСТРЫЙ ДОСТУП К АНАЛИТИЧЕСКИМ СКРИПТАМ**
 - [📊 scripts/analytics/README.md](scripts/analytics/README.md) - **ПОЛНАЯ ДОКУМЕНТАЦИЯ АНАЛИТИЧЕСКИХ СКРИПТОВ**
 
 ### 🎯 Кому что читать:
+
 - **👤 Обычные пользователи** → [КОМАНДЫ_СИСТЕМЫ.md](КОМАНДЫ_СИСТЕМЫ.md) (раздел "Команды для всех пользователей")
 - **🤖 Владельцы ботов** → [КОМАНДЫ_СИСТЕМЫ.md](КОМАНДЫ_СИСТЕМЫ.md) (разделы "Команды для всех" + "Команды для владельцев ботов")
 - **👑 Администраторы** → [КОМАНДЫ_СИСТЕМЫ.md](КОМАНДЫ_СИСТЕМЫ.md) (все разделы)
@@ -558,7 +577,7 @@ docker-compose -f docker-compose.test.yml up
 ## 📖 Дополнительная документация
 
 - [📊 Система логирования](docs/LOGGING.md) - Подробная документация по логированию
-- [🏗️ Архитектура проекта](docs/ARCHITECTURE.md) - Обзор архитектуры и компонентов  
+- [🏗️ Архитектура проекта](docs/ARCHITECTURE.md) - Обзор архитектуры и компонентов
 - [🚀 Развертывание](deployment/README.md) - Инструкции по деплойменту
 - [📋 Roadmap](ROADMAP.md) - План развития проекта
 
@@ -645,12 +664,14 @@ _(This README will be updated as the project progresses)_
 ## 🆕 New Features
 
 ### FLUX Kontext Advanced Editing
+
 - **6 specialized modes**: Single editing, Multi-image combination, Portrait series, Haircut changes, Iconic locations, Professional headshots
 - **Two model tiers**: Pro (9⭐) and Max (12⭐)
 - **Smart pricing**: 50% markup for complex modes (multi, portrait_series)
 - **Intelligent prompts**: Mode-specific prompt enhancement
 
 ### ⬆️ Image Upscaling (New!)
+
 - **Clarity Upscaler**: Stand-alone command for image quality enhancement
 - **2x resolution increase**: Doubles image resolution with AI enhancement
 - **Cost-effective**: Only 1⭐ per upscale (based on $0.012 API cost)
@@ -659,6 +680,7 @@ _(This README will be updated as the project progresses)_
 - **Menu location**: Available for NEUROPHOTO, NEUROVIDEO, and NEUROTESTER subscriptions
 
 ### ⬆️ Image Upscaling (Legacy)
+
 - **Real-ESRGAN 4x upscaling**: Industry-leading AI upscaler with 67.5M+ runs
 - **Face enhancement**: Automatic face improvement using GFPGAN
 - **Cost-effective**: Premium quality at 6⭐ per upscale
@@ -675,6 +697,7 @@ _(This README will be updated as the project progresses)_
 ## Technical Details
 
 ### Upscaling Features:
+
 - **Model**: nightmareai/real-esrgan (most popular on Replicate)
 - **Scale**: 4x upscale for maximum quality
 - **Face enhance**: Enabled by default using GFPGAN
@@ -683,6 +706,7 @@ _(This README will be updated as the project progresses)_
 - **Artifact removal**: Removes JPEG compression artifacts
 
 ### Benefits:
+
 - ✅ Removes compression artifacts
 - ✅ Sharpens edges and details
 - ✅ Improves facial features
@@ -690,6 +714,7 @@ _(This README will be updated as the project progresses)_
 - ✅ Cost-effective pricing (6⭐ vs $0.00385 API cost)
 
 ### Use Cases:
+
 - Print-ready images from web-quality outputs
 - Professional presentation materials
 - High-resolution social media content

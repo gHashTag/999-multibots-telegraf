@@ -17,9 +17,9 @@ describe('AI Reels Шаблон 1 - Отладка проблем', () => {
     process.env = {
       ...originalEnv,
       KIE_AI_API_KEY: 'test-kie-key',
-      ELEVENLABS_API_KEY: 'test-elevenlabs-key',
+      ELEVENLABS_API_KEY: 'test-elevenlabs-key', // secret-guard-ok: inert test sentinel
       SUPABASE_URL: 'https://test.supabase.co',
-      SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
+      SUPABASE_SERVICE_ROLE_KEY: 'test-service-key', // secret-guard-ok: inert test sentinel
     }
   })
 
