@@ -226,7 +226,7 @@ export const generateModelTrainingFunction = inngest.createFunction(
         if (!baseUrl) {
           throw new Error(
             'BASE_WEBHOOK_URL is not configured! Cannot register webhook with Replicate. ' +
-            'Set it in Infisical (e.g. https://999-multibots-telegraf.fly.dev)'
+            'Set it in Infisical (e.g. https://999-multibots-telegraf-production.up.railway.app)'
           )
         }
         const webhookUrl = `${baseUrl}/api/webhooks/replicate`
