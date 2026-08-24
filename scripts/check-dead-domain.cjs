@@ -1,75 +1,111 @@
 #!/usr/bin/env node
 /**
- * Не даёт мёртвому домену вернуться в исполняемый код.
+ * Не даёт мёртвому хосту вернуться в исполняемый код.
  *
- * three-head-dragon.shop резолвится в 188.137.250.69 — старый сервер, с
- * которого проект переехал на Railway. Он не отвечает ни по https, ни по http,
- * ни по IP. При этом домен стоял как fallback в цепочке платёжного URL
- * (ResultURL Robokassa — серверное подтверждение оплаты) и был зашит в адресах
- * коллбэков, куда провайдеры возвращают готовый результат.
+ * ИСТОРИЯ. Проверка была написана под ОДИН домен — three-head-dragon.shop
+ * (старый сервер 188.137.250.69, с которого проект переехал на Railway). Он
+ * стоял fallback'ом в платёжной цепочке Robokassa и в адресах коллбэков.
+ * Список вычистили, ворота включили, всё честно.
+ *
+ * А через несколько месяцев ТОТ ЖЕ класс дефекта вернулся с другой площадки:
+ * проект ушёл ещё и с fly.io, а в коде осталось 18 упоминаний семи хостов
+ * *.fly.dev. Проверка их не видела по двум причинам, и обе — про неё саму:
+ *
+ *   1. знала ровно одно имя, а не КЛАСС «площадка, с которой мы ушли»;
+ *   2. обходила только src/ — весь apps/ (мини-апп и рендер) был невидим,
+ *      а именно там и лежала половина находок.
+ *
+ * Замерено 24.08.2026 запросом по каждому хосту: живых нет ни одного.
+ *   vibee-telegram-bridge.fly.dev  NXDOMAIN
+ *   vibee-player.fly.dev           NXDOMAIN
+ *   остальные пять                 DNS есть, HTTP 000 — соединение не встаёт
+ *
+ * Цена молчания была не теоретической: адрес плеера подставлялся В ТЕКСТ
+ * поста как ссылка «смотреть ленту», а мост в Telegram-канал не существовал
+ * вовсе — при этом публикация отвечала success:true.
  *
  * Упоминания в комментариях разрешены: без них следующий читатель не поймёт,
- * почему домена нет.
+ * почему хоста нет.
  */
 const fs = require('fs')
 const path = require('path')
 
-const DEAD = 'three-head-dragon.shop'
-const ROOT = path.resolve(__dirname, '..', 'src')
-const hits = []   // зашито без альтернативы — исполняется всегда
-const soft = []   // последний fallback после env — в проде не берётся
+/**
+ * Мёртвые хосты. Добавлять сюда, а не заводить вторую проверку: один и тот же
+ * класс должен ловиться одним инструментом, иначе следующая площадка снова
+ * проедет мимо.
+ */
+const DEAD = [
+  'three-head-dragon.shop', // старый сервер 188.137.250.69
+  '.fly.dev', // площадка, с которой ушли на Railway; проверено — живых нет
+]
 
-;(function walk(d) {
-  for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-    const p = path.join(d, e.name)
-    if (e.isDirectory()) { if (!/node_modules|__tests__/.test(p)) walk(p) }
-    else if (/\.ts$/.test(p)) {
-      const arr = fs.readFileSync(p, 'utf8').split('\n')
-      arr.forEach((line, i) => {
-        if (!line.includes(DEAD)) return
-        const code = line.trim()
-        // комментарий — не нарушение
-        if (code.startsWith('//') || code.startsWith('*') || code.startsWith('/*')) return
-        // Явный маркер исключения. Нужен там, где домен упомянут НАМЕРЕННО —
-        // например в детекторе, который предупреждает, что webhook указывает
-        // на мёртвый хост. Ставится комментарием на предыдущей строке.
-        const prev = (arr[i - 1] || '').trim()
-        if (prev.includes('dead-domain-ok')) return
-        // Отличаем ОПАСНОЕ от инертного.
-        //
-        // Инертное — домен как последний fallback после переменных окружения:
-        //   process.env.BASE_WEBHOOK_URL || 'https://three-head-dragon.shop'
-        // В проде переменная задана, ветка не берётся. Неправильно, но сегодня
-        // никого не задевает.
-        //
-        // Опасное — домен без всякой альтернативы. Такое исполняется всегда.
-        // Именно так были сломаны коллбэк AI Reels и ссылки статуса lipsync.
-        const isFallback = /\|\||\?\s*[`'"]|:\s*[`'"]/.test(code)
-        const loc = `${path.relative(path.resolve(__dirname, '..'), p)}:${i + 1}`
-        ;(isFallback ? soft : hits).push(`${loc}  ${code.slice(0, 90)}`)
-      })
+const REPO = path.resolve(__dirname, '..')
+// Обходим ОБА дерева. Раньше был только src/, и apps/ не проверялся вовсе.
+const ROOTS = ['src', 'apps'].map(d => path.join(REPO, d)).filter(fs.existsSync)
+
+const hits = [] // зашито без альтернативы — исполняется всегда
+const soft = [] // последний fallback после env — в проде не берётся
+
+function scan(dir) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name)
+    if (e.isDirectory()) {
+      // dist и .next — сборка, там чинить нечего; e2e гоняется своим раннером
+      if (!/node_modules|[/\\]e2e([/\\]|$)|__tests__|[/\\]dist[/\\]?$|\.next/.test(p)) scan(p)
+      continue
     }
+    if (!/\.(ts|tsx|js|mjs|cjs)$/.test(p)) continue
+    // Сам этот файл перечисляет мёртвые хосты по назначению.
+    if (path.resolve(p) === path.resolve(__filename)) continue
+
+    const arr = fs.readFileSync(p, 'utf8').split('\n')
+    arr.forEach((line, i) => {
+      const dead = DEAD.find(d => line.includes(d))
+      if (!dead) return
+      const code = line.trim()
+      // комментарий — не нарушение
+      if (code.startsWith('//') || code.startsWith('*') || code.startsWith('/*')) return
+      // Явный маркер исключения для НАМЕРЕННЫХ упоминаний — например в
+      // детекторе, который предупреждает, что webhook указывает на мёртвый
+      // хост. Ставится комментарием на предыдущей строке.
+      const prev = (arr[i - 1] || '').trim()
+      if (prev.includes('dead-domain-ok')) return
+      /**
+       * Отличаем ОПАСНОЕ от инертного.
+       *
+       * Инертное — хост как последний fallback после переменной окружения:
+       *   process.env.PUBLIC_URL || 'https://vibee-render-server.fly.dev'
+       * В проде переменная задана, ветка не берётся. Неправильно, но сегодня
+       * никого не задевает.
+       *
+       * Опасное — хост без всякой альтернативы: исполняется всегда. Именно так
+       * были сломаны коллбэк AI Reels, ссылки статуса lipsync и публикация
+       * ролика в канал.
+       */
+      const isFallback = /\|\||\?\?|\?\s*[`'"]|:\s*[`'"]/.test(code)
+      const loc = `${path.relative(REPO, p)}:${i + 1}`
+      ;(isFallback ? soft : hits).push(`${loc}  [${dead}]  ${code.slice(0, 84)}`)
+    })
   }
-})(ROOT)
+}
+ROOTS.forEach(scan)
+
+// Знаменатель обязателен: пустой список без числа осмотренных корней
+// неотличим от «обход не состоялся».
+console.log(`осмотрено деревьев: ${ROOTS.length} (${ROOTS.map(r => path.relative(REPO, r)).join(', ')})`)
 
 if (soft.length) {
-  console.log(`⚠️  ${DEAD} как последний fallback (${soft.length}) — в проде не берётся, но подлежит вычистке:`)
+  console.log(`\n⚠️  мёртвый хост последним fallback (${soft.length}) — в проде не берётся, но подлежит вычистке:`)
   soft.forEach(h => console.log('   ' + h))
-  console.log()
 }
 
 if (hits.length) {
-  console.error(`❌ ${DEAD} ЗАШИТ БЕЗ АЛЬТЕРНАТИВЫ (${hits.length}) — исполняется всегда:\n`)
+  console.error(`\n❌ МЁРТВЫЙ ХОСТ ЗАШИТ БЕЗ АЛЬТЕРНАТИВЫ (${hits.length}) — исполняется всегда:\n`)
   hits.forEach(h => console.error('   ' + h))
-  console.error('\nБерите адрес из конфигурации: PUBLIC_URL / BASE_WEBHOOK_URL.')
+  console.error('\nБерите адрес из конфигурации: PUBLIC_URL / PLAYER_URL / BASE_WEBHOOK_URL.')
   console.error('Если упоминание намеренное — поставьте // dead-domain-ok: причина на строке выше.')
   process.exit(1)
-  // ВОРОТА ВКЛЮЧЕНЫ. Список вычищен до нуля, поэтому падение здесь означает
-  // именно возврат мёртвого домена, а не унаследованный долг.
-  // Прежний комментарий про «намеренно не падаем»: Разделение «зашито/fallback» здесь грубое: часть
-  // строк выше — просто текст предупреждений, часть — многострочные цепочки,
-  // где || стоит на предыдущей строке. Делать из этого ворота сборки значило
-  // бы ломать сборку на ложных срабатываниях. Это трекер: список сокращается
-  // по мере вычистки, и когда он опустеет — можно будет включить падение.
 }
-console.log(`✅ ${DEAD} нигде не зашит без альтернативы`)
+
+console.log(`\n✅ мёртвые хосты (${DEAD.join(', ')}) нигде не зашиты без альтернативы`)
