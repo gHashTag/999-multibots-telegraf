@@ -30,16 +30,27 @@ interface PublishModalProps {
  * при переезде на новый домен ссылка переедет сама.
  */
 function feedLink(): string {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return `${window.location.origin.replace(/^https?:\/\//, '')}/feed`;
-  }
+  /**
+   * Собственный домен бренда, а НЕ служебный адрес мини-аппа.
+   *
+   * Прошлая версия брала window.location.origin — это чинило мёртвый
+   * vibee-player.fly.dev, но подставляло в пост адрес Railway
+   * (vibee-editor-production.up.railway.app). Технически живой, для читателя
+   * — набор служебных слов вместо имени проекта.
+   *
+   * Замер: t27.ai отвечает 200, но отдаёт научный сайт TRINITY, а не ленту,
+   * поэтому `/feed` не дописываем — там 404. Лента переедет на app.t27.ai,
+   * домен пока не существует; ставить его сейчас значило бы вернуть в посты
+   * мёртвую ссылку.
+   */
   return 't27.ai';
 }
 
-// Generate default Telegram caption
+// Подпись поста — ТОЛЬКО по-русски: канал русскоязычный, и английские хвосты
+// в нём читаются как чужой шаблон.
 function generateDefaultCaption(name: string, description: string, creatorName: string): string {
   const desc = description?.trim() ? `\n\n${description}` : '';
-  return `🎬 ${name}${desc}\n\n👤 ${creatorName}\n🔗 ${feedLink()}\n\n#vibee #reels #ai`;
+  return `🎬 ${name}${desc}\n\n👤 ${creatorName}\n🔗 ${feedLink()}\n\n#рилс #нейросети #TrinityS3AI`;
 }
 
 export function PublishModal({ isOpen, onClose, videoUrl, thumbnailUrl }: PublishModalProps) {
