@@ -27,7 +27,9 @@ done
 say "— Реестр инструментов —"
 printf '%s' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' > /tmp/rc-req.json
 n=$(curl -s -m 10 http://127.0.0.1:3333/mcp -H "X-Agent-Key: $KEY" -H 'Content-Type: application/json' --data @/tmp/rc-req.json | python3 -c "import json,sys; print(len(json.load(sys.stdin)['result']['tools']))" 2>/dev/null)
-check "инструментов в реестре" 15 "$n"
+# 16 = 15 производственных + my_balance (токен-экономика, цикл №42).
+# Добавляешь инструмент — подними ожидание здесь ОДНОЙ правкой.
+check "инструментов в реестре" 16 "$n"
 
 say "— Дешёвые живые вызовы —"
 for tool in whoami feed_stats templates_list feed_analytics my_assets soul_get; do
