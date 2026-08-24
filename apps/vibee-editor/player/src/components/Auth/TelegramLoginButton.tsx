@@ -47,17 +47,15 @@ export function TelegramLoginButton({
   botUsername = 't27ai_bot',
   size = 'medium',
   onSuccess,
-  // ПО УМОЛЧАНИЮ true, а не false.
-  //
-  // Официальный виджет отдаёт для этого домена «Bot domain invalid» — белую
-  // плашку в шапке на каждой странице. Поймать это в коде нельзя: iframe
-  // отрисовывается (186x28), просто с текстом ошибки внутри, а его содержимое
-  // на чужом origin недоступно — поэтому widgetFailed никогда не срабатывал.
-  //
-  // Запасная кнопка открывает t.me/<bot>?start=login и работает всегда,
-  // независимо от того, прописан домен в BotFather или нет. Показывать
-  // заведомо сломанный виджет вместо рабочей кнопки нечем оправдать.
-  showFallback = true,
+  // Владелец прописал прод-домен боту в BotFather (/setdomain), поэтому на
+  // проде показываем нативный виджет. На localhost домен не прописан —
+  // официальный виджет отдаёт «Bot domain invalid» (белую плашку), поймать
+  // это в коде нельзя: iframe отрисовывается, просто с текстом ошибки внутри,
+  // а его содержимое на чужом origin недоступно. Там показываем запасную
+  // кнопку с подсказкой.
+  showFallback =
+    typeof window !== 'undefined' &&
+    ['localhost', '127.0.0.1'].includes(window.location.hostname),
 }: TelegramLoginButtonProps) {
   const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);

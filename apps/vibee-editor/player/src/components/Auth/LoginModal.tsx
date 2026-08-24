@@ -96,7 +96,7 @@ export function LoginModal() {
             <h2>{t('login.title')}</h2>
             <p>{t('login.subtitle')}</p>
             <div className="login-modal-widget">
-              <TelegramLoginButton onSuccess={close} size="large" showFallback={true} />
+              <TelegramLoginButton onSuccess={close} size="large" />
             </div>
           </>
         )}
