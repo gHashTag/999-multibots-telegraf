@@ -14,7 +14,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/config', () => ({ SECRET_API_KEY: 'test-secret-key-value' }))
+vi.mock('@/config', () => ({ SECRET_API_KEY: 'test-secret-key-value' })) // secret-guard-ok: inert test sentinel
 
 const { buildCallbackToken, verifyCallbackToken } = await import(
   '@/utils/callbackToken'
@@ -26,13 +26,17 @@ describe('метка обратного вызова', () => {
   })
 
   it('одна и та же для одного номера', () => {
-    expect(buildCallbackToken('144022504')).toBe(buildCallbackToken('144022504'))
+    expect(buildCallbackToken('144022504')).toBe(
+      buildCallbackToken('144022504')
+    )
   })
 
   it('разная для разных номеров — чужую не переиспользуешь', () => {
     // Главное свойство. Иначе, подсмотрев одну метку, можно было бы слать
     // что угодно кому угодно.
-    expect(buildCallbackToken('144022504')).not.toBe(buildCallbackToken('144022505'))
+    expect(buildCallbackToken('144022504')).not.toBe(
+      buildCallbackToken('144022505')
+    )
   })
 
   it('своя метка проходит проверку', () => {

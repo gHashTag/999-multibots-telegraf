@@ -39,7 +39,7 @@ const client = new Client(process.env.API_KEY)
 ```.env.example
 # 🔐 Infisical Configuration
 INFISICAL_CLIENT_ID=your_client_id
-INFISICAL_CLIENT_SECRET=your_client_secret
+INFISICAL_CLIENT_SECRET=your_client_secret # secret-guard-ok: documented placeholder, not a credential
 INFISICAL_PROJECT_ID=your_project_id
 INFISICAL_ENVIRONMENT=dev  # dev | staging | prod
 NODE_ENV=development  # development | production

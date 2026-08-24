@@ -81,6 +81,7 @@ Type:  Secret
 **Описание:** URL к кастомной LoRA модели. Если не указан, будет использоваться дефолтная модель из кода.
 
 **Пример значения:**
+
 ```
 https://huggingface.co/username/model-name/resolve/main/lora.safetensors
 ```
@@ -144,7 +145,7 @@ scoop install infisical
 infisical login
 
 # Или используйте service token (рекомендуется для CI/CD)
-export INFISICAL_TOKEN="your-service-token"
+export INFISICAL_TOKEN=<set-in-ci-secret-store>
 ```
 
 ### Шаг 3.3: Навигация к проекту
@@ -225,35 +226,35 @@ infisical secrets get FAL_KEY --env=dev
 
 ```typescript
 // test-fal-config.ts
-import { config } from 'dotenv';
-config();
+import { config } from 'dotenv'
+config()
 
-console.log('=== FAL.AI Configuration Check ===\n');
+console.log('=== FAL.AI Configuration Check ===\n')
 
-const requiredKeys = ['FAL_KEY'];
+const requiredKeys = ['FAL_KEY']
 const optionalKeys = [
   'FAL_DEFAULT_LORA_PATH',
   'FAL_LORA_TRIGGER',
-  'FAL_DEFAULT_LORA_SCALE'
-];
+  'FAL_DEFAULT_LORA_SCALE',
+]
 
-console.log('Required Keys:');
+console.log('Required Keys:')
 requiredKeys.forEach(key => {
-  const value = process.env[key];
-  const status = value ? '✓ SET' : '✗ MISSING';
-  const display = value ? `${value.substring(0, 10)}...` : 'NOT SET';
-  console.log(`  ${key}: ${status} (${display})`);
-});
+  const value = process.env[key]
+  const status = value ? '✓ SET' : '✗ MISSING'
+  const display = value ? `${value.substring(0, 10)}...` : 'NOT SET'
+  console.log(`  ${key}: ${status} (${display})`)
+})
 
-console.log('\nOptional Keys:');
+console.log('\nOptional Keys:')
 optionalKeys.forEach(key => {
-  const value = process.env[key];
-  const status = value ? '✓ SET' : '○ Using default';
-  const display = value || 'DEFAULT';
-  console.log(`  ${key}: ${status} (${display})`);
-});
+  const value = process.env[key]
+  const status = value ? '✓ SET' : '○ Using default'
+  const display = value || 'DEFAULT'
+  console.log(`  ${key}: ${status} (${display})`)
+})
 
-console.log('\n=================================');
+console.log('\n=================================')
 ```
 
 Запустите с Infisical:
@@ -309,44 +310,43 @@ infisical run --env=dev -- bun run dev
 
 ```typescript
 // test-fal-api.ts
-import * as fal from "@fal-ai/serverless-client";
-import { config } from 'dotenv';
-config();
+import * as fal from '@fal-ai/serverless-client'
+import { config } from 'dotenv'
+config()
 
 fal.config({
-  credentials: process.env.FAL_KEY
-});
+  credentials: process.env.FAL_KEY,
+})
 
 async function testFalAPI() {
   try {
-    console.log('Testing Fal.ai API connection...\n');
+    console.log('Testing Fal.ai API connection...\n')
 
-    const result = await fal.subscribe("fal-ai/flux/schnell", {
+    const result = await fal.subscribe('fal-ai/flux/schnell', {
       input: {
-        prompt: "A simple test image",
-        image_size: "landscape_4_3",
+        prompt: 'A simple test image',
+        image_size: 'landscape_4_3',
         num_inference_steps: 4,
-        num_images: 1
+        num_images: 1,
       },
       logs: true,
-      onQueueUpdate: (update) => {
-        if (update.status === "IN_PROGRESS") {
-          console.log(`Progress: ${JSON.stringify(update)}`);
+      onQueueUpdate: update => {
+        if (update.status === 'IN_PROGRESS') {
+          console.log(`Progress: ${JSON.stringify(update)}`)
         }
       },
-    });
+    })
 
-    console.log('\n✓ API Connection Successful!');
-    console.log('Result:', result);
-    console.log('\nImage URL:', result.images[0].url);
-
+    console.log('\n✓ API Connection Successful!')
+    console.log('Result:', result)
+    console.log('\nImage URL:', result.images[0].url)
   } catch (error) {
-    console.error('\n✗ API Connection Failed!');
-    console.error('Error:', error);
+    console.error('\n✗ API Connection Failed!')
+    console.error('Error:', error)
   }
 }
 
-testFalAPI();
+testFalAPI()
 ```
 
 Запустите тест:
@@ -415,17 +415,21 @@ FAL_LORA_TRIGGER=cyberpunk neon
 ### Проблема: "FAL_KEY is not defined"
 
 **Симптомы:**
+
 ```
 Error: FAL_KEY is not defined
 ```
 
 **Решения:**
+
 1. Проверьте, что секрет добавлен в Infisical:
+
    ```bash
    infisical secrets get FAL_KEY --env=dev
    ```
 
 2. Убедитесь, что запускаете приложение через `infisical run`:
+
    ```bash
    infisical run --env=dev -- bun run dev
    ```
@@ -438,17 +442,21 @@ Error: FAL_KEY is not defined
 ### Проблема: "Invalid Fal.ai API key"
 
 **Симптомы:**
+
 ```
 Error: 401 Unauthorized - Invalid API key
 ```
 
 **Решения:**
+
 1. Проверьте формат ключа (должен начинаться с `fal_`):
+
    ```bash
    infisical secrets get FAL_KEY --env=dev | grep "^fal_"
    ```
 
 2. Убедитесь, что ключ не содержит лишних пробелов:
+
    ```bash
    # Обновите ключ, удалив пробелы
    infisical secrets set FAL_KEY "$(echo 'fal_xxxxx' | xargs)" --env=dev
@@ -459,12 +467,15 @@ Error: 401 Unauthorized - Invalid API key
 ### Проблема: "LoRA model not found"
 
 **Симптомы:**
+
 ```
 Error: Failed to load LoRA model from URL
 ```
 
 **Решения:**
+
 1. Проверьте доступность URL:
+
    ```bash
    curl -I "$(infisical secrets get FAL_DEFAULT_LORA_PATH --env=dev --plain)"
    ```
@@ -479,17 +490,21 @@ Error: Failed to load LoRA model from URL
 ### Проблема: Infisical не загружает переменные
 
 **Симптомы:**
+
 ```
 Environment variables not loaded
 ```
 
 **Решения:**
+
 1. Проверьте аутентификацию:
+
    ```bash
    infisical login
    ```
 
 2. Проверьте инициализацию проекта:
+
    ```bash
    cd /Users/playra/999-agents-telegraf
    cat .infisical.json
@@ -503,11 +518,13 @@ Environment variables not loaded
 ### Проблема: Rate limit exceeded
 
 **Симптомы:**
+
 ```
 Error: 429 Too Many Requests
 ```
 
 **Решения:**
+
 1. Проверьте лимиты на [fal.ai/dashboard](https://fal.ai/dashboard)
 2. Добавьте rate limiting в код
 3. Обновите тарифный план

@@ -13,19 +13,21 @@
 
 ### Минимальные требования для вывода
 
-| Параметр | Значение |
-|----------|----------|
-| Минимум Stars | 1000 |
+| Параметр        | Значение                |
+| --------------- | ----------------------- |
+| Минимум Stars   | 1000                    |
 | Период ожидания | 21 день после получения |
-| Курс | ~$0.013 за Star |
+| Курс            | ~$0.013 за Star         |
 
 ### Credentials
 
 Получить на https://my.telegram.org:
+
 - `api_id` - числовой ID приложения
 - `api_hash` - хеш приложения
 
 Также требуется:
+
 - Номер телефона аккаунта владельца ботов
 - 2FA пароль (cloud password)
 
@@ -38,7 +40,7 @@
 TG_API_ID=12345678
 TG_API_HASH=abcdef1234567890abcdef1234567890
 TG_PHONE=+79001234567
-TG_2FA_PASSWORD=your_2fa_password
+TG_2FA_PASSWORD=<set-via-secret-store>
 
 # Опционально: адрес TON кошелька
 TON_WALLET_ADDRESS=UQ...your_ton_wallet
@@ -59,6 +61,7 @@ bun run scripts/stars-withdrawal check
 ```
 
 Вывод:
+
 ```
 ╔════════════════════════════════════════════════════════════╗
 ║       TELEGRAM STARS WITHDRAWAL TOOL                      ║
@@ -99,6 +102,7 @@ bun run scripts/stars-withdrawal withdraw
 ```
 
 Скрипт:
+
 1. Проверит балансы всех ботов
 2. Найдёт ботов готовых к выводу (≥1000 Stars, >21 дня)
 3. Сгенерирует Fragment URL для каждого
@@ -152,19 +156,19 @@ scripts/stars-withdrawal/
 
 ## Боты проекта
 
-| # | Username | Описание | Token Env |
-|---|----------|----------|-----------|
-| 1 | @neuro_blogger_bot | Основной бот NeuroBlogger | BOT_TOKEN_1 |
-| 2 | @MetaMuse_Manifest_bot | MetaMuse Manifest | BOT_TOKEN_2 |
-| 3 | @ZavaraBot | Zavara Bot | BOT_TOKEN_3 |
-| 4 | @LeeSolarbot | Lee Solar Bot | BOT_TOKEN_4 |
-| 5 | @NeuroLenaAssistant_bot | NeuroLena Assistant | BOT_TOKEN_5 |
-| 6 | @NeurostylistShtogrina_bot | Neurostylist Shtogrina | BOT_TOKEN_6 |
-| 7 | @Gaia_Kamskaia_bot | Gaia Kamskaia | BOT_TOKEN_7 |
-| 8 | @Kaya_easy_art_bot | Kaya Easy Art | BOT_TOKEN_8 |
-| 9 | @AI_STARS_bot | AI Stars Bot | BOT_TOKEN_9 |
-| 10 | @ai_koshey_bot | AI Koshey (тестовый) | BOT_TOKEN_TEST_1 |
-| 11 | @clip_maker_neuro_bot | Clip Maker Neuro (тестовый) | BOT_TOKEN_TEST_2 |
+| #   | Username                   | Описание                    | Token Env        |
+| --- | -------------------------- | --------------------------- | ---------------- |
+| 1   | @neuro_blogger_bot         | Основной бот NeuroBlogger   | BOT_TOKEN_1      |
+| 2   | @MetaMuse_Manifest_bot     | MetaMuse Manifest           | BOT_TOKEN_2      |
+| 3   | @ZavaraBot                 | Zavara Bot                  | BOT_TOKEN_3      |
+| 4   | @LeeSolarbot               | Lee Solar Bot               | BOT_TOKEN_4      |
+| 5   | @NeuroLenaAssistant_bot    | NeuroLena Assistant         | BOT_TOKEN_5      |
+| 6   | @NeurostylistShtogrina_bot | Neurostylist Shtogrina      | BOT_TOKEN_6      |
+| 7   | @Gaia_Kamskaia_bot         | Gaia Kamskaia               | BOT_TOKEN_7      |
+| 8   | @Kaya_easy_art_bot         | Kaya Easy Art               | BOT_TOKEN_8      |
+| 9   | @AI_STARS_bot              | AI Stars Bot                | BOT_TOKEN_9      |
+| 10  | @ai_koshey_bot             | AI Koshey (тестовый)        | BOT_TOKEN_TEST_1 |
+| 11  | @clip_maker_neuro_bot      | Clip Maker Neuro (тестовый) | BOT_TOKEN_TEST_2 |
 
 ## Ограничения
 
@@ -181,12 +185,15 @@ scripts/stars-withdrawal/
 ## Troubleshooting
 
 ### "PEER_ID_INVALID"
+
 Убедитесь, что вы являетесь владельцем бота и аккаунт авторизован.
 
 ### "SESSION_PASSWORD_NEEDED"
+
 Требуется 2FA. Убедитесь что `TG_2FA_PASSWORD` установлен правильно.
 
 ### "AUTH_KEY_UNREGISTERED"
+
 Сессия истекла. Удалите `session.json` и авторизуйтесь заново.
 
 ## Источники

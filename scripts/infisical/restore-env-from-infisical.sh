@@ -69,7 +69,7 @@ if [[ -z "${INFISICAL_CLIENT_ID:-}" ]] || [[ -z "${INFISICAL_CLIENT_SECRET:-}" ]
     echo -e "${RED}❌ Infisical credentials не найдены!${NC}"
     echo -e "${YELLOW}Установите переменные окружения:${NC}"
     echo "  export INFISICAL_CLIENT_ID=your_client_id"
-    echo "  export INFISICAL_CLIENT_SECRET=your_client_secret"
+    echo "  export INFISICAL_CLIENT_SECRET=<set-via-secret-store>"
     echo "  export INFISICAL_PROJECT_ID=your_project_id"
     exit 1
 fi

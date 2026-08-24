@@ -24,6 +24,7 @@
 # Использование:
 #   security-token-guard.sh staged   # pre-commit: проиндексированное
 #   security-token-guard.sh range    # pre-push: коммиты, которых нет на origin
+#   security-token-guard.sh tree     # release: всё отслеживаемое рабочее дерево
 #
 # Осознанное исключение помечается комментарием `secret-guard-ok: причина`
 # на той же или предыдущей строке — как у check-dead-domain.
@@ -31,6 +32,7 @@
 set -uo pipefail
 
 MODE="${1:-staged}"
+TREE_MODE=0
 
 case "$MODE" in
   staged)
@@ -46,16 +48,23 @@ case "$MODE" in
       DIFF="$([ -n "$base" ] && git diff "$base"..HEAD 2>/dev/null || git diff --cached)"
     fi
     ;;
+  tree)
+    TREE_MODE=1
+    DIFF=""
+    ;;
   *)
-    echo "неизвестный режим: $MODE (ожидается staged или range)" >&2
+    echo "неизвестный режим: $MODE (ожидается staged, range или tree)" >&2
     exit 2
     ;;
 esac
 
 # Только добавленные строки: удаление секрета из файла блокировать нельзя,
 # иначе почистить утечку станет невозможно.
-ADDED="$(printf '%s\n' "$DIFF" | grep '^+' | grep -v '^+++' || true)"
-[ -z "$ADDED" ] && exit 0
+ADDED=""
+if [ "$TREE_MODE" = "0" ]; then
+  ADDED="$(printf '%s\n' "$DIFF" | grep '^+' | grep -v '^+++' || true)"
+  [ -z "$ADDED" ] && exit 0
+fi
 
 # Формы реальных ключей. Каждая проверена на живом примере из этого проекта.
 declare -a NAMES=(
@@ -71,6 +80,8 @@ declare -a NAMES=(
   "секрет в переменной"
   "машинная учётка Infisical"
   "ключ xAI"
+  "ключ z.ai"
+  "credentialed database URL"
 )
 declare -a PATTERNS=(
   '(^|[^0-9])[0-9]{8,10}:AA[A-Za-z0-9_-]{30,}'
@@ -85,6 +96,8 @@ declare -a PATTERNS=(
   '(SECRET|TOKEN|API_KEY|PASSWORD|SERVICE_KEY|SERVICE_ROLE_KEY|CLIENT_SECRET)[A-Za-z_]*[[:space:]]*[=:][[:space:]]*["'"'"']?[A-Za-z0-9_/+=-]{16,}'
   '(INFISICAL_CLIENT_SECRET|clientSecret)[[:space:]]*[=:][[:space:]]*["'"'"']?[a-f0-9]{64}'
   'xai-[A-Za-z0-9]{40,}'
+  '\b[a-f0-9]{32}\.[A-Za-z0-9_-]{20,}\b'
+  '(postgres(ql)?|mysql|mongodb(\+srv)?):\/\/[^[:space:]:\/$<{]+:[^@[:space:]$<{]+@'
 )
 
 found=0
@@ -114,8 +127,13 @@ for i in "${!PATTERNS[@]}"; do
   # и `pipefail` отдаёт именно его код. `PIPESTATUS` здесь НЕ годится —
   # присваивание из `$( … )` затирает массив, и `${PIPESTATUS[1]}` под `set -u`
   # падает с «unbound variable». Тоже проверено прогоном, а не рассуждением.
-  raw="$(printf '%s\n' "$ADDED" | grep -nEi -e "${PATTERNS[$i]}")"
-  rc=$?
+  if [ "$TREE_MODE" = "1" ]; then
+    raw="$(git grep -nEI -e "${PATTERNS[$i]}" -- . 2>/dev/null)"
+    rc=$?
+  else
+    raw="$(printf '%s\n' "$ADDED" | grep -nEi -e "${PATTERNS[$i]}")"
+    rc=$?
+  fi
   # Отсев заведомо не-секретов. Держим списком с объяснением: фильтр, про
   # который непонятно, что он выбрасывает, со временем выбросит настоящий ключ.
   #
@@ -141,11 +159,14 @@ for i in "${!PATTERNS[@]}"; do
     [ "$found" = "0" ] && echo "❌ Похоже на секрет в изменениях:" && echo
     found=1
     echo "  ${NAMES[$i]}:"
-    # Значение НЕ печатаем целиком — вывод хука попадает в логи и историю
-    # терминала. Достаточно показать начало, чтобы человек нашёл строку.
-    printf '%s\n' "$hits" | head -3 | while IFS= read -r line; do
-      echo "    ${line:0:60}…"
-    done
+    # Значение не печатаем вообще: вывод попадает в логи и историю терминала.
+    if [ "$TREE_MODE" = "1" ]; then
+      printf '%s\n' "$hits" | cut -d: -f1,2 | head -3 | while IFS= read -r location; do
+        echo "    $location (value redacted)"
+      done
+    else
+      echo "    $MODE diff (value redacted)"
+    fi
     echo
   fi
 done
