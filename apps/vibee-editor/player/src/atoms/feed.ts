@@ -21,6 +21,8 @@ import { userAtom } from './user'
 import { API_BASE } from '../config'
 import { openInvoice } from '../lib/telegram'
 import { apiFetch } from '../lib/apiFetch'
+import { getErrorMessage } from '../features/script/utils/errorMessages'
+import { languageAtom } from './language'
 
 // Re-export feed types for backward compatibility (types are now in @vibee/atoms)
 export type {
@@ -399,10 +401,25 @@ export const loadFeedAtom = atom(null, async (get, set, refresh?: boolean) => {
     set(feedPageAtom, page + 1)
     set(feedHasMoreAtom, templates.length === limit)
   } catch (error) {
-    set(
-      feedErrorAtom,
-      error instanceof Error ? error.message : 'Failed to load feed'
-    )
+    /**
+     * В состояние кладём КЛЮЧ перевода, а не текст исключения.
+     *
+     * Замерено в живом приложении: при обрыве связи в русском интерфейсе
+     * между «Новые», «Популярные» и «Повторить» стояло английское
+     * «Failed to fetch» — сырое сообщение TypeError из fetch. Оно ничего
+     * не говорит человеку и не переводится в принципе: этот текст даёт
+     * браузер, а не мы.
+     *
+     * Атом живёт вне React и позвать t() не может, поэтому решение
+     * простое: атом сообщает, ЧТО случилось, а вид решает, как это
+     * сказать. Ключ разворачивается в FeedPanel.
+     *
+     * Обрыв связи опознаём по TypeError: именно его бросает fetch, когда
+     * запрос не ушёл вовсе. Ошибки самого сервера (4xx/5xx) сюда не
+     * попадают — они приходят как Error с осмысленным текстом, и его
+     * терять не надо.
+     */
+    set(feedErrorAtom, getErrorMessage(error, get(languageAtom), { includeAction: false }))
   } finally {
     set(feedLoadingAtom, false)
     isLoadingFeed = false

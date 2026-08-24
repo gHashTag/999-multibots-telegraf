@@ -2,6 +2,8 @@ import { atom } from 'jotai'
 import { userAtom } from './user'
 import { RENDER_URL } from '../config'
 import { getTelegramUser, getInitData } from '../lib/telegram'
+import { getErrorMessage } from '../features/script/utils/errorMessages'
+import { languageAtom } from './language'
 
 // ===============================
 // Профиль аватара: фото человека, от которого делается весь контент.
@@ -77,7 +79,7 @@ export const loadAvatarPhotosAtom = atom(null, async (get, set) => {
       }))
     )
   } catch (e) {
-    set(avatarPhotosErrorAtom, e instanceof Error ? e.message : String(e))
+    set(avatarPhotosErrorAtom, getErrorMessage(e, get(languageAtom)))
     set(avatarPhotosAtom, [])
   } finally {
     set(avatarPhotosLoadingAtom, false)
@@ -104,7 +106,7 @@ export const saveAvatarPhotoAtom = atom(
       await set(loadAvatarPhotosAtom)
       return true
     } catch (e) {
-      set(avatarPhotosErrorAtom, e instanceof Error ? e.message : String(e))
+      set(avatarPhotosErrorAtom, getErrorMessage(e, get(languageAtom)))
       return false
     }
   }
@@ -130,7 +132,7 @@ export const deleteAvatarPhotoAtom = atom(
       await set(loadAvatarPhotosAtom)
       return true
     } catch (e) {
-      set(avatarPhotosErrorAtom, e instanceof Error ? e.message : String(e))
+      set(avatarPhotosErrorAtom, getErrorMessage(e, get(languageAtom)))
       return false
     }
   }

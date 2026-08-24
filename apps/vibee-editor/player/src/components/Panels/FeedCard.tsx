@@ -239,12 +239,15 @@ export function FeedCard({ template }: FeedCardProps) {
     const diffHour = Math.floor(diffMin / 60)
     const diffDay = Math.floor(diffHour / 24)
 
+    // Единицы идут через t(): первая ветка уже была переведена, а остальные
+    // пять оставались латиницей — в русском интерфейсе выходило «36m», «3h».
+    // Разделитель зашит в саму строку перевода («36 мин» / «36m»).
     if (diffMin < 1) return t('feed.justNow') || 'now'
-    if (diffMin < 60) return `${diffMin}m`
-    if (diffHour < 24) return `${diffHour}h`
-    if (diffDay < 7) return `${diffDay}d`
-    if (diffDay < 30) return `${Math.floor(diffDay / 7)}w`
-    return `${Math.floor(diffDay / 30)}mo`
+    if (diffMin < 60) return `${diffMin}${t('feed.ageMin')}`
+    if (diffHour < 24) return `${diffHour}${t('feed.ageHour')}`
+    if (diffDay < 7) return `${diffDay}${t('feed.ageDay')}`
+    if (diffDay < 30) return `${Math.floor(diffDay / 7)}${t('feed.ageWeek')}`
+    return `${Math.floor(diffDay / 30)}${t('feed.ageMonth')}`
   }
 
   // Retry loading video after error
@@ -369,10 +372,10 @@ export function FeedCard({ template }: FeedCardProps) {
               <div
                 className="feed-card-remix"
                 onClick={() => setShowRemixInfo(true)}
-                title="Based on another template"
+                title={t('feed.remixBasedOn')}
               >
                 <Sparkles size={12} />
-                <span>Remix</span>
+                <span>{t('feed.remix')}</span>
               </div>
             )}
           </div>
@@ -423,14 +426,14 @@ export function FeedCard({ template }: FeedCardProps) {
             className="action-btn remix-btn"
             onClick={handleUse}
             disabled={isUsing}
-            title="Remix"
+            title={t('feed.remix')}
           >
             {isUsing ? (
               <Loader2 size={32} className="spinning" />
             ) : (
               <Sparkles size={32} />
             )}
-            <span>Remix</span>
+            <span>{t('feed.remix')}</span>
           </button>
 
           {canDelete && (

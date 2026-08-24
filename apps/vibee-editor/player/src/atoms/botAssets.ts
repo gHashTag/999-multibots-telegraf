@@ -2,6 +2,8 @@ import { atom } from 'jotai';
 import { userAtom } from './user';
 import { RENDER_URL } from '../config';
 import { getTelegramUser, getInitData } from '../lib/telegram';
+import { getErrorMessage } from '../features/script/utils/errorMessages'
+import { languageAtom } from './language'
 
 // ===============================
 // История генераций из бота.
@@ -72,7 +74,7 @@ export const loadBotAssetsAtom = atom(null, async (get, set, kind?: string) => {
     const data = await res.json();
     set(botAssetsAtom, Array.isArray(data.assets) ? data.assets : []);
   } catch (e) {
-    set(botAssetsErrorAtom, e instanceof Error ? e.message : String(e));
+    set(botAssetsErrorAtom, getErrorMessage(e, get(languageAtom)));
     set(botAssetsAtom, []);
   } finally {
     set(botAssetsLoadingAtom, false);
