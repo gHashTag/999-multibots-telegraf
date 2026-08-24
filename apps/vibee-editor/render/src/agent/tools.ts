@@ -85,13 +85,61 @@ async function generationsLeftToday(ctx: ToolContext): Promise<number> {
  * Прайс фиксирован и виден человеку везде: в чате, в my_balance и в
  * каждом результате платного инструмента.
  */
+/**
+ * Цены выводятся из СЕБЕСТОИМОСТИ (loop/PRICING.md — источник правды),
+ * а не придумываются: единая долларовая база исключает продажу операций
+ * в минус (видео раньше стоило 5 токенов ≈ $0.025 продажи при $0.10
+ * себестоимости — прямые убытки на каждом ролике).
+ */
+const COST_PER_TOKEN_USD = 0.005
+/** Себестоимость операций, $ (оценки Replicate/рынка — см. PRICING.md). */
+const OPERATION_COST_USD: Record<string, number> = {
+  image_generate: 0.003,
+  video_generate: 0.1,
+  audio_generate: 0.03,
+  reel_render: 0.005,
+}
+/** Цена = ceil(себестоимость / база). Источник значений — не руки, а расчёт. */
+function priceFor(op: string): number {
+  return Math.ceil(OPERATION_COST_USD[op] / COST_PER_TOKEN_USD)
+}
 export const TOKEN_PRICES: Record<string, number> = {
-  image_generate: 1,
-  video_generate: 5,
-  audio_generate: 2,
-  reel_render: 2,
+  image_generate: priceFor('image_generate'), // 1
+  audio_generate: priceFor('audio_generate'), // 6
+  reel_render: priceFor('reel_render'), // 1
+  video_generate: priceFor('video_generate'), // 20
 }
 const TOKEN_START = 20
+
+/**
+ * ИНВАРИАНТЫ ЦЕНЫ (PRICING.md, I1–I3). Вызов при загрузке модуля:
+ * нарушение — громкий лог, а не падение прода; регресс-чек ловит дублирующе.
+ * Менял прайс — перечитай инварианты здесь и в loop/regression-check.sh.
+ */
+export function validateTokenPricing(): { ok: boolean; нарушено: string[] } {
+  const нарушено: string[] = []
+  // I2: единая база — каждая операция не дешевле себестоимости в токенах
+  for (const [op, price] of Object.entries(TOKEN_PRICES)) {
+    if (price < OPERATION_COST_USD[op] / COST_PER_TOKEN_USD) {
+      нарушено.push(`I2: ${op} продаётся ниже себестоимости (${price} токенов)`)
+    }
+  }
+  // I1: маржа ≥ 50% против самого дешёвого пакета продажи ($0.0152/токен)
+  const SALE_USD_PER_TOKEN = 0.0152
+  if (COST_PER_TOKEN_USD > SALE_USD_PER_TOKEN * 0.5) {
+    нарушено.push('I1: себестоимость токена выше 50% цены продажи')
+  }
+  // I3: старт-бонус ≤ $0.15 себестоимости
+  if (TOKEN_START * COST_PER_TOKEN_USD > 0.15) {
+    нарушено.push(`I3: старт-бонус ${TOKEN_START} токенов дороже $0.15`)
+  }
+  return { ok: нарушено.length === 0, нарушено }
+}
+const pricingCheck = validateTokenPricing()
+if (!pricingCheck.ok) {
+  // Не роняем сервис, но крик в логах: это ошибка ценообразования.
+  console.error('❌ [PRICING] нарушены инварианты:', pricingCheck.нарушено)
+}
 
 async function ensureTokenRow(ctx: ToolContext): Promise<number> {
   await ctx.pool.query(
