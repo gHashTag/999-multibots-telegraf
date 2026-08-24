@@ -90,8 +90,19 @@ async function handleCacheFirst(request) {
   // Check if this is a Telegram image URL - proxy it through our API
   let fetchUrl = request.url;
   if (request.url.includes('t.me/i/userpic/') || request.url.includes('telegram.me')) {
-    // Use our Zig API server image proxy for Telegram images
-    fetchUrl = 'https://vibee-api-server.fly.dev/proxy/image?url=' + encodeURIComponent(request.url);
+    // Прокси картинок Telegram.
+    //
+    // Был зашит vibee-api-server.fly.dev — площадка, с которой проект ушёл на
+    // Railway; хост не отвечает (HTTP 000). То есть аватары авторов не
+    // грузились вовсе, а service worker молча отдавал сетевой отказ.
+    //
+    // Живой прокси — тот же /proxy/image на рендер-сервере: им уже
+    // пользуется сам рендер, подставляя аватары в ленту.
+    //
+    // Адрес литералом, а не из переменной: это файл из public/, Vite его не
+    // обрабатывает и подстановки на сборке здесь не будет. Значение то же,
+    // что стоит умолчанием у рендера (SELF_URL).
+    fetchUrl = 'https://vibee-render-production.up.railway.app/proxy/image?url=' + encodeURIComponent(request.url);
   }
 
   // Fetch from network

@@ -17,10 +17,29 @@ interface PublishModalProps {
   thumbnailUrl?: string;
 }
 
+/**
+ * Ссылка на ленту в тексте поста.
+ *
+ * Была зашита как `vibee-player.fly.dev/feed` — хост, которого НЕ СУЩЕСТВУЕТ
+ * (NXDOMAIN, проверено запросом). То есть каждый опубликованный пост звал
+ * читателя по мёртвому адресу: единственное, ради чего пост и пишется —
+ * привести человека в ленту — не работало.
+ *
+ * Берём собственное происхождение окна: мини-апп открыт с того же адреса, где
+ * лента и живёт, и угадывать его не нужно. Это надёжнее любой константы —
+ * при переезде на новый домен ссылка переедет сама.
+ */
+function feedLink(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin.replace(/^https?:\/\//, '')}/feed`;
+  }
+  return 't27.ai';
+}
+
 // Generate default Telegram caption
 function generateDefaultCaption(name: string, description: string, creatorName: string): string {
   const desc = description?.trim() ? `\n\n${description}` : '';
-  return `🎬 ${name}${desc}\n\n👤 ${creatorName}\n🔗 vibee-player.fly.dev/feed\n\n#vibee #reels #ai`;
+  return `🎬 ${name}${desc}\n\n👤 ${creatorName}\n🔗 ${feedLink()}\n\n#vibee #reels #ai`;
 }
 
 export function PublishModal({ isOpen, onClose, videoUrl, thumbnailUrl }: PublishModalProps) {

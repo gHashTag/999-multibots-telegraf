@@ -754,7 +754,7 @@ async function startApplication() {
       // Warn if not set in production (no more hardcoded VPS fallback!)
       if (!process.env.BASE_WEBHOOK_URL && env === 'prod') {
         console.error('  ❌ BASE_WEBHOOK_URL NOT SET in production! Webhooks from Replicate/Kie.ai will fail!')
-        console.error('     Set BASE_WEBHOOK_URL=https://999-multibots-telegraf.fly.dev in Infisical')
+        console.error('     Set BASE_WEBHOOK_URL=https://999-multibots-telegraf-production.up.railway.app in Infisical')
       }
 
       // ✅ КРИТИЧЕСКИ ВАЖНО: Reinitialize Inngest client AFTER secrets loaded
