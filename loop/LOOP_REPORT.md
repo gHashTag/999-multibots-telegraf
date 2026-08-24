@@ -1295,3 +1295,19 @@
 1. **«Оплатить инвойс»** — t.me/$ZIBu69H2YUiZEwAAjrVxRaJ-ahE: первый денежный виток.
 2. **«Дать внешнее»** — ElevenLabs sk_-ключ (озвучка) и/или ID канала (автопостинг): два последних кусочка полной фабрики.
 3. **«Тихий режим»** — всё само: ночь b-roll, MORNING с кассой утром.
+
+---
+
+# ЦИКЛ №81 — 2026-08-24T15:10Z (домен app.t27.ai: аудит и план подключения)
+
+**Владелец сообщил: app.t27.ai существует, DNS у Unstoppable Domains. Факты (dig):** A/CNAME у app.t27.ai ПУСТЫ (домен куплен, записи нет); NS t27.ai = ns1/ns2.unstoppabledomains.com; t27.ai → GitHub Pages (185.199.x) — значит UD-панель уже управляла A-записями, сумеет и CNAME; прод мини-аппа = vibee-editor-production.up.railway.app (69.46.46.86).
+
+**Попытка добавить домен через Railway CLI:** упала — CLI-сессия под гостевым аккаунтом (Mina) имеет доступ на чтение (variables работают), но не на управление доменами. Добавление — 2 клика владельца (шаги в отчёте владельцу).
+
+**План подключения (за владельцем, 4 шага):** (1) Railway дашборд → сервис vibee-editor → Networking → Custom Domain: app.t27.ai — Railway выдаст CNAME+TXT; (2) UD-панель my.unstoppabledomains.com → DNS t27.ai → CNAME app → vibee-editor-production.up.railway.app (+ TXT из Railway); (3) дождаться Let's Encrypt; (4) BotFather /setdomain @t27ai_bot → https://app.t27.ai — виджет входа оживёт на новом домене.
+
+## Три варианта для владельца (цикл №81)
+
+1. **«Подключить домен»** — 4 шага выше (5 минут), мини-апп станет app.t27.ai.
+2. **«Оплатить инвойс»** — t.me/$ZIBu69H2YUiZEwAAjrVxRaJ-ahE: первый денежный виток.
+3. **«Тихий режим»** — всё само: ночь b-roll, MORNING с кассой.
