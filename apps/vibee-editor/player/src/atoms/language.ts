@@ -571,6 +571,19 @@ const en: Translations = {
   'feed.for_you': 'For You',
   'feed.following': 'Following',
   'feed.justNow': 'Just now',
+  // Короткие единицы возраста карточки: «36m», «3h», «1d». Были зашиты в
+  // FeedCard латиницей рядом с уже переведённым feed.justNow — то есть
+  // перевод начали и бросили на середине функции.
+  'feed.ageMin': 'm',
+  'feed.ageHour': 'h',
+  'feed.ageDay': 'd',
+  'feed.ageWeek': 'w',
+  'feed.ageMonth': 'mo',
+  'feed.remix': 'Remix',
+  'feed.remixBasedOn': 'Based on another template',
+  // Заголовок вкладки, когда бренд партнёра не задан. Канон имени —
+  // «Trinity S³AI» с надстрочной тройкой, как в шапке и в рилсах.
+  'app.title': 'Trinity S³AI — reels on autopilot',
   'feed.videoError': 'Video failed to load',
   'feed.deleteConfirm': 'Delete this video?',
 
@@ -2208,6 +2221,20 @@ const ru: Translations = {
   'feed.for_you': 'Для вас',
   'feed.following': 'Подписки',
   'feed.justNow': 'Только что',
+  // Единицы намеренно БЕЗ точки: «36 мин», «3 ч», «1 д». Точка после
+  // сокращения в плотной подписи ленты читается как конец предложения.
+  //
+  // Ведущий пробел — часть строки, а не кода: по-русски «36 мин» пишется
+  // раздельно, по-английски «36m» слитно. Отдельный ключ-разделитель был бы
+  // невидимкой, о которую спотыкается следующий переводчик.
+  'feed.ageMin': ' мин',
+  'feed.ageHour': ' ч',
+  'feed.ageDay': ' д',
+  'feed.ageWeek': ' нед',
+  'feed.ageMonth': ' мес',
+  'feed.remix': 'Ремикс',
+  'feed.remixBasedOn': 'Сделано на основе другого шаблона',
+  'app.title': 'Trinity S³AI — рилсы на автопилоте',
   'feed.videoError': 'Не удалось загрузить видео',
   'feed.deleteConfirm': 'Удалить это видео?',
 
