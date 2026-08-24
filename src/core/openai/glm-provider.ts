@@ -7,8 +7,9 @@ type Message = {
 
 export class GLMProvider {
   private readonly apiKey: string
-  private readonly baseURL = 'https://open.bigmodel.cn/api/paas/v4'
-  private readonly model = 'glm-4'
+  private readonly baseURL =
+    process.env.ZAI_BASE_URL || 'https://api.z.ai/api/coding/paas/v4'
+  private readonly model = process.env.GLM_MODEL || 'glm-5.3'
 
   constructor(apiKey: string) {
     this.apiKey = apiKey
@@ -23,7 +24,7 @@ export class GLMProvider {
       const response = await fetch(`${this.baseURL}/chat/completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
