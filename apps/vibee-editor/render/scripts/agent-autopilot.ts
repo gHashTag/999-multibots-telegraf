@@ -283,13 +283,26 @@ async function main() {
   // grayscale) — визуальный уровень канала растёт без смены канона.
   // Автоматически — на последнем посте дня; вручную — флагом.
   if (withVideo) {
+    // B-roll конвейера — расход КАНАЛА, не токенов человека (PRICING.md
+    // п.5: ~$0.10/день). Напрямую в рендер-сервер с серверным ключом:
+    // пользователи платят токенами, конвейер — из кассы канала.
     try {
-      const vid = await call('video_generate', {
-        prompt: `кинематографичный b-roll к посту «${topic.title}»: ${topic.subtitle}. Медленно, крупно, без текста в кадре`,
-        duration: 5,
-        aspect_ratio: '9:16',
+      const BASE2 =
+        process.env.SELF_URL || 'http://127.0.0.1:' + (process.env.PORT || '3333')
+      const res = await fetch(`${BASE2}/api/generate/video`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': process.env.RENDER_API_KEY || '',
+        },
+        body: JSON.stringify({
+          prompt: `кинематографичный b-roll к посту «${topic.title}»: ${topic.subtitle}. Медленно, крупно, без текста в кадре`,
+          duration: 5,
+          aspect_ratio: '9:16',
+        }),
       })
-      if (vid?.сделано && typeof vid.url === 'string') {
+      const vid = await res.json()
+      if (vid?.success && typeof vid.url === 'string') {
         props.avatarVideo = vid.url
       } else {
         log(
