@@ -82,6 +82,9 @@ function writeState(s: State) {
 async function call(name: string, args: Record<string, unknown> = {}) {
   const r = await fetch(`${BASE}/mcp`, {
     method: 'POST',
+    // Рендер рилса живёт ~50–80с, картинка ~10с — потолок с запасом.
+    // Без него зависший инструмент вешал автопилот навсегда.
+    signal: AbortSignal.timeout(240_000),
     headers: { 'Content-Type': 'application/json', 'X-Agent-Key': KEY },
     body: JSON.stringify({
       jsonrpc: '2.0',
@@ -103,7 +106,7 @@ async function call(name: string, args: Record<string, unknown> = {}) {
  */
 async function blogTopics(published: string[]): Promise<Topic[]> {
   try {
-    const r = await fetch(`${BASE}/api/blog`)
+    const r = await fetch(`${BASE}/api/blog`, { signal: AbortSignal.timeout(20_000) })
     if (!r.ok) return []
     const d = (await r.json()) as {
       items?: { title: string; description: string; pubDate: string }[]
@@ -171,6 +174,29 @@ function pickTopic(
 }
 
 async function main() {
+  // 0. Однопроцессность: зависший на видео-генерации автопилот не должен
+  // размножаться кроном каждые 15 минут. Lock-файл с живым PID — молчаливый
+  // выход; мёртвый PID (ребут/краш) локу не мешает.
+  const LOCK_FILE = path.join(LOOP_DIR, '.autopilot.lock')
+  try {
+    const prev = Number(fs.readFileSync(LOCK_FILE, 'utf8').trim())
+    if (prev && process.kill(prev, 0)) {
+      log(`уже работает автопилот (PID ${prev}) — выхожу без спора`)
+      return
+    }
+  } catch {
+    /* файла нет или PID мёртв — берём лок сами */
+  }
+  fs.writeFileSync(LOCK_FILE, String(process.pid))
+  const releaseLock = () => {
+    try {
+      fs.unlinkSync(LOCK_FILE)
+    } catch {
+      /* уже убран */
+    }
+  }
+  process.on('exit', releaseLock)
+
   const withImage = process.argv.includes('--with-image')
   // Последний пост дня автоматически с b-roll: один видео-слой в день —
   // визуальный апгрейд канала при стабильном расходе (1 генерация/день).
@@ -291,6 +317,9 @@ async function main() {
         process.env.SELF_URL || 'http://127.0.0.1:' + (process.env.PORT || '3333')
       const res = await fetch(`${BASE2}/api/generate/video`, {
         method: 'POST',
+        // Видео на Replicate живёт ~90с; без потолка зависший fetch вешал
+        // автопилот навсегда (а lock теперь честно держит очередь крона).
+        signal: AbortSignal.timeout(180_000),
         headers: {
           'Content-Type': 'application/json',
           'X-Api-Key': process.env.RENDER_API_KEY || '',
