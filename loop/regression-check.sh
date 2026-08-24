@@ -92,6 +92,13 @@ if [ "${REGRESS_PROBE_PROD:-0}" = "1" ]; then
     code=$(curl -s -m 15 -o /dev/null -w '%{http_code}' "https://vibee-editor-production.up.railway.app$fpath")
     check "прод-фронт $fpath" 200 "$code"
   done
+  # Вебхук кассира звёзд: слетал разово (цикл №64) — теперь под надзором
+  # каждого зонда. Кассовый токен живёт в vibee-render, печатать нельзя.
+  PAYBOT=$(railway variables list -s vibee-render -e production --kv 2>/dev/null | grep ^TOKENS_PAYMENT_BOT_TOKEN= | cut -d= -f2-)
+  if [ -n "$PAYBOT" ]; then
+    wh=$(curl -s -m 10 "https://api.telegram.org/bot${PAYBOT}/getWebhookInfo" | python3 -c "import json,sys; u=json.load(sys.stdin)['result'].get('url',''); print('ok' if 'stars-wh' in u else 'gone')" 2>/dev/null)
+    check "вебхук кассира" ok "$wh"
+  fi
 fi
 
 say "— Очередь и состояние —"
