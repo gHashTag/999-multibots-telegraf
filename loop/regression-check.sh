@@ -13,8 +13,15 @@
 if [ -z "${ZSH_VERSION:-}" ]; then exec zsh "$0" "$@"; fi
 
 cd "$HOME/999-multibots-telegraf" || exit 1
-KEY=$(railway variables list -s vibee-render -e production --kv 2>/dev/null | grep ^AGENT_KEYS= | cut -d= -f2- | cut -d: -f1)
-[ -n "$KEY" ] || { echo "FAIL: нет ключа агента (railway link?)"; exit 1 }
+# Ключ с ретраями: гостевая сессия railway флуктуирует пустыми ответами
+# (опыты №22/№30) — одиночный вызов давал ложный FAIL «нет ключа».
+KEY=""
+for _k in 1 2 3 4; do
+  KEY=$(railway variables list -s vibee-render -e production --kv 2>/dev/null | grep ^AGENT_KEYS= | cut -d= -f2- | cut -d: -f1)
+  [ -n "$KEY" ] && break
+  sleep 8
+done
+[ -n "$KEY" ] || { echo "FAIL: нет ключа агента (4 ретрая — railway login/гость?)"; exit 1 }
 
 fail=0
 say() { printf '%s\n' "$*"; }
