@@ -9,7 +9,8 @@
  * @see https://blog.logrocket.com/ux-design/skeleton-loading-screen-design/
  */
 
-import { CSSProperties, memo } from 'react';
+import { memo } from 'react';
+import type { CSSProperties } from 'react';
 
 interface VideoSkeletonProps {
   width?: number | string;

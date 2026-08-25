@@ -1,4 +1,4 @@
-import { CompilationResult } from './types';
+import type { CompilationResult } from './types';
 
 class VibeeCompiler {
   compile(vibeeCode: string): CompilationResult {
