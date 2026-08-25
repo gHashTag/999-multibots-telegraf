@@ -5892,6 +5892,76 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  /**
+   * GET /api/users/:username/templates — работы человека.
+   *
+   * МАРШРУТА НЕ БЫЛО ВОВСЕ. Запрос попадал в обработчик профиля ниже: тот
+   * ловит всё, что начинается на `/api/users/`, берёт вторую часть пути и
+   * отдаёт КАРТОЧКУ ПРОФИЛЯ с кодом 200. Клиент читал `data.templates`,
+   * получал undefined и показывал «Пока нет видео» — при том, что в том же
+   * ответе лежало `templates_count: 17`.
+   *
+   * То есть профиль НИ У КОГО не показывал работы, а выглядело это как
+   * «человек ничего не выложил». Ошибки не было ни в логах, ни в консоли:
+   * ответ 200, просто не тот.
+   */
+  if (
+    req.method === 'GET' &&
+    /^\/api\/users\/[^/]+\/templates$/.test(req.url?.split('?')[0] || '')
+  ) {
+    const url = new URL(req.url || '', `http://${req.headers.host}`)
+    const username = decodeURIComponent(url.pathname.split('/')[3] || '')
+    const page = Math.max(0, parseInt(url.searchParams.get('page') || '0', 10) || 0)
+    const limit = Math.min(
+      50,
+      Math.max(1, parseInt(url.searchParams.get('limit') || '20', 10) || 20)
+    )
+    try {
+      // getPool() внутри try: его синхронный throw иначе уходит из
+      // async-обработчика и убивает процесс.
+      const pool = await getPool()
+      const result = await pool.query(
+        `SELECT pt.id, pt.telegram_id, pt.creator_name, pt.creator_avatar,
+                COALESCE(pt.creator_username, '') AS creator_username,
+                pt.name, pt.description, pt.thumbnail_url, pt.video_url,
+                pt.likes_count, pt.views_count, pt.uses_count,
+                COALESCE(pt.stars_count, 0) AS stars_count,
+                pt.is_featured, pt.created_at::text
+         FROM public_templates pt
+         LEFT JOIN profiles p ON p.telegram_id = pt.telegram_id
+         WHERE pt.is_public = TRUE AND pt.deleted_at IS NULL
+           AND (pt.creator_username = $1 OR p.username = $1)
+         ORDER BY pt.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [username, limit, page * limit]
+      )
+      sendJson(res, 200, {
+        templates: result.rows.map(row => ({
+          id: row.id,
+          telegramId: row.telegram_id,
+          creatorName: row.creator_name,
+          creatorAvatar: row.creator_avatar,
+          creatorUsername: row.creator_username,
+          name: row.name,
+          description: row.description,
+          thumbnailUrl: row.thumbnail_url,
+          videoUrl: row.video_url,
+          likesCount: row.likes_count || 0,
+          viewsCount: row.views_count || 0,
+          usesCount: row.uses_count || 0,
+          starsCount: row.stars_count || 0,
+          isFeatured: row.is_featured || false,
+          createdAt: row.created_at,
+        })),
+      })
+    } catch (error) {
+      console.error('User templates error:', error)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Failed to fetch user templates' }))
+    }
+    return
+  }
+
   // GET /api/users/:username - Get user profile by username
   if (
     req.url?.startsWith('/api/users/') &&
