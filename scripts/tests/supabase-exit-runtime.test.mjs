@@ -30,7 +30,13 @@ const manifests = [
   'apps/vibee-editor/nginx/default.conf.template',
   'apps/vibee-editor/railway.toml',
 ]
-const runtimeGuard = 'apps/vibee-editor/render/src/runtime/supabaseExit.ts'
+const runtimeGuards = new Set([
+  'apps/vibee-editor/render/src/runtime/supabaseExit.ts',
+  // Production player entrypoint performs the same fail-closed environment
+  // inspection before nginx starts. Only environment-name markers are allowed
+  // here; literal hosts and SDK imports remain violations below.
+  'apps/vibee-editor/docker-entrypoint.sh',
+])
 const supabaseEnvMarker = /\b[A-Z0-9_]*SUPABASE[A-Z0-9_]*\b/
 const supabaseEnvAccess =
   /process\.env(?:\.|\[['"])[A-Za-z0-9_]*supabase[A-Za-z0-9_]*/i
@@ -116,12 +122,12 @@ function isDeployableSourceFile(path) {
 
 const markerKinds = (path, text) => {
   const kinds = []
-  if (/https?:\/\/[^\s'"`]*\.supabase\.[a-z0-9.-]+\b/i.test(text)) {
+  if (/https?:\/\/(?:[a-z0-9-]+\.)*supabase\.[a-z0-9.-]+\b/i.test(text)) {
     kinds.push('supabase-host')
   }
   if (/@supabase\/supabase-js/i.test(text)) kinds.push('supabase-sdk')
   if (
-    path !== runtimeGuard &&
+    !runtimeGuards.has(path) &&
     (supabaseEnvMarker.test(text) || supabaseEnvAccess.test(text))
   ) {
     kinds.push('supabase-env')
@@ -135,12 +141,25 @@ const generatedFixture = 'apps/vibee-editor/render/build/top-level-runtime.mjs'
 const dependencyFixture =
   'apps/vibee-editor/render/node_modules/example/top-level-runtime.mjs'
 const fixtureMarker = 'const key = process.env.TOPLEVELSUPABASEKEY'
+const playerEntrypointGuard = 'apps/vibee-editor/docker-entrypoint.sh'
 
 if (
   !isDeployableSourceFile(topLevelFixture) ||
   !markerKinds(topLevelFixture, fixtureMarker).includes('supabase-env')
 ) {
   throw new Error('Top-level render module scanner regression')
+}
+if (
+  !runtimeGuards.has(playerEntrypointGuard) ||
+  markerKinds(playerEntrypointGuard, 'SUPABASE_RUNTIME_KEY').includes(
+    'supabase-env'
+  ) ||
+  !markerKinds(
+    playerEntrypointGuard,
+    'const endpoint = "https://fixture.supabase.invalid"'
+  ).includes('supabase-host')
+) {
+  throw new Error('Player entrypoint guard scanner regression')
 }
 for (const excludedFixture of [
   testFixture,
