@@ -84,8 +84,11 @@ if "starsCount" not in t or "isStarred" not in t:
     sys.exit(2)
 sys.exit(0)' 2>/dev/null
 }
+# Транзиенты ленты (миг пула БД под параллельной нагрузкой) не должны
+# ронять виток: даём зонду вторую попытку (виток №110 — первый такой случай).
 feed_probe http://127.0.0.1:3333
 rc=$?
+if [ $rc -ne 0 ]; then sleep 3; feed_probe http://127.0.0.1:3333; rc=$?; fi
 [ $rc -eq 0 ] && say "  ✅ локальная лента: 200, templates, starsCount+isStarred" || { say "  ❌ локальная лента: код $rc (0=нет полей схемы звёзд, 1/2=500/пусто)"; fail=1; }
 if [ "${REGRESS_PROBE_PROD:-0}" = "1" ]; then
   feed_probe https://vibee-render-production.up.railway.app
