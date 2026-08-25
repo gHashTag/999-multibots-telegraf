@@ -89,41 +89,44 @@ export const voiceTrainingStart = inngest.createFunction(
     })
 
     // Step 2: Запустить обучение на Replicate
-    const trainingResult = await step.run('start-replicate-training', async () => {
-      try {
-        // ВЕБХУК НЕ ПЕРЕДАЁМ. Здесь стоял адрес
-        // `${…}/api/webhooks/voice-training`, а такого маршрута в приложении
-        // НЕТ — единственный маршрут под /api/webhooks это /replicate. Replicate
-        // повторяет неудавшиеся вебхуки, то есть мы годами генерировали серию
-        // запросов в 404.
-        //
-        // Работу и так делает опрос: шаг 'wait-for-completion' ниже спрашивает
-        // статус каждые 30 секунд до 60 раз. Комментарий там честно говорил
-        // «используем polling как fallback» — на деле это был не fallback, а
-        // единственный работающий механизм.
-        //
-        // Если понадобится вебхук: сперва завести маршрут, потом сюда вернуть
-        // адрес. Указывать несуществующий — хуже, чем не указывать никакого.
-        const result = await startVoiceTraining({
-          telegram_id,
-          audioUrl,
-          modelName,
-        })
+    const trainingResult = await step.run(
+      'start-replicate-training',
+      async () => {
+        try {
+          // ВЕБХУК НЕ ПЕРЕДАЁМ. Здесь стоял адрес
+          // `${…}/api/webhooks/voice-training`, а такого маршрута в приложении
+          // НЕТ — единственный маршрут под /api/webhooks это /replicate. Replicate
+          // повторяет неудавшиеся вебхуки, то есть мы годами генерировали серию
+          // запросов в 404.
+          //
+          // Работу и так делает опрос: шаг 'wait-for-completion' ниже спрашивает
+          // статус каждые 30 секунд до 60 раз. Комментарий там честно говорил
+          // «используем polling как fallback» — на деле это был не fallback, а
+          // единственный работающий механизм.
+          //
+          // Если понадобится вебхук: сперва завести маршрут, потом сюда вернуть
+          // адрес. Указывать несуществующий — хуже, чем не указывать никакого.
+          const result = await startVoiceTraining({
+            telegram_id,
+            audioUrl,
+            modelName,
+          })
 
-        logger.info('[VOICE_TRAINING] Replicate training started', {
-          voiceModelId,
-          trainingId: result.trainingId,
-        })
+          logger.info('[VOICE_TRAINING] Replicate training started', {
+            voiceModelId,
+            trainingId: result.trainingId,
+          })
 
-        return result
-      } catch (error) {
-        logger.error('[VOICE_TRAINING] Failed to start Replicate training', {
-          voiceModelId,
-          error: error instanceof Error ? error.message : String(error),
-        })
-        throw error
+          return result
+        } catch (error) {
+          logger.error('[VOICE_TRAINING] Failed to start Replicate training', {
+            voiceModelId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+          throw error
+        }
       }
-    })
+    )
 
     // Step 3: Сохранить training ID в БД
     await step.run('save-training-id', async () => {
@@ -202,31 +205,54 @@ export const voiceTrainingStart = inngest.createFunction(
       }
     } else {
       await step.run('mark-failed', async () => {
-        await markVoiceModelFailed(voiceModelId, finalStatus.error || 'Unknown error')
+        await markVoiceModelFailed(
+          voiceModelId,
+          finalStatus.error || 'Unknown error'
+        )
         logger.error('[VOICE_TRAINING] Model marked as failed', {
           voiceModelId,
           error: finalStatus.error,
         })
       })
 
-      // Refund
-      await step.run('refund-user', async () => {
+      // Возврат. Списание было в voiceTrainingWizard до отправки события —
+      // он единственный отправитель voice/training.start.
+      const refunded = await step.run('refund-user', async () => {
         const cost = getVoiceTrainingCost()
-        await updateUserBalance(
+        const ok = await updateUserBalance(
           telegram_id,
           cost,
           PaymentType.REFUND,
           'Voice training failed - refund'
         )
-        logger.info('[VOICE_TRAINING] Refund processed', {
-          telegram_id,
-          amount: cost,
-        })
+        if (ok) {
+          logger.info('[VOICE_TRAINING] Refund processed', {
+            telegram_id,
+            amount: cost,
+          })
+        } else {
+          // Раньше результат выбрасывался: «Refund processed» писалось всегда,
+          // а человеку говорилось «Средства возвращены» без проверки.
+          // updateUserBalance возвращает false и когда у человека нет строки
+          // в users — таких плательщиков 44 (docs/audit/ghost-payers.md).
+          logger.error('💸❌ REFUND FAILED — деньги НЕ возвращены', {
+            alert: 'ЧЕЛОВЕКУ НЕ ВЕРНУЛИ ЗВЁЗДЫ ПОСЛЕ НЕУДАЧНОГО ОБУЧЕНИЯ',
+            telegram_id,
+            amount: cost,
+          })
+        }
+        return ok
       })
 
       // Уведомление пользователя
       await step.run('notify-user-failure', async () => {
-        await notifyUser(telegram_id, false, finalStatus.error, bot_name)
+        await notifyUser(
+          telegram_id,
+          false,
+          finalStatus.error,
+          bot_name,
+          refunded
+        )
       })
 
       return {
@@ -288,18 +314,36 @@ export const voiceTrainingCompleted = inngest.createFunction(
         await markVoiceModelFailed(voiceModel.id, error || 'Training failed')
       })
 
-      await step.run('refund', async () => {
+      // Сегодня событие voice/training.completed никто не отправляет (grep по
+      // src), так что этот путь мёртв. Если отправитель появится, возврат надо
+      // сделать идемпотентным с возвратом в voiceTrainingStart (опрос): обе
+      // ветки срабатывают на один и тот же провал — это двойной возврат.
+      const refunded = await step.run('refund', async () => {
         const cost = getVoiceTrainingCost()
-        await updateUserBalance(
+        const ok = await updateUserBalance(
           voiceModel.telegram_id,
           cost,
           PaymentType.REFUND,
           'Voice training failed - refund'
         )
+        if (!ok) {
+          logger.error('💸❌ REFUND FAILED — деньги НЕ возвращены', {
+            alert: 'ЧЕЛОВЕКУ НЕ ВЕРНУЛИ ЗВЁЗДЫ ПОСЛЕ НЕУДАЧНОГО ОБУЧЕНИЯ',
+            telegram_id: voiceModel.telegram_id,
+            amount: cost,
+          })
+        }
+        return ok
       })
 
       await step.run('notify-failure', async () => {
-        await notifyUser(voiceModel.telegram_id, false, error)
+        await notifyUser(
+          voiceModel.telegram_id,
+          false,
+          error,
+          undefined,
+          refunded
+        )
       })
 
       return { success: false, voiceModelId: voiceModel.id, error }
@@ -315,7 +359,14 @@ async function notifyUser(
   telegram_id: string,
   success: boolean,
   errorMsg?: string,
-  bot_name?: string
+  bot_name?: string,
+  /**
+   * Прошёл ли возврат на самом деле — при success=false сообщение обещает
+   * деньги, и обещание опирается на этот флаг, а не на умолчание. Строгое
+   * сравнение с true: забытый аргумент даёт «напишите в поддержку», а не
+   * ложное «средства возвращены».
+   */
+  refunded?: boolean
 ): Promise<void> {
   try {
     // Получаем инстанс бота для отправки сообщения
@@ -335,7 +386,9 @@ async function notifyUser(
         `Просто отправьте песню, и она будет исполнена вашим голосом!`
       : `❌ К сожалению, обучение голоса не удалось.\n\n` +
         `${errorMsg ? `Ошибка: ${errorMsg}\n\n` : ''}` +
-        `Средства возвращены на ваш баланс.\n` +
+        (refunded === true
+          ? `Средства возвращены на ваш баланс.\n`
+          : `Вернуть звёзды автоматически не удалось — напишите в поддержку, приложив это сообщение.\n`) +
         `Попробуйте снова с другим аудио.`
 
     await bot.telegram.sendMessage(telegram_id, message)
