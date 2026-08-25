@@ -122,7 +122,7 @@ function isDeployableSourceFile(path) {
 
 const markerKinds = (path, text) => {
   const kinds = []
-  if (/https?:\/\/(?:[a-z0-9-]+\.)*supabase\.[a-z0-9.-]+\b/i.test(text)) {
+  if (/(?:^|[^a-z0-9-])(?:[a-z0-9-]+\.)*supabase\.[a-z0-9.-]+\b/i.test(text)) {
     kinds.push('supabase-host')
   }
   if (/@supabase\/supabase-js/i.test(text)) kinds.push('supabase-sdk')
@@ -156,7 +156,7 @@ if (
   ) ||
   !markerKinds(
     playerEntrypointGuard,
-    'const endpoint = "https://fixture.supabase.invalid"'
+    'const endpoint = "fixture.supabase.invalid"'
   ).includes('supabase-host')
 ) {
   throw new Error('Player entrypoint guard scanner regression')

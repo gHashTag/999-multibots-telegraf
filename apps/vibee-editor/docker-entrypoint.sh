@@ -27,11 +27,9 @@ if env -0 | while IFS= read -r -d '' entry; do
   esac
 
   lower_value=$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')
-  http_marker='http://'
-  https_marker='https://'
   host_marker='supabase.'
   case "$lower_value" in
-    *"$http_marker"*"$host_marker"* | *"$https_marker"*"$host_marker"*)
+    *"$host_marker"*)
       exit 78
       ;;
   esac
