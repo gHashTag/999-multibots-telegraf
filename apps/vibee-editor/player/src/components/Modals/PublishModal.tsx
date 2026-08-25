@@ -34,23 +34,51 @@ function feedLink(): string {
    * Собственный домен бренда, а НЕ служебный адрес мини-аппа.
    *
    * Прошлая версия брала window.location.origin — это чинило мёртвый
-   * vibee-player.fly.dev, но подставляло в пост адрес Railway
-   * (vibee-editor-production.up.railway.app). Технически живой, для читателя
-   * — набор служебных слов вместо имени проекта.
+   * vibee-player.fly.dev, но подставляло в пост адрес Railway. Технически
+   * живой, для читателя — набор служебных слов вместо имени проекта.
    *
-   * Замер: t27.ai отвечает 200, но отдаёт научный сайт TRINITY, а не ленту,
-   * поэтому `/feed` не дописываем — там 404. Лента переедет на app.t27.ai,
-   * домен пока не существует; ставить его сейчас значило бы вернуть в посты
-   * мёртвую ссылку.
+   * Дальше стоял голый `t27.ai` с оговоркой: «лента переедет на app.t27.ai,
+   * домен пока не существует». ПЕРЕЕХАЛА. Замер 2026-08-26: app.t27.ai
+   * отдаёт 200 и тот же бандл, что адрес Railway, `/feed` на нём тоже 200.
+   * Поэтому ссылка снова ведёт прямо в ленту, а не на главную, откуда
+   * читателю пришлось бы искать её самому.
    */
-  return 't27.ai';
+  return 'app.t27.ai/feed';
 }
 
 // Подпись поста — ТОЛЬКО по-русски: канал русскоязычный, и английские хвосты
 // в нём читаются как чужой шаблон.
-function generateDefaultCaption(name: string, description: string, creatorName: string): string {
-  const desc = description?.trim() ? `\n\n${description}` : '';
-  return `🎬 ${name}${desc}\n\n👤 ${creatorName}\n🔗 ${feedLink()}\n\n#рилс #нейросети #TrinityS3AI`;
+/**
+ * Telegram режет подпись `sendVideo` на 1024 символах.
+ *
+ * ССЫЛКА СТОИТ В КОНЦЕ — значит обрезка съедала бы именно её, то есть
+ * единственный способ читателя попасть в приложение. Длинное описание тихо
+ * превращало пост в тупик, и заметить это по коду было нельзя: обрезка
+ * происходит на стороне Telegram.
+ *
+ * Поэтому бюджет считается от ХВОСТА: сначала собираем то, что обязано
+ * дожить (автор, ссылка, хештеги), и только в остаток вписываем название и
+ * описание. Не влезло — сокращаем описание, а не ссылку.
+ */
+const TG_CAPTION_LIMIT = 1024;
+
+export function generateDefaultCaption(name: string, description: string, creatorName: string): string {
+  const tail = `\n\n👤 ${creatorName}\n🔗 ${feedLink()}\n\n#рилс #нейросети #TrinityS3AI`;
+  const head = `🎬 ${name}`;
+  const desc = description?.trim() ? `\n\n${description.trim()}` : '';
+
+  const full = `${head}${desc}${tail}`;
+  if (full.length <= TG_CAPTION_LIMIT) return full;
+
+  // Хвост неприкосновенен. Если даже с ним одно название не влезает —
+  // режем название: пост без имени всё ещё ведёт в ленту, пост без ссылки
+  // не ведёт никуда.
+  const room = TG_CAPTION_LIMIT - tail.length;
+  if (head.length > room) return `${head.slice(0, Math.max(0, room - 1))}…${tail}`;
+
+  const descRoom = room - head.length;
+  const cut = desc.slice(0, Math.max(0, descRoom - 1));
+  return `${head}${cut}${cut.length ? '…' : ''}${tail}`;
 }
 
 export function PublishModal({ isOpen, onClose, videoUrl, thumbnailUrl }: PublishModalProps) {

@@ -225,7 +225,14 @@ const SERVICE_ENDPOINTS = {
   mcp: process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app',
   // dead-domain-ok: замены нет, отказ теперь виден в ответе публикации
   bridge: process.env.TELEGRAM_BRIDGE_URL || 'https://vibee-telegram-bridge.fly.dev',
-  player: process.env.PLAYER_URL || 'https://vibee-editor-production.up.railway.app',
+  /**
+   * Собственный домен, а не служебный адрес Railway: этот URL уходит ЛЮДЯМ —
+   * в подпись поста в канале. Замер 2026-08-26: app.t27.ai отдаёт 200 и тот
+   * же бандл (index-D06s1d0l.js), что и адрес Railway, а /feed на нём тоже
+   * 200. Раньше домена не существовало, поэтому в постах стоял служебный
+   * адрес — технически живой и нечитаемый для человека.
+   */
+  player: process.env.PLAYER_URL || 'https://app.t27.ai',
 } as const
 
 /**
