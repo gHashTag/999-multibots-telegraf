@@ -36,8 +36,29 @@ interface FeedCardProps {
   template: FeedTemplate
 }
 
+/**
+ * Описание БЕЗ первой строки, если она повторяет название.
+ *
+ * Автопилот собирает описание как «заголовок, пустая строка, текст». На
+ * карточке заголовок уже напечатан отдельной строкой, а описание обрезано
+ * до двух строк — и обе уходили на повтор заголовка. Человек видел одно и
+ * то же трижды и НИ РАЗУ — сам текст, ради которого описание и пишут.
+ *
+ * Режем ровно первый абзац и ровно при совпадении: чужие описания, где
+ * первая строка не заголовок, остаются как есть.
+ */
+function stripRepeatedTitle(description?: string, name?: string): string {
+  const text = (description ?? '').trim();
+  const title = (name ?? '').trim();
+  if (!text || !title) return text;
+  if (text === title) return '';
+  if (!text.startsWith(title)) return text;
+  return text.slice(title.length).replace(/^[\s\n]+/, '');
+}
+
 export function FeedCard({ template }: FeedCardProps) {
   const { t } = useLanguage()
+  const descriptionBody = stripRepeatedTitle(template.description, template.name)
   const navigate = useNavigate()
   const user = useAtomValue(userAtom)
   const likeTemplate = useSetAtom(likeTemplateAtom)
@@ -495,8 +516,8 @@ export function FeedCard({ template }: FeedCardProps) {
             )}
           </div>
 
-          {template.description && (
-            <p className="feed-card-description">{template.description}</p>
+          {descriptionBody && (
+            <p className="feed-card-description">{descriptionBody}</p>
           )}
         </div>
       </div>
