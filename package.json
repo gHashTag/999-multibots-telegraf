@@ -12,6 +12,7 @@
     "build:ts": "tsc",
     "check:build": "./scripts/check-build-health.sh",
     "check:dead-domain": "node scripts/check-dead-domain.cjs",
+    "check:player-types": "node scripts/check-player-types.cjs",
     "check:events": "node scripts/orphan-events.cjs",
     "check:merge": "./scripts/pre-merge-check.sh",
     "check:quick": "./scripts/quick-build-check.sh",
