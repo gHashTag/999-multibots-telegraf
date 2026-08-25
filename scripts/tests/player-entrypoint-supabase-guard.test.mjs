@@ -62,3 +62,19 @@ test('player entrypoint also rejects an apex Supabase host', () => {
   assert.match(result.stderr, /forbidden backend environment.*redacted/i)
   assert.doesNotMatch(result.stderr, new RegExp(forbiddenUrl))
 })
+
+for (const [label, forbiddenEndpoint] of [
+  ['database URL', 'postgresql://db.fixture.supabase.invalid/runtime'],
+  ['websocket URL', 'wss://fixture.supabase.invalid/socket'],
+  ['bare hostname', 'fixture.supabase.invalid'],
+]) {
+  test(`player entrypoint rejects a ${label} under another name`, () => {
+    const result = runEntrypointGuard({
+      BACKEND_ENDPOINT: forbiddenEndpoint,
+    })
+
+    assert.equal(result.status, 78)
+    assert.match(result.stderr, /forbidden backend environment.*redacted/i)
+    assert.doesNotMatch(result.stderr, new RegExp(forbiddenEndpoint))
+  })
+}
