@@ -10,13 +10,9 @@ import './TelegramTabBar.css'
 // ===============================
 // The single navigation surface for the app.
 //
-// This is the UNION of the two previously-dead components:
-//   VerticalTabs      — feed, player(/editor), lipsync, video, image, audio
-//   BottomNavigation  — feed, search, learn, create(/editor), profile
-// 'feed' and 'player'/'create' pointed at the same routes and are merged, so
-// 6 + 5 becomes 9 distinct tabs.
-//
-// Neither original was rendered anywhere; both are superseded by this file.
+// Объединяет две прежние панели, VerticalTabs и BottomNavigation: ни одна
+// из них не рендерилась нигде, обе удалены. Совпадающие маршруты слиты, и
+// из 6 + 5 вкладок получилось 9 различимых — а затем 5, см. ниже.
 // ===============================
 
 interface TabItem {

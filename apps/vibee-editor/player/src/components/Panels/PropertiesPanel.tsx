@@ -50,7 +50,7 @@ import type { TemplateSettings } from '@/atoms/templates';
 import { useLanguage } from '@/hooks/useLanguage';
 import { DEFAULT_AVATAR_CONFIG, DEFAULT_SPLIT_AVATAR, DEFAULT_FULLSCREEN_AVATAR, BRAND_COLORS, DEFAULT_WIDTH, DEFAULT_HEIGHT, type TrackItem, type TextItemProps, type CaptionItem, type CaptionStyle, type VideoLayout, type AvatarAnimation, type AvatarBorderEffect } from '@vibee/atoms';
 import { Type, Sliders, Plus, Upload, Mic, Loader2, Trash2, Search, ChevronDown, Palette, ScanFace, Circle, Layers, Maximize, RotateCcw, Sparkles, Play, Clock, LayoutGrid, Volume2 } from 'lucide-react';
-import { analyzeFace } from '@/lib/agentApi';
+import { analyzeFace } from '@/lib/faceApi';
 import { POPULAR_FONTS, UNIQUE_FONTS, type CyrillicFont } from '@/shared/fonts';
 import { RENDER_URL as RENDER_SERVER_URL } from '../../config';
 import './PropertiesPanel.css';
@@ -775,7 +775,8 @@ export function PropertiesPanel() {
   if (selectedItem.type === 'avatar') {
     return (
       <div className="properties-panel">
-        {/* 5 Emoji Tabs - identical to left sidebar VerticalTabs */}
+        {/* Пять вкладок-эмодзи. Раньше повторяли боковую панель
+            VerticalTabs — та удалена как мёртвая, эти живут сами. */}
         <div className="properties-tabs">
           <button
             className={`properties-tab ${activeTab === 'avatar' ? 'active' : ''}`}
