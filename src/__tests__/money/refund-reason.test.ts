@@ -38,15 +38,52 @@ function collect(): string[] {
   return out.filter(f => !f.includes('__tests__') && !f.includes('/test/'))
 }
 
+/**
+ * Текст вызова ЦЕЛИКОМ, от «refundUser(» до парной закрывающей скобки.
+ *
+ * ПОЧЕМУ НЕ ОДНА СТРОКА. Так и было — и тест врал в обе стороны. Вызов
+ *
+ *     await refundUser(ctx, costPerImage, {
+ *       silent: true,
+ *       reason: 'generation_failed',
+ *     })
+ *
+ * причину передаёт, но на ДРУГОЙ строке, и проверка «есть ли reason: в этой
+ * строке» объявляла его нарушителем. Ровно так `core/openai/requests.ts`
+ * годился в отчёт как долг, которого нет.
+ *
+ * Считаем скобки от места вызова: аргументы вызова — это ровно то, что между
+ * его скобками, сколько бы строк они ни занимали.
+ */
+function callText(src: string, from: number): string {
+  const open = src.indexOf('(', from)
+  if (open === -1) return src.slice(from, from + 200)
+  let depth = 0
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '(') depth++
+    else if (src[i] === ')') {
+      depth--
+      if (depth === 0) return src.slice(from, i + 1)
+    }
+  }
+  return src.slice(from)
+}
+
 /** Вызовы refundUser во всём проекте, кроме самого объявления. */
 function callSites(): { file: string; line: number; text: string }[] {
   const hits: { file: string; line: number; text: string }[] = []
   for (const f of collect()) {
     if (f.endsWith('refundUser.ts')) continue
-    const lines = strip(fs.readFileSync(f, 'utf8')).split('\n')
-    lines.forEach((l, i) => {
-      if (/\brefundUser\s*\(/.test(l)) hits.push({ file: f, line: i + 1, text: l })
-    })
+    const src = strip(fs.readFileSync(f, 'utf8'))
+    const re = /\brefundUser\s*\(/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(src)) !== null) {
+      hits.push({
+        file: f,
+        line: src.slice(0, m.index).split('\n').length,
+        text: callText(src, m.index),
+      })
+    }
   }
   return hits
 }
