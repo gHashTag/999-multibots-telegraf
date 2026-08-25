@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Loader2, Save, Sparkles } from 'lucide-react'
 import {
@@ -10,6 +10,8 @@ import {
   saveSoulAtom,
 } from '@/atoms/soul'
 import { useLanguage } from '@/hooks/useLanguage'
+import { API_BASE } from '@/config'
+import { authHeaders } from '@/lib/apiFetch'
 import './SoulEditor.css'
 
 /**
@@ -47,6 +49,42 @@ export function SoulEditor() {
 
   const [draft, setDraft] = useState('')
   const [savedFlash, setSavedFlash] = useState(false)
+  const [tools, setTools] = useState<{ name: string; description: string }[] | null>(
+    null
+  )
+
+  /**
+   * Список возможностей читается С СЕРВЕРА, а не пишется здесь руками.
+   *
+   * Раньше он был литералом из девяти строк, а в реестре инструментов их
+   * больше двух десятков — и расхождение было неизбежным: ничто их не
+   * связывало. Ровно на этом в этом же репозитории уже обожглись: GET
+   * /compositions отдавал шесть шаблонов, а в бандле существовал ОДИН.
+   *
+   * `tools/list` по MCP — тот же вход, которым пользуются внешние клиенты,
+   * и отвечает он ровно тем массивом, по которому агент и работает.
+   */
+  const loadTools = useCallback(async () => {
+    const headers = authHeaders()
+    const devKey = import.meta.env.DEV
+      ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
+      : undefined
+    if (devKey && !headers.has('X-Telegram-Init-Data')) {
+      headers.set('X-Agent-Key', devKey)
+    }
+    const res = await fetch(`${API_BASE}/mcp`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    })
+    const d = await res.json()
+    const list = d?.result?.tools
+    setTools(Array.isArray(list) ? list : [])
+  }, [])
+
+  useEffect(() => {
+    loadTools().catch(() => setTools([]))
+  }, [loadTools])
 
   useEffect(() => {
     void loadSoul()
@@ -106,24 +144,26 @@ export function SoulEditor() {
 
       <div className="soul-editor__skills">
         <h3>{t('soul.skillsTitle')}</h3>
-        <p className="soul-editor__hint">{t('soul.skillsHint')}</p>
-        <ul>
-          {[
-            ['whoami', t('soul.skill.whoami')],
-            ['feed_stats', t('soul.skill.feed_stats')],
-            ['feed_list', t('soul.skill.feed_list')],
-            ['feed_get', t('soul.skill.feed_get')],
-            ['templates_list', t('soul.skill.templates_list')],
-            ['my_assets', t('soul.skill.my_assets')],
-            ['feed_publish', t('soul.skill.feed_publish')],
-            ['soul_get', t('soul.skill.soul_get')],
-            ['soul_edit', t('soul.skill.soul_edit')],
-          ].map(([name, desc]) => (
-            <li key={name}>
-              <code>{name}</code> — {desc}
-            </li>
-          ))}
-        </ul>
+        <p className="soul-editor__hint">
+          {tools === null
+            ? t('soul.skillsHint')
+            : `Что агент умеет прямо сейчас — ${tools.length} инструментов, список читается с сервера`}
+        </p>
+        {tools === null ? (
+          <p className="soul-editor__hint">Спрашиваю сервер…</p>
+        ) : tools.length === 0 ? (
+          <p className="soul-editor__hint">
+            Сервер не ответил списком. Он есть, просто сейчас недоступен.
+          </p>
+        ) : (
+          <ul>
+            {tools.map(tool => (
+              <li key={tool.name}>
+                <code>{tool.name}</code> — {tool.description}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   )

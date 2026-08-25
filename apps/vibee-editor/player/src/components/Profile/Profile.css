@@ -1785,3 +1785,121 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ============================================================
+   КОНТЕНТ-ПЛАН
+   Переиспользует канон скиллов (.profile-skills__*) для карточки,
+   шапки и модалки. Здесь — только то, чего в скиллах нет: папка
+   цели, статус карточки, приглушённая подсказка.
+   ============================================================ */
+
+.profile-plan__goal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  /* Кликабельна вся строка цели, а не одна стрелка: на 375px попасть
+     в иконку 14px пальцем — лотерея. */
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+}
+
+.profile-plan__goal-title > svg {
+  flex-shrink: 0;
+  color: #8a8578;
+}
+
+.profile-plan__goal-title .profile-skills__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Счётчик «вышло/всего» — единственное число на карточке цели, поэтому
+   моноширинные цифры: иначе строка дёргается при каждом изменении. */
+.profile-plan__count {
+  flex-shrink: 0;
+  color: #8a8578;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-plan__aside {
+  color: #6f6a5e;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+.profile-plan__items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #1c1b18;
+}
+
+.profile-plan__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.profile-plan__item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-plan__item-title {
+  color: #e6e0d2;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.profile-plan__item-note {
+  color: #8a8578;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Статус — и метка, и кнопка: нажатие двигает карточку по кругу
+   замысел → в работе → вышло. Отдельного меню на три значения не
+   нужно, а лишний экран на телефоне дороже подсказки. */
+.profile-plan__status {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid #2a2820;
+  background: transparent;
+  color: #8a8578;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.profile-plan__status:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.profile-plan__status--doing {
+  color: var(--vibee-gold);
+  border-color: rgba(255, 215, 0, 0.35);
+}
+
+.profile-plan__status--done {
+  color: #6f6a5e;
+  border-color: #1c1b18;
+  text-decoration: line-through;
+}

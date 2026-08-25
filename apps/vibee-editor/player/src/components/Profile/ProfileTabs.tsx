@@ -3,8 +3,9 @@ import { myProfileAtom } from '@/atoms'
 import { useAtomValue, useSetAtom } from 'jotai';
 import { ProfileFilesGrid } from './ProfileFilesGrid'
 import { ProfileSkills } from './ProfileSkills'
+import { ProfilePlan } from './ProfilePlan'
 import { ProfileBlog } from './ProfileBlog'
-import { Grid, Users, Video, UserPlus, FolderOpen, Wand2, BookOpen } from 'lucide-react';
+import { Grid, Users, Video, UserPlus, FolderOpen, Wand2, BookOpen, Target } from 'lucide-react';
 import {
   viewedProfileAtom,
   userAtom,
@@ -20,8 +21,8 @@ import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import { UserCard } from './UserCard';
 import { ProfileTemplatesGrid } from './ProfileTemplatesGrid';
 
-type TabId = 'templates' | 'files' | 'skills' | 'blog' | 'followers' | 'following';
-const TAB_ORDER: TabId[] = ['templates', 'files', 'skills', 'blog', 'followers', 'following'];
+type TabId = 'templates' | 'plan' | 'files' | 'skills' | 'blog' | 'followers' | 'following';
+const TAB_ORDER: TabId[] = ['templates', 'plan', 'files', 'skills', 'blog', 'followers', 'following'];
 
 export function ProfileTabs() {
   const { t } = useLanguage();
@@ -84,6 +85,7 @@ export function ProfileTabs() {
     { id: 'templates' as const, icon: <Grid size={18} />, label: t('profile.templates'), count: profile.templates_count },
     ...(isOwn
       ? [
+          { id: 'plan' as const, icon: <Target size={18} />, label: 'План', count: undefined },
           { id: 'files' as const, icon: <FolderOpen size={18} />, label: 'Файлы', count: undefined },
           { id: 'skills' as const, icon: <Wand2 size={18} />, label: 'Скиллы', count: undefined },
         ]
@@ -113,6 +115,8 @@ export function ProfileTabs() {
         {activeTab === 'templates' && (
           <ProfileTemplatesGrid username={profile.username} />
         )}
+
+        {activeTab === 'plan' && <ProfilePlan />}
 
         {activeTab === 'files' && <ProfileFilesGrid />}
 
