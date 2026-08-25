@@ -1383,39 +1383,50 @@
   }
 }
 
-/* Mobile-optimized tabs - Icons with badge */
+/* Вкладки профиля на телефоне: СЛОВО и число.
+ *
+ * Здесь был замысел «иконка + бейдж»: подпись пряталась, оставались значок и
+ * счётчик. На живом экране 375×812 это выглядело так: «17 · 0 · 0 · 0» —
+ * четыре одинаковых числа без единого слова. Иконка не рисовалась вовсе:
+ * замер дал ей высоту 0 при заданных 22px, потому что сама кнопка сжималась
+ * до 28px и в колоночном флексе значок схлопывался.
+ *
+ * Чинить схлопывание, чтобы вернуть четыре безымянных значка, смысла нет:
+ * читают всё равно слово. Поэтому подпись показывается, значок на телефоне
+ * убран, а кнопке задана высота под палец — 44px, как принято в проекте
+ * (--touch-target в index.css).
+ *
+ * Семь вкладок у своего профиля в строку не влезут — заголовок и раньше
+ * прокручивался по горизонтали, это поведение сохранено. */
 @media (max-width: 480px) {
   .profile-tabs__header {
     display: flex;
-    justify-content: center;
     gap: 0;
   }
 
   .profile-tabs__tab {
-    flex: 1;
-    flex-direction: column;
-    gap: 0.25rem;
-    padding: 0.75rem 0.5rem;
+    flex: 1 0 auto;
+    flex-direction: row;
+    gap: 0.3rem;
+    padding: 0.6rem 0.5rem;
     min-width: unset;
+    min-height: 44px;
+    font-size: 0.72rem;
+    white-space: nowrap;
     position: relative;
   }
 
-  /* Hide text label on mobile */
-  .profile-tabs__tab > span:not(.profile-tabs__count) {
+  /* Значок на телефоне не рисуется: он схлопывался в ноль и без него
+     подпись читается лучше, чем со значком и без подписи. */
+  .profile-tabs__tab svg {
     display: none;
   }
 
-  /* Show count as badge */
   .profile-tabs__count {
     font-size: 0.65rem;
-    padding: 0.1rem 0.4rem;
-    min-width: 18px;
+    padding: 0.1rem 0.35rem;
+    min-width: 16px;
     text-align: center;
-  }
-
-  .profile-tabs__tab svg {
-    width: 22px;
-    height: 22px;
   }
 
   .profile-tabs__content {

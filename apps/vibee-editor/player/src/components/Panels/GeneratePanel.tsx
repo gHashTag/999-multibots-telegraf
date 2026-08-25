@@ -89,45 +89,45 @@ const IMAGE_MODELS: ImageModel[] = [
   {
     id: 'fal-ai/flux-pro/v1.1-ultra',
     name: 'FLUX Ultra',
-    description: 'Best quality, 2K',
+    description: 'Лучшее качество, 2K',
   },
   {
     id: 'fal-ai/flux/dev',
     name: 'FLUX Dev',
-    description: 'Fast, good quality',
+    description: 'Быстро, хорошее качество',
   },
   {
     id: 'fal-ai/nano-banana-pro',
     name: 'Nano Banana Pro',
-    description: 'Fast, efficient',
+    description: 'Быстро и экономно',
   },
   {
     id: 'fal-ai/reve/text-to-image',
     name: 'Reve',
-    description: 'Artistic style',
+    description: 'Художественный стиль',
   },
   // Replicate models (direct API with version hashes)
   // Note: Version hashes retrieved from Replicate API on 2026-02-20
   {
     id: 'replicate:stability-ai/sdxl:7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc',
     name: 'SDXL',
-    description: 'Replicate • Standard',
+    description: 'Replicate • обычное',
   },
   {
     id: 'replicate:bytedance/sdxl-lightning-4step:6f7a773af6fc3e8de9d5a3c00be77c17308914bf67772726aff83496ba1e3bbe',
     name: 'SDXL Lightning',
-    description: 'Replicate • Fast (4-step)',
+    description: 'Replicate • быстро, 4 шага',
   },
   {
     id: 'replicate:fofr/sdxl-emoji:dee76b5afde21b0f01ed7925f0665b7e879c50ee718c5f78a9d38e04d523cc5e',
     name: 'SDXL Emoji',
-    description: 'Replicate • Sticker style',
+    description: 'Replicate • как стикер',
   },
 ]
 
 const VIDEO_MODELS: VideoModel[] = [
-  { id: 'veo3-fast', name: 'Veo3 Fast', description: 'Quick generation' },
-  { id: 'veo3-quality', name: 'Veo3 Quality', description: 'Best quality' },
+  { id: 'veo3-fast', name: 'Veo3 Fast', description: 'Быстрая генерация' },
+  { id: 'veo3-quality', name: 'Veo3 Quality', description: 'Лучшее качество' },
 ]
 
 const ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3']

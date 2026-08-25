@@ -424,7 +424,7 @@ const en: Translations = {
   'chat.templateProps': 'template properties',
   'chat.errors': 'errors',
   'chat.placeholder': 'Describe what you want to create...',
-  'chat.messagePlaceholder': 'Write a message or upload a file...',
+  'chat.messagePlaceholder': 'Message the agent…',
   'chat.send': 'Send',
   'chat.welcome':
     "Hi! I'm your VIBEE AI assistant. I can help you create and edit video templates. What would you like to build today?",
@@ -2073,7 +2073,9 @@ const ru: Translations = {
   'chat.templateProps': 'свойств шаблона',
   'chat.errors': 'ошибок',
   'chat.placeholder': 'Опишите, что хотите создать...',
-  'chat.messagePlaceholder': 'Напишите сообщение или загрузите файл...',
+  // Поле ввода 240px — длинная подсказка обрезалась на «или за…».
+  // Короткая читается целиком, а про файлы человек узнаёт из кнопки рядом.
+  'chat.messagePlaceholder': 'Сообщение агенту…',
   'chat.send': 'Отправить',
   'chat.welcome':
     'Привет! Я VIBEE AI ассистент. Могу помочь создать и отредактировать видео шаблоны. Что хотите сделать?',
