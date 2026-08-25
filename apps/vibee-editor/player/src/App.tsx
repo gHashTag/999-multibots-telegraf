@@ -11,6 +11,7 @@ import { ToastContainer } from '@/components/Toast/Toast';
 import { PageTransition } from '@/components/PageTransition';
 import { TelegramProvider } from '@/components/Telegram/TelegramProvider';
 import { TelegramTabBar } from '@/components/Navigation/TelegramTabBar';
+import { RouteMemory, LaunchRedirect } from '@/components/Navigation/RouteMemory';
 import './App.css';
 
 // Lazy load pages for code splitting
@@ -61,10 +62,11 @@ function App() {
                 <PageTransition>
                   <Suspense fallback={<PageLoader />}>
                     <Routes>
-                  {/* Главная открывается на ленте. Редирект, а не рендер
-                      FeedPage прямо на "/", чтобы у ленты остался один
-                      канонический URL — от него зависит подсветка таба. */}
-                  <Route path="/" element={<Navigate to="/feed" replace />} />
+                  {/* Главная открывается там, где человека прервали, а без
+                      памяти — на ленте. Редирект, а не рендер FeedPage прямо
+                      на "/", чтобы у ленты остался один канонический URL — от
+                      него зависит подсветка таба. */}
+                  <Route path="/" element={<LaunchRedirect />} />
                   {/* Маркетинговый лендинг переехал сюда, чтобы не пропасть. */}
                   <Route path="/home" element={<HomePage />} />
                   <Route path="/feed" element={<FeedPage />} />
@@ -93,6 +95,9 @@ function App() {
                     outside <Suspense> so it stays visible while a lazy page
                     chunk loads. */}
                 <TelegramProvider />
+                {/* Порядок важен: TelegramProvider первым, чтобы диплинк по
+                    start_param отработал раньше восстановления экрана. */}
+                <RouteMemory />
                 <TelegramTabBar />
                 <ToastContainer />
               </ConditionalWeb3Provider>

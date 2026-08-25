@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useAtom } from 'jotai'
+import { agentMessagesAtom, agentDraftAtom } from '@/atoms/agentChat'
+import type { Message } from '@/atoms/agentChat'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Header } from '@/components/Header'
 import { ChatAssets } from '@/components/Chat/ChatAssets'
@@ -24,18 +27,20 @@ import './Chat.css'
  * тот же механизм, что у остальных запросов к серверу.
  */
 
-interface ToolCall {
-  name: string
-  ms?: number
-}
+// Форма сообщения переехала в atoms/agentChat.ts вместе с хранением: тип и
+// его хранилище должны меняться в одном месте.
 
-interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  text: string
-  /** Поток размышления модели — сворачиваемый, показывается по желанию. */
-  thinking?: string
-  tools?: ToolCall[]
+/** Приветствие вынесено из эффекта: его ставят и при первом входе, и по
+ *  кнопке «Новый разговор». Две копии одного текста разошлись бы. */
+const WELCOME: Message = {
+  id: 'welcome',
+  role: 'assistant',
+  text:
+    'Привет! Я агент Trinity S³AI. Я не просто отвечаю — я смотрю в приложение ' +
+    'своими инструментами: читаю ленту, твои файлы и шаблоны, публикую рилсы.\n\n' +
+    '💰 Цены: картинка — 1 токен, рилс — 1, озвучка — 6, видео — 20. ' +
+    'Баланс виден вверху. Бесплатно: лента, файлы, SOUL, аналитика, публикация.\n\n' +
+    'С чего начнём? Могу сразу сделать картинку за 1 токен — только скажи тему.',
 }
 
 const SUGGESTIONS = [
@@ -47,8 +52,10 @@ const SUGGESTIONS = [
 
 function ChatPage() {
   const { t } = useLanguage()
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
+  // Переписка и черновик — в атомах с хранилищем, а не в useState: страница
+  // размонтируется при переключении вкладки, и разговор пропадал вместе с ней.
+  const [messages, setMessages] = useAtom(agentMessagesAtom)
+  const [input, setInput] = useAtom(agentDraftAtom)
   const [busy, setBusy] = useState(false)
   const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({})
   const [tokens, setTokens] = useState<number | null>(null)
@@ -193,19 +200,16 @@ function ChatPage() {
     })()
   }, [])
 
+  // Приветствие — ТОЛЬКО в пустой чат. Раньше эффект писал его безусловно на
+  // каждом монтировании; теперь, когда история переживает уход со страницы,
+  // это стирало бы разговор при каждом возврате.
   useEffect(() => {
-    setMessages([
-      {
-        id: 'welcome',
-        role: 'assistant',
-        text:
-          'Привет! Я агент Trinity S³AI. Я не просто отвечаю — я смотрю в приложение ' +
-          'своими инструментами: читаю ленту, твои файлы и шаблоны, публикую рилсы.\n\n' +
-          '💰 Цены: картинка — 1 токен, рилс — 1, озвучка — 6, видео — 20. ' +
-          'Баланс виден вверху. Бесплатно: лента, файлы, SOUL, аналитика, публикация.\n\n' +
-          'С чего начнём? Могу сразу сделать картинку за 1 токен — только скажи тему.',
-      },
-    ])
+    if (messages.length > 0) return
+    setMessages([WELCOME])
+    // Один раз на монтировании: messages читается ради проверки «пусто ли»,
+    // в зависимостях ему делать нечего — иначе эффект пересчитается на каждое
+    // новое сообщение.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -326,7 +330,9 @@ function ChatPage() {
         setBusy(false)
       }
     },
-    [busy, messages]
+    // setMessages/setInput пришли из useAtom — их ссылка стабильна, так что
+    // в зависимостях они ничего не пересоздают, но линтер прав формально.
+    [busy, messages, setMessages, setInput]
   )
 
   return (
@@ -340,6 +346,20 @@ function ChatPage() {
           <p>
             Смотрит в приложение своими инструментами и делает, а не советует
           </p>
+          {/* Переписка теперь переживает уход со страницы — значит нужен и
+              способ её закончить. Без этой кнопки старый разговор оставался
+              бы на экране навсегда. */}
+          {messages.length > 1 && (
+            <button
+              className="chat-reset"
+              onClick={() => {
+                setMessages([WELCOME])
+                setInput('')
+              }}
+            >
+              Новый разговор
+            </button>
+          )}
           {tokens !== null && (
             <button className="chat-tokens" onClick={() => setTopUp(v => !v)}>
               💰 {tokens} токенов · пополнить
