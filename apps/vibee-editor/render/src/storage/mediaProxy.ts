@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import type { Readable } from 'node:stream'
+import { Transform, type Readable, type TransformCallback } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import {
   GetObjectCommand,
@@ -13,9 +13,26 @@ export interface MediaRange {
   length: number
 }
 
+export interface MediaProxyLimits {
+  headTimeoutMs: number
+  getTimeoutMs: number
+  streamTimeoutMs: number
+  maxObjectBytes: number
+  maxUnrangedBytes: number
+  maxRangeBytes: number
+}
+
 type MediaEnvironment = Record<string, string | undefined>
 
 const DEFAULT_PUBLIC_MEDIA_PREFIXES = ['images/relaunch/']
+const DEFAULT_MEDIA_PROXY_LIMITS: MediaProxyLimits = Object.freeze({
+  headTimeoutMs: 5_000,
+  getTimeoutMs: 5_000,
+  streamTimeoutMs: 30_000,
+  maxObjectBytes: 512 * 1024 * 1024,
+  maxUnrangedBytes: 128 * 1024 * 1024,
+  maxRangeBytes: 64 * 1024 * 1024,
+})
 const SAFE_MEDIA_CONTENT_TYPES = new Set([
   'image/gif',
   'image/jpeg',
@@ -68,6 +85,125 @@ const safeMediaContentType = (value?: string): string | null => {
   const normalized = (value || '').split(';', 1)[0].trim().toLowerCase()
   return SAFE_MEDIA_CONTENT_TYPES.has(normalized) ? normalized : null
 }
+
+const validatedMediaProxyLimits = (
+  limits: MediaProxyLimits
+): MediaProxyLimits => {
+  const values = Object.values(limits)
+  if (
+    values.some(value => !Number.isSafeInteger(value) || value <= 0) ||
+    limits.maxUnrangedBytes > limits.maxObjectBytes ||
+    limits.maxRangeBytes > limits.maxObjectBytes
+  ) {
+    throw new Error('invalid media proxy limits')
+  }
+  return limits
+}
+
+type MediaAbortReason = 'client' | 'timeout'
+
+interface MediaAbortState {
+  controller: AbortController
+  reason: MediaAbortReason | null
+}
+
+class MediaOperationAborted extends Error {
+  constructor(readonly reason: MediaAbortReason) {
+    super('media operation aborted')
+  }
+}
+
+class BoundedMediaStream extends Transform {
+  private received = 0
+
+  constructor(private readonly maximumBytes: number) {
+    super()
+  }
+
+  override _transform(
+    chunk: Buffer | string,
+    encoding: BufferEncoding,
+    callback: TransformCallback
+  ): void {
+    const length = Buffer.isBuffer(chunk)
+      ? chunk.length
+      : Buffer.byteLength(chunk, encoding)
+    this.received += length
+    if (this.received > this.maximumBytes) {
+      callback(new Error('media response exceeded its declared bound'))
+      return
+    }
+    callback(null, chunk)
+  }
+}
+
+const abortMediaOperation = (
+  state: MediaAbortState,
+  reason: MediaAbortReason
+): void => {
+  if (state.controller.signal.aborted) return
+  state.reason = reason
+  state.controller.abort()
+}
+
+const withMediaDeadline = <T>(
+  state: MediaAbortState,
+  timeoutMs: number,
+  operation: (signal: AbortSignal) => Promise<T>
+): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    if (state.controller.signal.aborted) {
+      reject(new MediaOperationAborted(state.reason || 'client'))
+      return
+    }
+
+    let settled = false
+    const cleanup = () => {
+      clearTimeout(timer)
+      state.controller.signal.removeEventListener('abort', onAbort)
+    }
+    const succeed = (value: T) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve(value)
+    }
+    const fail = (error: unknown) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      reject(error)
+    }
+    const onAbort = () => {
+      fail(new MediaOperationAborted(state.reason || 'client'))
+    }
+    const timer = setTimeout(
+      () => abortMediaOperation(state, 'timeout'),
+      timeoutMs
+    )
+    timer.unref?.()
+    state.controller.signal.addEventListener('abort', onAbort, { once: true })
+
+    Promise.resolve()
+      .then(() => operation(state.controller.signal))
+      .then(succeed, fail)
+  })
+
+const sendMediaError = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  status: number,
+  error: string
+): void => {
+  if (res.destroyed || res.writableEnded) return
+  res.writeHead(status, {
+    'Content-Type': 'application/json',
+    'X-Content-Type-Options': 'nosniff',
+  })
+  if (req.method === 'HEAD') res.end()
+  else res.end(JSON.stringify({ error }))
+}
+
 export function mediaObjectKey(target?: string): string | null {
   const rawPath = (target || '/').split(/[?#]/, 1)[0]
   if (!rawPath.startsWith('/media/')) return null
@@ -165,8 +301,10 @@ export async function serveMediaRequest(
   res: ServerResponse,
   s3: S3Client,
   bucket: string,
-  prefixes: readonly string[] = publicMediaPrefixes(process.env)
+  prefixes: readonly string[] = publicMediaPrefixes(process.env),
+  limits: MediaProxyLimits = DEFAULT_MEDIA_PROXY_LIMITS
 ): Promise<boolean> {
+  const effectiveLimits = validatedMediaProxyLimits(limits)
   let key: string | null
   try {
     key = mediaObjectKey(req.url)
@@ -187,11 +325,46 @@ export async function serveMediaRequest(
     return true
   }
 
+  const abortState: MediaAbortState = {
+    controller: new AbortController(),
+    reason: null,
+  }
+  const onRequestAborted = () => abortMediaOperation(abortState, 'client')
+  const onRequestClose = () => {
+    if (req.aborted || req.complete === false) {
+      abortMediaOperation(abortState, 'client')
+    }
+  }
+  const onResponseClose = () => {
+    if (!res.writableEnded) abortMediaOperation(abortState, 'client')
+  }
+  req.once('aborted', onRequestAborted)
+  req.once('close', onRequestClose)
+  res.once('close', onResponseClose)
+
   try {
-    const head = await s3.send(
-      new HeadObjectCommand({ Bucket: bucket, Key: key })
+    const head = await withMediaDeadline(
+      abortState,
+      effectiveLimits.headTimeoutMs,
+      signal =>
+        s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }), {
+          abortSignal: signal,
+        })
     )
-    const size = Number(head.ContentLength ?? 0)
+    const size = head.ContentLength
+    if (
+      typeof size !== 'number' ||
+      !Number.isSafeInteger(size) ||
+      !Number.isFinite(size) ||
+      size < 0
+    ) {
+      sendMediaError(req, res, 502, 'invalid_media_metadata')
+      return true
+    }
+    if (size > effectiveLimits.maxObjectBytes) {
+      sendMediaError(req, res, 413, 'media_too_large')
+      return true
+    }
     const contentType = safeMediaContentType(head.ContentType)
     if (!contentType) {
       res.writeHead(415, {
@@ -217,6 +390,13 @@ export async function serveMediaRequest(
       res.end()
       return true
     }
+    if (
+      (range && range.length > effectiveLimits.maxRangeBytes) ||
+      (!range && size > effectiveLimits.maxUnrangedBytes)
+    ) {
+      sendMediaError(req, res, 413, 'media_too_large')
+      return true
+    }
 
     const headers = publicHeaders(
       contentType,
@@ -232,31 +412,48 @@ export async function serveMediaRequest(
       return true
     }
 
-    const object = await s3.send(
-      new GetObjectCommand({
-        Bucket: bucket,
-        Key: key,
-        ...(head.ETag ? { IfMatch: head.ETag } : {}),
-        ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}),
-      })
+    const object = await withMediaDeadline(
+      abortState,
+      effectiveLimits.getTimeoutMs,
+      signal =>
+        s3.send(
+          new GetObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            ...(head.ETag ? { IfMatch: head.ETag } : {}),
+            ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}),
+          }),
+          { abortSignal: signal }
+        )
     )
-    res.writeHead(status, headers)
     const body = object.Body as Readable | undefined
     if (!body || typeof body.pipe !== 'function') {
       throw new Error('media body is not streamable')
     }
-    await pipeline(body, res)
+    res.writeHead(status, headers)
+    const boundedBody = new BoundedMediaStream(range?.length ?? size)
+    await withMediaDeadline(
+      abortState,
+      effectiveLimits.streamTimeoutMs,
+      signal => pipeline(body, boundedBody, res, { signal })
+    )
     return true
-  } catch {
-    if (!res.headersSent) {
-      res.writeHead(404, {
-        'Content-Type': 'application/json',
-        'X-Content-Type-Options': 'nosniff',
-      })
-      res.end(JSON.stringify({ error: 'media_not_found' }))
-    } else {
+  } catch (error) {
+    if (error instanceof MediaOperationAborted) {
+      if (error.reason === 'timeout' && !res.headersSent) {
+        sendMediaError(req, res, 504, 'media_timeout')
+      } else if (!res.destroyed) {
+        res.destroy()
+      }
+    } else if (!res.headersSent) {
+      sendMediaError(req, res, 404, 'media_not_found')
+    } else if (!res.destroyed) {
       res.destroy()
     }
     return true
+  } finally {
+    req.removeListener('aborted', onRequestAborted)
+    req.removeListener('close', onRequestClose)
+    res.removeListener('close', onResponseClose)
   }
 }
