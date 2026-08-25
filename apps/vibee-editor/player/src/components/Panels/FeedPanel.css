@@ -718,14 +718,24 @@
   background: #000;
 }
 
-/* Info overlay at bottom - inside inner container */
+/* Подпись поверх видео, у нижнего края.
+ *
+ * НИЖНИЙ ОТСТУП СЧИТАЕТСЯ ОТ ПАНЕЛИ, а не выбран на глаз. Блок стоит
+ * `bottom: 0` внутри карточки во весь экран, то есть его низ — это низ окна,
+ * под которым лежит фиксированная нижняя панель. Замер на 375×812: описание
+ * заканчивалось на 776px, панель начиналась на 767 — девять пикселей текста
+ * уходили под неё, и с описанием подлиннее ушло бы больше.
+ *
+ * `--app-tabbar-total` публикует сама панель через ResizeObserver и уже
+ * включает безопасную зону — константа здесь снова разошлась бы с
+ * действительностью, как это было с --nav-height (64px против 57). */
 .feed-panel.fullscreen .feed-card-info {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
   background: linear-gradient(transparent 0%, rgba(0, 0, 0, 0.9) 100%);
-  padding: 60px 16px 24px;
+  padding: 60px 16px calc(24px + var(--app-tabbar-total, 57px));
   padding-right: 96px; /* Leave space for action buttons */
   z-index: var(--z-elevated);
 }
@@ -838,56 +848,23 @@
   border-radius: 12px;
 }
 
-/* Scroll indicator animation - centered within feed panel */
-.feed-panel.fullscreen::after {
-  content: '';
-  position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 40px;
-  height: 40px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  animation: scrollPulse 2s ease-in-out infinite;
-  pointer-events: none;
-  z-index: var(--z-nav);
-}
+/* ПОДСКАЗКА «ЛИСТАЙ ВНИЗ» УБРАНА.
+ *
+ * Это были два псевдоэлемента на .feed-panel.fullscreen: пульсирующий круг
+ * 40×40 и стрелка ↓, прижатые к `bottom: 24px`. Замер на 375×812: они
+ * приходились ровно на строку подписи и рисовались ПОВЕРХ неё — на первом
+ * же экране, который видит человек, пришедший из канала.
+ *
+ * Плюс анимация была бесконечной: подсказка не исчезала никогда, в том числе
+ * после того, как человек пролистал. Постоянная подсказка — это уже не
+ * помощь, а шум поверх содержимого.
+ *
+ * Сама возможность листать в ленте вертикальных роликов не нуждается в
+ * объяснении: это единственный способ взаимодействия с таким экраном.
+ * Кадры scrollPulse и scrollBounce удалены вместе с ней: других
+ * пользователей у них не осталось ни одного. */
 
-.feed-panel.fullscreen::before {
-  content: '↓';
-  position: absolute;
-  bottom: 32px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.5);
-  animation: scrollBounce 2s ease-in-out infinite;
-  pointer-events: none;
-  z-index: calc(var(--z-nav) + 1);
-}
 
-@keyframes scrollPulse {
-  0%,
-  100% {
-    opacity: 0.3;
-    transform: translateX(-50%) scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: translateX(-50%) scale(1.1);
-  }
-}
-
-@keyframes scrollBounce {
-  0%,
-  100% {
-    transform: translateX(-50%) translateY(0);
-  }
-  50% {
-    transform: translateX(-50%) translateY(5px);
-  }
-}
 
 /* Hide scroll indicator when scrolled */
 .feed-panel.fullscreen .feed-list:not(:first-child)::after,
@@ -1170,7 +1147,7 @@
   }
 
   .feed-panel.fullscreen .feed-card-info {
-    padding: 50px 14px 20px;
+    padding: 50px 14px calc(20px + var(--app-tabbar-total, 57px));
     right: 65px;
   }
 
@@ -1184,7 +1161,10 @@
 
   .feed-panel.fullscreen .feed-card-description {
     font-size: 12px;
-    -webkit-line-clamp: 2;
+    /* Три строки, а не две: раньше обе уходили на повтор заголовка, и до
+       самого текста читатель не доходил. Повтор снят в FeedCard, строки
+       теперь несут смысл — за них стоит заплатить одной высотой. */
+    -webkit-line-clamp: 3;
   }
 
   .feed-panel.fullscreen .feed-card-avatar {
@@ -1317,8 +1297,16 @@
     );
   }
 
+  /* ЗДЕСЬ И БЫЛА ПОТЕРЯ. Это правило перебивает все предыдущие на телефоне,
+     а `env(safe-area-inset-bottom)` внутри WebView Telegram равен НУЛЮ — про
+     это прямо написано в styles/telegram.css, и всё равно опёрлись на него
+     одного. Замер на 375×812: подпись заканчивалась на 776px, панель
+     начиналась на 756 — двадцать пикселей текста под панелью.
+
+     `--app-tabbar-total` публикует сама панель через ResizeObserver и уже
+     включает безопасную зону. */
   .feed-panel.fullscreen .feed-card-info {
-    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(20px + var(--app-tabbar-total, 57px));
   }
 
   .feed-panel.fullscreen .feed-card-actions {
