@@ -43,19 +43,39 @@ const TelegramIcon = () => (
   </svg>
 );
 
+/**
+ * Домены, на которых виджет Telegram РАБОТАЕТ.
+ *
+ * Список положительный, а не отрицательный, и это главное в этом коде.
+ * Раньше было наоборот: «фолбэк на localhost, везде остальное — виджет». При
+ * переезде на app.t27.ai правило молча сломалось — домен не прописан боту
+ * через BotFather /setdomain, и в шапке появилась белая плашка «Bot domain
+ * invalid», прямо на первом экране человека, пришедшего из канала.
+ *
+ * Поймать это в коде нельзя: iframe отрисовывается (186×28), просто с
+ * текстом ошибки внутри, а его содержимое на чужом origin недоступно.
+ * Проверка по высоте такое не ловит. Значит, единственный надёжный способ —
+ * знать заранее, где домен прописан.
+ *
+ * ЧТОБЫ ВЕРНУТЬ ВХОД В ОДИН КЛИК на app.t27.ai: владельцу нужно отправить
+ * @BotFather команду /setdomain и указать app.t27.ai, после чего добавить
+ * хост в этот список. До тех пор человек видит рабочую запасную кнопку, а
+ * не английскую ошибку.
+ */
+const WIDGET_DOMAINS = ['vibee-editor-production.up.railway.app'];
+
+export function shouldUseFallback(hostname?: string): boolean {
+  const host =
+    hostname ?? (typeof window !== 'undefined' ? window.location.hostname : '');
+  if (!host) return true;
+  return !WIDGET_DOMAINS.includes(host);
+}
+
 export function TelegramLoginButton({
   botUsername = 't27ai_bot',
   size = 'medium',
   onSuccess,
-  // Владелец прописал прод-домен боту в BotFather (/setdomain), поэтому на
-  // проде показываем нативный виджет. На localhost домен не прописан —
-  // официальный виджет отдаёт «Bot domain invalid» (белую плашку), поймать
-  // это в коде нельзя: iframe отрисовывается, просто с текстом ошибки внутри,
-  // а его содержимое на чужом origin недоступно. Там показываем запасную
-  // кнопку с подсказкой.
-  showFallback =
-    typeof window !== 'undefined' &&
-    ['localhost', '127.0.0.1'].includes(window.location.hostname),
+  showFallback = shouldUseFallback(),
 }: TelegramLoginButtonProps) {
   const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
