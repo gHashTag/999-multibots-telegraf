@@ -272,6 +272,27 @@
   font-size: 13px;
 }
 
+/* «Новый разговор»: та же таблетка, что у баланса, но приглушённая — это
+   выход из состояния, а не действие, которое стоит предлагать первым. */
+.chat-reset {
+  display: inline-block;
+  margin-top: 6px;
+  margin-left: 8px;
+  padding: 4px 12px;
+  border: 1px solid #2a2820;
+  border-radius: 999px;
+  background: transparent;
+  color: #8a8578;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.chat-reset:hover {
+  color: var(--vibee-cream, #f2ede1);
+  border-color: #3a3830;
+}
+
 .chat-topup {
   display: flex;
   flex-wrap: wrap;

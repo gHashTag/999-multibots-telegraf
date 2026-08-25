@@ -112,6 +112,18 @@ export const STORAGE_KEYS = {
   sessionId: 'vibee-session-id',
 
   // ============= UI Settings =============
+  /** Открытая вкладка боковой панели. Без неё переключение сбрасывалось
+   * на «ленту» при каждой перезагрузке. */
+  sidebarTab: 'vibee-sidebar-tab',
+  /** История общения с агентом. Хранится, потому что теряться ей нельзя:
+   * человек пишет туда задание, а не разовую реплику. */
+  agentChat: 'vibee-agent-chat',
+  /** Недописанное сообщение агенту. Черновик жил в useState компонента и
+   * умирал вместе с ним — то есть при любом уходе на другую вкладку. */
+  agentChatDraft: 'vibee-agent-chat-draft',
+  /** Последний открытый экран. Telegram умеет запускать мини-апп только с
+   * корня, поэтому без этого каждый возврат начинался с ленты. */
+  lastRoute: 'vibee-last-route',
   timelineZoom: 'vibee-timeline-zoom',
   snapSettings: 'vibee-snap-settings',
   playbackRate: 'vibee-playback-rate',
