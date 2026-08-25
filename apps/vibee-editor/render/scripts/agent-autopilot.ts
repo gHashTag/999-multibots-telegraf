@@ -315,22 +315,44 @@ async function main() {
     try {
       const BASE2 =
         process.env.SELF_URL || 'http://127.0.0.1:' + (process.env.PORT || '3333')
-      const res = await fetch(`${BASE2}/api/generate/video`, {
-        method: 'POST',
-        // Видео на Replicate живёт ~90с; без потолка зависший fetch вешал
-        // автопилот навсегда (а lock теперь честно держит очередь крона).
-        signal: AbortSignal.timeout(180_000),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Api-Key': process.env.RENDER_API_KEY || '',
-        },
-        body: JSON.stringify({
-          prompt: `кинематографичный b-roll к посту «${topic.title}»: ${topic.subtitle}. Медленно, крупно, без текста в кадре`,
-          duration: 5,
-          aspect_ratio: '9:16',
-        }),
-      })
-      const vid = await res.json()
+      // Две попытки: первый запуск витка №121 упал на транзиенте сети
+      // («fetch failed» внутри Replicate-путья) — видео-слой слишком ценен,
+      // чтобы терять его на одном миге соединения.
+      const vid = await (async () => {
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const res = await fetch(`${BASE2}/api/generate/video`, {
+              method: 'POST',
+              // Видео на Replicate живёт ~90с; без потолка зависший fetch
+              // вешал автопилот навсегда (lock держит очередь крона).
+              signal: AbortSignal.timeout(180_000),
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Api-Key': process.env.RENDER_API_KEY || '',
+              },
+              body: JSON.stringify({
+                prompt: `кинематографичный b-roll к посту «${topic.title}»: ${topic.subtitle}. Медленно, крупно, без текста в кадре`,
+                duration: 5,
+                aspect_ratio: '9:16',
+              }),
+            })
+            const v = await res.json()
+            if (v?.success && typeof v.url === 'string') return v
+            if (attempt === 1) {
+              log(
+                `b-roll попытка 1 не вышла (${JSON.stringify(v).slice(0, 90)}) — повтор через 10с`
+              )
+              await new Promise(r => setTimeout(r, 10_000))
+            } else return v
+          } catch (e) {
+            if (attempt === 2) throw e
+            log(
+              `b-roll попытка 1 упала (${String(e).slice(0, 90)}) — повтор через 10с`
+            )
+            await new Promise(r => setTimeout(r, 10_000))
+          }
+        }
+      })()
       if (vid?.success && typeof vid.url === 'string') {
         props.avatarVideo = vid.url
       } else {
