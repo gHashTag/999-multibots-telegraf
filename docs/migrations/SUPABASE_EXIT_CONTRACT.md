@@ -64,6 +64,13 @@ The first mandatory deep manifests are `users`, `payments_v2`, `jobs`, and
 `assets`. The remaining tables must still pass count, checksum, PK, sequence,
 FK, and owner-link checks.
 
+Review evidence for exact candidate
+`84f79a0216b8f5721b82b0785e9523a2a75e5041` observed relational drift in both
+directions: source-only and destination-only rows were both present. That
+observation is unresolved and asserts no current row counts. It is a hard
+cutover blocker until a regenerated authoritative reconciliation classifies
+every current delta and records an explicit disposition for every conflict.
+
 ## Object manifest
 
 Before object copy, create an immutable, access-controlled manifest and an

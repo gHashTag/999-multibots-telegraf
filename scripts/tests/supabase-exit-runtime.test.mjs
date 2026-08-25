@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 
 import { readFile, readdir, stat } from 'node:fs/promises'
-import { extname, join, relative } from 'node:path'
+import { extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
 const requireArtifacts = process.argv.includes('--require-artifacts')
 const missingArtifactSuffix = '/.missing-artifact'
-const roots = ['apps/vibee-editor/player/src', 'apps/vibee-editor/render/src']
+const sourceRoots = [
+  'apps/vibee-editor/player',
+  'apps/vibee-editor/render',
+  'apps/vibee-editor/packages/vibee-atoms',
+]
 const artifactRoots = [
   'apps/vibee-editor/player/dist',
   'apps/vibee-editor/render/build',
@@ -18,7 +22,13 @@ const manifests = [
   'apps/vibee-editor/render/package.json',
   'apps/vibee-editor/render/package-lock.json',
   'apps/vibee-editor/render/Dockerfile',
+  'apps/vibee-editor/render/railway.toml',
   'apps/vibee-editor/render/render-server.ts',
+  'apps/vibee-editor/Dockerfile',
+  'apps/vibee-editor/.dockerignore',
+  'apps/vibee-editor/docker-entrypoint.sh',
+  'apps/vibee-editor/nginx/default.conf.template',
+  'apps/vibee-editor/railway.toml',
 ]
 const runtimeGuard = 'apps/vibee-editor/render/src/runtime/supabaseExit.ts'
 const supabaseEnvMarker = /\b[A-Z0-9_]*SUPABASE[A-Z0-9_]*\b/
@@ -36,23 +46,131 @@ if (envMarkerFixtures.some(name => !supabaseEnvMarker.test(name))) {
 const supportedExtensions = new Set([
   '.ts',
   '.tsx',
+  '.mts',
+  '.cts',
   '.js',
   '.jsx',
+  '.mjs',
+  '.cjs',
   '.json',
   '.html',
   '.css',
   '.map',
+  '.svg',
+  '.xml',
+  '.webmanifest',
 ])
 
-async function walk(path) {
+const dependencyDirectories = new Set(['node_modules'])
+const generatedDirectories = new Set([
+  '.cache',
+  '.tamagui',
+  '.vite',
+  '.zig-cache',
+  'build',
+  'coverage',
+  'dist',
+  'out',
+  'playwright-report',
+  'test-results',
+  'uploads',
+  'zig-out',
+])
+const testDirectories = new Set([
+  '__fixtures__',
+  '__tests__',
+  'e2e',
+  'fixtures',
+  'test',
+  'tests',
+])
+const sourcePathExclusions = new Set([
+  // These owner-only helpers are excluded from the production Docker context.
+  'apps/vibee-editor/render/scripts/agent-autopilot.ts',
+  'apps/vibee-editor/render/scripts/morning-summary.ts',
+])
+
+const pathSegments = path => path.split('/').filter(Boolean)
+const hasDirectory = (path, directories) =>
+  pathSegments(path).some(segment => directories.has(segment))
+const isTestFile = path =>
+  /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(path) ||
+  /\/(?:vitest|playwright)(?:\.[^/]+)?\.config\.[cm]?[jt]s$/.test(path)
+const isSupportedFile = path => supportedExtensions.has(extname(path))
+const isWithinSourceRoot = path =>
+  sourceRoots.some(
+    sourceRoot => path === sourceRoot || path.startsWith(`${sourceRoot}/`)
+  )
+
+function isDeployableSourceFile(path) {
+  return (
+    isWithinSourceRoot(path) &&
+    isSupportedFile(path) &&
+    !sourcePathExclusions.has(path) &&
+    !hasDirectory(path, dependencyDirectories) &&
+    !hasDirectory(path, generatedDirectories) &&
+    !hasDirectory(path, testDirectories) &&
+    !isTestFile(path)
+  )
+}
+
+const markerKinds = (path, text) => {
+  const kinds = []
+  if (/https?:\/\/[^\s'"`]*\.supabase\.[a-z0-9.-]+\b/i.test(text)) {
+    kinds.push('supabase-host')
+  }
+  if (/@supabase\/supabase-js/i.test(text)) kinds.push('supabase-sdk')
+  if (
+    path !== runtimeGuard &&
+    (supabaseEnvMarker.test(text) || supabaseEnvAccess.test(text))
+  ) {
+    kinds.push('supabase-env')
+  }
+  return kinds
+}
+
+const topLevelFixture = 'apps/vibee-editor/render/top-level-runtime.mjs'
+const testFixture = 'apps/vibee-editor/render/top-level-runtime.test.mjs'
+const generatedFixture = 'apps/vibee-editor/render/build/top-level-runtime.mjs'
+const dependencyFixture =
+  'apps/vibee-editor/render/node_modules/example/top-level-runtime.mjs'
+const fixtureMarker = 'const key = process.env.TOPLEVELSUPABASEKEY'
+
+if (
+  !isDeployableSourceFile(topLevelFixture) ||
+  !markerKinds(topLevelFixture, fixtureMarker).includes('supabase-env')
+) {
+  throw new Error('Top-level render module scanner regression')
+}
+for (const excludedFixture of [
+  testFixture,
+  generatedFixture,
+  dependencyFixture,
+]) {
+  if (isDeployableSourceFile(excludedFixture)) {
+    throw new Error(`Static scanner exclusion regression (${excludedFixture})`)
+  }
+}
+
+const shouldSkipDirectory = (path, mode) =>
+  hasDirectory(path, dependencyDirectories) ||
+  (mode === 'source' &&
+    (hasDirectory(path, generatedDirectories) ||
+      hasDirectory(path, testDirectories)))
+
+async function walk(path, mode) {
   const entries = await readdir(join(root, path), { withFileTypes: true })
   const out = []
   for (const entry of entries) {
     const child = join(path, entry.name)
-    if (entry.isDirectory()) out.push(...(await walk(child)))
-    else if (
-      supportedExtensions.has(extname(entry.name)) &&
-      !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(entry.name)
+    if (entry.isDirectory()) {
+      if (!shouldSkipDirectory(child, mode)) {
+        out.push(...(await walk(child, mode)))
+      }
+    } else if (
+      mode === 'artifact'
+        ? isSupportedFile(child) && !isTestFile(child)
+        : isDeployableSourceFile(child)
     ) {
       out.push(child)
     }
@@ -61,11 +179,11 @@ async function walk(path) {
 }
 
 const files = [...manifests]
-for (const path of roots) files.push(...(await walk(path)))
+for (const path of sourceRoots) files.push(...(await walk(path, 'source')))
 for (const path of artifactRoots) {
   try {
     if ((await stat(join(root, path))).isDirectory()) {
-      files.push(...(await walk(path)))
+      files.push(...(await walk(path, 'artifact')))
     }
   } catch (error) {
     if (error?.code !== 'ENOENT') throw error
@@ -82,17 +200,8 @@ for (const path of [...new Set(files)].sort()) {
     continue
   }
   const text = await readFile(join(root, path), 'utf8')
-  if (/https?:\/\/[^\s'"`]*\.supabase\.[a-z0-9.-]+\b/i.test(text)) {
-    violations.push(`${path}:supabase-host`)
-  }
-  if (/@supabase\/supabase-js/i.test(text)) {
-    violations.push(`${path}:supabase-sdk`)
-  }
-  if (
-    path !== runtimeGuard &&
-    (supabaseEnvMarker.test(text) || supabaseEnvAccess.test(text))
-  ) {
-    violations.push(`${path}:supabase-env`)
+  for (const kind of markerKinds(path, text)) {
+    violations.push(`${path}:${kind}`)
   }
 }
 

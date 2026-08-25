@@ -51,10 +51,23 @@ export function resolveServerTemplateMediaUrl(
 ): string | undefined {
   if (!value || value.startsWith('//')) return undefined
   try {
-    const resolved = value.startsWith('/')
-      ? new URL(value, renderUrl)
-      : new URL(value)
-    if (resolved.protocol !== 'https:' && resolved.protocol !== 'http:') {
+    const renderOrigin = new URL(renderUrl)
+    if (
+      (renderOrigin.protocol !== 'https:' &&
+        renderOrigin.protocol !== 'http:') ||
+      renderOrigin.username ||
+      renderOrigin.password
+    ) {
+      return undefined
+    }
+
+    const resolved = new URL(value, renderOrigin.origin)
+    if (
+      resolved.origin !== renderOrigin.origin ||
+      resolved.username ||
+      resolved.password ||
+      !resolved.pathname.startsWith('/media/')
+    ) {
       return undefined
     }
     return resolved.toString()
