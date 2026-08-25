@@ -18,7 +18,8 @@
  * - 1080p: ~4000 Kbps - High quality
  */
 
-import { BandwidthPredictor, getGlobalBandwidthPredictor, BandwidthStats } from './bandwidthPredictor';
+import { BandwidthPredictor, getGlobalBandwidthPredictor } from './bandwidthPredictor';
+import type { BandwidthStats } from './bandwidthPredictor';
 
 export type Resolution = '360p' | '720p' | '1080p';
 
@@ -187,8 +188,12 @@ export class AdaptiveQualitySelector {
     const qualities: QualityLevel[] = Object.entries(videoQualities)
       .filter(([_, level]) => level !== undefined)
       .map(([resolution, level]) => ({
-        resolution: resolution as Resolution,
         ...level!,
+        // Ключ манифеста — источник правды о разрешении, поэтому он ПОСЛЕ
+        // распаковки. Стоял до — и собственное поле `resolution` внутри
+        // уровня молча перекрывало его: явно написанная строка не делала
+        // ничего, а выбор качества шёл по значению из тела уровня.
+        resolution: resolution as Resolution,
       }));
 
     return this.selectQuality(qualities, bufferSeconds);

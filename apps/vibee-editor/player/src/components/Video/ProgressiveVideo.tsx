@@ -14,7 +14,8 @@
  * @see https://blog.logrocket.com/ux-design/skeleton-loading-screen-design/
  */
 
-import { useState, useEffect, useRef, memo, CSSProperties } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
+import type { CSSProperties } from 'react';
 import { VideoSkeleton } from './VideoSkeleton';
 
 type LoadingState = 'skeleton' | 'poster' | 'ready';

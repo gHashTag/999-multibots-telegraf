@@ -6,7 +6,7 @@ import { LearnHeader } from '@/components/learn/LearnHeader'
 import { PlayerStats } from '@/components/learn/PlayerStats'
 import { useLearn } from '@/hooks/useLearn'
 import { compiler } from '../components/learn/compiler'
-import { World, Lesson, CompilationResult } from '../components/learn/types'
+import type { World, Lesson, CompilationResult } from '../components/learn/types';
 import {
   ArrowLeft,
   ArrowRight,

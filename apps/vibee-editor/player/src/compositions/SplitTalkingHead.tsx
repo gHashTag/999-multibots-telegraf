@@ -214,6 +214,11 @@ export const CaptionStyleSchema = z.object({
   backgroundColor: z.string().optional(),
   bottomPercent: z.number().optional(),
   fontFamily: z.string().optional(),
+  // fontId приложение ШЛЁТ (atoms/templates.ts, atoms/tracks.ts), а схема
+  // его не знала — zod по умолчанию вырезает неизвестные ключи, поэтому
+  // запасной вариант `fontFamily || fontId` ниже не мог сработать никогда:
+  // до него поле просто не доезжало.
+  fontId: z.string().optional(),
   fontWeight: z.number().optional(),
   showShadow: z.boolean().optional(),
   animation: z.enum(['pop', 'fade', 'slide', 'bounce', 'scaleRotate']).optional(),
