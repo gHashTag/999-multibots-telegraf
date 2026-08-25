@@ -1,7 +1,8 @@
-// TelegramTabBar is the single navigation surface. VerticalTabs and
-// BottomNavigation are its two predecessors — both were dead code (exported
-// here but rendered nowhere) and are superseded; they stay exported only so
-// nothing that still references them breaks.
+// TelegramTabBar — единственная навигационная поверхность приложения.
+//
+// Здесь же раньше переэкспортировались VerticalTabs и BottomNavigation, её
+// предшественники. Оба не рендерились нигде, а строчка «оставлены на случай,
+// если кто-то ещё на них ссылается» держала их живыми в дереве: ссылок не
+// было ни одной, зато правки трижды попадали в мёртвые файлы. Удалены.
 export { TelegramTabBar, TAB_BAR_ITEMS } from './TelegramTabBar';
-export { VerticalTabs, TABS } from './VerticalTabs';
-export { BottomNavigation } from './BottomNavigation';
+export { RouteMemory, LaunchRedirect } from './RouteMemory';

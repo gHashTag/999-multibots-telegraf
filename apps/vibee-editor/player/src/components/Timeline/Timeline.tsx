@@ -1645,7 +1645,8 @@ export function Timeline({ orientation = 'horizontal', hideBrowser = true }: Tim
         </div>
       </div>
 
-      {/* Asset Browser - BELOW Play button (hidden when using standalone AssetBrowser) */}
+      {/* Обозреватель файлов под кнопкой воспроизведения. Отдельный
+          компонент AssetBrowser был мёртвым дублем этого блока и удалён. */}
       {!hideBrowser && (
         <div
           className={`timeline-browser ${isDragOverBrowser ? 'drag-over' : ''}`}
