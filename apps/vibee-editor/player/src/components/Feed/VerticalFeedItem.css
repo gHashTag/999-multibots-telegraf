@@ -202,6 +202,10 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  /* Длинные слова (URL блог-тем, #хэштеги) не переносились и вылезали
+     за карточку — режем посимвольно при нехватке ширины. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .vertical-feed-item__sound {
