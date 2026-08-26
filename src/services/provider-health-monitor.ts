@@ -112,9 +112,10 @@ async function checkZai(): Promise<ProviderStatus> {
     }
 
   try {
-    const base =
-      process.env.ZAI_BASE_URL || 'https://api.z.ai/api/coding/paas/v4'
-    const resp = await fetch(`${base}/models`, {
+    // Адрес — литерал: URL, собранный из ENV, сканер считает SSRF-вектором
+    // (тот же урок, что у postStarPaid). Эндпоинт Z.AI единственный и
+    // публичный; переопределение окружением не предусмотрено.
+    const resp = await fetch('https://api.z.ai/api/coding/paas/v4/models', {
       headers: { Authorization: `Bearer ${key}` },
     })
     if (resp.status === 401 || resp.status === 429) {
