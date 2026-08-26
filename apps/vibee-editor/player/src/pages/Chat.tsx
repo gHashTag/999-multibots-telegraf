@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 import { agentMessagesAtom, agentDraftAtom } from '@/atoms/agentChat'
+import { sendToAgent, agentBusyAtom } from '@/lib/agentStream'
 import type { Message } from '@/atoms/agentChat'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Header } from '@/components/Header'
@@ -56,7 +57,8 @@ function ChatPage() {
   // размонтируется при переключении вкладки, и разговор пропадал вместе с ней.
   const [messages, setMessages] = useAtom(agentMessagesAtom)
   const [input, setInput] = useAtom(agentDraftAtom)
-  const [busy, setBusy] = useState(false)
+  // Занятость — в атоме: она принадлежит разговору, а не странице.
+  const busy = useAtomValue(agentBusyAtom)
   const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({})
   const [tokens, setTokens] = useState<number | null>(null)
   const [topUp, setTopUp] = useState(false)
@@ -230,123 +232,18 @@ function ChatPage() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages])
 
-  const send = useCallback(
-    async (text: string) => {
-      if (!text.trim() || busy) return
-      setBusy(true)
-      setInput('')
-
-      const userMsg: Message = {
-        id: `u${Date.now()}`,
-        role: 'user',
-        text: text.trim(),
-      }
-      const agentId = `a${Date.now()}`
-      const agentMsg: Message = {
-        id: agentId,
-        role: 'assistant',
-        text: '',
-        thinking: '',
-        tools: [],
-      }
-
-      // История для сервера — из уже показанных сообщений плюс новое.
-      const history = [...messages, userMsg]
-        .filter(m => m.id !== 'welcome')
-        .map(m => ({ role: m.role, content: m.text }))
-
-      setMessages(prev => [...prev, userMsg, agentMsg])
-
-      const patch = (fn: (m: Message) => Message) =>
-        setMessages(prev => prev.map(m => (m.id === agentId ? fn(m) : m)))
-
-      try {
-        // Личность: обычно подпись Telegram (authHeaders ставит
-        // X-Telegram-Init-Data). В DEV на localhost подписи нет — тогда, если
-        // задан VITE_AGENT_KEY, идём ключом агента. Ветка ТОЛЬКО для
-        // import.meta.env.DEV: ключ в прод-сборку не попадает, иначе он
-        // оказался бы в браузерном бандле у всех.
-        const headers = authHeaders()
-        const devKey = import.meta.env.DEV
-          ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
-          : undefined
-        if (devKey && !headers.has('X-Telegram-Init-Data')) {
-          headers.set('X-Agent-Key', devKey)
-        }
-        const res = await fetch(`${API_BASE}/api/agent/chat`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ messages: history }),
-        })
-        if (!res.ok || !res.body) {
-          const body = await res.text().catch(() => '')
-          patch(m => ({
-            ...m,
-            text: `Не получилось: ${res.status}. ${body.slice(0, 200)}`,
-          }))
-          return
-        }
-
-        const reader = res.body.getReader()
-        const decoder = new TextDecoder()
-        let buf = ''
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buf += decoder.decode(value, { stream: true })
-          const lines = buf.split('\n')
-          buf = lines.pop() ?? ''
-          for (const line of lines) {
-            if (!line.trim()) continue
-            let ev: Record<string, unknown>
-            try {
-              ev = JSON.parse(line)
-            } catch {
-              continue
-            }
-            const kind = ev['тип']
-            if (kind === 'размышление') {
-              patch(m => ({
-                ...m,
-                thinking: (m.thinking || '') + String(ev['текст'] || ''),
-              }))
-            } else if (kind === 'текст') {
-              patch(m => ({ ...m, text: m.text + String(ev['текст'] || '') }))
-            } else if (kind === 'инструмент') {
-              patch(m => ({
-                ...m,
-                tools: [...(m.tools || []), { name: String(ev['имя']) }],
-              }))
-            } else if (kind === 'результат') {
-              const nm = String(ev['имя'])
-              const ms = Number(ev['мс'])
-              patch(m => ({
-                ...m,
-                tools: (m.tools || []).map(tc =>
-                  tc.name === nm && tc.ms == null ? { ...tc, ms } : tc
-                ),
-              }))
-            } else if (kind === 'ошибка') {
-              patch(m => ({
-                ...m,
-                text: m.text + `\n\n⚠️ ${String(ev['текст'] || '')}`,
-              }))
-            }
-          }
-        }
-      } catch (e) {
-        patch(m => ({
-          ...m,
-          text: `Сеть недоступна: ${String(e).slice(0, 160)}`,
-        }))
-      } finally {
-        setBusy(false)
-      }
-    },
-    // setMessages/setInput пришли из useAtom — их ссылка стабильна, так что
-    // в зависимостях они ничего не пересоздают, но линтер прав формально.
-    [busy, messages, setMessages, setInput]
-  )
+  /**
+   * Отправка ушла в модуль вне React — src/lib/agentStream.ts.
+   *
+   * Раньше поток жил здесь, внутри страницы: уход на другую вкладку
+   * размонтирует её, и `fetch` умирал вместе с ней. Человек писал задание,
+   * шёл посмотреть ленту и возвращался к оборванному ответу, даже когда
+   * сервер честно досчитал. Теперь страница только зовёт и читает стор.
+   */
+  const send = useCallback((text: string) => {
+    void sendToAgent(text)
+    setInput('')
+  }, [setInput])
 
   return (
     <div className="chat-page">
