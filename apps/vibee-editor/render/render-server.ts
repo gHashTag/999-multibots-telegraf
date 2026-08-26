@@ -2019,12 +2019,16 @@ const server = createServer(async (req, res) => {
             })
           : { ok: false, детали: 'REPLICATE_API_TOKEN не задан' }
       ),
-      ping('OpenAI', async () =>
+      // OpenAI НЕ обязателен: агент работает на z.ai, запасной путь — тоже
+      // z.ai лёгкой моделью. Отчёт про OpenAI остаётся, но его отказ не
+      // означает, что что-то сломано, — поэтому он помечен как
+      // необязательный и не учитывается в счётчике «работает N из M».
+      ping('OpenAI (не обязателен)', async () =>
         key('OPENAI_API_KEY')
           ? head('https://api.openai.com/v1/models?limit=1', {
               Authorization: `Bearer ${key('OPENAI_API_KEY')}`,
             })
-          : { ok: false, детали: 'OPENAI_API_KEY не задан' }
+          : { ok: false, детали: 'не задан — и не нужен, агент на z.ai' }
       ),
       ping('GLM — агент', async () =>
         key('GLM_API_KEY')
@@ -2034,10 +2038,15 @@ const server = createServer(async (req, res) => {
           : { ok: false, детали: 'GLM_API_KEY не задан' }
       ),
     ])
+    // Счётчик считает только ОБЯЗАТЕЛЬНЫХ: иначе «работает 2 из 5» пугало бы
+    // отказом того, на кого продукт не опирается.
+    const обязательные = результаты.filter(
+      r => !r.провайдер.includes('не обязателен')
+    )
     const data = {
       проверено: new Date().toISOString(),
-      работает: результаты.filter(r => r.ok).length,
-      всего: результаты.length,
+      работает: обязательные.filter(r => r.ok).length,
+      всего: обязательные.length,
       провайдеры: результаты,
     }
     providersCache = { at: now, data }
