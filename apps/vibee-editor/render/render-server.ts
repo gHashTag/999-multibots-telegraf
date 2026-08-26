@@ -5315,15 +5315,32 @@ const server = createServer(async (req, res) => {
 
   if (req.url?.startsWith('/api/feed') && req.method === 'GET') {
     /*
-     * /api/feed, /api/feed/:id, /api/feed/stats — три сегмента максимум.
-     * Без этого /api/feed/что-угодно молча отдавал ВСЮ ЛЕНТУ с кодом 200.
+     * Третий сегмент у ленты — либо `stats`, либо ЧИСЛОВОЙ id. Всё прочее
+     * это 404, а не «вот вам вся лента».
      *
-     * ОСТОРОЖНО: глубже трёх сегментов есть настоящий маршрут —
-     * GET /api/feed/:id/star?payload=. Он обрабатывается ВЫШЕ (starMatch) и
-     * возвращает сам, поэтому сюда не доходит. Если однажды подпуть добавят
-     * НИЖЕ этой строки, он получит 404 — громко, а не «вернулась вся лента».
+     * СЧЁТА СЕГМЕНТОВ ЗДЕСЬ НЕ ХВАТАЕТ, и я на этом уже ошибся: у
+     * `/api/feed/чепуха` ровно столько же сегментов, сколько у
+     * `/api/feed/17` и `/api/feed/stats`. Проверка «не больше трёх»
+     * пропускала мусор, и правка выглядела сделанной, пока живой запрос к
+     * проду не показал ту же самую ленту в ответе.
+     *
+     * ОСТОРОЖНО: глубже есть настоящий маршрут GET /api/feed/:id/star —
+     * он обрабатывается ВЫШЕ (starMatch) и возвращает сам, поэтому сюда не
+     * доходит.
      */
-    if (rejectExtraSegments(req, res, 3)) return
+    {
+      const seg = (req.url || '').split('?')[0].split('/').filter(Boolean)
+      const tail = seg[2]
+      if (seg.length > 3 || (tail !== undefined && tail !== 'stats' && !/^\d+$/.test(tail))) {
+        sendJson(res, 404, {
+          error: 'Not found',
+          detail:
+            `Путь «${(req.url || '').split('?')[0]}» лента не обслуживает. ` +
+            'Есть /api/feed, /api/feed/:id (число) и /api/feed/stats.',
+        })
+        return
+      }
+    }
     const url = new URL(req.url || '', `http://${req.headers.host}`)
     // Схема звёзд создаётся лениво, но читать ленту обязаны и ДО первой
     // звезды: GET делает LEFT JOIN по template_stars и SELECT stars_count —
