@@ -1,3 +1,9 @@
+// ETIMEDOUT AggregateError на fetch к api.replicate.com (витки №121/173):
+// undici первым пробует IPv6, в этой сети он чёрной дырой — таймаут.
+// IPv4-first лечит; curl работал, потому что резолвил иначе.
+import * as dns from 'node:dns'
+;(dns as any).setDefaultResultOrder?.('ipv4first')
+
 import { createServer, IncomingMessage } from 'node:http'
 import {
   handleMcp,
