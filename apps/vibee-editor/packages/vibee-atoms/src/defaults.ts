@@ -1,3 +1,14 @@
+/**
+ * НАЗВАНИЯ ДОРОЖЕК ПО-РУССКИ.
+ *
+ * Интерфейс русский, а на таймлайне стояли «Lipsync Video», «Background 00»,
+ * «Video», «Voice», «Music». Замечено осмотром редактора на 375×812: человек
+ * видит свой ролик, а подписи к нему — на чужом языке. Тот же класс, что
+ * английские описания моделей на вкладке «ИИ».
+ *
+ * «Фон 1..5», а не «Background 00..04»: нумерация с нуля — машинная, человеку
+ * дорожки считают с единицы.
+ */
 // ===============================
 // @vibee/atoms - Default Values
 // Single source of truth for Web & Mobile editors
@@ -36,7 +47,7 @@ export const DEFAULT_ASSETS: Asset[] = [
   {
     id: 'asset-lipsync',
     type: 'video',
-    name: 'Lipsync Video',
+    name: 'Видео с губами',
     url: '/lipsync/lipsync.mp4',
     duration: 900,
   },
@@ -51,35 +62,35 @@ export const DEFAULT_ASSETS: Asset[] = [
   {
     id: 'asset-bg-00',
     type: 'video',
-    name: 'Background 00',
+    name: 'Фон 1',
     url: '/backgrounds/business/bg00.mp4',
     duration: 300,
   },
   {
     id: 'asset-bg-01',
     type: 'video',
-    name: 'Background 01',
+    name: 'Фон 2',
     url: '/backgrounds/business/bg01.mp4',
     duration: 300,
   },
   {
     id: 'asset-bg-02',
     type: 'video',
-    name: 'Background 02',
+    name: 'Фон 3',
     url: '/backgrounds/business/bg02.mp4',
     duration: 300,
   },
   {
     id: 'asset-bg-03',
     type: 'video',
-    name: 'Background 03',
+    name: 'Фон 4',
     url: '/backgrounds/business/bg03.mp4',
     duration: 300,
   },
   {
     id: 'asset-bg-04',
     type: 'video',
-    name: 'Background 04',
+    name: 'Фон 5',
     url: '/backgrounds/business/bg04.mp4',
     duration: 300,
   },
@@ -215,7 +226,7 @@ export function createDefaultTracks(
     {
       id: 'track-video',
       type: 'video',
-      name: 'Video',
+      name: 'Видео',
       items: videoItems,
       locked: false,
       visible: true,
@@ -237,7 +248,7 @@ export function createDefaultTracks(
     {
       id: 'track-voice',
       type: 'voice',
-      name: 'Voice',
+      name: 'Голос',
       items: [],
       locked: false,
       visible: true,
@@ -248,7 +259,7 @@ export function createDefaultTracks(
     {
       id: 'track-audio',
       type: 'audio',
-      name: 'Music',
+      name: 'Музыка',
       items: [],
       locked: false,
       visible: true,
