@@ -841,56 +841,13 @@
   border-radius: 12px;
 }
 
-/* Scroll indicator animation - centered within feed panel */
-.feed-panel.fullscreen::after {
-  content: '';
-  position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 40px;
-  height: 40px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  animation: scrollPulse 2s ease-in-out infinite;
-  pointer-events: none;
-  z-index: var(--z-nav);
-}
+/* ПОДСКАЗКА «ЛИСТАЙ ВНИЗ» УБРАНА (восстановлено после чужого мержа).
+ * Пульсирующий круг и стрелка на bottom:24px приходились ровно на строку
+ * подписи и рисовались ПОВЕРХ неё, а анимация была бесконечной: подсказка
+ * не исчезала даже после того, как человек пролистал. Кадры scrollPulse и
+ * scrollBounce удалены вместе с ней — других пользователей у них нет. */
 
-.feed-panel.fullscreen::before {
-  content: '↓';
-  position: absolute;
-  bottom: 32px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.5);
-  animation: scrollBounce 2s ease-in-out infinite;
-  pointer-events: none;
-  z-index: calc(var(--z-nav) + 1);
-}
 
-@keyframes scrollPulse {
-  0%,
-  100% {
-    opacity: 0.3;
-    transform: translateX(-50%) scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: translateX(-50%) scale(1.1);
-  }
-}
-
-@keyframes scrollBounce {
-  0%,
-  100% {
-    transform: translateX(-50%) translateY(0);
-  }
-  50% {
-    transform: translateX(-50%) translateY(5px);
-  }
-}
 
 /* Hide scroll indicator when scrolled */
 .feed-panel.fullscreen .feed-list:not(:first-child)::after,
@@ -1320,8 +1277,14 @@
     );
   }
 
+  /* ВОССТАНОВЛЕНО ПОСЛЕ ЧУЖОГО МЕРЖА (PR #696 → перезаписан → PR #731).
+     Это правило перебивает все предыдущие на телефоне, а
+     env(safe-area-inset-bottom) внутри WebView Telegram равен НУЛЮ — про это
+     написано в styles/telegram.css. Замер: подпись заканчивалась на 776px,
+     панель начиналась на 756 — двадцать пикселей текста под ней.
+     --app-tabbar-total публикует сама панель через ResizeObserver. */
   .feed-panel.fullscreen .feed-card-info {
-    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(20px + var(--app-tabbar-total, 57px));
   }
 
   .feed-panel.fullscreen .feed-card-actions {
