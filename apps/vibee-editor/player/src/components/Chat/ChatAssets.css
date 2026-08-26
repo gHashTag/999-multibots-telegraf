@@ -94,3 +94,38 @@
 .chat-assets__link:hover {
   border-bottom-style: solid;
 }
+
+/* Заголовки и списки в ответах агента.
+   До этого весь ответ шёл одним абзацем, и разметка оставалась сырой:
+   на экране были видны «##» и «-» вместе с текстом. */
+.chat-assets__heading {
+  margin: 10px 0 4px;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--vibee-cream, #f2ede1);
+}
+
+.chat-assets__heading:first-child {
+  margin-top: 0;
+}
+
+.chat-assets__list {
+  margin: 4px 0;
+  padding-left: 18px;
+  /* Свой маркер не нужен: у нумерованных пунктов номер уже в тексте,
+     иначе строка начиналась бы с двух номеров подряд. */
+  list-style: none;
+}
+
+.chat-assets__list li {
+  position: relative;
+  margin: 3px 0;
+  line-height: 1.45;
+}
+
+.chat-assets__list li::before {
+  content: '·';
+  position: absolute;
+  left: -12px;
+  color: #8a8578;
+}

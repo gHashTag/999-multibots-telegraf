@@ -21,10 +21,33 @@ const VERSION_KEY = 'vibee-storage-version';
 const storedVersion = localStorage.getItem(VERSION_KEY);
 if (storedVersion !== STORAGE_VERSION) {
   // Clear all VIBEE storage keys so new defaults take effect
+  /**
+   * ЧТО ПЕРЕЖИВАЕТ СБРОС.
+   *
+   * Сброс задуман для УМОЛЧАНИЙ редактора: поднимаем версию — новые значения
+   * вступают в силу. Но подметал он всё подряд по префиксу «vibee-», включая
+   * переписку человека с агентом и его недописанное сообщение. Это не
+   * настройка: туда пишут задание — «сделай рилс про то-то, вот таким
+   * голосом». Терять его при обновлении приложения нельзя, а владелец
+   * сообщил ровно об этом: «история чата после перезагрузки».
+   *
+   * Список именно положительный: всё новое по умолчанию сбрасывается, как и
+   * раньше, а уцелеть должно только то, что человек написал сам.
+   */
+  const KEEP = new Set([
+    'vibee-agent-chat',
+    'vibee-agent-chat-draft',
+    'vibee-last-route',
+    'vibee-soul',
+  ]);
   const keysToRemove: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key && (key.startsWith('vibee-') || key.startsWith('@vibee/') || key.startsWith('editor:'))) {
+    if (
+      key &&
+      !KEEP.has(key) &&
+      (key.startsWith('vibee-') || key.startsWith('@vibee/') || key.startsWith('editor:'))
+    ) {
       keysToRemove.push(key);
     }
   }
