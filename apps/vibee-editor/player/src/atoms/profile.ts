@@ -9,6 +9,10 @@ import { STORAGE_KEYS } from '@vibee/atoms';
 import { userAtom } from './user';
 import type { FeedTemplate } from './feed';
 import { API_BASE } from '../config';
+// authHeaders вызывался БЕЗ импорта: свободный идентификатор в ES-модуле —
+// это ReferenceError при первом же исполнении строки. Синк профиля из
+// Telegram падал всегда, а вызывающий гасил это через .catch(() => {}).
+import { authHeaders } from '../lib/apiFetch';
 
 // ===============================
 // Types
@@ -203,7 +207,15 @@ export const fetchMyProfileAtom = atom(
 
       if (response.ok) {
         const data = await response.json();
-        const profile: MyProfile = {
+        const profile: UserProfile = {
+          // Три поля отсутствовали. Раньше литерал был помечен типом
+          // `MyProfile`, которого в проекте нет вовсе, — TypeScript не мог
+          // проверить форму, и в myProfileAtom ложился объект без `id`,
+          // `is_following` и `is_own_profile`. Читатели атома видят
+          // UserProfile и вправе на них рассчитывать.
+          id: String(data.id ?? data.telegram_id ?? user.id),
+          is_following: false,
+          is_own_profile: true,
           telegram_id: String(data.telegram_id ?? user.id),
           username: data.username ?? user.username ?? '',
           display_name: data.display_name ?? user.first_name ?? '',

@@ -129,6 +129,7 @@ export const selectRangeAtom = atom(
     let anchorItem: TrackItem | null = null;
     let targetItem: TrackItem | null = null;
     let anchorTrack: typeof tracks[0] | null = null;
+    let targetTrack: typeof tracks[0] | null = null;
 
     for (const track of tracks) {
       for (const item of track.items) {
@@ -138,11 +139,30 @@ export const selectRangeAtom = atom(
         }
         if (item.id === targetId) {
           targetItem = item;
+          targetTrack = track;
         }
       }
     }
 
     if (!anchorItem || !targetItem || !anchorTrack) {
+      set(selectedItemIdsAtom, [targetId]);
+      set(selectionAnchorAtom, targetId);
+      return;
+    }
+
+    /**
+     * Диапазон имеет смысл только ВНУТРИ одной дорожки.
+     *
+     * Проверки на это не было вовсе: код считал границы по обоим элементам, а
+     * перебирал items ТОЛЬКО дорожки якоря. При выделении с track-1 на track-2
+     * в выделение попадал сам якорь, а цель — нет. То есть человек кликал по
+     * клипу на другой дорожке и получал выделенным совсем другой клип.
+     *
+     * Поведение при разных дорожках то же, что и при отсутствующем якоре:
+     * выделяем цель и делаем её новым якорем. Так следующий shift-клик уже
+     * построит диапазон там, где человек и работает.
+     */
+    if (targetTrack !== anchorTrack) {
       set(selectedItemIdsAtom, [targetId]);
       set(selectionAnchorAtom, targetId);
       return;
@@ -213,9 +233,36 @@ export const pasteItemsAtom = atom(
     }
 
     // Paste to appropriate tracks
+    /**
+     * Для каждого ТИПА выбираем РОВНО ОДНУ дорожку-получателя.
+     *
+     * Раньше вставка шла в каждую дорожку подходящего типа: `tracks.map` не
+     * различал первую видеодорожку и вторую. При двух видеодорожках один
+     * скопированный клип превращался в ДВА — по копии на каждой, — и обе
+     * попадали в выделение.
+     *
+     * Человек этого не заказывал: он копировал один клип и ждёт один.
+     *
+     * Предпочитаем дорожку, С КОТОРОЙ копировали (её id лежит в самом
+     * элементе): вставка возвращается туда же, откуда взяли. Если такой
+     * дорожки уже нет — берём первую подходящего типа, чтобы вставка не
+     * потерялась совсем.
+     */
+    const targetTrackIdByType = new Map<TrackType, string>();
+    for (const [type, items] of itemsByType) {
+      const origin = items.find((i) =>
+        tracks.some((t) => t.id === i.trackId && t.type === type)
+      );
+      const target =
+        (origin && tracks.find((t) => t.id === origin.trackId)) ??
+        tracks.find((t) => t.type === type);
+      if (target) targetTrackIdByType.set(type, target.id);
+    }
+
     const newTracks = tracks.map((track) => {
       const typeItems = itemsByType.get(track.type);
       if (!typeItems) return track;
+      if (targetTrackIdByType.get(track.type) !== track.id) return track;
 
       const pastedItems = typeItems.map((item) => {
         const newId = generateId('item');

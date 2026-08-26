@@ -13,6 +13,7 @@
  * жадности: сначала markdown-картинки, потом инлайн-код (внутри него URL
  * не трогаем), потом медиа-ссылки, остальное — текст.
  */
+import type { ReactNode } from 'react'
 import './ChatAssets.css'
 
 type Segment =
@@ -148,6 +149,72 @@ function TextPart({ content }: { content: string }) {
   )
 }
 
+/**
+ * Блок текста ПОСТРОЧНО: заголовки, списки, абзацы.
+ *
+ * Раньше весь ответ агента шёл одним `<p>`, и разметка оставалась сырой:
+ * человек видел на экране «## 1. Производство (платно)» и «- Нарисовать
+ * картинку» вместе со звёздочками и решётками. Жирный при этом работал —
+ * поэтому выглядело как поломка, а не как отсутствие поддержки.
+ *
+ * Полноценный markdown сюда не нужен и вреден: агент пишет короткими
+ * списками и подзаголовками, а таблицы и цитаты в чате не появляются.
+ * Разбираем ровно то, что он действительно шлёт.
+ */
+function TextBlock({ content }: { content: string }) {
+  const lines = content.split('\n')
+  const out: ReactNode[] = []
+  let bullets: string[] = []
+
+  const flush = () => {
+    if (!bullets.length) return
+    out.push(
+      <ul key={`ul${out.length}`} className="chat-assets__list">
+        {bullets.map((b, i) => (
+          <li key={i}>
+            <TextPart content={b} />
+          </li>
+        ))}
+      </ul>
+    )
+    bullets = []
+  }
+
+  for (const raw of lines) {
+    const line = raw.trim()
+    if (!line) {
+      flush()
+      continue
+    }
+    const heading = line.match(/^#{1,6}\s+(.*)$/)
+    if (heading) {
+      flush()
+      out.push(
+        <p key={`h${out.length}`} className="chat-assets__heading">
+          <TextPart content={heading[1]} />
+        </p>
+      )
+      continue
+    }
+    // Маркер списка: «- », «* », «• » или «1. ». Номер сохраняем в тексте —
+    // агент нумерует осмысленно, и своя нумерация браузера с ней разошлась бы.
+    const bullet = line.match(/^(?:[-*•]\s+|\d+[.)]\s+)(.*)$/)
+    if (bullet) {
+      const num = line.match(/^(\d+[.)])\s+/)
+      bullets.push(num ? `${num[1]} ${bullet[1]}` : bullet[1])
+      continue
+    }
+    flush()
+    out.push(
+      <p key={`p${out.length}`} className="chat-assets__text">
+        <TextPart content={line} />
+      </p>
+    )
+  }
+  flush()
+  return <>{out}</>
+}
+
 export function ChatAssets({ text }: { text: string }) {
   const segments = splitSegments(text)
   if (!segments.length) return null
@@ -157,11 +224,7 @@ export function ChatAssets({ text }: { text: string }) {
         if (s.kind === 'text') {
           const trimmed = s.content.replace(/^\s+|\s+$/g, '')
           if (!trimmed) return null
-          return (
-            <p key={i} className="chat-assets__text">
-              <TextPart content={trimmed} />
-            </p>
-          )
+          return <TextBlock key={i} content={trimmed} />
         }
         if (s.kind === 'code') {
           return (

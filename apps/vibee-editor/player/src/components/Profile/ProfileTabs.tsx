@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { myProfileAtom } from '@/atoms'
 import { useAtomValue, useSetAtom } from 'jotai';
 import { ProfileFilesGrid } from './ProfileFilesGrid'
 import { ProfileSkills } from './ProfileSkills'
+import { ProfilePlan } from './ProfilePlan'
+import { useIsOwnProfile } from './useIsOwnProfile'
 import { ProfileBlog } from './ProfileBlog'
-import { Grid, Users, Video, UserPlus, FolderOpen, Wand2, BookOpen } from 'lucide-react';
+import { Grid, Users, Video, UserPlus, FolderOpen, Wand2, BookOpen, Target } from 'lucide-react';
 import {
   viewedProfileAtom,
-  userAtom,
   followersAtom,
   followersLoadingAtom,
   followingAtom,
@@ -20,11 +20,12 @@ import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import { UserCard } from './UserCard';
 import { ProfileTemplatesGrid } from './ProfileTemplatesGrid';
 
-type TabId = 'templates' | 'files' | 'skills' | 'blog' | 'followers' | 'following';
-const TAB_ORDER: TabId[] = ['templates', 'files', 'skills', 'blog', 'followers', 'following'];
+type TabId = 'templates' | 'plan' | 'files' | 'skills' | 'blog' | 'followers' | 'following';
+const TAB_ORDER: TabId[] = ['templates', 'plan', 'files', 'skills', 'blog', 'followers', 'following'];
 
 export function ProfileTabs() {
   const { t } = useLanguage();
+  const isOwn = useIsOwnProfile();
   const [activeTab, setActiveTab] = useState<TabId>('templates');
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -51,7 +52,6 @@ export function ProfileTabs() {
   });
 
   const profile = useAtomValue(viewedProfileAtom);
-  const currentUser = useAtomValue(userAtom);
 
   const followers = useAtomValue(followersAtom);
   const followersLoading = useAtomValue(followersLoadingAtom);
@@ -73,17 +73,14 @@ export function ProfileTabs() {
 
   if (!profile) return null;
 
-  // Файлы — только на СВОЁМ профиле: чужие генерации — не публичный контент.
-  // DEV-коннектор (VITE_AGENT_KEY) — это сам владелец ключа: без логина
-  // Telegram профиль считается своим только в dev-сборке, в прод не попадает.
-  const devOwner =
-    import.meta.env.DEV && !!import.meta.env.VITE_AGENT_KEY
-  const isOwn =
-    currentUser?.telegram_id === profile.telegram_id || devOwner
+  // План, файлы и скиллы — только на СВОЁМ профиле: чужие замыслы и
+  // генерации не публичный контент. Правило одно на весь экран профиля,
+  // см. useIsOwnProfile: раньше их было два, и они расходились.
   const tabs = [
     { id: 'templates' as const, icon: <Grid size={18} />, label: t('profile.templates'), count: profile.templates_count },
     ...(isOwn
       ? [
+          { id: 'plan' as const, icon: <Target size={18} />, label: 'План', count: undefined },
           { id: 'files' as const, icon: <FolderOpen size={18} />, label: 'Файлы', count: undefined },
           { id: 'skills' as const, icon: <Wand2 size={18} />, label: 'Скиллы', count: undefined },
         ]
@@ -113,6 +110,8 @@ export function ProfileTabs() {
         {activeTab === 'templates' && (
           <ProfileTemplatesGrid username={profile.username} />
         )}
+
+        {activeTab === 'plan' && <ProfilePlan />}
 
         {activeTab === 'files' && <ProfileFilesGrid />}
 

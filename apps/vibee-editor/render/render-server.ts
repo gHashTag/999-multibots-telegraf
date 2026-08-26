@@ -122,6 +122,82 @@ function runFfprobeText(args: string[], timeoutMs = 30000): string {
  * только здесь. nosniff запрещает браузеру угадывать тип ответа —
  * даже если в данных окажется разметка, она не будет исполнена как HTML.
  */
+/**
+ * Лишние сегменты пути — это 404, а НЕ родительский ресурс.
+ *
+ * ПОЧЕМУ ЭТО ОТДЕЛЬНАЯ ФУНКЦИЯ. Маршруты здесь сопоставляются через
+ * `startsWith`, и такой матчер ловит не только свой путь, но и всё, что
+ * начинается с него. Один раз это уже стоило дорого: `/api/users/:username/
+ * templates` не существовал, запрос попадал в обработчик профиля и получал
+ * КАРТОЧКУ ПРОФИЛЯ с кодом 200. Клиент читал `data.templates`, видел
+ * undefined и показывал «Пока нет видео» — профиль ни у кого не показывал
+ * работы, и ни логи, ни консоль об этом не сообщали.
+ *
+ * Замер 2026-08-26 показал ещё три таких пути: `/api/feed/чепуха` отдавал
+ * всю ленту, `/api/users/id/:id/чепуха` — пользователя из одних null,
+ * `/api/users/:username/чепуха` — профиль. Каждый из них — заготовленная
+ * ловушка для следующего подпути, который кто-нибудь добавит.
+ *
+ * Возвращает true и САМ отвечает 404, если сегментов больше ожидаемого.
+ */
+/**
+ * Ключ ElevenLabs — с проверкой формы, а не только наличия.
+ *
+ * ЧТО СЛУЧИЛОСЬ. В переменной лежал ИДЕНТИФИКАТОР ключа вместо самого ключа.
+ * ElevenLabs отвечал на это 400 с внятным текстом:
+ *
+ *   "API key ID used as API key - only valid API keys can be used.
+ *    API keys start with 'sk_' and are shown when the key is created."
+ *
+ * А наружу уходило «ElevenLabs API error: 400» — тело ответа выбрасывалось.
+ * По такому сообщению нельзя понять ни причину, ни что делать; список
+ * голосов и озвучка (платная, 6 токенов) просто не работали, и почему —
+ * снаружи было не видно.
+ *
+ * Проверка формы стоит одну строку и отвечает ДО сетевого запроса: ключ,
+ * не начинающийся с `sk_`, не заработает никогда.
+ */
+/** Ответ /api/providers живёт минуту: за ним пять чужих сервисов. */
+let providersCache: { at: number; data: Record<string, unknown> } | null = null
+
+function elevenLabsKey(): string {
+  const key = process.env.ELEVENLABS_API_KEY
+  if (!key) {
+    throw new Error(
+      'ELEVENLABS_API_KEY не задан. Ключ создаётся в кабинете ElevenLabs ' +
+        '(Profile → API Keys) и начинается с «sk_».'
+    )
+  }
+  if (!key.startsWith('sk_')) {
+    throw new Error(
+      'ELEVENLABS_API_KEY хранит НЕ КЛЮЧ, а его идентификатор: настоящий ключ ' +
+        `начинается с «sk_», а этот — с «${key.slice(0, 3)}». ElevenLabs на такой ` +
+        'отвечает 400 (invalid_api_key). Ключ показывается один раз при создании ' +
+        'или ротации в кабинете ElevenLabs — его и нужно положить в переменную.'
+    )
+  }
+  return key
+}
+
+function rejectExtraSegments(
+  req: IncomingMessage,
+  // Тот же тип, что у sendJson рядом: пространство имён http сюда не
+  // импортировано, только IncomingMessage из 'node:http'.
+  res: any,
+  expected: number
+): boolean {
+  const pathname = (req.url || '').split('?')[0]
+  const segments = pathname.split('/').filter(Boolean)
+  if (segments.length <= expected) return false
+  sendJson(res, 404, {
+    error: 'Not found',
+    detail:
+      `Путь «${pathname}» длиннее, чем умеет этот маршрут. ` +
+      'Лишние сегменты не игнорируются: иначе ответ 200 приходил бы не на тот запрос.',
+  })
+  return true
+}
+
 function sendJson(res: any, code: number, obj: unknown): void {
   res.writeHead(code, {
     'Content-Type': 'application/json',
@@ -201,12 +277,38 @@ import { Pool } from 'pg'
  * Оставлен как есть и помечен — см. обработчик post_to_telegram, где отказ
  * больше не молчит.
  */
+/**
+ * Собственный домен проекта — то, что видит человек в подписи поста.
+ *
+ * Отдельно от SERVICE_ENDPOINTS.player НАМЕРЕННО: player — это служебный адрес
+ * мини-аппа, по которому ходит код (сейчас домен Railway). А в тексте поста
+ * должен стоять адрес бренда, а не адрес инфраструктуры.
+ *
+ * Замер 24.08.2026: t27.ai отвечает 200, но отдаёт научный сайт TRINITY
+ * (GitHub Pages), а НЕ ленту рилсов — поэтому `/feed` там даёт 404, и путь к
+ * ленте сюда не дописывается.
+ *
+ * Решено вести ленту на app.t27.ai. Домен ЕЩЁ НЕ СУЩЕСТВУЕТ (NXDOMAIN), и
+ * поставить его умолчанием значило бы положить в каждый пост мёртвую ссылку —
+ * ровно то, что чинилось в PR #666. Поэтому умолчание остаётся живым t27.ai,
+ * а переключение — одна переменная CANONICAL_SITE=app.t27.ai, когда DNS
+ * настроен и домен отвечает.
+ */
+const CANONICAL_SITE = process.env.CANONICAL_SITE || 't27.ai'
+
 const SERVICE_ENDPOINTS = {
   remotion: process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app',
   mcp: process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app',
   // dead-domain-ok: замены нет, отказ теперь виден в ответе публикации
   bridge: process.env.TELEGRAM_BRIDGE_URL || 'https://vibee-telegram-bridge.fly.dev',
-  player: process.env.PLAYER_URL || 'https://vibee-editor-production.up.railway.app',
+  /**
+   * Собственный домен, а не служебный адрес Railway: этот URL уходит ЛЮДЯМ —
+   * в подпись поста в канале. Замер 2026-08-26: app.t27.ai отдаёт 200 и тот
+   * же бандл (index-D06s1d0l.js), что и адрес Railway, а /feed на нём тоже
+   * 200. Раньше домена не существовало, поэтому в постах стоял служебный
+   * адрес — технически живой и нечитаемый для человека.
+   */
+  player: process.env.PLAYER_URL || 'https://app.t27.ai',
 } as const
 
 /**
@@ -1830,6 +1932,128 @@ const server = createServer(async (req, res) => {
   }
 
   // Health check
+  /**
+   * GET /api/providers — что из платного работает ПРЯМО СЕЙЧАС.
+   *
+   * ЗАЧЕМ. Обход провайдеров 2026-08-26 показал: у FAL кончился баланс
+   * («User is locked. Reason: Exhausted balance»), ключ ElevenLabs хранит
+   * идентификатор вместо ключа, ключ OpenAI отвергается. Две платные функции
+   * из четырёх не работали, а продукт об этом не сообщал НИЧЕГО: агент
+   * по-прежнему называл цены за услуги, которых не оказывает, и человек
+   * узнавал правду, только потратив токены.
+   *
+   * Ключ бывает валиден по форме и мёртв по балансу — из кода этого не
+   * видно, ни одна сборка и ни один тест такого не поймают. Отвечает на это
+   * только живой запрос, и вот он.
+   *
+   * КЭШ НА МИНУТУ. Проверка ходит к пяти чужим сервисам; без кэша любой
+   * опрос страницы превращался бы в пять внешних запросов. Минуты хватает,
+   * чтобы увидеть починку почти сразу и не устроить чужим API поток.
+   */
+  if (req.url?.split('?')[0] === '/api/providers' && req.method === 'GET') {
+    const now = Date.now()
+    if (providersCache && now - providersCache.at < 60_000) {
+      sendJson(res, 200, { ...providersCache.data, изКэша: true })
+      return
+    }
+    // Проверки идут ПАРАЛЛЕЛЬНО и с коротким таймаутом: пять
+    // последовательных запросов к чужим сервисам — это секунды ожидания на
+    // ровном месте, а страница здоровья должна отвечать быстро.
+    const ping = async (
+      name: string,
+      run: () => Promise<{ ok: boolean; детали: string }>
+    ) => {
+      try {
+        const r = await Promise.race([
+          run(),
+          new Promise<{ ok: boolean; детали: string }>((_, rej) =>
+            setTimeout(() => rej(new Error('таймаут 8с')), 8000)
+          ),
+        ])
+        return { провайдер: name, ...r }
+      } catch (e) {
+        return {
+          провайдер: name,
+          ok: false,
+          детали: e instanceof Error ? e.message : String(e),
+        }
+      }
+    }
+    const head = async (url: string, headers: Record<string, string>) => {
+      const r = await fetch(url, { headers })
+      // Тело — вместе с кодом: именно в нём чужой сервис объясняет причину.
+      const body = r.ok ? '' : (await r.text().catch(() => '')).slice(0, 200)
+      return { ok: r.ok, детали: r.ok ? `HTTP ${r.status}` : `HTTP ${r.status} ${body}` }
+    }
+    const key = (n: string) => process.env[n] || ''
+    const результаты = await Promise.all([
+      ping('FAL — картинки', async () => {
+        if (!key('FAL_KEY')) return { ok: false, детали: 'FAL_KEY не задан' }
+        const r = await fetch('https://queue.fal.run/fal-ai/flux/schnell', {
+          method: 'POST',
+          headers: {
+            Authorization: `Key ${key('FAL_KEY')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prompt: 'ping' }),
+        })
+        const body = (await r.text().catch(() => '')).slice(0, 200)
+        return { ok: r.ok, детали: `HTTP ${r.status} ${r.ok ? '' : body}` }
+      }),
+      ping('ElevenLabs — озвучка', async () => {
+        const k = key('ELEVENLABS_API_KEY')
+        if (!k) return { ok: false, детали: 'ELEVENLABS_API_KEY не задан' }
+        if (!k.startsWith('sk_')) {
+          return {
+            ok: false,
+            детали:
+              'в переменной идентификатор ключа, а не ключ: настоящий начинается с «sk_»',
+          }
+        }
+        return head('https://api.elevenlabs.io/v1/voices', { 'xi-api-key': k })
+      }),
+      ping('Replicate', async () =>
+        key('REPLICATE_API_TOKEN')
+          ? head('https://api.replicate.com/v1/account', {
+              Authorization: `Bearer ${key('REPLICATE_API_TOKEN')}`,
+            })
+          : { ok: false, детали: 'REPLICATE_API_TOKEN не задан' }
+      ),
+      // OpenAI НЕ обязателен: агент работает на z.ai, запасной путь — тоже
+      // z.ai лёгкой моделью. Отчёт про OpenAI остаётся, но его отказ не
+      // означает, что что-то сломано, — поэтому он помечен как
+      // необязательный и не учитывается в счётчике «работает N из M».
+      ping('OpenAI (не обязателен)', async () =>
+        key('OPENAI_API_KEY')
+          ? head('https://api.openai.com/v1/models?limit=1', {
+              Authorization: `Bearer ${key('OPENAI_API_KEY')}`,
+            })
+          : { ok: false, детали: 'не задан — и не нужен, агент на z.ai' }
+      ),
+      ping('GLM — агент', async () =>
+        key('GLM_API_KEY')
+          ? head('https://api.z.ai/api/coding/paas/v4/models', {
+              Authorization: `Bearer ${key('GLM_API_KEY')}`,
+            })
+          : { ok: false, детали: 'GLM_API_KEY не задан' }
+      ),
+    ])
+    // Счётчик считает только ОБЯЗАТЕЛЬНЫХ: иначе «работает 2 из 5» пугало бы
+    // отказом того, на кого продукт не опирается.
+    const обязательные = результаты.filter(
+      r => !r.провайдер.includes('не обязателен')
+    )
+    const data = {
+      проверено: new Date().toISOString(),
+      работает: обязательные.filter(r => r.ok).length,
+      всего: обязательные.length,
+      провайдеры: результаты,
+    }
+    providersCache = { at: now, data }
+    sendJson(res, 200, data)
+    return
+  }
+
   if (req.url === '/health' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(
@@ -2375,11 +2599,7 @@ const server = createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const { text, voice_id, speed } = JSON.parse(body)
-        const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY
-
-        if (!ELEVENLABS_API_KEY) {
-          throw new Error('ELEVENLABS_API_KEY not configured')
-        }
+        const ELEVENLABS_API_KEY = elevenLabsKey()
 
         console.log(
           `🎤 [Generate] Audio: voice=${voice_id}, text="${text.substring(0, 50)}..."`
@@ -2454,11 +2674,7 @@ const server = createServer(async (req, res) => {
   // GET /api/voices - Get available ElevenLabs voices
   if (req.url === '/api/voices' && req.method === 'GET') {
     try {
-      const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY
-      if (!ELEVENLABS_API_KEY) {
-        throw new Error('ELEVENLABS_API_KEY not configured')
-      }
-
+      const ELEVENLABS_API_KEY = elevenLabsKey()
       console.log(`🎤 [Voices] Fetching ElevenLabs voices...`)
 
       const response = await fetch('https://api.elevenlabs.io/v1/voices', {
@@ -2470,7 +2686,12 @@ const server = createServer(async (req, res) => {
       })
 
       if (!response.ok) {
-        throw new Error(`ElevenLabs API error: ${response.status}`)
+        // Тело — вместе с кодом. Именно в теле ElevenLabs объясняет, что не
+        // так; без него «error: 400» не говорит ничего и чинить нечего.
+        const detail = await response.text().catch(() => '')
+        throw new Error(
+          `ElevenLabs ответил ${response.status}${detail ? `: ${detail.slice(0, 400)}` : ''}`
+        )
       }
 
       const data = await response.json()
@@ -4474,7 +4695,11 @@ const server = createServer(async (req, res) => {
             videoUrl: data.video_url,
             caption:
               data.telegram_caption ||
-              `🎬 ${data.name}\n👤 ${data.creator_name}\n🔗 ${SERVICE_ENDPOINTS.player}/feed\n\n#vibee #reels #ai`,
+              // Подпись поста — ТОЛЬКО по-русски: канал русскоязычный, и
+              // английские хвосты в нём читаются как чужой шаблон. Прежняя
+              // строка была наполовину английской (#vibee #reels #ai) и вела
+              // на служебный адрес Railway вместо собственного домена.
+              `🎬 ${data.name}\n\n👤 ${data.creator_name}\n🔗 ${CANONICAL_SITE}\n\n#рилс #нейросети #TrinityS3AI`,
           })
         }
 
@@ -5251,6 +5476,33 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.url?.startsWith('/api/feed') && req.method === 'GET') {
+    /*
+     * Третий сегмент у ленты — либо `stats`, либо ЧИСЛОВОЙ id. Всё прочее
+     * это 404, а не «вот вам вся лента».
+     *
+     * СЧЁТА СЕГМЕНТОВ ЗДЕСЬ НЕ ХВАТАЕТ, и я на этом уже ошибся: у
+     * `/api/feed/чепуха` ровно столько же сегментов, сколько у
+     * `/api/feed/17` и `/api/feed/stats`. Проверка «не больше трёх»
+     * пропускала мусор, и правка выглядела сделанной, пока живой запрос к
+     * проду не показал ту же самую ленту в ответе.
+     *
+     * ОСТОРОЖНО: глубже есть настоящий маршрут GET /api/feed/:id/star —
+     * он обрабатывается ВЫШЕ (starMatch) и возвращает сам, поэтому сюда не
+     * доходит.
+     */
+    {
+      const seg = (req.url || '').split('?')[0].split('/').filter(Boolean)
+      const tail = seg[2]
+      if (seg.length > 3 || (tail !== undefined && tail !== 'stats' && !/^\d+$/.test(tail))) {
+        sendJson(res, 404, {
+          error: 'Not found',
+          detail:
+            `Путь «${(req.url || '').split('?')[0]}» лента не обслуживает. ` +
+            'Есть /api/feed, /api/feed/:id (число) и /api/feed/stats.',
+        })
+        return
+      }
+    }
     const url = new URL(req.url || '', `http://${req.headers.host}`)
     // Схема звёзд создаётся лениво, но читать ленту обязаны и ДО первой
     // звезды: GET делает LEFT JOIN по template_stars и SELECT stars_count —
@@ -5808,7 +6060,11 @@ const server = createServer(async (req, res) => {
 
   // GET /api/users/id/:telegram_id
   if (req.url?.startsWith('/api/users/id/') && req.method === 'GET') {
-    const telegram_id = req.url?.split('/').pop()
+    // Ровно /api/users/id/:telegram_id. Раньше /api/users/id/42/что-угодно
+    // брал последний сегмент как telegram_id и отдавал пользователя из
+    // одних null с кодом 200 — хуже, чем 404: выглядит как живая запись.
+    if (rejectExtraSegments(req, res, 4)) return
+    const telegram_id = req.url?.split('?')[0].split('/').pop()
     if (!telegram_id) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ error: 'Invalid telegram_id' }))
@@ -5866,12 +6122,85 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  /**
+   * GET /api/users/:username/templates — работы человека.
+   *
+   * МАРШРУТА НЕ БЫЛО ВОВСЕ. Запрос попадал в обработчик профиля ниже: тот
+   * ловит всё, что начинается на `/api/users/`, берёт вторую часть пути и
+   * отдаёт КАРТОЧКУ ПРОФИЛЯ с кодом 200. Клиент читал `data.templates`,
+   * получал undefined и показывал «Пока нет видео» — при том, что в том же
+   * ответе лежало `templates_count: 17`.
+   *
+   * То есть профиль НИ У КОГО не показывал работы, а выглядело это как
+   * «человек ничего не выложил». Ошибки не было ни в логах, ни в консоли:
+   * ответ 200, просто не тот.
+   */
+  if (
+    req.method === 'GET' &&
+    /^\/api\/users\/[^/]+\/templates$/.test(req.url?.split('?')[0] || '')
+  ) {
+    const url = new URL(req.url || '', `http://${req.headers.host}`)
+    const username = decodeURIComponent(url.pathname.split('/')[3] || '')
+    const page = Math.max(0, parseInt(url.searchParams.get('page') || '0', 10) || 0)
+    const limit = Math.min(
+      50,
+      Math.max(1, parseInt(url.searchParams.get('limit') || '20', 10) || 20)
+    )
+    try {
+      // getPool() внутри try: его синхронный throw иначе уходит из
+      // async-обработчика и убивает процесс.
+      const pool = await getPool()
+      const result = await pool.query(
+        `SELECT pt.id, pt.telegram_id, pt.creator_name, pt.creator_avatar,
+                COALESCE(pt.creator_username, '') AS creator_username,
+                pt.name, pt.description, pt.thumbnail_url, pt.video_url,
+                pt.likes_count, pt.views_count, pt.uses_count,
+                COALESCE(pt.stars_count, 0) AS stars_count,
+                pt.is_featured, pt.created_at::text
+         FROM public_templates pt
+         LEFT JOIN profiles p ON p.telegram_id = pt.telegram_id
+         WHERE pt.is_public = TRUE AND pt.deleted_at IS NULL
+           AND (pt.creator_username = $1 OR p.username = $1)
+         ORDER BY pt.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [username, limit, page * limit]
+      )
+      sendJson(res, 200, {
+        templates: result.rows.map(row => ({
+          id: row.id,
+          telegramId: row.telegram_id,
+          creatorName: row.creator_name,
+          creatorAvatar: row.creator_avatar,
+          creatorUsername: row.creator_username,
+          name: row.name,
+          description: row.description,
+          thumbnailUrl: row.thumbnail_url,
+          videoUrl: row.video_url,
+          likesCount: row.likes_count || 0,
+          viewsCount: row.views_count || 0,
+          usesCount: row.uses_count || 0,
+          starsCount: row.stars_count || 0,
+          isFeatured: row.is_featured || false,
+          createdAt: row.created_at,
+        })),
+      })
+    } catch (error) {
+      console.error('User templates error:', error)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Failed to fetch user templates' }))
+    }
+    return
+  }
+
   // GET /api/users/:username - Get user profile by username
   if (
     req.url?.startsWith('/api/users/') &&
     req.method === 'GET' &&
     !req.url?.includes('/id/')
   ) {
+    // Ровно /api/users/:username. Подпути обрабатываются ВЫШЕ (сейчас это
+    // /templates); всё остальное — 404, а не карточка профиля с кодом 200.
+    if (rejectExtraSegments(req, res, 3)) return
     const url = new URL(req.url || '', `http://${req.headers.host}`)
     const pathParts = url.pathname.split('/').filter(Boolean)
     const usernameIndex = pathParts.indexOf('api') + 2 // /api/users/:username

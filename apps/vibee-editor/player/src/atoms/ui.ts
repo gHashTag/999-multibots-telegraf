@@ -82,7 +82,31 @@ export const LAYOUT_PRESETS: Record<LayoutPreset, {
 
 // Unified sidebar tab - Order: Script, Templates, Avatar(lipsync), Video, Photo(image), Voice, Music
 export type SidebarTab = 'script' | 'feed' | 'templates' | 'lipsync' | 'video' | 'image' | 'voice' | 'music' | 'player';
-export const sidebarTabAtom = atom<SidebarTab>('feed'); // Default to feed tab
+
+/**
+ * Открытая вкладка ПЕРЕЖИВАЕТ перезагрузку.
+ *
+ * Была обычным `atom('feed')` — то есть при каждом возврате в приложение
+ * человека выбрасывало на ленту, где бы он ни работал. В мини-аппе это
+ * особенно заметно: Telegram сворачивает и поднимает окно заново, и работа
+ * над роликом каждый раз начиналась с чужого экрана.
+ *
+ * `atomWithStorage` — уже принятый в проекте приём (project, bookmarks,
+ * script), поэтому и здесь он, а не своя запись в localStorage.
+ *
+ * ПОЧЕМУ `getOnInit`. По умолчанию atomWithStorage отдаёт на первом рендере
+ * значение по умолчанию и подтягивает сохранённое позже, из onMount. Здесь это
+ * не косметика: в `pages/Editor.tsx` есть эффект «если вкладка не редакторская
+ * — поставить templates». Он бы прочитал ещё не восстановленное 'feed',
+ * посчитал его нередакторским и ЗАТЁР сохранённую вкладку. С `getOnInit`
+ * первое же чтение идёт из localStorage, и затирать нечего.
+ */
+export const sidebarTabAtom = atomWithStorage<SidebarTab>(
+  STORAGE_KEYS.sidebarTab,
+  'feed',
+  undefined,
+  { getOnInit: true }
+);
 
 // Canvas zoom (0 = auto fit to height)
 export const canvasZoomAtom = atom(0);

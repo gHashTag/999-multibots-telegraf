@@ -25,6 +25,8 @@
  * границу пропуска нужно будет вернуть сюда же — одним местом.
  */
 
+import { planTools } from './plan-tools'
+
 export interface ToolContext {
   /** Подтверждён подписью или ключом. НЕ приходит из аргументов. */
   telegramId: string
@@ -183,7 +185,12 @@ async function ensureSkillsTable(ctx: ToolContext): Promise<void> {
 async function spendTokens(
   ctx: ToolContext,
   tool: string
-): Promise<{ ok: boolean; потрачено?: number; осталось?: number; причина?: string }> {
+): Promise<{
+  ok: boolean
+  потрачено?: number
+  осталось?: number
+  причина?: string
+}> {
   const price = TOKEN_PRICES[tool]
   if (!price) return { ok: true }
   const balance = await ensureTokenRow(ctx)
@@ -203,6 +210,39 @@ async function spendTokens(
   return { ok: true, потрачено: price, осталось: r.rows[0].balance }
 }
 
+/**
+ * ВОЗВРАТ токенов, если работа не сделана.
+ *
+ * ЦЕНА ОТСУТСТВИЯ, ИЗМЕРЕННАЯ. Списание стояло ПЕРЕД вызовом провайдера, а
+ * возврата не было вовсе — ни одного на весь файл. Замер 2026-08-26 прямыми
+ * запросами к провайдерам: у FAL «User is locked. Reason: Exhausted balance»,
+ * ключ ElevenLabs хранит идентификатор вместо ключа. То есть человек просил
+ * картинку, у него списывался токен, провайдер отвечал отказом — и токен
+ * пропадал. За озвучку так пропадало шесть.
+ *
+ * Возврат идёт тем же UPDATE, что и списание, и НЕ роняет ответ: если
+ * вернуть не удалось, инструмент всё равно честно скажет, что не получилось,
+ * а расхождение уйдёт в лог. Молча проглотить отказ хуже, чем показать его.
+ */
+async function refundTokens(
+  ctx: ToolContext,
+  tool: string,
+  why: string
+): Promise<void> {
+  const price = TOKEN_PRICES[tool]
+  if (!price) return
+  try {
+    await ctx.pool.query(
+      `UPDATE user_tokens SET balance = balance + $2, updated_at = now()
+       WHERE telegram_id = $1`,
+      [ctx.telegramId, price]
+    )
+    console.log(`[токены] возврат ${price} за «${tool}»: ${why}`)
+  } catch (e) {
+    console.error(`[токены] ВОЗВРАТ НЕ ВЫПОЛНЕН ${price} за «${tool}»`, e)
+  }
+}
+
 /** Допишет стоимость к результату инструмента, если она есть. */
 async function withTokens<T extends object>(
   ctx: ToolContext,
@@ -219,14 +259,30 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'whoami',
     description:
-      'Кто вызывает инструменты: telegram_id, имя в приложении и сколько у человека опубликованных роликов. ' +
-      'Полезно, чтобы не спрашивать имя у человека, который уже вошёл.',
+      'Кто вызывает инструменты: telegram_id, имя, ССЫЛКА НА ЕГО ФОТО и сколько у него ' +
+      'опубликованных роликов. Зови ПЕРВЫМ, когда человек просит сделать что-то «про меня»: ' +
+      'зная имя и лицо, историю можно строить про него, а не про абстракцию.',
     parameters: noArgs,
     async handler(_args, ctx) {
+      /**
+       * Аватар входит в ответ НАМЕРЕННО.
+       *
+       * Владелец попросил прямо: «аватарка юзера по дефолту фото — добавь в
+       * контекст агенту, чтобы он из него создавал историю». До этого агент
+       * не видел лица человека вообще: ни в одном инструменте не было ссылки
+       * на фото, и «сделай ролик про меня» он мог только выдумать.
+       *
+       * Берём из profiles, а не из users: синк из Telegram пишет аватар
+       * именно туда, и там же он обновляется, когда человек меняет фото.
+       */
       const u = await ctx.pool.query(
-        `SELECT telegram_id, COALESCE(username,'') AS username,
-                COALESCE(first_name,'') AS first_name
-         FROM users WHERE telegram_id = $1 LIMIT 1`,
+        `SELECT u.telegram_id, COALESCE(u.username,'') AS username,
+                COALESCE(u.first_name,'') AS first_name,
+                COALESCE(p.avatar_url, '') AS avatar_url,
+                COALESCE(p.display_name, '') AS display_name
+         FROM users u
+         LEFT JOIN profiles p ON p.telegram_id = u.telegram_id
+         WHERE u.telegram_id = $1 LIMIT 1`,
         [ctx.telegramId]
       )
       const c = await ctx.pool.query(
@@ -234,10 +290,20 @@ export const TOOLS: AgentTool[] = [
          WHERE telegram_id = $1 AND is_public = TRUE AND deleted_at IS NULL`,
         [ctx.telegramId]
       )
+      const профиль = u.rows[0] ?? null
+      const аватар = String(профиль?.avatar_url || '')
       return {
         telegram_id: ctx.telegramId,
-        профиль: u.rows[0] ?? null,
+        профиль,
         опубликовано: c.rows[0]?.n ?? 0,
+        аватар: аватар || undefined,
+        подсказкаПроАватар: аватар
+          ? 'Это лицо человека — опирайся на него, когда придумываешь историю ' +
+            'про него самого. ВНИМАНИЕ: превратить фото в картинку (img2img) ' +
+            'пока нельзя — image_generate принимает только текст. Не обещай ' +
+            'этого человеку.'
+          : 'Фото профиля нет. Предложи поставить аватар — тогда истории будут ' +
+            'про него самого, а не про абстракцию.',
       }
     },
   },
@@ -390,6 +456,10 @@ export const TOOLS: AgentTool[] = [
         template_settings: { type: 'object', description: 'настройки шаблона' },
         assets: { type: 'array', description: 'слои: файлы' },
         tracks: { type: 'array', description: 'слои: дорожки' },
+        post_to_telegram: {
+          type: 'boolean',
+          description: 'публиковать ли ролик в Telegram-канал; по умолчанию да',
+        },
       },
       required: ['name', 'description', 'video_url'],
       additionalProperties: false,
@@ -408,32 +478,70 @@ export const TOOLS: AgentTool[] = [
          FROM users WHERE telegram_id = $1 LIMIT 1`,
         [ctx.telegramId]
       )
-      const asJson = (v: unknown, d: string) =>
-        v == null ? d : JSON.stringify(v)
-      const r = await ctx.pool.query(
-        `INSERT INTO public_templates (
-           telegram_id, creator_name, creator_username, name, description,
-           thumbnail_url, video_url, template_settings, assets, tracks,
-           is_public, likes_count, views_count, uses_count)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,TRUE,0,0,0)
-         RETURNING id, created_at::text`,
-        [
-          ctx.telegramId,
-          u.rows[0]?.n ?? 'Автор',
-          u.rows[0]?.un ?? '',
-          args.name,
-          args.description,
-          args.thumbnail_url ?? null,
-          args.video_url,
-          asJson(args.template_settings, '{}'),
-          asJson(args.assets, '[]'),
-          asJson(args.tracks, '[]'),
-        ]
-      )
+
+      /**
+       * Публикуем через СОБСТВЕННЫЙ эндпоинт, а не своим INSERT.
+       *
+       * Здесь стоял отдельный `INSERT INTO public_templates` — вторая дверь в
+       * ту же таблицу. Из-за неё ролики автопилота:
+       *
+       *   1. НЕ уходили в Telegram-канал: постинг живёт в обработчике
+       *      /api/feed/publish, и этот путь его просто не проходил. За всё
+       *      время автопилот не доставил в канал ни одного ролика;
+       *   2. не получали upsert по имени — повторная публикация того же
+       *      шаблона плодила карточки вместо обновления.
+       *
+       * Приём тот же, что у reel_render рядом: сходить к себе по HTTP через
+       * selfFetch. Импортировать publishTemplateRow напрямую нельзя — она не
+       * экспортирована из render-server.ts, а вытаскивать её значило бы резать
+       * пятитысячный файл ради одного вызова.
+       *
+       * Одна дверь важнее экономии на сетевом вызове: две реализации записи в
+       * одну таблицу расходятся молча, и здесь они уже разошлись.
+       */
+      const base = selfBase()
+      const res = await selfFetch(`${base}/api/feed/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegram_id: ctx.telegramId,
+          creator_name: u.rows[0]?.n ?? 'Автор',
+          creator_username: u.rows[0]?.un ?? '',
+          name: args.name,
+          description: args.description,
+          thumbnail_url: args.thumbnail_url ?? null,
+          video_url: args.video_url,
+          template_settings: args.template_settings ?? {},
+          assets: args.assets ?? [],
+          tracks: args.tracks ?? [],
+          // Текст поста уже собран агентом с хештегами — он же идёт в канал.
+          telegram_caption: args.description,
+          // Автопилот публикует В КАНАЛ. Раньше флаг не ставил никто, и
+          // автоматические ролики оставались в ленте мини-аппа.
+          post_to_telegram: args.post_to_telegram !== false,
+        }),
+      })
+      const body = (await res.json().catch(() => ({}))) as {
+        id?: number
+        template?: { created_at?: string }
+        telegram?: { posted: boolean; error?: string }
+      }
+      if (!res.ok || !body.id) {
+        return {
+          опубликовано: false,
+          причина: `публикация не прошла: HTTP ${res.status}`,
+        }
+      }
       return {
         опубликовано: true,
-        id: r.rows[0].id,
-        создано: r.rows[0].created_at,
+        id: body.id,
+        создано: body.template?.created_at,
+        // Отдаём результат доставки НАРУЖУ: агент должен знать, дошёл ли
+        // ролик до людей, а не только записался ли он в таблицу.
+        вКанале: body.telegram?.posted ?? false,
+        ...(body.telegram?.posted === false && body.telegram.error
+          ? { каналОшибка: body.telegram.error }
+          : {}),
       }
     },
   },
@@ -463,7 +571,10 @@ export const TOOLS: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        prompt: { type: 'string', description: 'что нарисовать, по-русски или по-английски' },
+        prompt: {
+          type: 'string',
+          description: 'что нарисовать, по-русски или по-английски',
+        },
         model: {
           type: 'string',
           description:
@@ -499,13 +610,22 @@ export const TOOLS: AgentTool[] = [
       })
       const genData: any = await gen.json().catch(() => null)
       if (!gen.ok || !genData?.url) {
-        return { сделано: false, причина: `генерация не удалась: HTTP ${gen.status} ${String(genData?.error || '')}` }
+        await refundTokens(ctx, 'image_generate', 'провайдер не выполнил работу')
+        return {
+          сделано: false,
+          причина: `генерация не удалась: HTTP ${gen.status} ${String(genData?.error || '')}`,
+        }
       }
       // Ссылка FAL живёт ограниченное время — сразу забираем файл в наше S3,
       // иначе через час и лента, и рендер показывали бы битую картинку.
       const img = await fetch(genData.url) // внешний провайдер — ключ не нужен
       if (!img.ok) {
-        return { сделано: false, причина: `картинка сгенерирована, но не скачалась: HTTP ${img.status}`, fal_url: genData.url }
+        await refundTokens(ctx, 'image_generate', 'провайдер не выполнил работу')
+        return {
+          сделано: false,
+          причина: `картинка сгенерирована, но не скачалась: HTTP ${img.status}`,
+          fal_url: genData.url,
+        }
       }
       const bytes = Buffer.from(await img.arrayBuffer())
       const up = await selfFetch(`${base}/upload`, {
@@ -518,7 +638,12 @@ export const TOOLS: AgentTool[] = [
       })
       const upData: any = await up.json().catch(() => null)
       if (!up.ok || !upData?.directUrl) {
-        return { сделано: false, причина: `S3 не принял файл: HTTP ${up.status}`, fal_url: genData.url }
+        await refundTokens(ctx, 'image_generate', 'провайдер не выполнил работу')
+        return {
+          сделано: false,
+          причина: `S3 не принял файл: HTTP ${up.status}`,
+          fal_url: genData.url,
+        }
       }
       const r = await ctx.pool.query(
         `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
@@ -530,7 +655,8 @@ export const TOOLS: AgentTool[] = [
         сделано: true,
         url: upData.directUrl,
         id: r.rows[0]?.id,
-        подсказка: 'ссылка готова: отдай её в reel_render как слой или в feed_publish',
+        подсказка:
+          'ссылка готова: отдай её в reel_render как слой или в feed_publish',
       })
     },
   },
@@ -538,14 +664,19 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'audio_generate',
     description:
-      'Озвучить текст голосом (ElevenLabs). Работает ТОЛЬКО при валидном ключе аккаунта: если вернулась ' +
+      'Озвучить текст голосом (ElevenLabs). Без voice_id берётся КЛОН ВЛАДЕЛЬЦА, ' +
+      'а если своего клона в аккаунте нет — библиотечный, и это будет сказано в ответе. ' +
+      'Работает ТОЛЬКО при валидном ключе аккаунта: если вернулась ' +
       'ошибка про голоса — озвучка не настроена, честно скажи это и собери рилс без звука. ' +
       'Если voice_id не знаешь — не указывай, возьмётся первый доступный голос.',
     parameters: {
       type: 'object',
       properties: {
         text: { type: 'string', description: 'текст для озвучки' },
-        voice_id: { type: 'string', description: 'идентификатор голоса ElevenLabs, необязателен' },
+        voice_id: {
+          type: 'string',
+          description: 'идентификатор голоса ElevenLabs, необязателен',
+        },
       },
       required: ['text'],
       additionalProperties: false,
@@ -554,15 +685,50 @@ export const TOOLS: AgentTool[] = [
       const charge = await spendTokens(ctx, 'audio_generate')
       if (!charge.ok) return { сделано: false, причина: charge.причина }
       const base = selfBase()
+      /**
+       * Голос по умолчанию — КЛОН ВЛАДЕЛЬЦА, а не первый попавшийся.
+       *
+       * Было `voices[0].voice_id`: первый в ответе ElevenLabs — это, как
+       * правило, готовый голос из библиотеки. Владелец спросил напрямую:
+       * «в рилсах клон голоса мой где?» — нигде. Понятия «мой голос» в коде
+       * не существовало вовсе, и рилсы озвучивались чужим тембром.
+       *
+       * ElevenLabs помечает происхождение голоса полем `category`:
+       * `premade` — библиотечный, `cloned`/`professional`/`generated` — свой.
+       * Берём первый НЕ библиотечный; если своих нет — библиотечный, но об
+       * этом честно сообщаем в ответе, чтобы агент мог предложить записать
+       * клон.
+       *
+       * Поле `id`, а не `voice_id`: /api/voices переименовывает его при
+       * упрощении ответа, и обращение к `voice_id` давало undefined —
+       * то есть запасной путь молча не срабатывал.
+       */
       let voiceId = args.voice_id ? String(args.voice_id) : ''
+      let голосВладельца = false
       if (!voiceId) {
         const v = await selfFetch(`${base}/api/voices`)
         const vData: any = await v.json().catch(() => null)
-        voiceId = vData?.voices?.[0]?.voice_id || ''
+        const list: any[] = Array.isArray(vData?.voices) ? vData.voices : []
+        const свой = list.find(
+          x => String(x?.category || '').toLowerCase() !== 'premade'
+        )
+        voiceId = String((свой ?? list[0])?.id || (свой ?? list[0])?.voice_id || '')
+        голосВладельца = !!свой
       }
       if (!voiceId) {
-        return { сделано: false, причина: 'не нашёлся ни один голос — проверь ELEVENLABS_API_KEY' }
+        await refundTokens(ctx, 'audio_generate', 'провайдер не выполнил работу')
+        return {
+          сделано: false,
+          причина: 'не нашёлся ни один голос — проверь ELEVENLABS_API_KEY',
+        }
       }
+      // Агент должен знать, чьим голосом озвучено: если библиотечным —
+      // стоит предложить человеку записать свой клон.
+      const голос = args.voice_id
+        ? 'выбран явно'
+        : голосВладельца
+          ? 'клон владельца'
+          : 'библиотечный — своего клона в аккаунте нет, предложи записать'
       const gen = await selfFetch(`${base}/api/generate/audio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -570,11 +736,17 @@ export const TOOLS: AgentTool[] = [
       })
       const genData: any = await gen.json().catch(() => null)
       if (!gen.ok || !genData?.url) {
-        return { сделано: false, причина: `озвучка не удалась: HTTP ${gen.status} ${String(genData?.error || '')}` }
+        await refundTokens(ctx, 'audio_generate', 'провайдер не выполнил работу')
+        return {
+          сделано: false,
+          причина: `озвучка не удалась: HTTP ${gen.status} ${String(genData?.error || '')}`,
+        }
       }
       // /api/generate/audio отдаёт прокси-путь /s3/... — делаем абсолютным,
       // чтобы ссылку можно было отдать и в рендер, и в ленту.
-      const absolute = genData.url.startsWith('http') ? genData.url : `${base}${genData.url}`
+      const absolute = genData.url.startsWith('http')
+        ? genData.url
+        : `${base}${genData.url}`
       const direct = genData.directUrl || absolute
       const r = await ctx.pool.query(
         `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
@@ -586,6 +758,7 @@ export const TOOLS: AgentTool[] = [
         сделано: true,
         url: direct,
         id: r.rows[0]?.id,
+        голос,
       })
     },
   },
@@ -600,7 +773,11 @@ export const TOOLS: AgentTool[] = [
       type: 'object',
       properties: {
         prompt: { type: 'string', description: 'что происходит в кадре' },
-        model: { type: 'string', description: 'например kling-v1-6 std/pro — если не уверен, не указывай' },
+        model: {
+          type: 'string',
+          description:
+            'например kling-v1-6 std/pro — если не уверен, не указывай',
+        },
         duration: { type: 'integer', description: 'длительность в секундах' },
         aspect_ratio: { type: 'string', description: 'например 9:16' },
       },
@@ -628,7 +805,11 @@ export const TOOLS: AgentTool[] = [
       })
       const genData: any = await gen.json().catch(() => null)
       if (!gen.ok || !genData?.url) {
-        return { сделано: false, причина: `видео не сгенерировалось: HTTP ${gen.status} ${String(genData?.error || '')}` }
+        await refundTokens(ctx, 'video_generate', 'провайдер не выполнил работу')
+        return {
+          сделано: false,
+          причина: `видео не сгенерировалось: HTTP ${gen.status} ${String(genData?.error || '')}`,
+        }
       }
       const r = await ctx.pool.query(
         `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
@@ -652,12 +833,19 @@ export const TOOLS: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        compositionId: { type: 'string', description: 'идентификатор композиции из templates_list' },
+        compositionId: {
+          type: 'string',
+          description: 'идентификатор композиции из templates_list',
+        },
         props: {
           type: 'object',
-          description: 'входные данные композиции: картинки, текст, аудио и т.д.',
+          description:
+            'входные данные композиции: картинки, текст, аудио и т.д.',
         },
-        wait: { type: 'boolean', description: 'ждать окончания (по умолчанию true)' },
+        wait: {
+          type: 'boolean',
+          description: 'ждать окончания (по умолчанию true)',
+        },
       },
       required: ['compositionId'],
       additionalProperties: false,
@@ -676,11 +864,20 @@ export const TOOLS: AgentTool[] = [
       })
       const startData: any = await start.json().catch(() => null)
       if (!start.ok || !startData?.renderId) {
-        return { началось: false, причина: `рендер не стартовал: HTTP ${start.status} ${String(startData?.error || '')}` }
+        await refundTokens(ctx, 'reel_render', 'провайдер не выполнил работу')
+        return {
+          началось: false,
+          причина: `рендер не стартовал: HTTP ${start.status} ${String(startData?.error || '')}`,
+        }
       }
       const renderId: string = startData.renderId
       if (args.wait === false) {
-        return { началось: true, renderId, статус: `GET /render/${renderId}`, подсказка: 'проверь render_status' }
+        return {
+          началось: true,
+          renderId,
+          статус: `GET /render/${renderId}`,
+          подсказка: 'проверь render_status',
+        }
       }
       // Рендер занимает минуты: держим один вызов инструмента до готовности,
       // иначе 8 витков диалога уходят на поллинг, а не на работу.
@@ -692,19 +889,32 @@ export const TOOLS: AgentTool[] = [
         if (stData?.status === 'completed') {
           const url = stData.publicUrl || stData.outputUrl
           const full = url && !url.startsWith('http') ? `${base}${url}` : url
-          return withTokens(ctx, 'reel_render', { готово: true, renderId, url: full })
+          return withTokens(ctx, 'reel_render', {
+            готово: true,
+            renderId,
+            url: full,
+          })
         }
         if (stData?.status === 'failed') {
-          return { готово: false, renderId, причина: `рендер упал: ${String(stData.error || 'без подробностей')}` }
+          return {
+            готово: false,
+            renderId,
+            причина: `рендер упал: ${String(stData.error || 'без подробностей')}`,
+          }
         }
       }
-      return { готово: false, renderId, причина: 'не уложился в 6 минут — проверь render_status' }
+      return {
+        готово: false,
+        renderId,
+        причина: 'не уложился в 6 минут — проверь render_status',
+      }
     },
   },
 
   {
     name: 'render_status',
-    description: 'Статус рендера: progress, готовое видео или ошибка. Для renderId из reel_render.',
+    description:
+      'Статус рендера: progress, готовое видео или ошибка. Для renderId из reel_render.',
     parameters: {
       type: 'object',
       properties: { renderId: { type: 'string' } },
@@ -712,13 +922,18 @@ export const TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args) {
-      const st = await selfFetch(`${selfBase()}/render/${encodeURIComponent(String(args.renderId))}`)
+      const st = await selfFetch(
+        `${selfBase()}/render/${encodeURIComponent(String(args.renderId))}`
+      )
       const stData: any = await st.json().catch(() => null)
       if (!st.ok) {
         return { ошибка: `рендер не найден: HTTP ${st.status}` }
       }
       const url = stData.publicUrl || stData.outputUrl
-      return { ...stData, url: url && !url.startsWith('http') ? `${selfBase()}${url}` : url }
+      return {
+        ...stData,
+        url: url && !url.startsWith('http') ? `${selfBase()}${url}` : url,
+      }
     },
   },
 
@@ -765,7 +980,8 @@ export const TOOLS: AgentTool[] = [
       const sum = (k: string) =>
         rows.reduce((acc: number, x: any) => acc + (Number(x[k]) || 0), 0)
       const best = rows.reduce(
-        (b: any, x: any) => (Number(x.views_count) > Number(b?.views_count ?? -1) ? x : b),
+        (b: any, x: any) =>
+          Number(x.views_count) > Number(b?.views_count ?? -1) ? x : b,
         null
       )
       const week = rows.filter(
@@ -777,12 +993,18 @@ export const TOOLS: AgentTool[] = [
         звёзд: sum('stars_count'),
         ремиксов: sum('uses_count'),
         среднее_просмотров: rows.length
-          ? Math.round(sum('views_count') / rows.length * 10) / 10
+          ? Math.round((sum('views_count') / rows.length) * 10) / 10
           : 0,
         лучший_пост: best
           ? { id: best.id, name: best.name, просмотров: best.views_count }
           : null,
-        за_7_дней: { постов: week.length, просмотров: week.reduce((a: number, x: any) => a + Number(x.views_count || 0), 0) },
+        за_7_дней: {
+          постов: week.length,
+          просмотров: week.reduce(
+            (a: number, x: any) => a + Number(x.views_count || 0),
+            0
+          ),
+        },
       } as Record<string, unknown>
       // A/B заголовков: стиль лежит в template_settings.ab_style
       // (кладёт автопилот). Посты без метки в «прочие» не попадают —
@@ -830,7 +1052,8 @@ export const TOOLS: AgentTool[] = [
       return {
         всего: r.rows.length,
         скиллы: r.rows,
-        подсказка: 'применяй их к текстам постов и тонам; изменение — через skills_update',
+        подсказка:
+          'применяй их к текстам постов и тонам; изменение — через skills_update',
       }
     },
   },
@@ -855,9 +1078,13 @@ export const TOOLS: AgentTool[] = [
       if (!name || !content) {
         return { создано: false, причина: 'нужны непустые name и content' }
       }
-      if (name.length > 100) return { создано: false, причина: 'имя до 100 символов' }
+      if (name.length > 100)
+        return { создано: false, причина: 'имя до 100 символов' }
       if (content.length > 8192) {
-        return { создано: false, причина: `слишком длинно: ${content.length} > 8192` }
+        return {
+          создано: false,
+          причина: `слишком длинно: ${content.length} > 8192`,
+        }
       }
       await ensureSkillsTable(ctx)
       const dup = await ctx.pool.query(
@@ -865,7 +1092,10 @@ export const TOOLS: AgentTool[] = [
         [ctx.telegramId, name]
       )
       if (dup.rows.length) {
-        return { создано: false, причина: `скилл «${name}» уже есть — используй skills_update` }
+        return {
+          создано: false,
+          причина: `скилл «${name}» уже есть — используй skills_update`,
+        }
       }
       const r = await ctx.pool.query(
         `INSERT INTO user_skills (telegram_id, name, content)
@@ -883,7 +1113,10 @@ export const TOOLS: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        id: { type: 'integer', description: 'идентификатор скилла из skills_list' },
+        id: {
+          type: 'integer',
+          description: 'идентификатор скилла из skills_list',
+        },
         name: { type: 'string' },
         content: { type: 'string', description: 'полный новый текст' },
       },
@@ -897,7 +1130,12 @@ export const TOOLS: AgentTool[] = [
          SET name = COALESCE(NULLIF($3, ''), name), content = $2, updated_at = now()
          WHERE id = $1 AND telegram_id = $4
          RETURNING id, name`,
-        [args.id, String(args.content || ''), String(args.name || ''), ctx.telegramId]
+        [
+          args.id,
+          String(args.content || ''),
+          String(args.name || ''),
+          ctx.telegramId,
+        ]
       )
       if (!r.rows.length) {
         return { обновлено: false, причина: 'скилл не найден (или чужой)' }
@@ -921,7 +1159,8 @@ export const TOOLS: AgentTool[] = [
         `DELETE FROM user_skills WHERE id = $1 AND telegram_id = $2 RETURNING name`,
         [args.id, ctx.telegramId]
       )
-      if (!r.rows.length) return { удалено: false, причина: 'скилл не найден (или чужой)' }
+      if (!r.rows.length)
+        return { удалено: false, причина: 'скилл не найден (или чужой)' }
       return { удалено: true, имя: r.rows[0].name }
     },
   },
@@ -935,7 +1174,10 @@ export const TOOLS: AgentTool[] = [
       type: 'object',
       properties: {
         id: { type: 'integer' },
-        public: { type: 'boolean', description: 'true — опубликовать, false — скрыть' },
+        public: {
+          type: 'boolean',
+          description: 'true — опубликовать, false — скрыть',
+        },
       },
       required: ['id', 'public'],
       additionalProperties: false,
@@ -947,11 +1189,15 @@ export const TOOLS: AgentTool[] = [
          WHERE id = $1 AND telegram_id = $2 RETURNING name`,
         [args.id, ctx.telegramId, args.public === true]
       )
-      if (!r.rows.length) return { опубликовано: false, причина: 'скилл не найден' }
+      if (!r.rows.length)
+        return { опубликовано: false, причина: 'скилл не найден' }
       return {
         опубликовано: args.public === true,
         имя: r.rows[0].name,
-        витрина: args.public === true ? 'скилл виден в skills_market' : 'скрыт с витрины',
+        витрина:
+          args.public === true
+            ? 'скилл виден в skills_market'
+            : 'скрыт с витрины',
       }
     },
   },
@@ -983,7 +1229,9 @@ export const TOOLS: AgentTool[] = [
       'Установить публичный скилл с витрины себе (копия). Бесплатно.',
     parameters: {
       type: 'object',
-      properties: { id: { type: 'integer', description: 'id с витрины skills_market' } },
+      properties: {
+        id: { type: 'integer', description: 'id с витрины skills_market' },
+      },
       required: ['id'],
       additionalProperties: false,
     },
@@ -993,7 +1241,8 @@ export const TOOLS: AgentTool[] = [
         `SELECT name, content FROM user_skills WHERE id = $1 AND is_public = TRUE`,
         [args.id]
       )
-      if (!src.rows.length) return { установлено: false, причина: 'скилла нет на витрине' }
+      if (!src.rows.length)
+        return { установлено: false, причина: 'скилла нет на витрине' }
       const { name, content } = src.rows[0]
       const r = await ctx.pool.query(
         `INSERT INTO user_skills (telegram_id, name, content)
@@ -1092,6 +1341,24 @@ export const TOOLS: AgentTool[] = [
       return { сохранено: true, символов: soul.length }
     },
   },
+
+  /**
+   * КОНТЕНТ-ПЛАН — цели и то, что под них снимается.
+   *
+   * ЗАЧЕМ ОТДЕЛЬНАЯ СУЩНОСТЬ, А НЕ ЗАМЕТКИ. У человека с генератором роликов
+   * узкое место не «как снять», а «что и зачем». Лента показывает то, что уже
+   * вышло; здесь лежит то, что ещё не вышло, и главное — ПОД КАКУЮ ЦЕЛЬ.
+   *
+   * Верхний уровень — цель («Продать курс», «Набрать 1000 подписчиков»), а не
+   * дата: сроки у одиночного автора плывут, а цель держится месяцами. Внутри
+   * цели — карточки: замысел, статус, ссылка на вышедший ролик.
+   *
+   * ЧТО ДЕЛАЕТ ЭТО НЕ БЛОКНОТОМ. План читает и пишет агент теми же
+   * инструментами, что и человек. «Составь план на неделю под цель Х» —
+   * plan_item_add; «сделай следующий из плана» — reel_render плюс
+   * plan_item_update со статусом. Общий список, две пары рук.
+   */
+  ...planTools,
 ]
 
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))

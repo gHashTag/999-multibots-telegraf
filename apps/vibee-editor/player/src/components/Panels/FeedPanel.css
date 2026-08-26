@@ -457,6 +457,9 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  /* URL и хэштеги из описаний рилсов вылезали за карточку. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Stats */

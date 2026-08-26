@@ -393,8 +393,10 @@ export const modelTrainingV2 = inngest.createFunction(
         message: `Training initiated successfully: ${JSON.stringify(training)}`,
       }
     } catch (error) {
-      // В случае ошибки возвращаем списанные средства
-      await step.run('refund-balance', async () => {
+      // В случае ошибки возвращаем списанные средства. Списание здесь всегда
+      // состоялось: его делает processBalanceOperation в шаге check-balance,
+      // который стоит ДО try — в catch попадают только ошибки после него.
+      const refunded = await step.run('refund-balance', async () => {
         logger.info('♻️ Refunding payment due to error', {
           telegramId: telegram_id,
           amount: paymentAmount,
@@ -404,7 +406,7 @@ export const modelTrainingV2 = inngest.createFunction(
           step: 'refund-balance',
         })
 
-        await updateUserBalance(
+        const ok = await updateUserBalance(
           // Сумма ОПЕРАЦИИ, а не новый баланс. Стояло
           // `currentBalance + paymentAmount` — весь прежний баланс человека
           // начислялся ему заново поверх возврата. Тот же комментарий про
@@ -421,11 +423,25 @@ export const modelTrainingV2 = inngest.createFunction(
           }
         )
 
-        logger.info('✅ Payment refunded successfully', {
-          telegramId: telegram_id,
-          newBalance: currentBalance + paymentAmount,
-          step: 'refund-balance',
-        })
+        if (ok) {
+          logger.info('✅ Payment refunded successfully', {
+            telegramId: telegram_id,
+            newBalance: currentBalance + paymentAmount,
+            step: 'refund-balance',
+          })
+        } else {
+          // Раньше результат выбрасывался и строка выше писалась безусловно.
+          // updateUserBalance не бросает — возвращает false (нет строки в
+          // users, отклонённая вставка); формулировка совпадает с
+          // refundAndTell, чтобы поиск по журналу находил все невозвраты.
+          logger.error('💸❌ REFUND FAILED — деньги НЕ возвращены', {
+            alert: 'ЧЕЛОВЕКУ НЕ ВЕРНУЛИ ЗВЁЗДЫ ПОСЛЕ НЕУДАЧНОЙ ТРЕНИРОВКИ',
+            telegram_id,
+            amount: paymentAmount,
+            step: 'refund-balance',
+          })
+        }
+        return ok
       })
 
       // Логируем ошибку и отправляем уведомления
@@ -445,11 +461,21 @@ export const modelTrainingV2 = inngest.createFunction(
           step: 'handle-error',
         })
 
+        // О возврате говорим только то, что знаем: refunded — настоящий
+        // результат начисления, а не предположение.
+        const refundLine = refunded
+          ? is_ru
+            ? 'Средства возвращены.'
+            : 'Funds have been refunded.'
+          : is_ru
+            ? 'Вернуть средства автоматически не удалось — напишите в поддержку, приложив это сообщение.'
+            : 'Automatic refund failed — please contact support and quote this message.'
+
         await bot.telegram.sendMessage(
           telegram_id,
           is_ru
-            ? `❌ Произошла ошибка при генерации модели. Попробуйте еще раз.\n\nОшибка: ${error.message}`
-            : `❌ An error occurred during model generation. Please try again.\n\nError: ${error.message}`
+            ? `❌ Произошла ошибка при генерации модели. Попробуйте еще раз.\n\n${refundLine}\n\nОшибка: ${error.message}`
+            : `❌ An error occurred during model generation. Please try again.\n\n${refundLine}\n\nError: ${error.message}`
         )
 
         // Отправляем уведомление администратору

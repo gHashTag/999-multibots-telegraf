@@ -72,7 +72,11 @@ export const loadSoulAtom = atom(null, async (get, set) => {
 /** Сохранить (пустая строка = сбросить через душу-подсказку агента). */
 export const saveSoulAtom = atom(
   null,
-  async (_get, set, soul: string): Promise<boolean> => {
+  // `get` нужен: в catch ниже по нему берётся язык для текста ошибки.
+  // Параметр назывался `_get`, и обработчик ошибки САМ падал с
+  // ReferenceError — то есть при неудачном сохранении человек не получал
+  // никакого сообщения вообще, а промис отклонялся.
+  async (get, set, soul: string): Promise<boolean> => {
     set(soulSavingAtom, true)
     set(soulErrorAtom, null)
     try {

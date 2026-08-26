@@ -1323,9 +1323,42 @@
     font-size: 1.25rem;
   }
 
+  /* Пять чисел — ОДНОЙ строкой, без карточек.
+   *
+   * Было две колонки: пять карточек складывались в три ряда (пятая — одна,
+   * в пустой строке) и занимали весь первый экран профиля. Три числа из
+   * пяти при этом нули. Человек, открывший чей-то профиль, видел решётку
+   * нулей, а сами работы — ниже всего, куда надо доскроллить.
+   *
+   * Числа — это подпись к профилю, а не его содержимое. Содержимое — ролики.
+   * Поэтому карточная обвязка снята, и строка занимает ~56px вместо ~350. */
   .profile-stats {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.25rem;
+    padding-top: 1rem;
+  }
+
+  .profile-stat-card {
+    padding: 0.25rem 0.1rem;
+    background: transparent;
+    border: none;
+  }
+
+  .profile-stat-card__value {
+    font-size: 0.95rem;
+    /* Цифры в ряд — моноширинные, иначе колонки пляшут при смене значений. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  .profile-stat-card__label {
+    /* 8px: «ПОДПИСЧИКИ» — самое длинное слово, десять знаков, и при этом
+       размере оно укладывается в колонку 75px одной строкой. С переносом
+       по любому месту получалось «ПОДПИСЧИ / КИ» — слово, разорванное
+       посреди себя, читается хуже мелкого. */
+    font-size: 0.5rem;
+    letter-spacing: 0;
+    line-height: 1.2;
+    white-space: nowrap;
   }
 
   .profile-stat-card__icon {
@@ -1383,39 +1416,50 @@
   }
 }
 
-/* Mobile-optimized tabs - Icons with badge */
+/* Вкладки профиля на телефоне: СЛОВО и число.
+ *
+ * Здесь был замысел «иконка + бейдж»: подпись пряталась, оставались значок и
+ * счётчик. На живом экране 375×812 это выглядело так: «17 · 0 · 0 · 0» —
+ * четыре одинаковых числа без единого слова. Иконка не рисовалась вовсе:
+ * замер дал ей высоту 0 при заданных 22px, потому что сама кнопка сжималась
+ * до 28px и в колоночном флексе значок схлопывался.
+ *
+ * Чинить схлопывание, чтобы вернуть четыре безымянных значка, смысла нет:
+ * читают всё равно слово. Поэтому подпись показывается, значок на телефоне
+ * убран, а кнопке задана высота под палец — 44px, как принято в проекте
+ * (--touch-target в index.css).
+ *
+ * Семь вкладок у своего профиля в строку не влезут — заголовок и раньше
+ * прокручивался по горизонтали, это поведение сохранено. */
 @media (max-width: 480px) {
   .profile-tabs__header {
     display: flex;
-    justify-content: center;
     gap: 0;
   }
 
   .profile-tabs__tab {
-    flex: 1;
-    flex-direction: column;
-    gap: 0.25rem;
-    padding: 0.75rem 0.5rem;
+    flex: 1 0 auto;
+    flex-direction: row;
+    gap: 0.3rem;
+    padding: 0.6rem 0.5rem;
     min-width: unset;
+    min-height: 44px;
+    font-size: 0.72rem;
+    white-space: nowrap;
     position: relative;
   }
 
-  /* Hide text label on mobile */
-  .profile-tabs__tab > span:not(.profile-tabs__count) {
+  /* Значок на телефоне не рисуется: он схлопывался в ноль и без него
+     подпись читается лучше, чем со значком и без подписи. */
+  .profile-tabs__tab svg {
     display: none;
   }
 
-  /* Show count as badge */
   .profile-tabs__count {
     font-size: 0.65rem;
-    padding: 0.1rem 0.4rem;
-    min-width: 18px;
+    padding: 0.1rem 0.35rem;
+    min-width: 16px;
     text-align: center;
-  }
-
-  .profile-tabs__tab svg {
-    width: 22px;
-    height: 22px;
   }
 
   .profile-tabs__content {
@@ -1784,4 +1828,122 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ============================================================
+   КОНТЕНТ-ПЛАН
+   Переиспользует канон скиллов (.profile-skills__*) для карточки,
+   шапки и модалки. Здесь — только то, чего в скиллах нет: папка
+   цели, статус карточки, приглушённая подсказка.
+   ============================================================ */
+
+.profile-plan__goal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  /* Кликабельна вся строка цели, а не одна стрелка: на 375px попасть
+     в иконку 14px пальцем — лотерея. */
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+}
+
+.profile-plan__goal-title > svg {
+  flex-shrink: 0;
+  color: #8a8578;
+}
+
+.profile-plan__goal-title .profile-skills__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Счётчик «вышло/всего» — единственное число на карточке цели, поэтому
+   моноширинные цифры: иначе строка дёргается при каждом изменении. */
+.profile-plan__count {
+  flex-shrink: 0;
+  color: #8a8578;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-plan__aside {
+  color: #6f6a5e;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+.profile-plan__items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #1c1b18;
+}
+
+.profile-plan__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.profile-plan__item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-plan__item-title {
+  color: #e6e0d2;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.profile-plan__item-note {
+  color: #8a8578;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Статус — и метка, и кнопка: нажатие двигает карточку по кругу
+   замысел → в работе → вышло. Отдельного меню на три значения не
+   нужно, а лишний экран на телефоне дороже подсказки. */
+.profile-plan__status {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid #2a2820;
+  background: transparent;
+  color: #8a8578;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.profile-plan__status:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.profile-plan__status--doing {
+  color: var(--vibee-gold);
+  border-color: rgba(255, 215, 0, 0.35);
+}
+
+.profile-plan__status--done {
+  color: #6f6a5e;
+  border-color: #1c1b18;
+  text-decoration: line-through;
 }

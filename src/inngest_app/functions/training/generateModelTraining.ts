@@ -26,7 +26,7 @@ import { API_URL } from '@/config'
 import { BalanceHelper } from '@/helpers/inngest'
 import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
-import { slugify } from 'inngest' // For v3 migration
+import { slugify, NonRetriableError } from 'inngest' // For v3 migration
 
 import type { Prediction } from 'replicate'
 
@@ -336,17 +336,23 @@ export const generateModelTraining = inngest.createFunction(
             )
           }
         } catch (error) {
-          logger.error('Не удалось отправить уведомление о дублированном запросе', {
-            error: error.message,
-          })
+          logger.error(
+            'Не удалось отправить уведомление о дублированном запросе',
+            {
+              error: error.message,
+            }
+          )
         }
       }
 
-      logger.info('Запрос на тренировку отклонен - обнаружена активная тренировка', {
-        telegram_id: eventData.telegram_id,
-        modelName: eventData.modelName,
-        activeCheck,
-      })
+      logger.info(
+        'Запрос на тренировку отклонен - обнаружена активная тренировка',
+        {
+          telegram_id: eventData.telegram_id,
+          modelName: eventData.modelName,
+          activeCheck,
+        }
+      )
 
       return {
         success: false,
@@ -368,10 +374,13 @@ export const generateModelTraining = inngest.createFunction(
         'starting'
       )
     ) {
-      logger.warn('Странная ошибка - кэш блокирует, но проверка активных тренировок прошла', {
-        telegram_id: eventData.telegram_id,
-        modelName: eventData.modelName,
-      })
+      logger.warn(
+        'Странная ошибка - кэш блокирует, но проверка активных тренировок прошла',
+        {
+          telegram_id: eventData.telegram_id,
+          modelName: eventData.modelName,
+        }
+      )
       // Всё равно продолжаем, так как мы проверили отсутствие реальной тренировки
     }
 
@@ -578,6 +587,12 @@ export const generateModelTraining = inngest.createFunction(
     let balanceCheck: { success?: boolean; currentBalance?: number } | null =
       null
     let paymentAmount: number | null = null
+    // Списание состоялось? Возврат в catch разрешён только при true.
+    // balanceCheck.success означает «денег хватало», а НЕ «деньги списаны»:
+    // ошибка внутри самого шага списания иначе оборачивалась возвратом
+    // несписанного — класс «возврат без списания» (126 из 171 возврата,
+    // docs/audit/first-touch.md).
+    let charged = false
     // 🚀 Основной процесс
     try {
       // Преобразуем is_ru к булевому типу если это строка
@@ -674,7 +689,7 @@ export const generateModelTraining = inngest.createFunction(
           throw new Error('User not found')
         }
 
-        await updateUserBalance(
+        const ok = await updateUserBalance(
           eventData.telegram_id,
           paymentAmount, // ← ИСПРАВЛЕНО: передаем сумму операции, а не новый баланс
           PaymentType.MONEY_OUTCOME,
@@ -693,6 +708,21 @@ export const generateModelTraining = inngest.createFunction(
           }
         )
 
+        if (!ok) {
+          // Раньше результат выбрасывался: отказ вставки (гонка баланса,
+          // валидация) не мешал запустить обучение бесплатно, а лог ниже
+          // писал «успешно списаны». updateUserBalance не бросает — только
+          // здесь и можно остановиться.
+          //
+          // Именно NonRetriableError: обычный Error заставил бы Inngest
+          // ретраить шаг, а списание неидемпотентно (каждый вызов вставляет
+          // строку со свежим inv_id) — ретрай после false, пришедшего из-за
+          // потерянного ответа на закоммиченную вставку, списал бы дважды.
+          throw new NonRetriableError(
+            'Balance charge failed — training must not start'
+          )
+        }
+
         return {
           success: true,
           oldBalance: current,
@@ -700,6 +730,7 @@ export const generateModelTraining = inngest.createFunction(
           paymentAmount,
         }
       })
+      charged = true
 
       logger.info('✅ Средства успешно списаны', {
         chargeResult,
@@ -715,7 +746,10 @@ export const generateModelTraining = inngest.createFunction(
           logger.info('🔍 Проверка существования модели', { modelName })
           const replicateClient = getFullReplicateClient()
           try {
-            const existing = await replicateClient.models.get(username, modelName)
+            const existing = await replicateClient.models.get(
+              username,
+              modelName
+            )
             logger.info('🔵 Существующая модель найдена:', existing.url)
             return `${username}/${modelName}`
           } catch (error) {
@@ -828,27 +862,37 @@ export const generateModelTraining = inngest.createFunction(
         telegram_id: eventData.telegram_id,
       })
 
-      // Возврат средств в случае ошибки
-      if (balanceCheck?.success && paymentAmount) {
+      // Возврат средств — только если списание СОСТОЯЛОСЬ. Раньше условием
+      // был balanceCheck?.success («денег хватало»), и провал самого шага
+      // списания вёл сюда же — к возврату несписанного (класс «возврат без
+      // списания», docs/audit/first-touch.md).
+      if (charged && paymentAmount) {
+        const refundAmount = paymentAmount
         // Сначала логируем операцию
         logger.info('💸 Возврат средств за неудавшуюся тренировку', {
           telegram_id: eventData.telegram_id,
-          currentBalance: balanceCheck.currentBalance,
-          refundAmount: paymentAmount,
+          currentBalance: balanceCheck?.currentBalance,
+          refundAmount,
           modelName: eventData.modelName,
         })
 
-        // Выполняем возврат в отдельном шаге
+        // Выполняем возврат в отдельном шаге. Прежний getUserBalance перед
+        // возвратом убран: он был нужен только для лога, а его throw «User
+        // not found» обрывал возврат целиком. updateUserBalance сам проверяет
+        // профиль и возвращает false — этот случай теперь виден ниже.
         const refundResult = await step.run('refund-user-balance', async () => {
-          const current = await getUserBalance(eventData.telegram_id)
-
-          if (current === null) {
-            throw new Error('User not found')
-          }
-
-          await updateUserBalance(
+          const ok = await updateUserBalance(
             eventData.telegram_id,
-            balanceCheck.currentBalance,
+            // Сумма ОПЕРАЦИИ, а не старый баланс. Стояло
+            // balanceCheck.currentBalance — весь прежний баланс начислялся
+            // поверх остатка: при балансе 1000 и цене 500 неудача давала
+            // 1500 вместо 1000. Тот же дефект уже чинили рядом
+            // (modelTrainingV2: «сумма операции, а не новый баланс») — до
+            // этого файла правка не дошла. Файл — незарегистрированная
+            // копия (registration.test.ts), сейчас этот код не исполняется;
+            // чинится потому, что копии расходятся молча, а её ещё могут
+            // подключить обратно.
+            refundAmount,
             PaymentType.MONEY_INCOME,
             `Возврат средств за неудавшуюся тренировку модели ${eventData.modelName}`,
             {
@@ -861,19 +905,25 @@ export const generateModelTraining = inngest.createFunction(
             }
           )
 
-          return {
-            success: true,
-            oldBalance: current,
-            newBalance: balanceCheck.currentBalance,
-            refundAmount: paymentAmount,
-          }
+          return { success: ok, refundAmount }
         })
 
-        logger.info('✅ Средства успешно возвращены', {
-          refundResult,
-          telegram_id: eventData.telegram_id,
-          error: error.message,
-        })
+        if (refundResult.success) {
+          logger.info('✅ Средства возвращены', {
+            refundResult,
+            telegram_id: eventData.telegram_id,
+            error: error.message,
+          })
+        } else {
+          // Раньше «успешно возвращены» писалось безусловно, каким бы ни был
+          // исход. Формулировка совпадает с refundAndTell — чтобы поиск по
+          // журналу находил все невозвраты одним запросом.
+          logger.error('💸❌ REFUND FAILED — деньги НЕ возвращены', {
+            alert: 'ЧЕЛОВЕКУ НЕ ВЕРНУЛИ ЗВЁЗДЫ ПОСЛЕ НЕУДАЧНОЙ ТРЕНИРОВКИ',
+            telegram_id: eventData.telegram_id,
+            amount: refundAmount,
+          })
+        }
       }
 
       // Преобразуем is_ru к булевому типу если это строка

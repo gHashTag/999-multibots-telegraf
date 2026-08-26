@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useAtom, useAtomValue } from 'jotai'
+import { agentMessagesAtom, agentDraftAtom } from '@/atoms/agentChat'
+import { sendToAgent, agentBusyAtom } from '@/lib/agentStream'
+import type { Message } from '@/atoms/agentChat'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Header } from '@/components/Header'
 import { ChatAssets } from '@/components/Chat/ChatAssets'
@@ -24,18 +28,20 @@ import './Chat.css'
  * тот же механизм, что у остальных запросов к серверу.
  */
 
-interface ToolCall {
-  name: string
-  ms?: number
-}
+// Форма сообщения переехала в atoms/agentChat.ts вместе с хранением: тип и
+// его хранилище должны меняться в одном месте.
 
-interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  text: string
-  /** Поток размышления модели — сворачиваемый, показывается по желанию. */
-  thinking?: string
-  tools?: ToolCall[]
+/** Приветствие вынесено из эффекта: его ставят и при первом входе, и по
+ *  кнопке «Новый разговор». Две копии одного текста разошлись бы. */
+const WELCOME: Message = {
+  id: 'welcome',
+  role: 'assistant',
+  text:
+    'Привет! Я агент Trinity S³AI. Я не просто отвечаю — я смотрю в приложение ' +
+    'своими инструментами: читаю ленту, твои файлы и шаблоны, публикую рилсы.\n\n' +
+    '💰 Цены: картинка — 1 токен, рилс — 1, озвучка — 6, видео — 20. ' +
+    'Баланс виден вверху. Бесплатно: лента, файлы, SOUL, аналитика, публикация.\n\n' +
+    'С чего начнём? Могу сразу сделать картинку за 1 токен — только скажи тему.',
 }
 
 const SUGGESTIONS = [
@@ -47,9 +53,12 @@ const SUGGESTIONS = [
 
 function ChatPage() {
   const { t } = useLanguage()
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const [busy, setBusy] = useState(false)
+  // Переписка и черновик — в атомах с хранилищем, а не в useState: страница
+  // размонтируется при переключении вкладки, и разговор пропадал вместе с ней.
+  const [messages, setMessages] = useAtom(agentMessagesAtom)
+  const [input, setInput] = useAtom(agentDraftAtom)
+  // Занятость — в атоме: она принадлежит разговору, а не странице.
+  const busy = useAtomValue(agentBusyAtom)
   const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({})
   const [tokens, setTokens] = useState<number | null>(null)
   const [topUp, setTopUp] = useState(false)
@@ -193,141 +202,48 @@ function ChatPage() {
     })()
   }, [])
 
+  // Приветствие — ТОЛЬКО в пустой чат. Раньше эффект писал его безусловно на
+  // каждом монтировании; теперь, когда история переживает уход со страницы,
+  // это стирало бы разговор при каждом возврате.
   useEffect(() => {
-    setMessages([
-      {
-        id: 'welcome',
-        role: 'assistant',
-        text:
-          'Привет! Я агент Trinity S³AI. Я не просто отвечаю — я смотрю в приложение ' +
-          'своими инструментами: читаю ленту, твои файлы и шаблоны, публикую рилсы.\n\n' +
-          '💰 Цены: картинка — 1 токен, рилс — 1, озвучка — 6, видео — 20. ' +
-          'Баланс виден вверху. Бесплатно: лента, файлы, SOUL, аналитика, публикация.\n\n' +
-          'С чего начнём? Могу сразу сделать картинку за 1 токен — только скажи тему.',
-      },
-    ])
+    if (messages.length > 0) return
+    setMessages([WELCOME])
+    // Один раз на монтировании: messages читается ради проверки «пусто ли»,
+    // в зависимостях ему делать нечего — иначе эффект пересчитается на каждое
+    // новое сообщение.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /**
+   * Прокрутка вниз — только когда есть за чем гнаться.
+   *
+   * Эффект срабатывал и на самом первом рендере, где сообщение всего одно:
+   * приветствие агента. Оно длиннее экрана, и прокрутка вниз прятала его
+   * НАЧАЛО. Замер на 375×812: scrollTop 48 при переполнении ровно в 48 —
+   * человек, впервые открывший вкладку, читал текст с середины фразы.
+   *
+   * Приветствие — это единственное сообщение, у которого важно начало:
+   * дальше в чате важен конец, потому что там свежий ответ. Поэтому условие
+   * не «первый рендер», а «сообщений больше одного».
+   */
   useEffect(() => {
+    if (messages.length <= 1) return
     if (scrollRef.current)
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages])
 
-  const send = useCallback(
-    async (text: string) => {
-      if (!text.trim() || busy) return
-      setBusy(true)
-      setInput('')
-
-      const userMsg: Message = {
-        id: `u${Date.now()}`,
-        role: 'user',
-        text: text.trim(),
-      }
-      const agentId = `a${Date.now()}`
-      const agentMsg: Message = {
-        id: agentId,
-        role: 'assistant',
-        text: '',
-        thinking: '',
-        tools: [],
-      }
-
-      // История для сервера — из уже показанных сообщений плюс новое.
-      const history = [...messages, userMsg]
-        .filter(m => m.id !== 'welcome')
-        .map(m => ({ role: m.role, content: m.text }))
-
-      setMessages(prev => [...prev, userMsg, agentMsg])
-
-      const patch = (fn: (m: Message) => Message) =>
-        setMessages(prev => prev.map(m => (m.id === agentId ? fn(m) : m)))
-
-      try {
-        // Личность: обычно подпись Telegram (authHeaders ставит
-        // X-Telegram-Init-Data). В DEV на localhost подписи нет — тогда, если
-        // задан VITE_AGENT_KEY, идём ключом агента. Ветка ТОЛЬКО для
-        // import.meta.env.DEV: ключ в прод-сборку не попадает, иначе он
-        // оказался бы в браузерном бандле у всех.
-        const headers = authHeaders()
-        const devKey = import.meta.env.DEV
-          ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
-          : undefined
-        if (devKey && !headers.has('X-Telegram-Init-Data')) {
-          headers.set('X-Agent-Key', devKey)
-        }
-        const res = await fetch(`${API_BASE}/api/agent/chat`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ messages: history }),
-        })
-        if (!res.ok || !res.body) {
-          const body = await res.text().catch(() => '')
-          patch(m => ({
-            ...m,
-            text: `Не получилось: ${res.status}. ${body.slice(0, 200)}`,
-          }))
-          return
-        }
-
-        const reader = res.body.getReader()
-        const decoder = new TextDecoder()
-        let buf = ''
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          buf += decoder.decode(value, { stream: true })
-          const lines = buf.split('\n')
-          buf = lines.pop() ?? ''
-          for (const line of lines) {
-            if (!line.trim()) continue
-            let ev: Record<string, unknown>
-            try {
-              ev = JSON.parse(line)
-            } catch {
-              continue
-            }
-            const kind = ev['тип']
-            if (kind === 'размышление') {
-              patch(m => ({
-                ...m,
-                thinking: (m.thinking || '') + String(ev['текст'] || ''),
-              }))
-            } else if (kind === 'текст') {
-              patch(m => ({ ...m, text: m.text + String(ev['текст'] || '') }))
-            } else if (kind === 'инструмент') {
-              patch(m => ({
-                ...m,
-                tools: [...(m.tools || []), { name: String(ev['имя']) }],
-              }))
-            } else if (kind === 'результат') {
-              const nm = String(ev['имя'])
-              const ms = Number(ev['мс'])
-              patch(m => ({
-                ...m,
-                tools: (m.tools || []).map(tc =>
-                  tc.name === nm && tc.ms == null ? { ...tc, ms } : tc
-                ),
-              }))
-            } else if (kind === 'ошибка') {
-              patch(m => ({
-                ...m,
-                text: m.text + `\n\n⚠️ ${String(ev['текст'] || '')}`,
-              }))
-            }
-          }
-        }
-      } catch (e) {
-        patch(m => ({
-          ...m,
-          text: `Сеть недоступна: ${String(e).slice(0, 160)}`,
-        }))
-      } finally {
-        setBusy(false)
-      }
-    },
-    [busy, messages]
-  )
+  /**
+   * Отправка ушла в модуль вне React — src/lib/agentStream.ts.
+   *
+   * Раньше поток жил здесь, внутри страницы: уход на другую вкладку
+   * размонтирует её, и `fetch` умирал вместе с ней. Человек писал задание,
+   * шёл посмотреть ленту и возвращался к оборванному ответу, даже когда
+   * сервер честно досчитал. Теперь страница только зовёт и читает стор.
+   */
+  const send = useCallback((text: string) => {
+    void sendToAgent(text)
+    setInput('')
+  }, [setInput])
 
   return (
     <div className="chat-page">
@@ -340,6 +256,20 @@ function ChatPage() {
           <p>
             Смотрит в приложение своими инструментами и делает, а не советует
           </p>
+          {/* Переписка теперь переживает уход со страницы — значит нужен и
+              способ её закончить. Без этой кнопки старый разговор оставался
+              бы на экране навсегда. */}
+          {messages.length > 1 && (
+            <button
+              className="chat-reset"
+              onClick={() => {
+                setMessages([WELCOME])
+                setInput('')
+              }}
+            >
+              Новый разговор
+            </button>
+          )}
           {tokens !== null && (
             <button className="chat-tokens" onClick={() => setTopUp(v => !v)}>
               💰 {tokens} токенов · пополнить
