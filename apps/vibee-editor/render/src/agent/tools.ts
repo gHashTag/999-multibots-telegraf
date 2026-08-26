@@ -210,6 +210,39 @@ async function spendTokens(
   return { ok: true, потрачено: price, осталось: r.rows[0].balance }
 }
 
+/**
+ * ВОЗВРАТ токенов, если работа не сделана.
+ *
+ * ЦЕНА ОТСУТСТВИЯ, ИЗМЕРЕННАЯ. Списание стояло ПЕРЕД вызовом провайдера, а
+ * возврата не было вовсе — ни одного на весь файл. Замер 2026-08-26 прямыми
+ * запросами к провайдерам: у FAL «User is locked. Reason: Exhausted balance»,
+ * ключ ElevenLabs хранит идентификатор вместо ключа. То есть человек просил
+ * картинку, у него списывался токен, провайдер отвечал отказом — и токен
+ * пропадал. За озвучку так пропадало шесть.
+ *
+ * Возврат идёт тем же UPDATE, что и списание, и НЕ роняет ответ: если
+ * вернуть не удалось, инструмент всё равно честно скажет, что не получилось,
+ * а расхождение уйдёт в лог. Молча проглотить отказ хуже, чем показать его.
+ */
+async function refundTokens(
+  ctx: ToolContext,
+  tool: string,
+  why: string
+): Promise<void> {
+  const price = TOKEN_PRICES[tool]
+  if (!price) return
+  try {
+    await ctx.pool.query(
+      `UPDATE user_tokens SET balance = balance + $2, updated_at = now()
+       WHERE telegram_id = $1`,
+      [ctx.telegramId, price]
+    )
+    console.log(`[токены] возврат ${price} за «${tool}»: ${why}`)
+  } catch (e) {
+    console.error(`[токены] ВОЗВРАТ НЕ ВЫПОЛНЕН ${price} за «${tool}»`, e)
+  }
+}
+
 /** Допишет стоимость к результату инструмента, если она есть. */
 async function withTokens<T extends object>(
   ctx: ToolContext,
@@ -551,6 +584,7 @@ export const TOOLS: AgentTool[] = [
       })
       const genData: any = await gen.json().catch(() => null)
       if (!gen.ok || !genData?.url) {
+        await refundTokens(ctx, 'image_generate', 'провайдер не выполнил работу')
         return {
           сделано: false,
           причина: `генерация не удалась: HTTP ${gen.status} ${String(genData?.error || '')}`,
@@ -560,6 +594,7 @@ export const TOOLS: AgentTool[] = [
       // иначе через час и лента, и рендер показывали бы битую картинку.
       const img = await fetch(genData.url) // внешний провайдер — ключ не нужен
       if (!img.ok) {
+        await refundTokens(ctx, 'image_generate', 'провайдер не выполнил работу')
         return {
           сделано: false,
           причина: `картинка сгенерирована, но не скачалась: HTTP ${img.status}`,
@@ -577,6 +612,7 @@ export const TOOLS: AgentTool[] = [
       })
       const upData: any = await up.json().catch(() => null)
       if (!up.ok || !upData?.directUrl) {
+        await refundTokens(ctx, 'image_generate', 'провайдер не выполнил работу')
         return {
           сделано: false,
           причина: `S3 не принял файл: HTTP ${up.status}`,
@@ -628,6 +664,7 @@ export const TOOLS: AgentTool[] = [
         voiceId = vData?.voices?.[0]?.voice_id || ''
       }
       if (!voiceId) {
+        await refundTokens(ctx, 'audio_generate', 'провайдер не выполнил работу')
         return {
           сделано: false,
           причина: 'не нашёлся ни один голос — проверь ELEVENLABS_API_KEY',
@@ -640,6 +677,7 @@ export const TOOLS: AgentTool[] = [
       })
       const genData: any = await gen.json().catch(() => null)
       if (!gen.ok || !genData?.url) {
+        await refundTokens(ctx, 'audio_generate', 'провайдер не выполнил работу')
         return {
           сделано: false,
           причина: `озвучка не удалась: HTTP ${gen.status} ${String(genData?.error || '')}`,
@@ -707,6 +745,7 @@ export const TOOLS: AgentTool[] = [
       })
       const genData: any = await gen.json().catch(() => null)
       if (!gen.ok || !genData?.url) {
+        await refundTokens(ctx, 'video_generate', 'провайдер не выполнил работу')
         return {
           сделано: false,
           причина: `видео не сгенерировалось: HTTP ${gen.status} ${String(genData?.error || '')}`,
@@ -765,6 +804,7 @@ export const TOOLS: AgentTool[] = [
       })
       const startData: any = await start.json().catch(() => null)
       if (!start.ok || !startData?.renderId) {
+        await refundTokens(ctx, 'reel_render', 'провайдер не выполнил работу')
         return {
           началось: false,
           причина: `рендер не стартовал: HTTP ${start.status} ${String(startData?.error || '')}`,
