@@ -17,7 +17,7 @@
  * переменной и командой, которой её взять.
  */
 
-export type ProviderId = 'zai' | 'openai'
+export type ProviderId = 'zai' | 'zai-lite' | 'openai'
 
 export interface Provider {
   id: ProviderId
@@ -46,6 +46,24 @@ const CATALOG: Record<
     model: 'glm-5.3',
     thinking: true,
   },
+  /**
+   * Запасной — ТОЖЕ z.ai, только более лёгкой моделью.
+   *
+   * Раньше здесь стоял OpenAI, и это был единственный запасной вариант. Замер
+   * 2026-08-26: ключ OpenAI отвечает 401 «Incorrect API key provided», то
+   * есть запасного пути не существовало вовсе — при отказе основной модели
+   * агент просто молчал. Владелец сказал прямо: «у нас z.ai».
+   *
+   * Подписка кодерская и живёт на том же эндпоинте, поэтому запасной путь
+   * ничего не стоит: та же аутентификация, другая модель. glm-4.5 легче и
+   * отвечает, когда glm-5.3 занята или недоступна.
+   */
+  'zai-lite': {
+    base: process.env.ZAI_BASE_URL || 'https://api.z.ai/api/coding/paas/v4',
+    env: 'GLM_API_KEY',
+    model: 'glm-4.5',
+    thinking: false,
+  },
   openai: {
     base: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
     env: 'OPENAI_API_KEY',
@@ -68,10 +86,17 @@ const CATALOG: Record<
  */
 export function allProviders(): Provider[] {
   const wanted = (process.env.AGENT_PROVIDER || '').toLowerCase() as ProviderId
-  const order: ProviderId[] =
-    wanted === 'zai' || wanted === 'openai'
-      ? [wanted, wanted === 'zai' ? 'openai' : 'zai']
-      : ['zai', 'openai']
+  /**
+   * Порядок: z.ai, затем его же лёгкая модель, и только потом OpenAI.
+   *
+   * OpenAI остался последним НАМЕРЕННО, а не удалён: если однажды туда
+   * положат рабочий ключ, путь сработает. Но полагаться на него нельзя —
+   * сейчас он отвечает 401, а раньше был единственным запасным вариантом.
+   */
+  const DEFAULT_ORDER: ProviderId[] = ['zai', 'zai-lite', 'openai']
+  const order: ProviderId[] = DEFAULT_ORDER.includes(wanted)
+    ? [wanted, ...DEFAULT_ORDER.filter(id => id !== wanted)]
+    : DEFAULT_ORDER
   const out: Provider[] = []
   for (const id of order) {
     const c = CATALOG[id]
