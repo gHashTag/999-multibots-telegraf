@@ -38,9 +38,10 @@ done
 say "— Реестр инструментов —"
 printf '%s' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' > /tmp/rc-req.json
 n=$(curl -s -m 10 http://127.0.0.1:3333/mcp -H "X-Agent-Key: $KEY" -H 'Content-Type: application/json' --data @/tmp/rc-req.json | python3 -c "import json,sys; print(len(json.load(sys.stdin)['result']['tools']))" 2>/dev/null)
-# 23 = производство + my_balance + skills CRUD (4) + skills market (3).
+# 29 = производство + my_balance + skills CRUD (4) + skills market (3)
+#      + 6 инструментов z.ai-фолбэка (PR #716 продуктового лупа).
 # Добавляешь инструмент — подними ожидание здесь ОДНОЙ правкой.
-check "инструментов в реестре" 23 "$n"
+check "инструментов в реестре" 29 "$n"
 
 say "— Дешёвые живые вызовы —"
 for tool in whoami feed_stats templates_list feed_analytics my_assets soul_get skills_list; do
