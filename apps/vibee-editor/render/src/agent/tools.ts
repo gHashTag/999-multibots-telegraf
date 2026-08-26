@@ -259,14 +259,30 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'whoami',
     description:
-      'Кто вызывает инструменты: telegram_id, имя в приложении и сколько у человека опубликованных роликов. ' +
-      'Полезно, чтобы не спрашивать имя у человека, который уже вошёл.',
+      'Кто вызывает инструменты: telegram_id, имя, ССЫЛКА НА ЕГО ФОТО и сколько у него ' +
+      'опубликованных роликов. Зови ПЕРВЫМ, когда человек просит сделать что-то «про меня»: ' +
+      'зная имя и лицо, историю можно строить про него, а не про абстракцию.',
     parameters: noArgs,
     async handler(_args, ctx) {
+      /**
+       * Аватар входит в ответ НАМЕРЕННО.
+       *
+       * Владелец попросил прямо: «аватарка юзера по дефолту фото — добавь в
+       * контекст агенту, чтобы он из него создавал историю». До этого агент
+       * не видел лица человека вообще: ни в одном инструменте не было ссылки
+       * на фото, и «сделай ролик про меня» он мог только выдумать.
+       *
+       * Берём из profiles, а не из users: синк из Telegram пишет аватар
+       * именно туда, и там же он обновляется, когда человек меняет фото.
+       */
       const u = await ctx.pool.query(
-        `SELECT telegram_id, COALESCE(username,'') AS username,
-                COALESCE(first_name,'') AS first_name
-         FROM users WHERE telegram_id = $1 LIMIT 1`,
+        `SELECT u.telegram_id, COALESCE(u.username,'') AS username,
+                COALESCE(u.first_name,'') AS first_name,
+                COALESCE(p.avatar_url, '') AS avatar_url,
+                COALESCE(p.display_name, '') AS display_name
+         FROM users u
+         LEFT JOIN profiles p ON p.telegram_id = u.telegram_id
+         WHERE u.telegram_id = $1 LIMIT 1`,
         [ctx.telegramId]
       )
       const c = await ctx.pool.query(
@@ -274,10 +290,20 @@ export const TOOLS: AgentTool[] = [
          WHERE telegram_id = $1 AND is_public = TRUE AND deleted_at IS NULL`,
         [ctx.telegramId]
       )
+      const профиль = u.rows[0] ?? null
+      const аватар = String(профиль?.avatar_url || '')
       return {
         telegram_id: ctx.telegramId,
-        профиль: u.rows[0] ?? null,
+        профиль,
         опубликовано: c.rows[0]?.n ?? 0,
+        аватар: аватар || undefined,
+        подсказкаПроАватар: аватар
+          ? 'Это лицо человека — опирайся на него, когда придумываешь историю ' +
+            'про него самого. ВНИМАНИЕ: превратить фото в картинку (img2img) ' +
+            'пока нельзя — image_generate принимает только текст. Не обещай ' +
+            'этого человеку.'
+          : 'Фото профиля нет. Предложи поставить аватар — тогда истории будут ' +
+            'про него самого, а не про абстракцию.',
       }
     },
   },
@@ -638,7 +664,9 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'audio_generate',
     description:
-      'Озвучить текст голосом (ElevenLabs). Работает ТОЛЬКО при валидном ключе аккаунта: если вернулась ' +
+      'Озвучить текст голосом (ElevenLabs). Без voice_id берётся КЛОН ВЛАДЕЛЬЦА, ' +
+      'а если своего клона в аккаунте нет — библиотечный, и это будет сказано в ответе. ' +
+      'Работает ТОЛЬКО при валидном ключе аккаунта: если вернулась ' +
       'ошибка про голоса — озвучка не настроена, честно скажи это и собери рилс без звука. ' +
       'Если voice_id не знаешь — не указывай, возьмётся первый доступный голос.',
     parameters: {
@@ -657,11 +685,35 @@ export const TOOLS: AgentTool[] = [
       const charge = await spendTokens(ctx, 'audio_generate')
       if (!charge.ok) return { сделано: false, причина: charge.причина }
       const base = selfBase()
+      /**
+       * Голос по умолчанию — КЛОН ВЛАДЕЛЬЦА, а не первый попавшийся.
+       *
+       * Было `voices[0].voice_id`: первый в ответе ElevenLabs — это, как
+       * правило, готовый голос из библиотеки. Владелец спросил напрямую:
+       * «в рилсах клон голоса мой где?» — нигде. Понятия «мой голос» в коде
+       * не существовало вовсе, и рилсы озвучивались чужим тембром.
+       *
+       * ElevenLabs помечает происхождение голоса полем `category`:
+       * `premade` — библиотечный, `cloned`/`professional`/`generated` — свой.
+       * Берём первый НЕ библиотечный; если своих нет — библиотечный, но об
+       * этом честно сообщаем в ответе, чтобы агент мог предложить записать
+       * клон.
+       *
+       * Поле `id`, а не `voice_id`: /api/voices переименовывает его при
+       * упрощении ответа, и обращение к `voice_id` давало undefined —
+       * то есть запасной путь молча не срабатывал.
+       */
       let voiceId = args.voice_id ? String(args.voice_id) : ''
+      let голосВладельца = false
       if (!voiceId) {
         const v = await selfFetch(`${base}/api/voices`)
         const vData: any = await v.json().catch(() => null)
-        voiceId = vData?.voices?.[0]?.voice_id || ''
+        const list: any[] = Array.isArray(vData?.voices) ? vData.voices : []
+        const свой = list.find(
+          x => String(x?.category || '').toLowerCase() !== 'premade'
+        )
+        voiceId = String((свой ?? list[0])?.id || (свой ?? list[0])?.voice_id || '')
+        голосВладельца = !!свой
       }
       if (!voiceId) {
         await refundTokens(ctx, 'audio_generate', 'провайдер не выполнил работу')
@@ -670,6 +722,13 @@ export const TOOLS: AgentTool[] = [
           причина: 'не нашёлся ни один голос — проверь ELEVENLABS_API_KEY',
         }
       }
+      // Агент должен знать, чьим голосом озвучено: если библиотечным —
+      // стоит предложить человеку записать свой клон.
+      const голос = args.voice_id
+        ? 'выбран явно'
+        : голосВладельца
+          ? 'клон владельца'
+          : 'библиотечный — своего клона в аккаунте нет, предложи записать'
       const gen = await selfFetch(`${base}/api/generate/audio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -699,6 +758,7 @@ export const TOOLS: AgentTool[] = [
         сделано: true,
         url: direct,
         id: r.rows[0]?.id,
+        голос,
       })
     },
   },
