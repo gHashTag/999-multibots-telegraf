@@ -157,6 +157,9 @@ function runFfprobeText(args: string[], timeoutMs = 30000): string {
  * Проверка формы стоит одну строку и отвечает ДО сетевого запроса: ключ,
  * не начинающийся с `sk_`, не заработает никогда.
  */
+/** Ответ /api/providers живёт минуту: за ним пять чужих сервисов. */
+let providersCache: { at: number; data: Record<string, unknown> } | null = null
+
 function elevenLabsKey(): string {
   const key = process.env.ELEVENLABS_API_KEY
   if (!key) {
@@ -1929,6 +1932,119 @@ const server = createServer(async (req, res) => {
   }
 
   // Health check
+  /**
+   * GET /api/providers — что из платного работает ПРЯМО СЕЙЧАС.
+   *
+   * ЗАЧЕМ. Обход провайдеров 2026-08-26 показал: у FAL кончился баланс
+   * («User is locked. Reason: Exhausted balance»), ключ ElevenLabs хранит
+   * идентификатор вместо ключа, ключ OpenAI отвергается. Две платные функции
+   * из четырёх не работали, а продукт об этом не сообщал НИЧЕГО: агент
+   * по-прежнему называл цены за услуги, которых не оказывает, и человек
+   * узнавал правду, только потратив токены.
+   *
+   * Ключ бывает валиден по форме и мёртв по балансу — из кода этого не
+   * видно, ни одна сборка и ни один тест такого не поймают. Отвечает на это
+   * только живой запрос, и вот он.
+   *
+   * КЭШ НА МИНУТУ. Проверка ходит к пяти чужим сервисам; без кэша любой
+   * опрос страницы превращался бы в пять внешних запросов. Минуты хватает,
+   * чтобы увидеть починку почти сразу и не устроить чужим API поток.
+   */
+  if (req.url?.split('?')[0] === '/api/providers' && req.method === 'GET') {
+    const now = Date.now()
+    if (providersCache && now - providersCache.at < 60_000) {
+      sendJson(res, 200, { ...providersCache.data, изКэша: true })
+      return
+    }
+    // Проверки идут ПАРАЛЛЕЛЬНО и с коротким таймаутом: пять
+    // последовательных запросов к чужим сервисам — это секунды ожидания на
+    // ровном месте, а страница здоровья должна отвечать быстро.
+    const ping = async (
+      name: string,
+      run: () => Promise<{ ok: boolean; детали: string }>
+    ) => {
+      try {
+        const r = await Promise.race([
+          run(),
+          new Promise<{ ok: boolean; детали: string }>((_, rej) =>
+            setTimeout(() => rej(new Error('таймаут 8с')), 8000)
+          ),
+        ])
+        return { провайдер: name, ...r }
+      } catch (e) {
+        return {
+          провайдер: name,
+          ok: false,
+          детали: e instanceof Error ? e.message : String(e),
+        }
+      }
+    }
+    const head = async (url: string, headers: Record<string, string>) => {
+      const r = await fetch(url, { headers })
+      // Тело — вместе с кодом: именно в нём чужой сервис объясняет причину.
+      const body = r.ok ? '' : (await r.text().catch(() => '')).slice(0, 200)
+      return { ok: r.ok, детали: r.ok ? `HTTP ${r.status}` : `HTTP ${r.status} ${body}` }
+    }
+    const key = (n: string) => process.env[n] || ''
+    const результаты = await Promise.all([
+      ping('FAL — картинки', async () => {
+        if (!key('FAL_KEY')) return { ok: false, детали: 'FAL_KEY не задан' }
+        const r = await fetch('https://queue.fal.run/fal-ai/flux/schnell', {
+          method: 'POST',
+          headers: {
+            Authorization: `Key ${key('FAL_KEY')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prompt: 'ping' }),
+        })
+        const body = (await r.text().catch(() => '')).slice(0, 200)
+        return { ok: r.ok, детали: `HTTP ${r.status} ${r.ok ? '' : body}` }
+      }),
+      ping('ElevenLabs — озвучка', async () => {
+        const k = key('ELEVENLABS_API_KEY')
+        if (!k) return { ok: false, детали: 'ELEVENLABS_API_KEY не задан' }
+        if (!k.startsWith('sk_')) {
+          return {
+            ok: false,
+            детали:
+              'в переменной идентификатор ключа, а не ключ: настоящий начинается с «sk_»',
+          }
+        }
+        return head('https://api.elevenlabs.io/v1/voices', { 'xi-api-key': k })
+      }),
+      ping('Replicate', async () =>
+        key('REPLICATE_API_TOKEN')
+          ? head('https://api.replicate.com/v1/account', {
+              Authorization: `Bearer ${key('REPLICATE_API_TOKEN')}`,
+            })
+          : { ok: false, детали: 'REPLICATE_API_TOKEN не задан' }
+      ),
+      ping('OpenAI', async () =>
+        key('OPENAI_API_KEY')
+          ? head('https://api.openai.com/v1/models?limit=1', {
+              Authorization: `Bearer ${key('OPENAI_API_KEY')}`,
+            })
+          : { ok: false, детали: 'OPENAI_API_KEY не задан' }
+      ),
+      ping('GLM — агент', async () =>
+        key('GLM_API_KEY')
+          ? head('https://api.z.ai/api/coding/paas/v4/models', {
+              Authorization: `Bearer ${key('GLM_API_KEY')}`,
+            })
+          : { ok: false, детали: 'GLM_API_KEY не задан' }
+      ),
+    ])
+    const data = {
+      проверено: new Date().toISOString(),
+      работает: результаты.filter(r => r.ok).length,
+      всего: результаты.length,
+      провайдеры: результаты,
+    }
+    providersCache = { at: now, data }
+    sendJson(res, 200, data)
+    return
+  }
+
   if (req.url === '/health' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(
