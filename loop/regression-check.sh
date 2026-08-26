@@ -65,7 +65,10 @@ print('ok' if ok else 'bad')" 2>/dev/null)
 [ "$prices_ok" = "ok" ] && say "  ✅ цены от себестоимости: картинка 1 · рилс 1 · озвучка 6 · видео 20" || { say "  ❌ прайс нарушает инвариант (ожидалось 1/1/6/20)"; fail=1; }
 
 say "— Прокси блога —"
+# RSS t27.ai бывает медленным (7с+): одна повторная попытка зонда
+# исключает ложный FAIL на миге апстрима (виток №157).
 items=$(curl -s -m 15 http://127.0.0.1:3333/api/blog | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('items',[])))" 2>/dev/null)
+if [ "${items:-0}" -le 0 ] 2>/dev/null; then sleep 3; items=$(curl -s -m 20 http://127.0.0.1:3333/api/blog | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('items',[])))" 2>/dev/null); fi
 [ "$items" -gt 0 ] 2>/dev/null && say "  ✅ /api/blog ($items постов)" || { say "  ❌ /api/blog пуст"; fail=1; }
 
 say "— Лента: живой GET (ловит 500 на свежей схеме) —"
