@@ -122,6 +122,43 @@ function runFfprobeText(args: string[], timeoutMs = 30000): string {
  * только здесь. nosniff запрещает браузеру угадывать тип ответа —
  * даже если в данных окажется разметка, она не будет исполнена как HTML.
  */
+/**
+ * Лишние сегменты пути — это 404, а НЕ родительский ресурс.
+ *
+ * ПОЧЕМУ ЭТО ОТДЕЛЬНАЯ ФУНКЦИЯ. Маршруты здесь сопоставляются через
+ * `startsWith`, и такой матчер ловит не только свой путь, но и всё, что
+ * начинается с него. Один раз это уже стоило дорого: `/api/users/:username/
+ * templates` не существовал, запрос попадал в обработчик профиля и получал
+ * КАРТОЧКУ ПРОФИЛЯ с кодом 200. Клиент читал `data.templates`, видел
+ * undefined и показывал «Пока нет видео» — профиль ни у кого не показывал
+ * работы, и ни логи, ни консоль об этом не сообщали.
+ *
+ * Замер 2026-08-26 показал ещё три таких пути: `/api/feed/чепуха` отдавал
+ * всю ленту, `/api/users/id/:id/чепуха` — пользователя из одних null,
+ * `/api/users/:username/чепуха` — профиль. Каждый из них — заготовленная
+ * ловушка для следующего подпути, который кто-нибудь добавит.
+ *
+ * Возвращает true и САМ отвечает 404, если сегментов больше ожидаемого.
+ */
+function rejectExtraSegments(
+  req: IncomingMessage,
+  // Тот же тип, что у sendJson рядом: пространство имён http сюда не
+  // импортировано, только IncomingMessage из 'node:http'.
+  res: any,
+  expected: number
+): boolean {
+  const pathname = (req.url || '').split('?')[0]
+  const segments = pathname.split('/').filter(Boolean)
+  if (segments.length <= expected) return false
+  sendJson(res, 404, {
+    error: 'Not found',
+    detail:
+      `Путь «${pathname}» длиннее, чем умеет этот маршрут. ` +
+      'Лишние сегменты не игнорируются: иначе ответ 200 приходил бы не на тот запрос.',
+  })
+  return true
+}
+
 function sendJson(res: any, code: number, obj: unknown): void {
   res.writeHead(code, {
     'Content-Type': 'application/json',
@@ -5277,6 +5314,16 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.url?.startsWith('/api/feed') && req.method === 'GET') {
+    /*
+     * /api/feed, /api/feed/:id, /api/feed/stats — три сегмента максимум.
+     * Без этого /api/feed/что-угодно молча отдавал ВСЮ ЛЕНТУ с кодом 200.
+     *
+     * ОСТОРОЖНО: глубже трёх сегментов есть настоящий маршрут —
+     * GET /api/feed/:id/star?payload=. Он обрабатывается ВЫШЕ (starMatch) и
+     * возвращает сам, поэтому сюда не доходит. Если однажды подпуть добавят
+     * НИЖЕ этой строки, он получит 404 — громко, а не «вернулась вся лента».
+     */
+    if (rejectExtraSegments(req, res, 3)) return
     const url = new URL(req.url || '', `http://${req.headers.host}`)
     // Схема звёзд создаётся лениво, но читать ленту обязаны и ДО первой
     // звезды: GET делает LEFT JOIN по template_stars и SELECT stars_count —
@@ -5834,7 +5881,11 @@ const server = createServer(async (req, res) => {
 
   // GET /api/users/id/:telegram_id
   if (req.url?.startsWith('/api/users/id/') && req.method === 'GET') {
-    const telegram_id = req.url?.split('/').pop()
+    // Ровно /api/users/id/:telegram_id. Раньше /api/users/id/42/что-угодно
+    // брал последний сегмент как telegram_id и отдавал пользователя из
+    // одних null с кодом 200 — хуже, чем 404: выглядит как живая запись.
+    if (rejectExtraSegments(req, res, 4)) return
+    const telegram_id = req.url?.split('?')[0].split('/').pop()
     if (!telegram_id) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ error: 'Invalid telegram_id' }))
@@ -5968,6 +6019,9 @@ const server = createServer(async (req, res) => {
     req.method === 'GET' &&
     !req.url?.includes('/id/')
   ) {
+    // Ровно /api/users/:username. Подпути обрабатываются ВЫШЕ (сейчас это
+    // /templates); всё остальное — 404, а не карточка профиля с кодом 200.
+    if (rejectExtraSegments(req, res, 3)) return
     const url = new URL(req.url || '', `http://${req.headers.host}`)
     const pathParts = url.pathname.split('/').filter(Boolean)
     const usernameIndex = pathParts.indexOf('api') + 2 // /api/users/:username
