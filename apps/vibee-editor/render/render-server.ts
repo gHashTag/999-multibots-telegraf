@@ -140,6 +140,42 @@ function runFfprobeText(args: string[], timeoutMs = 30000): string {
  *
  * Возвращает true и САМ отвечает 404, если сегментов больше ожидаемого.
  */
+/**
+ * Ключ ElevenLabs — с проверкой формы, а не только наличия.
+ *
+ * ЧТО СЛУЧИЛОСЬ. В переменной лежал ИДЕНТИФИКАТОР ключа вместо самого ключа.
+ * ElevenLabs отвечал на это 400 с внятным текстом:
+ *
+ *   "API key ID used as API key - only valid API keys can be used.
+ *    API keys start with 'sk_' and are shown when the key is created."
+ *
+ * А наружу уходило «ElevenLabs API error: 400» — тело ответа выбрасывалось.
+ * По такому сообщению нельзя понять ни причину, ни что делать; список
+ * голосов и озвучка (платная, 6 токенов) просто не работали, и почему —
+ * снаружи было не видно.
+ *
+ * Проверка формы стоит одну строку и отвечает ДО сетевого запроса: ключ,
+ * не начинающийся с `sk_`, не заработает никогда.
+ */
+function elevenLabsKey(): string {
+  const key = process.env.ELEVENLABS_API_KEY
+  if (!key) {
+    throw new Error(
+      'ELEVENLABS_API_KEY не задан. Ключ создаётся в кабинете ElevenLabs ' +
+        '(Profile → API Keys) и начинается с «sk_».'
+    )
+  }
+  if (!key.startsWith('sk_')) {
+    throw new Error(
+      'ELEVENLABS_API_KEY хранит НЕ КЛЮЧ, а его идентификатор: настоящий ключ ' +
+        `начинается с «sk_», а этот — с «${key.slice(0, 3)}». ElevenLabs на такой ` +
+        'отвечает 400 (invalid_api_key). Ключ показывается один раз при создании ' +
+        'или ротации в кабинете ElevenLabs — его и нужно положить в переменную.'
+    )
+  }
+  return key
+}
+
 function rejectExtraSegments(
   req: IncomingMessage,
   // Тот же тип, что у sendJson рядом: пространство имён http сюда не
@@ -2438,11 +2474,7 @@ const server = createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const { text, voice_id, speed } = JSON.parse(body)
-        const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY
-
-        if (!ELEVENLABS_API_KEY) {
-          throw new Error('ELEVENLABS_API_KEY not configured')
-        }
+        const ELEVENLABS_API_KEY = elevenLabsKey()
 
         console.log(
           `🎤 [Generate] Audio: voice=${voice_id}, text="${text.substring(0, 50)}..."`
@@ -2517,11 +2549,7 @@ const server = createServer(async (req, res) => {
   // GET /api/voices - Get available ElevenLabs voices
   if (req.url === '/api/voices' && req.method === 'GET') {
     try {
-      const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY
-      if (!ELEVENLABS_API_KEY) {
-        throw new Error('ELEVENLABS_API_KEY not configured')
-      }
-
+      const ELEVENLABS_API_KEY = elevenLabsKey()
       console.log(`🎤 [Voices] Fetching ElevenLabs voices...`)
 
       const response = await fetch('https://api.elevenlabs.io/v1/voices', {
@@ -2533,7 +2561,12 @@ const server = createServer(async (req, res) => {
       })
 
       if (!response.ok) {
-        throw new Error(`ElevenLabs API error: ${response.status}`)
+        // Тело — вместе с кодом. Именно в теле ElevenLabs объясняет, что не
+        // так; без него «error: 400» не говорит ничего и чинить нечего.
+        const detail = await response.text().catch(() => '')
+        throw new Error(
+          `ElevenLabs ответил ${response.status}${detail ? `: ${detail.slice(0, 400)}` : ''}`
+        )
       }
 
       const data = await response.json()
