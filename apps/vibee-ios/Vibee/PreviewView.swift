@@ -105,6 +105,17 @@ struct PreviewView: View {
   var makeOverlay: (Composition) async throws -> CALayer = { composition in
     let tree = try await LayerBuilder(composition: composition).build()
     tree.videoLayer.removeFromSuperlayer()
+    // Снимаем переворот и фон.
+    //
+    // `LayerBuilder` ставит `isGeometryFlipped` на корне, потому что при
+    // ЭКСПОРТЕ дерево живёт в мире Core Animation, где ось Y идёт снизу
+    // вверх. В предпросмотре тот же корень попадает внутрь иерархии UIView,
+    // где Y уже сверху вниз, — и переворот становится вторым по счёту.
+    // Метка с y=0 оказывалась внизу в превью и вверху в экспорте.
+    tree.parentLayer.isGeometryFlipped = false
+    // Фон корня непрозрачно-чёрный: в экспорте это подложка кадра, а здесь
+    // роль подложки играет сам AVPlayerLayer, и чёрный корень закрыл бы его.
+    tree.parentLayer.backgroundColor = nil
     return tree.parentLayer
   }
 
