@@ -25,7 +25,19 @@ if (!process.env.DATABASE_URL) {
 }
 const LOOP_DIR = process.env.LOOP_DIR || path.resolve(process.cwd(), '../../../loop')
 const OUT = path.join(LOOP_DIR, 'RETROSPECTIVE.md')
+const HISTORY = path.join(LOOP_DIR, 'retro-history.json')
 const WINDOW_DAYS = Math.max(1, Number(process.argv[2]) || 7)
+
+/** Снапшот метрик каждого прогона: ретро перезаписывается, а тренд
+ *  между прогонами (дельта постов/просмотров) живёт здесь. */
+type Snap = { at: string; windowDays: number; posts: number; views: number; stars: number }
+function readHistory(): Snap[] {
+  try {
+    return JSON.parse(fs.readFileSync(HISTORY, 'utf8'))
+  } catch {
+    return []
+  }
+}
 
 /** Бенчмарки short-form retention 2026 (Retensis/ReportDash/Swydo) —
  *  ориентир для «сколько смотреть», не для «сколько набрать просмотров». */
@@ -136,6 +148,23 @@ async function main() {
     const totalViews = week.reduce((a, x) => a + x.views_count, 0)
     const totalStars = week.reduce((a, x) => a + x.stars_count, 0)
     L.push(`- за окно: ${week.length} постов, ${totalViews} просмотров, ${totalStars} звёзд; всего в ленте ${rows.length} постов`)
+
+    // Тренд к прошлому прогону: те же метрики, другое время.
+    const history = readHistory()
+    const prev = history[history.length - 1]
+    if (prev && prev.windowDays === WINDOW_DAYS) {
+      L.push(
+        `- с прошлого прогона (${prev.at.slice(0, 10)}): постов ${prev.posts} → ${week.length}, просмотров ${prev.views} → ${totalViews}, звёзд ${prev.stars} → ${totalStars}`
+      )
+    }
+    history.push({
+      at: new Date().toISOString(),
+      windowDays: WINDOW_DAYS,
+      posts: week.length,
+      views: totalViews,
+      stars: totalStars,
+    })
+    fs.writeFileSync(HISTORY, JSON.stringify(history, null, 2))
     L.push(`- следующая ретроспектива: когда окно наберёт ≥4/день × 7 дн (или 31.08)`)
     L.push('')
     L.push('---')
