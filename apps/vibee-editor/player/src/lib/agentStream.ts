@@ -99,6 +99,8 @@ export async function sendToAgent(text: string): Promise<void> {
     const reader = res.body.getReader()
     const decoder = new TextDecoder()
     let buf = ''
+    // Был ли вызов инструмента с последнего куска текста — см. ниже.
+    let послеИнструмента = false
     for (;;) {
       const { done, value } = await reader.read()
       if (done) break
@@ -120,8 +122,30 @@ export async function sendToAgent(text: string): Promise<void> {
             thinking: (m.thinking || '') + String(ev['текст'] || ''),
           }))
         } else if (kind === 'текст') {
-          patch(agentId, m => ({ ...m, text: m.text + String(ev['текст'] || '') }))
+          const chunk = String(ev['текст'] || '')
+          /**
+           * Абзац после инструмента. Агент говорит НЕСКОЛЬКО раз за ответ:
+           * до вызова инструмента и после него. Сервер шлёт эти куски как
+           * обычные дельты, а мы клеили их встык — и живой ответ выглядел так:
+           *
+           *   «…и сразу нарисую.Кота прямо сейчас не выйдет, и вот почему»
+           *   «…вдруг кот там уже есть, бесплатно:Картинки не работают»
+           *
+           * Два предложения из разных ходов слипались без пробела, причём
+           * ровно в том месте, где человеку важнее всего понять: тут агент
+           * сходил и проверил. Разрыв ставим один раз на границе — не на
+           * каждой дельте, иначе получим лесенку из пустых строк.
+           */
+          const разрыв = послеИнструмента ? '\n\n' : ''
+          послеИнструмента = false
+          patch(agentId, m => ({
+            ...m,
+            text: m.text && разрыв && !m.text.endsWith('\n')
+              ? m.text + разрыв + chunk
+              : m.text + chunk,
+          }))
         } else if (kind === 'инструмент') {
+          послеИнструмента = true
           patch(agentId, m => ({
             ...m,
             tools: [...(m.tools || []), { name: String(ev['имя']) }],
