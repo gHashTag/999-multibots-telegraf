@@ -687,7 +687,12 @@ async function publishTemplateRow(data: Record<string, any>): Promise<{
        SET creator_name = $2, creator_avatar = $3, creator_username = $4,
            description = $5, thumbnail_url = $6, video_url = $7,
            template_settings = $8::jsonb, assets = $9::jsonb, tracks = $10::jsonb,
-           is_public = TRUE
+           is_public = TRUE,
+           -- Снятая публикация возвращается, если её публикуют заново. Без
+           -- этой строки upsert по имени обновил бы скрытую запись и она
+           -- осталась бы невидимой: человек нажал «опубликовать», получил
+           -- «готово» и не увидел ничего.
+           deleted_at = NULL
        WHERE id = $1
        RETURNING id, created_at::text`,
       [
@@ -6272,7 +6277,7 @@ const server = createServer(async (req, res) => {
             COALESCE(pt.creator_username, '') as creator_username,
             MIN(pt.created_at)::text as created_at
           FROM public_templates pt
-          WHERE LOWER(pt.creator_username) = LOWER($1)
+          WHERE LOWER(pt.creator_username) = LOWER($1) AND pt.deleted_at IS NULL
           GROUP BY pt.telegram_id, pt.creator_name, pt.creator_avatar, pt.creator_username
           LIMIT 1
         `
