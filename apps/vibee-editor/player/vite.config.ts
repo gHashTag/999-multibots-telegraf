@@ -13,11 +13,6 @@ function replicatePlugin(): Plugin {
     configureServer(server) {
       // Create prediction endpoint
       server.middlewares.use('/api/replicate/predictions', async (req, res) => {
-        if (req.method !== 'POST') {
-          res.writeHead(405).end('Method not allowed')
-          return
-        }
-
         res.setHeader('Access-Control-Allow-Origin', '*')
         res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -25,6 +20,11 @@ function replicatePlugin(): Plugin {
         if (req.method === 'OPTIONS') {
           res.writeHead(200)
           res.end()
+          return
+        }
+
+        if (req.method !== 'POST') {
+          res.writeHead(405).end('Method not allowed')
           return
         }
 

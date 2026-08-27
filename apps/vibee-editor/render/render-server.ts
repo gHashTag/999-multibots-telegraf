@@ -3864,7 +3864,7 @@ const server = createServer(async (req, res) => {
                     userInfo.first_name || userInfo.username || 'Anonymous',
                   projectName: userInfo.project_name || 'Vibee Reel',
                   videoUrl: publicUrl,
-                  templateSettings: request.inputProps || request.props || {},
+                  templateSettings: request.props || {},
                   assets: (request as any).assets || [],
                   tracks: (request as any).tracks || [],
                 })

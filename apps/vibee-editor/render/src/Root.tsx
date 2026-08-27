@@ -28,9 +28,8 @@ export const RemotionRoot: React.FC = () => {
         width={1080}
         height={1920}
         schema={SplitTalkingHeadSchema}
-        defaultProps={{
+        defaultProps={SplitTalkingHeadSchema.parse({
           lipSyncVideo: "/lipsync/lipsync.mp4",
-          captionLanguage: "ru",
           captionColor: CAPTION_DEFAULTS.textColor,
           splitRatio: 0.5,
           backgroundMusic: "",
@@ -63,7 +62,7 @@ export const RemotionRoot: React.FC = () => {
           avatarBorderIntensity: 1.0,
           // Image overlays
           imageOverlays: [],
-        }}
+        })}
         calculateMetadata={async ({ props }) => {
           const fps = 30;
           let durationInFrames = 1020; // Default fallback

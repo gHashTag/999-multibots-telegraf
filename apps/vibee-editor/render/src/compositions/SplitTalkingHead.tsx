@@ -419,7 +419,6 @@ const BRollLayer: React.FC<BRollLayerProps> = ({
               objectPosition: objectPos,
             }}
             muted
-            loop
           />
         )}
       </div>
