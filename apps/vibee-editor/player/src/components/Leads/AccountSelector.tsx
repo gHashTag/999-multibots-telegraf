@@ -11,6 +11,8 @@ import {
   activeSessionAtom,
   sessionsLoadingAtom,
   fetchSessions,
+  leadsBackendOk,
+  leadsBackendAtom,
   type TelegramSession,
 } from '@/atoms/leads';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -26,6 +28,7 @@ export function AccountSelector({ onAddSession }: AccountSelectorProps) {
   const [sessions, setSessions] = useAtom(sessionsAtom);
   const [activeSession, setActiveSession] = useAtom(activeSessionAtom);
   const [loading, setLoading] = useAtom(sessionsLoadingAtom);
+  const setBackendOk = useSetAtom(leadsBackendAtom);
 
   // Find active session
   const currentSession = sessions.find(s => s.id === activeSession);
@@ -37,6 +40,9 @@ export function AccountSelector({ onAddSession }: AccountSelectorProps) {
       try {
         const data = await fetchSessions();
         setSessions(data);
+        // Отвечает ли раздел на сервере — узнаём из того же запроса и кладём
+        // в атом, чтобы страница сказала правду вместо пустых списков.
+        setBackendOk(leadsBackendOk);
         // Auto-select first session if none selected
         if (!activeSession && data.length > 0) {
           setActiveSession(data[0].id);

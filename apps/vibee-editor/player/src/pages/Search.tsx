@@ -5,8 +5,9 @@
 
 import { useState, useCallback, useEffect, Suspense } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { Inbox, BarChart3, Zap, Film, X, Send, Radio } from 'lucide-react';
+import { Inbox, BarChart3, Zap, Film, X, Send, Radio, PlugZap } from 'lucide-react';
 import { Header } from '@/components/Header';
+import { leadsBackendAtom } from '@/atoms/leads';
 import { LeadFeed } from '@/components/Leads/LeadFeed';
 import { AccountSelector } from '@/components/Leads/AccountSelector';
 import { EventStream } from '@/components/Leads/EventStream';
@@ -35,6 +36,7 @@ function LeadsDashboardContent() {
   const [activeTab, setActiveTab] = useAtom(leadsTabAtom);
   const [replyModal, setReplyModal] = useAtom(replyModalAtom);
   const activeSession = useAtomValue(activeSessionAtom);
+  const backendOk = useAtomValue(leadsBackendAtom);
   const selectedLead = useAtomValue(selectedLeadAtom);
 
   const { isConnected, replyToChat } = useLeadsWebSocket();
@@ -131,9 +133,44 @@ function LeadsDashboardContent() {
 
         {/* Tab Content */}
         <section className="leads-content">
+          {backendOk === false && (
+            /**
+             * ЧЕСТНОЕ СОСТОЯНИЕ РАЗДЕЛА.
+             *
+             * Все девять запросов лидов заканчиваются `catch → return []`, и
+             * без этой панели экран показывал ПУСТЫЕ списки. Для человека
+             * пустой список значит «лидов пока нет» — то есть интерфейс не
+             * просто молчал о поломке, он подсказывал НЕВЕРНОЕ объяснение и
+             * оставлял ждать того, чему неоткуда взяться.
+             *
+             * На сервере ни одного из этих адресов нет (проверено сверкой
+             * check-routes.mjs). Пустота была не про данные, а про
+             * отсутствие ручек — так и говорим.
+             */
+            <div className="leads-unavailable">
+              <PlugZap size={40} />
+              <h2>
+                {lang === 'ru'
+                  ? 'Раздел лидов не подключён к серверу'
+                  : 'Leads are not connected to the server'}
+              </h2>
+              <p>
+                {lang === 'ru'
+                  ? 'Это не значит, что лидов нет — их просто негде взять: ' +
+                    'нужных ручек на сервере пока не существует. Пустые ' +
+                    'списки ниже показывать не будем, чтобы не вводить в ' +
+                    'заблуждение.'
+                  : 'It does not mean you have no leads — there is simply ' +
+                    'nowhere to get them from: the server endpoints do not ' +
+                    'exist yet.'}
+              </p>
+            </div>
+          )}
           <Suspense fallback={<div className="leads-loading">Loading...</div>}>
-            {activeTab === 'events' && <EventStream maxHeight={600} />}
-            {activeTab === 'leads' && <LeadFeed />}
+            {backendOk !== false && activeTab === 'events' && (
+              <EventStream maxHeight={600} />
+            )}
+            {backendOk !== false && activeTab === 'leads' && <LeadFeed />}
             {activeTab === 'stats' && (
               <div className="leads-placeholder">
                 <BarChart3 size={48} />
