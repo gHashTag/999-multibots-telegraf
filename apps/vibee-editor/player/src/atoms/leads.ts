@@ -87,6 +87,26 @@ export const leadsLoadingAtom = atom(false);
 // Error state
 export const leadsErrorAtom = atom<string | null>(null);
 
+/**
+ * Есть ли раздел лидов НА СЕРВЕРЕ вообще.
+ *
+ * `null` — ещё не спрашивали, `true` — отвечает, `false` — такого раздела
+ * на сервере нет.
+ *
+ * ЗАЧЕМ. Каждый запрос здесь заканчивается `catch → return []`, и экран
+ * показывал ПУСТЫЕ списки. Для человека пустой список значит «у меня пока
+ * нет лидов» — то есть интерфейс не просто молчал о поломке, он подсказывал
+ * НЕВЕРНОЕ объяснение.
+ *
+ * А на сервере этих девяти адресов (`/api/v1/leads/*`, `/api/triggers/*`,
+ * `/api/v1/sessions`) нет ни одного: сверка `check-routes.mjs` не нашла ни
+ * одного обработчика. Пустота была не про данные, а про отсутствие ручек.
+ *
+ * Пустой список и «раздела нет» надо показывать по-разному — иначе человек
+ * будет ждать лидов, которые физически неоткуда взяться.
+ */
+export const leadsBackendAtom = atom<boolean | null>(null);
+
 // Selected lead for content creation
 export const selectedLeadAtom = atom<Lead | null>(null);
 
@@ -296,10 +316,23 @@ export const clearLeadsAtom = atom(null, (_get, set) => {
 // ===============================
 
 // Fetch sessions list
+/**
+ * Отвечает ли сервер по разделу лидов. Проверяется одним запросом — тем,
+ * который экран делает первым, — и результат кладётся в leadsBackendAtom.
+ * Отдельного «пинга» не заводим: лишний запрос ради того, что и так сейчас
+ * выяснится, только замедляет открытие.
+ */
+export let leadsBackendOk: boolean | null = null;
+
 export async function fetchSessions(): Promise<TelegramSession[]> {
   try {
     const response = await fetch(`${API_BASE}/api/v1/sessions`);
-    if (!response.ok) throw new Error('Failed to fetch sessions');
+    if (!response.ok) {
+      // Именно ЗДЕСЬ отличаем «нет данных» от «нет раздела».
+      leadsBackendOk = false;
+      throw new Error(`Failed to fetch sessions: HTTP ${response.status}`);
+    }
+    leadsBackendOk = true;
     const data = await response.json();
     // Map snake_case API response to camelCase
     return (data.sessions || []).map((s: any) => ({
