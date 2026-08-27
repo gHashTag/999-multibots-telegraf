@@ -410,6 +410,23 @@ async function initializeBots() {
           )
         }
 
+        // Кассир звёзд живёт вебхуком РЕНДЕРА (/api/telegram/stars-wh):
+        // его вебхук здесь срубается при каждом старте polling-режима,
+        // и оплаченные звёзды не зачисляются (инциденты циклов №218-220).
+        // Гвард: кассира не трогаем — ни вебхук, ни polling (иначе 409).
+        const CASHIER = process.env.CASHIER_BOT_USERNAME || 't27ai_bot'
+        if (botInfo.username === CASHIER && webhookInfo.url) {
+          console.log(
+            `\n💰 [CASHIER GUARD] ${botInfo.username} живёт вебхуком рендера — вебхук НЕ удаляю, polling НЕ запускаю`
+          )
+          // Инстанс регистрируем: команды навешаны, инстанс доступен
+          // для исходящих (без приёма апдейтов — они идут вебхуком рендера).
+          if (typeof setBotInstance === 'function') {
+            setBotInstance(bot, botInfo.username)
+          }
+          continue
+        }
+
         if (webhookInfo.url) {
           console.log(
             `\n🔌 [WEBHOOK] Обнаружен активный вебхук для ${botInfo.username}: ${webhookInfo.url}`
