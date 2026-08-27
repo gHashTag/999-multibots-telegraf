@@ -94,21 +94,29 @@ import UIKit
  * одной строкой: компенсация в ОДНОМ месте лучше, чем два разных дерева.
  */
 protocol OverlayLayerBuilding {
-  /// Корневой слой размером ровно `composition.width × composition.height`.
-  /// Вызывается ОТДЕЛЬНО для каждого рендера: см. `свежееДерево`.
-  func makeOverlayTree(for composition: Composition) -> CALayer
+  /// Дерево ЦЕЛИКОМ, вместе с видеослоем, который сборщик поставил на нужное
+  /// z-место. Вызывается ОТДЕЛЬНО для каждого рендера: см. `свежееДерево`.
+  ///
+  /// Раньше протокол возвращал только корень (`CALayer`), а рендер заводил
+  /// СВОЙ пустой видеослой и клал его ПОД корень. Корень сборщика несёт
+  /// непрозрачный чёрный фон во весь кадр — он закрывал видео целиком, и
+  /// экспорт давал чёрный прямоугольник с одними титрами. Сборка при этом
+  /// была зелёной: типы сходятся, слои складываются, картинка чёрная.
+  ///
+  /// Отдавать надо ИМЕННО тот видеослой, который сборщик уже разместил.
+  func makeRenderTree(for composition: Composition) -> RenderTree
 }
 
 /// Обёртка над замыканием — на случай, когда отдельный тип заводить незачем
 /// (тесты, отладочная плашка, экран без титров).
 struct ClosureOverlayBuilder: OverlayLayerBuilding {
-  private let тело: (Composition) -> CALayer
+  private let тело: (Composition) -> RenderTree
 
-  init(_ тело: @escaping (Composition) -> CALayer) {
+  init(_ тело: @escaping (Composition) -> RenderTree) {
     self.тело = тело
   }
 
-  func makeOverlayTree(for composition: Composition) -> CALayer {
+  func makeRenderTree(for composition: Composition) -> RenderTree {
     тело(composition)
   }
 }
@@ -500,23 +508,15 @@ final class NativeRenderer {
    *    растеризоваться втрое крупнее нужного.
    */
   private func сделатьAnimationTool() -> AVVideoCompositionCoreAnimationTool {
-    let родитель = CALayer()
-    родитель.frame = CGRect(origin: .zero, size: renderSize)
-    родитель.masksToBounds = true
-
-    let видеослой = CALayer()
-    видеослой.frame = родитель.bounds
-
+    // Ни своего родителя, ни своего видеослоя: и то и другое уже есть в
+    // дереве, причём видеослой стоит на нужном z-месте между фоном и
+    // титрами. Подсовывать инструменту чужой пустой слой значит получить
+    // чёрный кадр — см. комментарий у `makeRenderTree`.
     let дерево = свежееДерево()
-    дерево.frame = родитель.bounds
-
-    родитель.addSublayer(видеослой)
-    родитель.addSublayer(дерево)
-
-    установитьМасштаб(родитель, 1.0)
-
-    return AVVideoCompositionCoreAnimationTool(
-      postProcessingAsVideoLayer: видеослой, in: родитель)
+    дерево.parentLayer.frame = CGRect(origin: .zero, size: renderSize)
+    дерево.videoLayer.frame = дерево.parentLayer.bounds
+    установитьМасштаб(дерево.parentLayer, 1.0)
+    return дерево.coreAnimationTool()
   }
 
   /// Новое дерево на каждый вызов — см. ловушку 1 выше. Строим внутри
@@ -524,10 +524,10 @@ final class NativeRenderer {
   /// слоя вне иерархии видов иначе порождает НЕЯВНУЮ анимацию длиной 0.25 с,
   /// которая в экспорте наложится поверх явной и даст «мягкий старт» там,
   /// где его никто не закладывал.
-  private func свежееДерево() -> CALayer {
+  private func свежееДерево() -> RenderTree {
     CATransaction.begin()
     CATransaction.setDisableActions(true)
-    let дерево = сборщикСлоёв.makeOverlayTree(for: composition)
+    let дерево = сборщикСлоёв.makeRenderTree(for: composition)
     CATransaction.commit()
     return дерево
   }
@@ -556,7 +556,12 @@ final class NativeRenderer {
   /// Наложение поверх `AVPlayerLayer` — второй путь того же дерева слоёв.
   @MainActor
   func makePreviewOverlay() -> PreviewOverlay {
-    PreviewOverlay(tree: свежееДерево(), renderSize: renderSize)
+    // Для предпросмотра берём ТОЛЬКО оверлей: видеокадр здесь рисует
+    // AVPlayerLayer под нами, а видеослой из дерева закрыл бы его собой.
+    let дерево = свежееДерево()
+    дерево.videoLayer.removeFromSuperlayer()
+    дерево.parentLayer.backgroundColor = nil
+    return PreviewOverlay(tree: дерево.parentLayer, renderSize: renderSize)
   }
 
   /// Всё, что нужно экрану предпросмотра, одним вызовом.
