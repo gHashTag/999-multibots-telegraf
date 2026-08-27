@@ -1,0 +1,410 @@
+[
+  {
+    "pr": 654,
+    "file": "apps/vibee-editor/player/src/index.css",
+    "needle": ".feed-card-actions .action-btn",
+    "note": "тач-цели ленты 44px"
+  },
+  {
+    "pr": 654,
+    "file": "apps/vibee-editor/player/src/hooks/useLanguage.tsx",
+    "needle": "document.documentElement.lang",
+    "note": "синхронизация lang документа с языком UI"
+  },
+  {
+    "pr": 656,
+    "file": "apps/vibee-editor/player/src/atoms/language.ts",
+    "needle": "feed.ageMin",
+    "note": "единицы возраста карточки через t()"
+  },
+  {
+    "pr": 656,
+    "file": "apps/vibee-editor/player/src/components/Header/Header.tsx",
+    "needle": "branding.resolved",
+    "note": "заголовок вкладки из брендинга, без вспышки чужого имени"
+  },
+  {
+    "pr": 659,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "compositionsFingerprint",
+    "note": "отпечаток композиций в /health — устаревший образ видно"
+  },
+  {
+    "pr": 661,
+    "file": "apps/vibee-editor/player/src/test/setup.ts",
+    "needle": "restoreAllMocks",
+    "note": "без этого файла прогон тестов плеера падал до первого assert"
+  },
+  {
+    "pr": 661,
+    "file": "apps/vibee-editor/player/vitest.config.ts",
+    "needle": "preserveSymlinks",
+    "note": "резолв @vibee/atoms в тестах"
+  },
+  {
+    "pr": 661,
+    "file": "apps/vibee-editor/player/src/lib/cache.ts",
+    "needle": "withPrefix",
+    "note": "ключи кэша в своём пространстве"
+  },
+  {
+    "pr": 664,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "PLAYER_URL",
+    "note": "живой адрес плеера вместо мёртвого fly.dev"
+  },
+  {
+    "pr": 666,
+    "file": "scripts/check-dead-domain.cjs",
+    "needle": ".fly.dev",
+    "note": "проверка знает класс хостов, а не одно имя"
+  },
+  {
+    "pr": 666,
+    "file": "apps/vibee-editor/player/src/components/Modals/PublishModal.tsx",
+    "needle": "feedLink",
+    "note": "ссылка в тексте поста из origin, а не мёртвая константа"
+  },
+  {
+    "pr": 666,
+    "file": "apps/vibee-editor/player/public/sw-video-cache.js",
+    "needle": "vibee-render-production.up.railway.app/proxy/image",
+    "note": "живой прокси аватаров"
+  },
+  {
+    "pr": 670,
+    "file": "apps/vibee-editor/packages/vibee-atoms/package-lock.json",
+    "needle": "\"vitest\"",
+    "note": "тесты пакета можно установить воспроизводимо"
+  },
+  {
+    "pr": 672,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "postReelToChannel",
+    "note": "постинг в канал напрямую через Bot API — УЖЕ пропадал один раз"
+  },
+  {
+    "pr": 675,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "CANONICAL_SITE",
+    "note": "адрес бренда в подписи поста, отдельно от служебного player"
+  },
+  {
+    "pr": 675,
+    "file": "apps/vibee-editor/player/src/components/Modals/PublishModal.tsx",
+    "needle": "#рилс",
+    "note": "русская подпись поста"
+  },
+  {
+    "pr": 679,
+    "file": "apps/vibee-editor/render/src/agent/tools.ts",
+    "needle": "вКанале",
+    "note": "автопилот публикует через одну дверь и знает, дошёл ли ролик"
+  },
+  {
+    "pr": 677,
+    "file": "src/index.ts",
+    "needle": "BASE_WEBHOOK_URL NOT SET in production",
+    "note": "перенос строки восстановлен — синтаксическая ошибка чинена"
+  },
+  {
+    "pr": 682,
+    "file": "apps/vibee-editor/packages/vibee-atoms/src/atoms/tracks.ts",
+    "needle": "сумм",
+    "note": "ripple-удаление считает сдвиг одним проходом"
+  },
+  {
+    "pr": 682,
+    "file": "apps/vibee-editor/packages/vibee-atoms/src/atoms/selection.ts",
+    "needle": "targetTrackIdByType",
+    "note": "вставка в одну дорожку на тип"
+  },
+  {
+    "pr": 684,
+    "file": "apps/vibee-editor/player/src/components/Navigation/RouteMemory.tsx",
+    "needle": "LaunchRedirect",
+    "note": "приложение открывается на последнем экране"
+  },
+  {
+    "pr": 684,
+    "file": "apps/vibee-editor/player/src/atoms/agentChat.ts",
+    "needle": "agentDraftAtom",
+    "note": "переписка и черновик агента переживают уход со страницы"
+  },
+  {
+    "pr": 684,
+    "file": "apps/vibee-editor/player/src/pages/Chat.tsx",
+    "needle": "agentMessagesAtom",
+    "note": "живая страница чата подключена к хранимым атомам"
+  },
+  {
+    "pr": 684,
+    "file": "apps/vibee-editor/player/src/atoms/ui.ts",
+    "needle": "getOnInit",
+    "note": "вкладка редактора не затирается эффектом Editor"
+  },
+  {
+    "pr": 684,
+    "file": "apps/vibee-editor/player/src/App.tsx",
+    "needle": "<LaunchRedirect />",
+    "note": "маршрут / отдан вычисляемому редиректу"
+  },
+  {
+    "pr": 687,
+    "file": "apps/vibee-editor/render/src/agent/plan-tools.ts",
+    "needle": "plan_goal_create",
+    "note": "инструменты контент-плана"
+  },
+  {
+    "pr": 687,
+    "file": "apps/vibee-editor/render/src/agent/tools.ts",
+    "needle": "...planTools",
+    "note": "план подмешан в единый реестр"
+  },
+  {
+    "pr": 687,
+    "file": "apps/vibee-editor/player/src/components/Profile/ProfilePlan.tsx",
+    "needle": "plan_item_update",
+    "note": "вкладка «План» в профиле"
+  },
+  {
+    "pr": 687,
+    "file": "apps/vibee-editor/player/src/components/Profile/SoulEditor.tsx",
+    "needle": "tools/list",
+    "note": "список возможностей читается с сервера, а не пишется руками"
+  },
+  {
+    "pr": 688,
+    "file": "apps/vibee-editor/player/src/components/Profile/useIsOwnProfile.ts",
+    "needle": "useIsOwnProfile",
+    "note": "одно правило владения профилем"
+  },
+  {
+    "pr": 690,
+    "file": "apps/vibee-editor/player/src/atoms/profile.ts",
+    "needle": "from '../lib/apiFetch'",
+    "note": "authHeaders импортирован — синк профиля больше не падает"
+  },
+  {
+    "pr": 690,
+    "file": "apps/vibee-editor/player/src/atoms/soul.ts",
+    "needle": "async (get, set, soul",
+    "note": "обработчик ошибки SOUL больше не падает сам"
+  },
+  {
+    "pr": 690,
+    "file": "apps/vibee-editor/player/src/compositions/SplitTalkingHead.tsx",
+    "needle": "fontId: z.string()",
+    "note": "fontId доезжает до композиции, а не вырезается zod"
+  },
+  {
+    "pr": 691,
+    "file": "scripts/check-player-types.cjs",
+    "needle": "BASELINE",
+    "note": "храповик по ошибкам типов плеера"
+  },
+  {
+    "pr": 691,
+    "file": "lefthook.yml",
+    "needle": "player-types",
+    "note": "храповик подключён к гейтам"
+  },
+  {
+    "pr": 693,
+    "file": "apps/vibee-editor/player/src/components/Modals/PublishModal.tsx",
+    "needle": "'app.t27.ai/feed'",
+    "note": "ссылка в постах ведёт в ленту на своём домене"
+  },
+  {
+    "pr": 693,
+    "file": "apps/vibee-editor/player/src/components/Modals/__tests__/publishCaption.test.ts",
+    "needle": "app.t27.ai/feed",
+    "note": "тест держит ссылку и лимит подписи"
+  },
+  {
+    "pr": 693,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "'https://app.t27.ai'",
+    "note": "умолчание player указывает на свой домен"
+  },
+  {
+    "pr": 694,
+    "file": "apps/vibee-editor/player/src/lib/faceApi.ts",
+    "needle": "analyzeFace",
+    "note": "единственная живая функция вынесена, чат удалён"
+  },
+  {
+    "pr": 694,
+    "file": "apps/vibee-editor/player/src/components/Navigation/index.ts",
+    "needle": "RouteMemory",
+    "note": "бочонок навигации без мёртвых переэкспортов"
+  },
+  {
+    "pr": 696,
+    "file": "apps/vibee-editor/player/src/components/Panels/FeedPanel.css",
+    "needle": "app-tabbar-total",
+    "note": "подпись ленты не уходит под нижнюю панель"
+  },
+  {
+    "pr": 696,
+    "file": "apps/vibee-editor/player/src/components/Panels/FeedCard.tsx",
+    "needle": "stripRepeatedTitle",
+    "note": "описание показывает текст, а не повтор заголовка"
+  },
+  {
+    "pr": 697,
+    "file": "apps/vibee-editor/player/src/components/Auth/TelegramLoginButton.tsx",
+    "needle": "WIDGET_DOMAINS",
+    "note": "положительный список доменов виджета входа"
+  },
+  {
+    "pr": 699,
+    "file": "apps/vibee-editor/player/src/pages/Chat.tsx",
+    "needle": "messages.length <= 1",
+    "note": "приветствие агента открывается с начала"
+  },
+  {
+    "pr": 699,
+    "file": "apps/vibee-editor/player/src/components/Profile/Profile.css",
+    "needle": "значок на телефоне не рисуется",
+    "note": "вкладки профиля показывают слово, а не голое число"
+  },
+  {
+    "pr": 699,
+    "file": "apps/vibee-editor/player/src/components/Panels/GeneratePanel.tsx",
+    "needle": "Быстрая генерация",
+    "note": "описания моделей по-русски"
+  },
+  {
+    "pr": 701,
+    "file": "apps/vibee-editor/player/src/pages/Generate.css",
+    "needle": "одна колонка, которая прокручивается",
+    "note": "кнопка генерации видна на телефоне"
+  },
+  {
+    "pr": 702,
+    "file": "apps/vibee-editor/player/src/components/Profile/Profile.css",
+    "needle": "Пять чисел — ОДНОЙ строкой",
+    "note": "статистика профиля не занимает первый экран"
+  },
+  {
+    "pr": 702,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "GET /api/users/:username/templates — работы человека",
+    "note": "профиль показывает работы человека"
+  },
+  {
+    "pr": 705,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "Есть /api/feed, /api/feed/:id (число) и /api/feed/stats",
+    "note": "лента не отдаёт себя на чужой путь"
+  },
+  {
+    "pr": 704,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "function rejectExtraSegments",
+    "note": "лишние сегменты пути дают 404"
+  },
+  {
+    "pr": 707,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "function elevenLabsKey",
+    "note": "ключ ElevenLabs проверяется по форме, ошибка объясняет причину"
+  },
+  {
+    "pr": 709,
+    "file": "apps/vibee-editor/render/src/agent/tools.ts",
+    "needle": "async function refundTokens",
+    "note": "токены возвращаются при отказе провайдера"
+  },
+  {
+    "pr": 711,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "/api/providers — что из платного работает",
+    "note": "страница здоровья провайдеров"
+  },
+  {
+    "pr": 713,
+    "file": "apps/vibee-editor/render/src/agent/tools.ts",
+    "needle": "КЛОН ВЛАДЕЛЬЦА, а не первый попавшийся",
+    "note": "озвучка берёт голос владельца"
+  },
+  {
+    "pr": 714,
+    "file": "apps/vibee-editor/player/src/lib/agentStream.ts",
+    "needle": "Разговор с агентом живёт ВНЕ React",
+    "note": "агент продолжает отвечать при смене вкладок"
+  },
+  {
+    "pr": 714,
+    "file": "apps/vibee-editor/player/src/main.tsx",
+    "needle": "ЧТО ПЕРЕЖИВАЕТ СБРОС",
+    "note": "переписка не стирается при обновлении"
+  },
+  {
+    "pr": 716,
+    "file": "apps/vibee-editor/render/src/agent/provider.ts",
+    "needle": "'zai-lite'",
+    "note": "запасной путь агента внутри z.ai"
+  },
+  {
+    "pr": 717,
+    "file": "apps/vibee-editor/render/src/agent/tools.ts",
+    "needle": "name: 'providers_status'",
+    "note": "агент проверяет провайдеров перед обещанием"
+  },
+  {
+    "pr": 721,
+    "file": "apps/vibee-editor/player/src/components/Navigation/TelegramTabBar.css",
+    "needle": "ШИРОКИЙ ЭКРАН: нижней панели нет",
+    "note": "одна навигация на десктопе"
+  },
+  {
+    "pr": 722,
+    "file": "apps/vibee-editor/player/index.html",
+    "needle": "boot-fallback",
+    "note": "чёрный экран заменён сообщением"
+  },
+  {
+    "pr": 724,
+    "file": "apps/vibee-editor/player/vite.config.ts",
+    "needle": "ЗНАЧКИ — ОДНИМ ФАЙЛОМ",
+    "note": "чанков 45 → 21"
+  },
+  {
+    "pr": 727,
+    "file": "apps/vibee-editor/packages/vibee-atoms/src/defaults.ts",
+    "needle": "НАЗВАНИЯ ДОРОЖЕК ПО-РУССКИ",
+    "note": "дорожки редактора подписаны по-русски"
+  },
+  {
+    "pr": 729,
+    "file": "apps/vibee-editor/player/src/components/Timeline/Timeline.css",
+    "needle": "ЭКСПОРТ — ВТОРИЧНОЕ ДЕЙСТВИЕ",
+    "note": "воспроизведение заметнее экспорта"
+  },
+  {
+    "pr": 741,
+    "file": "apps/vibee-editor/player/src/pages/Chat.tsx",
+    "needle": "ЗДЕСЬ БЫЛО ОБЕЩАНИЕ",
+    "note": "приветствие не обещает непроверенное"
+  },
+  {
+    "pr": 742,
+    "file": "apps/vibee-editor/player/src/pages/Chat.tsx",
+    "needle": "ВИТРИНА ВОЗМОЖНОСТЕЙ АГЕНТА",
+    "note": "первые вопросы показывают умения"
+  },
+  {
+    "pr": 747,
+    "file": "apps/vibee-editor/render/src/agent/tools.ts",
+    "needle": "название ролика ПО-РУССКИ",
+    "note": "заголовки публикуются по-русски"
+  },
+  {
+    "pr": 754,
+    "file": "apps/vibee-editor/render/src/agent/tools.ts",
+    "needle": "name: 'my_renders'",
+    "note": "агент видит свои рендеры"
+  }
+]
