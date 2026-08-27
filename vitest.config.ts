@@ -4,7 +4,12 @@ import path from 'path'
 export default defineConfig({
   test: {
     globals: true,
-    setupFiles: process.env.DETECT_NETWORK ? ['scripts/detect-network-tests.mjs'] : [],
+    setupFiles: [
+      // Фиктивные env для юнит-тестов (FAL_KEY и пр.): сервисы проверяют
+      // ключ на входе, до моков — без этого чистые тесты падают (43 шт).
+      './vitest.setup.ts',
+      ...(process.env.DETECT_NETWORK ? ['scripts/detect-network-tests.mjs'] : []),
+    ],
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
