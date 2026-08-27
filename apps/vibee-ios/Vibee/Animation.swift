@@ -765,17 +765,33 @@ public struct PropertyAnimation {
   /// Сколько кадров запекаем. Ровно столько сэмплов и будет.
   public var frameCount: Int
   public var mode: SamplingMode
+  /**
+   * Частота кадров, при которой посчитаны сэмплы.
+   *
+   * ЗАЧЕМ ОНА ЗДЕСЬ. Раньше fps передавался ДВАЖДЫ и независимо: один раз в
+   * `springDriven(fps:)`, где он определяет форму пружины, второй — в
+   * `bake(fps:)`, где он определяет длительность. Ничто эти два числа не
+   * связывало. Передать 30 в первый и 24 во второй значит получить пружину
+   * ПРАВИЛЬНОЙ ФОРМЫ В НЕВЕРНОМ ТЕМПЕ — расхождение, которого не видно ни на
+   * одном статичном кадре и которое всплывает только в готовом видео.
+   *
+   * Теперь число одно и живёт вместе с сэмплами: кто их посчитал, тот и
+   * сказал, при какой частоте. `bake` его больше не спрашивает.
+   */
+  public var fps: Int
   /// Абсолютный кадр композиции → значение свойства.
   public var sample: (Int) -> Double
 
   public init(
-    keyPath: String, startFrame: Int, frameCount: Int, mode: SamplingMode = .linear,
+    keyPath: String, startFrame: Int, frameCount: Int, fps: Int,
+    mode: SamplingMode = .linear,
     sample: @escaping (Int) -> Double
   ) {
     precondition(frameCount > 0, "PropertyAnimation(\(keyPath)): frameCount должен быть > 0")
     self.keyPath = keyPath
     self.startFrame = startFrame
     self.frameCount = frameCount
+    self.fps = fps
     self.mode = mode
     self.sample = sample
   }
@@ -811,7 +827,8 @@ extension PropertyAnimation {
   ) -> PropertyAnimation {
     let ряд = springSeries(frameCount: frameCount, fps: Double(fps), config: config)
     return PropertyAnimation(
-      keyPath: keyPath, startFrame: startFrame, frameCount: frameCount, mode: mode
+      keyPath: keyPath, startFrame: startFrame, frameCount: frameCount,
+      fps: fps, mode: mode
     ) { кадр in
       let i = кадр - startFrame
       // За пределами отрезка держим края: сам отрезок и есть область
@@ -832,15 +849,33 @@ extension PropertyAnimation {
     keyPath: String,
     startFrame: Int,
     frameCount: Int,
+    fps: Int,
     inputRange: [Double],
     outputRange: [Double],
     easing: Easing = .linear,
     extrapolateLeft: Extrapolation = .extend,
-    extrapolateRight: Extrapolation = .clamp,
+    /**
+     * `.extend`, КАК В REMOTION, а не `.clamp`.
+     *
+     * Здесь стоял `.clamp` — «безопасный» на вид дефолт, который тихо менял
+     * поведение самой обычной записи. `interpolate(frame, [0, 12], [0, 1])`
+     * без опций в TSX продолжает расти после кадра 12; с `.clamp` он
+     * замирал на единице.
+     *
+     * В этом проекте это не мелочь: пружины перелетают за единицу и идут
+     * входом в interpolate, поэтому именно на хвосте живёт отскок титра.
+     * Замер: translateX уходит до +4.362 px на кадрах 7-16 — с `.clamp`
+     * отскок исчезал целиком, и заметить это можно было только глазом на
+     * готовом видео.
+     *
+     * Дефолт обязан повторять источник, а не улучшать его.
+     */
+    extrapolateRight: Extrapolation = .extend,
     mode: SamplingMode = .linear
   ) -> PropertyAnimation {
     PropertyAnimation(
-      keyPath: keyPath, startFrame: startFrame, frameCount: frameCount, mode: mode
+      keyPath: keyPath, startFrame: startFrame, frameCount: frameCount,
+      fps: fps, mode: mode
     ) { кадр in
       interpolate(
         Double(кадр), inputRange, outputRange, easing: easing,
@@ -929,9 +964,11 @@ public enum CABaker {
    * ЗАНИМАЕТ кадр целиком, поэтому дорожка длится N кадров, а keyTimes
    * идут шагом 1/N.
    */
+  /// fps НЕ параметр: он живёт в самой анимации рядом с сэмплами — см.
+  /// комментарий у `PropertyAnimation.fps`. Второй источник частоты кадров
+  /// уже давал верную форму в неверном темпе.
   public static func bake(
     _ animation: PropertyAnimation,
-    fps: Int,
     timebase: AnimationTimebase = .absolute,
     discreteKeyTimes: DiscreteKeyTimes = .valuesPlusOne
   ) -> CAKeyframeAnimation {
@@ -940,7 +977,7 @@ public enum CABaker {
       keyPath: animation.keyPath,
       значения: значения.map { NSNumber(value: $0) },
       startFrame: animation.startFrame,
-      fps: fps,
+      fps: animation.fps,
       mode: animation.mode,
       timebase: timebase,
       discreteKeyTimes: discreteKeyTimes)
