@@ -38,10 +38,12 @@ done
 say "— Реестр инструментов —"
 printf '%s' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' > /tmp/rc-req.json
 n=$(curl -s -m 10 http://127.0.0.1:3333/mcp -H "X-Agent-Key: $KEY" -H 'Content-Type: application/json' --data @/tmp/rc-req.json | python3 -c "import json,sys; print(len(json.load(sys.stdin)['result']['tools']))" 2>/dev/null)
-# 29 = производство + my_balance + skills CRUD (4) + skills market (3)
-#      + 6 инструментов z.ai-фолбэка (PR #716 продуктового лупа).
+# 32 = производство + my_balance + skills CRUD (4) + skills market (3)
+#      + 6 инструментов z.ai-фолбэка (PR #716 продуктового лупа)
+#      + 3 планера plan_* (подгрузились рестартом №218 со старым билдом
+#      от №174 — реестр эволюционировал, порог поднят с 29).
 # Добавляешь инструмент — подними ожидание здесь ОДНОЙ правкой.
-check "инструментов в реестре" 29 "$n"
+check "инструментов в реестре" 32 "$n"
 
 say "— Дешёвые живые вызовы —"
 for tool in whoami feed_stats templates_list feed_analytics my_assets soul_get skills_list; do
@@ -113,6 +115,21 @@ if [ "${REGRESS_PROBE_PROD:-0}" = "1" ]; then
     wh=$(curl -s -m 10 "https://api.telegram.org/bot${PAYBOT}/getWebhookInfo" | python3 -c "import json,sys; u=json.load(sys.stdin)['result'].get('url',''); print('ok' if 'stars-wh' in u else 'gone')" 2>/dev/null)
     check "вебхук кассира" ok "$wh"
   fi
+fi
+
+# Страж кассира (цикл №220): локальный мост до деплоя периодического
+# re-set. Умерший страж = окно «оплачено, но не зачислено» снова 25+ мин.
+say "— Страж кассира —"
+if [ -f loop/.cashier-watch.pid ]; then
+  wpid=$(cat loop/.cashier-watch.pid)
+  if ps -p "$wpid" > /dev/null 2>&1; then
+    say "  ✅ страж жив (PID $wpid)"
+  else
+    say "  ❌ СТРАЖ УМЕР (PID $wpid) — поднять: nohup zsh loop/cashier-watch.sh > /dev/null 2>&1 & echo \$! > loop/.cashier-watch.pid"
+    fail=1
+  fi
+else
+  say "  ⚠️ страж не запускался (окей, если фикс кассира уже задеплоен)"
 fi
 
 say "— Очередь и состояние —"
