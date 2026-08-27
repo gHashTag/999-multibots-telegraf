@@ -1,0 +1,27 @@
+name: Vibee
+options:
+  bundleIdPrefix: ai.t27
+  deploymentTarget: { iOS: "17.0" }
+targets:
+  Vibee:
+    type: application
+    platform: iOS
+    sources: [Vibee]
+    info:
+      path: Vibee/Info.plist
+      properties:
+        CFBundleDisplayName: Trinity S³AI
+        UILaunchScreen: {}
+        NSAppTransportSecurity: { NSAllowsArbitraryLoads: true }
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: ai.t27.vibee
+      GENERATE_INFOPLIST_FILE: NO
+      TARGETED_DEVICE_FAMILY: 1
+      # Симулятор нужен явно. На этой машине стоит Xcode с SDK iOS 26.5, а
+      # из рантаймов установлен только 18.4 — и без этой строки xcodebuild
+      # предлагал ТОЛЬКО устройства, каждое с «iOS 26.5 is not installed».
+      # То есть сборка была невозможна не из-за проекта, а из-за того, что
+      # симуляторных назначений в списке не оказывалось вовсе.
+      SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+      # Автоподпись для устройства не нужна и мешает сборке под симулятор.
+      CODE_SIGNING_ALLOWED: NO

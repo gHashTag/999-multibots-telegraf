@@ -1,3 +1,9 @@
+// ETIMEDOUT AggregateError на fetch к api.replicate.com (витки №121/173):
+// undici первым пробует IPv6, в этой сети он чёрной дырой — таймаут.
+// IPv4-first лечит; curl работал, потому что резолвил иначе.
+import * as dns from 'node:dns'
+;(dns as any).setDefaultResultOrder?.('ipv4first')
+
 import { createServer, IncomingMessage } from 'node:http'
 import {
   handleMcp,
@@ -5076,8 +5082,12 @@ const server = createServer(async (req, res) => {
         return
       }
       try {
+        // Потолок ожидания: t27.ai (GitHub Pages) бывает медленным (замер
+        // 7.2с, виток №157) — без потолка зависший fetch держал запрос, а
+        // витковый зонд с -m 15 получал пустоту и ложный FAIL.
         const rssResponse = await fetch('https://t27.ai/rss.xml', {
           headers: { 'User-Agent': 'vibee-render-blog-proxy' },
+          signal: AbortSignal.timeout(30_000),
         })
         if (!rssResponse.ok)
           throw new Error(`t27.ai RSS: HTTP ${rssResponse.status}`)

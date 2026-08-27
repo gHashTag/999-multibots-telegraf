@@ -102,6 +102,23 @@ async function main() {
   }
   lines.push('')
 
+  // 1b. Ретроспектива конвейера — если собрана не позже недели,
+  // владелец видит темп и слоты прямо в сводке (файл целиком — по ссылке).
+  try {
+    const retro = path.join(LOOP_DIR, 'RETROSPECTIVE.md')
+    const raw = fs.readFileSync(retro, 'utf8')
+    const m = raw.match(/КОНВЕЙЕРА — (\S+)/)
+    if (m && now - Date.parse(m[1]) < 7 * 86400_000) {
+      const pick = (re: RegExp) => raw.match(re)?.[1] ?? '—'
+      lines.push(`## Конвейер (ретроспектива ${m[1].slice(0, 10)})`)
+      lines.push(`- постов за окно: ${pick(/- постов за окно: ([^\n]+)/)}`)
+      lines.push(`- расписание: ${pick(/- рекомендация расписания: ([^\n]+)/)}`)
+      lines.push(`- полностью: loop/RETROSPECTIVE.md`)
+    }
+  } catch {
+    /* ретроспективы ещё нет — цикл №214 только готовит её */
+  }
+
   // 2. Свежие посты (12 часов) — что вышло за ночь.
   try {
     const mine = await call('feed_list', { mine: true, limit: 20 })
