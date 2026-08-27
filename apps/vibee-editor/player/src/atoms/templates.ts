@@ -181,20 +181,12 @@ export function applySettings(set: Setter, settings: TemplateSettings): void {
   // Avatar mode settings (CONSOLIDATED - 12 → 2)
   if (settings.splitAvatarSettings !== undefined)
     set(
-      splitAvatarSettingsAtom as WritableAtom<
-        AvatarModeSettings,
-        [AvatarModeSettings],
-        void
-      >,
+      splitAvatarSettingsAtom as WritableAtom<AvatarModeSettings, [AvatarModeSettings], void>,
       settings.splitAvatarSettings
     )
   if (settings.fullscreenAvatarSettings !== undefined)
     set(
-      fullscreenAvatarSettingsAtom as WritableAtom<
-        AvatarModeSettings,
-        [AvatarModeSettings],
-        void
-      >,
+      fullscreenAvatarSettingsAtom as WritableAtom<AvatarModeSettings, [AvatarModeSettings], void>,
       settings.fullscreenAvatarSettings
     )
   // Animation
