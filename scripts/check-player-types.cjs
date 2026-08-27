@@ -37,6 +37,65 @@ const PLAYER = path.join(__dirname, '..', 'apps', 'vibee-editor', 'player')
  */
 const TSC = path.join(PLAYER, 'node_modules', '.bin', 'tsc')
 
+/**
+ * ВОРОТА ОТ «ПРОВЕРИЛ НЕ ТО ДЕРЕВО».
+ *
+ * За два цикла четырежды: правки лежат в worktree, а скрипт запускается из
+ * основного чекаута — и печатает бодрое «14, ровно порог», не посмотрев на
+ * изменения вообще. Ни одного признака подвоха: число верное, код возврата
+ * нулевой, просто проверено НЕ ТО.
+ *
+ * Урок в скилле от этого не спас — четыре раза подряд. Значит нужен не урок,
+ * а проверка: если в проверяемом дереве правок плеера НЕТ, а в соседнем
+ * worktree того же репозитория ЕСТЬ — почти наверняка запущена не та копия.
+ *
+ * Это предупреждение, а не отказ: проверять чистое дерево бывает и надо
+ * (например, снять базовый уровень). Но молчать об этом нельзя.
+ */
+function предупредитьЕслиНеТоДерево() {
+  const грязно = дерево => {
+    const r = spawnSync(
+      'git',
+      /**
+       * `-uno` — без неотслеживаемых. Первая версия считала «правками» и их,
+       * и предупреждение сработало на симлинке node_modules, который лежит
+       * в каждом worktree и не значит ничего. Ложная тревога убивает доверие
+       * к предупреждению быстрее, чем его отсутствие: одно «да это всегда
+       * так» — и настоящее срабатывание тоже пролистают.
+       */
+      ['status', '--porcelain', '-uno', '--', 'apps/vibee-editor/player', 'apps/vibee-editor/packages'],
+      { cwd: дерево, encoding: 'utf8' }
+    )
+    return r.status === 0 && r.stdout.trim().length > 0
+  }
+
+  const своё = path.join(__dirname, '..')
+  if (грязно(своё)) return // правки здесь — всё в порядке
+
+  const wt = spawnSync('git', ['worktree', 'list', '--porcelain'], {
+    cwd: своё,
+    encoding: 'utf8',
+  })
+  if (wt.status !== 0) return
+
+  const другие = wt.stdout
+    .split('\n')
+    .filter(l => l.startsWith('worktree '))
+    .map(l => l.slice('worktree '.length).trim())
+    .filter(d => path.resolve(d) !== path.resolve(своё))
+
+  const сПравками = другие.filter(грязно)
+  if (!сПравками.length) return
+
+  console.warn(
+    '\n⚠️  ВОЗМОЖНО, ПРОВЕРЯЕТСЯ НЕ ТО ДЕРЕВО.\n' +
+      `   Здесь (${своё}) правок плеера нет,\n` +
+      '   а вот тут есть:\n' +
+      сПравками.map(d => `     ${d}`).join('\n') +
+      '\n   Запустите копию скрипта ОТТУДА, иначе число ниже ничего не значит.\n'
+  )
+}
+
 function fail(msg) {
   console.error(`\n❌ ${msg}\n`)
   process.exit(1)
@@ -89,6 +148,8 @@ for (const l of lines) {
   byFile.set(file, (byFile.get(file) || 0) + 1)
 }
 
+предупредитьЕслиНеТоДерево()
+console.log(`Дерево: ${path.join(__dirname, '..')}`)
 console.log(`Ошибок типов в плеере: ${count} (порог ${BASELINE})`)
 for (const [file, n] of [...byFile.entries()].sort((a, b) => b[1] - a[1])) {
   console.log(`  ${String(n).padStart(3)}  ${file}`)
