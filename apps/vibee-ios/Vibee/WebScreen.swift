@@ -79,13 +79,40 @@ struct WebViewContainer: UIViewRepresentable {
       }
     }
 
-    прятать();
+    /**
+     * ТАЙМЛАЙН — по ТОЧНОМУ ИМЕНИ, а не по геометрии.
+     *
+     * Правило «приклеена к низу, невысокая, во всю ширину» ловит панели
+     * вкладок, но таймлайн под него не подходит: он высокий и не приклеен.
+     * Расширять правило нельзя — оно тут же заденет нужное.
+     *
+     * Имя взято из ЗАДЕПЛОЕННОГО чанка Editor-*.js, а не из локального
+     * исходника и не из главного бандла: в главном этого класса нет вовсе,
+     * редактор грузится лениво. Три промаха подряд были именно об это.
+     *
+     * Прячем ТОЛЬКО дорожки. .timeline-transport с кнопкой «Экспорт»
+     * остаётся: это работающая функция, которой в нативной части ещё нет, и
+     * менять двойной таймлайн на пропавший экспорт нельзя.
+     */
+    function прятатьТаймлайн() {
+      var цели = document.querySelectorAll('.timeline-content');
+      for (var i = 0; i < цели.length; i++) {
+        var el = цели[i];
+        if (el.dataset.nativeShellHidden) continue;
+        el.dataset.nativeShellHidden = '1';
+        el.style.setProperty('display', 'none', 'important');
+      }
+    }
+
+    function всё() { прятать(); прятатьТаймлайн(); }
+
+    всё();
     // Мини-апп — одностраничное приложение: панель на другом экране
     // появится позже и другой. Поэтому смотрим за деревом, а не один раз.
-    new MutationObserver(прятать).observe(document.documentElement, {
+    new MutationObserver(всё).observe(document.documentElement, {
       childList: true, subtree: true
     });
-    window.addEventListener('resize', прятать);
+    window.addEventListener('resize', всё);
   })();
   """#
 
