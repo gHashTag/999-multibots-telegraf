@@ -6018,22 +6018,48 @@ const server = createServer(async (req, res) => {
       let username = ''
       let photoUrl: string | null = null
 
-      const initRaw = (req.headers['x-telegram-init-data'] as string) || ''
-      if (initRaw) {
-        const params = new URLSearchParams(initRaw)
+      /**
+       * ЛИЧНОСТЬ БЕРЁТСЯ ИЗ ПРОВЕРЕННОЙ ПОДПИСИ, а не из заголовка.
+       *
+       * Здесь стоял разбор `x-telegram-init-data` голым URLSearchParams —
+       * без единого вызова проверки подписи, — а сам маршрут лежал в
+       * PUBLIC_EXACT под комментарием «хендлер сам достаёт личность из
+       * подписи». Хендлер её не доставал. Достаточно было прислать
+       *
+       *   -H 'x-telegram-init-data: user={"id":<чужой id>,"username":"…"}'
+       *
+       * без hash и вообще без подписи, чтобы переписать чужой профиль:
+       * имя, ник и аватар жертвы в ленте и в чате агента становились
+       * такими, как решил отправитель.
+       *
+       * `verifiedTelegramId` считает HMAC от секрета бота и сверяет hash —
+       * подделать это нельзя, не зная токена. Раз личности нет, писать
+       * нечего: отвечаем 401 ДО первого обращения к базе.
+       */
+      const verified = verifiedTelegramId(req)
+      if (verified) {
+        const params = new URLSearchParams(
+          (req.headers['x-telegram-init-data'] as string) || ''
+        )
         try {
           const u = JSON.parse(params.get('user') || '{}')
-          tgId = String(u.id ?? '')
+          // id берём ИЗ ПРОВЕРЕННОГО значения, а не из тела: даже внутри
+          // подписанной строки полю user верить нельзя больше, чем подписи.
+          tgId = verified
           firstName = String(u.first_name ?? '')
           lastName = String(u.last_name ?? '')
           username = String(u.username ?? '')
           photoUrl = u.photo_url ?? null
         } catch {
-          /* повреждённый user — ответим честной ошибкой ниже */
+          tgId = verified
         }
       }
-      // Dev-коннектор: тело доверяем ТОЛЬКО если совпало с владельцем ключа.
-      if (!tgId) {
+      /**
+       * Dev-коннектор: тело доверяем ТОЛЬКО если совпало с владельцем ключа
+       * И ТОЛЬКО ВНЕ ПРОДАКШНА. Ветка держится на том, что AGENT_KEYS не
+       * утёк, — в проде это лишняя дверь рядом с крепкой.
+       */
+      if (!tgId && process.env.NODE_ENV !== 'production') {
         const keyOwner = chatIdentity(req, null)
         if (keyOwner) {
           let body: any = {}
