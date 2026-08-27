@@ -1,0 +1,5 @@
+# Всё, что fastlane создаёт локально: отчёты, логи, .p8 — в git не место.
+report.xml
+Preview.html
+*.p8
+README.md
