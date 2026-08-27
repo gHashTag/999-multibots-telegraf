@@ -175,10 +175,30 @@ public struct Easing {
   public static let linear = Easing { $0 }
   public static let step0 = Easing { $0 > 0 ? 1 : 0 }
   public static let step1 = Easing { $0 >= 1 ? 1 : 0 }
+  /**
+   * Clamp to [0,1] — exactly where Remotion does it, and only there.
+   *
+   * Remotion's easing.js runs `clampUnit(t)` before `circle`, `bounce` and
+   * the bezier solver. Without it Swift diverged hard OUTSIDE the unit
+   * interval, which is precisely where the springs in this project land:
+   * they overshoot past 1 and feed `interpolate` with `extend`.
+   *
+   * Measured before the fix: `circle` returned NaN for |t| > 1 (negative
+   * radicand) where Remotion returns 1 — 30 NaNs in a 161-point sweep, and
+   * a NaN in a layer transform silently blanks the layer. `bounce(1.5)`
+   * returned 3.234 against Remotion's 1.0.
+   *
+   * Clamping everything would be wrong in the other direction: `quad`,
+   * `cubic` and `sin` are NOT clamped in Remotion, and their values outside
+   * [0,1] are used.
+   */
+  @inline(__always)
+  static func clampUnit(_ t: Double) -> Double { Swift.min(Swift.max(t, 0), 1) }
+
   public static let quad = Easing { $0 * $0 }
   public static let cubic = Easing { $0 * $0 * $0 }
   public static let sin = Easing { 1 - Foundation.cos(($0 * Double.pi) / 2) }
-  public static let circle = Easing { 1 - (1 - $0 * $0).squareRoot() }
+  public static let circle = Easing { let u = clampUnit($0); return 1 - (1 - u * u).squareRoot() }
   public static let exp = Easing { Foundation.pow(2, 10 * ($0 - 1)) }
   public static let ease = Easing.bezier(0.42, 0, 1, 1)
 
@@ -197,7 +217,8 @@ public struct Easing {
     Easing { t in t * t * ((s + 1) * t - s) }
   }
 
-  public static let bounce = Easing { t in
+  public static let bounce = Easing { raw in
+    let t = clampUnit(raw)
     if t < 1 / 2.75 { return 7.5625 * t * t }
     if t < 2 / 2.75 {
       let t2 = t - 1.5 / 2.75
@@ -212,7 +233,13 @@ public struct Easing {
   }
 
   public static func bezier(_ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double) -> Easing {
-    Easing(UnitBezier(x1: x1, y1: y1, x2: x2, y2: y2).solve)
+    // Кламп ДО решателя: RN/Remotion делают это первой строкой возвращаемой
+    // функции. Без него solve уходит за пределы кривой и даёт значения,
+    // которых у Безье на [0,1] нет вовсе.
+    {
+      let b = UnitBezier(x1: x1, y1: y1, x2: x2, y2: y2)
+      return Easing { b.solve(clampUnit($0)) }
+    }()
   }
 
   public static func `in`(_ easing: Easing) -> Easing { easing }
@@ -1130,6 +1157,11 @@ extension Composition {
    *
    * Возвращает готовую анимацию для слоя клипа. Значение вне окна — ноль,
    * то есть слоя нет; внутри — `clip.opacity`.
+   *
+   * Как и `sequenceVisibility`, эта анимация в АБСОЛЮТНОМ времени ролика и
+   * вешается на ОБЁРТКУ клипа — тот слой, чей `beginTime` равен
+   * `AVCoreAnimationBeginTimeAtZero` без сдвига. На листе, сдвинутом на
+   * `clip.startFrame`, окно уехало бы на `startFrame` кадров второй раз.
    */
   public func clipVisibility(for clip: Clip) -> CAKeyframeAnimation {
     let всего = max(durationInFrames, clip.startFrame + clip.durationInFrames)

@@ -41,6 +41,9 @@ TOL = 1e-9
 bad = 0
 print(f"{'config':<20} {'max diff':>14}  frame")
 for k in ref:
+    # __easing хранит входы, а не значения — сверять там нечего.
+    if k.startswith('__') or 'values' not in ref[k] or k not in sw:
+        continue
     r, s = ref[k]['values'], sw[k]
     m, f = max((abs(a - b), i) for i, (a, b) in enumerate(zip(r, s)))
     ok = m < TOL
@@ -49,5 +52,5 @@ for k in ref:
 if bad:
     print(f"\n{bad} config(s) diverge beyond {TOL}. This is a real defect, not rounding.")
     sys.exit(1)
-print(f"\nall {len(ref)} configs match Remotion within {TOL}")
+print(f"\nall {sum(1 for k in ref if not k.startswith('__'))} series match Remotion within {TOL}")
 PY

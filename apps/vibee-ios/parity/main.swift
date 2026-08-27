@@ -19,4 +19,32 @@ for (name, cfg) in cfgs {
   }
   out.append("\"\(name)\":[\(v.joined(separator: ","))]")
 }
+// Easing и interpolate на том же наборе входов, включая выход за [0,1].
+var T: [Double] = []
+for i in -30...130 { T.append(Double(i) / 100) }
+
+let easings: [(String, Easing)] = [
+  ("bezier_0_4_0_0_2_1", Easing.bezier(0.4, 0, 0.2, 1)),
+  ("circle", Easing.circle),
+  ("bounce", Easing.bounce),
+  ("cubic", Easing.cubic),
+  ("out_cubic", Easing.out(Easing.cubic)),
+  ("ease", Easing.ease),
+  ("quad", Easing.quad),
+  ("sin", Easing.sin),
+]
+for (name, e) in easings {
+  let v = T.map { String(format: "%.15g", e.evaluate($0)) }
+  out.append("\"ease_\(name)\":[\(v.joined(separator: ","))]")
+}
+func row(_ name: String, _ f: (Double) -> Double) {
+  let v = T.map { String(format: "%.15g", f($0)) }
+  out.append("\"\(name)\":[\(v.joined(separator: ","))]")
+}
+row("interp_default") { interpolate($0 * 12, [0, 12], [0, 1]) }
+row("interp_clamp") {
+  interpolate($0 * 12, [0, 12], [0, 1], extrapolateLeft: .clamp, extrapolateRight: .clamp)
+}
+row("interp_multi") { interpolate($0 * 12, [0, 4, 8, 12], [0, 1, 0.2, 1]) }
+
 print("{\(out.joined(separator: ","))}")
