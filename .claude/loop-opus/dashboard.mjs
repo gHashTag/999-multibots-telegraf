@@ -19,7 +19,30 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const here = path.dirname(fileURLToPath(import.meta.url))
+/**
+ * Состояние ищем возле ОСНОВНОГО чекаута, а не возле этой копии скрипта.
+ *
+ * У оснастки две копии — в основном дереве и в worktree, — и запуск из
+ * второй искал STATE.json рядом с собой. Файл там отсутствует намеренно
+ * (состояние прогона в .gitignore), поэтому панель просто не собиралась.
+ * Ровно та же ошибка на такте раньше стоила guard.sh получаса простоя:
+ * состояние нельзя якорить к пути скрипта, если скрипт может размножиться.
+ */
+import { execFileSync } from 'node:child_process'
+
+const рядом = path.dirname(fileURLToPath(import.meta.url))
+let here = рядом
+try {
+  const common = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+    cwd: рядом,
+    encoding: 'utf8',
+  }).trim()
+  const корень = path.resolve(рядом, common, '..')
+  const кандидат = path.join(корень, '.claude', 'loop-opus')
+  if (fs.existsSync(path.join(кандидат, 'STATE.json'))) here = кандидат
+} catch {
+  /* не репозиторий — работаем рядом с собой */
+}
 const читать = f => {
   try {
     return JSON.parse(fs.readFileSync(path.join(here, f), 'utf8'))
