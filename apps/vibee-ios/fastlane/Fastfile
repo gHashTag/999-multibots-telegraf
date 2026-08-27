@@ -1,0 +1,91 @@
+# Сборка и выкладка в TestFlight.
+#
+#   fastlane beta          собрать и отправить в TestFlight
+#   fastlane build_only    только собрать .ipa, без отправки
+#   fastlane bump          поднять номер сборки
+#
+# ЧЕГО ЗДЕСЬ НЕТ. Ни одного пароля, ключа или сертификата. Аутентификация
+# идёт ключом App Store Connect API, который лежит ВНЕ репозитория и
+# передаётся тремя переменными окружения (см. README). Ключ .p8 нельзя
+# скачать повторно — потерял значит выпускай новый.
+
+default_platform(:ios)
+
+# Проект генерируется из project.yml, а .xcodeproj в .gitignore. Значит на
+# чистой машине его сначала надо создать — иначе gym упадёт на «project not
+# found», и причина будет неочевидна.
+XCODEPROJ = "Vibee.xcodeproj"
+SCHEME    = "Vibee"
+
+platform :ios do
+  before_all do
+    Dir.chdir("..") { sh("xcodegen generate") } unless File.exist?("../#{XCODEPROJ}")
+  end
+
+  desc "Ключ App Store Connect API из окружения"
+  private_lane :api_key do
+    unless ENV["ASC_KEY_ID"] && ENV["ASC_ISSUER_ID"] && ENV["ASC_KEY_P8"]
+      UI.user_error!(
+        "Нет ключа App Store Connect API.\n" \
+        "Задайте ASC_KEY_ID, ASC_ISSUER_ID и ASC_KEY_P8 (содержимое .p8).\n" \
+        "Как их получить — в apps/vibee-ios/README.md."
+      )
+    end
+    app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_KEY_P8"],
+      # Ключ живёт только в памяти процесса: writing to disk оставил бы .p8
+      # в рабочем каталоге, откуда он рано или поздно уедет в git.
+      in_house: false
+    )
+  end
+
+  desc "Поднять номер сборки до следующего свободного в TestFlight"
+  lane :bump do
+    key = api_key
+    # Номер берём У APPLE, а не из локального файла: локальный счётчик
+    # разъезжается, как только сборку сделали с другой машины или из CI, и
+    # выкладка падает на «build already exists» уже после долгой сборки.
+    latest = latest_testflight_build_number(
+      api_key: key,
+      app_identifier: ENV["VIBEE_BUNDLE_ID"] || "ai.t27.vibee",
+      initial_build_number: 0
+    )
+    increment_build_number(xcodeproj: XCODEPROJ, build_number: latest + 1)
+    UI.success("Номер сборки: #{latest + 1}")
+  end
+
+  desc "Собрать .ipa без отправки"
+  lane :build_only do
+    gym(
+      project: XCODEPROJ,
+      scheme: SCHEME,
+      configuration: "Release",
+      export_method: "app-store",
+      clean: true,
+      output_directory: "build/ipa",
+      # Логи gym по умолчанию тонут в шуме xcodebuild; при падении важна
+      # именно последняя ошибка, а не вся простыня.
+      buildlog_path: "build/logs"
+    )
+  end
+
+  desc "Собрать и отправить в TestFlight"
+  lane :beta do
+    key = api_key
+    bump
+    build_only
+    upload_to_testflight(
+      api_key: key,
+      # Ждать обработки НЕ будем: Apple обрабатывает сборку от минут до часа,
+      # и держать процесс всё это время значит вешать CI на пустом месте.
+      # Готовность видно в App Store Connect и по письму.
+      skip_waiting_for_build_processing: true,
+      # Заметки о сборке — из последнего коммита: человек в TestFlight
+      # должен понимать, что именно он тестирует.
+      changelog: last_git_commit[:message].to_s[0, 4000]
+    )
+    UI.success("Отправлено. Обработка у Apple занимает от нескольких минут.")
+  end
+end
