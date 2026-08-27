@@ -93,7 +93,7 @@ export const SafeZonesSchema = z.object({
 // Variant Axis Schemas
 // ============================================================
 
-const createAxisSchema = <T extends z.ZodTypeAny>(valueSchema: T) =>
+const createAxisSchema = <T extends z.ZodType<string>>(valueSchema: T) =>
   z.object({
     name: z.string(),
     description: z.string(),
@@ -425,27 +425,27 @@ export type BatchRenderConfigInput = z.input<typeof BatchRenderConfigSchema>;
 /**
  * Validate a template definition
  */
-export function validateTemplate(data: unknown): z.SafeParseReturnType<unknown, z.infer<typeof TemplateDefinitionSchema>> {
+export function validateTemplate(data: unknown) {
   return TemplateDefinitionSchema.safeParse(data);
 }
 
 /**
  * Validate talking head props
  */
-export function validateProps(data: unknown): z.SafeParseReturnType<unknown, z.infer<typeof TalkingHeadPropsSchema>> {
+export function validateProps(data: unknown) {
   return TalkingHeadPropsSchema.safeParse(data);
 }
 
 /**
  * Validate a generated variant
  */
-export function validateVariant(data: unknown): z.SafeParseReturnType<unknown, z.infer<typeof GeneratedVariantSchema>> {
+export function validateVariant(data: unknown) {
   return GeneratedVariantSchema.safeParse(data);
 }
 
 /**
  * Validate batch render config
  */
-export function validateBatchConfig(data: unknown): z.SafeParseReturnType<unknown, z.infer<typeof BatchRenderConfigSchema>> {
+export function validateBatchConfig(data: unknown) {
   return BatchRenderConfigSchema.safeParse(data);
 }

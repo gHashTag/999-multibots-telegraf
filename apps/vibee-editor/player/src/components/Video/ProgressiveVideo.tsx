@@ -156,7 +156,7 @@ export const ProgressiveVideo = memo(function ProgressiveVideo({
       />
 
       {/* Debug indicator (only in development) */}
-      {process.env.NODE_ENV === 'development' && (
+      {import.meta.env.DEV && (
         <div
           style={{
             position: 'absolute',

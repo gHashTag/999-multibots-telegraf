@@ -116,7 +116,7 @@ export function useProjectSync(
   // Refs
   const wsManagerRef = useRef<WebSocketManager | null>(null)
   const lastCursorBroadcastRef = useRef<number>(0)
-  const cleanupIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const cleanupIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Handle incoming messages
   const handleMessage = useCallback(

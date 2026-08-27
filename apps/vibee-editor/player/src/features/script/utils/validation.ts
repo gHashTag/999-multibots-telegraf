@@ -23,10 +23,14 @@ export const PlatformCaptionSchema = z.object({
   text: z.string().min(1, 'Caption text cannot be empty'),
   hashtags: z.array(z.string()),
   charLimit: z.number().positive(),
-}).refine(
-  (data) => data.text.length <= data.charLimit,
-  (data) => ({ message: `Caption exceeds ${data.platform} limit of ${data.charLimit} characters` })
-);
+}).superRefine((data, ctx) => {
+  if (data.text.length > data.charLimit) {
+    ctx.addIssue({
+      code: 'custom',
+      message: `Caption exceeds ${data.platform} limit of ${data.charLimit} characters`,
+    });
+  }
+});
 
 export const ScriptOutputSchema = z.object({
   voiceover: z.string().min(10, 'Voiceover must be at least 10 characters'),
@@ -99,7 +103,7 @@ export function validateScriptInput(input: unknown): ValidationResult<ScriptInpu
     return { success: true, data };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const errors = error.errors.map((e) => `${e.path.join('.')}: ${e.message}`);
+      const errors = error.issues.map((e) => `${e.path.join('.')}: ${e.message}`);
       return { success: false, errors };
     }
     return { success: false, errors: ['Unknown validation error'] };
@@ -112,7 +116,7 @@ export function validateScriptOutput(output: unknown): ValidationResult<ScriptOu
     return { success: true, data };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const errors = error.errors.map((e) => `${e.path.join('.')}: ${e.message}`);
+      const errors = error.issues.map((e) => `${e.path.join('.')}: ${e.message}`);
       return { success: false, errors };
     }
     return { success: false, errors: ['Unknown validation error'] };
