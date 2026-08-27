@@ -2,7 +2,7 @@
 // Templates Atoms - Video templates management
 // ===============================
 
-import { atom, type Getter, type Setter } from 'jotai'
+import { atom, type Getter, type Setter, type WritableAtom } from 'jotai'
 import { atomWithStorage } from 'jotai/utils'
 import type {
   Asset,
@@ -180,9 +180,23 @@ export function applySettings(set: Setter, settings: TemplateSettings): void {
     set(avatarBorderRadiusAtom, settings.avatarBorderRadius)
   // Avatar mode settings (CONSOLIDATED - 12 → 2)
   if (settings.splitAvatarSettings !== undefined)
-    set(splitAvatarSettingsAtom, settings.splitAvatarSettings)
+    set(
+      splitAvatarSettingsAtom as WritableAtom<
+        AvatarModeSettings,
+        [AvatarModeSettings],
+        void
+      >,
+      settings.splitAvatarSettings
+    )
   if (settings.fullscreenAvatarSettings !== undefined)
-    set(fullscreenAvatarSettingsAtom, settings.fullscreenAvatarSettings)
+    set(
+      fullscreenAvatarSettingsAtom as WritableAtom<
+        AvatarModeSettings,
+        [AvatarModeSettings],
+        void
+      >,
+      settings.fullscreenAvatarSettings
+    )
   // Animation
   if (settings.avatarAnimation !== undefined)
     set(avatarAnimationAtom, settings.avatarAnimation)

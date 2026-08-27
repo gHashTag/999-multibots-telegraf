@@ -61,7 +61,7 @@ export const ARBISCAN_CONFIG = {
 
 // Check if token is deployed
 export const isTokenDeployed = (): boolean => {
-  return TOKEN_CONFIG.address !== '' && TOKEN_CONFIG.address.startsWith('0x')
+  return TOKEN_CONFIG.address.startsWith('0x')
 }
 
 // Check if DAO is created

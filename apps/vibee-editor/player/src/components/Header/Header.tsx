@@ -516,7 +516,7 @@ export function Header({ wsStatus, wsClientId }: HeaderProps) {
               )}
               <UserAvatar
                 user={user}
-                avatarUrl={myProfile?.avatar_url}
+                avatarUrl={myProfile?.avatar_url ?? undefined}
                 onLogout={logout}
               />
             </div>

@@ -16,7 +16,7 @@
     "bench": "vitest bench"
   },
   "dependencies": {
-    "jotai": "^2.6.0"
+    "jotai": "2.16.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.11",

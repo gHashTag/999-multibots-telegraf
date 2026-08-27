@@ -25,7 +25,7 @@ const path = require('node:path')
  * Порог. Опускайте вместе с исправлениями — скрипт сам напомнит.
  * Значение на 2026-08-26: 14, из них 4 в пакете vibee-atoms.
  */
-const BASELINE = 14
+const BASELINE = 0
 
 const PLAYER = path.join(__dirname, '..', 'apps', 'vibee-editor', 'player')
 
@@ -63,7 +63,14 @@ function предупредитьЕслиНеТоДерево() {
        * к предупреждению быстрее, чем его отсутствие: одно «да это всегда
        * так» — и настоящее срабатывание тоже пролистают.
        */
-      ['status', '--porcelain', '-uno', '--', 'apps/vibee-editor/player', 'apps/vibee-editor/packages'],
+      [
+        'status',
+        '--porcelain',
+        '-uno',
+        '--',
+        'apps/vibee-editor/player',
+        'apps/vibee-editor/packages',
+      ],
       { cwd: дерево, encoding: 'utf8' }
     )
     return r.status === 0 && r.stdout.trim().length > 0
@@ -137,7 +144,11 @@ if (count === 0 && res.status !== 0) {
     `tsc завершился с кодом ${res.status}, но ни одной строки вида ` +
       '«error TSxxxx» в выводе нет.\n' +
       '   Это не чистый прогон, а сломанный запуск. Первые строки вывода:\n' +
-      out.split('\n').slice(0, 5).map(l => `   | ${l}`).join('\n')
+      out
+        .split('\n')
+        .slice(0, 5)
+        .map(l => `   | ${l}`)
+        .join('\n')
   )
 }
 
