@@ -415,7 +415,7 @@ async function main() {
     lastPostAt: new Date().toISOString(),
   })
   log(
-    `опубликован рилс «${topic.title}» (id ${pub.id}): ${reel.url} — ` +
+    `опубликован рилс «${title}» (id ${pub.id}): ${reel.url} — ` +
       `пост ${state.postsToday + 1}/${MAX_POSTS_PER_DAY} за ${state.date}`
   )
   // Отклик прошлых постов рядом с публикацией: владелец читает журнал
