@@ -14,8 +14,11 @@ LOG=/tmp/cashier-watch.log
 
 say() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $*" >> "$LOG"; }
 
-# Кассирные env тянутся один раз за цикл проверки (гостевая сессия
-# Railway флуктуирует пустыми ответами — ретраи как в start-render-local).
+# Кассирные env тянутся раз за цикл (гостевая сессия Railway флуктуирует
+# пустыми ответами — ретраи). При первом успехе кэш пишется в /tmp
+# (chmod 600): сессия умрёт надолго — страж продолжит на кэше, а не
+# превратится в вечно «env не получены».
+CACHE=/tmp/.cashier-env
 envs() {
   KV=""
   for i in 1 2 3 4 5 6; do
@@ -23,9 +26,16 @@ envs() {
     [ -n "$KV" ] && break
     sleep 15
   done
-  PAYBOT="$(echo "$KV" | grep ^TOKENS_PAYMENT_BOT_TOKEN= | cut -d= -f2-)"
-  SECRET="$(echo "$KV" | grep ^STARS_WEBHOOK_SECRET= | cut -d= -f2-)"
-  SELFURL="$(echo "$KV" | grep ^SELF_URL= | cut -d= -f2-)"
+  if [ -n "$KV" ]; then
+    PAYBOT="$(echo "$KV" | grep ^TOKENS_PAYMENT_BOT_TOKEN= | cut -d= -f2-)"
+    SECRET="$(echo "$KV" | grep ^STARS_WEBHOOK_SECRET= | cut -d= -f2-)"
+    SELFURL="$(echo "$KV" | grep ^SELF_URL= | cut -d= -f2-)"
+    printf 'PAYBOT=%s\nSECRET=%s\nSELFURL=%s\n' "$PAYBOT" "$SECRET" "$SELFURL" > "$CACHE"
+    chmod 600 "$CACHE"
+  elif [ -f "$CACHE" ]; then
+    source "$CACHE"
+    say "railway пуст — работаю на кэше env"
+  fi
 }
 
 say "страж стартовал (PID $$)"
