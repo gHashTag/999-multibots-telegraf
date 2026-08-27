@@ -20,7 +20,7 @@ import type {
 import { userAtom } from './user'
 import { API_BASE } from '../config'
 import { openInvoice } from '../lib/telegram'
-import { apiFetch } from '../lib/apiFetch'
+import { apiFetch, explainApiError } from '../lib/apiFetch'
 import { getErrorMessage } from '../features/script/utils/errorMessages'
 import { languageAtom } from './language'
 
@@ -617,17 +617,18 @@ export const deleteTemplateAtom = atom(
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/feed/${templateId}`, {
-        method: 'DELETE',
-        headers: {
-          'X-Telegram-Id': String(user.id),
-        },
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to delete')
-      }
+      /**
+       * apiFetch, а НЕ голый fetch — третий раз в этом файле.
+       *
+       * Здесь стоял `fetch` с заголовком `X-Telegram-Id`, которого сервер не
+       * знает: он требует подпись `X-Telegram-Init-Data`. Кнопка с корзиной
+       * на своей карточке ленты поэтому не работала НИ РАЗУ — 401, крутилка
+       * гасла, карточка оставалась на месте.
+       *
+       * apiFetch ставит подпись и разбирает статус, поэтому причина отказа
+       * доходит до человека словами, а не кодом.
+       */
+      await apiFetch(`/api/feed/${templateId}`, { method: 'DELETE' })
 
       // Remove from local feed list
       const templates = get(feedTemplatesAtom)
@@ -639,10 +640,8 @@ export const deleteTemplateAtom = atom(
       console.log('[Feed] Template deleted:', templateId)
     } catch (error) {
       console.error('[Feed] Failed to delete:', error)
-      set(
-        feedErrorAtom,
-        error instanceof Error ? error.message : 'Failed to delete'
-      )
+      // Человеку — по-человечески: «unauthorized» ему ничего не говорит.
+      set(feedErrorAtom, explainApiError(error))
       throw error
     }
   }

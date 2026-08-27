@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- deploy-probe: overflow-fix-715 -->
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <!-- Браузеры всё равно запрашивают /favicon.ico, если он не объявлен явно —
@@ -100,7 +101,78 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      ЗАПАСНОЙ ЭКРАН ВНУТРИ #root.
+
+      Замер 2026-08-26: маршрут /editor на телефоне оставлял #root ПУСТЫМ —
+      чёрный экран без единого слова. Причина снаружи React: маршрут просит
+      дюжину с лишним микрочанков одним залпом (есть по 154 байта), и
+      сорвавшаяся загрузка убивает монтирование целиком. ErrorBoundary тут
+      бессилен: он живёт внутри дерева, которое не успело появиться.
+
+      React заменяет содержимое #root при монтировании, поэтому в обычной
+      жизни этой разметки никто не увидит. Она показывается ровно в том
+      случае, когда показывать больше нечего.
+
+      Обработчик ошибок загрузки модулей ниже: он ловит сорвавшийся чанк и
+      предлагает перезагрузку. Один раз — автоматически (сеть моргнула,
+      второй заход обычно проходит), дальше уже словами, иначе получилась бы
+      петля перезагрузок на действительно сломанной сборке.
+    -->
+    <div id="root">
+      <div id="boot-fallback" style="
+        min-height:100dvh;display:flex;flex-direction:column;
+        align-items:center;justify-content:center;gap:14px;
+        padding:32px;text-align:center;
+        font-family:system-ui,-apple-system,'Segoe UI',sans-serif;
+        color:#8a8578;background:#0a0a0a;">
+        <div style="width:34px;height:34px;border:2px solid #2a2820;
+          border-top-color:#e6e0d2;border-radius:50%;
+          animation:boot-spin .9s linear infinite"></div>
+        <p style="margin:0;font-size:14px;color:#e6e0d2">Загружаю приложение…</p>
+        <p id="boot-hint" style="margin:0;font-size:12px;max-width:280px;line-height:1.5">
+          Если экран не сменится — значит не догрузились файлы. Обнови страницу.
+        </p>
+      </div>
+      <style>@keyframes boot-spin{to{transform:rotate(360deg)}}</style>
+    </div>
+    <script>
+      // Один автоматический повтор при сорвавшейся загрузке модуля: чаще
+      // всего это моргнувшая сеть, и второй заход проходит. Повторяем ровно
+      // один раз — метка в sessionStorage, иначе сломанная сборка дала бы
+      // бесконечную петлю перезагрузок.
+      (function () {
+        var KEY = 'vibee-boot-retry';
+        function onFail() {
+          if (sessionStorage.getItem(KEY)) {
+            var h = document.getElementById('boot-hint');
+            if (h) {
+              h.textContent =
+                'Файлы приложения не загрузились. Проверь связь и обнови страницу.';
+              h.style.color = '#d98c8c';
+            }
+            return;
+          }
+          sessionStorage.setItem(KEY, '1');
+          location.reload();
+        }
+        window.addEventListener('error', function (e) {
+          var t = e && e.target;
+          if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) onFail();
+        }, true);
+        window.addEventListener('vite:preloadError', onFail);
+        // Успешное монтирование снимает метку: следующая настоящая поломка
+        // снова получит право на один автоматический повтор.
+        window.addEventListener('load', function () {
+          setTimeout(function () {
+            var r = document.getElementById('root');
+            if (r && !document.getElementById('boot-fallback')) {
+              sessionStorage.removeItem(KEY);
+            }
+          }, 3000);
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

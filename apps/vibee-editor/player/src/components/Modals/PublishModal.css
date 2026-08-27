@@ -577,3 +577,13 @@
   color: var(--vibee-amber);
   font-weight: 600;
 }
+
+/* Честная строка на месте кнопки, которой нечем работать. Тон приглушённый:
+   это не ошибка человека и не его задача — просто состояние сервера. */
+.publish-unavailable {
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+  opacity: 0.65;
+  padding: 8px 0;
+}

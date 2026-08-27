@@ -446,3 +446,7 @@ DATA_QUALITY_REPORT.json
 MULTI_BOT_FARM_DASHBOARD_*.xlsx
 MetaMuse_*.xlsx
 *robokassa-url.txt
+
+# Симлинк на node_modules рендера: попал в индекс из-за `git add` по
+# каталогу. В образе он ломает установку зависимостей.
+apps/vibee-editor/render/node_modules

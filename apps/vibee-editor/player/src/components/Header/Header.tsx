@@ -703,6 +703,17 @@ export function Header({ wsStatus, wsClientId }: HeaderProps) {
                             )}
                             <span>{t('settings.disconnect')}</span>
                           </button>
+                        ) : instagramStatus?.unavailable ? (
+                          /**
+                           * Кнопки нет НАМЕРЕННО — та же причина, что в
+                           * модалке публикации: интеграции с Instagram на
+                           * сервере не существует, и нажатие не делало
+                           * ничего. Настройки — как раз то место, где
+                           * человек ищет объяснение, а не пустую кнопку.
+                           */
+                          <span className="connection-unavailable">
+                            {t('publish.instagramUnavailable')}
+                          </span>
                         ) : (
                           <button
                             className="connection-btn connect"

@@ -230,9 +230,37 @@ export const fetchInstagramStatusAtom = atom(
       if (response.ok) {
         const data = await response.json();
         set(instagramStatusAtom, data);
+      } else {
+        /**
+         * ТРЕТЬЕ состояние: сервер про Instagram не знает вовсе.
+         *
+         * Раньше здесь стоял `if (response.ok)` без else, и отказ не менял
+         * ничего. Человек открывал публикацию, видел кнопку «Подключить
+         * Instagram», жал — и не происходило РОВНО НИЧЕГО: ни ошибки, ни
+         * окна, ни второй попытки. Сколько угодно раз подряд.
+         *
+         * Причина не в сети: во всём render-server.ts слова instagram нет
+         * ни разу, а клиент зовёт пять таких адресов. Интеграции просто нет.
+         *
+         * «Не подключено» и «подключить некуда» — разные вещи, и путать их
+         * жестоко: первое человек может исправить, второе нет. Поэтому
+         * отличаем и показываем честно, а кнопку не рисуем вовсе.
+         */
+        set(instagramStatusAtom, {
+          connected: false,
+          unavailable: true,
+          reason: `сервер ответил ${response.status}`,
+        });
       }
     } catch (error) {
+      // Сеть могла и правда отвалиться — это НЕ то же самое, что «нет
+      // интеграции», и обещать человеку лишнего мы не будем.
       console.error('Failed to fetch Instagram status:', error);
+      set(instagramStatusAtom, {
+        connected: false,
+        unavailable: true,
+        reason: 'сервис не ответил',
+      });
     } finally {
       set(instagramLoadingAtom, false);
     }

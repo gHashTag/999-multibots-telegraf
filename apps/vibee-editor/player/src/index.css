@@ -1,3 +1,4 @@
+/* css-probe-719: проверка, что компонентные CSS доходят до сборки */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

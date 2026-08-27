@@ -161,6 +161,23 @@ async function ensureTokenRow(ctx: ToolContext): Promise<number> {
   return r.rows[0].balance
 }
 
+/** Запущенные рендеры: чат без состояния, иначе renderId теряется навсегда. */
+async function ensureRendersTable(ctx: ToolContext): Promise<void> {
+  await ctx.pool.query(
+    `CREATE TABLE IF NOT EXISTS agent_renders (
+       id          serial PRIMARY KEY,
+       telegram_id text NOT NULL,
+       render_id   text NOT NULL UNIQUE,
+       title       text,
+       created_at  timestamptz NOT NULL DEFAULT now()
+     )`
+  )
+  await ctx.pool.query(
+    `CREATE INDEX IF NOT EXISTS agent_renders_owner
+       ON agent_renders (telegram_id, created_at DESC)`
+  )
+}
+
 /** Таблица скиллов создаётся лениво при первом обращении — как user_soul. */
 async function ensureSkillsTable(ctx: ToolContext): Promise<void> {
   await ctx.pool.query(
@@ -443,13 +460,22 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'feed_publish',
     description:
-      'Опубликовать ролик в ленту. ВАЖНО: текст поста (description) обязателен и должен содержать ' +
+      'Опубликовать ролик в ленту. Заголовок и текст — ПО-РУССКИ, даже если исходный ' +
+      'материал английский: продукт русскоязычный. ВАЖНО: текст поста (description) обязателен и должен содержать ' +
       'хештеги — по канону проекта к каждому видео идёт текст для инстаграма. ' +
       'Публикация от имени того, кто вызвал инструмент; чужой telegram_id подставить нельзя.',
     parameters: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'название ролика' },
+        name: {
+          type: 'string',
+          description:
+            'название ролика ПО-РУССКИ. Замер 2026-08-27: у русских заголовков ' +
+            '2.6 просмотра в среднем (19 роликов), у английских — 1.0 (4 ролика). ' +
+            'Выборка мала, но продукт русскоязычный, и английский заголовок в нём ' +
+            'читается как чужой. Материал на английском (например блог t27.ai) — ' +
+            'ПЕРЕВЕДИ заголовок, а не копируй.',
+        },
         description: { type: 'string', description: 'текст поста с хештегами' },
         video_url: { type: 'string', description: 'ссылка на готовое видео' },
         thumbnail_url: { type: 'string' },
@@ -542,6 +568,78 @@ export const TOOLS: AgentTool[] = [
         ...(body.telegram?.posted === false && body.telegram.error
           ? { каналОшибка: body.telegram.error }
           : {}),
+      }
+    },
+  },
+
+  {
+    name: 'feed_unpublish',
+    /**
+     * Снять свою публикацию из ленты.
+     *
+     * ЗАЧЕМ. Из 31 инструмента у скиллов, целей и карточек плана есть
+     * удаление, а у ленты не было ничего. `feed_publish` была дверью в одну
+     * сторону: всё, что агент опубликовал — по ошибке, по недопонятой
+     * просьбе, просто дублем, — оставалось там навсегда, и попросить убрать
+     * было НЕЧЕМ.
+     *
+     * Нашлось потому, что я сам это и сделал: гоняя «бесплатные» сценарии,
+     * попросил агента «опубликуй мой лучший ролик ещё раз» — он послушался и
+     * создал дубль в живой ленте. Бесплатно в токенах не значит безопасно.
+     *
+     * УДАЛЕНИЯ ЗДЕСЬ НЕТ. Ставится `deleted_at` — строка остаётся на месте,
+     * просмотры и лайки целы, и повторная публикация того же ролика
+     * возвращает его обратно (upsert по имени сбрасывает `deleted_at`).
+     * Необратимых кнопок агенту не даём.
+     */
+    description:
+      'Снять СВОЮ публикацию из ленты по её id. Это скрытие, а не удаление: ' +
+      'ролик и его просмотры целы, публикация того же ролика вернёт его в ' +
+      'ленту. Чужие записи снять нельзя.',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'id записи в ленте (из feed_list)' },
+      },
+      required: ['id'],
+    },
+    async handler(a, ctx) {
+      const id = String((a as { id?: unknown }).id ?? '').trim()
+      if (!id) return { снято: false, причина: 'нужен id записи из feed_list' }
+
+      /**
+       * Идём в СВОЙ маршрут DELETE /api/feed/:id, а не пишем в таблицу сами.
+       *
+       * Здесь стоял отдельный UPDATE — вторая дверь в public_templates. В этом
+       * же файле такая вторая дверь уже была у публикации и молча разошлась с
+       * первой: ролики автопилота не уходили в Telegram-канал, потому что
+       * постинг живёт в обработчике, а прямой INSERT его не проходил.
+       * Повторять не будем: правило снятия должно быть ровно одно, и оно —
+       * в маршруте.
+       */
+      const res = await selfFetch(
+        `${selfBase()}/api/feed/${encodeURIComponent(id)}` +
+          `?telegram_id=${encodeURIComponent(ctx.telegramId)}`,
+        { method: 'DELETE' }
+      )
+      const body = (await res.json().catch(() => ({}))) as {
+        снято?: boolean
+        название?: string
+        error?: string
+      }
+      if (body.снято) {
+        return {
+          снято: true,
+          id,
+          название: body.название,
+          подсказка:
+            'Из ленты убрано. Ролик и его просмотры целы — опубликуй его снова, ' +
+            'и запись вернётся на место.',
+        }
+      }
+      return {
+        снято: false,
+        причина: body.error || `не удалось снять: HTTP ${res.status}`,
       }
     },
   },
@@ -871,6 +969,29 @@ export const TOOLS: AgentTool[] = [
         }
       }
       const renderId: string = startData.renderId
+      /**
+       * ЗАПИСЫВАЕМ КАЖДЫЙ ЗАПУЩЕННЫЙ РЕНДЕР.
+       *
+       * Найдено полным прогоном: агент собрал рилс, а следующим запросом
+       * честно сказал «renderId у меня нет — в этом чате рендер не
+       * запускался. Придумывать его не буду». Чат без состояния, а
+       * render_status требует идентификатор, который взять неоткуда.
+       *
+       * То есть агент мог запустить работу и никогда не узнать, чем она
+       * кончилась. Одна строка в таблицу — и рендер перестаёт теряться.
+       * Ошибку записи глотаем: потерять ЛОГ хуже, чем потерять рендер, но
+       * уронить из-за лога сам рендер — хуже всего.
+       */
+      try {
+        await ensureRendersTable(ctx)
+        await ctx.pool.query(
+          `INSERT INTO agent_renders (telegram_id, render_id, title)
+           VALUES ($1, $2, $3) ON CONFLICT (render_id) DO NOTHING`,
+          [ctx.telegramId, renderId, String(args.name || '').slice(0, 200)]
+        )
+      } catch (e) {
+        console.error('[рендеры] не записал запуск', renderId, e)
+      }
       if (args.wait === false) {
         return {
           началось: true,
@@ -1358,6 +1479,120 @@ export const TOOLS: AgentTool[] = [
    * plan_item_add; «сделай следующий из плана» — reel_render плюс
    * plan_item_update со статусом. Общий список, две пары рук.
    */
+  {
+    /**
+     * ПОЧЕМУ ЭТО ГЛАВНЫЙ ИНСТРУМЕНТ ЧЕСТНОСТИ.
+     *
+     * Приветствие агента заканчивается словами «могу сразу сделать картинку
+     * за 1 токен — только скажи тему». Замер 2026-08-26: у FAL кончился
+     * баланс, ключ ElevenLabs хранит идентификатор. То есть агент обещал
+     * ровно то, чего сделать не мог, а человек узнавал это, уже потратив ход.
+     *
+     * Токен теперь возвращается при отказе, но обещание всё равно ложное.
+     * Инструмент даёт агенту способ ПРОВЕРИТЬ, прежде чем обещать.
+     */
+    name: 'providers_status',
+    description:
+      'Что из платного работает ПРЯМО СЕЙЧАС: картинки (FAL), озвучка (ElevenLabs), ' +
+      'видео (Replicate), сам агент (GLM). Зови ПЕРЕД тем, как предложить платное ' +
+      'действие или пообещать результат: провайдер бывает мёртв по балансу или ключу, ' +
+      'и обещать в этот момент нечестно. Если что-то не работает — скажи человеку прямо, ' +
+      'что именно и почему, и предложи бесплатное: ленту, файлы, план, ремикс готового. ' +
+      'Бесплатно.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    async handler(_a, ctx) {
+      const r = await selfFetch(`${selfBase()}/api/providers`)
+      const d: any = await r.json().catch(() => null)
+      if (!r.ok || !d) {
+        return {
+          проверено: false,
+          причина: `страница здоровья не ответила: HTTP ${r.status}`,
+        }
+      }
+      const мёртвые = (d['провайдеры'] || [])
+        .filter((p: any) => !p.ok && !String(p['провайдер']).includes('не обязателен'))
+        .map((p: any) => `${p['провайдер']}: ${String(p['детали']).slice(0, 160)}`)
+      return {
+        работает: d['работает'],
+        всего: d['всего'],
+        неработает: мёртвые,
+        подсказка: мёртвые.length
+          ? 'НЕ ОБЕЩАЙ то, что в списке «неработает». Скажи человеку честно, ' +
+            'что именно сломано, и предложи бесплатное действие взамен.'
+          : 'Всё на месте — можно предлагать любое платное действие.',
+      }
+    },
+  },
+
+  {
+    name: 'my_renders',
+    description:
+      'Последние рендеры человека: когда запущен, как назывался, готов ли и ссылка. ' +
+      'Зови, когда спрашивают «что там с моим роликом» или когда сам запустил рендер ' +
+      'в прошлом разговоре: чат без состояния, и renderId иначе взять неоткуда. ' +
+      'Бесплатно.',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: { type: 'integer', minimum: 1, maximum: 20, description: 'сколько, по умолчанию 5' },
+      },
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      await ensureRendersTable(ctx)
+      const limit = Math.min(20, Math.max(1, Number(args.limit) || 5))
+      const r = await ctx.pool.query(
+        `SELECT render_id, title, created_at::text
+         FROM agent_renders WHERE telegram_id = $1
+         ORDER BY created_at DESC LIMIT $2`,
+        [ctx.telegramId, limit]
+      )
+      if (!r.rows.length) {
+        /**
+         * «Ещё не было» — не всегда правда, и врать тут нельзя.
+         *
+         * Запись рендеров появилась 2026-08-27; всё, что собрано раньше, в
+         * таблицу не попало. Человек, у которого рилсы есть, услышал бы
+         * «рендеров не было» и справедливо решил, что мы потеряли его работу.
+         * Готовые ролики при этом лежат в файлах и в ленте — туда и посылаем.
+         */
+        return {
+          всего: 0,
+          подсказка:
+            'В этом списке пусто. Учёт рендеров ведётся с 27 августа — всё, что ' +
+            'собрано раньше, сюда не попало. ВНИМАНИЕ: это НЕ значит, что у ' +
+            'человека нет роликов. Прежде чем сказать хоть слово о его ленте ' +
+            'или файлах — ВЫЗОВИ feed_list и my_assets. Пустота здесь про ' +
+            'этот список и только про него.',
+        }
+      }
+      // Статус спрашиваем у сервера: в таблице он устарел бы через минуту.
+      const рендеры = await Promise.all(
+        r.rows.map(async row => {
+          try {
+            const st = await selfFetch(`${selfBase()}/render/${encodeURIComponent(row.render_id)}`)
+            const d: any = await st.json().catch(() => null)
+            const url = d?.publicUrl || d?.outputUrl
+            return {
+              renderId: row.render_id,
+              название: row.title || undefined,
+              запущен: row.created_at,
+              статус: st.ok ? d?.status || 'неизвестно' : `не найден (HTTP ${st.status})`,
+              ссылка: url && !String(url).startsWith('http') ? `${selfBase()}${url}` : url,
+            }
+          } catch (e) {
+            return {
+              renderId: row.render_id,
+              запущен: row.created_at,
+              статус: `не спросить: ${e instanceof Error ? e.message : String(e)}`,
+            }
+          }
+        })
+      )
+      return { всего: рендеры.length, рендеры }
+    },
+  },
+
   ...planTools,
 ]
 

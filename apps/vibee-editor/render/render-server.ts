@@ -693,7 +693,12 @@ async function publishTemplateRow(data: Record<string, any>): Promise<{
        SET creator_name = $2, creator_avatar = $3, creator_username = $4,
            description = $5, thumbnail_url = $6, video_url = $7,
            template_settings = $8::jsonb, assets = $9::jsonb, tracks = $10::jsonb,
-           is_public = TRUE
+           is_public = TRUE,
+           -- Снятая публикация возвращается, если её публикуют заново. Без
+           -- этой строки upsert по имени обновил бы скрытую запись и она
+           -- осталась бы невидимой: человек нажал «опубликовать», получил
+           -- «готово» и не увидел ничего.
+           deleted_at = NULL
        WHERE id = $1
        RETURNING id, created_at::text`,
       [
@@ -5776,6 +5781,96 @@ const server = createServer(async (req, res) => {
   // Удалять можно ТОЛЬКО свои строки типа avatar_photo: генерации — это
   // история, её стирать нельзя; чужие строки — нельзя тем более. Владелец
   // определяется так же, как в POST: подпись или ключ агента.
+  // DELETE /api/feed/:id — снять СВОЮ публикацию из ленты.
+  //
+  // ЗАЧЕМ ЭТОТ МАРШРУТ ПОЯВИЛСЯ ТОЛЬКО СЕЙЧАС. Кнопка с корзиной на своей
+  // карточке в мини-аппе есть давно: она открывает подтверждение, показывает
+  // крутилку и зовёт `DELETE /api/feed/:id`. Обработчика по этому адресу не
+  // существовало вовсе, а клиент вдобавок слал `X-Telegram-Id` там, где
+  // сервер требует подпись. То есть кнопка не работала НИ РАЗУ с момента,
+  // как её нарисовали, и человек видел только исчезающую крутилку.
+  //
+  // Это НЕ удаление: ставится `deleted_at`. Просмотры и лайки целы, а
+  // повторная публикация того же ролика возвращает запись (upsert по имени
+  // сбрасывает `deleted_at`). Необратимых кнопок в ленте нет.
+  //
+  // Здесь же ЕДИНСТВЕННАЯ реализация: инструмент агента `feed_unpublish`
+  // ходит сюда по HTTP, а не пишет в таблицу сам. Две двери в одну таблицу
+  // в этом файле уже расходились молча — второй раз не повторяем.
+  const feedDeleteMatch = req.url?.split('?')[0]?.match(/^\/api\/feed\/(\d+)$/)
+  if (feedDeleteMatch && req.method === 'DELETE') {
+    /**
+     * Владелец: подпись мини-аппа, ключ агента — или `?telegram_id=` для
+     * вызова сервер-серверу. Последнее не дыра: общий гвард пропускает такой
+     * запрос только с верным `X-Api-Key`, то есть параметр читается лишь у
+     * того, кто и так уже доверенный. Ровно так владельца передаёт соседний
+     * `/api/feed/publish` — держим один приём, а не два.
+     */
+    const внутренний = new URL(req.url || '/', 'http://localhost').searchParams
+    const who =
+      chatIdentity(req, verifiedTelegramId(req)) || внутренний.get('telegram_id')
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: 'не удалось определить пользователя',
+          detail:
+            'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
+        })
+      )
+      return
+    }
+    const id = feedDeleteMatch[1]
+    try {
+      const pool = getPool()
+      // Владение проверяется В ТОМ ЖЕ UPDATE: между «проверил» и «снял»
+      // не остаётся промежутка, в который что-то могло измениться.
+      const upd = await pool.query(
+        `UPDATE public_templates
+            SET deleted_at = now()
+          WHERE id = $1 AND telegram_id = $2 AND deleted_at IS NULL
+          RETURNING id, name`,
+        [id, String(who)]
+      )
+      if (upd.rows.length) {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            снято: true,
+            id: String(upd.rows[0].id),
+            название: upd.rows[0].name,
+          })
+        )
+        return
+      }
+      // Три разных отказа, и человеку важно знать, какой именно: «ничего не
+      // произошло» — худший из возможных ответов.
+      const было = await pool.query(
+        `SELECT telegram_id, deleted_at FROM public_templates WHERE id = $1`,
+        [id]
+      )
+      if (!было.rows.length) {
+        res.writeHead(404, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ снято: false, error: 'такой записи в ленте нет' }))
+      } else if (String(было.rows[0].telegram_id) !== String(who)) {
+        res.writeHead(403, { 'Content-Type': 'application/json' })
+        res.end(
+          JSON.stringify({ снято: false, error: 'это чужая публикация — снять нельзя' })
+        )
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ снято: false, error: 'эта публикация уже снята' }))
+      }
+    } catch (e) {
+      // getPool() бросает СИНХРОННО — вне try это уронило бы процесс целиком.
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({ снято: false, error: `не удалось снять: ${String(e).slice(0, 160)}` })
+      )
+    }
+    return
+  }
+
   if (req.url?.split('?')[0] === '/api/assets' && req.method === 'DELETE') {
     const who = chatIdentity(req, verifiedTelegramId(req))
     if (!who) {
@@ -6282,7 +6377,7 @@ const server = createServer(async (req, res) => {
             COALESCE(pt.creator_username, '') as creator_username,
             MIN(pt.created_at)::text as created_at
           FROM public_templates pt
-          WHERE LOWER(pt.creator_username) = LOWER($1)
+          WHERE LOWER(pt.creator_username) = LOWER($1) AND pt.deleted_at IS NULL
           GROUP BY pt.telegram_id, pt.creator_name, pt.creator_avatar, pt.creator_username
           LIMIT 1
         `

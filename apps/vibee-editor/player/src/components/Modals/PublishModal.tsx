@@ -338,6 +338,18 @@ export function PublishModal({ isOpen, onClose, videoUrl, thumbnailUrl }: Publis
                       <Instagram size={16} />
                       <span>@{instagramStatus.instagram_username}</span>
                     </label>
+                  ) : instagramStatus?.unavailable ? (
+                    /**
+                     * Кнопки здесь нет НАМЕРЕННО. Интеграции с Instagram на
+                     * сервере не существует: клиент зовёт пять адресов
+                     * /api/instagram/*, а в render-server.ts слова instagram
+                     * нет ни разу. Кнопка была, нажатие не делало ничего —
+                     * ни ошибки, ни окна. Честная строка полезнее живой на
+                     * вид кнопки, которая молчит.
+                     */
+                    <span className="publish-unavailable">
+                      {t('publish.instagramUnavailable')}
+                    </span>
                   ) : (
                     <button
                       type="button"
