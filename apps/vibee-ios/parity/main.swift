@@ -47,4 +47,18 @@ row("interp_clamp") {
 }
 row("interp_multi") { interpolate($0 * 12, [0, 4, 8, 12], [0, 1, 0.2, 1]) }
 
+let measure: [(String, SpringConfig)] = [
+  ("m_captions_pop",    SpringConfig(damping: 12, mass: 0.4, stiffness: 180)),
+  ("m_captions_bounce", SpringConfig(damping: 8,  mass: 0.3, stiffness: 200)),
+  ("m_captions_slide",  SpringConfig(damping: 15, mass: 1,   stiffness: 150)),
+  ("m_noir_word",       SpringConfig(damping: 200, mass: 1,  stiffness: 380)),
+  ("m_promoV3_cta",     SpringConfig(damping: 14, mass: 1,   stiffness: 100)),
+  ("m_bouncy",          SpringConfig(damping: 3,  mass: 2,   stiffness: 120)),
+  ("m_very_bouncy",     SpringConfig(damping: 1,  mass: 3,   stiffness: 100)),
+]
+for (name, cfg) in measure {
+  let v = measureSpring(fps: fps, config: cfg, threshold: 0.005)
+  out.append("\"\(name)\":[\(v)]")
+}
+
 print("{\(out.joined(separator: ","))}")

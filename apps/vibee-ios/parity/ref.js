@@ -48,4 +48,22 @@ for (const [name, cfg] of CFGS) {
   }
   out[name] = {config: cfg, values: vals}
 }
+// measureSpring: естественная длительность. От неё считается всё
+// масштабирование spring(durationInFrames:), поэтому расхождение здесь
+// сдвигает КАЖДУЮ анимацию, а не одну.
+const {measureSpring} = require('/Users/playom/999-multibots-telegraf/apps/vibee-editor/render/node_modules/remotion/dist/cjs/spring/measure-spring.js')
+const MEASURE = [
+  ['m_captions_pop',    {damping:12, stiffness:180, mass:0.4}],
+  ['m_captions_bounce', {damping:8,  stiffness:200, mass:0.3}],
+  ['m_captions_slide',  {damping:15, stiffness:150}],
+  ['m_noir_word',       {damping:200, stiffness:380}],
+  ['m_promoV3_cta',     {damping:14}],
+  // Низкое затухание при большой массе — самый «пружинистый» случай, где
+  // окно осадки решает.
+  ['m_bouncy',          {damping:3, stiffness:120, mass:2}],
+  ['m_very_bouncy',     {damping:1, stiffness:100, mass:3}],
+]
+for (const [name, cfg] of MEASURE) {
+  out[name] = {values: [measureSpring({fps, config: cfg, threshold: 0.005})]}
+}
 console.log(JSON.stringify(out))
