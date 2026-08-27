@@ -6898,16 +6898,18 @@ async function main() {
     console.log(`🔌 WebSocket: ws://0.0.0.0:${PORT} (real-time sync)`)
     console.log(`📦 S3 Bucket: ${S3_BUCKET}`)
 
-    // САМОВОССТАНОВЛЕНИЕ ВЕБХУКА КАССИРА. Рестарт соседнего сервиса ботов
-    // (общий main) периодически сбивает setWebhook кассира звёзд, а все
-    // сервисы рестартуют вместе на каждом деплое. Рендер поднимается
-    // последним — и молча возвращает вебхук. Идемпотентно: лишний
-    // setWebhook с теми же параметрами безвреден.
+    // САМОВОССТАНОВЛЕНИЕ ВЕБХУКА КАССИРА. Соседний сервис ботов (общий
+    // main) сбивает setWebhook кассира звёзд на СВОИХ рестартах — а рендер
+    // при этом может не рестартовать, и вебхук висит слетевшим до
+    // следующего деплоя (инцидент цикла №218: оплата могла не зачислиться).
+    // Поэтому не разовый таймер, а периодический re-set: идемпотентен,
+    // с теми же параметрами безвреден. Локальный стенд не тянет кассирные
+    // env — блок у него не активен и прод не трогает.
     const payBot = process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
     const whSecret = process.env.STARS_WEBHOOK_SECRET || ''
     const selfUrl = process.env.SELF_URL || ''
     if (payBot && whSecret && selfUrl) {
-      setTimeout(() => {
+      const rehook = () =>
         fetch(
           `https://api.telegram.org/bot${payBot}/setWebhook`,
           {
@@ -6932,7 +6934,8 @@ async function main() {
               String(e).slice(0, 120)
             )
           )
-      }, 30_000)
+      setTimeout(rehook, 30_000)
+      setInterval(rehook, 10 * 60_000)
     }
   })
 }
