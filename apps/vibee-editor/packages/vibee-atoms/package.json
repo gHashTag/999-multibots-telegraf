@@ -15,9 +15,6 @@
     "test:watch": "vitest --watch",
     "bench": "vitest bench"
   },
-  "dependencies": {
-    "jotai": "^2.6.0"
-  },
   "devDependencies": {
     "@types/react": "^19.2.11",
     "@types/react-dom": "^19.2.3",
@@ -26,6 +23,10 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "typescript": "^5.0.0",
-    "vitest": "^1.6.0"
+    "vitest": "^1.6.0",
+    "jotai": "^2.16.0"
+  },
+  "peerDependencies": {
+    "jotai": ">=2.6.0"
   }
 }
