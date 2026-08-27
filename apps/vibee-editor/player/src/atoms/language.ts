@@ -605,6 +605,8 @@ const en: Translations = {
   'publish.postToTelegram': 'Also post to Telegram',
   'publish.postToInstagram': 'Also post to Instagram',
   'publish.connectInstagram': 'Connect Instagram',
+  'publish.instagramUnavailable':
+    'Instagram posting is not set up on this server yet',
   'publish.captionPreview': 'Post preview',
 
   // Instagram callback
@@ -2258,6 +2260,8 @@ const ru: Translations = {
   'publish.postToTelegram': 'Также опубликовать в Telegram',
   'publish.postToInstagram': 'Также опубликовать в Instagram',
   'publish.connectInstagram': 'Подключить Instagram',
+  'publish.instagramUnavailable':
+    'Публикация в Instagram пока не настроена на сервере',
   'publish.captionPreview': 'Превью поста',
 
   // Instagram callback
