@@ -720,7 +720,28 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             const voiceId = await getVoiceId(telegramId)
 
             if (!voiceId) {
-              throw new Error('User voice ID not found for audio generation')
+              // Отсутствующий voice_id — тот же UX, что и невалидный:
+              // понятное сообщение с /voice вместо общего «ошибка обработки»
+              // (инцидент чистки тестов №233: throw прятал причину).
+              logger.warn('❌ [AI REELS] У пользователя нет voice_id', {
+                telegramId,
+              })
+              ctx.session.aiReels = {
+                ...ctx.session.aiReels,
+                imageUrl,
+                text,
+                needsVoiceCreation: true,
+              }
+              await ctx.reply(
+                isRu
+                  ? '❌ Ваш голос не найден в системе ElevenLabs.\n\n' +
+                      '🎤 Пожалуйста, сначала натренируйте свой голос командой /voice\n\n' +
+                      '💡 После создания голоса вы сможете продолжить создание AI Reels с сохраненными данными.'
+                  : '❌ Your voice was not found in ElevenLabs system.\n\n' +
+                      '🎤 Please train your voice first using /voice command\n\n' +
+                      '💡 After creating your voice, you can continue creating AI Reels with saved data.'
+              )
+              return ctx.scene.leave()
             }
 
             // ✅ ВАЛИДАЦИЯ: Проверяем существование голоса в ElevenLabs API
