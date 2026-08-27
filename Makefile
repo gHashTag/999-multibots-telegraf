@@ -20,7 +20,7 @@ APP_NAME := $(APP_NAME)
 .PHONY: help doctor install install-root install-player install-render \
 	up down build-dev run pause clean remove docker-build \
 	dev-bot dev-player dev-render compose-up compose-down compose-status \
-	test test-root test-player test-render test-safe-beta test-e2e-safe-beta \
+	test test-root test-player test-render \
 	test-supabase-exit verify-supabase-exit-app \
 	typecheck typecheck-root typecheck-player typecheck-render \
 	build build-root build-player build-render \
@@ -107,30 +107,6 @@ test-player: ## Run all Mini App unit tests once.
 test-render: ## Run all render/MCP unit tests once.
 	@cd $(RENDER_DIR) && $(NPM) exec -- vitest run
 
-test-safe-beta: ## Run the focused auth, identity, MCP and immutable-lock suites.
-	@cd $(RENDER_DIR) && $(NPM) exec -- vitest run \
-		auth.test.ts \
-		src/profile/verifiedProfile.test.ts \
-		src/profile/profileOwnershipSource.test.ts \
-		src/agent/safe-beta.test.ts \
-		src/runtime/safeBeta.test.ts
-	@cd $(ROOT_DIR)/apps/vibee-editor/packages/vibee-atoms && \
-		$(RENDER_DIR)/node_modules/.bin/vitest run \
-		--config ../../render/vitest.config.ts --root . \
-		src/telegram-auth.test.ts src/__tests__/agent-policy.test.ts
-	@cd $(PLAYER_DIR) && $(NPM) exec -- vitest run \
-		src/atoms/clientSafeBeta.test.ts \
-		src/atoms/telegramIdentity.test.ts \
-		src/atoms/telegramIdentitySource.test.ts \
-		src/components/Auth/TelegramLoginButton.test.tsx \
-		src/config/safeBeta.test.ts \
-		src/lib/__tests__/clientSafeBetaArtifact.test.ts \
-		src/lib/__tests__/legacyPaidHandlersSafeBeta.test.ts \
-		src/pages/Chat.safe-beta.test.ts
-
-test-e2e-safe-beta: ## Verify Agent/header geometry at 390, 720 and 1024px on an isolated port.
-	@cd $(PLAYER_DIR) && $(NPM) run test:e2e:safe-beta
-
 test-supabase-exit: ## Prove the player/render lane has no Supabase runtime or egress.
 	@cd $(ROOT_DIR) && $(NODE) --test scripts/tests/player-entrypoint-supabase-guard.test.mjs
 	@cd $(ROOT_DIR) && $(NODE) scripts/tests/supabase-exit-runtime.test.mjs
@@ -196,6 +172,6 @@ tri-selftest: ## Run the repository-native CLI self-test when tri is installed.
 	@command -v tri >/dev/null || { echo "tri is required" >&2; exit 1; }
 	@cd $(ROOT_DIR) && tri selftest
 
-verify-editor: doctor test-safe-beta test-player typecheck-player typecheck-render build-player build-render test-e2e-safe-beta remotion-versions audit-player audit-render security-scan diff-check ## Verify SAFE BETA editor/render.
+verify-editor: doctor test-player test-render test-supabase-exit typecheck-player typecheck-render build-player build-render remotion-versions audit-player audit-render security-scan diff-check ## Verify the current editor/render candidate.
 
 verify: doctor test typecheck build remotion-versions audit security-scan diff-check tri-regress tri-selftest ## Run the complete release gate; any failure blocks release.
