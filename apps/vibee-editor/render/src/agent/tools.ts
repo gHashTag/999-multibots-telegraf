@@ -161,6 +161,23 @@ async function ensureTokenRow(ctx: ToolContext): Promise<number> {
   return r.rows[0].balance
 }
 
+/** Запущенные рендеры: чат без состояния, иначе renderId теряется навсегда. */
+async function ensureRendersTable(ctx: ToolContext): Promise<void> {
+  await ctx.pool.query(
+    `CREATE TABLE IF NOT EXISTS agent_renders (
+       id          serial PRIMARY KEY,
+       telegram_id text NOT NULL,
+       render_id   text NOT NULL UNIQUE,
+       title       text,
+       created_at  timestamptz NOT NULL DEFAULT now()
+     )`
+  )
+  await ctx.pool.query(
+    `CREATE INDEX IF NOT EXISTS agent_renders_owner
+       ON agent_renders (telegram_id, created_at DESC)`
+  )
+}
+
 /** Таблица скиллов создаётся лениво при первом обращении — как user_soul. */
 async function ensureSkillsTable(ctx: ToolContext): Promise<void> {
   await ctx.pool.query(
@@ -880,6 +897,29 @@ export const TOOLS: AgentTool[] = [
         }
       }
       const renderId: string = startData.renderId
+      /**
+       * ЗАПИСЫВАЕМ КАЖДЫЙ ЗАПУЩЕННЫЙ РЕНДЕР.
+       *
+       * Найдено полным прогоном: агент собрал рилс, а следующим запросом
+       * честно сказал «renderId у меня нет — в этом чате рендер не
+       * запускался. Придумывать его не буду». Чат без состояния, а
+       * render_status требует идентификатор, который взять неоткуда.
+       *
+       * То есть агент мог запустить работу и никогда не узнать, чем она
+       * кончилась. Одна строка в таблицу — и рендер перестаёт теряться.
+       * Ошибку записи глотаем: потерять ЛОГ хуже, чем потерять рендер, но
+       * уронить из-за лога сам рендер — хуже всего.
+       */
+      try {
+        await ensureRendersTable(ctx)
+        await ctx.pool.query(
+          `INSERT INTO agent_renders (telegram_id, render_id, title)
+           VALUES ($1, $2, $3) ON CONFLICT (render_id) DO NOTHING`,
+          [ctx.telegramId, renderId, String(args.name || '').slice(0, 200)]
+        )
+      } catch (e) {
+        console.error('[рендеры] не записал запуск', renderId, e)
+      }
       if (args.wait === false) {
         return {
           началось: true,
@@ -1409,6 +1449,59 @@ export const TOOLS: AgentTool[] = [
             'что именно сломано, и предложи бесплатное действие взамен.'
           : 'Всё на месте — можно предлагать любое платное действие.',
       }
+    },
+  },
+
+  {
+    name: 'my_renders',
+    description:
+      'Последние рендеры человека: когда запущен, как назывался, готов ли и ссылка. ' +
+      'Зови, когда спрашивают «что там с моим роликом» или когда сам запустил рендер ' +
+      'в прошлом разговоре: чат без состояния, и renderId иначе взять неоткуда. ' +
+      'Бесплатно.',
+    parameters: {
+      type: 'object',
+      properties: {
+        limit: { type: 'integer', minimum: 1, maximum: 20, description: 'сколько, по умолчанию 5' },
+      },
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      await ensureRendersTable(ctx)
+      const limit = Math.min(20, Math.max(1, Number(args.limit) || 5))
+      const r = await ctx.pool.query(
+        `SELECT render_id, title, created_at::text
+         FROM agent_renders WHERE telegram_id = $1
+         ORDER BY created_at DESC LIMIT $2`,
+        [ctx.telegramId, limit]
+      )
+      if (!r.rows.length) {
+        return { всего: 0, подсказка: 'рендеров ещё не было — собрать можно через reel_render' }
+      }
+      // Статус спрашиваем у сервера: в таблице он устарел бы через минуту.
+      const рендеры = await Promise.all(
+        r.rows.map(async row => {
+          try {
+            const st = await selfFetch(`${selfBase()}/render/${encodeURIComponent(row.render_id)}`)
+            const d: any = await st.json().catch(() => null)
+            const url = d?.publicUrl || d?.outputUrl
+            return {
+              renderId: row.render_id,
+              название: row.title || undefined,
+              запущен: row.created_at,
+              статус: st.ok ? d?.status || 'неизвестно' : `не найден (HTTP ${st.status})`,
+              ссылка: url && !String(url).startsWith('http') ? `${selfBase()}${url}` : url,
+            }
+          } catch (e) {
+            return {
+              renderId: row.render_id,
+              запущен: row.created_at,
+              статус: `не спросить: ${e instanceof Error ? e.message : String(e)}`,
+            }
+          }
+        })
+      )
+      return { всего: рендеры.length, рендеры }
     },
   },
 
