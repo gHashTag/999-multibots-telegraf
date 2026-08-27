@@ -608,40 +608,38 @@ export const TOOLS: AgentTool[] = [
       if (!id) return { снято: false, причина: 'нужен id записи из feed_list' }
 
       /**
-       * telegram_id в условии — не украшение: без него агент по чужому id
-       * снял бы чужую публикацию. Проверка владения и запись идут ОДНИМ
-       * запросом, поэтому между «проверил» и «снял» нет промежутка.
+       * Идём в СВОЙ маршрут DELETE /api/feed/:id, а не пишем в таблицу сами.
+       *
+       * Здесь стоял отдельный UPDATE — вторая дверь в public_templates. В этом
+       * же файле такая вторая дверь уже была у публикации и молча разошлась с
+       * первой: ролики автопилота не уходили в Telegram-канал, потому что
+       * постинг живёт в обработчике, а прямой INSERT его не проходил.
+       * Повторять не будем: правило снятия должно быть ровно одно, и оно —
+       * в маршруте.
        */
-      const r = await ctx.pool.query(
-        `UPDATE public_templates
-            SET deleted_at = now()
-          WHERE id = $1 AND telegram_id = $2 AND deleted_at IS NULL
-          RETURNING id, name`,
-        [id, ctx.telegramId]
+      const res = await selfFetch(
+        `${selfBase()}/api/feed/${encodeURIComponent(id)}` +
+          `?telegram_id=${encodeURIComponent(ctx.telegramId)}`,
+        { method: 'DELETE' }
       )
-
-      if (!r.rows.length) {
-        // Три разных случая, и человеку важно знать, какой именно.
-        const есть = await ctx.pool.query(
-          `SELECT telegram_id, deleted_at FROM public_templates WHERE id = $1`,
-          [id]
-        )
-        if (!есть.rows.length) {
-          return { снято: false, причина: `записи ${id} в ленте нет` }
-        }
-        if (String(есть.rows[0].telegram_id) !== String(ctx.telegramId)) {
-          return { снято: false, причина: 'это чужая публикация — снять нельзя' }
-        }
-        return { снято: false, причина: 'эта публикация уже снята' }
+      const body = (await res.json().catch(() => ({}))) as {
+        снято?: boolean
+        название?: string
+        error?: string
       }
-
+      if (body.снято) {
+        return {
+          снято: true,
+          id,
+          название: body.название,
+          подсказка:
+            'Из ленты убрано. Ролик и его просмотры целы — опубликуй его снова, ' +
+            'и запись вернётся на место.',
+        }
+      }
       return {
-        снято: true,
-        id: r.rows[0].id,
-        название: r.rows[0].name,
-        подсказка:
-          'Из ленты убрано. Ролик и его просмотры целы — опубликуй его снова, ' +
-          'и запись вернётся на место.',
+        снято: false,
+        причина: body.error || `не удалось снять: HTTP ${res.status}`,
       }
     },
   },
