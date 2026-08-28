@@ -108,8 +108,8 @@ console.log()
 console.log(
   `⚠️  ПОДПИСКА ЕСТЬ, НО НИКТО НЕ ШЛЁТ, функция НЕ зарегистрирована (${unused.length - unreachable.length}):`
 )
-for (const e of unused.filter(x => !unreachable.includes(x)))
-  console.log(`   ${e}  (${subscribed.get(e)[0]})`)
+const notRegistered = unused.filter(x => !unreachable.includes(x))
+for (const e of notRegistered) console.log(`   ${e}  (${subscribed.get(e)[0]})`)
 
 // BASELINE. На момент подключения скрипта к pre-push в репозитории уже было
 // 16 недостижимых функций и осиротевшие события — долг, накопленный годами.
@@ -122,7 +122,12 @@ for (const e of unused.filter(x => !unreachable.includes(x)))
 //
 // Обновить базу после починки:  node scripts/orphan-events.cjs --update-baseline
 const BASELINE_PATH = path.resolve(__dirname, 'orphan-events-baseline.json')
-const current = { orphans, unreachable }
+// ДОБАВЛЕНО: третья категория тоже сравнивается с базой.
+// Раньше «подписка есть, никто не шлёт, функция НЕ зарегистрирована» только
+// печаталась: можно было добавить функцию, которая НИКОГДА не выполнится, и
+// гейт оставался зелёным (проверено подсадкой selftest-функции). Печатать
+// проблему и не падать на ней — то же самое, что её не искать.
+const current = { orphans, unreachable, notRegistered }
 
 if (process.argv.includes('--update-baseline')) {
   fs.writeFileSync(BASELINE_PATH, JSON.stringify(current, null, 2) + '\n')
@@ -142,20 +147,26 @@ if (process.argv.includes('--update-baseline')) {
   const newUnreachable = unreachable.filter(
     e => !baseline.unreachable.includes(e)
   )
+  // База, записанная до этого изменения, поля notRegistered не имеет —
+  // тогда считаем весь текущий список известным долгом, а не «новым».
+  const baselineNotRegistered = baseline.notRegistered ?? notRegistered
+  const newNotRegistered = notRegistered.filter(
+    e => !baselineNotRegistered.includes(e)
+  )
   const fixed =
     baseline.orphans.filter(e => !orphans.includes(e)).length +
     baseline.unreachable.filter(e => !unreachable.includes(e)).length
 
   console.log()
   console.log(
-    `📋 База: ${baseline.orphans.length} осиротевших + ${baseline.unreachable.length} недостижимых — известный долг, он НЕ блокирует.`
+    `📋 База: ${baseline.orphans.length} осиротевших + ${baseline.unreachable.length} недостижимых + ${baselineNotRegistered.length} незарегистрированных — известный долг, он НЕ блокирует.`
   )
   if (fixed)
     console.log(
       `✅ Починено с прошлого раза: ${fixed}. Обновите базу: --update-baseline`
     )
 
-  if (newOrphans.length || newUnreachable.length) {
+  if (newOrphans.length || newUnreachable.length || newNotRegistered.length) {
     console.log()
     console.log(
       '🛑 НОВОЕ — этого не было раньше, добавлено вашими изменениями:'
@@ -164,6 +175,8 @@ if (process.argv.includes('--update-baseline')) {
       console.log(`   отправляется, никто не слушает: ${e}`)
     for (const e of newUnreachable)
       console.log(`   зарегистрирована, но недостижима: ${e}`)
+    for (const e of newNotRegistered)
+      console.log(`   подписка есть, но функция не зарегистрирована: ${e}`)
     process.exitCode = 1
   } else {
     process.exitCode = 0

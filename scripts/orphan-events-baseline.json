@@ -23,5 +23,16 @@
     "reels/generate-advanced-loop",
     "render",
     "render/avatar-video"
+  ],
+  "notRegistered": [
+    "hero_validation_error",
+    "kie-ai/webhook-check-manual",
+    "test/advanced-loop",
+    "test/simple",
+    "test/simple-message",
+    "user/welcome.avatar.generate",
+    "voice/training.completed",
+    "voice/training.start",
+    "webhook/health-check-requested"
   ]
 }

@@ -1,55 +1,89 @@
 import { describe, it, expect, test, vi } from 'vitest'
-import { extractPromoFromContext, extractInviteCodeFromContext } from '@/helpers/contextUtils'
+import {
+  extractPromoFromContext,
+  extractInviteCodeFromContext,
+} from '@/helpers/contextUtils'
 import { processPromoLink } from '@/helpers/promoHelper'
 import { MyContext } from '@/interfaces'
 
+// processPromoLink ходит в ЖИВУЮ базу (supabase + directPaymentProcessor).
+// На заглушечном SUPABASE_URL клиент иногда висел до таймаута — тест флаковал.
+// Пропускать его нельзя: он ПРОХОДИЛ, и пропуск — потеря покрытия (это и
+// поймал test-gate). Поэтому убираем не тест, а недетерминированность:
+// внешние вызовы заменены заглушками, проверяемое свойство прежнее.
+vi.mock('@/core/supabase', () => ({
+  supabase: {
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          maybeSingle: vi.fn(() =>
+            Promise.resolve({ data: null, error: null })
+          ),
+          single: vi.fn(() => Promise.resolve({ data: null, error: null })),
+        })),
+      })),
+      insert: vi.fn(() => Promise.resolve({ data: null, error: null })),
+      update: vi.fn(() => ({
+        eq: vi.fn(() => Promise.resolve({ error: null })),
+      })),
+    })),
+  },
+}))
+
+vi.mock('@/core/supabase/directPayment', () => ({
+  directPaymentProcessor: vi.fn(() =>
+    Promise.resolve({ success: true, newBalance: 100 })
+  ),
+}))
+
 // Мокаем контекст Telegram бота
-const mockContext = (messageText: string): MyContext => ({
-  from: {
-    id: 123456789,
-    username: 'test_user',
-    first_name: 'Test',
-    last_name: 'User',
-    is_bot: false,
-    language_code: 'en'
-  },
-  chat: {
-    id: 123456789,
-    type: 'private'
-  },
-  message: {
-    message_id: 1,
-    date: Math.floor(Date.now() / 1000),
-    chat: { id: 123456789, type: 'private' },
-    text: messageText,
+const mockContext = (messageText: string): MyContext =>
+  ({
     from: {
       id: 123456789,
       username: 'test_user',
       first_name: 'Test',
       last_name: 'User',
       is_bot: false,
-      language_code: 'en'
-    }
-  },
-  botInfo: {
-    id: 987654321,
-    username: 'MetaMuse_Manifest_bot',
-    first_name: 'MetaMuse Bot',
-    can_join_groups: true,
-    can_read_all_group_messages: false,
-    supports_inline_queries: false,
-    can_connect_to_business: false,
-    has_main_web_app: false
-  },
-  session: {},
-  reply: vi.fn(),
-  telegram: {
-    getMe: vi.fn(),
-    sendMessage: vi.fn(),
-    deleteWebhook: vi.fn(),
-    getWebhookInfo: vi.fn()
-  }
-} as any)
+      language_code: 'en',
+    },
+    chat: {
+      id: 123456789,
+      type: 'private',
+    },
+    message: {
+      message_id: 1,
+      date: Math.floor(Date.now() / 1000),
+      chat: { id: 123456789, type: 'private' },
+      text: messageText,
+      from: {
+        id: 123456789,
+        username: 'test_user',
+        first_name: 'Test',
+        last_name: 'User',
+        is_bot: false,
+        language_code: 'en',
+      },
+    },
+    botInfo: {
+      id: 987654321,
+      username: 'MetaMuse_Manifest_bot',
+      first_name: 'MetaMuse Bot',
+      can_join_groups: true,
+      can_read_all_group_messages: false,
+      supports_inline_queries: false,
+      can_connect_to_business: false,
+      has_main_web_app: false,
+    },
+    session: {},
+    reply: vi.fn(),
+    telegram: {
+      getMe: vi.fn(),
+      sendMessage: vi.fn(),
+      deleteWebhook: vi.fn(),
+      getWebhookInfo: vi.fn(),
+    },
+  }) as any
 
 describe('Промо-ссылки в MetaMuse Manifest Bot', () => {
   describe('extractPromoFromContext', () => {
@@ -202,8 +236,10 @@ describe('Промо-ссылки в MetaMuse Manifest Bot', () => {
 
   describe('Конфигурация промо-ссылок', () => {
     test('проверка URL промо-ссылок', () => {
-      const neurovideoUrl = 'https://t.me/MetaMuse_Manifest_bot?start=neurovideo'
-      const neurophotoUrl = 'https://t.me/MetaMuse_Manifest_bot?start=neurophoto'
+      const neurovideoUrl =
+        'https://t.me/MetaMuse_Manifest_bot?start=neurovideo'
+      const neurophotoUrl =
+        'https://t.me/MetaMuse_Manifest_bot?start=neurophoto'
 
       // Проверяем что URL содержит правильные параметры
       expect(neurovideoUrl).toContain('neurovideo')
