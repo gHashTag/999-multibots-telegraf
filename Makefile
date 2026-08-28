@@ -64,6 +64,9 @@ dev up: stop ## поднять ВСЁ сразу (агент/A2A + мини-ап
 a2a: ## только агент/A2A-харнесс (render без Remotion/face-api) на :$(A2A_PORT)
 	@cd $(RENDER_DIR) && A2A_PORT=$(A2A_PORT) SELF_URL=http://localhost:$(A2A_PORT) npx tsx a2a-local.ts
 
+mock-test: ## прогнать 84 проверки всех функций/провайдеров через mock
+	@python3 $(RENDER_DIR)/mock-test.py
+
 mock: ## MOCK-сервер: эмуляция ВСЕХ функций (генерация/MCP/A2A/лента) на :$(MOCK_PORT)
 	@kill $$(lsof -ti:$(MOCK_PORT) 2>/dev/null) 2>/dev/null || true
 	@cd $(RENDER_DIR) && MOCK_PORT=$(MOCK_PORT) npx tsx mock-server.ts
