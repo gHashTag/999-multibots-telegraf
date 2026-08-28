@@ -57,7 +57,7 @@ const tonNativePaymentScene = new Scenes.WizardScene<MyContext>(
   TON_NATIVE_PAYMENT_SCENE_ID,
 
   // Step 1: Показать варианты пополнения
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id
 
@@ -69,7 +69,7 @@ const tonNativePaymentScene = new Scenes.WizardScene<MyContext>(
     } as TonNativePaymentWizardData
 
     // Создаём кнопки для каждого варианта
-    const buttons = tonNativeTopUpOptions.map((opt) => [
+    const buttons = tonNativeTopUpOptions.map(opt => [
       Markup.button.callback(
         isRu ? opt.labelRu : opt.labelEn,
         `tonn_select_${opt.ton}`
@@ -104,14 +104,14 @@ const tonNativePaymentScene = new Scenes.WizardScene<MyContext>(
   },
 
   // Step 2: Показать инструкцию оплаты
-  async (ctx) => {
+  async ctx => {
     // Этот шаг обрабатывается через action handlers
     return
   }
 )
 
 // Action: Выбор суммы
-tonNativePaymentScene.action(/^tonn_select_(\d+)$/, async (ctx) => {
+tonNativePaymentScene.action(/^tonn_select_(\d+)$/, async ctx => {
   await ctx.answerCbQuery()
 
   const isRu = isRussianFromState(ctx)
@@ -119,7 +119,7 @@ tonNativePaymentScene.action(/^tonn_select_(\d+)$/, async (ctx) => {
   const match = ctx.match
   const ton = parseInt(match[1])
 
-  const option = tonNativeTopUpOptions.find((opt) => opt.ton === ton)
+  const option = tonNativeTopUpOptions.find(opt => opt.ton === ton)
   if (!option) {
     await ctx.reply(isRu ? '❌ Неверная сумма' : '❌ Invalid amount')
     return
@@ -264,7 +264,7 @@ tonNativePaymentScene.action(/^tonn_select_(\d+)$/, async (ctx) => {
 })
 
 // Action: Проверить оплату
-tonNativePaymentScene.action(/^tonn_check_(.+)$/, async (ctx) => {
+tonNativePaymentScene.action(/^tonn_check_(.+)$/, async ctx => {
   await ctx.answerCbQuery()
 
   const isRu = isRussianFromState(ctx)
@@ -283,10 +283,13 @@ tonNativePaymentScene.action(/^tonn_check_(.+)$/, async (ctx) => {
       .single()
 
     if (fetchError || !payment) {
-      logger.warn('[TON NATIVE PAYMENT] Payment not found or already processed', {
-        telegramId,
-        invId,
-      })
+      logger.warn(
+        '[TON NATIVE PAYMENT] Payment not found or already processed',
+        {
+          telegramId,
+          invId,
+        }
+      )
       await ctx.reply(
         isRu
           ? '❌ Платёж не найден или уже обработан'
@@ -309,17 +312,17 @@ tonNativePaymentScene.action(/^tonn_check_(.+)$/, async (ctx) => {
       await ctx.reply(
         isRu
           ? `⏳ Платёж пока не найден.\n\n` +
-            `Убедитесь, что:\n` +
-            `• Вы отправили *${payment.amount} TON*\n` +
-            `• В комментарии указано: \`${invId}\`\n` +
-            `• Транзакция подтверждена в сети\n\n` +
-            `Попробуйте проверить через 1-2 минуты.`
+              `Убедитесь, что:\n` +
+              `• Вы отправили *${payment.amount} TON*\n` +
+              `• В комментарии указано: \`${invId}\`\n` +
+              `• Транзакция подтверждена в сети\n\n` +
+              `Попробуйте проверить через 1-2 минуты.`
           : `⏳ Payment not found yet.\n\n` +
-            `Make sure:\n` +
-            `• You sent *${payment.amount} TON*\n` +
-            `• Comment contains: \`${invId}\`\n` +
-            `• Transaction is confirmed on network\n\n` +
-            `Try checking in 1-2 minutes.`,
+              `Make sure:\n` +
+              `• You sent *${payment.amount} TON*\n` +
+              `• Comment contains: \`${invId}\`\n` +
+              `• Transaction is confirmed on network\n\n` +
+              `Try checking in 1-2 minutes.`,
         {
           parse_mode: 'Markdown',
           ...Markup.inlineKeyboard([
@@ -390,13 +393,13 @@ tonNativePaymentScene.action(/^tonn_check_(.+)$/, async (ctx) => {
       await ctx.reply(
         isRu
           ? `✅ *Оплата успешно получена!*\n\n` +
-            `💰 Зачислено: *${payment.stars} звёзд*\n` +
-            `📝 TX: \`${transaction.hash.substring(0, 16)}...\`\n\n` +
-            `Спасибо за пополнение!`
+              `💰 Зачислено: *${payment.stars} звёзд*\n` +
+              `📝 TX: \`${transaction.hash.substring(0, 16)}...\`\n\n` +
+              `Спасибо за пополнение!`
           : `✅ *Payment received successfully!*\n\n` +
-            `💰 Credited: *${payment.stars} stars*\n` +
-            `📝 TX: \`${transaction.hash.substring(0, 16)}...\`\n\n` +
-            `Thank you for your top-up!`,
+              `💰 Credited: *${payment.stars} stars*\n` +
+              `📝 TX: \`${transaction.hash.substring(0, 16)}...\`\n\n` +
+              `Thank you for your top-up!`,
         { parse_mode: 'Markdown' }
       )
 
@@ -408,7 +411,7 @@ tonNativePaymentScene.action(/^tonn_check_(.+)$/, async (ctx) => {
           telegram_id: String(telegramId),
           amount: payment.amount,
           stars: payment.stars,
-        }).catch((err) => {
+        }).catch(err => {
           logger.error('[TON NATIVE PAYMENT] Error notifying bot owners', {
             error: err instanceof Error ? err.message : String(err),
           })
@@ -436,7 +439,7 @@ tonNativePaymentScene.action(/^tonn_check_(.+)$/, async (ctx) => {
 })
 
 // Action: Отмена
-tonNativePaymentScene.action('tonn_cancel', async (ctx) => {
+tonNativePaymentScene.action('tonn_cancel', async ctx => {
   await ctx.answerCbQuery()
 
   const isRu = isRussianFromState(ctx)
@@ -462,18 +465,16 @@ tonNativePaymentScene.action('tonn_cancel', async (ctx) => {
 })
 
 // Action: Назад
-tonNativePaymentScene.action('tonn_back', async (ctx) => {
+tonNativePaymentScene.action('tonn_back', async ctx => {
   await ctx.answerCbQuery()
   return ctx.scene.enter('paymentScene')
 })
 
 // Handle text in scene (ignore)
-tonNativePaymentScene.on('text', async (ctx) => {
+tonNativePaymentScene.on('text', async ctx => {
   const isRu = isRussianFromState(ctx)
   await ctx.reply(
-    isRu
-      ? 'Используйте кнопки для навигации'
-      : 'Use buttons for navigation'
+    isRu ? 'Используйте кнопки для навигации' : 'Use buttons for navigation'
   )
 })
 

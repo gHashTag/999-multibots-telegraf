@@ -2,9 +2,20 @@
 
 import { inngest } from '../../inngestClient'
 import { logger } from '@/utils/logger'
-import { detectSkillCandidate, createSkill, listSkills } from '@/services/skillManager'
+import {
+  detectSkillCandidate,
+  createSkill,
+  listSkills,
+} from '@/services/skillManager'
 
-const SERVICE_TYPES = ['neuro_photo', 'text_to_image', 'text_to_video', 'image_to_video', 'face_swap', 'lip_sync']
+const SERVICE_TYPES = [
+  'neuro_photo',
+  'text_to_image',
+  'text_to_video',
+  'image_to_video',
+  'face_swap',
+  'lip_sync',
+]
 
 async function sendTelegram(chatId: string, text: string) {
   const token = process.env.BOT_TOKEN_1
@@ -25,7 +36,10 @@ export const skillDetector = inngest.createFunction(
     const existingSkills = await step.run('load-existing-skills', async () => {
       const skills = await listSkills()
       // Build a set of "service_type::model::prefix" to avoid duplicates
-      return skills.map(s => `${s.service_type}::${s.model}::${s.prompt_template.substring(0, 50)}`)
+      return skills.map(
+        s =>
+          `${s.service_type}::${s.model}::${s.prompt_template.substring(0, 50)}`
+      )
     })
 
     for (const serviceType of SERVICE_TYPES) {
@@ -64,12 +78,12 @@ export const skillDetector = inngest.createFunction(
           adminId,
           `🧠 <b>Skill Detector</b>\n\n` +
             `Создано <b>${totalCreated}</b> новых скиллов из паттернов генераций.\n` +
-            `Дата: ${new Date().toLocaleDateString('ru-RU')}`,
+            `Дата: ${new Date().toLocaleDateString('ru-RU')}`
         )
         logger.info('[SkillDetector] Created new skills', { totalCreated })
       })
     }
 
     return { success: true, created: totalCreated }
-  },
+  }
 )

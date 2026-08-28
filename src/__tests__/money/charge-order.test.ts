@@ -71,7 +71,11 @@ function collect(): string[] {
   return out.filter(f => !f.includes('__tests__') && !f.includes('/test/'))
 }
 
-function findChargeBeforeWork(): Array<{ file: string; line: number; what: string }> {
+function findChargeBeforeWork(): Array<{
+  file: string
+  line: number
+  what: string
+}> {
   const hits: Array<{ file: string; line: number; what: string }> = []
 
   for (const f of collect()) {
@@ -81,7 +85,11 @@ function findChargeBeforeWork(): Array<{ file: string; line: number; what: strin
       if (!CHARGE.test(lines[i])) continue
 
       const near = lines.slice(i, Math.min(i + 8, lines.length)).join('\n')
-      if (!OUTCOME.test(near) && !/processBalance|processService/.test(lines[i])) continue
+      if (
+        !OUTCOME.test(near) &&
+        !/processBalance|processService/.test(lines[i])
+      )
+        continue
 
       const after: Array<[number, string]> = []
       for (let j = i + 1; j < Math.min(i + WINDOW, lines.length); j++) {
@@ -93,7 +101,9 @@ function findChargeBeforeWork(): Array<{ file: string; line: number; what: strin
         const found = after.find(([, l]) => rx.test(l))
         if (!found) continue
 
-        const tail = lines.slice(found[0], Math.min(found[0] + TAIL, lines.length)).join('\n')
+        const tail = lines
+          .slice(found[0], Math.min(found[0] + TAIL, lines.length))
+          .join('\n')
         // `refundAndTell` — общая функция возврата, появившаяся позже этой
         // проверки (PR #544). Без неё в списке разбор считал возвратом только
         // прямые вызовы и объявлял нарушением как раз те места, где возврат
@@ -114,7 +124,9 @@ describe('деньги не уходят раньше работы', () => {
   it('разбор вообще что-то находит — иначе тест пустой', () => {
     // Страховка от самого себя: если регулярки перестанут срабатывать, все
     // проверки станут зелёными и бессмысленными.
-    const charges = collect().filter(f => CHARGE.test(strip(fs.readFileSync(f, 'utf8'))))
+    const charges = collect().filter(f =>
+      CHARGE.test(strip(fs.readFileSync(f, 'utf8')))
+    )
     expect(charges.length).toBeGreaterThan(20)
   })
 

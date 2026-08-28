@@ -25,7 +25,9 @@ vi.mock('@/core/supabase', () => ({
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: { telegram_id: '1' }, error: null }),
+      single: vi
+        .fn()
+        .mockResolvedValue({ data: { telegram_id: '1' }, error: null }),
       update: vi.fn(() => ({
         eq: vi.fn().mockResolvedValue({ error: null }),
       })),

@@ -19,7 +19,9 @@ vi.mock('@/core/supabase/updateUserBalance', () => ({
 }))
 
 vi.mock('@/inngest_app/render-server-client', () => ({
-  sendRenderAvatarVideoEvent: vi.fn(() => Promise.resolve({ eventId: 'event_123' })),
+  sendRenderAvatarVideoEvent: vi.fn(() =>
+    Promise.resolve({ eventId: 'event_123' })
+  ),
   createRenderAvatarPayload: vi.fn(() => ({ telegramId: '223757230' })),
 }))
 
@@ -36,13 +38,11 @@ vi.mock('./heygen-avatars-config', () => ({
     haim: {
       name: 'Haim',
       apiKey: 'test_api_key_2',
-      avatars: [
-        { id: 'avatar_3', name: 'Avatar 3', emoji: '👨' },
-      ],
+      avatars: [{ id: 'avatar_3', name: 'Avatar 3', emoji: '👨' }],
     },
   },
   getVoiceIdForAvatar: vi.fn(() => 'voice_id_123'),
-  findAvatarById: vi.fn((id) => ({
+  findAvatarById: vi.fn(id => ({
     avatar: { id, name: 'Test Avatar', emoji: '👤' },
     apiKey: 'test_api_key',
   })),
@@ -79,8 +79,14 @@ vi.mock('@/interfaces/payments.interface', () => ({
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { sendRenderAvatarVideoEvent, createRenderAvatarPayload } from '@/inngest_app/render-server-client'
-import { calculateAIReelsPrice, formatPriceMessage } from '@/helpers/ai-reels-pricing'
+import {
+  sendRenderAvatarVideoEvent,
+  createRenderAvatarPayload,
+} from '@/inngest_app/render-server-client'
+import {
+  calculateAIReelsPrice,
+  formatPriceMessage,
+} from '@/helpers/ai-reels-pricing'
 
 describe('heygenRenderWizard (HeyGen Avatar Video Generation)', () => {
   const mockContext = {
@@ -102,7 +108,9 @@ describe('heygenRenderWizard (HeyGen Avatar Video Generation)', () => {
       cursor: 0,
     },
     telegram: {
-      getFileLink: vi.fn(() => Promise.resolve({ href: 'https://api.telegram.org/file/test.jpg' })),
+      getFileLink: vi.fn(() =>
+        Promise.resolve({ href: 'https://api.telegram.org/file/test.jpg' })
+      ),
     },
     botInfo: { username: 'test_bot' },
     update: {} as any,
@@ -114,7 +122,6 @@ describe('heygenRenderWizard (HeyGen Avatar Video Generation)', () => {
     mockContext.session = { aiReelsRender: null }
     mockContext.message = null
     mockContext.update = {}
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(getUserBalance as Mock).mockResolvedValue(100)
   })
@@ -138,7 +145,9 @@ describe('heygenRenderWizard (HeyGen Avatar Video Generation)', () => {
       }
 
       expect(mockContext.session.aiReelsRender.avatarService).toBe('heygen')
-      expect(mockContext.session.aiReelsRender.step).toBe('avatar_set_selection')
+      expect(mockContext.session.aiReelsRender.step).toBe(
+        'avatar_set_selection'
+      )
     })
 
     it('должен показывать выбор набора аватаров на русском', () => {
@@ -180,9 +189,10 @@ describe('heygenRenderWizard (HeyGen Avatar Video Generation)', () => {
         callback_query: { data: 'heygen_set_cocoage' },
       }
 
-      const callbackData = 'data' in mockContext.update.callback_query
-        ? mockContext.update.callback_query.data
-        : ''
+      const callbackData =
+        'data' in mockContext.update.callback_query
+          ? mockContext.update.callback_query.data
+          : ''
 
       expect(callbackData).toBe('heygen_set_cocoage')
     })
@@ -205,7 +215,9 @@ describe('heygenRenderWizard (HeyGen Avatar Video Generation)', () => {
       }
 
       expect(mockContext.session.aiReelsRender.heygenAvatarSet).toBe('cocoage')
-      expect(mockContext.session.aiReelsRender.heygenApiKey).toBe('test_api_key')
+      expect(mockContext.session.aiReelsRender.heygenApiKey).toBe(
+        'test_api_key'
+      )
     })
 
     it('должен показывать список аватаров после выбора набора', () => {
@@ -282,7 +294,10 @@ describe('heygenRenderWizard (HeyGen Avatar Video Generation)', () => {
         photo: [{ file_id: 'photo_123' }],
       }
 
-      const hasPhoto = mockContext.message && 'photo' in mockContext.message && mockContext.message.photo.length > 0
+      const hasPhoto =
+        mockContext.message &&
+        'photo' in mockContext.message &&
+        mockContext.message.photo.length > 0
       expect(hasPhoto).toBe(true)
     })
 
@@ -500,7 +515,9 @@ describe('heygenRenderWizard (HeyGen Avatar Video Generation)', () => {
     })
 
     it('должен отправлять event через sendRenderAvatarVideoEvent', async () => {
-      const result = await sendRenderAvatarVideoEvent({ telegramId: '223757230' })
+      const result = await sendRenderAvatarVideoEvent({
+        telegramId: '223757230',
+      })
 
       expect(sendRenderAvatarVideoEvent).toHaveBeenCalled()
       expect(result.eventId).toBe('event_123')

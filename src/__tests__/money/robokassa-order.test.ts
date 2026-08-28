@@ -46,7 +46,9 @@ describe('порядок обработки оплаты', () => {
     // Отметка и есть начисление: баланс считается по строкам COMPLETED.
     // Если сначала звать updateUserBalance и падать при его отказе, человек
     // останется без звёзд — ровно это я и сделал в прошлой версии.
-    expect(at('status: PaymentStatus.COMPLETED')).toBeLessThan(at('updateUserBalance('))
+    expect(at('status: PaymentStatus.COMPLETED')).toBeLessThan(
+      at('updateUserBalance(')
+    )
   })
 
   it('человеку сообщают об успехе ПОСЛЕ отметки', () => {
@@ -74,7 +76,9 @@ describe('порядок обработки оплаты', () => {
   it('подпись проверяется раньше любых изменений', () => {
     // Без этого всё остальное не имеет смысла: поддельный вызов начислил бы
     // звёзды сам себе.
-    expect(at('validateRobokassaSignature')).toBeLessThan(at('updateUserBalance('))
+    expect(at('validateRobokassaSignature')).toBeLessThan(
+      at('updateUserBalance(')
+    )
     expect(at('validateRobokassaSignature')).toBeLessThan(
       at('status: PaymentStatus.COMPLETED')
     )

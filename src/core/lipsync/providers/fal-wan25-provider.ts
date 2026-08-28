@@ -58,7 +58,8 @@ export class FalWAN25Provider {
         messages: [
           {
             role: 'system',
-            content: 'You are a professional translator. Translate the following text to English. Keep the meaning and style. Return ONLY the translation, no explanations.',
+            content:
+              'You are a professional translator. Translate the following text to English. Keep the meaning and style. Return ONLY the translation, no explanations.',
           },
           { role: 'user', content: text },
         ],
@@ -88,7 +89,10 @@ export class FalWAN25Provider {
    * Генерирует визуальный промпт на основе текста пользователя через OpenAI
    * ВСЕГДА генерирует промпт на английском (для WAN v2.2-5b от Alibaba)
    */
-  async generateVisualPrompt(userText: string, language: 'ru' | 'en' = 'ru'): Promise<string> {
+  async generateVisualPrompt(
+    userText: string,
+    language: 'ru' | 'en' = 'ru'
+  ): Promise<string> {
     console.log('🎨🎨🎨 [WAN PROMPT] generateVisualPrompt CALLED', {
       userTextLength: userText.length,
       userTextPreview: userText.substring(0, 100),
@@ -106,7 +110,9 @@ export class FalWAN25Provider {
           translated: englishText.substring(0, 100),
         })
       } else {
-        console.log('🌐 [WAN PROMPT] Text already in English, skipping translation')
+        console.log(
+          '🌐 [WAN PROMPT] Text already in English, skipping translation'
+        )
       }
 
       console.log('📝 [WAN PROMPT] English text ready for prompt generation:', {
@@ -191,7 +197,9 @@ Create visual prompt ONLY based on the idea, no extra explanations.`
         errorMessage: error instanceof Error ? error.message : String(error),
         errorStack: error instanceof Error ? error.stack : undefined,
       })
-      logger.error('❌ [WAN PROMPT] Failed to generate visual prompt', { error })
+      logger.error('❌ [WAN PROMPT] Failed to generate visual prompt', {
+        error,
+      })
 
       // Fallback промпт (всегда на английском)
       return 'A dynamic cinematic scene with expressive movements, natural lighting, vertical composition 9:16 format for social media, high quality production value, engaging visual storytelling, smooth camera movements.'
@@ -308,11 +316,14 @@ Create visual prompt ONLY based on the idea, no extra explanations.`
   /**
    * Расчет стоимости в звездах
    */
-  calculateCost(resolution: '480p' | '720p' | '1080p', duration: number = 5): number {
+  calculateCost(
+    resolution: '480p' | '720p' | '1080p',
+    duration: number = 5
+  ): number {
     // Цены Fal.ai WAN 2.5 за секунду
     const pricePerSecond: Record<string, number> = {
       '480p': 0.05, // $0.05/сек
-      '720p': 0.10, // $0.10/сек
+      '720p': 0.1, // $0.10/сек
       '1080p': 0.15, // $0.15/сек
     }
 

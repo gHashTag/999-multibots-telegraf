@@ -83,7 +83,7 @@ export const CRITICAL_HEROES: HeroName[] = [
   'Бэтмен',
   'Супермен',
   'Чудо-женщина',
-  'Халк'
+  'Халк',
 ]
 
 /**
@@ -91,31 +91,157 @@ export const CRITICAL_HEROES: HeroName[] = [
  */
 export const HEROES_REGISTRY: Record<HeroName, Hero> = {
   // МУЖСКИЕ ГЕРОИ - ОБНОВЛЕНО ПОСЛЕ ДОБАВЛЕНИЯ ПРОМПТОВ
-  'Человек-паук': { name: 'Человек-паук', gender: 'male', hasPrompt: true, category: 'critical', priority: 1 },
-  'Железный человек': { name: 'Железный человек', gender: 'male', hasPrompt: true, category: 'critical', priority: 2 },
-  'Бэтмен': { name: 'Бэтмен', gender: 'male', hasPrompt: true, category: 'critical', priority: 3 }, // ✅ ДОБАВЛЕН
-  'Супермен': { name: 'Супермен', gender: 'male', hasPrompt: true, category: 'critical', priority: 4 }, // ✅ ДОБАВЛЕН
-  'Капитан Америка': { name: 'Капитан Америка', gender: 'male', hasPrompt: true, category: 'popular', priority: 5 },
-  'Тор': { name: 'Тор', gender: 'male', hasPrompt: true, category: 'popular', priority: 6 },
-  'Дэдпул': { name: 'Дэдпул', gender: 'male', hasPrompt: true, category: 'popular', priority: 7 },
-  'Росомаха': { name: 'Росомаха', gender: 'male', hasPrompt: true, category: 'popular', priority: 8 },
-  'Халк': { name: 'Халк', gender: 'male', hasPrompt: true, category: 'critical', priority: 9 },
-  'Доктор Стрэндж': { name: 'Доктор Стрэндж', gender: 'male', hasPrompt: true, category: 'popular', priority: 10 },
+  'Человек-паук': {
+    name: 'Человек-паук',
+    gender: 'male',
+    hasPrompt: true,
+    category: 'critical',
+    priority: 1,
+  },
+  'Железный человек': {
+    name: 'Железный человек',
+    gender: 'male',
+    hasPrompt: true,
+    category: 'critical',
+    priority: 2,
+  },
+  Бэтмен: {
+    name: 'Бэтмен',
+    gender: 'male',
+    hasPrompt: true,
+    category: 'critical',
+    priority: 3,
+  }, // ✅ ДОБАВЛЕН
+  Супермен: {
+    name: 'Супермен',
+    gender: 'male',
+    hasPrompt: true,
+    category: 'critical',
+    priority: 4,
+  }, // ✅ ДОБАВЛЕН
+  'Капитан Америка': {
+    name: 'Капитан Америка',
+    gender: 'male',
+    hasPrompt: true,
+    category: 'popular',
+    priority: 5,
+  },
+  Тор: {
+    name: 'Тор',
+    gender: 'male',
+    hasPrompt: true,
+    category: 'popular',
+    priority: 6,
+  },
+  Дэдпул: {
+    name: 'Дэдпул',
+    gender: 'male',
+    hasPrompt: true,
+    category: 'popular',
+    priority: 7,
+  },
+  Росомаха: {
+    name: 'Росомаха',
+    gender: 'male',
+    hasPrompt: true,
+    category: 'popular',
+    priority: 8,
+  },
+  Халк: {
+    name: 'Халк',
+    gender: 'male',
+    hasPrompt: true,
+    category: 'critical',
+    priority: 9,
+  },
+  'Доктор Стрэндж': {
+    name: 'Доктор Стрэндж',
+    gender: 'male',
+    hasPrompt: true,
+    category: 'popular',
+    priority: 10,
+  },
 
   // ЖЕНСКИЕ ГЕРОИ - ОБНОВЛЕНО ПОСЛЕ ДОБАВЛЕНИЯ ПРОМПТОВ
-  'Скарлет Витч': { name: 'Скарлет Витч', gender: 'female', hasPrompt: true, category: 'popular', priority: 11 }, // ✅ ДОБАВЛЕН
-  'Капитан Марвел': { name: 'Капитан Марвел', gender: 'female', hasPrompt: true, category: 'popular', priority: 12 }, // ✅ ДОБАВЛЕН
-  'Чудо-женщина': { name: 'Чудо-женщина', gender: 'female', hasPrompt: true, category: 'critical', priority: 13 }, // ✅ ДОБАВЛЕН
-  'Чёрная вдова': { name: 'Чёрная вдова', gender: 'female', hasPrompt: true, category: 'critical', priority: 14 }, // ✅ ДОБАВЛЕН
-  'Харли Квинн': { name: 'Харли Квинн', gender: 'female', hasPrompt: true, category: 'critical', priority: 15 }, // ✅ ДОБАВЛЕН
-  'Супергёрл': { name: 'Супергёрл', gender: 'female', hasPrompt: true, category: 'popular', priority: 16 }, // ✅ ДОБАВЛЕН
-  'Гвен Стейси': { name: 'Гвен Стейси', gender: 'female', hasPrompt: true, category: 'popular', priority: 17 }, // ✅ ДОБАВЛЕН
-  'Василиса Прекрасная': { name: 'Василиса Прекрасная', gender: 'female', hasPrompt: true, category: 'popular', priority: 18 }, // ✅ УЖЕ ЕСТЬ
-  'Лара Крофт': { name: 'Лара Крофт', gender: 'female', hasPrompt: true, category: 'popular', priority: 19 }, // ✅ ДОБАВЛЕН
-  'Эльза': { name: 'Эльза', gender: 'female', hasPrompt: true, category: 'popular', priority: 20 }, // ✅ ДОБАВЛЕН
+  'Скарлет Витч': {
+    name: 'Скарлет Витч',
+    gender: 'female',
+    hasPrompt: true,
+    category: 'popular',
+    priority: 11,
+  }, // ✅ ДОБАВЛЕН
+  'Капитан Марвел': {
+    name: 'Капитан Марвел',
+    gender: 'female',
+    hasPrompt: true,
+    category: 'popular',
+    priority: 12,
+  }, // ✅ ДОБАВЛЕН
+  'Чудо-женщина': {
+    name: 'Чудо-женщина',
+    gender: 'female',
+    hasPrompt: true,
+    category: 'critical',
+    priority: 13,
+  }, // ✅ ДОБАВЛЕН
+  'Чёрная вдова': {
+    name: 'Чёрная вдова',
+    gender: 'female',
+    hasPrompt: true,
+    category: 'critical',
+    priority: 14,
+  }, // ✅ ДОБАВЛЕН
+  'Харли Квинн': {
+    name: 'Харли Квинн',
+    gender: 'female',
+    hasPrompt: true,
+    category: 'critical',
+    priority: 15,
+  }, // ✅ ДОБАВЛЕН
+  Супергёрл: {
+    name: 'Супергёрл',
+    gender: 'female',
+    hasPrompt: true,
+    category: 'popular',
+    priority: 16,
+  }, // ✅ ДОБАВЛЕН
+  'Гвен Стейси': {
+    name: 'Гвен Стейси',
+    gender: 'female',
+    hasPrompt: true,
+    category: 'popular',
+    priority: 17,
+  }, // ✅ ДОБАВЛЕН
+  'Василиса Прекрасная': {
+    name: 'Василиса Прекрасная',
+    gender: 'female',
+    hasPrompt: true,
+    category: 'popular',
+    priority: 18,
+  }, // ✅ УЖЕ ЕСТЬ
+  'Лара Крофт': {
+    name: 'Лара Крофт',
+    gender: 'female',
+    hasPrompt: true,
+    category: 'popular',
+    priority: 19,
+  }, // ✅ ДОБАВЛЕН
+  Эльза: {
+    name: 'Эльза',
+    gender: 'female',
+    hasPrompt: true,
+    category: 'popular',
+    priority: 20,
+  }, // ✅ ДОБАВЛЕН
 
   // СПЕЦИАЛЬНЫЙ
-  'Кастомный промпт': { name: 'Кастомный промпт', gender: 'male', hasPrompt: true, category: 'special', priority: 21 }
+  'Кастомный промпт': {
+    name: 'Кастомный промпт',
+    gender: 'male',
+    hasPrompt: true,
+    category: 'special',
+    priority: 21,
+  },
 }
 
 /**
@@ -131,7 +257,7 @@ export function getHeroSystemStats(): HeroSystemMetrics {
     heroesWithPrompts,
     missingPrompts: totalHeroes - heroesWithPrompts,
     coveragePercentage: Math.round((heroesWithPrompts / totalHeroes) * 100),
-    lastValidated: new Date()
+    lastValidated: new Date(),
   }
 }
 
@@ -144,7 +270,7 @@ export function validateHero(heroName: string): HeroValidationResult {
     return {
       isValid: false,
       hero: null,
-      error: 'HERO_NOT_FOUND'
+      error: 'HERO_NOT_FOUND',
     }
   }
 
@@ -156,14 +282,14 @@ export function validateHero(heroName: string): HeroValidationResult {
       isValid: false,
       hero: hero.name,
       error: 'PROMPT_MISSING',
-      fallbackPrompt: generateFallbackPrompt(hero.name, hero.gender)
+      fallbackPrompt: generateFallbackPrompt(hero.name, hero.gender),
     }
   }
 
   return {
     isValid: true,
     hero: hero.name,
-    error: null
+    error: null,
   }
 }
 
@@ -182,7 +308,9 @@ function generateFallbackPrompt(heroName: HeroName, gender: Gender): string {
  * 🎯 ПОЛУЧИТЬ КРИТИЧЕСКИХ ГЕРОЕВ БЕЗ ПРОМПТОВ
  */
 export function getCriticalMissingHeroes(): HeroName[] {
-  return CRITICAL_HEROES.filter(heroName => !HEROES_REGISTRY[heroName].hasPrompt)
+  return CRITICAL_HEROES.filter(
+    heroName => !HEROES_REGISTRY[heroName].hasPrompt
+  )
 }
 
 /**

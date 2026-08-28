@@ -14,7 +14,11 @@ export function handleSystemError(error: any, context?: string): void {
   // Заглушка для обработки системных ошибок
 }
 
-export function sendGenericErrorMessage(ctx: MyContext, isRu: boolean, error?: any): Promise<void> {
+export function sendGenericErrorMessage(
+  ctx: MyContext,
+  isRu: boolean,
+  error?: any
+): Promise<void> {
   const message = isRu ? 'Произошла ошибка' : 'An error occurred'
   return ctx.reply(message).catch(console.error)
 }

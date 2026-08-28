@@ -4,14 +4,19 @@
  */
 
 import { pipe } from '../../../core/functional/utils/composition'
-import { TaskEither, Either, left, right } from '../../../core/functional/utils/result'
+import {
+  TaskEither,
+  Either,
+  left,
+  right,
+} from '../../../core/functional/utils/result'
 import {
   AudioRequest,
   AudioResult,
   ProviderConfig,
   HealthStatus,
   Balance,
-  ProviderName
+  ProviderName,
 } from '../../../core/functional/types/media.types'
 import type {
   Provider,
@@ -19,13 +24,15 @@ import type {
   HealthCheck,
   GetBalance,
   GenerateAudio,
-  ProviderError
+  ProviderError,
 } from './types'
 import { createProviderError } from './types'
 
 // ===== CONFIG VALIDATION =====
 
-const validateConfig = (config: ProviderConfig): Either<Error, ProviderConfig> => {
+const validateConfig = (
+  config: ProviderConfig
+): Either<Error, ProviderConfig> => {
   if (!config.apiKey) {
     return left(new Error('API key is required'))
   }
@@ -49,14 +56,14 @@ const createHttpClient = (config: ProviderConfig) => {
     const url = `${config.baseUrl}${endpoint}`
     const headers = {
       'Content-Type': 'application/json',
-      'xi-api-key': config.apiKey
+      'xi-api-key': config.apiKey,
     }
 
     const response = await fetch(url, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(config.timeout || 30000)
+      signal: AbortSignal.timeout(config.timeout || 30000),
     })
 
     if (!response.ok) {
@@ -84,8 +91,8 @@ const buildAudioPayload = (request: AudioRequest) => {
       stability: 0.5,
       similarity_boost: 0.5,
       style: 0.0,
-      use_speaker_boost: true
-    }
+      use_speaker_boost: true,
+    },
   }
 
   if (request.voice_id) {
@@ -95,23 +102,30 @@ const buildAudioPayload = (request: AudioRequest) => {
   return payload
 }
 
-const handleAudioResponse = (providerName: ProviderName) => (request: AudioRequest) => (data: any): AudioResult => ({
-  audioUrl: data.audio_url || '',
-  taskId: data.task_id || data.id,
-  provider: providerName,
-  duration: request.duration || 5,
-  metadata: data.metadata || {}
-})
+const handleAudioResponse =
+  (providerName: ProviderName) =>
+  (request: AudioRequest) =>
+  (data: any): AudioResult => ({
+    audioUrl: data.audio_url || '',
+    taskId: data.task_id || data.id,
+    provider: providerName,
+    duration: request.duration || 5,
+    metadata: data.metadata || {},
+  })
 
-export const generateAudio = (config: ProviderConfig): GenerateAudio =>
-  (request: AudioRequest): TaskEither<Error, AudioResult> => async () => {
+export const generateAudio =
+  (config: ProviderConfig): GenerateAudio =>
+  (request: AudioRequest): TaskEither<Error, AudioResult> =>
+  async () => {
     const http = createHttpClient(config)
 
     try {
       const payload = buildAudioPayload(request)
       const response = await http.post('/v1/text-to-speech', payload)
 
-      return right(handleAudioResponse('elevenlabs' as ProviderName)(request)(response))
+      return right(
+        handleAudioResponse('elevenlabs' as ProviderName)(request)(response)
+      )
     } catch (error) {
       const providerError = createProviderError(
         'elevenlabs',
@@ -125,7 +139,8 @@ export const generateAudio = (config: ProviderConfig): GenerateAudio =>
 
 // ===== VOICES ENDPOINT =====
 
-export const getVoices = (config: ProviderConfig): TaskEither<Error, any> =>
+export const getVoices =
+  (config: ProviderConfig): TaskEither<Error, any> =>
   async () => {
     const http = createHttpClient(config)
 
@@ -133,14 +148,18 @@ export const getVoices = (config: ProviderConfig): TaskEither<Error, any> =>
       const response = await http.get('/v1/voices')
       return right(response)
     } catch (error) {
-      return left(error instanceof Error ? error : new Error('Failed to get voices'))
+      return left(
+        error instanceof Error ? error : new Error('Failed to get voices')
+      )
     }
   }
 
 // ===== HEALTH CHECK =====
 
-export const healthCheck = (config: ProviderConfig): HealthCheck =>
-  (): TaskEither<Error, HealthStatus> => async () => {
+export const healthCheck =
+  (config: ProviderConfig): HealthCheck =>
+  (): TaskEither<Error, HealthStatus> =>
+  async () => {
     const http = createHttpClient(config)
 
     try {
@@ -152,7 +171,7 @@ export const healthCheck = (config: ProviderConfig): HealthCheck =>
         status: response ? 'healthy' : 'unhealthy',
         latency,
         uptime: 0,
-        lastCheck: Date.now()
+        lastCheck: Date.now(),
       }
 
       return right(health)
@@ -161,16 +180,20 @@ export const healthCheck = (config: ProviderConfig): HealthCheck =>
         status: 'unhealthy',
         latency: config.timeout || 30000,
         uptime: 0,
-        lastCheck: Date.now()
+        lastCheck: Date.now(),
       }
-      return left(error instanceof Error ? error : new Error('Health check failed'))
+      return left(
+        error instanceof Error ? error : new Error('Health check failed')
+      )
     }
   }
 
 // ===== BALANCE CHECK =====
 
-export const getBalance = (config: ProviderConfig): GetBalance =>
-  (): TaskEither<Error, Balance> => async () => {
+export const getBalance =
+  (config: ProviderConfig): GetBalance =>
+  (): TaskEither<Error, Balance> =>
+  async () => {
     const http = createHttpClient(config)
 
     try {
@@ -180,20 +203,24 @@ export const getBalance = (config: ProviderConfig): GetBalance =>
         currency: 'usd',
         available: response?.subscription?.character_count || 0,
         reserved: 0,
-        lastUpdated: Date.now()
+        lastUpdated: Date.now(),
       }
 
       return right(balance)
     } catch (error) {
-      return left(error instanceof Error ? error : new Error('Balance check failed'))
+      return left(
+        error instanceof Error ? error : new Error('Balance check failed')
+      )
     }
   }
 
 // ===== RATE LIMITER =====
 
-export const rateLimit = (config: ProviderConfig): RateLimit =>
-  (request: any): TaskEither<Error, void> => async () => {
-    const rateLimiter = (config.rateLimit?.requestsPerMinute || 60)
+export const rateLimit =
+  (config: ProviderConfig): RateLimit =>
+  (request: any): TaskEither<Error, void> =>
+  async () => {
+    const rateLimiter = config.rateLimit?.requestsPerMinute || 60
     const key = `${config.name}-${request.userId}`
 
     return right(undefined)
@@ -213,13 +240,16 @@ export const createElevenLabsProvider = (config: ProviderConfig): Provider => {
   return {
     name: 'elevenlabs',
     config: validated,
-    generateVideo: (request) => async () => left(new Error('ElevenLabs does not support video generation')),
-    generateImage: (request) => async () => left(new Error('ElevenLabs does not support image generation')),
+    generateVideo: request => async () =>
+      left(new Error('ElevenLabs does not support video generation')),
+    generateImage: request => async () =>
+      left(new Error('ElevenLabs does not support image generation')),
     generateAudio: generateAudio(validated),
-    performFaceSwap: (request) => async () => left(new Error('ElevenLabs does not support face swap')),
+    performFaceSwap: request => async () =>
+      left(new Error('ElevenLabs does not support face swap')),
     healthCheck: healthCheck(validated),
     getBalance: getBalance(validated),
-    rateLimit: rateLimit(validated)
+    rateLimit: rateLimit(validated),
   }
 }
 

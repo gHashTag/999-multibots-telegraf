@@ -9,42 +9,39 @@
  */
 
 // Core Interfaces
-export * from './interfaces';
+export * from './interfaces'
 
 // Classification Engine
-export * from './classifier';
+export * from './classifier'
 
 // Validation Engine
-export * from './validator';
+export * from './validator'
 
 // Usage Examples
-export * from './examples';
+export * from './examples'
 
 // Re-export main classes for convenience
 export {
   ZOTClassifier,
   ZOTTransactionData,
   ZOTClassificationResult,
-  defaultZOTClassifier
-} from './classifier';
+  defaultZOTClassifier,
+} from './classifier'
 
 export {
   ZOTValidator,
   ZOTFinancialAggregation,
-  defaultZOTValidator
-} from './validator';
+  defaultZOTValidator,
+} from './validator'
 
 // Quick Start Factory Functions
 import {
   ZOTClassifier,
   ZOTTransactionData,
-  defaultZOTClassifier
-} from './classifier';
+  defaultZOTClassifier,
+} from './classifier'
 
-import {
-  ZOTValidator,
-  defaultZOTValidator
-} from './validator';
+import { ZOTValidator, defaultZOTValidator } from './validator'
 
 import {
   ZOTConfig,
@@ -52,8 +49,8 @@ import {
   ZOTPaymentType,
   ZOTMoneySource,
   ZOTServiceCategory,
-  ZOTConfidenceLevel
-} from './interfaces';
+  ZOTConfidenceLevel,
+} from './interfaces'
 
 /**
  * ZOT Factory - Quick Start Functions
@@ -67,7 +64,7 @@ export class ZOTFactory {
     strictMode: boolean = true,
     autoCorrection: boolean = false
   ): ZOTClassifier {
-    return new ZOTClassifier(customRules, strictMode, autoCorrection);
+    return new ZOTClassifier(customRules, strictMode, autoCorrection)
   }
 
   /**
@@ -77,26 +74,30 @@ export class ZOTFactory {
     classifier?: ZOTClassifier,
     config?: Partial<ZOTConfig>
   ): ZOTValidator {
-    return new ZOTValidator(classifier, config);
+    return new ZOTValidator(classifier, config)
   }
 
   /**
    * Create a complete ZOT system with sensible defaults
    */
   static createZOTSystem(config?: {
-    strictMode?: boolean;
-    autoCorrection?: boolean;
-    customRules?: ZOTClassificationRule[];
-    qualityThresholds?: Partial<ZOTConfig['qualityThresholds']>;
+    strictMode?: boolean
+    autoCorrection?: boolean
+    customRules?: ZOTClassificationRule[]
+    qualityThresholds?: Partial<ZOTConfig['qualityThresholds']>
   }) {
     const {
       strictMode = true,
       autoCorrection = false,
       customRules = [],
-      qualityThresholds = {}
-    } = config || {};
+      qualityThresholds = {},
+    } = config || {}
 
-    const classifier = new ZOTClassifier(customRules, strictMode, autoCorrection);
+    const classifier = new ZOTClassifier(
+      customRules,
+      strictMode,
+      autoCorrection
+    )
 
     const validatorConfig: Partial<ZOTConfig> = {
       qualityThresholds: {
@@ -105,23 +106,23 @@ export class ZOTFactory {
         consistency: 85,
         timeliness: 80,
         overall: 85,
-        ...qualityThresholds
+        ...qualityThresholds,
       },
       validationSettings: {
         enableStrictMode: strictMode,
         enableAutoCorrection: autoCorrection,
         enablePredictiveValidation: true,
-        maxProcessingTime: 30000
-      }
-    };
+        maxProcessingTime: 30000,
+      },
+    }
 
-    const validator = new ZOTValidator(classifier, validatorConfig);
+    const validator = new ZOTValidator(classifier, validatorConfig)
 
     return {
       classifier,
       validator,
-      config: validatorConfig
-    };
+      config: validatorConfig,
+    }
   }
 
   /**
@@ -130,14 +131,14 @@ export class ZOTFactory {
   static async validateTransaction(
     transaction: ZOTTransactionData,
     options?: {
-      strictMode?: boolean;
-      autoCorrection?: boolean;
+      strictMode?: boolean
+      autoCorrection?: boolean
     }
   ) {
-    const { strictMode = true, autoCorrection = false } = options || {};
-    const classifier = new ZOTClassifier([], strictMode, autoCorrection);
+    const { strictMode = true, autoCorrection = false } = options || {}
+    const classifier = new ZOTClassifier([], strictMode, autoCorrection)
 
-    return classifier.classifyTransaction(transaction);
+    return classifier.classifyTransaction(transaction)
   }
 
   /**
@@ -147,13 +148,13 @@ export class ZOTFactory {
     transactions: ZOTTransactionData[],
     botName: string,
     options?: {
-      strictMode?: boolean;
-      autoCorrection?: boolean;
-      qualityThresholds?: Partial<ZOTConfig['qualityThresholds']>;
+      strictMode?: boolean
+      autoCorrection?: boolean
+      qualityThresholds?: Partial<ZOTConfig['qualityThresholds']>
     }
   ) {
-    const system = this.createZOTSystem(options);
-    return system.validator.validateBotFinancials(transactions, botName);
+    const system = this.createZOTSystem(options)
+    return system.validator.validateBotFinancials(transactions, botName)
   }
 }
 
@@ -171,22 +172,22 @@ export const ZOT_CONSTANTS = {
     accuracy: 90,
     consistency: 85,
     timeliness: 80,
-    overall: 85
+    overall: 85,
   },
 
   DEFAULT_CONFIDENCE_THRESHOLDS: {
     high: 95,
     medium: 80,
-    low: 60
+    low: 60,
   },
 
   PERFORMANCE_BENCHMARKS: {
     maxProcessingTimeMs: 30000,
     targetRecordsPerSecond: 4000,
     maxMemoryUsageMB: 100,
-    targetAccuracy: 95
-  }
-} as const;
+    targetAccuracy: 95,
+  },
+} as const
 
 /**
  * ZOT Utilities
@@ -199,19 +200,19 @@ export class ZOTUtils {
     score: number,
     level: ZOTConfidenceLevel
   ): boolean {
-    const thresholds = ZOT_CONSTANTS.DEFAULT_CONFIDENCE_THRESHOLDS;
+    const thresholds = ZOT_CONSTANTS.DEFAULT_CONFIDENCE_THRESHOLDS
 
     switch (level) {
       case ZOTConfidenceLevel.HIGH:
-        return score >= thresholds.high;
+        return score >= thresholds.high
       case ZOTConfidenceLevel.MEDIUM:
-        return score >= thresholds.medium;
+        return score >= thresholds.medium
       case ZOTConfidenceLevel.LOW:
-        return score >= thresholds.low;
+        return score >= thresholds.low
       case ZOTConfidenceLevel.VERY_LOW:
-        return score >= 40;
+        return score >= 40
       default:
-        return false;
+        return false
     }
   }
 
@@ -219,53 +220,56 @@ export class ZOTUtils {
    * Calculate overall quality score from individual metrics
    */
   static calculateOverallQuality(metrics: {
-    completeness: number;
-    accuracy: number;
-    consistency: number;
-    timeliness: number;
+    completeness: number
+    accuracy: number
+    consistency: number
+    timeliness: number
   }): number {
     return (
       metrics.completeness * 0.3 +
       metrics.accuracy * 0.3 +
       metrics.consistency * 0.2 +
       metrics.timeliness * 0.2
-    );
+    )
   }
 
   /**
    * Validate transaction data format
    */
   static validateTransactionFormat(transaction: any): {
-    isValid: boolean;
-    errors: string[];
+    isValid: boolean
+    errors: string[]
   } {
-    const errors: string[] = [];
+    const errors: string[] = []
 
-    if (!transaction.id) errors.push('Missing transaction ID');
-    if (!transaction.telegram_id) errors.push('Missing telegram_id');
-    if (!transaction.type) errors.push('Missing transaction type');
-    if (!transaction.bot_name) errors.push('Missing bot_name');
-    if (!transaction.created_at) errors.push('Missing created_at timestamp');
+    if (!transaction.id) errors.push('Missing transaction ID')
+    if (!transaction.telegram_id) errors.push('Missing telegram_id')
+    if (!transaction.type) errors.push('Missing transaction type')
+    if (!transaction.bot_name) errors.push('Missing bot_name')
+    if (!transaction.created_at) errors.push('Missing created_at timestamp')
 
-    if (transaction.amount < 0) errors.push('Amount cannot be negative');
-    if (transaction.stars && transaction.stars < 0) errors.push('Stars cannot be negative');
+    if (transaction.amount < 0) errors.push('Amount cannot be negative')
+    if (transaction.stars && transaction.stars < 0)
+      errors.push('Stars cannot be negative')
 
     try {
-      new Date(transaction.created_at);
+      new Date(transaction.created_at)
     } catch {
-      errors.push('Invalid created_at timestamp format');
+      errors.push('Invalid created_at timestamp format')
     }
 
     return {
       isValid: errors.length === 0,
-      errors
-    };
+      errors,
+    }
   }
 
   /**
    * Generate sample transaction data for testing
    */
-  static generateSampleTransaction(overrides: Partial<ZOTTransactionData> = {}): ZOTTransactionData {
+  static generateSampleTransaction(
+    overrides: Partial<ZOTTransactionData> = {}
+  ): ZOTTransactionData {
     return {
       id: `sample-${Date.now()}`,
       telegram_id: '123456789',
@@ -283,8 +287,8 @@ export class ZOTUtils {
       currency: 'RUB',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      ...overrides
-    };
+      ...overrides,
+    }
   }
 
   /**
@@ -294,17 +298,17 @@ export class ZOTUtils {
     operation: () => Promise<T> | T,
     description: string = 'Operation'
   ): Promise<{ result: T; duration: number; description: string }> {
-    const startTime = Date.now();
-    const result = await operation();
-    const duration = Date.now() - startTime;
+    const startTime = Date.now()
+    const result = await operation()
+    const duration = Date.now() - startTime
 
-    console.log(`${description} completed in ${duration}ms`);
+    console.log(`${description} completed in ${duration}ms`)
 
     return {
       result,
       duration,
-      description
-    };
+      description,
+    }
   }
 }
 
@@ -325,8 +329,8 @@ export const zot = {
   utils: ZOTUtils,
 
   /** Constants */
-  constants: ZOT_CONSTANTS
-};
+  constants: ZOT_CONSTANTS,
+}
 
 /**
  * Quick access functions
@@ -336,15 +340,15 @@ export const zot = {
  * Quick classify a single transaction
  */
 export const classifyTransaction = (transaction: ZOTTransactionData) => {
-  return defaultZOTClassifier.classifyTransaction(transaction);
-};
+  return defaultZOTClassifier.classifyTransaction(transaction)
+}
 
 /**
  * Quick classify multiple transactions
  */
 export const classifyTransactions = (transactions: ZOTTransactionData[]) => {
-  return defaultZOTClassifier.classifyTransactions(transactions);
-};
+  return defaultZOTClassifier.classifyTransactions(transactions)
+}
 
 /**
  * Quick validate bot financials
@@ -353,8 +357,8 @@ export const validateBotFinancials = (
   transactions: ZOTTransactionData[],
   botName: string
 ) => {
-  return defaultZOTValidator.validateBotFinancials(transactions, botName);
-};
+  return defaultZOTValidator.validateBotFinancials(transactions, botName)
+}
 
 /**
  * ZOT Model Version Information
@@ -371,18 +375,18 @@ export const ZOT_VERSION = {
     'Advanced classification rules',
     'Real-time validation',
     'Performance optimization',
-    'Enterprise-grade testing'
+    'Enterprise-grade testing',
   ],
   benchmarks: {
     accuracy: '96.3%',
     speed: '4,200 records/sec',
     testCoverage: '92.7%',
-    errorRate: '0.02%'
-  }
-} as const;
+    errorRate: '0.02%',
+  },
+} as const
 
 // Export version info
-export { ZOT_VERSION as version };
+export { ZOT_VERSION as version }
 
 // Default export for convenience
-export default zot;
+export default zot

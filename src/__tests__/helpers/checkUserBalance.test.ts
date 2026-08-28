@@ -40,7 +40,7 @@ const createMockContext = (overrides = {}): MyContext =>
     from: { id: 123456789 },
     reply: vi.fn().mockResolvedValue({ message_id: 1 }),
     ...overrides,
-  } as unknown as MyContext)
+  }) as unknown as MyContext
 
 describe('checkUserBalance', () => {
   beforeEach(() => {

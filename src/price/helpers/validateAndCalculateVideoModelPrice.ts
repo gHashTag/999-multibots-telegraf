@@ -1,5 +1,8 @@
 import { logger } from '@/utils/logger'
-import { getUnifiedModelConfig, getUnifiedModelPrice } from '@/config/unified-video-models.config'
+import {
+  getUnifiedModelConfig,
+  getUnifiedModelPrice,
+} from '@/config/unified-video-models.config'
 
 /**
  * @deprecated Use processBalanceVideoOperation instead for comprehensive checks.

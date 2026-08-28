@@ -270,11 +270,17 @@ export class CancelButtonService {
       // ✅ REFUND: Проверяем наличие незавершённого платежа и возвращаем звёзды
       const paymentAmount = ctx.session?.paymentAmount || 0
       if (paymentAmount > 0) {
-        logger.info('[CancelButtonService] Refunding pending payment on cancel', {
-          telegramId: ctx.from?.id,
-          amount: paymentAmount,
-        })
-        await refundUser(ctx, paymentAmount, { silent: false, reason: "user_cancelled" }) // НЕ silent - показываем пользователю
+        logger.info(
+          '[CancelButtonService] Refunding pending payment on cancel',
+          {
+            telegramId: ctx.from?.id,
+            amount: paymentAmount,
+          }
+        )
+        await refundUser(ctx, paymentAmount, {
+          silent: false,
+          reason: 'user_cancelled',
+        }) // НЕ silent - показываем пользователю
         ctx.session.paymentAmount = 0 // Очищаем после возврата
       }
 

@@ -16,9 +16,7 @@ export async function sendCompletionNotification(
   taskType?: string
 ): Promise<void> {
   try {
-    const message = isRu
-      ? '✅ Готово!'
-      : '✅ Done!'
+    const message = isRu ? '✅ Готово!' : '✅ Done!'
 
     // Send message with sound notification enabled (disable_notification: false)
     await ctx.reply(message, {
@@ -71,11 +69,14 @@ export async function sendEnhancedCompletionNotification(
       language: isRu ? 'ru' : 'en',
     })
   } catch (error) {
-    logger.error('[CompletionNotification] Error sending enhanced notification', {
-      error: error instanceof Error ? error.message : String(error),
-      telegram_id: ctx.from?.id,
-      taskType: options?.taskType,
-    })
+    logger.error(
+      '[CompletionNotification] Error sending enhanced notification',
+      {
+        error: error instanceof Error ? error.message : String(error),
+        telegram_id: ctx.from?.id,
+        taskType: options?.taskType,
+      }
+    )
   }
 }
 

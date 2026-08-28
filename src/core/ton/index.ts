@@ -502,7 +502,13 @@ export async function getTonBalance(walletAddress: string): Promise<number> {
 }
 
 // Re-export config functions
-export { getTonConfig, usdtToNano, nanoToUsdt, tonToNano, nanoToTon } from './config'
+export {
+  getTonConfig,
+  usdtToNano,
+  nanoToUsdt,
+  tonToNano,
+  nanoToTon,
+} from './config'
 export {
   generateTonPaymentLink,
   generateTonkeeperLink,

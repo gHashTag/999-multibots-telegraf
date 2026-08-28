@@ -5,7 +5,12 @@ import {
 } from '@/services/generateFluxKontext'
 import { Markup } from 'telegraf'
 import { logger } from '@/utils/logger'
-import { cancelMenu, cancelHelpArray, handleHelpCancel, sendGenericErrorMessage } from '@/navigation'
+import {
+  cancelMenu,
+  cancelHelpArray,
+  handleHelpCancel,
+  sendGenericErrorMessage,
+} from '@/navigation'
 import { ModeEnum } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 
@@ -169,10 +174,12 @@ export const handleFluxKontextImage = async (ctx: MyContext) => {
             : `✅ Selected model: ${modelName}\n\n📝 Now describe what you want to change in the image:\n\n💡 Examples:\n• "add a gold necklace"\n• "change background to a beach"\n• "change hair color to red"\n• "make it vintage photography style"\n\n🌐 *Tip: For best results, write your prompt in English*`,
           {
             reply_markup: Markup.inlineKeyboard([
-              [Markup.button.callback(
-                is_ru ? '❌ Отмена' : '❌ Cancel',
-                'cancel'
-              )]
+              [
+                Markup.button.callback(
+                  is_ru ? '❌ Отмена' : '❌ Cancel',
+                  'cancel'
+                ),
+              ],
             ]).reply_markup,
             parse_mode: 'Markdown',
           }
@@ -234,10 +241,7 @@ export const handleFluxKontextModelSelection = async (
         : `✅ Selected model: ${modelName}\n\n📝 Now describe what you want to change in the image:\n\n💡 Examples:\n• "add a gold necklace"\n• "change background to a beach"\n• "change hair color to red"\n• "make it vintage photography style"\n\n🌐 *Tip: For best results, write your prompt in English*`,
       {
         reply_markup: Markup.inlineKeyboard([
-          [Markup.button.callback(
-            is_ru ? '❌ Отмена' : '❌ Cancel',
-            'cancel'
-          )]
+          [Markup.button.callback(is_ru ? '❌ Отмена' : '❌ Cancel', 'cancel')],
         ]).reply_markup,
         parse_mode: 'Markdown',
       }

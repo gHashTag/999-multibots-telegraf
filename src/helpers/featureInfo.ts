@@ -475,7 +475,7 @@ Same as for "Text to Video" — from budget Haiper to premium Minimax.`,
         'Works better with high-quality, high-resolution images',
         'For portraits specify specific facial movements: blinking, smiling',
         'For landscapes describe natural movements: wind, waves, clouds',
-        'If you don\'t specify movement — AI will add it automatically',
+        "If you don't specify movement — AI will add it automatically",
       ],
     },
     minCost: 38,
@@ -921,14 +921,18 @@ export function formatFeatureHelp(info: FeatureInfo, isRu: boolean): string {
   // Как это работает
   if (info.howItWorks) {
     const howItWorks = isRu ? info.howItWorks.ru : info.howItWorks.en
-    const title = isRu ? '\n\n⚙️ <b>Как это работает:</b>\n' : '\n\n⚙️ <b>How it works:</b>\n'
+    const title = isRu
+      ? '\n\n⚙️ <b>Как это работает:</b>\n'
+      : '\n\n⚙️ <b>How it works:</b>\n'
     message += title + howItWorks
   }
 
   // Примеры
   if (info.examples) {
     const examples = isRu ? info.examples.ru : info.examples.en
-    const title = isRu ? '\n\n💡 <b>Примеры запросов:</b>' : '\n\n💡 <b>Example prompts:</b>'
+    const title = isRu
+      ? '\n\n💡 <b>Примеры запросов:</b>'
+      : '\n\n💡 <b>Example prompts:</b>'
     message += title
     examples.forEach(ex => {
       message += `\n• ${ex}`
@@ -938,7 +942,9 @@ export function formatFeatureHelp(info: FeatureInfo, isRu: boolean): string {
   // Советы
   if (info.tips) {
     const tips = isRu ? info.tips.ru : info.tips.en
-    const title = isRu ? '\n\n✅ <b>Советы для лучшего результата:</b>' : '\n\n✅ <b>Tips for better results:</b>'
+    const title = isRu
+      ? '\n\n✅ <b>Советы для лучшего результата:</b>'
+      : '\n\n✅ <b>Tips for better results:</b>'
     message += title
     tips.forEach(tip => {
       message += `\n• ${tip}`

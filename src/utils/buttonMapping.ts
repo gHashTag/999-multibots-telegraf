@@ -97,6 +97,7 @@ export function sanitizeInput(input: string, maxLength?: number): string {
     // используется как ключ маршрутизации, а не как отображаемый текст.
     .replace(/[<>"'`\\]/g, '')
     // Управляющие символы: невидимы в логах и способны рвать разбор.
+    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001F\u007F]/g, '')
     // Любые последовательности пробелов схлопываются в один.
     .replace(/\s+/g, ' ')

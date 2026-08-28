@@ -17,14 +17,32 @@ import {
 import { z } from 'zod'
 import { logger } from '@/utils/logger'
 import { FalVeedFabricProvider } from '@/core/lipsync/providers/fal-veed-fabric-provider'
-import { getLipSyncModelById, calculateLipSyncCostStars } from '@/config/lipsync-models.config'
-import { convertAudioToMp3, needsAudioConversion } from '@/helpers/video-helpers'
+import {
+  getLipSyncModelById,
+  calculateLipSyncCostStars,
+} from '@/config/lipsync-models.config'
+import {
+  convertAudioToMp3,
+  needsAudioConversion,
+} from '@/helpers/video-helpers'
 import { refundAndTell } from '@/price/helpers/refundAndTell'
 
 const MAX_FILE_SIZE = LIPSYNC_CONSTANTS.MAX_FILE_SIZE
 
-// Fal.ai провайдер для LatentSync и Hummingbird
-const falProvider = new FalVeedFabricProvider()
+// Fal.ai провайдер для LatentSync и Hummingbird.
+//
+// Создаётся ЛЕНИВО, а не на уровне модуля. Раньше здесь стоял
+// `const falProvider = new FalVeedFabricProvider()`, и при некоторых порядках
+// загрузки (проверено прогоном `bun run test:bun`) класс оказывался ещё не
+// инициализирован: «ReferenceError: Cannot access 'FalVeedFabricProvider'
+// before initialization» — падение при вычислении модуля сцены, ещё до
+// единого запроса пользователя. Тот же класс дефектов, что и у сцен,
+// регистрировавших handleHelpCancel напрямую.
+let falProviderInstance: FalVeedFabricProvider | null = null
+const getFalProvider = (): FalVeedFabricProvider => {
+  if (!falProviderInstance) falProviderInstance = new FalVeedFabricProvider()
+  return falProviderInstance
+}
 
 /**
  * Получает выбранную модель из сессии или использует default
@@ -36,7 +54,10 @@ function getSelectedModel(ctx: MyContext): string {
 /**
  * Рассчитывает стоимость для выбранной модели
  */
-function calculateCostForModel(modelId: string, durationSeconds: number = 10): number {
+function calculateCostForModel(
+  modelId: string,
+  durationSeconds: number = 10
+): number {
   return calculateLipSyncCostStars(modelId, durationSeconds)
 }
 
@@ -60,20 +81,25 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       // Инициализируем сессию с валидацией
       const validatedSession = validateSession({
         step: 'video',
-        startTime: Date.now()
+        startTime: Date.now(),
       })
       ctx.session = {
         ...ctx.session,
-        ...validatedSession
+        ...validatedSession,
       }
-      
+
       await ctx.reply(
         isRu ? 'Отправьте видео или URL видео' : 'Send a video or video URL',
         {
           reply_markup: {
-            inline_keyboard: [[
-              Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'lipsync_cancel')
-            ]]
+            inline_keyboard: [
+              [
+                Markup.button.callback(
+                  isRu ? 'Отмена' : 'Cancel',
+                  'lipsync_cancel'
+                ),
+              ],
+            ],
           },
         }
       )
@@ -81,7 +107,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     } catch (error) {
       console.error('❌ Ошибка инициализации LipSync:', error)
       await ctx.reply(
-        isRu 
+        isRu
           ? '❌ Ошибка инициализации. Попробуйте позже.'
           : '❌ Initialization error. Try again later.'
       )
@@ -94,12 +120,15 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     let videoInput: any
 
     // Проверяем нажатие кнопки "Отмена"
-    if (ctx.callbackQuery && 'data' in ctx.callbackQuery && ctx.callbackQuery.data === 'lipsync_cancel') {
+    if (
+      ctx.callbackQuery &&
+      'data' in ctx.callbackQuery &&
+      ctx.callbackQuery.data === 'lipsync_cancel'
+    ) {
       await ctx.answerCbQuery()
       await ctx.reply(isRu ? '❌ Процесс отменён.' : '❌ Process cancelled.')
       return ctx.scene.leave()
     }
-
 
     try {
       if (message && 'video' in message) {
@@ -108,8 +137,11 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
           file_id: message.video.file_id,
           file_size: message.video.file_size,
         })
-        
-        if (validatedFile.file_size && validatedFile.file_size > MAX_FILE_SIZE) {
+
+        if (
+          validatedFile.file_size &&
+          validatedFile.file_size > MAX_FILE_SIZE
+        ) {
           await ctx.reply(
             isRu
               ? `❌ Видео слишком большое. Максимальный размер: ${Math.round(MAX_FILE_SIZE / (1024 * 1024))}MB`
@@ -117,44 +149,45 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
           )
           return ctx.scene.leave()
         }
-        
+
         const videoFile = await ctx.telegram.getFile(message.video.file_id)
         const videoUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${videoFile.file_path}`
-        
+
         videoInput = {
           type: 'telegram_file',
           file: validatedFile,
-          bot_token: ctx.telegram.token
+          bot_token: ctx.telegram.token,
         }
-        
+
         ctx.session.videoUrl = videoUrl
-        
       } else if (message && 'text' in message) {
         // Валидация URL
         videoInput = validateVideoInput({
           type: 'url',
-          url: message.text
+          url: message.text,
         })
-        
+
         ctx.session.videoUrl = message.text
       }
 
       if (!videoInput || !ctx.session.videoUrl) {
         await ctx.reply(
-          isRu ? '❌ Некорректное видео. Отправьте видео файл или URL.' : '❌ Invalid video. Send a video file or URL.'
+          isRu
+            ? '❌ Некорректное видео. Отправьте видео файл или URL.'
+            : '❌ Invalid video. Send a video file or URL.'
         )
         return ctx.scene.leave()
       }
-      
+
       // Обновляем сессию
       const validatedSession = validateSession({
         step: 'audio',
         videoUrl: ctx.session.videoUrl,
-        startTime: ctx.session.startTime
+        startTime: ctx.session.startTime,
       })
       ctx.session = {
         ...ctx.session,
-        ...validatedSession
+        ...validatedSession,
       }
 
       await ctx.reply(
@@ -163,22 +196,27 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
           : 'Video received! Now send an audio, voice message, or audio URL',
         {
           reply_markup: {
-            inline_keyboard: [[
-              Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'lipsync_cancel')
-            ]]
+            inline_keyboard: [
+              [
+                Markup.button.callback(
+                  isRu ? 'Отмена' : 'Cancel',
+                  'lipsync_cancel'
+                ),
+              ],
+            ],
           },
         }
       )
       return ctx.wizard.next()
-      
     } catch (error) {
       console.error('❌ Ошибка валидации видео:', error)
-      const errorMessage = error instanceof z.ZodError 
-        ? error.errors.map(e => e.message).join(', ')
-        : 'Неизвестная ошибка'
-        
+      const errorMessage =
+        error instanceof z.ZodError
+          ? error.errors.map(e => e.message).join(', ')
+          : 'Неизвестная ошибка'
+
       await ctx.reply(
-        isRu 
+        isRu
           ? `❌ Ошибка обработки видео: ${errorMessage}`
           : `❌ Video processing error: ${errorMessage}`
       )
@@ -195,13 +233,16 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
         if (!message.audio.file_id) {
           throw new Error('Audio file ID не найден')
         }
-        
+
         const validatedFile = validateTelegramFile({
           file_id: message.audio.file_id,
           file_size: message.audio.file_size,
         })
-        
-        if (validatedFile.file_size && validatedFile.file_size > MAX_FILE_SIZE) {
+
+        if (
+          validatedFile.file_size &&
+          validatedFile.file_size > MAX_FILE_SIZE
+        ) {
           await ctx.reply(
             isRu
               ? `❌ Аудио слишком большое. Максимальный размер: ${Math.round(MAX_FILE_SIZE / (1024 * 1024))}MB`
@@ -209,25 +250,27 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
           )
           return ctx.scene.leave()
         }
-        
+
         const audioFile = await ctx.telegram.getFile(message.audio.file_id)
         const audioUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${audioFile.file_path}`
-        
+
         audioInput = {
           type: 'telegram_file',
           file: validatedFile,
-          bot_token: ctx.telegram.token
+          bot_token: ctx.telegram.token,
         }
-        
+
         ctx.session.audioUrl = audioUrl
-        
       } else if (message && 'voice' in message) {
         const validatedFile = validateTelegramFile({
           file_id: message.voice.file_id,
           file_size: message.voice.file_size,
         })
-        
-        if (validatedFile.file_size && validatedFile.file_size > MAX_FILE_SIZE) {
+
+        if (
+          validatedFile.file_size &&
+          validatedFile.file_size > MAX_FILE_SIZE
+        ) {
           await ctx.reply(
             isRu
               ? `❌ Голосовое сообщение слишком большое. Максимальный размер: ${Math.round(MAX_FILE_SIZE / (1024 * 1024))}MB`
@@ -235,256 +278,268 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
           )
           return ctx.scene.leave()
         }
-        
+
         const voiceFile = await ctx.telegram.getFile(message.voice.file_id)
         const audioUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${voiceFile.file_path}`
-        
+
         audioInput = {
           type: 'telegram_file',
           file: validatedFile,
-          bot_token: ctx.telegram.token
+          bot_token: ctx.telegram.token,
         }
-        
+
         ctx.session.audioUrl = audioUrl
-        
       } else if (message && 'text' in message) {
         audioInput = validateAudioInput({
           type: 'url',
-          url: message.text
+          url: message.text,
         })
-        
+
         ctx.session.audioUrl = message.text
       }
 
       if (!audioInput || !ctx.session.audioUrl) {
         await ctx.reply(
-          isRu ? '❌ Некорректное аудио. Отправьте аудио файл, голосовое сообщение или URL.' : '❌ Invalid audio. Send an audio file, voice message, or URL.'
+          isRu
+            ? '❌ Некорректное аудио. Отправьте аудио файл, голосовое сообщение или URL.'
+            : '❌ Invalid audio. Send an audio file, voice message, or URL.'
         )
         return ctx.scene.leave()
       }
-      
+
       // Обновляем сессию
       const validatedSession = validateSession({
         step: 'processing',
         videoUrl: ctx.session.videoUrl,
         audioUrl: ctx.session.audioUrl,
-        startTime: ctx.session.startTime
+        startTime: ctx.session.startTime,
       })
       ctx.session = {
         ...ctx.session,
-        ...validatedSession
+        ...validatedSession,
       }
-      
-      ctx.session.audioUrl = ctx.session.audioUrl
 
       if (!ctx.from?.id) {
         throw new Error('User ID не предоставлен')
       }
 
-    // Получаем выбранную модель из сессии
-    const telegramId = ctx.from.id.toString()
-    const selectedModelId = getSelectedModel(ctx)
-    const modelConfig = getLipSyncModelById(selectedModelId)
+      // Получаем выбранную модель из сессии
+      const telegramId = ctx.from.id.toString()
+      const selectedModelId = getSelectedModel(ctx)
+      const modelConfig = getLipSyncModelById(selectedModelId)
 
-    logger.info('🎤 [LIP SYNC] Выбранная модель', {
-      telegramId,
-      selectedModelId,
-      modelName: modelConfig?.name,
-    })
+      logger.info('🎤 [LIP SYNC] Выбранная модель', {
+        telegramId,
+        selectedModelId,
+        modelName: modelConfig?.name,
+      })
 
-    // Рассчитываем стоимость для выбранной модели (примерно 10 секунд видео)
-    const estimatedDuration = 10 // секунд
-    const lipSyncCost = calculateCostForModel(selectedModelId, estimatedDuration)
-
-    const currentBalance = await getUserBalance(telegramId)
-
-    if (currentBalance === null) {
-      await ctx.reply(
-        isRu
-          ? 'Ошибка получения баланса. Попробуйте позже.'
-          : 'Error getting balance. Try again later.'
+      // Рассчитываем стоимость для выбранной модели (примерно 10 секунд видео)
+      const estimatedDuration = 10 // секунд
+      const lipSyncCost = calculateCostForModel(
+        selectedModelId,
+        estimatedDuration
       )
-      return ctx.scene.leave()
-    }
 
-    if (currentBalance < lipSyncCost) {
-      await ctx.reply(
-        isRu
-          ? `Недостаточно средств. Требуется: ~${Math.ceil(lipSyncCost)}⭐ (за ~${estimatedDuration} сек), у вас: ${Math.floor(currentBalance)}⭐`
-          : `Insufficient funds. Required: ~${Math.ceil(lipSyncCost)}⭐ (for ~${estimatedDuration} sec), you have: ${Math.floor(currentBalance)}⭐`
-      )
-      return ctx.scene.leave()
-    }
+      const currentBalance = await getUserBalance(telegramId)
 
-    // Списание средств
-    const paymentSuccess = await updateUserBalance(
-      telegramId,
-      lipSyncCost,
-      PaymentType.MONEY_OUTCOME,
-      `LipSync: ${modelConfig?.name || selectedModelId}`,
-      {
-        bot_name: ctx.botInfo?.username || 'unknown_bot',
-        service_type: 'lip_sync',
-        model_name: selectedModelId,
-        language: isRu ? 'ru' : 'en',
+      if (currentBalance === null) {
+        await ctx.reply(
+          isRu
+            ? 'Ошибка получения баланса. Попробуйте позже.'
+            : 'Error getting balance. Try again later.'
+        )
+        return ctx.scene.leave()
       }
-    )
 
-    if (!paymentSuccess) {
-      await ctx.reply(
-        isRu
-          ? 'Ошибка списания средств. Попробуйте позже.'
-          : 'Error charging payment. Try again later.'
-      )
-      return ctx.scene.leave()
-    }
+      if (currentBalance < lipSyncCost) {
+        await ctx.reply(
+          isRu
+            ? `Недостаточно средств. Требуется: ~${Math.ceil(lipSyncCost)}⭐ (за ~${estimatedDuration} сек), у вас: ${Math.floor(currentBalance)}⭐`
+            : `Insufficient funds. Required: ~${Math.ceil(lipSyncCost)}⭐ (for ~${estimatedDuration} sec), you have: ${Math.floor(currentBalance)}⭐`
+        )
+        return ctx.scene.leave()
+      }
 
-    const newBalance = currentBalance - lipSyncCost
-    await ctx.reply(
-      isRu
-        ? `✅ Списано ~${Math.ceil(lipSyncCost)}⭐ (${modelConfig?.name || selectedModelId}). Баланс: ${Math.floor(newBalance)}⭐`
-        : `✅ Charged ~${Math.ceil(lipSyncCost)}⭐ (${modelConfig?.name || selectedModelId}). Balance: ${Math.floor(newBalance)}⭐`
-    )
-
-    if (!ctx.session.videoUrl || !ctx.session.audioUrl) {
-      logger.error('❌ Video URL или Audio URL не найден', { telegramId })
-      await updateUserBalance(
+      // Списание средств
+      const paymentSuccess = await updateUserBalance(
         telegramId,
         lipSyncCost,
-        PaymentType.MONEY_INCOME,
-        'LipSync refund - missing URLs',
-        { bot_name: ctx.botInfo?.username || 'unknown_bot' }
+        PaymentType.MONEY_OUTCOME,
+        `LipSync: ${modelConfig?.name || selectedModelId}`,
+        {
+          bot_name: ctx.botInfo?.username || 'unknown_bot',
+          service_type: 'lip_sync',
+          model_name: selectedModelId,
+          language: isRu ? 'ru' : 'en',
+        }
       )
-      return ctx.scene.leave()
-    }
 
-    try {
-      // Определяем Fal.ai modelId по выбранному ID
-      const falModelId = selectedModelId === 'latentsync'
-        ? 'fal-ai/latentsync'
-        : selectedModelId === 'hummingbird'
-          ? 'fal-ai/tavus/hummingbird-lipsync/v0'
-          : 'fal-ai/latentsync' // default
-
-      // Конвертируем аудио из .oga в .mp3 если нужно (Telegram voice messages)
-      let finalAudioUrl = ctx.session.audioUrl
-      if (needsAudioConversion(ctx.session.audioUrl)) {
+      if (!paymentSuccess) {
         await ctx.reply(
           isRu
-            ? '🔄 Конвертирую аудио в MP3 формат...'
-            : '🔄 Converting audio to MP3 format...'
+            ? 'Ошибка списания средств. Попробуйте позже.'
+            : 'Error charging payment. Try again later.'
         )
+        return ctx.scene.leave()
+      }
 
-        try {
-          finalAudioUrl = await convertAudioToMp3(ctx.session.audioUrl, telegramId)
-          logger.info('✅ [LIP SYNC] Audio converted to MP3', {
-            telegramId,
-            originalUrl: ctx.session.audioUrl.substring(0, 50) + '...',
-            convertedUrl: finalAudioUrl.substring(0, 50) + '...',
-          })
-        } catch (conversionError) {
-          logger.error('❌ [LIP SYNC] Audio conversion failed', {
-            error: conversionError instanceof Error ? conversionError.message : String(conversionError),
-            telegramId,
-          })
-          throw new Error(
+      const newBalance = currentBalance - lipSyncCost
+      await ctx.reply(
+        isRu
+          ? `✅ Списано ~${Math.ceil(lipSyncCost)}⭐ (${modelConfig?.name || selectedModelId}). Баланс: ${Math.floor(newBalance)}⭐`
+          : `✅ Charged ~${Math.ceil(lipSyncCost)}⭐ (${modelConfig?.name || selectedModelId}). Balance: ${Math.floor(newBalance)}⭐`
+      )
+
+      if (!ctx.session.videoUrl || !ctx.session.audioUrl) {
+        logger.error('❌ Video URL или Audio URL не найден', { telegramId })
+        await updateUserBalance(
+          telegramId,
+          lipSyncCost,
+          PaymentType.MONEY_INCOME,
+          'LipSync refund - missing URLs',
+          { bot_name: ctx.botInfo?.username || 'unknown_bot' }
+        )
+        return ctx.scene.leave()
+      }
+
+      try {
+        // Определяем Fal.ai modelId по выбранному ID
+        const falModelId =
+          selectedModelId === 'latentsync'
+            ? 'fal-ai/latentsync'
+            : selectedModelId === 'hummingbird'
+              ? 'fal-ai/tavus/hummingbird-lipsync/v0'
+              : 'fal-ai/latentsync' // default
+
+        // Конвертируем аудио из .oga в .mp3 если нужно (Telegram voice messages)
+        let finalAudioUrl = ctx.session.audioUrl
+        if (needsAudioConversion(ctx.session.audioUrl)) {
+          await ctx.reply(
             isRu
-              ? 'Не удалось конвертировать аудио. Попробуйте отправить MP3 или WAV файл.'
-              : 'Failed to convert audio. Please try sending an MP3 or WAV file.'
+              ? '🔄 Конвертирую аудио в MP3 формат...'
+              : '🔄 Converting audio to MP3 format...'
+          )
+
+          try {
+            finalAudioUrl = await convertAudioToMp3(
+              ctx.session.audioUrl,
+              telegramId
+            )
+            logger.info('✅ [LIP SYNC] Audio converted to MP3', {
+              telegramId,
+              originalUrl: ctx.session.audioUrl.substring(0, 50) + '...',
+              convertedUrl: finalAudioUrl.substring(0, 50) + '...',
+            })
+          } catch (conversionError) {
+            logger.error('❌ [LIP SYNC] Audio conversion failed', {
+              error:
+                conversionError instanceof Error
+                  ? conversionError.message
+                  : String(conversionError),
+              telegramId,
+            })
+            throw new Error(
+              isRu
+                ? 'Не удалось конвертировать аудио. Попробуйте отправить MP3 или WAV файл.'
+                : 'Failed to convert audio. Please try sending an MP3 or WAV file.'
+            )
+          }
+        }
+
+        logger.info('🚀 [LIP SYNC] Запуск генерации через Fal.ai', {
+          telegramId,
+          falModelId,
+          videoUrl: ctx.session.videoUrl.substring(0, 50) + '...',
+          audioUrl: finalAudioUrl.substring(0, 50) + '...',
+        })
+
+        // Используем Fal.ai провайдер для LatentSync/Hummingbird
+        const result = await getFalProvider().generate({
+          provider: 'fal',
+          modelId: falModelId,
+          telegramId,
+          videoUrl: ctx.session.videoUrl,
+          audioUrl: finalAudioUrl,
+          durationSeconds: estimatedDuration,
+        })
+
+        // Проверяем результат
+        if ('error' in result) {
+          throw new Error(result.message || 'Ошибка генерации')
+        }
+
+        logger.info('✅ [LIP SYNC] Генерация успешна', {
+          telegramId,
+          resultId: result.id,
+          outputUrl: result.output?.substring(0, 50) + '...',
+        })
+
+        // Отправляем видео пользователю
+        if (result.output) {
+          await ctx.replyWithVideo(result.output, {
+            caption: isRu
+              ? `✅ Lip Sync готов! (${modelConfig?.name || selectedModelId})`
+              : `✅ Lip Sync ready! (${modelConfig?.name || selectedModelId})`,
+          })
+        } else {
+          await ctx.reply(
+            isRu
+              ? '✅ Видео обрабатывается. Результат будет отправлен позже.'
+              : '✅ Video is processing. Result will be sent later.'
           )
         }
-      }
-
-      logger.info('🚀 [LIP SYNC] Запуск генерации через Fal.ai', {
-        telegramId,
-        falModelId,
-        videoUrl: ctx.session.videoUrl.substring(0, 50) + '...',
-        audioUrl: finalAudioUrl.substring(0, 50) + '...',
-      })
-
-      // Используем Fal.ai провайдер для LatentSync/Hummingbird
-      const result = await falProvider.generate({
-        provider: 'fal',
-        modelId: falModelId,
-        telegramId,
-        videoUrl: ctx.session.videoUrl,
-        audioUrl: finalAudioUrl,
-        durationSeconds: estimatedDuration,
-      })
-
-      // Проверяем результат
-      if ('error' in result) {
-        throw new Error(result.message || 'Ошибка генерации')
-      }
-
-      logger.info('✅ [LIP SYNC] Генерация успешна', {
-        telegramId,
-        resultId: result.id,
-        outputUrl: result.output?.substring(0, 50) + '...',
-      })
-
-      // Отправляем видео пользователю
-      if (result.output) {
-        await ctx.replyWithVideo(result.output, {
-          caption: isRu
-            ? `✅ Lip Sync готов! (${modelConfig?.name || selectedModelId})`
-            : `✅ Lip Sync ready! (${modelConfig?.name || selectedModelId})`,
+      } catch (error) {
+        logger.error('❌ Error in Fal.ai LipSync generation:', {
+          error: error instanceof Error ? error.message : String(error),
+          telegramId,
         })
-      } else {
-        await ctx.reply(
-          isRu
-            ? '✅ Видео обрабатывается. Результат будет отправлен позже.'
-            : '✅ Video is processing. Result will be sent later.'
-        )
+
+        const errorMessage =
+          error instanceof z.ZodError
+            ? error.errors.map(e => e.message).join(', ')
+            : error instanceof Error
+              ? error.message
+              : 'Неизвестная ошибка'
+
+        // Возвращаем средства при ошибке — и говорим правду о том, вернулись ли
+        // они: начисление может не пройти.
+        await refundAndTell({
+          ctx,
+          telegramId,
+          amount: lipSyncCost,
+          description: 'LipSync refund - generation error',
+          reason: {
+            ru: `Ошибка при обработке: ${errorMessage}`,
+            en: `Processing error: ${errorMessage}`,
+          },
+          isRu,
+        })
       }
-    } catch (error) {
-      logger.error('❌ Error in Fal.ai LipSync generation:', {
-        error: error instanceof Error ? error.message : String(error),
-        telegramId,
-      })
-
-      const errorMessage = error instanceof z.ZodError
-        ? error.errors.map(e => e.message).join(', ')
-        : error instanceof Error ? error.message : 'Неизвестная ошибка'
-
-      // Возвращаем средства при ошибке — и говорим правду о том, вернулись ли
-      // они: начисление может не пройти.
-      await refundAndTell({
-        ctx,
-        telegramId,
-        amount: lipSyncCost,
-        description: 'LipSync refund - generation error',
-        reason: {
-          ru: `Ошибка при обработке: ${errorMessage}`,
-          en: `Processing error: ${errorMessage}`,
-        },
-        isRu,
-      })
-    }
-    
     } catch (error) {
       console.error('❌ Ошибка валидации аудио:', error)
-      const errorMessage = error instanceof z.ZodError 
-        ? error.errors.map(e => e.message).join(', ')
-        : 'Неизвестная ошибка'
-        
+      const errorMessage =
+        error instanceof z.ZodError
+          ? error.errors.map(e => e.message).join(', ')
+          : 'Неизвестная ошибка'
+
       await ctx.reply(
-        isRu 
+        isRu
           ? `❌ Ошибка обработки аудио: ${errorMessage}`
           : `❌ Audio processing error: ${errorMessage}`
       )
       return ctx.scene.leave()
     }
-    
+
     return ctx.scene.leave()
   }
 )
 
 // Глобальный обработчик отмены для всех команд отмены
-lipSyncWizard.action(/^cancel_/, async (ctx) => {
+lipSyncWizard.action(/^cancel_/, async ctx => {
   await handleCancel(ctx, {
     messageRu: '❌ Процесс отменён.',
-    messageEn: '❌ Process cancelled.'
+    messageEn: '❌ Process cancelled.',
   })
 })
 

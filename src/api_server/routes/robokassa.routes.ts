@@ -43,26 +43,37 @@ const SUBSCRIPTION_PLANS = [
   },
 ]
 
-const SUBSCRIPTION_AMOUNTS = SUBSCRIPTION_PLANS.reduce((acc, plan) => {
-  acc[plan.ru_price] = plan.callback_data
-  return acc
-}, {} as Record<number, string>)
+const SUBSCRIPTION_AMOUNTS = SUBSCRIPTION_PLANS.reduce(
+  (acc, plan) => {
+    acc[plan.ru_price] = plan.callback_data
+    return acc
+  },
+  {} as Record<number, string>
+)
 
 /**
  * Обработчик webhook от Robokassa (legacy endpoint)
  * POST /api/robokassa-result
  */
-router.post('/robokassa-result', express.urlencoded({ extended: true }) as any, async (req: any, res: any) => {
-  return handlePaymentSuccess(req, res)
-})
+router.post(
+  '/robokassa-result',
+  express.urlencoded({ extended: true }) as any,
+  async (req: any, res: any) => {
+    return handlePaymentSuccess(req, res)
+  }
+)
 
 /**
  * Обработчик webhook от Robokassa (primary endpoint)
  * POST /api/payment-success
  */
-router.post('/payment-success', express.urlencoded({ extended: true }) as any, async (req: any, res: any) => {
-  return handlePaymentSuccess(req, res)
-})
+router.post(
+  '/payment-success',
+  express.urlencoded({ extended: true }) as any,
+  async (req: any, res: any) => {
+    return handlePaymentSuccess(req, res)
+  }
+)
 
 /**
  * GET handler для тестирования доступности endpoint
@@ -198,7 +209,8 @@ async function handlePaymentSuccess(req: any, res: any) {
       telegram_id: payment.telegram_id,
       // Колонка называется subscription_type; payment.subscription не
       // существует в payments_v2 и всегда писала в журнал undefined.
-      subscription_type: (payment as { subscription_type?: string }).subscription_type,
+      subscription_type: (payment as { subscription_type?: string })
+        .subscription_type,
     })
 
     // Определяем количество звезд и тип подписки из суммы платежа
@@ -229,7 +241,8 @@ async function handlePaymentSuccess(req: any, res: any) {
      * без подтверждения тарифа и без приглашения в чат сообщества.
      */
     let stars = Number(payment.stars) || 0
-    let subscription = (payment as { subscription_type?: string }).subscription_type || ''
+    let subscription =
+      (payment as { subscription_type?: string }).subscription_type || ''
 
     // Таблицы цен остаются ЗАПАСНЫМ путём — на случай строки без stars
     // (старые записи), но приоритет всегда у того, что записано при выставлении.
@@ -288,13 +301,17 @@ async function handlePaymentSuccess(req: any, res: any) {
         // Но и молчать нельзя: если этот шаг падает, что-то не так с
         // профилем человека (updateUserBalance отклоняет MONEY_INCOME без
         // строки в users) — это повод посмотреть, а не пропустить.
-        logger.error('⚠️ Вторичное обновление баланса не удалось (звёзды начислены отметкой)', {
-          description: 'secondary balance update failed; credit already applied via status',
-          InvId,
-          telegram_id: payment.telegram_id,
-          stars,
-          bot_name: payment.bot_name,
-        })
+        logger.error(
+          '⚠️ Вторичное обновление баланса не удалось (звёзды начислены отметкой)',
+          {
+            description:
+              'secondary balance update failed; credit already applied via status',
+            InvId,
+            telegram_id: payment.telegram_id,
+            stars,
+            bot_name: payment.bot_name,
+          }
+        )
       }
     }
 
@@ -319,7 +336,12 @@ async function handlePaymentSuccess(req: any, res: any) {
     await sendPaymentSuccessNotification(payment, stars, subscription)
 
     // Отправляем уведомление в админ-группу
-    await sendAdminGroupNotification(payment, numericOutSum, stars, subscription)
+    await sendAdminGroupNotification(
+      payment,
+      numericOutSum,
+      stars,
+      subscription
+    )
 
     // Отправляем уведомление владельцу бота
     if (payment.bot_name) {
@@ -339,7 +361,10 @@ async function handlePaymentSuccess(req: any, res: any) {
         logger.error('❌ Failed to notify bot owners', {
           InvId,
           bot_name: payment.bot_name,
-          error: ownerError instanceof Error ? ownerError.message : String(ownerError),
+          error:
+            ownerError instanceof Error
+              ? ownerError.message
+              : String(ownerError),
         })
       }
     }
@@ -481,8 +506,8 @@ If not, continue on your own and click the "I myself" button`
                   url: channelId.startsWith('@')
                     ? `https://t.me/${channelId.slice(1)}`
                     : channelId.startsWith('http')
-                    ? channelId
-                    : `https://t.me/${channelId}`,
+                      ? channelId
+                      : `https://t.me/${channelId}`,
                 },
               ],
               [

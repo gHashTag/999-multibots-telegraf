@@ -45,7 +45,9 @@ export interface GenerateJob {
 
 const jobs = new Map<string, GenerateJob>()
 
-type Pool = { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> }
+type Pool = {
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
+}
 
 /**
  * The pool is handed in rather than imported.
@@ -117,10 +119,16 @@ function persist(job: GenerateJob): void {
            provider = EXCLUDED.provider,
            error = EXCLUDED.error`,
         [
-          job.id, job.kind, job.owner, job.state,
+          job.id,
+          job.kind,
+          job.owner,
+          job.state,
           new Date(job.startedAt).toISOString(),
           job.finishedAt ? new Date(job.finishedAt).toISOString() : null,
-          job.url ?? null, job.provider ?? null, job.error ?? null, job.prompt ?? null,
+          job.url ?? null,
+          job.provider ?? null,
+          job.error ?? null,
+          job.prompt ?? null,
         ]
       )
     } catch {
@@ -153,12 +161,15 @@ function fromRow(r: any): GenerateJob {
  */
 const TTL_MS = 60 * 60 * 1000
 
-const sweeper = setInterval(() => {
-  const cutoff = Date.now() - TTL_MS
-  for (const [id, job] of jobs) {
-    if ((job.finishedAt ?? job.startedAt) < cutoff) jobs.delete(id)
-  }
-}, 5 * 60 * 1000)
+const sweeper = setInterval(
+  () => {
+    const cutoff = Date.now() - TTL_MS
+    for (const [id, job] of jobs) {
+      if ((job.finishedAt ?? job.startedAt) < cutoff) jobs.delete(id)
+    }
+  },
+  5 * 60 * 1000
+)
 // A bare setInterval keeps the event loop alive and makes tests hang on exit.
 sweeper.unref?.()
 
@@ -239,9 +250,12 @@ export function _resetJobs(): void {
  * `end` is wrapped, not replaced: the original still runs, so the slow
  * synchronous answer is untouched for clients that are waiting for it.
  */
-export function recordInto(job: GenerateJob, res: {
-  end: (chunk?: any, ...rest: any[]) => any
-}): void {
+export function recordInto(
+  job: GenerateJob,
+  res: {
+    end: (chunk?: any, ...rest: any[]) => any
+  }
+): void {
   const original = res.end.bind(res)
   res.end = ((chunk?: any, ...rest: any[]) => {
     try {
@@ -273,19 +287,26 @@ export function recordInto(job: GenerateJob, res: {
  * genuinely might be asking after a restart: a person looking for a
  * generation they paid for.
  */
-export async function getJobDurable(id: string): Promise<GenerateJob | undefined> {
+export async function getJobDurable(
+  id: string
+): Promise<GenerateJob | undefined> {
   const hit = jobs.get(id)
   if (hit) return hit
   if (!(await ensureSchema()) || !pool) return undefined
   try {
-    const r = await pool.query(`SELECT * FROM generate_jobs WHERE id = $1`, [id])
+    const r = await pool.query(`SELECT * FROM generate_jobs WHERE id = $1`, [
+      id,
+    ])
     return r.rows.length ? fromRow(r.rows[0]) : undefined
   } catch {
     return undefined
   }
 }
 
-export async function listJobsDurable(owner: string, limit = 20): Promise<GenerateJob[]> {
+export async function listJobsDurable(
+  owner: string,
+  limit = 20
+): Promise<GenerateJob[]> {
   // The same refusal as the synchronous version, and stated first so it cannot
   // be reached around: an empty owner matches nothing, never everything.
   if (!owner) return []
@@ -309,7 +330,9 @@ export async function listJobsDurable(owner: string, limit = 20): Promise<Genera
      * "running" for something that is done — the exact wrong answer for
      * someone checking whether their generation survived.
      */
-    const merged = new Map(r.rows.map((row: any) => [String(row.id), fromRow(row)]))
+    const merged = new Map(
+      r.rows.map((row: any) => [String(row.id), fromRow(row)])
+    )
     for (const j of inMemory) merged.set(j.id, j)
     return [...merged.values()]
       .sort((a, b) => b.startedAt - a.startedAt)

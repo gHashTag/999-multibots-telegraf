@@ -23,13 +23,17 @@ const FFPROBE = process.env.FFPROBE_PATH || 'ffprobe'
 
 async function durationSec(file: string): Promise<number> {
   const { stdout } = await exec(FFPROBE, [
-    '-v', 'error',
-    '-show_entries', 'format=duration',
-    '-of', 'csv=p=0',
+    '-v',
+    'error',
+    '-show_entries',
+    'format=duration',
+    '-of',
+    'csv=p=0',
     file,
   ])
   const d = parseFloat(stdout.trim())
-  if (!isFinite(d) || d <= 0) throw new Error(`ffprobe не смог измерить ${file}`)
+  if (!isFinite(d) || d <= 0)
+    throw new Error(`ffprobe не смог измерить ${file}`)
   return d
 }
 
@@ -79,7 +83,10 @@ export async function stageScenes(
   for (const shot of shots) {
     const prompt = ctx.canon.shots[shot]
     if (!prompt) {
-      throw new StageError('scenes', `у канона ${ctx.canon.id} нет плана «${shot}»`)
+      throw new StageError(
+        'scenes',
+        `у канона ${ctx.canon.id} нет плана «${shot}»`
+      )
     }
     const out = await runModel(
       'black-forest-labs/flux-kontext-pro',
@@ -92,7 +99,11 @@ export async function stageScenes(
       { stage: 'scenes' }
     )
     const local = path.join(ctx.workDir, `shot-${shot}.jpg`)
-    result[shot] = await mirror(firstUrl(out), local, `${ctx.runId}-shot-${shot}.jpg`)
+    result[shot] = await mirror(
+      firstUrl(out),
+      local,
+      `${ctx.runId}-shot-${shot}.jpg`
+    )
     ctx.log(`план «${shot}» готов`)
   }
   return result
@@ -121,7 +132,11 @@ export async function stageLipsync(
       { stage: 'lipsync', attempts: 3, timeoutMs: 25 * 60 * 1000 }
     )
     const local = path.join(ctx.workDir, `lip-${shot}.mp4`)
-    result[shot] = await mirror(firstUrl(out), local, `${ctx.runId}-lip-${shot}.mp4`)
+    result[shot] = await mirror(
+      firstUrl(out),
+      local,
+      `${ctx.runId}-lip-${shot}.mp4`
+    )
     ctx.log(`липсинк «${shot}» готов`)
   }
   return result
@@ -149,7 +164,9 @@ export async function stageCaptions(
       align_output: true,
     },
     { stage: 'captions' }
-  )) as { segments?: { words?: { word: string; start?: number; end?: number }[] }[] }
+  )) as {
+    segments?: { words?: { word: string; start?: number; end?: number }[] }[]
+  }
 
   const words: Caption[] = []
   for (const seg of out.segments || []) {
@@ -166,7 +183,10 @@ export async function stageCaptions(
     }
   }
   if (!words.length) {
-    throw new StageError('captions', 'whisperx не вернул ни одного слова с таймингом')
+    throw new StageError(
+      'captions',
+      'whisperx не вернул ни одного слова с таймингом'
+    )
   }
   ctx.log(`титры: ${words.length} слов`)
   return { words }
@@ -207,7 +227,11 @@ export function planCuts(
     const end = marks[i]
     // Слишком короткий кусок не режем: мелькание планов читается как брак.
     if (end - start < minSegmentSec && i < marks.length - 1) continue
-    cuts.push({ shot: shots[shotIndex % shots.length], startSec: start, endSec: end })
+    cuts.push({
+      shot: shots[shotIndex % shots.length],
+      startSec: start,
+      endSec: end,
+    })
     shotIndex++
     start = end
   }
@@ -227,11 +251,13 @@ export async function stageCompose(
   const inputs: string[] = []
   for (const shot of shots) {
     const local = lipsync[shot].localPath
-    if (!local) throw new StageError('compose', `нет локального файла плана ${shot}`)
+    if (!local)
+      throw new StageError('compose', `нет локального файла плана ${shot}`)
     inputs.push('-i', local)
   }
   const audioLocal = audio.localPath
-  if (!audioLocal) throw new StageError('compose', 'нет локального файла озвучки')
+  if (!audioLocal)
+    throw new StageError('compose', 'нет локального файла озвучки')
   inputs.push('-i', audioLocal)
   const audioIndex = shots.length
 
@@ -239,7 +265,8 @@ export async function stageCompose(
   const labels: string[] = []
   cuts.forEach((cut, i) => {
     const idx = shots.indexOf(cut.shot)
-    if (idx < 0) throw new StageError('compose', `плана ${cut.shot} нет среди липсинков`)
+    if (idx < 0)
+      throw new StageError('compose', `плана ${cut.shot} нет среди липсинков`)
     // Приводим все планы к одной геометрии и fps: исходники omni-human
     // отличаются по размеру, а несовпадение fps даёт чёрный кадр на стыке.
     parts.push(
@@ -255,12 +282,24 @@ export async function stageCompose(
   await exec(
     FFMPEG,
     [
-      '-y', ...inputs,
-      '-filter_complex', filter,
-      '-map', '[vout]',
-      '-map', `${audioIndex}:a`,
-      '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p',
-      '-c:a', 'aac', '-b:a', '192k',
+      '-y',
+      ...inputs,
+      '-filter_complex',
+      filter,
+      '-map',
+      '[vout]',
+      '-map',
+      `${audioIndex}:a`,
+      '-c:v',
+      'libx264',
+      '-crf',
+      '18',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '192k',
       '-shortest',
       out,
     ],
@@ -298,7 +337,8 @@ export async function stageRender(
   await exec(
     'npx',
     [
-      'remotion', 'render',
+      'remotion',
+      'render',
       ctx.canon.entry,
       ctx.canon.composition,
       outPath,
@@ -321,15 +361,21 @@ export async function stageDeliver(
   caption: string
 ): Promise<{ chatId: string; messageId: number }> {
   const token = process.env.BOT_TOKEN_1
-  if (!token) throw new StageError('deliver', 'BOT_TOKEN_1 не задан, отправлять нечем')
-  if (!video.localPath) throw new StageError('deliver', 'нет локального файла рилса')
+  if (!token)
+    throw new StageError('deliver', 'BOT_TOKEN_1 не задан, отправлять нечем')
+  if (!video.localPath)
+    throw new StageError('deliver', 'нет локального файла рилса')
 
   const body = new FormData()
   body.append('chat_id', chatId)
   body.append('caption', caption)
   body.append('supports_streaming', 'true')
   const bytes = await fs.readFile(video.localPath)
-  body.append('video', new Blob([new Uint8Array(bytes)], { type: 'video/mp4' }), 'reel.mp4')
+  body.append(
+    'video',
+    new Blob([new Uint8Array(bytes)], { type: 'video/mp4' }),
+    'reel.mp4'
+  )
 
   const res = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
     method: 'POST',
@@ -341,7 +387,10 @@ export async function stageDeliver(
     description?: string
   }
   if (!data.ok || !data.result) {
-    throw new StageError('deliver', `Telegram отказал: ${data.description || 'без причины'}`)
+    throw new StageError(
+      'deliver',
+      `Telegram отказал: ${data.description || 'без причины'}`
+    )
   }
 
   logger.info('[contentFactory] рилс отправлен', {

@@ -40,9 +40,15 @@ export async function refundAndTell(params: {
   const { ctx, telegramId, amount, description, reason, isRu } = params
   const type = params.type ?? PaymentType.MONEY_INCOME
 
-  const refunded = await updateUserBalance(telegramId, amount, type, description, {
-    bot_name: ctx.botInfo?.username || 'unknown_bot',
-  } as any)
+  const refunded = await updateUserBalance(
+    telegramId,
+    amount,
+    type,
+    description,
+    {
+      bot_name: ctx.botInfo?.username || 'unknown_bot',
+    } as any
+  )
 
   if (!refunded) {
     // Отдельная формулировка, чтобы поиск по журналу находил именно этот

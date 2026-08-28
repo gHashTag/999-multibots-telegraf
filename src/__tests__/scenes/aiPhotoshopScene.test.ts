@@ -17,59 +17,75 @@ vi.mock('@/interfaces/paidServices', () => ({
 }))
 
 vi.mock('@/services/generateSeeDream4', () => ({
-  generateSeeDream4: vi.fn(() => Promise.resolve({
-    success: true,
-    imageUrl: 'https://example.com/seedream.jpg',
-  })),
+  generateSeeDream4: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      imageUrl: 'https://example.com/seedream.jpg',
+    })
+  ),
 }))
 
 vi.mock('@/services/generateNanoBanana', () => ({
-  generateNanoBanana: vi.fn(() => Promise.resolve({
-    success: true,
-    imageUrl: 'https://example.com/nanobanana.jpg',
-  })),
+  generateNanoBanana: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      imageUrl: 'https://example.com/nanobanana.jpg',
+    })
+  ),
 }))
 
 vi.mock('@/services/generateFluxKontext', () => ({
-  generateAdvancedFluxKontext: vi.fn(() => Promise.resolve({
-    success: true,
-    imageUrl: 'https://example.com/fluxkontext.jpg',
-  })),
+  generateAdvancedFluxKontext: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      imageUrl: 'https://example.com/fluxkontext.jpg',
+    })
+  ),
 }))
 
 vi.mock('@/services/generateQwenImageEditPlus', () => ({
-  generateQwenImageEditPlus: vi.fn(() => Promise.resolve({
-    success: true,
-    imageUrl: 'https://example.com/qwen.jpg',
-  })),
+  generateQwenImageEditPlus: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      imageUrl: 'https://example.com/qwen.jpg',
+    })
+  ),
 }))
 
 vi.mock('@/services/generateFluxKontextPro', () => ({
-  generateFluxKontextPro: vi.fn(() => Promise.resolve({
-    success: true,
-    imageUrl: 'https://example.com/fluxtextpro.jpg',
-  })),
+  generateFluxKontextPro: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      imageUrl: 'https://example.com/fluxtextpro.jpg',
+    })
+  ),
 }))
 
 vi.mock('@/services/generateSeedEdit3', () => ({
-  generateSeedEdit3: vi.fn(() => Promise.resolve({
-    success: true,
-    imageUrl: 'https://example.com/seededit3.jpg',
-  })),
+  generateSeedEdit3: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      imageUrl: 'https://example.com/seededit3.jpg',
+    })
+  ),
 }))
 
 vi.mock('@/services/generateQwenImageEdit', () => ({
-  generateQwenImageEdit: vi.fn(() => Promise.resolve({
-    success: true,
-    imageUrl: 'https://example.com/qwenimageedit.jpg',
-  })),
+  generateQwenImageEdit: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      imageUrl: 'https://example.com/qwenimageedit.jpg',
+    })
+  ),
 }))
 
 vi.mock('@/services/imageUpscaler', () => ({
-  upscaleImage: vi.fn(() => Promise.resolve({
-    success: true,
-    imageUrl: 'https://example.com/upscaled.jpg',
-  })),
+  upscaleImage: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      imageUrl: 'https://example.com/upscaled.jpg',
+    })
+  ),
 }))
 
 vi.mock('@/helpers/saveFileLocally', () => ({
@@ -130,7 +146,9 @@ describe('aiPhotoshopScene (AI Image Processing)', () => {
     },
     telegram: {
       token: 'test_token',
-      getFile: vi.fn(() => Promise.resolve({ file_path: 'photos/file_123.jpg' })),
+      getFile: vi.fn(() =>
+        Promise.resolve({ file_path: 'photos/file_123.jpg' })
+      ),
     },
     message: null as any,
   }
@@ -164,7 +182,6 @@ describe('aiPhotoshopScene (AI Image Processing)', () => {
       prompt: null,
     }
     mockContext.message = null
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
   })
 
@@ -462,7 +479,9 @@ describe('aiPhotoshopScene (AI Image Processing)', () => {
       const filePath = 'photos/file_123.jpg'
       const fileUrl = `https://api.telegram.org/file/bot${token}/${filePath}`
 
-      expect(fileUrl).toBe('https://api.telegram.org/file/bottest_token/photos/file_123.jpg')
+      expect(fileUrl).toBe(
+        'https://api.telegram.org/file/bottest_token/photos/file_123.jpg'
+      )
     })
   })
 
@@ -478,7 +497,9 @@ describe('aiPhotoshopScene (AI Image Processing)', () => {
     })
 
     it('должен отправлять результат как фото', async () => {
-      await mockContext.replyWithPhoto('https://example.com/result.jpg', { caption: 'Done!' })
+      await mockContext.replyWithPhoto('https://example.com/result.jpg', {
+        caption: 'Done!',
+      })
 
       expect(mockContext.replyWithPhoto).toHaveBeenCalledWith(
         'https://example.com/result.jpg',

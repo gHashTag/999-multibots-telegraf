@@ -11,7 +11,7 @@ vi.mock('@/helpers/centralizedLanguage', () => ({
 }))
 
 vi.mock('@/navigation', () => ({
-  getStepSelectionMenu: vi.fn((isRu) => ({
+  getStepSelectionMenu: vi.fn(isRu => ({
     reply_markup: {
       keyboard: [[{ text: isRu ? '1000 шагов' : '1000 steps' }]],
       resize_keyboard: true,
@@ -21,11 +21,13 @@ vi.mock('@/navigation', () => ({
 }))
 
 vi.mock('@/price/helpers', () => ({
-  handleTrainingCost: vi.fn(() => Promise.resolve({
-    leaveScene: false,
-    trainingCostInStars: 500,
-    currentBalance: 1000,
-  })),
+  handleTrainingCost: vi.fn(() =>
+    Promise.resolve({
+      leaveScene: false,
+      trainingCostInStars: 500,
+      currentBalance: 1000,
+    })
+  ),
 }))
 
 vi.mock('@/price/priceCalculator', () => ({
@@ -60,7 +62,11 @@ vi.mock('@/utils/logger', () => ({
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getStepSelectionMenu, handleHelpCancel } from '@/navigation'
 import { handleTrainingCost } from '@/price/helpers'
-import { generateCostMessage, stepOptions, calculateCost } from '@/price/priceCalculator'
+import {
+  generateCostMessage,
+  stepOptions,
+  calculateCost,
+} from '@/price/priceCalculator'
 import { shouldShowRubles } from '@/core/bot/shouldShowRubles'
 import { ModeEnum } from '@/interfaces/modes'
 
@@ -100,7 +106,6 @@ describe('digitalAvatarBodyWizard (Digital Avatar / LoRA Training)', () => {
       steps: null,
     }
     mockContext.message = null
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(handleHelpCancel as Mock).mockResolvedValue(false)
     ;(handleTrainingCost as Mock).mockResolvedValue({
@@ -345,7 +350,9 @@ describe('digitalAvatarBodyWizard (Digital Avatar / LoRA Training)', () => {
     it('должен переходить в trainFluxModelWizard', async () => {
       await mockContext.scene.enter('trainFluxModelWizard')
 
-      expect(mockContext.scene.enter).toHaveBeenCalledWith('trainFluxModelWizard')
+      expect(mockContext.scene.enter).toHaveBeenCalledWith(
+        'trainFluxModelWizard'
+      )
     })
   })
 
@@ -456,7 +463,8 @@ describe('digitalAvatarBodyWizard (Digital Avatar / LoRA Training)', () => {
     })
 
     it('должен показывать запрос названия на обоих языках', () => {
-      const ruMessage = '📝 Введите название модели (например: my_avatar_model):'
+      const ruMessage =
+        '📝 Введите название модели (например: my_avatar_model):'
       const enMessage = '📝 Enter model name (e.g., my_avatar_model):'
 
       expect(ruMessage).toContain('название')

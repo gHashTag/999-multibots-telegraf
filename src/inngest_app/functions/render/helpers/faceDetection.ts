@@ -42,7 +42,9 @@ export async function detectFacePosition(
   composition: Composition,
   logger: Logger
 ): Promise<FacePosition> {
-  logger.warn('⚠️ Using simplified face detection (center-based). For production, integrate proper face detection API.')
+  logger.warn(
+    '⚠️ Using simplified face detection (center-based). For production, integrate proper face detection API.'
+  )
 
   try {
     // Download image to get dimensions
@@ -54,12 +56,22 @@ export async function detectFacePosition(
     // For now, use simple center-based positioning
     // In production, this should call a face detection API
     const result: FacePosition = {
-      position: [composition.circle.position[0], composition.circle.position[1], 0],
-      anchor_point: [composition.size.width / 2, composition.size.height / 2, 0],
+      position: [
+        composition.circle.position[0],
+        composition.circle.position[1],
+        0,
+      ],
+      anchor_point: [
+        composition.size.width / 2,
+        composition.size.height / 2,
+        0,
+      ],
       scale: [150, 150, 100], // Default scale for 1:1 aspect ratio
     }
 
-    logger.info(`📍 Face position calculated (center-based): position=${result.position}, anchor=${result.anchor_point}, scale=${result.scale}`)
+    logger.info(
+      `📍 Face position calculated (center-based): position=${result.position}, anchor=${result.anchor_point}, scale=${result.scale}`
+    )
 
     return result
   } catch (error) {
@@ -67,8 +79,16 @@ export async function detectFacePosition(
 
     // Fallback to center position
     return {
-      position: [composition.circle.position[0], composition.circle.position[1], 0],
-      anchor_point: [composition.size.width / 2, composition.size.height / 2, 0],
+      position: [
+        composition.circle.position[0],
+        composition.circle.position[1],
+        0,
+      ],
+      anchor_point: [
+        composition.size.width / 2,
+        composition.size.height / 2,
+        0,
+      ],
       scale: [150, 150, 100],
     }
   }

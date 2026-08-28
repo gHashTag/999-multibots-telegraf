@@ -33,9 +33,12 @@ export const processApiResponse = async (
     if (Array.isArray(apiOutput) && apiOutput.length > 0) {
       const firstUrl = apiOutput[0]
       if (typeof firstUrl === 'string' && firstUrl.startsWith('http')) {
-        logger.info('[DIAGNOSTIC_PROCESS_API] Возвращаем первый URL из массива', {
-          firstUrl,
-        })
+        logger.info(
+          '[DIAGNOSTIC_PROCESS_API] Возвращаем первый URL из массива',
+          {
+            firstUrl,
+          }
+        )
         return firstUrl
       }
     }
@@ -55,9 +58,12 @@ export const processApiResponse = async (
       if (Array.isArray(potentialOutput) && potentialOutput.length > 0) {
         const firstUrl = potentialOutput[0]
         if (typeof firstUrl === 'string' && firstUrl.startsWith('http')) {
-          logger.info('[DIAGNOSTIC_PROCESS_API] Возвращаем первый URL из object.output/data', {
-            firstUrl,
-          })
+          logger.info(
+            '[DIAGNOSTIC_PROCESS_API] Возвращаем первый URL из object.output/data',
+            {
+              firstUrl,
+            }
+          )
           return firstUrl
         }
       }
@@ -65,16 +71,22 @@ export const processApiResponse = async (
         typeof potentialOutput === 'string' &&
         potentialOutput.startsWith('http')
       ) {
-        logger.info('[DIAGNOSTIC_PROCESS_API] Возвращаем одиночный URL из object.output/data', {
-          potentialOutput,
-        })
+        logger.info(
+          '[DIAGNOSTIC_PROCESS_API] Возвращаем одиночный URL из object.output/data',
+          {
+            potentialOutput,
+          }
+        )
         return potentialOutput
       }
     }
 
-    logger.warn('[DIAGNOSTIC_PROCESS_API] Не удалось извлечь URL из ответа API Replicate', {
-      apiOutput: JSON.stringify(apiOutput), // Логируем полный ответ, если он не содержит URL
-    })
+    logger.warn(
+      '[DIAGNOSTIC_PROCESS_API] Не удалось извлечь URL из ответа API Replicate',
+      {
+        apiOutput: JSON.stringify(apiOutput), // Логируем полный ответ, если он не содержит URL
+      }
+    )
     return null
   } catch (error) {
     const errorMessage =

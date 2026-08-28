@@ -144,11 +144,34 @@ describe('durability: read path only, write-through NOT yet proven', () => {
       async query(sql: string, params: any[] = []) {
         const s = sql.replace(/\s+/g, ' ').trim()
         this.calls.push(s.slice(0, 40))
-        if (s.startsWith('CREATE TABLE') || s.startsWith('CREATE INDEX')) return { rows: [] }
+        if (s.startsWith('CREATE TABLE') || s.startsWith('CREATE INDEX'))
+          return { rows: [] }
         if (s.startsWith('INSERT INTO generate_jobs')) {
-          const [id, kind, owner_id, state, started_at, finished_at, url, provider, error, prompt] = params
+          const [
+            id,
+            kind,
+            owner_id,
+            state,
+            started_at,
+            finished_at,
+            url,
+            provider,
+            error,
+            prompt,
+          ] = params
           const existing = rows.find(r => r.id === id)
-          const row = { id, kind, owner_id, state, started_at, finished_at, url, provider, error, prompt }
+          const row = {
+            id,
+            kind,
+            owner_id,
+            state,
+            started_at,
+            finished_at,
+            url,
+            provider,
+            error,
+            prompt,
+          }
           if (existing) Object.assign(existing, row)
           else rows.push(row)
           return { rows: [] }
@@ -227,7 +250,7 @@ describe('durability: read path only, write-through NOT yet proven', () => {
     attachStore(pool as any)
 
     const job = startJob('video', '4242')
-    await settle()                       // the 'running' row is written
+    await settle() // the 'running' row is written
     finishJob(job.id, 'https://storage/a.mp4')
     // Deliberately NOT settling: the write-through is still in flight, which
     // is exactly the race someone hits when checking immediately.

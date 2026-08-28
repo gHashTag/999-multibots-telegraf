@@ -11,28 +11,36 @@ vi.mock('@/helpers/centralizedLanguage', () => ({
 }))
 
 vi.mock('@/core/openai/upgradePrompt', () => ({
-  upgradePrompt: vi.fn(() => Promise.resolve('Enhanced cinematic prompt with detailed description')),
+  upgradePrompt: vi.fn(() =>
+    Promise.resolve('Enhanced cinematic prompt with detailed description')
+  ),
 }))
 
 vi.mock('@/services/generateTextToImageDirect', () => ({
-  generateTextToImageDirect: vi.fn(() => Promise.resolve({
-    success: true,
-    imageUrl: 'https://example.com/generated.jpg',
-  })),
+  generateTextToImageDirect: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      imageUrl: 'https://example.com/generated.jpg',
+    })
+  ),
 }))
 
 vi.mock('@/services/generateNeuroPhotoHybrid', () => ({
-  generateNeuroPhotoHybrid: vi.fn(() => Promise.resolve({
-    success: true,
-    imageUrl: 'https://example.com/neurophoto.jpg',
-  })),
+  generateNeuroPhotoHybrid: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      imageUrl: 'https://example.com/neurophoto.jpg',
+    })
+  ),
 }))
 
 vi.mock('@/modules/videoGenerator/generateTextToVideo', () => ({
-  generateTextToVideo: vi.fn(() => Promise.resolve({
-    success: true,
-    videoUrl: 'https://example.com/video.mp4',
-  })),
+  generateTextToVideo: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      videoUrl: 'https://example.com/video.mp4',
+    })
+  ),
 }))
 
 vi.mock('@/navigation', () => ({
@@ -43,10 +51,12 @@ vi.mock('@/navigation', () => ({
 }))
 
 vi.mock('@/db/userSettings', () => ({
-  getUserProfileAndSettings: vi.fn(() => Promise.resolve({
-    profile: { telegram_id: '223757230' },
-    settings: {},
-  })),
+  getUserProfileAndSettings: vi.fn(() =>
+    Promise.resolve({
+      profile: { telegram_id: '223757230' },
+      settings: {},
+    })
+  ),
 }))
 
 vi.mock('@/core/supabase', () => ({
@@ -113,7 +123,10 @@ describe('improvePromptWizard (AI Prompt Enhancement)', () => {
       prompt: null as string | null,
       mode: null as string | null,
       attempts: 0,
-      userModel: { trigger_word: 'TOK', model_url: 'https://example.com/model' },
+      userModel: {
+        trigger_word: 'TOK',
+        model_url: 'https://example.com/model',
+      },
       videoModel: 'minimax-video-01',
       selectedResolution: '16:9',
       selectedImageModel: 'flux-schnell',
@@ -132,16 +145,20 @@ describe('improvePromptWizard (AI Prompt Enhancement)', () => {
       prompt: null,
       mode: null,
       attempts: 0,
-      userModel: { trigger_word: 'TOK', model_url: 'https://example.com/model' },
+      userModel: {
+        trigger_word: 'TOK',
+        model_url: 'https://example.com/model',
+      },
       videoModel: 'minimax-video-01',
       selectedResolution: '16:9',
       selectedImageModel: 'flux-schnell',
     }
     mockContext.scene.state = { prompt: 'original prompt', mode: 'neuro_photo' }
     mockContext.message = null
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
-    ;(upgradePrompt as Mock).mockResolvedValue('Enhanced cinematic prompt with detailed description')
+    ;(upgradePrompt as Mock).mockResolvedValue(
+      'Enhanced cinematic prompt with detailed description'
+    )
     ;(getUserProfileAndSettings as Mock).mockResolvedValue({
       profile: { telegram_id: '223757230' },
       settings: {},
@@ -200,7 +217,9 @@ describe('improvePromptWizard (AI Prompt Enhancement)', () => {
       const improvedPrompt = await upgradePrompt('test prompt')
       mockContext.session.prompt = improvedPrompt
 
-      expect(mockContext.session.prompt).toBe('Enhanced cinematic prompt with detailed description')
+      expect(mockContext.session.prompt).toBe(
+        'Enhanced cinematic prompt with detailed description'
+      )
     })
 
     it('должен показывать сообщение об улучшении', async () => {
@@ -213,12 +232,9 @@ describe('improvePromptWizard (AI Prompt Enhancement)', () => {
       const improvedPrompt = 'Enhanced prompt'
       const isRu = true
 
-      await sendImprovedPrompt(
-        mockContext as any,
-        improvedPrompt,
-        isRu,
-        { parse_mode: 'MarkdownV2' }
-      )
+      await sendImprovedPrompt(mockContext as any, improvedPrompt, isRu, {
+        parse_mode: 'MarkdownV2',
+      })
 
       expect(sendImprovedPrompt).toHaveBeenCalled()
     })
@@ -427,9 +443,7 @@ describe('improvePromptWizard (AI Prompt Enhancement)', () => {
 
     it('должен показывать сообщение отмены на русском', () => {
       const isRu = true
-      const message = isRu
-        ? 'Операция отменена'
-        : 'Operation cancelled'
+      const message = isRu ? 'Операция отменена' : 'Operation cancelled'
 
       expect(message).toContain('отменена')
     })

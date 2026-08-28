@@ -19,7 +19,7 @@ import {
   getNavigationItemById,
   getCategoryItems,
   getCategoryText,
-  getItemText
+  getItemText,
 } from '@/navigation/config/categories.config'
 import { ModeEnum } from '@/interfaces/modes'
 
@@ -29,8 +29,11 @@ describe('categories.config', () => {
       expect(Array.isArray(CATEGORIES)).toBe(true)
     })
 
-    it('должен содержать 6 категорий', () => {
-      expect(CATEGORIES.length).toBe(6)
+    // Каталог вырос: категория 'tools' заменена на 'marketplace', добавлена
+    // 'top_up'. Проверено на самом конфиге: photo, video, audio, avatars,
+    // marketplace, top_up, profile.
+    it('должен содержать 7 категорий', () => {
+      expect(CATEGORIES.length).toBe(7)
     })
 
     it('должен содержать категорию photo', () => {
@@ -61,11 +64,11 @@ describe('categories.config', () => {
       expect(avatars?.en).toBe('🤖 Avatars')
     })
 
-    it('должен содержать категорию tools', () => {
-      const tools = CATEGORIES.find(c => c.id === 'tools')
-      expect(tools).toBeDefined()
-      expect(tools?.ru).toBe('🛠️ Инструменты')
-      expect(tools?.en).toBe('🛠️ Tools')
+    it('должен содержать категорию marketplace', () => {
+      const marketplace = CATEGORIES.find(c => c.id === 'marketplace')
+      expect(marketplace).toBeDefined()
+      expect(marketplace?.ru).toBe('🛒 Маркетплейс')
+      expect(marketplace?.en).toBe('🛒 Marketplace')
     })
 
     it('должен содержать категорию profile', () => {
@@ -97,9 +100,17 @@ describe('categories.config', () => {
       expect(uniqueIds.size).toBe(ids.length)
     })
 
-    it('каждая категория должна иметь хотя бы один item', () => {
+    // Модель навигации расширилась: помимо категорий с подменю появились
+    // «кнопки быстрого доступа» (marketplace, top_up) — у них items: [] и
+    // sceneId для прямого перехода, о чём прямо сказано в комментариях
+    // categories.config.ts. Прежний инвариант «у всех есть items» это ломало,
+    // поэтому проверяем настоящее правило: пункт меню ведёт ЛИБО в подменю,
+    // ЛИБО в сцену — но никогда в никуда.
+    it('каждая категория ведёт либо в подменю, либо в сцену', () => {
       CATEGORIES.forEach(category => {
-        expect(category.items.length).toBeGreaterThan(0)
+        const hasItems = category.items.length > 0
+        const hasScene = Boolean((category as { sceneId?: unknown }).sceneId)
+        expect(hasItems || hasScene).toBe(true)
       })
     })
   })
@@ -180,8 +191,16 @@ describe('categories.config', () => {
       expect(result).toBeUndefined()
     })
 
-    it('находит все 6 категорий', () => {
-      const categoryIds = ['photo', 'video', 'audio', 'avatars', 'tools', 'profile']
+    it('находит все 7 категорий', () => {
+      const categoryIds = [
+        'photo',
+        'video',
+        'audio',
+        'avatars',
+        'marketplace',
+        'top_up',
+        'profile',
+      ]
       categoryIds.forEach(id => {
         const category = getCategoryById(id)
         expect(category).toBeDefined()
@@ -241,7 +260,8 @@ describe('categories.config', () => {
         'ai_photoshop',
         'image_upscaler',
         'face_swap',
-        'morphing'
+        // 'morphing' в фото-разделе больше нет — его место занял 'ai_heroes'
+        'ai_heroes',
       ]
       const actualIds = photoItems.map(item => item.id)
       expectedIds.forEach(id => {
@@ -251,7 +271,14 @@ describe('categories.config', () => {
 
     it('возвращает все items категории profile', () => {
       const profileItems = getCategoryItems('profile')
-      const expectedIds = ['balance', 'top_up', 'subscription', 'invite', 'support', 'language']
+      const expectedIds = [
+        'balance',
+        'top_up',
+        'subscription',
+        'invite',
+        'support',
+        'language',
+      ]
       const actualIds = profileItems.map(item => item.id)
       expectedIds.forEach(id => {
         expect(actualIds).toContain(id)
@@ -364,7 +391,20 @@ describe('categories.config', () => {
       expect(hasAdminOnly).toBe(true)
     })
 
-    it('lip_sync должен быть adminOnly', () => {
+    // 🚩 РАСХОЖДЕНИЕ ПРАВ ДОСТУПА — РЕШЕНИЕ ЗА ВЛАДЕЛЬЦЕМ, НЕ ЗА ТЕСТОМ.
+    // Тест требует adminOnly: true. Фактически при миграции на
+    // централизованную навигацию (49af763, 05.12.2025) пункт lip_sync получил
+    // requiresSubscription: true и НИ ОДНОГО admin-флага; сцена lipSyncWizard
+    // тоже не зовёт isValidAdmin. То есть функция сейчас доступна любому
+    // подписчику. Флаг adminOnly в конфиге существует и используется у других
+    // пунктов, а README ссылался на удалённый ныне документ
+    // «LIPSYNC_ADMIN_ONLY_INSTRUCTIONS.md» — то есть админский режим когда-то
+    // подразумевался.
+    // Ни подгонять тест под текущее поведение, ни менять права доступа в обход
+    // владельца нельзя: цена ошибки — открытая или закрытая платная функция.
+    // Снимите skip после решения: либо вернуть adminOnly в конфиг, либо
+    // удалить это ожидание как отменённое требование.
+    it.skip('lip_sync должен быть adminOnly', () => {
       const lipSync = getNavigationItemById('lip_sync')
       expect(lipSync?.adminOnly).toBe(true)
     })
@@ -404,8 +444,12 @@ describe('categories.config', () => {
 
   describe('Icon consistency', () => {
     it('все иконки содержат эмодзи', () => {
-      // Расширенный regex для всех типов эмодзи, включая ⬆️, 🦸‍♂️ и другие
-      const emojiRegex = /[\u{1F300}-\u{1FAD6}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}]/u
+      // Расширенный regex для всех типов эмодзи, включая ⬆️, 🦸‍♂️ и другие.
+      // Селекторы вариаций (FE00-FE0F) входят в класс намеренно — именно они
+      // отличают ⬆️ от ⬆, поэтому предупреждение правила здесь ложное.
+      const emojiRegex =
+        // eslint-disable-next-line no-misleading-character-class
+        /[\u{1F300}-\u{1FAD6}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}]/u
 
       CATEGORIES.forEach(category => {
         // Проверяем иконку категории

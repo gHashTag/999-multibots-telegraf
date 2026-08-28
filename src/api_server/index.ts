@@ -79,7 +79,9 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
 
   // Provider health endpoint
   app.get('/api/providers', async (_req: any, res: any) => {
-    const { getAllProviderStatuses, checkAllProviders } = await import('../services/provider-health-monitor')
+    const { getAllProviderStatuses, checkAllProviders } = await import(
+      '../services/provider-health-monitor'
+    )
     if (_req.query.refresh === 'true') await checkAllProviders()
     res.json(getAllProviderStatuses())
   })
@@ -155,7 +157,9 @@ h1{font-size:1.8rem}ul{list-style:none;padding:0}li{padding:6px 0}li::before{con
 
   app.get('/api/whitelabel/:botName', async (req: any, res: any) => {
     try {
-      const { getWhiteLabelConfig } = await import('../services/whiteLabelConfig')
+      const { getWhiteLabelConfig } = await import(
+        '../services/whiteLabelConfig'
+      )
       const config = await getWhiteLabelConfig(req.params.botName)
       res.json(config)
     } catch (err) {
@@ -169,7 +173,9 @@ h1{font-size:1.8rem}ul{list-style:none;padding:0}li{padding:6px 0}li::before{con
       return res.status(403).json({ error: 'Forbidden: invalid admin_key' })
     }
     try {
-      const { updateWhiteLabelConfig } = await import('../services/whiteLabelConfig')
+      const { updateWhiteLabelConfig } = await import(
+        '../services/whiteLabelConfig'
+      )
       const { admin_key, ...config } = req.body
       const ok = await updateWhiteLabelConfig(req.params.botName, config)
       res.json({ success: ok })
@@ -205,10 +211,15 @@ h1{font-size:1.8rem}ul{list-style:none;padding:0}li{padding:6px 0}li::before{con
     try {
       const webhookStatus = await verifyWebhooksOnStartup()
       if (webhookStatus.success) {
-        logger.info('🚀 [STARTUP] Webhook verification PASSED', webhookStatus.details)
+        logger.info(
+          '🚀 [STARTUP] Webhook verification PASSED',
+          webhookStatus.details
+        )
       } else {
         logger.error('❌ [STARTUP] Webhook verification FAILED!', webhookStatus)
-        console.error('❌ CRITICAL: Webhook endpoints are not accessible! Check nginx config.')
+        console.error(
+          '❌ CRITICAL: Webhook endpoints are not accessible! Check nginx config.'
+        )
       }
     } catch (error) {
       logger.error('❌ [STARTUP] Webhook verification error', {

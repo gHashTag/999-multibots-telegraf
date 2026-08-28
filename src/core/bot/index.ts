@@ -117,7 +117,9 @@ function _initializeBots(): void {
   const hasTokens = Object.values(BOT_NAMES).some(token => token)
 
   if (!hasTokens) {
-    logger.warn('⚠️ [BOT REGISTRY] No tokens available yet, skipping initialization')
+    logger.warn(
+      '⚠️ [BOT REGISTRY] No tokens available yet, skipping initialization'
+    )
     return
   }
 
@@ -146,29 +148,32 @@ function _initializeBots(): void {
 }
 
 // Экспортируем Proxy который инициализирует ботов при первом обращении
-export const bots: Record<BotName, Telegraf<MyContext>> = new Proxy(_botsInternal, {
-  get(target, prop: string) {
-    _initializeBots()
-    return target[prop as BotName]
-  },
-  set(target, prop: string, value) {
-    _initializeBots()
-    target[prop as BotName] = value
-    return true
-  },
-  has(target, prop: string) {
-    _initializeBots()
-    return prop in target
-  },
-  ownKeys(target) {
-    _initializeBots()
-    return Object.keys(target)
-  },
-  getOwnPropertyDescriptor(target, prop: string) {
-    _initializeBots()
-    return Object.getOwnPropertyDescriptor(target, prop)
-  },
-})
+export const bots: Record<BotName, Telegraf<MyContext>> = new Proxy(
+  _botsInternal,
+  {
+    get(target, prop: string) {
+      _initializeBots()
+      return target[prop as BotName]
+    },
+    set(target, prop: string, value) {
+      _initializeBots()
+      target[prop as BotName] = value
+      return true
+    },
+    has(target, prop: string) {
+      _initializeBots()
+      return prop in target
+    },
+    ownKeys(target) {
+      _initializeBots()
+      return Object.keys(target)
+    },
+    getOwnPropertyDescriptor(target, prop: string) {
+      _initializeBots()
+      return Object.getOwnPropertyDescriptor(target, prop)
+    },
+  }
+)
 
 // 🔐 В dev используем тестовый токен, в production - продакшн
 // ⚠️ LAZY INIT: токен читаем при первом использовании, т.к. Infisical загружается асинхронно

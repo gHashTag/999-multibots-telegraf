@@ -7,7 +7,11 @@
 
 import OpenAI from 'openai'
 import { logger } from '@/utils/logger'
-import { saveMessage, loadHistory, getUserContext } from '@/services/chatMemoryService'
+import {
+  saveMessage,
+  loadHistory,
+  getUserContext,
+} from '@/services/chatMemoryService'
 import { listSkills } from '@/services/skillManager'
 
 export interface ChatMessage {
@@ -15,9 +19,20 @@ export interface ChatMessage {
   content: string
 }
 
-export const AI_CHAT_MODELS: Record<string, { id: string; label_ru: string; label_en: string }> = {
-  gpt4: { id: 'gpt-4.1-mini', label_ru: 'GPT-4.1 Mini', label_en: 'GPT-4.1 Mini' },
-  claude: { id: 'claude-sonnet-4-20250514', label_ru: 'Claude Sonnet', label_en: 'Claude Sonnet' },
+export const AI_CHAT_MODELS: Record<
+  string,
+  { id: string; label_ru: string; label_en: string }
+> = {
+  gpt4: {
+    id: 'gpt-4.1-mini',
+    label_ru: 'GPT-4.1 Mini',
+    label_en: 'GPT-4.1 Mini',
+  },
+  claude: {
+    id: 'claude-sonnet-4-20250514',
+    label_ru: 'Claude Sonnet',
+    label_en: 'Claude Sonnet',
+  },
   deepseek: { id: 'deepseek-chat', label_ru: 'DeepSeek', label_en: 'DeepSeek' },
 }
 
@@ -57,7 +72,10 @@ async function getSkillHints(userText: string): Promise<string> {
 
   const skills = await listSkills(matched[0])
   if (skills.length === 0) return ''
-  const top = skills.slice(0, 3).map(s => s.name).join(', ')
+  const top = skills
+    .slice(0, 3)
+    .map(s => s.name)
+    .join(', ')
   return `\nAvailable platform skills for this topic: ${top}. Mention them if relevant.`
 }
 
@@ -77,9 +95,17 @@ export async function chatWithAI(
 
   // Fallback: DeepSeek → OpenAI → OpenRouter
   const providers = [
-    { key: process.env.DEEPSEEK_API_KEY, url: 'https://api.deepseek.com/v1', name: 'deepseek' },
+    {
+      key: process.env.DEEPSEEK_API_KEY,
+      url: 'https://api.deepseek.com/v1',
+      name: 'deepseek',
+    },
     { key: process.env.OPENAI_API_KEY, url: undefined, name: 'openai' },
-    { key: process.env.OPENROUTER_API_KEY, url: 'https://openrouter.ai/api/v1', name: 'openrouter' },
+    {
+      key: process.env.OPENROUTER_API_KEY,
+      url: 'https://openrouter.ai/api/v1',
+      name: 'openrouter',
+    },
   ]
   const provider = providers.find(p => p.key)
   if (!provider) throw new Error('No AI API key found')
@@ -89,7 +115,8 @@ export async function chatWithAI(
 
   const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) })
 
-  const defaultModel = provider.name === 'deepseek' ? 'deepseek-chat' : AI_CHAT_MODELS.gpt4.id
+  const defaultModel =
+    provider.name === 'deepseek' ? 'deepseek-chat' : AI_CHAT_MODELS.gpt4.id
   const modelId = model || defaultModel
   const tid = opts?.telegramId ?? ''
   const bot = opts?.botName ?? 'default'
@@ -122,7 +149,11 @@ export async function chatWithAI(
   const allMessages = [...systemMsgs, ...dbMessages, ...currentTurn]
   const trimmed = trimHistory(allMessages)
 
-  logger.info('AI Chat request', { model: modelId, messageCount: trimmed.length, hasMem: dbMessages.length > 0 })
+  logger.info('AI Chat request', {
+    model: modelId,
+    messageCount: trimmed.length,
+    hasMem: dbMessages.length > 0,
+  })
 
   const response = await client.chat.completions.create({
     model: modelId,
@@ -148,34 +179,57 @@ export async function chatWithAI(
 }
 
 async function chatViaReplicate(
-  messages: ChatMessage[], token: string, _model?: string
+  messages: ChatMessage[],
+  token: string,
+  _model?: string
 ): Promise<string> {
-  const prompt = messages
-    .map(m => m.role === 'system' ? `[System] ${m.content}` : m.role === 'user' ? `User: ${m.content}` : `Assistant: ${m.content}`)
-    .join('\n') + '\nAssistant:'
+  const prompt =
+    messages
+      .map(m =>
+        m.role === 'system'
+          ? `[System] ${m.content}`
+          : m.role === 'user'
+            ? `User: ${m.content}`
+            : `Assistant: ${m.content}`
+      )
+      .join('\n') + '\nAssistant:'
 
   logger.info('AI Chat via Replicate', { promptLength: prompt.length })
 
-  const resp = await fetch('https://api.replicate.com/v1/models/meta/meta-llama-3-8b-instruct/predictions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: { prompt, max_tokens: 512, temperature: 0.7 } }),
-  })
-  const pred = await resp.json() as any
+  const resp = await fetch(
+    'https://api.replicate.com/v1/models/meta/meta-llama-3-8b-instruct/predictions',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        input: { prompt, max_tokens: 512, temperature: 0.7 },
+      }),
+    }
+  )
+  const pred = (await resp.json()) as any
   if (!pred.id) throw new Error(pred.detail || 'Replicate prediction failed')
 
   // Poll for result (max 30s)
   for (let i = 0; i < 15; i++) {
     await new Promise(r => setTimeout(r, 2000))
-    const poll = await fetch(`https://api.replicate.com/v1/predictions/${pred.id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    const result = await poll.json() as any
+    const poll = await fetch(
+      `https://api.replicate.com/v1/predictions/${pred.id}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    )
+    const result = (await poll.json()) as any
     if (result.status === 'succeeded') {
-      const output = Array.isArray(result.output) ? result.output.join('') : String(result.output || '')
+      const output = Array.isArray(result.output)
+        ? result.output.join('')
+        : String(result.output || '')
       return output.trim() || 'Не удалось сгенерировать ответ'
     }
-    if (result.status === 'failed') throw new Error(result.error || 'Generation failed')
+    if (result.status === 'failed')
+      throw new Error(result.error || 'Generation failed')
   }
   throw new Error('Replicate timeout')
 }

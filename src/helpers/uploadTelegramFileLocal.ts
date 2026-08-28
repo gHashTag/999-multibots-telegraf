@@ -53,9 +53,10 @@ export async function uploadTelegramFileLocal(
     const PUBLIC_URL =
       process.env.NODE_ENV === 'development'
         ? 'http://localhost:3000' // Локальный development
-        // Был зашит three-head-dragon.shop — старый сервер, не отвечающий
-        // вовсе. По этому адресу наружу отдавались ссылки на файлы.
-        : process.env.BASE_WEBHOOK_URL
+        : // dead-domain-ok: mentioned in prose; the host is no longer in the code.
+          // Был зашит three-head-dragon.shop — старый сервер, не отвечающий
+          // вовсе. По этому адресу наружу отдавались ссылки на файлы.
+          process.env.BASE_WEBHOOK_URL
 
     console.log(
       '🌐 [uploadLocal] Using public URL for Replicate access:',
@@ -72,14 +73,17 @@ export async function uploadTelegramFileLocal(
     })
 
     // Планируем удаление файла через 2 часа (достаточно для LipSync)
-    setTimeout(async () => {
-      try {
-        await fs.unlink(filePath)
-        console.log('🗑️ [uploadLocal] Temporary file cleaned up:', filePath)
-      } catch (error) {
-        console.error('⚠️ [uploadLocal] Failed to cleanup file:', error)
-      }
-    }, 2 * 60 * 60 * 1000) // 2 часа в миллисекундах
+    setTimeout(
+      async () => {
+        try {
+          await fs.unlink(filePath)
+          console.log('🗑️ [uploadLocal] Temporary file cleaned up:', filePath)
+        } catch (error) {
+          console.error('⚠️ [uploadLocal] Failed to cleanup file:', error)
+        }
+      },
+      2 * 60 * 60 * 1000
+    ) // 2 часа в миллисекундах
 
     return publicUrl
   } catch (error) {

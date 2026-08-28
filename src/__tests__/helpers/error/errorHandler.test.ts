@@ -30,7 +30,7 @@ describe('setupErrorHandler', () => {
 
     // Create mock bot
     mockBot = {
-      catch: vi.fn((handler) => {
+      catch: vi.fn(handler => {
         catchHandler = handler
       }),
     } as unknown as Telegraf<MyContext>

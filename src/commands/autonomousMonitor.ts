@@ -43,7 +43,9 @@ function isAdmin(userId: number): boolean {
 export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
   // Get bot info to check if this is the admin bot
   bot.telegram.getMe().then(botInfo => {
-    console.log(`🔍 [Autonomous Monitor] Checking if ${botInfo.username} is admin bot...`)
+    console.log(
+      `🔍 [Autonomous Monitor] Checking if ${botInfo.username} is admin bot...`
+    )
 
     // Only activate autonomous monitor for specific bot
     // This will be determined by environment variable or bot token
@@ -53,7 +55,7 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
    * /monitor - Admin monitoring menu (replaces /start for admin functions)
    * ⚠️ DO NOT use /start here - it conflicts with main navigation!
    */
-  bot.command('monitor', async (ctx) => {
+  bot.command('monitor', async ctx => {
     if (!isAdmin(ctx.from.id)) {
       return ctx.reply('❌ Unauthorized. This command is for admin use only.')
     }
@@ -86,7 +88,7 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
   /**
    * /status - Server and container status
    */
-  bot.command('status', async (ctx) => {
+  bot.command('status', async ctx => {
     if (!isAdmin(ctx.from.id)) return
 
     try {
@@ -110,7 +112,9 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
       const cpuStatus = cpuPercent > 80 ? '🔴' : cpuPercent > 50 ? '🟡' : '🟢'
 
       // Parse memory
-      const memMatch = mem.match(/(\d+\.?\d*)\s*(\w+)\s*\/\s*(\d+\.?\d*)\s*(\w+)/)
+      const memMatch = mem.match(
+        /(\d+\.?\d*)\s*(\w+)\s*\/\s*(\d+\.?\d*)\s*(\w+)/
+      )
       const memPercent = memMatch
         ? (parseFloat(memMatch[1]) / parseFloat(memMatch[3])) * 100
         : 0
@@ -135,16 +139,19 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
 
       await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard })
     } catch (error: any) {
-      await ctx.reply(`❌ Ошибка получения статуса:\n\`\`\`\n${error.message}\n\`\`\``, {
-        parse_mode: 'Markdown',
-      })
+      await ctx.reply(
+        `❌ Ошибка получения статуса:\n\`\`\`\n${error.message}\n\`\`\``,
+        {
+          parse_mode: 'Markdown',
+        }
+      )
     }
   })
 
   /**
    * /logs - View container logs
    */
-  bot.command('logs', async (ctx) => {
+  bot.command('logs', async ctx => {
     if (!isAdmin(ctx.from.id)) return
 
     const keyboard = Markup.inlineKeyboard([
@@ -165,7 +172,7 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
   /**
    * /errors - Find errors in logs
    */
-  bot.command('errors', async (ctx) => {
+  bot.command('errors', async ctx => {
     if (!isAdmin(ctx.from.id)) return
 
     try {
@@ -188,7 +195,7 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
         if (matches && matches.length > 0) {
           // Find first occurrence for example
           const lines = logs.split('\n')
-          const exampleLine = lines.find((line) => pattern.test(line)) || ''
+          const exampleLine = lines.find(line => pattern.test(line)) || ''
 
           errors.push({
             type,
@@ -201,7 +208,9 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
       if (errors.length === 0) {
         await ctx.reply('✅ Ошибок не обнаружено!', {
           reply_markup: {
-            inline_keyboard: [[{ text: '🔄 Проверить снова', callback_data: 'monitor_errors' }]],
+            inline_keyboard: [
+              [{ text: '🔄 Проверить снова', callback_data: 'monitor_errors' }],
+            ],
           },
         })
         return
@@ -232,7 +241,7 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
   /**
    * /metrics - Server metrics
    */
-  bot.command('metrics', async (ctx) => {
+  bot.command('metrics', async ctx => {
     if (!isAdmin(ctx.from.id)) return
 
     try {
@@ -242,7 +251,9 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
       const uptime = sshExec(`uptime -p`).trim()
 
       // Get disk usage
-      const disk = sshExec(`df -h / | tail -1 | awk '{print $5 " used (" $3 "/" $2 ")"}'`).trim()
+      const disk = sshExec(
+        `df -h / | tail -1 | awk '{print $5 " used (" $3 "/" $2 ")"}'`
+      ).trim()
 
       // Get load average
       const load = sshExec(`uptime | awk -F'load average:' '{print $2}'`).trim()
@@ -266,16 +277,19 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
 
       await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard })
     } catch (error: any) {
-      await ctx.reply(`❌ Ошибка получения метрик:\n\`\`\`\n${error.message}\n\`\`\``, {
-        parse_mode: 'Markdown',
-      })
+      await ctx.reply(
+        `❌ Ошибка получения метрик:\n\`\`\`\n${error.message}\n\`\`\``,
+        {
+          parse_mode: 'Markdown',
+        }
+      )
     }
   })
 
   /**
    * /restart - Restart container (with confirmation)
    */
-  bot.command('restart', async (ctx) => {
+  bot.command('restart', async ctx => {
     if (!isAdmin(ctx.from.id)) return
 
     const keyboard = Markup.inlineKeyboard([
@@ -305,7 +319,7 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
   /**
    * Handle inline keyboard callbacks
    */
-  bot.action(/^monitor_(.+)$/, async (ctx) => {
+  bot.action(/^monitor_(.+)$/, async ctx => {
     if (!isAdmin(ctx.from.id)) {
       await ctx.answerCbQuery('❌ Unauthorized')
       return
@@ -332,14 +346,18 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
           const [cpu, mem, net] = stats.split('|')
           const cpuPercent = parseFloat(cpu.replace('%', ''))
           const cpuBar = createProgressBar(cpuPercent, 100)
-          const cpuStatus = cpuPercent > 80 ? '🔴' : cpuPercent > 50 ? '🟡' : '🟢'
+          const cpuStatus =
+            cpuPercent > 80 ? '🔴' : cpuPercent > 50 ? '🟡' : '🟢'
 
-          const memMatch = mem.match(/(\d+\.?\d*)\s*(\w+)\s*\/\s*(\d+\.?\d*)\s*(\w+)/)
+          const memMatch = mem.match(
+            /(\d+\.?\d*)\s*(\w+)\s*\/\s*(\d+\.?\d*)\s*(\w+)/
+          )
           const memPercent = memMatch
             ? (parseFloat(memMatch[1]) / parseFloat(memMatch[3])) * 100
             : 0
           const memBar = createProgressBar(memPercent, 100)
-          const memStatus = memPercent > 80 ? '🔴' : memPercent > 60 ? '🟡' : '🟢'
+          const memStatus =
+            memPercent > 80 ? '🔴' : memPercent > 60 ? '🟡' : '🟢'
 
           const message =
             `${containerStatus.includes('Up') ? '🟢' : '🔴'} *Production Status*\n\n` +
@@ -357,15 +375,21 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
             [Markup.button.callback('📋 Логи', 'monitor_logs')],
           ])
 
-          await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard })
-        } catch (error: any) {
-          await ctx.editMessageText(`❌ Ошибка получения статуса:\n\`\`\`\n${error.message}\n\`\`\``, {
+          await ctx.editMessageText(message, {
             parse_mode: 'Markdown',
+            ...keyboard,
           })
+        } catch (error: any) {
+          await ctx.editMessageText(
+            `❌ Ошибка получения статуса:\n\`\`\`\n${error.message}\n\`\`\``,
+            {
+              parse_mode: 'Markdown',
+            }
+          )
         }
         break
 
-      case 'logs':
+      case 'logs': {
         // Show logs menu
         const logsKeyboard = Markup.inlineKeyboard([
           [
@@ -378,8 +402,12 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
           ],
           [Markup.button.callback('🔍 Только ошибки', 'logs_errors')],
         ])
-        await ctx.editMessageText('📋 Выбери количество строк для просмотра:', logsKeyboard)
+        await ctx.editMessageText(
+          '📋 Выбери количество строк для просмотра:',
+          logsKeyboard
+        )
         break
+      }
 
       case 'errors':
         // Re-run error detection
@@ -400,7 +428,7 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
             const matches = logs.match(pattern)
             if (matches && matches.length > 0) {
               const lines = logs.split('\n')
-              const exampleLine = lines.find((line) => pattern.test(line)) || ''
+              const exampleLine = lines.find(line => pattern.test(line)) || ''
               errors.push({
                 type,
                 count: matches.length,
@@ -410,7 +438,9 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
           }
 
           if (errors.length === 0) {
-            const keyboard = Markup.inlineKeyboard([[{ text: '🔄 Проверить снова', callback_data: 'monitor_errors' }]])
+            const keyboard = Markup.inlineKeyboard([
+              [{ text: '🔄 Проверить снова', callback_data: 'monitor_errors' }],
+            ])
             await ctx.editMessageText('✅ Ошибок не обнаружено!', keyboard)
             break
           }
@@ -428,7 +458,10 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
             [Markup.button.callback('🔄 Обновить', 'monitor_errors')],
           ])
 
-          await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard })
+          await ctx.editMessageText(message, {
+            parse_mode: 'Markdown',
+            ...keyboard,
+          })
         } catch (error: any) {
           await ctx.editMessageText(`❌ Ошибка: ${error.message}`)
         }
@@ -439,8 +472,12 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
         await ctx.editMessageText('📊 Собираю метрики...')
         try {
           const uptime = sshExec(`uptime -p`).trim()
-          const disk = sshExec(`df -h / | tail -1 | awk '{print $5 " used (" $3 "/" $2 ")"}'`).trim()
-          const load = sshExec(`uptime | awk -F'load average:' '{print $2}'`).trim()
+          const disk = sshExec(
+            `df -h / | tail -1 | awk '{print $5 " used (" $3 "/" $2 ")"}'`
+          ).trim()
+          const load = sshExec(
+            `uptime | awk -F'load average:' '{print $2}'`
+          ).trim()
           const containers = sshExec(`docker ps -q | wc -l`).trim()
 
           const message =
@@ -457,15 +494,21 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
             [Markup.button.callback('📊 Статус', 'monitor_status')],
           ])
 
-          await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard })
-        } catch (error: any) {
-          await ctx.editMessageText(`❌ Ошибка получения метрик:\n\`\`\`\n${error.message}\n\`\`\``, {
+          await ctx.editMessageText(message, {
             parse_mode: 'Markdown',
+            ...keyboard,
           })
+        } catch (error: any) {
+          await ctx.editMessageText(
+            `❌ Ошибка получения метрик:\n\`\`\`\n${error.message}\n\`\`\``,
+            {
+              parse_mode: 'Markdown',
+            }
+          )
         }
         break
 
-      case 'help':
+      case 'help': {
         // Show help
         const helpMessage =
           `❓ *Помощь - Команды бота*\n\n` +
@@ -483,13 +526,14 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
 
         await ctx.editMessageText(helpMessage, { parse_mode: 'Markdown' })
         break
+      }
     }
   })
 
   /**
    * Handle logs callbacks
    */
-  bot.action(/^logs_(.+)$/, async (ctx) => {
+  bot.action(/^logs_(.+)$/, async ctx => {
     if (!isAdmin(ctx.from.id)) {
       await ctx.answerCbQuery('❌ Unauthorized')
       return
@@ -520,19 +564,24 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
           filename,
         })
       } else {
-        await ctx.editMessageText(`\`\`\`\n${logs}\n\`\`\``, { parse_mode: 'Markdown' })
+        await ctx.editMessageText(`\`\`\`\n${logs}\n\`\`\``, {
+          parse_mode: 'Markdown',
+        })
       }
     } catch (error: any) {
-      await ctx.editMessageText(`❌ Ошибка получения логов:\n\`\`\`\n${error.message}\n\`\`\``, {
-        parse_mode: 'Markdown',
-      })
+      await ctx.editMessageText(
+        `❌ Ошибка получения логов:\n\`\`\`\n${error.message}\n\`\`\``,
+        {
+          parse_mode: 'Markdown',
+        }
+      )
     }
   })
 
   /**
    * Handle restart confirmation
    */
-  bot.action('restart_confirm', async (ctx) => {
+  bot.action('restart_confirm', async ctx => {
     if (!isAdmin(ctx.from.id)) {
       await ctx.answerCbQuery('❌ Unauthorized')
       return
@@ -545,7 +594,7 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
       sshExec(`docker restart ${CONTAINER_NAME}`)
 
       // Wait a bit and check status
-      await new Promise((resolve) => setTimeout(resolve, 5000))
+      await new Promise(resolve => setTimeout(resolve, 5000))
 
       const status = sshExec(
         `docker ps --filter name=${CONTAINER_NAME} --format "{{.Status}}"`
@@ -556,16 +605,19 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
         { parse_mode: 'Markdown' }
       )
     } catch (error: any) {
-      await ctx.editMessageText(`❌ Ошибка перезапуска:\n\`\`\`\n${error.message}\n\`\`\``, {
-        parse_mode: 'Markdown',
-      })
+      await ctx.editMessageText(
+        `❌ Ошибка перезапуска:\n\`\`\`\n${error.message}\n\`\`\``,
+        {
+          parse_mode: 'Markdown',
+        }
+      )
     }
   })
 
   /**
    * Handle restart cancel
    */
-  bot.action('restart_cancel', async (ctx) => {
+  bot.action('restart_cancel', async ctx => {
     await ctx.answerCbQuery('❌ Перезапуск отменен')
     await ctx.editMessageText('❌ Перезапуск отменен')
   })
@@ -576,7 +628,11 @@ export function setupAutonomousMonitor(bot: Telegraf<MyContext>) {
 /**
  * Create ASCII progress bar
  */
-function createProgressBar(value: number, max: number, length: number = 10): string {
+function createProgressBar(
+  value: number,
+  max: number,
+  length: number = 10
+): string {
   const percent = Math.min(100, (value / max) * 100)
   const filled = Math.round((percent / 100) * length)
   const empty = length - filled

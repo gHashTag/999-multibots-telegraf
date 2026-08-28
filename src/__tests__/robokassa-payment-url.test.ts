@@ -11,7 +11,7 @@ const mockEnv = {
   MERCHANT_LOGIN: 'fallback_merchant',
   ROBOKASSA_PASSWORD_1: 'test_password_1',
   ROBOKASSA_PASSWORD_2: 'test_password_2',
-  ROBOKASSA_RESULT_URL2: 'https://test.com/payment-success'
+  ROBOKASSA_RESULT_URL2: 'https://test.com/payment-success',
 }
 
 // Сохраняем оригинальный env
@@ -74,14 +74,18 @@ describe('Robokassa Payment URL Generation', () => {
 
     it('должен содержать ResultURL с корректным доменом', () => {
       const url = generateRobokassaUrl(100, 12345, 'Test payment')
-      expect(url).toContain('ResultURL=https%3A%2F%2Ftest.com%2Fpayment-success')
+      expect(url).toContain(
+        'ResultURL=https%3A%2F%2Ftest.com%2Fpayment-success'
+      )
     })
   })
 
   describe('getInvoiceId', () => {
     it('должен вернуть полный URL без undefined', async () => {
       const invoiceURL = await getInvoiceId(100, 12345, 'Test payment')
-      expect(invoiceURL).toContain('https://auth.robokassa.ru/Merchant/Index.aspx')
+      expect(invoiceURL).toContain(
+        'https://auth.robokassa.ru/Merchant/Index.aspx'
+      )
       expect(invoiceURL).not.toContain('undefined')
       expect(invoiceURL).toContain('MerchantLogin=test_merchant')
     })
@@ -98,7 +102,8 @@ describe('Robokassa Payment URL Generation', () => {
 
 // Импортируем функции из helper (или мокаем их)
 function getRobokassaCredentials() {
-  const MERCHANT_LOGIN_VALUE = process.env.ROBOKASSA_MERCHANT_LOGIN || process.env.MERCHANT_LOGIN
+  const MERCHANT_LOGIN_VALUE =
+    process.env.ROBOKASSA_MERCHANT_LOGIN || process.env.MERCHANT_LOGIN
   const ROBOKASSA_PASSWORD_1_VALUE = process.env.ROBOKASSA_PASSWORD_1
   const ROBOKASSA_PASSWORD_2_VALUE = process.env.ROBOKASSA_PASSWORD_2
 
@@ -124,7 +129,9 @@ function generateRobokassaUrl(
     console.error('❌ Password not found')
     return ''
   }
-  const resultUrl2 = process.env.ROBOKASSA_RESULT_URL2 || 'https://three-head-dragon.shop/payment-success'
+  const resultUrl2 =
+    process.env.ROBOKASSA_RESULT_URL2 ||
+    'https://three-head-dragon.shop/payment-success'
   if (!resultUrl2) {
     console.error('❌ Result URL not found')
     return ''
@@ -161,11 +168,7 @@ async function getInvoiceId(
     )
     console.log('signatureValue', signatureValue)
 
-    const response = generateRobokassaUrl(
-      outSum,
-      invId,
-      description
-    )
+    const response = generateRobokassaUrl(outSum, invId, description)
     console.log('response', response)
 
     return response

@@ -17,22 +17,33 @@ export interface ChatMemory {
 
 /** Insert a single message into chat_memory. */
 export async function saveMessage(
-  telegram_id: string, bot_name: string,
-  role: ChatMemory['role'], content: string, model: string
+  telegram_id: string,
+  bot_name: string,
+  role: ChatMemory['role'],
+  content: string,
+  model: string
 ): Promise<void> {
   try {
     const { error } = await supabaseAdmin.from('chat_memory').insert({
-      telegram_id, bot_name, role, content, model,
+      telegram_id,
+      bot_name,
+      role,
+      content,
+      model,
     })
     if (error) throw error
   } catch (err) {
-    logger.debug('[ChatMemory] saveMessage failed (table may not exist)', { error: String(err) })
+    logger.debug('[ChatMemory] saveMessage failed (table may not exist)', {
+      error: String(err),
+    })
   }
 }
 
 /** Load the last N messages for a user+bot pair, ordered oldest-first. */
 export async function loadHistory(
-  telegram_id: string, bot_name: string, limit = 20
+  telegram_id: string,
+  bot_name: string,
+  limit = 20
 ): Promise<ChatMemory[]> {
   try {
     const { data, error } = await supabaseAdmin
@@ -51,7 +62,8 @@ export async function loadHistory(
 
 /** Delete all messages for a user+bot pair. */
 export async function clearHistory(
-  telegram_id: string, bot_name: string
+  telegram_id: string,
+  bot_name: string
 ): Promise<void> {
   try {
     const { error } = await supabaseAdmin
@@ -67,7 +79,8 @@ export async function clearHistory(
 
 /** Build a concise user-profile summary from the last 50 messages. */
 export async function getUserContext(
-  telegram_id: string, bot_name: string
+  telegram_id: string,
+  bot_name: string
 ): Promise<string> {
   try {
     const msgs = await loadHistory(telegram_id, bot_name, 50)
@@ -79,13 +92,18 @@ export async function getUserContext(
     const hasRussian = userMsgs.some(t => /[а-яё]/i.test(t))
     const topics = new Set<string>()
     const keywords: Record<string, string> = {
-      'video|видео': 'video generation', 'photo|фото|image': 'photo generation',
-      'music|музык': 'music', 'voice|голос': 'voice/TTS',
-      'avatar|аватар': 'avatars', 'lipsync|lip': 'lip-sync',
-      'code|код': 'coding', 'text|текст|write|пиши': 'text/writing',
+      'video|видео': 'video generation',
+      'photo|фото|image': 'photo generation',
+      'music|музык': 'music',
+      'voice|голос': 'voice/TTS',
+      'avatar|аватар': 'avatars',
+      'lipsync|lip': 'lip-sync',
+      'code|код': 'coding',
+      'text|текст|write|пиши': 'text/writing',
     }
     for (const [pattern, topic] of Object.entries(keywords)) {
-      if (userMsgs.some(t => new RegExp(pattern, 'i').test(t))) topics.add(topic)
+      if (userMsgs.some(t => new RegExp(pattern, 'i').test(t)))
+        topics.add(topic)
     }
 
     const parts = [

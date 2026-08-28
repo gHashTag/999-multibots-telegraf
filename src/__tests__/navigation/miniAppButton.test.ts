@@ -101,7 +101,9 @@ describe('Mini App button — главное меню', () => {
 
   it('в личке кнопка есть и ведёт на мини-апп', () => {
     const kb = createMainMenuKeyboard(makeCtx('private'))
-    const buttons = webAppButtons(kb.reply_markup.keyboard as KeyboardButton[][])
+    const buttons = webAppButtons(
+      kb.reply_markup.keyboard as KeyboardButton[][]
+    )
 
     expect(buttons).toHaveLength(1)
     expect(buttons[0].web_app.url).toBe(MINI_APP_URL)
@@ -138,7 +140,9 @@ describe('Mini App button — главное меню', () => {
   it('английская локаль даёт английскую подпись', () => {
     vi.mocked(isRussianFromState).mockReturnValue(false)
     const kb = createMainMenuKeyboard(makeCtx('private'))
-    const buttons = webAppButtons(kb.reply_markup.keyboard as KeyboardButton[][])
+    const buttons = webAppButtons(
+      kb.reply_markup.keyboard as KeyboardButton[][]
+    )
 
     expect(buttons[0].text).toContain('Video editor')
   })

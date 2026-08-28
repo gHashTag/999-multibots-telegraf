@@ -154,7 +154,9 @@ describe('inngest client', () => {
     it('should send event successfully', async () => {
       mockSend.mockResolvedValue({ ids: ['event-123'] })
 
-      const { sendInngestEvent, INNGEST_EVENTS } = await import('@/inngest_app/client')
+      const { sendInngestEvent, INNGEST_EVENTS } = await import(
+        '@/inngest_app/client'
+      )
       const { logger } = await import('@/utils/logger')
 
       await sendInngestEvent(INNGEST_EVENTS.NEURO_IMAGE_GENERATION, {
@@ -177,11 +179,15 @@ describe('inngest client', () => {
     it('should throw error on send failure', async () => {
       mockSend.mockRejectedValue(new Error('Network error'))
 
-      const { sendInngestEvent, INNGEST_EVENTS } = await import('@/inngest_app/client')
+      const { sendInngestEvent, INNGEST_EVENTS } = await import(
+        '@/inngest_app/client'
+      )
       const { logger } = await import('@/utils/logger')
 
       await expect(
-        sendInngestEvent(INNGEST_EVENTS.PAYMENT_PROCESSING, { paymentId: '456' })
+        sendInngestEvent(INNGEST_EVENTS.PAYMENT_PROCESSING, {
+          paymentId: '456',
+        })
       ).rejects.toThrow('Network error')
 
       expect(logger.error).toHaveBeenCalledWith(
@@ -193,7 +199,9 @@ describe('inngest client', () => {
     it('should log event details before sending', async () => {
       mockSend.mockResolvedValue({ ids: ['event-123'] })
 
-      const { sendInngestEvent, INNGEST_EVENTS } = await import('@/inngest_app/client')
+      const { sendInngestEvent, INNGEST_EVENTS } = await import(
+        '@/inngest_app/client'
+      )
       const { logger } = await import('@/utils/logger')
 
       await sendInngestEvent(INNGEST_EVENTS.BROADCAST_MESSAGE, {

@@ -50,25 +50,28 @@ export type ValidatedRenderEventData = z.infer<typeof RenderEventDataSchema>
 // Render Riddle Function Schema
 // ========================
 
-export const RenderRiddleEventDataSchema = z.object({
-  job_id: z.string().min(1, 'job_id is required'),
-  kie_api_key: z.string().min(10, 'Invalid KIE API key'),
-  eleven_labs_api_key: z.string().min(10, 'Invalid ElevenLabs API key'),
-  heygen_api_key: z.string().min(10, 'Invalid HeyGen API key').optional(),
-  avatar_gen_service: z.enum(['hedra', 'heygen'], {
-    errorMap: () => ({ message: 'avatar_gen_service must be "hedra" or "heygen"' }),
-  }),
-  avatar_settings: AvatarSettingsSchema,
-  cover_url: z.string().url('Invalid cover URL'),
-  intro_text_1: TextSettingsSchema,
-  intro_text_2: TextSettingsSchema,
-  upper_intro_text: z.union([z.string(), TextSettingsSchema]).optional(), // Accept string OR object for backwards compatibility
-  circle_position: CirclePositionSchema,
-  circle_scale: CirclePositionSchema,
-  callback_url: z.string().url('Invalid callback URL').optional(),
-})
+export const RenderRiddleEventDataSchema = z
+  .object({
+    job_id: z.string().min(1, 'job_id is required'),
+    kie_api_key: z.string().min(10, 'Invalid KIE API key'),
+    eleven_labs_api_key: z.string().min(10, 'Invalid ElevenLabs API key'),
+    heygen_api_key: z.string().min(10, 'Invalid HeyGen API key').optional(),
+    avatar_gen_service: z.enum(['hedra', 'heygen'], {
+      errorMap: () => ({
+        message: 'avatar_gen_service must be "hedra" or "heygen"',
+      }),
+    }),
+    avatar_settings: AvatarSettingsSchema,
+    cover_url: z.string().url('Invalid cover URL'),
+    intro_text_1: TextSettingsSchema,
+    intro_text_2: TextSettingsSchema,
+    upper_intro_text: z.union([z.string(), TextSettingsSchema]).optional(), // Accept string OR object for backwards compatibility
+    circle_position: CirclePositionSchema,
+    circle_scale: CirclePositionSchema,
+    callback_url: z.string().url('Invalid callback URL').optional(),
+  })
   .refine(
-    (data) => {
+    data => {
       // Hedra требует avatar_photo_url и api_key в settings
       if (data.avatar_gen_service === 'hedra') {
         return (
@@ -88,30 +91,38 @@ export const RenderRiddleEventDataSchema = z.object({
     }
   )
 
-export type ValidatedRenderRiddleEventData = z.infer<typeof RenderRiddleEventDataSchema>
+export type ValidatedRenderRiddleEventData = z.infer<
+  typeof RenderRiddleEventDataSchema
+>
 
 // ========================
 // Render Avatar Video Function Schema
 // ========================
 
-export const RenderAvatarVideoEventDataSchema = z.object({
-  job_id: z.string().min(1, 'job_id is required').optional(),
-  user_id: z.string().min(1, 'User ID required'),
-  avatar_text: z.string().min(1, 'Avatar text cannot be empty'),
-  avatar_gen_service: z.enum(['hedra', 'heygen'], {
-    errorMap: () => ({ message: 'avatar_gen_service must be "hedra" or "heygen"' }),
-  }),
-  avatar_settings: AvatarSettingsSchema,
-  kie_api_key: z.string().min(10, 'Invalid KIE API key').optional(),
-  voice_id: z.string().optional(),
-  eleven_labs_api_key: z.string().min(10, 'Invalid ElevenLabs API key').optional(),
-  hedra_api_key: z.string().min(10, 'Invalid Hedra API key').optional(),
-  heygen_api_key: z.string().min(10, 'Invalid HeyGen API key').optional(),
-  avatar_id: z.string().optional(), // For HeyGen
-  avatar_photo_url: z.string().url('Invalid avatar photo URL').optional(), // For Hedra
-})
+export const RenderAvatarVideoEventDataSchema = z
+  .object({
+    job_id: z.string().min(1, 'job_id is required').optional(),
+    user_id: z.string().min(1, 'User ID required'),
+    avatar_text: z.string().min(1, 'Avatar text cannot be empty'),
+    avatar_gen_service: z.enum(['hedra', 'heygen'], {
+      errorMap: () => ({
+        message: 'avatar_gen_service must be "hedra" or "heygen"',
+      }),
+    }),
+    avatar_settings: AvatarSettingsSchema,
+    kie_api_key: z.string().min(10, 'Invalid KIE API key').optional(),
+    voice_id: z.string().optional(),
+    eleven_labs_api_key: z
+      .string()
+      .min(10, 'Invalid ElevenLabs API key')
+      .optional(),
+    hedra_api_key: z.string().min(10, 'Invalid Hedra API key').optional(),
+    heygen_api_key: z.string().min(10, 'Invalid HeyGen API key').optional(),
+    avatar_id: z.string().optional(), // For HeyGen
+    avatar_photo_url: z.string().url('Invalid avatar photo URL').optional(), // For Hedra
+  })
   .refine(
-    (data) => {
+    data => {
       // Hedra требует avatar_photo_url, voice_id, eleven_labs_api_key, hedra_api_key
       if (data.avatar_gen_service === 'hedra') {
         return (
@@ -148,11 +159,15 @@ export type ValidatedRenderAvatarVideoEventData = z.infer<
 /**
  * Validates render event data with detailed error messages
  */
-export function validateRenderEventData(data: unknown): ValidatedRenderEventData {
+export function validateRenderEventData(
+  data: unknown
+): ValidatedRenderEventData {
   const result = RenderEventDataSchema.safeParse(data)
 
   if (!result.success) {
-    const errors = result.error.errors.map((err) => `${err.path.join('.')}: ${err.message}`)
+    const errors = result.error.errors.map(
+      err => `${err.path.join('.')}: ${err.message}`
+    )
     throw new Error(`Render event validation failed:\n${errors.join('\n')}`)
   }
 
@@ -168,8 +183,12 @@ export function validateRenderRiddleEventData(
   const result = RenderRiddleEventDataSchema.safeParse(data)
 
   if (!result.success) {
-    const errors = result.error.errors.map((err) => `${err.path.join('.')}: ${err.message}`)
-    throw new Error(`Render-riddle event validation failed:\n${errors.join('\n')}`)
+    const errors = result.error.errors.map(
+      err => `${err.path.join('.')}: ${err.message}`
+    )
+    throw new Error(
+      `Render-riddle event validation failed:\n${errors.join('\n')}`
+    )
   }
 
   return result.data
@@ -184,8 +203,12 @@ export function validateRenderAvatarVideoEventData(
   const result = RenderAvatarVideoEventDataSchema.safeParse(data)
 
   if (!result.success) {
-    const errors = result.error.errors.map((err) => `${err.path.join('.')}: ${err.message}`)
-    throw new Error(`Render-avatar-video event validation failed:\n${errors.join('\n')}`)
+    const errors = result.error.errors.map(
+      err => `${err.path.join('.')}: ${err.message}`
+    )
+    throw new Error(
+      `Render-avatar-video event validation failed:\n${errors.join('\n')}`
+    )
   }
 
   return result.data

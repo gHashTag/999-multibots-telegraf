@@ -34,16 +34,18 @@ vi.mock('@/price/models', () => ({
 vi.mock('@/navigation', () => ({
   handleHelpCancel: vi.fn(() => Promise.resolve(false)),
   sendGenericErrorMessage: vi.fn(() => Promise.resolve()),
-  createHelpCancelKeyboard: vi.fn((isRu) => ({
+  createHelpCancelKeyboard: vi.fn(isRu => ({
     reply_markup: { keyboard: [[{ text: isRu ? 'Отмена' : 'Cancel' }]] },
   })),
 }))
 
 vi.mock('@/services/generateTextToImageDirect', () => ({
-  generateTextToImageDirect: vi.fn(() => Promise.resolve({
-    success: true,
-    imageUrl: 'https://example.com/generated.jpg',
-  })),
+  generateTextToImageDirect: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      imageUrl: 'https://example.com/generated.jpg',
+    })
+  ),
 }))
 
 vi.mock('@/core/supabase', () => ({
@@ -57,10 +59,12 @@ vi.mock('@/price/helpers', () => ({
 }))
 
 vi.mock('@/db/userSettings', () => ({
-  getUserProfileAndSettings: vi.fn(() => Promise.resolve({
-    profile: { telegram_id: '123' },
-    settings: {},
-  })),
+  getUserProfileAndSettings: vi.fn(() =>
+    Promise.resolve({
+      profile: { telegram_id: '123' },
+      settings: {},
+    })
+  ),
 }))
 
 vi.mock('@/interfaces/payments.interface', () => ({
@@ -84,7 +88,10 @@ import { imageModelPrices } from '@/price/models'
 import { handleHelpCancel, sendGenericErrorMessage } from '@/navigation'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
 import { getUserBalance, updateUserBalance } from '@/core/supabase'
-import { validateAndCalculateImageModelPrice, sendBalanceMessage } from '@/price/helpers'
+import {
+  validateAndCalculateImageModelPrice,
+  sendBalanceMessage,
+} from '@/price/helpers'
 
 describe('textToImageWizard (Text to Image Generation)', () => {
   const mockContext = {
@@ -116,7 +123,6 @@ describe('textToImageWizard (Text to Image Generation)', () => {
       imageGenerationPrice: null,
     }
     mockContext.message = null
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(handleHelpCancel as Mock).mockResolvedValue(false)
     ;(getUserBalance as Mock).mockResolvedValue(100)
@@ -138,8 +144,8 @@ describe('textToImageWizard (Text to Image Generation)', () => {
     })
 
     it('должен фильтровать модели с text inputType', () => {
-      const filteredModels = Object.values(imageModelPrices).filter(
-        model => model.inputType.includes('text')
+      const filteredModels = Object.values(imageModelPrices).filter(model =>
+        model.inputType.includes('text')
       )
 
       expect(filteredModels.length).toBeGreaterThan(0)
@@ -281,13 +287,7 @@ describe('textToImageWizard (Text to Image Generation)', () => {
     })
 
     it('должен вызывать sendBalanceMessage', async () => {
-      await sendBalanceMessage(
-        mockContext as any,
-        100,
-        5,
-        true,
-        'test_bot'
-      )
+      await sendBalanceMessage(mockContext as any, 100, 5, true, 'test_bot')
 
       expect(sendBalanceMessage).toHaveBeenCalledWith(
         mockContext,

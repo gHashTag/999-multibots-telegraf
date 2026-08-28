@@ -1,6 +1,10 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { getStepSelectionMenu, handleHelpCancel, showMainMenu } from '@/navigation'
+import {
+  getStepSelectionMenu,
+  handleHelpCancel,
+  showMainMenu,
+} from '@/navigation'
 import { MAIN_MENU_VARIANTS } from '@/navigation/config/categories.config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleTrainingCost } from '@/price/helpers'
@@ -62,8 +66,15 @@ export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
       const messageText = ctx.message.text
 
       // ✅ FIX: Обработка команд /start, /price и главного меню - выход из сцены
-      if (messageText.startsWith('/start') || messageText.startsWith('/price') || MAIN_MENU_VARIANTS.includes(messageText)) {
-        console.log('🏠 [digitalAvatarBodyWizard] Command or main menu pressed, leaving scene:', messageText)
+      if (
+        messageText.startsWith('/start') ||
+        messageText.startsWith('/price') ||
+        MAIN_MENU_VARIANTS.includes(messageText)
+      ) {
+        console.log(
+          '🏠 [digitalAvatarBodyWizard] Command or main menu pressed, leaving scene:',
+          messageText
+        )
         await ctx.scene.leave()
         // Для /start и /price глобальные обработчики подхватят команду
         if (MAIN_MENU_VARIANTS.includes(messageText)) {
@@ -131,8 +142,15 @@ export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
       const messageText = ctx.message.text.trim()
 
       // ✅ FIX: Обработка команд /start, /price и главного меню - выход из сцены
-      if (messageText.startsWith('/start') || messageText.startsWith('/price') || MAIN_MENU_VARIANTS.includes(messageText)) {
-        console.log('🏠 [digitalAvatarBodyWizard] Command or main menu pressed in step 2, leaving scene:', messageText)
+      if (
+        messageText.startsWith('/start') ||
+        messageText.startsWith('/price') ||
+        MAIN_MENU_VARIANTS.includes(messageText)
+      ) {
+        console.log(
+          '🏠 [digitalAvatarBodyWizard] Command or main menu pressed in step 2, leaving scene:',
+          messageText
+        )
         await ctx.scene.leave()
         if (MAIN_MENU_VARIANTS.includes(messageText)) {
           await showMainMenu(ctx)
@@ -187,8 +205,15 @@ export const digitalAvatarBodyWizard = new Scenes.WizardScene<MyContext>(
       const messageText = ctx.message.text
 
       // ✅ FIX: Обработка команд /start, /price и главного меню - выход из сцены
-      if (messageText.startsWith('/start') || messageText.startsWith('/price') || MAIN_MENU_VARIANTS.includes(messageText)) {
-        console.log('🏠 [digitalAvatarBodyWizard] Command or main menu pressed in step 3, leaving scene:', messageText)
+      if (
+        messageText.startsWith('/start') ||
+        messageText.startsWith('/price') ||
+        MAIN_MENU_VARIANTS.includes(messageText)
+      ) {
+        console.log(
+          '🏠 [digitalAvatarBodyWizard] Command or main menu pressed in step 3, leaving scene:',
+          messageText
+        )
         await ctx.scene.leave()
         if (MAIN_MENU_VARIANTS.includes(messageText)) {
           await showMainMenu(ctx)

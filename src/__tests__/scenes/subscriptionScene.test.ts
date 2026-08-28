@@ -11,17 +11,31 @@ vi.mock('@/helpers', () => ({
 }))
 
 vi.mock('@/core/supabase', () => ({
-  getTranslation: vi.fn(() => Promise.resolve({
-    translation: '💫 Выберите подписку\n\nПолучите доступ ко всем функциям!',
-    url: null,
-    buttons: [
-      { text: 'НейроФото', callback_data: 'neurophoto', ru_price: '1110', en_price: '15' },
-      { text: 'НейроВидео', callback_data: 'neurovideo', ru_price: '2999', en_price: '40' },
-    ],
-  })),
-  getUserDetailsSubscription: vi.fn(() => Promise.resolve({
-    subscriptionType: null,
-  })),
+  getTranslation: vi.fn(() =>
+    Promise.resolve({
+      translation: '💫 Выберите подписку\n\nПолучите доступ ко всем функциям!',
+      url: null,
+      buttons: [
+        {
+          text: 'НейроФото',
+          callback_data: 'neurophoto',
+          ru_price: '1110',
+          en_price: '15',
+        },
+        {
+          text: 'НейроВидео',
+          callback_data: 'neurovideo',
+          ru_price: '2999',
+          en_price: '40',
+        },
+      ],
+    })
+  ),
+  getUserDetailsSubscription: vi.fn(() =>
+    Promise.resolve({
+      subscriptionType: null,
+    })
+  ),
 }))
 
 vi.mock('@/core/bot/shouldShowRubles', () => ({
@@ -56,7 +70,7 @@ vi.mock('@/navigation', () => ({
 }))
 
 vi.mock('@/helpers/escapeMarkdown', () => ({
-  escapeMarkdownV2: vi.fn((text) => text),
+  escapeMarkdownV2: vi.fn(text => text),
 }))
 
 vi.mock('@/utils/logger', () => ({
@@ -134,7 +148,6 @@ describe('subscriptionScene (Subscription Selection)', () => {
     mockContext.session.isAdminTest = false
     mockContext.update = {}
     process.env.ADMIN_IDS = '123456789'
-
     ;(isRussian as Mock).mockReturnValue(true)
     ;(shouldShowRubles as Mock).mockReturnValue(true)
     ;(getTranslation as Mock).mockResolvedValue({
@@ -255,7 +268,7 @@ describe('subscriptionScene (Subscription Selection)', () => {
       const isAdmin = true
       const isRu = true
 
-      let buttons: any[] = []
+      const buttons: any[] = []
 
       if (isAdmin) {
         const adminButtonText = isRu
@@ -290,7 +303,8 @@ describe('subscriptionScene (Subscription Selection)', () => {
 
       const selectedPayment = paymentOptionsPlans.find(
         option =>
-          option.subscription?.toString().toLowerCase() === callbackData.toLowerCase()
+          option.subscription?.toString().toLowerCase() ===
+          callbackData.toLowerCase()
       )
 
       expect(selectedPayment).toBeDefined()
@@ -403,7 +417,8 @@ describe('subscriptionScene (Subscription Selection)', () => {
       const value = 'NEUROPHOTO'
 
       const isValid = paymentOptionsPlans.some(
-        plan => plan.subscription?.toString().toUpperCase() === value.toUpperCase()
+        plan =>
+          plan.subscription?.toString().toUpperCase() === value.toUpperCase()
       )
 
       expect(isValid).toBe(true)
@@ -413,7 +428,8 @@ describe('subscriptionScene (Subscription Selection)', () => {
       const value = 'UNKNOWN_PLAN'
 
       const isValid = paymentOptionsPlans.some(
-        plan => plan.subscription?.toString().toUpperCase() === value.toUpperCase()
+        plan =>
+          plan.subscription?.toString().toUpperCase() === value.toUpperCase()
       )
 
       expect(isValid).toBe(false)
@@ -425,9 +441,11 @@ describe('subscriptionScene (Subscription Selection)', () => {
       const translation = ''
       const isRu = true
 
-      const messageText = translation || (isRu
-        ? `💫 **Выберите подписку**\n\nПолучите доступ ко всем функциям нейро-бота!`
-        : `💫 **Choose Subscription**\n\nGet access to all neuro-bot features!`)
+      const messageText =
+        translation ||
+        (isRu
+          ? `💫 **Выберите подписку**\n\nПолучите доступ ко всем функциям нейро-бота!`
+          : `💫 **Choose Subscription**\n\nGet access to all neuro-bot features!`)
 
       expect(messageText).toContain('Выберите подписку')
     })

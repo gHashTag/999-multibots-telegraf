@@ -70,7 +70,7 @@ const A = читать('anomalies-last.json')
  * не смог прочитать состояние, обязан не выйти, а не выйти пустым.
  */
 function свежиеАномалии() {
-  if (!A) return []                      // файла нет — сканер ещё не бегал
+  if (!A) return [] // файла нет — сканер ещё не бегал
   const h = A.history
   if (!Array.isArray(h)) {
     console.error(
@@ -108,10 +108,24 @@ const аномалии = свежиеАномалии()
  * панель не читает, называется вслух при каждой сборке.
  */
 const ЧИТАЕМЫЕ = new Set([
-  'loop', 'cronJob', 'cadenceMinutes', 'iteration', 'status', 'namespace',
-  'worktree', 'branch', 'dashboard', 'tools', 'collisionPolicy',
-  'measured', 'incidents', 'shipped', 'blocked', 'backlog',
-  'selfCritique', 'updatedAt',
+  'loop',
+  'cronJob',
+  'cadenceMinutes',
+  'iteration',
+  'status',
+  'namespace',
+  'worktree',
+  'branch',
+  'dashboard',
+  'tools',
+  'collisionPolicy',
+  'measured',
+  'incidents',
+  'shipped',
+  'blocked',
+  'backlog',
+  'selfCritique',
+  'updatedAt',
 ])
 /**
  * ФОРМА ЗАПИСЕЙ, А НЕ ТОЛЬКО ИМЕНА КЛЮЧЕЙ.
@@ -138,8 +152,8 @@ const кривыеБлокеры = (S.blocked || []).filter(b => !b['что'] ||
 if (кривыеБлокеры.length) {
   console.error(
     `\n  ВНИМАНИЕ: ${кривыеБлокеры.length} записей в blocked без «что»/«причина».\n` +
-    `  Ожидаются поля: что, причина, чтоНужно.\n` +
-    `  Найдено вместо них: ${[...new Set(кривыеБлокеры.flatMap(Object.keys))].join(', ')}\n`
+      `  Ожидаются поля: что, причина, чтоНужно.\n` +
+      `  Найдено вместо них: ${[...new Set(кривыеБлокеры.flatMap(Object.keys))].join(', ')}\n`
   )
 }
 
@@ -147,8 +161,8 @@ const безТекста = (S.shipped || []).filter(x => !x['что'])
 if (безТекста.length) {
   console.error(
     `\n  ВНИМАНИЕ: ${безТекста.length} записей в shipped без поля «что» —` +
-    ` они выйдут пустыми строками.\n  Ожидаются поля: что, проверено, pr.\n` +
-    `  Найдено вместо них: ${[...new Set(безТекста.flatMap(Object.keys))].join(', ')}\n`
+      ` они выйдут пустыми строками.\n  Ожидаются поля: что, проверено, pr.\n` +
+      `  Найдено вместо них: ${[...new Set(безТекста.flatMap(Object.keys))].join(', ')}\n`
   )
 }
 
@@ -156,8 +170,8 @@ const лишние = Object.keys(S).filter(k => !ЧИТАЕМЫЕ.has(k))
 if (лишние.length) {
   console.error(
     `\n  ВНИМАНИЕ: в STATE.json есть ключи, которых панель НЕ читает:\n` +
-    лишние.map(k => `    ${k}`).join('\n') +
-    `\n  Написанное в них не попадёт на экран. Перенесите в читаемый ключ.\n`
+      лишние.map(k => `    ${k}`).join('\n') +
+      `\n  Написанное в них не попадёт на экран. Перенесите в читаемый ключ.\n`
   )
 }
 
@@ -311,7 +325,9 @@ const html = `<title>Цикл ${э(S.iteration)} — ${э(состояние.т)
         отгружено,
         x =>
           `<span>${x.pr ? `${пр(x.pr)} ` : ''}${э(x.что)}</span>` +
-          (x.проверено ? `<span class="чем">проверено: ${э(x.проверено)}</span>` : ''),
+          (x.проверено
+            ? `<span class="чем">проверено: ${э(x.проверено)}</span>`
+            : ''),
         'пока пусто'
       )}
     </section>

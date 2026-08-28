@@ -42,13 +42,19 @@ export function PairWithApp() {
     try {
       const r = await apiFetch<{ code: string; expires_in: number }>(
         `${API_BASE}/api/auth/pair/start`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        }
       )
       setКод(r.code)
       setОсталось(r.expires_in)
     } catch (e) {
       setОшибка(
-        e instanceof Error ? e.message : 'Не удалось получить код — попробуйте ещё раз'
+        e instanceof Error
+          ? e.message
+          : 'Не удалось получить код — попробуйте ещё раз'
       )
     }
     setИдёт(false)
@@ -68,7 +74,9 @@ export function PairWithApp() {
         gap: 10,
       }}
     >
-      <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Вход в приложение</h3>
+      <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
+        Вход в приложение
+      </h3>
 
       {код ? (
         <>
@@ -93,14 +101,21 @@ export function PairWithApp() {
           >
             {код.slice(0, 3)} {код.slice(3)}
           </div>
-          <p style={{ margin: 0, fontSize: 13, opacity: 0.6, textAlign: 'center' }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 13,
+              opacity: 0.6,
+              textAlign: 'center',
+            }}
+          >
             Введите его в приложении. Осталось {мм}:{сс}
           </p>
         </>
       ) : (
         <p style={{ margin: 0, fontSize: 13, opacity: 0.65 }}>
-          Нажмите, чтобы получить код. Он действует две минуты и подходит
-          только для одного входа.
+          Нажмите, чтобы получить код. Он действует две минуты и подходит только
+          для одного входа.
         </p>
       )}
 

@@ -64,8 +64,7 @@ export const HEYGEN_AVATAR_SETS: Record<string, HeyGenAvatarSet> = {
     name: 'Cocoage',
     apiKey: process.env.HEYGEN_COCOAGE_API_KEY || '',
     voiceId:
-      process.env.HEYGEN_COCOAGE_VOICE_ID ||
-      '2b2e1f15157b454487f1250ffe586d7a', // Голос Дианы "Вау" для Cocoage
+      process.env.HEYGEN_COCOAGE_VOICE_ID || '2b2e1f15157b454487f1250ffe586d7a', // Голос Дианы "Вау" для Cocoage
     avatars: COCOAGE_AVATARS,
   },
   haim: {

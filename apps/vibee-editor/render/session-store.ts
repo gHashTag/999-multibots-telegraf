@@ -15,7 +15,9 @@
 import crypto from 'node:crypto'
 import { digest, revokeNow } from './session'
 
-type Pool = { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> }
+type Pool = {
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
+}
 
 let готово = false
 
@@ -58,11 +60,13 @@ export async function ensureAuthTables(pool: Pool): Promise<void> {
     )`)
   await pool.query(
     `CREATE INDEX IF NOT EXISTS app_sessions_owner
-       ON app_sessions (telegram_id, created_at DESC)`)
+       ON app_sessions (telegram_id, created_at DESC)`
+  )
   // The revocation poller reads exactly this: live sessions marked revoked.
   await pool.query(
     `CREATE INDEX IF NOT EXISTS app_sessions_revoked
-       ON app_sessions (revoked_at) WHERE revoked_at IS NOT NULL`)
+       ON app_sessions (revoked_at) WHERE revoked_at IS NOT NULL`
+  )
 
   /**
    * Refresh tokens. `token_hash` is the primary key on purpose: the raw token
@@ -83,7 +87,8 @@ export async function ensureAuthTables(pool: Pool): Promise<void> {
     )`)
   await pool.query(
     `CREATE INDEX IF NOT EXISTS app_refresh_family
-       ON app_refresh_tokens (family_id)`)
+       ON app_refresh_tokens (family_id)`
+  )
 
   /**
    * One-time tickets for streaming endpoints.
@@ -188,7 +193,10 @@ export type PairingOutcome =
  * Redeem a code. Single use, enforced by the WHERE clause and not by a
  * read-then-write — two devices racing the same code must not both win.
  */
-export async function claimPairingCode(pool: Pool, code: string): Promise<PairingOutcome> {
+export async function claimPairingCode(
+  pool: Pool,
+  code: string
+): Promise<PairingOutcome> {
   const hash = digest(code)
 
   /**
@@ -225,7 +233,8 @@ export async function claimPairingCode(pool: Pool, code: string): Promise<Pairin
   }
 
   const row = hit.rows[0]
-  if (row.attempts >= PAIRING.MAX_ATTEMPTS) return { ok: false, reason: 'exhausted' }
+  if (row.attempts >= PAIRING.MAX_ATTEMPTS)
+    return { ok: false, reason: 'exhausted' }
 
   const consumed = await pool.query(
     `UPDATE app_pairing_codes SET consumed_at = now()

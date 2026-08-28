@@ -20,7 +20,7 @@ import {
   getHistoryDepth,
   clearNavigationHistory,
   canGoBack,
-  SceneTransitionOptions
+  SceneTransitionOptions,
 } from '@/navigation/helpers/sceneTransition'
 import { ModeEnum } from '@/interfaces/modes'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
@@ -32,8 +32,8 @@ vi.mock('@/utils/logger', () => ({
     info: vi.fn(),
     debug: vi.fn(),
     error: vi.fn(),
-    warn: vi.fn()
-  }
+    warn: vi.fn(),
+  },
 }))
 
 describe('SceneTransition', () => {
@@ -48,14 +48,14 @@ describe('SceneTransition', () => {
     mockContext = {
       from: { id: 123456 } as any,
       session: {
-        navigationHistory: []
+        navigationHistory: [],
       } as any,
       scene: {
         current: { id: 'currentScene' },
         leave: mockSceneLeave,
         enter: mockSceneEnter,
-        state: {}
-      } as any
+        state: {},
+      } as any,
     }
   })
 
@@ -75,20 +75,26 @@ describe('SceneTransition', () => {
     })
 
     it('не сохраняет в историю при saveToHistory: false', async () => {
-      await safeEnterScene(mockContext as MyContext, 'newScene', { saveToHistory: false })
+      await safeEnterScene(mockContext as MyContext, 'newScene', {
+        saveToHistory: false,
+      })
 
       expect(mockContext.session?.navigationHistory).toHaveLength(0)
     })
 
     it('не выходит из сцены при leaveFirst: false', async () => {
-      await safeEnterScene(mockContext as MyContext, 'newScene', { leaveFirst: false })
+      await safeEnterScene(mockContext as MyContext, 'newScene', {
+        leaveFirst: false,
+      })
 
       expect(mockSceneLeave).not.toHaveBeenCalled()
       expect(mockSceneEnter).toHaveBeenCalledWith('newScene')
     })
 
     it('устанавливает mode в сессию если указан', async () => {
-      await safeEnterScene(mockContext as MyContext, 'newScene', { mode: ModeEnum.Balance })
+      await safeEnterScene(mockContext as MyContext, 'newScene', {
+        mode: ModeEnum.Balance,
+      })
 
       expect(mockContext.session?.mode).toBe(ModeEnum.Balance)
     })
@@ -101,12 +107,20 @@ describe('SceneTransition', () => {
     })
 
     it('ограничивает историю до MAX_HISTORY_DEPTH (5)', async () => {
-      mockContext.session!.navigationHistory = ['scene1', 'scene2', 'scene3', 'scene4', 'scene5']
+      mockContext.session!.navigationHistory = [
+        'scene1',
+        'scene2',
+        'scene3',
+        'scene4',
+        'scene5',
+      ]
 
       await safeEnterScene(mockContext as MyContext, 'newScene')
 
       // История должна быть не больше 5 элементов
-      expect(mockContext.session?.navigationHistory?.length).toBeLessThanOrEqual(5)
+      expect(
+        mockContext.session?.navigationHistory?.length
+      ).toBeLessThanOrEqual(5)
     })
 
     it('не добавляет дубликаты подряд в историю', async () => {
@@ -186,7 +200,9 @@ describe('SceneTransition', () => {
       await goBack(mockContext as MyContext)
 
       // История должна уменьшиться, а не увеличиться
-      expect(mockContext.session?.navigationHistory?.length).toBeLessThan(initialLength)
+      expect(mockContext.session?.navigationHistory?.length).toBeLessThan(
+        initialLength
+      )
     })
   })
 
@@ -211,7 +227,10 @@ describe('SceneTransition', () => {
 
       await goToMainMenu(mockContext as MyContext, false)
 
-      expect(mockContext.session?.navigationHistory).toEqual(['scene1', 'scene2'])
+      expect(mockContext.session?.navigationHistory).toEqual([
+        'scene1',
+        'scene2',
+      ])
     })
 
     it('не сохраняет в историю при переходе', async () => {
@@ -325,7 +344,7 @@ describe('SceneTransition', () => {
         leaveFirst: true,
         saveToHistory: true,
         mode: ModeEnum.Balance,
-        sceneState: { key: 'value' }
+        sceneState: { key: 'value' },
       }
 
       await safeEnterScene(mockContext as MyContext, 'newScene', options)

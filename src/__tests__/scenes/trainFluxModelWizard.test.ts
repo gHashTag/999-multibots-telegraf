@@ -23,7 +23,7 @@ vi.mock('@/handlers', () => ({
 }))
 
 vi.mock('@/helpers/sanitizeModelName', () => ({
-  sanitizeModelName: vi.fn((name) => name.replace(/[^a-zA-Z0-9_]/g, '_')),
+  sanitizeModelName: vi.fn(name => name.replace(/[^a-zA-Z0-9_]/g, '_')),
 }))
 
 vi.mock('@/utils/logger', () => ({
@@ -65,10 +65,12 @@ describe('trainFluxModelWizard (LoRA Model Training)', () => {
       cursor: 0,
     },
     telegram: {
-      getFile: vi.fn(() => Promise.resolve({
-        file_id: 'file_123',
-        file_path: 'photos/test.jpg',
-      })),
+      getFile: vi.fn(() =>
+        Promise.resolve({
+          file_id: 'file_123',
+          file_path: 'photos/test.jpg',
+        })
+      ),
     },
     message: null as any,
   }
@@ -84,7 +86,6 @@ describe('trainFluxModelWizard (LoRA Model Training)', () => {
       images: [],
     }
     mockContext.message = null
-
     ;(isRussian as Mock).mockReturnValue(true)
     ;(handleHelpCancel as Mock).mockResolvedValue(false)
     ;(isValidImage as Mock).mockResolvedValue(true)
@@ -141,7 +142,8 @@ describe('trainFluxModelWizard (LoRA Model Training)', () => {
     it('должен устанавливать название модели по умолчанию', () => {
       if (!mockContext.session.modelName) {
         mockContext.session.modelName = 'digital_avatar_model'
-        mockContext.session.triggerWord = mockContext.session.modelName.toUpperCase()
+        mockContext.session.triggerWord =
+          mockContext.session.modelName.toUpperCase()
       }
 
       expect(mockContext.session.modelName).toBe('digital_avatar_model')
@@ -196,14 +198,18 @@ describe('trainFluxModelWizard (LoRA Model Training)', () => {
     })
 
     it('должен требовать минимум 10 изображений для /done', () => {
-      mockContext.session.images = new Array(5).fill({ buffer: Buffer.from('test') })
+      mockContext.session.images = new Array(5).fill({
+        buffer: Buffer.from('test'),
+      })
 
       const canFinish = mockContext.session.images.length >= 10
       expect(canFinish).toBe(false)
     })
 
     it('должен разрешать /done при 10+ изображениях', () => {
-      mockContext.session.images = new Array(10).fill({ buffer: Buffer.from('test') })
+      mockContext.session.images = new Array(10).fill({
+        buffer: Buffer.from('test'),
+      })
 
       const canFinish = mockContext.session.images.length >= 10
       expect(canFinish).toBe(true)
@@ -304,15 +310,20 @@ describe('trainFluxModelWizard (LoRA Model Training)', () => {
 
   describe('6. Переход к uploadTrainFluxModelScene', () => {
     it('должен переходить в uploadTrainFluxModelScene', async () => {
-      mockContext.session.images = new Array(10).fill({ buffer: Buffer.from('test') })
+      mockContext.session.images = new Array(10).fill({
+        buffer: Buffer.from('test'),
+      })
 
       await mockContext.scene.enter('uploadTrainFluxModelScene', {
         gender: mockContext.session.gender,
       })
 
-      expect(mockContext.scene.enter).toHaveBeenCalledWith('uploadTrainFluxModelScene', expect.objectContaining({
-        gender: mockContext.session.gender,
-      }))
+      expect(mockContext.scene.enter).toHaveBeenCalledWith(
+        'uploadTrainFluxModelScene',
+        expect.objectContaining({
+          gender: mockContext.session.gender,
+        })
+      )
     })
   })
 

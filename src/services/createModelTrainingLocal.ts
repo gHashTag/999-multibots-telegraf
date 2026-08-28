@@ -5,7 +5,10 @@ import { MyContext } from '@/interfaces'
 import { supabase } from '@/core/supabase'
 import { REPLICATE_API_TOKEN, REPLICATE_USERNAME, FAL_KEY } from '@/config'
 import { logger } from '@/utils/logger'
-import { sanitizeModelName, isValidReplicateModelName } from '@/helpers/sanitizeModelName'
+import {
+  sanitizeModelName,
+  isValidReplicateModelName,
+} from '@/helpers/sanitizeModelName'
 import { trainFalFluxModel } from './trainFalFluxModel'
 
 interface ModelTrainingRequest {
@@ -75,7 +78,16 @@ export async function createModelTrainingLocal(
 
     // Replicate provider
     if (!REPLICATE_API_TOKEN || !REPLICATE_USERNAME) {
-      throw new Error('❌ Missing REPLICATE_API_TOKEN or REPLICATE_USERNAME in .env')
+      // Называем КОНКРЕТНО отсутствующее: прежнее «TOKEN or USERNAME» не
+      // позволяло понять, что именно не настроено, и одинаково выглядело в
+      // обоих случаях.
+      const missing = [
+        !REPLICATE_API_TOKEN && 'Missing REPLICATE_API_TOKEN',
+        !REPLICATE_USERNAME && 'Missing REPLICATE_USERNAME',
+      ]
+        .filter(Boolean)
+        .join(', ')
+      throw new Error(`❌ ${missing} in .env`)
     }
 
     logger.info('[LOCAL TRAINING] Using Replicate credentials', {
@@ -102,8 +114,18 @@ export async function createModelTrainingLocal(
       model_name: requestData.modelName,
     })
 
-    // ✅ STEP 4: Validate Replicate client (already initialized from @core/replicate)
-    // The replicate client is initialized in @core/replicate/index.ts with REPLICATE_API_TOKEN
+    // ✅ STEP 4: Replicate client
+    //
+    // ИСПРАВЛЕНО: комментарий утверждал, что клиент «уже инициализирован в
+    // @core/replicate», но в этом файле идентификатор `replicate` НЕ был
+    // объявлен вообще — импортировался только класс Replicate, который ни разу
+    // не создавался. Из-за `// @ts-nocheck` в шапке файла tsc об этом молчал, а
+    // ветка обучения через Replicate падала в рантайме с
+    // «ReferenceError: replicate is not defined» (строки .models.get /
+    // .models.create / .trainings.create ниже). Общий экспорт из
+    // @core/replicate тоже не подходит: там только .run, без .models и
+    // .trainings. Создаём клиента здесь.
+    const replicate = new Replicate({ auth: REPLICATE_API_TOKEN })
 
     // ✅ STEP 5: Prepare file as base64 data URI for Replicate
     logger.info('[LOCAL TRAINING] Converting ZIP to base64...')
@@ -122,12 +144,12 @@ export async function createModelTrainingLocal(
     // If model name is not valid, sanitize it
     if (!isValidReplicateModelName(requestData.modelName)) {
       logger.warn('[LOCAL TRAINING] Invalid model name, sanitizing...', {
-        original: requestData.modelName
+        original: requestData.modelName,
       })
       modelNameSanitized = sanitizeModelName(requestData.modelName)
       logger.info('[LOCAL TRAINING] Model name sanitized', {
         original: requestData.modelName,
-        sanitized: modelNameSanitized
+        sanitized: modelNameSanitized,
       })
     }
 
@@ -143,7 +165,7 @@ export async function createModelTrainingLocal(
       owner: REPLICATE_USERNAME,
       originalName: requestData.modelName,
       sanitizedName: modelNameSanitized,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
 
     // ✅ STEP 7: Check if model exists and create if needed
@@ -155,7 +177,9 @@ export async function createModelTrainingLocal(
       modelExists = true
     } catch (error: any) {
       if (error?.response?.status === 404) {
-        logger.info(`[LOCAL TRAINING] Model ${destination} does not exist. Creating...`)
+        logger.info(
+          `[LOCAL TRAINING] Model ${destination} does not exist. Creating...`
+        )
         modelExists = false
       } else {
         logger.error('[LOCAL TRAINING] Error checking model existence:', error)
@@ -175,7 +199,9 @@ export async function createModelTrainingLocal(
             hardware: 'gpu-l40s',
           }
         )
-        logger.info(`[LOCAL TRAINING] ✅ Model ${destination} created successfully`)
+        logger.info(
+          `[LOCAL TRAINING] ✅ Model ${destination} created successfully`
+        )
         // Wait for model to be fully initialized
         await new Promise(resolve => setTimeout(resolve, 5000))
       } catch (createError: any) {
@@ -187,7 +213,10 @@ export async function createModelTrainingLocal(
         // Детальная ошибка для пользователя
         const errorMsg = createError?.message || String(createError)
 
-        if (errorMsg.includes('You don\'t have permission') || errorMsg.includes('permission')) {
+        if (
+          errorMsg.includes("You don't have permission") ||
+          errorMsg.includes('permission')
+        ) {
           // Специальное сообщение для ошибки прав
           const userMessage = requestData.is_ru
             ? `❌ Ошибка прав доступа к Replicate\n\n🔍 Проблема: Токен REPLICATE и аккаунт ${REPLICATE_USERNAME} принадлежат разным пользователям.\n\n💡 Решения:\n1. Добавьте REPLICATE_USERNAME=ghashtag в Infisical (имя аккаунта с токеном)\n2. Или используйте токен от аккаунта ghashtag\n\n🌐 Проверить аккаунт: https://replicate.com/account`
@@ -202,7 +231,8 @@ export async function createModelTrainingLocal(
 
     // ✅ STEP 8: Create training on Replicate
     const model = 'ostris/flux-dev-lora-trainer'
-    const version = 'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497'
+    const version =
+      'e440909d3512c31646ee2e0c7d6f6f4923224863a6a10c494606e79fb5844497'
 
     logger.info('[LOCAL TRAINING] Creating Replicate training...', {
       model,
@@ -214,9 +244,15 @@ export async function createModelTrainingLocal(
     // ✅ Webhook URL для уведомлений о завершении тренировки
     // ИСПРАВЛЕНО: Гарантируем HTTPS для Replicate
     const baseUrl = process.env.BASE_WEBHOOK_URL || process.env.API_SERVER_URL
-    const webhookUrl = baseUrl.startsWith('http')
-      ? `${baseUrl}/api/webhooks/replicate`
-      : `https://${baseUrl}/api/webhooks/replicate`
+    // ВНИМАНИЕ: адрес НИГДЕ не передаётся в Replicate — он только пишется в
+    // лог ниже. Поэтому отсутствие переменной не должно ронять тренировку
+    // (раньше оно давало «Cannot read properties of undefined (reading
+    // 'startsWith')» — падение на ровном месте). Отмечаем это явно.
+    const webhookUrl = !baseUrl
+      ? 'not configured (BASE_WEBHOOK_URL / API_SERVER_URL not set)'
+      : baseUrl.startsWith('http')
+        ? `${baseUrl}/api/webhooks/replicate`
+        : `https://${baseUrl}/api/webhooks/replicate`
 
     logger.info('[LOCAL TRAINING] Webhook configuration', {
       webhookUrl,
@@ -295,7 +331,10 @@ export async function createModelTrainingLocal(
       logger.info('[LOCAL TRAINING] Local ZIP file deleted')
     } catch (unlinkError) {
       logger.warn('[LOCAL TRAINING] Failed to delete ZIP (non-fatal)', {
-        error: unlinkError instanceof Error ? unlinkError.message : String(unlinkError),
+        error:
+          unlinkError instanceof Error
+            ? unlinkError.message
+            : String(unlinkError),
       })
     }
 
@@ -327,7 +366,10 @@ export async function createModelTrainingLocal(
       }
     } catch (unlinkError) {
       logger.warn('[LOCAL TRAINING] Failed to cleanup ZIP on error', {
-        error: unlinkError instanceof Error ? unlinkError.message : String(unlinkError),
+        error:
+          unlinkError instanceof Error
+            ? unlinkError.message
+            : String(unlinkError),
       })
     }
 

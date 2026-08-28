@@ -124,9 +124,13 @@ describe('Fal.ai Veed Fabric 1.0 Fast - Обновленные цены', () => 
     it('должен использовать правильные цены в calculateCost', () => {
       const provider = new FalVeedFabricProvider()
 
-      // Тестируем через рефлексию (приватный метод)
-      const cost480p = (provider as any).calculateCost('480p')
-      const cost720p = (provider as any).calculateCost('720p')
+      // The method that prices BY RESOLUTION is calculateCostByResolution.
+      // The public calculateCost takes (durationSeconds, modelId), so
+      // calculateCost('480p') multiplied the price by a string and returned
+      // NaN — the price check had silently stopped working. See
+      // fal-veed-fabric-provider.ts:429 and :444.
+      const cost480p = (provider as any).calculateCostByResolution('480p')
+      const cost720p = (provider as any).calculateCostByResolution('720p')
 
       // Цены с наценкой 50% в провайдере (используем toBeCloseTo для floating point)
       expect(cost480p).toBeCloseTo(0.15, 2) // $0.15/сек для 480p (с наценкой)

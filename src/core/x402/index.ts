@@ -62,12 +62,16 @@ export function getX402Config(): X402Config {
     // Production: load from Infisical
     walletAddress = getSecretOrDefault('X402_WALLET_ADDRESS', '')
     network = getSecretOrDefault('X402_NETWORK', 'base-sepolia') as X402Network
-    facilitatorUrl = getSecretOrDefault('X402_FACILITATOR_URL', 'https://x402.org/facilitator')
+    facilitatorUrl = getSecretOrDefault(
+      'X402_FACILITATOR_URL',
+      'https://x402.org/facilitator'
+    )
   } else {
     // Local development: load from process.env
     walletAddress = process.env.X402_WALLET_ADDRESS || ''
     network = (process.env.X402_NETWORK || 'base-sepolia') as X402Network
-    facilitatorUrl = process.env.X402_FACILITATOR_URL || 'https://x402.org/facilitator'
+    facilitatorUrl =
+      process.env.X402_FACILITATOR_URL || 'https://x402.org/facilitator'
   }
 
   if (!walletAddress) {
@@ -104,10 +108,15 @@ export function generateX402PaymentUrl(request: X402PaymentRequest): string {
   let baseUrl: string
 
   if (isInfisicalReady()) {
-    baseUrl = getSecretOrDefault('BASE_WEBHOOK_URL',
-      getSecretOrDefault('WEBHOOK_URL', 'https://your-server.com'))
+    baseUrl = getSecretOrDefault(
+      'BASE_WEBHOOK_URL',
+      getSecretOrDefault('WEBHOOK_URL', 'https://your-server.com')
+    )
   } else {
-    baseUrl = process.env.BASE_WEBHOOK_URL || process.env.WEBHOOK_URL || 'https://your-server.com'
+    baseUrl =
+      process.env.BASE_WEBHOOK_URL ||
+      process.env.WEBHOOK_URL ||
+      'https://your-server.com'
   }
 
   const params = new URLSearchParams({
@@ -201,11 +210,11 @@ export function logX402Event(
  * x402 price configuration for top-up amounts
  */
 export const X402_TOPUP_AMOUNTS = {
-  '$5': { usd: 5, stars: 217 },
-  '$10': { usd: 10, stars: 434 },
-  '$25': { usd: 25, stars: 1085 },
-  '$50': { usd: 50, stars: 2170 },
-  '$100': { usd: 100, stars: 4340 },
+  $5: { usd: 5, stars: 217 },
+  $10: { usd: 10, stars: 434 },
+  $25: { usd: 25, stars: 1085 },
+  $50: { usd: 50, stars: 2170 },
+  $100: { usd: 100, stars: 4340 },
 } as const
 
 export type X402TopUpAmount = keyof typeof X402_TOPUP_AMOUNTS

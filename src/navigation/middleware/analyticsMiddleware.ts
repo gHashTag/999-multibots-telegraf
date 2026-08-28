@@ -109,7 +109,7 @@ export class NavigationAnalytics {
       sceneId,
       timestamp: now,
       sceneCategory,
-      success: true
+      success: true,
     }
 
     this.recordEvent(event)
@@ -117,7 +117,7 @@ export class NavigationAnalytics {
     logger.debug('[NavigationAnalytics] Scene enter recorded', {
       userId,
       sceneId,
-      category: sceneCategory
+      category: sceneCategory,
     })
   }
 
@@ -150,7 +150,7 @@ export class NavigationAnalytics {
       timestamp: now,
       duration,
       sceneCategory,
-      success: true
+      success: true,
     }
 
     this.recordEvent(event)
@@ -158,7 +158,7 @@ export class NavigationAnalytics {
     logger.debug('[NavigationAnalytics] Scene leave recorded', {
       userId,
       sceneId,
-      duration
+      duration,
     })
   }
 
@@ -184,7 +184,7 @@ export class NavigationAnalytics {
       timestamp: Date.now(),
       sceneCategory,
       success: false,
-      error
+      error,
     }
 
     this.recordEvent(event)
@@ -192,7 +192,7 @@ export class NavigationAnalytics {
     logger.warn('[NavigationAnalytics] Navigation error recorded', {
       userId,
       sceneId,
-      error
+      error,
     })
   }
 
@@ -220,7 +220,7 @@ export class NavigationAnalytics {
         from: fromSceneId,
         to: toSceneId,
         count: 1,
-        lastTransition: now
+        lastTransition: now,
       })
     }
 
@@ -232,7 +232,7 @@ export class NavigationAnalytics {
       fromScene: fromSceneId,
       timestamp: now,
       sceneCategory,
-      success: true
+      success: true,
     }
 
     this.recordEvent(event)
@@ -243,7 +243,12 @@ export class NavigationAnalytics {
    */
   private updateSceneStats(
     sceneId: string,
-    updates: Partial<Pick<SceneStats, 'enters' | 'leaves' | 'errors' | 'averageDuration' | 'lastEnterTime'>>
+    updates: Partial<
+      Pick<
+        SceneStats,
+        'enters' | 'leaves' | 'errors' | 'averageDuration' | 'lastEnterTime'
+      >
+    >
   ): void {
     const existing = this.sceneStats.get(sceneId) || {
       sceneId,
@@ -251,13 +256,14 @@ export class NavigationAnalytics {
       leaves: 0,
       errors: 0,
       averageDuration: 0,
-      popularityScore: 0
+      popularityScore: 0,
     }
 
     Object.assign(existing, updates)
 
     // Пересчитываем популярность
-    existing.popularityScore = existing.enters / Math.max(existing.averageDuration / 1000 / 60, 1)
+    existing.popularityScore =
+      existing.enters / Math.max(existing.averageDuration / 1000 / 60, 1)
 
     this.sceneStats.set(sceneId, existing)
   }
@@ -325,16 +331,20 @@ export class NavigationAnalytics {
    * Экспорт статистики в JSON
    */
   exportStats(): string {
-    return JSON.stringify({
-      sceneStats: Object.fromEntries(this.sceneStats),
-      transitionStats: Array.from(this.transitionStats.values()),
-      dailyStats: Object.fromEntries(
-        Array.from(this.dailyStats.entries()).map(([date, stats]) => [
-          date,
-          Object.fromEntries(stats)
-        ])
-      )
-    }, null, 2)
+    return JSON.stringify(
+      {
+        sceneStats: Object.fromEntries(this.sceneStats),
+        transitionStats: Array.from(this.transitionStats.values()),
+        dailyStats: Object.fromEntries(
+          Array.from(this.dailyStats.entries()).map(([date, stats]) => [
+            date,
+            Object.fromEntries(stats),
+          ])
+        ),
+      },
+      null,
+      2
+    )
   }
 }
 

@@ -16,7 +16,12 @@ import {
   sendGenericErrorMessage,
   sendPhotoDescriptionRequest,
 } from '@/navigation'
-import { getButtonTextsByMode, createMainMenuKeyboard, handleHelpCancel, getMainMenuText } from '@/navigation'
+import {
+  getButtonTextsByMode,
+  createMainMenuKeyboard,
+  handleHelpCancel,
+  getMainMenuText,
+} from '@/navigation'
 import { Scenes, Markup } from 'telegraf'
 import { getUserInfo } from '@/handlers/getUserInfo'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -88,7 +93,9 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
         console.error('❌ Ошибка при получении моделей:', error)
       } else {
         userModels = allModels as ModelTraining[]
-        console.log(`✅ Найдено ${userModels?.length || 0} моделей других API (Fal и т.д.)`)
+        console.log(
+          `✅ Найдено ${userModels?.length || 0} моделей других API (Fal и т.д.)`
+        )
       }
     }
 
@@ -658,7 +665,9 @@ neuroPhotoWizard.on('callback_query', async (ctx: MyContext) => {
     const { CancelButtonService } = await import('@/navigation')
     await CancelButtonService.executeCancel(
       ctx,
-      isRu ? 'Отменено. Возвращаю в главное меню.' : 'Cancelled. Returning to main menu.'
+      isRu
+        ? 'Отменено. Возвращаю в главное меню.'
+        : 'Cancelled. Returning to main menu.'
     )
     return
   } else if (callbackData.startsWith('select_neuro_model_')) {

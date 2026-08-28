@@ -19,14 +19,14 @@ import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import path from 'path'
 import fs from 'fs'
-import { 
-  SeeDream4InputSchema, 
-  SeeDream4ResponseSchema, 
+import {
+  SeeDream4InputSchema,
+  SeeDream4ResponseSchema,
   SeeDream4Input,
   SeeDream4Response,
   SEEDREAM4_AVATAR_CONFIG,
   getSeeDream4Dimensions,
-  validateSeeDream4Input
+  validateSeeDream4Input,
 } from '@/schemas/seedream4.schema'
 
 // Service parameters interface
@@ -51,8 +51,10 @@ const SEEDREAM4_MODEL = {
   key: 'bytedance/seedream-4',
   costPerImage: calculateFinalImageCostInStars(0.03), // Updated: Replicate actual price $0.03
   name: 'SeeDream-4',
-  description_en: 'ByteDance SeeDream-4 - Advanced image generation and transformation model',
-  description_ru: 'ByteDance SeeDream-4 - Продвинутая модель генерации и трансформации изображений'
+  description_en:
+    'ByteDance SeeDream-4 - Advanced image generation and transformation model',
+  description_ru:
+    'ByteDance SeeDream-4 - Продвинутая модель генерации и трансформации изображений',
 }
 
 /**
@@ -87,21 +89,23 @@ export const generateSeeDream4 = async (
       width,
       height,
       max_images = 1,
-      aspect_ratio
+      aspect_ratio,
     } = params
 
     // ✅ PREPARE IMAGE INPUT - SUPPORT BOTH SINGLE URL AND ARRAYS
-    const prepareImageInput = (imageUrl?: string | string[]): string[] | undefined => {
+    const prepareImageInput = (
+      imageUrl?: string | string[]
+    ): string[] | undefined => {
       if (!imageUrl) return undefined
       if (Array.isArray(imageUrl)) {
         logger.info('SeeDream4 multi-image input detected', {
           telegram_id,
-          imageCount: imageUrl.length
+          imageCount: imageUrl.length,
         })
         return imageUrl.slice(0, 10) // Limit to max 10 images per schema
       } else {
         logger.info('SeeDream4 single image input detected', {
-          telegram_id
+          telegram_id,
         })
         return [imageUrl]
       }
@@ -117,7 +121,7 @@ export const generateSeeDream4 = async (
       telegram_id,
       dbAspectRatio,
       paramAspectRatio: aspect_ratio,
-      finalAspectRatio
+      finalAspectRatio,
     })
 
     // Validate and prepare input for SeeDream-4 API
@@ -130,30 +134,30 @@ export const generateSeeDream4 = async (
       username,
       is_ru,
       ...(width && height && size === 'custom' ? { width, height } : {}),
-      ...(imageInput ? { image_input: imageInput } : {})
+      ...(imageInput ? { image_input: imageInput } : {}),
     }
 
     // 🛡️ СТРОГАЯ ВАЛИДАЦИЯ С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ
     const validation = validateSeeDream4Input(seeDream4Input)
-    
+
     if (!validation.success) {
       logger.error('SeeDream4 validation failed', {
         telegram_id,
         error: validation.error,
         hasPrompt: !!seeDream4Input.prompt,
-        size: seeDream4Input.size
+        size: seeDream4Input.size,
       })
       throw new Error(`SeeDream4 validation failed: ${validation.error}`)
     }
-    
+
     const validatedInput = validation.data
-    
+
     logger.info('SeeDream4 input validated', {
       telegram_id,
       size: validatedInput.size,
       max_images: validatedInput.max_images,
       hasImageInput: !!validatedInput.image_input?.length,
-      imageInputCount: validatedInput.image_input?.length || 0
+      imageInputCount: validatedInput.image_input?.length || 0,
     })
 
     // Check user existence and level
@@ -175,7 +179,7 @@ export const generateSeeDream4 = async (
       telegram_id,
       costPerImage: SEEDREAM4_MODEL.costPerImage,
       imageCount,
-      totalCost
+      totalCost,
     })
 
     // ✅ ТОЛЬКО ПРОВЕРКА БАЛАНСА БЕЗ СПИСАНИЯ (пропускаем для welcome gift)
@@ -186,7 +190,7 @@ export const generateSeeDream4 = async (
       currentBalance,
       requiredCost: totalCost,
       hasEnough: currentBalance >= totalCost,
-      isWelcomeGift: params.is_welcome_gift
+      isWelcomeGift: params.is_welcome_gift,
     })
 
     // 🎁 Welcome gift - пропускаем проверку баланса
@@ -203,7 +207,7 @@ export const generateSeeDream4 = async (
       logger.error('SeeDream4 insufficient balance', {
         telegram_id,
         currentBalance,
-        requiredCost: totalCost
+        requiredCost: totalCost,
       })
 
       throw new Error('Insufficient balance')
@@ -226,32 +230,36 @@ export const generateSeeDream4 = async (
     // Call SeeDream-4 API through Replicate
     const replicateInput = {
       prompt: validatedInput.prompt,
-      ...(validatedInput.size !== 'custom' ? { 
-        size: validatedInput.size 
-      } : {
-        width: validatedInput.width,
-        height: validatedInput.height
-      }),
+      ...(validatedInput.size !== 'custom'
+        ? {
+            size: validatedInput.size,
+          }
+        : {
+            width: validatedInput.width,
+            height: validatedInput.height,
+          }),
       max_images: validatedInput.max_images,
-      ...(validatedInput.image_input ? { image_input: validatedInput.image_input } : {}),
-      aspect_ratio: finalAspectRatio
+      ...(validatedInput.image_input
+        ? { image_input: validatedInput.image_input }
+        : {}),
+      aspect_ratio: finalAspectRatio,
     }
 
     logger.info('SeeDream4 calling Replicate API', {
       telegram_id,
       model: SEEDREAM4_MODEL.key,
-      inputKeys: Object.keys(replicateInput)
+      inputKeys: Object.keys(replicateInput),
     })
 
     const output = await replicate.run(SEEDREAM4_MODEL.key as any, {
-      input: replicateInput
+      input: replicateInput,
     })
 
     logger.info('SeeDream4 response received', {
       telegram_id,
       outputType: typeof output,
       isArray: Array.isArray(output),
-      length: Array.isArray(output) ? output.length : 'N/A'
+      length: Array.isArray(output) ? output.length : 'N/A',
     })
 
     // Process and validate the response
@@ -266,10 +274,11 @@ export const generateSeeDream4 = async (
         metadata: {
           prompt: validatedInput.prompt,
           size: validatedInput.size,
-          dimensions: validatedInput.size === 'custom' 
-            ? { width: validatedInput.width!, height: validatedInput.height! }
-            : getSeeDream4Dimensions(validatedInput.size)
-        }
+          dimensions:
+            validatedInput.size === 'custom'
+              ? { width: validatedInput.width!, height: validatedInput.height! }
+              : getSeeDream4Dimensions(validatedInput.size),
+        },
       }
     } else if (typeof output === 'string') {
       // Single image URL
@@ -279,10 +288,11 @@ export const generateSeeDream4 = async (
         metadata: {
           prompt: validatedInput.prompt,
           size: validatedInput.size,
-          dimensions: validatedInput.size === 'custom' 
-            ? { width: validatedInput.width!, height: validatedInput.height! }
-            : getSeeDream4Dimensions(validatedInput.size)
-        }
+          dimensions:
+            validatedInput.size === 'custom'
+              ? { width: validatedInput.width!, height: validatedInput.height! }
+              : getSeeDream4Dimensions(validatedInput.size),
+        },
       }
     } else {
       throw new Error('Invalid response format from SeeDream-4 API')
@@ -294,7 +304,7 @@ export const generateSeeDream4 = async (
     console.log('🎭 [SeeDream4] Response validated successfully:', {
       telegram_id,
       imageCount: validatedResponse.images.length,
-      dimensions: validatedResponse.metadata.dimensions
+      dimensions: validatedResponse.metadata.dimensions,
     })
 
     // Delete status message
@@ -309,16 +319,27 @@ export const generateSeeDream4 = async (
     try {
       const imageBuffer = await downloadFile(imageUrl)
       const filename = `seedream4_${telegram_id}_${Date.now()}.png`
-      savedImagePath = await saveFileLocally(String(telegram_id), imageUrl, 'ai-generation', '.png')
-      
+      savedImagePath = await saveFileLocally(
+        String(telegram_id),
+        imageUrl,
+        'ai-generation',
+        '.png'
+      )
+
       console.log('🎭 [SeeDream4] Image saved locally:', {
         telegram_id,
         savedImagePath,
-        fileSize: imageBuffer.length
+        fileSize: imageBuffer.length,
       })
     } catch (downloadError) {
-      const originalMsg = downloadError instanceof Error ? downloadError.message : String(downloadError)
-      console.error('🚨 [SeeDream4] Failed to download/save image:', downloadError)
+      const originalMsg =
+        downloadError instanceof Error
+          ? downloadError.message
+          : String(downloadError)
+      console.error(
+        '🚨 [SeeDream4] Failed to download/save image:',
+        downloadError
+      )
       throw new Error(`Failed to process generated image: ${originalMsg}`)
     }
 
@@ -336,13 +357,13 @@ export const generateSeeDream4 = async (
       telegram_id,
       deductedAmount: totalCost,
       newBalance: balanceDeduction.newBalance,
-      success: balanceDeduction.success
+      success: balanceDeduction.success,
     })
 
     if (!balanceDeduction.success) {
       logger.error('SeeDream4 failed to deduct stars after generation', {
         telegram_id,
-        totalCost
+        totalCost,
       })
       // Не бросаем ошибку - изображение уже сгенерировано
     }
@@ -359,7 +380,7 @@ export const generateSeeDream4 = async (
 
       console.log('🎭 [SeeDream4] Prompt saved to database:', {
         telegram_id,
-        promptId
+        promptId,
       })
 
       // Send success message with image
@@ -383,14 +404,17 @@ export const generateSeeDream4 = async (
           prompt: validatedInput.prompt,
           botName: ctx.botInfo?.username || 'unknown',
           additionalInfo: {
-            'Model': SEEDREAM4_MODEL.name,
-            'Size': validatedInput.size,
-            'Price': `${SEEDREAM4_MODEL.costPerImage} stars`,
-            'Type': 'AI Image Generation'
-          }
+            Model: SEEDREAM4_MODEL.name,
+            Size: validatedInput.size,
+            Price: `${SEEDREAM4_MODEL.costPerImage} stars`,
+            Type: 'AI Image Generation',
+          },
         })
-        
-        logger.info('[SeeDream4] Sent to pulse channel', { telegram_id, imageUrl })
+
+        logger.info('[SeeDream4] Sent to pulse channel', {
+          telegram_id,
+          imageUrl,
+        })
       } catch (pulseError) {
         logger.error('[SeeDream4] Failed to send to pulse channel:', pulseError)
       }
@@ -404,46 +428,83 @@ export const generateSeeDream4 = async (
 
       return {
         image: imageUrl,
-        prompt_id: promptId
+        prompt_id: promptId,
       }
-
     } catch (saveError) {
-      const originalMsg = saveError instanceof Error ? saveError.message : String(saveError)
+      const originalMsg =
+        saveError instanceof Error ? saveError.message : String(saveError)
       console.error('🚨 [SeeDream4] Failed to save prompt:', saveError)
       // ❌ НЕ ВОЗВРАЩАЕМ - звезды уже списаны после успешной генерации
       throw new Error(`Failed to save generation record: ${originalMsg}`)
     }
-
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error'
     const errorMsgLower = errorMessage.toLowerCase()
 
     // Классифицируем ошибку для понятного логирования
     let errorType = 'UNKNOWN'
     let isRetriable = false
 
-    if (errorMsgLower.includes('e005') || errorMsgLower.includes('flagged as sensitive') || errorMsgLower.includes('nsfw') || errorMsgLower.includes('safety')) {
+    if (
+      errorMsgLower.includes('e005') ||
+      errorMsgLower.includes('flagged as sensitive') ||
+      errorMsgLower.includes('nsfw') ||
+      errorMsgLower.includes('safety')
+    ) {
       errorType = 'NSFW_DETECTED'
       isRetriable = true
-    } else if (errorMsgLower.includes('rate') || errorMsgLower.includes('limit') || errorMsgLower.includes('429') || errorMsgLower.includes('too many')) {
+    } else if (
+      errorMsgLower.includes('rate') ||
+      errorMsgLower.includes('limit') ||
+      errorMsgLower.includes('429') ||
+      errorMsgLower.includes('too many')
+    ) {
       errorType = 'RATE_LIMIT'
       isRetriable = true
-    } else if (errorMsgLower.includes('timeout') || errorMsgLower.includes('etimedout') || errorMsgLower.includes('econnreset') || errorMsgLower.includes('socket')) {
+    } else if (
+      errorMsgLower.includes('timeout') ||
+      errorMsgLower.includes('etimedout') ||
+      errorMsgLower.includes('econnreset') ||
+      errorMsgLower.includes('socket')
+    ) {
       errorType = 'TIMEOUT'
       isRetriable = true
-    } else if (errorMsgLower.includes('balance') || errorMsgLower.includes('insufficient') || errorMsgLower.includes('funds') || errorMsgLower.includes('not enough')) {
+    } else if (
+      errorMsgLower.includes('balance') ||
+      errorMsgLower.includes('insufficient') ||
+      errorMsgLower.includes('funds') ||
+      errorMsgLower.includes('not enough')
+    ) {
       errorType = 'INSUFFICIENT_BALANCE'
       isRetriable = false
-    } else if (errorMsgLower.includes('user') && errorMsgLower.includes('not') && errorMsgLower.includes('exist')) {
+    } else if (
+      errorMsgLower.includes('user') &&
+      errorMsgLower.includes('not') &&
+      errorMsgLower.includes('exist')
+    ) {
       errorType = 'USER_NOT_FOUND'
       isRetriable = false
-    } else if (errorMsgLower.includes('invalid') || errorMsgLower.includes('validation') || errorMsgLower.includes('parse')) {
+    } else if (
+      errorMsgLower.includes('invalid') ||
+      errorMsgLower.includes('validation') ||
+      errorMsgLower.includes('parse')
+    ) {
       errorType = 'VALIDATION_ERROR'
       isRetriable = false
-    } else if (errorMsgLower.includes('download') || errorMsgLower.includes('fetch') || errorMsgLower.includes('enotfound')) {
+    } else if (
+      errorMsgLower.includes('download') ||
+      errorMsgLower.includes('fetch') ||
+      errorMsgLower.includes('enotfound')
+    ) {
       errorType = 'DOWNLOAD_ERROR'
       isRetriable = true
-    } else if (errorMsgLower.includes('api') || errorMsgLower.includes('500') || errorMsgLower.includes('502') || errorMsgLower.includes('503')) {
+    } else if (
+      errorMsgLower.includes('api') ||
+      errorMsgLower.includes('500') ||
+      errorMsgLower.includes('502') ||
+      errorMsgLower.includes('503')
+    ) {
       errorType = 'API_ERROR'
       isRetriable = true
     } else if (errorMsgLower.includes('cancel')) {
@@ -456,11 +517,12 @@ export const generateSeeDream4 = async (
       errorType,
       isRetriable,
       error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined
+      stack: error instanceof Error ? error.stack : undefined,
     })
 
     // Добавляем краткое описание ошибки для UNKNOWN
-    const errorDetail = errorType === 'UNKNOWN' ? ` | ${errorMessage.substring(0, 100)}` : ''
+    const errorDetail =
+      errorType === 'UNKNOWN' ? ` | ${errorMessage.substring(0, 100)}` : ''
     const logMessage = isRetriable
       ? `[SeeDream4] ${errorType} - автоматический retry через fallback`
       : `[SeeDream4] ${errorType} - требует внимания`
@@ -469,7 +531,7 @@ export const generateSeeDream4 = async (
       telegram_id: params.telegram_id,
       errorType,
       isRetriable,
-      error: errorMessage
+      error: errorMessage,
     })
 
     // ✅ Only notify user if not in fallback mode

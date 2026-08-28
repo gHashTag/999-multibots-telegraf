@@ -39,7 +39,7 @@ export class KieAIService {
       prompt: request.prompt.substring(0, 50),
       seeds: request.seeds,
       model: request.model,
-      aspectRatio: request.aspectRatio
+      aspectRatio: request.aspectRatio,
     })
 
     const taskId = `kie_${Date.now()}_${Math.random().toString(36).substring(7)}`
@@ -54,7 +54,7 @@ export class KieAIService {
           task_id: taskId,
           prompt: request.prompt,
           seeds: request.seeds,
-          status: 'processing'
+          status: 'processing',
         })
         .catch((err: any) => {
           console.error('[KIE AI STUB] Failed to save to database:', err)
@@ -63,7 +63,7 @@ export class KieAIService {
 
     return {
       taskId,
-      status: 'processing'
+      status: 'processing',
     }
   }
 
@@ -72,7 +72,7 @@ export class KieAIService {
 
     return {
       status: 'success',
-      video_urls: [`https://stub.kieai.com/videos/${taskId}.mp4`]
+      video_urls: [`https://stub.kieai.com/videos/${taskId}.mp4`],
     }
   }
 
@@ -86,7 +86,7 @@ export class KieAIService {
     // Stub: return success immediately
     return {
       status: 'success',
-      video_urls: [`https://stub.kieai.com/videos/${taskId}.mp4`]
+      video_urls: [`https://stub.kieai.com/videos/${taskId}.mp4`],
     }
   }
 
@@ -96,7 +96,7 @@ export class KieAIService {
     return {
       task_id: taskId,
       status: 'success',
-      video_urls: [`https://stub.kieai.com/videos/${taskId}.mp4`]
+      video_urls: [`https://stub.kieai.com/videos/${taskId}.mp4`],
     }
   }
 }

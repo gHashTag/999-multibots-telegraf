@@ -1,7 +1,10 @@
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { BalanceOperationResult } from '@/interfaces'
-import { getUnifiedModelConfig, getUnifiedModelPrice } from '@/config/unified-video-models.config' // ✅ UNIFIED CONFIG
+import {
+  getUnifiedModelConfig,
+  getUnifiedModelPrice,
+} from '@/config/unified-video-models.config' // ✅ UNIFIED CONFIG
 import { logger } from '@/utils/logger'
 import { PaymentType } from '@/interfaces/payments.interface'
 
@@ -31,7 +34,10 @@ export const checkBalanceVideoOperationHelper = async (
   try {
     selectedModelConfig = getUnifiedModelConfig(modelId)
   } catch (error) {
-    logger.error('checkBalanceVideoOperationHelper: Invalid modelId received, model not found:', { modelId })
+    logger.error(
+      'checkBalanceVideoOperationHelper: Invalid modelId received, model not found:',
+      { modelId }
+    )
     const errorMsg = isRu
       ? 'Ошибка конфигурации для выбранной модели.'
       : 'Configuration error for selected model.'
@@ -51,8 +57,13 @@ export const checkBalanceVideoOperationHelper = async (
     paymentAmount = getUnifiedModelPrice(modelId)
     modePrice = paymentAmount
   } catch (costError) {
-    logger.error('checkBalanceVideoOperationHelper: Error calculating cost', { modelId, error: costError })
-    const errorMsg = isRu ? 'Ошибка расчета стоимости.' : 'Error calculating cost.'
+    logger.error('checkBalanceVideoOperationHelper: Error calculating cost', {
+      modelId,
+      error: costError,
+    })
+    const errorMsg = isRu
+      ? 'Ошибка расчета стоимости.'
+      : 'Error calculating cost.'
     return {
       success: false,
       error: errorMsg,
@@ -90,7 +101,7 @@ export const checkBalanceVideoOperationHelper = async (
       telegramId,
       currentBalance,
       paymentAmount,
-      modelId
+      modelId,
     })
 
     return {
@@ -101,15 +112,24 @@ export const checkBalanceVideoOperationHelper = async (
       currentBalance,
     }
   } catch (error) {
-    logger.error('checkBalanceVideoOperationHelper: Error checking balance:', { error, telegramId, modelId })
+    logger.error('checkBalanceVideoOperationHelper: Error checking balance:', {
+      error,
+      telegramId,
+      modelId,
+    })
     let currentBalanceOnError = 0
     try {
       currentBalanceOnError = await getUserBalance(telegramId)
     } catch (getBalanceError) {
-      logger.error('Failed to get balance in catch block', { telegramId, getBalanceError })
+      logger.error('Failed to get balance in catch block', {
+        telegramId,
+        getBalanceError,
+      })
     }
 
-    const errorMsg = isRu ? 'Внутренняя ошибка проверки баланса.' : 'Internal error checking balance.'
+    const errorMsg = isRu
+      ? 'Внутренняя ошибка проверки баланса.'
+      : 'Internal error checking balance.'
     return {
       success: false,
       error: errorMsg + (error instanceof Error ? `: ${error.message}` : ''),
@@ -135,7 +155,9 @@ export const deductBalanceAfterSuccess = async (
     // ✅ Используем unified config
     const selectedModelConfig = getUnifiedModelConfig(modelId)
     if (!selectedModelConfig) {
-      logger.error('deductBalanceAfterSuccess: Model config not found', { modelId })
+      logger.error('deductBalanceAfterSuccess: Model config not found', {
+        modelId,
+      })
       return false
     }
 
@@ -158,14 +180,14 @@ export const deductBalanceAfterSuccess = async (
       logger.info('deductBalanceAfterSuccess: Payment deducted successfully', {
         telegramId,
         modelId,
-        paymentAmount
+        paymentAmount,
       })
       return true
     } else {
       logger.error('deductBalanceAfterSuccess: Failed to deduct payment', {
         telegramId,
         modelId,
-        paymentAmount
+        paymentAmount,
       })
       return false
     }
@@ -174,7 +196,7 @@ export const deductBalanceAfterSuccess = async (
       error,
       telegramId,
       modelId,
-      paymentAmount
+      paymentAmount,
     })
     return false
   }

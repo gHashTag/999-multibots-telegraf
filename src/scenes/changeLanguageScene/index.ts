@@ -1,17 +1,22 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
-import { isRussianFromState, setUserLanguageInState } from '@/helpers/centralizedLanguage'
+import {
+  isRussianFromState,
+  setUserLanguageInState,
+} from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 
-export const changeLanguageScene = new Scenes.BaseScene<MyContext>('changeLanguageScene')
+export const changeLanguageScene = new Scenes.BaseScene<MyContext>(
+  'changeLanguageScene'
+)
 
-changeLanguageScene.enter(async (ctx) => {
+changeLanguageScene.enter(async ctx => {
   const isRu = isRussianFromState(ctx)
   const telegramId = ctx.from?.id
 
   logger.info('🌐 [ChangeLanguage] Language selection screen opened', {
     telegramId,
-    currentLanguage: isRu ? 'ru' : 'en'
+    currentLanguage: isRu ? 'ru' : 'en',
   })
 
   const message = isRu
@@ -22,22 +27,20 @@ changeLanguageScene.enter(async (ctx) => {
     inline_keyboard: [
       [
         { text: '🇷🇺 Русский', callback_data: 'lang_ru' },
-        { text: '🇺🇸 English', callback_data: 'lang_en' }
+        { text: '🇺🇸 English', callback_data: 'lang_en' },
       ],
-      [
-        { text: '◀️ Назад', callback_data: 'back_to_menu' }
-      ]
-    ]
+      [{ text: '◀️ Назад', callback_data: 'back_to_menu' }],
+    ],
   }
 
   await ctx.reply(message, {
     parse_mode: 'Markdown',
-    reply_markup: keyboard
+    reply_markup: keyboard,
   })
 })
 
 // Обработчики выбора языка
-changeLanguageScene.action('lang_ru', async (ctx) => {
+changeLanguageScene.action('lang_ru', async ctx => {
   const telegramId = ctx.from?.id
 
   try {
@@ -58,13 +61,13 @@ changeLanguageScene.action('lang_ru', async (ctx) => {
   } catch (error) {
     logger.error('❌ [ChangeLanguage] Error setting Russian language:', {
       error,
-      telegramId
+      telegramId,
     })
     await ctx.answerCbQuery('❌ Ошибка при смене языка')
   }
 })
 
-changeLanguageScene.action('lang_en', async (ctx) => {
+changeLanguageScene.action('lang_en', async ctx => {
   const telegramId = ctx.from?.id
 
   try {
@@ -85,13 +88,13 @@ changeLanguageScene.action('lang_en', async (ctx) => {
   } catch (error) {
     logger.error('❌ [ChangeLanguage] Error setting English language:', {
       error,
-      telegramId
+      telegramId,
     })
     await ctx.answerCbQuery('❌ Error changing language')
   }
 })
 
-changeLanguageScene.action('back_to_menu', async (ctx) => {
+changeLanguageScene.action('back_to_menu', async ctx => {
   await ctx.answerCbQuery()
   await ctx.scene.leave()
   const { showMainMenu } = await import('@/navigation')

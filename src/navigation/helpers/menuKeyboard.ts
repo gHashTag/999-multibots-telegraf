@@ -1,6 +1,6 @@
 /**
  * 🎹 ГЕНЕРАЦИЯ КЛАВИАТУР МЕНЮ
- * 
+ *
  * Создание клавиатур для главного меню и подменю категорий.
  */
 
@@ -9,9 +9,17 @@ import type { ReplyKeyboardMarkup, KeyboardButton } from 'telegraf/types'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { CATEGORIES, getCategoryById, getCategoryText, getItemText } from '../config/categories.config'
+import {
+  CATEGORIES,
+  getCategoryById,
+  getCategoryText,
+  getItemText,
+} from '../config/categories.config'
 import { NAVIGATION_BUTTONS, getButtonText } from '../config/buttons.config'
-import { canShowMiniAppButton, createMiniAppButton } from '../config/miniApp.config'
+import {
+  canShowMiniAppButton,
+  createMiniAppButton,
+} from '../config/miniApp.config'
 import { logSceneEnter, logMainMenuReturn } from './navigationLogger'
 import { logger } from '@/utils/logger'
 import { isUserBotOwner } from '@/core/supabase/getOwnedBots'
@@ -20,7 +28,9 @@ import { isUserBotOwner } from '@/core/supabase/getOwnedBots'
  * Создаёт клавиатуру главного меню (категории)
  * Кнопки по 3 в ряду для компактности
  */
-export function createMainMenuKeyboard(ctx: MyContext): Markup.Markup<ReplyKeyboardMarkup> {
+export function createMainMenuKeyboard(
+  ctx: MyContext
+): Markup.Markup<ReplyKeyboardMarkup> {
   const isRu = isRussianFromState(ctx)
 
   // Кнопки категорий (3 в ряд)
@@ -181,8 +191,11 @@ export async function showMainMenu(ctx: MyContext): Promise<void> {
 
     logger.info('✅ [showMainMenu] Main menu displayed', { telegramId })
   } catch (error) {
-    logger.error('❌ [showMainMenu] Error displaying menu', { error, telegramId })
-    
+    logger.error('❌ [showMainMenu] Error displaying menu', {
+      error,
+      telegramId,
+    })
+
     // Fallback без форматирования
     await ctx.reply(
       isRu ? '🏠 Главное меню' : '🏠 Main menu',
@@ -213,7 +226,7 @@ export async function showCategoryMenu(
     telegramId,
     categoryId,
     totalCategories: CATEGORIES.length,
-    availableCategories: CATEGORIES.map(c => c.id)
+    availableCategories: CATEGORIES.map(c => c.id),
   })
 
   const category = getCategoryById(categoryId)
@@ -234,7 +247,7 @@ export async function showCategoryMenu(
     categoryId,
     categoryRu: category.ru,
     categoryEn: category.en,
-    itemsCount: category.items.length
+    itemsCount: category.items.length,
   })
 
   logSceneEnter(ctx, category.sceneId, 'showCategoryMenu')
@@ -251,9 +264,10 @@ export async function showCategoryMenu(
     })
 
     // Для категории profile используем асинхронную версию для поддержки ownerOnly кнопок
-    const keyboard = categoryId === 'profile'
-      ? await createCategoryKeyboardAsync(ctx, categoryId)
-      : createCategoryKeyboard(ctx, categoryId)
+    const keyboard =
+      categoryId === 'profile'
+        ? await createCategoryKeyboardAsync(ctx, categoryId)
+        : createCategoryKeyboard(ctx, categoryId)
 
     logger.info('🗺 [showCategoryMenu] Sending message...', {
       telegramId,
@@ -292,7 +306,7 @@ export async function navigateToMainMenu(ctx: MyContext): Promise<void> {
     if (ctx.scene?.current) {
       await ctx.scene.leave()
     }
-    
+
     // Показываем главное меню
     await showMainMenu(ctx)
   } catch (error) {
@@ -305,7 +319,7 @@ export async function navigateToMainMenu(ctx: MyContext): Promise<void> {
  * Переход в категорию с выходом из текущей сцены
  */
 export async function navigateToCategory(
-  ctx: MyContext, 
+  ctx: MyContext,
   categoryId: string
 ): Promise<void> {
   try {
@@ -313,7 +327,7 @@ export async function navigateToCategory(
     if (ctx.scene?.current) {
       await ctx.scene.leave()
     }
-    
+
     // Показываем меню категории
     await showCategoryMenu(ctx, categoryId)
   } catch (error) {

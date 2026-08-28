@@ -119,6 +119,9 @@ describe('generateNeuroPhotoDirect', () => {
 
     // Setup mock context
     mockContext = {
+      // Сервис отправляет через ctx.telegram (переход с getBotByName),
+      // поэтому мок должен висеть на контексте, а не только на mockBot.
+      telegram: mockTelegram,
       from: { id: 144022504, username: 'testuser' },
       session: {
         userModel: {
@@ -278,6 +281,17 @@ describe('generateNeuroPhotoDirect', () => {
         'https://replicate.delivery/image.jpg'
       )
 
+      // Провайдер выбирается как `useFal = isFalModel || !!process.env.FAL_KEY`,
+      // поэтому при заданном FAL_KEY (он есть в общем тестовом окружении)
+      // сервис ушёл бы в FAL даже для replicate-модели. Ветку replicate
+      // проверяем, явно сняв ключ.
+      const savedFalKey = process.env.FAL_KEY
+      delete process.env.FAL_KEY
+
+      // userModel — ДЕВЯТЫЙ параметр функции («✅ Add userModel parameter for
+      // FAL support»), фоллбэка на ctx.session.userModel в коде нет: выбор
+      // провайдера идёт по `userModel?.api === 'fal'`. Раньше тест клал модель
+      // только в сессию, и она не читалась.
       const result = await generateNeuroPhotoDirect(
         'Test prompt',
         'owner/model:version',
@@ -286,8 +300,11 @@ describe('generateNeuroPhotoDirect', () => {
         contextWithReplicate,
         'test_bot',
         null,
-        { disable_telegram_sending: true }
+        { disable_telegram_sending: true },
+        { api: 'replicate', model_url: 'owner/model:version' }
       )
+
+      if (savedFalKey !== undefined) process.env.FAL_KEY = savedFalKey
 
       expect(result?.success).toBe(true)
       expect(replicate.run).toHaveBeenCalled()
@@ -442,10 +459,14 @@ describe('generateNeuroPhotoDirect', () => {
         { disable_telegram_sending: true }
       )
 
-      // Should calculate cost for 1 image, not 0
+      // Should calculate cost for 1 image, not 0.
+      // Сервис зовёт calculateModeCost из '@/price/helpers/modelsCost' —
+      // он принимает { mode, steps, numImages }, и количество изображений
+      // передаётся как numImages, а не steps (steps относится к тренировке
+      // аватара). Проверяемое свойство прежнее: ноль превращается в единицу.
       expect(calculateModeCost).toHaveBeenCalledWith(
         expect.objectContaining({
-          steps: 1,
+          numImages: 1,
         })
       )
     })
@@ -551,7 +572,13 @@ describe('generateNeuroPhotoDirect', () => {
   })
 
   describe('7. Обработка ошибок', () => {
-    it('должна обрабатывать ошибку если бот не найден', async () => {
+    // Сценарий «бот не найден» стал НЕДОСТИЖИМ: сервис больше не ищет бота
+    // через getBotByName, а берёт ctx.telegram напрямую — см. комментарий в
+    // generateNeuroPhotoDirect.ts: «✅ ИСПРАВЛЕНИЕ: Используем ctx.telegram
+    // напрямую вместо getBotByName. Это более надежно и не зависит от
+    // регистрации ботов в глобальной коллекции». Проверяем то, что этой
+    // правкой и достигалось: пустой ответ getBotByName генерацию не ломает.
+    it('не зависит от getBotByName: генерация идёт через ctx.telegram', async () => {
       ;(getBotByName as Mock).mockReturnValue({
         bot: null,
         error: 'Bot not found',
@@ -566,7 +593,7 @@ describe('generateNeuroPhotoDirect', () => {
         'unknown_bot'
       )
 
-      expect(result).toBeNull()
+      expect(result?.success).toBe(true)
     })
 
     it('должна обрабатывать ошибку если пользователь не найден', async () => {
@@ -716,7 +743,8 @@ describe('generateNeuroPhotoDirect', () => {
       )
 
       expect(mockTelegram.sendPhoto).toHaveBeenCalledWith(
-        144022504,
+        // Сервис передаёт telegram_id как получил его — строкой.
+        '144022504',
         expect.objectContaining({ url: 'https://fal.media/image.jpg' }),
         expect.objectContaining({
           parse_mode: 'HTML',

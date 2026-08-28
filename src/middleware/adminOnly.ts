@@ -14,17 +14,21 @@ export function requireAdmin() {
       logger.warn('Unauthorized access to admin command', {
         userId,
         telegramUsername: ctx.from?.username,
-        command: ctx.message && 'text' in ctx.message ? ctx.message.text : 'unknown'
+        command:
+          ctx.message && 'text' in ctx.message ? ctx.message.text : 'unknown',
       })
 
-      await ctx.reply('❌ У вас нет доступа к этой команде. Только администраторы могут использовать эту функцию.')
+      await ctx.reply(
+        '❌ У вас нет доступа к этой команде. Только администраторы могут использовать эту функцию.'
+      )
       return
     }
 
     logger.info('Admin access granted', {
       userId,
       telegramUsername: ctx.from?.username,
-      command: ctx.message && 'text' in ctx.message ? ctx.message.text : 'unknown'
+      command:
+        ctx.message && 'text' in ctx.message ? ctx.message.text : 'unknown',
     })
 
     await next()

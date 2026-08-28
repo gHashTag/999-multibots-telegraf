@@ -49,9 +49,13 @@ class VideoTaskStore {
         // ✅ FIX: Проверяем что tasks - объект
         if (tasks && typeof tasks === 'object' && !Array.isArray(tasks)) {
           this.tasks = new Map(Object.entries(tasks))
-          console.log(`📂 [VIDEO-TASK-STORE] Загружено ${this.tasks.size} задач с диска`)
+          console.log(
+            `📂 [VIDEO-TASK-STORE] Загружено ${this.tasks.size} задач с диска`
+          )
         } else {
-          console.log('📂 [VIDEO-TASK-STORE] Невалидный формат данных, создаём новый store')
+          console.log(
+            '📂 [VIDEO-TASK-STORE] Невалидный формат данных, создаём новый store'
+          )
           this.tasks = new Map()
           this.saveToDisk()
         }
@@ -62,7 +66,9 @@ class VideoTaskStore {
       }
     } catch (error) {
       // ✅ FIX: Не выводим полную ошибку, просто создаём новый store
-      console.log('📂 [VIDEO-TASK-STORE] Ошибка чтения файла, создаём новый store')
+      console.log(
+        '📂 [VIDEO-TASK-STORE] Ошибка чтения файла, создаём новый store'
+      )
       this.tasks = new Map()
       this.saveToDisk()
     }
@@ -86,17 +92,20 @@ class VideoTaskStore {
   saveTask(taskId: string, context: VideoTaskContext): void {
     this.tasks.set(taskId, {
       ...context,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     })
 
     // Сохраняем на диск для персистентности
     this.saveToDisk()
 
     // Автоматическая очистка через 1 час (Sora обычно генерирует за 3-5 минут)
-    setTimeout(() => {
-      this.tasks.delete(taskId)
-      this.saveToDisk()
-    }, 60 * 60 * 1000)
+    setTimeout(
+      () => {
+        this.tasks.delete(taskId)
+        this.saveToDisk()
+      },
+      60 * 60 * 1000
+    )
   }
 
   /**
@@ -144,6 +153,9 @@ class VideoTaskStore {
 export const videoTaskStore = new VideoTaskStore()
 
 // Периодическая очистка старых задач (каждые 10 минут)
-setInterval(() => {
-  videoTaskStore.cleanOldTasks()
-}, 10 * 60 * 1000)
+setInterval(
+  () => {
+    videoTaskStore.cleanOldTasks()
+  },
+  10 * 60 * 1000
+)

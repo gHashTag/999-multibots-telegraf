@@ -242,10 +242,13 @@ async function initializeBots() {
         setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
 
         // ✅ ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ОТМЕНЫ - перехватывает ВСЕ команды отмены
-        bot.action(/^cancel.*/, createGlobalCancelHandler({
-          messageRu: '❌ Операция отменена. Возвращаю в главное меню.',
-          messageEn: '❌ Operation cancelled. Returning to main menu.'
-        }))
+        bot.action(
+          /^cancel.*/,
+          createGlobalCancelHandler({
+            messageRu: '❌ Операция отменена. Возвращаю в главное меню.',
+            messageEn: '❌ Operation cancelled. Returning to main menu.',
+          })
+        )
 
         // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
         bot.on('pre_checkout_query', handlePreCheckoutQuery as any)

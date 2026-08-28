@@ -28,13 +28,15 @@ const STAR_TO_RUB_RATE = 1.36 // Текущий курс
 /**
  * Рассчитывает полную стоимость AI Reels
  */
-export function calculateAIReelsPrice(options: AIReelsPricingOptions): PriceBreakdown {
+export function calculateAIReelsPrice(
+  options: AIReelsPricingOptions
+): PriceBreakdown {
   const {
     text,
     avatarService,
     isOwnHeyGenKey = false,
     isOwnFalKey = false,
-    markupMultiplier = 1.5 // Наценка x1.5 как в коде
+    markupMultiplier = 1.5, // Наценка x1.5 как в коде
   } = options
 
   // Расчет длительности аудио (примерно 60 символов в секунду речи)
@@ -67,7 +69,7 @@ export function calculateAIReelsPrice(options: AIReelsPricingOptions): PriceBrea
   }
 
   // Инфраструктура
-  const infrastructureCost = 25 + (bRollCount * 5) // База + доп. за каждый B-ролл
+  const infrastructureCost = 25 + bRollCount * 5 // База + доп. за каждый B-ролл
 
   // Итоговый расчет
   const subtotal = elevenLabsCost + veo31Cost + avatarCost + infrastructureCost
@@ -83,7 +85,7 @@ export function calculateAIReelsPrice(options: AIReelsPricingOptions): PriceBrea
     infrastructureCost,
     subtotal,
     finalPrice,
-    priceInRubles
+    priceInRubles,
   }
 }
 

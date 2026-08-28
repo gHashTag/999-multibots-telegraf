@@ -8,31 +8,35 @@ import { z } from 'zod'
 
 // ✅ Input schema for Qwen Image Edit
 export const QwenImageEditInputSchema = z.object({
-  prompt: z.string()
+  prompt: z
+    .string()
     .min(1, 'Prompt cannot be empty')
     .max(1000, 'Prompt cannot exceed 1000 characters')
     .describe('Editing instruction in English or Chinese'),
 
-  image: z.string()
+  image: z
+    .string()
     .url('Input image must be a valid URL')
     .describe('URL of the image to edit'),
 
-  editing_mode: z.enum(['semantic', 'appearance', 'auto'])
+  editing_mode: z
+    .enum(['semantic', 'appearance', 'auto'])
     .optional()
     .default('auto')
-    .describe('Editing mode: semantic (restructure), appearance (local), auto (detect)'),
+    .describe(
+      'Editing mode: semantic (restructure), appearance (local), auto (detect)'
+    ),
 
-  preserve_quality: z.boolean()
+  preserve_quality: z
+    .boolean()
     .optional()
     .default(true)
     .describe('Preserve original image quality'),
 
-  seed: z.number()
-    .int()
-    .optional()
-    .describe('Random seed for reproducibility'),
+  seed: z.number().int().optional().describe('Random seed for reproducibility'),
 
-  output_format: z.enum(['webp', 'jpg', 'png'])
+  output_format: z
+    .enum(['webp', 'jpg', 'png'])
     .optional()
     .default('png')
     .describe('Output image format'),
@@ -64,21 +68,27 @@ export const QWEN_IMAGE_EDIT_CONFIG = {
 /**
  * Validate Qwen Image Edit input parameters
  */
-export const validateQwenImageEditInput = (input: unknown): QwenImageEditInput => {
+export const validateQwenImageEditInput = (
+  input: unknown
+): QwenImageEditInput => {
   return QwenImageEditInputSchema.parse(input)
 }
 
 /**
  * Validate Qwen Image Edit response
  */
-export const validateQwenImageEditResponse = (output: unknown): QwenImageEditResponse => {
+export const validateQwenImageEditResponse = (
+  output: unknown
+): QwenImageEditResponse => {
   return QwenImageEditResponseSchema.parse(output)
 }
 
 /**
  * Detect if prompt is in Chinese and adjust mode
  */
-export const detectLanguageAndAdjustMode = (prompt: string): 'semantic' | 'appearance' | 'auto' => {
+export const detectLanguageAndAdjustMode = (
+  prompt: string
+): 'semantic' | 'appearance' | 'auto' => {
   // Check if prompt contains Chinese characters
   const hasChinese = /[\u4e00-\u9fa5]/.test(prompt)
 

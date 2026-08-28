@@ -22,48 +22,52 @@ mock.module('@/core/supabase/saveVideoUrlToSupabase', () => ({
   saveVideoUrlToSupabase: mock(() => Promise.resolve(undefined)),
 }))
 
-mock.module('axios', () => ({
-  default: {
-    post: mock(() => Promise.resolve({ data: {} })),
-  },
+// The provider reaches Fal through `fal.subscribe` from '@fal-ai/client'
+// (fal-veed-fabric-provider.ts:120). Mocking axios had no effect — the
+// requests went to the live fal.run and came back "Unauthorized".
+const falSubscribe = mock(() =>
+  Promise.resolve({ data: {}, requestId: 'test-request-id' })
+)
+mock.module('@fal-ai/client', () => ({
+  fal: { subscribe: falSubscribe, config: mock(() => {}) },
 }))
 
 describe('Fal.ai Veed Fabric Integration', () => {
   let factory: LipSyncProviderFactory
   let orchestrator: LipSyncOrchestrator
-  let mockAxios: any
 
   beforeEach(async () => {
     // Настраиваем переменные окружения
     process.env.FAL_KEY = 'test-fal-key'
-    
+
     // Создаем фабрику и оркестратор
     factory = LipSyncProviderFactory.getInstance()
     orchestrator = LipSyncOrchestrator.getInstance()
-    
-    // Получаем мок axios
-    const axios = await import('axios')
-    mockAxios = axios.default
+
+    falSubscribe.mockReset()
   })
 
   describe('Фабрика провайдеров', () => {
     it('должна создавать Fal провайдер', () => {
       const provider = factory.createProvider('fal')
-      
+
       expect(provider).toBeDefined()
       expect(provider.providerId).toBe('fal')
-      expect(provider.providerName).toBe('Fal.ai Veed Fabric 1.0 Fast')
+      // Провайдер ведёт три модели (veed fabric, latentsync, hummingbird),
+      // поэтому его имя стало общим. Имя КОНКРЕТНОЙ модели по-прежнему
+      // 'Fal.ai Veed Fabric 1.0 Fast' — оно проверяется через modelUsed.
+      expect(provider.providerName).toBe('Fal.ai Lip-Sync')
     })
 
     it('должна включать Fal в список поддерживаемых провайдеров', () => {
       const supportedTypes = factory.getSupportedProviderTypes()
-      
+
       expect(supportedTypes).toContain('fal')
     })
 
     it('должна создавать все провайдеры включая Fal', () => {
       const providers = factory.createAllProviders()
-      
+
       const falProvider = providers.find(p => p.providerId === 'fal')
       expect(falProvider).toBeDefined()
     })
@@ -80,7 +84,10 @@ describe('Fal.ai Veed Fabric Integration', () => {
           },
         },
       }
-      mockAxios.post.mockResolvedValue(mockResponse)
+      falSubscribe.mockResolvedValue({
+        ...mockResponse,
+        requestId: 'test-request-id',
+      })
 
       // Создаем входные данные
       const input = LipSyncInputBuilder.forFalVeedFabric(
@@ -96,9 +103,9 @@ describe('Fal.ai Veed Fabric Integration', () => {
       // Выполняем генерацию через оркестратор
       const result = await orchestrator.generate(input)
 
-      // Проверяем результат
-      expect(result.success).toBe(true)
-      expect(result.data).toMatchObject({
+      // The orchestrator returns the provider's response UNWRAPPED
+      // (lipsync-orchestrator.ts:82 — `return result`): no success, no data.
+      expect(result).toMatchObject({
         status: 'succeeded',
         modelUsed: 'Fal.ai Veed Fabric 1.0 Fast',
       })
@@ -106,7 +113,7 @@ describe('Fal.ai Veed Fabric Integration', () => {
 
     it('должен обрабатывать ошибки через оркестратор', async () => {
       // Настраиваем мок ошибки
-      mockAxios.post.mockRejectedValue(new Error('Network Error'))
+      falSubscribe.mockRejectedValue(new Error('Network Error'))
 
       const input = LipSyncInputBuilder.forFalVeedFabric(
         'https://example.com/image.jpg',
@@ -116,15 +123,17 @@ describe('Fal.ai Veed Fabric Integration', () => {
 
       const result = await orchestrator.generate(input)
 
-      expect(result.success).toBe(false)
+      expect(result.code).toBe('GENERATION_ERROR')
       expect(result.message).toContain('Failed to generate video')
     })
   })
 
   describe('Конфигурация по умолчанию', () => {
     it('должна включать конфигурацию для Fal провайдера', async () => {
-      const { DEFAULT_PROVIDER_CONFIGS } = await import('@/core/lipsync/providers/provider-factory')
-      
+      const { DEFAULT_PROVIDER_CONFIGS } = await import(
+        '@/core/lipsync/providers/provider-factory'
+      )
+
       expect(DEFAULT_PROVIDER_CONFIGS.fal).toBeDefined()
       expect(DEFAULT_PROVIDER_CONFIGS.fal.timeout).toBe(300000)
       expect(DEFAULT_PROVIDER_CONFIGS.fal.retryAttempts).toBe(2)
@@ -142,7 +151,10 @@ describe('Fal.ai Veed Fabric Integration', () => {
           },
         },
       }
-      mockAxios.post.mockResolvedValue(mockResponse)
+      falSubscribe.mockResolvedValue({
+        ...mockResponse,
+        requestId: 'test-request-id',
+      })
 
       const input = {
         provider: 'fal',
@@ -155,7 +167,7 @@ describe('Fal.ai Veed Fabric Integration', () => {
 
       const result = await orchestrator.generate(input)
 
-      expect(result.success).toBe(true)
+      expect(result.status).toBe('succeeded')
     })
   })
 
@@ -169,7 +181,10 @@ describe('Fal.ai Veed Fabric Integration', () => {
           },
         },
       }
-      mockAxios.post.mockResolvedValue(mockResponse)
+      falSubscribe.mockResolvedValue({
+        ...mockResponse,
+        requestId: 'test-request-id',
+      })
 
       const input = LipSyncInputBuilder.forFalVeedFabric(
         'https://example.com/image.jpg',
@@ -180,14 +195,9 @@ describe('Fal.ai Veed Fabric Integration', () => {
 
       const result = await orchestrator.generate(input)
 
-      expect(result.success).toBe(true)
-      expect(mockAxios.post).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          resolution: '480p',
-        }),
-        expect.any(Object)
-      )
+      expect(result.status).toBe('succeeded')
+      const [, options] = falSubscribe.mock.calls.at(-1) as any[]
+      expect(options.input).toMatchObject({ resolution: '480p' })
     })
 
     it('должен поддерживать 720p разрешение', async () => {
@@ -199,7 +209,10 @@ describe('Fal.ai Veed Fabric Integration', () => {
           },
         },
       }
-      mockAxios.post.mockResolvedValue(mockResponse)
+      falSubscribe.mockResolvedValue({
+        ...mockResponse,
+        requestId: 'test-request-id',
+      })
 
       const input = LipSyncInputBuilder.forFalVeedFabric(
         'https://example.com/image.jpg',
@@ -210,14 +223,9 @@ describe('Fal.ai Veed Fabric Integration', () => {
 
       const result = await orchestrator.generate(input)
 
-      expect(result.success).toBe(true)
-      expect(mockAxios.post).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          resolution: '720p',
-        }),
-        expect.any(Object)
-      )
+      expect(result.status).toBe('succeeded')
+      const [, options] = falSubscribe.mock.calls.at(-1) as any[]
+      expect(options.input).toMatchObject({ resolution: '720p' })
     })
   })
 })

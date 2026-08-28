@@ -47,9 +47,12 @@ export const subscriptionScene = new Scenes.WizardScene<MyContext>(
     const userDetails = await getUserDetailsSubscription(
       ctx.from?.id.toString()
     )
-    logger.info(`[SubscriptionScene] User: ${ctx.from?.id}, Mode: ${ModeEnum.CheckBalanceScene}`, {
-      userDetails,
-    })
+    logger.info(
+      `[SubscriptionScene] User: ${ctx.from?.id}, Mode: ${ModeEnum.CheckBalanceScene}`,
+      {
+        userDetails,
+      }
+    )
     const isRu = isRussian(ctx)
     const { translation, buttons } = await getTranslation({
       key: 'subscriptionScene',
@@ -263,7 +266,7 @@ Get access to all neuro-bot features!
         if (!userChatId) {
           throw new Error('User chat ID not found')
         }
-        
+
         await ctx.telegram.sendMessage(userChatId, textForTelegram, {
           reply_markup: inlineKeyboard.reply_markup,
           parse_mode: 'MarkdownV2',
@@ -394,9 +397,9 @@ Get access to all neuro-bot features!
       } else if (text === 'mainmenu') {
         console.log('CASE: 🏠 Главное меню')
         await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+        const { showMainMenu } = await import('@/navigation')
+        await showMainMenu(ctx)
+        return
       } else {
         // Этот блок теперь действительно означает неизвестный callback_data
         console.warn('[Callback Handler] Unknown callback_data received:', text)
@@ -444,23 +447,33 @@ Get access to all neuro-bot features!
       // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработка кнопок меню
       // Проверяем, не нажал ли пользователь кнопку из главного меню
       try {
-        const { ALL_BUTTONS } = await import('@/navigation/config/buttons.config')
-        const button = Object.values(ALL_BUTTONS).find(btn => btn.ru === messageText || btn.en === messageText)
+        const { ALL_BUTTONS } = await import(
+          '@/navigation/config/buttons.config'
+        )
+        const button = Object.values(ALL_BUTTONS).find(
+          btn => btn.ru === messageText || btn.en === messageText
+        )
 
         if (button) {
           // Это кнопка меню! Выходим из сцены и позволяем глобальному обработчику её обработать
-          logger.info('🔄 [subscriptionScene] Menu button detected, exiting scene', {
-            telegramId: ctx.from?.id,
-            buttonText: messageText
-          })
+          logger.info(
+            '🔄 [subscriptionScene] Menu button detected, exiting scene',
+            {
+              telegramId: ctx.from?.id,
+              buttonText: messageText,
+            }
+          )
           return ctx.scene.leave()
         }
       } catch (error) {
         // Если не удалось импортировать, просто выходим из сцены
-        logger.warn('⚠️ [subscriptionScene] Failed to import NAVIGATION_BUTTONS, exiting scene', {
-          error: error instanceof Error ? error.message : String(error),
-          telegramId: ctx.from?.id
-        })
+        logger.warn(
+          '⚠️ [subscriptionScene] Failed to import NAVIGATION_BUTTONS, exiting scene',
+          {
+            error: error instanceof Error ? error.message : String(error),
+            telegramId: ctx.from?.id,
+          }
+        )
         return ctx.scene.leave()
       }
 
@@ -475,7 +488,7 @@ Get access to all neuro-bot features!
 )
 
 // ✅ ОБРАБОТЧИК КНОПКИ ОТМЕНЫ
-subscriptionScene.action('cancel_subscription', async (ctx) => {
+subscriptionScene.action('cancel_subscription', async ctx => {
   await ctx.answerCbQuery()
   const isRu = isRussian(ctx)
 

@@ -4,7 +4,10 @@ import { MyContext } from '@/interfaces'
 import { supabase } from '@/core/supabase'
 import { FAL_KEY } from '@/config'
 import { logger } from '@/utils/logger'
-import { sanitizeModelName, isValidReplicateModelName } from '@/helpers/sanitizeModelName'
+import {
+  sanitizeModelName,
+  isValidReplicateModelName,
+} from '@/helpers/sanitizeModelName'
 import { PUBLIC_URL } from '@/config'
 
 interface FalModelTrainingRequest {
@@ -104,7 +107,9 @@ export async function trainFalFluxModel(
     })
 
     // ✅ STEP 6: Submit training to Fal.ai
-    logger.info('[FAL TRAINING] Submitting to fal-ai/flux-lora-portrait-trainer...')
+    logger.info(
+      '[FAL TRAINING] Submitting to fal-ai/flux-lora-portrait-trainer...'
+    )
 
     const result = await fal.subscribe('fal-ai/flux-lora-portrait-trainer', {
       input: {
@@ -117,11 +122,13 @@ export async function trainFalFluxModel(
         create_masks: false,
       },
       logs: true,
-      onQueueUpdate: (update) => {
+      onQueueUpdate: update => {
         if (update.status === 'IN_PROGRESS') {
-          update.logs.map((log) => log.message).forEach((message) => {
-            console.log('[FAL TRAINING]', message)
-          })
+          update.logs
+            .map(log => log.message)
+            .forEach(message => {
+              console.log('[FAL TRAINING]', message)
+            })
         }
       },
     })
@@ -177,7 +184,10 @@ export async function trainFalFluxModel(
       logger.info('[FAL TRAINING] Local ZIP file deleted')
     } catch (unlinkError) {
       logger.warn('[FAL TRAINING] Failed to delete ZIP (non-fatal)', {
-        error: unlinkError instanceof Error ? unlinkError.message : String(unlinkError),
+        error:
+          unlinkError instanceof Error
+            ? unlinkError.message
+            : String(unlinkError),
       })
     }
 
@@ -209,7 +219,10 @@ export async function trainFalFluxModel(
       }
     } catch (unlinkError) {
       logger.warn('[FAL TRAINING] Failed to cleanup ZIP on error', {
-        error: unlinkError instanceof Error ? unlinkError.message : String(unlinkError),
+        error:
+          unlinkError instanceof Error
+            ? unlinkError.message
+            : String(unlinkError),
       })
     }
 

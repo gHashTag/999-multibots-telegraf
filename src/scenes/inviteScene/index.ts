@@ -26,7 +26,12 @@ inviteScene.enter(async ctx => {
     // Теперь про звёзды написано, только если награда включена
     // (REFERRAL_BONUS_STARS), и названа настоящая сумма.
     const bonus = REFERRAL_BONUS_STARS
-    const rewardLine = bonus > 0 ? (isRu ? `\n\n🎁 За каждого друга, который запустит бота по вашей ссылке, вы получаете ${bonus} звёзд.` : `\n\n🎁 For every friend who starts the bot via your link you get ${bonus} stars.`) : ''
+    const rewardLine =
+      bonus > 0
+        ? isRu
+          ? `\n\n🎁 За каждого друга, который запустит бота по вашей ссылке, вы получаете ${bonus} звёзд.`
+          : `\n\n🎁 For every friend who starts the bot via your link you get ${bonus} stars.`
+        : ''
 
     const introText = isRu
       ? `🔗 Пригласите друга — отправьте ему эту ссылку.${rewardLine}\n\n<b>Приглашено:</b> ${count}`

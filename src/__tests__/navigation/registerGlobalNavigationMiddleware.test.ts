@@ -19,29 +19,29 @@ vi.mock('@/utils/logger', () => ({
     info: vi.fn(),
     debug: vi.fn(),
     error: vi.fn(),
-    warn: vi.fn()
-  }
+    warn: vi.fn(),
+  },
 }))
 
 // Mock navigation functions
 vi.mock('@/navigation', () => ({
   showMainMenu: vi.fn().mockResolvedValue(undefined),
-  showCategoryMenu: vi.fn().mockResolvedValue(undefined)
+  showCategoryMenu: vi.fn().mockResolvedValue(undefined),
 }))
 
 // Mock handleTechSupport
 vi.mock('@/commands/handleTechSupport', () => ({
-  handleTechSupport: vi.fn().mockResolvedValue(undefined)
+  handleTechSupport: vi.fn().mockResolvedValue(undefined),
 }))
 
 // Mock CancelButtonService
 vi.mock('@/navigation/services/CancelButtonService', () => ({
-  handleCancelButton: vi.fn().mockResolvedValue(false)
+  handleCancelButton: vi.fn().mockResolvedValue(false),
 }))
 
 // Mock centralizedLanguage
 vi.mock('@/helpers/centralizedLanguage', () => ({
-  isRussianFromState: vi.fn().mockReturnValue(true)
+  isRussianFromState: vi.fn().mockReturnValue(true),
 }))
 
 import { showMainMenu } from '@/navigation'
@@ -50,7 +50,9 @@ import type { MutableCtx } from '../helpers/mutableContext'
 
 describe('registerGlobalNavigationMiddleware', () => {
   let mockBot: any
-  let registeredMiddleware: ((ctx: MyContext, next: () => Promise<void>) => Promise<void>) | null = null
+  let registeredMiddleware:
+    | ((ctx: MyContext, next: () => Promise<void>) => Promise<void>)
+    | null = null
   let mockContext: MutableCtx
   let mockNext: Mock
 
@@ -62,7 +64,7 @@ describe('registerGlobalNavigationMiddleware', () => {
     mockBot = {
       use: vi.fn((middleware: any) => {
         registeredMiddleware = middleware
-      })
+      }),
     }
 
     mockNext = vi.fn().mockResolvedValue(undefined)
@@ -75,16 +77,16 @@ describe('registerGlobalNavigationMiddleware', () => {
       scene: {
         current: { id: 'testScene' },
         leave: vi.fn().mockResolvedValue(undefined),
-        enter: vi.fn().mockResolvedValue(undefined)
+        enter: vi.fn().mockResolvedValue(undefined),
       } as any,
       reply: vi.fn().mockResolvedValue(undefined),
       answerCbQuery: vi.fn().mockResolvedValue(undefined),
       session: {
-        mode: undefined
+        mode: undefined,
       } as any,
       state: {
-        userLanguage: 'ru' as 'ru' | 'en'
-      } as any
+        userLanguage: 'ru' as 'ru' | 'en',
+      } as any,
     }
   })
 
@@ -255,8 +257,14 @@ describe('registerGlobalNavigationMiddleware', () => {
       await registeredMiddleware!(mockContext as MyContext, mockNext)
 
       expect(mockContext.scene!.leave).toHaveBeenCalled()
-      expect(mockContext.session!.mode).toBe(ModeEnum.Invite)
-      expect(mockContext.scene!.enter).toHaveBeenCalledWith(ModeEnum.CheckBalanceScene)
+      // Маршрут изменён намеренно: в buttons.config.ts стоит
+      // `sceneId: ModeEnum.InviteScene, // ✅ ИСПРАВЛЕНО: Прямой переход
+      // (CheckBalanceScene удалён)`. Обработчик handleProfileButtons делает
+      // leave() → enter(InviteScene) и session.mode не трогает, поэтому
+      // проверяем фактический маршрут, а не отменённый.
+      expect(mockContext.scene!.enter).toHaveBeenCalledWith(
+        ModeEnum.InviteScene
+      )
       expect(mockNext).not.toHaveBeenCalled()
     })
 
@@ -266,7 +274,9 @@ describe('registerGlobalNavigationMiddleware', () => {
 
       await registeredMiddleware!(mockContext as MyContext, mockNext)
 
-      expect(mockContext.session!.mode).toBe(ModeEnum.Invite)
+      expect(mockContext.scene!.enter).toHaveBeenCalledWith(
+        ModeEnum.InviteScene
+      )
     })
   })
 
@@ -356,21 +366,29 @@ describe('registerGlobalNavigationMiddleware', () => {
     })
 
     it('обрабатывает ошибку при обработке Tech Support', async () => {
-      ;(handleTechSupport as Mock).mockRejectedValueOnce(new Error('Support error'))
+      ;(handleTechSupport as Mock).mockRejectedValueOnce(
+        new Error('Support error')
+      )
       mockContext.message = { text: '💬 Техподдержка' } as any
 
       await registeredMiddleware!(mockContext as MyContext, mockNext)
 
-      expect(mockContext.reply).toHaveBeenCalledWith('❌ Произошла ошибка. Попробуйте /start')
+      expect(mockContext.reply).toHaveBeenCalledWith(
+        '❌ Произошла ошибка. Попробуйте /start'
+      )
     })
 
     it('обрабатывает ошибку при обработке Invite', async () => {
-      ;(mockContext.scene!.enter as Mock).mockRejectedValueOnce(new Error('Enter error'))
+      ;(mockContext.scene!.enter as Mock).mockRejectedValueOnce(
+        new Error('Enter error')
+      )
       mockContext.message = { text: '👥 Пригласить друга' } as any
 
       await registeredMiddleware!(mockContext as MyContext, mockNext)
 
-      expect(mockContext.reply).toHaveBeenCalledWith('❌ Произошла ошибка. Попробуйте /start')
+      expect(mockContext.reply).toHaveBeenCalledWith(
+        '❌ Произошла ошибка. Попробуйте /start'
+      )
     })
   })
 

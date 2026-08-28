@@ -32,11 +32,14 @@ async function generateTTSViaAiServer({
 }): Promise<string> {
   const AI_SERVER_URL = configManager.getApiServerUrl()
 
-  logger.info('[generateTTSViaAiServer] Отправляем запрос на ai-server для TTS', {
-    voice_id,
-    textLength: text.length,
-    aiServerUrl: AI_SERVER_URL
-  })
+  logger.info(
+    '[generateTTSViaAiServer] Отправляем запрос на ai-server для TTS',
+    {
+      voice_id,
+      textLength: text.length,
+      aiServerUrl: AI_SERVER_URL,
+    }
+  )
 
   // Пробуем разные возможные эндпоинты для ElevenLabs TTS
   const endpoints = [
@@ -45,7 +48,7 @@ async function generateTTSViaAiServer({
     '/elevenlabs/text-to-speech',
     '/api/v1/text-to-speech',
     '/tts/generate',
-    '/proxy/elevenlabs/tts'
+    '/proxy/elevenlabs/tts',
   ]
 
   let lastError: any = null
@@ -54,21 +57,25 @@ async function generateTTSViaAiServer({
     try {
       logger.info(`🔍 Пробуем эндпоинт: ${endpoint}`)
 
-      const response = await axios.post(`${AI_SERVER_URL}${endpoint}`, {
-        text,
-        voice_id,
-        model_id: 'eleven_turbo_v2_5'
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          ...(process.env.AI_SERVER_API_KEY && {
-            'Authorization': `Bearer ${process.env.AI_SERVER_API_KEY}`
-          })
+      const response = await axios.post(
+        `${AI_SERVER_URL}${endpoint}`,
+        {
+          text,
+          voice_id,
+          model_id: 'eleven_turbo_v2_5',
         },
-        timeout: 60000,
-        responseType: 'stream'
-      })
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(process.env.AI_SERVER_API_KEY && {
+              Authorization: `Bearer ${process.env.AI_SERVER_API_KEY}`,
+            }),
+          },
+          timeout: 60000,
+          responseType: 'stream',
+        }
+      )
 
       if (response.status === 200) {
         const outputPath = path.join(os.tmpdir(), `audio_${Date.now()}.mp3`)
@@ -80,7 +87,7 @@ async function generateTTSViaAiServer({
           writer.on('error', reject)
           writer.on('finish', () => {
             logger.info(`✅ Аудио создано через ai-server (${endpoint})`, {
-              outputPath
+              outputPath,
             })
             resolve(outputPath)
           })
@@ -98,7 +105,9 @@ async function generateTTSViaAiServer({
   }
 
   // Если ai-server недоступен, используем fallback на прямой API
-  logger.warn('⚠️ Все эндпоинты ai-server недоступны, используем fallback на прямой ElevenLabs API')
+  logger.warn(
+    '⚠️ Все эндпоинты ai-server недоступны, используем fallback на прямой ElevenLabs API'
+  )
   throw new Error('AI Server unavailable, fallback required')
 }
 
@@ -145,7 +154,7 @@ export const createAudioFileFromText = async ({
     apiKeyPresent: !!process.env.ELEVENLABS_API_KEY,
     apiKeyPrefix: process.env.ELEVENLABS_API_KEY?.substring(0, 5),
     telegram_id,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   }
 
   console.log('[TTS_BOT] 🎤 Attempting to create audio with:', logData)
@@ -173,21 +182,23 @@ export const createAudioFileFromText = async ({
     */
 
     // Используем прямой HTTP запрос вместо SDK
-    console.log('[createAudioFileFromText] Using direct HTTP request to ElevenLabs API...')
+    console.log(
+      '[createAudioFileFromText] Using direct HTTP request to ElevenLabs API...'
+    )
 
     const requestPayload = {
       text: text,
       model_id: 'eleven_turbo_v2_5',
       voice_settings: {
         stability: 0.5,
-        similarity_boost: 0.75
-      }
+        similarity_boost: 0.75,
+      },
     }
 
     console.log('[TTS_BOT] Sending HTTP request to ElevenLabs:', {
       voice_id,
       textLength: text.length,
-      model: 'eleven_turbo_v2_5'
+      model: 'eleven_turbo_v2_5',
     })
 
     // Прямой HTTP запрос
@@ -196,12 +207,12 @@ export const createAudioFileFromText = async ({
       requestPayload,
       {
         headers: {
-          'Accept': 'audio/mpeg',
+          Accept: 'audio/mpeg',
           'Content-Type': 'application/json',
-          'xi-api-key': process.env.ELEVENLABS_API_KEY || ''
+          'xi-api-key': process.env.ELEVENLABS_API_KEY || '',
         },
         responseType: 'stream',
-        timeout: 60000
+        timeout: 60000,
       }
     )
 
@@ -257,7 +268,7 @@ export const createAudioFileFromText = async ({
       telegram_id,
       error: error.message,
       statusCode: error.statusCode,
-      stack: error.stack?.substring(0, 500) // Ограничиваем длину стека
+      stack: error.stack?.substring(0, 500), // Ограничиваем длину стека
     })
 
     console.error(
@@ -266,7 +277,7 @@ export const createAudioFileFromText = async ({
         message: error.message,
         statusCode: error.statusCode,
         voice_id,
-        telegram_id
+        telegram_id,
       }
     )
 
@@ -275,10 +286,13 @@ export const createAudioFileFromText = async ({
       console.error(
         `[TTS_BOT] ⚠️ Voice ID ${voice_id} not found (404). Attempting fallback...`
       )
-      logger.warn('[createAudioFileFromText] Voice not found, attempting fallback', {
-        originalVoiceId: voice_id,
-        telegram_id
-      })
+      logger.warn(
+        '[createAudioFileFromText] Voice not found, attempting fallback',
+        {
+          originalVoiceId: voice_id,
+          telegram_id,
+        }
+      )
 
       // Clear the invalid voice ID from database if telegram_id is provided
       if (telegram_id) {
@@ -292,42 +306,51 @@ export const createAudioFileFromText = async ({
           )
           logger.info('[createAudioFileFromText] Cleared invalid voice ID', {
             clearedVoiceId: voice_id,
-            telegram_id
+            telegram_id,
           })
         } catch (dbError) {
           console.error(
             '[TTS_BOT] ❌ Error clearing invalid voice ID from database:',
             dbError
           )
-          logger.error('[createAudioFileFromText] Failed to clear invalid voice ID', {
-            voice_id,
-            telegram_id,
-            dbError: dbError instanceof Error ? dbError.message : String(dbError)
-          })
+          logger.error(
+            '[createAudioFileFromText] Failed to clear invalid voice ID',
+            {
+              voice_id,
+              telegram_id,
+              dbError:
+                dbError instanceof Error ? dbError.message : String(dbError),
+            }
+          )
         }
       }
 
       // 🚀 FALLBACK ATTEMPT: Попытка с резервным голосом
       try {
         const fallbackVoiceId = getFallbackVoiceId()
-        console.log(`[TTS_BOT] 🔄 Attempting TTS with fallback voice: ${fallbackVoiceId}`)
+        console.log(
+          `[TTS_BOT] 🔄 Attempting TTS with fallback voice: ${fallbackVoiceId}`
+        )
         logger.info('[createAudioFileFromText] Attempting fallback voice', {
           fallbackVoiceId,
           originalVoiceId: voice_id,
-          telegram_id
+          telegram_id,
         })
 
         // Рекурсивный вызов с fallback voice_id
         return await createAudioFileFromText({
           text,
           voice_id: fallbackVoiceId,
-          telegram_id
+          telegram_id,
         })
       } catch (fallbackError) {
         console.error('[TTS_BOT] ❌ Fallback voice also failed:', fallbackError)
         logger.error('[createAudioFileFromText] Fallback voice failed', {
-          fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
-          telegram_id
+          fallbackError:
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : String(fallbackError),
+          telegram_id,
         })
 
         // Если и fallback не работает, выбрасываем оригинальную ошибку
@@ -340,7 +363,7 @@ export const createAudioFileFromText = async ({
     logger.error('[createAudioFileFromText] Unhandled error type', {
       errorType: error.constructor.name,
       voice_id,
-      telegram_id
+      telegram_id,
     })
 
     throw new Error(errorMessage)

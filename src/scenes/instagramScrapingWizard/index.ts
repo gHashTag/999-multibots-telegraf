@@ -254,8 +254,8 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
               ? '❌ У вас нет доступных проектов для анализа.\n\n🔍 Доступные проекты для @HaimGroupMedia_bot:\n• Coco Age\n• Вячеслав Неклюдов\n'
               : '❌ You have no available projects for analysis.\n\n🔍 Available projects for @HaimGroupMedia_bot:\n• Coco Age\n• Vyacheslav Nekludov\n'
             : isRu
-            ? '❌ У вас нет доступных проектов для анализа Instagram.'
-            : '❌ You have no available projects for Instagram analysis.'
+              ? '❌ У вас нет доступных проектов для анализа Instagram.'
+              : '❌ You have no available projects for Instagram analysis.'
 
         await ctx.reply(noAccessMessage, createHelpCancelKeyboard(isRu))
         return
@@ -282,8 +282,8 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
             ? '📁 Выберите проект для анализа конкурентов (только Cocoáge и Вячеслав Неклюдов):'
             : '📁 Select project for competitor analysis (Cocoáge and Vyacheslav Nekludov only):'
           : isRu
-          ? '📁 Выберите проект для анализа конкурентов Instagram:'
-          : '📁 Select project for Instagram competitor analysis:'
+            ? '📁 Выберите проект для анализа конкурентов Instagram:'
+            : '📁 Select project for Instagram competitor analysis:'
 
       try {
         await ctx.reply(
@@ -295,12 +295,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
           {
             ...Markup.inlineKeyboard([
               ...projectButtons,
-              [
-                Markup.button.callback(
-                  isRu ? 'Отмена' : 'Cancel',
-                  'cancel'
-                ),
-              ],
+              [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
             ]),
           }
         )
@@ -430,12 +425,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
                 'competitors_custom'
               ),
             ],
-            [
-              Markup.button.callback(
-                isRu ? 'Отмена' : 'Cancel',
-                'cancel'
-              ),
-            ],
+            [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
           ])
         )
         console.log(
@@ -559,10 +549,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
                   isRu ? '🔙 Назад' : '🔙 Back',
                   'back_to_competitors'
                 ),
-                Markup.button.callback(
-                  isRu ? 'Отмена' : 'Cancel',
-                  'cancel'
-                ),
+                Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel'),
               ],
             ]),
           }
@@ -625,10 +612,7 @@ export const instagramScrapingWizard = new Scenes.WizardScene<MyContext>(
                   isRu ? '🔙 Назад' : '🔙 Back',
                   'back_to_competitors'
                 ),
-                Markup.button.callback(
-                  isRu ? 'Отмена' : 'Cancel',
-                  'cancel'
-                ),
+                Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel'),
               ],
             ]),
           }

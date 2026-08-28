@@ -129,19 +129,25 @@ export async function getUserBalanceStatsOptimized(
     })
 
     // Вызываем SQL-функцию через RPC
-    const { data, error } = await supabase.rpc('get_user_balance_stats_optimized', {
-      p_telegram_id: parseInt(telegramId),
-      p_bot_name: botName || null,
-      p_limit_services: limitServices,
-      p_limit_transactions: limitTransactions,
-    })
+    const { data, error } = await supabase.rpc(
+      'get_user_balance_stats_optimized',
+      {
+        p_telegram_id: parseInt(telegramId),
+        p_bot_name: botName || null,
+        p_limit_services: limitServices,
+        p_limit_transactions: limitTransactions,
+      }
+    )
 
     if (error) {
-      logger.error('[getUserBalanceStatsOptimized] Error calling RPC function', {
-        error: error.message,
-        telegramId,
-        botName,
-      })
+      logger.error(
+        '[getUserBalanceStatsOptimized] Error calling RPC function',
+        {
+          error: error.message,
+          telegramId,
+          botName,
+        }
+      )
       return null
     }
 

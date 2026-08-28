@@ -22,10 +22,7 @@ import { logger } from '@/utils/logger'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
-import {
-  getVoiceModel,
-  hasReadyVoiceModel,
-} from '@/core/supabase/voiceModels'
+import { getVoiceModel, hasReadyVoiceModel } from '@/core/supabase/voiceModels'
 import {
   generateAICover,
   validateSongDuration,
@@ -193,7 +190,9 @@ export const aiCoverWizard = new Scenes.WizardScene<MyContext>(
       Markup.inlineKeyboard([
         [
           Markup.button.callback(
-            isRu ? `✅ Создать AI Cover (${cost}⭐)` : `✅ Create AI Cover (${cost}⭐)`,
+            isRu
+              ? `✅ Создать AI Cover (${cost}⭐)`
+              : `✅ Create AI Cover (${cost}⭐)`,
             'confirm_cover'
           ),
         ],
@@ -226,29 +225,29 @@ async function showInstructions(ctx: MyContext, isRu: boolean) {
 
   const text = isRu
     ? `🎧 *AI Cover - Песня вашим голосом*\n\n` +
-        `Отправьте песню, и она будет исполнена вашим голосом!\n\n` +
-        `📋 *Требования к песне:*\n` +
-        `• Форматы: MP3, WAV, OGG\n` +
-        `• Максимум: ${maxDuration} минут\n` +
-        `• Желательно: чёткий вокал\n\n` +
-        `💡 *Рекомендации:*\n` +
-        `• Выбирайте песни с чистым вокалом\n` +
-        `• Избегайте сильной обработки голоса\n` +
-        `• Лучше работает с соло-исполнением\n\n` +
-        `💰 *Стоимость:* ${cost}⭐ за песню\n` +
-        `⏱️ *Время генерации:* 1-3 минуты`
+      `Отправьте песню, и она будет исполнена вашим голосом!\n\n` +
+      `📋 *Требования к песне:*\n` +
+      `• Форматы: MP3, WAV, OGG\n` +
+      `• Максимум: ${maxDuration} минут\n` +
+      `• Желательно: чёткий вокал\n\n` +
+      `💡 *Рекомендации:*\n` +
+      `• Выбирайте песни с чистым вокалом\n` +
+      `• Избегайте сильной обработки голоса\n` +
+      `• Лучше работает с соло-исполнением\n\n` +
+      `💰 *Стоимость:* ${cost}⭐ за песню\n` +
+      `⏱️ *Время генерации:* 1-3 минуты`
     : `🎧 *AI Cover - Song with your voice*\n\n` +
-        `Send a song and it will be performed with your voice!\n\n` +
-        `📋 *Song requirements:*\n` +
-        `• Formats: MP3, WAV, OGG\n` +
-        `• Maximum: ${maxDuration} minutes\n` +
-        `• Preferably: clear vocals\n\n` +
-        `💡 *Recommendations:*\n` +
-        `• Choose songs with clean vocals\n` +
-        `• Avoid heavy vocal processing\n` +
-        `• Works better with solo performances\n\n` +
-        `💰 *Cost:* ${cost}⭐ per song\n` +
-        `⏱️ *Generation time:* 1-3 minutes`
+      `Send a song and it will be performed with your voice!\n\n` +
+      `📋 *Song requirements:*\n` +
+      `• Formats: MP3, WAV, OGG\n` +
+      `• Maximum: ${maxDuration} minutes\n` +
+      `• Preferably: clear vocals\n\n` +
+      `💡 *Recommendations:*\n` +
+      `• Choose songs with clean vocals\n` +
+      `• Avoid heavy vocal processing\n` +
+      `• Works better with solo performances\n\n` +
+      `💰 *Cost:* ${cost}⭐ per song\n` +
+      `⏱️ *Generation time:* 1-3 minutes`
 
   await ctx.reply(text, {
     parse_mode: 'Markdown',
@@ -292,7 +291,9 @@ aiCoverWizard.action('confirm_cover', async ctx => {
   const state = ctx.session.wizardData as WizardState
   if (!state?.songFileId || !state?.voiceModelUrl) {
     await ctx.reply(
-      isRu ? '❌ Данные не найдены. Попробуйте снова.' : '❌ Data not found. Try again.'
+      isRu
+        ? '❌ Данные не найдены. Попробуйте снова.'
+        : '❌ Data not found. Try again.'
     )
     return ctx.scene.leave()
   }
@@ -401,7 +402,10 @@ aiCoverWizard.action('confirm_cover', async ctx => {
     } catch (refundError) {
       logger.error('[AI_COVER] Refund failed', {
         telegramId,
-        error: refundError instanceof Error ? refundError.message : String(refundError),
+        error:
+          refundError instanceof Error
+            ? refundError.message
+            : String(refundError),
       })
     }
 
@@ -440,12 +444,9 @@ aiCoverWizard.action('another_cover', async ctx => {
 // HEARS HANDLERS
 // ═══════════════════════════════════════════════════════════════════════════
 
-aiCoverWizard.hears(
-  ['🏠 Главное меню', '🏠 Main menu', '/menu'],
-  async ctx => {
-    await ctx.scene.leave()
-    return showMainMenu(ctx)
-  }
-)
+aiCoverWizard.hears(['🏠 Главное меню', '🏠 Main menu', '/menu'], async ctx => {
+  await ctx.scene.leave()
+  return showMainMenu(ctx)
+})
 
 export default aiCoverWizard

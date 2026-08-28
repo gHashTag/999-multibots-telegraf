@@ -36,13 +36,15 @@ helpScene.on('message', async ctx => {
   // Проверяем кнопки меню
   try {
     const { ALL_BUTTONS } = await import('@/navigation/config/buttons.config')
-    const button = Object.values(ALL_BUTTONS).find(btn => btn.ru === messageText || btn.en === messageText)
+    const button = Object.values(ALL_BUTTONS).find(
+      btn => btn.ru === messageText || btn.en === messageText
+    )
 
     if (button) {
       // Это кнопка меню! Выходим из сцены и позволяем глобальному обработчику её обработать
       console.log('🔄 [helpScene] Menu button detected, exiting scene', {
         telegramId: ctx.from?.id,
-        buttonText: messageText
+        buttonText: messageText,
       })
       return ctx.scene.leave()
     }
@@ -50,13 +52,15 @@ helpScene.on('message', async ctx => {
     // Если не удалось импортировать, продолжаем с обычной обработкой
     console.warn('⚠️ [helpScene] Failed to import NAVIGATION_BUTTONS', {
       error: error instanceof Error ? error.message : String(error),
-      telegramId: ctx.from?.id
+      telegramId: ctx.from?.id,
     })
   }
 
   // Игнорируем другие сообщения
   await ctx.reply(
-    isRu ? '❓ Для получения справки используйте кнопки главного меню' : '❓ Use main menu buttons for help',
+    isRu
+      ? '❓ Для получения справки используйте кнопки главного меню'
+      : '❓ Use main menu buttons for help',
     { reply_markup: { remove_keyboard: true } }
   )
   return ctx.scene.leave()
@@ -67,9 +71,8 @@ helpScene.enter(async ctx => {
   // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
   const isRu = isRussianFromState(ctx)
   const telegram_id = ctx.from.id.toString()
-  const { count, subscriptionType, level } = await getReferalsCountAndUserData(
-    telegram_id
-  )
+  const { count, subscriptionType, level } =
+    await getReferalsCountAndUserData(telegram_id)
 
   let helpText = isRu ? 'Общая справка...' : 'General help...'
 

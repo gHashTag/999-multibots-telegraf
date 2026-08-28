@@ -32,7 +32,10 @@ export interface BotFinancialSummary {
   // Settlement calculation
   platform_commission: number
   settlement_amount: number
-  settlement_status: 'OWED_TO_BOT_OWNER' | 'BOT_OWNER_OWES_PLATFORM' | 'BALANCED'
+  settlement_status:
+    | 'OWED_TO_BOT_OWNER'
+    | 'BOT_OWNER_OWES_PLATFORM'
+    | 'BALANCED'
 
   // Service breakdown
   service_breakdown: ServiceUsage[]
@@ -87,7 +90,7 @@ export async function calculateBotFinancialSummary(
       {
         p_bot_name: botName,
         p_start_date: startDate?.toISOString() || null,
-        p_end_date: endDate?.toISOString() || null
+        p_end_date: endDate?.toISOString() || null,
       }
     )
 
@@ -98,16 +101,23 @@ export async function calculateBotFinancialSummary(
 
     // If RPC doesn't exist, fallback to manual calculation
     if (!financialData) {
-      return await calculateBotFinancialSummaryFallback(botName, startDate, endDate)
+      return await calculateBotFinancialSummaryFallback(
+        botName,
+        startDate,
+        endDate
+      )
     }
 
     const summary = financialData[0]
 
     // Calculate settlement based on revenue-share model (platform takes 20%)
-    const platformCommissionRate = 0.20
-    const platformCommission = summary.total_revenue_stars * platformCommissionRate
-    const netRevenueAfterCommission = summary.total_revenue_stars - platformCommission
-    const settlementAmount = netRevenueAfterCommission - summary.total_expenses_stars
+    const platformCommissionRate = 0.2
+    const platformCommission =
+      summary.total_revenue_stars * platformCommissionRate
+    const netRevenueAfterCommission =
+      summary.total_revenue_stars - platformCommission
+    const settlementAmount =
+      netRevenueAfterCommission - summary.total_expenses_stars
 
     return {
       bot_name: botName,
@@ -118,22 +128,29 @@ export async function calculateBotFinancialSummary(
       total_expenses_stars: summary.total_expenses_stars || 0,
       total_service_costs: summary.total_service_costs || 0,
       expense_transactions: summary.expense_transactions || 0,
-      gross_profit_stars: (summary.total_revenue_stars || 0) - (summary.total_expenses_stars || 0),
+      gross_profit_stars:
+        (summary.total_revenue_stars || 0) -
+        (summary.total_expenses_stars || 0),
       net_profit_stars: settlementAmount,
-      profit_margin_percent: summary.total_revenue_stars > 0
-        ? ((settlementAmount / summary.total_revenue_stars) * 100)
-        : 0,
+      profit_margin_percent:
+        summary.total_revenue_stars > 0
+          ? (settlementAmount / summary.total_revenue_stars) * 100
+          : 0,
       platform_commission: platformCommission,
       settlement_amount: settlementAmount,
-      settlement_status: settlementAmount > 0
-        ? 'OWED_TO_BOT_OWNER'
-        : settlementAmount < 0
-          ? 'BOT_OWNER_OWES_PLATFORM'
-          : 'BALANCED',
-      service_breakdown: summary.service_breakdown || []
+      settlement_status:
+        settlementAmount > 0
+          ? 'OWED_TO_BOT_OWNER'
+          : settlementAmount < 0
+            ? 'BOT_OWNER_OWES_PLATFORM'
+            : 'BALANCED',
+      service_breakdown: summary.service_breakdown || [],
     }
   } catch (error) {
-    logger.error(`[FinancialAnalysis] Error calculating summary for ${botName}:`, error)
+    logger.error(
+      `[FinancialAnalysis] Error calculating summary for ${botName}:`,
+      error
+    )
     throw error
   }
 }
@@ -167,19 +184,37 @@ export async function calculateBotFinancialSummaryFallback(
     }
 
     // Calculate metrics from raw data
-    const incomeTransactions = transactions.filter(t => t.type === 'MONEY_INCOME')
-    const expenseTransactions = transactions.filter(t => t.type === 'MONEY_OUTCOME')
+    const incomeTransactions = transactions.filter(
+      t => t.type === 'MONEY_INCOME'
+    )
+    const expenseTransactions = transactions.filter(
+      t => t.type === 'MONEY_OUTCOME'
+    )
 
-    const totalRevenueStars = incomeTransactions.reduce((sum, t) => sum + (t.stars || 0), 0)
-    const totalRevenueFiat = incomeTransactions.reduce((sum, t) => sum + (t.amount || 0), 0)
-    const totalExpensesStars = expenseTransactions.reduce((sum, t) => sum + (t.cost || t.stars || 0), 0)
-    const uniquePayingUsers = new Set(incomeTransactions.map(t => t.telegram_id)).size
+    const totalRevenueStars = incomeTransactions.reduce(
+      (sum, t) => sum + (t.stars || 0),
+      0
+    )
+    const totalRevenueFiat = incomeTransactions.reduce(
+      (sum, t) => sum + (t.amount || 0),
+      0
+    )
+    const totalExpensesStars = expenseTransactions.reduce(
+      (sum, t) => sum + (t.cost || t.stars || 0),
+      0
+    )
+    const uniquePayingUsers = new Set(
+      incomeTransactions.map(t => t.telegram_id)
+    ).size
 
     // Service breakdown
-    const serviceBreakdown = calculateServiceBreakdown(expenseTransactions, totalExpensesStars)
+    const serviceBreakdown = calculateServiceBreakdown(
+      expenseTransactions,
+      totalExpensesStars
+    )
 
     // Settlement calculation
-    const platformCommissionRate = 0.20
+    const platformCommissionRate = 0.2
     const platformCommission = totalRevenueStars * platformCommissionRate
     const netRevenueAfterCommission = totalRevenueStars - platformCommission
     const settlementAmount = netRevenueAfterCommission - totalExpensesStars
@@ -195,20 +230,25 @@ export async function calculateBotFinancialSummaryFallback(
       expense_transactions: expenseTransactions.length,
       gross_profit_stars: totalRevenueStars - totalExpensesStars,
       net_profit_stars: settlementAmount,
-      profit_margin_percent: totalRevenueStars > 0
-        ? ((settlementAmount / totalRevenueStars) * 100)
-        : 0,
+      profit_margin_percent:
+        totalRevenueStars > 0
+          ? (settlementAmount / totalRevenueStars) * 100
+          : 0,
       platform_commission: platformCommission,
       settlement_amount: settlementAmount,
-      settlement_status: settlementAmount > 0
-        ? 'OWED_TO_BOT_OWNER'
-        : settlementAmount < 0
-          ? 'BOT_OWNER_OWES_PLATFORM'
-          : 'BALANCED',
-      service_breakdown: serviceBreakdown
+      settlement_status:
+        settlementAmount > 0
+          ? 'OWED_TO_BOT_OWNER'
+          : settlementAmount < 0
+            ? 'BOT_OWNER_OWES_PLATFORM'
+            : 'BALANCED',
+      service_breakdown: serviceBreakdown,
     }
   } catch (error) {
-    logger.error(`[FinancialAnalysis] Fallback calculation error for ${botName}:`, error)
+    logger.error(
+      `[FinancialAnalysis] Fallback calculation error for ${botName}:`,
+      error
+    )
     throw error
   }
 }
@@ -216,8 +256,11 @@ export async function calculateBotFinancialSummaryFallback(
 /**
  * Calculate service usage breakdown from expense transactions
  */
-function calculateServiceBreakdown(expenseTransactions: any[], totalExpenses: number): ServiceUsage[] {
-  const serviceStats = new Map<string, { count: number, totalCost: number }>()
+function calculateServiceBreakdown(
+  expenseTransactions: any[],
+  totalExpenses: number
+): ServiceUsage[] {
+  const serviceStats = new Map<string, { count: number; totalCost: number }>()
 
   expenseTransactions.forEach(transaction => {
     const serviceType = transaction.service_type || 'unknown'
@@ -232,13 +275,17 @@ function calculateServiceBreakdown(expenseTransactions: any[], totalExpenses: nu
     stats.totalCost += cost
   })
 
-  return Array.from(serviceStats.entries()).map(([serviceType, stats]) => ({
-    service_type: serviceType,
-    transaction_count: stats.count,
-    total_cost: stats.totalCost,
-    avg_cost_per_transaction: stats.count > 0 ? stats.totalCost / stats.count : 0,
-    percentage_of_total: totalExpenses > 0 ? (stats.totalCost / totalExpenses) * 100 : 0
-  })).sort((a, b) => b.total_cost - a.total_cost)
+  return Array.from(serviceStats.entries())
+    .map(([serviceType, stats]) => ({
+      service_type: serviceType,
+      transaction_count: stats.count,
+      total_cost: stats.totalCost,
+      avg_cost_per_transaction:
+        stats.count > 0 ? stats.totalCost / stats.count : 0,
+      percentage_of_total:
+        totalExpenses > 0 ? (stats.totalCost / totalExpenses) * 100 : 0,
+    }))
+    .sort((a, b) => b.total_cost - a.total_cost)
 }
 
 /**
@@ -270,7 +317,9 @@ export async function getAllBotsFinancialSummary(
       throw error
     }
 
-    const uniqueBotNames = [...new Set(botNames.map(b => b.bot_name).filter(Boolean))]
+    const uniqueBotNames = [
+      ...new Set(botNames.map(b => b.bot_name).filter(Boolean)),
+    ]
 
     // Calculate summary for each bot
     const summaries = await Promise.all(
@@ -281,7 +330,10 @@ export async function getAllBotsFinancialSummary(
 
     return summaries.sort((a, b) => b.net_profit_stars - a.net_profit_stars)
   } catch (error) {
-    logger.error('[FinancialAnalysis] Error calculating all bots summary:', error)
+    logger.error(
+      '[FinancialAnalysis] Error calculating all bots summary:',
+      error
+    )
     throw error
   }
 }
@@ -298,7 +350,9 @@ export async function generateMonthlySettlement(
     const startDate = new Date(parseInt(year), parseInt(monthNum) - 1, 1)
     const endDate = new Date(parseInt(year), parseInt(monthNum), 0, 23, 59, 59)
 
-    logger.info(`[FinancialAnalysis] Generating settlement for ${month}${botName ? ` for bot ${botName}` : ''}`)
+    logger.info(
+      `[FinancialAnalysis] Generating settlement for ${month}${botName ? ` for bot ${botName}` : ''}`
+    )
 
     let botNames: string[]
     if (botName) {
@@ -318,22 +372,35 @@ export async function generateMonthlySettlement(
     }
 
     const settlements = await Promise.all(
-      botNames.map(async (name) => {
-        const summary = await calculateBotFinancialSummary(name, startDate, endDate)
-        const dailyBreakdown = await calculateDailyBreakdown(name, startDate, endDate)
+      botNames.map(async name => {
+        const summary = await calculateBotFinancialSummary(
+          name,
+          startDate,
+          endDate
+        )
+        const dailyBreakdown = await calculateDailyBreakdown(
+          name,
+          startDate,
+          endDate
+        )
 
         return {
           bot_name: name,
           month,
           summary,
-          daily_breakdown: dailyBreakdown
+          daily_breakdown: dailyBreakdown,
         }
       })
     )
 
-    return settlements.sort((a, b) => b.summary.settlement_amount - a.summary.settlement_amount)
+    return settlements.sort(
+      (a, b) => b.summary.settlement_amount - a.summary.settlement_amount
+    )
   } catch (error) {
-    logger.error(`[FinancialAnalysis] Error generating monthly settlement for ${month}:`, error)
+    logger.error(
+      `[FinancialAnalysis] Error generating monthly settlement for ${month}:`,
+      error
+    )
     throw error
   }
 }
@@ -358,7 +425,10 @@ async function calculateDailyBreakdown(
     if (error) throw error
 
     // Group by date
-    const dailyStats = new Map<string, { revenue: number, expenses: number, transactions: number }>()
+    const dailyStats = new Map<
+      string,
+      { revenue: number; expenses: number; transactions: number }
+    >()
 
     transactions.forEach(transaction => {
       const date = transaction.payment_date.split('T')[0] // Get YYYY-MM-DD
@@ -384,11 +454,14 @@ async function calculateDailyBreakdown(
         revenue: stats.revenue,
         expenses: stats.expenses,
         transactions: stats.transactions,
-        net_profit: stats.revenue - stats.expenses
+        net_profit: stats.revenue - stats.expenses,
       }))
       .sort((a, b) => a.date.localeCompare(b.date))
   } catch (error) {
-    logger.error(`[FinancialAnalysis] Error calculating daily breakdown for ${botName}:`, error)
+    logger.error(
+      `[FinancialAnalysis] Error calculating daily breakdown for ${botName}:`,
+      error
+    )
     return []
   }
 }
@@ -406,7 +479,10 @@ export async function calculateCurrentStarToRubleRate(): Promise<number> {
       .eq('currency', 'RUB')
       .gt('stars', 0)
       .gt('amount', 0)
-      .gte('payment_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()) // Last 30 days
+      .gte(
+        'payment_date',
+        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+      ) // Last 30 days
       .order('payment_date', { ascending: false })
       .limit(100)
 
@@ -423,7 +499,10 @@ export async function calculateCurrentStarToRubleRate(): Promise<number> {
 
     return totalStars > 0 ? totalRubles / totalStars : 0.005
   } catch (error) {
-    logger.error('[FinancialAnalysis] Error calculating star-to-ruble rate:', error)
+    logger.error(
+      '[FinancialAnalysis] Error calculating star-to-ruble rate:',
+      error
+    )
     return 0.005 // Fallback rate
   }
 }
@@ -454,7 +533,7 @@ export async function exportBillingDataToCSV(
       'Settlement Status',
       'Revenue Transactions',
       'Expense Transactions',
-      'Unique Users'
+      'Unique Users',
     ]
 
     const rows = summaries.map(summary => [
@@ -470,7 +549,7 @@ export async function exportBillingDataToCSV(
       summary.settlement_status,
       summary.revenue_transactions.toString(),
       summary.expense_transactions.toString(),
-      summary.unique_paying_users.toString()
+      summary.unique_paying_users.toString(),
     ])
 
     const csvContent = [headers, ...rows]

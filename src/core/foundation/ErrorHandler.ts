@@ -12,7 +12,7 @@ import { telegramLogService } from '@/services/telegram-log.service'
 
 export enum ErrorType {
   VALIDATION = 'validation',
-  NETWORK = 'network', 
+  NETWORK = 'network',
   DATABASE = 'database',
   AUTHORIZATION = 'authorization',
   SUBSCRIPTION = 'subscription',
@@ -64,7 +64,7 @@ export class ErrorHandler {
     context: ErrorContext = {}
   ): Promise<ErrorHandlingResult> {
     const errorId = this.generateErrorId(error, context)
-    
+
     // Защита от спама ошибок
     if (this.isErrorSpam(errorId)) {
       logger.warn('Error spam detected, throttling', { errorId })
@@ -73,7 +73,7 @@ export class ErrorHandler {
 
     // Обогащаем контекст
     const enrichedContext = this.enrichContext(ctx, context)
-    
+
     // Логируем ошибку
     this.logError(error, errorType, enrichedContext, errorId)
 
@@ -89,7 +89,10 @@ export class ErrorHandler {
       } catch (notificationError) {
         logger.error('Failed to notify user about error', {
           originalError: errorId,
-          notificationError: notificationError instanceof Error ? notificationError.message : String(notificationError),
+          notificationError:
+            notificationError instanceof Error
+              ? notificationError.message
+              : String(notificationError),
         })
       }
     }
@@ -103,7 +106,10 @@ export class ErrorHandler {
         } catch (fallbackError) {
           logger.error('Fallback action failed', {
             originalError: errorId,
-            fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+            fallbackError:
+              fallbackError instanceof Error
+                ? fallbackError.message
+                : String(fallbackError),
           })
         }
       }
@@ -144,9 +150,15 @@ export class ErrorHandler {
       const { showMainMenu } = await import('@/navigation')
       await showMainMenu(ctx)
     } catch (fallbackError) {
-      logger.error('Failed to return to main menu after scene transition error', {
-        fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
-      })
+      logger.error(
+        'Failed to return to main menu after scene transition error',
+        {
+          fallbackError:
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : String(fallbackError),
+        }
+      )
     }
   }
 
@@ -190,7 +202,9 @@ export class ErrorHandler {
   private generateErrorId(error: Error | any, context: ErrorContext): string {
     const errorMessage = error instanceof Error ? error.message : String(error)
     const contextStr = JSON.stringify(context)
-    return `${Date.now()}_${Buffer.from(errorMessage + contextStr).toString('base64').substring(0, 10)}`
+    return `${Date.now()}_${Buffer.from(errorMessage + contextStr)
+      .toString('base64')
+      .substring(0, 10)}`
   }
 
   /**
@@ -201,7 +215,10 @@ export class ErrorHandler {
     const lastError = this.lastErrors.get(errorId)
     const errorCount = this.errorCounts.get(errorId) || 0
 
-    if (lastError && (now.getTime() - lastError.getTime()) < this.ERROR_RESET_INTERVAL) {
+    if (
+      lastError &&
+      now.getTime() - lastError.getTime() < this.ERROR_RESET_INTERVAL
+    ) {
       if (errorCount >= this.MAX_ERRORS_PER_MINUTE) {
         return true
       }
@@ -217,7 +234,10 @@ export class ErrorHandler {
   /**
    * Обогащение контекста ошибки
    */
-  private enrichContext(ctx: MyContext | null, context: ErrorContext): ErrorContext {
+  private enrichContext(
+    ctx: MyContext | null,
+    context: ErrorContext
+  ): ErrorContext {
     if (!ctx) return context
 
     return {
@@ -252,7 +272,10 @@ export class ErrorHandler {
   /**
    * Получение стратегии обработки ошибки
    */
-  private getErrorStrategy(errorType: ErrorType, error: Error | any): {
+  private getErrorStrategy(
+    errorType: ErrorType,
+    error: Error | any
+  ): {
     notifyUser: boolean
     notifyAdmin: boolean
     shouldRetry: boolean
@@ -302,7 +325,7 @@ export class ErrorHandler {
             ru: '💳 Проблемы с подпиской. Проверьте статус подписки.',
             en: '💳 Subscription issues. Please check your subscription status.',
           },
-          fallback: async (ctx) => {
+          fallback: async ctx => {
             await ctx.scene.enter(ModeEnum.SubscriptionScene)
           },
         }
@@ -316,13 +339,13 @@ export class ErrorHandler {
             ru: '🔄 Проблемы с навигацией. Возвращаемся в главное меню.',
             en: '🔄 Navigation issues. Returning to main menu.',
           },
-          fallback: async (ctx) => {
+          fallback: async ctx => {
             if (ctx.scene.current) {
               await ctx.scene.leave()
             }
             await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
+            const { showMainMenu } = await import('@/navigation')
+            await showMainMenu(ctx)
           },
         }
 
@@ -409,7 +432,8 @@ export class ErrorHandler {
     errorId: string
   ): Promise<void> {
     try {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
 
       // Отправляем в группу НейроМентор
       await telegramLogService.logError({
@@ -426,7 +450,10 @@ export class ErrorHandler {
       })
     } catch (notificationError) {
       logger.error('Failed to notify admin', {
-        notificationError: notificationError instanceof Error ? notificationError.message : String(notificationError),
+        notificationError:
+          notificationError instanceof Error
+            ? notificationError.message
+            : String(notificationError),
       })
     }
   }
@@ -434,7 +461,10 @@ export class ErrorHandler {
   /**
    * Получение статистики ошибок
    */
-  public getErrorStats(): { totalErrors: number; errorTypes: Record<string, number> } {
+  public getErrorStats(): {
+    totalErrors: number
+    errorTypes: Record<string, number>
+  } {
     return {
       totalErrors: this.errorCounts.size,
       errorTypes: Object.fromEntries(this.errorCounts),
@@ -461,8 +491,15 @@ export const handleError = (
   context: ErrorContext = {}
 ) => errorHandler.handleError(error, ctx, errorType, context)
 
-export const handleSceneError = (error: Error, ctx: MyContext, targetScene: string) =>
-  errorHandler.handleSceneTransitionError(error, ctx, targetScene)
+export const handleSceneError = (
+  error: Error,
+  ctx: MyContext,
+  targetScene: string
+) => errorHandler.handleSceneTransitionError(error, ctx, targetScene)
 
-export const handleApiError = (error: Error | any, ctx: MyContext | null, apiName: string, operation: string) =>
-  errorHandler.handleApiError(error, ctx, apiName, operation)
+export const handleApiError = (
+  error: Error | any,
+  ctx: MyContext | null,
+  apiName: string,
+  operation: string
+) => errorHandler.handleApiError(error, ctx, apiName, operation)

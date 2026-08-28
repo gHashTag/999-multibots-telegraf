@@ -5,7 +5,7 @@ import {
   validateGitHubHeaders,
   validatePullRequestEvent,
   logWebhookRequest,
-  enableRawBody
+  enableRawBody,
 } from '../../webhooks/github-autofixer.middleware'
 
 const router: Router = express.Router()
@@ -16,18 +16,21 @@ router.use(githubWebhookRateLimit as any)
 router.use(logWebhookRequest)
 
 // Основной endpoint для GitHub PR webhooks
-router.post('/webhooks/github/pr-issues', [
-  enableRawBody,
-  validateGitHubHeaders,
-  validatePullRequestEvent
-], async (req: any, res: any) => {
-  await controller.handlePullRequestWebhook(req, res)
-})
+router.post(
+  '/webhooks/github/pr-issues',
+  [enableRawBody, validateGitHubHeaders, validatePullRequestEvent],
+  async (req: any, res: any) => {
+    await controller.handlePullRequestWebhook(req, res)
+  }
+)
 
 // Endpoint для ручного исправления PR
-router.post('/webhooks/github/manual-fix/:prNumber', async (req: any, res: any) => {
-  await controller.handleManualFix(req, res)
-})
+router.post(
+  '/webhooks/github/manual-fix/:prNumber',
+  async (req: any, res: any) => {
+    await controller.handleManualFix(req, res)
+  }
+)
 
 // Endpoint для проверки статуса автофиксера
 router.get('/autofixer/status', (req: any, res: any) => {
@@ -38,10 +41,10 @@ router.get('/autofixer/status', (req: any, res: any) => {
       githubWebhooks: true,
       claudeIntegration: !!process.env.CLAUDE_API_KEY,
       telegramNotifications: !!process.env.BOT_TOKEN_1,
-      botSpecificFixes: true
+      botSpecificFixes: true,
     },
     supportedEvents: ['pull_request.opened', 'pull_request.synchronize'],
-    botFixTypes: ['async/await', 'telegraf', 'scenes', 'typescript', 'eslint']
+    botFixTypes: ['async/await', 'telegraf', 'scenes', 'typescript', 'eslint'],
   })
 })
 
@@ -57,9 +60,9 @@ router.get('/autofixer/stats', (req: any, res: any) => {
       telegraf: 0,
       scene: 0,
       typescript: 0,
-      eslint: 0
+      eslint: 0,
     },
-    successRate: 0
+    successRate: 0,
   })
 })
 
@@ -72,8 +75,8 @@ router.get('/autofixer/health', (req: any, res: any) => {
       github: !!process.env.GITHUB_TOKEN,
       claude: !!process.env.CLAUDE_API_KEY,
       telegram: !!process.env.BOT_TOKEN_1,
-      webhook_secret: !!process.env.GITHUB_WEBHOOK_SECRET
-    }
+      webhook_secret: !!process.env.GITHUB_WEBHOOK_SECRET,
+    },
   }
 
   const allHealthy = Object.values(health.checks).every(Boolean)

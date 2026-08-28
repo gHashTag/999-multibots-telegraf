@@ -9,20 +9,20 @@ import { generateQwenImageEditPlus } from '@/services/generateQwenImageEditPlus'
 const AI_PHOTOSHOP_MODELS = {
   seedream: {
     title_ru: 'SeeDream-4',
-    cost: 5
+    cost: 5,
   },
   nano_banana: {
     title_ru: 'Nano Banana',
-    cost: 7
+    cost: 7,
   },
   flux_max: {
     title_ru: 'FLUX Kontext Max',
-    cost: 13
+    cost: 13,
   },
   qwen_edit_plus: {
     title_ru: 'Qwen Image Edit Plus',
-    cost: 5
-  }
+    cost: 5,
+  },
 }
 
 /**
@@ -73,7 +73,7 @@ export async function processAllModelsWithMultipleImages(
     telegram_id,
     imageCount: imageUrls.length,
     prompt: prompt.substring(0, 50) + '...',
-    modelsToProcess: Object.keys(AI_PHOTOSHOP_MODELS).length
+    modelsToProcess: Object.keys(AI_PHOTOSHOP_MODELS).length,
   })
 
   const startTime = Date.now()
@@ -84,7 +84,7 @@ export async function processAllModelsWithMultipleImages(
     totalCostStars: 0,
     totalProcessingTimeMs: 0,
     modelResults: [],
-    errors: []
+    errors: [],
   }
 
   const availableModels = Object.keys(AI_PHOTOSHOP_MODELS) as string[]
@@ -99,16 +99,19 @@ export async function processAllModelsWithMultipleImages(
       results: [],
       errors: [],
       totalCost: 0,
-      processingTimeMs: 0
+      processingTimeMs: 0,
     }
 
     try {
-      logger.info(`🔄 [processAllModelsWithMultipleImages] Processing ${modelKey}`, {
-        telegram_id,
-        modelKey,
-        imageCount: imageUrls.length,
-        step: `${availableModels.indexOf(modelKey) + 1}/${availableModels.length}`
-      })
+      logger.info(
+        `🔄 [processAllModelsWithMultipleImages] Processing ${modelKey}`,
+        {
+          telegram_id,
+          modelKey,
+          imageCount: imageUrls.length,
+          step: `${availableModels.indexOf(modelKey) + 1}/${availableModels.length}`,
+        }
+      )
 
       // ✅ КЛЮЧЕВАЯ ЛОГИКА: Каждая модель получает ВСЕ изображения сразу
       const modelResults = await processModelWithAllImages({
@@ -118,7 +121,7 @@ export async function processAllModelsWithMultipleImages(
         telegram_id,
         username,
         is_ru,
-        ctx
+        ctx,
       })
 
       modelResult.results = modelResults.results
@@ -134,21 +137,26 @@ export async function processAllModelsWithMultipleImages(
       result.totalCostStars += modelResults.totalCost
       result.totalModelsProcessed++
 
-      logger.info(`✅ [processAllModelsWithMultipleImages] ${modelKey} completed`, {
-        telegram_id,
-        modelKey,
-        resultCount: modelResults.results.length,
-        cost: modelResults.totalCost,
-        success: modelResults.success
-      })
-
+      logger.info(
+        `✅ [processAllModelsWithMultipleImages] ${modelKey} completed`,
+        {
+          telegram_id,
+          modelKey,
+          resultCount: modelResults.results.length,
+          cost: modelResults.totalCost,
+          success: modelResults.success,
+        }
+      )
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-      logger.error(`❌ [processAllModelsWithMultipleImages] ${modelKey} failed`, {
-        telegram_id,
-        modelKey,
-        error: errorMsg
-      })
+      logger.error(
+        `❌ [processAllModelsWithMultipleImages] ${modelKey} failed`,
+        {
+          telegram_id,
+          modelKey,
+          error: errorMsg,
+        }
+      )
 
       modelResult.errors.push(errorMsg)
       result.errors.push(`${modelKey}: ${errorMsg}`)
@@ -171,7 +179,7 @@ export async function processAllModelsWithMultipleImages(
     totalCostStars: result.totalCostStars,
     totalTimeMs: result.totalProcessingTimeMs,
     success: result.success,
-    errorCount: result.errors.length
+    errorCount: result.errors.length,
   })
 
   return result
@@ -194,7 +202,8 @@ async function processModelWithAllImages(params: {
   totalCost: number
   errors: string[]
 }> {
-  const { modelKey, imageUrls, prompt, telegram_id, username, is_ru, ctx } = params
+  const { modelKey, imageUrls, prompt, telegram_id, username, is_ru, ctx } =
+    params
 
   const results: any[] = []
   const errors: string[] = []
@@ -214,7 +223,7 @@ async function processModelWithAllImages(params: {
             is_ru,
             ctx,
             size: '1K',
-            aspect_ratio: '9:16'
+            aspect_ratio: '9:16',
           })
           results.push(result)
           totalCost += AI_PHOTOSHOP_MODELS.seedream.cost
@@ -231,7 +240,7 @@ async function processModelWithAllImages(params: {
             username,
             is_ru,
             ctx,
-            promptStyle: 'artistic'
+            promptStyle: 'artistic',
           })
           results.push(result)
           totalCost += AI_PHOTOSHOP_MODELS.nano_banana.cost
@@ -247,7 +256,7 @@ async function processModelWithAllImages(params: {
             telegram_id,
             username,
             is_ru,
-            ctx
+            ctx,
           })
           results.push(result)
           totalCost += AI_PHOTOSHOP_MODELS.flux_max.cost
@@ -263,7 +272,7 @@ async function processModelWithAllImages(params: {
             telegram_id,
             username,
             is_ru,
-            ctx
+            ctx,
           })
           results.push(result)
           totalCost += AI_PHOTOSHOP_MODELS.qwen_edit_plus.cost
@@ -278,9 +287,8 @@ async function processModelWithAllImages(params: {
       success: true,
       results,
       totalCost,
-      errors
+      errors,
     }
-
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error'
     errors.push(errorMsg)
@@ -289,7 +297,7 @@ async function processModelWithAllImages(params: {
       success: false,
       results,
       totalCost,
-      errors
+      errors,
     }
   }
 }
@@ -333,6 +341,6 @@ export function validateAllModelsParams(params: ProcessAllModelsParams): {
 
   return {
     isValid: errors.length === 0,
-    errors
+    errors,
   }
 }

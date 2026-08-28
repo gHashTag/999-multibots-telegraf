@@ -48,173 +48,188 @@ export const generateModelTrainingFunction = inngest.createFunction(
   },
   { event: 'model/training.start' },
   async ({ event, step }) => {
-      const eventData = event.data as ModelTrainingEvent['data']
-      const startTime = Date.now()
+    const eventData = event.data as ModelTrainingEvent['data']
+    const startTime = Date.now()
 
-      logger.info('[INNGEST TRAINING] 🚀 Starting model training', {
-        telegram_id: eventData.telegram_id,
-        modelName: eventData.modelName,
-      })
+    logger.info('[INNGEST TRAINING] 🚀 Starting model training', {
+      telegram_id: eventData.telegram_id,
+      modelName: eventData.modelName,
+    })
 
-      // ✅ STEP 1: Validate credentials
-      // 🔥 FIX: Read from process.env at runtime, return minimal data to avoid size limit
-      await step.run('validate-credentials', async () => {
-        const token = process.env.REPLICATE_API_TOKEN
-        const username = process.env.REPLICATE_USERNAME
+    // ✅ STEP 1: Validate credentials
+    // 🔥 FIX: Read from process.env at runtime, return minimal data to avoid size limit
+    await step.run('validate-credentials', async () => {
+      const token = process.env.REPLICATE_API_TOKEN
+      const username = process.env.REPLICATE_USERNAME
 
-        if (!token || !username) {
-          logger.error('[INNGEST TRAINING] ❌ Missing credentials!', {
-            hasToken: !!token,
-            hasUsername: !!username,
-            envKeys: Object.keys(process.env).filter(k => k.includes('REPLICATE')).join(', '),
-          })
-          throw new Error('Missing REPLICATE_API_TOKEN or REPLICATE_USERNAME')
-        }
-        logger.info('[INNGEST TRAINING] Credentials validated')
-        return { validated: true }
-      })
-
-      // ✅ STEP 2: Check for existing active training (prevent duplicates)
-      const existingTraining = await step.run('check-duplicates', async () => {
-        const { data } = await supabase
-          .from('model_trainings')
-          .select('id, replicate_training_id, status')
-          .eq('user_id', eventData.telegram_id)
-          .eq('model_name', eventData.modelName)
-          .in('status', ['starting', 'processing'])
-          .order('created_at', { ascending: false })
-          .limit(1)
-
-        if (data && data.length > 0) {
-          logger.warn('[INNGEST TRAINING] Active training exists', {
-            existing_training_id: data[0].replicate_training_id,
-          })
-          throw new Error('Active training already exists for this model')
-        }
-
-        return { hasDuplicate: false }
-      })
-
-      // ✅ STEP 3: Validate ZIP URL (no download - pass URL directly to Replicate)
-      // 🔥 FIX: Removed HEAD request to avoid Inngest capturing response object
-      // Replicate accepts public URLs directly!
-      const zipValidation = await step.run('validate-zip-url', async () => {
-        if (!eventData.zipUrl) {
-          throw new Error('ZIP URL not provided in event data')
-        }
-
-        // Just verify URL exists, don't fetch anything
-        // Replicate will handle URL validation
-        logger.info('[INNGEST TRAINING] ZIP URL will be validated by Replicate', {
-          url: eventData.zipUrl.substring(0, 80) + '...',
+      if (!token || !username) {
+        logger.error('[INNGEST TRAINING] ❌ Missing credentials!', {
+          hasToken: !!token,
+          hasUsername: !!username,
+          envKeys: Object.keys(process.env)
+            .filter(k => k.includes('REPLICATE'))
+            .join(', '),
         })
+        throw new Error('Missing REPLICATE_API_TOKEN or REPLICATE_USERNAME')
+      }
+      logger.info('[INNGEST TRAINING] Credentials validated')
+      return { validated: true }
+    })
 
-        return { urlValid: true }
+    // ✅ STEP 2: Check for existing active training (prevent duplicates)
+    const existingTraining = await step.run('check-duplicates', async () => {
+      const { data } = await supabase
+        .from('model_trainings')
+        .select('id, replicate_training_id, status')
+        .eq('user_id', eventData.telegram_id)
+        .eq('model_name', eventData.modelName)
+        .in('status', ['starting', 'processing'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (data && data.length > 0) {
+        logger.warn('[INNGEST TRAINING] Active training exists', {
+          existing_training_id: data[0].replicate_training_id,
+        })
+        throw new Error('Active training already exists for this model')
+      }
+
+      return { hasDuplicate: false }
+    })
+
+    // ✅ STEP 3: Validate ZIP URL (no download - pass URL directly to Replicate)
+    // 🔥 FIX: Removed HEAD request to avoid Inngest capturing response object
+    // Replicate accepts public URLs directly!
+    const zipValidation = await step.run('validate-zip-url', async () => {
+      if (!eventData.zipUrl) {
+        throw new Error('ZIP URL not provided in event data')
+      }
+
+      // Just verify URL exists, don't fetch anything
+      // Replicate will handle URL validation
+      logger.info('[INNGEST TRAINING] ZIP URL will be validated by Replicate', {
+        url: eventData.zipUrl.substring(0, 80) + '...',
       })
 
-      // ✅ STEP 4: Sanitize model name and create model on Replicate
-      // 🔥 FIX: Read credentials from process.env to avoid step output size limit
-      const modelInfo = await step.run('create-replicate-model', async () => {
-        const token = process.env.REPLICATE_API_TOKEN
-        const username = process.env.REPLICATE_USERNAME
+      return { urlValid: true }
+    })
 
-        const replicate = new Replicate({ auth: token })
+    // ✅ STEP 4: Sanitize model name and create model on Replicate
+    // 🔥 FIX: Read credentials from process.env to avoid step output size limit
+    const modelInfo = await step.run('create-replicate-model', async () => {
+      const token = process.env.REPLICATE_API_TOKEN
+      const username = process.env.REPLICATE_USERNAME
 
-        // Sanitize model name (remove spaces, special chars, make lowercase)
-        const sanitizedName = sanitizeModelName(eventData.modelName)
-        // Add unique timestamp to avoid conflicts
-        const uniqueModelName = `${sanitizedName}-${Date.now()}`
-        const destination = `${username}/${uniqueModelName}`
+      const replicate = new Replicate({ auth: token })
 
-        logger.info('[INNGEST TRAINING] Preparing model destination...', {
-          destination,
-          owner: username,
-          originalName: eventData.modelName,
-          sanitizedName: uniqueModelName,
-        })
+      // Sanitize model name (remove spaces, special chars, make lowercase)
+      const sanitizedName = sanitizeModelName(eventData.modelName)
+      // Add unique timestamp to avoid conflicts
+      const uniqueModelName = `${sanitizedName}-${Date.now()}`
+      const destination = `${username}/${uniqueModelName}`
 
-        // Check if model exists
-        let modelExists = false
+      logger.info('[INNGEST TRAINING] Preparing model destination...', {
+        destination,
+        owner: username,
+        originalName: eventData.modelName,
+        sanitizedName: uniqueModelName,
+      })
+
+      // Check if model exists
+      let modelExists = false
+      try {
+        await replicate.models.get(username, uniqueModelName)
+        logger.info('[INNGEST TRAINING] Model already exists', { destination })
+        modelExists = true
+      } catch (error: any) {
+        if (error?.response?.status === 404) {
+          logger.info('[INNGEST TRAINING] Model does not exist, creating...', {
+            destination,
+          })
+          modelExists = false
+        } else {
+          throw error
+        }
+      }
+
+      // Create model if it doesn't exist
+      if (!modelExists) {
         try {
-          await replicate.models.get(username, uniqueModelName)
-          logger.info('[INNGEST TRAINING] Model already exists', { destination })
-          modelExists = true
-        } catch (error: any) {
-          if (error?.response?.status === 404) {
-            logger.info('[INNGEST TRAINING] Model does not exist, creating...', { destination })
-            modelExists = false
-          } else {
-            throw error
-          }
+          await replicate.models.create(username, uniqueModelName, {
+            description: `LoRA: ${eventData.triggerWord}`,
+            visibility: 'public',
+            hardware: 'gpu-l40s',
+          })
+          logger.info('[INNGEST TRAINING] ✅ Model created successfully', {
+            destination,
+          })
+          // Wait for model to be fully initialized
+          await new Promise(resolve => setTimeout(resolve, 5000))
+        } catch (createError: any) {
+          logger.error('[INNGEST TRAINING] Failed to create model', {
+            error: createError?.message,
+            destination,
+          })
+          throw new Error(
+            `Failed to create Replicate model: ${createError?.message}`
+          )
         }
+      }
 
-        // Create model if it doesn't exist
-        if (!modelExists) {
-          try {
-            await replicate.models.create(username, uniqueModelName, {
-              description: `LoRA: ${eventData.triggerWord}`,
-              visibility: 'public',
-              hardware: 'gpu-l40s',
-            })
-            logger.info('[INNGEST TRAINING] ✅ Model created successfully', { destination })
-            // Wait for model to be fully initialized
-            await new Promise(resolve => setTimeout(resolve, 5000))
-          } catch (createError: any) {
-            logger.error('[INNGEST TRAINING] Failed to create model', {
-              error: createError?.message,
-              destination,
-            })
-            throw new Error(`Failed to create Replicate model: ${createError?.message}`)
-          }
-        }
+      return { destination, uniqueModelName }
+    })
 
-        return { destination, uniqueModelName }
-      })
+    // ✅ STEP 5a: Save PENDING record BEFORE starting Replicate (prevents lost trainings!)
+    // 🔥 FIX: Create DB record FIRST, then start expensive Replicate training
+    // This prevents the bug where training succeeds but DB save fails silently
+    const pendingRecord = await step.run('save-pending-record', async () => {
+      const trainingRecord = {
+        telegram_id: eventData.telegram_id,
+        model_name: eventData.modelName,
+        trigger_word: eventData.triggerWord,
+        zip_url: eventData.zipUrl,
+        replicate_training_id: `pending-${Date.now()}`, // Temporary ID until training starts
+        status: 'PENDING', // Will be updated to 'starting' when Replicate accepts
+        bot_name: eventData.bot_name,
+        steps: eventData.steps,
+        is_ru: eventData.is_ru,
+        created_at: new Date().toISOString(),
+      }
 
-      // ✅ STEP 5a: Save PENDING record BEFORE starting Replicate (prevents lost trainings!)
-      // 🔥 FIX: Create DB record FIRST, then start expensive Replicate training
-      // This prevents the bug where training succeeds but DB save fails silently
-      const pendingRecord = await step.run('save-pending-record', async () => {
-        const trainingRecord = {
+      const { data, error } = await supabase
+        .from('model_trainings')
+        .insert(trainingRecord)
+        .select('id')
+        .single()
+
+      if (error) {
+        // 🔥 CRITICAL: THROW error - don't proceed if we can't track the training!
+        logger.error('[INNGEST TRAINING] ❌ Failed to save pending record', {
+          error: error.message,
           telegram_id: eventData.telegram_id,
           model_name: eventData.modelName,
-          trigger_word: eventData.triggerWord,
-          zip_url: eventData.zipUrl,
-          replicate_training_id: `pending-${Date.now()}`, // Temporary ID until training starts
-          status: 'PENDING', // Will be updated to 'starting' when Replicate accepts
-          bot_name: eventData.bot_name,
-          steps: eventData.steps,
-          is_ru: eventData.is_ru,
-          created_at: new Date().toISOString(),
-        }
+        })
+        throw new Error(
+          `Database error: ${error.message}. Training not started to prevent lost records.`
+        )
+      }
 
-        const { data, error } = await supabase
-          .from('model_trainings')
-          .insert(trainingRecord)
-          .select('id')
-          .single()
-
-        if (error) {
-          // 🔥 CRITICAL: THROW error - don't proceed if we can't track the training!
-          logger.error('[INNGEST TRAINING] ❌ Failed to save pending record', {
-            error: error.message,
-            telegram_id: eventData.telegram_id,
-            model_name: eventData.modelName,
-          })
-          throw new Error(`Database error: ${error.message}. Training not started to prevent lost records.`)
-        }
-
-        logger.info('[INNGEST TRAINING] ✅ Pending record saved (training will be tracked)', {
+      logger.info(
+        '[INNGEST TRAINING] ✅ Pending record saved (training will be tracked)',
+        {
           record_id: data.id,
           model_name: eventData.modelName,
-        })
+        }
+      )
 
-        return { record_id: data.id }
-      })
+      return { record_id: data.id }
+    })
 
-      // ✅ STEP 5b: Create training on Replicate (now safe - we have a DB record)
-      // 🔥 FIX: Read credentials from process.env to avoid step output size limit
-      const trainingResult = await step.run('create-replicate-training', async () => {
+    // ✅ STEP 5b: Create training on Replicate (now safe - we have a DB record)
+    // 🔥 FIX: Read credentials from process.env to avoid step output size limit
+    const trainingResult = await step.run(
+      'create-replicate-training',
+      async () => {
         const token = process.env.REPLICATE_API_TOKEN
         const replicate = new Replicate({ auth: token })
 
@@ -226,7 +241,7 @@ export const generateModelTrainingFunction = inngest.createFunction(
         if (!baseUrl) {
           throw new Error(
             'BASE_WEBHOOK_URL is not configured! Cannot register webhook with Replicate. ' +
-            'Set it in Infisical (e.g. https://999-multibots-telegraf-production.up.railway.app)'
+              'Set it in Infisical (e.g. https://999-multibots-telegraf-production.up.railway.app)'
           )
         }
         const webhookUrl = `${baseUrl}/api/webhooks/replicate`
@@ -276,73 +291,82 @@ export const generateModelTrainingFunction = inngest.createFunction(
           status: training.status,
           destination,
         }
-      })
+      }
+    )
 
-      // ✅ STEP 5c: Update record with real training_id (CRITICAL for webhook matching!)
-      await step.run('update-training-record', async () => {
-        const { error } = await supabase
-          .from('model_trainings')
-          .update({
-            replicate_training_id: trainingResult.training_id,
-            status: trainingResult.status,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', pendingRecord.record_id)
+    // ✅ STEP 5c: Update record with real training_id (CRITICAL for webhook matching!)
+    await step.run('update-training-record', async () => {
+      const { error } = await supabase
+        .from('model_trainings')
+        .update({
+          replicate_training_id: trainingResult.training_id,
+          status: trainingResult.status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', pendingRecord.record_id)
 
-        if (error) {
-          // 🔥 CRITICAL: THROW error - webhook won't work without correct training_id!
-          logger.error('[INNGEST TRAINING] ❌ Failed to update training record', {
-            error: error.message,
-            record_id: pendingRecord.record_id,
-            training_id: trainingResult.training_id,
-          })
-          throw new Error(`Failed to update training record: ${error.message}. Webhook may not work!`)
-        }
-
-        logger.info('[INNGEST TRAINING] ✅ Training record updated with Replicate ID', {
+      if (error) {
+        // 🔥 CRITICAL: THROW error - webhook won't work without correct training_id!
+        logger.error('[INNGEST TRAINING] ❌ Failed to update training record', {
+          error: error.message,
           record_id: pendingRecord.record_id,
           training_id: trainingResult.training_id,
         })
-
-        return { updated: true }
-      })
-
-      // ✅ STEP 6: Send initial success message to user
-      // NOTE: Cleanup step removed - ZIP is now stored in Supabase Storage, not locally
-      await step.run('notify-user-started', async () => {
-        try {
-          const { getBotByName } = await import('@/core/bot')
-          const { bot } = getBotByName(eventData.bot_name)
-
-          if (bot) {
-            const message = eventData.is_ru
-              ? `✅ Тренировка модели запущена!\n\n📦 Модель: ${eventData.modelName}\n🆔 ID: ${trainingResult.training_id}\n⏱️ Время: ~1-2 часа\n\n🔔 Вы получите уведомление когда тренировка завершится.`
-              : `✅ Model training started!\n\n📦 Model: ${eventData.modelName}\n🆔 ID: ${trainingResult.training_id}\n⏱️ Time: ~1-2 hours\n\n🔔 You'll receive notification when training completes.`
-
-            await bot.telegram.sendMessage(eventData.telegram_id, message)
-
-            logger.info('[INNGEST TRAINING] User notified about training start')
-          }
-        } catch (notifyError) {
-          logger.error('[INNGEST TRAINING] Failed to notify user (non-fatal)', {
-            error: notifyError instanceof Error ? notifyError.message : String(notifyError),
-          })
-        }
-
-        return { notified: true }
-      })
-
-      logger.info('[INNGEST TRAINING] 🎉 Training initiated successfully', {
-        training_id: trainingResult.training_id,
-        total_elapsed: `${Date.now() - startTime}ms`,
-      })
-
-      return {
-        success: true,
-        training_id: trainingResult.training_id,
-        destination: trainingResult.destination,
-        telegram_id: eventData.telegram_id,
-        elapsed_ms: Date.now() - startTime,
+        throw new Error(
+          `Failed to update training record: ${error.message}. Webhook may not work!`
+        )
       }
+
+      logger.info(
+        '[INNGEST TRAINING] ✅ Training record updated with Replicate ID',
+        {
+          record_id: pendingRecord.record_id,
+          training_id: trainingResult.training_id,
+        }
+      )
+
+      return { updated: true }
+    })
+
+    // ✅ STEP 6: Send initial success message to user
+    // NOTE: Cleanup step removed - ZIP is now stored in Supabase Storage, not locally
+    await step.run('notify-user-started', async () => {
+      try {
+        const { getBotByName } = await import('@/core/bot')
+        const { bot } = getBotByName(eventData.bot_name)
+
+        if (bot) {
+          const message = eventData.is_ru
+            ? `✅ Тренировка модели запущена!\n\n📦 Модель: ${eventData.modelName}\n🆔 ID: ${trainingResult.training_id}\n⏱️ Время: ~1-2 часа\n\n🔔 Вы получите уведомление когда тренировка завершится.`
+            : `✅ Model training started!\n\n📦 Model: ${eventData.modelName}\n🆔 ID: ${trainingResult.training_id}\n⏱️ Time: ~1-2 hours\n\n🔔 You'll receive notification when training completes.`
+
+          await bot.telegram.sendMessage(eventData.telegram_id, message)
+
+          logger.info('[INNGEST TRAINING] User notified about training start')
+        }
+      } catch (notifyError) {
+        logger.error('[INNGEST TRAINING] Failed to notify user (non-fatal)', {
+          error:
+            notifyError instanceof Error
+              ? notifyError.message
+              : String(notifyError),
+        })
+      }
+
+      return { notified: true }
+    })
+
+    logger.info('[INNGEST TRAINING] 🎉 Training initiated successfully', {
+      training_id: trainingResult.training_id,
+      total_elapsed: `${Date.now() - startTime}ms`,
+    })
+
+    return {
+      success: true,
+      training_id: trainingResult.training_id,
+      destination: trainingResult.destination,
+      telegram_id: eventData.telegram_id,
+      elapsed_ms: Date.now() - startTime,
     }
-  )
+  }
+)

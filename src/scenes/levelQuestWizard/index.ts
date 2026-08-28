@@ -38,8 +38,8 @@ const createStepScene = (
           ? `Нажмите "${nextStepText}", чтобы продолжить.`
           : `Click "${nextStepText}", to continue.`
         : isRu
-        ? `Вы успешно прошли все обучение и достигли максимального уровня! 🌟✨`
-        : `You have successfully completed all training and reached the maximum level! 🌟✨`,
+          ? `Вы успешно прошли все обучение и достигли максимального уровня! 🌟✨`
+          : `You have successfully completed all training and reached the maximum level! 🌟✨`,
       stepNumber < 12
         ? Markup.keyboard([[nextStepText], ['➡️ Завершить']]).resize()
         : await showMainMenu(ctx)
@@ -103,9 +103,7 @@ levelQuestWizard.enter(async ctx => {
   // ... логика сцены ...
 
   // Пример использования в конце сцены (если нужно обновить меню)
-  await ctx.reply(
-    isRu ? 'Вы завершили квест!' : 'You completed the quest!'
-  )
+  await ctx.reply(isRu ? 'Вы завершили квест!' : 'You completed the quest!')
   await showMainMenu(ctx)
 })
 

@@ -159,7 +159,9 @@ export class Foundation {
    * Навигация теперь инициализируется через NavigationService.initializeNavigation()
    */
   private async initializeMenuSystem(bot: Telegraf<MyContext>): Promise<void> {
-    logger.info('MenuSystem initialization skipped - using NavigationService instead')
+    logger.info(
+      'MenuSystem initialization skipped - using NavigationService instead'
+    )
     // Навигация инициализируется через NavigationService.initializeNavigation() в registerCommands.ts
   }
 

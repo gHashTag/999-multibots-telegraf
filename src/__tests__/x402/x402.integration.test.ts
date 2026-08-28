@@ -14,7 +14,10 @@ import {
   getRpcUrl,
   X402_TOPUP_AMOUNTS,
 } from '@/core/x402'
-import { usdcTopUpOptions, getUsdcTopUpOption } from '@/price/helpers/usdcTopUpOptions'
+import {
+  usdcTopUpOptions,
+  getUsdcTopUpOption,
+} from '@/price/helpers/usdcTopUpOptions'
 
 describe('x402 Core Module', () => {
   describe('Configuration', () => {

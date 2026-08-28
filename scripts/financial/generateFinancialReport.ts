@@ -1,4 +1,14 @@
 #!/usr/bin/env tsx
+/**
+ * DOES NOT RUN: it imports '../src/utils/enhancedExcelGenerator', which is
+ * not in the repository — that module was never committed. The commands
+ * report:financial / report:bot / report:monthly / report:test were removed
+ * from package.json: every invocation ended in "Cannot find module", so they
+ * advertised a capability that does not exist.
+ *
+ * The file is left as it is: its reporting logic is real, only the one module
+ * is missing. Restore it and the commands can come back.
+ */
 
 /**
  * Enhanced Financial Report Generator Script
@@ -7,7 +17,11 @@
  * Usage: npx tsx scripts/generateFinancialReport.ts [options]
  */
 
-import { generateEnhancedFinancialExcel, generateAndSaveExcelReport, ExcelGenerationOptions } from '../src/utils/enhancedExcelGenerator'
+import {
+  generateEnhancedFinancialExcel,
+  generateAndSaveExcelReport,
+  ExcelGenerationOptions,
+} from '../src/utils/enhancedExcelGenerator'
 import { logger } from '../src/utils/logger'
 import { Command } from 'commander'
 import * as fs from 'fs'
@@ -29,7 +43,9 @@ async function main() {
 
   program
     .name('financial-report-generator')
-    .description('🚀 Enhanced Excel Financial Report Generator with Beautiful Design')
+    .description(
+      '🚀 Enhanced Excel Financial Report Generator with Beautiful Design'
+    )
     .version('2.0.0')
 
   program
@@ -55,7 +71,7 @@ async function main() {
     // Parse dates
     const excelOptions: ExcelGenerationOptions = {
       includeVirtualTransactions: options.includeVirtual,
-      includeDailyBreakdown: options.includeDaily
+      includeDailyBreakdown: options.includeDaily,
     }
 
     if (options.startDate) {
@@ -85,10 +101,14 @@ async function main() {
 
     // Generate report
     logger.info('📊 Generating comprehensive financial report...')
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0]
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, '-')
+      .split('T')[0]
     const defaultFilename = `financial-report-enhanced-${timestamp}.xlsx`
 
-    const outputPath = options.output || path.join(process.cwd(), 'reports', defaultFilename)
+    const outputPath =
+      options.output || path.join(process.cwd(), 'reports', defaultFilename)
 
     // Ensure reports directory exists
     const reportsDir = path.dirname(outputPath)
@@ -113,7 +133,7 @@ async function main() {
 
     // Print summary
     console.log('\n🎉 SUCCESS! Enhanced Financial Report Generated')
-    console.log('=' .repeat(60))
+    console.log('='.repeat(60))
     console.log(`📊 Report Includes:`)
     console.log(`   📈 Executive Summary with Platform Overview`)
     console.log(`   💰 Real vs Virtual Revenue Analysis`)
@@ -121,12 +141,14 @@ async function main() {
     console.log(`   🤖 Bot Owner Billing Statements`)
     console.log(`   ⭐ Star-to-Ruble Exchange Analysis`)
     console.log(`   📊 Profitability Dashboard`)
-    console.log('=' .repeat(60))
+    console.log('='.repeat(60))
     console.log(`📁 File Location: ${outputPath}`)
     console.log(`📦 File Size: ${fileSizeKB} KB`)
 
     if (excelOptions.startDate || excelOptions.endDate) {
-      console.log(`📅 Date Range: ${excelOptions.startDate?.toLocaleDateString('ru-RU') || 'Beginning'} - ${excelOptions.endDate?.toLocaleDateString('ru-RU') || 'Today'}`)
+      console.log(
+        `📅 Date Range: ${excelOptions.startDate?.toLocaleDateString('ru-RU') || 'Beginning'} - ${excelOptions.endDate?.toLocaleDateString('ru-RU') || 'Today'}`
+      )
     }
 
     if (excelOptions.botName) {
@@ -143,7 +165,6 @@ async function main() {
     console.log('   💰 Transparent financial calculations')
     console.log('   📈 Conditional formatting for profit/loss')
     console.log('   🔍 Filter and sort data for deeper insights')
-
   } catch (error: any) {
     logger.error('❌ Error generating financial report:', error)
     console.error('\n💥 ERROR:', error.message)
@@ -166,12 +187,14 @@ async function main() {
 // Example usage documentation
 function printExamples() {
   console.log('\n📚 Example Usage:')
-  console.log('=' .repeat(60))
+  console.log('='.repeat(60))
   console.log('# Generate full platform report')
   console.log('npx tsx scripts/generateFinancialReport.ts')
   console.log('')
   console.log('# Generate report for specific date range')
-  console.log('npx tsx scripts/generateFinancialReport.ts -s 2024-01-01 -e 2024-01-31')
+  console.log(
+    'npx tsx scripts/generateFinancialReport.ts -s 2024-01-01 -e 2024-01-31'
+  )
   console.log('')
   console.log('# Generate report for specific bot')
   console.log('npx tsx scripts/generateFinancialReport.ts -b "neurogpt_bot"')
@@ -186,13 +209,15 @@ function printExamples() {
   console.log('npx tsx scripts/generateFinancialReport.ts --include-daily -v')
   console.log('')
   console.log('# Custom output location')
-  console.log('npx tsx scripts/generateFinancialReport.ts -o /path/to/custom-report.xlsx')
-  console.log('=' .repeat(60))
+  console.log(
+    'npx tsx scripts/generateFinancialReport.ts -o /path/to/custom-report.xlsx'
+  )
+  console.log('='.repeat(60))
 }
 
 // Run main function
 if (require.main === module) {
-  main().catch((error) => {
+  main().catch(error => {
     console.error('💥 Unhandled error:', error)
     process.exit(1)
   })

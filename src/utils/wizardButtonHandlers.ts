@@ -14,12 +14,19 @@ export interface WizardButtonHandler<T = any> {
   /**
    * Validates the callback data and context
    */
-  validate?: (ctx: MyContext, callbackData: string) => Promise<{ isValid: boolean; error?: string }>
+  validate?: (
+    ctx: MyContext,
+    callbackData: string
+  ) => Promise<{ isValid: boolean; error?: string }>
 
   /**
    * Handles the callback action
    */
-  handle: (ctx: MyContext, callbackData: string, data?: T) => Promise<{
+  handle: (
+    ctx: MyContext,
+    callbackData: string,
+    data?: T
+  ) => Promise<{
     success: boolean
     error?: string
     shouldExit?: boolean
@@ -50,7 +57,7 @@ export function createWizardCallbackHandler<T = any>(
         logger.warn(`[${handlerName}] Invalid callback query`, {
           telegramId: ctx.from?.id,
           hasCallbackQuery: !!ctx.callbackQuery,
-          hasData: ctx.callbackQuery ? 'data' in ctx.callbackQuery : false
+          hasData: ctx.callbackQuery ? 'data' in ctx.callbackQuery : false,
         })
         return ctx.answerCbQuery(message)
       }
@@ -59,7 +66,7 @@ export function createWizardCallbackHandler<T = any>(
       logger.debug(`[${handlerName}] Processing callback`, {
         telegramId: ctx.from?.id,
         callbackData,
-        sanitized: callbackData !== ctx.callbackQuery.data
+        sanitized: callbackData !== ctx.callbackQuery.data,
       })
 
       await ctx.answerCbQuery()
@@ -69,7 +76,10 @@ export function createWizardCallbackHandler<T = any>(
       let matchedPattern: string | undefined
 
       for (const [pattern, handler] of Object.entries(handlers)) {
-        if (callbackData === pattern || callbackData.startsWith(pattern + '_')) {
+        if (
+          callbackData === pattern ||
+          callbackData.startsWith(pattern + '_')
+        ) {
           selectedHandler = handler
           matchedPattern = pattern
           break
@@ -80,7 +90,7 @@ export function createWizardCallbackHandler<T = any>(
         logger.warn(`[${handlerName}] No handler found for callback`, {
           telegramId: ctx.from?.id,
           callbackData,
-          availableHandlers: Object.keys(handlers)
+          availableHandlers: Object.keys(handlers),
         })
 
         await ctx.reply(
@@ -95,11 +105,14 @@ export function createWizardCallbackHandler<T = any>(
       if (selectedHandler.validate) {
         const validation = await selectedHandler.validate(ctx, callbackData)
         if (!validation.isValid) {
-          logger.warn(`[${handlerName}] Validation failed for ${matchedPattern}`, {
-            telegramId: ctx.from?.id,
-            callbackData,
-            error: validation.error
-          })
+          logger.warn(
+            `[${handlerName}] Validation failed for ${matchedPattern}`,
+            {
+              telegramId: ctx.from?.id,
+              callbackData,
+              error: validation.error,
+            }
+          )
 
           await ctx.reply(
             isRu
@@ -117,11 +130,14 @@ export function createWizardCallbackHandler<T = any>(
         logger.error(`[${handlerName}] Handler failed for ${matchedPattern}`, {
           telegramId: ctx.from?.id,
           callbackData,
-          error: result.error
+          error: result.error,
         })
 
         if (selectedHandler.onError) {
-          await selectedHandler.onError(ctx, new Error(result.error || 'Handler failed'))
+          await selectedHandler.onError(
+            ctx,
+            new Error(result.error || 'Handler failed')
+          )
         } else {
           await ctx.reply(
             isRu
@@ -136,7 +152,7 @@ export function createWizardCallbackHandler<T = any>(
       if (result.shouldExit) {
         logger.info(`[${handlerName}] Exiting wizard`, {
           telegramId: ctx.from?.id,
-          pattern: matchedPattern
+          pattern: matchedPattern,
         })
         return ctx.scene.leave()
       }
@@ -144,7 +160,7 @@ export function createWizardCallbackHandler<T = any>(
       if (result.nextStep) {
         logger.info(`[${handlerName}] Moving to next wizard step`, {
           telegramId: ctx.from?.id,
-          pattern: matchedPattern
+          pattern: matchedPattern,
         })
         ctx.wizard.next()
       }
@@ -152,19 +168,20 @@ export function createWizardCallbackHandler<T = any>(
       logger.debug(`[${handlerName}] Callback handled successfully`, {
         telegramId: ctx.from?.id,
         pattern: matchedPattern,
-        result
+        result,
       })
-
     } catch (error) {
       const errorObj = error instanceof Error ? error : new Error(String(error))
       logger.error(`[${handlerName}] Unexpected error in callback handler`, {
         telegramId: ctx.from?.id,
         error: errorObj.message,
-        stack: errorObj.stack
+        stack: errorObj.stack,
       })
 
       handleButtonError(ctx, errorObj, async () => {
-        logger.error(`[${handlerName}] Error in callback handler`, { error: errorObj.message })
+        logger.error(`[${handlerName}] Error in callback handler`, {
+          error: errorObj.message,
+        })
       })
     }
   }
@@ -184,7 +201,8 @@ export function createStandardWizardHandlers(
   const handlers: Record<string, WizardButtonHandler> = {}
 
   // Standard cancel handler
-  const cancelCallback = options.cancelCallback || `cancel_${wizardName.toLowerCase()}`
+  const cancelCallback =
+    options.cancelCallback || `cancel_${wizardName.toLowerCase()}`
   handlers[cancelCallback] = {
     handle: async (ctx: MyContext) => {
       const isRu = isRussianFromState(ctx)
@@ -192,17 +210,15 @@ export function createStandardWizardHandlers(
       if (options.onCancel) {
         await options.onCancel(ctx)
       } else {
-        await ctx.reply(
-          isRu ? 'Отменено.' : 'Cancelled.'
-        )
+        await ctx.reply(isRu ? 'Отменено.' : 'Cancelled.')
       }
 
       return {
         success: true,
-        shouldExit: true
+        shouldExit: true,
       }
     },
-    onError: options.onError
+    onError: options.onError,
   }
 
   return handlers
@@ -225,7 +241,7 @@ export function validateWizardTextInput(
       isValid: false,
       error: options.isRussian
         ? 'Текст не может быть пустым'
-        : 'Text cannot be empty'
+        : 'Text cannot be empty',
     }
   }
 
@@ -237,7 +253,7 @@ export function validateWizardTextInput(
       error: options.isRussian
         ? `Минимальная длина: ${options.minLength} символов`
         : `Minimum length: ${options.minLength} characters`,
-      sanitized
+      sanitized,
     }
   }
 
@@ -247,7 +263,7 @@ export function validateWizardTextInput(
       error: options.isRussian
         ? `Максимальная длина: ${options.maxLength} символов`
         : `Maximum length: ${options.maxLength} characters`,
-      sanitized
+      sanitized,
     }
   }
 
@@ -257,13 +273,13 @@ export function validateWizardTextInput(
       error: options.isRussian
         ? 'Неверный формат текста'
         : 'Invalid text format',
-      sanitized
+      sanitized,
     }
   }
 
   return {
     isValid: true,
-    sanitized
+    sanitized,
   }
 }
 
@@ -285,11 +301,13 @@ export function createWizardErrorBoundary(
       logger.error(`[${operationName}] Operation failed`, {
         telegramId: ctx.from?.id,
         error: errorObj.message,
-        stack: errorObj.stack
+        stack: errorObj.stack,
       })
 
       handleButtonError(ctx, errorObj, async () => {
-        logger.error(`[${operationName}] Operation failed`, { error: errorObj.message })
+        logger.error(`[${operationName}] Operation failed`, {
+          error: errorObj.message,
+        })
       })
 
       throw errorObj // Re-throw for caller to handle if needed

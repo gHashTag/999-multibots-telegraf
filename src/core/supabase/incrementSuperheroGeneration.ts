@@ -18,47 +18,58 @@ export const incrementSuperheroGeneration = async (
   const currentMonth = now.getMonth() + 1 // 1-12
   const currentYear = now.getFullYear()
 
-  logger.info('[incrementSuperheroGeneration] Incrementing superhero generation count', {
-    telegram_id: telegramIdStr,
-    month: currentMonth,
-    year: currentYear,
-  })
+  logger.info(
+    '[incrementSuperheroGeneration] Incrementing superhero generation count',
+    {
+      telegram_id: telegramIdStr,
+      month: currentMonth,
+      year: currentYear,
+    }
+  )
 
   try {
     // Сначала пытаемся использовать RPC функцию для атомарности
-    const { data: rpcData, error: rpcError } = await supabase
-      .rpc('increment_superhero_generation_count', {
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      'increment_superhero_generation_count',
+      {
         user_telegram_id: telegramIdStr,
         target_month: currentMonth,
-        target_year: currentYear
-      })
+        target_year: currentYear,
+      }
+    )
 
     if (!rpcError && rpcData) {
       logger.info('[incrementSuperheroGeneration] RPC increment successful', {
         telegram_id: telegramIdStr,
-        newCount: rpcData
+        newCount: rpcData,
       })
       return true
     }
 
     // Fallback: используем upsert если RPC недоступна
-    logger.warn('[incrementSuperheroGeneration] RPC failed, using upsert fallback', {
-      telegram_id: telegramIdStr,
-      rpcError: rpcError?.message
-    })
+    logger.warn(
+      '[incrementSuperheroGeneration] RPC failed, using upsert fallback',
+      {
+        telegram_id: telegramIdStr,
+        rpcError: rpcError?.message,
+      }
+    )
 
     const { data, error } = await supabase
       .from('superhero_generations')
-      .upsert({
-        telegram_id: telegramIdStr,
-        month: currentMonth,
-        year: currentYear,
-        generation_count: 1, // Будет увеличено в SQL trigger или conflict resolution
-        last_generation_date: now.toISOString()
-      }, {
-        onConflict: 'telegram_id,month,year',
-        // Увеличиваем счётчик при конфликте
-      })
+      .upsert(
+        {
+          telegram_id: telegramIdStr,
+          month: currentMonth,
+          year: currentYear,
+          generation_count: 1, // Будет увеличено в SQL trigger или conflict resolution
+          last_generation_date: now.toISOString(),
+        },
+        {
+          onConflict: 'telegram_id,month,year',
+          // Увеличиваем счётчик при конфликте
+        }
+      )
       .select('generation_count')
       .single()
 
@@ -78,7 +89,7 @@ export const incrementSuperheroGeneration = async (
         .from('superhero_generations')
         .update({
           generation_count: data.generation_count + 1,
-          last_generation_date: now.toISOString()
+          last_generation_date: now.toISOString(),
         })
         .eq('telegram_id', telegramIdStr)
         .eq('month', currentMonth)
@@ -93,14 +104,16 @@ export const incrementSuperheroGeneration = async (
       }
     }
 
-    logger.info('[incrementSuperheroGeneration] Fallback increment successful', {
-      telegram_id: telegramIdStr,
-      month: currentMonth,
-      year: currentYear
-    })
+    logger.info(
+      '[incrementSuperheroGeneration] Fallback increment successful',
+      {
+        telegram_id: telegramIdStr,
+        month: currentMonth,
+        year: currentYear,
+      }
+    )
 
     return true
-
   } catch (error) {
     logger.error('[incrementSuperheroGeneration] Unexpected error', {
       telegram_id: telegramIdStr,

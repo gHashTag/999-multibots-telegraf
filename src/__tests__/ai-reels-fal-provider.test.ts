@@ -3,10 +3,31 @@
  * Проверяем переключение с kie на fal провайдер
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test'
 import { FalVeedFabricProvider } from '@/core/lipsync/providers/fal-veed-fabric-provider'
 import { lipSyncOrchestrator } from '@/core/lipsync/lipsync-orchestrator'
 import { LipSyncInputBuilder } from '@/core/lipsync/schemas/lipsync-schemas'
+
+// The provider calls `fal.subscribe` from '@fal-ai/client'. With no mock in
+// place these tests "passed" because of a live request: on a test key Fal
+// answered 401, the orchestrator returned an error, and that error was what
+// they asserted as "behaviour in a test environment". The transport is now
+// mocked here, and the real contract is checked: success goes through, and a
+// failure becomes an error object rather than a thrown exception.
+const falSubscribe = mock(() =>
+  Promise.resolve({
+    data: {
+      video: { url: 'https://fal.media/x.mp4', content_type: 'video/mp4' },
+    },
+    requestId: 'test-request-id',
+  })
+)
+mock.module('@fal-ai/client', () => ({
+  fal: { subscribe: falSubscribe, config: mock(() => {}) },
+}))
+mock.module('@/core/supabase/saveVideoUrlToSupabase', () => ({
+  saveVideoUrlToSupabase: mock(() => Promise.resolve(undefined)),
+}))
 
 // Мокаем переменные окружения
 const originalEnv = process.env
@@ -58,11 +79,22 @@ describe('AI Reels с fal провайдером - Тесты', () => {
         }
       )
 
-      // В тестовой среде это должно вернуть ошибку, но не падать
+      falSubscribe.mockResolvedValue({
+        data: {
+          video: {
+            url: 'https://fal.media/x.mp4',
+            content_type: 'video/mp4',
+          },
+        },
+        requestId: 'test-request-id',
+      })
+
       const result = await lipSyncOrchestrator.generate(input)
 
-      expect(result).toHaveProperty('message')
-      expect(result).toHaveProperty('error')
+      // The orchestrator passes the provider's response through unchanged
+      // (lipsync-orchestrator.ts:82).
+      expect(result).toHaveProperty('status', 'succeeded')
+      expect(result).toHaveProperty('output', 'https://fal.media/x.mp4')
     })
 
     it('должен обрабатывать ошибки fal провайдера', async () => {
@@ -76,9 +108,13 @@ describe('AI Reels с fal провайдером - Тесты', () => {
         }
       )
 
+      falSubscribe.mockRejectedValue(new Error('Fal is down'))
+
       const result = await lipSyncOrchestrator.generate(input)
 
-      expect(result).toHaveProperty('error')
+      // A provider failure must not turn into a thrown exception.
+      expect(result).toHaveProperty('error', 'Fal is down')
+      expect(result).toHaveProperty('code', 'GENERATION_ERROR')
     })
   })
 

@@ -8,7 +8,10 @@
 import { Markup, Scenes } from 'telegraf'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { usdcTopUpOptions, getUsdcTopUpOption } from '@/price/helpers/usdcTopUpOptions'
+import {
+  usdcTopUpOptions,
+  getUsdcTopUpOption,
+} from '@/price/helpers/usdcTopUpOptions'
 import {
   generateX402PaymentUrl,
   isX402Configured,
@@ -63,7 +66,9 @@ cryptoPaymentScene.enter(async ctx => {
 
   const config = getX402Config()
   const networkLabel =
-    config.network === 'base-mainnet' ? 'Base Mainnet' : 'Base Sepolia (Testnet)'
+    config.network === 'base-mainnet'
+      ? 'Base Mainnet'
+      : 'Base Sepolia (Testnet)'
 
   // Show info message about crypto payment
   const infoMessage = isRu
@@ -157,10 +162,10 @@ cryptoPaymentScene.action(/crypto_topup_(\d+)/, async ctx => {
     })
 
     // Save PENDING payment to database
-      // Ошибка здесь означает, что записи платежа НЕТ. Отправлять человека
-      // платить по ссылке в таком случае нельзя: деньги спишутся, а обратный
-      // вызов не найдёт платёж по inv_id и звёзды не начислятся.
-      try {
+    // Ошибка здесь означает, что записи платежа НЕТ. Отправлять человека
+    // платить по ссылке в таком случае нельзя: деньги спишутся, а обратный
+    // вызов не найдёт платёж по inv_id и звёзды не начислятся.
+    try {
       await setPayments({
         telegram_id: userId.toString(),
         OutSum: option.amountUsd.toString(),
@@ -178,20 +183,20 @@ cryptoPaymentScene.action(/crypto_topup_(\d+)/, async ctx => {
           protocol: 'x402',
         },
       })
-      } catch (paymentRecordError) {
-        logger.error('❌ Не удалось создать запись платежа — ссылку не выдаём', {
-          error:
-            paymentRecordError instanceof Error
-              ? paymentRecordError.message
-              : String(paymentRecordError),
-        })
-        await ctx.reply(
-          isRu
-            ? '❌ Не удалось подготовить платёж. Попробуйте ещё раз через минуту — деньги не списаны.'
-            : '❌ Could not prepare the payment. Please try again in a minute — nothing was charged.'
-        )
-        return ctx.scene.leave()
-      }
+    } catch (paymentRecordError) {
+      logger.error('❌ Не удалось создать запись платежа — ссылку не выдаём', {
+        error:
+          paymentRecordError instanceof Error
+            ? paymentRecordError.message
+            : String(paymentRecordError),
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Не удалось подготовить платёж. Попробуйте ещё раз через минуту — деньги не списаны.'
+          : '❌ Could not prepare the payment. Please try again in a minute — nothing was charged.'
+      )
+      return ctx.scene.leave()
+    }
 
     logger.info('[CryptoPaymentScene] PENDING payment created', {
       telegram_id: userId,
@@ -329,7 +334,11 @@ cryptoPaymentScene.hears(/^🏠/, async ctx => {
   const isRu = isRussianFromState(ctx)
   const mainMenuText = getMainMenuText(isRu)
 
-  if (ctx.message && 'text' in ctx.message && ctx.message.text === mainMenuText) {
+  if (
+    ctx.message &&
+    'text' in ctx.message &&
+    ctx.message.text === mainMenuText
+  ) {
     logger.info('[CryptoPaymentScene] Leaving scene via Main Menu button', {
       telegram_id: ctx.from?.id,
     })

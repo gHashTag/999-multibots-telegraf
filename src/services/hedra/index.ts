@@ -23,11 +23,3 @@ export class HedraService {
     throw new Error('HedraService.waitForCompletion not implemented')
   }
 }
-
-
-
-
-
-
-
-

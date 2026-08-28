@@ -3,14 +3,15 @@ import { MyContext } from '../../interfaces'
 import { TelegramNotifierService } from '../../services/telegram-notifier.service'
 import { GitHubAutoFixerService } from '../../webhooks/github-autofixer.service'
 
-const ADMIN_IDS = process.env.ADMIN_IDS?.split(',').map(id => parseInt(id.trim())) || []
+const ADMIN_IDS =
+  process.env.ADMIN_IDS?.split(',').map(id => parseInt(id.trim())) || []
 
 export function setupAutoFixerCommands(bot: Telegraf<MyContext>): void {
   const notifierService = new TelegramNotifierService()
   const autoFixerService = new GitHubAutoFixerService()
 
   // Команда для проверки статуса автофиксера
-  bot.command('autofixer_status', async (ctx) => {
+  bot.command('autofixer_status', async ctx => {
     try {
       // Проверяем права админа
       if (!ADMIN_IDS.includes(ctx.from.id)) {
@@ -20,17 +21,23 @@ export function setupAutoFixerCommands(bot: Telegraf<MyContext>): void {
 
       const status = getAutoFixerStatus()
       const message = formatStatusMessage(status)
-      
+
       await ctx.reply(message, {
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
             [
-              { text: '🔄 Обновить статус', callback_data: 'autofixer_refresh_status' },
-              { text: '🧪 Тест уведомлений', callback_data: 'autofixer_test_notifications' }
-            ]
-          ]
-        }
+              {
+                text: '🔄 Обновить статус',
+                callback_data: 'autofixer_refresh_status',
+              },
+              {
+                text: '🧪 Тест уведомлений',
+                callback_data: 'autofixer_test_notifications',
+              },
+            ],
+          ],
+        },
       })
     } catch (error) {
       console.error('[AutoFixerCommand] Status error:', error)
@@ -39,7 +46,7 @@ export function setupAutoFixerCommands(bot: Telegraf<MyContext>): void {
   })
 
   // Команда для ручного исправления PR
-  bot.command('fix_pr', async (ctx) => {
+  bot.command('fix_pr', async ctx => {
     try {
       if (!ADMIN_IDS.includes(ctx.from.id)) {
         await ctx.reply('❌ У вас нет доступа к этой команде')
@@ -48,7 +55,7 @@ export function setupAutoFixerCommands(bot: Telegraf<MyContext>): void {
 
       const args = ctx.message.text.split(' ')
       const prNumber = parseInt(args[1])
-      
+
       if (!prNumber) {
         await ctx.reply(`❌ Использование: /fix_pr <номер_PR>
         
@@ -65,20 +72,22 @@ export function setupAutoFixerCommands(bot: Telegraf<MyContext>): void {
       const fixes = await autoFixerService.manualFixPR({
         prNumber,
         repoOwner,
-        repoName
+        repoName,
       })
 
       if (fixes.length > 0) {
         const fixesText = fixes.map(f => `• ${f.description}`).join('\n')
-        await ctx.reply(`✅ Исправление PR #${prNumber} завершено!
+        await ctx.reply(
+          `✅ Исправление PR #${prNumber} завершено!
 
 📝 Применено исправлений: ${fixes.length}
 
-${fixesText}`, { parse_mode: 'HTML' })
+${fixesText}`,
+          { parse_mode: 'HTML' }
+        )
       } else {
         await ctx.reply(`✨ PR #${prNumber} не требует исправлений`)
       }
-
     } catch (error) {
       console.error('[AutoFixerCommand] Manual fix error:', error)
       await ctx.reply(`❌ Ошибка при исправлении PR: ${error.message}`)
@@ -86,7 +95,7 @@ ${fixesText}`, { parse_mode: 'HTML' })
   })
 
   // Команда для статистики автофиксера
-  bot.command('autofixer_stats', async (ctx) => {
+  bot.command('autofixer_stats', async ctx => {
     try {
       if (!ADMIN_IDS.includes(ctx.from.id)) {
         await ctx.reply('❌ У вас нет доступа к этой команде')
@@ -104,7 +113,7 @@ ${fixesText}`, { parse_mode: 'HTML' })
   })
 
   // Обработчик кнопок статуса
-  bot.action('autofixer_refresh_status', async (ctx) => {
+  bot.action('autofixer_refresh_status', async ctx => {
     try {
       if (!ADMIN_IDS.includes(ctx.from.id)) {
         await ctx.answerCbQuery('❌ Нет доступа')
@@ -119,11 +128,17 @@ ${fixesText}`, { parse_mode: 'HTML' })
         reply_markup: {
           inline_keyboard: [
             [
-              { text: '🔄 Обновить статус', callback_data: 'autofixer_refresh_status' },
-              { text: '🧪 Тест уведомлений', callback_data: 'autofixer_test_notifications' }
-            ]
-          ]
-        }
+              {
+                text: '🔄 Обновить статус',
+                callback_data: 'autofixer_refresh_status',
+              },
+              {
+                text: '🧪 Тест уведомлений',
+                callback_data: 'autofixer_test_notifications',
+              },
+            ],
+          ],
+        },
       })
 
       await ctx.answerCbQuery('✅ Статус обновлен')
@@ -134,7 +149,7 @@ ${fixesText}`, { parse_mode: 'HTML' })
   })
 
   // Обработчик тестирования уведомлений
-  bot.action('autofixer_test_notifications', async (ctx) => {
+  bot.action('autofixer_test_notifications', async ctx => {
     try {
       if (!ADMIN_IDS.includes(ctx.from.id)) {
         await ctx.answerCbQuery('❌ Нет доступа')
@@ -159,13 +174,13 @@ function getAutoFixerStatus() {
     telegramConfigured: !!process.env.BOT_TOKEN_1,
     adminConfigured: !!process.env.ADMIN_IDS,
     uptime: process.uptime(),
-    version: '1.0.0'
+    version: '1.0.0',
   }
 }
 
 function formatStatusMessage(status: any): string {
   const uptimeHours = (status.uptime / 3600).toFixed(1)
-  
+
   return `🤖 <b>AutoFixer Status</b>
 
 <b>Статус системы:</b> ${status.active ? '🟢 Активен' : '🔴 Неактивен'}
@@ -202,9 +217,9 @@ async function getAutoFixerStats() {
       telegraf: 32,
       scene: 28,
       typescript: 35,
-      eslint: 16
+      eslint: 16,
     },
-    lastProcessed: new Date().toISOString()
+    lastProcessed: new Date().toISOString(),
   }
 }
 

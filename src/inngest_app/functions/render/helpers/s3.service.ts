@@ -8,7 +8,12 @@
  * - Content type detection
  */
 
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+} from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { Logger } from 'inngest'
 
@@ -26,7 +31,8 @@ export class S3Service {
 
   constructor() {
     const region = process.env.AWS_REGION || 'ru-7'
-    const endpoint = process.env.AWS_S3_SERVER || 'https://s3.storage.selcloud.ru'
+    const endpoint =
+      process.env.AWS_S3_SERVER || 'https://s3.storage.selcloud.ru'
     const accessKeyId = process.env.AWS_ACCESS_KEY_ID
     const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
 
@@ -52,7 +58,10 @@ export class S3Service {
   /**
    * Prepare filename and determine content type
    */
-  prepareFilename(filename: string): { sanitizedFilename: string; contentType: string } {
+  prepareFilename(filename: string): {
+    sanitizedFilename: string
+    contentType: string
+  } {
     // Sanitize and lowercase filename
     const sanitizedFilename = filename
       .toLowerCase()
@@ -173,7 +182,10 @@ export class S3Service {
   /**
    * Check if object exists in S3
    */
-  async checkObjectExists(objectKey: string, logger?: Logger): Promise<boolean> {
+  async checkObjectExists(
+    objectKey: string,
+    logger?: Logger
+  ): Promise<boolean> {
     try {
       await this.s3Client.send(
         new HeadObjectCommand({
@@ -186,7 +198,10 @@ export class S3Service {
       }
       return true
     } catch (error: any) {
-      if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+      if (
+        error.name === 'NotFound' ||
+        error.$metadata?.httpStatusCode === 404
+      ) {
         if (logger) {
           logger.info('Object not found in S3', { objectKey })
         }

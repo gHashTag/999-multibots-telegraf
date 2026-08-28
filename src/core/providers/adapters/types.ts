@@ -15,7 +15,7 @@ import {
   FaceSwapResult,
   ProviderConfig,
   HealthStatus as MediaHealthStatus,
-  Balance as MediaBalance
+  Balance as MediaBalance,
 } from '../../../core/functional/types/media.types'
 
 // Re-export imported types
@@ -24,10 +24,18 @@ export type Balance = MediaBalance
 
 // ===== PROVIDER FUNCTIONS =====
 
-export type GenerateVideo = (request: VideoRequest) => TaskEither<Error, VideoResult>
-export type GenerateImage = (request: ImageRequest) => TaskEither<Error, ImageResult>
-export type GenerateAudio = (request: AudioRequest) => TaskEither<Error, AudioResult>
-export type PerformFaceSwap = (request: FaceSwapRequest) => TaskEither<Error, FaceSwapResult>
+export type GenerateVideo = (
+  request: VideoRequest
+) => TaskEither<Error, VideoResult>
+export type GenerateImage = (
+  request: ImageRequest
+) => TaskEither<Error, ImageResult>
+export type GenerateAudio = (
+  request: AudioRequest
+) => TaskEither<Error, AudioResult>
+export type PerformFaceSwap = (
+  request: FaceSwapRequest
+) => TaskEither<Error, FaceSwapResult>
 export type HealthCheck = () => TaskEither<Error, HealthStatus>
 export type GetBalance = () => TaskEither<Error, Balance>
 export type RateLimit = (request: any) => TaskEither<Error, void>
@@ -67,9 +75,18 @@ export type CircuitBreakerConfig = {
   lastFailureTime: number
 }
 
-export type WrappedFunction<T extends (...args: any[]) => TaskEither<Error, any>> = (
+export type WrappedFunction<
+  T extends (...args: any[]) => TaskEither<Error, any>,
+> = (
   ...args: Parameters<T>
-) => TaskEither<Error, ReturnType<ReturnType<T> extends Promise<infer R> ? (...args: any) => Promise<R> : never>>
+) => TaskEither<
+  Error,
+  ReturnType<
+    ReturnType<T> extends Promise<infer R>
+      ? (...args: any) => Promise<R>
+      : never
+  >
+>
 
 // ===== PROVIDER REGISTRY TYPES =====
 
@@ -83,7 +100,11 @@ export interface ProviderRegistry {
 
 // ===== LOAD BALANCER TYPES =====
 
-export type LoadBalancingStrategy = 'round_robin' | 'least_connections' | 'random' | 'weighted'
+export type LoadBalancingStrategy =
+  | 'round_robin'
+  | 'least_connections'
+  | 'random'
+  | 'weighted'
 
 export interface LoadBalancerOptions {
   strategy: LoadBalancingStrategy
@@ -95,7 +116,13 @@ export interface LoadBalancer {
   getProvider: (capability: string) => Provider | undefined
   markProviderFailed: (name: string) => void
   markProviderRecovered: (name: string) => void
-  getStats: () => { [providerName: string]: { requests: number; failures: number; avgLatency: number } }
+  getStats: () => {
+    [providerName: string]: {
+      requests: number
+      failures: number
+      avgLatency: number
+    }
+  }
 }
 
 // ===== RATE LIMITER TYPES =====
@@ -155,7 +182,9 @@ export interface TimeoutOptions {
   timeout: number
 }
 
-export type WithTimeout = <T extends (...args: any[]) => TaskEither<Error, any>>(
+export type WithTimeout = <
+  T extends (...args: any[]) => TaskEither<Error, any>,
+>(
   fn: T,
   options: TimeoutOptions
 ) => T
@@ -194,7 +223,9 @@ export const createProviderError = (
   message: string,
   cause?: Error
 ): ProviderError => {
-  const error = new Error(`[${provider}] ${operation}: ${message}`) as ProviderError
+  const error = new Error(
+    `[${provider}] ${operation}: ${message}`
+  ) as ProviderError
   error.provider = provider
   error.operation = operation
   error.cause = cause
@@ -227,11 +258,17 @@ export type MetricsCollector = {
 
 // ===== CONFIG VALIDATION TYPES =====
 
-export type ConfigValidator = (config: ProviderConfig) => ValidationResult<ProviderConfig>
+export type ConfigValidator = (
+  config: ProviderConfig
+) => ValidationResult<ProviderConfig>
 
 // ===== UTILITY TYPES =====
 
-export type ProviderOperation = 'generateVideo' | 'generateImage' | 'generateAudio' | 'performFaceSwap'
+export type ProviderOperation =
+  | 'generateVideo'
+  | 'generateImage'
+  | 'generateAudio'
+  | 'performFaceSwap'
 
 export type ProviderStatus = 'active' | 'inactive' | 'degraded' | 'error'
 

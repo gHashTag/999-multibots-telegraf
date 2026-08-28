@@ -23,9 +23,12 @@ describe('BASE_PAYMENT_URL: цепочка не должна падать на �
 
   it('в проде берёт BASE_WEBHOOK_URL, когда трёх других переменных нет', async () => {
     // Ровно та конфигурация, что стоит на Railway: задана только эта.
-    process.env.BASE_WEBHOOK_URL = 'https://999-multibots-telegraf-production-2008.up.railway.app'
+    process.env.BASE_WEBHOOK_URL =
+      'https://999-multibots-telegraf-production-2008.up.railway.app'
     const { UNIFIED_RESULT_URL } = await import('@/config')
-    expect(UNIFIED_RESULT_URL).toContain('999-multibots-telegraf-production-2008')
+    expect(UNIFIED_RESULT_URL).toContain(
+      '999-multibots-telegraf-production-2008'
+    )
     expect(UNIFIED_RESULT_URL).not.toContain(DEAD)
   })
 

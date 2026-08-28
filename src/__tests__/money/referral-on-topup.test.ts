@@ -107,11 +107,16 @@ describe('награда за первое пополнение приглашё
 
 describe('награда привязана к пополнению, а не к приходу', () => {
   const strip = (s: string) =>
-    s.replace(/\/\*[\s\S]*?\*\//g, m => '\n'.repeat((m.match(/\n/g) || []).length))
+    s
+      .replace(/\/\*[\s\S]*?\*\//g, m =>
+        '\n'.repeat((m.match(/\n/g) || []).length)
+      )
       .replace(/(^|[^:])\/\/.*$/gm, '$1')
 
   it('обработчик оплаты зовёт награду', () => {
-    const src = strip(fs.readFileSync('src/api_server/routes/robokassa.routes.ts', 'utf8'))
+    const src = strip(
+      fs.readFileSync('src/api_server/routes/robokassa.routes.ts', 'utf8')
+    )
     // Именно ВЫЗОВ, а не импорт: первая версия проверяла просто вхождение
     // имени, и удаление вызова её не роняло — имя оставалось в строке импорта.
     expect(src).toMatch(/rewardInviterOnFirstTopUp\s*\(\s*\{/)
@@ -120,7 +125,9 @@ describe('награда привязана к пополнению, а не к 
   it('награда стоит ПОСЛЕ отметки об оплате', () => {
     // Наградить за пополнение, которого ещё нет, — то же, что наградить за
     // регистрацию, только незаметнее.
-    const src = strip(fs.readFileSync('src/api_server/routes/robokassa.routes.ts', 'utf8'))
+    const src = strip(
+      fs.readFileSync('src/api_server/routes/robokassa.routes.ts', 'utf8')
+    )
     expect(src.indexOf('status: PaymentStatus.COMPLETED')).toBeLessThan(
       src.indexOf('rewardInviterOnFirstTopUp')
     )

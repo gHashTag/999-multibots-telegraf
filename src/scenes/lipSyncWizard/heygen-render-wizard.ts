@@ -23,8 +23,14 @@ import {
   sendRenderAvatarVideoEvent,
   createRenderAvatarPayload,
 } from '@/inngest_app/render-server-client'
-import { HEYGEN_AVATAR_SETS, getVoiceIdForAvatar } from './heygen-avatars-config'
-import { calculateAIReelsPrice, formatPriceMessage } from '@/helpers/ai-reels-pricing'
+import {
+  HEYGEN_AVATAR_SETS,
+  getVoiceIdForAvatar,
+} from './heygen-avatars-config'
+import {
+  calculateAIReelsPrice,
+  formatPriceMessage,
+} from '@/helpers/ai-reels-pricing'
 
 logger.info('📦 [HEYGEN RENDER WIZARD] Module loaded')
 
@@ -167,10 +173,7 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
 
       // Добавляем кнопку отмены
       avatarButtons.push([
-        Markup.button.callback(
-          isRu ? 'Отмена' : 'Cancel',
-          'ai_reels_cancel'
-        ),
+        Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'ai_reels_cancel'),
       ])
 
       await ctx.editMessageText(
@@ -483,10 +486,13 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
           return ctx.scene.leave()
         }
 
-        logger.info('📝 [HEYGEN RENDER] Текст получен, будет передан в render-server', {
-          telegramId,
-          textLength: text.length,
-        })
+        logger.info(
+          '📝 [HEYGEN RENDER] Текст получен, будет передан в render-server',
+          {
+            telegramId,
+            textLength: text.length,
+          }
+        )
       } else {
         await ctx.reply(
           isRu
@@ -604,9 +610,12 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
 
-    logger.info('🎬 [HEYGEN RENDER] Step 6 - Second intro text and processing', {
-      telegramId,
-    })
+    logger.info(
+      '🎬 [HEYGEN RENDER] Step 6 - Second intro text and processing',
+      {
+        telegramId,
+      }
+    )
 
     if (!telegramId) {
       await ctx.reply(
@@ -646,13 +655,21 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
         // Получаем voice_id для HeyGen аватара
         const heygenAvatarId = ctx.session.aiReelsRender.heygenAvatarId
         if (!heygenAvatarId) {
-          await ctx.reply(isRu ? '❌ Ошибка: аватар HeyGen не выбран' : '❌ Error: HeyGen avatar not selected')
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка: аватар HeyGen не выбран'
+              : '❌ Error: HeyGen avatar not selected'
+          )
           return ctx.scene.leave()
         }
 
         const heygenVoiceId = getVoiceIdForAvatar(heygenAvatarId)
         if (!heygenVoiceId) {
-          await ctx.reply(isRu ? '❌ Ошибка: не найден voice_id для выбранного аватара' : '❌ Error: voice_id not found for selected avatar')
+          await ctx.reply(
+            isRu
+              ? '❌ Ошибка: не найден voice_id для выбранного аватара'
+              : '❌ Error: voice_id not found for selected avatar'
+          )
           return ctx.scene.leave()
         }
 
@@ -691,7 +708,10 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
           estimatedCost,
           PaymentType.MONEY_OUTCOME,
           `AI Reels HeyGen`,
-          { bot_name: ctx.botInfo?.username || 'unknown_bot', service_type: 'ai_reels_heygen' }
+          {
+            bot_name: ctx.botInfo?.username || 'unknown_bot',
+            service_type: 'ai_reels_heygen',
+          }
         )
 
         if (!charged) {
@@ -710,7 +730,9 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
           ctx.session.aiReelsRender.imageUrl || '',
           heygenVoiceId,
           {
-            coverUrl: ctx.session.aiReelsRender.coverUrl || 'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg',
+            coverUrl:
+              ctx.session.aiReelsRender.coverUrl ||
+              'https://be8b1c6e-6556-4865-825b-43e40385848f.selstorage.ru/assets/agentsmd.jpg',
             introText1: ctx.session.aiReelsRender.introText1 || 'Ai-Stars',
             introText2: ctx.session.aiReelsRender.introText2 || 'News',
             avatarService: 'heygen',
@@ -736,11 +758,17 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
         try {
           ;({ eventId } = await sendRenderAvatarVideoEvent(payload))
         } catch (sendError) {
-          logger.error('❌ [HEYGEN RENDER] Ошибка отправки события — возвращаю средства', {
-            telegramId,
-            cost: estimatedCost,
-            error: sendError instanceof Error ? sendError.message : String(sendError),
-          })
+          logger.error(
+            '❌ [HEYGEN RENDER] Ошибка отправки события — возвращаю средства',
+            {
+              telegramId,
+              cost: estimatedCost,
+              error:
+                sendError instanceof Error
+                  ? sendError.message
+                  : String(sendError),
+            }
+          )
 
           await updateUserBalance(
             telegramId,
@@ -790,7 +818,8 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
       } catch (error) {
         logger.error('❌ [HEYGEN RENDER] Error in processing', {
           error,
-          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          errorMessage:
+            error instanceof Error ? error.message : 'Unknown error',
         })
 
         await ctx.reply(

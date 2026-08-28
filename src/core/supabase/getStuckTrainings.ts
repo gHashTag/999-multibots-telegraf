@@ -53,7 +53,9 @@ export async function getStuckTrainings(
       .map(r => ({
         created_at: String(r.created_at),
         model_name: (r.model_name as string | null) ?? null,
-        hoursStuck: Math.floor((nowMs - Date.parse(String(r.created_at))) / 3600000),
+        hoursStuck: Math.floor(
+          (nowMs - Date.parse(String(r.created_at))) / 3600000
+        ),
       }))
       .filter(r => r.hoursStuck >= STUCK_AFTER_HOURS)
   } catch (e) {
@@ -66,7 +68,10 @@ export async function getStuckTrainings(
 }
 
 /** Текст для человека: что именно застряло и что делать. */
-export function stuckTrainingsMessage(stuck: StuckTraining[], isRu: boolean): string {
+export function stuckTrainingsMessage(
+  stuck: StuckTraining[],
+  isRu: boolean
+): string {
   const lines = stuck
     .slice(0, 3)
     .map(s => {

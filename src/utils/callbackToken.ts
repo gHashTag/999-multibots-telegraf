@@ -38,6 +38,7 @@ export function verifyCallbackToken(
 ): boolean {
   const expected = buildCallbackToken(telegramId)
   if (!expected) return false
-  if (typeof provided !== 'string' || provided.length !== expected.length) return false
+  if (typeof provided !== 'string' || provided.length !== expected.length)
+    return false
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(provided))
 }

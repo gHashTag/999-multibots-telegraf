@@ -202,7 +202,7 @@ export class LanguageManager {
         '@/core/supabase/getUserLanguage'
       )
       const dbLanguage = await getUserLanguageFromDB(telegramId)
-      
+
       if (dbLanguage) {
         const isRussian = dbLanguage === 'ru'
         return {
@@ -232,7 +232,10 @@ export class LanguageManager {
       const { updateUserLanguage } = await import(
         '@/core/supabase/updateUserLanguage'
       )
-      await updateUserLanguage(parseInt(telegramId), languageCode as 'ru' | 'en')
+      await updateUserLanguage(
+        parseInt(telegramId),
+        languageCode as 'ru' | 'en'
+      )
     } catch (error) {
       logger.error('Error saving language to database', {
         telegramId,

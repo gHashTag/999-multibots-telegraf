@@ -75,17 +75,23 @@ export async function putFile(
 
   const raw = await res.text()
   if (!res.ok) {
-    throw new Error(`upload ${filename}: HTTP ${res.status} ${raw.slice(0, 200)}`)
+    throw new Error(
+      `upload ${filename}: HTTP ${res.status} ${raw.slice(0, 200)}`
+    )
   }
 
   let parsed: UploadResult
   try {
     parsed = JSON.parse(raw) as UploadResult
   } catch {
-    throw new Error(`upload ${filename}: сервер ответил не JSON: ${raw.slice(0, 200)}`)
+    throw new Error(
+      `upload ${filename}: сервер ответил не JSON: ${raw.slice(0, 200)}`
+    )
   }
   if (!parsed.success || !parsed.url) {
-    throw new Error(`upload ${filename}: ${parsed.error || 'сервер не вернул ссылку'}`)
+    throw new Error(
+      `upload ${filename}: ${parsed.error || 'сервер не вернул ссылку'}`
+    )
   }
 
   const url = absolutize(parsed.url)

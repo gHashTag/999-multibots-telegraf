@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import {
-  issuePairingCode,
-  claimPairingCode,
-  PAIRING,
-} from './session-store'
+import { issuePairingCode, claimPairingCode, PAIRING } from './session-store'
 
 /**
  * A Postgres stand-in small enough to reason about.
@@ -36,9 +32,14 @@ class FakePool {
 
     if (s.startsWith('CREATE TABLE')) return { rows: [] }
 
-    if (s.includes('UPDATE app_pairing_codes SET consumed_at = now() WHERE telegram_id')) {
+    if (
+      s.includes(
+        'UPDATE app_pairing_codes SET consumed_at = now() WHERE telegram_id'
+      )
+    ) {
       for (const r of this.rows) {
-        if (r.telegram_id === params[0] && r.consumed_at === null) r.consumed_at = this.now
+        if (r.telegram_id === params[0] && r.consumed_at === null)
+          r.consumed_at = this.now
       }
       return { rows: [] }
     }
@@ -66,9 +67,14 @@ class FakePool {
       return { rows: [] }
     }
 
-    if (s.includes('SET consumed_at = now() WHERE consumed_at IS NULL AND attempts >=')) {
+    if (
+      s.includes(
+        'SET consumed_at = now() WHERE consumed_at IS NULL AND attempts >='
+      )
+    ) {
       for (const r of this.rows) {
-        if (r.consumed_at === null && r.attempts >= Number(params[0])) r.consumed_at = this.now
+        if (r.consumed_at === null && r.attempts >= Number(params[0]))
+          r.consumed_at = this.now
       }
       return { rows: [] }
     }
@@ -76,7 +82,11 @@ class FakePool {
     if (s.includes('SET consumed_at = now() WHERE code_hash')) {
       const out: any[] = []
       for (const r of this.rows) {
-        if (r.code_hash === params[0] && r.consumed_at === null && r.expires_at > this.now) {
+        if (
+          r.code_hash === params[0] &&
+          r.consumed_at === null &&
+          r.expires_at > this.now
+        ) {
           r.consumed_at = this.now
           out.push({ telegram_id: r.telegram_id })
         }

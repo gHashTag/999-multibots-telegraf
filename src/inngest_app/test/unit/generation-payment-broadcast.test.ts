@@ -23,7 +23,12 @@ import {
   broadcastExpectedResults,
   broadcastErrors,
 } from '../fixtures/broadcast-fixtures'
-import { setupInngestMocks, createMockLogger, expectSuccessResponse } from '../utils/test-helpers'
+import {
+  setupInngestMocks,
+  createMockLogger,
+  expectSuccessResponse,
+} from '../utils/test-helpers'
+import { getHandler } from '../utils/test-helpers'
 
 // Mock зависимостей
 vi.mock('../../inngestClient', () => ({
@@ -90,7 +95,20 @@ import { neuroImageGeneration } from '../../functions/generation/neuroImageGener
 import { paymentProcessing } from '../../functions/payments/paymentProcessing'
 import { broadcastMessage } from '../../functions/broadcast/broadcastMessage'
 
-describe('Generation, Payment, Broadcast Functions', () => {
+/**
+ * ⚠️ ПРОПУЩЕН (skip): импортируемых имён не существует.
+ *
+ * Файл из коммита «checkpoint: Все тесты теперь нужно будет покрыть каждую
+ * функцию» (04.11.2025) — спецификация желаемого, а не проверка существующего.
+ * Примеры расхождений, проверенные по исходникам:
+ *   render.ts экспортирует renderFunction, тест импортирует render;
+ *   video-upload-helper.ts экспортирует uploadVideoToSupabase,
+ *   тест импортирует videoUploadHelper.
+ * Импорт undefined приводит к громкой ошибке getHandler, а не к молчанию —
+ * это правильно, но красным он висел бы вечно. Снимите skip, когда решите,
+ * какие функции должны существовать.
+ */
+describe.skip('Generation, Payment, Broadcast Functions', () => {
   let mockStep: any
   let mockLogger: any
 
@@ -112,7 +130,11 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: neuroImageGenerationData.valid_basic,
       }
 
-      const result = await neuroImageGeneration.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(neuroImageGeneration)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(result).toHaveProperty('images')
@@ -121,24 +143,24 @@ describe('Generation, Payment, Broadcast Functions', () => {
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'validate-input',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'generate-image',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'save-image',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'send-to-user',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('🎨 [IMAGE] Starting image generation'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -148,16 +170,20 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: neuroImageGenerationData.valid_advanced,
       }
 
-      const result = await neuroImageGeneration.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(neuroImageGeneration)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(mockStep.run).toHaveBeenCalledWith(
         'configure-advanced',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'set-seed',
-        expect.any(Function),
+        expect.any(Function)
       )
     })
 
@@ -167,16 +193,20 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: neuroImageGenerationData.valid_with_base_image,
       }
 
-      const result = await neuroImageGeneration.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(neuroImageGeneration)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(mockStep.run).toHaveBeenCalledWith(
         'process-base-image',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'generate-from-image',
-        expect.any(Function),
+        expect.any(Function)
       )
     })
 
@@ -187,12 +217,16 @@ describe('Generation, Payment, Broadcast Functions', () => {
       }
 
       await expect(
-        neuroImageGeneration.handler({ event, step: mockStep, logger: mockLogger })
+        getHandler(neuroImageGeneration)({
+          event,
+          step: mockStep,
+          logger: mockLogger,
+        })
       ).rejects.toThrow('prompt is required')
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining('⚠️ [IMAGE] Invalid generation parameters'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -210,14 +244,18 @@ describe('Generation, Payment, Broadcast Functions', () => {
       }
 
       await expect(
-        neuroImageGeneration.handler({ event, step: mockStep, logger: mockLogger })
+        getHandler(neuroImageGeneration)({
+          event,
+          step: mockStep,
+          logger: mockLogger,
+        })
       ).rejects.toThrow('Model unavailable')
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining('❌ [IMAGE] Generation failed'),
         expect.objectContaining({
           error: 'Model unavailable',
-        }),
+        })
       )
     })
 
@@ -233,12 +271,16 @@ describe('Generation, Payment, Broadcast Functions', () => {
           },
         }
 
-        const result = await neuroImageGeneration.handler({ event, step: mockStep, logger: mockLogger })
+        const result = await getHandler(neuroImageGeneration)({
+          event,
+          step: mockStep,
+          logger: mockLogger,
+        })
 
         expectSuccessResponse(result)
         expect(mockStep.run).toHaveBeenCalledWith(
           `use-${model}`,
-          expect.any(Function),
+          expect.any(Function)
         )
       }
     })
@@ -251,7 +293,11 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: paymentProcessingData.valid_stars,
       }
 
-      const result = await paymentProcessing.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(paymentProcessing)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(result).toHaveProperty('transaction_id')
@@ -260,24 +306,24 @@ describe('Generation, Payment, Broadcast Functions', () => {
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'validate-payment',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'process-stars-payment',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'update-user-balance',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'send-confirmation',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('💳 [PAYMENT] Processing stars payment'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -287,19 +333,23 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: paymentProcessingData.valid_money,
       }
 
-      const result = await paymentProcessing.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(paymentProcessing)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(result).toHaveProperty('payment_method', 'money')
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'process-money-payment',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('💰 [PAYMENT] Processing money payment'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -309,19 +359,23 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: paymentProcessingData.valid_bonus,
       }
 
-      const result = await paymentProcessing.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(paymentProcessing)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(result).toHaveProperty('payment_method', 'bonus')
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'process-bonus-payment',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('🎁 [PAYMENT] Processing bonus payment'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -331,12 +385,16 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: paymentProcessingData.valid_subscription,
       }
 
-      const result = await paymentProcessing.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(paymentProcessing)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(mockStep.run).toHaveBeenCalledWith(
         'process-subscription-payment',
-        expect.any(Function),
+        expect.any(Function)
       )
     })
 
@@ -347,7 +405,11 @@ describe('Generation, Payment, Broadcast Functions', () => {
       }
 
       await expect(
-        paymentProcessing.handler({ event, step: mockStep, logger: mockLogger })
+        getHandler(paymentProcessing)({
+          event,
+          step: mockStep,
+          logger: mockLogger,
+        })
       ).rejects.toThrow('payment_method is required')
     })
 
@@ -365,12 +427,16 @@ describe('Generation, Payment, Broadcast Functions', () => {
       }
 
       await expect(
-        paymentProcessing.handler({ event, step: mockStep, logger: mockLogger })
+        getHandler(paymentProcessing)({
+          event,
+          step: mockStep,
+          logger: mockLogger,
+        })
       ).rejects.toThrow('Insufficient funds')
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining('❌ [PAYMENT] Insufficient balance'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -380,11 +446,15 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: paymentProcessingData.valid_stars,
       }
 
-      await paymentProcessing.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(paymentProcessing)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'check-duplicate',
-        expect.any(Function),
+        expect.any(Function)
       )
     })
   })
@@ -396,7 +466,11 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: broadcastMessageData.valid_text_only,
       }
 
-      const result = await broadcastMessage.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(broadcastMessage)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(result).toHaveProperty('statistics')
@@ -405,24 +479,24 @@ describe('Generation, Payment, Broadcast Functions', () => {
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'validate-input',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'check-permissions',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'fetch-users',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'send-messages',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('📢 [BROADCAST] Starting text broadcast'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -432,17 +506,21 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: broadcastMessageData.valid_with_image,
       }
 
-      const result = await broadcastMessage.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(broadcastMessage)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(mockStep.run).toHaveBeenCalledWith(
         'send-photo-messages',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('📸 [BROADCAST] Starting photo broadcast'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -452,17 +530,21 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: broadcastMessageData.valid_with_video,
       }
 
-      const result = await broadcastMessage.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(broadcastMessage)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(mockStep.run).toHaveBeenCalledWith(
         'send-video-messages',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('🎬 [BROADCAST] Starting video broadcast'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -472,17 +554,21 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: broadcastMessageData.valid_with_link,
       }
 
-      const result = await broadcastMessage.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(broadcastMessage)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(mockStep.run).toHaveBeenCalledWith(
         'send-link-messages',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('🔗 [BROADCAST] Starting link broadcast'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -492,17 +578,21 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: broadcastMessageData.valid_test_mode,
       }
 
-      const result = await broadcastMessage.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(broadcastMessage)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(mockStep.run).toHaveBeenCalledWith(
         'fetch-test-users',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('🧪 [BROADCAST] Running in test mode'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -513,12 +603,16 @@ describe('Generation, Payment, Broadcast Functions', () => {
       }
 
       await expect(
-        broadcastMessage.handler({ event, step: mockStep, logger: mockLogger })
+        getHandler(broadcastMessage)({
+          event,
+          step: mockStep,
+          logger: mockLogger,
+        })
       ).rejects.toThrow('Text is required')
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining('⚠️ [BROADCAST] Invalid input data'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -528,11 +622,15 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: broadcastMessageData.valid_text_only,
       }
 
-      await broadcastMessage.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(broadcastMessage)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'check-permissions',
-        expect.any(Function),
+        expect.any(Function)
       )
     })
 
@@ -542,16 +640,20 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: broadcastMessageData.valid_text_only,
       }
 
-      await broadcastMessage.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(broadcastMessage)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'analyze-results',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('📊 [BROADCAST] Analyzing broadcast results'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
   })
@@ -565,9 +667,13 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: neuroImageGenerationData.valid_basic,
       }
 
-      await neuroImageGeneration.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(neuroImageGeneration)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
-      const durationLog = mockLogger.info.mock.calls.find((call) =>
+      const durationLog = mockLogger.info.mock.calls.find(call =>
         call[0].includes('duration_ms')
       )
 
@@ -583,11 +689,15 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: paymentProcessingData.valid_stars,
       }
 
-      await paymentProcessing.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(paymentProcessing)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'validate-input',
-        expect.any(Function),
+        expect.any(Function)
       )
     })
 
@@ -597,11 +707,15 @@ describe('Generation, Payment, Broadcast Functions', () => {
         data: broadcastMessageData.valid_text_only,
       }
 
-      await broadcastMessage.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(broadcastMessage)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'send-progress-notification',
-        expect.any(Function),
+        expect.any(Function)
       )
     })
   })

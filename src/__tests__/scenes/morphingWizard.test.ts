@@ -15,10 +15,12 @@ vi.mock('@/navigation', () => ({
 }))
 
 vi.mock('@/services/generateMorphing', () => ({
-  generateMorphing: vi.fn(() => Promise.resolve({
-    success: true,
-    videoUrl: 'https://example.com/morphing.mp4',
-  })),
+  generateMorphing: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      videoUrl: 'https://example.com/morphing.mp4',
+    })
+  ),
 }))
 
 vi.mock('@/config/unified-video-models.config', () => ({
@@ -43,11 +45,13 @@ vi.mock('@/price/helpers/calculateFinalPrice', () => ({
 }))
 
 vi.mock('@/modules/videoGenerator/helpers/priceHelper', () => ({
-  processBalanceVideoOperationHelper: vi.fn(() => Promise.resolve({
-    success: true,
-    paymentAmount: 15,
-    newBalance: 85,
-  })),
+  processBalanceVideoOperationHelper: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      paymentAmount: 15,
+      newBalance: 85,
+    })
+  ),
 }))
 
 vi.mock('@/helpers/images', () => ({
@@ -74,10 +78,14 @@ import { isValidImage } from '@/helpers/images'
 
 // Prompt presets from source
 const PROMPT_PRESETS = {
-  cinematic: 'smooth cinematic transition, elegant camera glide between frames, professional cinematography with soft lighting',
-  dramatic: 'high energy dramatic transition, powerful emotional impact, intense lighting changes',
-  smooth: 'seamless gradual transition, ultra-smooth morphing between frames, gentle motion blur',
-  artistic: 'creative abstract transition, unique visual transformation, artistic morphing effect',
+  cinematic:
+    'smooth cinematic transition, elegant camera glide between frames, professional cinematography with soft lighting',
+  dramatic:
+    'high energy dramatic transition, powerful emotional impact, intense lighting changes',
+  smooth:
+    'seamless gradual transition, ultra-smooth morphing between frames, gentle motion blur',
+  artistic:
+    'creative abstract transition, unique visual transformation, artistic morphing effect',
 } as const
 
 describe('morphingWizard (Infinity Morphing)', () => {
@@ -131,7 +139,6 @@ describe('morphingWizard (Infinity Morphing)', () => {
       morphingAwaitingCustomPrompt: false,
     }
     mockContext.message = null
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(handleHelpCancel as Mock).mockResolvedValue(false)
     ;(generateMorphing as Mock).mockResolvedValue({
@@ -486,7 +493,9 @@ describe('morphingWizard (Infinity Morphing)', () => {
     })
 
     it('должен обрабатывать ошибку генерации', async () => {
-      ;(generateMorphing as Mock).mockRejectedValue(new Error('Generation failed'))
+      ;(generateMorphing as Mock).mockRejectedValue(
+        new Error('Generation failed')
+      )
 
       try {
         await generateMorphing({

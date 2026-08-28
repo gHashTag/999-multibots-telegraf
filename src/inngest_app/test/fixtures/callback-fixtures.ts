@@ -13,11 +13,14 @@ export const aiReelsCallbackData = {
       telegram_id: '123456789',
       service_type: 'neurovideo',
     },
-    result: {
-      video_url: 'https://example.com/video.mp4',
-      thumbnail_url: 'https://example.com/thumb.jpg',
-      duration: 30,
-    },
+    // Обработчик читает URL с ВЕРХНЕГО уровня полезной нагрузки
+    // (`payload.result_url || payload.video_url || payload.download_url`) —
+    // такова форма реального вебхука провайдера, там же он вытаскивает
+    // job_id из пути download_url. Прежняя вложенность в `result` была
+    // выдумкой фикстуры, из-за неё обработчик кидал 'No video URL found'.
+    video_url: 'https://example.com/video.mp4',
+    thumbnail_url: 'https://example.com/thumb.jpg',
+    duration: 30,
   },
 
   valid_failed: {

@@ -34,9 +34,9 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
         : 'Face Swap\n\nUpload photo of the person whose face you want to swap.\n\nRequirements:\n• Face clearly visible\n• Frontal angle\n• Good lighting\n\nCost: 10 ⭐',
       {
         parse_mode: 'HTML',
-        reply_markup: Markup.keyboard([
-          createCancelButton(isRu)
-        ]).resize().oneTime(),
+        reply_markup: Markup.keyboard([createCancelButton(isRu)])
+          .resize()
+          .oneTime(),
       }
     )
 
@@ -148,7 +148,10 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
           ? '❌ Произошла ошибка при проверке доступа. Пожалуйста, попробуйте еще раз или начните сначала /start.'
           : '❌ Error checking access. Please try again or start over with /start.'
       )
-      logger.error('🎭 [FACE SWAP] Invalid balance received:', { telegramId, balance })
+      logger.error('🎭 [FACE SWAP] Invalid balance received:', {
+        telegramId,
+        balance,
+      })
       return ctx.scene.leave()
     }
 

@@ -17,7 +17,7 @@ import {
   LANGUAGE_VARIANTS,
   AVATAR_LANGUAGE_VARIANTS,
   PROFILE_CATEGORY_VARIANTS,
-  BOT_STATS_VARIANTS
+  BOT_STATS_VARIANTS,
 } from '../config/categories.config'
 
 /**

@@ -31,10 +31,13 @@ export const processBalanceOperation = async ({
 
   // 🎁 WELCOME GIFT: Пропускаем оплату для бесплатной генерации при регистрации
   if (is_welcome_gift) {
-    console.log('🎁 [WELCOME GIFT] Skipping payment - free generation for new user!', {
-      telegram_id,
-      paymentAmount,
-    })
+    console.log(
+      '🎁 [WELCOME GIFT] Skipping payment - free generation for new user!',
+      {
+        telegram_id,
+        paymentAmount,
+      }
+    )
 
     // Получаем текущий баланс для отображения (но не списываем)
     const currentBalance = await getUserBalance(telegram_id.toString())
@@ -53,11 +56,14 @@ export const processBalanceOperation = async ({
   const isAvatarTransformMode = ctx?.session?.mode === 'AvatarTransform'
 
   if (ctx?.session?.bypass_payment_check && isAvatarTransformMode) {
-    console.log('🎁 [LEAD MAGNET] Bypassing payment check - FREE AvatarTransform only!', {
-      telegram_id,
-      mode: ctx.session.mode,
-      bypassFlag: ctx.session.bypass_payment_check,
-    })
+    console.log(
+      '🎁 [LEAD MAGNET] Bypassing payment check - FREE AvatarTransform only!',
+      {
+        telegram_id,
+        mode: ctx.session.mode,
+        bypassFlag: ctx.session.bypass_payment_check,
+      }
+    )
 
     // Получаем текущий баланс для отображения (но не списываем)
     const currentBalance = await getUserBalance(telegram_id.toString())
@@ -76,11 +82,14 @@ export const processBalanceOperation = async ({
 
   // ✅ БЕЗОПАСНОСТЬ: Если bypass_payment_check установлен, но режим НЕ AvatarTransform - ИГНОРИРУЕМ!
   if (ctx?.session?.bypass_payment_check && !isAvatarTransformMode) {
-    console.warn('⚠️ [SECURITY] bypass_payment_check detected in non-AvatarTransform mode - IGNORING!', {
-      telegram_id,
-      mode: ctx.session.mode,
-      bypassFlag: ctx.session.bypass_payment_check,
-    })
+    console.warn(
+      '⚠️ [SECURITY] bypass_payment_check detected in non-AvatarTransform mode - IGNORING!',
+      {
+        telegram_id,
+        mode: ctx.session.mode,
+        bypassFlag: ctx.session.bypass_payment_check,
+      }
+    )
 
     // Очищаем флаг для безопасности
     delete ctx.session.bypass_payment_check

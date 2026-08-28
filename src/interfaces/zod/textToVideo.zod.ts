@@ -1,7 +1,11 @@
 import { z } from 'zod'
 
 // Enum для шагов wizard'a
-export const TextToVideoStepEnum = z.enum(['model_selection', 'prompt_input', 'processing'])
+export const TextToVideoStepEnum = z.enum([
+  'model_selection',
+  'prompt_input',
+  'processing',
+])
 export type TextToVideoStep = z.infer<typeof TextToVideoStepEnum>
 
 // Enum для соотношения сторон
@@ -33,7 +37,10 @@ export type TextToVideoSession = z.infer<typeof TextToVideoSessionSchema>
 
 // Схема для запроса генерации видео
 export const TextToVideoRequestSchema = z.object({
-  prompt: z.string().min(3, 'Промпт должен содержать минимум 3 символа').max(1000, 'Промпт не должен превышать 1000 символов'),
+  prompt: z
+    .string()
+    .min(3, 'Промпт должен содержать минимум 3 символа')
+    .max(1000, 'Промпт не должен превышать 1000 символов'),
   modelId: z.string().min(1, 'Model ID обязателен'),
   aspectRatio: AspectRatioEnum,
   duration: z.number().min(1).max(30).optional(),
@@ -43,7 +50,9 @@ export const TextToVideoRequestSchema = z.object({
 export type TextToVideoRequest = z.infer<typeof TextToVideoRequestSchema>
 
 // Валидаторы-хелперы
-export const validateTextToVideoSession = (session: any): TextToVideoSession => {
+export const validateTextToVideoSession = (
+  session: any
+): TextToVideoSession => {
   return TextToVideoSessionSchema.parse(session)
 }
 
@@ -51,7 +60,9 @@ export const validateVideoModel = (model: any): VideoModel => {
   return VideoModelSchema.parse(model)
 }
 
-export const validateTextToVideoRequest = (request: any): TextToVideoRequest => {
+export const validateTextToVideoRequest = (
+  request: any
+): TextToVideoRequest => {
   return TextToVideoRequestSchema.parse(request)
 }
 

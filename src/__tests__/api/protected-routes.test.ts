@@ -54,7 +54,9 @@ const MUST_STAY_OPEN: Record<string, string> = {
 function mounts(): Array<{ mount: string; guarded: boolean; varName: string }> {
   const src = strip(fs.readFileSync(INDEX, 'utf8'))
   const out: Array<{ mount: string; guarded: boolean; varName: string }> = []
-  for (const m of src.matchAll(/app\.use\(\s*['"]([^'"]+)['"]\s*,\s*([^)]+)\)/g)) {
+  for (const m of src.matchAll(
+    /app\.use\(\s*['"]([^'"]+)['"]\s*,\s*([^)]+)\)/g
+  )) {
     const args = m[2].split(',').map(x => x.trim())
     const guarded = args.some(a => a === 'requireInternalKey')
     const varName = args[args.length - 1]

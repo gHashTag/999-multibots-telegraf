@@ -52,7 +52,8 @@ export function getMonitoringBot(): Telegraf<MyContext> {
     logger.warn(
       `⚠️ MONITORING_BOT_TOKEN не задан — уведомления мониторинга уходят от ${fallbackName}`,
       {
-        description: 'Monitoring notifications fall back to the pulse bot token',
+        description:
+          'Monitoring notifications fall back to the pulse bot token',
         fallbackName,
       }
     )

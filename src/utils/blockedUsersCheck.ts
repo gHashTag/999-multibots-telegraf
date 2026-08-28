@@ -4,7 +4,10 @@
 
 import { MyContext } from '@/interfaces'
 
-export async function safeSendMessage(ctx: MyContext, message: string): Promise<void> {
+export async function safeSendMessage(
+  ctx: MyContext,
+  message: string
+): Promise<void> {
   try {
     await ctx.reply(message)
   } catch (error) {

@@ -43,7 +43,8 @@ function collect(): string[] {
 function callSites(): { file: string; line: number; args: string }[] {
   const hits: { file: string; line: number; args: string }[] = []
   for (const f of collect()) {
-    if (f.endsWith('savePrompt.ts') || f.endsWith('savePromptDirect.ts')) continue
+    if (f.endsWith('savePrompt.ts') || f.endsWith('savePromptDirect.ts'))
+      continue
     const lines = strip(fs.readFileSync(f, 'utf8')).split('\n')
     lines.forEach((l, i) => {
       if (!/\bsavePrompt\s*\(/.test(l)) return

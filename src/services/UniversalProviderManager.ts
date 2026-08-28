@@ -143,9 +143,15 @@ export class UniversalProviderManager {
         name: 'Midjourney v7 (FLUX)',
         type: 'image',
         provider: 'Replicate',
-        description: 'FLUX-based Midjourney-style image generation via adminconteudosflix/midjourney-allcraft',
+        description:
+          'FLUX-based Midjourney-style image generation via adminconteudosflix/midjourney-allcraft',
         pricePerUnit: 0.035, // per image ($0.035 per run)
-        supportedFeatures: ['text-to-image', 'artistic-styles', 'aspect-ratio', 'fast-mode'],
+        supportedFeatures: [
+          'text-to-image',
+          'artistic-styles',
+          'aspect-ratio',
+          'fast-mode',
+        ],
       },
       {
         id: 'flux-1-kontext',
@@ -161,9 +167,16 @@ export class UniversalProviderManager {
         name: 'Nano Banana Pro',
         type: 'image',
         provider: 'Fal',
-        description: 'Google\'s state-of-the-art image generation model with excellent realism and typography',
+        description:
+          "Google's state-of-the-art image generation model with excellent realism and typography",
         pricePerUnit: 0.0398, // per image (25 images per $1)
-        supportedFeatures: ['text-to-image', 'realism', 'typography', 'aspect-ratio', 'high-resolution'],
+        supportedFeatures: [
+          'text-to-image',
+          'realism',
+          'typography',
+          'aspect-ratio',
+          'high-resolution',
+        ],
       },
     ]
 
@@ -221,7 +234,12 @@ export class UniversalProviderManager {
     ]
 
     // Register all models
-    ;[...videoModels, ...imageModels, ...musicModels, ...faceSwapModels].forEach(model => {
+    ;[
+      ...videoModels,
+      ...imageModels,
+      ...musicModels,
+      ...faceSwapModels,
+    ].forEach(model => {
       this.models.set(model.id, model)
     })
 
@@ -302,9 +320,11 @@ export class UniversalProviderManager {
           imageUrl: request.imageUrl,
         })
 
-      case 'Replicate':
+      case 'Replicate': {
         // Import and use Midjourney generator
-        const { generateMidjourneyImage } = await import('./generateMidjourneyImage')
+        const { generateMidjourneyImage } = await import(
+          './generateMidjourneyImage'
+        )
         return await generateMidjourneyImage({
           prompt: request.prompt,
           imageUrl: request.imageUrl,
@@ -314,10 +334,13 @@ export class UniversalProviderManager {
           numImages: request.numImages,
           telegramId: request.userId || 'unknown',
         })
+      }
 
-      case 'Fal':
+      case 'Fal': {
         // Import and use Fal generator for Nano Banana Pro
-        const { generateNanoBananaPro } = await import('./generateNanoBananaPro')
+        const { generateNanoBananaPro } = await import(
+          './generateNanoBananaPro'
+        )
         return await generateNanoBananaPro({
           prompt: request.prompt,
           numImages: request.numImages || 1,
@@ -326,6 +349,7 @@ export class UniversalProviderManager {
           height: request.height,
           telegramId: request.userId || 'unknown',
         })
+      }
 
       default:
         throw new Error(

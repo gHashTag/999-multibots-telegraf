@@ -12,22 +12,26 @@ vi.mock('@/helpers/language', () => ({
 
 vi.mock('@/navigation', () => ({
   handleHelpCancel: vi.fn(() => Promise.resolve(false)),
-  createHelpCancelKeyboard: vi.fn((isRu) => ({
+  createHelpCancelKeyboard: vi.fn(isRu => ({
     reply_markup: { keyboard: [[{ text: isRu ? 'Отмена' : 'Cancel' }]] },
   })),
   sendGenericErrorMessage: vi.fn(() => Promise.resolve()),
 }))
 
 vi.mock('@/services/videoTranscription', () => ({
-  transcribeInstagramReel: vi.fn(() => Promise.resolve({
-    success: true,
-    text: 'Transcribed text from Instagram video',
-    videoPath: '/tmp/video.mp4',
-  })),
-  transcribeVideoFromDirectUrl: vi.fn(() => Promise.resolve({
-    success: true,
-    text: 'Transcribed text from uploaded video',
-  })),
+  transcribeInstagramReel: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      text: 'Transcribed text from Instagram video',
+      videoPath: '/tmp/video.mp4',
+    })
+  ),
+  transcribeVideoFromDirectUrl: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      text: 'Transcribed text from uploaded video',
+    })
+  ),
 }))
 
 vi.mock('@/core/supabase', () => ({
@@ -66,8 +70,15 @@ vi.mock('fs', () => ({
 
 // Import after mocks
 import { isRussian } from '@/helpers/language'
-import { handleHelpCancel, createHelpCancelKeyboard, sendGenericErrorMessage } from '@/navigation'
-import { transcribeInstagramReel, transcribeVideoFromDirectUrl } from '@/services/videoTranscription'
+import {
+  handleHelpCancel,
+  createHelpCancelKeyboard,
+  sendGenericErrorMessage,
+} from '@/navigation'
+import {
+  transcribeInstagramReel,
+  transcribeVideoFromDirectUrl,
+} from '@/services/videoTranscription'
 import { getUserBalance, updateUserBalance } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
 import { PaymentType } from '@/interfaces/payments.interface'
@@ -93,11 +104,13 @@ describe('videoTranscriptionWizard (Video to Text Transcription)', () => {
     },
     telegram: {
       token: 'test_token',
-      getFile: vi.fn(() => Promise.resolve({
-        file_id: 'file_123',
-        file_path: 'videos/test.mp4',
-        file_size: 10 * 1024 * 1024, // 10MB
-      })),
+      getFile: vi.fn(() =>
+        Promise.resolve({
+          file_id: 'file_123',
+          file_path: 'videos/test.mp4',
+          file_size: 10 * 1024 * 1024, // 10MB
+        })
+      ),
     },
     botInfo: { username: 'test_bot' },
     message: null as any,
@@ -107,7 +120,6 @@ describe('videoTranscriptionWizard (Video to Text Transcription)', () => {
     vi.clearAllMocks()
     mockContext.session = { mode: null }
     mockContext.message = null
-
     ;(isRussian as Mock).mockReturnValue(true)
     ;(handleHelpCancel as Mock).mockResolvedValue(false)
     ;(transcribeInstagramReel as Mock).mockResolvedValue({
@@ -243,7 +255,8 @@ describe('videoTranscriptionWizard (Video to Text Transcription)', () => {
         text: 'https://www.instagram.com/reel/ABC123/',
       }
 
-      const isTextWithUrl = mockContext.message &&
+      const isTextWithUrl =
+        mockContext.message &&
         'text' in mockContext.message &&
         mockContext.message.text.includes('instagram.com')
 
@@ -255,7 +268,8 @@ describe('videoTranscriptionWizard (Video to Text Transcription)', () => {
         text: 'https://www.youtube.com/watch?v=xyz',
       }
 
-      const isTextWithUrl = mockContext.message &&
+      const isTextWithUrl =
+        mockContext.message &&
         'text' in mockContext.message &&
         mockContext.message.text.includes('instagram.com')
 
@@ -272,7 +286,9 @@ describe('videoTranscriptionWizard (Video to Text Transcription)', () => {
     })
 
     it('должен получать видео и текст из Instagram', async () => {
-      const result = await transcribeInstagramReel('https://www.instagram.com/reel/ABC123/')
+      const result = await transcribeInstagramReel(
+        'https://www.instagram.com/reel/ABC123/'
+      )
 
       expect(result.text).toBeDefined()
       expect(result.videoPath).toBeDefined()
@@ -284,7 +300,8 @@ describe('videoTranscriptionWizard (Video to Text Transcription)', () => {
       mockContext.message = null
 
       const isVideoFile = mockContext.message && 'video' in mockContext.message
-      const isTextWithUrl = mockContext.message &&
+      const isTextWithUrl =
+        mockContext.message &&
         'text' in mockContext.message &&
         mockContext.message?.text?.includes('instagram.com')
 
@@ -341,7 +358,9 @@ describe('videoTranscriptionWizard (Video to Text Transcription)', () => {
 
   describe('7. Результат транскрибации', () => {
     it('должен обрабатывать успешный результат', async () => {
-      const result = await transcribeVideoFromDirectUrl('https://example.com/video.mp4')
+      const result = await transcribeVideoFromDirectUrl(
+        'https://example.com/video.mp4'
+      )
 
       expect(result.success).toBe(true)
       expect(result.text).toBeDefined()
@@ -353,7 +372,9 @@ describe('videoTranscriptionWizard (Video to Text Transcription)', () => {
         error: 'Transcription failed',
       })
 
-      const result = await transcribeVideoFromDirectUrl('https://example.com/video.mp4')
+      const result = await transcribeVideoFromDirectUrl(
+        'https://example.com/video.mp4'
+      )
 
       expect(result.success).toBe(false)
     })
@@ -362,9 +383,10 @@ describe('videoTranscriptionWizard (Video to Text Transcription)', () => {
       const maxTextLength = 3500
       const longText = 'a'.repeat(4000)
 
-      const displayText = longText.length > maxTextLength
-        ? longText.substring(0, maxTextLength) + '...'
-        : longText
+      const displayText =
+        longText.length > maxTextLength
+          ? longText.substring(0, maxTextLength) + '...'
+          : longText
 
       expect(displayText.length).toBe(maxTextLength + 3) // +3 для "..."
     })
@@ -376,7 +398,9 @@ describe('videoTranscriptionWizard (Video to Text Transcription)', () => {
       const isRu = true
 
       const errorMessage = error.message.includes('Instagram may require login')
-        ? (isRu ? '❌ Не удалось скачать видео из Instagram' : '❌ Failed to download Instagram video')
+        ? isRu
+          ? '❌ Не удалось скачать видео из Instagram'
+          : '❌ Failed to download Instagram video'
         : '❌ Error'
 
       expect(errorMessage).toContain('Instagram')
@@ -395,7 +419,9 @@ describe('videoTranscriptionWizard (Video to Text Transcription)', () => {
       const isRu = true
 
       const errorMessage = error.message.includes('File too large')
-        ? (isRu ? '❌ Видео слишком большое' : '❌ Video is too large')
+        ? isRu
+          ? '❌ Видео слишком большое'
+          : '❌ Video is too large'
         : '❌ Error'
 
       expect(errorMessage).toContain('большое')

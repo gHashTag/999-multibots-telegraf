@@ -29,7 +29,8 @@ logger.info('📦 [RENDER CLIENT] Module loaded, inngestProvider imported')
 // Переопределяется через VIBEE_RENDER_URL, чтобы следующий переезд не требовал
 // правки кода.
 const RENDER_SERVER_URL =
-  process.env.VIBEE_RENDER_URL || 'https://vibee-render-production.up.railway.app'
+  process.env.VIBEE_RENDER_URL ||
+  'https://vibee-render-production.up.railway.app'
 
 /**
  * Создает подпись для Inngest запроса
@@ -334,30 +335,32 @@ export function createRenderAvatarPayload(
       options?.callbackUrl !== undefined
         ? options.callbackUrl
         : process.env.BASE_WEBHOOK_URL
-          // bot_name кладётся В САМ URL. Иначе он теряется: sendCallback
-          // (functions/render/helpers/renderSteps.ts:315) шлёт ровно
-          // { download_url } и никаких метаданных, а render.ts знает только
-          // job_id и callback_url. Здесь же бот известен достоверно — это тот
-          // бот, в котором человек заказал видео.
-          // МЕТКА В АДРЕСЕ. Обработчик берёт получателя из ТЕЛА запроса
-          // (`payload.metadata.telegram_id`) и шлёт ему видео по ссылке
-          // оттуда же — не сверяясь ни с какой задачей. Подписи от
-          // рендер-сервера нет.
-          //
-          // Тот же приём, что уже закрыл /api/video-callback (PR #527): адрес
-          // составляем мы, значит можем положить метку и проверить на входе.
-          // Метка привязана к получателю, поэтому чужая не поможет отправить
-          // что-то другому.
-          ? `${process.env.BASE_WEBHOOK_URL}/api/telegram/ai-reels-callback` +
+          ? // bot_name кладётся В САМ URL. Иначе он теряется: sendCallback
+            // (functions/render/helpers/renderSteps.ts:315) шлёт ровно
+            // { download_url } и никаких метаданных, а render.ts знает только
+            // job_id и callback_url. Здесь же бот известен достоверно — это тот
+            // бот, в котором человек заказал видео.
+            // МЕТКА В АДРЕСЕ. Обработчик берёт получателя из ТЕЛА запроса
+            // (`payload.metadata.telegram_id`) и шлёт ему видео по ссылке
+            // оттуда же — не сверяясь ни с какой задачей. Подписи от
+            // рендер-сервера нет.
+            //
+            // Тот же приём, что уже закрыл /api/video-callback (PR #527): адрес
+            // составляем мы, значит можем положить метку и проверить на входе.
+            // Метка привязана к получателю, поэтому чужая не поможет отправить
+            // что-то другому.
+            `${process.env.BASE_WEBHOOK_URL}/api/telegram/ai-reels-callback` +
             `?cb=${buildCallbackToken(telegramId) ?? ''}` +
-            (options?.botName ? `&bot=${encodeURIComponent(options.botName)}` : '')
-          // undefined, а НЕ null. Схема объявляет callback_url как
-          // z.string().url().optional() (schemas.ts), а .optional() принимает
-          // undefined и отвергает null: "Expected string, received null".
-          // Я поставил здесь null в прошлом цикле и добавил девятую причину
-          // отказа валидации к восьми уже существующим. Проверено прогоном
-          // RenderRiddleEventDataSchema.safeParse по этому payload.
-          : undefined,
+            (options?.botName
+              ? `&bot=${encodeURIComponent(options.botName)}`
+              : '')
+          : // undefined, а НЕ null. Схема объявляет callback_url как
+            // z.string().url().optional() (schemas.ts), а .optional() принимает
+            // undefined и отвергает null: "Expected string, received null".
+            // Я поставил здесь null в прошлом цикле и добавил девятую причину
+            // отказа валидации к восьми уже существующим. Проверено прогоном
+            // RenderRiddleEventDataSchema.safeParse по этому payload.
+            undefined,
     bot_name: options?.botName,
   }
 
@@ -377,11 +380,14 @@ export function createRenderAvatarPayload(
     const why = check.error.issues
       .map(i => `${i.path.join('.') || '(корень)'}: ${i.message}`)
       .join('; ')
-    logger.error('❌ [RENDER PAYLOAD] Payload не проходит схему render-riddle', {
-      telegramId,
-      avatarService: options?.avatarService,
-      issues: why,
-    })
+    logger.error(
+      '❌ [RENDER PAYLOAD] Payload не проходит схему render-riddle',
+      {
+        telegramId,
+        avatarService: options?.avatarService,
+        issues: why,
+      }
+    )
     throw new Error(`Задача не может быть выполнена: ${why}`)
   }
 

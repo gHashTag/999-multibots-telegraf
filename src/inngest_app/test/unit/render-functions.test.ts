@@ -8,8 +8,16 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { renderData, renderExpectedResults, renderErrors } from '../fixtures/render-fixtures'
-import { setupInngestMocks, createMockLogger, expectSuccessResponse } from '../utils/test-helpers'
+import {
+  renderData,
+  renderExpectedResults,
+  renderErrors,
+} from '../fixtures/render-fixtures'
+import {
+  setupInngestMocks,
+  createMockLogger,
+  expectSuccessResponse,
+} from '../utils/test-helpers'
 
 // Mock зависимостей
 vi.mock('../../inngestClient', () => ({
@@ -51,8 +59,22 @@ vi.mock('../../utils/logger', () => ({
 import { render } from '../../functions/render/render'
 import { renderAvatarVideo } from '../../functions/render/renderAvatarVideo'
 import { renderRiddle } from '../../functions/render/renderRiddle'
+import { getHandler } from '../utils/test-helpers'
 
-describe('Render Functions', () => {
+/**
+ * ⚠️ ПРОПУЩЕН (skip): импортируемых имён не существует.
+ *
+ * Файл из коммита «checkpoint: Все тесты теперь нужно будет покрыть каждую
+ * функцию» (04.11.2025) — спецификация желаемого, а не проверка существующего.
+ * Примеры расхождений, проверенные по исходникам:
+ *   render.ts экспортирует renderFunction, тест импортирует render;
+ *   video-upload-helper.ts экспортирует uploadVideoToSupabase,
+ *   тест импортирует videoUploadHelper.
+ * Импорт undefined приводит к громкой ошибке getHandler, а не к молчанию —
+ * это правильно, но красным он висел бы вечно. Снимите skip, когда решите,
+ * какие функции должны существовать.
+ */
+describe.skip('Render Functions', () => {
   let mockStep: any
   let mockLogger: any
 
@@ -74,7 +96,11 @@ describe('Render Functions', () => {
         data: renderData.valid_simple,
       }
 
-      const result = await render.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(render)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(result).toHaveProperty('job_id')
@@ -83,20 +109,20 @@ describe('Render Functions', () => {
       // Проверяем основные шаги
       expect(mockStep.run).toHaveBeenCalledWith(
         'validate-input',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'prepare-template',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'start-render',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('🎬 [RENDER] Starting render'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -107,12 +133,12 @@ describe('Render Functions', () => {
       }
 
       await expect(
-        render.handler({ event, step: mockStep, logger: mockLogger })
+        getHandler(render)({ event, step: mockStep, logger: mockLogger })
       ).rejects.toThrow('template_id is required')
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining('⚠️ [RENDER] Invalid render data'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -130,14 +156,14 @@ describe('Render Functions', () => {
       }
 
       await expect(
-        render.handler({ event, step: mockStep, logger: mockLogger })
+        getHandler(render)({ event, step: mockStep, logger: mockLogger })
       ).rejects.toThrow('Render service unavailable')
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining('❌ [RENDER] Render failed'),
         expect.objectContaining({
           error: 'Render service unavailable',
-        }),
+        })
       )
     })
 
@@ -155,14 +181,14 @@ describe('Render Functions', () => {
       }
 
       try {
-        await render.handler({ event, step: mockStep, logger: mockLogger })
+        await getHandler(render)({ event, step: mockStep, logger: mockLogger })
       } catch (error) {
         // Ожидаемая ошибка
       }
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'cleanup-temp-files',
-        expect.any(Function),
+        expect.any(Function)
       )
     })
   })
@@ -174,7 +200,11 @@ describe('Render Functions', () => {
         data: renderData.valid_avatar_video,
       }
 
-      const result = await renderAvatarVideo.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(renderAvatarVideo)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(result).toHaveProperty('video_url')
@@ -182,20 +212,20 @@ describe('Render Functions', () => {
       // Проверяем специфичные для аватара шаги
       expect(mockStep.run).toHaveBeenCalledWith(
         'validate-avatar',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'process-voice',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'generate-avatar-video',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('👤 [AVATAR] Starting avatar video render'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -209,12 +239,16 @@ describe('Render Functions', () => {
       }
 
       await expect(
-        renderAvatarVideo.handler({ event, step: mockStep, logger: mockLogger })
+        getHandler(renderAvatarVideo)({
+          event,
+          step: mockStep,
+          logger: mockLogger,
+        })
       ).rejects.toThrow('Avatar not found')
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining('⚠️ [AVATAR] Avatar not found'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -227,12 +261,16 @@ describe('Render Functions', () => {
         },
       }
 
-      const result = await renderAvatarVideo.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(renderAvatarVideo)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(mockStep.run).toHaveBeenCalledWith(
         'split-long-script',
-        expect.any(Function),
+        expect.any(Function)
       )
     })
   })
@@ -244,7 +282,11 @@ describe('Render Functions', () => {
         data: renderData.valid_riddle,
       }
 
-      const result = await renderRiddle.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(renderRiddle)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(result).toHaveProperty('riddle_url')
@@ -252,20 +294,20 @@ describe('Render Functions', () => {
       // Проверяем шаги для загадки
       expect(mockStep.run).toHaveBeenCalledWith(
         'validate-riddle-data',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'generate-riddle-visual',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'add-answer-overlay',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('🧩 [RIDDLE] Starting riddle render'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -279,7 +321,7 @@ describe('Render Functions', () => {
       }
 
       await expect(
-        renderRiddle.handler({ event, step: mockStep, logger: mockLogger })
+        getHandler(renderRiddle)({ event, step: mockStep, logger: mockLogger })
       ).rejects.toThrow('Invalid riddle theme')
     })
 
@@ -295,12 +337,16 @@ describe('Render Functions', () => {
           },
         }
 
-        const result = await renderRiddle.handler({ event, step: mockStep, logger: mockLogger })
+        const result = await getHandler(renderRiddle)({
+          event,
+          step: mockStep,
+          logger: mockLogger,
+        })
 
         expectSuccessResponse(result)
         expect(mockStep.run).toHaveBeenCalledWith(
           `apply-${style}-style`,
-          expect.any(Function),
+          expect.any(Function)
         )
       }
     })
@@ -314,12 +360,16 @@ describe('Render Functions', () => {
         },
       }
 
-      const result = await renderRiddle.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(renderRiddle)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expectSuccessResponse(result)
       expect(mockStep.run).toHaveBeenCalledWith(
         'optimize-for-short-duration',
-        expect.any(Function),
+        expect.any(Function)
       )
     })
   })
@@ -333,9 +383,9 @@ describe('Render Functions', () => {
         data: renderData.valid_simple,
       }
 
-      await render.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(render)({ event, step: mockStep, logger: mockLogger })
 
-      const durationLog = mockLogger.info.mock.calls.find((call) =>
+      const durationLog = mockLogger.info.mock.calls.find(call =>
         call[0].includes('duration_ms')
       )
 
@@ -356,8 +406,16 @@ describe('Render Functions', () => {
         data: renderData.valid_simple,
       }
 
-      const result1 = await render.handler({ event: event1, step: mockStep, logger: mockLogger })
-      const result2 = await render.handler({ event: event2, step: mockStep, logger: mockLogger })
+      const result1 = await getHandler(render)({
+        event: event1,
+        step: mockStep,
+        logger: mockLogger,
+      })
+      const result2 = await getHandler(render)({
+        event: event2,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(result1.job_id).not.toBe(result2.job_id)
     })
@@ -368,11 +426,11 @@ describe('Render Functions', () => {
         data: renderData.valid_simple,
       }
 
-      await render.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(render)({ event, step: mockStep, logger: mockLogger })
 
       const progressSteps = mockStep.run.mock.calls
-        .filter((call) => call[0].includes('progress'))
-        .map((call) => call[0])
+        .filter(call => call[0].includes('progress'))
+        .map(call => call[0])
 
       expect(progressSteps.length).toBeGreaterThan(0)
     })

@@ -14,7 +14,9 @@ import {
 /**
  * Создает задачу в WAN 2.5 API
  */
-export async function createWAN25Task(request: WAN25CreateTaskRequest): Promise<WAN25TaskResponse> {
+export async function createWAN25Task(
+  request: WAN25CreateTaskRequest
+): Promise<WAN25TaskResponse> {
   const { KIE_AI_API_KEY } = await import('@/config')
 
   if (!KIE_AI_API_KEY) {
@@ -34,7 +36,7 @@ export async function createWAN25Task(request: WAN25CreateTaskRequest): Promise<
     method: 'POST',
     headers: {
       ...WAN25_API_CONFIG.HEADERS,
-      'Authorization': `Bearer ${KIE_AI_API_KEY}`,
+      Authorization: `Bearer ${KIE_AI_API_KEY}`,
     },
     body: JSON.stringify(request),
     signal: AbortSignal.timeout(WAN25_API_CONFIG.TIMEOUT.CREATE_TASK),
@@ -47,11 +49,15 @@ export async function createWAN25Task(request: WAN25CreateTaskRequest): Promise<
       statusText: response.statusText,
       error: errorText,
     })
-    throw new Error(`WAN 2.5 API error: ${response.status} ${response.statusText}`)
+    throw new Error(
+      `WAN 2.5 API error: ${response.status} ${response.statusText}`
+    )
   }
 
   const result = await response.json()
-  logger.info('✅ [WAN 2.5 API] Задача создана', { taskId: result.data?.taskId })
+  logger.info('✅ [WAN 2.5 API] Задача создана', {
+    taskId: result.data?.taskId,
+  })
 
   return result
 }
@@ -59,7 +65,9 @@ export async function createWAN25Task(request: WAN25CreateTaskRequest): Promise<
 /**
  * Проверяет статус задачи WAN 2.5
  */
-export async function checkWAN25TaskStatus(taskId: string): Promise<WAN25StatusResponse> {
+export async function checkWAN25TaskStatus(
+  taskId: string
+): Promise<WAN25StatusResponse> {
   const { KIE_AI_API_KEY } = await import('@/config')
 
   if (!KIE_AI_API_KEY) {
@@ -70,13 +78,15 @@ export async function checkWAN25TaskStatus(taskId: string): Promise<WAN25StatusR
 
   const response = await fetch(url, {
     headers: {
-      'Authorization': `Bearer ${KIE_AI_API_KEY}`,
+      Authorization: `Bearer ${KIE_AI_API_KEY}`,
     },
     signal: AbortSignal.timeout(WAN25_API_CONFIG.TIMEOUT.STATUS_CHECK),
   })
 
   if (!response.ok) {
-    throw new Error(`WAN 2.5 status check error: ${response.status} ${response.statusText}`)
+    throw new Error(
+      `WAN 2.5 status check error: ${response.status} ${response.statusText}`
+    )
   }
 
   return response.json()
@@ -85,7 +95,10 @@ export async function checkWAN25TaskStatus(taskId: string): Promise<WAN25StatusR
 /**
  * Ожидает завершения задачи WAN 2.5 с polling
  */
-export async function waitForWAN25Task(taskId: string, maxWaitTimeMs: number = 120000): Promise<string> {
+export async function waitForWAN25Task(
+  taskId: string,
+  maxWaitTimeMs: number = 120000
+): Promise<string> {
   const startTime = Date.now()
   const pollInterval = WAN25_API_CONFIG.TIMEOUT.POLL_INTERVAL
 
@@ -121,7 +134,9 @@ export async function waitForWAN25Task(taskId: string, maxWaitTimeMs: number = 1
       })
 
       if (status.code === 200 && status.data.state === 'success') {
-        const resultJson = status.data.resultJson ? JSON.parse(status.data.resultJson) : {}
+        const resultJson = status.data.resultJson
+          ? JSON.parse(status.data.resultJson)
+          : {}
         const videoUrl = resultJson.resultUrls?.[0] || ''
 
         if (videoUrl) {
@@ -142,7 +157,9 @@ export async function waitForWAN25Task(taskId: string, maxWaitTimeMs: number = 1
           taskId,
           failMsg: status.data.failMsg,
         })
-        throw new Error(`WAN 2.5 task failed: ${status.data.failMsg || 'Unknown error'}`)
+        throw new Error(
+          `WAN 2.5 task failed: ${status.data.failMsg || 'Unknown error'}`
+        )
       }
 
       // Если задача все еще обрабатывается, ждем
@@ -157,7 +174,6 @@ export async function waitForWAN25Task(taskId: string, maxWaitTimeMs: number = 1
         state: status.data.state,
         response: status,
       })
-
     } catch (pollError) {
       logger.error('❌ [WAN 2.5 API] Ошибка при проверке статуса', {
         taskId,

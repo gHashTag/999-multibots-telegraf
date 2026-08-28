@@ -132,9 +132,11 @@ export async function generateNeuroPhotoHybrid(
   const { isProviderAvailable } = await import('./provider-health-monitor')
   if (!isProviderAvailable('fal.ai') && !isProviderAvailable('replicate')) {
     const is_ru = await isRussianFromState(ctx)
-    await ctx.reply(is_ru
-      ? '⚠️ Все провайдеры генерации временно недоступны. Администратор уведомлён. Попробуйте позже.'
-      : '⚠️ All generation providers are temporarily unavailable. Admin has been notified. Please try again later.')
+    await ctx.reply(
+      is_ru
+        ? '⚠️ Все провайдеры генерации временно недоступны. Администратор уведомлён. Попробуйте позже.'
+        : '⚠️ All generation providers are temporarily unavailable. Admin has been notified. Please try again later.'
+    )
     return null
   }
 
@@ -198,10 +200,13 @@ export async function generateNeuroPhotoHybrid(
     // Плану Б.
     const aiServerUrl = getAiServerUrl()
     if (!aiServerUrl) {
-      logger.info('⏭️ [HYBRID] Отдельный AI-сервер не настроен — сразу План Б', {
-        telegram_id,
-        description: 'AI server is not configured; skipping Plan A entirely',
-      })
+      logger.info(
+        '⏭️ [HYBRID] Отдельный AI-сервер не настроен — сразу План Б',
+        {
+          telegram_id,
+          description: 'AI server is not configured; skipping Plan A entirely',
+        }
+      )
       throw new Error('AI server is not configured')
     }
 
@@ -279,14 +284,17 @@ export async function generateNeuroPhotoHybrid(
         ctx.session.lastNeuroPhotoImageUrl = lastUrl
         ctx.session.lastNeuroPhotoPrompt = prompt
 
-        logger.info('💾 [HYBRID] URL нейрофото сохранен в сессии для upscaler', {
-          description: 'Neurophoto URL saved in session for upscaler',
-          telegram_id,
-          savedUrl: lastUrl.substring(0, 50) + '...',
-          savedPrompt: prompt.substring(0, 50) + '...',
-          sessionExists: true,
-          urlsCount: response.data.urls.length,
-        })
+        logger.info(
+          '💾 [HYBRID] URL нейрофото сохранен в сессии для upscaler',
+          {
+            description: 'Neurophoto URL saved in session for upscaler',
+            telegram_id,
+            savedUrl: lastUrl.substring(0, 50) + '...',
+            savedPrompt: prompt.substring(0, 50) + '...',
+            sessionExists: true,
+            urlsCount: response.data.urls.length,
+          }
+        )
       }
 
       // Отправляем все фотографии с клавиатурой
@@ -321,22 +329,32 @@ export async function generateNeuroPhotoHybrid(
       }
 
       // Track successful generation for skill learning
-      import('./skillManager').then(sm => sm.trackGeneration({
-        telegram_id,
-        service_type: 'neuro_photo',
-        prompt,
-        model: String(model_url),
-        settings: { aspect_ratio: explicitAspectRatio, num_images: numImages },
-        success: true,
-      })).catch(() => {})
+      import('./skillManager')
+        .then(sm =>
+          sm.trackGeneration({
+            telegram_id,
+            service_type: 'neuro_photo',
+            prompt,
+            model: String(model_url),
+            settings: {
+              aspect_ratio: explicitAspectRatio,
+              num_images: numImages,
+            },
+            success: true,
+          })
+        )
+        .catch(() => {})
 
       return response.data
     } else if (response.data.jobId) {
       // СЦЕНАРИЙ 2: Сервер вернул jobId для асинхронной обработки
-      logger.info('✅ [HYBRID] План А успешен - сервер принял задачу и будет обрабатывать асинхронно', {
-        telegram_id,
-        jobId: response.data.jobId,
-      })
+      logger.info(
+        '✅ [HYBRID] План А успешен - сервер принял задачу и будет обрабатывать асинхронно',
+        {
+          telegram_id,
+          jobId: response.data.jobId,
+        }
+      )
 
       // Сервер сам отправит изображение через webhook после обработки
       // Просто возвращаем успешный результат
@@ -346,10 +364,13 @@ export async function generateNeuroPhotoHybrid(
       response.data.message.includes('Processing started')
     ) {
       // СЦЕНАРИЙ 3: Сервер принял задачу и начал обработку
-      logger.info('✅ [HYBRID] План А успешен - сервер принял задачу и начал обработку', {
-        telegram_id,
-        serverMessage: response.data.message,
-      })
+      logger.info(
+        '✅ [HYBRID] План А успешен - сервер принял задачу и начал обработку',
+        {
+          telegram_id,
+          serverMessage: response.data.message,
+        }
+      )
 
       // Сервер сам отправит изображение через webhook после обработки
       // Просто возвращаем успешный результат
@@ -443,22 +464,35 @@ export async function generateNeuroPhotoHybrid(
 
       if (localResult && localResult.success) {
         // Track successful local generation for skill learning
-        import('./skillManager').then(sm => sm.trackGeneration({
-          telegram_id,
-          service_type: 'neuro_photo',
-          prompt,
-          model: String(model_url),
-          settings: { aspect_ratio: explicitAspectRatio, num_images: numImages },
-          success: true,
-        })).catch(() => {})
+        import('./skillManager')
+          .then(sm =>
+            sm.trackGeneration({
+              telegram_id,
+              service_type: 'neuro_photo',
+              prompt,
+              model: String(model_url),
+              settings: {
+                aspect_ratio: explicitAspectRatio,
+                num_images: numImages,
+              },
+              success: true,
+            })
+          )
+          .catch(() => {})
 
-        logger.info('✅ [HYBRID] План Б успешен - локальная обработка завершена', {
-          telegram_id,
-        })
+        logger.info(
+          '✅ [HYBRID] План Б успешен - локальная обработка завершена',
+          {
+            telegram_id,
+          }
+        )
       } else {
-        logger.error('❌ [HYBRID] План Б неудачен - локальная обработка провалилась', {
-          telegram_id,
-        })
+        logger.error(
+          '❌ [HYBRID] План Б неудачен - локальная обработка провалилась',
+          {
+            telegram_id,
+          }
+        )
       }
 
       return localResult

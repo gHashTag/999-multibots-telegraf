@@ -47,9 +47,7 @@ export function assertPublicHttpUrl(raw: string): URL {
  * прод-деплоя: URL, собранный из ENV, сканер считает потенциальным SSRF,
  * а переопределения окружения для этого вызова не предусмотрено.
  */
-export async function postStarPaid(
-  payload: string
-): Promise<{
+export async function postStarPaid(payload: string): Promise<{
   ok: boolean
   paid: boolean
   to_telegram_id?: string

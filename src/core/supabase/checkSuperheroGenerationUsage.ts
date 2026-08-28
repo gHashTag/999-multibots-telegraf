@@ -28,24 +28,30 @@ export const checkSuperheroGenerationUsage = async (
   const telegramIdStr = telegram_id.toString()
   const numericTelegramId = parseInt(telegramIdStr, 10)
 
-  logger.info('[checkSuperheroGenerationUsage] Checking superhero generation limits', {
-    telegram_id: telegramIdStr,
-  })
+  logger.info(
+    '[checkSuperheroGenerationUsage] Checking superhero generation limits',
+    {
+      telegram_id: telegramIdStr,
+    }
+  )
 
   // Проверяем админский статус
   const isAdmin = ADMIN_IDS_ARRAY.includes(numericTelegramId)
 
   if (isAdmin) {
-    logger.info('[checkSuperheroGenerationUsage] Admin detected - unlimited access', {
-      telegram_id: telegramIdStr,
-    })
+    logger.info(
+      '[checkSuperheroGenerationUsage] Admin detected - unlimited access',
+      {
+        telegram_id: telegramIdStr,
+      }
+    )
     return {
       canGenerate: true,
       isAdmin: true,
       hasUnlimitedAccess: true,
       currentUsage: 0,
       maxUsage: -1, // -1 означает безлимит
-      reason: 'Admin privileges'
+      reason: 'Admin privileges',
     }
   }
 
@@ -54,19 +60,24 @@ export const checkSuperheroGenerationUsage = async (
     const subscriptionDetails = await getUserDetailsSubscription(telegramIdStr)
 
     // NEUROTESTER подписка даёт безлимитный доступ
-    if (subscriptionDetails?.subscriptionType === 'NEUROTESTER' &&
-        subscriptionDetails?.isSubscriptionActive) {
-      logger.info('[checkSuperheroGenerationUsage] NEUROTESTER subscription - unlimited access', {
-        telegram_id: telegramIdStr,
-        subscriptionType: subscriptionDetails.subscriptionType
-      })
+    if (
+      subscriptionDetails?.subscriptionType === 'NEUROTESTER' &&
+      subscriptionDetails?.isSubscriptionActive
+    ) {
+      logger.info(
+        '[checkSuperheroGenerationUsage] NEUROTESTER subscription - unlimited access',
+        {
+          telegram_id: telegramIdStr,
+          subscriptionType: subscriptionDetails.subscriptionType,
+        }
+      )
       return {
         canGenerate: true,
         isAdmin: false,
         hasUnlimitedAccess: true,
         currentUsage: 0,
         maxUsage: -1,
-        reason: 'NEUROTESTER subscription'
+        reason: 'NEUROTESTER subscription',
       }
     }
 
@@ -78,7 +89,9 @@ export const checkSuperheroGenerationUsage = async (
     // Следующий месяц для resetDate
     const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1
     const nextYear = currentMonth === 12 ? currentYear + 1 : currentYear
-    const resetDate = new Date(nextYear, nextMonth - 1, 1).toISOString().split('T')[0]
+    const resetDate = new Date(nextYear, nextMonth - 1, 1)
+      .toISOString()
+      .split('T')[0]
 
     // Получаем текущее использование
     const { data: usageData, error } = await supabase
@@ -104,7 +117,7 @@ export const checkSuperheroGenerationUsage = async (
         hasUnlimitedAccess: false,
         currentUsage: 0,
         maxUsage: maxUsage,
-        reason: 'Database error - allowing generation'
+        reason: 'Database error - allowing generation',
       }
     }
 
@@ -116,7 +129,7 @@ export const checkSuperheroGenerationUsage = async (
       maxUsage,
       canGenerate,
       subscriptionType: subscriptionDetails?.subscriptionType || 'none',
-      isSubscriptionActive: subscriptionDetails?.isSubscriptionActive || false
+      isSubscriptionActive: subscriptionDetails?.isSubscriptionActive || false,
     })
 
     return {
@@ -128,9 +141,8 @@ export const checkSuperheroGenerationUsage = async (
       resetDate,
       reason: canGenerate
         ? `${currentUsage}/${maxUsage} generations used`
-        : `Monthly limit reached (${currentUsage}/${maxUsage})`
+        : `Monthly limit reached (${currentUsage}/${maxUsage})`,
     }
-
   } catch (error) {
     logger.error('[checkSuperheroGenerationUsage] Unexpected error', {
       telegram_id: telegramIdStr,
@@ -144,7 +156,7 @@ export const checkSuperheroGenerationUsage = async (
       hasUnlimitedAccess: false,
       currentUsage: 0,
       maxUsage: 3,
-      reason: 'Error occurred - allowing generation'
+      reason: 'Error occurred - allowing generation',
     }
   }
 }

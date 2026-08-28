@@ -38,12 +38,15 @@ export async function getUserPhotoUrl(
 
       // file_size может отсутствовать в метаданных, проверяем если есть
       if (photo.file_size && photo.file_size > MAX_FILE_SIZE) {
-        logger.warn('[getUserPhotoUrl] Photo size exceeds limit, trying smaller', {
-          userId,
-          fileSize: photo.file_size,
-          maxSize: MAX_FILE_SIZE,
-          index: i,
-        })
+        logger.warn(
+          '[getUserPhotoUrl] Photo size exceeds limit, trying smaller',
+          {
+            userId,
+            fileSize: photo.file_size,
+            maxSize: MAX_FILE_SIZE,
+            index: i,
+          }
+        )
         continue
       }
 
@@ -66,7 +69,10 @@ export async function getUserPhotoUrl(
       const file = await ctx.telegram.getFile(selectedPhoto.file_id)
 
       if (!file.file_path) {
-        console.log('No file_path in response for file_id:', selectedPhoto.file_id)
+        console.log(
+          'No file_path in response for file_id:',
+          selectedPhoto.file_id
+        )
         return null
       }
 
@@ -89,19 +95,28 @@ export async function getUserPhotoUrl(
       const telegramUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
       const mirrored = await mirrorToOwnStorage(telegramUrl, userId, 'avatars')
       if (mirrored === telegramUrl) {
-        logger.warn('[getUserPhotoUrl] Не удалось переложить фото — адрес с токеном не отдаём', {
-          userId,
-        })
+        logger.warn(
+          '[getUserPhotoUrl] Не удалось переложить фото — адрес с токеном не отдаём',
+          {
+            userId,
+          }
+        )
         return null
       }
       return mirrored
     } catch (getFileError: any) {
       // Если ошибка "file is too big", пробуем меньший размер
-      if (getFileError?.message?.includes('file is too big') || getFileError?.response?.description?.includes('file is too big')) {
-        logger.warn('[getUserPhotoUrl] File too big error, trying smaller sizes', {
-          userId,
-          error: getFileError.message,
-        })
+      if (
+        getFileError?.message?.includes('file is too big') ||
+        getFileError?.response?.description?.includes('file is too big')
+      ) {
+        logger.warn(
+          '[getUserPhotoUrl] File too big error, trying smaller sizes',
+          {
+            userId,
+            error: getFileError.message,
+          }
+        )
 
         // Пробуем все размеры от маленького к большому
         for (let i = 0; i < photoSizes.length - 1; i++) {
@@ -112,9 +127,16 @@ export async function getUserPhotoUrl(
             if (file.file_path) {
               // Тот же запрет: адрес с токеном наружу не уходит.
               const telegramUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
-              const photoUrl = await mirrorToOwnStorage(telegramUrl, userId, 'avatars')
+              const photoUrl = await mirrorToOwnStorage(
+                telegramUrl,
+                userId,
+                'avatars'
+              )
               if (photoUrl === telegramUrl) {
-                logger.warn('[getUserPhotoUrl] Не удалось переложить фото (меньший размер)', { userId })
+                logger.warn(
+                  '[getUserPhotoUrl] Не удалось переложить фото (меньший размер)',
+                  { userId }
+                )
                 continue
               }
               logger.info('[getUserPhotoUrl] Successfully got smaller photo', {

@@ -25,7 +25,13 @@ export interface BusinessConnection {
 export interface BusinessMessage {
   message_id: number
   date: number
-  chat: { id: number; first_name?: string; last_name?: string; username?: string; type: string }
+  chat: {
+    id: number
+    first_name?: string
+    last_name?: string
+    username?: string
+    type: string
+  }
   from?: { id: number; first_name: string; username?: string }
   text?: string
   business_connection_id: string
@@ -47,7 +53,11 @@ interface DailyStats {
   uniqueUsers: Set<string>
 }
 
-let stats: DailyStats = { date: todayKey(), messagesHandled: 0, uniqueUsers: new Set() }
+let stats: DailyStats = {
+  date: todayKey(),
+  messagesHandled: 0,
+  uniqueUsers: new Set(),
+}
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10)
@@ -182,7 +192,11 @@ export function createBusinessMiddleware(bot: Telegraf<any>) {
     }
 
     if (update.business_message) {
-      await handleBusinessMessage(update.business_message as BusinessMessage, bot, botUsername)
+      await handleBusinessMessage(
+        update.business_message as BusinessMessage,
+        bot,
+        botUsername
+      )
       return
     }
 

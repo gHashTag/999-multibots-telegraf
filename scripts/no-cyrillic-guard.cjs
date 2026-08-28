@@ -39,7 +39,36 @@ function stripStrings(line) {
     .replace(/"(?:[^"\\]|\\.)*"/g, '')
 }
 
+// A merge commit stages every line the merged branch brings in, so the ratchet
+// would fire on other people's already-reviewed code: merging main into a
+// branch flagged 610 lines, none of them written by the merging author. That
+// contradicts what this guard is for — it inspects what a commit ADDS, and a
+// merge adds nothing new here; those lines were gated on their own commits.
+//
+// `git rev-parse --git-path` rather than a literal .git/MERGE_HEAD: agents in
+// this repo work from worktrees, where .git is a file and that path does not
+// exist. Hard-coding it would silently disable this check for exactly the
+// people the convention tells to use worktrees.
+function mergeInProgress() {
+  try {
+    const p = execSync('git rev-parse --git-path MERGE_HEAD', {
+      encoding: 'utf8',
+    }).trim()
+    return fs.existsSync(p)
+  } catch {
+    return false
+  }
+}
+
 function checkStaged() {
+  if (mergeInProgress()) {
+    console.log(
+      'no-cyrillic-guard: merge in progress, skipping the staged check ' +
+        '(the incoming lines were gated on their own commits).'
+    )
+    return
+  }
+
   let diff = ''
   try {
     diff = execSync('git diff --cached --unified=0 --no-color', {

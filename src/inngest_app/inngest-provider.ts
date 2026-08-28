@@ -64,9 +64,7 @@ class InngestProvider {
     // BOT_INNGEST_BASE_URL в цепочке оставлен: пусть в логах стоит живой хост,
     // а не адрес сервера, которого нет.
     const botBaseUrl =
-      process.env.INNGEST_BASE_URL ||
-      process.env.BOT_INNGEST_BASE_URL ||
-      ''
+      process.env.INNGEST_BASE_URL || process.env.BOT_INNGEST_BASE_URL || ''
 
     if (botEventKey) {
       // Создаем Inngest client для отправки событий
@@ -83,11 +81,14 @@ class InngestProvider {
         name: 'telegram-bot-main',
         client: botClient,
       })
-      logger.info('✅ [INNGEST PROVIDER] BOT instance configured (использует единый клиент)', {
-        baseUrl: botBaseUrl,
-        hasSigningKey: !!botSigningKey,
-        usesUnifiedClient: true,
-      })
+      logger.info(
+        '✅ [INNGEST PROVIDER] BOT instance configured (использует единый клиент)',
+        {
+          baseUrl: botBaseUrl,
+          hasSigningKey: !!botSigningKey,
+          usesUnifiedClient: true,
+        }
+      )
     } else {
       logger.warn(
         '⚠️ [INNGEST PROVIDER] BOT instance missing INNGEST_EVENT_KEY'
@@ -172,12 +173,16 @@ class InngestProvider {
     })
 
     if (!config) {
-      logger.error(`❌ [INNGEST PROVIDER] Inngest instance "${instance}" not configured`)
+      logger.error(
+        `❌ [INNGEST PROVIDER] Inngest instance "${instance}" not configured`
+      )
       throw new Error(`Inngest instance "${instance}" not configured`)
     }
 
     if (!config.client) {
-      logger.error(`❌ [INNGEST PROVIDER] Inngest client not initialized for instance "${instance}"`)
+      logger.error(
+        `❌ [INNGEST PROVIDER] Inngest client not initialized for instance "${instance}"`
+      )
       logger.error(`🔴 [INNGEST PROVIDER] Config details`, {
         instance,
         hasEventKey: !!config.eventKey,

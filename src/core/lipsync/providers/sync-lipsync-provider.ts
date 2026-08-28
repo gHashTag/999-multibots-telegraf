@@ -338,9 +338,12 @@ export class SyncLipSyncProvider implements ILipSyncProvider {
    * Sync Labs API не поддерживает проверку статуса, так как использует синхронный режим
    */
   async getStatusFallback(predictionId: string): Promise<any> {
-    logger.warn('⚠️ [SYNC PROVIDER] getStatus не поддерживается - Sync Labs работает синхронно', {
-      predictionId,
-    })
+    logger.warn(
+      '⚠️ [SYNC PROVIDER] getStatus не поддерживается - Sync Labs работает синхронно',
+      {
+        predictionId,
+      }
+    )
 
     return {
       message: 'Status check not supported for Sync Labs',

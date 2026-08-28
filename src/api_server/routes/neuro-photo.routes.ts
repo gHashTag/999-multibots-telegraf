@@ -11,7 +11,7 @@ router.post('/generate/neuro-photo-sync', async (req, res) => {
       num_images = 1,
       telegram_id,
       bot_name,
-      aspect_ratio
+      aspect_ratio,
     } = req.body
 
     // ПОМЕТКА ПРОИСХОЖДЕНИЯ. Всё, что пришло сюда, должно быть отличимо в
@@ -55,13 +55,13 @@ router.post('/generate/neuro-photo-sync', async (req, res) => {
 
     res.json({
       success: true,
-      data: result
+      data: result,
     })
   } catch (error) {
     console.error('Neuro photo error:', error)
     res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
   }
 })

@@ -14,7 +14,7 @@ export async function generateImageFromPrompt(
   negative_prompt?: string,
   size?: string
 ): Promise<string> {
-  console.log("Генерация изображения:", {
+  console.log('Генерация изображения:', {
     prompt,
     userId,
     style,
@@ -32,7 +32,7 @@ export async function generateImageFromPrompt(
     const mockContext = {
       telegram: null,
       botInfo: { username: 'default' },
-      session: {}
+      session: {},
     } as any
 
     const fluxResult = await generateFluxKontext({
@@ -43,7 +43,7 @@ export async function generateImageFromPrompt(
       username: 'user',
       is_ru: true,
       ctx: mockContext,
-      suppressUserErrors: true // Не показываем ошибки пользователю
+      suppressUserErrors: true, // Не показываем ошибки пользователю
     })
 
     // GenerationResult имеет свойство image (Buffer или string)
@@ -53,7 +53,9 @@ export async function generateImageFromPrompt(
         return fluxResult.image
       }
       // Если это Buffer, возвращаем заглушку (нужен URL)
-      console.warn('⚠️ [generateImageFromPrompt] Received Buffer instead of URL')
+      console.warn(
+        '⚠️ [generateImageFromPrompt] Received Buffer instead of URL'
+      )
     }
 
     // ВОЗВРАЩАТЬ ВЫДУМАННУЮ ССЫЛКУ НЕЛЬЗЯ.
@@ -75,7 +77,7 @@ export async function generateImageFromPrompt(
         'Раньше здесь возвращался выдуманный адрес — вызывающий принимал его за картинку.'
     )
   } catch (error) {
-    console.error("Ошибка генерации изображения:", error)
+    console.error('Ошибка генерации изображения:', error)
     throw error
   }
 }

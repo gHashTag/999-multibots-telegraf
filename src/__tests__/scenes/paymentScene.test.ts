@@ -85,7 +85,6 @@ describe('paymentScene (Payment Method Selection)', () => {
     vi.clearAllMocks()
     mockContext.session.selectedPayment = null
     mockContext.message = null
-
     ;(isRussian as Mock).mockReturnValue(true)
     ;(shouldShowRubles as Mock).mockReturnValue(true)
     ;(handleSelectStars as Mock).mockResolvedValue(undefined)
@@ -109,14 +108,18 @@ describe('paymentScene (Payment Method Selection)', () => {
 
     it('должен показывать сообщение о выборе способа оплаты на русском', () => {
       const isRu = true
-      const message = isRu ? 'Выберите способ оплаты:' : 'Select payment method:'
+      const message = isRu
+        ? 'Выберите способ оплаты:'
+        : 'Select payment method:'
 
       expect(message).toBe('Выберите способ оплаты:')
     })
 
     it('должен показывать сообщение на английском', () => {
       const isRu = false
-      const message = isRu ? 'Выберите способ оплаты:' : 'Select payment method:'
+      const message = isRu
+        ? 'Выберите способ оплаты:'
+        : 'Select payment method:'
 
       expect(message).toBe('Select payment method:')
     })
@@ -351,16 +354,16 @@ describe('paymentScene (Payment Method Selection)', () => {
         stars: 476,
       }
 
-      expect(mockContext.session.selectedPayment.type).toBe(PaymentType.MONEY_INCOME)
+      expect(mockContext.session.selectedPayment.type).toBe(
+        PaymentType.MONEY_INCOME
+      )
     })
   })
 
   describe('8. Обработка ошибок', () => {
     it('должен показывать сообщение об ошибке на русском', () => {
       const isRu = true
-      const errorMessage = isRu
-        ? 'Произошла ошибка.'
-        : 'An error occurred.'
+      const errorMessage = isRu ? 'Произошла ошибка.' : 'An error occurred.'
 
       expect(errorMessage).toBe('Произошла ошибка.')
     })

@@ -15,16 +15,16 @@ import { showMainMenu } from '@/navigation'
 
 const startScene = new Scenes.WizardScene<MyContext>(
   'startScene', // Уникальный ID сцены
-  
+
   // Шаг 1: Показываем меню и завершаем сцену
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString()
-    
+
     console.log('✅ [startScene] Показываем главное меню:', {
       telegramId,
       username: ctx.from?.username,
-      firstName: ctx.from?.first_name
+      firstName: ctx.from?.first_name,
     })
 
     try {
@@ -35,7 +35,7 @@ const startScene = new Scenes.WizardScene<MyContext>(
 
       // Определяем имя для приветствия
       const name = fullName || username || (isRu ? 'друг' : 'friend')
-      
+
       // Получаем информацию о боте
       let botName = 'AI Bot'
       try {
@@ -51,7 +51,7 @@ const startScene = new Scenes.WizardScene<MyContext>(
         const translation = await getTranslation({
           key: 'welcome',
           ctx,
-          bot_name: botName
+          bot_name: botName,
         })
 
         // Заменяем {name} и {botName} в переводе
@@ -63,11 +63,14 @@ const startScene = new Scenes.WizardScene<MyContext>(
           console.log('✅ [startScene] Получено приветствие из translations:', {
             botName,
             messageLength: welcomeText.length,
-            language: isRu ? 'ru' : 'en'
+            language: isRu ? 'ru' : 'en',
           })
         }
       } catch (error) {
-        console.warn('⚠️ [startScene] Не удалось получить приветствие из translations, используем fallback:', error)
+        console.warn(
+          '⚠️ [startScene] Не удалось получить приветствие из translations, используем fallback:',
+          error
+        )
       }
 
       // Fallback на стандартное приветствие, если не нашли в translations
@@ -86,13 +89,12 @@ const startScene = new Scenes.WizardScene<MyContext>(
 
       // Логируем статистику
       console.log('✅ [startScene] Меню отправлено успешно')
-
     } catch (error) {
       console.error('❌ [startScene] Ошибка при показе меню:', error)
-      
+
       // Отправляем простое сообщение об ошибке
       await ctx.reply(
-        isRu 
+        isRu
           ? '❌ Произошла ошибка. Попробуйте позже.'
           : '❌ An error occurred. Please try again later.'
       )

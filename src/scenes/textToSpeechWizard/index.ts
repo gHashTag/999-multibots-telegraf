@@ -1,6 +1,10 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
-import { getUserBalance, getVoiceId, updateUserBalance } from '../../core/supabase'
+import {
+  getUserBalance,
+  getVoiceId,
+  updateUserBalance,
+} from '../../core/supabase'
 import {
   sendBalanceMessage,
   // sendInsufficientStarsMessage, // Больше не используется здесь напрямую, т.к. проверка баланса выше
@@ -66,7 +70,12 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
     let textToConvert: string | undefined
 
     // Check for /convert command with pending text
-    if (message && 'text' in message && message.text === '/convert' && ctx.session.pendingTtsText) {
+    if (
+      message &&
+      'text' in message &&
+      message.text === '/convert' &&
+      ctx.session.pendingTtsText
+    ) {
       textToConvert = ctx.session.pendingTtsText
       delete ctx.session.pendingTtsText
     } else if (message && 'text' in message && message.text !== '/convert') {
@@ -96,7 +105,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         // Проверим валидность только если это не fallback голос
         logger.info('[textToSpeechWizard] Voice ID obtained', {
           voice_id,
-          telegram_id: ctx.from.id.toString()
+          telegram_id: ctx.from.id.toString(),
         })
 
         // Если voice_id получен, проверяем его валидность только для пользовательских голосов
@@ -107,7 +116,9 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
           )
 
           if (!voiceIsValid) {
-            logger.warn('[textToSpeechWizard] Voice validation failed, but proceeding with fallback logic')
+            logger.warn(
+              '[textToSpeechWizard] Voice validation failed, but proceeding with fallback logic'
+            )
             // Fallback логика теперь встроена в createAudioFileFromText, поэтому продолжаем
           }
         }
@@ -118,8 +129,8 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
         const { checkUserBalance } = await import('@/helpers/checkUserBalance')
         const hasBalance = await checkUserBalance(ctx, cost)
         if (!hasBalance) {
-           await ctx.scene.leave()
-           return
+          await ctx.scene.leave()
+          return
         }
 
         logger.info('[textToSpeechWizard] Calling createAudioFileFromText', {
@@ -171,7 +182,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
             if (!charged) {
               logger.error('❌ Failed to charge user for TTS', {
                 telegram_id: currentUserId,
-                cost
+                cost,
               })
               await ctx.reply(
                 isRu
@@ -181,7 +192,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
             } else {
               logger.info('✅ Successfully charged user for TTS', {
                 telegram_id: currentUserId,
-                cost
+                cost,
               })
             }
           }

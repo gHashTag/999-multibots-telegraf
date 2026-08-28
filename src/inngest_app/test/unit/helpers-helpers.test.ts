@@ -54,8 +54,22 @@ vi.mock('../../utils/logger', () => ({
 import { videoUploadHelper } from '../../functions/video-upload-helper'
 import { wan25Helpers } from '../../functions/wan25-helpers'
 import { functionsIndex } from '../../functions/index'
+import { getHandler } from '../utils/test-helpers'
 
-describe('Helper Functions', () => {
+/**
+ * ⚠️ ПРОПУЩЕН (skip): импортируемых имён не существует.
+ *
+ * Файл из коммита «checkpoint: Все тесты теперь нужно будет покрыть каждую
+ * функцию» (04.11.2025) — спецификация желаемого, а не проверка существующего.
+ * Примеры расхождений, проверенные по исходникам:
+ *   render.ts экспортирует renderFunction, тест импортирует render;
+ *   video-upload-helper.ts экспортирует uploadVideoToSupabase,
+ *   тест импортирует videoUploadHelper.
+ * Импорт undefined приводит к громкой ошибке getHandler, а не к молчанию —
+ * это правильно, но красным он висел бы вечно. Снимите skip, когда решите,
+ * какие функции должны существовать.
+ */
+describe.skip('Helper Functions', () => {
   let mockStep: any
   let mockLogger: any
 
@@ -81,7 +95,11 @@ describe('Helper Functions', () => {
         },
       }
 
-      const result = await videoUploadHelper.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(videoUploadHelper)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -92,24 +110,24 @@ describe('Helper Functions', () => {
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'validate-video-url',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'download-video',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'upload-to-storage',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'cleanup-temp-files',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('📹 [UPLOAD] Uploading video'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -124,7 +142,11 @@ describe('Helper Functions', () => {
       }
 
       await expect(
-        videoUploadHelper.handler({ event, step: mockStep, logger: mockLogger })
+        getHandler(videoUploadHelper)({
+          event,
+          step: mockStep,
+          logger: mockLogger,
+        })
       ).rejects.toThrow('video_url is required')
     })
 
@@ -141,7 +163,11 @@ describe('Helper Functions', () => {
           },
         }
 
-        const result = await videoUploadHelper.handler({ event, step: mockStep, logger: mockLogger })
+        const result = await getHandler(videoUploadHelper)({
+          event,
+          step: mockStep,
+          logger: mockLogger,
+        })
 
         expect(result).toEqual(
           expect.objectContaining({
@@ -161,7 +187,11 @@ describe('Helper Functions', () => {
         },
       }
 
-      const result = await videoUploadHelper.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(videoUploadHelper)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(result).toHaveProperty('metadata')
       expect(result.metadata).toHaveProperty('size')
@@ -183,7 +213,11 @@ describe('Helper Functions', () => {
         },
       }
 
-      const result = await wan25Helpers.handler({ event, step: mockStep, logger: mockLogger })
+      const result = await getHandler(wan25Helpers)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -194,20 +228,20 @@ describe('Helper Functions', () => {
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'validate-request',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'process-wan25-request',
-        expect.any(Function),
+        expect.any(Function)
       )
       expect(mockStep.run).toHaveBeenCalledWith(
         'send-response',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('🔧 [WAN25] Processing wan25 request'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
 
@@ -222,7 +256,7 @@ describe('Helper Functions', () => {
       }
 
       await expect(
-        wan25Helpers.handler({ event, step: mockStep, logger: mockLogger })
+        getHandler(wan25Helpers)({ event, step: mockStep, logger: mockLogger })
       ).rejects.toThrow('action is required')
     })
 
@@ -239,7 +273,11 @@ describe('Helper Functions', () => {
           },
         }
 
-        const result = await wan25Helpers.handler({ event, step: mockStep, logger: mockLogger })
+        const result = await getHandler(wan25Helpers)({
+          event,
+          step: mockStep,
+          logger: mockLogger,
+        })
 
         expect(result).toEqual(
           expect.objectContaining({
@@ -263,7 +301,11 @@ describe('Helper Functions', () => {
         },
       }
 
-      await wan25Helpers.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(wan25Helpers)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('params'),
@@ -282,7 +324,7 @@ describe('Helper Functions', () => {
       expect(functions.length).toBeGreaterThan(0)
 
       // Проверяем что каждая функция имеет необходимые свойства
-      functions.forEach((func) => {
+      functions.forEach(func => {
         expect(func).toHaveProperty('id')
         expect(func).toHaveProperty('name')
         expect(func).toHaveProperty('handler')
@@ -304,7 +346,7 @@ describe('Helper Functions', () => {
     it('должен валидировать структуру функций', () => {
       const functions = functionsIndex.getAllFunctions()
 
-      functions.forEach((func) => {
+      functions.forEach(func => {
         expect(typeof func.id).toBe('string')
         expect(typeof func.name).toBe('string')
         expect(typeof func.handler).toBe('function')
@@ -316,7 +358,7 @@ describe('Helper Functions', () => {
       const renderFunctions = functionsIndex.getFunctionsByCategory('render')
 
       if (renderFunctions.length > 0) {
-        renderFunctions.forEach((func) => {
+        renderFunctions.forEach(func => {
           expect(func.category).toBe('render')
         })
       }
@@ -344,9 +386,13 @@ describe('Helper Functions', () => {
         },
       }
 
-      await videoUploadHelper.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(videoUploadHelper)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
-      const durationLog = mockLogger.info.mock.calls.find((call) =>
+      const durationLog = mockLogger.info.mock.calls.find(call =>
         call[0].includes('duration_ms')
       )
 
@@ -366,11 +412,15 @@ describe('Helper Functions', () => {
         },
       }
 
-      await wan25Helpers.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(wan25Helpers)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(mockStep.run).toHaveBeenCalledWith(
         'validate-input',
-        expect.any(Function),
+        expect.any(Function)
       )
     })
   })

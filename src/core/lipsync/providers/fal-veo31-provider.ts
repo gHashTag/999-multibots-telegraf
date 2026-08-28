@@ -56,7 +56,8 @@ export class FalVeo31Provider {
         messages: [
           {
             role: 'system',
-            content: 'You are a professional translator. Translate the following text to English. Keep the meaning and style. Return ONLY the translation, no explanations.',
+            content:
+              'You are a professional translator. Translate the following text to English. Keep the meaning and style. Return ONLY the translation, no explanations.',
           },
           { role: 'user', content: text },
         ],
@@ -86,7 +87,10 @@ export class FalVeo31Provider {
    * Генерирует story continuation промпт для Veo 3.1
    * КЛЮЧЕВАЯ ОСОБЕННОСТЬ: промпт продолжает историю с изображения аватара
    */
-  async generateStoryPrompt(userText: string, language: 'ru' | 'en' = 'ru'): Promise<string> {
+  async generateStoryPrompt(
+    userText: string,
+    language: 'ru' | 'en' = 'ru'
+  ): Promise<string> {
     console.log('📖📖📖 [VEO 3.1 STORY] generateStoryPrompt CALLED', {
       userTextLength: userText.length,
       userTextPreview: userText.substring(0, 100),
@@ -104,13 +108,18 @@ export class FalVeo31Provider {
           translated: englishText.substring(0, 100),
         })
       } else {
-        console.log('🌐 [VEO 3.1 STORY] Text already in English, skipping translation')
+        console.log(
+          '🌐 [VEO 3.1 STORY] Text already in English, skipping translation'
+        )
       }
 
-      console.log('📝 [VEO 3.1 STORY] English text ready for story generation:', {
-        length: englishText.length,
-        preview: englishText.substring(0, 100),
-      })
+      console.log(
+        '📝 [VEO 3.1 STORY] English text ready for story generation:',
+        {
+          length: englishText.length,
+          preview: englishText.substring(0, 100),
+        }
+      )
 
       // ШАГ 2: Генерация story continuation промпта
       const systemPrompt = `You are an expert at creating cinematic story continuation prompts for Google Veo 3.1 video generation.
@@ -208,7 +217,9 @@ Create ONLY the story prompt based on what the person is saying. No explanations
         errorMessage: error instanceof Error ? error.message : String(error),
         errorStack: error instanceof Error ? error.stack : undefined,
       })
-      logger.error('❌ [VEO 3.1 STORY] Failed to generate story prompt', { error })
+      logger.error('❌ [VEO 3.1 STORY] Failed to generate story prompt', {
+        error,
+      })
 
       // Fallback промпт (всегда на английском)
       return 'The person from the reference image speaks to camera with confidence and clarity. Camera smoothly transitions to reveal dynamic visual scenes that illustrate their message. Cinematic lighting, smooth camera movements, professional production quality. Vertical 9:16 composition perfect for social media.'
@@ -256,7 +267,9 @@ Create ONLY the story prompt based on what the person is saying. No explanations
         generateAudio: falInput.generate_audio,
         input: {
           prompt: falInput.prompt.substring(0, 150) + '...',
-          image_urls: falInput.image_urls.map(url => url.substring(0, 100) + '...'),
+          image_urls: falInput.image_urls.map(
+            url => url.substring(0, 100) + '...'
+          ),
         },
       })
 

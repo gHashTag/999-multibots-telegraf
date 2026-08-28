@@ -11,10 +11,11 @@ vi.mock('@/helpers/centralizedLanguage', () => ({
 }))
 
 vi.mock('@/config/unified-video-models.config', () => ({
-  generateModelButton: vi.fn((modelId, aspectRatio, isRu) =>
-    `${modelId} (${aspectRatio}) ${isRu ? 'RU' : 'EN'}`
+  generateModelButton: vi.fn(
+    (modelId, aspectRatio, isRu) =>
+      `${modelId} (${aspectRatio}) ${isRu ? 'RU' : 'EN'}`
   ),
-  parseModelButton: vi.fn((text) => {
+  parseModelButton: vi.fn(text => {
     if (text.includes('minimax')) {
       return {
         modelId: 'minimax-video-01',
@@ -33,10 +34,12 @@ vi.mock('@/config/unified-video-models.config', () => ({
 }))
 
 vi.mock('@/handlers/handleTextToVideoDirect', () => ({
-  handleTextToVideoDirect: vi.fn(() => Promise.resolve({
-    success: true,
-    videoUrl: 'https://example.com/video.mp4',
-  })),
+  handleTextToVideoDirect: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      videoUrl: 'https://example.com/video.mp4',
+    })
+  ),
 }))
 
 vi.mock('@/navigation', () => ({
@@ -106,7 +109,6 @@ describe('textToVideoWizard (Text to Video Generation)', () => {
       selectedDuration: null,
     }
     mockContext.message = null
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(handleHelpCancel as Mock).mockResolvedValue(false)
     ;(generateModelKeyboard as Mock).mockReturnValue([
@@ -296,7 +298,10 @@ describe('textToVideoWizard (Text to Video Generation)', () => {
     it('должен получать стоимость модели', () => {
       const price = getModelPriceStars('minimax-video-01', '16:9')
 
-      expect(getModelPriceStars).toHaveBeenCalledWith('minimax-video-01', '16:9')
+      expect(getModelPriceStars).toHaveBeenCalledWith(
+        'minimax-video-01',
+        '16:9'
+      )
       expect(price).toBe(100)
     })
 

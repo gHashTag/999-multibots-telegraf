@@ -77,12 +77,15 @@ export async function saveVideoUrlToSupabase(
   const urlToStore = await mirrorToOwnStorage(publicUrl, telegramId, 'assets')
 
   if (!isPlayableUrl(publicUrl)) {
-    logger.error('🎬❌ [assets] РЕЗУЛЬТАТ НЕ ЗАПИСАН: publicUrl не является ссылкой', {
-      alert: 'ГЕНЕРАЦИЯ ОПЛАЧЕНА, СЛЕДА В assets НЕТ',
-      telegramId: String(telegramId),
-      type,
-      received: String(publicUrl).slice(0, 80),
-    })
+    logger.error(
+      '🎬❌ [assets] РЕЗУЛЬТАТ НЕ ЗАПИСАН: publicUrl не является ссылкой',
+      {
+        alert: 'ГЕНЕРАЦИЯ ОПЛАЧЕНА, СЛЕДА В assets НЕТ',
+        telegramId: String(telegramId),
+        type,
+        received: String(publicUrl).slice(0, 80),
+      }
+    )
     return false
   }
 
@@ -111,6 +114,9 @@ export async function saveVideoUrlToSupabase(
     return false
   }
 
-  logger.info('💾 [assets] Ассет сохранён', { telegramId: String(telegramId), type })
+  logger.info('💾 [assets] Ассет сохранён', {
+    telegramId: String(telegramId),
+    type,
+  })
   return true
 }

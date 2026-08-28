@@ -19,11 +19,18 @@ import Replicate from 'replicate'
 // Input validation schema
 export const NanoBananaProInputSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required').max(2000, 'Prompt too long'),
-  image_input: z.array(z.string().url()).max(14, 'Maximum 14 images allowed').optional(),
-  aspect_ratio: z.enum(['1:1', '3:4', '4:3', '9:16', '16:9', '9:21', '21:9']).default('9:16'),
+  image_input: z
+    .array(z.string().url())
+    .max(14, 'Maximum 14 images allowed')
+    .optional(),
+  aspect_ratio: z
+    .enum(['1:1', '3:4', '4:3', '9:16', '16:9', '9:21', '21:9'])
+    .default('9:16'),
   resolution: z.enum(['1K', '2K', '4K']).default('1K'),
   output_format: z.enum(['jpg', 'png', 'webp']).default('png'),
-  safety_filter_level: z.enum(['block_low_and_above', 'block_medium_and_above', 'block_only_high']).default('block_medium_and_above'),
+  safety_filter_level: z
+    .enum(['block_low_and_above', 'block_medium_and_above', 'block_only_high'])
+    .default('block_medium_and_above'),
 })
 
 export type NanoBananaProInput = z.infer<typeof NanoBananaProInputSchema>
@@ -49,8 +56,10 @@ const NANO_BANANA_PRO_MODEL = {
   key: 'google/nano-banana-pro',
   costPerImage: 8, // Cost in stars (~$0.05 with markup)
   name: 'Google Nano Banana Pro',
-  description_en: 'Google Nano Banana Pro - Advanced image generation powered by Gemini 3 Pro',
-  description_ru: 'Google Nano Banana Pro - Продвинутая генерация изображений на базе Gemini 3 Pro',
+  description_en:
+    'Google Nano Banana Pro - Advanced image generation powered by Gemini 3 Pro',
+  description_ru:
+    'Google Nano Banana Pro - Продвинутая генерация изображений на базе Gemini 3 Pro',
   maxImages: 14,
 }
 
@@ -119,14 +128,18 @@ export async function generateNanoBananaProReplicate(
 
     // Prepare input images array (optional for this model)
     const imageInputArray = inputImageUrl
-      ? (Array.isArray(inputImageUrl) ? inputImageUrl : [inputImageUrl])
+      ? Array.isArray(inputImageUrl)
+        ? inputImageUrl
+        : [inputImageUrl]
       : undefined
 
     // Truncate prompt to 2000 chars
     const MAX_PROMPT_LENGTH = 2000
     let truncatedPrompt = promptText
     if (promptText.length > MAX_PROMPT_LENGTH) {
-      console.log(`⚠️ [NanoBananaPro] Prompt too long (${promptText.length} chars), truncating to ${MAX_PROMPT_LENGTH}`)
+      console.log(
+        `⚠️ [NanoBananaPro] Prompt too long (${promptText.length} chars), truncating to ${MAX_PROMPT_LENGTH}`
+      )
       truncatedPrompt = promptText.substring(0, 1997) + '...'
     }
 
@@ -146,9 +159,14 @@ export async function generateNanoBananaProReplicate(
     } catch (validationError) {
       console.error('🚨 [NanoBananaPro] Input validation failed:', {
         telegram_id,
-        error: validationError instanceof Error ? validationError.message : 'Unknown validation error',
+        error:
+          validationError instanceof Error
+            ? validationError.message
+            : 'Unknown validation error',
       })
-      throw new Error(`Input validation failed: ${validationError instanceof Error ? validationError.message : 'Invalid input format'}`)
+      throw new Error(
+        `Input validation failed: ${validationError instanceof Error ? validationError.message : 'Invalid input format'}`
+      )
     }
 
     console.log('🍌 [NanoBananaPro] Input validated successfully:', {
@@ -183,7 +201,9 @@ export async function generateNanoBananaProReplicate(
 
     // Validate image count
     if (imageCount > NANO_BANANA_PRO_MODEL.maxImages) {
-      throw new Error(`Nano Banana Pro supports maximum ${NANO_BANANA_PRO_MODEL.maxImages} images, but ${imageCount} were provided`)
+      throw new Error(
+        `Nano Banana Pro supports maximum ${NANO_BANANA_PRO_MODEL.maxImages} images, but ${imageCount} were provided`
+      )
     }
 
     // Check balance
@@ -194,7 +214,8 @@ export async function generateNanoBananaProReplicate(
       })
 
       const balanceCheck = await processBalanceOperation({
-        telegram_id: typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
+        telegram_id:
+          typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
         paymentAmount: totalCost,
         is_ru,
         bot_name: ctx.botInfo?.username,
@@ -220,13 +241,18 @@ export async function generateNanoBananaProReplicate(
         return null
       }
     } else {
-      console.log('⏭️ [NanoBananaPro] Skipping balance check (already verified)', { telegram_id })
+      console.log(
+        '⏭️ [NanoBananaPro] Skipping balance check (already verified)',
+        { telegram_id }
+      )
     }
 
     // Send status message
     let statusMessage: any = null
     if (!params.silent) {
-      console.log('📤 [NanoBananaPro] Sending status message...', { telegram_id })
+      console.log('📤 [NanoBananaPro] Sending status message...', {
+        telegram_id,
+      })
 
       statusMessage = await ctx.reply(
         is_ru
@@ -265,7 +291,9 @@ export async function generateNanoBananaProReplicate(
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`🔄 [NanoBananaPro] Attempt ${attempt}/${maxRetries}`, { telegram_id })
+        console.log(`🔄 [NanoBananaPro] Attempt ${attempt}/${maxRetries}`, {
+          telegram_id,
+        })
 
         const input: Record<string, any> = {
           prompt: validatedInput.prompt,
@@ -276,18 +304,21 @@ export async function generateNanoBananaProReplicate(
         }
 
         // Add image_input only if provided
-        if (validatedInput.image_input && validatedInput.image_input.length > 0) {
+        if (
+          validatedInput.image_input &&
+          validatedInput.image_input.length > 0
+        ) {
           input.image_input = validatedInput.image_input
         }
 
-        output = await replicate.run(
-          NANO_BANANA_PRO_MODEL.key as any,
-          { input }
-        )
+        output = await replicate.run(NANO_BANANA_PRO_MODEL.key as any, {
+          input,
+        })
 
-        console.log(`✅ [NanoBananaPro] Success on attempt ${attempt}`, { telegram_id })
+        console.log(`✅ [NanoBananaPro] Success on attempt ${attempt}`, {
+          telegram_id,
+        })
         break
-
       } catch (error) {
         lastError = error instanceof Error ? error : new Error('Unknown error')
         console.warn(`⚠️ [NanoBananaPro] Attempt ${attempt} failed:`, {
@@ -297,7 +328,10 @@ export async function generateNanoBananaProReplicate(
         })
 
         if (attempt === maxRetries) {
-          console.error(`❌ [NanoBananaPro] All ${maxRetries} attempts failed`, { telegram_id })
+          console.error(
+            `❌ [NanoBananaPro] All ${maxRetries} attempts failed`,
+            { telegram_id }
+          )
           break
         }
 
@@ -375,13 +409,19 @@ export async function generateNanoBananaProReplicate(
       const sendResult = await sendPhotoWithFallback(ctx, imageUrl, { caption })
 
       if (!sendResult) {
-        console.error('❌ [NanoBananaPro] Failed to send photo!', { telegram_id })
+        console.error('❌ [NanoBananaPro] Failed to send photo!', {
+          telegram_id,
+        })
         throw new Error('Failed to send photo to user')
       }
 
-      console.log('📬 [NanoBananaPro] Photo sent successfully!', { telegram_id })
+      console.log('📬 [NanoBananaPro] Photo sent successfully!', {
+        telegram_id,
+      })
     } else {
-      console.log('🔇 [NanoBananaPro] Silent mode - skipping photo send', { telegram_id })
+      console.log('🔇 [NanoBananaPro] Silent mode - skipping photo send', {
+        telegram_id,
+      })
     }
 
     // Send to pulse channel
@@ -397,15 +437,17 @@ export async function generateNanoBananaProReplicate(
         prompt: validatedInput.prompt,
         botName: ctx.botInfo?.username || 'unknown',
         additionalInfo: {
-          'Model': NANO_BANANA_PRO_MODEL.name,
-          'Resolution': resolution,
+          Model: NANO_BANANA_PRO_MODEL.name,
+          Resolution: resolution,
           'Aspect Ratio': validatedInput.aspect_ratio,
           'Output Format': validatedInput.output_format,
-          'Price': `${totalCost} stars`,
+          Price: `${totalCost} stars`,
         },
       })
 
-      console.log('✅ [NanoBananaPro] Pulse channel send SUCCESS!', { telegram_id })
+      console.log('✅ [NanoBananaPro] Pulse channel send SUCCESS!', {
+        telegram_id,
+      })
     } catch (pulseError) {
       console.error('❌ [NanoBananaPro] Pulse channel ERROR:', {
         telegram_id,
@@ -414,7 +456,6 @@ export async function generateNanoBananaProReplicate(
     }
 
     return imageUrl
-
   } catch (error) {
     console.error('🔴 [NanoBananaPro] CRITICAL ERROR:', {
       telegram_id: params.telegram_id,
@@ -436,7 +477,7 @@ export async function generateNanoBananaProReplicate(
     }
 
     // Refund user
-    await refundUser(params.ctx, totalCost, { reason: "generation_failed" })
+    await refundUser(params.ctx, totalCost, { reason: 'generation_failed' })
 
     // Send notification to admins
     try {
@@ -450,13 +491,15 @@ export async function generateNanoBananaProReplicate(
 Проверьте логи для деталей.`
 
       for (const adminId of adminIds) {
-        await params.ctx.telegram.sendMessage(adminId, adminMessage, {
-          parse_mode: undefined,
-        }).catch(err => {
-          if (!err.message?.includes('chat not found')) {
-            console.error('Failed to notify admin:', err)
-          }
-        })
+        await params.ctx.telegram
+          .sendMessage(adminId, adminMessage, {
+            parse_mode: undefined,
+          })
+          .catch(err => {
+            if (!err.message?.includes('chat not found')) {
+              console.error('Failed to notify admin:', err)
+            }
+          })
       }
     } catch (notifyError) {
       console.error('Failed to send admin notification:', notifyError)

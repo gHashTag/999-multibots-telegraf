@@ -102,7 +102,9 @@ describe('slugify', () => {
     })
 
     it('should slugify event names', () => {
-      expect(slugify('content/Generate Scripts')).toBe('contentgenerate-scripts')
+      expect(slugify('content/Generate Scripts')).toBe(
+        'contentgenerate-scripts'
+      )
     })
 
     it('should slugify user input', () => {

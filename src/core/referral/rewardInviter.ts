@@ -32,11 +32,17 @@ export const REFERRAL_BONUS_STARS = Math.max(
 
 export type RewardOutcome =
   | { rewarded: true; stars: number }
-  | { rewarded: false; reason: 'disabled' | 'already' | 'failed'; error?: string }
+  | {
+      rewarded: false
+      reason: 'disabled' | 'already' | 'failed'
+      error?: string
+    }
 
 /** Отличает «такая награда уже выдана» от настоящего отказа. */
 function isDuplicate(error?: string): boolean {
-  return Boolean(error && (error.includes('23505') || /duplicate key/i.test(error)))
+  return Boolean(
+    error && (error.includes('23505') || /duplicate key/i.test(error))
+  )
 }
 
 export function referralInvoiceId(
@@ -62,7 +68,9 @@ export async function rewardInviter(params: {
     return { rewarded: false, reason: 'failed', error: 'самоприглашение' }
   }
 
-  const { directPaymentProcessor } = await import('@/core/supabase/directPayment')
+  const { directPaymentProcessor } = await import(
+    '@/core/supabase/directPayment'
+  )
 
   const result = await directPaymentProcessor({
     telegram_id: String(inviterTelegramId),

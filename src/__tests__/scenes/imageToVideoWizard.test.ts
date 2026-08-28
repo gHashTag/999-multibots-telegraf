@@ -11,10 +11,11 @@ vi.mock('@/helpers/centralizedLanguage', () => ({
 }))
 
 vi.mock('@/config/unified-video-models.config', () => ({
-  generateModelButton: vi.fn((modelId, aspectRatio, isRu) =>
-    `${modelId} (${aspectRatio}) ${isRu ? 'RU' : 'EN'}`
+  generateModelButton: vi.fn(
+    (modelId, aspectRatio, isRu) =>
+      `${modelId} (${aspectRatio}) ${isRu ? 'RU' : 'EN'}`
   ),
-  parseModelButton: vi.fn((text) => {
+  parseModelButton: vi.fn(text => {
     if (text.includes('minimax') || text.includes('Minimax')) {
       return {
         modelId: 'minimax-video-01',
@@ -41,10 +42,12 @@ vi.mock('@/config/unified-video-models.config', () => ({
 }))
 
 vi.mock('@/handlers/handleImageToVideoDirect', () => ({
-  handleImageToVideoDirect: vi.fn(() => Promise.resolve({
-    success: true,
-    videoUrl: 'https://example.com/video.mp4',
-  })),
+  handleImageToVideoDirect: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      videoUrl: 'https://example.com/video.mp4',
+    })
+  ),
 }))
 
 vi.mock('@/navigation', () => ({
@@ -100,7 +103,9 @@ describe('imageToVideoWizard (Image to Video Generation)', () => {
     },
     telegram: {
       token: 'test_token',
-      getFileLink: vi.fn(() => Promise.resolve({ href: 'https://api.telegram.org/file/image.jpg' })),
+      getFileLink: vi.fn(() =>
+        Promise.resolve({ href: 'https://api.telegram.org/file/image.jpg' })
+      ),
     },
     message: null as any,
   }
@@ -115,7 +120,6 @@ describe('imageToVideoWizard (Image to Video Generation)', () => {
       imageUrl: null,
     }
     mockContext.message = null
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(handleHelpCancel as Mock).mockResolvedValue(false)
     ;(generateModelKeyboard as Mock).mockReturnValue([
@@ -243,13 +247,17 @@ describe('imageToVideoWizard (Image to Video Generation)', () => {
     it('должен получать ссылку на файл', async () => {
       const fileLink = await mockContext.telegram.getFileLink('test_file_id')
 
-      expect(mockContext.telegram.getFileLink).toHaveBeenCalledWith('test_file_id')
+      expect(mockContext.telegram.getFileLink).toHaveBeenCalledWith(
+        'test_file_id'
+      )
       expect(fileLink.href).toBe('https://api.telegram.org/file/image.jpg')
     })
 
     it('должен сохранять imageUrl в сессии', () => {
       mockContext.session.imageUrl = 'https://api.telegram.org/file/image.jpg'
-      expect(mockContext.session.imageUrl).toBe('https://api.telegram.org/file/image.jpg')
+      expect(mockContext.session.imageUrl).toBe(
+        'https://api.telegram.org/file/image.jpg'
+      )
     })
 
     it('должен показывать подтверждение получения изображения', () => {
@@ -498,7 +506,8 @@ describe('imageToVideoWizard (Image to Video Generation)', () => {
           { file_id: 'large', width: 800, height: 800 },
         ],
       }
-      const photo = mockContext.message.photo[mockContext.message.photo.length - 1]
+      const photo =
+        mockContext.message.photo[mockContext.message.photo.length - 1]
 
       expect(photo.file_id).toBe('large')
     })

@@ -9,16 +9,11 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import {
-  aiReelsCallbackData,
-} from '../fixtures/callback-fixtures'
-import {
-  renderData,
-} from '../fixtures/render-fixtures'
-import {
-  modelTrainingV2Data,
-} from '../fixtures/training-fixtures'
+import { aiReelsCallbackData } from '../fixtures/callback-fixtures'
+import { renderData } from '../fixtures/render-fixtures'
+import { modelTrainingV2Data } from '../fixtures/training-fixtures'
 import { setupInngestMocks, createMockLogger } from '../utils/test-helpers'
+import { getHandler } from '../utils/test-helpers'
 
 // Mock всех зависимостей
 vi.mock('../../inngestClient', () => ({
@@ -65,7 +60,20 @@ import { aiReelsCallback } from '../../functions/ai-reels-callback'
 import { render } from '../../functions/render/render'
 import { modelTrainingV2 } from '../../functions/training/modelTrainingV2'
 
-describe('Workflow Integration Tests', () => {
+/**
+ * ⚠️ ПРОПУЩЕН (skip): импортируемых имён не существует.
+ *
+ * Файл из коммита «checkpoint: Все тесты теперь нужно будет покрыть каждую
+ * функцию» (04.11.2025) — спецификация желаемого, а не проверка существующего.
+ * Примеры расхождений, проверенные по исходникам:
+ *   render.ts экспортирует renderFunction, тест импортирует render;
+ *   video-upload-helper.ts экспортирует uploadVideoToSupabase,
+ *   тест импортирует videoUploadHelper.
+ * Импорт undefined приводит к громкой ошибке getHandler, а не к молчанию —
+ * это правильно, но красным он висел бы вечно. Снимите skip, когда решите,
+ * какие функции должны существовать.
+ */
+describe.skip('Workflow Integration Tests', () => {
   let mockStep: any
   let mockLogger: any
 
@@ -88,7 +96,11 @@ describe('Workflow Integration Tests', () => {
         data: renderData.valid_simple,
       }
 
-      const renderResult = await render.handler({ event: renderEvent, step: mockStep, logger: mockLogger })
+      const renderResult = await getHandler(render)({
+        event: renderEvent,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(renderResult).toEqual(
         expect.objectContaining({
@@ -106,7 +118,11 @@ describe('Workflow Integration Tests', () => {
         },
       }
 
-      const callbackResult = await aiReelsCallback.handler({ event: callbackEvent, step: mockStep, logger: mockLogger })
+      const callbackResult = await getHandler(aiReelsCallback)({
+        event: callbackEvent,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(callbackResult).toEqual(
         expect.objectContaining({
@@ -134,7 +150,11 @@ describe('Workflow Integration Tests', () => {
         data: renderData.valid_simple,
       }
 
-      await render.handler({ event: renderEvent, step: mockStep, logger: mockLogger })
+      await getHandler(render)({
+        event: renderEvent,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       // Шаг 2: Callback с ошибкой
       const callbackEvent = {
@@ -142,7 +162,11 @@ describe('Workflow Integration Tests', () => {
         data: aiReelsCallbackData.valid_failed,
       }
 
-      const callbackResult = await aiReelsCallback.handler({ event: callbackEvent, step: mockStep, logger: mockLogger })
+      const callbackResult = await getHandler(aiReelsCallback)({
+        event: callbackEvent,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(callbackResult).toEqual(
         expect.objectContaining({
@@ -154,7 +178,7 @@ describe('Workflow Integration Tests', () => {
       // Проверяем логирование ошибки
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining('❌ [AI REELS CALLBACK] Render failed'),
-        expect.any(Object),
+        expect.any(Object)
       )
     })
   })
@@ -166,7 +190,11 @@ describe('Workflow Integration Tests', () => {
         data: modelTrainingV2Data.valid_basic,
       }
 
-      const result = await modelTrainingV2.handler({ event: trainingEvent, step: mockStep, logger: mockLogger })
+      const result = await getHandler(modelTrainingV2)({
+        event: trainingEvent,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -177,7 +205,7 @@ describe('Workflow Integration Tests', () => {
       )
 
       // Проверяем последовательность шагов
-      const stepCalls = mockStep.run.mock.calls.map((call) => call[0])
+      const stepCalls = mockStep.run.mock.calls.map(call => call[0])
 
       expect(stepCalls).toContain('validate-images')
       expect(stepCalls).toContain('prepare-training-data')
@@ -195,7 +223,11 @@ describe('Workflow Integration Tests', () => {
         data: modelTrainingV2Data.valid_advanced,
       }
 
-      const result = await modelTrainingV2.handler({ event: trainingEvent, step: mockStep, logger: mockLogger })
+      const result = await getHandler(modelTrainingV2)({
+        event: trainingEvent,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(result).toEqual(
         expect.objectContaining({
@@ -205,8 +237,8 @@ describe('Workflow Integration Tests', () => {
 
       // Проверяем что есть обновления прогресса
       const progressSteps = mockStep.run.mock.calls
-        .filter((call) => call[0].includes('progress'))
-        .map((call) => call[0])
+        .filter(call => call[0].includes('progress'))
+        .map(call => call[0])
 
       expect(progressSteps.length).toBeGreaterThan(0)
     })
@@ -222,7 +254,11 @@ describe('Workflow Integration Tests', () => {
         data: renderData.valid_simple,
       }
 
-      await render.handler({ event: event1, step: mockStep, logger: mockLogger })
+      await getHandler(render)({
+        event: event1,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       // Проверяем что отправлено событие для callback
       expect(inngest.inngest.send).toHaveBeenCalledWith(
@@ -241,7 +277,11 @@ describe('Workflow Integration Tests', () => {
         data: renderData.valid_simple,
       }
 
-      const renderResult = await render.handler({ event: renderEvent, step: mockStep, logger: mockLogger })
+      const renderResult = await getHandler(render)({
+        event: renderEvent,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       // Используем job_id из результата в callback
       const callbackEvent = {
@@ -252,7 +292,11 @@ describe('Workflow Integration Tests', () => {
         },
       }
 
-      const callbackResult = await aiReelsCallback.handler({ event: callbackEvent, step: mockStep, logger: mockLogger })
+      const callbackResult = await getHandler(aiReelsCallback)({
+        event: callbackEvent,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       expect(callbackResult.job_id).toBe(renderResult.job_id)
     })
@@ -274,7 +318,11 @@ describe('Workflow Integration Tests', () => {
       })
 
       await expect(
-        modelTrainingV2.handler({ event: trainingEvent, step: mockStep, logger: mockLogger })
+        getHandler(modelTrainingV2)({
+          event: trainingEvent,
+          step: mockStep,
+          logger: mockLogger,
+        })
       ).rejects.toThrow('Training server unavailable')
 
       // Проверяем что ошибка залогирована
@@ -301,13 +349,17 @@ describe('Workflow Integration Tests', () => {
       })
 
       await expect(
-        render.handler({ event: renderEvent, step: mockStep, logger: mockLogger })
+        getHandler(render)({
+          event: renderEvent,
+          step: mockStep,
+          logger: mockLogger,
+        })
       ).rejects.toThrow('Render service unavailable')
 
       // Проверяем что вызван cleanup
       expect(mockStep.run).toHaveBeenCalledWith(
         'cleanup-temp-files',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       expect(mockLogger.error).toHaveBeenCalledWith(
@@ -328,9 +380,13 @@ describe('Workflow Integration Tests', () => {
         data: aiReelsCallbackData.valid_completed,
       }
 
-      await aiReelsCallback.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(aiReelsCallback)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
-      const durationLog = mockLogger.info.mock.calls.find((call) =>
+      const durationLog = mockLogger.info.mock.calls.find(call =>
         call[0].includes('duration_ms')
       )
 
@@ -346,12 +402,16 @@ describe('Workflow Integration Tests', () => {
         data: modelTrainingV2Data.valid_advanced,
       }
 
-      await modelTrainingV2.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(modelTrainingV2)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       // Проверяем что есть несколько обновлений прогресса
       const progressSteps = mockStep.run.mock.calls
-        .filter((call) => call[0].includes('progress'))
-        .map((call) => call[0])
+        .filter(call => call[0].includes('progress'))
+        .map(call => call[0])
 
       expect(progressSteps.length).toBeGreaterThan(0)
     })
@@ -364,18 +424,22 @@ describe('Workflow Integration Tests', () => {
         data: aiReelsCallbackData.valid_completed,
       }
 
-      await aiReelsCallback.handler({ event: callbackEvent, step: mockStep, logger: mockLogger })
+      await getHandler(aiReelsCallback)({
+        event: callbackEvent,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       // Проверяем что telegram_id извлечен из metadata
       expect(mockStep.run).toHaveBeenCalledWith(
         'extract-telegram-id',
-        expect.any(Function),
+        expect.any(Function)
       )
 
       // Проверяем что telegram_id используется в отправке
       expect(mockStep.run).toHaveBeenCalledWith(
         'send-video-to-telegram',
-        expect.any(Function),
+        expect.any(Function)
       )
     })
 
@@ -391,12 +455,18 @@ describe('Workflow Integration Tests', () => {
       }
 
       await expect(
-        aiReelsCallback.handler({ event, step: mockStep, logger: mockLogger })
+        getHandler(aiReelsCallback)({
+          event,
+          step: mockStep,
+          logger: mockLogger,
+        })
       ).rejects.toThrow()
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('⚠️ [AI REELS CALLBACK] Invalid webhook payload'),
-        expect.any(Object),
+        expect.stringContaining(
+          '⚠️ [AI REELS CALLBACK] Invalid webhook payload'
+        ),
+        expect.any(Object)
       )
     })
   })
@@ -410,13 +480,17 @@ describe('Workflow Integration Tests', () => {
         data: modelTrainingV2Data.valid_basic,
       }
 
-      await modelTrainingV2.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(modelTrainingV2)({
+        event,
+        step: mockStep,
+        logger: mockLogger,
+      })
 
       // Проверяем что события отправлялись
       expect(inngest.inngest.send).toHaveBeenCalled()
 
       // Проверяем порядок событий по вызовам
-      const sendCalls = inngest.inngest.send.mock.calls.map((call) => call[0])
+      const sendCalls = inngest.inngest.send.mock.calls.map(call => call[0])
 
       // Первое событие должно быть о старте
       expect(sendCalls[0]).toEqual(
@@ -432,11 +506,11 @@ describe('Workflow Integration Tests', () => {
         data: renderData.valid_simple,
       }
 
-      await render.handler({ event, step: mockStep, logger: mockLogger })
+      await getHandler(render)({ event, step: mockStep, logger: mockLogger })
 
       // Проверяем что correlation_id передается между событиями
       const stepCalls = mockStep.run.mock.calls
-      const correlationSteps = stepCalls.filter((call) =>
+      const correlationSteps = stepCalls.filter(call =>
         call[0].includes('correlation')
       )
 

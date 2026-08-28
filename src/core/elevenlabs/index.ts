@@ -54,7 +54,10 @@ const createElevenLabsClient = () => {
   // Сначала проверяем наличие API ключа
   const apiKey = process.env.ELEVENLABS_API_KEY
 
-  console.log('[ElevenLabs] Creating client with API key:', apiKey ? `${apiKey.substring(0, 10)}...` : 'NOT FOUND')
+  console.log(
+    '[ElevenLabs] Creating client with API key:',
+    apiKey ? `${apiKey.substring(0, 10)}...` : 'NOT FOUND'
+  )
 
   if (!apiKey) {
     console.warn(
@@ -68,7 +71,10 @@ const createElevenLabsClient = () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { ElevenLabsClient } = require('elevenlabs')
 
-    console.log('[ElevenLabs] Initializing ElevenLabsClient with key:', apiKey.substring(0, 10) + '...')
+    console.log(
+      '[ElevenLabs] Initializing ElevenLabsClient with key:',
+      apiKey.substring(0, 10) + '...'
+    )
 
     const client = new ElevenLabsClient({
       apiKey: apiKey,
@@ -97,7 +103,10 @@ const createElevenLabsClient = () => {
         )
 
         if (!Array.isArray(voicesList)) {
-          console.error('[ElevenLabs] ERROR: Voices response is not an array:', typeof voicesList)
+          console.error(
+            '[ElevenLabs] ERROR: Voices response is not an array:',
+            typeof voicesList
+          )
           return false
         }
 
@@ -143,7 +152,7 @@ export const elevenlabs = new Proxy({} as any, {
   get(_target, prop) {
     const client = getElevenLabsClient()
     return client[prop]
-  }
+  },
 })
 
 // Helper function to check if a voice exists

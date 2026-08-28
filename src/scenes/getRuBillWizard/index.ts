@@ -2,14 +2,27 @@ import { MyContext } from '@/interfaces'
 import { isRussian } from '@/helpers'
 import { handleHelpCancel } from '@/navigation'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-import {
-  getInvoiceId,
-  description,
-  subscriptionTitles,
-} from './helper'
+import { getInvoiceId, description, subscriptionTitles } from './helper'
 import { getMerchantLogin, getRobokassaPassword1 } from '@/config'
 import { setPayments } from '@/core/supabase'
 import { Scenes } from 'telegraf'
+
+/**
+ * Уникальный InvId для Robokassa.
+ *
+ * `Date.now() % 2147483647` сам по себе НЕ уникален: два счёта, созданных в
+ * одну миллисекунду, получали одинаковый InvId — а для Robokassa это один и
+ * тот же счёт, то есть два платежа сливаются в один. Счётчик гарантирует
+ * строгий рост в пределах процесса, оставаясь в допустимом диапазоне
+ * 1..2147483647.
+ */
+let lastInvoiceId = 0
+function nextInvoiceId(): number {
+  const candidate = Date.now() % 2147483647
+  lastInvoiceId =
+    candidate > lastInvoiceId ? candidate : (lastInvoiceId % 2147483646) + 1
+  return lastInvoiceId
+}
 import { getBotNameByToken } from '@/core'
 import { logger } from '@/utils/logger'
 import {
@@ -35,13 +48,17 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
 
   console.log('🔐 [getRuBillWizard] Credentials check:', {
     hasMerchantLogin: !!merchantLogin,
-    merchantLoginPreview: merchantLogin ? `${merchantLogin.substring(0, 5)}...` : 'MISSING',
+    merchantLoginPreview: merchantLogin
+      ? `${merchantLogin.substring(0, 5)}...`
+      : 'MISSING',
     hasPassword1: !!password1,
     password1Preview: password1 ? `${password1.substring(0, 5)}...` : 'MISSING',
   })
 
   if (!merchantLogin || !password1) {
-    console.error('❌ [getRuBillWizard] CRITICAL: Missing Robokassa credentials!')
+    console.error(
+      '❌ [getRuBillWizard] CRITICAL: Missing Robokassa credentials!'
+    )
     const isRu = isRussian(ctx)
     await ctx.reply(
       isRu
@@ -99,7 +116,7 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
 
       // ✅ ИСПРАВЛЕНИЕ: Используем Date.now() для уникального возрастающего InvId
       // Robokassa требует уникальный InvId как счётчик (1 <= InvId <= 2147483647)
-      const invId = Date.now() % 2147483647
+      const invId = nextInvoiceId()
       console.log('Generated invoice ID:', invId)
 
       const invoiceURL = await getInvoiceId(
@@ -229,5 +246,5 @@ export const getRuBillWizard = new Scenes.WizardScene(
   generateInvoiceStep
 )
 
-getRuBillWizard.help(handleHelpCancel)
-getRuBillWizard.command('cancel', handleHelpCancel)
+getRuBillWizard.help(ctx => handleHelpCancel(ctx))
+getRuBillWizard.command('cancel', ctx => handleHelpCancel(ctx))

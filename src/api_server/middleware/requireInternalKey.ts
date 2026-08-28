@@ -28,11 +28,18 @@ import { logger } from '@/utils/logger'
  * отказывает. Иначе забытая переменная окружения тихо вернула бы всё как было,
  * и починка выглядела бы сделанной.
  */
-export function requireInternalKey(req: Request, res: Response, next: NextFunction) {
+export function requireInternalKey(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
   if (!SECRET_API_KEY) {
-    logger.error('[requireInternalKey] SECRET_API_KEY не настроен — доступ закрыт', {
-      path: req.path,
-    })
+    logger.error(
+      '[requireInternalKey] SECRET_API_KEY не настроен — доступ закрыт',
+      {
+        path: req.path,
+      }
+    )
     res.status(503).json({
       error: 'internal key is not configured',
       detail: 'Route is closed until SECRET_API_KEY is set.',

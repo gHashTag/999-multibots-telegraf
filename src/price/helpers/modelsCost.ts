@@ -1,7 +1,12 @@
 import { calculateCost } from '@/price/priceCalculator'
 import { logger } from '@/utils/logger'
 
-import { starCost, SYSTEM_CONFIG, interestRate, usdToStars } from '@/price/constants'
+import {
+  starCost,
+  SYSTEM_CONFIG,
+  interestRate,
+  usdToStars,
+} from '@/price/constants'
 import {
   ModeEnum,
   CostCalculationParams,
@@ -155,8 +160,9 @@ export const modeCosts: Record<string, number | ((param?: any) => number)> = {
   }).stars,
 
   // 🧬 МОРФИНГ СЕРВИСЫ
-  [ModeEnum.MorphingWizard]: calculateModeCost({ mode: ModeEnum.MorphingWizard })
-    .stars,
+  [ModeEnum.MorphingWizard]: calculateModeCost({
+    mode: ModeEnum.MorphingWizard,
+  }).stars,
 }
 
 export const minCost = parseFloat(
@@ -186,10 +192,10 @@ export const maxCost = parseFloat(
  * Системная наценка 50% применяется через usdToStars()
  */
 export const SUNO_MUSIC_CONFIG = {
-  baseUsdPerMin: 0.40,      // Базовая цена KIE AI за минуту
-  model: 'suno-v4.5-plus',  // Модель Suno
-  minDuration: 60,          // Минимум 1 минута
-  maxDuration: 180,         // Максимум 3 минуты
+  baseUsdPerMin: 0.4, // Базовая цена KIE AI за минуту
+  model: 'suno-v4.5-plus', // Модель Suno
+  minDuration: 60, // Минимум 1 минута
+  maxDuration: 180, // Максимум 3 минуты
 } as const
 
 /**
@@ -214,9 +220,24 @@ export function calculateSunoMusicCost(durationSeconds: number): number {
  * Предустановленные длительности для кнопок
  */
 export const SUNO_DURATION_OPTIONS = [
-  { seconds: 60, label: '1 мин', labelEn: '1 min', stars: calculateSunoMusicCost(60) },
-  { seconds: 120, label: '2 мин', labelEn: '2 min', stars: calculateSunoMusicCost(120) },
-  { seconds: 180, label: '3 мин', labelEn: '3 min', stars: calculateSunoMusicCost(180) },
+  {
+    seconds: 60,
+    label: '1 мин',
+    labelEn: '1 min',
+    stars: calculateSunoMusicCost(60),
+  },
+  {
+    seconds: 120,
+    label: '2 мин',
+    labelEn: '2 min',
+    stars: calculateSunoMusicCost(120),
+  },
+  {
+    seconds: 180,
+    label: '3 мин',
+    labelEn: '3 min',
+    stars: calculateSunoMusicCost(180),
+  },
 ] as const
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -230,11 +251,11 @@ export const SUNO_DURATION_OPTIONS = [
  * С наценкой 50%: 100⭐
  */
 export const VOICE_TRAINING_CONFIG = {
-  baseUsd: 1.07,             // Базовая цена Replicate за обучение
-  fixedStars: 100,           // Фиксированная цена в Stars
+  baseUsd: 1.07, // Базовая цена Replicate за обучение
+  fixedStars: 100, // Фиксированная цена в Stars
   model: 'replicate/train-rvc-model',
-  minAudioDuration: 30,      // Минимум 30 секунд
-  maxAudioDuration: 180,     // Максимум 3 минуты
+  minAudioDuration: 30, // Минимум 30 секунд
+  maxAudioDuration: 180, // Максимум 3 минуты
 } as const
 
 /**
@@ -243,10 +264,10 @@ export const VOICE_TRAINING_CONFIG = {
  * С наценкой 50%: 19⭐
  */
 export const AI_COVER_CONFIG = {
-  baseUsd: 0.20,             // Базовая цена за конверсию
-  fixedStars: 19,            // Фиксированная цена в Stars
+  baseUsd: 0.2, // Базовая цена за конверсию
+  fixedStars: 19, // Фиксированная цена в Stars
   model: 'zsxkib/realistic-voice-cloning',
-  maxSongDuration: 600,      // Максимум 10 минут
+  maxSongDuration: 600, // Максимум 10 минут
 } as const
 
 /**

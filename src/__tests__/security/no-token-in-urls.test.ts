@@ -42,7 +42,9 @@ describe('токен бота не уходит в адресах', () => {
   const files = collect()
 
   it('разбор находит места, где такой адрес строится — иначе тест пустой', () => {
-    const building = files.filter(f => TOKEN_URL.test(strip(fs.readFileSync(f, 'utf8'))))
+    const building = files.filter(f =>
+      TOKEN_URL.test(strip(fs.readFileSync(f, 'utf8')))
+    )
     // Строить его законно: файл надо скачать. Незаконно — возвращать и хранить.
     expect(building.length).toBeGreaterThan(0)
   })
@@ -62,7 +64,11 @@ describe('токен бота не уходит в адресах', () => {
         const m = lines[i].match(/^\s*return\s+([A-Za-z_$][\w$]*)\s*$/)
         if (!m) continue
         const above = lines.slice(Math.max(0, i - 12), i).join('\n')
-        if (new RegExp(`\\b${m[1]}\\s*=\\s*\`[^\`]*api\\.telegram\\.org/file/bot`).test(above)) {
+        if (
+          new RegExp(
+            `\\b${m[1]}\\s*=\\s*\`[^\`]*api\\.telegram\\.org/file/bot`
+          ).test(above)
+        ) {
           bad.push(`${f}:${i + 1}`)
         }
       }
@@ -75,7 +81,8 @@ describe('токен бота не уходит в адресах', () => {
     for (const f of files) {
       const lines = strip(fs.readFileSync(f, 'utf8')).split('\n')
       for (let i = 0; i < lines.length; i++) {
-        if (!/(photo_url|avatar_url|public_url|media_url)\s*:/.test(lines[i])) continue
+        if (!/(photo_url|avatar_url|public_url|media_url)\s*:/.test(lines[i]))
+          continue
         const window = lines.slice(i, Math.min(i + 2, lines.length)).join('\n')
         if (TOKEN_URL.test(window)) bad.push(`${f}:${i + 1}`)
       }

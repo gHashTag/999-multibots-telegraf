@@ -75,11 +75,14 @@ async function hasChargeToRefund(
       .order('payment_date', { ascending: false })
       .limit(50)
 
-    if (error) return { allowed: true, reason: `проверка не удалась: ${error.message}` }
-    if (!data) return { allowed: true, reason: 'проверка не удалась: пустой ответ' }
+    if (error)
+      return { allowed: true, reason: `проверка не удалась: ${error.message}` }
+    if (!data)
+      return { allowed: true, reason: 'проверка не удалась: пустой ответ' }
 
     const charge = data.find(r => r.type === 'MONEY_OUTCOME')
-    if (!charge) return { allowed: false, reason: 'за сутки нет ни одного списания' }
+    if (!charge)
+      return { allowed: false, reason: 'за сутки нет ни одного списания' }
 
     const alreadyReturned = data
       .filter(
@@ -179,9 +182,8 @@ export async function refundUser(
     )
   }
 
-  const { count, subscriptionType, level } = await getReferalsCountAndUserData(
-    telegramIdStr
-  )
+  const { count, subscriptionType, level } =
+    await getReferalsCountAndUserData(telegramIdStr)
 
   const isRu = isRussianFromState(ctx)
 

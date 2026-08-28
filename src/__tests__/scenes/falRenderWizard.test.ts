@@ -23,7 +23,9 @@ vi.mock('@/core/supabase/getVoiceId', () => ({
 }))
 
 vi.mock('@/inngest_app/render-server-client', () => ({
-  sendRenderAvatarVideoEvent: vi.fn(() => Promise.resolve({ eventId: 'event_fal_123' })),
+  sendRenderAvatarVideoEvent: vi.fn(() =>
+    Promise.resolve({ eventId: 'event_fal_123' })
+  ),
   createRenderAvatarPayload: vi.fn(() => ({ telegramId: '223757230' })),
 }))
 
@@ -59,8 +61,14 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { getVoiceId } from '@/core/supabase/getVoiceId'
-import { sendRenderAvatarVideoEvent, createRenderAvatarPayload } from '@/inngest_app/render-server-client'
-import { calculateAIReelsPrice, formatPriceMessage } from '@/helpers/ai-reels-pricing'
+import {
+  sendRenderAvatarVideoEvent,
+  createRenderAvatarPayload,
+} from '@/inngest_app/render-server-client'
+import {
+  calculateAIReelsPrice,
+  formatPriceMessage,
+} from '@/helpers/ai-reels-pricing'
 
 describe('falRenderWizard (Fal Avatar Video Generation)', () => {
   const mockContext = {
@@ -81,7 +89,9 @@ describe('falRenderWizard (Fal Avatar Video Generation)', () => {
       cursor: 0,
     },
     telegram: {
-      getFileLink: vi.fn(() => Promise.resolve({ href: 'https://api.telegram.org/file/test.jpg' })),
+      getFileLink: vi.fn(() =>
+        Promise.resolve({ href: 'https://api.telegram.org/file/test.jpg' })
+      ),
     },
     botInfo: { username: 'test_bot' },
     updateType: 'message',
@@ -92,7 +102,6 @@ describe('falRenderWizard (Fal Avatar Video Generation)', () => {
     vi.clearAllMocks()
     mockContext.session = { aiReelsRender: null }
     mockContext.message = null
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(getUserBalance as Mock).mockResolvedValue(100)
     ;(getVoiceId as Mock).mockResolvedValue('voice_id_123')
@@ -121,7 +130,9 @@ describe('falRenderWizard (Fal Avatar Video Generation)', () => {
       delete process.env.FAL_KEY
 
       if (!process.env.FAL_KEY) {
-        await mockContext.reply('❌ Ошибка конфигурации: FAL API ключ не настроен')
+        await mockContext.reply(
+          '❌ Ошибка конфигурации: FAL API ключ не настроен'
+        )
         await mockContext.scene.leave()
       }
 
@@ -170,7 +181,10 @@ describe('falRenderWizard (Fal Avatar Video Generation)', () => {
         photo: [{ file_id: 'avatar_photo_123' }],
       }
 
-      const hasPhoto = mockContext.message && 'photo' in mockContext.message && mockContext.message.photo.length > 0
+      const hasPhoto =
+        mockContext.message &&
+        'photo' in mockContext.message &&
+        mockContext.message.photo.length > 0
       expect(hasPhoto).toBe(true)
     })
 
@@ -183,7 +197,8 @@ describe('falRenderWizard (Fal Avatar Video Generation)', () => {
         ],
       }
 
-      const photo = mockContext.message.photo[mockContext.message.photo.length - 1]
+      const photo =
+        mockContext.message.photo[mockContext.message.photo.length - 1]
       expect(photo.file_id).toBe('large')
     })
 
@@ -285,7 +300,9 @@ describe('falRenderWizard (Fal Avatar Video Generation)', () => {
       }
 
       if (mockContext.message.voice.duration > 30) {
-        await mockContext.reply(`❌ Голосовое сообщение слишком длинное (${mockContext.message.voice.duration} сек). Максимум: 30 секунд.`)
+        await mockContext.reply(
+          `❌ Голосовое сообщение слишком длинное (${mockContext.message.voice.duration} сек). Максимум: 30 секунд.`
+        )
       }
 
       expect(mockContext.reply).toHaveBeenCalled()
@@ -397,7 +414,10 @@ describe('falRenderWizard (Fal Avatar Video Generation)', () => {
     })
 
     it('должен показывать расчет стоимости', () => {
-      const message = formatPriceMessage({ finalPrice: 40, breakdown: [] }, true)
+      const message = formatPriceMessage(
+        { finalPrice: 40, breakdown: [] },
+        true
+      )
 
       expect(formatPriceMessage).toHaveBeenCalled()
     })
@@ -469,7 +489,9 @@ describe('falRenderWizard (Fal Avatar Video Generation)', () => {
     })
 
     it('должен отправлять event на render-server', async () => {
-      const result = await sendRenderAvatarVideoEvent({ telegramId: '223757230' })
+      const result = await sendRenderAvatarVideoEvent({
+        telegramId: '223757230',
+      })
 
       expect(sendRenderAvatarVideoEvent).toHaveBeenCalled()
       expect(result.eventId).toBe('event_fal_123')
@@ -502,7 +524,9 @@ describe('falRenderWizard (Fal Avatar Video Generation)', () => {
 
   describe('8. Возврат средств при ошибке', () => {
     it('должен возвращать средства при ошибке отправки', async () => {
-      ;(sendRenderAvatarVideoEvent as Mock).mockRejectedValue(new Error('Send failed'))
+      ;(sendRenderAvatarVideoEvent as Mock).mockRejectedValue(
+        new Error('Send failed')
+      )
 
       try {
         await sendRenderAvatarVideoEvent({ telegramId: '223757230' })

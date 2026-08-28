@@ -16,7 +16,11 @@ import {
 
 // -- Types --
 
-interface CostBreakdown { service_type: string; total_cost: number; count: number }
+interface CostBreakdown {
+  service_type: string
+  total_cost: number
+  count: number
+}
 
 export interface DebtSummary {
   bot_name: string
@@ -34,7 +38,8 @@ type NotificationLevel = 'soft' | 'warning' | 'critical'
 
 // -- Constants & state --
 
-const notifHistory: Record<string, { level: NotificationLevel; ts: number }> = {}
+const notifHistory: Record<string, { level: NotificationLevel; ts: number }> =
+  {}
 const DAY = 86_400_000
 const THREE_DAYS = 3 * DAY
 const WEEK = 7 * DAY
@@ -44,7 +49,9 @@ let firstRunSkipped = false
 
 const RUB_PER_STAR = 2.3
 
-function fmt(n: number): string { return Math.round(n).toLocaleString('ru-RU') + '⭐' }
+function fmt(n: number): string {
+  return Math.round(n).toLocaleString('ru-RU') + '⭐'
+}
 
 /** Звёзды + эквивалент в рублях — владельцы считают в рублях. */
 function fmtWithRub(n: number): string {
@@ -52,10 +59,14 @@ function fmtWithRub(n: number): string {
 }
 
 function fmtMultiCurrency(amount: number, currency?: string): string {
-  if (!currency || currency === 'XTR' || currency === 'STARS') return fmt(amount)
-  if (currency === 'RUB') return `${Math.round(amount).toLocaleString('ru-RU')}₽ (≈${fmt(toStars(amount, 'RUB'))})`
-  if (currency === 'USDC' || currency === 'USDT_TON') return `$${amount.toFixed(2)} (≈${fmt(toStars(amount, currency))})`
-  if (currency === 'TON') return `${amount.toFixed(2)} TON (≈${fmt(toStars(amount, 'TON'))})`
+  if (!currency || currency === 'XTR' || currency === 'STARS')
+    return fmt(amount)
+  if (currency === 'RUB')
+    return `${Math.round(amount).toLocaleString('ru-RU')}₽ (≈${fmt(toStars(amount, 'RUB'))})`
+  if (currency === 'USDC' || currency === 'USDT_TON')
+    return `$${amount.toFixed(2)} (≈${fmt(toStars(amount, currency))})`
+  if (currency === 'TON')
+    return `${amount.toFixed(2)} TON (≈${fmt(toStars(amount, 'TON'))})`
   return fmt(amount)
 }
 
@@ -70,17 +81,25 @@ function currencyLabel(currency: string): string {
  * молча обрезается, как только у бота набирается больше тысячи транзакций.
  */
 async function fetchAllRows(
-  botName: string, type: 'MONEY_INCOME' | 'MONEY_OUTCOME', columns: string,
+  botName: string,
+  type: 'MONEY_INCOME' | 'MONEY_OUTCOME',
+  columns: string
 ): Promise<BillingPaymentRow[]> {
   const PAGE = 1000
   const rows: BillingPaymentRow[] = []
   for (let offset = 0; ; offset += PAGE) {
     const { data, error } = await supabaseAdmin
-      .from('payments_v2').select(columns)
-      .eq('bot_name', botName).eq('type', type)
+      .from('payments_v2')
+      .select(columns)
+      .eq('bot_name', botName)
+      .eq('type', type)
       .range(offset, offset + PAGE - 1)
     if (error) {
-      logger.error('[Billing] query fail', { botName, type, error: error.message })
+      logger.error('[Billing] query fail', {
+        botName,
+        type,
+        error: error.message,
+      })
       break
     }
     if (!data || data.length === 0) break
@@ -92,15 +111,25 @@ async function fetchAllRows(
 
 async function getOwnerTelegramIds(botName: string): Promise<string[]> {
   const { data, error } = await supabaseAdmin
-    .from('avatars').select('telegram_id').eq('bot_name', botName)
+    .from('avatars')
+    .select('telegram_id')
+    .eq('bot_name', botName)
   if (error || !data) return []
   return data.map((r: { telegram_id: string }) => r.telegram_id).filter(Boolean)
 }
 
-async function tgSend(chatId: string, text: string, markup?: object): Promise<void> {
+async function tgSend(
+  chatId: string,
+  text: string,
+  markup?: object
+): Promise<void> {
   const token = process.env.BOT_TOKEN_1
   if (!token) return
-  const body: Record<string, unknown> = { chat_id: chatId, text, parse_mode: 'HTML' }
+  const body: Record<string, unknown> = {
+    chat_id: chatId,
+    text,
+    parse_mode: 'HTML',
+  }
   if (markup) body.reply_markup = markup
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -110,19 +139,23 @@ async function tgSend(chatId: string, text: string, markup?: object): Promise<vo
     })
   } catch (err) {
     logger.error('[Billing] tg send failed', {
-      chatId, error: err instanceof Error ? err.message : String(err),
+      chatId,
+      error: err instanceof Error ? err.message : String(err),
     })
   }
 }
 
 // -- 1. calculateOwnerDebt --
 
-export async function calculateOwnerDebt(botName: string): Promise<DebtSummary> {
+export async function calculateOwnerDebt(
+  botName: string
+): Promise<DebtSummary> {
   // AI costs (MONEY_OUTCOME) — считаем по колонке `cost` (себестоимость),
   // а НЕ по `amount`/`stars` (это цена для пользователя, а не наши затраты).
   const costs = await fetchAllRows(
-    botName, 'MONEY_OUTCOME',
-    'stars, cost, service_type, status, category, is_system_payment, metadata',
+    botName,
+    'MONEY_OUTCOME',
+    'stars, cost, service_type, status, category, is_system_payment, metadata'
   )
 
   const bm: Record<string, { total_cost: number; count: number }> = {}
@@ -136,25 +169,35 @@ export async function calculateOwnerDebt(botName: string): Promise<DebtSummary> 
     bm[st].total_cost += cost
     bm[st].count += 1
   }
-  const breakdown = Object.entries(bm).map(([service_type, v]) => ({ service_type, ...v }))
+  const breakdown = Object.entries(bm).map(([service_type, v]) => ({
+    service_type,
+    ...v,
+  }))
 
   // Owner payments (table may not exist yet)
   let total_owner_payments = 0
   try {
     const { data, error } = await supabaseAdmin
-      .from('owner_payments').select('amount_stars').eq('bot_name', botName)
+      .from('owner_payments')
+      .select('amount_stars')
+      .eq('bot_name', botName)
     if (!error && data) {
       total_owner_payments = data.reduce(
-        (s: number, r: { amount_stars: number }) => s + (Number(r.amount_stars) || 0), 0,
+        (s: number, r: { amount_stars: number }) =>
+          s + (Number(r.amount_stars) || 0),
+        0
       )
     }
-  } catch { /* owner_payments table may not exist */ }
+  } catch {
+    /* owner_payments table may not exist */
+  }
 
   // User income (MONEY_INCOME) — только реальные клиентские платежи.
   // Админские начисления, бонусы и системные корректировки доходом НЕ являются.
   const incomeRows = await fetchAllRows(
-    botName, 'MONEY_INCOME',
-    'stars, amount, currency, payment_method, status, category, is_system_payment',
+    botName,
+    'MONEY_INCOME',
+    'stars, amount, currency, payment_method, status, category, is_system_payment'
   )
   let total_user_income = 0
   const incomeByMethod: Record<string, number> = {}
@@ -173,9 +216,15 @@ export async function calculateOwnerDebt(botName: string): Promise<DebtSummary> 
   const debt = Math.max(0, platform_share - total_owner_payments)
 
   return {
-    bot_name: botName, total_ai_costs, total_owner_payments,
-    total_user_income, debt, net_profit, platform_share,
-    breakdown, incomeByMethod,
+    bot_name: botName,
+    total_ai_costs,
+    total_owner_payments,
+    total_user_income,
+    debt,
+    net_profit,
+    platform_share,
+    breakdown,
+    incomeByMethod,
   }
 }
 
@@ -214,7 +263,8 @@ export async function generateDebtReport(botName: string): Promise<string> {
   r += `👤 Ваша доля (50%): <b>${fmtWithRub(s.net_profit - s.platform_share)}</b>\n`
   r += `🏢 Платформе (50%): <b>${fmtWithRub(s.platform_share)}</b>\n`
 
-  if (s.total_owner_payments > 0) r += `\n✅ Уже оплачено: ${fmt(s.total_owner_payments)}\n`
+  if (s.total_owner_payments > 0)
+    r += `\n✅ Уже оплачено: ${fmt(s.total_owner_payments)}\n`
 
   if (s.debt > 0) {
     r += `\n⚠️ <b>К оплате: ${fmtWithRub(s.debt)}</b>\n`
@@ -228,7 +278,9 @@ export async function generateDebtReport(botName: string): Promise<string> {
 // -- 3. notifyOwnerAboutDebt --
 
 export async function notifyOwnerAboutDebt(
-  botName: string, debt: number, level: NotificationLevel,
+  botName: string,
+  debt: number,
+  level: NotificationLevel
 ): Promise<void> {
   const owners = await getOwnerTelegramIds(botName)
   if (owners.length === 0) {
@@ -243,12 +295,27 @@ export async function notifyOwnerAboutDebt(
   if (level === 'soft') {
     suffix = '\n\n💡 Рекомендуем оплатить задолженность заблаговременно.'
   } else if (level === 'warning') {
-    suffix = '\n\n⚠️ <b>Внимание!</b> Оплатите задолженность чтобы избежать отключения бота.'
-    markup = { inline_keyboard: [[{ text: '💳 Оплатить', callback_data: `billing_pay_${botName}` }]] }
+    suffix =
+      '\n\n⚠️ <b>Внимание!</b> Оплатите задолженность чтобы избежать отключения бота.'
+    markup = {
+      inline_keyboard: [
+        [{ text: '💳 Оплатить', callback_data: `billing_pay_${botName}` }],
+      ],
+    }
   } else {
     // Бот НЕ останавливается (см. disableBot) — не обещаем владельцу отключение.
-    suffix = '\n\n🛑 <b>Просроченная задолженность.</b> Бот продолжает работать, но просим погасить долг платформе.'
-    markup = { inline_keyboard: [[{ text: '💳 Оплатить сейчас', callback_data: `billing_pay_${botName}` }]] }
+    suffix =
+      '\n\n🛑 <b>Просроченная задолженность.</b> Бот продолжает работать, но просим погасить долг платформе.'
+    markup = {
+      inline_keyboard: [
+        [
+          {
+            text: '💳 Оплатить сейчас',
+            callback_data: `billing_pay_${botName}`,
+          },
+        ],
+      ],
+    }
   }
 
   for (const oid of owners) await tgSend(oid, report + suffix, markup)
@@ -273,12 +340,16 @@ export async function disableBot(botName: string): Promise<boolean> {
 
     const owners = await getOwnerTelegramIds(botName)
     for (const oid of owners) {
-      await tgSend(oid, `⚠️ <b>Бот @${botName} продолжает работать</b>\n\nОбнаружена неоплаченная задолженность платформе. Пожалуйста, погасите задолженность, чтобы избежать приостановки услуг.`)
+      await tgSend(
+        oid,
+        `⚠️ <b>Бот @${botName} продолжает работать</b>\n\nОбнаружена неоплаченная задолженность платформе. Пожалуйста, погасите задолженность, чтобы избежать приостановки услуг.`
+      )
     }
     return true
   } catch (err) {
     logger.error('[Billing] Failed to process debt bot', {
-      botName, error: err instanceof Error ? err.message : String(err),
+      botName,
+      error: err instanceof Error ? err.message : String(err),
     })
     return false
   }
@@ -296,13 +367,19 @@ export async function runBillingCheck(): Promise<void> {
 
   logger.info('[Billing] Running billing check...')
 
-  const { data: bots, error } = await supabaseAdmin.from('avatars').select('bot_name')
+  const { data: bots, error } = await supabaseAdmin
+    .from('avatars')
+    .select('bot_name')
   if (error || !bots) {
     logger.error('[Billing] Failed to fetch bots', { error: error?.message })
     return
   }
 
-  const botNames = [...new Set(bots.map((b: { bot_name: string }) => b.bot_name).filter(Boolean))]
+  const botNames = [
+    ...new Set(
+      bots.map((b: { bot_name: string }) => b.bot_name).filter(Boolean)
+    ),
+  ]
 
   for (const botName of botNames) {
     try {
@@ -311,17 +388,22 @@ export async function runBillingCheck(): Promise<void> {
       const now = Date.now()
 
       if (debt > 500) {
-        const shouldNotify = !prev || prev.level !== 'critical' || now - prev.ts > THREE_DAYS
+        const shouldNotify =
+          !prev || prev.level !== 'critical' || now - prev.ts > THREE_DAYS
         if (shouldNotify) await notifyOwnerAboutDebt(botName, debt, 'critical')
-        if (prev?.level === 'critical' && now - prev.ts > THREE_DAYS) await disableBot(botName)
+        if (prev?.level === 'critical' && now - prev.ts > THREE_DAYS)
+          await disableBot(botName)
       } else if (debt > 300) {
-        if (!prev || now - prev.ts > THREE_DAYS) await notifyOwnerAboutDebt(botName, debt, 'warning')
+        if (!prev || now - prev.ts > THREE_DAYS)
+          await notifyOwnerAboutDebt(botName, debt, 'warning')
       } else if (debt > 100) {
-        if (!prev || now - prev.ts > WEEK) await notifyOwnerAboutDebt(botName, debt, 'soft')
+        if (!prev || now - prev.ts > WEEK)
+          await notifyOwnerAboutDebt(botName, debt, 'soft')
       }
     } catch (err) {
       logger.error('[Billing] Error checking bot', {
-        botName, error: err instanceof Error ? err.message : String(err),
+        botName,
+        error: err instanceof Error ? err.message : String(err),
       })
     }
   }
@@ -335,11 +417,15 @@ let billingInterval: ReturnType<typeof setInterval> | null = null
 export function startBillingMonitor(intervalMs = DAY): void {
   logger.info('[Billing] Starting billing monitor', { intervalMs })
   runBillingCheck().catch(err =>
-    logger.error('[Billing] Initial check failed', { error: err instanceof Error ? err.message : String(err) }),
+    logger.error('[Billing] Initial check failed', {
+      error: err instanceof Error ? err.message : String(err),
+    })
   )
   billingInterval = setInterval(() => {
     runBillingCheck().catch(err =>
-      logger.error('[Billing] Scheduled check failed', { error: err instanceof Error ? err.message : String(err) }),
+      logger.error('[Billing] Scheduled check failed', {
+        error: err instanceof Error ? err.message : String(err),
+      })
     )
   }, intervalMs)
 }

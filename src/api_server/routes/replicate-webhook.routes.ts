@@ -54,10 +54,13 @@ router.post('/replicate', async (req: any, res: any) => {
     // Replicate отправляет webhook только для 'completed' событий (webhook_events_filter: ['completed'])
     const terminalStatuses = ['succeeded', 'failed', 'canceled']
     if (!terminalStatuses.includes(payload.status)) {
-      logger.info('[REPLICATE WEBHOOK] Non-terminal status, acknowledging only', {
-        training_id: payload.id,
-        status: payload.status,
-      })
+      logger.info(
+        '[REPLICATE WEBHOOK] Non-terminal status, acknowledging only',
+        {
+          training_id: payload.id,
+          status: payload.status,
+        }
+      )
       // Возвращаем 200 для всех статусов, чтобы Replicate не повторял запрос
       return res.status(200).json({
         success: true,
@@ -88,19 +91,25 @@ router.post('/replicate', async (req: any, res: any) => {
       // docs/audit/unregistered-functions.md), поэтому вреда пока не было. Но
       // когда её подключат, поддельный вызов смог бы пометить чужое обучение
       // завершённым и подсунуть свою ссылку на модель.
-      logger.warn('[REPLICATE WEBHOOK] Обучение с таким идентификатором не найдено — событие не шлём', {
-        training_id: payload.id,
-      })
+      logger.warn(
+        '[REPLICATE WEBHOOK] Обучение с таким идентификатором не найдено — событие не шлём',
+        {
+          training_id: payload.id,
+        }
+      )
       return res.status(404).json({
         success: false,
         error: 'unknown training id',
       })
     } else {
-      logger.info('[REPLICATE WEBHOOK] Training record found, sending to Inngest', {
-        training_id: payload.id,
-        telegram_id: trainingRecord.telegram_id,
-        model_name: trainingRecord.model_name,
-      })
+      logger.info(
+        '[REPLICATE WEBHOOK] Training record found, sending to Inngest',
+        {
+          training_id: payload.id,
+          telegram_id: trainingRecord.telegram_id,
+          model_name: trainingRecord.model_name,
+        }
+      )
     }
 
     // ✅ STEP 2: Отправляем событие в Inngest для асинхронной обработки

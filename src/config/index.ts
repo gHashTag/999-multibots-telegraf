@@ -83,16 +83,29 @@ const config: any = {
 
 // ✅ Навешиваем ленивые свойства для секретов из Infisical
 const lazyKeys = [
-  'SUPABASE_URL', 'SUPABASE_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_STORAGE_BUCKET', 'SUPABASE_SERVICE_KEY',
-  'RUNWAY_API_KEY', 'ELEVENLABS_API_KEY', 'KIE_AI_API_KEY', 'FAL_KEY', 'OPENAI_API_KEY', 'MERCHANT_LOGIN',
-  'REPLICATE_API_TOKEN', 'REPLICATE_USERNAME', 'RENDER_INNGEST_EVENT_KEY', 'INNGEST_URL', 'INNGEST_SIGNING_KEY'
+  'SUPABASE_URL',
+  'SUPABASE_KEY',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_STORAGE_BUCKET',
+  'SUPABASE_SERVICE_KEY',
+  'RUNWAY_API_KEY',
+  'ELEVENLABS_API_KEY',
+  'KIE_AI_API_KEY',
+  'FAL_KEY',
+  'OPENAI_API_KEY',
+  'MERCHANT_LOGIN',
+  'REPLICATE_API_TOKEN',
+  'REPLICATE_USERNAME',
+  'RENDER_INNGEST_EVENT_KEY',
+  'INNGEST_URL',
+  'INNGEST_SIGNING_KEY',
 ]
 
 lazyKeys.forEach(key => {
   Object.defineProperty(config, key, {
     get: () => process.env[key as any] || undefined,
     enumerable: true,
-    configurable: true
+    configurable: true,
   })
 })
 
@@ -100,13 +113,13 @@ lazyKeys.forEach(key => {
 Object.defineProperty(config, 'REPLICATE_API_TOKEN', {
   get: () => process.env.REPLICATE_API_TOKEN,
   enumerable: true,
-  configurable: true
+  configurable: true,
 })
 
 Object.defineProperty(config, 'REPLICATE_USERNAME', {
   get: () => process.env.REPLICATE_USERNAME,
   enumerable: true,
-  configurable: true
+  configurable: true,
 })
 
 export default config
@@ -246,7 +259,10 @@ if (isDev && CLOUDFLARE_TUNNEL_URL) {
 // ⚠️ ВАЖНО: Эта проверка выполняется при импорте, ДО загрузки секретов из Infisical
 // Поэтому она может показать предупреждение даже если секреты будут загружены позже
 // Реальная проверка должна выполняться ПОСЛЕ загрузки секретов в startApplication()
-if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
+if (
+  process.env.NODE_ENV === 'production' ||
+  process.env.NODE_ENV === 'staging'
+) {
   const merchantLogin = getMerchantLogin()
   if (!merchantLogin || merchantLogin.trim() === '') {
     console.warn(
@@ -266,9 +282,7 @@ if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging')
     console.warn(
       '⚠️ [CONFIG] ROBOKASSA_PASSWORD_1 не найден при импорте (это нормально, если секреты загружаются из Infisical позже)'
     )
-    console.warn(
-      '   Проверьте, что ROBOKASSA_PASSWORD_1 загружен из Infisical'
-    )
+    console.warn('   Проверьте, что ROBOKASSA_PASSWORD_1 загружен из Infisical')
   } else {
     console.log('✅ [CONFIG] ROBOKASSA_PASSWORD_1 загружен')
   }
@@ -284,9 +298,7 @@ if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging')
 
 // ✅ ИСПРАВЛЕНИЕ: API_SERVER_URL с fallback
 export const API_SERVER_URL_FINAL =
-  API_SERVER_URL ||
-  process.env.BASE_WEBHOOK_URL ||
-  ''
+  API_SERVER_URL || process.env.BASE_WEBHOOK_URL || ''
 
 // ✅ УПРОЩЕННАЯ СХЕМА: Один PUBLIC_URL для всех окружений
 // В dev: ngrok/cloudflare tunnel (устанавливается автоматически в src/index.ts)
@@ -296,8 +308,8 @@ export const PUBLIC_URL = process.env.BASE_WEBHOOK_URL || API_SERVER_URL_FINAL
 // ✅ API_URL - алиас для PUBLIC_URL (для обратной совместимости)
 // Вычисляется из API_SERVER_URL или LOCAL_SERVER_URL в зависимости от окружения
 export const API_URL = isDev
-  ? (LOCAL_SERVER_URL || AI_SERVER_LOCAL_URL || API_SERVER_URL || PUBLIC_URL)
-  : (API_SERVER_URL || PUBLIC_URL)
+  ? LOCAL_SERVER_URL || AI_SERVER_LOCAL_URL || API_SERVER_URL || PUBLIC_URL
+  : API_SERVER_URL || PUBLIC_URL
 
 // 🎤 DEFAULT VOICE IDS for ElevenLabs fallback
 export const DEFAULT_VOICE_IDS = {

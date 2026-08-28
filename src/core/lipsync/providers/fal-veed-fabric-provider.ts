@@ -98,17 +98,20 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
       const { falModelEndpoint, falApiData, modelName } =
         this.prepareModelInput(falInput)
 
-      console.log('🚨 [FAL PROVIDER] CRITICAL DEBUG: Отправка запроса к Fal.ai API', {
-        telegramId: falInput.telegramId,
-        modelEndpoint: falModelEndpoint,
-        modelName,
-        apiData: {
-          video_url: falApiData.video_url?.substring(0, 50) + '...',
-          image_url: falApiData.image_url?.substring(0, 50) + '...',
-          audio_url: falApiData.audio_url?.substring(0, 50) + '...',
-        },
-        hasFalKey: !!process.env.FAL_KEY,
-      })
+      console.log(
+        '🚨 [FAL PROVIDER] CRITICAL DEBUG: Отправка запроса к Fal.ai API',
+        {
+          telegramId: falInput.telegramId,
+          modelEndpoint: falModelEndpoint,
+          modelName,
+          apiData: {
+            video_url: falApiData.video_url?.substring(0, 50) + '...',
+            image_url: falApiData.image_url?.substring(0, 50) + '...',
+            audio_url: falApiData.audio_url?.substring(0, 50) + '...',
+          },
+          hasFalKey: !!process.env.FAL_KEY,
+        }
+      )
 
       logger.debug('📡 Отправка запроса к Fal.ai API', {
         telegramId: falInput.telegramId,
@@ -127,13 +130,16 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
         },
       })
 
-      console.log('🚨 [FAL PROVIDER] CRITICAL DEBUG: Получен ответ от Fal.ai API', {
-        telegramId: falInput.telegramId,
-        modelEndpoint: falModelEndpoint,
-        hasData: !!result.data,
-        hasRequestId: !!result.requestId,
-        dataKeys: Object.keys(result.data || {}),
-      })
+      console.log(
+        '🚨 [FAL PROVIDER] CRITICAL DEBUG: Получен ответ от Fal.ai API',
+        {
+          telegramId: falInput.telegramId,
+          modelEndpoint: falModelEndpoint,
+          hasData: !!result.data,
+          hasRequestId: !!result.requestId,
+          dataKeys: Object.keys(result.data || {}),
+        }
+      )
 
       logger.info('✅ Получен ответ от Fal.ai API', {
         telegramId: falInput.telegramId,
@@ -191,15 +197,18 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
         },
       }
     } catch (error: any) {
-      console.log('🚨 [FAL PROVIDER] CRITICAL DEBUG: Ошибка в Fal.ai провайдере', {
-        telegramId: input.telegramId,
-        error: error.message,
-        errorName: error.name,
-        errorCode: error.code,
-        status: error.status,
-        body: error.body,
-        hasBody: !!error.body,
-      })
+      console.log(
+        '🚨 [FAL PROVIDER] CRITICAL DEBUG: Ошибка в Fal.ai провайдере',
+        {
+          telegramId: input.telegramId,
+          error: error.message,
+          errorName: error.name,
+          errorCode: error.code,
+          status: error.status,
+          body: error.body,
+          hasBody: !!error.body,
+        }
+      )
 
       logger.error('❌ Ошибка генерации Fal.ai Lip-Sync', {
         telegramId: input.telegramId,
@@ -350,10 +359,7 @@ export class FalVeedFabricProvider implements ILipSyncProvider {
     durationSeconds: number,
     resolution?: string
   ): number {
-    const {
-      MARKUP_MULTIPLIER,
-      STAR_COST_USD,
-    } = require('@/price/constants')
+    const { MARKUP_MULTIPLIER, STAR_COST_USD } = require('@/price/constants')
 
     switch (modelId) {
       case 'fal-veed-fabric-1.0-fast': {

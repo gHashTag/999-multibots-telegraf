@@ -14,4 +14,4 @@
 // Прежде чем добавлять строку сюда: посмотри package.json пакета на поле
 // types/typings и наличие @types/<пакет>. Если что-то из этого есть — шим
 // не нужен и вреден.
-declare module 'adm-zip';
+declare module 'adm-zip'

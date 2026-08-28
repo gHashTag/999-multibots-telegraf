@@ -24,7 +24,10 @@ function getAvailableModels(inputType: VideoInputType): UnifiedVideoModelId[] {
 /**
  * Форматировать кнопку модели
  */
-function formatModelButton(modelKey: VideoModelConfigKey, isRu: boolean = false): string {
+function formatModelButton(
+  modelKey: VideoModelConfigKey,
+  isRu: boolean = false
+): string {
   const config = VIDEO_MODELS_CONFIG[modelKey]
   if (!config) return modelKey
 
@@ -95,7 +98,10 @@ export function createResolutionKeyboard(
   }
 
   // Проверяем, что модель поддерживает ценообразование по разрешениям
-  if (config.pricing.type !== 'per_resolution' && config.pricing.type !== 'per_duration_resolution') {
+  if (
+    config.pricing.type !== 'per_resolution' &&
+    config.pricing.type !== 'per_duration_resolution'
+  ) {
     return Markup.inlineKeyboard([])
   }
 
@@ -127,7 +133,11 @@ export function createDurationKeyboard(
   }
 
   // Проверяем, что модель поддерживает ценообразование по длительности
-  if (config.pricing.type !== 'per_duration' && config.pricing.type !== 'per_duration_resolution' && config.pricing.type !== 'per_second') {
+  if (
+    config.pricing.type !== 'per_duration' &&
+    config.pricing.type !== 'per_duration_resolution' &&
+    config.pricing.type !== 'per_second'
+  ) {
     return Markup.inlineKeyboard([])
   }
 
@@ -177,8 +187,8 @@ export function createAspectRatioKeyboard(
         ? '📱 Вертикальное (9:16)'
         : '📺 Горизонтальное (16:9)'
       : aspectRatio === '9:16'
-      ? '📱 Vertical (9:16)'
-      : '📺 Horizontal (16:9)'
+        ? '📱 Vertical (9:16)'
+        : '📺 Horizontal (16:9)'
   })
 
   // Располагаем кнопки в один ряд + кнопка назад

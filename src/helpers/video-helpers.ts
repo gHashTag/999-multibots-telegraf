@@ -191,7 +191,9 @@ async function uploadBufferToPomf(
   // Try catbox.moe first (most reliable)
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      logger.info(`🔄 [AUDIO CONVERT] Uploading to catbox.moe (attempt ${attempt})...`)
+      logger.info(
+        `🔄 [AUDIO CONVERT] Uploading to catbox.moe (attempt ${attempt})...`
+      )
       const formData = new FormData()
       formData.append('reqtype', 'fileupload')
       formData.append('fileToUpload', buffer, fileName)
@@ -267,7 +269,9 @@ async function uploadBufferToPomf(
     })
   }
 
-  throw new Error('All file hosting services failed (catbox.moe, 0x0.st, pomf.lain.la)')
+  throw new Error(
+    'All file hosting services failed (catbox.moe, 0x0.st, pomf.lain.la)'
+  )
 }
 
 /**

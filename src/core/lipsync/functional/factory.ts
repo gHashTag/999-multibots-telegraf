@@ -275,14 +275,17 @@ export const getProviderStats = (
     0
   )
 
-  const providersByType = providers.reduce((acc, provider) => {
-    acc[provider.providerId] = {
-      name: provider.providerName,
-      modelsCount: provider.modelsConfig.length,
-      supportedModels: provider.supportedModels,
-    }
-    return acc
-  }, {} as Record<string, any>)
+  const providersByType = providers.reduce(
+    (acc, provider) => {
+      acc[provider.providerId] = {
+        name: provider.providerName,
+        modelsCount: provider.modelsConfig.length,
+        supportedModels: provider.supportedModels,
+      }
+      return acc
+    },
+    {} as Record<string, any>
+  )
 
   return {
     totalProviders: providers.length,

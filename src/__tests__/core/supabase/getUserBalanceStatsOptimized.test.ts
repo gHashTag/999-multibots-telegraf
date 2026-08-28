@@ -106,12 +106,15 @@ describe('getUserBalanceStatsOptimized', () => {
 
       // Assert
       expect(result).toEqual(mockStats)
-      expect(supabase.rpc).toHaveBeenCalledWith('get_user_balance_stats_optimized', {
-        p_telegram_id: 223757230,
-        p_bot_name: null,
-        p_limit_services: 10,
-        p_limit_transactions: 5,
-      })
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'get_user_balance_stats_optimized',
+        {
+          p_telegram_id: 223757230,
+          p_bot_name: null,
+          p_limit_services: 10,
+          p_limit_transactions: 5,
+        }
+      )
       expect(logger.info).toHaveBeenCalledWith(
         '[getUserBalanceStatsOptimized] Fetching optimized stats',
         expect.any(Object)
@@ -129,12 +132,15 @@ describe('getUserBalanceStatsOptimized', () => {
       await getUserBalanceStatsOptimized('123456', 'test_bot', 20, 10)
 
       // Assert
-      expect(supabase.rpc).toHaveBeenCalledWith('get_user_balance_stats_optimized', {
-        p_telegram_id: 123456,
-        p_bot_name: 'test_bot',
-        p_limit_services: 20,
-        p_limit_transactions: 10,
-      })
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'get_user_balance_stats_optimized',
+        {
+          p_telegram_id: 123456,
+          p_bot_name: 'test_bot',
+          p_limit_services: 20,
+          p_limit_transactions: 10,
+        }
+      )
     })
 
     it('должна обрабатывать ошибку от БД', async () => {
@@ -378,7 +384,12 @@ describe('getBotStatisticsSummary', () => {
       ],
       services: [
         { service_type: 'text_to_image', count: 200, revenue: 5000, cost: 500 },
-        { service_type: 'voice_generation', count: 100, revenue: 3000, cost: 300 },
+        {
+          service_type: 'voice_generation',
+          count: 100,
+          revenue: 3000,
+          cost: 300,
+        },
       ],
       period: {
         start: '2025-08-01',
@@ -485,7 +496,9 @@ describe('optimizePaymentData', () => {
 
   it('должна обрабатывать ошибки оптимизации', async () => {
     // Arrange
-    vi.mocked(supabase.rpc).mockRejectedValueOnce(new Error('Optimization failed'))
+    vi.mocked(supabase.rpc).mockRejectedValueOnce(
+      new Error('Optimization failed')
+    )
 
     // Act
     const result = await optimizePaymentData()

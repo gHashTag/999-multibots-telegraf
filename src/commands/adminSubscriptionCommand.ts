@@ -1,6 +1,6 @@
 /**
  * ADMIN SUBSCRIPTION MANAGEMENT COMMAND
- * 
+ *
  * Provides admin tools for:
  * - Checking user subscription status
  * - Force-refreshing user sessions
@@ -24,8 +24,9 @@ import { Markup } from 'telegraf'
  */
 export async function adminSubscriptionCommand(ctx: MyContext) {
   const userId = ctx.from?.id
-  const messageText = ctx.message && 'text' in ctx.message ? ctx.message.text : ''
-  
+  const messageText =
+    ctx.message && 'text' in ctx.message ? ctx.message.text : ''
+
   // Check admin permissions
   if (!userId || !ADMIN_IDS_ARRAY.includes(userId)) {
     await ctx.reply('❌ У вас нет прав для использования этой команды.')
@@ -36,7 +37,8 @@ export async function adminSubscriptionCommand(ctx: MyContext) {
   const [action, targetUserId, subscriptionTypeArg] = args
 
   if (!action || !targetUserId) {
-    await ctx.reply(`
+    await ctx.reply(
+      `
 🔧 <b>Админ команды для управления подписками</b>
 
 <code>/admin_sub check [user_id]</code> - Проверить статус подписки
@@ -47,15 +49,20 @@ export async function adminSubscriptionCommand(ctx: MyContext) {
 <b>Пример:</b>
 <code>/admin_sub check 321330903</code>
 <code>/admin_sub override 321330903 NEUROVIDEO</code>
-    `, { parse_mode: 'HTML' })
+    `,
+      { parse_mode: 'HTML' }
+    )
     return
   }
 
-  logger.info(`[AdminSubCommand] ${action} requested for user ${targetUserId}`, {
-    adminId: userId,
-    targetUser: targetUserId,
-    action,
-  })
+  logger.info(
+    `[AdminSubCommand] ${action} requested for user ${targetUserId}`,
+    {
+      adminId: userId,
+      targetUser: targetUserId,
+      action,
+    }
+  )
 
   try {
     switch (action) {
@@ -66,13 +73,19 @@ export async function adminSubscriptionCommand(ctx: MyContext) {
         await handleRefreshUserSession(ctx, targetUserId)
         break
       case 'override':
-        await handleCreateOverride(ctx, targetUserId, subscriptionTypeArg as SubscriptionType)
+        await handleCreateOverride(
+          ctx,
+          targetUserId,
+          subscriptionTypeArg as SubscriptionType
+        )
         break
       case 'diagnose':
         await handleDiagnoseUser(ctx, targetUserId)
         break
       default:
-        await ctx.reply('❌ Неизвестная команда. Используйте: check, refresh, override, diagnose')
+        await ctx.reply(
+          '❌ Неизвестная команда. Используйте: check, refresh, override, diagnose'
+        )
     }
   } catch (error) {
     logger.error('[AdminSubCommand] Error executing command', {
@@ -81,7 +94,9 @@ export async function adminSubscriptionCommand(ctx: MyContext) {
       targetUserId,
       adminId: userId,
     })
-    await ctx.reply(`❌ Ошибка выполнения команды: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    await ctx.reply(
+      `❌ Ошибка выполнения команды: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
   }
 }
 
@@ -92,7 +107,7 @@ async function handleCheckSubscription(ctx: MyContext, targetUserId: string) {
   await ctx.reply('🔍 Проверяю статус подписки...')
 
   const userDetails = await getUserDetailsSubscription(targetUserId)
-  
+
   const statusMessage = `
 📊 <b>Статус подписки пользователя ${targetUserId}</b>
 
@@ -105,13 +120,18 @@ async function handleCheckSubscription(ctx: MyContext, targetUserId: string) {
 <b>Статус:</b> ${userDetails.isSubscriptionActive ? '🟢 ВСЁ В ПОРЯДКЕ' : '🔴 ТРЕБУЕТ ВНИМАНИЯ'}
   `
 
-  await ctx.reply(statusMessage, { 
+  await ctx.reply(statusMessage, {
     parse_mode: 'HTML',
     reply_markup: Markup.inlineKeyboard([
       [Markup.button.callback('🔄 Обновить сессию', `refresh_${targetUserId}`)],
-      [Markup.button.callback('🔧 Создать подписку', `override_${targetUserId}`)],
+      [
+        Markup.button.callback(
+          '🔧 Создать подписку',
+          `override_${targetUserId}`
+        ),
+      ],
       [Markup.button.callback('🩺 Диагностика', `diagnose_${targetUserId}`)],
-    ]).reply_markup
+    ]).reply_markup,
   })
 }
 
@@ -123,10 +143,10 @@ async function handleRefreshUserSession(ctx: MyContext, targetUserId: string) {
 
   try {
     // Clear any cached subscription data (if we had Redis, we'd clear it here)
-    
+
     // Force re-check subscription
     const refreshedDetails = await getUserDetailsSubscription(targetUserId)
-    
+
     // Log the refresh
     logger.info(`[AdminSubCommand] User session refreshed`, {
       targetUserId,
@@ -135,7 +155,8 @@ async function handleRefreshUserSession(ctx: MyContext, targetUserId: string) {
       adminId: ctx.from?.id,
     })
 
-    await ctx.reply(`✅ <b>Сессия обновлена!</b>
+    await ctx.reply(
+      `✅ <b>Сессия обновлена!</b>
 
 Новый статус:
 📋 Подписка: ${refreshedDetails.subscriptionType || 'Нет'}
@@ -146,8 +167,9 @@ async function handleRefreshUserSession(ctx: MyContext, targetUserId: string) {
 1. Перезапустить бота командой /start
 2. Попробовать команду /start
 3. При необходимости - перезапустить Telegram
-    `, { parse_mode: 'HTML' })
-
+    `,
+      { parse_mode: 'HTML' }
+    )
   } catch (error) {
     logger.error('[AdminSubCommand] Error refreshing user session', {
       error,
@@ -160,17 +182,25 @@ async function handleRefreshUserSession(ctx: MyContext, targetUserId: string) {
 /**
  * Create manual subscription override
  */
-async function handleCreateOverride(ctx: MyContext, targetUserId: string, subscriptionType?: SubscriptionType) {
+async function handleCreateOverride(
+  ctx: MyContext,
+  targetUserId: string,
+  subscriptionType?: SubscriptionType
+) {
   if (!subscriptionType) {
-    await ctx.reply(`❌ Укажите тип подписки: NEUROVIDEO, NEUROPHOTO или NEUROTESTER
+    await ctx.reply(
+      `❌ Укажите тип подписки: NEUROVIDEO, NEUROPHOTO или NEUROTESTER
     
-Пример: <code>/admin_sub override ${targetUserId} NEUROVIDEO</code>`, 
-    { parse_mode: 'HTML' })
+Пример: <code>/admin_sub override ${targetUserId} NEUROVIDEO</code>`,
+      { parse_mode: 'HTML' }
+    )
     return
   }
 
   if (!Object.values(SubscriptionType).includes(subscriptionType)) {
-    await ctx.reply('❌ Неверный тип подписки. Используйте: NEUROVIDEO, NEUROPHOTO, NEUROTESTER')
+    await ctx.reply(
+      '❌ Неверный тип подписки. Используйте: NEUROVIDEO, NEUROPHOTO, NEUROTESTER'
+    )
     return
   }
 
@@ -203,9 +233,9 @@ async function handleCreateOverride(ctx: MyContext, targetUserId: string, subscr
       // Update subscription type
       await supabase
         .from('payments_v2')
-        .update({ 
+        .update({
           subscription_type: subscriptionType,
-          payment_date: new Date().toISOString()
+          payment_date: new Date().toISOString(),
         })
         .eq('id', override.id)
 
@@ -219,7 +249,8 @@ async function handleCreateOverride(ctx: MyContext, targetUserId: string, subscr
       // Verify the override worked
       const verifyDetails = await getUserDetailsSubscription(targetUserId)
 
-      await ctx.reply(`✅ <b>Подписка создана успешно!</b>
+      await ctx.reply(
+        `✅ <b>Подписка создана успешно!</b>
 
 👤 Пользователь: ${targetUserId}
 📋 Тип: ${subscriptionType}
@@ -232,12 +263,12 @@ async function handleCreateOverride(ctx: MyContext, targetUserId: string, subscr
 💡 <b>Пользователю нужно:</b>
 1. Выполнить /start в боте
 2. Проверить доступ к функциям
-      `, { parse_mode: 'HTML' })
-
+      `,
+        { parse_mode: 'HTML' }
+      )
     } else {
       throw new Error('Failed to create payment override')
     }
-
   } catch (error) {
     logger.error('[AdminSubCommand] Error creating subscription override', {
       error,
@@ -283,9 +314,14 @@ async function handleDiagnoseUser(ctx: MyContext, targetUserId: string) {
 📅 Создан: ${userData?.created_at ? new Date(userData.created_at).toLocaleString('ru-RU') : 'N/A'}
 
 <b>💳 ПЛАТЕЖИ (последние 5):</b>
-${payments?.map((p, i) => 
-  `${i+1}. [${new Date(p.created_at).toLocaleDateString('ru-RU')}] ${p.subscription_type || 'N/A'} - ${p.status} - ${p.amount}`
-).join('\n') || 'Нет платежей'}
+${
+  payments
+    ?.map(
+      (p, i) =>
+        `${i + 1}. [${new Date(p.created_at).toLocaleDateString('ru-RU')}] ${p.subscription_type || 'N/A'} - ${p.status} - ${p.amount}`
+    )
+    .join('\n') || 'Нет платежей'
+}
 
 <b>🔑 ПОДПИСКА:</b>
 Тип: ${userDetails.subscriptionType || 'Нет'}
@@ -294,16 +330,20 @@ ${payments?.map((p, i) =>
 Дата: ${userDetails.subscriptionStartDate ? new Date(userDetails.subscriptionStartDate).toLocaleString('ru-RU') : 'N/A'}
 
 <b>🎯 ДОСТУПНЫЕ ФУНКЦИИ:</b>
-${userDetails.subscriptionType === SubscriptionType.NEUROVIDEO ? 
-  '✅ Все функции доступны' : 
-  userDetails.subscriptionType === SubscriptionType.NEUROPHOTO ? 
-  '⚠️ Ограниченный доступ (только фото)' :
-  '❌ Базовый доступ'}
+${
+  userDetails.subscriptionType === SubscriptionType.NEUROVIDEO
+    ? '✅ Все функции доступны'
+    : userDetails.subscriptionType === SubscriptionType.NEUROPHOTO
+      ? '⚠️ Ограниченный доступ (только фото)'
+      : '❌ Базовый доступ'
+}
 
 <b>💡 РЕКОМЕНДАЦИИ:</b>
-${userDetails.isSubscriptionActive ? 
-  '🟢 Всё в порядке. Если пользователь не может получить доступ:\n• Выполнить /start\n• Перезапустить Telegram\n• Проверить правильный ли бот' :
-  '🔴 Нет активной подписки:\n• Проверить обработку платежей\n• Создать подписку вручную\n• Связаться с пользователем'}
+${
+  userDetails.isSubscriptionActive
+    ? '🟢 Всё в порядке. Если пользователь не может получить доступ:\n• Выполнить /start\n• Перезапустить Telegram\n• Проверить правильный ли бот'
+    : '🔴 Нет активной подписки:\n• Проверить обработку платежей\n• Создать подписку вручную\n• Связаться с пользователем'
+}
     `
 
     await ctx.reply(diagnosticReport, { parse_mode: 'HTML' })
@@ -315,7 +355,6 @@ ${userDetails.isSubscriptionActive ?
       subscriptionActive: userDetails.isSubscriptionActive,
       adminId: ctx.from?.id,
     })
-
   } catch (error) {
     logger.error('[AdminSubCommand] Error in user diagnostics', {
       error,
@@ -329,9 +368,16 @@ ${userDetails.isSubscriptionActive ?
  * Handle inline button callbacks for admin subscription management
  */
 export async function handleAdminSubscriptionCallback(ctx: MyContext) {
-  const callbackData = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : ''
-  
-  if (!callbackData.startsWith('refresh_') && !callbackData.startsWith('override_') && !callbackData.startsWith('diagnose_')) {
+  const callbackData =
+    ctx.callbackQuery && 'data' in ctx.callbackQuery
+      ? ctx.callbackQuery.data
+      : ''
+
+  if (
+    !callbackData.startsWith('refresh_') &&
+    !callbackData.startsWith('override_') &&
+    !callbackData.startsWith('diagnose_')
+  ) {
     return false
   }
 
@@ -342,28 +388,29 @@ export async function handleAdminSubscriptionCallback(ctx: MyContext) {
   }
 
   const [action, targetUserId] = callbackData.split('_')
-  
+
   try {
     switch (action) {
       case 'refresh':
         await handleRefreshUserSession(ctx, targetUserId)
         break
       case 'override':
-        await ctx.reply(`Создание подписки для ${targetUserId}:
+        await ctx.reply(
+          `Создание подписки для ${targetUserId}:
         
 <code>/admin_sub override ${targetUserId} NEUROVIDEO</code>
 <code>/admin_sub override ${targetUserId} NEUROPHOTO</code>
-<code>/admin_sub override ${targetUserId} NEUROTESTER</code>`, 
-        { parse_mode: 'HTML' })
+<code>/admin_sub override ${targetUserId} NEUROTESTER</code>`,
+          { parse_mode: 'HTML' }
+        )
         break
       case 'diagnose':
         await handleDiagnoseUser(ctx, targetUserId)
         break
     }
-    
+
     await ctx.answerCbQuery('✅ Выполнено')
     return true
-    
   } catch (error) {
     logger.error('[AdminSubCallback] Error handling callback', {
       error,

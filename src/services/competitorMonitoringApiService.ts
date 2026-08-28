@@ -3,11 +3,11 @@ import { logger } from '@/utils/logger'
 import { MyContext } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { PUBLIC_URL } from '@/config'
-import { 
-  CompetitorSubscription, 
+import {
+  CompetitorSubscription,
   CreateSubscriptionRequest,
   SubscriptionResponse,
-  SubscriptionsResponse 
+  SubscriptionsResponse,
 } from '@/interfaces/instagram.interface'
 
 interface CompetitorMonitoringOptions {
@@ -34,14 +34,14 @@ export class CompetitorMonitoringApiService {
    * 📋 Получить все подписки пользователя
    */
   async getSubscriptions(
-    userTelegramId: string, 
+    userTelegramId: string,
     botName: string
   ): Promise<CompetitorSubscription[]> {
     try {
       logger.info('[Competitor Monitoring API] Getting user subscriptions', {
         userTelegramId,
         botName,
-        apiUrl: this.apiUrl
+        apiUrl: this.apiUrl,
       })
 
       const response = await axios.get(
@@ -49,34 +49,39 @@ export class CompetitorMonitoringApiService {
         {
           params: {
             user_telegram_id: userTelegramId,
-            bot_name: botName
+            bot_name: botName,
           },
           timeout: 10000,
           headers: {
-            'Content-Type': 'application/json'
-          }
+            'Content-Type': 'application/json',
+          },
         }
       )
 
       if (response.data.success) {
-        logger.info('[Competitor Monitoring API] Successfully fetched subscriptions', {
-          userTelegramId,
-          count: response.data.subscriptions.length
-        })
+        logger.info(
+          '[Competitor Monitoring API] Successfully fetched subscriptions',
+          {
+            userTelegramId,
+            count: response.data.subscriptions.length,
+          }
+        )
         return response.data.subscriptions
       } else {
-        logger.warn('[Competitor Monitoring API] API returned non-success response', {
-          userTelegramId,
-          response: response.data
-        })
+        logger.warn(
+          '[Competitor Monitoring API] API returned non-success response',
+          {
+            userTelegramId,
+            response: response.data,
+          }
+        )
         return []
       }
-
     } catch (error) {
       logger.error('[Competitor Monitoring API] Error fetching subscriptions', {
         error: error instanceof Error ? error.message : String(error),
         userTelegramId,
-        botName
+        botName,
       })
       return []
     }
@@ -88,27 +93,37 @@ export class CompetitorMonitoringApiService {
   async createSubscription(
     ctx: MyContext,
     options: CompetitorMonitoringOptions
-  ): Promise<{ success: boolean; message: string; subscription?: CompetitorSubscription }> {
+  ): Promise<{
+    success: boolean
+    message: string
+    subscription?: CompetitorSubscription
+  }> {
     const userTelegramId = ctx.from?.id?.toString()
     const isRu = isRussianFromState(ctx)
 
     if (!userTelegramId) {
       return {
         success: false,
-        message: isRu 
+        message: isRu
           ? '❌ Ошибка: не удалось определить ваш Telegram ID'
-          : '❌ Error: unable to determine your Telegram ID'
+          : '❌ Error: unable to determine your Telegram ID',
       }
     }
 
-    const { competitorUsername, maxReels = 15, minViews = 5000, maxAgeDays = 1, deliveryFormat = 'individual' } = options
+    const {
+      competitorUsername,
+      maxReels = 15,
+      minViews = 5000,
+      maxAgeDays = 1,
+      deliveryFormat = 'individual',
+    } = options
 
     try {
       logger.info('[Competitor Monitoring API] Creating subscription', {
         userTelegramId,
         competitorUsername,
         options,
-        apiUrl: this.apiUrl
+        apiUrl: this.apiUrl,
       })
 
       // Подготавливаем данные для создания подписки согласно backend схеме
@@ -119,7 +134,7 @@ export class CompetitorMonitoringApiService {
         max_reels: maxReels,
         min_views: minViews,
         max_age_days: maxAgeDays,
-        delivery_format: deliveryFormat
+        delivery_format: deliveryFormat,
       }
 
       // Используем готовый backend API endpoint
@@ -129,22 +144,25 @@ export class CompetitorMonitoringApiService {
         {
           timeout: 15000,
           headers: {
-            'Content-Type': 'application/json'
-          }
+            'Content-Type': 'application/json',
+          },
         }
       )
 
       if (response.data.success && response.data.subscription) {
-        logger.info('[Competitor Monitoring API] Subscription created successfully', {
-          userTelegramId,
-          competitorUsername,
-          subscriptionId: response.data.subscription.id
-        })
+        logger.info(
+          '[Competitor Monitoring API] Subscription created successfully',
+          {
+            userTelegramId,
+            competitorUsername,
+            subscriptionId: response.data.subscription.id,
+          }
+        )
 
         // Запускаем парсинг через Inngest
         try {
           const inngestUrl = `${this.apiUrl}/api/inngest`
-          
+
           // Формируем правильный запрос для Instagram Scraper.
           // Имя было "instagram/scraper" — на него никто не подписан.
           // Единственный подписчик объявлен как
@@ -160,47 +178,58 @@ export class CompetitorMonitoringApiService {
               requester_telegram_id: userTelegramId,
               username: ctx.from?.username || 'unknown',
               bot_name: 'telegram_bot',
-              language: isRu ? 'ru' : 'en'
-            }
+              language: isRu ? 'ru' : 'en',
+            },
           }
-          
+
           console.log('🚀 [INNGEST] Triggering Instagram scraping')
           console.log('🔗 [INNGEST] URL:', inngestUrl)
-          console.log('📦 [INNGEST] Event:', JSON.stringify(inngestEvent, null, 2))
-          
-          logger.info('[Competitor Monitoring API] Triggering Instagram scraping via Inngest', {
-            subscriptionId: response.data.subscription.id,
-            competitorUsername,
-            inngestUrl,
-            event: inngestEvent
-          })
-          
-          // Отправляем событие в Inngest
-          const parseResponse = await axios.post(
-            inngestUrl,
-            inngestEvent,
+          console.log(
+            '📦 [INNGEST] Event:',
+            JSON.stringify(inngestEvent, null, 2)
+          )
+
+          logger.info(
+            '[Competitor Monitoring API] Triggering Instagram scraping via Inngest',
             {
-              timeout: 15000,
-              headers: {
-                'Content-Type': 'application/json',
-              },
+              subscriptionId: response.data.subscription.id,
+              competitorUsername,
+              inngestUrl,
+              event: inngestEvent,
             }
           )
-          
+
+          // Отправляем событие в Inngest
+          const parseResponse = await axios.post(inngestUrl, inngestEvent, {
+            timeout: 15000,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          })
+
           console.log('✅ [INNGEST] Response status:', parseResponse.status)
           console.log('✅ [INNGEST] Response data:', parseResponse.data)
-          
-          logger.info('[Competitor Monitoring API] Instagram scraping triggered successfully', {
-            status: parseResponse.status,
-            data: parseResponse.data
-          })
+
+          logger.info(
+            '[Competitor Monitoring API] Instagram scraping triggered successfully',
+            {
+              status: parseResponse.status,
+              data: parseResponse.data,
+            }
+          )
         } catch (parseError) {
           console.error('❌ [INNGEST] Failed to trigger scraping:', parseError)
-          logger.error('[Competitor Monitoring API] Failed to trigger Instagram scraping', {
-            error: parseError instanceof Error ? parseError.message : String(parseError),
-            subscriptionId: response.data.subscription.id,
-            inngestUrl: `${this.apiUrl}/api/inngest`
-          })
+          logger.error(
+            '[Competitor Monitoring API] Failed to trigger Instagram scraping',
+            {
+              error:
+                parseError instanceof Error
+                  ? parseError.message
+                  : String(parseError),
+              subscriptionId: response.data.subscription.id,
+              inngestUrl: `${this.apiUrl}/api/inngest`,
+            }
+          )
         }
 
         // Backend автоматически запускает парсинг после создания подписки
@@ -229,49 +258,52 @@ export class CompetitorMonitoringApiService {
         return {
           success: true,
           message: successMessage,
-          subscription: response.data.subscription
+          subscription: response.data.subscription,
         }
       } else {
-        const errorMessage = response.data.error || response.data.message || 'Unknown error'
-        
-        logger.error('[Competitor Monitoring API] Failed to create subscription', {
-          userTelegramId,
-          competitorUsername,
-          error: errorMessage,
-          response: response.data
-        })
+        const errorMessage =
+          response.data.error || response.data.message || 'Unknown error'
+
+        logger.error(
+          '[Competitor Monitoring API] Failed to create subscription',
+          {
+            userTelegramId,
+            competitorUsername,
+            error: errorMessage,
+            response: response.data,
+          }
+        )
 
         return {
           success: false,
           message: isRu
             ? `❌ Не удалось создать подписку: ${errorMessage}`
-            : `❌ Failed to create subscription: ${errorMessage}`
+            : `❌ Failed to create subscription: ${errorMessage}`,
         }
       }
-
     } catch (error) {
       logger.error('[Competitor Monitoring API] Error creating subscription', {
         error: error instanceof Error ? error.message : String(error),
         userTelegramId,
         competitorUsername,
-        options
+        options,
       })
 
       if (axios.isAxiosError(error)) {
         const errorMessage = error.response?.data?.error || error.message
-        
+
         return {
           success: false,
           message: isRu
             ? `❌ Ошибка соединения с API: ${errorMessage}`
-            : `❌ API connection error: ${errorMessage}`
+            : `❌ API connection error: ${errorMessage}`,
         }
       } else {
         return {
           success: false,
           message: isRu
             ? '❌ Произошла неожиданная ошибка при создании подписки'
-            : '❌ An unexpected error occurred while creating subscription'
+            : '❌ An unexpected error occurred while creating subscription',
         }
       }
     }
@@ -290,9 +322,9 @@ export class CompetitorMonitoringApiService {
     if (!userTelegramId) {
       return {
         success: false,
-        message: isRu 
+        message: isRu
           ? '❌ Ошибка: не удалось определить ваш Telegram ID'
-          : '❌ Error: unable to determine your Telegram ID'
+          : '❌ Error: unable to determine your Telegram ID',
       }
     }
 
@@ -300,7 +332,7 @@ export class CompetitorMonitoringApiService {
       logger.info('[Competitor Monitoring API] Deleting subscription', {
         userTelegramId,
         subscriptionId,
-        apiUrl: this.apiUrl
+        apiUrl: this.apiUrl,
       })
 
       // Используем готовый backend API endpoint
@@ -309,60 +341,63 @@ export class CompetitorMonitoringApiService {
         {
           params: {
             user_telegram_id: userTelegramId,
-            bot_name: 'telegram_bot'
+            bot_name: 'telegram_bot',
           },
           timeout: 10000,
           headers: {
-            'Content-Type': 'application/json'
-          }
+            'Content-Type': 'application/json',
+          },
         }
       )
 
       if (response.data.success) {
-        logger.info('[Competitor Monitoring API] Subscription deleted successfully', {
-          userTelegramId,
-          subscriptionId
-        })
+        logger.info(
+          '[Competitor Monitoring API] Subscription deleted successfully',
+          {
+            userTelegramId,
+            subscriptionId,
+          }
+        )
 
         return {
           success: true,
           message: isRu
             ? '✅ Подписка успешно удалена'
-            : '✅ Subscription deleted successfully'
+            : '✅ Subscription deleted successfully',
         }
       } else {
-        const errorMessage = response.data.error || response.data.message || 'Unknown error'
-        
+        const errorMessage =
+          response.data.error || response.data.message || 'Unknown error'
+
         return {
           success: false,
           message: isRu
             ? `❌ Не удалось удалить подписку: ${errorMessage}`
-            : `❌ Failed to delete subscription: ${errorMessage}`
+            : `❌ Failed to delete subscription: ${errorMessage}`,
         }
       }
-
     } catch (error) {
       logger.error('[Competitor Monitoring API] Error deleting subscription', {
         error: error instanceof Error ? error.message : String(error),
         userTelegramId,
-        subscriptionId
+        subscriptionId,
       })
 
       if (axios.isAxiosError(error)) {
         const errorMessage = error.response?.data?.error || error.message
-        
+
         return {
           success: false,
           message: isRu
             ? `❌ Ошибка соединения с API: ${errorMessage}`
-            : `❌ API connection error: ${errorMessage}`
+            : `❌ API connection error: ${errorMessage}`,
         }
       } else {
         return {
           success: false,
           message: isRu
             ? '❌ Произошла неожиданная ошибка при удалении подписки'
-            : '❌ An unexpected error occurred while deleting subscription'
+            : '❌ An unexpected error occurred while deleting subscription',
         }
       }
     }
@@ -375,16 +410,20 @@ export class CompetitorMonitoringApiService {
     ctx: MyContext,
     subscriptionId: string,
     updates: Partial<CompetitorMonitoringOptions>
-  ): Promise<{ success: boolean; message: string; subscription?: CompetitorSubscription }> {
+  ): Promise<{
+    success: boolean
+    message: string
+    subscription?: CompetitorSubscription
+  }> {
     const userTelegramId = ctx.from?.id?.toString()
     const isRu = isRussianFromState(ctx)
 
     if (!userTelegramId) {
       return {
         success: false,
-        message: isRu 
+        message: isRu
           ? '❌ Ошибка: не удалось определить ваш Telegram ID'
-          : '❌ Error: unable to determine your Telegram ID'
+          : '❌ Error: unable to determine your Telegram ID',
       }
     }
 
@@ -393,7 +432,7 @@ export class CompetitorMonitoringApiService {
         userTelegramId,
         subscriptionId,
         updates,
-        apiUrl: this.apiUrl
+        apiUrl: this.apiUrl,
       })
 
       const response = await axios.put<SubscriptionResponse>(
@@ -401,63 +440,66 @@ export class CompetitorMonitoringApiService {
         {
           ...updates,
           user_telegram_id: userTelegramId,
-          bot_name: 'telegram_bot' // Фиксированное имя для консистентности
+          bot_name: 'telegram_bot', // Фиксированное имя для консистентности
         },
         {
           timeout: 10000,
           headers: {
-            'Content-Type': 'application/json'
-          }
+            'Content-Type': 'application/json',
+          },
         }
       )
 
       if (response.data.success && response.data.subscription) {
-        logger.info('[Competitor Monitoring API] Subscription updated successfully', {
-          userTelegramId,
-          subscriptionId
-        })
+        logger.info(
+          '[Competitor Monitoring API] Subscription updated successfully',
+          {
+            userTelegramId,
+            subscriptionId,
+          }
+        )
 
         return {
           success: true,
           message: isRu
             ? '✅ Подписка успешно обновлена'
             : '✅ Subscription updated successfully',
-          subscription: response.data.subscription
+          subscription: response.data.subscription,
         }
       } else {
-        const errorMessage = response.data.error || response.data.message || 'Unknown error'
-        
+        const errorMessage =
+          response.data.error || response.data.message || 'Unknown error'
+
         return {
           success: false,
           message: isRu
             ? `❌ Не удалось обновить подписку: ${errorMessage}`
-            : `❌ Failed to update subscription: ${errorMessage}`
+            : `❌ Failed to update subscription: ${errorMessage}`,
         }
       }
-
     } catch (error) {
       logger.error('[Competitor Monitoring API] Error updating subscription', {
         error: error instanceof Error ? error.message : String(error),
         userTelegramId,
         subscriptionId,
-        updates
+        updates,
       })
 
       if (axios.isAxiosError(error)) {
         const errorMessage = error.response?.data?.error || error.message
-        
+
         return {
           success: false,
           message: isRu
             ? `❌ Ошибка соединения с API: ${errorMessage}`
-            : `❌ API connection error: ${errorMessage}`
+            : `❌ API connection error: ${errorMessage}`,
         }
       } else {
         return {
           success: false,
           message: isRu
             ? '❌ Произошла неожиданная ошибка при обновлении подписки'
-            : '❌ An unexpected error occurred while updating subscription'
+            : '❌ An unexpected error occurred while updating subscription',
         }
       }
     }

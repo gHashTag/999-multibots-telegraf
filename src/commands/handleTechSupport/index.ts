@@ -17,7 +17,10 @@ export const handleTechSupport = async (ctx: MyContext) => {
       }
     }
   } catch (error) {
-    console.warn('⚠️ [TechSupport] avatarService недоступен, используем fallback support:', error)
+    console.warn(
+      '⚠️ [TechSupport] avatarService недоступен, используем fallback support:',
+      error
+    )
     // Оставляем support = 'neuro_sage' (fallback)
   }
 
@@ -31,7 +34,7 @@ export const handleTechSupport = async (ctx: MyContext) => {
 
   // ✅ ИСПРАВЛЕНО: Добавляем клавиатуру с кнопкой возврата в главное меню
   const keyboard = Markup.keyboard([
-    [isRu ? '🏠 Главное меню' : '🏠 Main menu']
+    [isRu ? '🏠 Главное меню' : '🏠 Main menu'],
   ]).resize()
 
   await ctx.reply(message, keyboard)

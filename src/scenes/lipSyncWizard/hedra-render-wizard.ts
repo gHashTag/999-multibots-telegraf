@@ -22,7 +22,10 @@ import {
   sendRenderAvatarVideoEvent,
   createRenderAvatarPayload,
 } from '@/inngest_app/render-server-client'
-import { calculateAIReelsPrice, formatPriceMessage } from '@/helpers/ai-reels-pricing'
+import {
+  calculateAIReelsPrice,
+  formatPriceMessage,
+} from '@/helpers/ai-reels-pricing'
 import { refundAndTell } from '@/price/helpers/refundAndTell'
 
 logger.info('📦 [HEDRA RENDER WIZARD] Module loaded')
@@ -105,9 +108,14 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
 
         // Загружаем в Supabase Storage
         const { createClient } = await import('@supabase/supabase-js')
-        const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
+        const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
+          '@/config'
+        )
 
-        const serviceClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
+        const serviceClient = createClient(
+          SUPABASE_URL!,
+          SUPABASE_SERVICE_ROLE_KEY!
+        )
         const fileName = `hedra-avatars/${telegramId}/${Date.now()}.jpg`
 
         const { error: uploadError } = await serviceClient.storage
@@ -121,7 +129,9 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
           throw new Error(`Upload failed: ${uploadError.message}`)
         }
 
-        const { data: urlData } = serviceClient.storage.from('images').getPublicUrl(fileName)
+        const { data: urlData } = serviceClient.storage
+          .from('images')
+          .getPublicUrl(fileName)
         imageUrl = urlData.publicUrl
 
         logger.info('✅ [HEDRA RENDER] Avatar photo uploaded', {
@@ -176,7 +186,9 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
     const message = ctx.message
     const telegramId = ctx.from?.id?.toString()
 
-    logger.info('🎭 [HEDRA RENDER] Step 2 - Processing cover image', { telegramId })
+    logger.info('🎭 [HEDRA RENDER] Step 2 - Processing cover image', {
+      telegramId,
+    })
 
     if (!telegramId) {
       await ctx.reply(
@@ -204,9 +216,14 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
 
         // Загружаем в Supabase Storage
         const { createClient } = await import('@supabase/supabase-js')
-        const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
+        const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
+          '@/config'
+        )
 
-        const serviceClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
+        const serviceClient = createClient(
+          SUPABASE_URL!,
+          SUPABASE_SERVICE_ROLE_KEY!
+        )
         const fileName = `hedra-covers/${telegramId}/${Date.now()}.jpg`
 
         const { error: uploadError } = await serviceClient.storage
@@ -220,7 +237,9 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
           throw new Error(`Supabase upload failed: ${uploadError.message}`)
         }
 
-        const { data: urlData } = serviceClient.storage.from('images').getPublicUrl(fileName)
+        const { data: urlData } = serviceClient.storage
+          .from('images')
+          .getPublicUrl(fileName)
 
         coverUrl = urlData.publicUrl
 
@@ -268,7 +287,9 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
     const message = ctx.message
     const telegramId = ctx.from?.id?.toString()
 
-    logger.info('🎭 [HEDRA RENDER] Step 3 - Processing text/voice', { telegramId })
+    logger.info('🎭 [HEDRA RENDER] Step 3 - Processing text/voice', {
+      telegramId,
+    })
 
     if (!telegramId) {
       await ctx.reply(
@@ -302,9 +323,14 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
         const audioBuffer = Buffer.from(await response.arrayBuffer())
 
         const { createClient } = await import('@supabase/supabase-js')
-        const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import('@/config')
+        const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = await import(
+          '@/config'
+        )
 
-        const serviceClient = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
+        const serviceClient = createClient(
+          SUPABASE_URL!,
+          SUPABASE_SERVICE_ROLE_KEY!
+        )
         const fileName = `hedra-audio/${telegramId}/${Date.now()}.ogg`
 
         const { error: uploadError } = await serviceClient.storage
@@ -318,7 +344,9 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
           throw new Error(`Upload failed: ${uploadError.message}`)
         }
 
-        const { data: urlData } = serviceClient.storage.from('images').getPublicUrl(fileName)
+        const { data: urlData } = serviceClient.storage
+          .from('images')
+          .getPublicUrl(fileName)
         audioUrl = urlData.publicUrl
         text = `voice_message_${(voice as any).duration}`
       }
@@ -337,10 +365,13 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
 
         // Template 2: НЕ генерируем аудио локально!
         // Текст передается напрямую в render-server, который сам генерирует аудио
-        logger.info('📝 [HEDRA RENDER] Текст получен, будет передан в render-server', {
-          telegramId,
-          textLength: text.length,
-        })
+        logger.info(
+          '📝 [HEDRA RENDER] Текст получен, будет передан в render-server',
+          {
+            telegramId,
+            textLength: text.length,
+          }
+        )
       } else {
         await ctx.reply(
           isRu

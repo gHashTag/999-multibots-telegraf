@@ -16,9 +16,15 @@ function getInngestConfig() {
     id: 'telegram-bot-client',
     isDev: process.env.NODE_ENV === 'development',
     // Event key загружается из Infisical (INNGEST_EVENT_KEY)
-    eventKey: process.env.INNGEST_EVENT_KEY || process.env.RENDER_INNGEST_EVENT_KEY || undefined,
+    eventKey:
+      process.env.INNGEST_EVENT_KEY ||
+      process.env.RENDER_INNGEST_EVENT_KEY ||
+      undefined,
     // Signing key для webhook verification (Inngest v3+)
-    signingKey: process.env.INNGEST_SIGNING_KEY || process.env.RENDER_INNGEST_SIGNING_KEY || undefined,
+    signingKey:
+      process.env.INNGEST_SIGNING_KEY ||
+      process.env.RENDER_INNGEST_SIGNING_KEY ||
+      undefined,
   }
 }
 
@@ -45,7 +51,7 @@ function getInngestClient(): Inngest {
 export const inngest = new Proxy({} as Inngest, {
   get(_target, prop) {
     return (getInngestClient() as any)[prop]
-  }
+  },
 })
 
 // ✅ Функция для принудительной реинициализации (после загрузки секретов)
@@ -60,10 +66,14 @@ export const isInngestConfigured = (): boolean => {
   const hasSigningKey = !!process.env.INNGEST_SIGNING_KEY
 
   if (!hasEventKey) {
-    logger.warn('⚠️ [INNGEST] Missing INNGEST_EVENT_KEY - functions will run in dev mode')
+    logger.warn(
+      '⚠️ [INNGEST] Missing INNGEST_EVENT_KEY - functions will run in dev mode'
+    )
   }
   if (!hasSigningKey) {
-    logger.warn('⚠️ [INNGEST] Missing INNGEST_SIGNING_KEY - webhook verification may fail')
+    logger.warn(
+      '⚠️ [INNGEST] Missing INNGEST_SIGNING_KEY - webhook verification may fail'
+    )
   }
 
   return hasEventKey && hasSigningKey
@@ -118,7 +128,8 @@ export const INNGEST_EVENTS = {
   VOICE_TRAINING_COMPLETED: 'voice/training.completed',
 } as const
 
-export type InngestEventName = typeof INNGEST_EVENTS[keyof typeof INNGEST_EVENTS]
+export type InngestEventName =
+  (typeof INNGEST_EVENTS)[keyof typeof INNGEST_EVENTS]
 
 // Helper function to send events with safety checks
 /**
@@ -151,7 +162,9 @@ export const createInngestFailureHandler = (functionName: string) => {
       eventName: event?.name,
       error: error?.message || String(error),
       stack: error?.stack,
-      eventData: event?.data ? JSON.stringify(event.data).slice(0, 500) : undefined,
+      eventData: event?.data
+        ? JSON.stringify(event.data).slice(0, 500)
+        : undefined,
       timestamp: new Date().toISOString(),
     })
 
@@ -167,7 +180,8 @@ export const createInngestFailureHandler = (functionName: string) => {
     const botToken = process.env.BOT_TOKEN_1
     if (adminChatId && botToken) {
       try {
-        const text = `🚨 *Inngest Failure*\n\n` +
+        const text =
+          `🚨 *Inngest Failure*\n\n` +
           `*Function:* \`${functionName}\`\n` +
           `*Error:* ${(error?.message || String(error)).slice(0, 300)}\n` +
           `*Run:* \`${runId}\`\n` +
@@ -176,11 +190,16 @@ export const createInngestFailureHandler = (functionName: string) => {
         await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: adminChatId, text, parse_mode: 'Markdown' }),
+          body: JSON.stringify({
+            chat_id: adminChatId,
+            text,
+            parse_mode: 'Markdown',
+          }),
         })
       } catch (notifyErr) {
         logger.warn('Failed to send Inngest failure notification to admin', {
-          error: notifyErr instanceof Error ? notifyErr.message : String(notifyErr),
+          error:
+            notifyErr instanceof Error ? notifyErr.message : String(notifyErr),
         })
       }
     }
@@ -192,19 +211,22 @@ export async function sendInngestEvent(
   data: any
 ): Promise<void> {
   // 🔥 SAFETY CHECK: Проверяем наличие ключа ПЕРЕД отправкой
-  const eventKey = process.env.INNGEST_EVENT_KEY || process.env.RENDER_INNGEST_EVENT_KEY
+  const eventKey =
+    process.env.INNGEST_EVENT_KEY || process.env.RENDER_INNGEST_EVENT_KEY
 
   if (!eventKey) {
     logger.error(`❌ [INNGEST] CRITICAL: No event key available!`, {
       eventName,
       INNGEST_EVENT_KEY: !!process.env.INNGEST_EVENT_KEY,
       RENDER_INNGEST_EVENT_KEY: !!process.env.RENDER_INNGEST_EVENT_KEY,
-      envKeys: Object.keys(process.env).filter(k => k.includes('INNGEST')).join(', '),
-      suggestion: 'Check that Infisical loaded secrets before this call'
+      envKeys: Object.keys(process.env)
+        .filter(k => k.includes('INNGEST'))
+        .join(', '),
+      suggestion: 'Check that Infisical loaded secrets before this call',
     })
     throw new Error(
       'INNGEST_EVENT_KEY not found in process.env. ' +
-      'Ensure initInfisical() was called before sending events.'
+        'Ensure initInfisical() was called before sending events.'
     )
   }
 
@@ -213,7 +235,7 @@ export async function sendInngestEvent(
       eventName,
       dataKeys: Object.keys(data),
       hasEventKey: true,
-      eventKeyPrefix: eventKey.substring(0, 10) + '...'
+      eventKeyPrefix: eventKey.substring(0, 10) + '...',
     })
 
     await inngest.send({

@@ -9,24 +9,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 vi.mock('@/core/supabase/client', () => {
   const mockEq = vi.fn()
   const mockSelect = vi.fn(() => ({
-    eq: mockEq
+    eq: mockEq,
   }))
   const mockFrom = vi.fn(() => ({
-    select: mockSelect
+    select: mockSelect,
   }))
 
   return {
     supabase: {
       from: mockFrom,
       // Expose mocks for test access
-      __mocks: { mockFrom, mockSelect, mockEq }
-    }
+      __mocks: { mockFrom, mockSelect, mockEq },
+    },
   }
 })
 
 // Mock config with admin IDs
 vi.mock('@/config', () => ({
-  ADMIN_IDS_ARRAY: [144022504, 123456789]
+  ADMIN_IDS_ARRAY: [144022504, 123456789],
 }))
 
 // Mock logger
@@ -35,8 +35,8 @@ vi.mock('@/utils/logger', () => ({
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
-    debug: vi.fn()
-  }
+    debug: vi.fn(),
+  },
 }))
 
 import { getOwnedBots, isUserBotOwner } from '@/core/supabase/getOwnedBots'
@@ -61,11 +61,8 @@ describe('getOwnedBots', () => {
   describe('getOwnedBots()', () => {
     it('should return bots for valid owner', async () => {
       mocks.mockEq.mockResolvedValue({
-        data: [
-          { bot_name: 'neuro_blogger_bot' },
-          { bot_name: 'ZavaraBot' }
-        ],
-        error: null
+        data: [{ bot_name: 'neuro_blogger_bot' }, { bot_name: 'ZavaraBot' }],
+        error: null,
       })
 
       const result = await getOwnedBots('144022504')
@@ -79,7 +76,7 @@ describe('getOwnedBots', () => {
     it('should return empty array for non-owner', async () => {
       mocks.mockEq.mockResolvedValue({
         data: [],
-        error: null
+        error: null,
       })
 
       const result = await getOwnedBots('999999999')
@@ -97,7 +94,7 @@ describe('getOwnedBots', () => {
     it('should return null on database error', async () => {
       mocks.mockEq.mockResolvedValue({
         data: null,
-        error: { message: 'Database error' }
+        error: { message: 'Database error' },
       })
 
       const result = await getOwnedBots('123456')
@@ -111,9 +108,9 @@ describe('getOwnedBots', () => {
           { bot_name: 'neuro_blogger_bot' },
           { bot_name: null },
           { bot_name: 'ZavaraBot' },
-          { bot_name: '' }
+          { bot_name: '' },
         ],
-        error: null
+        error: null,
       })
 
       const result = await getOwnedBots('144022504')
@@ -146,7 +143,7 @@ describe('getOwnedBots', () => {
     it('should return true for user who owns bots', async () => {
       mocks.mockEq.mockResolvedValue({
         data: [{ bot_name: 'some_bot' }],
-        error: null
+        error: null,
       })
 
       const result = await isUserBotOwner('555555555')
@@ -157,7 +154,7 @@ describe('getOwnedBots', () => {
     it('should return false for non-owner non-admin', async () => {
       mocks.mockEq.mockResolvedValue({
         data: [],
-        error: null
+        error: null,
       })
 
       const result = await isUserBotOwner('999999999')
@@ -174,7 +171,7 @@ describe('getOwnedBots', () => {
     it('should return false on database error (non-admin)', async () => {
       mocks.mockEq.mockResolvedValue({
         data: null,
-        error: { message: 'Error' }
+        error: { message: 'Error' },
       })
 
       const result = await isUserBotOwner('777777777')

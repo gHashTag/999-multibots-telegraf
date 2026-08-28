@@ -267,8 +267,11 @@ export class AsyncLipSyncManager {
         url,
         timeout: 10000,
       })
+      // После обновления axios тип заголовка — объединение
+      // (string | number | true | string[] | AxiosHeaders), поэтому приводим
+      // к строке явно, а не полагаемся на прежний `string`.
       const contentLength = response.headers['content-length']
-      return contentLength ? parseInt(contentLength, 10) : 0
+      return contentLength ? parseInt(String(contentLength), 10) : 0
     } catch (error) {
       logger.warn('⚠️ [ASYNC LIPSYNC] Не удалось получить размер файла', {
         url: url.substring(0, 100),
@@ -452,7 +455,6 @@ export class AsyncLipSyncManager {
       })
     }
   }
-
 
   /**
    * Возврат с честным сообщением.

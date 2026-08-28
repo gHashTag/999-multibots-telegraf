@@ -8,12 +8,17 @@ function getReplicateClient() {
   if (!_replicateClient) {
     const token = process.env.REPLICATE_API_TOKEN
     if (!token) {
-      throw new Error('❌ CRITICAL: REPLICATE_API_TOKEN not found in process.env. Make sure secrets are loaded from Infisical!')
+      throw new Error(
+        '❌ CRITICAL: REPLICATE_API_TOKEN not found in process.env. Make sure secrets are loaded from Infisical!'
+      )
     }
     _replicateClient = new Replicate({
       auth: token,
     })
-    console.log('✅ [REPLICATE] Client initialized with token:', token.substring(0, 10) + '...')
+    console.log(
+      '✅ [REPLICATE] Client initialized with token:',
+      token.substring(0, 10) + '...'
+    )
   }
   return _replicateClient
 }
@@ -23,7 +28,7 @@ export const replicate = {
   run: async (...args: any[]) => {
     const client = getReplicateClient()
     return await client.run(...args)
-  }
+  },
 }
 
 export const modelPricing: Record<string, string> = {

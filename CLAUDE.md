@@ -630,6 +630,11 @@ npm run build         # Build TypeScript
 /optimize analyze     # Run continuous-optimizer
 /optimize autofix     # Auto-fix safe issues
 
+# Release readiness — ОДНА команда вместо CI
+bun run verify        # все 13 проверок по КОДАМ ВОЗВРАТА, ~100 с
+                      # Нужен, пока GitHub Actions не запускается (биллинг):
+                      # последний успешный прогон — 2026-06-02.
+
 # Testing
 npm test              # Run tests
 npm run test:coverage # Coverage report

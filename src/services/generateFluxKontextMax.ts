@@ -18,13 +18,13 @@ import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import path from 'path'
 import fs from 'fs'
-import { 
-  FluxKontextMaxInputSchema, 
-  FluxKontextMaxResponseSchema, 
+import {
+  FluxKontextMaxInputSchema,
+  FluxKontextMaxResponseSchema,
   FluxKontextMaxInput,
   FluxKontextMaxResponse,
   FLUX_KONTEXT_MAX_AVATAR_CONFIG,
-  getFluxKontextMaxDimensions
+  getFluxKontextMaxDimensions,
 } from '@/schemas/fluxKontextMax.schema'
 
 // Service parameters interface
@@ -48,8 +48,10 @@ const FLUX_KONTEXT_MAX_MODEL = {
   key: 'black-forest-labs/flux-kontext-max',
   costPerImage: calculateFinalImageCostInStars(0.08), // Updated: Replicate actual price $0.08
   name: 'FLUX Kontext Max',
-  description_en: 'Black Forest Labs FLUX Kontext Max - Advanced image editing and transformation',
-  description_ru: 'Black Forest Labs FLUX Kontext Max - Продвинутое редактирование и трансформация изображений'
+  description_en:
+    'Black Forest Labs FLUX Kontext Max - Advanced image editing and transformation',
+  description_ru:
+    'Black Forest Labs FLUX Kontext Max - Продвинутое редактирование и трансформация изображений',
 }
 
 /**
@@ -79,14 +81,16 @@ export const generateFluxKontextMax = async (
       seed,
       aspect_ratio,
       output_format = 'png',
-      safety_tolerance = 2
+      safety_tolerance = 2,
     } = params
 
     // ✅ Get centralized aspect_ratio from database and map to FLUX-compatible values
     const dbAspectRatio = await getAspectRatio(Number(telegram_id))
 
     // Map database aspect ratios to FLUX-compatible enum values
-    const mapToFluxAspectRatio = (ratio: string | null): '1:1' | '16:9' | 'match_input_image' => {
+    const mapToFluxAspectRatio = (
+      ratio: string | null
+    ): '1:1' | '16:9' | 'match_input_image' => {
       if (!ratio) return 'match_input_image'
 
       switch (ratio) {
@@ -104,15 +108,18 @@ export const generateFluxKontextMax = async (
       }
     }
 
-    const mappedDbAspectRatio = dbAspectRatio ? mapToFluxAspectRatio(dbAspectRatio) : null
-    const finalAspectRatio = mappedDbAspectRatio || aspect_ratio || 'match_input_image'
+    const mappedDbAspectRatio = dbAspectRatio
+      ? mapToFluxAspectRatio(dbAspectRatio)
+      : null
+    const finalAspectRatio =
+      mappedDbAspectRatio || aspect_ratio || 'match_input_image'
 
     logger.info('FLUX Max aspect_ratio resolved', {
       telegram_id,
       dbAspectRatio,
       mappedDbAspectRatio,
       paramAspectRatio: aspect_ratio,
-      finalAspectRatio
+      finalAspectRatio,
     })
 
     // Validate and prepare input for FLUX Kontext Max API
@@ -122,12 +129,12 @@ export const generateFluxKontextMax = async (
       output_format,
       safety_tolerance,
       ...(inputImageUrl ? { input_image: inputImageUrl } : {}),
-      ...(seed !== undefined ? { seed } : {})
+      ...(seed !== undefined ? { seed } : {}),
     }
 
     // Validate input with Zod schema
     const validatedInput = FluxKontextMaxInputSchema.parse(fluxInput)
-    
+
     console.log('🤖 [FluxKontextMax] Input validated successfully:', {
       telegram_id,
       validatedInput: {
@@ -135,8 +142,8 @@ export const generateFluxKontextMax = async (
         aspect_ratio: validatedInput.aspect_ratio,
         output_format: validatedInput.output_format,
         safety_tolerance: validatedInput.safety_tolerance,
-        hasInputImage: !!validatedInput.input_image
-      }
+        hasInputImage: !!validatedInput.input_image,
+      },
     })
 
     // Check user existence and level
@@ -173,7 +180,9 @@ export const generateFluxKontextMax = async (
         throw new Error('Not enough stars')
       }
     } else {
-      console.log('🎁 [FluxKontextMax] Skipping balance check - welcome gift', { telegram_id })
+      console.log('🎁 [FluxKontextMax] Skipping balance check - welcome gift', {
+        telegram_id,
+      })
     }
 
     // Send status message
@@ -196,24 +205,28 @@ export const generateFluxKontextMax = async (
       aspect_ratio: validatedInput.aspect_ratio,
       output_format: validatedInput.output_format,
       safety_tolerance: validatedInput.safety_tolerance,
-      ...(validatedInput.input_image ? { input_image: validatedInput.input_image } : {}),
-      ...(validatedInput.seed !== undefined ? { seed: validatedInput.seed } : {})
+      ...(validatedInput.input_image
+        ? { input_image: validatedInput.input_image }
+        : {}),
+      ...(validatedInput.seed !== undefined
+        ? { seed: validatedInput.seed }
+        : {}),
     }
 
     console.log('🤖 [FluxKontextMax] Calling Replicate API:', {
       telegram_id,
       model: FLUX_KONTEXT_MAX_MODEL.key,
-      inputKeys: Object.keys(replicateInput)
+      inputKeys: Object.keys(replicateInput),
     })
 
     const output = await replicate.run(FLUX_KONTEXT_MAX_MODEL.key as any, {
-      input: replicateInput
+      input: replicateInput,
     })
 
     console.log('🤖 [FluxKontextMax] Replicate response received:', {
       telegram_id,
       outputType: typeof output,
-      isString: typeof output === 'string'
+      isString: typeof output === 'string',
     })
 
     // Process and validate the response
@@ -223,8 +236,10 @@ export const generateFluxKontextMax = async (
     if (typeof output === 'string') {
       // Single image URL (most common case for FLUX)
       imageUrl = output
-      const dimensions = getFluxKontextMaxDimensions(validatedInput.aspect_ratio)
-      
+      const dimensions = getFluxKontextMaxDimensions(
+        validatedInput.aspect_ratio
+      )
+
       processedOutput = {
         image: output,
         metadata: {
@@ -233,14 +248,20 @@ export const generateFluxKontextMax = async (
           aspect_ratio: validatedInput.aspect_ratio,
           output_format: validatedInput.output_format,
           safety_tolerance: validatedInput.safety_tolerance,
-          ...(dimensions ? { dimensions } : {})
-        }
+          ...(dimensions ? { dimensions } : {}),
+        },
       }
-    } else if (typeof output === 'object' && output !== null && 'output' in output) {
+    } else if (
+      typeof output === 'object' &&
+      output !== null &&
+      'output' in output
+    ) {
       // Response wrapped in object
       imageUrl = (output as any).output
-      const dimensions = getFluxKontextMaxDimensions(validatedInput.aspect_ratio)
-      
+      const dimensions = getFluxKontextMaxDimensions(
+        validatedInput.aspect_ratio
+      )
+
       processedOutput = {
         image: imageUrl,
         metadata: {
@@ -249,20 +270,21 @@ export const generateFluxKontextMax = async (
           aspect_ratio: validatedInput.aspect_ratio,
           output_format: validatedInput.output_format,
           safety_tolerance: validatedInput.safety_tolerance,
-          ...(dimensions ? { dimensions } : {})
-        }
+          ...(dimensions ? { dimensions } : {}),
+        },
       }
     } else {
       throw new Error('Invalid response format from FLUX Kontext Max API')
     }
 
     // Validate the response with Zod schema
-    const validatedResponse = FluxKontextMaxResponseSchema.parse(processedOutput)
+    const validatedResponse =
+      FluxKontextMaxResponseSchema.parse(processedOutput)
 
     console.log('🤖 [FluxKontextMax] Response validated successfully:', {
       telegram_id,
       imageUrl: validatedResponse.image.substring(0, 50) + '...',
-      aspectRatio: validatedResponse.metadata.aspect_ratio
+      aspectRatio: validatedResponse.metadata.aspect_ratio,
     })
 
     // Delete status message
@@ -277,16 +299,27 @@ export const generateFluxKontextMax = async (
     try {
       const imageBuffer = await downloadFile(imageUrl)
       const filename = `flux_kontext_max_${telegram_id}_${Date.now()}.${validatedInput.output_format}`
-      savedImagePath = await saveFileLocally(String(telegram_id), imageUrl, 'ai-generation', `.${validatedInput.output_format}`)
-      
+      savedImagePath = await saveFileLocally(
+        String(telegram_id),
+        imageUrl,
+        'ai-generation',
+        `.${validatedInput.output_format}`
+      )
+
       console.log('🤖 [FluxKontextMax] Image saved locally:', {
         telegram_id,
         savedImagePath,
-        fileSize: imageBuffer.length
+        fileSize: imageBuffer.length,
       })
     } catch (downloadError) {
-      const originalMsg = downloadError instanceof Error ? downloadError.message : String(downloadError)
-      console.error('🚨 [FluxKontextMax] Failed to download/save image:', downloadError)
+      const originalMsg =
+        downloadError instanceof Error
+          ? downloadError.message
+          : String(downloadError)
+      console.error(
+        '🚨 [FluxKontextMax] Failed to download/save image:',
+        downloadError
+      )
       throw new Error(`Failed to process generated image: ${originalMsg}`)
     }
 
@@ -302,13 +335,17 @@ export const generateFluxKontextMax = async (
 
       console.log('🤖 [FluxKontextMax] Prompt saved to database:', {
         telegram_id,
-        promptId
+        promptId,
       })
 
       // Send success message with image
       const costLine = params.is_welcome_gift
-        ? (is_ru ? '🎁 Бесплатный подарок!' : '🎁 Free gift!')
-        : (is_ru ? `💰 Потрачено: ${FLUX_KONTEXT_MAX_MODEL.costPerImage}⭐` : `💰 Spent: ${FLUX_KONTEXT_MAX_MODEL.costPerImage}⭐`)
+        ? is_ru
+          ? '🎁 Бесплатный подарок!'
+          : '🎁 Free gift!'
+        : is_ru
+          ? `💰 Потрачено: ${FLUX_KONTEXT_MAX_MODEL.costPerImage}⭐`
+          : `💰 Spent: ${FLUX_KONTEXT_MAX_MODEL.costPerImage}⭐`
 
       const caption = is_ru
         ? `✨ Изображение обработано через FLUX Kontext Max!\n\n🎨 Модель: ${FLUX_KONTEXT_MAX_MODEL.name}\n💫 Формат: ${validatedInput.aspect_ratio}\n${costLine}\n\n🤖 Создано ботом @${ctx.botInfo?.username || 'unknown'}`
@@ -330,70 +367,118 @@ export const generateFluxKontextMax = async (
           prompt: validatedInput.prompt,
           botName: ctx.botInfo?.username || 'unknown',
           additionalInfo: {
-            'Model': FLUX_KONTEXT_MAX_MODEL.name,
+            Model: FLUX_KONTEXT_MAX_MODEL.name,
             'Aspect Ratio': validatedInput.aspect_ratio,
             'Output Format': validatedInput.output_format,
             'Safety Level': validatedInput.safety_tolerance.toString(),
-            'Price': `${FLUX_KONTEXT_MAX_MODEL.costPerImage} stars`,
-            'Type': 'AI Image Transformation'
-          }
+            Price: `${FLUX_KONTEXT_MAX_MODEL.costPerImage} stars`,
+            Type: 'AI Image Transformation',
+          },
         })
-        
-        logger.info('[FluxKontextMax] Sent to pulse channel', { telegram_id, imageUrl })
+
+        logger.info('[FluxKontextMax] Sent to pulse channel', {
+          telegram_id,
+          imageUrl,
+        })
       } catch (pulseError) {
-        logger.error('[FluxKontextMax] Failed to send to pulse channel:', pulseError)
+        logger.error(
+          '[FluxKontextMax] Failed to send to pulse channel:',
+          pulseError
+        )
       }
 
       // Clean up local file
       try {
         fs.unlinkSync(savedImagePath)
       } catch (cleanupError) {
-        logger.warn('[FluxKontextMax] Failed to cleanup local file:', cleanupError)
+        logger.warn(
+          '[FluxKontextMax] Failed to cleanup local file:',
+          cleanupError
+        )
       }
 
       return {
         image: imageUrl,
-        prompt_id: promptId
+        prompt_id: promptId,
       }
-
     } catch (saveError) {
-      const originalMsg = saveError instanceof Error ? saveError.message : String(saveError)
+      const originalMsg =
+        saveError instanceof Error ? saveError.message : String(saveError)
       console.error('🚨 [FluxKontextMax] Failed to save prompt:', saveError)
       // Refund user if database save fails
-      await refundUser(ctx, FLUX_KONTEXT_MAX_MODEL.costPerImage, { reason: "generation_failed" })
+      await refundUser(ctx, FLUX_KONTEXT_MAX_MODEL.costPerImage, {
+        reason: 'generation_failed',
+      })
       throw new Error(`Failed to save generation record: ${originalMsg}`)
     }
-
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error'
     const errorMsgLower = errorMessage.toLowerCase()
 
     // Классифицируем ошибку для понятного логирования
     let errorType = 'UNKNOWN'
     let isRetriable = false
 
-    if (errorMsgLower.includes('e005') || errorMsgLower.includes('flagged as sensitive') || errorMsgLower.includes('nsfw') || errorMsgLower.includes('safety')) {
+    if (
+      errorMsgLower.includes('e005') ||
+      errorMsgLower.includes('flagged as sensitive') ||
+      errorMsgLower.includes('nsfw') ||
+      errorMsgLower.includes('safety')
+    ) {
       errorType = 'NSFW_DETECTED'
       isRetriable = true // Система автоматически повторит через fallback
-    } else if (errorMsgLower.includes('rate') || errorMsgLower.includes('limit') || errorMsgLower.includes('429') || errorMsgLower.includes('too many')) {
+    } else if (
+      errorMsgLower.includes('rate') ||
+      errorMsgLower.includes('limit') ||
+      errorMsgLower.includes('429') ||
+      errorMsgLower.includes('too many')
+    ) {
       errorType = 'RATE_LIMIT'
       isRetriable = true
-    } else if (errorMsgLower.includes('timeout') || errorMsgLower.includes('etimedout') || errorMsgLower.includes('econnreset') || errorMsgLower.includes('socket')) {
+    } else if (
+      errorMsgLower.includes('timeout') ||
+      errorMsgLower.includes('etimedout') ||
+      errorMsgLower.includes('econnreset') ||
+      errorMsgLower.includes('socket')
+    ) {
       errorType = 'TIMEOUT'
       isRetriable = true
-    } else if (errorMsgLower.includes('balance') || errorMsgLower.includes('insufficient') || errorMsgLower.includes('funds') || errorMsgLower.includes('not enough')) {
+    } else if (
+      errorMsgLower.includes('balance') ||
+      errorMsgLower.includes('insufficient') ||
+      errorMsgLower.includes('funds') ||
+      errorMsgLower.includes('not enough')
+    ) {
       errorType = 'INSUFFICIENT_BALANCE'
       isRetriable = false
-    } else if (errorMsgLower.includes('user') && errorMsgLower.includes('not') && errorMsgLower.includes('exist')) {
+    } else if (
+      errorMsgLower.includes('user') &&
+      errorMsgLower.includes('not') &&
+      errorMsgLower.includes('exist')
+    ) {
       errorType = 'USER_NOT_FOUND'
       isRetriable = false
-    } else if (errorMsgLower.includes('invalid') || errorMsgLower.includes('validation') || errorMsgLower.includes('parse')) {
+    } else if (
+      errorMsgLower.includes('invalid') ||
+      errorMsgLower.includes('validation') ||
+      errorMsgLower.includes('parse')
+    ) {
       errorType = 'VALIDATION_ERROR'
       isRetriable = false
-    } else if (errorMsgLower.includes('download') || errorMsgLower.includes('fetch') || errorMsgLower.includes('enotfound')) {
+    } else if (
+      errorMsgLower.includes('download') ||
+      errorMsgLower.includes('fetch') ||
+      errorMsgLower.includes('enotfound')
+    ) {
       errorType = 'DOWNLOAD_ERROR'
       isRetriable = true
-    } else if (errorMsgLower.includes('api') || errorMsgLower.includes('500') || errorMsgLower.includes('502') || errorMsgLower.includes('503')) {
+    } else if (
+      errorMsgLower.includes('api') ||
+      errorMsgLower.includes('500') ||
+      errorMsgLower.includes('502') ||
+      errorMsgLower.includes('503')
+    ) {
       errorType = 'API_ERROR'
       isRetriable = true
     } else if (errorMsgLower.includes('cancel')) {
@@ -406,7 +491,7 @@ export const generateFluxKontextMax = async (
       errorType,
       isRetriable,
       error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined
+      stack: error instanceof Error ? error.stack : undefined,
     })
 
     // ✅ Информативное логирование с типом ошибки И САМИМ СООБЩЕНИЕМ
@@ -415,13 +500,14 @@ export const generateFluxKontextMax = async (
       : `[FluxKontextMax] ${errorType} - требует внимания`
 
     // Добавляем краткое описание ошибки для UNKNOWN
-    const errorDetail = errorType === 'UNKNOWN' ? ` | ${errorMessage.substring(0, 100)}` : ''
+    const errorDetail =
+      errorType === 'UNKNOWN' ? ` | ${errorMessage.substring(0, 100)}` : ''
 
     logger.error(`${logMessage}${errorDetail}`, {
       telegram_id: params.telegram_id,
       errorType,
       isRetriable,
-      error: errorMessage
+      error: errorMessage,
     })
 
     // ✅ Only notify user if not in fallback mode
@@ -435,7 +521,9 @@ export const generateFluxKontextMax = async (
 
     // Refund user - ONLY if not a welcome gift (no charge was made)
     if (!params.is_welcome_gift) {
-      await refundUser(params.ctx, FLUX_KONTEXT_MAX_MODEL.costPerImage, { reason: "generation_failed" })
+      await refundUser(params.ctx, FLUX_KONTEXT_MAX_MODEL.costPerImage, {
+        reason: 'generation_failed',
+      })
     }
 
     throw error
@@ -446,8 +534,16 @@ export const generateFluxKontextMax = async (
  * Advanced FLUX Kontext Max service with multiple modes
  * For complex image transformation scenarios
  */
-export interface AdvancedFluxKontextMaxParams extends FluxKontextMaxServiceParams {
-  mode: 'quick' | 'single' | 'multi' | 'portrait_series' | 'haircut' | 'landmarks' | 'headshot'
+export interface AdvancedFluxKontextMaxParams
+  extends FluxKontextMaxServiceParams {
+  mode:
+    | 'quick'
+    | 'single'
+    | 'multi'
+    | 'portrait_series'
+    | 'haircut'
+    | 'landmarks'
+    | 'headshot'
   imageB?: string // Second image for multi mode
   cameraSettings?: string
 }
@@ -459,7 +555,7 @@ export const generateAdvancedFluxKontextMax = async (
     telegram_id: params.telegram_id,
     mode: params.mode,
     hasImageB: !!params.imageB,
-    cameraSettings: params.cameraSettings
+    cameraSettings: params.cameraSettings,
   })
 
   // Enhance prompt based on mode
@@ -500,6 +596,6 @@ export const generateAdvancedFluxKontextMax = async (
   // Call the base service with enhanced prompt
   return generateFluxKontextMax({
     ...params,
-    prompt: enhancedPrompt
+    prompt: enhancedPrompt,
   })
 }

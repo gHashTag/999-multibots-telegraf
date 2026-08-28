@@ -29,9 +29,17 @@ export interface WhiteLabelConfig {
 }
 
 const DEFAULT_FEATURES = [
-  'neuro_photo', 'text_to_video', 'image_to_video', 'ai_chat',
-  'face_swap', 'lip_sync', 'voice_avatar', 'text_to_speech',
-  'image_upscaler', 'ai_photoshop', 'text_to_image',
+  'neuro_photo',
+  'text_to_video',
+  'image_to_video',
+  'ai_chat',
+  'face_swap',
+  'lip_sync',
+  'voice_avatar',
+  'text_to_speech',
+  'image_upscaler',
+  'ai_photoshop',
+  'text_to_image',
 ]
 
 function toConfig(row: any): WhiteLabelConfig {
@@ -47,7 +55,9 @@ function toConfig(row: any): WhiteLabelConfig {
   }
 }
 
-export async function getWhiteLabelConfig(botName: string): Promise<WhiteLabelConfig> {
+export async function getWhiteLabelConfig(
+  botName: string
+): Promise<WhiteLabelConfig> {
   try {
     const { data, error } = await supabaseAdmin
       .from('white_label_configs')
@@ -56,7 +66,11 @@ export async function getWhiteLabelConfig(botName: string): Promise<WhiteLabelCo
       .single()
 
     if (error || !data) {
-      return { bot_name: botName, enabled_features: DEFAULT_FEATURES, disabled_features: [] }
+      return {
+        bot_name: botName,
+        enabled_features: DEFAULT_FEATURES,
+        disabled_features: [],
+      }
     }
     return toConfig(data)
   } catch (err) {
@@ -64,22 +78,33 @@ export async function getWhiteLabelConfig(botName: string): Promise<WhiteLabelCo
       botName,
       error: err instanceof Error ? err.message : String(err),
     })
-    return { bot_name: botName, enabled_features: DEFAULT_FEATURES, disabled_features: [] }
+    return {
+      bot_name: botName,
+      enabled_features: DEFAULT_FEATURES,
+      disabled_features: [],
+    }
   }
 }
 
 export async function updateWhiteLabelConfig(
   botName: string,
-  config: Partial<WhiteLabelConfig>,
+  config: Partial<WhiteLabelConfig>
 ): Promise<boolean> {
   try {
-    const payload = { ...config, bot_name: botName, updated_at: new Date().toISOString() }
+    const payload = {
+      ...config,
+      bot_name: botName,
+      updated_at: new Date().toISOString(),
+    }
     const { error } = await supabaseAdmin
       .from('white_label_configs')
       .upsert(payload, { onConflict: 'bot_name' })
 
     if (error) {
-      logger.error('[WhiteLabel] Failed to update config', { botName, error: error.message })
+      logger.error('[WhiteLabel] Failed to update config', {
+        botName,
+        error: error.message,
+      })
       return false
     }
     return true
@@ -92,14 +117,19 @@ export async function updateWhiteLabelConfig(
   }
 }
 
-export async function isFeatureEnabled(botName: string, feature: string): Promise<boolean> {
+export async function isFeatureEnabled(
+  botName: string,
+  feature: string
+): Promise<boolean> {
   const cfg = await getWhiteLabelConfig(botName)
   if (cfg.disabled_features.includes(feature)) return false
   if (cfg.enabled_features.length === 0) return true
   return cfg.enabled_features.includes(feature)
 }
 
-export async function getCustomWelcome(botName: string): Promise<string | null> {
+export async function getCustomWelcome(
+  botName: string
+): Promise<string | null> {
   const cfg = await getWhiteLabelConfig(botName)
   return cfg.welcome_message ?? null
 }

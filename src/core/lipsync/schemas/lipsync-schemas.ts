@@ -104,7 +104,7 @@ export class LipSyncValidationError extends Error {
 }
 
 export const LipSyncModelManagerConfigSchema = {
-  parse: (config: any) => config
+  parse: (config: any) => config,
 }
 
 export interface LipSyncModelManagementStrategy {
@@ -163,10 +163,10 @@ export const LipSyncInputBuilder = {
       // ✅ УЛУЧШЕНО: Детальное логирование ошибок создания input
       throw new Error(
         `Failed to create Veed Fabric input: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
-        `Input data: imageUrl=${imageUrl?.substring(0, 50)}, ` +
-        `textOrAudioUrl length=${textOrAudioUrl?.length}, ` +
-        `telegramId=${telegramId}, ` +
-        `isAudioUrl=${options?.isAudioUrl}`
+          `Input data: imageUrl=${imageUrl?.substring(0, 50)}, ` +
+          `textOrAudioUrl length=${textOrAudioUrl?.length}, ` +
+          `telegramId=${telegramId}, ` +
+          `isAudioUrl=${options?.isAudioUrl}`
       )
     }
   },
@@ -201,10 +201,10 @@ export const LipSyncInputBuilder = {
     } catch (error) {
       throw new Error(
         `Failed to create Fal.ai Veed Fabric input: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
-        `Input data: imageUrl=${imageUrl?.substring(0, 50)}, ` +
-        `audioUrl=${audioUrl?.substring(0, 50)}, ` +
-        `telegramId=${telegramId}, ` +
-        `resolution=${options?.resolution}`
+          `Input data: imageUrl=${imageUrl?.substring(0, 50)}, ` +
+          `audioUrl=${audioUrl?.substring(0, 50)}, ` +
+          `telegramId=${telegramId}, ` +
+          `resolution=${options?.resolution}`
       )
     }
   },
@@ -223,15 +223,10 @@ export const LipSyncInputBuilder = {
     }
   ): UniversalLipSyncInput => {
     // Используем forVeedFabric() с флагом isAudioUrl=true
-    return LipSyncInputBuilder.forVeedFabric(
-      imageUrl,
-      audioUrl,
-      telegramId,
-      {
-        ...options,
-        isAudioUrl: true, // всегда audioUrl для этого метода
-      }
-    )
+    return LipSyncInputBuilder.forVeedFabric(imageUrl, audioUrl, telegramId, {
+      ...options,
+      isAudioUrl: true, // всегда audioUrl для этого метода
+    })
   },
 
   /**
@@ -295,5 +290,5 @@ export const LipSyncInputBuilder = {
    */
   build() {
     return {}
-  }
+  },
 }

@@ -37,7 +37,8 @@ export async function generateGeminiImage({
 
     // Проверяем баланс и списываем звезды
     const balanceCheck = await processBalanceOperation({
-      telegram_id: typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
+      telegram_id:
+        typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
       paymentAmount: costPerImage,
       is_ru,
       bot_name: ctx.botInfo?.username,
@@ -49,7 +50,7 @@ export async function generateGeminiImage({
         telegram_id,
         required: costPerImage,
       })
-      
+
       await ctx.reply(
         is_ru
           ? `❌ Недостаточно звезд для генерации\\n\\nТребуется: ${costPerImage}⭐\\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\\n\\nПополните баланс через /start → 💎 Пополнить баланс`
@@ -81,46 +82,46 @@ export async function generateGeminiImage({
       const replicate = new Replicate({
         auth: process.env.REPLICATE_API_TOKEN,
       })
-      
-      const output = await replicate.run(
-        "black-forest-labs/flux-1.1-pro",
-        {
-          input: {
-            prompt: promptText,
-            image: inputImageUrl,
-            num_outputs: 1,
-            aspect_ratio: "9:16",
-            output_format: "jpg",
-            output_quality: 90
-          }
-        }
-      )
-      
+
+      const output = await replicate.run('black-forest-labs/flux-1.1-pro', {
+        input: {
+          prompt: promptText,
+          image: inputImageUrl,
+          num_outputs: 1,
+          aspect_ratio: '9:16',
+          output_format: 'jpg',
+          output_quality: 90,
+        },
+      })
+
       const imageUrl = Array.isArray(output) ? output[0] : output
       return imageUrl as string
     }
 
     // Вместо Gemini используем Flux через OpenRouter
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openRouterApiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://t.me/AI_STARS_bot',
-        'X-Title': 'AI Stars Bot'
-      },
-      body: JSON.stringify({
-        model: 'black-forest-labs/flux-1.1-pro',  // Используем FLUX для генерации
-        messages: [
-          {
-            role: 'user',
-            content: promptText
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 1024
-      })
-    })
+    const response = await fetch(
+      'https://openrouter.ai/api/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${openRouterApiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://t.me/AI_STARS_bot',
+          'X-Title': 'AI Stars Bot',
+        },
+        body: JSON.stringify({
+          model: 'black-forest-labs/flux-1.1-pro', // Используем FLUX для генерации
+          messages: [
+            {
+              role: 'user',
+              content: promptText,
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 1024,
+        }),
+      }
+    )
 
     if (!response.ok) {
       const errorData = await response.text()
@@ -128,10 +129,10 @@ export async function generateGeminiImage({
     }
 
     const result = await response.json()
-    
+
     // Извлекаем URL сгенерированного изображения
     const imageUrl = result.choices?.[0]?.message?.content
-    
+
     if (!imageUrl) {
       throw new Error('No image URL in response')
     }
@@ -145,7 +146,9 @@ export async function generateGeminiImage({
     try {
       await ctx.deleteMessage(statusMessage.message_id)
     } catch (err) {
-      logger.warn('[generateGeminiImage] Failed to delete status message', { err })
+      logger.warn('[generateGeminiImage] Failed to delete status message', {
+        err,
+      })
     }
 
     // Отправляем изображение пользователю
@@ -155,7 +158,7 @@ export async function generateGeminiImage({
 
     await sendPhotoWithFallback(ctx, imageUrl, {
       caption,
-      parse_mode: 'MarkdownV2'
+      parse_mode: 'MarkdownV2',
     })
 
     return imageUrl

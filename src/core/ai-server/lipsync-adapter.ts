@@ -8,9 +8,7 @@ import { logger } from '@/utils/logger'
 // ✅ ИСПРАВЛЕНО: Используем только наш домен для lipsync
 // AI_SERVER_URL в проде не задана; раньше цепочка сваливалась на
 // three-head-dragon.shop — старый сервер, HTTP 000 по всем протоколам.
-const AI_SERVER_URL =
-  process.env.AI_SERVER_URL ||
-  process.env.BASE_WEBHOOK_URL
+const AI_SERVER_URL = process.env.AI_SERVER_URL || process.env.BASE_WEBHOOK_URL
 
 export interface AiServerLipSyncRequest {
   video_url: string
@@ -45,28 +43,28 @@ export async function generateLipSyncViaAiServer(
     // Пробуем разные возможные эндпоинты
     const endpoints = [
       '/api/lipsync',
-      '/generate/lipsync', 
+      '/generate/lipsync',
       '/generate/kling-lipsync',
       '/api/v1/lipsync',
       '/lipsync',
-      '/replicate/lipsync'  // Возможный прокси для Replicate
+      '/replicate/lipsync', // Возможный прокси для Replicate
     ]
-    
+
     let lastError: any = null
-    
+
     for (const endpoint of endpoints) {
       try {
         logger.info(`🔍 Пробуем эндпоинт: ${endpoint}`)
-        
+
         const response = await fetch(`${AI_SERVER_URL}${endpoint}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Accept': 'application/json',
+            Accept: 'application/json',
             // Добавляем авторизацию если нужна
             ...(process.env.AI_SERVER_API_KEY && {
-              'Authorization': `Bearer ${process.env.AI_SERVER_API_KEY}`
-            })
+              Authorization: `Bearer ${process.env.AI_SERVER_API_KEY}`,
+            }),
           },
           body: JSON.stringify({
             ...request,
@@ -74,31 +72,35 @@ export async function generateLipSyncViaAiServer(
             videoUrl: request.video_url,
             audioUrl: request.audio_url,
             userId: request.user_id,
-            modelId: request.model || 'kwaivgi/kling-lip-sync'
-          })
+            modelId: request.model || 'kwaivgi/kling-lip-sync',
+          }),
         })
 
         if (response.ok) {
           const result = await response.json()
           logger.info(`✅ LipSync запущен через ai-server (${endpoint})`, {
             id: result.id,
-            status: result.status
+            status: result.status,
           })
-          
+
           return {
             id: result.id || `ai-server-${Date.now()}`,
             status: result.status || 'processing',
             result_url: result.result_url || result.output,
             error: result.error,
-            progress: result.progress
+            progress: result.progress,
           }
         } else if (response.status === 404) {
           logger.warn(`⚠️ Эндпоинт ${endpoint} не найден`)
           continue
         } else {
           const errorText = await response.text()
-          logger.error(`❌ Ошибка ${endpoint}: ${response.status} - ${errorText}`)
-          lastError = new Error(`AI Server error: ${response.status} - ${errorText}`)
+          logger.error(
+            `❌ Ошибка ${endpoint}: ${response.status} - ${errorText}`
+          )
+          lastError = new Error(
+            `AI Server error: ${response.status} - ${errorText}`
+          )
         }
       } catch (error) {
         logger.error(`❌ Сетевая ошибка для ${endpoint}:`, error)
@@ -106,32 +108,35 @@ export async function generateLipSyncViaAiServer(
         continue
       }
     }
-    
+
     // Если все эндпоинты не работают, используем fallback через прямой Replicate
-    logger.warn('⚠️ Все эндпоинты ai-server недоступны, используем fallback через Replicate')
-    
+    logger.warn(
+      '⚠️ Все эндпоинты ai-server недоступны, используем fallback через Replicate'
+    )
+
     // Импортируем оригинальную функцию как fallback
-    const { generateKlingLipSync } = await import('@/core/replicate/generateKlingLipSync')
-    
+    const { generateKlingLipSync } = await import(
+      '@/core/replicate/generateKlingLipSync'
+    )
+
     const replicateResult = await generateKlingLipSync(
       request.user_id,
-      request.video_url, 
+      request.video_url,
       request.audio_url,
       true
     )
-    
+
     if ('message' in replicateResult && 'error' in replicateResult) {
       throw new Error(replicateResult.message)
     }
-    
+
     const success = replicateResult as any
     return {
       id: success.id || `fallback-${Date.now()}`,
       status: success.status === 'succeeded' ? 'completed' : 'processing',
       result_url: success.output,
-      error: success.error
+      error: success.error,
     }
-    
   } catch (error) {
     logger.error('❌ Критическая ошибка ai-server LipSync:', error)
     throw error
@@ -150,11 +155,11 @@ export async function getLipSyncStatusFromAiServer(
       headers: {
         'Content-Type': 'application/json',
         ...(process.env.AI_SERVER_API_KEY && {
-          'Authorization': `Bearer ${process.env.AI_SERVER_API_KEY}`
-        })
-      }
+          Authorization: `Bearer ${process.env.AI_SERVER_API_KEY}`,
+        }),
+      },
     })
-    
+
     if (response.ok) {
       const result = await response.json()
       return {
@@ -162,30 +167,31 @@ export async function getLipSyncStatusFromAiServer(
         status: result.status || 'processing',
         result_url: result.result_url || result.output,
         error: result.error,
-        progress: result.progress
+        progress: result.progress,
       }
     }
-    
+
     // Fallback: проверяем через Replicate если задача начинается с префикса Replicate
     if (taskId.startsWith('pred_') || taskId.includes('replicate')) {
-      const { getKlingLipSyncStatus } = await import('@/core/replicate/generateKlingLipSync')
+      const { getKlingLipSyncStatus } = await import(
+        '@/core/replicate/generateKlingLipSync'
+      )
       const replicateResult = await getKlingLipSyncStatus(taskId)
-      
+
       if ('message' in replicateResult && 'error' in replicateResult) {
         throw new Error(replicateResult.message)
       }
-      
+
       const success = replicateResult as any
       return {
         id: success.id || taskId,
-        status: success.status === 'succeeded' ? 'completed' : 'processing', 
+        status: success.status === 'succeeded' ? 'completed' : 'processing',
         result_url: success.output,
-        error: success.error
+        error: success.error,
       }
     }
-    
+
     throw new Error(`Failed to get status: ${response.status}`)
-    
   } catch (error) {
     logger.error('❌ Ошибка получения статуса из ai-server:', error)
     throw error

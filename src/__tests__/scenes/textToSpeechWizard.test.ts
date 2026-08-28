@@ -28,16 +28,16 @@ vi.mock('@/core/elevenlabs/createAudioFileFromText', () => ({
 
 vi.mock('@/helpers/voiceValidation', () => ({
   validateAndCleanVoiceId: vi.fn(() => Promise.resolve(true)),
-  getVoiceAvatarErrorMessage: vi.fn((isRu) =>
+  getVoiceAvatarErrorMessage: vi.fn(isRu =>
     isRu ? 'Ошибка голосового аватара' : 'Voice avatar error'
   ),
-  getCreateVoiceAvatarMessage: vi.fn((isRu) =>
+  getCreateVoiceAvatarMessage: vi.fn(isRu =>
     isRu ? 'Создайте голосовой аватар' : 'Create voice avatar'
   ),
 }))
 
 vi.mock('@/navigation', () => ({
-  createHelpCancelKeyboard: vi.fn((isRu) => ({
+  createHelpCancelKeyboard: vi.fn(isRu => ({
     reply_markup: {
       keyboard: [[{ text: isRu ? 'Отмена' : 'Cancel' }]],
       resize_keyboard: true,
@@ -130,7 +130,6 @@ describe('textToSpeechWizard (Text to Speech Conversion)', () => {
       pendingTtsText: null,
     }
     mockContext.message = null
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(getUserBalance as Mock).mockResolvedValue(100)
     ;(getVoiceId as Mock).mockResolvedValue('voice_id_123')
@@ -233,7 +232,10 @@ describe('textToSpeechWizard (Text to Speech Conversion)', () => {
     it('должен обрабатывать невалидный voice_id', async () => {
       ;(validateAndCleanVoiceId as Mock).mockResolvedValue(false)
 
-      const isValid = await validateAndCleanVoiceId('invalid_voice', '223757230')
+      const isValid = await validateAndCleanVoiceId(
+        'invalid_voice',
+        '223757230'
+      )
       expect(isValid).toBe(false)
     })
   })
@@ -406,18 +408,14 @@ describe('textToSpeechWizard (Text to Speech Conversion)', () => {
   describe('12. Локализация сообщений', () => {
     it('должен показывать ошибку voice_id на русском', () => {
       const isRu = true
-      const message = isRu
-        ? 'Ошибка голосового аватара'
-        : 'Voice avatar error'
+      const message = isRu ? 'Ошибка голосового аватара' : 'Voice avatar error'
 
       expect(message).toBe('Ошибка голосового аватара')
     })
 
     it('должен показывать предложение создать аватар', () => {
       const isRu = true
-      const message = isRu
-        ? 'Создайте голосовой аватар'
-        : 'Create voice avatar'
+      const message = isRu ? 'Создайте голосовой аватар' : 'Create voice avatar'
 
       expect(message).toBe('Создайте голосовой аватар')
     })

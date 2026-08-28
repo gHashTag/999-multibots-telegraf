@@ -58,14 +58,19 @@ function collectListeners(): Set<string> {
 }
 
 /** Значения карты-константы вида KEY: 'event/name'. */
-function collectMapValues(file: string, marker: string): Array<[string, string, number]> {
+function collectMapValues(
+  file: string,
+  marker: string
+): Array<[string, string, number]> {
   const src = strip(fs.readFileSync(file, 'utf8'))
   const start = src.indexOf(marker)
   if (start === -1) return []
   const end = src.indexOf('}', start + marker.length)
   const block = src.slice(start, end)
   const out: Array<[string, string, number]> = []
-  for (const m of block.matchAll(/([A-Za-z0-9_'-]+):\s*['"]([a-zA-Z0-9_./-]+)['"]/g)) {
+  for (const m of block.matchAll(
+    /([A-Za-z0-9_'-]+):\s*['"]([a-zA-Z0-9_./-]+)['"]/g
+  )) {
     const line = src.slice(0, start + (m.index ?? 0)).split('\n').length
     out.push([m[1].replace(/'/g, ''), m[2], line])
   }
@@ -87,24 +92,38 @@ describe('швы событий Inngest', () => {
     // пустым и проверка пройдёт, ничего не проверив. Такая слепота уже
     // случалась в осмотре секретов (docs/audit/tool-blindness.md).
     let looked = 0
-    for (const file of ['src/inngest_app/client.ts', 'src/inngest_app/inngestClient.ts']) {
+    for (const file of [
+      'src/inngest_app/client.ts',
+      'src/inngest_app/inngestClient.ts',
+    ]) {
       if (!fs.existsSync(file)) continue
       looked++
-      for (const [key, value, line] of collectMapValues(file, 'export const INNGEST_EVENTS')) {
-        if (!listeners.has(value)) bad.push(`${file}:${line}  ${key} = '${value}'`)
+      for (const [key, value, line] of collectMapValues(
+        file,
+        'export const INNGEST_EVENTS'
+      )) {
+        if (!listeners.has(value))
+          bad.push(`${file}:${line}  ${key} = '${value}'`)
       }
     }
     // Константа «для типобезопасности», указывающая в пустоту, хуже голой
     // строки: ей доверяют.
-    expect(looked, 'ни одного файла с INNGEST_EVENTS не открыто').toBeGreaterThan(0)
+    expect(
+      looked,
+      'ни одного файла с INNGEST_EVENTS не открыто'
+    ).toBeGreaterThan(0)
     expect(bad).toEqual([])
   })
 
   it('карта MCP-сервера ведёт на реальных подписчиков', () => {
     const file = 'src/inngest_app/mcp-server.ts'
     const bad: string[] = []
-    for (const [key, value, line] of collectMapValues(file, 'const eventMap: Record<string, string>')) {
-      if (!listeners.has(value)) bad.push(`${file}:${line}  ${key} -> '${value}'`)
+    for (const [key, value, line] of collectMapValues(
+      file,
+      'const eventMap: Record<string, string>'
+    )) {
+      if (!listeners.has(value))
+        bad.push(`${file}:${line}  ${key} -> '${value}'`)
     }
     expect(bad).toEqual([])
   })
@@ -115,7 +134,8 @@ describe('швы событий Inngest', () => {
      * иметь подписчика ЗДЕСЬ. Каждая запись — с причиной.
      */
     const EXTERNAL: Record<string, string> = {
-      'test/hello.world': 'демо-событие из handleHelloWorld, подписчик не нужен',
+      'test/hello.world':
+        'демо-событие из handleHelloWorld, подписчик не нужен',
       'instagram/scrape-similar-users':
         'событие ветвления внутри instagramScraper-v2; подписчик не заведён — ' +
         'зафиксировано в docs/audit/event-seams.md как незакрытая работа',
@@ -124,13 +144,16 @@ describe('швы событий Inngest', () => {
         'зафиксировано в docs/audit/event-seams.md',
       'neuro/photo.failed':
         'событие отказа генерации; подписчика нет — зафиксировано в аудите',
-      'render/execute': 'потребитель живёт в отдельном рендер-сервере, не в этом репозитории',
+      'render/execute':
+        'потребитель живёт в отдельном рендер-сервере, не в этом репозитории',
     }
 
     const bad: string[] = []
     for (const f of prodFiles) {
       const src = strip(fs.readFileSync(f, 'utf8'))
-      for (const m of src.matchAll(/\bname:\s*['"]([a-z0-9_-]+\/[a-z0-9_.-]+)['"]/gi)) {
+      for (const m of src.matchAll(
+        /\bname:\s*['"]([a-z0-9_-]+\/[a-z0-9_.-]+)['"]/gi
+      )) {
         const name = m[1]
         if (listeners.has(name)) continue
         if (EXTERNAL[name]) continue

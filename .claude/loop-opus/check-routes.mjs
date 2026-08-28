@@ -168,7 +168,9 @@ function живой(в) {
   const свой = path.join(REPO, в.файл)
   const s = fs.readFileSync(свой, 'utf8')
   const до = s.slice(0, s.indexOf(в.сырой))
-  const имена = [...до.matchAll(/export\s+(?:async\s+)?(?:function|const)\s+(\w+)/g)]
+  const имена = [
+    ...до.matchAll(/export\s+(?:async\s+)?(?:function|const)\s+(\w+)/g),
+  ]
   const имя = имена.length ? имена[имена.length - 1][1] : null
   // Не разобрали имя — считаем живым: лишняя тревога дешевле пропуска.
   if (!имя) return true

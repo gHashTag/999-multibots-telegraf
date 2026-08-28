@@ -8,7 +8,8 @@ import * as t from 'io-ts'
 // ===== BASE TYPES =====
 
 // Branded types for type safety
-export const Brand = <T, B extends string>(id: B) =>
+export const Brand =
+  <T, B extends string>(id: B) =>
   <C extends t.Mixed>(codec: C) =>
     t.brand(codec, (n): n is t.TypeOf<C> & { readonly [K in B]: B } => true, id)
 
@@ -27,7 +28,7 @@ export const ProviderName = Brand('ProviderName')(
     t.literal('replicate'),
     t.literal('elevenlabs'),
     t.literal('fal'),
-    t.literal('openrouter')
+    t.literal('openrouter'),
   ])
 )
 export type ProviderName = t.TypeOf<typeof ProviderName>
@@ -47,18 +48,23 @@ export const VideoRequest = t.strict({
   aspectRatio: t.union([
     t.literal('16:9'),
     t.literal('9:16'),
-    t.literal('1:1')
+    t.literal('1:1'),
   ]),
   userId: UserId,
   imageUrl: t.union([t.string, t.undefined]),
   metadata: t.union([
     t.strict({
       style: t.union([t.string, t.undefined]),
-      quality: t.union([t.literal('low'), t.literal('medium'), t.literal('high'), t.undefined]),
-      seed: t.union([t.number, t.undefined])
+      quality: t.union([
+        t.literal('low'),
+        t.literal('medium'),
+        t.literal('high'),
+        t.undefined,
+      ]),
+      seed: t.union([t.number, t.undefined]),
     }),
-    t.undefined
-  ])
+    t.undefined,
+  ]),
 })
 
 export type VideoRequest = t.TypeOf<typeof VideoRequest>
@@ -72,10 +78,10 @@ export const VideoResult = t.strict({
   cost: t.union([
     t.strict({
       usd: t.number,
-      stars: t.number
+      stars: t.number,
     }),
-    t.undefined
-  ])
+    t.undefined,
+  ]),
 })
 
 export type VideoResult = t.TypeOf<typeof VideoResult>
@@ -94,10 +100,10 @@ export const ImageRequest = t.strict({
   metadata: t.union([
     t.strict({
       artistic_style: t.union([t.string, t.undefined]),
-      negative_prompt: t.union([t.string, t.undefined])
+      negative_prompt: t.union([t.string, t.undefined]),
     }),
-    t.undefined
-  ])
+    t.undefined,
+  ]),
 })
 
 export type ImageRequest = t.TypeOf<typeof ImageRequest>
@@ -108,7 +114,7 @@ export const ImageResult = t.strict({
   provider: ProviderName,
   width: t.number,
   height: t.number,
-  metadata: t.record(t.string, t.unknown)
+  metadata: t.record(t.string, t.unknown),
 })
 
 export type ImageResult = t.TypeOf<typeof ImageResult>
@@ -125,10 +131,10 @@ export const AudioRequest = t.strict({
   metadata: t.union([
     t.strict({
       speed: t.union([t.number, t.undefined]),
-      clarity: t.union([t.number, t.undefined])
+      clarity: t.union([t.number, t.undefined]),
     }),
-    t.undefined
-  ])
+    t.undefined,
+  ]),
 })
 
 export type AudioRequest = t.TypeOf<typeof AudioRequest>
@@ -138,7 +144,7 @@ export const AudioResult = t.strict({
   taskId: TaskId,
   provider: ProviderName,
   duration: t.number,
-  metadata: t.record(t.string, t.unknown)
+  metadata: t.record(t.string, t.unknown),
 })
 
 export type AudioResult = t.TypeOf<typeof AudioResult>
@@ -151,10 +157,10 @@ export const FaceSwapRequest = t.strict({
   userId: UserId,
   metadata: t.union([
     t.strict({
-      strength: t.union([t.number, t.undefined])
+      strength: t.union([t.number, t.undefined]),
     }),
-    t.undefined
-  ])
+    t.undefined,
+  ]),
 })
 
 export type FaceSwapRequest = t.TypeOf<typeof FaceSwapRequest>
@@ -163,17 +169,27 @@ export const FaceSwapResult = t.strict({
   imageUrl: t.string,
   taskId: TaskId,
   provider: ProviderName,
-  metadata: t.record(t.string, t.unknown)
+  metadata: t.record(t.string, t.unknown),
 })
 
 export type FaceSwapResult = t.TypeOf<typeof FaceSwapResult>
 
 // ===== GENERIC MEDIA REQUEST =====
 
-export const MediaRequest = t.union([VideoRequest, ImageRequest, AudioRequest, FaceSwapRequest])
+export const MediaRequest = t.union([
+  VideoRequest,
+  ImageRequest,
+  AudioRequest,
+  FaceSwapRequest,
+])
 export type MediaRequest = t.TypeOf<typeof MediaRequest>
 
-export const MediaResult = t.union([VideoResult, ImageResult, AudioResult, FaceSwapResult])
+export const MediaResult = t.union([
+  VideoResult,
+  ImageResult,
+  AudioResult,
+  FaceSwapResult,
+])
 export type MediaResult = t.TypeOf<typeof MediaResult>
 
 // ===== VALIDATION ERRORS =====
@@ -182,29 +198,35 @@ export const ValidationError = t.strict({
   message: t.string,
   path: t.array(t.union([t.string, t.number])),
   expected: t.string,
-  received: t.unknown
+  received: t.unknown,
 })
 
 export type ValidationError = t.TypeOf<typeof ValidationError>
 
 // ===== PROVIDER CAPABILITIES =====
 
-export const ProviderCapabilities = t.array(t.union([
-  t.literal('video'),
-  t.literal('image'),
-  t.literal('audio'),
-  t.literal('face-swap')
-]))
+export const ProviderCapabilities = t.array(
+  t.union([
+    t.literal('video'),
+    t.literal('image'),
+    t.literal('audio'),
+    t.literal('face-swap'),
+  ])
+)
 
 export type ProviderCapabilities = t.TypeOf<typeof ProviderCapabilities>
 
 // ===== HEALTH STATUS =====
 
 export const HealthStatus = t.strict({
-  status: t.union([t.literal('healthy'), t.literal('degraded'), t.literal('unhealthy')]),
+  status: t.union([
+    t.literal('healthy'),
+    t.literal('degraded'),
+    t.literal('unhealthy'),
+  ]),
   latency: t.number,
   uptime: t.number,
-  lastCheck: t.number
+  lastCheck: t.number,
 })
 
 export type HealthStatus = t.TypeOf<typeof HealthStatus>
@@ -215,7 +237,7 @@ export const Balance = t.strict({
   currency: t.union([t.literal('usd'), t.literal('stars')]),
   available: t.number,
   reserved: t.number,
-  lastUpdated: t.number
+  lastUpdated: t.number,
 })
 
 export type Balance = t.TypeOf<typeof Balance>
@@ -229,10 +251,10 @@ export const ProviderConfig = t.strict({
   timeout: t.union([t.number, t.undefined]),
   rateLimit: t.union([
     t.strict({
-      requestsPerMinute: t.number
+      requestsPerMinute: t.number,
     }),
-    t.undefined
-  ])
+    t.undefined,
+  ]),
 })
 
 export type ProviderConfig = t.TypeOf<typeof ProviderConfig>
@@ -247,17 +269,17 @@ export const PipelineConfig = t.strict({
     t.strict({
       failureThreshold: t.number,
       timeout: t.number,
-      resetTimeout: t.number
+      resetTimeout: t.number,
     }),
-    t.undefined
+    t.undefined,
   ]),
   timeout: t.union([t.number, t.undefined]),
   cache: t.union([
     t.strict({
-      ttl: t.number
+      ttl: t.number,
     }),
-    t.undefined
-  ])
+    t.undefined,
+  ]),
 })
 
 export type PipelineConfig = t.TypeOf<typeof PipelineConfig>
@@ -270,16 +292,21 @@ export type GenerationMetadata = t.TypeOf<typeof GenerationMetadata>
 // ===== UTILITY TYPES =====
 
 export type MediaTypeFromRequest<T extends MediaRequest> =
-  T extends VideoRequest ? 'video' :
-  T extends ImageRequest ? 'image' :
-  T extends AudioRequest ? 'audio' :
-  'face-swap'
+  T extends VideoRequest
+    ? 'video'
+    : T extends ImageRequest
+      ? 'image'
+      : T extends AudioRequest
+        ? 'audio'
+        : 'face-swap'
 
-export type ResultFromRequest<T extends MediaRequest> =
-  T extends VideoRequest ? VideoResult :
-  T extends ImageRequest ? ImageResult :
-  T extends AudioRequest ? AudioResult :
-  FaceSwapResult
+export type ResultFromRequest<T extends MediaRequest> = T extends VideoRequest
+  ? VideoResult
+  : T extends ImageRequest
+    ? ImageResult
+    : T extends AudioRequest
+      ? AudioResult
+      : FaceSwapResult
 
 // ===== TYPE GUARDS =====
 
@@ -298,8 +325,7 @@ export const isFaceSwapRequest = (req: MediaRequest): req is FaceSwapRequest =>
 export const isHealthy = (status: HealthStatus): boolean =>
   status.status === 'healthy'
 
-export const hasBalance = (balance: Balance): boolean =>
-  balance.available > 0
+export const hasBalance = (balance: Balance): boolean => balance.available > 0
 
 // ===== PROVIDER INTERFACE =====
 

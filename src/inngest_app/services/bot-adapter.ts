@@ -27,17 +27,17 @@ export function getBotByNameAdapter(bot_name: string): BotAdapter {
     if (result.error || !result.bot) {
       return {
         bot: undefined as any,
-        error: result.error || 'Bot not found'
+        error: result.error || 'Bot not found',
       }
     }
     return {
       bot: result.bot,
-      error: null
+      error: null,
     }
   } catch (error) {
     return {
       bot: undefined as any,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     }
   }
 }
@@ -56,18 +56,18 @@ export async function getUserBalanceAdapter(
     if (balance === null || balance === undefined) {
       return {
         success: false,
-        error: 'User not found or balance unavailable'
+        error: 'User not found or balance unavailable',
       }
     }
 
     return {
       success: true,
-      currentBalance: balance
+      currentBalance: balance,
     }
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     }
   }
 }
@@ -91,7 +91,9 @@ export async function processBalanceOperationAdapter({
   error?: string
 }> {
   try {
-    const { updateUserBalance } = await import('@/core/supabase/updateUserBalance')
+    const { updateUserBalance } = await import(
+      '@/core/supabase/updateUserBalance'
+    )
     const { PaymentType } = await import('@/interfaces/payments.interface')
 
     // Check balance first
@@ -100,9 +102,7 @@ export async function processBalanceOperationAdapter({
     if (!balanceCheck.success || !balanceCheck.currentBalance) {
       return {
         success: false,
-        error: is_ru
-          ? '❌ Ошибка проверки баланса'
-          : '❌ Balance check failed'
+        error: is_ru ? '❌ Ошибка проверки баланса' : '❌ Balance check failed',
       }
     }
 
@@ -112,7 +112,7 @@ export async function processBalanceOperationAdapter({
         currentBalance: balanceCheck.currentBalance,
         error: is_ru
           ? `❌ Недостаточно средств. Нужно: ${paymentAmount} ⭐️, У вас: ${balanceCheck.currentBalance} ⭐️`
-          : `❌ Insufficient funds. Required: ${paymentAmount} ⭐️, You have: ${balanceCheck.currentBalance} ⭐️`
+          : `❌ Insufficient funds. Required: ${paymentAmount} ⭐️, You have: ${balanceCheck.currentBalance} ⭐️`,
       }
     }
 
@@ -129,7 +129,7 @@ export async function processBalanceOperationAdapter({
         language: is_ru ? 'ru' : 'en',
         service_type: 'inngest_operation',
         category: 'REAL',
-        cost: paymentAmount / 1.5
+        cost: paymentAmount / 1.5,
       }
     )
 
@@ -138,7 +138,7 @@ export async function processBalanceOperationAdapter({
         success: false,
         error: is_ru
           ? '❌ Ошибка списания средств'
-          : '❌ Failed to deduct balance'
+          : '❌ Failed to deduct balance',
       }
     }
 
@@ -147,12 +147,12 @@ export async function processBalanceOperationAdapter({
 
     return {
       success: true,
-      currentBalance: newBalanceCheck.currentBalance
+      currentBalance: newBalanceCheck.currentBalance,
     }
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     }
   }
 }
@@ -160,7 +160,9 @@ export async function processBalanceOperationAdapter({
 /**
  * Get user by Telegram ID (compatible with ai-server pattern)
  */
-export async function getUserByTelegramIdAdapter(telegram_id: string): Promise<any> {
+export async function getUserByTelegramIdAdapter(
+  telegram_id: string
+): Promise<any> {
   try {
     const { getUserByTelegramId } = await import('@/core/supabase')
     return await getUserByTelegramId(telegram_id)
@@ -196,7 +198,9 @@ export async function updateUserBalanceAdapter(
   metadata?: any
 ): Promise<boolean> {
   try {
-    const { updateUserBalance } = await import('@/core/supabase/updateUserBalance')
+    const { updateUserBalance } = await import(
+      '@/core/supabase/updateUserBalance'
+    )
     return await updateUserBalance(
       telegram_id,
       amount,

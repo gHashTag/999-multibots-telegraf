@@ -61,7 +61,7 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
       timestamp: new Date().toISOString(),
     })
 
-    logger.info('🔔 [AI REELS CALLBACK] Inside try block');
+    logger.info('🔔 [AI REELS CALLBACK] Inside try block')
 
     const payload: AIReelsCallbackPayload = req.body
 
@@ -152,7 +152,7 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
       duration: `${duration}ms`,
     })
   } catch (error) {
-    logger.error('❌ [AI REELS CALLBACK] CAUGHT ERROR', { error });
+    logger.error('❌ [AI REELS CALLBACK] CAUGHT ERROR', { error })
     logger.error('❌ [AI REELS CALLBACK] Processing error', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
@@ -250,9 +250,12 @@ async function handleCompletedRender(
           botName,
         })
       } else {
-        logger.warn('⚠️ [AI REELS CALLBACK] У пользователя нет bot_name в базе', {
-          telegramId,
-        })
+        logger.warn(
+          '⚠️ [AI REELS CALLBACK] У пользователя нет bot_name в базе',
+          {
+            telegramId,
+          }
+        )
       }
     } catch (e) {
       // Падать нельзя: ниже есть defaultBot, и лучше отдать видео хоть

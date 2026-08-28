@@ -45,7 +45,9 @@ In this bot, you will discover the world of neural networks and learn how to use
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -110,7 +112,9 @@ Creating a digital avatar body is an important step in personalizing your digita
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -162,7 +166,9 @@ After the process is complete, you will receive your <b>neurophoto</b>. This ima
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -220,7 +226,9 @@ Using the "Image to Prompt" function opens up new possibilities for creativity a
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -273,7 +281,9 @@ Once you provide all the necessary information, our bot will process the data an
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -307,7 +317,9 @@ We are proud to offer you such an innovative tool and hope it becomes an indispe
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -359,7 +371,9 @@ The "Select AI Model" function opens up the possibility of more flexible and eff
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -427,7 +441,9 @@ The "Voice for Avatar" function allows you to personalize your digital image, ma
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -479,7 +495,9 @@ The "Text to Voice" function makes your digital content more lively and expressi
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -527,7 +545,9 @@ The "Image to Video" function allows you to bring your ideas to life in dynamic 
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -607,7 +627,9 @@ But this is just the beginning. You can experiment with different descriptions t
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -671,7 +693,9 @@ After selecting a model, the next step is to create a text description or prompt
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -717,7 +741,9 @@ Using the "Change Size" function allows you to easily adapt your avatar images t
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -775,7 +801,9 @@ Expand the user community and open new horizons together!`
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -793,9 +821,8 @@ export async function handleQuestComplete(ctx: MyContext) {
   console.warn('TODO: Implement user level update to 12 in handleQuestComplete')
 
   const isRu = isRussian(ctx)
-  const { count, subscriptionType, level } = await getReferalsCountAndUserData(
-    telegram_id
-  )
+  const { count, subscriptionType, level } =
+    await getReferalsCountAndUserData(telegram_id)
 
   await ctx.reply(
     isRu
@@ -880,7 +907,9 @@ Turn any image into high-quality in minutes! 📸✨`
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -968,7 +997,9 @@ Turn any video into useful text in minutes! 🎬✨`
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,
@@ -1066,7 +1097,9 @@ FLUX Kontext is the future of image editing, available today! 🌈✨`
       reply_markup: Markup.keyboard([
         [
           Markup.button.text(
-            isRu ? (getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню') : (getButtonTextsByMode('main_menu')?.en || '🏠 Main menu')
+            isRu
+              ? getButtonTextsByMode('main_menu')?.ru || '🏠 Главное меню'
+              : getButtonTextsByMode('main_menu')?.en || '🏠 Main menu'
           ),
         ],
       ]).resize().reply_markup,

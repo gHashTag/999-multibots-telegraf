@@ -183,16 +183,23 @@ try {
      */
     try {
       execFileSync('git', ['fetch', 'origin', 'main', '--quiet'], {
-        cwd: где, encoding: 'utf8', timeout: 20000,
+        cwd: где,
+        encoding: 'utf8',
+        timeout: 20000,
       })
     } catch {
       // Сеть могла не ответить. Сравнение всё равно проведём, но скажем, что
       // ссылка может быть несвежей — молчать об этом значит врать числом.
       console.log('  ↳    origin/main не обновлён, сравнение может отставать')
     }
-    const наMain = execFileSync('git', ['rev-parse', '--short', 'origin/main'], {
-      cwd: где, encoding: 'utf8',
-    }).trim()
+    const наMain = execFileSync(
+      'git',
+      ['rev-parse', '--short', 'origin/main'],
+      {
+        cwd: где,
+        encoding: 'utf8',
+      }
+    ).trim()
     if (!String(версия).startsWith(наMain.slice(0, 7))) {
       bad(`выкладка отстала: на проде ${версия}, на main ${наMain}`)
     } else {
@@ -229,7 +236,10 @@ for (const p of [
   try {
     const r = await get(`${RENDER}${p}`)
     if (r.status === 404) ok(`${p} → 404`)
-    else bad(`${p} → HTTP ${r.status}, а должен быть 404 (маршрут глотает подпуть)`)
+    else
+      bad(
+        `${p} → HTTP ${r.status}, а должен быть 404 (маршрут глотает подпуть)`
+      )
   } catch (e) {
     bad(`${p}: ${e.message}`)
   }
@@ -241,7 +251,9 @@ try {
   const prof = await get(`${RENDER}/api/users/t27_dev`)
   const tpl = await get(`${RENDER}/api/users/t27_dev/templates?limit=50`)
   const заявлено = Number(prof.json?.templates_count ?? -1)
-  const отдано = Array.isArray(tpl.json?.templates) ? tpl.json.templates.length : -1
+  const отдано = Array.isArray(tpl.json?.templates)
+    ? tpl.json.templates.length
+    : -1
   if (заявлено < 0 || отдано < 0) {
     bad('не удалось сверить счётчик работ с их списком')
   } else if (отдано === 0 && заявлено > 0) {
@@ -349,7 +361,9 @@ const предыдущее = история
   .slice()
   .reverse()
   .find(
-    h => JSON.stringify((h.anomalies || []).map(x => String(x)).sort()) !== текущийКлюч
+    h =>
+      JSON.stringify((h.anomalies || []).map(x => String(x)).sort()) !==
+      текущийКлюч
   )
 /**
  * ТРИ РАЗНЫХ СЛУЧАЯ, а не два.
@@ -392,7 +406,9 @@ if (ушедшие.length) {
   for (const k of ушедшие) console.log(`     ${k}`)
 }
 if (предыдущее && (новые.length || ушедшие.length)) {
-  console.log(`   (изменилось с ${String(предыдущее.at).slice(0, 16).replace('T', ' ')})`)
+  console.log(
+    `   (изменилось с ${String(предыдущее.at).slice(0, 16).replace('T', ' ')})`
+  )
 }
 if (!новые.length && !ушедшие.length) {
   console.log(
@@ -422,4 +438,6 @@ if (anomalies.length) {
   console.log(`⚠️  АНОМАЛИЙ: ${anomalies.length}. ${хвост}\n`)
   process.exit(1)
 }
-console.log(`✅ аномалий нет${notes.length ? ` (заметок: ${notes.length})` : ''}\n`)
+console.log(
+  `✅ аномалий нет${notes.length ? ` (заметок: ${notes.length})` : ''}\n`
+)

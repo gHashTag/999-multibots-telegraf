@@ -1,6 +1,6 @@
 /**
  * 🎯 БЕЗОПАСНЫЕ ПЕРЕХОДЫ МЕЖДУ СЦЕНАМИ
- * 
+ *
  * Этот модуль обеспечивает:
  * 1. Безопасный переход с обработкой ошибок
  * 2. Историю навигации для кнопки "Назад"
@@ -49,12 +49,7 @@ export async function safeEnterScene(
   sceneId: string,
   options: SceneTransitionOptions = {}
 ): Promise<boolean> {
-  const {
-    leaveFirst = true,
-    saveToHistory = true,
-    mode,
-    sceneState
-  } = options
+  const { leaveFirst = true, saveToHistory = true, mode, sceneState } = options
 
   const telegramId = ctx.from?.id
   const currentSceneId = ctx.scene.current?.id
@@ -65,24 +60,24 @@ export async function safeEnterScene(
       from: currentSceneId || 'none',
       to: sceneId,
       leaveFirst,
-      saveToHistory
+      saveToHistory,
     })
 
     // Сохраняем в историю навигации (до выхода из сцены)
     if (saveToHistory && currentSceneId && currentSceneId !== sceneId) {
       const history = ctx.session.navigationHistory || []
-      
+
       // Не добавляем дубликаты подряд
       if (history[history.length - 1] !== currentSceneId) {
         history.push(currentSceneId)
       }
-      
+
       // Ограничиваем глубину истории
       ctx.session.navigationHistory = history.slice(-MAX_HISTORY_DEPTH)
-      
+
       logger.debug('[SceneTransition] History updated', {
         telegramId,
-        history: ctx.session.navigationHistory
+        history: ctx.session.navigationHistory,
       })
     }
 
@@ -106,7 +101,7 @@ export async function safeEnterScene(
 
     logger.info('[SceneTransition] Transition successful', {
       telegramId,
-      to: sceneId
+      to: sceneId,
     })
 
     return true
@@ -115,7 +110,7 @@ export async function safeEnterScene(
       telegramId,
       from: currentSceneId,
       to: sceneId,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
 
     // Fallback: пытаемся показать главное меню
@@ -125,7 +120,10 @@ export async function safeEnterScene(
     } catch (fallbackError) {
       logger.error('[SceneTransition] Fallback also failed', {
         telegramId,
-        error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+        error:
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : String(fallbackError),
       })
     }
 
@@ -143,7 +141,7 @@ export async function goBack(ctx: MyContext): Promise<boolean> {
   logger.info('[SceneTransition] Going back', {
     telegramId,
     currentScene: ctx.scene.current?.id,
-    history
+    history,
   })
 
   // Извлекаем последнюю сцену из истории
@@ -153,30 +151,33 @@ export async function goBack(ctx: MyContext): Promise<boolean> {
   if (previousSceneId) {
     // Переходим на предыдущую сцену БЕЗ сохранения в историю (чтобы не создавать цикл)
     return await safeEnterScene(ctx, previousSceneId, {
-      saveToHistory: false
+      saveToHistory: false,
     })
   }
 
   // Если история пуста - идём в главное меню
   logger.info('[SceneTransition] History empty, going to main menu', {
-    telegramId
+    telegramId,
   })
 
   return await safeEnterScene(ctx, ModeEnum.MainMenu, {
-    saveToHistory: false
+    saveToHistory: false,
   })
 }
 
 /**
  * Показать главное меню (сбрасывает историю)
  */
-export async function goToMainMenu(ctx: MyContext, clearHistory = true): Promise<boolean> {
+export async function goToMainMenu(
+  ctx: MyContext,
+  clearHistory = true
+): Promise<boolean> {
   const telegramId = ctx.from?.id
 
   logger.info('[SceneTransition] Going to main menu', {
     telegramId,
     clearHistory,
-    currentScene: ctx.scene.current?.id
+    currentScene: ctx.scene.current?.id,
   })
 
   if (clearHistory) {
@@ -184,7 +185,7 @@ export async function goToMainMenu(ctx: MyContext, clearHistory = true): Promise
   }
 
   return await safeEnterScene(ctx, ModeEnum.MainMenu, {
-    saveToHistory: false
+    saveToHistory: false,
   })
 }
 
@@ -209,7 +210,7 @@ export function getHistoryDepth(ctx: MyContext): number {
 export function clearNavigationHistory(ctx: MyContext): void {
   ctx.session.navigationHistory = []
   logger.debug('[SceneTransition] History cleared', {
-    telegramId: ctx.from?.id
+    telegramId: ctx.from?.id,
   })
 }
 

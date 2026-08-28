@@ -52,7 +52,12 @@ function scan(dir) {
     const p = path.join(dir, e.name)
     if (e.isDirectory()) {
       // dist и .next — сборка, там чинить нечего; e2e гоняется своим раннером
-      if (!/node_modules|[/\\]e2e([/\\]|$)|__tests__|[/\\]dist[/\\]?$|\.next/.test(p)) scan(p)
+      if (
+        !/node_modules|[/\\]e2e([/\\]|$)|__tests__|[/\\]dist[/\\]?$|\.next/.test(
+          p
+        )
+      )
+        scan(p)
       continue
     }
     if (!/\.(ts|tsx|js|mjs|cjs)$/.test(p)) continue
@@ -65,12 +70,41 @@ function scan(dir) {
       if (!dead) return
       const code = line.trim()
       // комментарий — не нарушение
-      if (code.startsWith('//') || code.startsWith('*') || code.startsWith('/*')) return
-      // Явный маркер исключения для НАМЕРЕННЫХ упоминаний — например в
-      // детекторе, который предупреждает, что webhook указывает на мёртвый
-      // хост. Ставится комментарием на предыдущей строке.
-      const prev = (arr[i - 1] || '').trim()
-      if (prev.includes('dead-domain-ok')) return
+      if (
+        code.startsWith('//') ||
+        code.startsWith('*') ||
+        code.startsWith('/*')
+      )
+        return
+      // Explicit opt-out marker for DELIBERATE mentions — for instance in a
+      // detector that warns the webhook points at a dead host. Written as a
+      // comment above the line.
+      //
+      // The WHOLE contiguous comment block above is inspected, not just the
+      // single preceding line. The old check broke on formatting: prettier
+      // moved a long argument onto its own line, or split an explanation in
+      // two, and a legitimate marker silently stopped working while the gate
+      // failed on code nobody had changed. Verified on this very file.
+      let hasMarker = false
+      for (let j = i - 1; j >= 0; j--) {
+        const above = (arr[j] || '').trim()
+        if (above.includes('dead-domain-ok')) {
+          hasMarker = true
+          break
+        }
+        // Продолжаем только по комментариям и открывающим скобкам вызова —
+        // строка кода со смыслом обрывает блок.
+        if (
+          !(
+            above.startsWith('//') ||
+            above.startsWith('*') ||
+            above.startsWith('/*') ||
+            above.endsWith('(')
+          )
+        )
+          break
+      }
+      if (hasMarker) return
       /**
        * Отличаем ОПАСНОЕ от инертного.
        *
@@ -85,7 +119,9 @@ function scan(dir) {
        */
       const isFallback = /\|\||\?\?|\?\s*[`'"]|:\s*[`'"]/.test(code)
       const loc = `${path.relative(REPO, p)}:${i + 1}`
-      ;(isFallback ? soft : hits).push(`${loc}  [${dead}]  ${code.slice(0, 84)}`)
+      ;(isFallback ? soft : hits).push(
+        `${loc}  [${dead}]  ${code.slice(0, 84)}`
+      )
     })
   }
 }
@@ -93,19 +129,31 @@ ROOTS.forEach(scan)
 
 // Знаменатель обязателен: пустой список без числа осмотренных корней
 // неотличим от «обход не состоялся».
-console.log(`осмотрено деревьев: ${ROOTS.length} (${ROOTS.map(r => path.relative(REPO, r)).join(', ')})`)
+console.log(
+  `осмотрено деревьев: ${ROOTS.length} (${ROOTS.map(r => path.relative(REPO, r)).join(', ')})`
+)
 
 if (soft.length) {
-  console.log(`\n⚠️  мёртвый хост последним fallback (${soft.length}) — в проде не берётся, но подлежит вычистке:`)
+  console.log(
+    `\n⚠️  мёртвый хост последним fallback (${soft.length}) — в проде не берётся, но подлежит вычистке:`
+  )
   soft.forEach(h => console.log('   ' + h))
 }
 
 if (hits.length) {
-  console.error(`\n❌ МЁРТВЫЙ ХОСТ ЗАШИТ БЕЗ АЛЬТЕРНАТИВЫ (${hits.length}) — исполняется всегда:\n`)
+  console.error(
+    `\n❌ МЁРТВЫЙ ХОСТ ЗАШИТ БЕЗ АЛЬТЕРНАТИВЫ (${hits.length}) — исполняется всегда:\n`
+  )
   hits.forEach(h => console.error('   ' + h))
-  console.error('\nБерите адрес из конфигурации: PUBLIC_URL / PLAYER_URL / BASE_WEBHOOK_URL.')
-  console.error('Если упоминание намеренное — поставьте // dead-domain-ok: причина на строке выше.')
+  console.error(
+    '\nБерите адрес из конфигурации: PUBLIC_URL / PLAYER_URL / BASE_WEBHOOK_URL.'
+  )
+  console.error(
+    'Если упоминание намеренное — поставьте // dead-domain-ok: причина на строке выше.'
+  )
   process.exit(1)
 }
 
-console.log(`\n✅ мёртвые хосты (${DEAD.join(', ')}) нигде не зашиты без альтернативы`)
+console.log(
+  `\n✅ мёртвые хосты (${DEAD.join(', ')}) нигде не зашиты без альтернативы`
+)

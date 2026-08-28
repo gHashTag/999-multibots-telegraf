@@ -1,6 +1,6 @@
 /**
  * 🎯 КОНФИГУРАЦИЯ КАТЕГОРИЙ НАВИГАЦИИ
- * 
+ *
  * Определяет структуру главного меню и подменю категорий.
  * Все категории и их функции описаны в одном месте.
  */
@@ -404,7 +404,10 @@ export function getCategoryItems(categoryId: string): NavigationItem[] {
 /**
  * Получить текст категории по языку
  */
-export function getCategoryText(category: CategoryConfig, isRussian: boolean): string {
+export function getCategoryText(
+  category: CategoryConfig,
+  isRussian: boolean
+): string {
   return isRussian ? category.ru : category.en
 }
 
@@ -424,7 +427,12 @@ export function getItemText(item: NavigationItem, isRussian: boolean): string {
  * Удалить эмодзи из текста
  */
 function removeEmoji(text: string): string {
-  return text.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/gu, '').trim()
+  return text
+    .replace(
+      /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/gu,
+      ''
+    )
+    .trim()
 }
 
 /**
@@ -500,7 +508,7 @@ export const MAIN_MENU_VARIANTS = [
   // Команды
   '/menu',
   'меню',
-  'menu'
+  'menu',
 ]
 
 /** Варианты для кнопки "Отмена" */
@@ -509,7 +517,7 @@ export const CANCEL_VARIANTS = [
   'Cancel',
   '/cancel',
   'отмена',
-  'cancel'
+  'cancel',
 ]
 
 /** Варианты для кнопки "Назад" - включает ВСЕ эмодзи, используемые в сценах */
@@ -543,7 +551,7 @@ export const SUPPORT_VARIANTS = getButtonVariantsById('support')
 /** Варианты для "Баланс" - из CATEGORIES */
 export const BALANCE_VARIANTS = [
   ...getButtonVariantsById('balance'),
-  ...getButtonVariantsById('top_up')
+  ...getButtonVariantsById('top_up'),
 ]
 
 /** Варианты для "Подписка" - из CATEGORIES */

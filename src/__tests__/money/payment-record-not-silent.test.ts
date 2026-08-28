@@ -54,7 +54,10 @@ describe('запись платежа', () => {
   })
 
   it('ошибка вставки БРОСАЕТ, а не молчит', async () => {
-    insertError = { message: 'permission denied for table payments_v2', code: '42501' }
+    insertError = {
+      message: 'permission denied for table payments_v2',
+      code: '42501',
+    }
 
     // Главная проверка. Молчание здесь стоит человеку денег: он уйдёт платить
     // по ссылке, а записи, к которой привяжется подтверждение, не будет.

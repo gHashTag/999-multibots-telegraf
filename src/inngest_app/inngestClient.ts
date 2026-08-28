@@ -10,18 +10,27 @@ import { logger } from '@/utils/logger'
 export const inngest = new Inngest({
   id: 'vibee',
   name: 'Vibee AI Bot Platform',
-  eventKey: process.env.INNGEST_EVENT_KEY || process.env.BOT_INNGEST_EVENT_KEY || 'local-dev-key',
+  eventKey:
+    process.env.INNGEST_EVENT_KEY ||
+    process.env.BOT_INNGEST_EVENT_KEY ||
+    'local-dev-key',
   // For local development, no baseUrl needed
   // For production, will use default Inngest Cloud
 })
 
 // Helper to check if Inngest is configured
 export const isInngestConfigured = (): boolean => {
-  const hasEventKey = !!(process.env.INNGEST_EVENT_KEY || process.env.BOT_INNGEST_EVENT_KEY)
-  const hasSigningKey = !!(process.env.INNGEST_SIGNING_KEY || process.env.BOT_INNGEST_SIGNING_KEY)
+  const hasEventKey = !!(
+    process.env.INNGEST_EVENT_KEY || process.env.BOT_INNGEST_EVENT_KEY
+  )
+  const hasSigningKey = !!(
+    process.env.INNGEST_SIGNING_KEY || process.env.BOT_INNGEST_SIGNING_KEY
+  )
 
   if (!hasEventKey) {
-    logger.warn('⚠️ [INNGEST] Missing event key - functions will run in dev mode')
+    logger.warn(
+      '⚠️ [INNGEST] Missing event key - functions will run in dev mode'
+    )
   }
 
   return hasEventKey && hasSigningKey
@@ -69,7 +78,8 @@ export const INNGEST_EVENTS = {
   GENERATE_MODEL_TRAINING: 'model/training.start',
 } as const
 
-export type InngestEventName = typeof INNGEST_EVENTS[keyof typeof INNGEST_EVENTS]
+export type InngestEventName =
+  (typeof INNGEST_EVENTS)[keyof typeof INNGEST_EVENTS]
 
 // Helper function to send events
 export async function sendInngestEvent(

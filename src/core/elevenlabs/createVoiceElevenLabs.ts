@@ -68,9 +68,12 @@ async function createVoiceViaAiServer({
   try {
     AI_SERVER_URL = configManager.getApiServerUrl()
   } catch (error) {
-    logger.warn('[createVoiceViaAiServer] ConfigManager error, using environment fallback', {
-      error: error.message
-    })
+    logger.warn(
+      '[createVoiceViaAiServer] ConfigManager error, using environment fallback',
+      {
+        error: error.message,
+      }
+    )
     // API_SERVER_URL в проде НЕ задана, а BASE_WEBHOOK_URL задана и указывает
     // на Railway-домен бота — проверено. Раньше здесь стоял литерал
     // three-head-dragon.shop (старый сервер, 188.137.250.69, не отвечает ни по
@@ -83,11 +86,14 @@ async function createVoiceViaAiServer({
     }
   }
 
-  logger.info('[createVoiceViaAiServer] Отправляем запрос на ai-server для создания голоса', {
-    username,
-    fileUrl: fileUrl.substring(0, 50) + '...',
-    aiServerUrl: AI_SERVER_URL
-  })
+  logger.info(
+    '[createVoiceViaAiServer] Отправляем запрос на ai-server для создания голоса',
+    {
+      username,
+      fileUrl: fileUrl.substring(0, 50) + '...',
+      aiServerUrl: AI_SERVER_URL,
+    }
+  )
 
   // Пробуем разные возможные эндпоинты для ElevenLabs
   const endpoints = [
@@ -96,7 +102,7 @@ async function createVoiceViaAiServer({
     '/elevenlabs/create-voice',
     '/api/v1/voices/add',
     '/voices/create',
-    '/proxy/elevenlabs/voices'
+    '/proxy/elevenlabs/voices',
   ]
 
   let lastError: any = null
@@ -108,34 +114,40 @@ async function createVoiceViaAiServer({
   for (const endpoint of endpoints) {
     // Проверяем общий таймаут
     if (Date.now() - startTime > maxTotalTime) {
-      logger.warn(`⚠️ Превышен общий таймаут ${maxTotalTime}ms для AI Server, переходим к fallback`)
+      logger.warn(
+        `⚠️ Превышен общий таймаут ${maxTotalTime}ms для AI Server, переходим к fallback`
+      )
       break
     }
 
     try {
       logger.info(`🔍 Пробуем эндпоинт: ${endpoint}`)
 
-      const response = await axios.post(`${AI_SERVER_URL}${endpoint}`, {
-        fileUrl,
-        username,
-        description: 'Voice created from Telegram voice message',
-        labels: { accent: 'neutral' }
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          ...(process.env.AI_SERVER_API_KEY && {
-            'Authorization': `Bearer ${process.env.AI_SERVER_API_KEY}`
-          })
+      const response = await axios.post(
+        `${AI_SERVER_URL}${endpoint}`,
+        {
+          fileUrl,
+          username,
+          description: 'Voice created from Telegram voice message',
+          labels: { accent: 'neutral' },
         },
-        timeout: endpointTimeout
-      })
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(process.env.AI_SERVER_API_KEY && {
+              Authorization: `Bearer ${process.env.AI_SERVER_API_KEY}`,
+            }),
+          },
+          timeout: endpointTimeout,
+        }
+      )
 
       if (response.status === 200 || response.status === 201) {
         const result = response.data
         logger.info(`✅ Голос создан через ai-server (${endpoint})`, {
           username,
-          voiceId: result.voice_id || result.id
+          voiceId: result.voice_id || result.id,
         })
 
         return result.voice_id || result.id
@@ -152,7 +164,9 @@ async function createVoiceViaAiServer({
   }
 
   // Если ai-server недоступен, используем fallback на прямой API
-  logger.warn('⚠️ Все эндпоинты ai-server недоступны, используем fallback на прямой ElevenLabs API')
+  logger.warn(
+    '⚠️ Все эндпоинты ai-server недоступны, используем fallback на прямой ElevenLabs API'
+  )
   throw new Error('AI Server unavailable, fallback required')
 }
 
@@ -176,9 +190,12 @@ export async function createVoiceElevenLabs({
     try {
       return await createVoiceViaAiServer({ fileUrl, username })
     } catch (aiServerError) {
-      logger.warn('[createVoiceElevenLabs] AI Server недоступен, используем прямой API', {
-        error: aiServerError
-      })
+      logger.warn(
+        '[createVoiceElevenLabs] AI Server недоступен, используем прямой API',
+        {
+          error: aiServerError,
+        }
+      )
     }
 
     // Fallback: прямой API (оригинальная логика)
@@ -225,8 +242,9 @@ export async function createVoiceElevenLabs({
       headers: {
         ...form.getHeaders(),
         'xi-api-key': elevenLabsApiKey,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Accept: 'application/json',
         'Accept-Language': 'en-US,en;q=0.9',
       },
       timeout: 20000, // 20 seconds timeout (уменьшено с 30)
@@ -263,18 +281,23 @@ export async function createVoiceElevenLabs({
       throw new ElevenLabsVoiceLimitError(error.response.data.detail.message)
     } else if (axios.isAxiosError(error)) {
       // Check for Cloudflare challenge (403 with HTML response)
-      if (error.response?.status === 403 && 
-          typeof error.response?.data === 'string' && 
-          error.response.data.includes('Just a moment')) {
-        logger.error('[createVoiceElevenLabs] Cloudflare challenge detected. IP might be blocked.', {
-          username,
-          status: 403,
-        })
+      if (
+        error.response?.status === 403 &&
+        typeof error.response?.data === 'string' &&
+        error.response.data.includes('Just a moment')
+      ) {
+        logger.error(
+          '[createVoiceElevenLabs] Cloudflare challenge detected. IP might be blocked.',
+          {
+            username,
+            status: 403,
+          }
+        )
         throw new Error(
           'ElevenLabs API временно недоступен (Cloudflare защита). Попробуйте позже или обратитесь в поддержку.'
         )
       }
-      
+
       // Check for rate limiting
       if (error.response?.status === 429) {
         logger.error('[createVoiceElevenLabs] Rate limit exceeded.', {
@@ -285,7 +308,7 @@ export async function createVoiceElevenLabs({
           'Превышен лимит запросов к ElevenLabs. Попробуйте через несколько минут.'
         )
       }
-      
+
       // Check for invalid API key
       if (error.response?.status === 401) {
         logger.error('[createVoiceElevenLabs] Invalid API key.', {
@@ -296,17 +319,20 @@ export async function createVoiceElevenLabs({
           'Недействительный API ключ ElevenLabs. Обратитесь в поддержку.'
         )
       }
-      
+
       logger.error('[createVoiceElevenLabs] Axios error.', {
         username,
         message: error.message,
         status: error.response?.status,
         statusText: error.response?.statusText,
-        data: typeof error.response?.data === 'string'
-          ? error.response.data.substring(0, 500)
-          : 'Response data present but not string',
+        data:
+          typeof error.response?.data === 'string'
+            ? error.response.data.substring(0, 500)
+            : 'Response data present but not string',
       })
-      throw new Error(`ElevenLabs API недоступен (${error.response?.status || error.message}). Попробуйте позже.`)
+      throw new Error(
+        `ElevenLabs API недоступен (${error.response?.status || error.message}). Попробуйте позже.`
+      )
     } else {
       logger.error('[createVoiceElevenLabs] Generic error.', {
         username,

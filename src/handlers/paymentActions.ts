@@ -21,7 +21,7 @@ export function registerPaymentActions(bot: Telegraf<MyContext>) {
   // 💎 ГЛОБАЛЬНЫЕ КРИПТО-КНОПКИ (из inline-меню)
 
   // TON USDT
-  bot.action('global_crypto_ton_usdt', async (ctx) => {
+  bot.action('global_crypto_ton_usdt', async ctx => {
     await ctx.answerCbQuery()
     logger.info('💠 [Payment] Global crypto: TON USDT selected', {
       telegramId: ctx.from?.id,
@@ -36,7 +36,7 @@ export function registerPaymentActions(bot: Telegraf<MyContext>) {
   })
 
   // Нативный TON
-  bot.action('global_crypto_ton_native', async (ctx) => {
+  bot.action('global_crypto_ton_native', async ctx => {
     await ctx.answerCbQuery()
     logger.info('💎 [Payment] Global crypto: TON native selected', {
       telegramId: ctx.from?.id,
@@ -51,7 +51,7 @@ export function registerPaymentActions(bot: Telegraf<MyContext>) {
   })
 
   // USDC Base
-  bot.action('global_crypto_usdc_base', async (ctx) => {
+  bot.action('global_crypto_usdc_base', async ctx => {
     await ctx.answerCbQuery()
     logger.info('🔵 [Payment] Global crypto: USDC Base selected', {
       telegramId: ctx.from?.id,
@@ -66,7 +66,7 @@ export function registerPaymentActions(bot: Telegraf<MyContext>) {
   })
 
   // Отмена
-  bot.action('global_crypto_cancel', async (ctx) => {
+  bot.action('global_crypto_cancel', async ctx => {
     await ctx.answerCbQuery()
     logger.info('❌ [Payment] Global crypto: Cancelled', {
       telegramId: ctx.from?.id,

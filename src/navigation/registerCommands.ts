@@ -17,10 +17,7 @@ import { getReferalsCountAndUserData } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 import { defaultSession } from '@/store'
 import { extractPromoFromContext } from '@/helpers/contextUtils'
-import {
-  handleClubCommand,
-  registerClubActions,
-} from '@/handlers/foundryClub'
+import { handleClubCommand, registerClubActions } from '@/handlers/foundryClub'
 import { handleFactoryCommand } from '@/handlers/factoryCommand'
 import { Scenes } from 'telegraf'
 import { message } from 'telegraf/filters'
@@ -150,9 +147,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
   console.log('🔴🔴🔴 DIAGNOSTIC: registerCommands STARTED! 🔴🔴🔴')
   console.log('🔴🔴🔴 DIAGNOSTIC: About to call logger.info')
   console.log('🎯 [Navigation] Registering all bot commands and handlers')
-  logger.info(
-    '🎯 [Navigation] Registering all bot commands and handlers'
-  )
+  logger.info('🎯 [Navigation] Registering all bot commands and handlers')
   console.log('🔴🔴🔴 DIAGNOSTIC: logger.info called')
 
   try {
@@ -211,10 +206,7 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
     // Фабрика для команд с проверкой приватного чата
     const createCommandHandler =
-      (
-        _commandName: string,
-        handler: (ctx: MyContext) => Promise<void>
-      ) =>
+      (_commandName: string, handler: (ctx: MyContext) => Promise<void>) =>
       async (ctx: MyContext) => {
         if (!requirePrivateChat(ctx)) {
           return sendGroupCommandReply(ctx)
@@ -525,16 +517,22 @@ If not, continue on your own and click the "I myself" button`
 
     bot.command('business', requireAdmin(), async ctx => {
       const s = getBusinessStats()
-      const connList = s.connections.length > 0
-        ? s.connections.map(c => `  - ID: ${c.id.slice(0, 8)}... | User: ${c.userId} | Reply: ${c.canReply ? 'yes' : 'no'}`).join('\n')
-        : '  (none)'
+      const connList =
+        s.connections.length > 0
+          ? s.connections
+              .map(
+                c =>
+                  `  - ID: ${c.id.slice(0, 8)}... | User: ${c.userId} | Reply: ${c.canReply ? 'yes' : 'no'}`
+              )
+              .join('\n')
+          : '  (none)'
 
       await ctx.reply(
         `📊 Telegram Business Stats\n\n` +
-        `Active connections: ${s.activeConnections}\n` +
-        `Messages today: ${s.todayMessages}\n` +
-        `Unique users today: ${s.todayUniqueUsers}\n\n` +
-        `Connections:\n${connList}`
+          `Active connections: ${s.activeConnections}\n` +
+          `Messages today: ${s.todayMessages}\n` +
+          `Unique users today: ${s.todayUniqueUsers}\n\n` +
+          `Connections:\n${connList}`
       )
     })
 
@@ -944,15 +942,24 @@ If not, continue on your own and click the "I myself" button`
       if (ctx.scene?.current) return next()
 
       try {
-        logger.info(`🤖 [AI Fallback] "${text.substring(0, 50)}" from ${ctx.from?.id}`)
+        logger.info(
+          `🤖 [AI Fallback] "${text.substring(0, 50)}" from ${ctx.from?.id}`
+        )
         const { chatWithAI } = await import('@/services/aiChatService')
         const reply = await chatWithAI(
           [
-            { role: 'system', content: 'Ты — AI ассистент бота. Помогаешь пользователям с генерацией фото, видео, аватаров. Отвечай кратко (2-3 предложения). Тарифы: Free (3/день), Basic (299₽), Pro (699₽), Studio (1999₽). Для начала: /start' },
+            {
+              role: 'system',
+              content:
+                'Ты — AI ассистент бота. Помогаешь пользователям с генерацией фото, видео, аватаров. Отвечай кратко (2-3 предложения). Тарифы: Free (3/день), Basic (299₽), Pro (699₽), Studio (1999₽). Для начала: /start',
+            },
             { role: 'user', content: text },
           ],
           undefined,
-          { telegramId: String(ctx.from?.id), botName: (ctx as any).botInfo?.username || '' }
+          {
+            telegramId: String(ctx.from?.id),
+            botName: (ctx as any).botInfo?.username || '',
+          }
         )
         await ctx.reply(reply)
       } catch (err: any) {
@@ -1069,28 +1076,40 @@ export function createStage(): Scenes.Stage<MyContext> {
   // even when user is inside a wizard scene (stage.middleware() runs before bot.command())
   stage.command('start', async (ctx, next) => {
     if (ctx.scene.current) {
-      console.log('🔴 [stage.command] /start intercepted, leaving scene:', ctx.scene.current.id)
+      console.log(
+        '🔴 [stage.command] /start intercepted, leaving scene:',
+        ctx.scene.current.id
+      )
       await ctx.scene.leave()
     }
     return next()
   })
   stage.command('menu', async (ctx, next) => {
     if (ctx.scene.current) {
-      console.log('🔴 [stage.command] /menu intercepted, leaving scene:', ctx.scene.current.id)
+      console.log(
+        '🔴 [stage.command] /menu intercepted, leaving scene:',
+        ctx.scene.current.id
+      )
       await ctx.scene.leave()
     }
     return next()
   })
   stage.command('help', async (ctx, next) => {
     if (ctx.scene.current) {
-      console.log('🔴 [stage.command] /help intercepted, leaving scene:', ctx.scene.current.id)
+      console.log(
+        '🔴 [stage.command] /help intercepted, leaving scene:',
+        ctx.scene.current.id
+      )
       await ctx.scene.leave()
     }
     return next()
   })
   stage.command(['club', 'foundry'], async (ctx, next) => {
     if (ctx.scene.current) {
-      console.log('🔴 [stage.command] /club intercepted, leaving scene:', ctx.scene.current.id)
+      console.log(
+        '🔴 [stage.command] /club intercepted, leaving scene:',
+        ctx.scene.current.id
+      )
       await ctx.scene.leave()
     }
     return next()
@@ -1260,11 +1279,19 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
     console.log('🔴 [DEBUG /start] ========== /start COMMAND FIRED ==========')
     console.log('🔴 [DEBUG /start] chatType:', ctx.chat.type)
     console.log('🔴 [DEBUG /start] telegramId:', ctx.from?.id)
-    console.log('🔴 [DEBUG /start] currentScene BEFORE reset:', ctx.scene?.current?.id || 'none')
-    console.log('🔴 [DEBUG /start] session BEFORE reset:', JSON.stringify({
-      mode: ctx.session?.mode,
-      wizardData: ctx.session?.wizardData ? Object.keys(ctx.session.wizardData) : 'none',
-    }))
+    console.log(
+      '🔴 [DEBUG /start] currentScene BEFORE reset:',
+      ctx.scene?.current?.id || 'none'
+    )
+    console.log(
+      '🔴 [DEBUG /start] session BEFORE reset:',
+      JSON.stringify({
+        mode: ctx.session?.mode,
+        wizardData: ctx.session?.wizardData
+          ? Object.keys(ctx.session.wizardData)
+          : 'none',
+      })
+    )
 
     if (ctx.chat.type !== 'private') {
       return sendGroupCommandReply(ctx)
@@ -1290,7 +1317,9 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         if (parts.length > 1) {
           const startParam = parts[1]
 
-          const { extractPromoFromContext } = await import('@/helpers/contextUtils')
+          const { extractPromoFromContext } = await import(
+            '@/helpers/contextUtils'
+          )
           const promoInfo = extractPromoFromContext(ctx)
 
           if (!promoInfo?.isPromo && /^\d+$/.test(startParam)) {
@@ -1330,7 +1359,10 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         console.log('🔴 [DEBUG /start] Main menu shown OK')
       }
     } catch (error) {
-      console.log('🔴 [DEBUG /start] ERROR:', error instanceof Error ? error.message : String(error))
+      console.log(
+        '🔴 [DEBUG /start] ERROR:',
+        error instanceof Error ? error.message : String(error)
+      )
       logger.error('❌ [Navigation] Error in /start command:', {
         error,
         telegramId: ctx.from?.id,
@@ -1375,11 +1407,11 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
  * ⚠️ ВАЖНО: registerGlobalNavigationMiddleware больше НЕ вызывается здесь!
  * Он регистрируется ПОСЛЕДНИМ в registerCommands() ПОСЛЕ stage.middleware()
  */
-function initializeNavigation(
-  bot: Telegraf<MyContext>
-): void {
+function initializeNavigation(bot: Telegraf<MyContext>): void {
   try {
-    logger.info('🎯 [Navigation] Initializing navigation service (AFTER stage.middleware)...')
+    logger.info(
+      '🎯 [Navigation] Initializing navigation service (AFTER stage.middleware)...'
+    )
 
     // 1. Регистрируем команды бота (/start, /help и т.д.)
     registerNavigationCommands(bot)
@@ -1398,9 +1430,7 @@ function initializeNavigation(
     registerNavigationActions(bot) // Action-обработчики (inline кнопки)
     registerSpecialHandlers(bot) // Специальные обработчики (Сгенерировать еще, Улучшить промт)
 
-    logger.info(
-      '✅ [Navigation] Navigation service initialized successfully'
-    )
+    logger.info('✅ [Navigation] Navigation service initialized successfully')
   } catch (error) {
     logger.error('❌ [Navigation] Error during initialization:', {
       error: error instanceof Error ? error.message : String(error),
@@ -1409,7 +1439,6 @@ function initializeNavigation(
     throw error
   }
 }
-
 
 // ========================================
 // 6. HELPER FUNCTIONS FOR NAVIGATION
@@ -1474,7 +1503,7 @@ export function registerCategoryHandlers(bot: Telegraf<MyContext>): void {
         ruText: category.ru,
         enText: category.en,
         textLength: category.ru.length,
-        charCodes: Array.from(category.ru).map(c => c.charCodeAt(0))
+        charCodes: Array.from(category.ru).map(c => c.charCodeAt(0)),
       }
     )
 
@@ -1489,8 +1518,10 @@ export function registerCategoryHandlers(bot: Telegraf<MyContext>): void {
         categoryEn: category.en,
         receivedText: messageText,
         receivedTextLength: messageText.length,
-        receivedTextCharCodes: Array.from(messageText).map(c => c.charCodeAt(0)),
-        textMatch: messageText === category.ru || messageText === category.en
+        receivedTextCharCodes: Array.from(messageText).map(c =>
+          c.charCodeAt(0)
+        ),
+        textMatch: messageText === category.ru || messageText === category.en,
       })
 
       try {
@@ -1503,11 +1534,14 @@ export function registerCategoryHandlers(bot: Telegraf<MyContext>): void {
         // ✅ СПЕЦИАЛЬНАЯ ОБРАБОТКА: Если у категории нет items (это кнопка быстрого доступа)
         // Переходим напрямую в sceneId вместо показа пустого подменю
         if (category.items.length === 0 && category.sceneId) {
-          logger.info('💎 [Navigation] Quick access button - direct scene entry', {
-            telegramId: ctx.from?.id,
-            categoryId: category.id,
-            sceneId: category.sceneId,
-          })
+          logger.info(
+            '💎 [Navigation] Quick access button - direct scene entry',
+            {
+              telegramId: ctx.from?.id,
+              categoryId: category.id,
+              sceneId: category.sceneId,
+            }
+          )
           await ctx.scene.enter(category.sceneId)
           return
         }
@@ -1523,14 +1557,11 @@ export function registerCategoryHandlers(bot: Telegraf<MyContext>): void {
           categoryId: category.id,
         })
       } catch (error) {
-        logger.error(
-          `❌ [Navigation] Error showing category ${category.id}:`,
-          {
-            error: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined,
-            telegramId: ctx.from?.id,
-          }
-        )
+        logger.error(`❌ [Navigation] Error showing category ${category.id}:`, {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          telegramId: ctx.from?.id,
+        })
       }
     })
   })
@@ -1557,13 +1588,10 @@ export function registerFunctionHandlers(bot: Telegraf<MyContext>): void {
         try {
           await handleFunctionNavigation(ctx, item)
         } catch (error) {
-          logger.error(
-            `❌ [Navigation] Error navigating to ${item.mode}:`,
-            {
-              error,
-              telegramId: ctx.from?.id,
-            }
-          )
+          logger.error(`❌ [Navigation] Error navigating to ${item.mode}:`, {
+            error,
+            telegramId: ctx.from?.id,
+          })
         }
       })
 
@@ -1697,32 +1725,29 @@ function registerSpecialHandlers(bot: Telegraf<MyContext>): void {
   )
 
   // ✅ Повторить генерацию - использует lastCompletedVideoScene
-  bot.hears(
-    ['🔄 Повторить генерацию', '🔄 Repeat generation'],
-    async ctx => {
-      logger.info('🔄 [Navigation] Repeat video generation', {
+  bot.hears(['🔄 Повторить генерацию', '🔄 Repeat generation'], async ctx => {
+    logger.info('🔄 [Navigation] Repeat video generation', {
+      telegramId: ctx.from?.id,
+      lastCompletedVideoScene: ctx.session.lastCompletedVideoScene,
+    })
+    try {
+      const { handleRestartVideoGeneration } = await import(
+        '@/handlers/handleVideoRestart'
+      )
+      await handleRestartVideoGeneration(ctx)
+    } catch (error) {
+      logger.error('❌ [Navigation] Error repeating video generation:', {
+        error,
         telegramId: ctx.from?.id,
-        lastCompletedVideoScene: ctx.session.lastCompletedVideoScene,
       })
-      try {
-        const { handleRestartVideoGeneration } = await import(
-          '@/handlers/handleVideoRestart'
-        )
-        await handleRestartVideoGeneration(ctx)
-      } catch (error) {
-        logger.error('❌ [Navigation] Error repeating video generation:', {
-          error,
-          telegramId: ctx.from?.id,
-        })
-        const isRu = isRussianFromState(ctx)
-        await ctx.reply(
-          isRu
-            ? 'Произошла ошибка. Попробуйте вернуться в главное меню.'
-            : 'An error occurred. Please try returning to the main menu.'
-        )
-      }
+      const isRu = isRussianFromState(ctx)
+      await ctx.reply(
+        isRu
+          ? 'Произошла ошибка. Попробуйте вернуться в главное меню.'
+          : 'An error occurred. Please try returning to the main menu.'
+      )
     }
-  )
+  })
 
   // ✅ Новое видео - показываем меню выбора типа видео
   bot.hears(['🎬 Новое видео', '🎬 New video'], async ctx => {
@@ -1741,9 +1766,7 @@ function registerSpecialHandlers(bot: Telegraf<MyContext>): void {
       ]).resize()
 
       await ctx.reply(
-        isRu
-          ? 'Выберите тип видео:'
-          : 'Choose video type:',
+        isRu ? 'Выберите тип видео:' : 'Choose video type:',
         keyboard
       )
     } catch (error) {

@@ -154,8 +154,8 @@ Examples:
         ? 'списываю'
         : 'deducting'
       : isRu
-      ? 'пополняю'
-      : 'adding'
+        ? 'пополняю'
+        : 'adding'
 
     await ctx.reply(
       isRu

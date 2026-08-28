@@ -59,9 +59,13 @@ export async function mirrorToOwnStorage(
     const buf = Buffer.from(await res.arrayBuffer())
     if (!buf.length) throw new Error('источник отдал пустой ответ')
 
-    const contentType = res.headers.get('content-type') || 'application/octet-stream'
+    const contentType =
+      res.headers.get('content-type') || 'application/octet-stream'
     const ext =
-      sourceUrl.split('?')[0].match(/\.([a-z0-9]{2,4})$/i)?.[1]?.toLowerCase() ||
+      sourceUrl
+        .split('?')[0]
+        .match(/\.([a-z0-9]{2,4})$/i)?.[1]
+        ?.toLowerCase() ||
       (contentType.startsWith('image/')
         ? contentType.slice(6).split(';')[0]
         : contentType.startsWith('video/')
@@ -90,11 +94,14 @@ export async function mirrorToOwnStorage(
     })
     return data.publicUrl
   } catch (e) {
-    logger.warn('⚠️ [mirror] Не удалось переложить файл — сохраняем чужую ссылку', {
-      telegramId: String(telegramId),
-      source: sourceUrl.slice(0, 80),
-      error: e instanceof Error ? e.message : String(e),
-    })
+    logger.warn(
+      '⚠️ [mirror] Не удалось переложить файл — сохраняем чужую ссылку',
+      {
+        telegramId: String(telegramId),
+        source: sourceUrl.slice(0, 80),
+        error: e instanceof Error ? e.message : String(e),
+      }
+    )
     return sourceUrl
   }
 }

@@ -25,7 +25,12 @@ import fs from 'fs'
 import path from 'path'
 
 /** Место, где пишется наблюдаемое поле, и метка, по которой видно правку. */
-const WRITERS: { what: string; file: string; symbol: string; marker: string }[] = [
+const WRITERS: {
+  what: string
+  file: string
+  symbol: string
+  marker: string
+}[] = [
   {
     what: 'причина возврата',
     file: 'src/price/helpers/refundUser.ts',
@@ -83,11 +88,17 @@ const ALL = collect()
 function exportedNames(file: string): string[] {
   const text = fs.readFileSync(file, 'utf8')
   const names = new Set<string>()
-  for (const m of text.matchAll(/export\s+(?:async\s+)?(?:function|const|class)\s+(\w+)/g))
+  for (const m of text.matchAll(
+    /export\s+(?:async\s+)?(?:function|const|class)\s+(\w+)/g
+  ))
     names.add(m[1])
   for (const m of text.matchAll(/export\s*\{([^}]+)\}/g)) {
     for (const part of m[1].split(',')) {
-      const name = part.trim().split(/\s+as\s+/).pop()?.trim()
+      const name = part
+        .trim()
+        .split(/\s+as\s+/)
+        .pop()
+        ?.trim()
       if (name) names.add(name)
     }
   }
@@ -121,8 +132,14 @@ describe('наблюдаемость: у каждого писателя ест�
     expect(fs.readFileSync(file, 'utf8')).toContain(marker)
   })
 
-  it.each(WRITERS)('$what — кто-то зовёт именно этот символ', ({ file, symbol }) => {
-    const callers = callersOf(symbol, file)
-    expect(callers, `${symbol}: никто не зовёт — правка не исполняется`).not.toEqual([])
-  })
+  it.each(WRITERS)(
+    '$what — кто-то зовёт именно этот символ',
+    ({ file, symbol }) => {
+      const callers = callersOf(symbol, file)
+      expect(
+        callers,
+        `${symbol}: никто не зовёт — правка не исполняется`
+      ).not.toEqual([])
+    }
+  )
 })

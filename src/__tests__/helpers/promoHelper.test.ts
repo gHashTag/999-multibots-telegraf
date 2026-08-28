@@ -184,9 +184,11 @@ describe('promoHelper', () => {
       const mockLimit = vi.fn().mockResolvedValue({ data: [], error: null })
       const mockNot = vi.fn().mockReturnValue({ limit: mockLimit })
       const mockContains = vi.fn().mockReturnValue({ not: mockNot })
-      const mockEq = vi
-        .fn()
-        .mockReturnValueOnce({ eq: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ contains: mockContains }) }) })
+      const mockEq = vi.fn().mockReturnValueOnce({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({ contains: mockContains }),
+        }),
+      })
       const mockSelect = vi.fn().mockReturnValue({ eq: mockEq })
       mockSupabase.from.mockReturnValue({ select: mockSelect })
 
@@ -359,9 +361,7 @@ describe('promoHelper', () => {
       })
 
       it('should return false on exception', async () => {
-        mockDirectPaymentProcessor.mockRejectedValue(
-          new Error('Network error')
-        )
+        mockDirectPaymentProcessor.mockRejectedValue(new Error('Network error'))
 
         const result = await processPromoLink(telegramId, 'neurovideo', botName)
 

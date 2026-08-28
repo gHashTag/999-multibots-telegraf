@@ -370,12 +370,15 @@ export async function generateNeuroPhotoDirect(
     }
 
     if (isFalModel) {
-      logger.info('🎭 [DIRECT] Обнаружена FAL модель, используем LoRA weights', {
-        telegram_id,
-        model_name: userModel.model_name,
-        trigger_word: userModel.trigger_word,
-        zip_url: userModel.zip_url?.substring(0, 50) + '...',
-      })
+      logger.info(
+        '🎭 [DIRECT] Обнаружена FAL модель, используем LoRA weights',
+        {
+          telegram_id,
+          model_name: userModel.model_name,
+          trigger_word: userModel.trigger_word,
+          zip_url: userModel.zip_url?.substring(0, 50) + '...',
+        }
+      )
     }
 
     // Убедимся что numImages имеет разумное значение
@@ -432,12 +435,15 @@ export async function generateNeuroPhotoDirect(
             : '❌ Your account was not found in our database. Please restart the bot using the /start command'
         )
       } catch (sendError) {
-        logger.error('❌ [DIRECT] Не удалось отправить сообщение об ошибке пользователю', {
-          description: 'Failed to send error message to user (direct)',
-          error:
-            sendError instanceof Error ? sendError.message : 'Unknown error',
-          telegram_id,
-        })
+        logger.error(
+          '❌ [DIRECT] Не удалось отправить сообщение об ошибке пользователю',
+          {
+            description: 'Failed to send error message to user (direct)',
+            error:
+              sendError instanceof Error ? sendError.message : 'Unknown error',
+            telegram_id,
+          }
+        )
       }
 
       throw new Error(`User with ID ${telegram_id} not found in database`)
@@ -529,10 +535,13 @@ export async function generateNeuroPhotoDirect(
             : '❌ Failed to process payment. Please check your balance and try again.'
         )
       } else {
-        logger.info('🔇 [DIRECT] Отправка сообщения об ошибке платежа пропущена (режим тестирования)', {
-          description: 'Skipping payment error message (test mode)',
-          telegram_id,
-        })
+        logger.info(
+          '🔇 [DIRECT] Отправка сообщения об ошибке платежа пропущена (режим тестирования)',
+          {
+            description: 'Skipping payment error message (test mode)',
+            telegram_id,
+          }
+        )
       }
 
       return {
@@ -551,9 +560,12 @@ export async function generateNeuroPhotoDirect(
     let finalAspectRatio: string | null = null
     if (explicitAspectRatio) {
       finalAspectRatio = explicitAspectRatio
-      logger.info(`🧙‍♂️ [DIRECT] Используется явный aspectRatio: ${finalAspectRatio}`, {
-        telegram_id,
-      })
+      logger.info(
+        `🧙‍♂️ [DIRECT] Используется явный aspectRatio: ${finalAspectRatio}`,
+        {
+          telegram_id,
+        }
+      )
     } else {
       const numericTelegramId = parseInt(telegram_id, 10)
       const dbAspectRatio = await getAspectRatio(numericTelegramId)
@@ -563,15 +575,21 @@ export async function generateNeuroPhotoDirect(
         dbAspectRatio.includes(':')
       ) {
         finalAspectRatio = dbAspectRatio
-        logger.info(`🧙‍♂️ [DIRECT] Используется aspectRatio из БД: ${finalAspectRatio}`, {
-          telegram_id,
-        })
+        logger.info(
+          `🧙‍♂️ [DIRECT] Используется aspectRatio из БД: ${finalAspectRatio}`,
+          {
+            telegram_id,
+          }
+        )
       } else {
-        logger.warn(`⚠️ [DIRECT] Некорректное или отсутствующее значение aspectRatio из БД (${dbAspectRatio}), используется значение по умолчанию "1:1"`, {
-          original_value: dbAspectRatio,
-          default_value: '1:1',
-          telegram_id,
-        })
+        logger.warn(
+          `⚠️ [DIRECT] Некорректное или отсутствующее значение aspectRatio из БД (${dbAspectRatio}), используется значение по умолчанию "1:1"`,
+          {
+            original_value: dbAspectRatio,
+            default_value: '1:1',
+            telegram_id,
+          }
+        )
         finalAspectRatio = '1:1' // Значение по умолчанию
       }
     }
@@ -618,14 +636,17 @@ export async function generateNeuroPhotoDirect(
                   : `⏳ Generating image ${i + 1} of ${validNumImages}`
               )
             } catch (sendError) {
-              logger.error('❌ [DIRECT] Ошибка при отправке сообщения о генерации', {
-                description: 'Error sending generation message (direct)',
-                error:
-                  sendError instanceof Error
-                    ? sendError.message
-                    : 'Unknown error',
-                telegram_id,
-              })
+              logger.error(
+                '❌ [DIRECT] Ошибка при отправке сообщения о генерации',
+                {
+                  description: 'Error sending generation message (direct)',
+                  error:
+                    sendError instanceof Error
+                      ? sendError.message
+                      : 'Unknown error',
+                  telegram_id,
+                }
+              )
               // Продолжаем выполнение даже при ошибке отправки сообщения
             }
           } else {
@@ -638,22 +659,28 @@ export async function generateNeuroPhotoDirect(
                 }
               )
             } catch (sendError) {
-              logger.error('❌ [DIRECT] Ошибка при отправке сообщения о генерации', {
-                description: 'Error sending generation message (direct)',
-                error:
-                  sendError instanceof Error
-                    ? sendError.message
-                    : 'Unknown error',
-                telegram_id,
-              })
+              logger.error(
+                '❌ [DIRECT] Ошибка при отправке сообщения о генерации',
+                {
+                  description: 'Error sending generation message (direct)',
+                  error:
+                    sendError instanceof Error
+                      ? sendError.message
+                      : 'Unknown error',
+                  telegram_id,
+                }
+              )
             }
           }
         } else {
-          logger.info('🔇 [DIRECT] Отправка статусного сообщения пропущена (режим тестирования)', {
-            description: 'Skipping status message (test mode)',
-            telegram_id,
-            image_index: i,
-          })
+          logger.info(
+            '🔇 [DIRECT] Отправка статусного сообщения пропущена (режим тестирования)',
+            {
+              description: 'Skipping status message (test mode)',
+              telegram_id,
+              image_index: i,
+            }
+          )
         }
 
         logger.info('🎨 [DIRECT] Запускаем прямую генерацию изображения', {
@@ -778,8 +805,11 @@ export async function generateNeuroPhotoDirect(
             outputType: typeof output,
             outputIsNull: output === null,
             outputIsUndefined: output === undefined,
-            outputKeys: output && typeof output === 'object' ? Object.keys(output) : null,
-            outputJson: output ? JSON.stringify(output).substring(0, 500) + '...' : 'null',
+            outputKeys:
+              output && typeof output === 'object' ? Object.keys(output) : null,
+            outputJson: output
+              ? JSON.stringify(output).substring(0, 500) + '...'
+              : 'null',
             outputFull: output ? JSON.stringify(output, null, 2) : 'null',
             telegram_id,
           })
@@ -852,11 +882,14 @@ export async function generateNeuroPhotoDirect(
           }
 
           // ---> ЛОГ ПЕРЕД ВЫЗОВОМ
-          logger.info('🚦 [DIRECT] Параметры перед отправкой в sendMediaToPulse', {
-            description: 'Options before calling sendMediaToPulse',
-            pulseOptions,
-            telegram_id,
-          })
+          logger.info(
+            '🚦 [DIRECT] Параметры перед отправкой в sendMediaToPulse',
+            {
+              description: 'Options before calling sendMediaToPulse',
+              pulseOptions,
+              telegram_id,
+            }
+          )
           // <--- КОНЕЦ ЛОГА
 
           await sendMediaToPulse(pulseOptions)
@@ -872,12 +905,15 @@ export async function generateNeuroPhotoDirect(
             ctx.session.lastNeuroPhotoImageUrl = imageUrl
             ctx.session.lastNeuroPhotoPrompt = prompt
 
-            logger.info('💾 [DIRECT] URL нейрофото сохранен в сессии для upscaler', {
-              description: 'Neurophoto URL saved in session for upscaler',
-              telegram_id,
-              savedUrl: imageUrl.substring(0, 50) + '...',
-              savedPrompt: prompt.substring(0, 50) + '...',
-            })
+            logger.info(
+              '💾 [DIRECT] URL нейрофото сохранен в сессии для upscaler',
+              {
+                description: 'Neurophoto URL saved in session for upscaler',
+                telegram_id,
+                savedUrl: imageUrl.substring(0, 50) + '...',
+                savedPrompt: prompt.substring(0, 50) + '...',
+              }
+            )
           }
 
           // ОТПРАВЛЯЕМ ИЗОБРАЖЕНИЕ ПОЛЬЗОВАТЕЛЮ В ЛИЧНЫЕ СООБЩЕНИЯ
@@ -1017,21 +1053,27 @@ Generated: ${new Date().toLocaleString('en-US')}
                 imageUrl: imageUrl.substring(0, 50) + '...',
               })
             } else {
-              logger.info('🔇 [DIRECT] Отправка изображения пользователю пропущена (режим тестирования)', {
-                description: 'Skipping image sending to user (test mode)',
-                telegram_id,
-              })
+              logger.info(
+                '🔇 [DIRECT] Отправка изображения пользователю пропущена (режим тестирования)',
+                {
+                  description: 'Skipping image sending to user (test mode)',
+                  telegram_id,
+                }
+              )
             }
           } catch (sendUserError) {
-            logger.error('❌ [DIRECT] Ошибка при отправке изображения пользователю', {
-              description: 'Error sending image to user',
-              error:
-                sendUserError instanceof Error
-                  ? sendUserError.message
-                  : 'Unknown error',
-              telegram_id,
-              imageUrl: imageUrl.substring(0, 50) + '...',
-            })
+            logger.error(
+              '❌ [DIRECT] Ошибка при отправке изображения пользователю',
+              {
+                description: 'Error sending image to user',
+                error:
+                  sendUserError instanceof Error
+                    ? sendUserError.message
+                    : 'Unknown error',
+                telegram_id,
+                imageUrl: imageUrl.substring(0, 50) + '...',
+              }
+            )
           }
 
           // Сохраняем промпт в базу данных для аналитики и истории
@@ -1051,13 +1093,18 @@ Generated: ${new Date().toLocaleString('en-US')}
           })
         } catch (saveError) {
           // При ошибке сохранения локально продолжаем с оригинальным URL
-          logger.error('⚠️ [DIRECT] Ошибка при сохранении изображения локально', {
-            description: 'Error saving image locally',
-            error:
-              saveError instanceof Error ? saveError.message : 'Unknown error',
-            originalUrl: imageUrl.substring(0, 50) + '...',
-            telegram_id,
-          })
+          logger.error(
+            '⚠️ [DIRECT] Ошибка при сохранении изображения локально',
+            {
+              description: 'Error saving image locally',
+              error:
+                saveError instanceof Error
+                  ? saveError.message
+                  : 'Unknown error',
+              originalUrl: imageUrl.substring(0, 50) + '...',
+              telegram_id,
+            }
+          )
           // Продолжаем с оригинальным URL, не прерываем процесс
         }
 
@@ -1104,10 +1151,13 @@ Generated: ${new Date().toLocaleString('en-US')}
                 : '❌ An error occurred while generating the image. We will refund your stars soon.'
             )
           } else {
-            logger.info('🔇 [DIRECT] Отправка сообщения об ошибке генерации пропущена (режим тестирования)', {
-              description: 'Skipping generation error message (test mode)',
-              telegram_id,
-            })
+            logger.info(
+              '🔇 [DIRECT] Отправка сообщения об ошибке генерации пропущена (режим тестирования)',
+              {
+                description: 'Skipping generation error message (test mode)',
+                telegram_id,
+              }
+            )
           }
         } catch (sendError) {
           logger.error('❌ [DIRECT] Ошибка при отправке сообщения об ошибке', {
@@ -1139,12 +1189,15 @@ Generated: ${new Date().toLocaleString('en-US')}
           })
 
           if (refundResult.success) {
-            logger.info('💰 [DIRECT] Выполнен возврат средств за неудачную генерацию', {
-              description: 'Refund processed for failed generation (direct)',
-              refundAmount,
-              telegram_id,
-              refundResult,
-            })
+            logger.info(
+              '💰 [DIRECT] Выполнен возврат средств за неудачную генерацию',
+              {
+                description: 'Refund processed for failed generation (direct)',
+                refundAmount,
+                telegram_id,
+                refundResult,
+              }
+            )
 
             try {
               if (!options?.disable_telegram_sending) {
@@ -1155,21 +1208,27 @@ Generated: ${new Date().toLocaleString('en-US')}
                     : `💰 We have refunded you ${refundAmount} stars for the failed image generation.`
                 )
               } else {
-                logger.info('🔇 [DIRECT] Отправка сообщения о возврате средств пропущена (режим тестирования)', {
-                  description: 'Skipping refund message (test mode)',
-                  telegram_id,
-                  refundAmount,
-                })
+                logger.info(
+                  '🔇 [DIRECT] Отправка сообщения о возврате средств пропущена (режим тестирования)',
+                  {
+                    description: 'Skipping refund message (test mode)',
+                    telegram_id,
+                    refundAmount,
+                  }
+                )
               }
             } catch (sendError) {
-              logger.error('❌ [DIRECT] Ошибка при отправке сообщения о возврате', {
-                description: 'Error sending refund message (direct)',
-                error:
-                  sendError instanceof Error
-                    ? sendError.message
-                    : 'Unknown error',
-                telegram_id,
-              })
+              logger.error(
+                '❌ [DIRECT] Ошибка при отправке сообщения о возврате',
+                {
+                  description: 'Error sending refund message (direct)',
+                  error:
+                    sendError instanceof Error
+                      ? sendError.message
+                      : 'Unknown error',
+                  telegram_id,
+                }
+              )
             }
           } else {
             logger.error('❌ [DIRECT] Ошибка при возврате средств', {
@@ -1296,13 +1355,16 @@ Generated: ${new Date().toLocaleString('en-US')}
       error instanceof Error ? error.message : 'Unknown error'
     const errorStack = error instanceof Error ? error.stack : undefined
 
-    logger.error('❌ [DIRECT] Критическая ошибка при прямой генерации нейрофото', {
-      description: 'Critical error during direct neurophoto generation',
-      error: errorMessage,
-      stack: errorStack,
-      telegram_id,
-      session_data: JSON.stringify(ctx.session || {}),
-    })
+    logger.error(
+      '❌ [DIRECT] Критическая ошибка при прямой генерации нейрофото',
+      {
+        description: 'Critical error during direct neurophoto generation',
+        error: errorMessage,
+        stack: errorStack,
+        telegram_id,
+        session_data: JSON.stringify(ctx.session || {}),
+      }
+    )
 
     console.error(
       `❌ [DIRECT] Критическая ошибка при прямой генерации нейрофото: ${errorMessage}`
@@ -1329,11 +1391,14 @@ Generated: ${new Date().toLocaleString('en-US')}
           isRussianFromState(ctx) ? errorMessageRu : errorMessageEn
         )
       } else if (options?.disable_telegram_sending) {
-        logger.info('🔇 [DIRECT] Отправка сообщения о критической ошибке пропущена (режим тестирования)', {
-          description: 'Skipping critical error message (test mode)',
-          telegram_id,
-          errorMessage,
-        })
+        logger.info(
+          '🔇 [DIRECT] Отправка сообщения о критической ошибке пропущена (режим тестирования)',
+          {
+            description: 'Skipping critical error message (test mode)',
+            telegram_id,
+            errorMessage,
+          }
+        )
       }
     } catch (replyError) {
       logger.error('❌ [DIRECT] Не удалось отправить сообщение об ошибке', {

@@ -50,7 +50,7 @@ export class NotificationHandler {
           error: connectionError.message,
           code: connectionError.code,
           details: connectionError.details,
-          hint: connectionError.hint
+          hint: connectionError.hint,
         })
         return
       }
@@ -70,7 +70,7 @@ export class NotificationHandler {
       logger.info('🔍 Запрос к Supabase завершен:', {
         hasData: !!messages,
         dataLength: messages?.length || 0,
-        hasError: !!error
+        hasError: !!error,
       })
 
       if (error) {
@@ -78,7 +78,7 @@ export class NotificationHandler {
           error: error.message,
           code: error.code,
           details: error.details,
-          hint: error.hint
+          hint: error.hint,
         })
         return
       }
@@ -92,7 +92,7 @@ export class NotificationHandler {
       if (!Array.isArray(messages)) {
         logger.error('❌ Неправильная структура данных от Supabase:', {
           dataType: typeof messages,
-          data: messages
+          data: messages,
         })
         return
       }
@@ -166,13 +166,15 @@ export class NotificationHandler {
             error: error.message,
             code: error.code,
             details: error.details,
-            hint: error.hint
+            hint: error.hint,
           }
         )
 
         // Для сетевых ошибок просто логируем, но не выбрасываем исключение
         if (error.message?.includes('fetch') || error.code === 'PGRST301') {
-          logger.warn(`⚠️ Сетевая ошибка при обновлении статуса сообщения ${messageId}, продолжаем`)
+          logger.warn(
+            `⚠️ Сетевая ошибка при обновлении статуса сообщения ${messageId}, продолжаем`
+          )
           return
         }
       }
@@ -184,7 +186,9 @@ export class NotificationHandler {
 
       // Для сетевых ошибок просто логируем
       if (error instanceof Error && error.message?.includes('fetch')) {
-        logger.warn(`⚠️ Сетевая ошибка при пометке сообщения ${messageId} как отправленного`)
+        logger.warn(
+          `⚠️ Сетевая ошибка при пометке сообщения ${messageId} как отправленного`
+        )
         return
       }
     }
@@ -216,13 +220,18 @@ export class NotificationHandler {
             error: updateError.message,
             code: updateError.code,
             details: updateError.details,
-            hint: updateError.hint
+            hint: updateError.hint,
           }
         )
 
         // Для сетевых ошибок просто логируем
-        if (updateError.message?.includes('fetch') || updateError.code === 'PGRST301') {
-          logger.warn(`⚠️ Сетевая ошибка при обновлении статуса неудачного сообщения ${messageId}`)
+        if (
+          updateError.message?.includes('fetch') ||
+          updateError.code === 'PGRST301'
+        ) {
+          logger.warn(
+            `⚠️ Сетевая ошибка при обновлении статуса неудачного сообщения ${messageId}`
+          )
         }
       }
     } catch (updateError) {
@@ -232,8 +241,13 @@ export class NotificationHandler {
       )
 
       // Для сетевых ошибок просто логируем
-      if (updateError instanceof Error && updateError.message?.includes('fetch')) {
-        logger.warn(`⚠️ Сетевая ошибка при пометке сообщения ${messageId} как неудачного`)
+      if (
+        updateError instanceof Error &&
+        updateError.message?.includes('fetch')
+      ) {
+        logger.warn(
+          `⚠️ Сетевая ошибка при пометке сообщения ${messageId} как неудачного`
+        )
       }
     }
   }

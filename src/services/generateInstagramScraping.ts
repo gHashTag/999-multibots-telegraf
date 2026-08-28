@@ -148,35 +148,43 @@ export async function generateInstagramScraping(
     // Что нужно, чтобы включить: задать RAPIDAPI_INSTAGRAM_KEY и
     // RAPIDAPI_INSTAGRAM_HOST, затем заменить этот блок на
     // `await inngest.send(inngestEvent)`.
-    logger.error('❌ [Instagram Scraper] Отправка отключена — отказываем явно', {
-      description: 'Inngest send is disabled in code; refusing instead of faking success',
-      telegram_id,
-      eventName: inngestEvent.name,
-      rapidapi_key_set: Boolean(process.env.RAPIDAPI_INSTAGRAM_KEY),
-    })
+    logger.error(
+      '❌ [Instagram Scraper] Отправка отключена — отказываем явно',
+      {
+        description:
+          'Inngest send is disabled in code; refusing instead of faking success',
+        telegram_id,
+        eventName: inngestEvent.name,
+        rapidapi_key_set: Boolean(process.env.RAPIDAPI_INSTAGRAM_KEY),
+      }
+    )
 
     return {
       success: false,
-      error: 'instagram scraping is disabled: inngest send is commented out and RAPIDAPI_INSTAGRAM_KEY is not set',
+      error:
+        'instagram scraping is disabled: inngest send is commented out and RAPIDAPI_INSTAGRAM_KEY is not set',
       message: isRu
         ? '⚠️ Анализ конкурентов Instagram сейчас недоступен: обработчик отключён. Средства не списаны.'
         : '⚠️ Instagram competitor analysis is unavailable: the handler is switched off. You have not been charged.',
     }
   } catch (error) {
     console.error('🔥 [DEBUG] Full error object:', error)
-    
-    logger.error('❌ [Instagram Scraper] Ошибка при отправке события в Inngest', {
-      description: 'Error sending event to Inngest',
-      error: error instanceof Error ? error.message : 'Unknown error',
-      errorStack: error instanceof Error ? error.stack : 'No stack trace',
-      errorName: error instanceof Error ? error.name : 'Unknown error type',
-      telegram_id,
-      environment: process.env.NODE_ENV,
-      inngestConfig: {
-        devUrl: process.env.INNGEST_DEV_URL,
-        prodUrl: process.env.INNGEST_PROD_URL,
-      },
-    })
+
+    logger.error(
+      '❌ [Instagram Scraper] Ошибка при отправке события в Inngest',
+      {
+        description: 'Error sending event to Inngest',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : 'No stack trace',
+        errorName: error instanceof Error ? error.name : 'Unknown error type',
+        telegram_id,
+        environment: process.env.NODE_ENV,
+        inngestConfig: {
+          devUrl: process.env.INNGEST_DEV_URL,
+          prodUrl: process.env.INNGEST_PROD_URL,
+        },
+      }
+    )
 
     const errorMessage = isRu
       ? 'Произошла ошибка при запуске поиска конкурентов. Пожалуйста, попробуйте позже.'

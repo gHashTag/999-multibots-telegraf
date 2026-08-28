@@ -43,9 +43,9 @@ export class GitHubAutoFixerService {
       })
 
       // 2. Фильтруем только TypeScript/JavaScript файлы
-      const codeFiles = prFiles.filter(file => 
-        /\.(ts|js|tsx|jsx)$/.test(file.filename) && 
-        file.status !== 'removed'
+      const codeFiles = prFiles.filter(
+        file =>
+          /\.(ts|js|tsx|jsx)$/.test(file.filename) && file.status !== 'removed'
       )
 
       if (codeFiles.length === 0) {
@@ -65,14 +65,17 @@ export class GitHubAutoFixerService {
         if (!fileContent) continue
 
         // 4. Специальный анализ для Bot-кода
-        const botIssues = this.codeAnalyzer.analyzeFile(file.filename, fileContent)
-        
+        const botIssues = this.codeAnalyzer.analyzeFile(
+          file.filename,
+          fileContent
+        )
+
         // 5. Claude анализ с Bot-специфичными промптами
         const claudeFixes = await this.claudeService.analyzeBotCode({
           filePath: file.filename,
           content: fileContent,
           patch: file.patch || '',
-          knownIssues: botIssues
+          knownIssues: botIssues,
         })
 
         if (claudeFixes.length > 0) {
@@ -96,9 +99,10 @@ export class GitHubAutoFixerService {
         }
       }
 
-      console.log(`✅ [AutoFixer] Applied ${fixes.length} fixes to PR #${prData.prNumber}`)
+      console.log(
+        `✅ [AutoFixer] Applied ${fixes.length} fixes to PR #${prData.prNumber}`
+      )
       return fixes
-
     } catch (error) {
       console.error('❌ [AutoFixer] Error analyzing PR:', error)
       throw new Error(`Failed to analyze PR: ${error.message}`)
@@ -145,7 +149,10 @@ export class GitHubAutoFixerService {
       }
       return null
     } catch (error) {
-      console.warn(`⚠️ [AutoFixer] Could not get content for ${path}:`, error.message)
+      console.warn(
+        `⚠️ [AutoFixer] Could not get content for ${path}:`,
+        error.message
+      )
       return null
     }
   }

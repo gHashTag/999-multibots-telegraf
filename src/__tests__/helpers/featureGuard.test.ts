@@ -71,17 +71,21 @@ import {
   showInsufficientBalanceMessage,
 } from '@/helpers/featureGuard'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
-import { hasUserSeenFeature, markFeatureAsSeen } from '@/core/supabase/featureViews'
+import {
+  hasUserSeenFeature,
+  markFeatureAsSeen,
+} from '@/core/supabase/featureViews'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 
-const createMockContext = (overrides = {}): MyContext => ({
-  from: { id: 123456789, username: 'testuser' },
-  chat: { id: 123456789 },
-  reply: vi.fn().mockResolvedValue({ message_id: 1 }),
-  session: { wizardData: {}, language: 'ru' },
-  ...overrides,
-} as unknown as MyContext)
+const createMockContext = (overrides = {}): MyContext =>
+  ({
+    from: { id: 123456789, username: 'testuser' },
+    chat: { id: 123456789 },
+    reply: vi.fn().mockResolvedValue({ message_id: 1 }),
+    session: { wizardData: {}, language: 'ru' },
+    ...overrides,
+  }) as unknown as MyContext
 
 describe('checkFeatureAccess', () => {
   beforeEach(() => {
@@ -98,9 +102,17 @@ describe('checkFeatureAccess', () => {
       const result = await checkFeatureAccess(ctx, ModeEnum.NeuroPhoto)
 
       expect(result).toBe(true)
-      expect(hasUserSeenFeature).toHaveBeenCalledWith('123456789', ModeEnum.NeuroPhoto)
-      expect(ctx.reply).toHaveBeenCalledWith('<b>Help Message</b>', { parse_mode: 'HTML' })
-      expect(markFeatureAsSeen).toHaveBeenCalledWith('123456789', ModeEnum.NeuroPhoto)
+      expect(hasUserSeenFeature).toHaveBeenCalledWith(
+        '123456789',
+        ModeEnum.NeuroPhoto
+      )
+      expect(ctx.reply).toHaveBeenCalledWith('<b>Help Message</b>', {
+        parse_mode: 'HTML',
+      })
+      expect(markFeatureAsSeen).toHaveBeenCalledWith(
+        '123456789',
+        ModeEnum.NeuroPhoto
+      )
     })
 
     it('should NOT show help on repeat use', async () => {
@@ -170,10 +182,12 @@ describe('checkFeatureAccess', () => {
           reply_markup: expect.objectContaining({
             inline_keyboard: expect.arrayContaining([
               expect.arrayContaining([
-                expect.objectContaining({ callback_data: 'go_to_balance_topup' })
-              ])
-            ])
-          })
+                expect.objectContaining({
+                  callback_data: 'go_to_balance_topup',
+                }),
+              ]),
+            ]),
+          }),
         })
       )
     })
@@ -183,7 +197,10 @@ describe('checkFeatureAccess', () => {
     it('should return true for unknown features (no info)', async () => {
       const ctx = createMockContext()
 
-      const result = await checkFeatureAccess(ctx, 'unknown_feature' as ModeEnum)
+      const result = await checkFeatureAccess(
+        ctx,
+        'unknown_feature' as ModeEnum
+      )
 
       expect(result).toBe(true)
     })
@@ -326,10 +343,10 @@ describe('showInsufficientBalanceMessage', () => {
         reply_markup: expect.objectContaining({
           inline_keyboard: expect.arrayContaining([
             expect.arrayContaining([
-              expect.objectContaining({ callback_data: 'go_to_balance_topup' })
-            ])
-          ])
-        })
+              expect.objectContaining({ callback_data: 'go_to_balance_topup' }),
+            ]),
+          ]),
+        }),
       })
     )
   })
@@ -350,7 +367,9 @@ describe('Integration scenarios', () => {
 
     expect(result).toBe(true)
     // Should show help
-    expect(ctx.reply).toHaveBeenCalledWith('<b>Help Message</b>', { parse_mode: 'HTML' })
+    expect(ctx.reply).toHaveBeenCalledWith('<b>Help Message</b>', {
+      parse_mode: 'HTML',
+    })
     // Should mark as seen
     expect(markFeatureAsSeen).toHaveBeenCalled()
     // Should check balance
@@ -367,9 +386,15 @@ describe('Integration scenarios', () => {
 
     expect(result).toBe(false)
     // Should show help first
-    expect(ctx.reply).toHaveBeenNthCalledWith(1, '<b>Help Message</b>', { parse_mode: 'HTML' })
+    expect(ctx.reply).toHaveBeenNthCalledWith(1, '<b>Help Message</b>', {
+      parse_mode: 'HTML',
+    })
     // Should then show insufficient balance
-    expect(ctx.reply).toHaveBeenNthCalledWith(2, expect.stringContaining('Недостаточно'), expect.any(Object))
+    expect(ctx.reply).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('Недостаточно'),
+      expect.any(Object)
+    )
   })
 
   it('full flow: returning user with sufficient balance', async () => {

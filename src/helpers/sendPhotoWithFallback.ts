@@ -51,17 +51,23 @@ export async function sendPhotoWithFallback(
 
     // === Telegram file URL -> direct buffer upload ===
     if (photoUrl.includes('api.telegram.org/file/bot')) {
-      logger.info('[sendPhotoWithFallback] Detected Telegram file URL, using buffer', { telegramId })
+      logger.info(
+        '[sendPhotoWithFallback] Detected Telegram file URL, using buffer',
+        { telegramId }
+      )
 
       try {
         const response = await fetch(photoUrl)
         if (!response.ok) {
-          logger.error('[sendPhotoWithFallback] FAIL: Cannot download Telegram file', {
-            telegramId,
-            status: response.status,
-            statusText: response.statusText,
-            failReason: 'TELEGRAM_FILE_DOWNLOAD_FAILED',
-          })
+          logger.error(
+            '[sendPhotoWithFallback] FAIL: Cannot download Telegram file',
+            {
+              telegramId,
+              status: response.status,
+              statusText: response.statusText,
+              failReason: 'TELEGRAM_FILE_DOWNLOAD_FAILED',
+            }
+          )
           return false
         }
 
@@ -72,17 +78,23 @@ export async function sendPhotoWithFallback(
         })
 
         await ctx.replyWithPhoto({ source: imageBuffer }, options)
-        logger.info('[sendPhotoWithFallback] SUCCESS via Telegram buffer', { telegramId, bufferSize: imageBuffer.length })
+        logger.info('[sendPhotoWithFallback] SUCCESS via Telegram buffer', {
+          telegramId,
+          bufferSize: imageBuffer.length,
+        })
         return true
       } catch (err) {
         const tgErr = extractTelegramError(err)
-        logger.error('[sendPhotoWithFallback] FAIL: Telegram file buffer upload', {
-          telegramId,
-          errorCode: tgErr.code,
-          errorDesc: tgErr.description,
-          error: tgErr.raw,
-          failReason: 'TELEGRAM_FILE_BUFFER_UPLOAD_FAILED',
-        })
+        logger.error(
+          '[sendPhotoWithFallback] FAIL: Telegram file buffer upload',
+          {
+            telegramId,
+            errorCode: tgErr.code,
+            errorDesc: tgErr.description,
+            error: tgErr.raw,
+            failReason: 'TELEGRAM_FILE_BUFFER_UPLOAD_FAILED',
+          }
+        )
         return false
       }
     }
@@ -104,36 +116,47 @@ export async function sendPhotoWithFallback(
 
     logger.info('[sendPhotoWithFallback] Validation passed', {
       telegramId,
-      size: validation.size ? `${(validation.size / 1024 / 1024).toFixed(2)}MB` : 'unknown',
+      size: validation.size
+        ? `${(validation.size / 1024 / 1024).toFixed(2)}MB`
+        : 'unknown',
       contentType: validation.contentType,
     })
 
     // === Step 2: Try sending by URL ===
     try {
       await ctx.replyWithPhoto(photoUrl, options)
-      logger.info('[sendPhotoWithFallback] SUCCESS via URL', { telegramId, photoUrl })
+      logger.info('[sendPhotoWithFallback] SUCCESS via URL', {
+        telegramId,
+        photoUrl,
+      })
       return true
     } catch (urlError) {
       const tgErr = extractTelegramError(urlError)
-      logger.warn('[sendPhotoWithFallback] URL send failed, trying buffer fallback', {
-        telegramId,
-        photoUrl,
-        errorCode: tgErr.code,
-        errorDesc: tgErr.description,
-        error: tgErr.raw,
-      })
+      logger.warn(
+        '[sendPhotoWithFallback] URL send failed, trying buffer fallback',
+        {
+          telegramId,
+          photoUrl,
+          errorCode: tgErr.code,
+          errorDesc: tgErr.description,
+          error: tgErr.raw,
+        }
+      )
 
       // === Step 3: Buffer fallback ===
       try {
         const response = await fetch(photoUrl)
         if (!response.ok) {
-          logger.error('[sendPhotoWithFallback] FAIL: Cannot download image for buffer', {
-            telegramId,
-            photoUrl,
-            httpStatus: response.status,
-            httpStatusText: response.statusText,
-            failReason: 'BUFFER_DOWNLOAD_FAILED',
-          })
+          logger.error(
+            '[sendPhotoWithFallback] FAIL: Cannot download image for buffer',
+            {
+              telegramId,
+              photoUrl,
+              httpStatus: response.status,
+              httpStatusText: response.statusText,
+              failReason: 'BUFFER_DOWNLOAD_FAILED',
+            }
+          )
           return false
         }
 
@@ -151,16 +174,19 @@ export async function sendPhotoWithFallback(
         return true
       } catch (bufferError) {
         const bufErr = extractTelegramError(bufferError)
-        logger.error('[sendPhotoWithFallback] FAIL: Both URL and buffer failed', {
-          telegramId,
-          photoUrl,
-          urlErrorCode: tgErr.code,
-          urlErrorDesc: tgErr.description,
-          bufferErrorCode: bufErr.code,
-          bufferErrorDesc: bufErr.description,
-          bufferError: bufErr.raw,
-          failReason: 'ALL_METHODS_FAILED',
-        })
+        logger.error(
+          '[sendPhotoWithFallback] FAIL: Both URL and buffer failed',
+          {
+            telegramId,
+            photoUrl,
+            urlErrorCode: tgErr.code,
+            urlErrorDesc: tgErr.description,
+            bufferErrorCode: bufErr.code,
+            bufferErrorDesc: bufErr.description,
+            bufferError: bufErr.raw,
+            failReason: 'ALL_METHODS_FAILED',
+          }
+        )
         return false
       }
     }

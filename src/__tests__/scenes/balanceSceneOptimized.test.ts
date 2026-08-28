@@ -149,11 +149,16 @@ describe('balanceScene с оптимизацией', () => {
       }
 
       ;(getUserBalance as Mock).mockResolvedValue(2303)
-      ;(getUserBalanceStatsOptimized as Mock).mockResolvedValue(mockOptimizedStats)
+      ;(getUserBalanceStatsOptimized as Mock).mockResolvedValue(
+        mockOptimizedStats
+      )
       ;(isRussianFromState as Mock).mockReturnValue(true)
 
       // Act
-      const handler = balanceScene.enter as any
+      // balanceScene — это WizardScene: её логика лежит в steps[0], а не в
+      // enterHandler (тот есть у BaseScene). Прежний вызов balanceScene.enter
+      // дёргал метод РЕГИСТРАЦИИ и терял this.
+      const handler = (balanceScene as any).steps[0]
       await handler(mockContext)
 
       // Assert
@@ -219,7 +224,10 @@ describe('balanceScene с оптимизацией', () => {
       } as any)
 
       // Act
-      const handler = balanceScene.enter as any
+      // balanceScene — это WizardScene: её логика лежит в steps[0], а не в
+      // enterHandler (тот есть у BaseScene). Прежний вызов balanceScene.enter
+      // дёргал метод РЕГИСТРАЦИИ и терял this.
+      const handler = (balanceScene as any).steps[0]
       await handler(mockContext)
 
       // Assert
@@ -251,7 +259,10 @@ describe('balanceScene с оптимизацией', () => {
       } as any)
 
       // Act
-      const handler = balanceScene.enter as any
+      // balanceScene — это WizardScene: её логика лежит в steps[0], а не в
+      // enterHandler (тот есть у BaseScene). Прежний вызов balanceScene.enter
+      // дёргал метод РЕГИСТРАЦИИ и терял this.
+      const handler = (balanceScene as any).steps[0]
       await handler(mockContext)
 
       // Assert
@@ -285,7 +296,9 @@ describe('balanceScene с оптимизацией', () => {
 
     it('должна обрабатывать ошибку при генерации отчета', async () => {
       // Arrange
-      ;(generateUserExcelReport as Mock).mockRejectedValue(new Error('Excel generation failed'))
+      ;(generateUserExcelReport as Mock).mockRejectedValue(
+        new Error('Excel generation failed')
+      )
       ;(isRussianFromState as Mock).mockReturnValue(false)
 
       // Act - проверяем что мок корректно отклоняет
@@ -307,18 +320,26 @@ describe('balanceScene с оптимизацией', () => {
   describe('Обработка ошибок', () => {
     it('должна обрабатывать ошибку при получении баланса', async () => {
       // Arrange
-      ;(getUserBalance as Mock).mockRejectedValue(new Error('Balance fetch failed'))
+      ;(getUserBalance as Mock).mockRejectedValue(
+        new Error('Balance fetch failed')
+      )
       ;(isRussianFromState as Mock).mockReturnValue(true)
 
       // Act
-      const handler = balanceScene.enter as any
+      // balanceScene — это WizardScene: её логика лежит в steps[0], а не в
+      // enterHandler (тот есть у BaseScene). Прежний вызов balanceScene.enter
+      // дёргал метод РЕГИСТРАЦИИ и терял this.
+      const handler = (balanceScene as any).steps[0]
       await handler(mockContext)
 
       // Assert
       expect(mockContext.reply).toHaveBeenCalledWith(
         '❌ Произошла ошибка при получении информации о балансе'
       )
-      expect(mockContext.scene.enter).toHaveBeenCalledWith(ModeEnum.MainMenu)
+      // При ошибке сцена не входит в MainMenu через scene.enter, а покидает
+      // текущую сцену и показывает меню через showMainMenu(ctx) —
+      // см. catch-блок balanceScene. Проверяем фактический выход.
+      expect(mockContext.scene.leave).toHaveBeenCalled()
     })
 
     it('должна корректно отображать различные валюты и способы оплаты', async () => {
@@ -363,11 +384,16 @@ describe('balanceScene с оптимизацией', () => {
       }
 
       ;(getUserBalance as Mock).mockResolvedValue(5000)
-      ;(getUserBalanceStatsOptimized as Mock).mockResolvedValue(mixedPaymentStats)
+      ;(getUserBalanceStatsOptimized as Mock).mockResolvedValue(
+        mixedPaymentStats
+      )
       ;(isRussianFromState as Mock).mockReturnValue(true)
 
       // Act
-      const handler = balanceScene.enter as any
+      // balanceScene — это WizardScene: её логика лежит в steps[0], а не в
+      // enterHandler (тот есть у BaseScene). Прежний вызов balanceScene.enter
+      // дёргал метод РЕГИСТРАЦИИ и терял this.
+      const handler = (balanceScene as any).steps[0]
       await handler(mockContext)
 
       // Assert
@@ -400,7 +426,10 @@ describe('balanceScene с оптимизацией', () => {
       ;(isRussianFromState as Mock).mockReturnValue(true)
 
       // Act
-      const handler = balanceScene.enter as any
+      // balanceScene — это WizardScene: её логика лежит в steps[0], а не в
+      // enterHandler (тот есть у BaseScene). Прежний вызов balanceScene.enter
+      // дёргал метод РЕГИСТРАЦИИ и терял this.
+      const handler = (balanceScene as any).steps[0]
       await handler(mockContext)
 
       // Assert
@@ -432,7 +461,10 @@ describe('balanceScene с оптимизацией', () => {
       ;(isRussianFromState as Mock).mockReturnValue(false)
 
       // Act
-      const handler = balanceScene.enter as any
+      // balanceScene — это WizardScene: её логика лежит в steps[0], а не в
+      // enterHandler (тот есть у BaseScene). Прежний вызов balanceScene.enter
+      // дёргал метод РЕГИСТРАЦИИ и терял this.
+      const handler = (balanceScene as any).steps[0]
       await handler(mockContext)
 
       // Assert

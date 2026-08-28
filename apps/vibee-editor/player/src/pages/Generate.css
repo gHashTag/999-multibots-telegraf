@@ -137,10 +137,23 @@
   background:
     linear-gradient(to right, var(--color-bg-primary) 30%, transparent),
     linear-gradient(to left, var(--color-bg-primary) 30%, transparent) 100% 0,
-    radial-gradient(farthest-side at 0 50%, rgba(255, 255, 255, 0.16), transparent),
-    radial-gradient(farthest-side at 100% 50%, rgba(255, 255, 255, 0.16), transparent) 100% 0;
+    radial-gradient(
+      farthest-side at 0 50%,
+      rgba(255, 255, 255, 0.16),
+      transparent
+    ),
+    radial-gradient(
+        farthest-side at 100% 50%,
+        rgba(255, 255, 255, 0.16),
+        transparent
+      )
+      100% 0;
   background-repeat: no-repeat;
-  background-size: 28px 100%, 28px 100%, 12px 100%, 12px 100%;
+  background-size:
+    28px 100%,
+    28px 100%,
+    12px 100%,
+    12px 100%;
   background-attachment: local, local, scroll, scroll;
   -webkit-overflow-scrolling: touch;
   scroll-snap-type: x proximity;

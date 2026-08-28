@@ -16,7 +16,7 @@ import {
   handleMainMenu,
   handlePaymentButtons,
   handleProfileButtons,
-  handleCallbackQuery
+  handleCallbackQuery,
 } from '../handlers'
 
 // 🎯 Импорт для обработки отмены
@@ -30,12 +30,18 @@ import { handleCancelButton } from '../services/CancelButtonService'
 export function registerGlobalNavigationMiddleware(
   bot: Telegraf<MyContext>
 ): void {
-  console.log('🔵🔵🔵 registerGlobalNavigationMiddleware CALLED - registering middleware 🔵🔵🔵')
+  console.log(
+    '🔵🔵🔵 registerGlobalNavigationMiddleware CALLED - registering middleware 🔵🔵🔵'
+  )
 
   bot.use(async (ctx, next) => {
     // 🔍 ЛОГИРОВАНИЕ ДЛЯ ОТЛАДКИ НАВИГАЦИИ
-    const messageText = ctx.message && 'text' in ctx.message ? ctx.message.text : undefined
-    const callbackData = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : undefined
+    const messageText =
+      ctx.message && 'text' in ctx.message ? ctx.message.text : undefined
+    const callbackData =
+      ctx.callbackQuery && 'data' in ctx.callbackQuery
+        ? ctx.callbackQuery.data
+        : undefined
 
     console.log('🟣🟣🟣 GlobalNavMiddleware EXECUTING 🟣🟣🟣')
     console.log('📍 updateType:', ctx.updateType)
@@ -84,7 +90,9 @@ export function registerGlobalNavigationMiddleware(
       if (CANCEL_VARIANTS.includes(text)) {
         // Если мы в сцене chat_with_avatar — даём сцене самой обработать отмену
         if (ctx.scene?.current?.id === ModeEnum.ChatWithAvatar) {
-          logger.info('🔥 [Navigation] Cancel in chat_with_avatar - delegating to scene')
+          logger.info(
+            '🔥 [Navigation] Cancel in chat_with_avatar - delegating to scene'
+          )
           return next()
         }
 
@@ -110,5 +118,7 @@ export function registerGlobalNavigationMiddleware(
     return next()
   })
 
-  logger.info('✅ [Navigation] Registered enhanced global navigation middleware')
+  logger.info(
+    '✅ [Navigation] Registered enhanced global navigation middleware'
+  )
 }

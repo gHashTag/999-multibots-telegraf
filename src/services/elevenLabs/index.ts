@@ -14,7 +14,10 @@ export class ElevenLabsService {
     throw new Error('ElevenLabsService.transcribeAudioFromUrl not implemented')
   }
 
-  async generateSpeech(text: string, voiceId: string): Promise<{
+  async generateSpeech(
+    text: string,
+    voiceId: string
+  ): Promise<{
     audioUrl: string
   }> {
     // TODO: Implement ElevenLabs speech generation
@@ -43,11 +46,3 @@ export async function transcribeAudio(
   const result = await service.transcribeAudioFromUrl(audioUrl)
   return result.text
 }
-
-
-
-
-
-
-
-

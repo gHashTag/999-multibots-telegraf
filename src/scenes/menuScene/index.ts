@@ -270,7 +270,9 @@ const menuCommandStep = async (ctx: MyContext) => {
 const menuNextStep = async (ctx: MyContext) => {
   console.log('🎯 URGENT DEBUG: menuNextStep called!')
   logger.info('CASE 1: menuScene.next')
-  logger.info(`[menuNextStep] Current wizard cursor: ${ctx.wizard?.cursor ?? 0}`)
+  logger.info(
+    `[menuNextStep] Current wizard cursor: ${ctx.wizard?.cursor ?? 0}`
+  )
   logger.info(
     `[menuNextStep] Update keys: ${Object.keys(ctx.update).join(', ')}`
   )
@@ -291,7 +293,9 @@ const menuNextStep = async (ctx: MyContext) => {
     } else {
       // Все callback_data обрабатываются через глобальные обработчики
       // УДАЛЁН УДАЛЁН - используется setupHearsHandlers
-      logger.info(`[menuNextStep] Callback forwarded to global handlers: ${text}`)
+      logger.info(
+        `[menuNextStep] Callback forwarded to global handlers: ${text}`
+      )
     }
   } else if ('message' in ctx.update && 'text' in ctx.update.message) {
     const text = ctx.update.message.text
@@ -503,7 +507,9 @@ const menuNextStep = async (ctx: MyContext) => {
     logger.info(
       `[menuNextStep] User still in menuScene, using global hears handlers for: ${text}`
     )
-    console.log('🔄 [menuNextStep] Allowing global hears handlers to process button...')
+    console.log(
+      '🔄 [menuNextStep] Allowing global hears handlers to process button...'
+    )
 
     // ✅ ИСПОЛЬЗУЕМ ТОЛЬКО ГЛОБАЛЬНЫЕ HEARS ОБРАБОТЧИКИ
     // УДАЛЁН ПОЛНОСТЬЮ УДАЛЁН - используется setupHearsHandlers

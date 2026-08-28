@@ -104,7 +104,7 @@ SUPABASE_SERVICE_KEY=your-supabase-key
 Для дополнительной информации о разработке и деплое проекта смотрите:
 
 - [ROADMAP.md](ROADMAP.md) - План развития проекта
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Инструкции по деплою
+- [DEPLOYMENT.md](guides/DEPLOYMENT_GUIDE.md) - Инструкции по деплою
 
 ## 🧪 Тестирование
 

@@ -30,15 +30,17 @@ export class GitHubAutoFixerController {
         return
       }
 
-      console.log(`🔧 [GitHub AutoFixer] PR #${pull_request.number} - ${action}`)
-      
+      console.log(
+        `🔧 [GitHub AutoFixer] PR #${pull_request.number} - ${action}`
+      )
+
       // Уведомляем в Telegram о начале обработки
       await this.telegramNotifier.notifyAutoFixStart({
         prNumber: pull_request.number,
         title: pull_request.title,
         author: pull_request.user.login,
         repoName: repository.name,
-        url: pull_request.html_url
+        url: pull_request.html_url,
       })
 
       // Запускаем автофиксер в фоне
@@ -49,14 +51,14 @@ export class GitHubAutoFixerController {
         repoOwner: repository.owner.login,
         repoName: repository.name,
         title: pull_request.title,
-        url: pull_request.html_url
-      }).catch(async (error) => {
+        url: pull_request.html_url,
+      }).catch(async error => {
         console.error('❌ [GitHub AutoFixer] Error:', error)
         await this.telegramNotifier.notifyAutoFixError({
           prNumber: pull_request.number,
           title: pull_request.title,
           error: error.message,
-          url: pull_request.html_url
+          url: pull_request.html_url,
         })
       })
 
@@ -113,28 +115,24 @@ export class GitHubAutoFixerController {
   }): Promise<void> {
     const startTime = Date.now()
 
-    try {
-      const fixes = await this.autoFixerService.analyzeAndFixPR(prData)
-      
-      if (fixes.length > 0) {
-        const fixTime = ((Date.now() - startTime) / 1000).toFixed(1)
-        
-        await this.telegramNotifier.notifyAutoFixSuccess({
-          prNumber: prData.prNumber,
-          title: prData.title,
-          fixes: fixes,
-          timeSeconds: parseFloat(fixTime),
-          url: prData.url
-        })
-      } else {
-        await this.telegramNotifier.notifyNoFixesNeeded({
-          prNumber: prData.prNumber,
-          title: prData.title,
-          url: prData.url
-        })
-      }
-    } catch (error) {
-      throw error // Re-throw для обработки в главном catch
+    const fixes = await this.autoFixerService.analyzeAndFixPR(prData)
+
+    if (fixes.length > 0) {
+      const fixTime = ((Date.now() - startTime) / 1000).toFixed(1)
+
+      await this.telegramNotifier.notifyAutoFixSuccess({
+        prNumber: prData.prNumber,
+        title: prData.title,
+        fixes: fixes,
+        timeSeconds: parseFloat(fixTime),
+        url: prData.url,
+      })
+    } else {
+      await this.telegramNotifier.notifyNoFixesNeeded({
+        prNumber: prData.prNumber,
+        title: prData.title,
+        url: prData.url,
+      })
     }
   }
 
@@ -154,13 +152,13 @@ export class GitHubAutoFixerController {
       const fixes = await this.autoFixerService.manualFixPR({
         prNumber: parseInt(prNumber),
         repoOwner,
-        repoName
+        repoName,
       })
 
-      res.status(200).json({ 
+      res.status(200).json({
         message: 'Manual fix completed',
         fixes: fixes.length,
-        details: fixes
+        details: fixes,
       })
     } catch (error) {
       console.error('❌ [Manual Fix] Error:', error)

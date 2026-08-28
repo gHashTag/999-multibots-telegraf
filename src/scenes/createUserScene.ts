@@ -163,11 +163,14 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
       const LEAD_MAGNET_ENABLED = false
 
       if (LEAD_MAGNET_ENABLED && telegramAvatarUrl) {
-        logger.info('🎁 [CreateUserScene] Analyzing avatar for welcome generation', {
-          telegram_id: telegram_id.toString(),
-          hasAvatar: true,
-          avatarSource: 'telegram',
-        })
+        logger.info(
+          '🎁 [CreateUserScene] Analyzing avatar for welcome generation',
+          {
+            telegram_id: telegram_id.toString(),
+            hasAvatar: true,
+            avatarSource: 'telegram',
+          }
+        )
 
         // Analyze avatar to detect face and gender
         const avatarAnalysis = await analyzeAvatar(telegramAvatarUrl)
@@ -175,12 +178,18 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
         if (avatarAnalysis.hasFace) {
           // Save detected gender to database
           if (avatarAnalysis.gender !== 'unknown') {
-            await updateUserGender(telegram_id.toString(), avatarAnalysis.gender)
-            logger.info('🎁 [CreateUserScene] Gender saved from avatar analysis', {
-              telegram_id: telegram_id.toString(),
-              gender: avatarAnalysis.gender,
-              confidence: avatarAnalysis.confidence,
-            })
+            await updateUserGender(
+              telegram_id.toString(),
+              avatarAnalysis.gender
+            )
+            logger.info(
+              '🎁 [CreateUserScene] Gender saved from avatar analysis',
+              {
+                telegram_id: telegram_id.toString(),
+                gender: avatarAnalysis.gender,
+                confidence: avatarAnalysis.confidence,
+              }
+            )
           }
 
           // Trigger welcome avatar generation via Inngest
@@ -202,33 +211,51 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
               : '🎁 Preparing your first AI portrait as a gift... This will take a few seconds!'
           )
 
-          logger.info('🎁 [CreateUserScene] Welcome avatar generation triggered', {
-            telegram_id: telegram_id.toString(),
-            gender: avatarAnalysis.gender,
-          })
+          logger.info(
+            '🎁 [CreateUserScene] Welcome avatar generation triggered',
+            {
+              telegram_id: telegram_id.toString(),
+              gender: avatarAnalysis.gender,
+            }
+          )
         } else {
           // No face detected - skip welcome generation
-          logger.info('🎁 [CreateUserScene] No face detected on avatar, skipping welcome generation', {
-            telegram_id: telegram_id.toString(),
-          })
+          logger.info(
+            '🎁 [CreateUserScene] No face detected on avatar, skipping welcome generation',
+            {
+              telegram_id: telegram_id.toString(),
+            }
+          )
         }
       } else if (!LEAD_MAGNET_ENABLED) {
         // Lead magnet temporarily disabled
-        logger.info('🎁 [CreateUserScene] Lead magnet disabled, skipping welcome generation', {
-          telegram_id: telegram_id.toString(),
-        })
+        logger.info(
+          '🎁 [CreateUserScene] Lead magnet disabled, skipping welcome generation',
+          {
+            telegram_id: telegram_id.toString(),
+          }
+        )
       } else {
         // No avatar - skip welcome generation
-        logger.info('🎁 [CreateUserScene] No avatar available, skipping welcome generation', {
-          telegram_id: telegram_id.toString(),
-        })
+        logger.info(
+          '🎁 [CreateUserScene] No avatar available, skipping welcome generation',
+          {
+            telegram_id: telegram_id.toString(),
+          }
+        )
       }
     } catch (welcomeError) {
       // Don't block user flow if welcome generation fails
-      logger.error('🎁 [CreateUserScene] Welcome avatar generation error (non-blocking)', {
-        telegram_id: telegram_id.toString(),
-        error: welcomeError instanceof Error ? welcomeError.message : String(welcomeError),
-      })
+      logger.error(
+        '🎁 [CreateUserScene] Welcome avatar generation error (non-blocking)',
+        {
+          telegram_id: telegram_id.toString(),
+          error:
+            welcomeError instanceof Error
+              ? welcomeError.message
+              : String(welcomeError),
+        }
+      )
     }
 
     // Handle promo logic (new users only)
@@ -350,34 +377,43 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
               : `🔗 New user @${finalUsername} registered using your link!`) +
               rewardLine
           )
-          logger.info('✉️ [CreateUserScene] Уведомление пригласившему отправлено', {
-            telegramId: telegram_id.toString(),
-            inviterId: ctx.session.inviteCode,
-            step: 'inviter_notification_sent',
-          })
+          logger.info(
+            '✉️ [CreateUserScene] Уведомление пригласившему отправлено',
+            {
+              telegramId: telegram_id.toString(),
+              inviterId: ctx.session.inviteCode,
+              step: 'inviter_notification_sent',
+            }
+          )
         } catch (inviterNotifyError) {
           if (
             inviterNotifyError instanceof Error &&
             'code' in inviterNotifyError &&
             inviterNotifyError.code === 403
           ) {
-            logger.warn('⚠️ [CreateUserScene] Не удалось отправить уведомление пригласившему (возможно, бот заблокирован им)', {
-              telegramId: telegram_id.toString(),
-              inviterId: ctx.session.inviteCode,
-              botName: ctx.botInfo.username,
-              error: inviterNotifyError.message,
-              step: 'inviter_notification_failed_403',
-            })
+            logger.warn(
+              '⚠️ [CreateUserScene] Не удалось отправить уведомление пригласившему (возможно, бот заблокирован им)',
+              {
+                telegramId: telegram_id.toString(),
+                inviterId: ctx.session.inviteCode,
+                botName: ctx.botInfo.username,
+                error: inviterNotifyError.message,
+                step: 'inviter_notification_failed_403',
+              }
+            )
           } else {
-            logger.error('❌ [CreateUserScene] Ошибка при отправке уведомления пригласившему', {
-              telegramId: telegram_id.toString(),
-              inviterId: ctx.session.inviteCode,
-              error:
-                inviterNotifyError instanceof Error
-                  ? inviterNotifyError.message
-                  : String(inviterNotifyError),
-              step: 'inviter_notification_error',
-            })
+            logger.error(
+              '❌ [CreateUserScene] Ошибка при отправке уведомления пригласившему',
+              {
+                telegramId: telegram_id.toString(),
+                inviterId: ctx.session.inviteCode,
+                error:
+                  inviterNotifyError instanceof Error
+                    ? inviterNotifyError.message
+                    : String(inviterNotifyError),
+                step: 'inviter_notification_error',
+              }
+            )
           }
         }
 
@@ -387,12 +423,15 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
           SUBSCRIBE_CHANNEL_ID,
           `🔗 Новый пользователь @${finalUsername} зарегистрировался. По реф. ссылке от: @${inviterUsername}`
         )
-        logger.info('📢 [CreateUserScene] Уведомление о новом пользователе (с рефералом) отправлено в канал', {
-          telegramId: telegram_id.toString(),
-          channel: SUBSCRIBE_CHANNEL_ID,
-          inviterUsername: inviterUserData?.username,
-          step: 'admin_notification_sent_referral',
-        })
+        logger.info(
+          '📢 [CreateUserScene] Уведомление о новом пользователе (с рефералом) отправлено в канал',
+          {
+            telegramId: telegram_id.toString(),
+            channel: SUBSCRIBE_CHANNEL_ID,
+            inviterUsername: inviterUserData?.username,
+            step: 'admin_notification_sent_referral',
+          }
+        )
       }
     } else {
       console.log('CASE: ctx.session.inviteCode not exists')
@@ -406,35 +445,44 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
           SUBSCRIBE_CHANNEL_ID,
           notificationMessage
         )
-        logger.info('📢 [CreateUserScene] Уведомление о новом пользователе (без реферала) отправлено в канал', {
-          telegramId: telegram_id.toString(),
-          channel: SUBSCRIBE_CHANNEL_ID,
-          step: 'admin_notification_sent_no_referral',
-          isPromo: promoInfo?.isPromo || false,
-        })
+        logger.info(
+          '📢 [CreateUserScene] Уведомление о новом пользователе (без реферала) отправлено в канал',
+          {
+            telegramId: telegram_id.toString(),
+            channel: SUBSCRIBE_CHANNEL_ID,
+            step: 'admin_notification_sent_no_referral',
+            isPromo: promoInfo?.isPromo || false,
+          }
+        )
       } catch (notifyError) {
         if (
           notifyError instanceof Error &&
           'code' in notifyError &&
           notifyError.code === 403
         ) {
-          logger.warn('⚠️ [CreateUserScene] Не удалось отправить уведомление в канал админов (без реферала) (возможно, бот не участник или нет прав)', {
-            telegramId: telegram_id.toString(),
-            channel: SUBSCRIBE_CHANNEL_ID,
-            botName: ctx.botInfo.username,
-            error: notifyError.message,
-            step: 'admin_notification_no_referral_failed_403',
-          })
+          logger.warn(
+            '⚠️ [CreateUserScene] Не удалось отправить уведомление в канал админов (без реферала) (возможно, бот не участник или нет прав)',
+            {
+              telegramId: telegram_id.toString(),
+              channel: SUBSCRIBE_CHANNEL_ID,
+              botName: ctx.botInfo.username,
+              error: notifyError.message,
+              step: 'admin_notification_no_referral_failed_403',
+            }
+          )
         } else {
-          logger.error('❌ [CreateUserScene] Ошибка при отправке уведомления в канал админов (без реферала)', {
-            telegramId: telegram_id.toString(),
-            channel: SUBSCRIBE_CHANNEL_ID,
-            error:
-              notifyError instanceof Error
-                ? notifyError.message
-                : String(notifyError),
-            step: 'admin_notification_no_referral_error',
-          })
+          logger.error(
+            '❌ [CreateUserScene] Ошибка при отправке уведомления в канал админов (без реферала)',
+            {
+              telegramId: telegram_id.toString(),
+              channel: SUBSCRIBE_CHANNEL_ID,
+              error:
+                notifyError instanceof Error
+                  ? notifyError.message
+                  : String(notifyError),
+              step: 'admin_notification_no_referral_error',
+            }
+          )
         }
       }
     }
@@ -514,7 +562,10 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
   }
 
   // После создания пользователя переходим в AvatarTransform для демонстрации AI
-  console.log('🔴 [DEBUG createUser] About to enter AvatarTransform scene, wasCreated:', wasCreated)
+  console.log(
+    '🔴 [DEBUG createUser] About to enter AvatarTransform scene, wasCreated:',
+    wasCreated
+  )
   console.log('🔴 [DEBUG createUser] telegram_id:', telegram_id.toString())
   logger.info(
     '📸 [CreateUserScene] User created/verified, entering AvatarTransform',

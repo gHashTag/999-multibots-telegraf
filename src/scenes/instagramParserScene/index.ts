@@ -64,12 +64,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
             ? '👤 Введите username аккаунта (без @):\n\n📝 Примеры: nike, adidas, zara'
             : '👤 Enter account username (without @):\n\n📝 Examples: nike, adidas, zara',
           Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                isRu ? 'Отмена' : 'Cancel',
-                'cancel'
-              ),
-            ],
+            [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
           ])
         )
         return ctx.wizard.next()
@@ -83,12 +78,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
             ? '#️⃣ Введите хештег (без #):\n\n📝 Примеры: fitness, travel, food'
             : '#️⃣ Enter hashtag (without #):\n\n📝 Examples: fitness, travel, food',
           Markup.inlineKeyboard([
-            [
-              Markup.button.callback(
-                isRu ? 'Отмена' : 'Cancel',
-                'cancel'
-              ),
-            ],
+            [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'cancel')],
           ])
         )
         return ctx.wizard.next()

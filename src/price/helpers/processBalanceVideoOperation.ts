@@ -104,7 +104,8 @@ export const processBalanceVideoOperation = async (
 
     const newBalance = currentBalanceAtStart - paymentAmount
 
-    const modelDisplayName = selectedModelConfig.nameRu || selectedModelConfig.name
+    const modelDisplayName =
+      selectedModelConfig.nameRu || selectedModelConfig.name
     const updateSuccess = await updateUserBalance(
       telegram_id.toString(),
       paymentAmount,

@@ -1,12 +1,15 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 
-const ADMIN_IDS = process.env.ADMIN_IDS?.split(',').map(id => parseInt(id.trim())) || []
+const ADMIN_IDS =
+  process.env.ADMIN_IDS?.split(',').map(id => parseInt(id.trim())) || []
 
-export const autoFixerConfigScene = new Scenes.BaseScene<MyContext>('autofixer_config')
+export const autoFixerConfigScene = new Scenes.BaseScene<MyContext>(
+  'autofixer_config'
+)
 
 // Вход в сцену конфигурации
-autoFixerConfigScene.enter(async (ctx) => {
+autoFixerConfigScene.enter(async ctx => {
   try {
     // Проверяем права админа
     if (!ADMIN_IDS.includes(ctx.from.id)) {
@@ -24,21 +27,25 @@ autoFixerConfigScene.enter(async (ctx) => {
         inline_keyboard: [
           [
             { text: '🔄 Автоисправления', callback_data: 'toggle_auto_fix' },
-            { text: '📢 Уведомления', callback_data: 'toggle_notifications' }
+            { text: '📢 Уведомления', callback_data: 'toggle_notifications' },
           ],
           [
-            { text: '🎯 Типы исправлений', callback_data: 'configure_fix_types' },
-            { text: '💬 Канал уведомлений', callback_data: 'configure_channel' }
+            {
+              text: '🎯 Типы исправлений',
+              callback_data: 'configure_fix_types',
+            },
+            {
+              text: '💬 Канал уведомлений',
+              callback_data: 'configure_channel',
+            },
           ],
           [
             { text: '⚙️ GitHub настройки', callback_data: 'configure_github' },
-            { text: '🧠 Claude настройки', callback_data: 'configure_claude' }
+            { text: '🧠 Claude настройки', callback_data: 'configure_claude' },
           ],
-          [
-            { text: '✅ Сохранить и выйти', callback_data: 'save_and_exit' }
-          ]
-        ]
-      }
+          [{ text: '✅ Сохранить и выйти', callback_data: 'save_and_exit' }],
+        ],
+      },
     })
   } catch (error) {
     console.error('[AutoFixerConfig] Enter error:', error)
@@ -48,23 +55,25 @@ autoFixerConfigScene.enter(async (ctx) => {
 })
 
 // Переключение автоисправлений
-autoFixerConfigScene.action('toggle_auto_fix', async (ctx) => {
+autoFixerConfigScene.action('toggle_auto_fix', async ctx => {
   try {
     const currentState = process.env.BOT_AUTOFIXER_ENABLED === 'true'
     const newState = !currentState
-    
+
     // TODO: Сохранить в БД или конфиг файл
     process.env.BOT_AUTOFIXER_ENABLED = newState.toString()
-    
-    await ctx.answerCbQuery(`${newState ? '✅ Автоисправления включены' : '❌ Автоисправления отключены'}`)
-    
+
+    await ctx.answerCbQuery(
+      `${newState ? '✅ Автоисправления включены' : '❌ Автоисправления отключены'}`
+    )
+
     // Обновляем сообщение
     const config = getCurrentConfig()
     const message = formatConfigMessage(config)
-    
+
     await ctx.editMessageText(message, {
       parse_mode: 'HTML',
-      reply_markup: (ctx.callbackQuery.message as any)?.reply_markup
+      reply_markup: (ctx.callbackQuery.message as any)?.reply_markup,
     })
   } catch (error) {
     console.error('[AutoFixerConfig] Toggle auto fix error:', error)
@@ -73,22 +82,24 @@ autoFixerConfigScene.action('toggle_auto_fix', async (ctx) => {
 })
 
 // Переключение уведомлений
-autoFixerConfigScene.action('toggle_notifications', async (ctx) => {
+autoFixerConfigScene.action('toggle_notifications', async ctx => {
   try {
     const currentState = process.env.AUTOFIXER_NOTIFICATION_ENABLED === 'true'
     const newState = !currentState
-    
+
     process.env.AUTOFIXER_NOTIFICATION_ENABLED = newState.toString()
-    
-    await ctx.answerCbQuery(`${newState ? '🔔 Уведомления включены' : '🔕 Уведомления отключены'}`)
-    
+
+    await ctx.answerCbQuery(
+      `${newState ? '🔔 Уведомления включены' : '🔕 Уведомления отключены'}`
+    )
+
     // Обновляем сообщение
     const config = getCurrentConfig()
     const message = formatConfigMessage(config)
-    
+
     await ctx.editMessageText(message, {
       parse_mode: 'HTML',
-      reply_markup: (ctx.callbackQuery.message as any)?.reply_markup
+      reply_markup: (ctx.callbackQuery.message as any)?.reply_markup,
     })
   } catch (error) {
     console.error('[AutoFixerConfig] Toggle notifications error:', error)
@@ -97,10 +108,10 @@ autoFixerConfigScene.action('toggle_notifications', async (ctx) => {
 })
 
 // Конфигурация типов исправлений
-autoFixerConfigScene.action('configure_fix_types', async (ctx) => {
+autoFixerConfigScene.action('configure_fix_types', async ctx => {
   try {
     const fixTypes = getFixTypesConfig()
-    
+
     await ctx.editMessageText(
       `🎯 <b>Настройка типов исправлений</b>
 
@@ -110,21 +121,39 @@ autoFixerConfigScene.action('configure_fix_types', async (ctx) => {
         reply_markup: {
           inline_keyboard: [
             [
-              { text: `${fixTypes.async ? '✅' : '❌'} Async/await`, callback_data: 'toggle_async_fixes' },
-              { text: `${fixTypes.telegraf ? '✅' : '❌'} Telegraf`, callback_data: 'toggle_telegraf_fixes' }
+              {
+                text: `${fixTypes.async ? '✅' : '❌'} Async/await`,
+                callback_data: 'toggle_async_fixes',
+              },
+              {
+                text: `${fixTypes.telegraf ? '✅' : '❌'} Telegraf`,
+                callback_data: 'toggle_telegraf_fixes',
+              },
             ],
             [
-              { text: `${fixTypes.scene ? '✅' : '❌'} Сцены`, callback_data: 'toggle_scene_fixes' },
-              { text: `${fixTypes.typescript ? '✅' : '❌'} TypeScript`, callback_data: 'toggle_typescript_fixes' }
+              {
+                text: `${fixTypes.scene ? '✅' : '❌'} Сцены`,
+                callback_data: 'toggle_scene_fixes',
+              },
+              {
+                text: `${fixTypes.typescript ? '✅' : '❌'} TypeScript`,
+                callback_data: 'toggle_typescript_fixes',
+              },
             ],
             [
-              { text: `${fixTypes.eslint ? '✅' : '❌'} ESLint`, callback_data: 'toggle_eslint_fixes' }
+              {
+                text: `${fixTypes.eslint ? '✅' : '❌'} ESLint`,
+                callback_data: 'toggle_eslint_fixes',
+              },
             ],
             [
-              { text: '⬅️ Назад к настройкам', callback_data: 'back_to_main_config' }
-            ]
-          ]
-        }
+              {
+                text: '⬅️ Назад к настройкам',
+                callback_data: 'back_to_main_config',
+              },
+            ],
+          ],
+        },
       }
     )
   } catch (error) {
@@ -137,34 +166,54 @@ autoFixerConfigScene.action('configure_fix_types', async (ctx) => {
 const fixTypeHandlers = ['async', 'telegraf', 'scene', 'typescript', 'eslint']
 
 fixTypeHandlers.forEach(type => {
-  autoFixerConfigScene.action(`toggle_${type}_fixes`, async (ctx) => {
+  autoFixerConfigScene.action(`toggle_${type}_fixes`, async ctx => {
     try {
       const currentState = getFixTypeState(type)
       const newState = !currentState
-      
+
       setFixTypeState(type, newState)
-      
-      await ctx.answerCbQuery(`${newState ? '✅' : '❌'} ${type} исправления ${newState ? 'включены' : 'отключены'}`)
-      
+
+      await ctx.answerCbQuery(
+        `${newState ? '✅' : '❌'} ${type} исправления ${newState ? 'включены' : 'отключены'}`
+      )
+
       // Обновляем кнопки
       const fixTypes = getFixTypesConfig()
       await ctx.editMessageReplyMarkup({
         inline_keyboard: [
           [
-            { text: `${fixTypes.async ? '✅' : '❌'} Async/await`, callback_data: 'toggle_async_fixes' },
-            { text: `${fixTypes.telegraf ? '✅' : '❌'} Telegraf`, callback_data: 'toggle_telegraf_fixes' }
+            {
+              text: `${fixTypes.async ? '✅' : '❌'} Async/await`,
+              callback_data: 'toggle_async_fixes',
+            },
+            {
+              text: `${fixTypes.telegraf ? '✅' : '❌'} Telegraf`,
+              callback_data: 'toggle_telegraf_fixes',
+            },
           ],
           [
-            { text: `${fixTypes.scene ? '✅' : '❌'} Сцены`, callback_data: 'toggle_scene_fixes' },
-            { text: `${fixTypes.typescript ? '✅' : '❌'} TypeScript`, callback_data: 'toggle_typescript_fixes' }
+            {
+              text: `${fixTypes.scene ? '✅' : '❌'} Сцены`,
+              callback_data: 'toggle_scene_fixes',
+            },
+            {
+              text: `${fixTypes.typescript ? '✅' : '❌'} TypeScript`,
+              callback_data: 'toggle_typescript_fixes',
+            },
           ],
           [
-            { text: `${fixTypes.eslint ? '✅' : '❌'} ESLint`, callback_data: 'toggle_eslint_fixes' }
+            {
+              text: `${fixTypes.eslint ? '✅' : '❌'} ESLint`,
+              callback_data: 'toggle_eslint_fixes',
+            },
           ],
           [
-            { text: '⬅️ Назад к настройкам', callback_data: 'back_to_main_config' }
-          ]
-        ]
+            {
+              text: '⬅️ Назад к настройкам',
+              callback_data: 'back_to_main_config',
+            },
+          ],
+        ],
       })
     } catch (error) {
       console.error(`[AutoFixerConfig] Toggle ${type} fixes error:`, error)
@@ -174,7 +223,7 @@ fixTypeHandlers.forEach(type => {
 })
 
 // Возврат к основным настройкам
-autoFixerConfigScene.action('back_to_main_config', async (ctx) => {
+autoFixerConfigScene.action('back_to_main_config', async ctx => {
   try {
     const config = getCurrentConfig()
     const message = formatConfigMessage(config)
@@ -185,21 +234,25 @@ autoFixerConfigScene.action('back_to_main_config', async (ctx) => {
         inline_keyboard: [
           [
             { text: '🔄 Автоисправления', callback_data: 'toggle_auto_fix' },
-            { text: '📢 Уведомления', callback_data: 'toggle_notifications' }
+            { text: '📢 Уведомления', callback_data: 'toggle_notifications' },
           ],
           [
-            { text: '🎯 Типы исправлений', callback_data: 'configure_fix_types' },
-            { text: '💬 Канал уведомлений', callback_data: 'configure_channel' }
+            {
+              text: '🎯 Типы исправлений',
+              callback_data: 'configure_fix_types',
+            },
+            {
+              text: '💬 Канал уведомлений',
+              callback_data: 'configure_channel',
+            },
           ],
           [
             { text: '⚙️ GitHub настройки', callback_data: 'configure_github' },
-            { text: '🧠 Claude настройки', callback_data: 'configure_claude' }
+            { text: '🧠 Claude настройки', callback_data: 'configure_claude' },
           ],
-          [
-            { text: '✅ Сохранить и выйти', callback_data: 'save_and_exit' }
-          ]
-        ]
-      }
+          [{ text: '✅ Сохранить и выйти', callback_data: 'save_and_exit' }],
+        ],
+      },
     })
   } catch (error) {
     console.error('[AutoFixerConfig] Back to main error:', error)
@@ -208,17 +261,17 @@ autoFixerConfigScene.action('back_to_main_config', async (ctx) => {
 })
 
 // Сохранение и выход
-autoFixerConfigScene.action('save_and_exit', async (ctx) => {
+autoFixerConfigScene.action('save_and_exit', async ctx => {
   try {
     // TODO: Сохранить настройки в базу данных или конфиг файл
-    
+
     await ctx.editMessageText(
       `✅ <b>Настройки автофиксера сохранены</b>
 
 Все изменения применены и будут использоваться для последующих исправлений PR.`,
       { parse_mode: 'HTML' }
     )
-    
+
     await ctx.scene.leave()
   } catch (error) {
     console.error('[AutoFixerConfig] Save and exit error:', error)
@@ -228,7 +281,7 @@ autoFixerConfigScene.action('save_and_exit', async (ctx) => {
 })
 
 // Выход из сцены по команде
-autoFixerConfigScene.command('exit', async (ctx) => {
+autoFixerConfigScene.command('exit', async ctx => {
   await ctx.reply('⚙️ Выход из настроек автофиксера')
   await ctx.scene.leave()
 })
@@ -241,7 +294,7 @@ function getCurrentConfig() {
     githubConnected: !!process.env.GITHUB_TOKEN,
     claudeConnected: !!process.env.CLAUDE_API_KEY,
     devChannel: process.env.DEV_CHANNEL_ID || 'Не настроен',
-    adminCount: ADMIN_IDS.length
+    adminCount: ADMIN_IDS.length,
   }
 }
 
@@ -269,7 +322,7 @@ function getFixTypesConfig() {
     telegraf: getFixTypeState('telegraf'),
     scene: getFixTypeState('scene'),
     typescript: getFixTypeState('typescript'),
-    eslint: getFixTypeState('eslint')
+    eslint: getFixTypeState('eslint'),
   }
 }
 

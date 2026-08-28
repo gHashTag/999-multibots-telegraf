@@ -22,7 +22,7 @@ export function registerMultiPhotoActions(bot: any): void {
         userId,
         photoCount,
         sessionMultiPhotoCount: ctx.session?.multiPhotoCount,
-        sessionMultiPhotoUrls: ctx.session?.multiPhotoUrls?.length
+        sessionMultiPhotoUrls: ctx.session?.multiPhotoUrls?.length,
       })
 
       if (!ctx.session?.multiPhotoUrls || !ctx.session?.multiPhotoCount) {
@@ -38,7 +38,7 @@ export function registerMultiPhotoActions(bot: any): void {
       if (ctx.session.multiPhotoCount !== parseInt(photoCount)) {
         logger.warn('Multi-photo count mismatch', {
           sessionCount: ctx.session.multiPhotoCount,
-          callbackCount: photoCount
+          callbackCount: photoCount,
         })
       }
 
@@ -54,7 +54,6 @@ export function registerMultiPhotoActions(bot: any): void {
 
       // Enter neurophoto scene for processing
       await ctx.scene.enter('neuro_photo_v2')
-
     } catch (error) {
       logger.error('Error in multi_neurophoto confirmation:', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -78,7 +77,7 @@ export function registerMultiPhotoActions(bot: any): void {
 
       logger.info('🚫 Multi-photo: Processing cancellation', {
         telegramId: ctx.from?.id,
-        multiPhotoCount: ctx.session?.multiPhotoCount
+        multiPhotoCount: ctx.session?.multiPhotoCount,
       })
 
       // Clear multi-photo session data
@@ -94,7 +93,6 @@ export function registerMultiPhotoActions(bot: any): void {
           ? '❌ Обработка серии фотографий отменена.'
           : '❌ Photo series processing cancelled.'
       )
-
     } catch (error) {
       logger.error('Error in multi_neurophoto cancellation:', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -110,7 +108,7 @@ export function registerMultiPhotoActions(bot: any): void {
       const isRu = isRussianFromState(ctx)
 
       logger.info('🆕 Multi-photo: Starting new series', {
-        telegramId: ctx.from?.id
+        telegramId: ctx.from?.id,
       })
 
       // Clear any existing multi-photo data
@@ -129,7 +127,6 @@ export function registerMultiPhotoActions(bot: any): void {
           ? '🆕 Начинаем создание новой серии нейрофото! Отправьте несколько фотографий (альбом).'
           : '🆕 Starting new neurophoto series! Send multiple photos (album).'
       )
-
     } catch (error) {
       logger.error('Error in new_multi_neurophoto action:', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -148,7 +145,7 @@ export function registerMultiPhotoActions(bot: any): void {
 
       logger.info('📸 Multi-photo: Navigation requested', {
         telegramId: ctx.from?.id,
-        imageIndex
+        imageIndex,
       })
 
       // This would be handled by the result display system
@@ -159,7 +156,6 @@ export function registerMultiPhotoActions(bot: any): void {
           : `Image ${parseInt(imageIndex) + 1}`,
         { show_alert: false }
       )
-
     } catch (error) {
       logger.error('Error in multi_neurophoto navigation:', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -175,16 +171,13 @@ export function registerMultiPhotoActions(bot: any): void {
       const isRu = isRussianFromState(ctx)
 
       logger.info('ℹ️ Multi-photo: Info requested', {
-        telegramId: ctx.from?.id
+        telegramId: ctx.from?.id,
       })
 
       await ctx.answerCbQuery(
-        isRu
-          ? 'Навигация по серии нейрофото'
-          : 'Neurophoto series navigation',
+        isRu ? 'Навигация по серии нейрофото' : 'Neurophoto series navigation',
         { show_alert: true }
       )
-
     } catch (error) {
       logger.error('Error in multi_neurophoto info:', {
         error: error instanceof Error ? error.message : 'Unknown error',

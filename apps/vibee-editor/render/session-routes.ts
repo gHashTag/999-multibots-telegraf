@@ -84,13 +84,16 @@ async function mintSession(
   )
 
   return {
-    access_token: signAccessToken({ telegramId, sessionId, deviceKeyThumbprint: dkt }),
+    access_token: signAccessToken({
+      telegramId,
+      sessionId,
+      deviceKeyThumbprint: dkt,
+    }),
     refresh_token: refresh.token,
     expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
     telegram_id: telegramId,
   }
 }
-
 
 /**
  * telegram_id из УЖЕ ПРОВЕРЕННОЙ строки initData.
@@ -112,7 +115,9 @@ function verifiedTelegramIdFrom(initData: string): string | null {
   }
 }
 
-type Pool = { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> }
+type Pool = {
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
+}
 
 function json(res: ServerResponse, code: number, body: unknown): void {
   res.writeHead(code, { 'Content-Type': 'application/json' })
@@ -161,7 +166,10 @@ export async function handleAuthRoute(
     pool = getPool()
     await ensureAuthTables(pool)
   } catch (e) {
-    json(res, 503, { error: 'база недоступна', detail: String(e).slice(0, 160) })
+    json(res, 503, {
+      error: 'база недоступна',
+      detail: String(e).slice(0, 160),
+    })
     return true
   }
 
@@ -240,7 +248,11 @@ export async function handleAuthRoute(
       return true
     }
 
-    const { code, expiresAt } = await issuePairingCode(pool, telegramId, mintPairingCode)
+    const { code, expiresAt } = await issuePairingCode(
+      pool,
+      telegramId,
+      mintPairingCode
+    )
     json(res, 200, {
       code,
       expires_in: PAIRING.TTL_SECONDS,
@@ -280,7 +292,11 @@ export async function handleAuthRoute(
         expired: 'код уже использован или истёк — запросите новый',
         exhausted: 'слишком много попыток — запросите новый код',
       }[outcome.reason]
-      json(res, 401, { error: 'pairing_failed', reason: outcome.reason, detail })
+      json(res, 401, {
+        error: 'pairing_failed',
+        reason: outcome.reason,
+        detail,
+      })
       return true
     }
 
@@ -315,7 +331,10 @@ export async function handleAuthRoute(
        * answer, and a client that retried would only churn. The code exists
        * so the app can wipe its Keychain instead of looping.
        */
-      const code = outcome.reason === 'reused' ? 'auth_reuse_detected' : 'auth_refresh_failed'
+      const code =
+        outcome.reason === 'reused'
+          ? 'auth_reuse_detected'
+          : 'auth_refresh_failed'
       json(res, 401, {
         error: code,
         detail:
@@ -336,12 +355,18 @@ export async function handleAuthRoute(
       [outcome.next.hash]
     )
     if (!row.rows.length) {
-      json(res, 401, { error: 'auth_refresh_failed', detail: 'сессия отозвана' })
+      json(res, 401, {
+        error: 'auth_refresh_failed',
+        detail: 'сессия отозвана',
+      })
       return true
     }
 
     const s = row.rows[0]
-    await pool.query(`UPDATE app_sessions SET last_seen_at = now() WHERE id = $1`, [s.id])
+    await pool.query(
+      `UPDATE app_sessions SET last_seen_at = now() WHERE id = $1`,
+      [s.id]
+    )
 
     json(res, 200, {
       access_token: signAccessToken({

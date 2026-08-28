@@ -25,16 +25,20 @@ export const mockInngestClient = {
 export function setupInngestMocks() {
   vi.clearAllMocks()
   mockInngestClient.send.mockResolvedValue({ ok: true, ids: ['event_123'] })
-  mockInngestClient.createFunction.mockImplementation((config: any, trigger: any, handler: any) => ({
-    id: config.id,
-    name: config.name,
-    retries: config.retries || 0,
-    trigger,
-    handler,
-  }))
-  mockInngestClient.step.run.mockImplementation(async (name: string, fn: Function) => {
-    return await fn()
-  })
+  mockInngestClient.createFunction.mockImplementation(
+    (config: any, trigger: any, handler: any) => ({
+      id: config.id,
+      name: config.name,
+      retries: config.retries || 0,
+      trigger,
+      handler,
+    })
+  )
+  mockInngestClient.step.run.mockImplementation(
+    async (name: string, fn: Function) => {
+      return await fn()
+    }
+  )
 }
 
 // ============================================================================
@@ -60,11 +64,11 @@ export function createMockLogger(): MockLogger {
 export function assertLoggerCalled(
   logger: MockLogger,
   method: 'info' | 'error' | 'warn' | 'debug',
-  message: string,
+  message: string
 ) {
   expect(logger[method]).toHaveBeenCalledWith(
     expect.stringContaining(message),
-    expect.any(Object),
+    expect.any(Object)
   )
 }
 
@@ -86,7 +90,7 @@ export function createMockContext(
   eventName: string,
   eventData: any,
   step?: any,
-  logger?: any,
+  logger?: any
 ) {
   return {
     event: createInngestEvent(eventName, eventData),
@@ -103,7 +107,7 @@ export function expectSuccessResponse(result: any) {
   expect(result).toEqual(
     expect.objectContaining({
       success: true,
-    }),
+    })
   )
 }
 
@@ -111,25 +115,25 @@ export function expectFailureResponse(result: any) {
   expect(result).toEqual(
     expect.objectContaining({
       success: false,
-    }),
+    })
   )
 }
 
 export function expectStepCalled(stepName: string) {
   expect(mockInngestClient.step.run).toHaveBeenCalledWith(
     stepName,
-    expect.any(Function),
+    expect.any(Function)
   )
 }
 
 export function expectStepNotCalled(stepName: string) {
   const calls = mockInngestClient.step.run.mock.calls
-  const hasCall = calls.some((call) => call[0] === stepName)
+  const hasCall = calls.some(call => call[0] === stepName)
   expect(hasCall).toBe(false)
 }
 
 export function getStepCalls() {
-  return mockInngestClient.step.run.mock.calls.map((call) => call[0])
+  return mockInngestClient.step.run.mock.calls.map(call => call[0])
 }
 
 export function expectEventSent(eventName: string, data?: any) {
@@ -137,7 +141,7 @@ export function expectEventSent(eventName: string, data?: any) {
     expect.objectContaining({
       name: eventName,
       ...(data && { data: expect.objectContaining(data) }),
-    }),
+    })
   )
 }
 
@@ -180,9 +184,35 @@ export function generateTimestamp(): number {
   return Date.now()
 }
 
-export function generateUserData(overrides: Partial<{ telegram_id: string }> = {}) {
+export function generateUserData(
+  overrides: Partial<{ telegram_id: string }> = {}
+) {
   return {
     telegram_id: '123456789',
     ...overrides,
   }
+}
+
+/**
+ * Достаёт обработчик из Inngest-функции.
+ *
+ * ЗАЧЕМ. Тесты писались под `fn.handler(...)`, но `inngest.createFunction()`
+ * возвращает экземпляр `InngestFunction`, у которого такого поля нет и не было:
+ * обработчик лежит в `fn` (проверено на inngest 3.54.2). Из-за этого 45 тестов
+ * падали с «X.handler is not a function» — на любой версии v3.
+ *
+ * Поле внутреннее, поэтому обращение к нему собрано в одном месте и снабжено
+ * громкой проверкой: если Inngest переименует поле, тесты скажут об этом прямо,
+ * а не рассыплются полусотней одинаковых «not a function».
+ */
+export function getHandler(fn: any): (...args: any[]) => any {
+  const handler = fn?.fn ?? fn?.handler
+  if (typeof handler !== 'function') {
+    throw new Error(
+      'Не найден обработчик Inngest-функции: ожидалось поле `fn` (inngest 3.x). ' +
+        `Получено: ${fn?.constructor?.name ?? typeof fn}. ` +
+        'Скорее всего обновился inngest — поправьте getHandler в test-helpers.ts.'
+    )
+  }
+  return handler
 }

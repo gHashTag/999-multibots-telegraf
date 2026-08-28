@@ -16,7 +16,10 @@ const KEY = 'test-signing-key-long-enough-for-the-check-0123456789'
  * `isPublic` возвращала `via: 'public'` раньше, чем ветка сессии успевала
  * что-либо проверить. Тест зелёный на неверном основании хуже красного.
  */
-function req(headers: Record<string, string>, url = '/api/tokens/balance'): IncomingMessage {
+function req(
+  headers: Record<string, string>,
+  url = '/api/tokens/balance'
+): IncomingMessage {
   return { headers, url, method: 'GET' } as unknown as IncomingMessage
 }
 
@@ -31,7 +34,11 @@ beforeEach(() => {
 })
 
 const token = () =>
-  signAccessToken({ telegramId: '144022504', sessionId: 's1', deviceKeyThumbprint: 'd1' })
+  signAccessToken({
+    telegramId: '144022504',
+    sessionId: 's1',
+    deviceKeyThumbprint: 'd1',
+  })
 
 describe('authenticate: Bearer session', () => {
   it('admits a valid token and reports whose it is', () => {
@@ -46,14 +53,18 @@ describe('authenticate: Bearer session', () => {
     const forged = JSON.parse(Buffer.from(b, 'base64url').toString())
     forged.sub = '999'
     const swapped = Buffer.from(JSON.stringify(forged)).toString('base64url')
-    const r = authenticate(req({ authorization: `Bearer ${h}.${swapped}.${s}` }))
+    const r = authenticate(
+      req({ authorization: `Bearer ${h}.${swapped}.${s}` })
+    )
     expect(r.allowed).toBe(false)
     expect(r.reason).toMatch(/bad_signature/)
   })
 
   it('refuses a revoked session and names the reason', () => {
     const t = token()
-    expect(authenticate(req({ authorization: `Bearer ${t}` })).allowed).toBe(true)
+    expect(authenticate(req({ authorization: `Bearer ${t}` })).allowed).toBe(
+      true
+    )
     setRevokedSessions(['s1'])
     const r = authenticate(req({ authorization: `Bearer ${t}` }))
     expect(r.allowed).toBe(false)

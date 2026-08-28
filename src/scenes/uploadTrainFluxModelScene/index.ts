@@ -20,9 +20,11 @@ import { createClient } from '@supabase/supabase-js'
 import fs from 'fs'
 import path from 'path'
 
-const uploadTrainFluxModelScene = new Scenes.BaseScene<MyContext>('uploadTrainFluxModelScene')
+const uploadTrainFluxModelScene = new Scenes.BaseScene<MyContext>(
+  'uploadTrainFluxModelScene'
+)
 
-uploadTrainFluxModelScene.enter(async (ctx) => {
+uploadTrainFluxModelScene.enter(async ctx => {
   const isRu = isRussian(ctx)
   console.log('Scene: ZIP')
 
@@ -39,7 +41,9 @@ uploadTrainFluxModelScene.enter(async (ctx) => {
     const gender = sceneState?.gender || (ctx.session as any).gender
 
     if (!gender) {
-      console.error('Error in uploadTrainFluxModelScene: Gender not found in session or scene state.')
+      console.error(
+        'Error in uploadTrainFluxModelScene: Gender not found in session or scene state.'
+      )
       await ctx.reply(
         isRu
           ? '❌ Ошибка: пол не определен. Попробуйте начать заново.'
@@ -59,11 +63,16 @@ uploadTrainFluxModelScene.enter(async (ctx) => {
       ctx.session.username?.toUpperCase()
 
     if (!triggerWord) {
-      await ctx.reply(isRu ? '❌ Некорректный trigger word' : '❌ Invalid trigger word')
+      await ctx.reply(
+        isRu ? '❌ Некорректный trigger word' : '❌ Invalid trigger word'
+      )
       return ctx.scene.leave()
     }
 
-    console.log('[uploadTrainFluxModelScene] Using triggerWord from session:', triggerWord)
+    console.log(
+      '[uploadTrainFluxModelScene] Using triggerWord from session:',
+      triggerWord
+    )
 
     console.log('[uploadTrainFluxModelScene] Using LOCAL training on bot-farm')
 
@@ -94,11 +103,13 @@ uploadTrainFluxModelScene.enter(async (ctx) => {
       .from('images')
       .upload(zipFileName, zipBuffer, {
         contentType: 'application/zip',
-        upsert: true
+        upsert: true,
       })
 
     if (uploadError) {
-      throw new Error(`Failed to upload ZIP to Supabase: ${uploadError.message}`)
+      throw new Error(
+        `Failed to upload ZIP to Supabase: ${uploadError.message}`
+      )
     }
 
     const { data: publicUrlData } = serviceClient.storage
@@ -113,7 +124,10 @@ uploadTrainFluxModelScene.enter(async (ctx) => {
       await fs.promises.unlink(zipPath)
       console.log('[uploadTrainFluxModelScene] Local ZIP file cleaned up')
     } catch (unlinkError) {
-      console.warn('[uploadTrainFluxModelScene] Failed to cleanup local ZIP (non-fatal)', unlinkError)
+      console.warn(
+        '[uploadTrainFluxModelScene] Failed to cleanup local ZIP (non-fatal)',
+        unlinkError
+      )
     }
 
     console.log('[uploadTrainFluxModelScene] Sending Inngest event:', {
@@ -121,7 +135,7 @@ uploadTrainFluxModelScene.enter(async (ctx) => {
       triggerWord,
       steps: ctx.session.steps,
       zipUrl,
-      bot_name
+      bot_name,
     })
 
     try {
@@ -135,12 +149,17 @@ uploadTrainFluxModelScene.enter(async (ctx) => {
           telegram_id: ctx.session.targetUserId.toString(),
           triggerWord,
           zipUrl, // HTTP URL from Supabase (bypasses Inngest size limit)
-          gender
-        }
+          gender,
+        },
       })
-      console.log('[uploadTrainFluxModelScene] ✅ Inngest event sent successfully')
+      console.log(
+        '[uploadTrainFluxModelScene] ✅ Inngest event sent successfully'
+      )
     } catch (eventError: any) {
-      console.error('[uploadTrainFluxModelScene] ❌ Failed to send Inngest event:', eventError.message)
+      console.error(
+        '[uploadTrainFluxModelScene] ❌ Failed to send Inngest event:',
+        eventError.message
+      )
       console.error('[uploadTrainFluxModelScene] ❌ Full error:', eventError)
       throw eventError
     }

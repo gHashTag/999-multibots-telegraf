@@ -32,9 +32,9 @@ export interface WebhookSetupResult {
 async function detectDomainProtocol(domain: string): Promise<'http' | 'https'> {
   try {
     // First try HTTPS
-    const response = await fetch(`https://${domain}`, { 
+    const response = await fetch(`https://${domain}`, {
       method: 'HEAD',
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(5000),
     })
     if (response.ok) {
       return 'https'
@@ -42,9 +42,9 @@ async function detectDomainProtocol(domain: string): Promise<'http' | 'https'> {
   } catch (error) {
     // HTTPS failed, try HTTP
     try {
-      const response = await fetch(`http://${domain}`, { 
+      const response = await fetch(`http://${domain}`, {
         method: 'HEAD',
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(5000),
       })
       if (response.ok) {
         return 'http'
@@ -73,77 +73,97 @@ export async function setupWebhookWithRetry(
 ): Promise<WebhookSetupResult> {
   const maxRetries = config.retryAttempts || 3
   const retryDelay = config.retryDelay || 2000
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       // Auto-detect protocol if not specified
-      const protocol = config.protocol || await detectDomainProtocol(config.domain)
-      
+      const protocol =
+        config.protocol || (await detectDomainProtocol(config.domain))
+
       // Build webhook URL with bot-specific path
       const webhookPath = botPort ? `${config.path}/${botName}` : config.path
       const webhookUrl = `${protocol}://${config.domain}${webhookPath}`
-      
-      botLogger.info(botName, `Setting up webhook (attempt ${attempt}/${maxRetries}): ${webhookUrl}`)
-      
+
+      botLogger.info(
+        botName,
+        `Setting up webhook (attempt ${attempt}/${maxRetries}): ${webhookUrl}`
+      )
+
       // Set webhook
       await bot.telegram.setWebhook(webhookUrl, {
-        allowed_updates: ['message', 'callback_query', 'pre_checkout_query']
+        allowed_updates: ['message', 'callback_query', 'pre_checkout_query'],
       })
-      
+
       // Verify webhook was set correctly
       const webhookInfo = await bot.telegram.getWebhookInfo()
-      
+
       if (webhookInfo.url === webhookUrl) {
-        botLogger.info(botName, `✅ Webhook successfully configured: ${webhookUrl}`)
-        
+        botLogger.info(
+          botName,
+          `✅ Webhook successfully configured: ${webhookUrl}`
+        )
+
         // Log any pending updates or errors
         if (webhookInfo.pending_update_count > 0) {
-          botLogger.warn(botName, `${webhookInfo.pending_update_count} pending updates`)
+          botLogger.warn(
+            botName,
+            `${webhookInfo.pending_update_count} pending updates`
+          )
         }
-        
+
         if (webhookInfo.last_error_date) {
-          const errorDate = new Date(webhookInfo.last_error_date * 1000).toISOString()
-          botLogger.warn(botName, `Last webhook error: ${webhookInfo.last_error_message} (${errorDate})`)
+          const errorDate = new Date(
+            webhookInfo.last_error_date * 1000
+          ).toISOString()
+          botLogger.warn(
+            botName,
+            `Last webhook error: ${webhookInfo.last_error_message} (${errorDate})`
+          )
         }
-        
+
         return {
           success: true,
           webhookUrl,
-          retryCount: attempt - 1
+          retryCount: attempt - 1,
         }
       } else {
-        throw new Error(`Webhook URL mismatch. Expected: ${webhookUrl}, Got: ${webhookInfo.url}`)
+        throw new Error(
+          `Webhook URL mismatch. Expected: ${webhookUrl}, Got: ${webhookInfo.url}`
+        )
       }
-      
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      botLogger.error(botName, `Webhook setup attempt ${attempt} failed: ${errorMessage}`)
-      
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      botLogger.error(
+        botName,
+        `Webhook setup attempt ${attempt} failed: ${errorMessage}`
+      )
+
       if (attempt === maxRetries) {
         logSecurityEvent(
           'webhook_setup_failed',
           { botName, errorMessage, attempts: maxRetries },
           'error'
         )
-        
+
         return {
           success: false,
           error: errorMessage,
-          retryCount: maxRetries
+          retryCount: maxRetries,
         }
       }
-      
+
       // Wait before retry
       if (attempt < maxRetries) {
         await new Promise(resolve => setTimeout(resolve, retryDelay))
       }
     }
   }
-  
+
   return {
     success: false,
     error: 'Max retries exceeded',
-    retryCount: maxRetries
+    retryCount: maxRetries,
   }
 }
 
@@ -153,47 +173,45 @@ export async function setupWebhookWithRetry(
  * @param baseConfig Base webhook configuration
  */
 export async function autoConfigureProductionWebhooks(
-  bots: Array<{ bot: Telegraf<Context>, name: string, port?: number }>,
+  bots: Array<{ bot: Telegraf<Context>; name: string; port?: number }>,
   baseConfig: Omit<WebhookConfig, 'enabled'>
 ): Promise<WebhookSetupResult[]> {
   const results: WebhookSetupResult[] = []
-  
-  botLogger.info('WebhookManager', `🔗 Starting webhook configuration for ${bots.length} bots`)
-  
+
+  botLogger.info(
+    'WebhookManager',
+    `🔗 Starting webhook configuration for ${bots.length} bots`
+  )
+
   // Configure webhooks in parallel with reasonable concurrency limit
   const concurrency = 3
   const chunks = []
   for (let i = 0; i < bots.length; i += concurrency) {
     chunks.push(bots.slice(i, i + concurrency))
   }
-  
+
   for (const chunk of chunks) {
     const chunkResults = await Promise.all(
       chunk.map(({ bot, name, port }) =>
-        setupWebhookWithRetry(
-          bot,
-          { ...baseConfig, enabled: true },
-          name,
-          port
-        )
+        setupWebhookWithRetry(bot, { ...baseConfig, enabled: true }, name, port)
       )
     )
     results.push(...chunkResults)
-    
+
     // Brief pause between chunks to avoid rate limiting
     if (chunks.indexOf(chunk) < chunks.length - 1) {
       await new Promise(resolve => setTimeout(resolve, 1000))
     }
   }
-  
+
   const successCount = results.filter(r => r.success).length
   const failureCount = results.length - successCount
-  
+
   botLogger.info(
     'WebhookManager',
     `🎯 Webhook configuration completed: ${successCount} successful, ${failureCount} failed`
   )
-  
+
   return results
 }
 
@@ -209,26 +227,26 @@ export async function validateWebhookSetup(
 ): Promise<{ valid: boolean; info?: any; error?: string }> {
   try {
     const webhookInfo = await bot.telegram.getWebhookInfo()
-    
+
     if (!webhookInfo.url) {
       return { valid: false, error: 'No webhook URL configured' }
     }
-    
+
     // Test webhook URL accessibility
     try {
       const response = await fetch(webhookInfo.url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ test: true }),
-        signal: AbortSignal.timeout(10000)
+        signal: AbortSignal.timeout(10000),
       })
-      
+
       return {
         valid: true,
         info: {
           ...webhookInfo,
-          urlAccessible: response.status < 500
-        }
+          urlAccessible: response.status < 500,
+        },
       }
     } catch (fetchError) {
       return {
@@ -236,14 +254,17 @@ export async function validateWebhookSetup(
         info: {
           ...webhookInfo,
           urlAccessible: false,
-          urlError: fetchError instanceof Error ? fetchError.message : String(fetchError)
-        }
+          urlError:
+            fetchError instanceof Error
+              ? fetchError.message
+              : String(fetchError),
+        },
       }
     }
   } catch (error) {
     return {
       valid: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     }
   }
 }

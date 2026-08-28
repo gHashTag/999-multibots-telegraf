@@ -29,7 +29,7 @@ app.get('/health', (_req, res) => {
     status: 'ok',
     service: 'inngest-all-functions',
     timestamp: new Date().toISOString(),
-    functions: stats
+    functions: stats,
   })
 })
 
@@ -41,7 +41,7 @@ app.use(
   '/api/inngest',
   serve({
     client: inngest,
-    functions: functionsList
+    functions: functionsList,
   })
 )
 
@@ -54,7 +54,7 @@ app.post('/api/test-inngest', async (req, res) => {
         test: true,
         message: 'Test from API',
         timestamp: new Date().toISOString(),
-        ...req.body
+        ...req.body,
       },
     })
 

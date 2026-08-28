@@ -4,15 +4,50 @@ import path from 'path'
 export default defineConfig({
   test: {
     globals: true,
+    // Deterministic test environment (complements vitest.setup.ts, which sets
+    // FAL_KEY only).
+    //
+    // WHY. 46 tests failed for want of secrets rather than because of the
+    // code: without MERCHANT_LOGIN the payment wizard aborted with a config
+    // error before reaching the logic under test (26 tests), and without
+    // FAL_KEY the image generator did the same (20). The run depended on
+    // whether the person running it had a working .env — it measured the
+    // environment, not the code.
+    //
+    // The values are deliberately non-working: a test that reaches a real
+    // call with them must fail rather than quietly talk to production. A real
+    // value from the environment wins, so integration runs still work.
+    env: {
+      SUPABASE_URL: process.env.SUPABASE_URL ?? 'TEST_URL',
+      SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY ?? 'TEST_KEY',
+      MERCHANT_LOGIN: process.env.MERCHANT_LOGIN ?? 'test_merchant',
+      ROBOKASSA_PASSWORD_1: process.env.ROBOKASSA_PASSWORD_1 ?? 'test_pass_1',
+      ROBOKASSA_PASSWORD_2: process.env.ROBOKASSA_PASSWORD_2 ?? 'test_pass_2',
+      FAL_KEY: process.env.FAL_KEY ?? 'test_fal_key',
+      KIE_AI_API_KEY: process.env.KIE_AI_API_KEY ?? 'test_kie_key',
+      ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY ?? 'test_eleven_key',
+    },
     setupFiles: [
       // Фиктивные env для юнит-тестов (FAL_KEY и пр.): сервисы проверяют
       // ключ на входе, до моков — без этого чистые тесты падают (43 шт).
       './vitest.setup.ts',
-      ...(process.env.DETECT_NETWORK ? ['scripts/detect-network-tests.mjs'] : []),
+      ...(process.env.DETECT_NETWORK
+        ? ['scripts/detect-network-tests.mjs']
+        : []),
     ],
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
+      // Three more files fail at MODULE LOAD, so not one assertion in them
+      // ever runs — the same reason as the list below:
+      //   plugin-neurophoto/**/generateImage.test.ts imports 'bun:test';
+      //   scripts/tests/user-data-integrity.test.ts imports
+      //     '../get-all-users-data', which is not in the repository;
+      //   checkSuperheroGenerationUsage.test.ts builds a Supabase client at
+      //     import time and dies with "Invalid URL" on the placeholder host.
+      'packages/plugin-neurophoto/**/generateImage.test.ts',
+      'scripts/tests/user-data-integrity.test.ts',
+      'src/__tests__/core/supabase/checkSuperheroGenerationUsage.test.ts',
       /**
        * apps/** исключён ЦЕЛИКОМ, и это прячет тесты рендер-сервера.
        *
@@ -28,6 +63,14 @@ export default defineConfig({
        */
       'apps/**/*.spec.ts',
       'apps/**/e2e/**',
+      // The player has its OWN runner (apps/vibee-editor/player) with a jsdom
+      // environment and its own dependencies. After the exclusion above was
+      // narrowed, its unit tests joined the root run, whose environment is
+      // node, and 34 of them failed on "localStorage is not defined". The
+      // render-server tests the narrowing was for stay included. The player
+      // tests are not lost: `bun run test:player` runs them (105 tests,
+      // jsdom) as its own CI step.
+      'apps/vibee-editor/player/**',
       // Эти 11 файлов импортируют из 'bun:test' и под vitest НЕ ЗАПУСКАЮТСЯ
       // никогда: "Cannot find package 'bun:test'". Для них есть свой раннер —
       // npm run test:bun. Пока они попадали в общий прогон, npm test выдавал

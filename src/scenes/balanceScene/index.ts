@@ -131,10 +131,13 @@ function convertOptimizedStatsToDisplayFormat(stats: OptimizedBalanceStats) {
     totalBonusStars: stats.total_bonus_income,
     totalOutcomeStars: stats.total_outcome,
     currentBalance: stats.current_balance,
-    allServices: stats.services_breakdown.map(s => [
-      s.service,
-      { count: s.count, stars: s.total_stars },
-    ] as [string, { count: number; stars: number }]),
+    allServices: stats.services_breakdown.map(
+      s =>
+        [s.service, { count: s.count, stars: s.total_stars }] as [
+          string,
+          { count: number; stars: number },
+        ]
+    ),
     recentOutcomes: stats.recent_expenses.map(e => ({
       payment_date: e.date,
       stars: e.stars,
@@ -384,15 +387,12 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
 
         // Добавляем reply кнопки для навигации
         await ctx.reply(
-          isRu ? '👆 Выберите действие выше или используйте кнопки ниже:' : '👆 Choose an action above or use the buttons below:',
+          isRu
+            ? '👆 Выберите действие выше или используйте кнопки ниже:'
+            : '👆 Choose an action above or use the buttons below:',
           {
             reply_markup: {
-              keyboard: [
-                [
-                  isRu ? 'Отмена' : 'Cancel',
-                  getMainMenuText(isRu),
-                ],
-              ],
+              keyboard: [[isRu ? 'Отмена' : 'Cancel', getMainMenuText(isRu)]],
               resize_keyboard: true,
               one_time_keyboard: false,
             },
@@ -428,7 +428,9 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
     // Отмена
     if (text === (isRu ? 'Отмена' : 'Cancel')) {
       await ctx.reply(
-        isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+        isRu
+          ? '❌ Процесс отменён. Возвращаюсь в главное меню.'
+          : '❌ Process cancelled. Returning to main menu.',
         { reply_markup: { remove_keyboard: true } }
       )
       await ctx.scene.leave()
@@ -439,7 +441,7 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
     }
 
     // Главное меню
-    if (text === (getMainMenuText(isRu))) {
+    if (text === getMainMenuText(isRu)) {
       await ctx.reply(
         isRu ? '👋 Возвращаемся в главное меню' : '👋 Returning to main menu',
         { reply_markup: { remove_keyboard: true } }
@@ -454,13 +456,15 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
     // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем кнопки меню
     try {
       const { ALL_BUTTONS } = await import('@/navigation/config/buttons.config')
-      const button = Object.values(ALL_BUTTONS).find(btn => btn.ru === text || btn.en === text)
+      const button = Object.values(ALL_BUTTONS).find(
+        btn => btn.ru === text || btn.en === text
+      )
 
       if (button) {
         // Это кнопка меню! Выходим из сцены и позволяем глобальному обработчику её обработать
         console.log('🔄 [balanceScene] Menu button detected, exiting scene', {
           telegramId: ctx.from?.id,
-          buttonText: text
+          buttonText: text,
         })
         await ctx.reply(
           isRu ? '👋 Возвращаемся в главное меню' : '👋 Returning to main menu',
@@ -472,13 +476,15 @@ export const balanceScene = new Scenes.WizardScene<MyContext>(
       // Если не удалось импортировать, продолжаем с обычной обработкой
       console.warn('⚠️ [balanceScene] Failed to import NAVIGATION_BUTTONS', {
         error: error instanceof Error ? error.message : String(error),
-        telegramId: ctx.from?.id
+        telegramId: ctx.from?.id,
       })
     }
 
     // Игнорируем другие сообщения
     await ctx.reply(
-      isRu ? '👆 Пожалуйста, используйте кнопки выше' : '👆 Please use the buttons above',
+      isRu
+        ? '👆 Пожалуйста, используйте кнопки выше'
+        : '👆 Please use the buttons above',
       { reply_markup: { remove_keyboard: true } }
     )
     await ctx.scene.leave()

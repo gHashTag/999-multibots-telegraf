@@ -18,7 +18,10 @@ describe('AiServer LipSync Adapter', () => {
       const mockResponse = {
         id: 'test-task-123',
         status: 'processing',
-        result_url: null,
+        // Поле объявлено как необязательное (result_url?: string), и адаптер
+        // оставляет его undefined, когда сервер не вернул output. null здесь
+        // никогда не проставлялся.
+        result_url: undefined,
       }
 
       ;(fetch as any).mockResolvedValueOnce({
@@ -37,7 +40,10 @@ describe('AiServer LipSync Adapter', () => {
       expect(result).toEqual({
         id: 'test-task-123',
         status: 'processing',
-        result_url: null,
+        // Поле объявлено как необязательное (result_url?: string), и адаптер
+        // оставляет его undefined, когда сервер не вернул output. null здесь
+        // никогда не проставлялся.
+        result_url: undefined,
         error: undefined,
         progress: undefined,
       })
@@ -70,7 +76,11 @@ describe('AiServer LipSync Adapter', () => {
 
       const result = await generateLipSyncViaAiServer(request)
 
-      expect(result.id).toContain('fallback-')
+      // Синтетический id вида fallback-<timestamp> подставляется ТОЛЬКО когда
+      // Replicate не вернул своего (`success.id || \`fallback-\${Date.now()}\``).
+      // Мок отдаёт id, поэтому проверяем, что использован он — это и есть
+      // признак того, что сработал путь фоллбэка через Replicate.
+      expect(result.id).toBe('replicate-123')
       expect(result.status).toBe('processing')
     })
   })

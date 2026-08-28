@@ -629,8 +629,8 @@ export const generateScenarioClips = inngest.createFunction(
             input.aspect_ratio === '16:9'
               ? 'YouTube'
               : input.aspect_ratio === '9:16'
-              ? 'TikTok/Reels'
-              : 'Instagram',
+                ? 'TikTok/Reels'
+                : 'Instagram',
         },
       },
     }
@@ -837,8 +837,8 @@ class TextScenarioReportGenerator {
               metadata.aspect_ratio === '16:9'
                 ? 'YouTube'
                 : metadata.aspect_ratio === '9:16'
-                ? 'TikTok/Reels'
-                : 'Instagram'
+                  ? 'TikTok/Reels'
+                  : 'Instagram'
             }</div>
             <div class="blogger-style-badge">📝 Только текст</div>
         </header>
@@ -987,8 +987,8 @@ class TextScenarioReportGenerator {
           metadata.aspect_ratio === '16:9'
             ? 'YouTube'
             : metadata.aspect_ratio === '9:16'
-            ? 'TikTok/Reels'
-            : 'Instagram',
+              ? 'TikTok/Reels'
+              : 'Instagram',
         Статус: variant.metadata?.status || 'Готово',
       }))
     )
@@ -1046,8 +1046,8 @@ class TextScenarioReportGenerator {
           metadata.aspect_ratio === '16:9'
             ? 'YouTube (горизонтальное)'
             : metadata.aspect_ratio === '9:16'
-            ? 'TikTok/Reels (вертикальное)'
-            : 'Instagram (квадрат)',
+              ? 'TikTok/Reels (вертикальное)'
+              : 'Instagram (квадрат)',
         'Тип контента': 'Только текст',
         'Стоимость в звездах': metadata.cost_breakdown.total_stars,
         'Дата генерации': metadata.generation_date.toLocaleDateString('ru-RU'),
@@ -1128,8 +1128,8 @@ ${
   metadata.aspect_ratio === '16:9'
     ? '🎥 YouTube (горизонтальные видео)'
     : metadata.aspect_ratio === '9:16'
-    ? '📱 TikTok & Instagram Reels (вертикальные видео)'
-    : '📸 Instagram Posts (квадратные изображения)'
+      ? '📱 TikTok & Instagram Reels (вертикальные видео)'
+      : '📸 Instagram Posts (квадратные изображения)'
 }
 
 ## 🎭 Стиль: ${metadata.style_info?.name || metadata.blogger_style}
@@ -1174,8 +1174,8 @@ ${
   metadata.aspect_ratio === '16:9'
     ? '✅ Горизонтальная съёмка для YouTube\n✅ Длительность: 3-15+ минут\n✅ Образовательный формат\n✅ Четкая структура'
     : metadata.aspect_ratio === '9:16'
-    ? '✅ Вертикальная съёмка для TikTok/Reels\n✅ Длительность: 15-60 секунд\n✅ Быстрый темп\n✅ Хуки в начале'
-    : '✅ Квадратная съёмка для Instagram\n✅ Эстетичная подача\n✅ Lifestyle контент\n✅ Естественные цвета'
+      ? '✅ Вертикальная съёмка для TikTok/Reels\n✅ Длительность: 15-60 секунд\n✅ Быстрый темп\n✅ Хуки в начале'
+      : '✅ Квадратная съёмка для Instagram\n✅ Эстетичная подача\n✅ Lifestyle контент\n✅ Естественные цвета'
 }
 
 ## 🚀 Готово к использованию!

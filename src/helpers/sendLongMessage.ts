@@ -25,7 +25,7 @@ export async function sendLongMessage(
     logger.info('📏 [LONG MESSAGE] Разбивка длинного сообщения на части', {
       originalLength: text.length,
       limit: TELEGRAM_MESSAGE_LIMIT,
-      telegramId: ctx.from?.id
+      telegramId: ctx.from?.id,
     })
 
     // Разбиваем на части
@@ -48,18 +48,19 @@ export async function sendLongMessage(
 
     logger.info('✅ [LONG MESSAGE] Длинное сообщение отправлено частями', {
       chunksCount: chunks.length,
-      telegramId: ctx.from?.id
+      telegramId: ctx.from?.id,
     })
-
   } catch (error) {
     logger.error('❌ [LONG MESSAGE] Ошибка при отправке длинного сообщения', {
       error: error instanceof Error ? error.message : 'Unknown error',
       textLength: text.length,
-      telegramId: ctx.from?.id
+      telegramId: ctx.from?.id,
     })
 
     // Fallback: отправляем сокращенную версию
-    const truncatedText = text.slice(0, TELEGRAM_MESSAGE_LIMIT - 50) + '...\n\n[Сообщение сокращено]'
+    const truncatedText =
+      text.slice(0, TELEGRAM_MESSAGE_LIMIT - 50) +
+      '...\n\n[Сообщение сокращено]'
     await ctx.reply(truncatedText, options)
   }
 }
@@ -141,17 +142,23 @@ export async function sendImprovedPrompt(
     return
   }
 
-  logger.info('📏 [IMPROVED PROMPT] Промпт слишком длинный, отправляем частями', {
-    promptLength: improvedPrompt.length,
-    fullTextLength: fullText.length,
-    telegramId: ctx.from?.id
-  })
+  logger.info(
+    '📏 [IMPROVED PROMPT] Промпт слишком длинный, отправляем частями',
+    {
+      promptLength: improvedPrompt.length,
+      fullTextLength: fullText.length,
+      telegramId: ctx.from?.id,
+    }
+  )
 
   // Отправляем заголовок отдельно
   await ctx.reply(header)
 
   // Разбиваем промпт на части и отправляем в блоках кода
-  const promptChunks = splitTextIntoChunks(improvedPrompt, TELEGRAM_MESSAGE_LIMIT - 20)
+  const promptChunks = splitTextIntoChunks(
+    improvedPrompt,
+    TELEGRAM_MESSAGE_LIMIT - 20
+  )
 
   for (let i = 0; i < promptChunks.length; i++) {
     const chunk = promptChunks[i]

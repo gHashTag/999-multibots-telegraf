@@ -22,7 +22,7 @@ import {
   logDeepScene,
   dumpNavigationState,
   withNavigationLogging,
-  createNavigationLoggingMiddleware
+  createNavigationLoggingMiddleware,
 } from '@/navigation/helpers/navigationLogger'
 import type { MutableCtx } from '../helpers/mutableContext'
 
@@ -36,15 +36,15 @@ describe('navigationLogger', () => {
     mockContext = {
       from: { id: 123456 } as any,
       scene: {
-        current: { id: 'testScene' }
+        current: { id: 'testScene' },
       } as any,
       session: {
         mode: 'testMode',
-        navigationHistory: ['scene1', 'scene2']
+        navigationHistory: ['scene1', 'scene2'],
       } as any,
       message: { text: 'test message' } as any,
       callbackQuery: undefined,
-      updateType: 'message'
+      updateType: 'message',
     }
 
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -77,7 +77,11 @@ describe('navigationLogger', () => {
     })
 
     it('работает с пустым контекстом', () => {
-      const emptyContext = { from: undefined, scene: undefined, session: undefined } as any
+      const emptyContext = {
+        from: undefined,
+        scene: undefined,
+        session: undefined,
+      } as any
       expect(() => {
         logSceneEnter(emptyContext, 'targetScene')
       }).not.toThrow()
@@ -218,7 +222,9 @@ describe('navigationLogger', () => {
 
     it('принимает дополнительные детали', () => {
       expect(() => {
-        logNavigationWarning(mockContext as MyContext, 'Warning', { extra: 'data' })
+        logNavigationWarning(mockContext as MyContext, 'Warning', {
+          extra: 'data',
+        })
       }).not.toThrow()
     })
   })
@@ -264,8 +270,9 @@ describe('navigationLogger', () => {
 
       // Проверяем наличие заголовка в любом из вызовов
       const allCalls = consoleLogSpy.mock.calls.map(call => call[0])
-      const hasHeader = allCalls.some(call =>
-        typeof call === 'string' && call.includes('NAVIGATION STATE DUMP')
+      const hasHeader = allCalls.some(
+        call =>
+          typeof call === 'string' && call.includes('NAVIGATION STATE DUMP')
       )
       expect(hasHeader).toBe(true)
     })

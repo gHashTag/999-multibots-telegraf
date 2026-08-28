@@ -95,7 +95,9 @@ export async function generateMidjourneyImage(
       logger.info('[Midjourney v7] Output is string', { length: output.length })
       imageUrls = [output]
     } else if (output && typeof output === 'object') {
-      logger.info('[Midjourney v7] Output is object', { keys: Object.keys(output) })
+      logger.info('[Midjourney v7] Output is object', {
+        keys: Object.keys(output),
+      })
       // Handle object format: { output: [...], ... }
       if (Array.isArray(output.output)) {
         imageUrls = output.output.filter(url => typeof url === 'string')
@@ -117,7 +119,9 @@ export async function generateMidjourneyImage(
         isArray: Array.isArray(output),
         outputKeys: output ? Object.keys(output) : null,
       })
-      throw new Error(`No image URLs returned from model. Output type: ${typeof output}, Output: ${JSON.stringify(output)}`)
+      throw new Error(
+        `No image URLs returned from model. Output type: ${typeof output}, Output: ${JSON.stringify(output)}`
+      )
     }
 
     // Validate that URLs are accessible and are images
@@ -125,11 +129,14 @@ export async function generateMidjourneyImage(
     for (const url of imageUrls) {
       try {
         const response = await axios({ method: 'HEAD', url, timeout: 5000 })
-        const contentType = response.headers['content-type'] || ''
+        // Тип заголовка после обновления axios — объединение, а не string:
+        // приводим явно, иначе .startsWith() недоступен.
+        const contentType = String(response.headers['content-type'] || '')
         // Replicate URLs often return application/octet-stream but are valid images
-        const isImage = contentType.startsWith('image/') ||
-                       contentType === 'application/octet-stream' ||
-                       url.includes('replicate.delivery')
+        const isImage =
+          contentType.startsWith('image/') ||
+          contentType === 'application/octet-stream' ||
+          url.includes('replicate.delivery')
         if (isImage) {
           validatedUrls.push(url)
         } else {

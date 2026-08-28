@@ -197,7 +197,7 @@ export function getServiceEmoji(serviceName: string): string {
     generate_video: UserService.TextToVideo,
     'text-to-video': UserService.TextToVideo,
     text2video: UserService.TextToVideo,
-    
+
     // Image to video варианты
     'image-to-video': UserService.ImageToVideo,
     image2video: UserService.ImageToVideo,
@@ -220,7 +220,7 @@ export function getServiceEmoji(serviceName: string): string {
     lora_training: UserService.DigitalAvatarBody,
     avatar_training: UserService.DigitalAvatarBody,
     digital_avatar: UserService.DigitalAvatarBody,
-    
+
     // Аудио сервисы
     'text-to-speech': UserService.TextToSpeech,
     text2speech: UserService.TextToSpeech,

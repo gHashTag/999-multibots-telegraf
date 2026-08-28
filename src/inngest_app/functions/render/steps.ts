@@ -71,7 +71,7 @@ export async function allocateServer(
       .from('render_servers')
       .update({
         current_job_id: job_id,
-        status: 'busy'
+        status: 'busy',
       })
       .eq('id', server.id)
 
@@ -176,7 +176,8 @@ export async function downloadAssets(
               logger
             )
 
-            const extension = layer.attachments.object_key.split('.').pop() || 'bin'
+            const extension =
+              layer.attachments.object_key.split('.').pop() || 'bin'
             const assetPath = `${jobDir}/assets/${layer.layer_id}.${extension}`
 
             await sshService.downloadFileViaCurl(assetUrl, assetPath, 600000)
@@ -208,10 +209,7 @@ export async function renderFunction(
 
   try {
     // Update job status to rendering
-    await supabase
-      .from('jobs')
-      .update({ status: 'rendering' })
-      .eq('id', job_id)
+    await supabase.from('jobs').update({ status: 'rendering' }).eq('id', job_id)
 
     // Get job and server details
     const { data: job } = await supabase
@@ -334,7 +332,7 @@ export async function uploadToS3(
       .from('jobs')
       .update({
         result_object_key: objectKey,
-        status: 'completed'
+        status: 'completed',
       })
       .eq('id', job_id)
 
@@ -374,7 +372,7 @@ export async function releaseRenderServer(
       .from('render_servers')
       .update({
         current_job_id: null,
-        status: 'active'
+        status: 'active',
       })
       .eq('id', job.server_id)
 
@@ -396,10 +394,7 @@ export async function releaseRenderServerOnError(
 
   try {
     // Update job status to failed
-    await supabase
-      .from('jobs')
-      .update({ status: 'failed' })
-      .eq('id', job_id)
+    await supabase.from('jobs').update({ status: 'failed' }).eq('id', job_id)
 
     // Release server
     await releaseRenderServer(job_id, logger)
@@ -427,7 +422,9 @@ export async function createJob(
   template_id: string,
   logger: Logger
 ): Promise<string> {
-  logger.info(`Creating job ${job_id} for user ${user_id} with template ${template_id}`)
+  logger.info(
+    `Creating job ${job_id} for user ${user_id} with template ${template_id}`
+  )
 
   try {
     const { data, error } = await supabase
@@ -436,7 +433,7 @@ export async function createJob(
         id: job_id,
         template_id,
         user_id,
-        status: 'queued'
+        status: 'queued',
       })
       .select()
       .single()
@@ -475,7 +472,7 @@ export async function createContentPlan(
         job_id,
         header,
         speech,
-        tags
+        tags,
       })
       .select()
       .single()
@@ -522,7 +519,7 @@ export async function setHeyGenApiKey(
       .from('heygen_api_keys')
       .insert({
         user_id,
-        api_key: heygen_api_key
+        api_key: heygen_api_key,
       })
       .select()
       .single()
@@ -576,40 +573,40 @@ export async function generateAvatarVideo(
           character: {
             type: 'avatar',
             avatar_id: avatar_id,
-            avatar_style: 'normal'
+            avatar_style: 'normal',
           },
           voice: {
             type: 'text',
             voice_id: voice_id,
             input_text: content_plan.speech,
-            speed: 1.0
-          }
-        }
+            speed: 1.0,
+          },
+        },
       ],
       dimension: {
         width: 1280,
-        height: 720
+        height: 720,
       },
       title: content_plan.header,
-      caption: false
+      caption: false,
     })
 
     // Store video generation record in database
-    const { error: insertError } = await supabase
-      .from('avatar_videos')
-      .insert({
-        job_id,
-        video_id: videoId,
-        status: 'processing',
-        heygen_api_key_id: heygen_key_id
-      })
+    const { error: insertError } = await supabase.from('avatar_videos').insert({
+      job_id,
+      video_id: videoId,
+      status: 'processing',
+      heygen_api_key_id: heygen_key_id,
+    })
 
     if (insertError) {
       logger.error(`Failed to save avatar video record: ${insertError.message}`)
       throw insertError
     }
 
-    logger.info(`✅ Avatar video generation started for job ${job_id}, video_id=${videoId}`)
+    logger.info(
+      `✅ Avatar video generation started for job ${job_id}, video_id=${videoId}`
+    )
   } catch (error: any) {
     logger.error(`Failed to generate avatar video for job ${job_id}:`, error)
 
@@ -619,7 +616,9 @@ export async function generateAvatarVideo(
       .update({ status: 'failed' })
       .eq('job_id', job_id)
 
-    throw new NonRetriableError(`Avatar video generation failed: ${error.message}`)
+    throw new NonRetriableError(
+      `Avatar video generation failed: ${error.message}`
+    )
   }
 }
 
@@ -636,7 +635,7 @@ export async function generateBRollIdeas(
   try {
     // Initialize OpenAI client
     const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
+      apiKey: process.env.OPENAI_API_KEY,
     })
 
     if (!process.env.OPENAI_API_KEY) {
@@ -678,16 +677,16 @@ Generate 4-6 creative B-roll prompts that would visually support this content.`
       messages: [
         {
           role: 'system',
-          content: systemPrompt
+          content: systemPrompt,
         },
         {
           role: 'user',
-          content: userPrompt
-        }
+          content: userPrompt,
+        },
       ],
       temperature: 0.8, // Higher creativity
       max_tokens: 800,
-      response_format: { type: 'json_object' }
+      response_format: { type: 'json_object' },
     })
 
     const aiResponse = response.choices[0]?.message?.content
@@ -700,7 +699,9 @@ Generate 4-6 creative B-roll prompts that would visually support this content.`
     try {
       const parsed = JSON.parse(aiResponse)
       // Handle both array and object with array property
-      ideas = Array.isArray(parsed) ? parsed : (parsed.prompts || parsed.ideas || Object.values(parsed))
+      ideas = Array.isArray(parsed)
+        ? parsed
+        : parsed.prompts || parsed.ideas || Object.values(parsed)
 
       if (!Array.isArray(ideas) || ideas.length === 0) {
         throw new Error('Invalid response format from AI')
@@ -720,7 +721,7 @@ Generate 4-6 creative B-roll prompts that would visually support this content.`
         `Atmospheric establishing shot with dramatic lighting`,
         `Dynamic action sequence supporting the narrative`,
         `Slow-motion footage emphasizing key theme`,
-        `Aerial or elevated perspective of the subject matter`
+        `Aerial or elevated perspective of the subject matter`,
       ]
     }
 
@@ -733,7 +734,7 @@ Generate 4-6 creative B-roll prompts that would visually support this content.`
         .from('broll_ideas')
         .insert({
           job_id,
-          prompt: idea.trim()
+          prompt: idea.trim(),
         })
         .select()
         .single()
@@ -745,7 +746,9 @@ Generate 4-6 creative B-roll prompts that would visually support this content.`
       idea_ids.push(data.id)
     }
 
-    logger.info(`✅ Generated ${idea_ids.length} B-roll ideas for job ${job_id}`)
+    logger.info(
+      `✅ Generated ${idea_ids.length} B-roll ideas for job ${job_id}`
+    )
     return idea_ids
   } catch (error: any) {
     logger.error(`Failed to generate B-roll ideas for job ${job_id}:`, error)
@@ -783,7 +786,9 @@ export async function generateBRollVideo(
       .single()
 
     if (existing) {
-      logger.info(`✅ Existing video found for idea ${broll_idea_id}: ${existing.id}`)
+      logger.info(
+        `✅ Existing video found for idea ${broll_idea_id}: ${existing.id}`
+      )
       return
     }
 
@@ -807,16 +812,20 @@ export async function generateBRollVideo(
       apiKey: apiKey,
       brollPromptId: broll_idea_id,
       model: 'veo3_fast',
-      aspectRatio: '9:16'
+      aspectRatio: '9:16',
     })
 
-    logger.info(`✅ B-roll video generation started for idea ${broll_idea_id}, video_id=${videoId}`)
+    logger.info(
+      `✅ B-roll video generation started for idea ${broll_idea_id}, video_id=${videoId}`
+    )
   } catch (error: any) {
     logger.error(
       `Failed to generate B-roll video for idea ${broll_idea_id}:`,
       error
     )
-    throw new NonRetriableError(`B-roll video generation failed: ${error.message}`)
+    throw new NonRetriableError(
+      `B-roll video generation failed: ${error.message}`
+    )
   }
 }
 
@@ -1067,7 +1076,11 @@ export async function generateSpeechAudio(
     // Временный файл больше не нужен; его отсутствие не повод падать.
     await fs.promises.unlink(localAudioPath).catch(() => {})
 
-    const audioUrl = await s3Service.generateGetUrl(audioObjectKey, 604800, logger)
+    const audioUrl = await s3Service.generateGetUrl(
+      audioObjectKey,
+      604800,
+      logger
+    )
 
     logger.info(`✅ Generated and uploaded speech audio: ${audioUrl}`)
     return audioUrl
@@ -1102,7 +1115,7 @@ export async function generateTranscription(
       logger.info(`✅ Found existing transcription for job ${job_id}`)
       return {
         id: existing.id,
-        result: existing.transcription_data
+        result: existing.transcription_data,
       }
     }
 
@@ -1156,7 +1169,9 @@ export async function generateBrollSegments(
     }
 
     // Extract broll layers from template_json
-    const layerSettings = template_json.find(item => item.key === 'layerSettings')
+    const layerSettings = template_json.find(
+      item => item.key === 'layerSettings'
+    )
     if (!layerSettings || !layerSettings.value) {
       logger.info('No broll layers in template')
       return []
@@ -1166,7 +1181,7 @@ export async function generateBrollSegments(
       .filter(([_, settings]: [string, any]) => settings.footageUrl === 'broll')
       .map(([layerId, settings]: [string, any]) => ({
         layer_id: layerId,
-        ...settings
+        ...settings,
       }))
 
     if (brollLayers.length === 0) {
@@ -1182,11 +1197,13 @@ export async function generateBrollSegments(
 
       // Find matching transcription words
       const words = transcription.result?.words || []
-      const matchingWords = words.filter((word: any) =>
-        word.start >= startTime && word.end <= startTime + duration
+      const matchingWords = words.filter(
+        (word: any) =>
+          word.start >= startTime && word.end <= startTime + duration
       )
 
-      const promptText = matchingWords.map((w: any) => w.text).join(' ') ||
+      const promptText =
+        matchingWords.map((w: any) => w.text).join(' ') ||
         `Scene at ${startTime}s`
 
       // Save segment to database
@@ -1200,8 +1217,8 @@ export async function generateBrollSegments(
           duration: duration,
           veo3_prompt: {
             prompt: `Cinematic b-roll: ${promptText}. Professional videography, high quality.`,
-            seeds: Math.floor(Math.random() * 90000) + 10000
-          }
+            seeds: Math.floor(Math.random() * 90000) + 10000,
+          },
         })
         .select()
         .single()
@@ -1245,7 +1262,7 @@ export async function generateBroll(
       logger.info(`✅ Existing video found: ${existing.id}`)
       return {
         broll_segment,
-        video_id: existing.id
+        video_id: existing.id,
       }
     }
 
@@ -1255,7 +1272,7 @@ export async function generateBroll(
       prompt: broll_segment.veo3_prompt.prompt,
       seeds: broll_segment.veo3_prompt.seeds,
       model: 'veo3_fast',
-      aspectRatio: '9:16'
+      aspectRatio: '9:16',
     })
 
     // Save to database
@@ -1267,7 +1284,7 @@ export async function generateBroll(
         task_id: taskId,
         prompt: broll_segment.veo3_prompt.prompt,
         seeds: broll_segment.veo3_prompt.seeds,
-        status: 'processing'
+        status: 'processing',
       })
       .select()
       .single()
@@ -1279,10 +1296,13 @@ export async function generateBroll(
     logger.info(`✅ Video generated: video_id=${video.id}`)
     return {
       broll_segment,
-      video_id: video.id
+      video_id: video.id,
     }
   } catch (error: any) {
-    logger.error(`Failed to generate B-roll for segment ${broll_segment.id}:`, error)
+    logger.error(
+      `Failed to generate B-roll for segment ${broll_segment.id}:`,
+      error
+    )
     throw error
   }
 }
@@ -1315,7 +1335,7 @@ export async function waitForBrollResult(
       logger.info(`✅ Video already has attachment ${video.attachment_id}`)
       return {
         ...broll,
-        attachment: video.attachments
+        attachment: video.attachments,
       }
     }
 
@@ -1325,12 +1345,18 @@ export async function waitForBrollResult(
     while (true) {
       const status = await kieService.checkStatus(video.task_id)
 
-      if (status.status === 'success' && status.video_urls && status.video_urls.length > 0) {
+      if (
+        status.status === 'success' &&
+        status.video_urls &&
+        status.video_urls.length > 0
+      ) {
         // Download video
         const videoUrl = status.video_urls[0]
         logger.info(`Downloading video from ${videoUrl}`)
 
-        const response = await axios.get(videoUrl, { responseType: 'arraybuffer' })
+        const response = await axios.get(videoUrl, {
+          responseType: 'arraybuffer',
+        })
         const videoBuffer = Buffer.from(response.data)
 
         // Upload to S3
@@ -1346,7 +1372,7 @@ export async function waitForBrollResult(
             object_key: objectKey,
             content_type: 'video/mp4',
             size: videoBuffer.length,
-            meta_data: { duration_seconds: 5 }
+            meta_data: { duration_seconds: 5 },
           })
           .select()
           .single()
@@ -1360,14 +1386,14 @@ export async function waitForBrollResult(
           .from('kie_veo3_videos')
           .update({
             attachment_id: attachment.id,
-            status: 'completed'
+            status: 'completed',
           })
           .eq('id', broll.video_id)
 
         logger.info(`✅ B-roll video completed: attachment_id=${attachment.id}`)
         return {
           ...broll,
-          attachment
+          attachment,
         }
       }
 
@@ -1407,7 +1433,11 @@ export async function uploadTemplateToS3(
     await s3Service.uploadFile(objectKey, 'application/json', buffer, logger)
 
     // Generate presigned GET URL
-    const settingsUrl = await s3Service.generateGetUrl(objectKey, 604800, logger)
+    const settingsUrl = await s3Service.generateGetUrl(
+      objectKey,
+      604800,
+      logger
+    )
 
     logger.info(`✅ Template JSON uploaded: ${settingsUrl}`)
     return settingsUrl
@@ -1469,7 +1499,7 @@ export async function triggerRender(
       .from('jobs')
       .update({
         status: 'rendering',
-        server_id: server.id
+        server_id: server.id,
       })
       .eq('id', job_id)
 
@@ -1478,12 +1508,11 @@ export async function triggerRender(
       .from('render_servers')
       .update({
         current_job_id: job_id,
-        status: 'busy'
+        status: 'busy',
       })
       .eq('id', server.id)
 
     const render_id = uuidv4()
-
 
     // ⚠️ У СОБЫТИЯ 'render/execute' НЕТ НИ ОДНОГО ПОДПИСЧИКА.
     //
@@ -1538,10 +1567,12 @@ export async function triggerRender(
         server_url: server.url,
         server_port: server.port,
         server_user: server.user,
-        callback_url: callback_url || undefined
-      }
+        callback_url: callback_url || undefined,
+      },
     })
-    logger.info(`✅ Render workflow triggered for job ${job_id}, render_id=${render_id}`)
+    logger.info(
+      `✅ Render workflow triggered for job ${job_id}, render_id=${render_id}`
+    )
     return render_id
   } catch (error: any) {
     logger.error(`Failed to trigger render for job ${job_id}:`, error)
@@ -1571,7 +1602,10 @@ export async function startHedraAvatarGeneration(
     const hedraService = new HedraService(hedra_api_key)
 
     // Step 1: Create image asset
-    const imageAsset = await hedraService.createAsset(`avatar_image_${job_id}`, 'image')
+    const imageAsset = await hedraService.createAsset(
+      `avatar_image_${job_id}`,
+      'image'
+    )
     logger.info(`Created Hedra image asset: ${imageAsset.id}`)
 
     // Step 2: Upload avatar photo to image asset
@@ -1579,7 +1613,10 @@ export async function startHedraAvatarGeneration(
     logger.info(`Uploaded avatar photo to Hedra`)
 
     // Step 3: Create audio asset
-    const audioAsset = await hedraService.createAsset(`avatar_audio_${job_id}`, 'audio')
+    const audioAsset = await hedraService.createAsset(
+      `avatar_audio_${job_id}`,
+      'audio'
+    )
     logger.info(`Created Hedra audio asset: ${audioAsset.id}`)
 
     // Step 4: Upload audio to audio asset
@@ -1595,9 +1632,10 @@ export async function startHedraAvatarGeneration(
       '9:16' // aspect_ratio for vertical video
     )
 
-    logger.info(`✅ Hedra avatar generation started: generation_id=${generation.id}`)
+    logger.info(
+      `✅ Hedra avatar generation started: generation_id=${generation.id}`
+    )
     return generation.id
-
   } catch (error: any) {
     logger.error(`Failed to start Hedra avatar generation: ${error.message}`)
     throw error
@@ -1615,13 +1653,19 @@ export async function waitForHedraAvatarCompletion(
   hedra_api_key: string,
   logger: Logger
 ): Promise<any> {
-  logger.info(`Waiting for Hedra avatar completion: generation_id=${generation_id}`)
+  logger.info(
+    `Waiting for Hedra avatar completion: generation_id=${generation_id}`
+  )
 
   try {
     const hedraService = new HedraService(hedra_api_key)
 
     // Poll for completion (max 5 minutes)
-    const status = await hedraService.waitForCompletion(generation_id, 300000, 5000)
+    const status = await hedraService.waitForCompletion(
+      generation_id,
+      300000,
+      5000
+    )
 
     if (!status.url) {
       throw new Error('Hedra generation completed but no URL returned')
@@ -1630,7 +1674,9 @@ export async function waitForHedraAvatarCompletion(
     logger.info(`✅ Hedra avatar video ready: ${status.url}`)
 
     // Download video
-    const videoResponse = await axios.get(status.url, { responseType: 'arraybuffer' })
+    const videoResponse = await axios.get(status.url, {
+      responseType: 'arraybuffer',
+    })
     const videoBuffer = Buffer.from(videoResponse.data)
 
     // Upload to S3
@@ -1651,8 +1697,8 @@ export async function waitForHedraAvatarCompletion(
       meta_data: {
         format: { duration: status.progress }, // Hedra doesn't return duration, using progress as approximation
         duration_seconds: status.progress / 1000,
-        hedra_generation_id: generation_id
-      }
+        hedra_generation_id: generation_id,
+      },
     })
 
     if (error) {
@@ -1660,17 +1706,18 @@ export async function waitForHedraAvatarCompletion(
       throw error
     }
 
-    logger.info(`✅ Hedra avatar saved to database: attachment_id=${attachment_id}`)
+    logger.info(
+      `✅ Hedra avatar saved to database: attachment_id=${attachment_id}`
+    )
 
     return {
       id: attachment_id,
       object_key,
       meta_data: {
         format: { duration: status.progress / 1000 },
-        duration_seconds: status.progress / 1000
-      }
+        duration_seconds: status.progress / 1000,
+      },
     }
-
   } catch (error: any) {
     logger.error(`Failed to wait for Hedra avatar: ${error.message}`)
     throw error
@@ -1699,31 +1746,32 @@ export async function startHeyGenAvatarGeneration(
     const heygenService = new HeyGenService(heygen_api_key)
 
     const videoId = await heygenService.createVideo({
-      video_inputs: [{
-        character: {
-          type: 'avatar',
-          avatar_id,
-          avatar_style: 'normal',
-          scale: 1.0
+      video_inputs: [
+        {
+          character: {
+            type: 'avatar',
+            avatar_id,
+            avatar_style: 'normal',
+            scale: 1.0,
+          },
+          voice: {
+            type: 'text',
+            voice_id,
+            input_text: avatar_text,
+            speed: 1.0,
+          },
         },
-        voice: {
-          type: 'text',
-          voice_id,
-          input_text: avatar_text,
-          speed: 1.0
-        }
-      }],
+      ],
       dimension: {
         width: 1080,
-        height: 1920 // 9:16 vertical
+        height: 1920, // 9:16 vertical
       },
       title: `Avatar_${job_id}`,
-      caption: false
+      caption: false,
     })
 
     logger.info(`✅ HeyGen avatar generation started: video_id=${videoId}`)
     return videoId
-
   } catch (error: any) {
     logger.error(`Failed to start HeyGen avatar generation: ${error.message}`)
     throw error
@@ -1747,7 +1795,11 @@ export async function waitForHeyGenAvatarCompletion(
     const heygenService = new HeyGenService(heygen_api_key)
 
     // Poll for completion (max 10 minutes)
-    const statusResponse = await heygenService.waitForCompletion(video_id, 600000, 10000)
+    const statusResponse = await heygenService.waitForCompletion(
+      video_id,
+      600000,
+      10000
+    )
 
     const videoUrl = statusResponse.data?.video_url
     if (!videoUrl) {
@@ -1757,7 +1809,9 @@ export async function waitForHeyGenAvatarCompletion(
     logger.info(`✅ HeyGen avatar video ready: ${videoUrl}`)
 
     // Download video
-    const videoResponse = await axios.get(videoUrl, { responseType: 'arraybuffer' })
+    const videoResponse = await axios.get(videoUrl, {
+      responseType: 'arraybuffer',
+    })
     const videoBuffer = Buffer.from(videoResponse.data)
 
     // Upload to S3
@@ -1780,8 +1834,8 @@ export async function waitForHeyGenAvatarCompletion(
         format: { duration },
         duration_seconds: duration,
         heygen_video_id: video_id,
-        heygen_video_url: videoUrl
-      }
+        heygen_video_url: videoUrl,
+      },
     })
 
     if (error) {
@@ -1789,17 +1843,18 @@ export async function waitForHeyGenAvatarCompletion(
       throw error
     }
 
-    logger.info(`✅ HeyGen avatar saved to database: attachment_id=${attachment_id}`)
+    logger.info(
+      `✅ HeyGen avatar saved to database: attachment_id=${attachment_id}`
+    )
 
     return {
       id: attachment_id,
       object_key,
       meta_data: {
         format: { duration },
-        duration_seconds: duration
-      }
+        duration_seconds: duration,
+      },
     }
-
   } catch (error: any) {
     logger.error(`Failed to wait for HeyGen avatar: ${error.message}`)
     throw error
@@ -1826,7 +1881,9 @@ export async function extractAudioFromHeyGenAvatar(
   const audioUrl = await s3Service.generateGetUrl(avatar_object_key)
 
   logger.info(`✅ Audio URL from HeyGen avatar: ${audioUrl}`)
-  logger.warn('⚠️ Note: This is the video URL. Actual audio extraction would require FFmpeg')
+  logger.warn(
+    '⚠️ Note: This is the video URL. Actual audio extraction would require FFmpeg'
+  )
 
   return audioUrl
 }

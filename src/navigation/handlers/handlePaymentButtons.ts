@@ -10,11 +10,11 @@ import { logger } from '@/utils/logger'
 import {
   STARS_PAYMENT_VARIANTS,
   RUBLES_PAYMENT_VARIANTS,
-  CRYPTO_PAYMENT_VARIANTS
+  CRYPTO_PAYMENT_VARIANTS,
 } from '../config/buttons.config'
 import {
   BALANCE_VARIANTS,
-  getCategoryButtonVariants
+  getCategoryButtonVariants,
 } from '../config/categories.config'
 
 /**
@@ -71,18 +71,23 @@ export async function handlePaymentButtons(
 
   // 💎 ОПЛАТА КРИПТОЙ - показываем inline-меню с выбором
   if (CRYPTO_PAYMENT_VARIANTS.includes(text)) {
-    logger.info('💎 [Payment] Crypto payment button pressed - showing selection menu', {
-      telegramId: ctx.from?.id,
-      currentScene: ctx.scene?.current?.id,
-      text,
-    })
+    logger.info(
+      '💎 [Payment] Crypto payment button pressed - showing selection menu',
+      {
+        telegramId: ctx.from?.id,
+        currentScene: ctx.scene?.current?.id,
+        text,
+      }
+    )
 
     try {
       const { Markup } = await import('telegraf')
       const { isRussian } = await import('@/helpers')
       const { isX402Configured } = await import('@/core/x402')
       const { TON_PAYMENT_SCENE_ID } = await import('@/scenes/tonPaymentScene')
-      const { TON_NATIVE_PAYMENT_SCENE_ID } = await import('@/scenes/tonNativePaymentScene')
+      const { TON_NATIVE_PAYMENT_SCENE_ID } = await import(
+        '@/scenes/tonNativePaymentScene'
+      )
 
       const isRu = isRussian(ctx)
       const showX402 = isX402Configured()
@@ -180,7 +185,8 @@ export async function handlePaymentButtons(
 
       // "Top up Balance" и "Пополнить баланс" → PaymentScene
       // Иначе → balance_scene (просмотр баланса)
-      const isTopUp = text.includes('Пополнить') || text.toLowerCase().includes('top up')
+      const isTopUp =
+        text.includes('Пополнить') || text.toLowerCase().includes('top up')
 
       if (isTopUp) {
         await ctx.scene.enter(ModeEnum.PaymentScene)

@@ -60,18 +60,26 @@ export async function createVoiceAvatar(
       })
     } catch (elevenLabsError: any) {
       // Проверяем если это блокировка Cloudflare
-      if (elevenLabsError.message?.includes('Cloudflare защита') ||
-          elevenLabsError.message?.includes('временно недоступен')) {
+      if (
+        elevenLabsError.message?.includes('Cloudflare защита') ||
+        elevenLabsError.message?.includes('временно недоступен')
+      ) {
         isCloudflareBlocked = true
-        logger.warn('[createVoiceAvatar] Cloudflare блокировка обнаружена, используем fallback voice_id', {
-          telegram_id,
-          error: elevenLabsError.message
-        })
+        logger.warn(
+          '[createVoiceAvatar] Cloudflare блокировка обнаружена, используем fallback voice_id',
+          {
+            telegram_id,
+            error: elevenLabsError.message,
+          }
+        )
 
         // Используем default fallback voice_id (Rachel)
         voiceId = 'EXAVITQu4vr4xnSDxMaL'
 
-        console.log('🛡️ Cloudflare блокировка: используем fallback voice_id:', voiceId)
+        console.log(
+          '🛡️ Cloudflare блокировка: используем fallback voice_id:',
+          voiceId
+        )
       } else {
         // Если это не Cloudflare блокировка, пробрасываем ошибку дальше
         throw elevenLabsError
@@ -99,12 +107,12 @@ export async function createVoiceAvatar(
     await ctx.telegram.sendMessage(
       telegram_id,
       isCloudflareBlocked
-        ? (isRu
+        ? isRu
           ? '🎤 Голос для аватара успешно создан! \n⚡ Используется высококачественный голос Rachel из-за временных технических ограничений. \n🎙️ Попробуйте функцию "Текст в голос" в меню!'
-          : '🎤 Voice for avatar successfully created! \n⚡ Using high-quality Rachel voice due to temporary technical limitations. \n🎙️ Try the "Text to speech" function in the menu!')
-        : (isRu
+          : '🎤 Voice for avatar successfully created! \n⚡ Using high-quality Rachel voice due to temporary technical limitations. \n🎙️ Try the "Text to speech" function in the menu!'
+        : isRu
           ? '🎤 Голос для аватара успешно создан. \n Используйте 🎙️ Текст в голос в меню, чтобы проверить'
-          : '🎤 Voice for avatar successfully created! \n Use the 🎙️ Text to speech in the menu to check')
+          : '🎤 Voice for avatar successfully created! \n Use the 🎙️ Text to speech in the menu to check'
     )
 
     return { voiceId }

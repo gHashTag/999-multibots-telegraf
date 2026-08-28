@@ -90,7 +90,6 @@ describe('rublePaymentScene (Robokassa)', () => {
     mockContext.session.selectedPayment = null
     mockContext.session.isAdminTest = false
     mockContext.match = null
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(getMerchantLogin as Mock).mockReturnValue('test_merchant')
     ;(getRobokassaPassword1 as Mock).mockReturnValue('test_password_1')
@@ -258,7 +257,9 @@ describe('rublePaymentScene (Robokassa)', () => {
   describe('5. Обработка callback действий', () => {
     it('должен находить опцию по сумме в рублях', () => {
       const amountRub = 500
-      const selectedOption = rubTopUpOptions.find(o => o.amountRub === amountRub)
+      const selectedOption = rubTopUpOptions.find(
+        o => o.amountRub === amountRub
+      )
 
       expect(selectedOption).toBeDefined()
       expect(selectedOption?.stars).toBe(217)
@@ -266,7 +267,9 @@ describe('rublePaymentScene (Robokassa)', () => {
 
     it('должен обрабатывать невалидную сумму', () => {
       const amountRub = 99999
-      const selectedOption = rubTopUpOptions.find(o => o.amountRub === amountRub)
+      const selectedOption = rubTopUpOptions.find(
+        o => o.amountRub === amountRub
+      )
 
       expect(selectedOption).toBeUndefined()
     })

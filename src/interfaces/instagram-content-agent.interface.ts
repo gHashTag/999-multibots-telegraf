@@ -31,11 +31,3 @@ export interface FindCompetitorsEventPayload {
   telegram_user_id?: string
   metadata?: Record<string, any>
 }
-
-
-
-
-
-
-
-

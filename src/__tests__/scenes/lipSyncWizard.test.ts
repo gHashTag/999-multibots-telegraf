@@ -19,10 +19,12 @@ vi.mock('@/core/supabase/updateUserBalance', () => ({
 }))
 
 vi.mock('@/services/generateLipSync', () => ({
-  generateLipSync: vi.fn(() => Promise.resolve({
-    success: true,
-    videoUrl: 'https://example.com/lipsync.mp4',
-  })),
+  generateLipSync: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      videoUrl: 'https://example.com/lipsync.mp4',
+    })
+  ),
 }))
 
 vi.mock('@/price/helpers/modelsCost', () => ({
@@ -32,10 +34,10 @@ vi.mock('@/price/helpers/modelsCost', () => ({
 }))
 
 vi.mock('@/interfaces/zod/lipsync.zod', () => ({
-  validateVideoInput: vi.fn((input) => input),
-  validateAudioInput: vi.fn((input) => input),
-  validateSession: vi.fn((session) => session),
-  validateTelegramFile: vi.fn((file) => file),
+  validateVideoInput: vi.fn(input => input),
+  validateAudioInput: vi.fn(input => input),
+  validateSession: vi.fn(session => session),
+  validateTelegramFile: vi.fn(file => file),
   isValidAdmin: vi.fn((telegramId, adminIds) => adminIds.includes(telegramId)),
   LIPSYNC_CONSTANTS: {
     MAX_FILE_SIZE: 50 * 1024 * 1024, // 50MB
@@ -119,7 +121,6 @@ describe('lipSyncWizard (LipSync Generation)', () => {
     mockContext.message = null
     mockContext.callbackQuery = null
     process.env.ADMIN_IDS = '123456789'
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(getUserBalance as Mock).mockResolvedValue(1000)
     ;(updateUserBalance as Mock).mockResolvedValue({ error: null })
@@ -399,7 +400,9 @@ describe('lipSyncWizard (LipSync Generation)', () => {
 
     it('должен показывать ошибку размера файла', () => {
       const isRu = true
-      const maxSizeMB = Math.round(LIPSYNC_CONSTANTS.MAX_FILE_SIZE / (1024 * 1024))
+      const maxSizeMB = Math.round(
+        LIPSYNC_CONSTANTS.MAX_FILE_SIZE / (1024 * 1024)
+      )
       const message = isRu
         ? `❌ Видео слишком большое. Максимальный размер: ${maxSizeMB}MB`
         : `❌ Video is too large. Maximum size: ${maxSizeMB}MB`

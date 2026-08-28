@@ -4991,7 +4991,10 @@ const server = createServer(async (req, res) => {
       // Memory-only. The generation itself never depended on this.
     }
 
-    const id = req.url.split('?')[0].replace('/api/generate/jobs', '').replace(/^\//, '')
+    const id = req.url
+      .split('?')[0]
+      .replace('/api/generate/jobs', '')
+      .replace(/^\//, '')
     const who = verifiedTelegramId(req) ?? ''
     if (id) {
       const job = await getJobDurable(id)

@@ -25,7 +25,7 @@ const createMockContext = (overrides = {}): MyContext =>
     from: { id: 123456789 },
     reply: vi.fn().mockResolvedValue({ message_id: 1 }),
     ...overrides,
-  } as unknown as MyContext)
+  }) as unknown as MyContext
 
 describe('sendLongMessage', () => {
   beforeEach(() => {
@@ -80,7 +80,7 @@ describe('sendLongMessage', () => {
     it('should split on word boundaries when possible', async () => {
       const ctx = createMockContext()
       // Create text with spaces
-      const text = ('word '.repeat(1000)).trim()
+      const text = 'word '.repeat(1000).trim()
 
       await sendLongMessage(ctx, text)
 
