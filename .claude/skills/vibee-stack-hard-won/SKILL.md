@@ -4298,3 +4298,42 @@ zsh — это команда.
 ветвиться. Здесь — о том, ЧТО измерять. Второе тише и потому дороже: ветка,
 взятая не оттуда, даёт конфликт, а замер по устаревшей копии даёт уверенный
 неверный ответ.
+
+## Один перехват ответа лучше четырёх правок в ветках
+
+The video generation handler answers from four places: the primary provider,
+a fallback, and two error paths. Recording the result at each meant four
+edits inside tangled provider logic -- and missing the fifth when someone
+adds one.
+
+Wrapping `res.end` once catches every branch by construction, including
+branches that do not exist yet. The original `end` still runs, so callers
+already waiting on the slow synchronous answer see no change.
+
+The rule generalises: when several code paths must all do the same
+bookkeeping, hook the single thing they all pass through, not each path. The
+paths are what changes; the exit is what does not.
+
+Caveat that belongs with it: a wrapper that parses the body must swallow its
+own parse failure. A non-JSON response is not a reason to fail the request --
+the job simply stays unrecorded, which loses an index entry, never the answer
+the caller is about to receive.
+
+## Пустой владелец не должен совпадать со всеми
+
+`listJobs` filters by owner. The naive form -- `job.owner === owner` -- looks
+correct and is a leak: server-to-server jobs carry an empty owner, so a caller
+with no identity matches every one of them. A generation prompt says what
+someone was trying to make and the url points at a file they paid for.
+
+So an empty owner matches NOTHING, explicitly, as the first line of the
+function. Proved by mutation: delete that line and only the ownership test
+goes red.
+
+Two companions worth keeping together:
+
+- ownership belongs NEXT TO THE DATA, inside the function that reads it, not
+  at the call site. A check at the call site is one the next caller forgets.
+- a record that is not yours must answer exactly like a record that does not
+  exist. Distinguishing them lets someone enumerate ids by watching which
+  ones say "forbidden".
