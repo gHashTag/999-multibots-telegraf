@@ -13,6 +13,23 @@ import SwiftUI
  * ответ на обмен кода. Этого достаточно: имя, аватар и ролики берутся теми же
  * маршрутами, которыми пользуется веб. Никакой подписи для них не нужно —
  * профиль публичный, и это правильно: чужой профиль тоже должен открываться.
+ *
+ * ПАЛИТРА ЗДЕСЬ СВОЯ — `Тема.Профиль`, а не общая `Тема.Цвет`.
+ *
+ * Экран был зелёным целиком: чёрный фон #000000, акцент #00ff88 на отметке
+ * входа и на @имени. В вебе профиль так не выглядит — у него отдельный scope
+ * `.profile-page` с матовым чёрным фоном, кремовым текстом и ЗОЛОТЫМ акцентом
+ * (Profile.css:1111-1129 и далее; полный разбор с номерами строк и честным
+ * счётом зелёного против золотого — в `Тема.Профиль`).
+ *
+ * ПРО ЧИТАЕМОСТЬ. Золото под текстом сплошной заливкой не идёт нигде — ни
+ * здесь, ни в вебе. Замер: белый на #ffd700 даёт 1.40:1, то есть повторил бы
+ * ровно ту жалобу, из-за которой на зелёных кнопках стоит чёрный текст.
+ * Вместо заливки — вебовская связка «золотая рамка + подложка 10% + золотой
+ * текст». По снятому кадру: золотая подпись на фоне страницы 14.53:1,
+ * на подложке кнопки 12.42:1, тёплый красный «Выйти» 7.34:1, кремовый текст
+ * на плитке 14.78:1. Белых пикселей в содержимом экрана не осталось вовсе —
+ * единственные #ffffff на скриншоте это часы в строке состояния.
  */
 struct ProfileScreen: View {
   @State private var профиль: API.Profile?
@@ -29,7 +46,10 @@ struct ProfileScreen: View {
 
         if Identity.telegramId != nil {
           if грузим {
-            ProgressView().frame(maxWidth: .infinity).padding(.vertical, Тема.Отступ.xl)
+            ProgressView()
+              .tint(Тема.Профиль.акцент)
+              .frame(maxWidth: .infinity)
+              .padding(.vertical, Тема.Отступ.xl)
           } else if let ошибка {
             подпись(ошибка)
           } else if let профиль {
@@ -40,7 +60,8 @@ struct ProfileScreen: View {
       }
       .padding(Тема.Отступ.md)
     }
-    .background(Тема.Цвет.фон)
+    // #050505, а не #000000 общей темы: Profile.css:1114 и :1122.
+    .background(Тема.Профиль.страница)
     .task(id: версия) { await загрузить() }
   }
 
@@ -58,9 +79,10 @@ struct ProfileScreen: View {
       HStack {
         Label("Вы вошли", systemImage: "checkmark.shield")
           .font(.subheadline.weight(.medium))
-          .foregroundStyle(Тема.Цвет.акцент)
+          // Золото вместо зелёного: акцент нового профиля — Profile.css:555.
+          .foregroundStyle(Тема.Профиль.акцент)
         Spacer()
-        Button(role: .destructive) {
+        Button {
           Task {
             await Identity.logout()
             профиль = nil
@@ -68,19 +90,41 @@ struct ProfileScreen: View {
             версия += 1
           }
         } label: {
-          // Высота ВНУТРИ label: снаружи `.frame` не растягивает подложку,
-          // которую рисует `.bordered` — замерено 34.3 pt вместо 44.
           Text("Выйти")
-            .frame(minHeight: Тема.Кнопка.высота)
         }
-        .buttonStyle(.bordered)
-        .tint(Тема.Цвет.ошибка)
+        /**
+         * Красный ТЁПЛЫЙ, `--vibee-red: #ff6b6b` (index.css:104) — тот, что
+         * применяет НОВЫЙ блок профиля (Profile.css:1733).
+         *
+         * Оговорка, чтобы не выдать выбор за единственно возможный: холодный
+         * #ef4444 в Profile.css тоже есть — `--status-error` на :1003, :1009,
+         * :1011, :1059 и запасное `239, 68, 68` на :1056-1057. Но все эти
+         * строки лежат в старшем блоке, выше :1111, вместе с зелёным акцентом.
+         * Берём красный того поколения, чью палитру переносим.
+         *
+         * Форма — та же пилюля, что у остальных кнопок профиля, и без
+         * подложки: у трёх из четырёх вебовских кнопок `background`
+         * прозрачный (:1608, :1767 и наведение :1616). Контраст #ff6b6b
+         * на #050505 — 7.3:1.
+         */
+        .buttonStyle(Тема.ПилюляПрофиля(цвет: Тема.Профиль.красный, подложка: .clear))
       }
     } else {
       VStack(alignment: .leading, spacing: Тема.Отступ.карточкаЛенты) {
         Label("Нужен вход", systemImage: "exclamationmark.shield")
           .font(.subheadline.weight(.medium))
-          .foregroundStyle(Тема.Цвет.предупреждение)
+          /**
+           * ЗОЛОТО, А НЕ `Цвет.предупреждение` #eab308.
+           *
+           * Прежний #eab308 и золото #ffd700 — два почти одинаковых жёлтых,
+           * и после этой правки они попадали бы на один экран: отметка
+           * состояния одним, кнопка входа под ней — другим. Ровно такую пару
+           * Theme.swift уже фиксирует как дефект на двух зелёных таймлайна.
+           * Вебовского источника у этой строки нет — экрана «нужен вход» в
+           * вебе не существует, — поэтому свожу к акценту профиля, а не
+           * держу второй жёлтый ради статусной семантики.
+           */
+          .foregroundStyle(Тема.Профиль.акцент)
         SignInView { версия += 1 }
       }
     }
@@ -94,23 +138,30 @@ struct ProfileScreen: View {
         if let img = фаза.image {
           img.resizable().scaledToFill()
         } else {
-          Тема.Цвет.поверхность
+          // #0d0d0c — `--bg-elevated` профиля, Profile.css:1123
+          Тема.Профиль.поверхность
         }
       }
       .frame(width: 72, height: 72)
       .clipShape(Circle())
+      .overlay(
+        Circle().strokeBorder(
+          Тема.Профиль.границаЯркая, lineWidth: Тема.Профиль.толщинаГраницы
+        )
+      )
 
       VStack(alignment: .leading, spacing: Тема.Отступ.xs) {
         Text(p.display_name ?? p.username)
           .font(.title3.weight(.semibold))
-          .foregroundStyle(Тема.Цвет.текст)
+          // Кремовый #e6e0d2, а не белый: Profile.css:1640, :1702, :1908.
+          .foregroundStyle(Тема.Профиль.текст)
         Text("@\(p.username)")
           .font(.subheadline)
-          .foregroundStyle(Тема.Цвет.акцент)
+          .foregroundStyle(Тема.Профиль.акцент)
         if let bio = p.bio, !bio.isEmpty {
           Text(bio)
             .font(.footnote)
-            .foregroundStyle(Тема.Цвет.текстПриглушённый)
+            .foregroundStyle(Тема.Профиль.текстПриглушённый)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -124,24 +175,38 @@ struct ProfileScreen: View {
     } else {
       Text("Ролики · \(ролики.count)")
         .font(.subheadline.weight(.medium))
-        .foregroundStyle(Тема.Цвет.текстПриглушённый)
+        .foregroundStyle(Тема.Профиль.текстТусклый)
 
       LazyVGrid(
-        columns: Array(repeating: GridItem(.flexible(), spacing: Тема.Отступ.sm), count: 3),
-        spacing: Тема.Отступ.sm
+        // `gap: 12px` в сетке файлов — Profile.css:1505. Было `Отступ.sm` (8).
+        columns: Array(
+          repeating: GridItem(.flexible(), spacing: Тема.Профиль.просветСетки),
+          count: 3
+        ),
+        spacing: Тема.Профиль.просветСетки
       ) {
         ForEach(ролики) { р in
           ZStack(alignment: .bottomLeading) {
-            Тема.Цвет.поверхность
+            // `background: #0d0d0c` плитки — Profile.css:1514
+            Тема.Профиль.поверхность
             // Счётчик просмотров поверх плитки: в вебе он там же, и это
             // единственное число, ради которого автор сюда заходит.
             Label("\(р.viewsCount)", systemImage: "eye")
               .font(.caption2)
-              .foregroundStyle(Тема.Цвет.текст)
+              .foregroundStyle(Тема.Профиль.текст)
               .padding(Тема.Отступ.вкладка)
           }
           .aspectRatio(9.0 / 16.0, contentMode: .fit)
-          .clipShape(RoundedRectangle(cornerRadius: Тема.Радиус.lg))
+          // 12, а не 8: `border-radius: 12px` — Profile.css:1511.
+          .clipShape(RoundedRectangle(cornerRadius: Тема.Профиль.радиусКарточки))
+          .overlay(
+            // `border: 1px solid #1c1b18` — Profile.css:1513. На #0d0d0c её
+            // видно, в отличие от общей `Цвет.граница`, совпадающей с фоном.
+            RoundedRectangle(cornerRadius: Тема.Профиль.радиусКарточки)
+              .strokeBorder(
+                Тема.Профиль.граница, lineWidth: Тема.Профиль.толщинаГраницы
+              )
+          )
           .accessibilityLabel("\(р.name), просмотров \(р.viewsCount)")
         }
       }
@@ -151,7 +216,8 @@ struct ProfileScreen: View {
   private func подпись(_ т: String) -> some View {
     Text(т)
       .font(.footnote)
-      .foregroundStyle(Тема.Цвет.текстПриглушённый)
+      // `.profile-files__empty { color: #8a8578 }` — Profile.css:1556.
+      .foregroundStyle(Тема.Профиль.текстТусклый)
       .frame(maxWidth: .infinity, alignment: .leading)
   }
 
