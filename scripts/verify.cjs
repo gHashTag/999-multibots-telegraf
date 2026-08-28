@@ -39,6 +39,26 @@ const STEPS = [
   ['test-gate', 'node', ['scripts/test-gate.cjs']],
 ]
 
+// Preflight: a node_modules that has become a symlink to itself makes every
+// step below fail to spawn (exit -1 in 0.0s) — thirteen false failures for one
+// broken link. Name it here instead of letting the gate blame the code. This
+// only reads (findSelfLoops), it does not repair: a gate that checks must not
+// silently mutate. The one-line fix is printed; the loop's own preflight runs
+// it automatically.
+const { findSelfLoops } = require('./heal-node-modules.cjs')
+const selfLoops = findSelfLoops(process.cwd())
+if (selfLoops.length) {
+  console.error('\nnode_modules is a symlink to itself — the gate cannot run.')
+  console.error('(This is an environment fault, not a code failure.)\n')
+  for (const { dir } of selfLoops) {
+    console.error(`  ${dir === '.' ? '' : dir + '/'}node_modules -> itself`)
+  }
+  console.error(
+    '\nRepair, then re-run:\n  node scripts/heal-node-modules.cjs\n'
+  )
+  process.exit(3)
+}
+
 const results = []
 for (const [name, cmd, args] of STEPS) {
   process.stdout.write(`... ${name}`)
