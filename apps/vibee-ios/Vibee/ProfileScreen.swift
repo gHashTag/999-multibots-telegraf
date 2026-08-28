@@ -40,6 +40,61 @@ import SwiftUI
  * на плитке 14.78:1. Белых пикселей в содержимом экрана не осталось вовсе —
  * единственные #ffffff на скриншоте это часы в строке состояния.
  */
+/**
+ * Плитка пакета — ОТДЕЛЬНЫМ типом, и строки считаются вне тела.
+ *
+ * Три витка этот раздел не собирался. Компилятор сообщал про `Binding` и про
+ * присваивание там, где идёт чтение, — и то и другое было капитуляцией вывода
+ * типов, а не диагнозом. Настоящий ответ («unable to type-check in reasonable
+ * time») появился только после упрощения. Детонатор — склейка `String(x) + " ★"`
+ * посреди цепочки модификаторов: перегруженный обобщённый `+` даёт
+ * комбинаторный перебор.
+ *
+ * Отсюда форма: свой тип, строки в отдельных `private var`, фон и рамка тоже
+ * вынесены. Это не украшение кода, а условие его компиляции.
+ */
+private struct ПлиткаПакета: View {
+  let пакет: API.TokenPack
+
+  private var числоТокенов: String { String(пакет.токенов) }
+  private var цена: String { String(пакет.звёзд) + " ★" }
+  private var подпись: String {
+    String(пакет.токенов) + " токенов за " + String(пакет.звёзд) + " звёзд"
+  }
+
+  var body: some View {
+    VStack(spacing: 2) {
+      Text(числоТокенов)
+        .font(Тема.Шрифт.стиль(.title3, .bold))
+        .foregroundStyle(Тема.Профиль.акцент)
+      // Звезда — валюта Telegram, а не украшение: для VoiceOver подпись
+      // проговаривает её словом, иначе читается как «звёздочка».
+      Text(цена)
+        .font(Тема.Шрифт.стиль(.caption2))
+        .foregroundStyle(Тема.Профиль.текстПриглушённый)
+    }
+    .frame(maxWidth: .infinity, minHeight: 44)
+    .padding(.vertical, 10)
+    .background(фон)
+    .overlay(рамка)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(подпись)
+  }
+
+  private var фон: some View {
+    RoundedRectangle(cornerRadius: Тема.Профиль.радиусКарточки)
+      .fill(Тема.Профиль.поверхность)
+  }
+
+  private var рамка: some View {
+    RoundedRectangle(cornerRadius: Тема.Профиль.радиусКарточки)
+      .strokeBorder(
+        Тема.Профиль.границаЗаметная,
+        lineWidth: Тема.Профиль.толщинаГраницы
+      )
+  }
+}
+
 struct ProfileScreen: View {
   @State private var профиль: API.Profile?
   @State private var ролики: [API.Template] = []
@@ -47,6 +102,7 @@ struct ProfileScreen: View {
   @State private var ошибка: String?
   /// Растёт при входе и выходе — по нему перезагружаются данные.
   @State private var версия = 0
+  @State private var пакеты: [API.TokenPack] = []
 
   var body: some View {
     ScrollView {
@@ -63,6 +119,7 @@ struct ProfileScreen: View {
             подпись(ошибка)
           } else if let профиль {
             шапка(профиль)
+            токены
             сетка
           }
         }
@@ -129,6 +186,26 @@ struct ProfileScreen: View {
            */
           .foregroundStyle(Тема.Профиль.акцент)
         SignInView { версия += 1 }
+      }
+    }
+  }
+
+  /**
+   * Раздел исчезает целиком, когда сервер вернул пусто: это либо выключенная
+   * продажа (флаг `включено`), либо отказ. Пустой раздел ПРО ДЕНЬГИ пугает
+   * сильнее, чем его отсутствие — человек решает, что у него что-то сгорело.
+   */
+  @ViewBuilder private var токены: some View {
+    if !пакеты.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Text("Токены")
+          .font(Тема.Шрифт.стиль(.subheadline, .semibold))
+          .foregroundStyle(Тема.Профиль.текст)
+        HStack(spacing: Тема.Профиль.просветСетки) {
+          ForEach(пакеты) { пакет in
+            ПлиткаПакета(пакет: пакет)
+          }
+        }
       }
     }
   }
@@ -254,6 +331,7 @@ struct ProfileScreen: View {
       // Ролики грузим ВТОРЫМ запросом и не роняем из-за них весь экран:
       // профиль без списка полезен, список без профиля — нет.
       ролики = (try? await API.userTemplates(username: p.username)) ?? []
+      пакеты = await API.tokenPacks()
     } catch {
       ошибка = "Профиль не загрузился: \(error.localizedDescription)"
     }
