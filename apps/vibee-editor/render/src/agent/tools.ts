@@ -210,8 +210,26 @@ async function spendTokens(
 }> {
   const price = TOKEN_PRICES[tool]
   if (!price) return { ok: true }
-  const balance = await ensureTokenRow(ctx)
-  if (balance < price) {
+
+  // Проверка баланса и списание — ОДНИМ атомарным запросом.
+  //
+  // Раньше было два шага: сначала read balance, потом безусловный
+  // `balance = balance - price`. Между ними — окно гонки: два параллельных
+  // вызова (человек нажал дважды, агент запустил две генерации) оба читают
+  // balance=25, оба проходят проверку `25 >= 20`, оба списывают по 20 — и
+  // баланс уходит в −15. Владелец платит за то, за что не заплатили.
+  //
+  // `WHERE balance >= $price` делает проверку и вычитание неделимыми: под
+  // READ COMMITTED второй UPDATE ждёт блокировку строки, перечитывает уже
+  // списанный баланс и не проходит условие — 0 строк, честный отказ.
+  await ensureTokenRow(ctx) // гарантируем, что строка есть
+  const r = await ctx.pool.query(
+    `UPDATE user_tokens SET balance = balance - $2, updated_at = now()
+     WHERE telegram_id = $1 AND balance >= $2 RETURNING balance`,
+    [ctx.telegramId, price]
+  )
+  if (r.rows.length === 0) {
+    const balance = await ensureTokenRow(ctx)
     return {
       ok: false,
       причина:
@@ -219,11 +237,6 @@ async function spendTokens(
         'Пополняется звёздами Telegram — скажи человеку и предложи бесплатные действия (лента, SOUL, ремикс из готовых файлов)',
     }
   }
-  const r = await ctx.pool.query(
-    `UPDATE user_tokens SET balance = balance - $2, updated_at = now()
-     WHERE telegram_id = $1 RETURNING balance`,
-    [ctx.telegramId, price]
-  )
   return { ok: true, потрачено: price, осталось: r.rows[0].balance }
 }
 
@@ -708,7 +721,11 @@ export const TOOLS: AgentTool[] = [
       })
       const genData: any = await gen.json().catch(() => null)
       if (!gen.ok || !genData?.url) {
-        await refundTokens(ctx, 'image_generate', 'провайдер не выполнил работу')
+        await refundTokens(
+          ctx,
+          'image_generate',
+          'провайдер не выполнил работу'
+        )
         return {
           сделано: false,
           причина: `генерация не удалась: HTTP ${gen.status} ${String(genData?.error || '')}`,
@@ -718,7 +735,11 @@ export const TOOLS: AgentTool[] = [
       // иначе через час и лента, и рендер показывали бы битую картинку.
       const img = await fetch(genData.url) // внешний провайдер — ключ не нужен
       if (!img.ok) {
-        await refundTokens(ctx, 'image_generate', 'провайдер не выполнил работу')
+        await refundTokens(
+          ctx,
+          'image_generate',
+          'провайдер не выполнил работу'
+        )
         return {
           сделано: false,
           причина: `картинка сгенерирована, но не скачалась: HTTP ${img.status}`,
@@ -736,7 +757,11 @@ export const TOOLS: AgentTool[] = [
       })
       const upData: any = await up.json().catch(() => null)
       if (!up.ok || !upData?.directUrl) {
-        await refundTokens(ctx, 'image_generate', 'провайдер не выполнил работу')
+        await refundTokens(
+          ctx,
+          'image_generate',
+          'провайдер не выполнил работу'
+        )
         return {
           сделано: false,
           причина: `S3 не принял файл: HTTP ${up.status}`,
@@ -810,11 +835,17 @@ export const TOOLS: AgentTool[] = [
         const свой = list.find(
           x => String(x?.category || '').toLowerCase() !== 'premade'
         )
-        voiceId = String((свой ?? list[0])?.id || (свой ?? list[0])?.voice_id || '')
+        voiceId = String(
+          (свой ?? list[0])?.id || (свой ?? list[0])?.voice_id || ''
+        )
         голосВладельца = !!свой
       }
       if (!voiceId) {
-        await refundTokens(ctx, 'audio_generate', 'провайдер не выполнил работу')
+        await refundTokens(
+          ctx,
+          'audio_generate',
+          'провайдер не выполнил работу'
+        )
         return {
           сделано: false,
           причина: 'не нашёлся ни один голос — проверь ELEVENLABS_API_KEY',
@@ -834,7 +865,11 @@ export const TOOLS: AgentTool[] = [
       })
       const genData: any = await gen.json().catch(() => null)
       if (!gen.ok || !genData?.url) {
-        await refundTokens(ctx, 'audio_generate', 'провайдер не выполнил работу')
+        await refundTokens(
+          ctx,
+          'audio_generate',
+          'провайдер не выполнил работу'
+        )
         return {
           сделано: false,
           причина: `озвучка не удалась: HTTP ${gen.status} ${String(genData?.error || '')}`,
@@ -903,7 +938,11 @@ export const TOOLS: AgentTool[] = [
       })
       const genData: any = await gen.json().catch(() => null)
       if (!gen.ok || !genData?.url) {
-        await refundTokens(ctx, 'video_generate', 'провайдер не выполнил работу')
+        await refundTokens(
+          ctx,
+          'video_generate',
+          'провайдер не выполнил работу'
+        )
         return {
           сделано: false,
           причина: `видео не сгенерировалось: HTTP ${gen.status} ${String(genData?.error || '')}`,
@@ -1510,8 +1549,12 @@ export const TOOLS: AgentTool[] = [
         }
       }
       const мёртвые = (d['провайдеры'] || [])
-        .filter((p: any) => !p.ok && !String(p['провайдер']).includes('не обязателен'))
-        .map((p: any) => `${p['провайдер']}: ${String(p['детали']).slice(0, 160)}`)
+        .filter(
+          (p: any) => !p.ok && !String(p['провайдер']).includes('не обязателен')
+        )
+        .map(
+          (p: any) => `${p['провайдер']}: ${String(p['детали']).slice(0, 160)}`
+        )
       return {
         работает: d['работает'],
         всего: d['всего'],
@@ -1534,7 +1577,12 @@ export const TOOLS: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        limit: { type: 'integer', minimum: 1, maximum: 20, description: 'сколько, по умолчанию 5' },
+        limit: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 20,
+          description: 'сколько, по умолчанию 5',
+        },
       },
       additionalProperties: false,
     },
@@ -1570,15 +1618,22 @@ export const TOOLS: AgentTool[] = [
       const рендеры = await Promise.all(
         r.rows.map(async row => {
           try {
-            const st = await selfFetch(`${selfBase()}/render/${encodeURIComponent(row.render_id)}`)
+            const st = await selfFetch(
+              `${selfBase()}/render/${encodeURIComponent(row.render_id)}`
+            )
             const d: any = await st.json().catch(() => null)
             const url = d?.publicUrl || d?.outputUrl
             return {
               renderId: row.render_id,
               название: row.title || undefined,
               запущен: row.created_at,
-              статус: st.ok ? d?.status || 'неизвестно' : `не найден (HTTP ${st.status})`,
-              ссылка: url && !String(url).startsWith('http') ? `${selfBase()}${url}` : url,
+              статус: st.ok
+                ? d?.status || 'неизвестно'
+                : `не найден (HTTP ${st.status})`,
+              ссылка:
+                url && !String(url).startsWith('http')
+                  ? `${selfBase()}${url}`
+                  : url,
             }
           } catch (e) {
             return {
