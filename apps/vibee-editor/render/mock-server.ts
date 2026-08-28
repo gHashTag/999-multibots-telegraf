@@ -237,6 +237,35 @@ const TOOL: Record<string, (a: any) => any> = {
     id: a?.id,
     имя: 'mock-market-skill',
   }),
+  pricing: () => ({
+    бесплатно: [
+      { что: 'Лента, сценарии, SOUL, блог-рилы, img2img (Pollinations)' },
+    ],
+    платно: [
+      { функция: 'image_generate', токенов: 1 },
+      { функция: 'audio_generate', токенов: 6 },
+      { функция: 'video_generate', токенов: 20 },
+      { функция: 'reel_render', токенов: 1 },
+    ],
+    клуб: [
+      { id: 'basic', цена: '$99/мес', даёт: 'доступ к харнесу' },
+      { id: 'pro', цена: '$999/мес', даёт: 'харнес + встречи раз в неделю' },
+    ],
+    режим: 'MOCK',
+  }),
+  provider_setup: (a: any) => ({
+    провайдер: a?.provider || 'все',
+    статус: 'работает (mock)',
+    env: 'MOCK_KEY',
+    как: 'В mock настройка не нужна — образец',
+  }),
+  club: () => ({
+    тарифы: [
+      { id: 'basic', название: 'Trinity Club — Basic', цена: '$99/мес' },
+      { id: 'pro', название: 'Trinity Club — Pro', цена: '$999/мес' },
+    ],
+    как_вступить: 'Telegram Stars (mock)',
+  }),
   // голос владельца
   soul_get: () => ({
     есть: true,

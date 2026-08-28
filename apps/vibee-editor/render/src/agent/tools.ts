@@ -26,6 +26,7 @@
  */
 
 import { planTools } from './plan-tools'
+import { pricingSummary, providerSetup, CLUB } from './pricing'
 
 export interface ToolContext {
   /** Подтверждён подписью или ключом. НЕ приходит из аргументов. */
@@ -1645,6 +1646,56 @@ export const TOOLS: AgentTool[] = [
         })
       )
       return { всего: рендеры.length, рендеры }
+    },
+  },
+
+  {
+    name: 'pricing',
+    description:
+      'Что БЕСПЛАТНО и что ПЛАТНО в Trinity S³AI, и тарифы клуба. Зови, когда ' +
+      'человек спрашивает про деньги, токены, стоимость, «сколько стоит», ' +
+      'подписку или клуб. Бесплатно.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    async handler() {
+      return pricingSummary()
+    },
+  },
+  {
+    name: 'provider_setup',
+    description:
+      'Как настроить/оплатить провайдера (replicate/fal/elevenlabs/glm/openai/' +
+      'pollinations): что даёт, статус (работает/нужна оплата/нужен ключ), какая ' +
+      'переменная, где взять ключ, сколько стоит. Зови, когда человек хочет ' +
+      'подключить провайдера или спрашивает, почему что-то не работает и что ' +
+      'сделать. Без аргумента — все провайдеры. Бесплатно.',
+    parameters: {
+      type: 'object',
+      properties: {
+        provider: {
+          type: 'string',
+          description:
+            'имя провайдера (fal, elevenlabs, replicate, glm, openai, pollinations); пусто — все',
+        },
+      },
+      additionalProperties: false,
+    },
+    async handler(args: Record<string, any>) {
+      return providerSetup(args?.provider)
+    },
+  },
+  {
+    name: 'club',
+    description:
+      'Тарифы клуба Trinity S³AI: Basic $99/мес (доступ к харнесу — агент и все ' +
+      'функции производства) и Pro $999/мес (всё из Basic + групповые встречи раз ' +
+      'в неделю). Зови на вопросы про клуб, доступ, подписку, участие. Бесплатно.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    async handler() {
+      return {
+        тарифы: CLUB,
+        как_вступить:
+          'Оплата подписки — в мини-аппе или боте через Telegram Stars.',
+      }
     },
   },
 

@@ -28,11 +28,11 @@ for t in tools:
 
 # ── MCP протокол ──
 check("MCP:initialize","POST","/mcp",{"jsonrpc":"2.0","id":1,"method":"initialize"}, ok=lambda d:"result" in d)
-check("MCP:tools/list","POST","/mcp",{"jsonrpc":"2.0","id":1,"method":"tools/list"}, ok=lambda d:len(d["result"]["tools"])==32)
+check("MCP:tools/list","POST","/mcp",{"jsonrpc":"2.0","id":1,"method":"tools/list"}, ok=lambda d:len(d["result"]["tools"])==35)
 check("MCP:card(GET)","GET","/mcp")
 
 # ── A2A ──
-check("A2A:agent-card","GET","/.well-known/agent-card.json", ok=lambda d: len(d.get("skills",[]))==32)
+check("A2A:agent-card","GET","/.well-known/agent-card.json", ok=lambda d: len(d.get("skills",[]))==35)
 check("A2A:message/send(текст)","POST","/a2a",{"jsonrpc":"2.0","id":1,"method":"message/send","params":{"message":{"parts":[{"kind":"text","text":"привет"}]}}}, ok=lambda d:"result" in d)
 check("A2A:message/send(skill)","POST","/a2a",{"jsonrpc":"2.0","id":1,"method":"message/send","params":{"message":{"metadata":{"skill":"feed_stats"}}}}, ok=lambda d:"result" in d)
 
