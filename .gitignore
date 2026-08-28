@@ -450,3 +450,5 @@ MetaMuse_*.xlsx
 # Симлинк на node_modules рендера: попал в индекс из-за `git add` по
 # каталогу. В образе он ломает установку зависимостей.
 apps/vibee-editor/render/node_modules
+!.env.local.example
+.dev/

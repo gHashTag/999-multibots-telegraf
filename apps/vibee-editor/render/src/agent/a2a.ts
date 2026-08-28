@@ -22,7 +22,7 @@ import type { IncomingMessage, ServerResponse } from 'http'
 import { randomUUID } from 'node:crypto'
 import { TOOLS_BY_NAME, toMcpTools } from './tools'
 import { runAgent, type ChatMessage } from './chat'
-import { resolveIdentity, readBody } from './routes'
+import { chatIdentity, readBody } from './routes'
 import { verifiedTelegramId } from '../../auth'
 
 const PROTOCOL_VERSION = '0.3.0'
@@ -202,11 +202,9 @@ export async function handleA2A(
   res: ServerResponse,
   getPool: () => any
 ) {
-  const owner = await resolveIdentity(
-    req,
-    verifiedTelegramId(req),
-    await getPool()
-  )
+  // Личность: подпись мини-аппа → сессия приложения → ключ агента. Синхронно и
+  // без pool — вся логика (включая сессии) свёрнута в chatIdentity (routes.ts).
+  const owner = chatIdentity(req, verifiedTelegramId(req))
   if (!owner) {
     return json(res, 401, {
       jsonrpc: '2.0',
