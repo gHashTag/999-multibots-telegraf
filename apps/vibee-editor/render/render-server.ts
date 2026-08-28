@@ -3,6 +3,7 @@
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
 import * as dns from 'node:dns'
 import { handleAuthRoute } from './session-routes'
+import { startJob, getJob, listJobs, recordInto } from './generate-jobs'
 import { handleProjectRoute } from './project-routes'
 ;(dns as any).setDefaultResultOrder?.('ipv4first')
 
@@ -2614,6 +2615,21 @@ const server = createServer(async (req, res) => {
         const { model, prompt, duration, aspect_ratio } = JSON.parse(body)
         console.log(`🎬 [Generate] Video: ${model}, duration: ${duration}`)
 
+        /**
+         * Record the job BEFORE the provider is called.
+         *
+         * Measured on production: this route answers after ~54 seconds, in a
+         * single synchronous response, and the client waits in one fetch with
+         * no timeout. A phone locking or a proxy's 30-second cap loses a
+         * generation already paid for at the provider — the file exists, the
+         * money is spent, and nobody can find it.
+         *
+         * The id is minted first so the answer has somewhere to land even if
+         * the caller is gone by the time it arrives.
+         */
+        const job = startJob('video', verifiedTelegramId(req) ?? '', prompt)
+        recordInto(job, res)
+
         // Determine which API to use based on model
         const isKling = model.startsWith('kling')
         const toolName = isKling
@@ -4931,6 +4947,36 @@ const server = createServer(async (req, res) => {
    * Обработчик сам решает, его ли адрес, и возвращает false, если нет —
    * та же форма, что у соседей по каскаду.
    */
+  /**
+   * Where a lost generation is found again.
+   *
+   * Two routes, both GET, both behind the normal guard: a job carries a prompt
+   * and a paid-for url, so it is as personal as a profile. Ownership is
+   * enforced inside listJobs, not here — a check that lives next to the data
+   * cannot be forgotten by the next caller.
+   */
+  if (req.url?.startsWith('/api/generate/jobs') && req.method === 'GET') {
+    const id = req.url.split('?')[0].replace('/api/generate/jobs', '').replace(/^\//, '')
+    const who = verifiedTelegramId(req) ?? ''
+    if (id) {
+      const job = getJob(id)
+      // A job that is not yours answers exactly like a job that does not
+      // exist. Distinguishing them would let someone enumerate other people's
+      // ids by watching which ones say "forbidden".
+      if (!job || (job.owner && job.owner !== who)) {
+        res.writeHead(404, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'нет такого задания' }))
+        return
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(job))
+      return
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ jobs: listJobs(who) }))
+    return
+  }
+
   if (await handleAuthRoute(req, res, getPool)) return
 
   /**
