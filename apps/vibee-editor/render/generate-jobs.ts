@@ -13,11 +13,15 @@
  * clients that want it, because changing that is a client migration and this
  * is not. What is new is that the answer survives the caller going away.
  *
- * DELIBERATELY IN MEMORY, LIKE renderJobs. A restart forgets the index — but
- * the asset itself is already in storage and in the assets table, so what is
- * lost is a convenience, not the result. A table here would be better and is
- * a separate change; pretending this is durable would be worse than saying it
- * is not.
+ * MEMORY FIRST, TABLE BEHIND IT. The map answers the hot path so a database
+ * outage cannot break generation itself — the thing people paid for must not
+ * depend on the index that merely finds it later. The table is written
+ * through, best effort, and read only when memory does not have the answer.
+ *
+ * That ordering is the whole design. The previous version was memory only and
+ * said so honestly, but a rescue that a deploy forgets is not a rescue: the
+ * window where someone loses a connection and the window where we restart are
+ * the same window.
  */
 
 import crypto from 'node:crypto'
@@ -40,6 +44,105 @@ export interface GenerateJob {
 }
 
 const jobs = new Map<string, GenerateJob>()
+
+type Pool = { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> }
+
+/**
+ * The pool is handed in rather than imported.
+ *
+ * `getPool()` throws SYNCHRONOUSLY when DATABASE_URL is unset — already paid
+ * for once in this repo, where it escaped an async handler and Node killed the
+ * process on a single request. Taking it as a parameter means this module
+ * never calls it, and a server without a database simply runs memory-only.
+ */
+let pool: Pool | null = null
+let schemaReady = false
+
+export function attachStore(p: Pool | null): void {
+  pool = p
+  schemaReady = false
+}
+
+async function ensureSchema(): Promise<boolean> {
+  if (!pool) return false
+  if (schemaReady) return true
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS generate_jobs (
+        id text PRIMARY KEY,
+        kind text NOT NULL,
+        owner_id text NOT NULL DEFAULT '',
+        state text NOT NULL,
+        started_at timestamptz NOT NULL,
+        finished_at timestamptz,
+        url text,
+        provider text,
+        error text,
+        prompt text
+      )`)
+    await pool.query(
+      `CREATE INDEX IF NOT EXISTS generate_jobs_owner
+         ON generate_jobs (owner_id, started_at DESC)`
+    )
+    schemaReady = true
+    return true
+  } catch {
+    // A schema failure must not take down generation. We lose durability for
+    // this process, not the ability to generate.
+    return false
+  }
+}
+
+/**
+ * Write-through, and deliberately not awaited by callers.
+ *
+ * `startJob` is on the path to a provider that will take a minute; making it
+ * wait on a database round trip to hand back an id would add latency to the
+ * one operation that must not fail. Failures are swallowed for the same
+ * reason: an index that cannot be written is worth less than a generation
+ * that cannot start.
+ */
+function persist(job: GenerateJob): void {
+  void (async () => {
+    if (!(await ensureSchema()) || !pool) return
+    try {
+      await pool.query(
+        `INSERT INTO generate_jobs
+           (id, kind, owner_id, state, started_at, finished_at, url, provider, error, prompt)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         ON CONFLICT (id) DO UPDATE SET
+           state = EXCLUDED.state,
+           finished_at = EXCLUDED.finished_at,
+           url = EXCLUDED.url,
+           provider = EXCLUDED.provider,
+           error = EXCLUDED.error`,
+        [
+          job.id, job.kind, job.owner, job.state,
+          new Date(job.startedAt).toISOString(),
+          job.finishedAt ? new Date(job.finishedAt).toISOString() : null,
+          job.url ?? null, job.provider ?? null, job.error ?? null, job.prompt ?? null,
+        ]
+      )
+    } catch {
+      // Same reasoning as above.
+    }
+  })()
+}
+
+function fromRow(r: any): GenerateJob {
+  return {
+    id: String(r.id),
+    kind: r.kind,
+    owner: String(r.owner_id ?? ''),
+    state: r.state,
+    startedAt: new Date(r.started_at).getTime(),
+    finishedAt: r.finished_at ? new Date(r.finished_at).getTime() : undefined,
+    url: r.url ?? undefined,
+    provider: r.provider ?? undefined,
+    error: r.error ?? undefined,
+    prompt: r.prompt ?? undefined,
+  }
+}
 
 /**
  * An hour, matching renderJobs.
@@ -73,6 +176,7 @@ export function startJob(
     prompt: prompt?.slice(0, 200),
   }
   jobs.set(job.id, job)
+  persist(job)
   return job
 }
 
@@ -83,6 +187,7 @@ export function finishJob(id: string, url: string, provider?: string): void {
   job.url = url
   job.provider = provider
   job.finishedAt = Date.now()
+  persist(job)
 }
 
 export function failJob(id: string, error: string): void {
@@ -93,6 +198,7 @@ export function failJob(id: string, error: string): void {
   // by a person on a phone screen.
   job.error = error.slice(0, 400)
   job.finishedAt = Date.now()
+  persist(job)
 }
 
 export function getJob(id: string): GenerateJob | undefined {
@@ -155,4 +261,60 @@ export function recordInto(job: GenerateJob, res: {
     }
     return original(chunk, ...rest)
   }) as typeof res.end
+}
+
+/**
+ * Read with a fallback to the table.
+ *
+ * Kept separate from the synchronous `getJob`/`listJobs` rather than replacing
+ * them: those are what `recordInto` and the tests use on the hot path, where a
+ * database round trip would be wasted — the job was created microseconds ago
+ * and is certainly in memory. The async pair exists for the one caller that
+ * genuinely might be asking after a restart: a person looking for a
+ * generation they paid for.
+ */
+export async function getJobDurable(id: string): Promise<GenerateJob | undefined> {
+  const hit = jobs.get(id)
+  if (hit) return hit
+  if (!(await ensureSchema()) || !pool) return undefined
+  try {
+    const r = await pool.query(`SELECT * FROM generate_jobs WHERE id = $1`, [id])
+    return r.rows.length ? fromRow(r.rows[0]) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export async function listJobsDurable(owner: string, limit = 20): Promise<GenerateJob[]> {
+  // The same refusal as the synchronous version, and stated first so it cannot
+  // be reached around: an empty owner matches nothing, never everything.
+  if (!owner) return []
+
+  const inMemory = listJobs(owner, limit)
+  if (!(await ensureSchema()) || !pool) return inMemory
+
+  try {
+    const r = await pool.query(
+      `SELECT * FROM generate_jobs
+        WHERE owner_id = $1
+        ORDER BY started_at DESC
+        LIMIT $2`,
+      [owner, limit]
+    )
+    /**
+     * Memory wins on conflict, because it is newer.
+     *
+     * A job that finished a moment ago is already correct in memory while the
+     * write-through may still be in flight. Taking the row instead would show
+     * "running" for something that is done — the exact wrong answer for
+     * someone checking whether their generation survived.
+     */
+    const merged = new Map(r.rows.map((row: any) => [String(row.id), fromRow(row)]))
+    for (const j of inMemory) merged.set(j.id, j)
+    return [...merged.values()]
+      .sort((a, b) => b.startedAt - a.startedAt)
+      .slice(0, limit)
+  } catch {
+    return inMemory
+  }
 }
