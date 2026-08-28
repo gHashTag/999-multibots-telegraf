@@ -155,5 +155,16 @@ targets:
       "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]": NO
       # Команда ЗДЕСЬ, а не только в Xcode: `xcodegen generate` затирает всё,
       # что настроено мышью в Signing & Capabilities.
+      # Версия и номер сборки живут ЗДЕСЬ, а не только в Info.plist.
+      #
+      # Без них agvtool отвечает "There does not seem to be a
+      # CURRENT_PROJECT_VERSION key set", а fastlane bump пишет номер прямо в
+      # ОТСЛЕЖИВАЕМЫЙ Info.plist — то есть каждый выпуск оставляет
+      # незакоммиченную правку. Хуже того: run.sh зовёт `xcodegen generate`
+      # безусловно, а он перегенерирует Info.plist из этого файла и возвращает
+      # номер обратно в 1. Запуск run.sh между bump и отправкой молча обнулял
+      # бы номер сборки.
+      MARKETING_VERSION: "1.0"
+      CURRENT_PROJECT_VERSION: "1"
       DEVELOPMENT_TEAM: 5EM4M85VSQ
       CODE_SIGN_STYLE: Automatic

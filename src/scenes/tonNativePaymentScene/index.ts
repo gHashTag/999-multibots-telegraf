@@ -467,7 +467,9 @@ tonNativePaymentScene.action('tonn_cancel', async ctx => {
 // Action: Назад
 tonNativePaymentScene.action('tonn_back', async ctx => {
   await ctx.answerCbQuery()
-  return ctx.scene.enter('paymentScene')
+  // Same fix as tonPaymentScene: the registered id is ModeEnum.PaymentScene
+  // ('payment_scene'), not the literal 'paymentScene'.
+  return ctx.scene.enter(ModeEnum.PaymentScene)
 })
 
 // Handle text in scene (ignore)
