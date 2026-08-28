@@ -202,6 +202,36 @@ async function main() {
   // визуальный апгрейд канала при стабильном расходе (1 генерация/день).
   const forceVideo = process.argv.includes('--with-video')
   const state0 = readState()
+
+  // 0a. Сверка state с ФАКТОМ ленты (цикл №237): state.json — не единственная
+  // правда — его гонки/отравления (вчерашняя дата, потерянный lastPostAt)
+  // уже однажды пропустили два поста за 33 мин при инварианте 3 ч. База —
+  // источник истины: счётчик и момент последнего поста берём из живой ленты.
+  try {
+    const mine = await call('feed_list', { mine: true, limit: 10 })
+    const today = new Date().toISOString().slice(0, 10)
+    const posts = (mine?.записи || []) as any[]
+    const todayPosts = posts.filter(
+      x => String(x.created_at || '').slice(0, 10) === today
+    )
+    if (todayPosts.length > state0.postsToday) {
+      log(
+        `сверка с лентой: счётчик ${state0.postsToday} < факта ${todayPosts.length} за сегодня — верю ленте`
+      )
+      state0.postsToday = todayPosts.length
+    }
+    const lastCreated = posts[0]?.created_at
+    if (
+      lastCreated &&
+      (!state0.lastPostAt ||
+        Date.parse(lastCreated) > Date.parse(state0.lastPostAt))
+    ) {
+      state0.lastPostAt = lastCreated
+    }
+  } catch (e) {
+    log(`сверка с лентой не удалась (продолжаю по state): ${String(e).slice(0, 80)}`)
+  }
+
   const withVideo = forceVideo || state0.postsToday === MAX_POSTS_PER_DAY - 1
   const state = state0
 
