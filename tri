@@ -68,6 +68,10 @@ tri — оснастка цикла. Опыт, ставший командами
         Насколько текущая ветка разошлась с origin/main. Правку ведут ОТ
         origin/main, а не от локального HEAD.
 
+  tri ci
+        Выполняется ли CI вообще. Прогон, падающий за секунды с нулём шагов,
+        — отказ инфраструктуры, а не сигнал о коде: всё влитое влито вслепую.
+
   tri цвета [каталог]
         Литеральные цвета и размеры шрифта в Swift мимо Theme.swift.
         Ловит ЛИТЕРАЛ, не упоминание: .system(size: 14) — да,
@@ -460,6 +464,59 @@ cmd_colors() {
   return 1
 }
 
+# ─────────────────────────────────────────────────────────────────────────
+# ЖИВ ЛИ CI ВООБЩЕ.
+#
+# Найдено на 91-м витке: все проверки GitHub Actions падали за 3-4 секунды
+# С НУЛЁМ ВЫПОЛНЕННЫХ ШАГОВ — отказ по оплате, а не сигнал о коде. Значит
+# десятки правок влиты НЕПРОВЕРЕННЫМИ, и я всё это время писал «влито и
+# проверено», имея в виду свои прогоны, а не CI.
+#
+# Красный CI, который всегда красный, перестают читать — ровно как врущий
+# детектор. Но здесь хуже: он выглядит как работающая защита.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_ci() {
+  local runs
+  runs=$(gh run list --limit 6 --json conclusion,name,startedAt,updatedAt 2>/dev/null) || {
+    bad 'gh не ответил — проверить CI нечем'; return 1; }
+
+  local total failed
+  total=$(printf '%s' "$runs" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))' 2>/dev/null)
+  failed=$(printf '%s' "$runs" | python3 -c '
+import sys,json
+d=json.load(sys.stdin)
+print(sum(1 for r in d if r.get("conclusion")=="failure"))' 2>/dev/null)
+
+  # Секунды между стартом и концом. Прогон, падающий за считанные секунды,
+  # не успел ничего выполнить — это отказ инфраструктуры, а не теста.
+  local quick
+  quick=$(printf '%s' "$runs" | python3 -c '
+import sys,json,datetime
+def t(x): return datetime.datetime.fromisoformat(x.replace("Z","+00:00"))
+d=json.load(sys.stdin)
+n=0
+for r in d:
+    try:
+        s=(t(r["updatedAt"])-t(r["startedAt"])).total_seconds()
+        if r.get("conclusion")=="failure" and s < 15: n+=1
+    except Exception: pass
+print(n)' 2>/dev/null)
+
+  printf '  последних прогонов: %s | провалов: %s | из них короче 15 с: %s\n'     "${total:-?}" "${failed:-?}" "${quick:-?}"
+
+  if [ "${quick:-0}" -ge 3 ]; then
+    bad 'CI НЕ ВЫПОЛНЯЕТСЯ: падает за секунды, шагов не делает'
+    paint '31' '       Это отказ инфраструктуры (чаще всего оплата Actions),'
+    paint '31' '       а не сигнал о коде. Всё, что влито сейчас, влито ВСЛЕПУЮ.'
+    return 1
+  fi
+  if [ "${failed:-0}" -ge 5 ]; then
+    warn 'CI красный подряд — но прогоны идут долго, значит что-то реально падает'
+    return 2
+  fi
+  good 'CI выполняется'
+}
+
 cmd_lesson() {
   local title="${1:?нужен заголовок урока}"
   local skill="$ROOT/.claude/skills/vibee-stack-hard-won/SKILL.md"
@@ -479,6 +536,7 @@ case "$action" in
   выложен)    cmd_deployed ;;
   разошлись)  cmd_diverged ;;
   цвета)      cmd_colors "$@" ;;
+  ci)         cmd_ci ;;
   опыт)       cmd_lesson "$@" ;;
   лок)        bash "$TOOLS/guard.sh" acquire ;;
   раслок)     bash "$TOOLS/guard.sh" release ;;
