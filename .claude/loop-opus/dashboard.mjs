@@ -96,6 +96,32 @@ const пр = n =>
   `<a class="пр" href="https://github.com/gHashTag/999-multibots-telegraf/pull/${n}">#${n}</a>`
 
 const аномалии = свежиеАномалии()
+/**
+ * КЛЮЧИ, КОТОРЫХ ПАНЕЛЬ НЕ ЧИТАЕТ, — ЭТО ПОТЕРЯННАЯ РАБОТА.
+ *
+ * Несколько витков я писал в STATE.json поля `merged`, `landed`,
+ * `selfCritiques`, `anomalies` — и ни одного из них панель не смотрит. Она
+ * исправно показывала СТАРЫЕ числа и выглядела при этом правдивой: заголовок
+ * менялся, витки шли, а список влитого стоял на месте.
+ *
+ * Молчание здесь хуже ошибки. Поэтому: любой ключ верхнего уровня, который
+ * панель не читает, называется вслух при каждой сборке.
+ */
+const ЧИТАЕМЫЕ = new Set([
+  'loop', 'cronJob', 'cadenceMinutes', 'iteration', 'status', 'namespace',
+  'worktree', 'branch', 'dashboard', 'tools', 'collisionPolicy',
+  'measured', 'incidents', 'shipped', 'blocked', 'backlog',
+  'selfCritique', 'updatedAt',
+])
+const лишние = Object.keys(S).filter(k => !ЧИТАЕМЫЕ.has(k))
+if (лишние.length) {
+  console.error(
+    `\n  ВНИМАНИЕ: в STATE.json есть ключи, которых панель НЕ читает:\n` +
+    лишние.map(k => `    ${k}`).join('\n') +
+    `\n  Написанное в них не попадёт на экран. Перенесите в читаемый ключ.\n`
+  )
+}
+
 const ждутВладельца = (S.blocked || []).length + аномалии.length
 
 /**
