@@ -191,9 +191,18 @@ function completedTask(
  * процессе. Ёмкость ограничена: агент не должен течь по памяти.
  */
 const TASKS = new Map<string, any>()
-function rememberTask(t: any) {
+// Owner of each remembered task, tracked separately so it is never serialised
+// into the task returned over the wire. tasks/get consults it: a caller may
+// read only their own task. Kept in lock-step with TASKS on insert and eviction.
+const TASK_OWNERS = new Map<string, string>()
+function rememberTask(t: any, owner: string) {
   TASKS.set(t.id, t)
-  if (TASKS.size > 500) TASKS.delete(TASKS.keys().next().value as string)
+  TASK_OWNERS.set(t.id, owner)
+  if (TASKS.size > 500) {
+    const oldest = TASKS.keys().next().value as string
+    TASKS.delete(oldest)
+    TASK_OWNERS.delete(oldest)
+  }
 }
 
 /** POST /a2a — JSON-RPC 2.0. */
@@ -269,7 +278,7 @@ export async function handleA2A(
           typeof значение === 'string' ? значение : '',
           [{ инструмент: skill, значение }]
         )
-        rememberTask(task)
+        rememberTask(task, owner)
         return ok(task)
       }
 
@@ -324,7 +333,7 @@ export async function handleA2A(
             }
           }
           const task = completedTask(taskId, contextId, message, acc, data)
-          rememberTask(task)
+          rememberTask(task, owner)
           send({
             taskId,
             contextId,
@@ -357,7 +366,7 @@ export async function handleA2A(
       // Синхронный message/send.
       const { text: out, data } = await runToResult(history, owner, pool)
       const task = completedTask(taskId, contextId, message, out, data)
-      rememberTask(task)
+      rememberTask(task, owner)
       return ok(task)
     } catch (e) {
       return err(-32603, `Задача упала: ${String(e).slice(0, 300)}`)
@@ -367,7 +376,14 @@ export async function handleA2A(
   // ── tasks/get ───────────────────────────────────────────────────────────
   if (method === 'tasks/get') {
     const t = TASKS.get(params.id)
-    if (!t) return err(-32001, `Задачи «${params.id}» нет в памяти процесса.`)
+    // Owner check folded into the not-found answer on purpose: a caller must
+    // not be able to tell "someone else's task exists" from "no such task".
+    // taskId is client-chosen (message.taskId), so ids are guessable — before
+    // this, any authenticated caller could read another's generation result by
+    // its id. Same error for both cases leaks nothing.
+    if (!t || TASK_OWNERS.get(params.id) !== owner) {
+      return err(-32001, `Задачи «${params.id}» нет в памяти процесса.`)
+    }
     return ok(t)
   }
 
