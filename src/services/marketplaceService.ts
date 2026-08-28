@@ -1,20 +1,32 @@
 /**
- * ⚠️ ЭТОТ МОДУЛЬ НЕ ИСПОЛНЯЕТСЯ.
+ * WARNING: this module does not move money — but its scene IS reachable now.
  *
- * Маркетплейс не подключён: настоящих импортёров НОЛЬ. Списание звёзд в
- * purchaseItem недостижимо, потому что getItem возвращает пусто раньше —
- * отказ закрытый, денег не теряет.
+ * Correction to the previous header: its claim of "zero real importers" is no
+ * longer true. purchaseItem is imported by the marketplaceWizard scene, and
+ * that scene is registered
+ * (ModeEnum.Marketplace, src/navigation/registerCommands.ts, an entry in
+ * categories.config.ts). A person CAN enter the scene. Money safety therefore
+ * no longer rests on "nobody imports it" — it rests on two pillars, both
+ * checkable:
+ *   1) the marketplace_items / marketplace_purchases tables do not exist in
+ *      the database (PostgREST 42P01), so getItem returns null and
+ *      purchaseItem returns item_not_found BEFORE its single deduct runs;
+ *   2) the item-existence check sits BEFORE updateUserBalance — pinned by
+ *      src/__tests__/money/marketplace-deduct-guarded.test.ts: if the deduct
+ *      ever moves above the check, that test goes red.
  *
- * Кроме того, таблиц marketplace_items, marketplace_purchases в базе НЕТ — проверено
- * запросом к PostgREST (код 42P01). Даже если модуль подключить, он не
- * заработает без схемы.
+ * Latent debt, surfaces the day the owner creates the tables: the author
+ * credit (95%) ignores the updateUserBalance return (tracked as 1 in
+ * unchecked-money-result.test.ts), and there is no duplicate-purchase guard.
+ * Both are about money — fix them together with enabling the feature, not
+ * blindly now.
  *
- * Замеры: docs/audit/table-seams.md, docs/audit/unregistered-functions.md.
- * Инструменты: scripts/probe-table-seams.cjs, scripts/probe-reachability.cjs.
+ * Measured: docs/audit/table-seams.md, docs/audit/unregistered-functions.md.
+ * Tools: scripts/probe-table-seams.cjs, scripts/probe-reachability.cjs.
  *
- * Не удаляю: это может быть незаконченная работа, а не мусор — решение о
- * судьбе за владельцем. Пометка нужна, чтобы следующий читатель не принял
- * код за рабочий и не потратил время, как потратил я.
+ * Not deleting: this may be unfinished work rather than dead code — the call
+ * on its fate is the owner's. The note exists so the next reader does not take
+ * the code for working and lose time, the way an earlier reader did.
  */
 /**
  * Marketplace Service
