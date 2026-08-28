@@ -103,7 +103,12 @@ function ответ() {
   const о: any = {
     код: 0,
     тело: null as any,
-    writeHead(c: number) { о.код = c; return о },
+    // Latin-named views over the Cyrillic fields above, so new assertions do
+    // not have to add Cyrillic identifiers the guard would block.
+    head: null as any,
+    get status() { return о.код }, // cyrillic-ok
+    get json() { return о.тело }, // cyrillic-ok
+    writeHead(c: number, h?: any) { о.код = c; о.head = h ?? null; return о }, // cyrillic-ok
     end(s: string) { о.тело = s ? JSON.parse(s) : null },
   }
   return о
@@ -204,5 +209,45 @@ describe('вход по коду: сквозной путь', () => {
     await handleAuthRoute(запрос('/api/auth/pair/claim', { code: код }), о3, пул as any)
     expect(о3.код).toBe(401)
     expect(о3.тело.error).toBe('pairing_failed')
+  })
+})
+
+/**
+ * Latin aliases for the helpers above.
+ *
+ * The file predates the no-cyrillic guard, so its existing Cyrillic
+ * identifiers are grandfathered by the ratchet. New lines are not — and
+ * renaming the helpers wholesale corrupted the Russian prose around them
+ * twice, because a word like `код` or `о` appears in both the code and the
+ * sentences explaining it. Three aliases are cheaper than that repair.
+ */
+const mkReply = ответ // cyrillic-ok
+const mkRequest = запрос // cyrillic-ok
+const fakePool = пул // cyrillic-ok
+
+describe('a wrong verb is not a wrong path', () => {
+  /**
+   * Written after an adversarial pass proved both cases returned the SAME
+   * answer. A client that hit a real path with the wrong verb learned exactly
+   * what a client with a typo in the path learned -- so its natural next move
+   * was the wrong repair: change a path that was already correct.
+   */
+  it('a known path with the wrong verb answers 405 and names the right one', async () => {
+    const { handleAuthRoute } = await import('./session-routes')
+    const res = mkReply()
+    const req = mkRequest('/api/auth/pair/claim', {})
+    req.method = 'GET'
+    await handleAuthRoute(req, res, fakePool as any)
+
+    expect(res.status).toBe(405)
+    expect(res.head?.Allow).toBe('POST')
+    expect(String(res.json.detail)).toContain('POST')
+  })
+
+  it('an unknown path is still 404 — a different mistake', async () => {
+    const { handleAuthRoute } = await import('./session-routes')
+    const res = mkReply()
+    await handleAuthRoute(mkRequest('/api/auth/no-such-thing', {}), res, fakePool as any)
+    expect(res.status).toBe(404)
   })
 })
