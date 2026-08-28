@@ -153,7 +153,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
 
         try {
           const fileLink = await ctx.telegram.getFileLink(photo.file_id)
-          const response = await fetch(fileLink.href)
+          const response = await fetch(fileLink.href, {
+            signal: AbortSignal.timeout(60_000),
+          })
 
           if (!response.ok) {
             throw new Error(`Failed to download photo: ${response.statusText}`)
@@ -392,7 +394,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           // Скачиваем и загружаем голосовое сообщение
           try {
             const fileLink = await ctx.telegram.getFileLink(voice.file_id)
-            const response = await fetch(fileLink.href)
+            const response = await fetch(fileLink.href, {
+              signal: AbortSignal.timeout(60_000),
+            })
 
             if (!response.ok) {
               throw new Error(
