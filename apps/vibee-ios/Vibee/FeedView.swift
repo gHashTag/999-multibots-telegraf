@@ -48,24 +48,33 @@ struct FeedView: View {
 
   var body: some View {
     ZStack {
-      Color.black.ignoresSafeArea()
+      Тема.Цвет.фон.ignoresSafeArea()
 
       if грузим {
-        ProgressView().tint(.green)
+        ProgressView().tint(Тема.Цвет.акцент)
       } else if let ошибка {
         // Отказ показываем словами. Пустой экран вместо объяснения —
         // ровно та ошибка, которую весь вчерашний день чинил в вебе.
         VStack(spacing: 10) {
           Image(systemName: "wifi.exclamationmark").font(.largeTitle)
           Text("Лента не загрузилась").font(.headline)
-          Text(ошибка).font(.footnote).foregroundStyle(.secondary)
+          Text(ошибка).font(.footnote).foregroundStyle(Тема.Цвет.текстПриглушённый)
             .multilineTextAlignment(.center)
-          Button("Ещё раз") { Task { await загрузить() } }
-            .buttonStyle(.borderedProminent).tint(.green)
+          Button { Task { await загрузить() } } label: {
+            // Высота ВНУТРИ label. Снаружи `.frame` растягивает только
+            // контейнер, а заливку рисует стиль по своему содержимому —
+            // замерено 34.3 pt при формальных 44.
+            Text("Ещё раз")
+              .frame(minHeight: Тема.Кнопка.высота)
+              .padding(.horizontal, Тема.Кнопка.отступПоГоризонтали)
+          }
+          .buttonStyle(.borderedProminent)
+          .tint(Тема.Кнопка.основнаяФон)
+          .foregroundStyle(Тема.Кнопка.основнаяТекст)
         }
-        .padding(32)
+        .padding(Тема.Отступ.xl)
       } else if items.isEmpty {
-        Text("В ленте пока пусто").foregroundStyle(.secondary)
+        Text("В ленте пока пусто").foregroundStyle(Тема.Цвет.текстПриглушённый)
       } else {
         /// Вертикальный пейджинг БЕЗ хака с поворотом.
         ///
@@ -114,11 +123,11 @@ struct FeedView: View {
       if let подсказка {
         Text(подсказка)
           .font(.footnote.weight(.medium))
-          .foregroundStyle(.white)
+          .foregroundStyle(Тема.Цвет.текст)
           .multilineTextAlignment(.center)
-          .padding(.horizontal, 16).padding(.vertical, 10)
-          .background(.black.opacity(0.92), in: Capsule())
-          .padding(.horizontal, 24)
+          .padding(.horizontal, Тема.Отступ.md).padding(.vertical, Тема.Отступ.карточкаЛенты)
+          .background(Тема.Цвет.фон.opacity(0.92), in: Capsule())
+          .padding(.horizontal, Тема.Отступ.lg)
           /**
            * СВЕРХУ, а не над полосой вкладок.
            *
@@ -207,10 +216,10 @@ struct ReelView: View {
       if let player {
         PlayerLayerView(player: player).ignoresSafeArea()
       } else {
-        Color.black
+        Тема.Цвет.фон
       }
 
-      LinearGradient(colors: [.clear, .black.opacity(0.75)],
+      LinearGradient(colors: [.clear, Тема.Цвет.фон.opacity(0.75)],
                      startPoint: .center, endPoint: .bottom)
         .ignoresSafeArea()
 
@@ -221,7 +230,7 @@ struct ReelView: View {
           Spacer(minLength: 0)
           столбецДействий
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, Тема.Отступ.md)
         // Полоса вкладок перекрывает низ: лента идёт под неё во весь экран.
         // 96 pt — высота полосы плюс домашний индикатор с запасом.
         .padding(.bottom, 96)
@@ -277,17 +286,17 @@ struct ReelView: View {
       Text(template.name)
         .font(.title3.weight(.semibold))
       Text("@\(template.creatorUsername)")
-        .font(.subheadline).foregroundStyle(.green)
+        .font(.subheadline).foregroundStyle(Тема.Цвет.акцент)
       Text(template.description)
-        .font(.footnote).foregroundStyle(.white.opacity(0.75))
+        .font(.footnote).foregroundStyle(Тема.Цвет.текстПриглушённый)
         .lineLimit(2)
       HStack(spacing: 16) {
         Label("\(template.viewsCount)", systemImage: "eye")
         Label("\(template.starsCount)", systemImage: "star")
       }
-      .font(.caption).foregroundStyle(.white.opacity(0.6))
+      .font(.caption).foregroundStyle(Тема.Цвет.текстПриглушённый)
     }
-    .foregroundStyle(.white)
+    .foregroundStyle(Тема.Цвет.текст)
   }
 
   /**
@@ -318,12 +327,13 @@ struct ReelView: View {
    * в приложении нет, кнопка открывала бы платёж, который некому завершить.
    */
   private var столбецДействий: some View {
-    VStack(spacing: 4) {
+    VStack(spacing: Тема.Отступ.xs) {
       КнопкаДействия(
         значок: лайкнут ? "heart.fill" : "heart",
         подпись: "\(лайков)",
         активна: лайкнут,
-        цветАктивной: .pink,
+        // #e30b5c — FeedPanel.css:495 (`.like-btn.liked`).
+        цветАктивной: Тема.Цвет.лайк,
         доступность: лайкнут ? "Убрать лайк" : "Нравится"
       ) {
         Task { await переключитьЛайк() }
@@ -350,7 +360,7 @@ struct ReelView: View {
           message: Text("«\(template.name)» — @\(template.creatorUsername)")
         ) {
           СодержимоеКнопки(значок: "square.and.arrow.up", подпись: nil,
-                           активна: false, цветАктивной: .white)
+                           активна: false, цветАктивной: Тема.Цвет.текст)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Поделиться роликом")
@@ -360,7 +370,7 @@ struct ReelView: View {
         значок: звукВыключен ? "speaker.slash.fill" : "speaker.wave.2.fill",
         подпись: nil,
         активна: false,
-        цветАктивной: .white,
+        цветАктивной: Тема.Цвет.текст,
         доступность: звукВыключен ? "Включить звук" : "Выключить звук"
       ) {
         звукВыключен.toggle()
@@ -434,18 +444,18 @@ private struct СодержимоеКнопки: View {
   let цветАктивной: Color
 
   var body: some View {
-    VStack(spacing: 2) {
+    VStack(spacing: Тема.ТабБар.просветИконкаПодпись) {
       Image(systemName: значок)
-        .font(.system(size: 26, weight: .semibold))
-        .foregroundStyle(активна ? цветАктивной : .white)
+        .font(.system(size: Тема.БезИсточника.кегльИконокЛенты, weight: .semibold))
+        .foregroundStyle(активна ? цветАктивной : Тема.Цвет.текст)
         // Тень — не украшение: белая иконка на светлом кадре иначе исчезает.
-        .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
+        .shadow(color: Тема.Цвет.фон.opacity(0.5), radius: 3, y: 1)
         .frame(width: 52, height: 52)
       if let подпись {
         Text(подпись)
           .font(.caption2.weight(.semibold))
-          .foregroundStyle(.white)
-          .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
+          .foregroundStyle(Тема.Цвет.текст)
+          .shadow(color: Тема.Цвет.фон.opacity(0.5), radius: 3, y: 1)
       }
     }
     // Без этого нажатие ловится только по самим пикселям глифа, а не по
@@ -470,7 +480,7 @@ struct PlayerLayerView: UIViewRepresentable {
     let v = PlayerHostView()
     v.playerLayer.player = player
     v.playerLayer.videoGravity = .resizeAspectFill
-    v.backgroundColor = .black
+    v.backgroundColor = UIColor(Тема.Цвет.фон)
     return v
   }
 

@@ -39,7 +39,7 @@ struct TimelineView: View {
         }
         .frame(minWidth: ширинаЗаголовка + ширинаЛинейки)
       }
-      .background(Color.black)
+      .background(Тема.Цвет.фон)
     }
     .gesture(щипок)
   }
@@ -51,23 +51,27 @@ struct TimelineView: View {
   // MARK: - Панель
 
   private var панельИнструментов: some View {
-    HStack(spacing: 14) {
+    HStack(spacing: Тема.Отступ.пузырьЧата) {
       Text(таймкод(currentFrame))
         .font(.system(.footnote, design: .monospaced))
         // Моноширинные цифры: без них таймкод дёргается на каждом кадре,
         // потому что «1» уже «8», и глазу кажется, что прыгает вся панель.
         .monospacedDigit()
-        .foregroundStyle(.white)
+        .foregroundStyle(Тема.Цвет.текст)
 
       Spacer()
 
       Text("\(composition.tracks.count) дорожек · \(composition.durationInFrames) кадров")
         .font(.caption2)
-        .foregroundStyle(.white.opacity(0.5))
+        .foregroundStyle(Тема.Цвет.текстПриглушённый)
     }
-    .padding(.horizontal, 14)
-    .padding(.vertical, 10)
-    .background(.ultraThinMaterial)
+    .padding(.horizontal, Тема.Отступ.пузырьЧата)
+    .padding(.vertical, Тема.Отступ.карточкаЛенты)
+    // Непрозрачная поверхность #1a1a1a, а не материал: в вебе панель
+    // задана `--panel-bg: var(--bg-elevated)` (design-system.css:130),
+    // то есть сплошным цветом. Размытие там объявлено, но бесполезно —
+    // фон под ним непрозрачный (TelegramTabBar.css:24).
+    .background(Тема.Цвет.поверхность)
   }
 
   private func таймкод(_ frame: Int) -> String {
@@ -82,13 +86,13 @@ struct TimelineView: View {
   // MARK: - Дорожки
 
   private var дорожки: some View {
-    VStack(alignment: .leading, spacing: 2) {
+    VStack(alignment: .leading, spacing: Тема.ТабБар.просветИконкаПодпись) {
       ForEach($composition.tracks) { $track in
         HStack(spacing: 0) {
           заголовок(track)
           ZStack(alignment: .leading) {
             Rectangle()
-              .fill(Color.white.opacity(0.03))
+              .fill(Тема.Цвет.поверхность)
               .frame(width: ширинаЛинейки, height: высотаДорожки)
             ForEach($track.items) { $clip in
               клип($clip, дорожкаЗаперта: track.locked)
@@ -100,18 +104,18 @@ struct TimelineView: View {
   }
 
   private func заголовок(_ track: Track) -> some View {
-    HStack(spacing: 6) {
+    HStack(spacing: Тема.Отступ.вкладка) {
       Image(systemName: значок(track.type))
         .font(.caption)
         .foregroundStyle(цвет(track.type))
       Text(track.name)
         .font(.caption2)
         .lineLimit(1)
-        .foregroundStyle(.white.opacity(track.visible ? 0.85 : 0.35))
+        .foregroundStyle(track.visible ? Тема.Цвет.текст : Тема.Цвет.текстПриглушённый)
     }
-    .padding(.horizontal, 8)
+    .padding(.horizontal, Тема.Отступ.sm)
     .frame(width: ширинаЗаголовка, height: высотаДорожки, alignment: .leading)
-    .background(Color.white.opacity(0.05))
+    .background(Тема.Цвет.карточка)
   }
 
   private func значок(_ type: String) -> String {
@@ -127,11 +131,11 @@ struct TimelineView: View {
 
   private func цвет(_ type: String) -> Color {
     switch type {
-    case "video": return Color(red: 0.29, green: 0.87, blue: 0.50)
-    case "audio": return Color(red: 0.98, green: 0.75, blue: 0.24)
-    case "image": return Color(red: 0.45, green: 0.71, blue: 0.98)
-    case "text": return Color(red: 0.85, green: 0.60, blue: 0.98)
-    default: return Color(white: 0.7)
+    case "video": return Тема.БезИсточника.дорожкаВидео
+    case "audio": return Тема.БезИсточника.дорожкаЗвук
+    case "image": return Тема.БезИсточника.дорожкаКартинка
+    case "text": return Тема.БезИсточника.дорожкаТекст
+    default: return Тема.БезИсточника.дорожкаПрочее
     }
   }
 
@@ -141,13 +145,13 @@ struct TimelineView: View {
     let c = clip.wrappedValue
     let тип = composition.tracks.first { $0.id == c.trackId }?.type ?? "video"
 
-    return RoundedRectangle(cornerRadius: 6)
+    return RoundedRectangle(cornerRadius: Тема.Радиус.md)
       .fill(цвет(тип))
       .frame(width: max(CGFloat(c.durationInFrames) * scale, 12),
-             height: высотаДорожки - 8)
+             height: высотаДорожки - Тема.Отступ.sm)
       .overlay(alignment: .leading) {
         Text(c.name ?? тип)
-          .font(.system(size: 10, weight: .semibold))
+          .font(.system(size: Тема.Кегль.xs, weight: .semibold))
           /**
            * Подпись ТЁМНАЯ. Заливка дорожек светлая и насыщенная — белый
            * текст на ней даёт около 1.8:1 при минимуме 4.5:1 по WCAG. Ровно
@@ -157,15 +161,15 @@ struct TimelineView: View {
            * Не чистый чёрный, а почти-чёрный с тёплым уклоном: чистый на
            * насыщенной заливке выглядит дырой.
            */
-          .foregroundStyle(Color(red: 0.08, green: 0.07, blue: 0.06))
+          .foregroundStyle(Тема.БезИсточника.текстНаКлипе)
           .lineLimit(1)
           .padding(.horizontal, 7)
       }
       .overlay {
         // Обводка выбранного: белая, а не цветная — цвет уже занят типом
         // дорожки, и вторая цветная рамка спорила бы с ним за смысл.
-        RoundedRectangle(cornerRadius: 6)
-          .strokeBorder(.white, lineWidth: выбран == c.id ? 2 : 0)
+        RoundedRectangle(cornerRadius: Тема.Радиус.md)
+          .strokeBorder(Тема.Цвет.текст, lineWidth: выбран == c.id ? 2 : 0)
       }
       .opacity(дорожкаЗаперта ? 0.45 : 1)
       .offset(x: CGFloat(c.startFrame) * scale)
@@ -214,7 +218,7 @@ struct TimelineView: View {
 
   private var указательКадра: some View {
     Rectangle()
-      .fill(Color(red: 1, green: 0.24, blue: 0.35))
+      .fill(Тема.Цвет.указательКадра)
       .frame(width: 2)
       .frame(maxHeight: .infinity)
       .offset(x: ширинаЗаголовка + CGFloat(currentFrame) * scale)

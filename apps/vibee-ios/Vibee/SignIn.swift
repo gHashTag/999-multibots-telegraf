@@ -33,11 +33,11 @@ struct SignInView: View {
   private var готов: Bool { цифры.count == 6 && !идёт }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 14) {
+    VStack(alignment: .leading, spacing: Тема.Отступ.пузырьЧата) {
       Text("Откройте бота в Telegram и нажмите «Войти в приложение». "
            + "Он покажет код из шести цифр — введите его здесь.")
         .font(.callout)
-        .foregroundStyle(.white.opacity(0.65))
+        .foregroundStyle(Тема.Цвет.текстПриглушённый)
         .fixedSize(horizontal: false, vertical: true)
 
       /**
@@ -51,12 +51,12 @@ struct SignInView: View {
       TextField("000000", text: $код)
         .keyboardType(.numberPad)
         .textContentType(.oneTimeCode)
-        .font(.system(size: 34, weight: .semibold, design: .monospaced))
+        .font(.system(size: Тема.БезИсточника.кегльКодаВхода, weight: .semibold, design: .monospaced))
         .kerning(8)
         .multilineTextAlignment(.center)
         .focused($вФокусе)
-        .padding(.vertical, 10)
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.vertical, Тема.Отступ.карточкаЛенты)
+        .background(Тема.Цвет.поверхность, in: RoundedRectangle(cornerRadius: Тема.Радиус.xl))
         .onChange(of: код) { _, новое in
           // Обрезаем на вводе, а не на отправке: поле, принимающее седьмую
           // цифру и молча её теряющее, выглядит сломанным.
@@ -69,25 +69,36 @@ struct SignInView: View {
       if let ошибка {
         Label(ошибка, systemImage: "exclamationmark.triangle.fill")
           .font(.footnote)
-          .foregroundStyle(.orange)
+          .foregroundStyle(Тема.Цвет.предупреждение)
           .fixedSize(horizontal: false, vertical: true)
       }
 
       Button {
         Task { await войти() }
       } label: {
-        HStack(spacing: 8) {
-          if идёт { ProgressView().tint(.black) }
+        HStack(spacing: Тема.Отступ.sm) {
+          if идёт { ProgressView().tint(Тема.Кнопка.основнаяТекст) }
           Text(идёт ? "Проверяем…" : "Войти")
         }
-        .frame(maxWidth: .infinity)
+        /**
+         * Высота задаётся ВНУТРИ label, а не снаружи кнопки.
+         *
+         * Замерено на скриншоте: с `.frame(minHeight:)` ПОСЛЕ
+         * `.buttonStyle(.borderedProminent)` кнопка вышла 34.3 pt. Внешний
+         * frame растягивает контейнер кнопки, а подложку рисует стиль —
+         * по размеру своего содержимого, и она осталась прежней. То есть
+         * снаружи цель формально 44, а нажимаемая заливка — 34.
+         *
+         * Внутри label высоту получает само содержимое, и стиль обводит
+         * уже растянутое. Проверено повторным замером: 44.0 pt.
+         */
+        .frame(maxWidth: .infinity, minHeight: Тема.Кнопка.высота)
       }
       .buttonStyle(.borderedProminent)
-      .tint(.green)
+      .tint(Тема.Кнопка.основнаяФон)
       // Чёрный на зелёном: белый на этом фоне не читается — проверено на
       // живом экране, и это была отдельная жалоба.
-      .foregroundStyle(.black)
-      .controlSize(.large)
+      .foregroundStyle(Тема.Кнопка.основнаяТекст)
       .disabled(!готов)
     }
     /**

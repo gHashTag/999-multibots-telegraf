@@ -28,42 +28,42 @@ struct AgentChatView: View {
       VStack(spacing: 0) {
         ScrollViewReader { proxy in
           ScrollView {
-            LazyVStack(alignment: .leading, spacing: 14) {
+            LazyVStack(alignment: .leading, spacing: Тема.Отступ.пузырьЧата) {
               ForEach(сообщения) { m in
-                VStack(alignment: m.свой ? .trailing : .leading, spacing: 6) {
+                VStack(alignment: m.свой ? .trailing : .leading, spacing: Тема.Отступ.вкладка) {
                   if !m.инструменты.isEmpty {
                     // Показываем, ЧЕМ агент проверял. Это и есть доверие:
                     // человек видит, что ответ не выдуман.
-                    HStack(spacing: 6) {
+                    HStack(spacing: Тема.Отступ.вкладка) {
                       ForEach(m.инструменты, id: \.self) { и in
                         Text(и).font(.caption2.monospaced())
                           .padding(.horizontal, 7).padding(.vertical, 3)
-                          .background(.green.opacity(0.15), in: Capsule())
-                          .foregroundStyle(.green)
+                          .background(Тема.Цвет.акцент.opacity(0.15), in: Capsule())
+                          .foregroundStyle(Тема.Цвет.акцент)
                       }
                     }
                   }
                   Text(m.текст)
-                    .padding(12)
-                    .background(m.свой ? .green.opacity(0.2) : .white.opacity(0.07),
-                                in: RoundedRectangle(cornerRadius: 14))
+                    .padding(Тема.Отступ.списокЛенты)
+                    .background(m.свой ? Тема.Цвет.акцент.opacity(0.2) : Тема.Цвет.поверхность,
+                                in: RoundedRectangle(cornerRadius: Тема.Радиус.xl))
                 }
                 .frame(maxWidth: .infinity, alignment: m.свой ? .trailing : .leading)
                 .id(m.id)
               }
             }
-            .padding(16)
+            .padding(Тема.Отступ.md)
           }
           .onChange(of: сообщения.count) {
             withAnimation { proxy.scrollTo(сообщения.last?.id, anchor: .bottom) }
           }
         }
 
-        HStack(spacing: 10) {
+        HStack(spacing: Тема.Отступ.карточкаЛенты) {
           TextField("Спроси агента…", text: $ввод, axis: .vertical)
             .textFieldStyle(.plain)
-            .padding(12)
-            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 20))
+            .padding(Тема.Отступ.списокЛенты)
+            .background(Тема.Цвет.поверхность, in: RoundedRectangle(cornerRadius: Тема.Радиус.xl))
           Button {
             Task { await отправить() }
           } label: {
@@ -71,13 +71,15 @@ struct AgentChatView: View {
               .font(.title)
           }
           .disabled(ввод.isEmpty || идёт)
-          .tint(.green)
+          // Явные 44: иконка `.title` сама по себе даёт цель около 28.
+          .frame(width: Тема.Касание.минимум, height: Тема.Касание.минимум)
+          .tint(Тема.Цвет.акцент)
         }
-        .padding(12)
+        .padding(Тема.Отступ.списокЛенты)
       }
       .navigationTitle("Агент")
       .navigationBarTitleDisplayMode(.inline)
-      .background(Color.black)
+      .background(Тема.Цвет.фон)
     }
   }
 

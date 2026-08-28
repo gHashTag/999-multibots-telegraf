@@ -881,7 +881,7 @@ struct NativePreview: UIViewRepresentable {
 
   func makeUIView(context: Context) -> PreviewHostView {
     let вид = PreviewHostView()
-    вид.backgroundColor = .black
+    вид.backgroundColor = UIColor(Тема.Цвет.фон)
     вид.playerLayer.videoGravity = .resizeAspect
     вид.playerLayer.player = player
     вид.overlay = overlay
