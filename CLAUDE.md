@@ -417,15 +417,24 @@ async ctx => {
 
 ### Issue 4: Balance deduction race condition
 
+> ⚠️ **ВНИМАНИЕ (2026-08-29): `deduct_balance` RPC НЕ СУЩЕСТВУЕТ.** Раздел ниже
+> показывает целевой паттерн, но в реальности его нет. Grep `src/` на
+> `rpc('...deduct...')` пуст; единственный балансовый RPC — read-only
+> `get_user_balance`. Баланс — это СУММА леджера `payments_v2`, не колонка,
+> поэтому все текущие пути списания (`updateUserBalance`, `directPayment`,
+> `processBalanceOperation`) используют именно «❌ WRONG» read-check-write и
+> подвержены double-spend при двойном тапе. Пока RPC не создан (миграция — в
+> issue), НЕ полагайтесь на атомарность списания: см. **#999**.
+
 ```typescript
-// ❌ WRONG (race condition)
+// ❌ WRONG (race condition) — ЭТО ТО, ЧТО СЕЙЧАС В КОДЕ
 const balance = await getBalance(userId)
 if (balance >= cost) {
   await deductBalance(userId, cost)
   await generateContent()
 }
 
-// ✅ CORRECT (atomic transaction)
+// ✅ CORRECT (atomic transaction) — ЦЕЛЬ, RPC ещё НЕ создан (#999)
 const { data, error } = await supabase.rpc('deduct_balance', {
   p_telegram_id: userId,
   p_amount: cost,
