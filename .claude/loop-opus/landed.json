@@ -412,5 +412,29 @@
     "file": ".claude/loop-opus/verify-landed.mjs",
     "needle": "fileURLToPath",
     "note": "verify-landed выводит REPO из пути скрипта, не хардкод playom"
+  },
+  {
+    "pr": 871,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "verifiedTelegramId(req)",
+    "note": "публикация от чужого имени закрыта: владелец из подписи"
+  },
+  {
+    "pr": 872,
+    "file": "apps/vibee-editor/render/src/agent/tools.ts",
+    "needle": "balance >= $2 RETURNING balance",
+    "note": "атомарное списание токенов"
+  },
+  {
+    "pr": 873,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "star_payments",
+    "note": "идемпотентность вебхука покупки"
+  },
+  {
+    "pr": 874,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "Number(t.date) * 1000",
+    "note": "tokens/verify числовое сравнение дат"
   }
 ]
