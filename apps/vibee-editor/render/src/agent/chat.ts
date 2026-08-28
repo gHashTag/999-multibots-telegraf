@@ -196,78 +196,107 @@ async function* streamModel(
     // неизвестное поле там ошибка, а не игнор.
     if (p.thinking) body.thinking = { type: 'enabled' }
 
-    let r: Response
+    // Дедлайн на ВЕСЬ ответ провайдера. Без него зависшее соединение
+    // (провайдер открыл поток и молчит) вешало reader.read() навсегда: канал
+    // к клиенту висел без heartbeat, человек крутил точки печати вечно.
+    // AbortController обрывает и fetch, и чтение тела, поэтому reader.read()
+    // отвергнется, а не зависнет. 120с — потолок с запасом на длинный ответ
+    // с размышлением.
+    const ac = new AbortController()
+    const timer = setTimeout(() => ac.abort(), 120_000)
+    // Отдали ли клиенту хоть кусок текста. Если да, «тихо начать заново у
+    // другого провайдера» уже нельзя — человек увидел бы склейку двух ответов.
+    let ужеОтдалиТекст = false
     try {
-      r = await fetch(`${p.base}/chat/completions`, {
+      const r = await fetch(`${p.base}/chat/completions`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${p.key}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),
+        signal: ac.signal,
       })
-    } catch (e) {
-      причины.push(`${p.id}: сеть недоступна — ${String(e).slice(0, 120)}`)
-      continue
-    }
 
-    if (!r.ok || !r.body) {
-      const t = await r.text().catch(() => '')
-      причины.push(diagnose(p.id, r.status, t))
-      continue
-    }
+      if (!r.ok || !r.body) {
+        const t = await r.text().catch(() => '')
+        причины.push(diagnose(p.id, r.status, t))
+        continue
+      }
 
-    const reader = (r.body as any).getReader()
-    const decoder = new TextDecoder()
-    let buf = ''
-    const acc: any = { role: 'assistant', content: '', tool_calls: [] }
+      const reader = (r.body as any).getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      const acc: any = { role: 'assistant', content: '', tool_calls: [] }
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buf += decoder.decode(value, { stream: true })
-      const lines = buf.split('\n')
-      buf = lines.pop() ?? ''
-      for (const line of lines) {
-        const str = line.trim()
-        if (!str.startsWith('data:')) continue
-        const payload = str.slice(5).trim()
-        if (payload === '[DONE]') continue
-        let j: any
-        try {
-          j = JSON.parse(payload)
-        } catch {
-          continue
-        }
-        const d = j.choices?.[0]?.delta
-        if (!d) continue
-        if (d.reasoning_content) {
-          yield { kind: 'reasoning', text: d.reasoning_content }
-        }
-        if (d.content) {
-          acc.content += d.content
-          yield { kind: 'content', text: d.content }
-        }
-        if (d.tool_calls) {
-          for (const tc of d.tool_calls) {
-            const i = tc.index ?? 0
-            acc.tool_calls[i] ??= {
-              id: '',
-              type: 'function',
-              function: { name: '', arguments: '' },
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() ?? ''
+        for (const line of lines) {
+          const str = line.trim()
+          if (!str.startsWith('data:')) continue
+          const payload = str.slice(5).trim()
+          if (payload === '[DONE]') continue
+          let j: any
+          try {
+            j = JSON.parse(payload)
+          } catch {
+            continue
+          }
+          // Ошибка провайдера ПОСРЕДИ потока приходит как 200 + data:{error}.
+          // Раньше `if (!d) continue` её молча проглатывал, поток заканчивался
+          // пустым, и клиент получал пустой пузырь. Теперь бросаем — runAgent
+          // поймает и покажет человеку 'ошибка', а не пустоту.
+          if (j.error) {
+            throw new Error(
+              `${p.id} прислал ошибку в потоке: ${JSON.stringify(j.error).slice(0, 150)}`
+            )
+          }
+          const d = j.choices?.[0]?.delta
+          if (!d) continue
+          if (d.reasoning_content) {
+            yield { kind: 'reasoning', text: d.reasoning_content }
+          }
+          if (d.content) {
+            acc.content += d.content
+            ужеОтдалиТекст = true
+            yield { kind: 'content', text: d.content }
+          }
+          if (d.tool_calls) {
+            for (const tc of d.tool_calls) {
+              const i = tc.index ?? 0
+              acc.tool_calls[i] ??= {
+                id: '',
+                type: 'function',
+                function: { name: '', arguments: '' },
+              }
+              if (tc.id) acc.tool_calls[i].id = tc.id
+              if (tc.function?.name)
+                acc.tool_calls[i].function.name += tc.function.name
+              if (tc.function?.arguments)
+                acc.tool_calls[i].function.arguments += tc.function.arguments
             }
-            if (tc.id) acc.tool_calls[i].id = tc.id
-            if (tc.function?.name)
-              acc.tool_calls[i].function.name += tc.function.name
-            if (tc.function?.arguments)
-              acc.tool_calls[i].function.arguments += tc.function.arguments
           }
         }
       }
+      if (!acc.tool_calls.length) delete acc.tool_calls
+      yield { kind: 'done', message: acc }
+      return
+    } catch (e) {
+      const почему = ac.signal.aborted
+        ? `${p.id}: не ответил за 120с (таймаут)`
+        : `${p.id}: ${String(e).slice(0, 140)}`
+      // Уже отдали текст — молчаливый перевод на другого провайдера склеил бы
+      // два ответа. Бросаем: пусть runAgent покажет, что ответ оборван.
+      if (ужеОтдалиТекст) throw new Error(почему)
+      причины.push(почему)
+      continue
+    } finally {
+      clearTimeout(timer)
     }
-    if (!acc.tool_calls.length) delete acc.tool_calls
-    yield { kind: 'done', message: acc }
-    return
   }
 
   throw new Error(
