@@ -125,6 +125,24 @@ const ЧИТАЕМЫЕ = new Set([
  * Урок: проверять надо не только куда пишут, но и ЧЕМ. Пустая строка там, где
  * ждали текст, — это молчание, а молчание здесь неотличимо от правды.
  */
+/**
+ * The same shape check, for blocked.
+ *
+ * The shipped guard was added after eight rows rendered as bare links with no
+ * text. It did not help the very next time, because blocked reads different
+ * field names and three rows printed "-- undefined" instead. A guard that
+ * covers one collection and not its neighbours teaches the wrong lesson: that
+ * the problem was that key, rather than the class.
+ */
+const кривыеБлокеры = (S.blocked || []).filter(b => !b['что'] || !b['причина'])
+if (кривыеБлокеры.length) {
+  console.error(
+    `\n  ВНИМАНИЕ: ${кривыеБлокеры.length} записей в blocked без «что»/«причина».\n` +
+    `  Ожидаются поля: что, причина, чтоНужно.\n` +
+    `  Найдено вместо них: ${[...new Set(кривыеБлокеры.flatMap(Object.keys))].join(', ')}\n`
+  )
+}
+
 const безТекста = (S.shipped || []).filter(x => !x['что'])
 if (безТекста.length) {
   console.error(
