@@ -23,9 +23,21 @@
 
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
-const REPO = '/Users/playom/999-multibots-telegraf'
+// REPO выводится из расположения скрипта, а НЕ хардкодится.
+//
+// Прежде здесь стояло '/Users/playom/999-multibots-telegraf' — опечатка в
+// имени пользователя (playom вместо playra). Каталог не существует, поэтому
+// execFileSync('git', …, { cwd: REPO }) падал с ENOENT на КАЖДОМ запуске, и
+// проверка «не перезаписана ли моя правка чужим мержем» не отрабатывала ни
+// разу с момента написания — тихо выходила с кодом 2. Инструмент, который
+// должен ловить молчаливую потерю правок, сам молча не работал.
+//
+// Скрипт лежит в <REPO>/.claude/loop-opus/, поэтому REPO — на три уровня выше.
+// Так путь верен на любой машине и не зависит от имени пользователя.
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const MANIFEST = new URL('./landed.json', import.meta.url)
 
 /**
@@ -82,16 +94,22 @@ for (const m of marks) {
 console.log(`проверено следов: ${checked} из ${marks.length}`)
 
 if (checked === 0) {
-  console.error('НЕ ИЗМЕРЕНО: ни одного файла не прочитано — вывод недействителен')
+  console.error(
+    'НЕ ИЗМЕРЕНО: ни одного файла не прочитано — вывод недействителен'
+  )
   process.exit(2)
 }
 
 if (lost.length) {
   console.error(`\n❌ ПРАВКА ПРОПАЛА С main (${lost.length}):\n`)
   lost.forEach(l => console.error('   ' + l))
-  console.error('\nСкорее всего перезаписано чужим мержем: чужая ветка была отведена')
+  console.error(
+    '\nСкорее всего перезаписано чужим мержем: чужая ветка была отведена'
+  )
   console.error('ДО вашего мержа, тронула тот же файл и влилась ПОСЛЕ.')
-  console.error('Восстанавливать cherry-pick поверх текущего main, а НЕ откатом чужого.')
+  console.error(
+    'Восстанавливать cherry-pick поверх текущего main, а НЕ откатом чужого.'
+  )
   process.exit(1)
 }
 
