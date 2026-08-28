@@ -23,16 +23,14 @@ targets:
       # То есть сборка была невозможна не из-за проекта, а из-за того, что
       # симуляторных назначений в списке не оказывалось вовсе.
       SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
-      # Версия и номер сборки. MARKETING_VERSION видит человек в TestFlight,
-      # CURRENT_PROJECT_VERSION поднимает fastlane перед каждой выкладкой —
-      # и берёт его У APPLE, а не отсюда: локальный счётчик разъезжается,
-      # как только собрали с другой машины.
-      MARKETING_VERSION: "1.0"
-      CURRENT_PROJECT_VERSION: "1"
-      # Подпись ОТКЛЮЧЕНА ТОЛЬКО ДЛЯ СИМУЛЯТОРА.
+      # Автоподпись для устройства не нужна и мешает сборке под симулятор.
+      # Подпись отключена ТОЛЬКО для симулятора.
       #
-      # Раньше здесь стояло безусловное CODE_SIGNING_ALLOWED: NO — это чинило
-      # локальную сборку и молча ломало бы архив для TestFlight: подписать
-      # .ipa без подписи нельзя, а ошибка вылезла бы в конце долгой сборки.
+      # Безусловное NO чинило локальную сборку и молча ломало устройство:
+      # приложение собиралось, но iPhone отвергал его с
+      # ApplicationVerificationFailed — профиль не вшивался вовсе.
       "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]": NO
-      DEVELOPMENT_TEAM: "$(FASTLANE_TEAM_ID)"
+      # Команда ЗДЕСЬ, а не только в Xcode: `xcodegen generate` затирает всё,
+      # что настроено мышью в Signing & Capabilities.
+      DEVELOPMENT_TEAM: 5EM4M85VSQ
+      CODE_SIGN_STYLE: Automatic
