@@ -1,6 +1,7 @@
 import { MyContext } from '@/interfaces'
 import { getUserBalance, getReferalsCountAndUserData } from '@/core/supabase'
-import { updateUserBalance } from '@/core/supabase/updateUserBalance'
+import { updateUserBalanceUnlocked } from '@/core/supabase/updateUserBalance'
+import { withUserBalanceLock } from '@/core/supabase/balanceLock'
 import { createMainMenuKeyboard } from '@/navigation'
 import { PaymentType } from '@/interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -122,17 +123,6 @@ export async function refundUser(
   const telegramIdStr = ctx.from.id.toString()
   const amountToRefund = Number(paymentAmount)
 
-  const check = await hasChargeToRefund(telegramIdStr, amountToRefund)
-  if (!check.allowed) {
-    console.error(
-      `refundUser: возврат ОТКЛОНЁН для ${telegramIdStr} на ${amountToRefund} — ${check.reason}`
-    )
-    return
-  }
-  if (check.reason !== 'ок') {
-    console.error(`refundUser: возврат разрешён вслепую (${check.reason})`)
-  }
-
   const initialBalance = await getUserBalance(telegramIdStr)
 
   if (initialBalance === null) {
@@ -145,17 +135,45 @@ export async function refundUser(
   // Добавляем bot_name
   const bot_name = ctx.botInfo?.username || 'unknown_bot'
 
-  const transactionResult = await updateUserBalance(
+  // The eligibility check and the credit run under ONE per-user lock so a
+  // concurrent refund cannot pass hasChargeToRefund before this one has
+  // credited. hasChargeToRefund nets prior refunds out of the charge, so the
+  // second refund — running after the first credited — sees it and is refused,
+  // instead of both crediting (finding 4 of the money audit, #999). The
+  // *Unlocked balance impl is used because updateUserBalance would re-acquire
+  // the same lock and deadlock. `null` = check refused (stay silent, as before);
+  // `false` = credit failed; `true` = credited.
+  const transactionResult = await withUserBalanceLock(
     telegramIdStr,
-    amountToRefund,
-    PaymentType.MONEY_INCOME,
-    `Refund (${reason})`,
-    {
-      bot_name: bot_name,
-      refund_reason: reason,
-      refund_service: service ?? ctx.session?.mode ?? null,
-    } as any
+    async (): Promise<boolean | null> => {
+      const check = await hasChargeToRefund(telegramIdStr, amountToRefund)
+      if (!check.allowed) {
+        console.error(
+          `refundUser: возврат ОТКЛОНЁН для ${telegramIdStr} на ${amountToRefund} — ${check.reason}`
+        )
+        return null
+      }
+      if (check.reason !== 'ок') {
+        console.error(`refundUser: возврат разрешён вслепую (${check.reason})`)
+      }
+      return updateUserBalanceUnlocked(
+        telegramIdStr,
+        amountToRefund,
+        PaymentType.MONEY_INCOME,
+        `Refund (${reason})`,
+        {
+          bot_name: bot_name,
+          refund_reason: reason,
+          refund_service: service ?? ctx.session?.mode ?? null,
+        } as any
+      )
+    }
   )
+
+  // Refused check: silent, exactly as before (no reply, no error path).
+  if (transactionResult === null) {
+    return
+  }
 
   // Проверяем булевый результат напрямую
   if (!transactionResult) {

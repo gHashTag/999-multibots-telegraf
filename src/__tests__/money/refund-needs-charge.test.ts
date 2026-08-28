@@ -48,6 +48,9 @@ vi.mock('@/core/supabase', () => ({
 }))
 vi.mock('@/core/supabase/updateUserBalance', () => ({
   updateUserBalance: (...a: unknown[]) => updateUserBalance(...a),
+  // refundUser credits through the *Unlocked impl inside withUserBalanceLock
+  // (its check and credit must be atomic per user, #999). Same spy either way.
+  updateUserBalanceUnlocked: (...a: unknown[]) => updateUserBalance(...a),
 }))
 vi.mock('@/navigation', () => ({ createMainMenuKeyboard: () => ({}) }))
 vi.mock('@/helpers/centralizedLanguage', () => ({
@@ -92,10 +95,24 @@ describe('возврат требует состоявшегося списан�
     expect(src).toMatch(/alreadyReturned \+ amount >/)
   })
 
+  it('check and credit run under one per-user lock (idempotent, #999)', () => {
+    // Otherwise two concurrent cancels both pass hasChargeToRefund before
+    // either credits, and both refund. The lock serializes them: the second
+    // sees the first's refund and is rejected.
+    const lock = src.indexOf('withUserBalanceLock(')
+    const check = src.indexOf('hasChargeToRefund(telegramIdStr')
+    const credit = src.indexOf('updateUserBalanceUnlocked(')
+    expect(lock, 'refund не под withUserBalanceLock').toBeGreaterThan(-1)
+    expect(lock).toBeLessThan(check) // both check and credit are INSIDE the lock
+    expect(lock).toBeLessThan(credit)
+  })
+
   it('проверка стоит ДО начисления', () => {
     // Проверка после начисления не защищает ни от чего.
+    // The credit now runs through updateUserBalanceUnlocked inside the lock;
+    // the invariant is unchanged — the eligibility check precedes the credit.
     expect(src.indexOf('hasChargeToRefund(telegramIdStr')).toBeLessThan(
-      src.indexOf('await updateUserBalance(')
+      src.indexOf('updateUserBalanceUnlocked(')
     )
   })
 

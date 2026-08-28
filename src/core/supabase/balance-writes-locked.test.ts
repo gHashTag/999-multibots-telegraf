@@ -36,10 +36,12 @@ describe('balance writes stay behind the per-user lock (#999)', () => {
       // the real work lives in the *Unlocked implementation
       expect(src, `${c.file}: no ${c.impl}`).toContain(`${c.impl}`)
       // and the public export routes through the lock
-      const exportIdx =
-        src.indexOf(`export const ${c.export}`) >= 0
-          ? src.indexOf(`export const ${c.export}`)
-          : src.indexOf(`export function ${c.export}`)
+      // Word boundary so updateUserBalance does not match the also-exported
+      // updateUserBalanceUnlocked impl (exported for refundUser's in-lock use).
+      const m = src.match(
+        new RegExp(`export (?:const|function) ${c.export}\\b`)
+      )
+      const exportIdx = m && m.index != null ? m.index : -1
       expect(exportIdx, `${c.file}: no export of ${c.export}`).toBeGreaterThan(
         -1
       )
