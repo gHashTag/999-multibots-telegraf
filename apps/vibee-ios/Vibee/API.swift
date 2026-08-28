@@ -423,3 +423,46 @@ extension API {
     return ответ.jobs.first { $0.kind == вид && $0.state == "done" && $0.url != nil }
   }
 }
+
+extension API {
+  /**
+   * Пакеты токенов. Ключи ПО-РУССКИ — так их отдаёт сервер.
+   *
+   * Проверено живым запросом, а не выведено из веб-клиента:
+   *   GET /api/tokens/packs → {"ok":true,"включено":true,
+   *     "пакеты":[{"id":"10","токенов":10,"звёзд":15}, …]}
+   *
+   * Переименовывать их в латиницу через CodingKeys было бы аккуратнее на вид
+   * и опаснее по сути: лишний слой, в котором опечатка даст nil молча. Пусть
+   * модель повторяет провод как есть.
+   */
+  struct TokenPack: Decodable, Identifiable {
+    let id: String
+    let токенов: Int
+    let звёзд: Int
+  }
+
+  private struct PacksResponse: Decodable {
+    let ok: Bool
+    let включено: Bool
+    let пакеты: [TokenPack]
+  }
+
+  /**
+   * Возвращает пустой список, когда продажа ВЫКЛЮЧЕНА на сервере.
+   *
+   * Флаг `включено` существует затем, чтобы её можно было закрыть, не
+   * выкладывая приложение. Показать пакеты вопреки ему значило бы дать
+   * человеку нажать на то, что сервер откажется выставить счётом.
+   */
+  static func tokenPacks() async -> [TokenPack] {
+    var r = URLRequest(url: base.appendingPathComponent("api/tokens/packs"))
+    for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+    guard let (data, resp) = try? await URLSession.shared.data(for: r),
+          (resp as? HTTPURLResponse)?.statusCode == 200,
+          let ответ = try? JSONDecoder().decode(PacksResponse.self, from: data),
+          ответ.включено
+    else { return [] }
+    return ответ.пакеты
+  }
+}
