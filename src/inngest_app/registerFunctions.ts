@@ -5,6 +5,10 @@
 
 import { serve } from 'inngest/express'
 import { inngest } from './inngestClient'
+// Тот же клиент (id 'telegram-bot-client'), которым создаются ВСЕ остальные
+// функции. serve() ниже использует inngest из './inngestClient' (id 'vibee') —
+// пара «функции на одном клиенте, serve на другом» — рабочий прод-паттерн.
+import { inngest as inngestFnClient } from './client'
 import { logger } from '@/utils/logger'
 
 // Content Functions
@@ -20,12 +24,24 @@ import { generateScenarioClips } from './functions/content/generateScenarioClips
 // import { instagramReelsTest } from './functions/instagram/instagramScraper-v2-simple'
 
 // Monitoring Functions
-import { criticalErrorMonitor, healthCheck } from './functions/monitoring/criticalErrorMonitor'
-import { logMonitor, triggerLogMonitor } from './functions/monitoring/logMonitor'
+import {
+  criticalErrorMonitor,
+  healthCheck,
+} from './functions/monitoring/criticalErrorMonitor'
+import {
+  logMonitor,
+  triggerLogMonitor,
+} from './functions/monitoring/logMonitor'
 
 // Training Functions
 import { modelTrainingV2 } from './functions/training/modelTrainingV2'
 import { morphImages } from './functions/training/morphImages'
+// Обработчик завершения обучения. Живой путь v1 (generateModelTrainingFunction)
+// регистрирует webhook Replicate, тот шлёт model/training.completed — но
+// подписчика не было, и обещанное «получите уведомление когда завершится»
+// не приходило. Импорт фабрики напрямую из existing/ — чтобы registration.test
+// увидел регистрацию именно файла-определения, а не обёртки.
+import { createHandleModelTrainingCompletedFunction } from './functions/existing/handleModelTrainingCompleted'
 
 // Generation Functions
 import { neuroImageGeneration } from './functions/generation/neuroImageGeneration'
@@ -53,6 +69,11 @@ import { generateAIReelsFunction } from './functions/existing/generateAIReelsFun
 import { generateAdvancedLoopingVideoFunction } from './functions/existing/generateAdvancedLoopingVideoFunction'
 import { generateModelTrainingFunction } from './functions/existing/generateModelTrainingFunction'
 
+// Создаётся тем же клиентом './client', что и modelTrainingV2 и остальные —
+// проверенная в проде связка (см. импорт inngestFnClient выше).
+const handleModelTrainingCompleted =
+  createHandleModelTrainingCompletedFunction(inngestFnClient)
+
 const allFunctionsRaw = [
   // Content (6)
   analyzeCompetitorReels,
@@ -72,9 +93,10 @@ const allFunctionsRaw = [
   logMonitor,
   triggerLogMonitor,
 
-  // Training (2)
+  // Training (3)
   modelTrainingV2,
   morphImages,
+  handleModelTrainingCompleted,
 
   // Generation (1)
   neuroImageGeneration,
@@ -105,7 +127,9 @@ const allFunctionsRaw = [
 
 export const allInngestFunctions = allFunctionsRaw.filter((f, index) => {
   if (!f) {
-    logger.warn(`⚠️ [INNGEST] Function at index ${index} is undefined - skipping`)
+    logger.warn(
+      `⚠️ [INNGEST] Function at index ${index} is undefined - skipping`
+    )
     return false
   }
   return true
