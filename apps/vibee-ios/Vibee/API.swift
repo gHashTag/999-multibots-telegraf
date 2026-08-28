@@ -384,3 +384,42 @@ extension API {
     }
   }
 }
+
+extension API {
+  /**
+   * Задание генерации — то, что сервер записал о нашем запросе.
+   *
+   * Существует ради одного случая: связь оборвалась, а генерация прошла.
+   * Провайдеру заплачено, файл в хранилище, и потеряна только наша сторона
+   * разговора. Сервер заводит задание ДО вызова провайдера, поэтому ответ
+   * оседает там независимо от того, дослушали мы его или нет.
+   */
+  struct Job: Decodable {
+    let id: String
+    let kind: String
+    let state: String
+    let url: String?
+    let provider: String?
+    let error: String?
+  }
+
+  private struct JobsResponse: Decodable { let jobs: [Job] }
+
+  /**
+   * Последнее ЗАВЕРШЁННОЕ задание нужного вида.
+   *
+   * Незавершённые пропускаем намеренно: показать «running» как результат
+   * значило бы подсунуть человеку пустую ссылку. А молчание здесь честнее —
+   * пусть повторит, чем получит ничто под видом чего-то.
+   */
+  static func последнееЗадание(вид: String) async -> Job? {
+    var r = URLRequest(url: base.appendingPathComponent("api/generate/jobs"))
+    for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+    guard let (data, resp) = try? await URLSession.shared.data(for: r),
+          (resp as? HTTPURLResponse)?.statusCode == 200,
+          let ответ = try? JSONDecoder().decode(JobsResponse.self, from: data)
+    else { return nil }
+
+    return ответ.jobs.first { $0.kind == вид && $0.state == "done" && $0.url != nil }
+  }
+}
