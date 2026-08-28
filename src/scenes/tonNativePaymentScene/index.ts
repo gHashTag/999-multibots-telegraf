@@ -352,8 +352,13 @@ tonNativePaymentScene.action(/^tonn_check_(.+)$/, async ctx => {
       amount: nanoToTon(transaction.amount),
     })
 
-    // Обновляем запись в БД
-    const { error: updateError } = await supabase
+    // Claim the payment with a compare-and-set: only the check that flips it
+    // from PENDING to COMPLETED is allowed to credit. Two concurrent taps of
+    // "check payment" both read the PENDING row and both find the on-chain tx,
+    // so without the status guard both would credit — a double top-up for one
+    // real payment. .eq('status', PENDING) makes the UPDATE atomic in Postgres
+    // and .select() reports whether this tap won.
+    const { data: claimed, error: updateError } = await supabase
       .from('payments_v2')
       .update({
         status: PaymentStatus.COMPLETED,
@@ -366,6 +371,8 @@ tonNativePaymentScene.action(/^tonn_check_(.+)$/, async ctx => {
         },
       })
       .eq('inv_id', invId)
+      .eq('status', PaymentStatus.PENDING)
+      .select('inv_id')
 
     if (updateError) {
       logger.error('[TON NATIVE PAYMENT] Error updating payment status', {
@@ -373,6 +380,21 @@ tonNativePaymentScene.action(/^tonn_check_(.+)$/, async ctx => {
         invId,
         error: updateError.message,
       })
+    }
+
+    if (!claimed || claimed.length === 0) {
+      // Another concurrent check already completed this payment. Do NOT credit
+      // again — this tap lost the compare-and-set.
+      logger.warn(
+        '[TON NATIVE PAYMENT] Payment already completed, skipping duplicate credit',
+        { telegramId, invId }
+      )
+      await ctx.reply(
+        isRu
+          ? '✅ Платёж уже обработан.'
+          : '✅ Payment has already been processed.'
+      )
+      return ctx.scene.leave()
     }
 
     // Зачисляем звёзды
