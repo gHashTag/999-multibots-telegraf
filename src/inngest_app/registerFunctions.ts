@@ -42,6 +42,15 @@ import { morphImages } from './functions/training/morphImages'
 // не приходило. Импорт фабрики напрямую из existing/ — чтобы registration.test
 // увидел регистрацию именно файла-определения, а не обёртки.
 import { createHandleModelTrainingCompletedFunction } from './functions/existing/handleModelTrainingCompleted'
+// Webhook guard for video generation. video/generation-validate-webhook is sent
+// live from KieAiProvider.generateVideo, but its subscriber was never
+// registered, so the event was dropped. Register ONLY
+// validateWebhookBeforeGeneration -- NOT the file's hourly cron
+// (periodicWebhookHealthCheck) or admin-alarm paths, which the owner left off.
+// Monitoring only: KieAiProvider fire-and-forgets the send, so this surfaces
+// webhook health in logs/Inngest but does not block generation (full gating
+// would need a KieAiProvider change).
+import { validateWebhookBeforeGeneration } from './functions/webhookHealthGuard'
 
 // Generation Functions
 import { neuroImageGeneration } from './functions/generation/neuroImageGeneration'
@@ -97,6 +106,9 @@ const allFunctionsRaw = [
   modelTrainingV2,
   morphImages,
   handleModelTrainingCompleted,
+
+  // Webhook guard (1)
+  validateWebhookBeforeGeneration,
 
   // Generation (1)
   neuroImageGeneration,
