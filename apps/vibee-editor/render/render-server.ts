@@ -3,6 +3,14 @@
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
 import * as dns from 'node:dns'
 import { handleAuthRoute } from './session-routes'
+import {
+  startJob,
+  recordInto,
+  attachStore,
+  getJobDurable,
+  listJobsDurable,
+} from './generate-jobs'
+import { handleProjectRoute } from './project-routes'
 ;(dns as any).setDefaultResultOrder?.('ipv4first')
 
 import { createServer, IncomingMessage } from 'node:http'
@@ -1592,6 +1600,20 @@ interface WebhookPayload {
 
 const renderJobs = new Map<string, RenderJob>()
 
+/**
+ * One attempt at wiring the durable job store, not one per request.
+ *
+ * Repeating getPool() on every request would repeat its synchronous throw on
+ * every request too, turning a missing DATABASE_URL from a quiet degradation
+ * into a per-request cost.
+ */
+let storeAttached = false
+function attachStoreOnce(): void {
+  if (storeAttached) return
+  storeAttached = true
+  attachStore(getPool() as never)
+}
+
 /** Кэш RSS-блога t27.ai для GET /api/blog (см. обработчик ниже). */
 let blogCache: { at: number; data: unknown } | null = null
 
@@ -2282,6 +2304,64 @@ const server = createServer(async (req, res) => {
     return url
   }
 
+  /**
+   * TTS via Replicate when ElevenLabs is unavailable (the key stored in the env
+   * var is an identifier, not an sk_ key). minimax/speech-02-turbo is
+   * multilingual (Russian included) and Replicate is paid. Returns an audio
+   * URL; the caller downloads it and puts it in S3 like the ElevenLabs path, so
+   * the link does not expire.
+   */
+  async function generateAudioViaReplicate(text: string): Promise<string> {
+    const REPLICATE_TOKEN =
+      process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
+    if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
+    const response = await fetch(
+      'https://api.replicate.com/v1/models/minimax/speech-02-turbo/predictions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${REPLICATE_TOKEN}`,
+        },
+        body: JSON.stringify({ input: { text } }),
+      }
+    )
+    if (!response.ok) {
+      throw new Error(
+        `Replicate TTS failed: ${response.status} - ${await response.text()}`
+      )
+    }
+    let data = await response.json()
+    const predictionUrl: string | null = data?.urls?.get ?? null
+    const deadline = Date.now() + 120_000
+    while (
+      predictionUrl &&
+      data.output == null &&
+      !data.error &&
+      Date.now() < deadline
+    ) {
+      await new Promise(r => setTimeout(r, 2000))
+      const poll = await fetch(predictionUrl, {
+        headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` },
+      })
+      if (!poll.ok) break
+      data = await poll.json()
+    }
+    if (data.error) {
+      throw new Error(
+        `Replicate TTS error: ${String(data.error).slice(0, 120)}`
+      )
+    }
+    let out = Array.isArray(data.output) ? data.output[0] : data.output
+    if (out && typeof out === 'object') {
+      out = out.audio || out.audio_url || out.url
+    }
+    if (typeof out !== 'string') {
+      throw new Error('Replicate did not return an audio URL')
+    }
+    return out
+  }
+
   // Supported fal.ai image models
   const FAL_IMAGE_MODELS: Record<string, string> = {
     'fal-ai/flux-pro/v1.1-ultra': 'fal-ai/flux-pro/v1.1-ultra',
@@ -2555,6 +2635,21 @@ const server = createServer(async (req, res) => {
         const { model, prompt, duration, aspect_ratio } = JSON.parse(body)
         console.log(`🎬 [Generate] Video: ${model}, duration: ${duration}`)
 
+        /**
+         * Record the job BEFORE the provider is called.
+         *
+         * Measured on production: this route answers after ~54 seconds, in a
+         * single synchronous response, and the client waits in one fetch with
+         * no timeout. A phone locking or a proxy's 30-second cap loses a
+         * generation already paid for at the provider — the file exists, the
+         * money is spent, and nobody can find it.
+         *
+         * The id is minted first so the answer has somewhere to land even if
+         * the caller is gone by the time it arrives.
+         */
+        const job = startJob('video', verifiedTelegramId(req) ?? '', prompt)
+        recordInto(job, res)
+
         // Determine which API to use based on model
         const isKling = model.startsWith('kling')
         const toolName = isKling
@@ -2694,44 +2789,56 @@ const server = createServer(async (req, res) => {
     })
     req.on('end', async () => {
       try {
-        const { text, voice_id, speed } = JSON.parse(body)
-        const ELEVENLABS_API_KEY = elevenLabsKey()
+        const { text, voice_id } = JSON.parse(body)
 
         console.log(
           `🎤 [Generate] Audio: voice=${voice_id}, text="${text.substring(0, 50)}..."`
         )
 
-        // Call ElevenLabs TTS API directly
-        const ttsResponse = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`,
-          {
-            method: 'POST',
-            headers: {
-              'xi-api-key': ELEVENLABS_API_KEY,
-              'Content-Type': 'application/json',
-              Accept: 'audio/mpeg',
-            },
-            body: JSON.stringify({
-              text,
-              model_id: 'eleven_multilingual_v2',
-              voice_settings: {
-                stability: 0.5,
-                similarity_boost: 0.75,
+        // ElevenLabs is the primary path; if it is unavailable (the key stored
+        // is an identifier, not an sk_ key, OR the API errors) fall back to
+        // Replicate TTS. Symmetric with images (FAL dead -> Replicate).
+        let audioBuffer: Buffer
+        let audioProvider = 'elevenlabs'
+        try {
+          const ELEVENLABS_API_KEY = elevenLabsKey() // throws if not an sk_ key
+          const ttsResponse = await fetch(
+            `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`,
+            {
+              method: 'POST',
+              headers: {
+                'xi-api-key': ELEVENLABS_API_KEY,
+                'Content-Type': 'application/json',
+                Accept: 'audio/mpeg',
               },
-            }),
-          }
-        )
-
-        if (!ttsResponse.ok) {
-          const errorText = await ttsResponse.text()
-          throw new Error(
-            `ElevenLabs TTS error: ${ttsResponse.status} - ${errorText}`
+              body: JSON.stringify({
+                text,
+                model_id: 'eleven_multilingual_v2',
+                voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+              }),
+            }
           )
+          if (!ttsResponse.ok) {
+            throw new Error(
+              `ElevenLabs TTS error: ${ttsResponse.status} - ${await ttsResponse.text()}`
+            )
+          }
+          audioBuffer = Buffer.from(await ttsResponse.arrayBuffer())
+        } catch (elevenErr) {
+          console.warn(
+            `🎤 [Generate] ElevenLabs unavailable (${String(elevenErr).slice(0, 120)}), switching to Replicate TTS`
+          )
+          const audioUrl = await generateAudioViaReplicate(text)
+          const dl = await fetch(audioUrl)
+          if (!dl.ok) {
+            throw new Error(`Replicate audio download failed: ${dl.status}`)
+          }
+          audioBuffer = Buffer.from(await dl.arrayBuffer())
+          audioProvider = 'replicate/minimax-speech-02-turbo'
         }
-
-        // Get audio buffer
-        const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer())
-        console.log(`✅ [Generate] Audio received: ${audioBuffer.length} bytes`)
+        console.log(
+          `✅ [Generate] Audio received: ${audioBuffer.length} bytes (${audioProvider})`
+        )
 
         // Upload to S3
         const filename = `tts-${Date.now()}.mp3`
@@ -2750,6 +2857,7 @@ const server = createServer(async (req, res) => {
           JSON.stringify({
             success: true,
             url: uploadResult.url,
+            provider: audioProvider,
             id: Date.now().toString(),
           })
         )
@@ -4859,7 +4967,73 @@ const server = createServer(async (req, res) => {
    * Обработчик сам решает, его ли адрес, и возвращает false, если нет —
    * та же форма, что у соседей по каскаду.
    */
+  /**
+   * Where a lost generation is found again.
+   *
+   * Two routes, both GET, both behind the normal guard: a job carries a prompt
+   * and a paid-for url, so it is as personal as a profile. Ownership is
+   * enforced inside listJobs, not here — a check that lives next to the data
+   * cannot be forgotten by the next caller.
+   */
+  if (req.url?.startsWith('/api/generate/jobs') && req.method === 'GET') {
+    /**
+     * Attach the store lazily, and inside a try.
+     *
+     * `getPool()` throws SYNCHRONOUSLY when DATABASE_URL is unset. Outside a
+     * try that escapes an async handler and Node kills the process -- a
+     * one-request denial of service, already paid for once in this file's
+     * history. A server with no database keeps working memory-only, which is
+     * exactly what it did before this table existed.
+     */
+    try {
+      attachStoreOnce()
+    } catch {
+      // Memory-only. The generation itself never depended on this.
+    }
+
+    const id = req.url
+      .split('?')[0]
+      .replace('/api/generate/jobs', '')
+      .replace(/^\//, '')
+    const who = verifiedTelegramId(req) ?? ''
+    if (id) {
+      const job = await getJobDurable(id)
+      // A job that is not yours answers exactly like a job that does not
+      // exist. Distinguishing them would let someone enumerate other people's
+      // ids by watching which ones say "forbidden".
+      if (!job || (job.owner && job.owner !== who)) {
+        res.writeHead(404, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'нет такого задания' }))
+        return
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(job))
+      return
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ jobs: await listJobsDurable(who) }))
+    return
+  }
+
   if (await handleAuthRoute(req, res, getPool)) return
+
+  /**
+   * Projects: the person's timeline, held by the SERVER rather than by
+   * localStorage.
+   *
+   * Placed next to the login routes on purpose — they are its first consumer:
+   * the native editor opened a hardcoded demo because there was nobody to ask
+   * for a project. No route on this server had the word project in it at all
+   * (`grep -c projects render-server.ts` was 0; a live GET /api/projects
+   * answered 404).
+   *
+   * They are NOT in PUBLIC_EXACT and must not be: projects are private, and
+   * the shared guard already passes `Authorization: Bearer` on its third
+   * branch. The handler checks identity again in its own words, because in
+   * warn mode the guard lets everyone through and cannot be relied on as a
+   * defence.
+   */
+  if (await handleProjectRoute(req, res, getPool)) return
 
   if (req.url?.split('?')[0] === '/mcp' && req.method === 'POST') {
     await handleMcp(req, res, getPool)

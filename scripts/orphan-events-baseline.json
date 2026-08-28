@@ -22,7 +22,8 @@
     "payment/process-ai-server",
     "reels/generate-advanced-loop",
     "render",
-    "render/avatar-video"
+    "render/avatar-video",
+    "webhook/health-check-requested"
   ],
   "notRegistered": [
     "hero_validation_error",
@@ -32,7 +33,6 @@
     "test/simple-message",
     "user/welcome.avatar.generate",
     "voice/training.completed",
-    "voice/training.start",
-    "webhook/health-check-requested"
+    "voice/training.start"
   ]
 }

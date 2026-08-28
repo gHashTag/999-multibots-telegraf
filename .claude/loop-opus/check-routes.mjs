@@ -25,7 +25,30 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const REPO = path.resolve(here, '..', '..')
 const PLAYER = path.join(REPO, 'apps/vibee-editor/player/src')
 const IOS = path.join(REPO, 'apps/vibee-ios/Vibee')
-const SERVER = path.join(REPO, 'apps/vibee-editor/render/render-server.ts')
+const RENDER = path.join(REPO, 'apps/vibee-editor/render')
+
+/**
+ * HANDLERS DO NOT ALL LIVE IN render-server.ts.
+ *
+ * One file was right until `session-routes.ts` appeared: after that, three
+ * login paths the app calls every day printed as "no handler found". Three
+ * false alarms in a list of twenty is how the whole list stops being read,
+ * real breaks included — the same way a new shared helper blinds the checks
+ * that were looking for what it replaced.
+ *
+ * So: every route module beside the server. Matched BY NAME rather than
+ * listed, because a list has to be remembered, and the next `*-routes.ts`
+ * will be written by someone who has never opened this file.
+ */
+const SERVER_FILES = [
+  path.join(RENDER, 'render-server.ts'),
+  ...fs
+    .readdirSync(RENDER)
+    .filter(n => /-routes\.ts$/.test(n) && !n.includes('.test.'))
+    .map(n => path.join(RENDER, n)),
+]
+
+const readUtf8 = f => fs.readFileSync(f, 'utf8')
 
 /** Все .ts/.tsx под каталогом. */
 function файлы(dir) {
@@ -90,7 +113,7 @@ if (fs.existsSync(IOS)) {
  * Обработчики сервера. Файл — один большой if-каскад по req.url и req.method,
  * поэтому берём именно эти сравнения, а не воображаемый роутер.
  */
-const текстСервера = fs.readFileSync(SERVER, 'utf8')
+const текстСервера = SERVER_FILES.map(readUtf8).join('\n') // cyrillic-ok
 const адресаСервера = new Set()
 {
   // Литералы вида '/api/...' в сравнениях, startsWith и match.

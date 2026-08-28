@@ -60,7 +60,11 @@ const DELIBERATELY_UNREGISTERED: Record<string, string> = {
     'сторож зависших обучений с расписанием раз в 30 минут — НЕ ПОДКЛЮЧЁН. ' +
     'Именно он чинил бы 17 обучений, висящих по 250-465 дней. Подключение — ' +
     'решение владельца: функция будет менять статусы в базе',
-  'functions/webhookHealthGuard': 'сторож вебхуков не подключён',
+  // functions/webhookHealthGuard: validateWebhookBeforeGeneration is now wired
+  // (video/generation-validate-webhook has a live sender in KieAiProvider). The
+  // hourly cron periodicWebhookHealthCheck and webhookHealthCheck are left off
+  // on purpose, but this test works at FILE granularity, so there is no separate
+  // line to track them.
   'functions/kieAiWebhookMonitor': 'монитор вебхуков KieAI не подключён',
   'functions/welcomeAvatarGeneration':
     'НЕ ПОДКЛЮЧЕНА, при том что createUserScene:188 шлёт ей событие ' +

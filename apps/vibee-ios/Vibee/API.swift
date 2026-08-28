@@ -18,6 +18,46 @@ enum API {
     let viewsCount: Int
     let starsCount: Int
     let createdAt: String
+    /**
+     * Лайки. ОБА поля необязательные, и это не перестраховка.
+     *
+     * `isLiked` сервер считает LEFT JOIN'ом по `user_id` из строки запроса
+     * (render-server.ts:5747): без параметра поле приходит `false` у всего,
+     * а маршрут `/api/users/:username/templates` (render-server.ts:6350)
+     * не отдаёт его ВОВСЕ. Тот же `Template` декодируется с обоих адресов —
+     * сделай поле обязательным, и лента автора перестанет разбираться
+     * целиком: вместо роликов человек увидит «Лента не загрузилась».
+     */
+    let likesCount: Int?
+    let isLiked: Bool?
+  }
+
+  /**
+   * Отказ действия, который НЕ СТЫДНО ПОКАЗАТЬ.
+   *
+   * Каждый случай различается словами, потому что человеку нужны разные
+   * действия: при `нуженВход` — зайти в Профиль, при `сеть` — подождать, при
+   * `отказ` — сообщить о поломке. Один общий текст «не получилось» стоил бы
+   * ровно того же, что молчащая кнопка.
+   */
+  enum ActionError: LocalizedError {
+    case нуженВход
+    case отказ(Int)
+    case странныйОтвет
+    case сеть(Error)
+
+    var errorDescription: String? {
+      switch self {
+      case .нуженВход:
+        return "Нужен вход: Профиль → войти по коду из мини-аппа"
+      case .отказ(let код):
+        return "Сервер отказал: HTTP \(код)"
+      case .странныйОтвет:
+        return "Сервер ответил не тем, чего ждали"
+      case .сеть(let e):
+        return "Не дошло до сервера: \(e.localizedDescription)"
+      }
+    }
   }
 
   private struct FeedResponse: Decodable { let templates: [Template] }
@@ -63,11 +103,87 @@ enum API {
   static func feed(page: Int = 0, limit: Int = 20) async throws -> [Template] {
     var c = URLComponents(url: base.appendingPathComponent("api/feed"),
                           resolvingAgainstBaseURL: false)!
-    c.queryItems = [.init(name: "page", value: "\(page)"),
-                    .init(name: "limit", value: "\(limit)"),
-                    .init(name: "sort", value: "recent")]
+    var q = [URLQueryItem(name: "page", value: "\(page)"),
+             .init(name: "limit", value: "\(limit)"),
+             .init(name: "sort", value: "recent")]
+    /**
+     * `user_id` — ЕДИНСТВЕННЫЙ способ узнать, что лайкнул ИМЕННО ЭТОТ человек.
+     *
+     * Сервер не выводит это из заголовка личности: `is_liked` считается
+     * LEFT JOIN'ом по параметру строки запроса (render-server.ts:5747-5748).
+     * Без параметра все сердечки приходят пустыми, и лента показывала бы
+     * «не нравится» на роликах, которые человек уже отметил, — а первое же
+     * нажатие снимало бы лайк вместо того, чтобы его поставить.
+     */
+    if let я = Identity.telegramId { q.append(.init(name: "user_id", value: я)) }
+    c.queryItems = q
     let (data, _) = try await URLSession.shared.data(from: c.url!)
     return try JSONDecoder().decode(FeedResponse.self, from: data).templates
+  }
+
+  /**
+   * POST с личностью и ОДНОЙ попыткой обновить протухшую сессию.
+   *
+   * Access-токен живёт час, а лента открыта дольше. Без этой ветки первое же
+   * действие после протухания отвечало бы 401, и человек читал бы «нужен
+   * вход», имея на руках живой refresh. Повтор ровно один: если и он получил
+   * 401, сессии действительно нет и об этом надо сказать, а не крутить цикл.
+   */
+  private static func отправить(
+    путь: String, тело: [String: Any]
+  ) async throws -> (Data, Int) {
+    func собрать() -> URLRequest {
+      var r = URLRequest(url: base.appendingPathComponent(путь))
+      r.httpMethod = "POST"
+      r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+      r.httpBody = try? JSONSerialization.data(withJSONObject: тело)
+      return r
+    }
+    func выполнить(_ r: URLRequest) async throws -> (Data, Int) {
+      do {
+        let (d, resp) = try await URLSession.shared.data(for: r)
+        return (d, (resp as? HTTPURLResponse)?.statusCode ?? 0)
+      } catch {
+        throw ActionError.сеть(error)
+      }
+    }
+    var (data, код) = try await выполнить(собрать())
+    if код == 401, await Identity.refreshSession() {
+      (data, код) = try await выполнить(собрать())
+    }
+    return (data, код)
+  }
+
+  /**
+   * Поставить или снять лайк. Возвращает состояние ПО ВЕРСИИ СЕРВЕРА.
+   *
+   * Сервер здесь — переключатель, а не счётчик: он смотрит в `template_likes`
+   * и отвечает итогом (render-server.ts:5291-5332). Поэтому возвращаем его
+   * ответ целиком, а не то, что нарисовали оптимистично: два устройства
+   * одного человека иначе разъедутся навсегда.
+   *
+   * `telegram_id` идёт В ТЕЛЕ, потому что сервер читает его оттуда, а не из
+   * заголовка личности. Без него — 400 `telegram_id_required`; проверено
+   * живым запросом, поэтому отсутствие своего id отсекаем ЗДЕСЬ и отвечаем
+   * человеку словами, а не гоняем заведомо мёртвый запрос.
+   */
+  static func like(templateId: String) async throws -> (liked: Bool, count: Int) {
+    guard let я = Identity.telegramId else { throw ActionError.нуженВход }
+    let (data, код) = try await отправить(
+      путь: "api/feed/\(templateId)/like", тело: ["telegram_id": я])
+    // 401 приходит от ОБЩЕГО гварда (auth.ts): ключ агента он не принимает,
+    // только сессию или подпись мини-аппа. Для человека это тот же «войдите».
+    if код == 401 { throw ActionError.нуженВход }
+    guard (200...299).contains(код) else { throw ActionError.отказ(код) }
+    struct Ответ: Decodable {
+      let is_liked: Bool
+      let likes_count: Int
+    }
+    guard let о = try? JSONDecoder().decode(Ответ.self, from: data) else {
+      throw ActionError.странныйОтвет
+    }
+    return (о.is_liked, о.likes_count)
   }
   /**
    * Засчитать просмотр.
@@ -86,18 +202,224 @@ enum API {
    * чтобы «счётчик не растёт» можно было объяснить, а не гадать.
    */
   static func trackView(templateId: String) async {
-    var r = URLRequest(url: base.appendingPathComponent("api/feed/\(templateId)/view"))
-    r.httpMethod = "POST"
-    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
     do {
-      let (_, resp) = try await URLSession.shared.data(for: r)
-      if let http = resp as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-        NSLog("[Feed] просмотр не засчитан: HTTP \(http.statusCode)")
+      let (_, код) = try await отправить(
+        путь: "api/feed/\(templateId)/view", тело: [:])
+      if !(200...299).contains(код) {
+        NSLog("[Feed] просмотр не засчитан: HTTP \(код)")
       }
     } catch {
       NSLog("[Feed] просмотр не засчитан: \(error.localizedDescription)")
     }
   }
 
+}
+
+// MARK: - Проекты
+
+/**
+ * Проекты человека: таймлайн, который держит сервер.
+ *
+ * ЗАЧЕМ. Редактор открывал `Composition.демо` — выдумку, зашитую в код. Всё,
+ * что человек в нём двигал, никуда не сохранялось и ниоткуда не приходило.
+ * Экран выглядел работающим и не был подключён ни к чему; ровно тот класс,
+ * который в этом репозитории уже трижды кончался правками в мёртвых файлах.
+ *
+ * Сервер до сих пор не умел хранить проект вовсе: маршрутов со словом project
+ * не было ни одного (живой GET /api/projects отвечал 404 «Not found»). Поэтому
+ * половина работы — серверная, `render/project-routes.ts`, и формы ниже
+ * повторяют ЕЁ ответы, а не наоборот.
+ *
+ * ПОЧЕМУ snake_case В ПОЛЯХ. Так отвечает сам маршрут — он писался рядом с
+ * маршрутами входа, у которых `access_token` и `telegram_id`. Причёсывать
+ * имена на клиенте значит завести место, где они разойдутся молча.
+ */
+extension API {
+  /// Строка списка: без композиции. Двадцать проектов не должны означать
+  /// двадцать таймлайнов на проводе — композиция приходит вторым запросом.
+  struct ProjectSummary: Decodable, Identifiable {
+    let id: String
+    let name: String
+    let updated_at: String
+  }
+
+  struct Project: Decodable {
+    let id: String
+    let name: String
+    let updated_at: String
+    let composition: Composition
+  }
+
+  private struct ProjectList: Decodable { let projects: [ProjectSummary] }
+
+  enum ProjectError: LocalizedError {
+    case нетВхода
+    case отказ(Int, String)
+    case сеть(Error)
+    case разбор(String)
+
+    var errorDescription: String? {
+      switch self {
+      case .нетВхода:
+        return "Вы не вошли"
+      case .отказ(let код, let текст):
+        return текст.isEmpty ? "Сервер отказал: HTTP \(код)" : текст
+      case .сеть(let e):
+        return "Не дошло до сервера: \(e.localizedDescription)"
+      case .разбор(let что):
+        return "Ответ сервера не разобран: \(что)"
+      }
+    }
+  }
+
+  /**
+   * Запрос с личностью и ОДНОЙ попыткой обновить сессию.
+   *
+   * ЗАЧЕМ ОТДЕЛЬНЫЙ ПОМОЩНИК. Access-токен живёт десять минут
+   * (`ACCESS_TTL_SECONDS = 600` в session.ts), а редактор открыт дольше.
+   * Без обновления первый же запрос после десяти минут получал бы 401, и
+   * человек видел бы «вы не вошли», хотя сессия жива и обновляема.
+   *
+   * `Identity.refreshSession()` для этого и написан — и до сих пор НЕ
+   * ВЫЗЫВАЛСЯ НИОТКУДА (`grep refreshSession` находил одно объявление).
+   * Готовый механизм, к которому забыли подвести провод: то же, что в этом
+   * проекте уже случалось с `checkStuckTrainings` и `sanitizeUrl`.
+   *
+   * Повтор РОВНО ОДИН. Цикл повторов на 401 — это способ саморазлогиниться:
+   * refresh одноразовый, и сервер считает повторное предъявление кражей,
+   * отзывая всю семью сессий.
+   */
+  private static func сЛичностью(_ запрос: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    func послать() async throws -> (Data, HTTPURLResponse) {
+      var r = запрос
+      for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+      do {
+        let (d, resp) = try await URLSession.shared.data(for: r)
+        guard let http = resp as? HTTPURLResponse else {
+          throw ProjectError.разбор("ответ не HTTP")
+        }
+        return (d, http)
+      } catch let e as ProjectError {
+        throw e
+      } catch {
+        throw ProjectError.сеть(error)
+      }
+    }
+
+    let (d, http) = try await послать()
+    guard http.statusCode == 401, await Identity.refreshSession() else {
+      return (d, http)
+    }
+    return try await послать()
+  }
+
+  /// Текст отказа берём из ТЕЛА ответа, а не из `statusText`: на HTTP/2,
+  /// который отдаёт Railway, он пуст всегда. Тело — единственное место, где
+  /// сервер объясняет по-человечески.
+  private static func причина(_ данные: Data, _ код: Int) -> ProjectError {
+    let тело = (try? JSONSerialization.jsonObject(with: данные)) as? [String: Any] ?? [:]
+    let текст = [тело["error"] as? String, тело["detail"] as? String]
+      .compactMap { $0 }
+      .joined(separator: ". ")
+    return .отказ(код, текст)
+  }
+
+  /// Свои проекты, свежие сверху.
+  static func projects() async throws -> [ProjectSummary] {
+    guard Identity.known else { throw ProjectError.нетВхода }
+    let (d, http) = try await сЛичностью(
+      URLRequest(url: base.appendingPathComponent("api/projects")))
+    guard http.statusCode == 200 else { throw причина(d, http.statusCode) }
+    do {
+      return try JSONDecoder().decode(ProjectList.self, from: d).projects
+    } catch {
+      throw ProjectError.разбор(error.localizedDescription)
+    }
+  }
+
+  /// Один проект вместе с композицией.
+  static func project(id: String) async throws -> Project {
+    guard Identity.known else { throw ProjectError.нетВхода }
+    let (d, http) = try await сЛичностью(
+      URLRequest(url: base.appendingPathComponent("api/projects/\(id)")))
+    guard http.statusCode == 200 else { throw причина(d, http.statusCode) }
+    do {
+      return try JSONDecoder().decode(Project.self, from: d)
+    } catch {
+      /**
+       * Разбор — это НЕ «проект пустой».
+       *
+       * Композиция могла быть записана другим редактором в форме, которой эта
+       * модель не знает. Промолчать и показать демку значило бы сказать
+       * человеку «у вас нет проектов», когда проект есть и просто не понят, —
+       * молчаливая подделка вместо отказа.
+       */
+      throw ProjectError.разбор(error.localizedDescription)
+    }
+  }
+
+  /// Создать или заменить свой проект. Идентификатор выбирает клиент — на
+  /// сервере поэтому один PUT вместо пары POST+PUT.
+  @discardableResult
+  static func saveProject(
+    id: String, name: String, composition: Composition
+  ) async throws -> ProjectSummary {
+    guard Identity.known else { throw ProjectError.нетВхода }
+    struct Тело: Encodable {
+      let name: String
+      let composition: Composition
+    }
+
+    var r = URLRequest(url: base.appendingPathComponent("api/projects/\(id)"))
+    r.httpMethod = "PUT"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    r.httpBody = try JSONEncoder().encode(Тело(name: name, composition: composition))
+
+    let (d, http) = try await сЛичностью(r)
+    guard http.statusCode == 200 else { throw причина(d, http.statusCode) }
+    do {
+      return try JSONDecoder().decode(ProjectSummary.self, from: d)
+    } catch {
+      throw ProjectError.разбор(error.localizedDescription)
+    }
+  }
+}
+
+extension API {
+  /**
+   * Задание генерации — то, что сервер записал о нашем запросе.
+   *
+   * Существует ради одного случая: связь оборвалась, а генерация прошла.
+   * Провайдеру заплачено, файл в хранилище, и потеряна только наша сторона
+   * разговора. Сервер заводит задание ДО вызова провайдера, поэтому ответ
+   * оседает там независимо от того, дослушали мы его или нет.
+   */
+  struct Job: Decodable {
+    let id: String
+    let kind: String
+    let state: String
+    let url: String?
+    let provider: String?
+    let error: String?
+  }
+
+  private struct JobsResponse: Decodable { let jobs: [Job] }
+
+  /**
+   * Последнее ЗАВЕРШЁННОЕ задание нужного вида.
+   *
+   * Незавершённые пропускаем намеренно: показать «running» как результат
+   * значило бы подсунуть человеку пустую ссылку. А молчание здесь честнее —
+   * пусть повторит, чем получит ничто под видом чего-то.
+   */
+  static func последнееЗадание(вид: String) async -> Job? {
+    var r = URLRequest(url: base.appendingPathComponent("api/generate/jobs"))
+    for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+    guard let (data, resp) = try? await URLSession.shared.data(for: r),
+          (resp as? HTTPURLResponse)?.statusCode == 200,
+          let ответ = try? JSONDecoder().decode(JobsResponse.self, from: data)
+    else { return nil }
+
+    return ответ.jobs.first { $0.kind == вид && $0.state == "done" && $0.url != nil }
+  }
 }
