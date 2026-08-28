@@ -214,7 +214,21 @@ export async function handleAuthRoute(
       return true
     }
 
-    const initData = String(body.init_data ?? '')
+    /**
+     * Подпись берём из ЗАГОЛОВКА, а тело — запасной путь.
+     *
+     * Весь мини-апп ходит через `apiFetch`, который ставит
+     * `X-Telegram-Init-Data` сам, на каждый запрос. Требовать здесь ещё и поле
+     * в теле значило бы завести для одного маршрута особый способ
+     * представиться — а особый способ ровно один раз забудут применить.
+     *
+     * Тело оставлено для тех, кто зовёт маршрут напрямую (curl, тесты): это
+     * не вторая дверь, а та же самая строка, просто в другом кармане. Проверка
+     * подписи одна и та же в обоих случаях.
+     */
+    const initData =
+      (req.headers['x-telegram-init-data'] as string | undefined) ||
+      String(body.init_data ?? '')
     const v = verifyTelegramInitData(initData)
     const telegramId = verifiedTelegramIdFrom(initData)
     if (!v.ok || !telegramId) {
