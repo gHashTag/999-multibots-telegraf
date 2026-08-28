@@ -3,6 +3,7 @@
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
 import * as dns from 'node:dns'
 import { handleAuthRoute } from './session-routes'
+import { handleProjectRoute } from './project-routes'
 ;(dns as any).setDefaultResultOrder?.('ipv4first')
 
 import { createServer, IncomingMessage } from 'node:http'
@@ -4842,6 +4843,24 @@ const server = createServer(async (req, res) => {
    * та же форма, что у соседей по каскаду.
    */
   if (await handleAuthRoute(req, res, getPool)) return
+
+  /**
+   * Projects: the person's timeline, held by the SERVER rather than by
+   * localStorage.
+   *
+   * Placed next to the login routes on purpose — they are its first consumer:
+   * the native editor opened a hardcoded demo because there was nobody to ask
+   * for a project. No route on this server had the word project in it at all
+   * (`grep -c projects render-server.ts` was 0; a live GET /api/projects
+   * answered 404).
+   *
+   * They are NOT in PUBLIC_EXACT and must not be: projects are private, and
+   * the shared guard already passes `Authorization: Bearer` on its third
+   * branch. The handler checks identity again in its own words, because in
+   * warn mode the guard lets everyone through and cannot be relied on as a
+   * defence.
+   */
+  if (await handleProjectRoute(req, res, getPool)) return
 
   if (req.url?.split('?')[0] === '/mcp' && req.method === 'POST') {
     await handleMcp(req, res, getPool)
