@@ -9,6 +9,7 @@ import {
   handleMcp,
   handleMcpCard,
   handleAgentChat,
+  handleAgentKeys,
   chatIdentity,
   readBody,
 } from './src/agent/routes'
@@ -4924,6 +4925,26 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleAgentChat(req, res, String(who), getPool)
+    return
+  }
+  // Самообслуживание ключей MCP: выпустить/список/отозвать. Личность СТРОГО из
+  // подписи мини-аппа — НЕ из ключа агента: иначе один агентский ключ мог бы
+  // плодить новые ключи и раздавать доступ. Ключ привязан к тому, кто его
+  // выпустил, чужой telegram_id подставить нельзя. Матч по префиксу пути,
+  // чтобы DELETE /api/agent/keys/<prefix> тоже сюда попадал.
+  if (req.url?.split('?')[0].startsWith('/api/agent/keys')) {
+    const кто = verifiedTelegramId(req)
+    if (!кто) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: 'нужна подпись Telegram (X-Telegram-Init-Data)',
+          detail: 'ключи выпускает только владелец из мини-аппа',
+        })
+      )
+      return
+    }
+    await handleAgentKeys(req, res, String(кто), getPool)
     return
   }
 
