@@ -167,9 +167,23 @@ export function projectOwner(req: IncomingMessage): string | null {
  * in sync — the same trap as a hand-written list of compositions that drifted
  * from the bundle it claimed to describe.
  *
- * What the server does owe is a promise that what it stores is what it was
- * given, and that it is not a scalar, an array or null pretending to be a
- * project. Anything looser and a client reads back something it cannot decode.
+ * What the server does owe is that this is not a scalar, an array or null
+ * pretending to be a project. Anything looser and a client reads back
+ * something it cannot decode.
+ *
+ * WHAT THE STORED COPY PRESERVES, MEASURED RATHER THAN ASSUMED. `composition`
+ * is jsonb, not text, so the column is not a byte-for-byte echo: a live
+ * round-trip against production showed KEY ORDER is not kept
+ * (`{b,a}` came back `{a,b}`). Everything that carries meaning survived
+ * unchanged — floats (0.5), whole floats, a 13-digit integer, empty arrays,
+ * and Cyrillic with em-dashes and guillemets — and the objects compare equal
+ * once keys are sorted.
+ *
+ * That is fine for every reader we have, and deliberately so: `JSONDecoder` in
+ * Swift and the player's atoms both look keys up by name, and
+ * `Composition.remotionJSON()` sorts keys before comparing anything. Order
+ * would only matter to a client diffing raw bytes, and none does. Saying this
+ * out loud so the next person does not spend a cycle on "the JSON changed".
  */
 function isComposition(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
