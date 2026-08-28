@@ -454,5 +454,23 @@
     "file": "apps/vibee-editor/render/src/agent/chat.ts",
     "needle": "AbortController",
     "note": "таймаут стриминга + детект ошибки в потоке"
+  },
+  {
+    "pr": 882,
+    "file": "apps/vibee-editor/render/scripts/agent-autopilot.ts",
+    "needle": "виток_идёт",
+    "note": "демон-автопилот: lock держал свой же PID → отрабатывал раз и молчал; +overlap-guard виток_идёт"
+  },
+  {
+    "pr": 883,
+    "file": "apps/vibee-editor/render/src/agent/billing-shared.ts",
+    "needle": "spendByTid",
+    "note": "деньги B: /api/generate/* не списывал токены; единый billing-shared, атомарное WHERE balance>=price"
+  },
+  {
+    "pr": 884,
+    "file": "apps/vibee-editor/render/src/agent/routes.ts",
+    "needle": "resolveIdentity",
+    "note": "ров C: самообслуживание MCP-ключей; chatIdentity оставлен sync, DB-резолвинг в resolveIdentity на входе /mcp"
   }
 ]
