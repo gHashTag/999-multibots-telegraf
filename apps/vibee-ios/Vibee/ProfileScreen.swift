@@ -110,7 +110,7 @@ struct ProfileScreen: View {
          * прозрачный (Profile.css:1608, :1767, и заливка на :1616 только
          * под курсором). Контраст на кадре: 7.34:1.
          */
-        .buttonStyle(Тема.ПилюляПрофиля(цвет: Тема.Профиль.красный, заливка: .clear))
+        .buttonStyle(Тема.Пилюля(цвет: Тема.Профиль.красный, заливка: .clear))
       }
     } else {
       VStack(alignment: .leading, spacing: Тема.Отступ.карточкаЛенты) {
@@ -155,7 +155,22 @@ struct ProfileScreen: View {
 
       VStack(alignment: .leading, spacing: Тема.Отступ.xs) {
         Text(p.display_name ?? p.username)
-          .font(.title3.weight(.semibold))
+          /**
+           * ВЕС 700, А НЕ 600.
+           *
+           * `.profile-header__name { font-weight: 700 }` — Profile.css:225,
+           * и правило веса ниже по файлу не перебивается: в блоке
+           * `@media (max-width: 480px)` меняется только кегль
+           * (Profile.css:1322-1324). Стоял `.semibold`, то есть 600 —
+           * ближайший сосед, отличающийся ровно на одну ступень; такое
+           * расхождение глазом не ловится и живёт годами.
+           *
+           * Кегль оставлен семантическим `.title3`: система раскрывает его
+           * в 20 pt при обычном размере текста — ровно те 1.25rem, которые
+           * веб даёт на 402 pt (Profile.css:1323). Число совпало, а
+           * масштабирование под Dynamic Type сохранилось.
+           */
+          .font(.title3.weight(.bold))
           // Кремовый #e6e0d2, а не белый: Profile.css:1640, :1702, :1908.
           .foregroundStyle(Тема.Профиль.текст)
         Text("@\(p.username)")
