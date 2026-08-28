@@ -5,6 +5,11 @@ import { setupSafeConsoleLogging } from './utils/logger'
 // Test CI/CD pipeline: проверка работы автоматической сборки после очистки веток
 setupSafeConsoleLogging()
 
+// Arm process-level rejection/exception handlers once, before any bot starts:
+// bot.catch only covers the update loop, and an unhandled rejection would
+// otherwise terminate a process that serves every bot. See errorHandler.ts.
+setupGlobalErrorHandlers()
+
 // Bot initialization (see logs below)
 
 import { Composer, Telegraf, Scenes, Context } from 'telegraf'
@@ -20,7 +25,10 @@ import { setBotCommands } from './setCommands'
 // ✅ ДОБАВЛЯЕМ IMPORT LANGUAGE MIDDLEWARE
 import { languageMiddleware } from './middlewares/languageMiddleware'
 // ✅ ДОБАВЛЯЕМ IMPORT ОБРАБОТЧИКА ОШИБОК
-import { setupErrorHandler } from './helpers/error/errorHandler'
+import {
+  setupErrorHandler,
+  setupGlobalErrorHandlers,
+} from './helpers/error/errorHandler'
 // ✅ ДОБАВЛЯЕМ ГЛОБАЛЬНЫЙ НАВИГАЦИОННЫЙ MIDDLEWARE
 import { registerGlobalNavigationMiddleware } from './navigation'
 
