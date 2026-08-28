@@ -29,18 +29,81 @@ import SwiftUI
 /// экране под текстом не идёт нигде: в вебе им покрашена только плашка
 /// баланса токенов, а нативного баланса нет — см. `Тема.Чат.золото`.
 struct AgentChatView: View {
-  @State private var сообщения: [Реплика] = []
+  @State private var сообщения: [Реплика] = AgentChatView.загрузитьИсторию()
   @State private var ввод = ""
   @State private var идёт = false
 
-  struct Реплика: Identifiable {
-    let id = UUID()
+  struct Реплика: Identifiable, Codable, Equatable {
+    /// `var`, а не `let`: `let id = UUID()` при декодировании даёт новый
+    /// идентификатор вместо сохранённого, и SwiftUI считает восстановленные
+    /// реплики другими — список дёргается при каждом открытии.
+    var id = UUID()
     var свой: Bool
     var текст: String
     var инструменты: [String] = []
   }
 
+  /**
+   * Где живёт история.
+   *
+   * ЗАЧЕМ. Реплики лежали в `@State` и умирали вместе с экраном: человек
+   * закрывал приложение и терял разговор целиком. В вебе история остаётся —
+   * значит нативный экран, теряющий её, не «проще», а хуже.
+   *
+   * ПОЧЕМУ ФАЙЛ, А НЕ UserDefaults. UserDefaults читается целиком при первом
+   * обращении и держится в памяти; переписка на сотню реплик там неуместна.
+   * Файл в Application Support не попадает в резервную копию по умолчанию
+   * только если это указать — здесь наоборот, пусть переезжает с человеком.
+   *
+   * ПОЧЕМУ НЕ KEYCHAIN. Там личность, а не содержимое. Переписка с агентом
+   * не секрет в том же смысле, что токен, и класть её в Keychain значило бы
+   * раздувать хранилище, рассчитанное на короткие строки.
+   */
+  private static var файлИстории: URL? {
+    guard let каталог = try? FileManager.default.url(
+      for: .applicationSupportDirectory, in: .userDomainMask,
+      appropriateFor: nil, create: true
+    ) else { return nil }
+    return каталог.appendingPathComponent("agent-chat.json")
+  }
+
+  /// Сколько реплик держим. Больше — файл растёт без предела, а прокрутка
+  /// к началу годичной переписки никому не нужна.
+  private static let пределИстории = 200
+
+  private static func загрузитьИсторию() -> [Реплика] {
+    guard let url = файлИстории,
+          let data = try? Data(contentsOf: url),
+          let реплики = try? JSONDecoder().decode([Реплика].self, from: data)
+    else { return [] }
+    return реплики
+  }
+
+  private static func сохранитьИсторию(_ реплики: [Реплика]) {
+    guard let url = файлИстории else { return }
+    let хвост = Array(реплики.suffix(пределИстории))
+    guard let data = try? JSONEncoder().encode(хвост) else { return }
+    // Ошибку записи глотаем намеренно и молча: потерять историю неприятно,
+    // но показывать алерт поверх разговора — хуже. Сам разговор не задет.
+    try? data.write(to: url, options: .atomic)
+  }
+
   var body: some View {
+    основное
+      /**
+       * Сохраняем на КАЖДОМ изменении, а не при уходе с экрана.
+       *
+       * Уход с экрана — не то же, что закрытие приложения: iOS вправе
+       * выгрузить процесс из фона без предупреждения, и `onDisappear` тогда
+       * не вызовется вовсе. Запись при изменении дороже, но она случается
+       * ровно тогда, когда есть что терять.
+       */
+      .onChange(of: сообщения) { _, новые in
+        AgentChatView.сохранитьИсторию(новые)
+      }
+  }
+
+  private var основное: some View {
     VStack(spacing: 0) {
       шапка
 
