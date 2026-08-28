@@ -38,8 +38,46 @@ function ProfileRedirect() {
   if (username) {
     return <Navigate to={`/${username}`} replace />;
   }
-  // Not logged in — go to feed
-  return <Navigate to="/feed" replace />;
+  /**
+   * НЕ на ленту молча.
+   *
+   * Человек, попросивший свой профиль и получивший ленту, не понимает, что
+   * произошло: экран выглядит рабочим, просто чужим. Нашлось на скриншоте
+   * нативного приложения — там вкладка «Профиль» показывала ленту ВСЕГДА,
+   * потому что у WKWebView нет подписи Telegram и узнать человека нечем.
+   *
+   * Объясняем ЗДЕСЬ, а не редиректом с меткой в адресе: метка, которую никто
+   * не читает, — декорация, и в этом репозитории таких уже хватало.
+   */
+  return <ProfileNeedsSignIn />;
+}
+
+/**
+ * Что показать вместо профиля, когда неизвестно, чей он.
+ *
+ * Пустой экран честнее подменённого, но объясняющий — лучше обоих.
+ */
+function ProfileNeedsSignIn() {
+  return (
+    <div style={{
+      minHeight: '60vh', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center', gap: 12,
+      padding: 24, textAlign: 'center',
+    }}>
+      <h2 style={{ margin: 0, fontSize: 18 }}>Профиль не открыть</h2>
+      <p style={{ margin: 0, maxWidth: 420, opacity: 0.7, fontSize: 14, lineHeight: 1.5 }}>
+        Мы не знаем, чей профиль показывать: подпись Telegram сюда не пришла.
+        Откройте приложение внутри Telegram — там она есть.
+      </p>
+      <a href="/feed" style={{
+        marginTop: 8, minHeight: 44, display: 'inline-flex', alignItems: 'center',
+        padding: '0 20px', borderRadius: 10, background: '#2f6b3f',
+        color: '#000', fontWeight: 600, textDecoration: 'none',
+      }}>
+        Открыть ленту
+      </a>
+    </div>
+  );
 }
 
 // Loading fallback
