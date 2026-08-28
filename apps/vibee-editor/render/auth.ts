@@ -92,6 +92,13 @@ const PUBLIC_EXACT = new Set([
   // GET /api/assets/:id остаётся ЗА гвардом — чтение чужой истории
   // по известному telegram_id отдавать нельзя.
   '/api/assets',
+  // A2A: паспорт агента ПУБЛИЧЕН намеренно — внешний агент читает карточку без
+  // ключа, это точка обнаружения. /a2a (JSON-RPC) пропускается гвардом так же,
+  // как /mcp: личность (X-Agent-Key или подпись) проверяет сам handleA2A, и без
+  // неё не выполняет ни одной функции.
+  '/.well-known/agent-card.json',
+  '/.well-known/agent.json',
+  '/a2a',
 ])
 const PUBLIC_PREFIXES = [
   '/renders/',

@@ -13,6 +13,7 @@ import {
   chatIdentity,
   readBody,
 } from './src/agent/routes'
+import { handleA2A, handleA2ACard } from './src/agent/a2a'
 import os from 'node:os'
 import { WebSocketServer, WebSocket } from 'ws'
 import { bundle } from '@remotion/bundler'
@@ -4907,6 +4908,24 @@ const server = createServer(async (req, res) => {
   if (req.url?.split('?')[0] === '/mcp' && req.method === 'POST') {
     await handleMcp(req, res, getPool)
     return
+  }
+  // A2A (Agent2Agent): паспорт агента и JSON-RPC. Карточка публична намеренно —
+  // внешний агент читает /.well-known/agent-card.json без ключа. /a2a проверяет
+  // личность внутри (X-Agent-Key или подпись), как /mcp.
+  {
+    const u = req.url?.split('?')[0]
+    const base = process.env.SELF_URL || `https://${req.headers.host}`
+    if (
+      req.method === 'GET' &&
+      (u === '/.well-known/agent-card.json' || u === '/.well-known/agent.json')
+    ) {
+      handleA2ACard(res, base)
+      return
+    }
+    if (u === '/a2a' && req.method === 'POST') {
+      await handleA2A(req, res, getPool)
+      return
+    }
   }
   if (req.url?.split('?')[0] === '/api/agent/chat' && req.method === 'POST') {
     // Личность: подпись мини-аппа ИЛИ ключ агента (коннектор для тестов).
