@@ -65,8 +65,8 @@ const DELIBERATELY_UNREGISTERED: Record<string, string> = {
   'functions/welcomeAvatarGeneration':
     'НЕ ПОДКЛЮЧЕНА, при том что createUserScene:188 шлёт ей событие ' +
     'user/welcome.avatar.generate — приветственные аватары не генерируются',
-  'functions/existing/handleModelTrainingCompleted':
-    'обработчик завершения обучения не подключён',
+  // functions/existing/handleModelTrainingCompleted — ПОДКЛЮЧЕН (registerFunctions),
+  // webhook Replicate → model/training.completed теперь имеет подписчика.
 }
 
 function definitionFiles(): string[] {

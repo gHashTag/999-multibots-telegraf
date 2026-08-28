@@ -141,67 +141,11 @@ struct AgentChatView: View {
   }
 }
 
-struct ProfileView: View {
-  @State private var ключ = Identity.agentKey ?? ""
-  @State private var сохранён = false
-
-  var body: some View {
-    VStack(spacing: 0) {
-      /**
-       * Ключ доступа — НАД вебом, а не внутри него.
-       *
-       * Веб-профиль на app.t27.ai живёт своей жизнью и про наш ключ ничего не
-       * знает. Прятать поле внутрь вебвью значило бы просить человека искать
-       * настройку приложения на странице сайта.
-       *
-       * Секция сворачивается, когда ключ уже есть: настройка, которую делают
-       * один раз, не должна занимать экран каждый день.
-       */
-      DisclosureGroup(isExpanded: .constant(!Identity.known)) {
-        VStack(alignment: .leading, spacing: 10) {
-          Text("Ключ привязан к вашему Telegram на стороне сервера и хранится "
-               + "только на этом устройстве, в Keychain.")
-            .font(.caption)
-            .foregroundStyle(.white.opacity(0.55))
-
-          SecureField("ключ агента", text: $ключ)
-            .textFieldStyle(.roundedBorder)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-
-          HStack {
-            Button("Сохранить") {
-              let обрезанный = ключ.trimmingCharacters(in: .whitespacesAndNewlines)
-              Identity.agentKey = обрезанный.isEmpty ? nil : обрезанный
-              сохранён = true
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
-            .disabled(ключ.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-            if сохранён {
-              Label("сохранён", systemImage: "checkmark.circle.fill")
-                .font(.caption)
-                .foregroundStyle(.green)
-            }
-            Spacer()
-          }
-        }
-        .padding(.top, 8)
-      } label: {
-        Label(
-          Identity.known ? "Доступ настроен" : "Нужен ключ доступа",
-          systemImage: Identity.known ? "checkmark.shield" : "exclamationmark.shield"
-        )
-        .font(.subheadline.weight(.medium))
-        .foregroundStyle(Identity.known ? .green : .orange)
-      }
-      .tint(.green)
-      .padding(14)
-      .background(Color.white.opacity(0.05))
-
-      WebScreen(path: "/profile")
-    }
-    .background(Color.black)
-  }
-}
+/**
+ * Профиль переехал в ProfileScreen.swift и стал нативным целиком.
+ *
+ * Имя оставлено псевдонимом: на него ссылается таб-бар, и менять две вещи
+ * разом — лишний способ ошибиться. Псевдоним уберём, когда останется один
+ * вызов.
+ */
+typealias ProfileView = ProfileScreen

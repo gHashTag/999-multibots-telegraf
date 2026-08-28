@@ -14,6 +14,7 @@ import { Header } from '@/components/Header'
 import { ProfileHeader, ProfileTabs, ProfileEdit } from '@/components/Profile'
 import { useIsOwnProfile } from '@/components/Profile/useIsOwnProfile'
 import { SoulEditor } from '@/components/Profile/SoulEditor'
+import { PairWithApp } from '@/components/Profile/PairWithApp'
 import { TelegramLoginButton } from '@/components/Auth'
 import '@/components/Profile/Profile.css'
 import { LoginModal } from '@/components/Auth/LoginModal'
@@ -132,6 +133,7 @@ export function ProfilePage() {
           {/* SOUL и скиллы — только на СВОЁМ профиле: чужая карточка голоса
               и чужой список возможностей не должны быть видны постороннему. */}
           {isOwn && <SoulEditor />}
+          {isOwn && <PairWithApp />}
         </div>
 
         {/* Login Modal */}

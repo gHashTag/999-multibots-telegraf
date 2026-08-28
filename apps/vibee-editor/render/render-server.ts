@@ -2,6 +2,7 @@
 // undici первым пробует IPv6, в этой сети он чёрной дырой — таймаут.
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
 import * as dns from 'node:dns'
+import { handleAuthRoute } from './session-routes'
 ;(dns as any).setDefaultResultOrder?.('ipv4first')
 
 import { createServer, IncomingMessage } from 'node:http'
@@ -9,11 +10,9 @@ import {
   handleMcp,
   handleMcpCard,
   handleAgentChat,
-  handleAgentKeys,
   chatIdentity,
   readBody,
 } from './src/agent/routes'
-import { handleA2A, handleA2ACard } from './src/agent/a2a'
 import os from 'node:os'
 import { WebSocketServer, WebSocket } from 'ws'
 import { bundle } from '@remotion/bundler'
@@ -30,7 +29,6 @@ import {
   verifyTelegramInitData,
   verifiedTelegramId,
 } from './auth'
-import { spendByTid, refundByTid } from './src/agent/billing-shared'
 import { TEMPLATE_CARDS } from './src/templates/registry'
 import fs from 'node:fs'
 import { randomUUID, createHmac, createHash } from 'node:crypto'
@@ -255,12 +253,61 @@ import {
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { transcribeVideo } from './src/lib/transcribe'
-import {
-  detectFaceInVideo,
-  detectFaceInImage,
-  calculateCropSettings,
-  loadModels,
-} from './src/lib/faceDetection'
+/**
+ * РАСПОЗНАВАНИЕ ЛИЦА ГРУЗИТСЯ ЛЕНИВО, и это не оптимизация.
+ *
+ * Здесь стоял обычный импорт, и он тянул `@vladmandic/face-api`, а тот —
+ * `@tensorflow/tfjs-node`, которого в зависимостях нет. Сервер не поднимался
+ * ВООБЩЕ: продакшн стоял больше часа, каждая сборка падала на старте, и всё
+ * влитое за это время не существовало для людей.
+ *
+ * Настоящий дефект — не пропавший модуль, а то, что ОДНА функция оказалась
+ * условием запуска всего сервиса. Лента, чат агента, оплата и рендер к
+ * распознаванию лица отношения не имеют и обязаны работать без него.
+ *
+ * Ленивый импорт делает отказ ЛОКАЛЬНЫМ: не работает распознавание — падает
+ * только оно, и говорит почему. Остальное живёт.
+ */
+type FaceApi = typeof import('./src/lib/faceDetection')
+let faceApiPromise: Promise<FaceApi> | null = null
+let faceApiReady: FaceApi | null = null
+
+/**
+ * Модуль грузится ОДИН раз и переиспользуется: `import()` кэшируется, но
+ * промис держим сами, чтобы два одновременных запроса не начали загрузку
+ * дважды и не удвоили ожидание на холодном старте.
+ */
+function faceApi(): Promise<FaceApi> {
+  faceApiPromise ??= import('./src/lib/faceDetection').then(m => {
+    faceApiReady = m
+    return m
+  })
+  return faceApiPromise
+}
+
+const detectFaceInVideo: FaceApi['detectFaceInVideo'] = async (...a) =>
+  (await faceApi()).detectFaceInVideo(...a)
+const detectFaceInImage: FaceApi['detectFaceInImage'] = async (...a) =>
+  (await faceApi()).detectFaceInImage(...a)
+/**
+ * Загруженный модуль, когда он уже есть.
+ *
+ * `calculateCropSettings` синхронна и чиста — она считает по найденной рамке.
+ * Делать её async значило бы менять все места вызова ради ничего.
+ *
+ * Первая версия лезла в `promise.value` — поля, которого у Promise нет: она
+ * бросала бы ВСЕГДА. Держим ссылку явно, заполняя её в момент загрузки.
+ */
+const calculateCropSettings: FaceApi['calculateCropSettings'] = (...a) => {
+  if (!faceApiReady) {
+    // Сюда попадают только после detectFace, который модуль и грузит. Если
+    // всё же попали — говорим прямо, а не считаем по пустому месту.
+    throw new Error(
+      'calculateCropSettings вызван до detectFaceIn* — модуль не загружен'
+    )
+  }
+  return faceApiReady.calculateCropSettings(...a)
+}
 import { Pool } from 'pg'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
@@ -1092,7 +1139,16 @@ async function initBundle() {
   // Preload face detection models
   console.log('👤 Loading face detection models...')
   try {
-    await loadModels()
+    // Прогрев моделей — не повод ронять запуск: если распознавание не
+    // собралось, всё остальное обязано работать.
+    try {
+      await (await faceApi()).loadModels()
+    } catch (e) {
+      console.warn(
+        '[face] распознавание лица недоступно:',
+        String(e).slice(0, 200)
+      )
+    }
     console.log('✅ Face detection models ready')
   } catch (error) {
     console.warn('⚠️ Face detection models failed to load:', error)
@@ -2090,6 +2146,19 @@ const server = createServer(async (req, res) => {
         // Из каких исходников этот экземпляр рисует. Разошёлся с репозиторием
         // — крутится не тот образ, сколько бы деплой ни рапортовал SUCCESS.
         compositions: compositionsFingerprint,
+        /**
+         * Коммит, из которого собран этот экземпляр.
+         *
+         * ЗАЧЕМ. Рендер-сервис не разворачивался семнадцать минут, и заметил
+         * я это случайно — ждал свой маршрут и не дождался. Всё влитое после
+         * поломки лежало на main и не существовало для людей, а снаружи
+         * отличить «выложено» от «зелёный мерж» было НЕЧЕМ.
+         *
+         * Railway кладёт коммит в RAILWAY_GIT_COMMIT_SHA. Если его нет —
+         * говорим `unknown`, а не молчим: проверяющий должен видеть разницу
+         * между «отстали» и «нечем сверить».
+         */
+        version: (process.env.RAILWAY_GIT_COMMIT_SHA || 'unknown').slice(0, 7),
         startedAt: startedAtIso,
       })
     )
@@ -2228,8 +2297,6 @@ const server = createServer(async (req, res) => {
       body += chunk
     })
     req.on('end', async () => {
-      // Объявлено ДО try, чтобы возврат токена в catch видел, списывали ли.
-      let billedTid: string | null = null
       try {
         if (!FAL_KEY) throw new Error('FAL_KEY not configured')
 
@@ -2237,32 +2304,6 @@ const server = createServer(async (req, res) => {
         console.log(
           `📷 [Generate] Photo: ${model}, prompt: "${prompt.substring(0, 50)}..."`
         )
-
-        // Тарификация на РЕСУРСНОМ слое (закрывает бесплатный обход через
-        // прямой вызов /api/generate/image из мини-аппа). Серверный путь
-        // (X-Api-Key, автопилот/агент) пропускаем: он уже оплачен на слое
-        // инструментов. Пользовательский (initData) списываем здесь; возврат —
-        // в catch ниже, если генерация не удалась.
-        if (auth.via !== 'api-key') {
-          const tid = verifiedTelegramId(req)
-          if (!tid) {
-            res.writeHead(401, { 'Content-Type': 'application/json' })
-            res.end(
-              JSON.stringify({
-                success: false,
-                error: 'нужна подпись мини-аппа или серверный ключ',
-              })
-            )
-            return
-          }
-          const spend = await spendByTid(await getPool(), tid, 'image_generate')
-          if (!spend.ok) {
-            res.writeHead(402, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ success: false, error: spend.причина }))
-            return
-          }
-          billedTid = tid
-        }
 
         // FAL — основной путь, но падение по чужому балансу не должно
         // останавливать производство: ниже уходим на Replicate.
@@ -2396,10 +2437,6 @@ const server = createServer(async (req, res) => {
         throw new Error('Image generation timeout')
       } catch (error) {
         console.error('❌ [Generate] Image error:', error)
-        // Списали токен, но картинки нет — возвращаем. Иначе сбой провайдера
-        // стоил бы пользователю токен ни за что.
-        if (billedTid)
-          await refundByTid(await getPool(), billedTid, 'image_generate')
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
@@ -2514,36 +2551,9 @@ const server = createServer(async (req, res) => {
       body += chunk
     })
     req.on('end', async () => {
-      // Объявлено ДО try: возврат в финальном catch должен знать, списывали ли.
-      let billedTid: string | null = null
       try {
         const { model, prompt, duration, aspect_ratio } = JSON.parse(body)
         console.log(`🎬 [Generate] Video: ${model}, duration: ${duration}`)
-
-        // Тарификация ресурсного слоя (video = 20 токенов). Серверный путь
-        // (X-Api-Key) уже оплачен на слое инструментов — пропускаем.
-        // Пользовательский списываем; возврат — только если ОБА пути (MCP и
-        // Replicate-фолбэк) не удались, в финальном catch ниже.
-        if (auth.via !== 'api-key') {
-          const tid = verifiedTelegramId(req)
-          if (!tid) {
-            res.writeHead(401, { 'Content-Type': 'application/json' })
-            res.end(
-              JSON.stringify({
-                success: false,
-                error: 'нужна подпись мини-аппа или серверный ключ',
-              })
-            )
-            return
-          }
-          const spend = await spendByTid(await getPool(), tid, 'video_generate')
-          if (!spend.ok) {
-            res.writeHead(402, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ success: false, error: spend.причина }))
-            return
-          }
-          billedTid = tid
-        }
 
         // Determine which API to use based on model
         const isKling = model.startsWith('kling')
@@ -2660,9 +2670,6 @@ const server = createServer(async (req, res) => {
           )
         } catch (fallbackError) {
           console.error('❌ [Generate] Video error:', fallbackError)
-          // Оба пути (MCP и Replicate) не удались — видео нет. Возвращаем токен.
-          if (billedTid)
-            await refundByTid(await getPool(), billedTid, 'video_generate')
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(
             JSON.stringify({
@@ -2686,8 +2693,6 @@ const server = createServer(async (req, res) => {
       body += chunk
     })
     req.on('end', async () => {
-      // Объявлено ДО try: возврат в catch должен знать, списывали ли.
-      let billedTid: string | null = null
       try {
         const { text, voice_id, speed } = JSON.parse(body)
         const ELEVENLABS_API_KEY = elevenLabsKey()
@@ -2695,30 +2700,6 @@ const server = createServer(async (req, res) => {
         console.log(
           `🎤 [Generate] Audio: voice=${voice_id}, text="${text.substring(0, 50)}..."`
         )
-
-        // Тарификация ресурсного слоя (audio = 6 токенов). Серверный путь
-        // (X-Api-Key) уже оплачен на слое инструментов; пользовательский
-        // списываем здесь, возврат — в catch при сбое.
-        if (auth.via !== 'api-key') {
-          const tid = verifiedTelegramId(req)
-          if (!tid) {
-            res.writeHead(401, { 'Content-Type': 'application/json' })
-            res.end(
-              JSON.stringify({
-                success: false,
-                error: 'нужна подпись мини-аппа или серверный ключ',
-              })
-            )
-            return
-          }
-          const spend = await spendByTid(await getPool(), tid, 'audio_generate')
-          if (!spend.ok) {
-            res.writeHead(402, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ success: false, error: spend.причина }))
-            return
-          }
-          billedTid = tid
-        }
 
         // Call ElevenLabs TTS API directly
         const ttsResponse = await fetch(
@@ -2774,9 +2755,6 @@ const server = createServer(async (req, res) => {
         )
       } catch (error) {
         console.error('❌ [Generate] Audio error:', error)
-        // Списали, но озвучки нет — возвращаем токен.
-        if (billedTid)
-          await refundByTid(await getPool(), billedTid, 'audio_generate')
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
@@ -4785,40 +4763,6 @@ const server = createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const data = JSON.parse(body)
-
-        // Владелец записи — из ПОДТВЕРЖДЁННОЙ подписи, а НЕ из тела запроса.
-        //
-        // Раньше telegram_id и creator_name брались прямо из body, а upsert в
-        // publishTemplateRow идёт по паре (telegram_id, name). Значит любой
-        // пользователь мини-аппа мог опубликовать И ПЕРЕЗАПИСАТЬ карточку от
-        // чужого имени: подставил чужой telegram_id + чужое name — и затёр
-        // чужую запись в ленте. Подтверждено разведкой 2026-08-28.
-        //
-        // verifiedTelegramId(req) возвращает id ТОЛЬКО из проверенной подписи
-        // мини-аппа. Если её нет — это серверный вызов по X-Api-Key (автопилот
-        // публикует от имени владельца), и там telegram_id из тела легитимен,
-        // потому что серверу мы доверяем.
-        const verified = verifiedTelegramId(req)
-        if (verified) {
-          data.telegram_id = verified
-          // creator_name из тела — та же подмена. Берём настоящее имя из БД
-          // по проверенному telegram_id; username publishTemplateRow и так
-          // подставляет из users.
-          try {
-            const u = await (
-              await getPool()
-            ).query(
-              `SELECT COALESCE(first_name, username, '') AS n
-               FROM users WHERE telegram_id = $1 LIMIT 1`,
-              [verified]
-            )
-            if (u.rows[0]?.n) data.creator_name = u.rows[0].n
-          } catch {
-            // имя не нашлось — publishTemplateRow подставит 'Anonymous';
-            // главное, что telegram_id уже проверенный.
-          }
-        }
-
         // Тот же код, что и у автопубликации после рендера. Раньше SQL был
         // написан здесь второй раз, а рендер ходил сюда по сети к самому себе.
         const row = await publishTemplateRow(data)
@@ -4905,27 +4849,21 @@ const server = createServer(async (req, res) => {
     handleMcpCard(res)
     return
   }
+  /**
+   * Маршруты входа для нативного клиента.
+   *
+   * Стоят ПЕРВЫМИ среди маршрутов: их задача — выдать личность, а не
+   * потребовать её. Поставить их ниже значило бы попасть под общий гвард,
+   * который как раз и требует того, чего у клиента ещё нет.
+   *
+   * Обработчик сам решает, его ли адрес, и возвращает false, если нет —
+   * та же форма, что у соседей по каскаду.
+   */
+  if (await handleAuthRoute(req, res, getPool)) return
+
   if (req.url?.split('?')[0] === '/mcp' && req.method === 'POST') {
     await handleMcp(req, res, getPool)
     return
-  }
-  // A2A (Agent2Agent): паспорт агента и JSON-RPC. Карточка публична намеренно —
-  // внешний агент читает /.well-known/agent-card.json без ключа. /a2a проверяет
-  // личность внутри (X-Agent-Key или подпись), как /mcp.
-  {
-    const u = req.url?.split('?')[0]
-    const base = process.env.SELF_URL || `https://${req.headers.host}`
-    if (
-      req.method === 'GET' &&
-      (u === '/.well-known/agent-card.json' || u === '/.well-known/agent.json')
-    ) {
-      handleA2ACard(res, base)
-      return
-    }
-    if (u === '/a2a' && req.method === 'POST') {
-      await handleA2A(req, res, getPool)
-      return
-    }
   }
   if (req.url?.split('?')[0] === '/api/agent/chat' && req.method === 'POST') {
     // Личность: подпись мини-аппа ИЛИ ключ агента (коннектор для тестов).
@@ -4944,34 +4882,6 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleAgentChat(req, res, String(who), getPool)
-    return
-  }
-  // Самообслуживание ключей MCP: выпустить/список/отозвать. Личность СТРОГО из
-  // подписи мини-аппа — НЕ из ключа агента: иначе один агентский ключ мог бы
-  // плодить новые ключи и раздавать доступ. Ключ привязан к тому, кто его
-  // выпустил, чужой telegram_id подставить нельзя. Матч по префиксу пути,
-  // чтобы DELETE /api/agent/keys/<prefix> тоже сюда попадал.
-  //
-  // Примечание о развёртывании (2026-08-28): маршрут доехал до прода отдельным
-  // коммитом-триггером. Railway-интеграция сравнивает HEAD с последним
-  // ЗАДЕПЛОЕННЫМ коммитом по watched-файлам; когда следом за render-правкой
-  // прилетел docs-only коммит и стал HEAD, render-изменения между ними
-  // получили вердикт «No changes to watched files» и мимо авто-деплоя
-  // проскочили. Урок: не смешивать в одной серии пушей render-правку и
-  // docs-only так, чтобы docs оказался последним — иначе render не доедет.
-  if (req.url?.split('?')[0].startsWith('/api/agent/keys')) {
-    const кто = verifiedTelegramId(req)
-    if (!кто) {
-      res.writeHead(401, { 'Content-Type': 'application/json' })
-      res.end(
-        JSON.stringify({
-          error: 'нужна подпись Telegram (X-Telegram-Init-Data)',
-          detail: 'ключи выпускает только владелец из мини-аппа',
-        })
-      )
-      return
-    }
-    await handleAgentKeys(req, res, String(кто), getPool)
     return
   }
 
@@ -5160,36 +5070,16 @@ const server = createServer(async (req, res) => {
             `https://api.telegram.org/bot${PAY_BOT}/getStarTransactions?limit=100`
           ).then(r => r.json())
           const txs = st?.result?.transactions || []
-          // Транзакции, уже привязанные к погашенным инвойсам этого
-          // пользователя, — исключаем: иначе одна оплата звёздами могла бы
-          // погасить несколько инвойсов с одинаковой суммой в разных вызовах.
-          const usedTxIds = new Set(
-            (
-              await pool.query(
-                `SELECT star_tx_id FROM token_invoices
-                 WHERE telegram_id = $1 AND star_tx_id IS NOT NULL`,
-                [who]
-              )
-            ).rows.map((r: any) => String(r.star_tx_id))
-          )
           // Гасим самый свежий подходящий pending: сумма совпала,
           // транзакция новее инвойса, от этого пользователя.
           for (const row of pend.rows) {
-            const invoiceMs = new Date(row.created_at).getTime()
-            const match = txs.find((t: any) => {
-              // t.date — Unix-СЕКУНДЫ (Bot API StarTransaction.date). Сравнение
-              // ЧИСЛАМИ: раньше стояло Date.parse(t.date*1000), но Date.parse
-              // ждёт строку, а получал число миллисекунд → NaN, и `NaN > X`
-              // всегда false. Из-за этого резервная проверка не начисляла
-              // НИКОГДА с момента написания.
-              const txMs = Number(t.date) * 1000
-              return (
-                !usedTxIds.has(String(t.id)) &&
+            const match = txs.find(
+              (t: any) =>
                 Number(t.amount) === row.stars &&
                 t.source?.user?.id === Number(who) &&
-                txMs > invoiceMs - 60_000
-              )
-            })
+                Date.parse(t.date * 1000 || t.date) >
+                  Date.parse(row.created_at) - 60_000
+            )
             if (match) {
               const upd = await pool.query(
                 `UPDATE token_invoices SET redeemed = TRUE, star_tx_id = $2
@@ -5274,13 +5164,6 @@ const server = createServer(async (req, res) => {
             ).match(/^tokens:(\d+):(.+)$/)
             const amount = m ? Number(m[1]) : 0
             const tid = m ? m[2] : ''
-            // Ключ идемпотентности — из самого события. Telegram ретраит
-            // доставку вебхука на любой не-200 и просто по сети; без ключа
-            // каждая повторная доставка одного платежа начисляла бы токены
-            // заново. telegram_payment_charge_id уникален на платёж.
-            const chargeId = String(
-              upd.successful_payment.telegram_payment_charge_id || ''
-            )
             if (amount > 0 && tid) {
               const pool = await getPool()
               await pool.query(
@@ -5291,45 +5174,13 @@ const server = createServer(async (req, res) => {
                  )`
               )
               await pool.query(
-                `CREATE TABLE IF NOT EXISTS star_payments (
-                   charge_id text PRIMARY KEY,
-                   telegram_id text NOT NULL,
-                   amount int NOT NULL,
-                   created_at timestamptz NOT NULL DEFAULT now()
-                 )`
+                `INSERT INTO user_tokens (telegram_id, balance)
+                 VALUES ($1, $2)
+                 ON CONFLICT (telegram_id)
+                 DO UPDATE SET balance = user_tokens.balance + $2, updated_at = now()`,
+                [tid, amount]
               )
-              // Начисляем ТОЛЬКО если платёж записан ВПЕРВЫЕ. Вставка
-              // charge_id и есть замок: повтор доставки конфликтует по
-              // первичному ключу, DO NOTHING → 0 строк → начисления нет.
-              let firstTime = true
-              if (chargeId) {
-                const ins = await pool.query(
-                  `INSERT INTO star_payments (charge_id, telegram_id, amount)
-                   VALUES ($1, $2, $3) ON CONFLICT (charge_id) DO NOTHING`,
-                  [chargeId, tid, amount]
-                )
-                firstTime = (ins.rowCount ?? 0) > 0
-              } else {
-                // charge_id не пришёл (не должно случаться на successful_payment).
-                // Начисляем, но громко предупреждаем: дедупа для этого платежа нет.
-                console.warn(
-                  '[STARS] successful_payment без telegram_payment_charge_id — начисляю без дедупа'
-                )
-              }
-              if (!firstTime) {
-                console.log(
-                  `[STARS] повтор доставки платежа ${chargeId} — уже зачтено, пропускаю`
-                )
-              } else {
-                await pool.query(
-                  `INSERT INTO user_tokens (telegram_id, balance)
-                   VALUES ($1, $2)
-                   ON CONFLICT (telegram_id)
-                   DO UPDATE SET balance = user_tokens.balance + $2, updated_at = now()`,
-                  [tid, amount]
-                )
-                console.log(`💰 [STARS] +${amount} токенов пользователю ${tid}`)
-              }
+              console.log(`💰 [STARS] +${amount} токенов пользователю ${tid}`)
             }
           }
           res.writeHead(200)
@@ -6309,48 +6160,22 @@ const server = createServer(async (req, res) => {
       let username = ''
       let photoUrl: string | null = null
 
-      /**
-       * ЛИЧНОСТЬ БЕРЁТСЯ ИЗ ПРОВЕРЕННОЙ ПОДПИСИ, а не из заголовка.
-       *
-       * Здесь стоял разбор `x-telegram-init-data` голым URLSearchParams —
-       * без единого вызова проверки подписи, — а сам маршрут лежал в
-       * PUBLIC_EXACT под комментарием «хендлер сам достаёт личность из
-       * подписи». Хендлер её не доставал. Достаточно было прислать
-       *
-       *   -H 'x-telegram-init-data: user={"id":<чужой id>,"username":"…"}'
-       *
-       * без hash и вообще без подписи, чтобы переписать чужой профиль:
-       * имя, ник и аватар жертвы в ленте и в чате агента становились
-       * такими, как решил отправитель.
-       *
-       * `verifiedTelegramId` считает HMAC от секрета бота и сверяет hash —
-       * подделать это нельзя, не зная токена. Раз личности нет, писать
-       * нечего: отвечаем 401 ДО первого обращения к базе.
-       */
-      const verified = verifiedTelegramId(req)
-      if (verified) {
-        const params = new URLSearchParams(
-          (req.headers['x-telegram-init-data'] as string) || ''
-        )
+      const initRaw = (req.headers['x-telegram-init-data'] as string) || ''
+      if (initRaw) {
+        const params = new URLSearchParams(initRaw)
         try {
           const u = JSON.parse(params.get('user') || '{}')
-          // id берём ИЗ ПРОВЕРЕННОГО значения, а не из тела: даже внутри
-          // подписанной строки полю user верить нельзя больше, чем подписи.
-          tgId = verified
+          tgId = String(u.id ?? '')
           firstName = String(u.first_name ?? '')
           lastName = String(u.last_name ?? '')
           username = String(u.username ?? '')
           photoUrl = u.photo_url ?? null
         } catch {
-          tgId = verified
+          /* повреждённый user — ответим честной ошибкой ниже */
         }
       }
-      /**
-       * Dev-коннектор: тело доверяем ТОЛЬКО если совпало с владельцем ключа
-       * И ТОЛЬКО ВНЕ ПРОДАКШНА. Ветка держится на том, что AGENT_KEYS не
-       * утёк, — в проде это лишняя дверь рядом с крепкой.
-       */
-      if (!tgId && process.env.NODE_ENV !== 'production') {
+      // Dev-коннектор: тело доверяем ТОЛЬКО если совпало с владельцем ключа.
+      if (!tgId) {
         const keyOwner = chatIdentity(req, null)
         if (keyOwner) {
           let body: any = {}

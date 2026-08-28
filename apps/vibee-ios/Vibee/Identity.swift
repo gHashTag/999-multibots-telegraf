@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import UIKit
 
 /**
  * Кто мы для сервера.
@@ -29,14 +30,38 @@ enum Identity {
     set { записать("agent-key", newValue) }
   }
 
-  /// Access-токен сессии. Появится, когда заработает вход через Telegram.
+  /// Access-токен сессии. Короткий: протухает и обновляется сам.
   static var accessToken: String? {
     get { прочитать("access-token") }
     set { записать("access-token", newValue) }
   }
 
+  /**
+   * Refresh-токен: длинный, ротируемый, ОДНОРАЗОВЫЙ.
+   *
+   * Сервер считает повторное предъявление кражей и отзывает всю семью сессий
+   * разом. Поэтому здесь ровно одно место записи и ни одной копии в памяти
+   * дольше запроса: если старый токен где-то задержится и уйдёт вторым, мы
+   * сами себя разлогиним и не поймём почему.
+   */
+  static var refreshToken: String? {
+    get { прочитать("refresh-token") }
+    set { записать("refresh-token", newValue) }
+  }
+
   /// Есть ли чем представиться. Экраны спрашивают это, а не разбирают ключи.
   static var known: Bool { accessToken != nil || agentKey != nil }
+
+  /// Настоящая сессия, а не отладочный ключ. Разница видна в Профиле.
+  static var hasSession: Bool { refreshToken != nil }
+
+  /// Свой telegram_id — сервер называет его при обмене кода. Без него
+  /// Профиль не знает, чей профиль показывать, и это единственное, что ему
+  /// нужно: имя и аватар он возьмёт с сервера.
+  static var telegramId: String? {
+    get { прочитать("telegram-id") }
+    set { записать("telegram-id", newValue) }
+  }
 
   /**
    * Заголовки для любого запроса к API.
@@ -88,5 +113,136 @@ enum Identity {
           let d = out as? Data, let s = String(data: d, encoding: .utf8), !s.isEmpty
     else { return nil }
     return s
+  }
+}
+
+/**
+ * Вход и поддержание сессии.
+ *
+ * ПОЧЕМУ КОД, А НЕ ССЫЛКА. Приложение не внутри Telegram и подпись `initData`
+ * получить не может — никогда, ни при каких условиях. Значит личность должна
+ * прийти оттуда, где подпись есть: из мини-аппа. Диплинк был бы на два тапа
+ * короче, но refresh-токен в адресной строке оседает в логах, в истории буфера
+ * обмена и у того, кто рисует ссылку. Шесть цифр, прочитанных глазами с одного
+ * экрана и набранных на другом, не оставляют копии нигде.
+ */
+extension Identity {
+  enum ВходError: LocalizedError {
+    case отказ(String)
+    case сеть(Error)
+
+    var errorDescription: String? {
+      switch self {
+      case .отказ(let текст): return текст
+      case .сеть(let e): return "Не дошло до сервера: \(e.localizedDescription)"
+      }
+    }
+  }
+
+  /// Склейка строк дала бы двойной слэш или его отсутствие в зависимости от
+  /// того, чем кончается база. `appending` знает про разделитель сам.
+  private static func адрес(_ путь: String) -> URL {
+    API.base.appendingPathComponent(путь)
+  }
+
+  /// Обменять шестизначный код на сессию. Код гаснет на сервере в тот же миг.
+  static func claimPairing(code: String) async throws {
+    let цифры = code.filter(\.isNumber)
+    guard цифры.count == 6 else { throw ВходError.отказ("Нужны шесть цифр") }
+
+    let имяУстройства = await MainActor.run { UIDevice.current.name }
+
+    var r = URLRequest(url: адрес("api/auth/pair/claim"))
+    r.httpMethod = "POST"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    // Имя устройства попадёт в список сессий: человек должен узнавать, что
+    // именно отзывает, не сверяя идентификаторы.
+    r.httpBody = try JSONSerialization.data(withJSONObject: [
+      "code": цифры,
+      "device_name": имяУстройства,
+    ])
+
+    let (data, resp): (Data, URLResponse)
+    do { (data, resp) = try await URLSession.shared.data(for: r) }
+    catch { throw ВходError.сеть(error) }
+
+    let тело = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+    guard (resp as? HTTPURLResponse)?.statusCode == 200 else {
+      /**
+       * Показываем ПРИЧИНУ отказа, а не «ошибка входа».
+       *
+       * Сервер честно различает «не найден», «истёк» и «слишком много попыток»
+       * именно затем, чтобы человек, опоздавший на десять секунд, запросил
+       * новый код, а не перенабирал верный по третьему разу.
+       */
+      throw ВходError.отказ(тело["detail"] as? String ?? "Код не принят")
+    }
+
+    // Порядок важен: refresh пишем ПЕРВЫМ. Если приложение умрёт между двумя
+    // записями, лучше остаться с обновляемым refresh без access, чем с
+    // access, который через час протухнет навсегда.
+    refreshToken = тело["refresh_token"] as? String
+    accessToken = тело["access_token"] as? String
+    telegramId = тело["telegram_id"] as? String
+    // Ключ агента больше не нужен и не должен пережить вход: два способа
+    // представиться — это два способа разойтись.
+    agentKey = nil
+  }
+
+  /// Обновить протухший access. Возвращает false, если надо входить заново.
+  @discardableResult
+  static func refreshSession() async -> Bool {
+    guard let rt = refreshToken else { return false }
+
+    var r = URLRequest(url: адрес("api/auth/refresh"))
+    r.httpMethod = "POST"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    r.httpBody = try? JSONSerialization.data(withJSONObject: ["refresh_token": rt])
+
+    guard let (data, resp) = try? await URLSession.shared.data(for: r) else {
+      // Сеть отвалилась — это НЕ повод стирать сессию. Токен ещё жив.
+      return false
+    }
+    let тело = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+
+    guard (resp as? HTTPURLResponse)?.statusCode == 200,
+          let новыйRefresh = тело["refresh_token"] as? String,
+          let новыйAccess = тело["access_token"] as? String
+    else {
+      /**
+       * Отказ сервера — это конец сессии, и её надо стереть.
+       *
+       * Особенно `auth_reuse_detected`: сервер уже отозвал всю семью, потому
+       * что счёл токен украденным. Повторять запрос бессмысленно и вредно —
+       * каждая попытка выглядит как ещё одно предъявление.
+       */
+      forget()
+      return false
+    }
+
+    refreshToken = новыйRefresh
+    accessToken = новыйAccess
+    return true
+  }
+
+  /// Забыть всё об этом человеке на этом устройстве.
+  static func forget() {
+    accessToken = nil
+    refreshToken = nil
+    agentKey = nil
+    telegramId = nil
+  }
+
+  /// Выйти по-настоящему: и здесь, и на сервере.
+  static func logout() async {
+    if let t = accessToken {
+      var r = URLRequest(url: адрес("api/auth/logout"))
+      r.httpMethod = "POST"
+      r.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization")
+      _ = try? await URLSession.shared.data(for: r)
+    }
+    // Стираем ВНЕ зависимости от ответа: человек нажал «выйти», и экран обязан
+    // это выполнить. Серверная половина — попытка, локальная — обещание.
+    forget()
   }
 }

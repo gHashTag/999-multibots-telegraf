@@ -80,6 +80,16 @@ pre-commit:
       run: node scripts/check-player-types.cjs
       fail_text: "Ошибок типов в плеере стало больше. Это находки, а не фон."
 
+    # 6. No Cyrillic in code comments. The bot is bilingual, so Cyrillic inside
+    #    string literals (UI text) stays allowed — the guard strips string
+    #    literals first and only rejects Cyrillic left in comments/identifiers.
+    #    Ratchet on the staged diff: existing Russian comments and .md docs are
+    #    untouched. Escape hatch: put  cyrillic-ok  on the line.
+    no-cyrillic:
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
+      run: node scripts/no-cyrillic-guard.cjs staged
+      fail_text: "Cyrillic in a code comment. Write comments in English."
+
 commit-msg:
   commands:
     # Сообщение коммита уходит в публичный репозиторий вместе с кодом:
@@ -90,6 +100,12 @@ commit-msg:
           echo "В сообщении коммита похоже на токен. Уберите его."
           exit 1
         fi
+
+    # Commit messages go to the public repo and are read by everyone: keep them
+    # English. Translations (UI string literals) stay Russian — see the
+    # pre-commit no-cyrillic guard; this only covers the message text.
+    no-cyrillic-in-message:
+      run: node scripts/no-cyrillic-guard.cjs msg {1}
 
 pre-push:
   parallel: true
@@ -133,3 +149,13 @@ pre-push:
     # падает при его появлении; намеренные упоминания помечаются комментарием.
     dead-domain:
       run: node scripts/check-dead-domain.cjs
+
+    # Дымовой тест ВСЕХ функций через mock. Самодостаточно: поднимает mock,
+    # гоняет 84 проверки (32 инструмента MCP + A2A + генерация + рендер + лента +
+    # ВСЕ провайдеры: Kling/HeyGen/FAL/Replicate/OpenAI/video/broll/voices/
+    # Hedra/BFL), гасит сервер. Ничего не тратит, ~5с. Падает громко, если
+    # сломан контракт любой функции. Лучшая практика: контракт всех функций
+    # проверяется перед каждым push, а не только «эта правка компилируется».
+    mock-functions:
+      run: bash apps/vibee-editor/render/mock-selfcheck.sh
+      fail_text: "Mock-проверки функций упали — сломан контракт функции или провайдера."

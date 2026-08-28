@@ -1,0 +1,337 @@
+#!/usr/bin/env bash
+#
+# tri — один вход ко всей оснастке цикла.
+#
+# ЗАЧЕМ ЭТО ЕСТЬ. В .claude/loop-opus/ лежит одиннадцать скриптов, и каждый
+# виток я звал их полными путями с приставкой PATH=…/node. Дело не только в
+# скорости: длинную команду не запоминают, а незапомненную проверку не делают.
+#
+# ЧЕМ ЭТО ОТЛИЧАЕТСЯ ОТ ОБЁРТКИ. Половина команд здесь — не переименованные
+# старые скрипты, а УРОКИ, ставшие исполнимыми. Каждый записан в скилле словами
+# и каждый стоил цикла:
+#
+#   tri кто     ← «признак живого маршрута — его собственное сообщение,
+#                  а не статус 401». Стоило четырёх циклов.
+#   tri в-tsc   ← «ноль ошибок означал „не проверено“, а не „верно“».
+#   tri жив     ← «три правки легли туда, что никто не рендерит».
+#   tri мутация ← «зелёная мутация — это отчёт о дыре в покрытии».
+#   tri выложен ← «мерж не равен выкладке», и сравнивать надо ПОСЛЕ fetch,
+#                  иначе ворота дают ложную тревогу.
+#
+# Записанное словами надо вспомнить. Команду — набрать. Разница решает.
+#
+# ИМЕНА. Подкоманды по-русски: их читает человек. Переменные и функции —
+# латиницей, потому что кириллица в имени переменной bash даёт
+# «command not found» без объяснения причины. Оплачено дважды.
+
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TOOLS="$ROOT/.claude/loop-opus"
+
+# node 20 из nvm: системный 18 ломает Vite и половину прогонов.
+export PATH="/Users/playom/.nvm/versions/node/v20.19.0/bin:/opt/homebrew/bin:$PATH"
+
+RENDER="${TRI_RENDER_URL:-https://vibee-render-production.up.railway.app}"
+
+paint() { printf '\033[%sm%s\033[0m\n' "$1" "$2"; }
+good() { paint '32' "  OK   $1"; }
+bad()  { paint '31' "  ✗    $1"; }
+warn() { paint '33' "  ⚠    $1"; }
+
+usage() {
+  cat <<'СПРАВКА'
+tri — оснастка цикла. Опыт, ставший командами.
+
+ПРОВЕРКИ, КОТОРЫЕ СТОИЛИ ЦИКЛОВ
+  tri кто <путь> [метод] [тело]
+        Дёрнуть маршрут и сказать, КТО ответил: общий гвард или сам маршрут.
+        Статус 401 не значит ничего — значит только словарь в теле ответа.
+        Пример: tri кто /api/auth/pair/claim POST '{"code":"123456"}'
+
+  tri в-tsc <файл> [tsconfig]
+        Входит ли файл в программу tsc. Ноль ошибок в файле, которого в
+        программе нет, означает «не проверялось», а не «верно».
+
+  tri жив <строка> <каталог сборки>
+        Есть ли строка в СОБРАННЫХ чанках. Ищет во всех, а не в индексном:
+        компонент обычно уезжает в ленивый чанк, и поиск по index врёт.
+
+  tri мутация <файл> <было> <стало> <тест>
+        Сломать, прогнать тест, ждать красноты, откатить, ждать зелени.
+        Тест, который не краснеет от поломки, не проверяет ничего.
+
+  tri выложен
+        Совпадает ли версия на проде с origin/main.
+
+  tri разошлись
+        Насколько текущая ветка разошлась с origin/main. Правку ведут ОТ
+        origin/main, а не от локального HEAD.
+
+ОСНАСТКА ЦИКЛА
+  tri лок | tri раслок    занять или освободить блокировку итерации
+  tri скан                аномалии и что ждёт владельца
+  tri панель              пересобрать дашборд
+  tri тесты               весь прогон
+  tri маршруты            сверка адресов клиента и сервера
+  tri здоровье            /health рендера одной строкой
+
+ПРОЧЕЕ
+  tri опыт <заголовок>    дописать урок в скилл (тело читается со stdin)
+  tri помощь
+СПРАВКА
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# КТО ОТВЕТИЛ. Самая дорогая ошибка этого репозитория — теперь одна команда.
+#
+# Гвард и маршрут отвечают ОДНИМ И ТЕМ ЖЕ статусом 401. Отличить их можно
+# только по словарю в теле. Четырежды я принимал отказ гварда за ответ своего
+# маршрута — и однажды выложил в прод два маршрута, которые нельзя вызвать.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_who() {
+  local route="${1:?нужен путь, например /api/auth/pair/claim}"
+  local verb="${2:-POST}"
+  local payload="${3:-{\}}"
+
+  local raw status body
+  raw=$(curl -s -m 25 -X "$verb" "$RENDER$route" \
+          -H 'Content-Type: application/json' \
+          ${payload:+-d "$payload"} -w '\n%{http_code}' 2>/dev/null)
+  status=$(printf '%s' "$raw" | tail -1)
+  body=$(printf '%s' "$raw" | sed '$d')
+
+  printf '  %s %s → %s\n' "$verb" "$route" "$status"
+  printf '  %s\n' "$(printf '%s' "$body" | head -c 300)"
+
+  # Словарь гварда: эти фразы печатает ТОЛЬКО общая проверка на входе.
+  if printf '%s' "$body" | grep -qE 'no X-Api-Key|no Telegram initData|"unauthorized"'; then
+    bad 'ответил ГВАРД — до маршрута не дошло'
+    paint '31' '       если маршрут должен быть публичным, его нет в PUBLIC_EXACT (auth.ts)'
+    return 1
+  fi
+  if [ -z "$body" ]; then
+    warn 'пустое тело — сказать нечего, проверьте адрес и метод'
+    return 2
+  fi
+  good 'ответил САМ МАРШРУТ — он жив'
+  return 0
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# ВХОДИТ ЛИ ФАЙЛ В ПРОГРАММУ TSC.
+# Однажды я влил файл, который не импортировал никто: tsc его не видел, и ноль
+# ошибок означал «не проверялось». Внутри было обращение к несуществующему полю.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_in_tsc() {
+  local target="${1:?нужен путь к файлу}"
+  local conf="${2:-}"
+  local base; base="$(basename "$target")"
+  local here; here="$(cd "$(dirname "$target")" && pwd)"
+
+  if [ -z "$conf" ]; then
+    local walk="$here"
+    while [ "$walk" != "/" ]; do
+      if [ -f "$walk/tsconfig.json" ]; then conf="$walk/tsconfig.json"; break; fi
+      walk="$(dirname "$walk")"
+    done
+  fi
+  require_fresh || return 3
+  [ -f "$conf" ] || { bad 'tsconfig не найден'; return 1; }
+
+  printf '  конфиг: %s\n' "$conf"
+  local hits
+  hits=$(cd "$(dirname "$conf")" \
+    && npx tsc -p "$conf" --noEmit --pretty false --listFiles 2>/dev/null \
+    | grep -c "/$base$")
+
+  if [ "${hits:-0}" -gt 0 ]; then
+    good "$base В программе — ноль ошибок здесь что-то значит"
+  else
+    bad "$base НЕ в программе — ноль ошибок не значит ничего"
+    paint '31' '       include его не тянет, и никто его не импортирует'
+    return 1
+  fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# ОТКАЗ МЕРИТЬ ПО УСТАРЕВШЕЙ КОПИИ.
+#
+# Найдена первопричина семи подряд «померил не тот артефакт»: рабочая копия в
+# корне репозитория отставала от origin/main на 144 коммита, и файла, который
+# искали, в ней не было ВООБЩЕ. grep уверенно отвечал «не найдено» — и был
+# формально прав насчёт этой копии, и полностью неверен насчёт мира.
+#
+# Молчаливый неверный ответ дороже отказа отвечать. Поэтому команды, которые
+# меряют локальные файлы, сначала спрашивают, насколько копия свежая.
+# ─────────────────────────────────────────────────────────────────────────
+require_fresh() {
+  local behind
+  git -C "$ROOT" fetch origin main --quiet 2>/dev/null || true
+  behind=$(git -C "$ROOT" rev-list --count HEAD..origin/main 2>/dev/null)
+  [ -z "${behind:-}" ] && return 0          # не git-дерево — мерить нечему мешать
+
+  if [ "$behind" -gt 5 ]; then
+    bad "копия отстаёт от origin/main на $behind коммитов"
+    paint '31' '       Замер по ней НИЧЕГО не значит: искомого файла может не быть'
+    paint '31' '       в этой копии вовсе, и «не найдено» будет ложью.'
+    paint '31' "       Мерьте выложенный артефакт или свежее дерево от origin/main."
+    # Возврат 3, а не 1: вызывающий отличит «устарело» от «не нашлось».
+    return 3
+  fi
+  [ "$behind" -gt 0 ] && warn "копия отстаёт на $behind коммитов — держите в уме"
+  return 0
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# ЖИВ ЛИ КОМПОНЕНТ В СБОРКЕ.
+# В этом репозитории трижды правили файлы, которые ничто не рендерит:
+# AssetBrowser, VerticalTabs, BottomNavigation. И семь раз мерили индексный
+# бандл вместо ленивого чанка, где код на самом деле лежит.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_alive() {
+  local needle="${1:?нужна отличительная строка из компонента}"
+  local built="${2:?нужен каталог сборки, например apps/vibee-editor/player/dist}"
+
+  require_fresh || return 3
+  [ -d "$built" ] || { bad "нет каталога $built — сначала соберите"; return 1; }
+
+  local hits
+  hits=$(grep -rl -- "$needle" "$built" 2>/dev/null)
+  if [ -z "$hits" ]; then
+    bad 'строки нет ни в одном чанке — код мёртв или не собран'
+    return 1
+  fi
+  good 'найдено в собранных чанках:'
+  printf '       %s\n' $hits
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# МУТАЦИЯ. Тест, который не краснеет от поломки, не проверяет ничего.
+# Однажды мутация прошла зелёной — и это была не удача, а дыра в покрытии.
+# ─────────────────────────────────────────────────────────────────────────
+MUT_KEEP=""
+MUT_FILE=""
+restore_mutation() {
+  # Идемпотентно: зовётся и явно после прогона, и ловушкой на выходе.
+  if [ -n "${MUT_KEEP:-}" ] && [ -f "${MUT_KEEP:-}" ] && [ -n "${MUT_FILE:-}" ]; then
+    cp "$MUT_KEEP" "$MUT_FILE"
+    rm -f "$MUT_KEEP"
+    MUT_KEEP=""
+  fi
+}
+
+cmd_mutate() {
+  local target="${1:?нужен файл}"
+  local from="${2:?что заменить}"
+  local to="${3:?на что}"
+  local spec="${4:?нужен путь к тесту}"
+  [ -f "$target" ] || { bad "нет файла $target"; return 1; }
+
+  # ВНЕ функции, а не local: ловушка срабатывает при выходе из СКРИПТА, когда
+  # локальных переменных уже нет. Первая версия падала там с «unbound variable»
+  # — восстановление при этом уже произошло, но сообщение выглядело как сбой.
+  MUT_KEEP="$(mktemp)"
+  MUT_FILE="$target"
+  cp "$target" "$MUT_KEEP"
+  trap 'restore_mutation' EXIT INT TERM
+
+  if ! grep -qF -- "$from" "$target"; then
+    bad "строка «$from» в файле не найдена — мутировать нечего"
+    return 1
+  fi
+
+  python3 - "$target" "$from" "$to" <<'PY'
+import io, sys
+path, a, b = sys.argv[1], sys.argv[2], sys.argv[3]
+src = io.open(path, encoding='utf-8').read()
+io.open(path, 'w', encoding='utf-8').write(src.replace(a, b, 1))
+PY
+
+  printf '  сломано, гоняю тест…\n'
+  if (cd "$ROOT" && npx vitest run "$spec" >/dev/null 2>&1); then
+    bad 'тест ПРОШЁЛ на сломанном коде — он проверяет не то, что вы думали'
+    paint '31' '       это находка, а не облегчение: покрытия здесь нет'
+    return 1
+  fi
+  good 'тест покраснел, как и должен'
+
+  restore_mutation
+  printf '  откатил, гоняю снова…\n'
+  if (cd "$ROOT" && npx vitest run "$spec" >/dev/null 2>&1); then
+    good 'на целом коде зелено — проверка доказала себя в обе стороны'
+    return 0
+  fi
+  bad 'после отката всё ещё красно — сломано что-то ещё'
+  return 1
+}
+
+cmd_deployed() {
+  # fetch ПЕРЕД сравнением. Без него сравниваем с тем, каким origin/main был на
+  # прошлой синхронизации, и получаем ложную тревогу. Уже случалось.
+  git -C "$ROOT" fetch origin main --quiet 2>/dev/null \
+    || warn 'origin/main не обновлён, сравнение может отставать'
+
+  local live head
+  live=$(curl -s -m 20 "$RENDER/health" \
+    | python3 -c 'import sys,json;print(json.load(sys.stdin).get("version","?"))' 2>/dev/null)
+  head=$(git -C "$ROOT" rev-parse --short origin/main 2>/dev/null)
+
+  printf '  прод: %s | origin/main: %s\n' "${live:-нет ответа}" "$head"
+  if [ -z "$live" ] || [ "$live" = "?" ]; then
+    warn 'прод не назвал версию — сверить нечем'
+  elif [ "$live" = "$head" ]; then
+    good 'выложено то же, что в main'
+  elif git -C "$ROOT" merge-base --is-ancestor "$live" origin/main 2>/dev/null; then
+    warn "выкладка отстаёт: на проде $live, в main $head"
+  else
+    bad "на проде $live — этого коммита в main нет"
+  fi
+}
+
+cmd_diverged() {
+  git -C "$ROOT" fetch origin main --quiet 2>/dev/null
+  local counts behind ahead
+  counts=$(git -C "$ROOT" rev-list --left-right --count origin/main...HEAD 2>/dev/null)
+  behind=$(printf '%s' "$counts" | cut -f1)
+  ahead=$(printf '%s' "$counts" | cut -f2)
+  printf '  позади origin/main: %s | впереди: %s\n' "${behind:-?}" "${ahead:-?}"
+  if [ "${behind:-0}" -gt 20 ]; then
+    bad 'ветка сильно устарела — правку ведите ОТ origin/main'
+    return 1
+  elif [ "${ahead:-0}" -gt 0 ]; then
+    warn "$ahead своих коммитов не выложено"
+  else
+    good 'в ногу с origin/main'
+  fi
+}
+
+cmd_lesson() {
+  local title="${1:?нужен заголовок урока}"
+  local skill="$ROOT/.claude/skills/vibee-stack-hard-won/SKILL.md"
+  [ -f "$skill" ] || { bad 'скилл не найден'; return 1; }
+  { printf '\n## %s\n\n' "$title"; cat; } >> "$skill"
+  good 'урок дописан в SKILL.md'
+}
+
+action="${1:-помощь}"
+shift 2>/dev/null || true
+
+case "$action" in
+  кто)        cmd_who "$@" ;;
+  в-tsc)      cmd_in_tsc "$@" ;;
+  жив)        cmd_alive "$@" ;;
+  мутация)    cmd_mutate "$@" ;;
+  выложен)    cmd_deployed ;;
+  разошлись)  cmd_diverged ;;
+  опыт)       cmd_lesson "$@" ;;
+  лок)        bash "$TOOLS/guard.sh" acquire ;;
+  раслок)     bash "$TOOLS/guard.sh" release ;;
+  скан)       node "$TOOLS/anomalies.mjs" ;;
+  панель)     node "$TOOLS/dashboard.mjs" ;;
+  тесты)      bash "$TOOLS/test-all.sh" ;;
+  маршруты)   node "$TOOLS/check-routes.mjs" ;;
+  здоровье)   curl -s -m 20 "$RENDER/health" | head -c 400; echo ;;
+  помощь|-h|--help) usage ;;
+  *)          bad "не знаю команды «$action»"; echo; usage; exit 1 ;;
+esac

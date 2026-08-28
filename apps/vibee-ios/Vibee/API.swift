@@ -22,6 +22,44 @@ enum API {
 
   private struct FeedResponse: Decodable { let templates: [Template] }
 
+  /**
+   * Карточка профиля. Поля названы так, как их отдаёт сервер — проверено
+   * живым запросом (`/api/users/t27_dev`), а не выведено из веб-клиента.
+   * Сервер здесь отвечает в snake_case, а лента — в camelCase: два разных
+   * маршрута, две разные привычки. Молча «причесать» их значило бы получить
+   * nil там, где данные есть.
+   */
+  struct Profile: Decodable {
+    let username: String
+    let display_name: String?
+    let bio: String?
+    let avatar_url: String?
+  }
+
+  /// Профиль по своему telegram_id: единственное, что приложение о себе знает.
+  static func profile(telegramId: String) async throws -> Profile {
+    struct ById: Decodable { let username: String }
+    let (d, _) = try await URLSession.shared.data(
+      from: base.appendingPathComponent("api/users/id/\(telegramId)"))
+    let username = try JSONDecoder().decode(ById.self, from: d).username
+    return try await profile(username: username)
+  }
+
+  static func profile(username: String) async throws -> Profile {
+    let (d, _) = try await URLSession.shared.data(
+      from: base.appendingPathComponent("api/users/\(username)"))
+    return try JSONDecoder().decode(Profile.self, from: d)
+  }
+
+  /// Ролики автора. Тот же `Template`, что и в ленте — сервер отдаёт одну
+  /// форму на оба маршрута, и заводить вторую модель значило бы завести
+  /// второе место, где она разойдётся.
+  static func userTemplates(username: String) async throws -> [Template] {
+    let (d, _) = try await URLSession.shared.data(
+      from: base.appendingPathComponent("api/users/\(username)/templates"))
+    return try JSONDecoder().decode(FeedResponse.self, from: d).templates
+  }
+
   static func feed(page: Int = 0, limit: Int = 20) async throws -> [Template] {
     var c = URLComponents(url: base.appendingPathComponent("api/feed"),
                           resolvingAgainstBaseURL: false)!

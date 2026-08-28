@@ -79,6 +79,28 @@ const PUBLIC_EXACT = new Set([
   // проверяет личность — подпись мини-аппа ИЛИ ключ агента. Общий гвард
   // умеет только первое, а коннектор для тестов требует второго.
   '/api/agent/chat',
+  // Маршруты входа пропускаются гвардом НАМЕРЕННО: их задача — ВЫДАТЬ
+  // личность. Требовать её на входе значит требовать того, чего у клиента
+  // ещё нет. Каждый из трёх проверяет личность сам: обмен — подписью
+  // Telegram, refresh — самим токеном (одноразовым), выход — Bearer.
+  '/api/auth/telegram',
+  '/api/auth/refresh',
+  '/api/auth/logout',
+  /**
+   * Pairing MUST be public, and that is the entire point of it.
+   *
+   * `claim` is called by a client that has no credentials whatsoever — if it
+   * had any, it would not need to pair. `start` carries its proof in the BODY
+   * (initData), which the guard does not read; the route verifies it itself.
+   *
+   * Both were added to session-routes.ts and NOT here, so the guard answered
+   * 401 before the handler ever ran. The route existed, was deployed, was
+   * tested, and could not be reached by anything. See the reachability test in
+   * auth-public.test.ts, which now fails when a new /api/auth/* route is
+   * added without a line here.
+   */
+  '/api/auth/pair/start',
+  '/api/auth/pair/claim',
   // POST /api/users/sync-from-telegram пропускается гвардом НАМЕРЕННО:
   // хендлер сам достаёт личность из подписи initData (или сверяет
   // dev-ключ с телом). Синк МОЖЕТ писать только своего владельца.
@@ -97,13 +119,6 @@ const PUBLIC_EXACT = new Set([
   // GET /api/assets/:id остаётся ЗА гвардом — чтение чужой истории
   // по известному telegram_id отдавать нельзя.
   '/api/assets',
-  // A2A: паспорт агента ПУБЛИЧЕН намеренно — внешний агент читает карточку без
-  // ключа, это точка обнаружения. /a2a (JSON-RPC) пропускается гвардом так же,
-  // как /mcp: личность (X-Agent-Key или подпись) проверяет сам handleA2A, и без
-  // неё не выполняет ни одной функции.
-  '/.well-known/agent-card.json',
-  '/.well-known/agent.json',
-  '/a2a',
 ])
 const PUBLIC_PREFIXES = [
   '/renders/',

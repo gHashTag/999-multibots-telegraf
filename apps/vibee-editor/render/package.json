@@ -6,7 +6,10 @@
     "start": "tsx render-server.ts",
     "build": "remotion bundle",
     "render": "remotion render",
-    "captions": "tsx scripts/auto-captions.ts"
+    "captions": "tsx scripts/auto-captions.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
+    "typecheck:tests": "tsc -p tsconfig.test.json --noEmit --pretty false",
+    "test": "vitest run --root ../../..  apps/vibee-editor/render"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.948.0",

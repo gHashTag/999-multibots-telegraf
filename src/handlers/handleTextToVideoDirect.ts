@@ -100,14 +100,25 @@ export async function handleTextToVideoDirect(
       aspectRatio
     )
 
-    // result уже в правильном формате { success, videoUrl?, jobId?, error?, message? }
+    // Модуль generateTextToVideo возвращает string | null, а НЕ объект.
+    // Строка — это либо URL готового видео (синхронные Replicate-модели), либо
+    // taskId async-джобы (Kie.ai). Раньше здесь ждали объект {success,...}, и на
+    // успехе (строке) response.success был undefined → условие !response.success
+    // истинно → пользователь ВСЕГДА получал «❌ Ошибка генерации: undefined», а
+    // видео не доходило вообще. Нормализуем к контракту хендлера:
+    //   URL  → videoUrl (доставить сразу), иначе taskId → jobId (вебхук/поллинг).
     const response: {
       success: boolean
       videoUrl?: string
       jobId?: string
       error?: string
       message?: string
-    } = result || { success: false, error: 'Video generation failed' }
+    } =
+      typeof result === 'string' && result
+        ? /^https?:\/\//.test(result)
+          ? { success: true, videoUrl: result }
+          : { success: true, jobId: result }
+        : { success: false, error: 'Video generation failed' }
 
     if (!response.success) {
       // ✅ Проверяем, является ли это ошибкой недостатка кредитов (402)

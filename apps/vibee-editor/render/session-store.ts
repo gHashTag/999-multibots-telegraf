@@ -109,7 +109,142 @@ export async function ensureAuthTables(pool: Pool): Promise<void> {
       consumed_at timestamptz
     )`)
 
+  /**
+   * Pairing codes: how a client with no Telegram signature gets a session.
+   *
+   * The native app is not inside Telegram, so it can never hold initData. It
+   * has been holding an agent key typed in by a person instead — the one
+   * manual step left in the whole product.
+   *
+   * The code crosses the gap through the person's eyes, not through a URL.
+   * A deep link would have been fewer taps, but a refresh token in a query
+   * string lands in logs, in pasteboard history, and in whatever app renders
+   * the link. Six digits read off one screen and typed into another leave no
+   * copy anywhere.
+   *
+   * `code_hash` is the primary key and the raw code has NO column: a database
+   * dump must not be a list of working credentials. Same rule as refresh
+   * tokens, for the same reason.
+   */
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_pairing_codes (
+      code_hash text PRIMARY KEY,
+      telegram_id text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      expires_at timestamptz NOT NULL,
+      consumed_at timestamptz,
+      attempts int NOT NULL DEFAULT 0
+    )`)
+
   готово = true
+}
+
+/** How long a pairing code lives, and how wrong you may be about it. */
+export const PAIRING = {
+  /** Two minutes: long enough to walk to the other device, short enough that
+   *  a shoulder-surfed code is stale before it is useful. */
+  TTL_SECONDS: 120,
+  /** Six digits is a million codes. That is only safe because the window is
+   *  two minutes AND because guesses are counted — see `claimPairingCode`. */
+  DIGITS: 6,
+  MAX_ATTEMPTS: 5,
+} as const
+
+/**
+ * Mint a pairing code for an ALREADY VERIFIED telegram_id.
+ *
+ * Callers must have checked the Telegram signature. This function cannot do
+ * it — it takes an id, and an id is not proof of anything.
+ */
+export async function issuePairingCode(
+  pool: Pool,
+  telegramId: string,
+  mint: () => string
+): Promise<{ code: string; expiresAt: Date }> {
+  /**
+   * One live code per person.
+   *
+   * Without this, pressing the button twice leaves two valid codes and the
+   * person cannot tell which screen is current. Worse, the abandoned one stays
+   * guessable for its full two minutes with its own attempt counter — every
+   * press would widen the window instead of restarting it.
+   */
+  await pool.query(
+    `UPDATE app_pairing_codes SET consumed_at = now()
+      WHERE telegram_id = $1 AND consumed_at IS NULL`,
+    [telegramId]
+  )
+
+  const code = mint()
+  const expiresAt = new Date(Date.now() + PAIRING.TTL_SECONDS * 1000)
+  await pool.query(
+    `INSERT INTO app_pairing_codes (code_hash, telegram_id, expires_at)
+     VALUES ($1, $2, $3)`,
+    [digest(code), telegramId, expiresAt.toISOString()]
+  )
+  return { code, expiresAt }
+}
+
+export type PairingOutcome =
+  | { ok: true; telegramId: string }
+  | { ok: false; reason: 'unknown' | 'expired' | 'exhausted' }
+
+/**
+ * Redeem a code. Single use, enforced by the WHERE clause and not by a
+ * read-then-write — two devices racing the same code must not both win.
+ */
+export async function claimPairingCode(
+  pool: Pool,
+  code: string
+): Promise<PairingOutcome> {
+  const hash = digest(code)
+
+  /**
+   * COUNT THE GUESS BEFORE CHECKING IT.
+   *
+   * A million codes sounds like plenty until someone scripts it. The counter
+   * only helps if it moves on WRONG guesses, and a wrong guess by definition
+   * does not match any row — so counting per-code would count nothing at all.
+   *
+   * So the budget is per PERSON, charged to whichever live code exists: five
+   * wrong tries and every outstanding code for that account dies. An attacker
+   * guessing blindly burns the victim's codes, which is visible and annoying,
+   * rather than silently getting unlimited tries.
+   */
+  const hit = await pool.query(
+    `SELECT telegram_id, expires_at, consumed_at, attempts
+       FROM app_pairing_codes WHERE code_hash = $1`,
+    [hash]
+  )
+
+  if (!hit.rows.length) {
+    // Charge the miss to every live code. Nothing to charge means nothing
+    // was outstanding, and the guess was pure noise.
+    await pool.query(
+      `UPDATE app_pairing_codes SET attempts = attempts + 1
+        WHERE consumed_at IS NULL AND expires_at > now()`
+    )
+    await pool.query(
+      `UPDATE app_pairing_codes SET consumed_at = now()
+        WHERE consumed_at IS NULL AND attempts >= $1`,
+      [PAIRING.MAX_ATTEMPTS]
+    )
+    return { ok: false, reason: 'unknown' }
+  }
+
+  const row = hit.rows[0]
+  if (row.attempts >= PAIRING.MAX_ATTEMPTS)
+    return { ok: false, reason: 'exhausted' }
+
+  const consumed = await pool.query(
+    `UPDATE app_pairing_codes SET consumed_at = now()
+      WHERE code_hash = $1 AND consumed_at IS NULL AND expires_at > now()
+      RETURNING telegram_id`,
+    [hash]
+  )
+  if (!consumed.rows.length) return { ok: false, reason: 'expired' }
+
+  return { ok: true, telegramId: String(consumed.rows[0].telegram_id) }
 }
 
 /** Storage adapter for `rotateRefreshToken`. */
