@@ -76,7 +76,10 @@ export enum ModeEnum {
   LipSyncModelSelection = 'lip_sync_model_selection',
   VeedFabricLipSync = 'veed_fabric_lipsync',
   AiReelsWizard = 'ai_reels_wizard',
-  AiReelsEntryWizard = 'ai_reels_entry_wizard',
+  // Value MUST equal the registered scene id in ai-reels-entry-wizard.ts ('ai_reels_entry').
+  // Menu items enter via this enum (categories.config / unified-navigation), so a
+  // mismatch made `ctx.scene.enter` throw "Can't find scene", swallowed silently.
+  AiReelsEntryWizard = 'ai_reels_entry',
   HedraRenderWizard = 'hedra_render_wizard',
   HeygenRenderWizard = 'heygen_render_wizard',
   FalRenderWizard = 'fal_render_wizard',
