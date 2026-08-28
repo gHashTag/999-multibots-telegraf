@@ -20,40 +20,50 @@ mock.module('@/core/supabase/saveVideoUrlToSupabase', () => ({
   saveVideoUrlToSupabase: mock(() => Promise.resolve(undefined)),
 }))
 
-mock.module('axios', () => ({
-  default: {
-    post: mock(() => Promise.resolve({ data: {} })),
-  },
+// Провайдер ходит в Fal через `fal.subscribe` из '@fal-ai/client'
+// (fal-veed-fabric-provider.ts:120), а не через axios. Подмена axios ни на
+// что не влияла: запросы уходили в живой fal.run и возвращались как
+// «Unauthorized» на тестовом ключе — тесты проверяли наличие сети, а не код.
+const falSubscribe = mock(() =>
+  Promise.resolve({ data: {}, requestId: 'test-request-id' })
+)
+mock.module('@fal-ai/client', () => ({
+  fal: { subscribe: falSubscribe, config: mock(() => {}) },
 }))
 
 describe('FalVeedFabricProvider', () => {
   let provider: FalVeedFabricProvider
-  let mockAxios: any
 
   beforeEach(async () => {
     // Настраиваем переменные окружения
     process.env.FAL_KEY = 'test-fal-key'
-    
+
     // Создаем провайдер
     provider = new FalVeedFabricProvider()
-    
-    // Получаем мок axios
-    const axios = await import('axios')
-    mockAxios = axios.default
+
+    falSubscribe.mockReset()
   })
 
   describe('Инициализация', () => {
     it('должен инициализироваться с правильными параметрами', () => {
       expect(provider.providerId).toBe('fal')
-      expect(provider.providerName).toBe('Fal.ai Veed Fabric 1.0 Fast')
-      expect(provider.supportedModels).toEqual(['fal-veed-fabric-1.0-fast'])
+      // Провайдер ведёт три модели (veed fabric, latentsync, hummingbird),
+      // поэтому его имя стало общим. Имя КОНКРЕТНОЙ модели по-прежнему
+      // 'Fal.ai Veed Fabric 1.0 Fast' — оно проверяется через modelUsed.
+      expect(provider.providerName).toBe('Fal.ai Lip-Sync')
+      // Список расширен вместе с провайдером (см. fal-veed-fabric-provider.ts:23).
+      expect(provider.supportedModels).toEqual([
+        'fal-veed-fabric-1.0-fast',
+        'fal-ai/latentsync',
+        'fal-ai/tavus/hummingbird-lipsync/v0',
+      ])
     })
 
     it('должен предупреждать если FAL_KEY не установлен', () => {
       delete process.env.FAL_KEY
-      
+
       new FalVeedFabricProvider()
-      
+
       // Проверяем, что провайдер создался без ошибок
       expect(provider).toBeDefined()
     })
@@ -70,7 +80,10 @@ describe('FalVeedFabricProvider', () => {
           },
         },
       }
-      mockAxios.post.mockResolvedValue(mockResponse)
+      falSubscribe.mockResolvedValue({
+        ...mockResponse,
+        requestId: 'test-request-id',
+      })
 
       // Создаем входные данные
       const input = LipSyncInputBuilder.forFalVeedFabric(
@@ -86,9 +99,12 @@ describe('FalVeedFabricProvider', () => {
       // Выполняем генерацию
       const result = await provider.generate(input)
 
-      // Проверяем результат
-      expect(result.success).toBe(true)
-      expect(result.data).toMatchObject({
+      // Успех у провайдера обозначен не полем success (его в ответе нет —
+      // см. return в fal-veed-fabric-provider.ts:175), а статусом и ссылкой.
+      expect(result.status).toBe('succeeded')
+      expect(result.output).toBe('https://fal.media/files/test-video.mp4')
+      // Поля лежат верхним уровнем, обёртки data у ответа нет.
+      expect(result).toMatchObject({
         status: 'succeeded',
         modelUsed: 'Fal.ai Veed Fabric 1.0 Fast',
         metadata: {
@@ -99,27 +115,21 @@ describe('FalVeedFabricProvider', () => {
         },
       })
 
-      // Проверяем вызов API
-      expect(mockAxios.post).toHaveBeenCalledWith(
-        'https://fal.run/veed/fabric-1.0/fast',
-        {
-          image_url: 'https://example.com/image.jpg',
-          audio_url: 'https://example.com/audio.mp3',
-          resolution: '720p',
-        },
-        {
-          headers: {
-            Authorization: 'Key test-fal-key',
-            'Content-Type': 'application/json',
-          },
-          timeout: 300000,
-        }
-      )
+      // Проверяем вызов API. Адрес, заголовки и timeout теперь внутри
+      // клиента Fal — проверяем то, что задаёт провайдер: эндпоинт и вход.
+      expect(falSubscribe).toHaveBeenCalledTimes(1)
+      const [endpoint, options] = falSubscribe.mock.calls[0] as any[]
+      expect(endpoint).toBe('veed/fabric-1.0/fast')
+      expect(options.input).toEqual({
+        image_url: 'https://example.com/image.jpg',
+        audio_url: 'https://example.com/audio.mp3',
+        resolution: '720p',
+      })
     })
 
     it('должен обрабатывать ошибки API', async () => {
       // Настраиваем мок ошибки
-      mockAxios.post.mockRejectedValue(new Error('API Error'))
+      falSubscribe.mockRejectedValue(new Error('API Error'))
 
       const input = LipSyncInputBuilder.forFalVeedFabric(
         'https://example.com/image.jpg',
@@ -144,7 +154,7 @@ describe('FalVeedFabricProvider', () => {
       const result = await provider.generate(input)
 
       expect(result.success).toBeUndefined()
-      expect(result.message).toContain('Invalid input for Fal Veed Fabric provider')
+      expect(result.message).toContain('Invalid input for Fal.ai provider')
     })
 
     it('должен возвращать ошибку если FAL_KEY не установлен', async () => {
@@ -169,7 +179,7 @@ describe('FalVeedFabricProvider', () => {
           // Нет поля video
         },
       }
-      mockAxios.post.mockResolvedValue(mockResponse)
+      falSubscribe.mockResolvedValue(mockResponse)
 
       const input = LipSyncInputBuilder.forFalVeedFabric(
         'https://example.com/image.jpg',
@@ -196,17 +206,25 @@ describe('FalVeedFabricProvider', () => {
   describe('Расчет стоимости', () => {
     it('должен правильно рассчитывать стоимость для 480p', () => {
       // Тестируем приватный метод через рефлексию
-      const calculateCost = (provider as any).calculateCost.bind(provider)
+      // Цену по РАЗРЕШЕНИЮ считает calculateCostByResolution; публичный
+      // calculateCost принимает (durationSeconds, modelId) и на строке
+      // возвращал NaN. Прайс тоже сменился: $0.10/$0.20 за секунду + 50%
+      // наценки (fal-veed-fabric-provider.ts:444).
+      const calculateCost = (provider as any).calculateCostByResolution.bind(
+        provider
+      )
       const cost = calculateCost('480p')
 
-      expect(cost).toBe(0.02) // baseCost * 1.0
+      expect(cost).toBeCloseTo(0.15, 2)
     })
 
     it('должен правильно рассчитывать стоимость для 720p', () => {
-      const calculateCost = (provider as any).calculateCost.bind(provider)
+      const calculateCost = (provider as any).calculateCostByResolution.bind(
+        provider
+      )
       const cost = calculateCost('720p')
 
-      expect(cost).toBe(0.03) // baseCost * 1.5
+      expect(cost).toBeCloseTo(0.3, 2)
     })
   })
 
@@ -220,7 +238,7 @@ describe('FalVeedFabricProvider', () => {
           },
         },
       }
-      mockAxios.post.mockResolvedValue(mockResponse)
+      falSubscribe.mockResolvedValue(mockResponse)
 
       const input = LipSyncInputBuilder.forFalVeedFabric(
         'https://example.com/image.jpg',
@@ -230,7 +248,10 @@ describe('FalVeedFabricProvider', () => {
 
       const result = await provider.generateLipSync(input)
 
-      expect(result.success).toBe(true)
+      // generateLipSync — тонкая обёртка над generate: тот же ответ без
+      // поля success.
+      expect(result.status).toBe('succeeded')
+      expect(result.output).toBe('https://fal.media/files/test-video.mp4')
     })
   })
 })

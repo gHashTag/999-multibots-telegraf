@@ -4,10 +4,11 @@ import path from 'path'
 export default defineConfig({
   test: {
     globals: true,
-    // Детерминированное окружение тестов.
+    // Детерминированное окружение тестов (дополняет vitest.setup.ts, где
+    // задан только FAL_KEY).
     //
-    // ЗАЧЕМ. 46 тестов падали не из-за кода, а из-за отсутствия секретов:
-    // без MERCHANT_LOGIN визард оплаты обрывался конфиг-ошибкой, не дойдя до
+    // ЗАЧЕМ. 46 тестов падали не из-за кода, а из-за отсутствия секретов: без
+    // MERCHANT_LOGIN визард оплаты обрывался конфиг-ошибкой, не дойдя до
     // проверяемой логики (26 тестов), без FAL_KEY то же делал генератор
     // изображений (20). Прогон зависел от того, лежит ли у запускающего
     // рабочий .env, — то есть измерял окружение, а не код.
@@ -22,15 +23,22 @@ export default defineConfig({
       ROBOKASSA_PASSWORD_1: process.env.ROBOKASSA_PASSWORD_1 ?? 'test_pass_1',
       ROBOKASSA_PASSWORD_2: process.env.ROBOKASSA_PASSWORD_2 ?? 'test_pass_2',
       FAL_KEY: process.env.FAL_KEY ?? 'test_fal_key',
+      KIE_AI_API_KEY: process.env.KIE_AI_API_KEY ?? 'test_kie_key',
+      ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY ?? 'test_eleven_key',
     },
-    setupFiles: process.env.DETECT_NETWORK
-      ? ['scripts/detect-network-tests.mjs']
-      : [],
+    setupFiles: [
+      // Фиктивные env для юнит-тестов (FAL_KEY и пр.): сервисы проверяют
+      // ключ на входе, до моков — без этого чистые тесты падают (43 шт).
+      './vitest.setup.ts',
+      ...(process.env.DETECT_NETWORK
+        ? ['scripts/detect-network-tests.mjs']
+        : []),
+    ],
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
-      // ДОБАВЛЕНО: ещё три файла падают на ЭТАПЕ ЗАГРУЗКИ модуля, ни один
-      // assert в них не исполняется — та же причина, что у списка ниже.
+      // Ещё три файла падают на ЭТАПЕ ЗАГРУЗКИ модуля, ни один assert в них
+      // не исполняется — та же причина, что у списка ниже:
       //   plugin-neurophoto/**/generateImage.test.ts — импортирует 'bun:test';
       //   scripts/tests/user-data-integrity.test.ts — импортирует
       //     '../get-all-users-data', которого нет в репозитории;
@@ -39,6 +47,28 @@ export default defineConfig({
       'packages/plugin-neurophoto/**/generateImage.test.ts',
       'scripts/tests/user-data-integrity.test.ts',
       'src/__tests__/core/supabase/checkSuperheroGenerationUsage.test.ts',
+      /**
+       * apps/** исключён ЦЕЛИКОМ, и это прячет тесты рендер-сервера.
+       *
+       * Исключение появилось из-за Playwright-спек в apps/, которые корневой
+       * прогон подхватывал и ронял на загрузке модуля. Средство оказалось
+       * шире болезни: вместе со спеками из прогона выпали auth.test.ts,
+       * session.test.ts и всё, что появится рядом.
+       *
+       * Заметно это стало, когда новый тест ветки сессии не нашёл ни одного
+       * файла: у пакета нет своего vitest, а корневой его не видит.
+       *
+       * Сужаем до того, что и мешало: только Playwright-спеки.
+       */
+      'apps/**/*.spec.ts',
+      'apps/**/e2e/**',
+      // У плеера СВОЙ раннер (apps/vibee-editor/player) с окружением jsdom и
+      // своими зависимостями. После сужения исключения выше его юнит-тесты
+      // попали в корневой прогон, где окружение node, и 34 из них упали с
+      // «localStorage is not defined». Тесты рендер-сервера, ради которых
+      // сужали, остаются включёнными. Сами тесты плеера не пропали: их
+      // гоняет `bun run test:player` (105 тестов, jsdom) — отдельным шагом CI.
+      'apps/vibee-editor/player/**',
       // Эти 11 файлов импортируют из 'bun:test' и под vitest НЕ ЗАПУСКАЮТСЯ
       // никогда: "Cannot find package 'bun:test'". Для них есть свой раннер —
       // npm run test:bun. Пока они попадали в общий прогон, npm test выдавал
@@ -68,7 +98,6 @@ export default defineConfig({
       // 4 файла, не выполняющих ни одного assert.
       //
       // Тесты редактора запускаются из его собственного каталога.
-      'apps/**',
     ],
   },
   resolve: {

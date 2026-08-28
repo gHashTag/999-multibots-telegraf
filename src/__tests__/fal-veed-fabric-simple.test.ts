@@ -13,8 +13,16 @@ describe('Fal.ai Veed Fabric Provider - Simple Tests', () => {
     const provider = new FalVeedFabricProvider()
 
     expect(provider.providerId).toBe('fal')
-    expect(provider.providerName).toBe('Fal.ai Veed Fabric 1.0 Fast')
-    expect(provider.supportedModels).toEqual(['fal-veed-fabric-1.0-fast'])
+    // Провайдер ведёт три модели (veed fabric, latentsync, hummingbird),
+    // поэтому его имя стало общим. Имя КОНКРЕТНОЙ модели по-прежнему
+    // 'Fal.ai Veed Fabric 1.0 Fast' — оно проверяется через modelUsed.
+    expect(provider.providerName).toBe('Fal.ai Lip-Sync')
+    // Список расширен вместе с провайдером (см. fal-veed-fabric-provider.ts:23).
+    expect(provider.supportedModels).toEqual([
+      'fal-veed-fabric-1.0-fast',
+      'fal-ai/latentsync',
+      'fal-ai/tavus/hummingbird-lipsync/v0',
+    ])
   })
 
   it('должен создавать правильные входные данные через LipSyncInputBuilder', () => {

@@ -61,7 +61,12 @@ export const ARBISCAN_CONFIG = {
 
 // Check if token is deployed
 export const isTokenDeployed = (): boolean => {
-  return TOKEN_CONFIG.address !== '' && TOKEN_CONFIG.address.startsWith('0x')
+  // Тип address — `0x${string}`, поэтому `!== ''` для TS всегда истинно
+  // (TS2367 «нет пересечения»). Осмысленная проверка — что это не заглушка
+  // вроде '0x', а полноценный адрес: 0x + 40 hex = 42 символа.
+  return (
+    TOKEN_CONFIG.address.startsWith('0x') && TOKEN_CONFIG.address.length >= 42
+  )
 }
 
 // Check if DAO is created

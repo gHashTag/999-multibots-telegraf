@@ -129,16 +129,34 @@ try {
     } else {
       const hours = (Date.now() - at) / 3_600_000
       const s = `последний ролик ${hours.toFixed(1)} ч назад — «${String(t.name).slice(0, 44)}»`
+      // Какие провайдеры РЕАЛЬНО нужны для производимого ролика.
+      //
+      // Раньше стойку глушил ЛЮБОЙ сломанный провайдер. Но автопилот делает
+      // TrinityBlogReel — текстовую гравюру из RSS t27.ai. Ему нужна только
+      // текстовая модель (GLM): картинка опциональна и имеет фолбэк
+      // FAL→Replicate, озвучку он не использует вовсе. Поэтому FAL и
+      // ElevenLabs, сломанные бессрочно, глушили стойку ВСЕГДА — и настоящую
+      // причину (автопилот не запускался: крон, очередь тем, краш) прятали за
+      // «провайдеры не работают». Проверено разведкой 2026-08-28.
+      const ЖЁСТКИЕ_ЗАВИСИМОСТИ = ['GLM']
+      const мешаютПроизводству = провайдерыСломаны.filter(p =>
+        ЖЁСТКИЕ_ЗАВИСИМОСТИ.some(dep => p.includes(dep))
+      )
       if (hours <= FEED_STALE_HOURS) {
         ok(s)
-      } else if (провайдерыСломаны.length) {
-        // Причина уже названа выше — не поднимаем вторую тревогу о том же.
+      } else if (мешаютПроизводству.length) {
+        // Глушим ТОЛЬКО когда сломан провайдер, без которого ролик не сделать.
         console.log(
-          `  ↳    конвейер стоит, и это ОЖИДАЕМО: ${провайдерыСломаны.join(', ')} не работает. ${s}`
+          `  ↳    конвейер стоит ОЖИДАЕМО: без ${мешаютПроизводству.join(', ')} ролик не написать. ${s}`
         )
       } else {
-        // А вот стойка при живых провайдерах — настоящая загадка.
-        bad(`конвейер стоит ПРИ ЖИВЫХ провайдерах: ${s}`)
+        // Провайдеры для этого типа ролика живы, а конвейер стоит — настоящая
+        // аномалия. Причина не в FAL/ElevenLabs: смотри, запускался ли
+        // автопилот (крон, очередь тем, краш), а не статус провайдеров.
+        bad(
+          `конвейер стоит ${hours.toFixed(1)}ч, провайдеры для блог-рила ЖИВЫ (GLM ok): ${s}. ` +
+            `Причина НЕ в провайдерах — проверь запуск автопилота (крон/очередь/краш).`
+        )
       }
     }
   }
@@ -172,7 +190,10 @@ for (const p of [
   try {
     const r = await get(`${RENDER}${p}`)
     if (r.status === 404) ok(`${p} → 404`)
-    else bad(`${p} → HTTP ${r.status}, а должен быть 404 (маршрут глотает подпуть)`)
+    else
+      bad(
+        `${p} → HTTP ${r.status}, а должен быть 404 (маршрут глотает подпуть)`
+      )
   } catch (e) {
     bad(`${p}: ${e.message}`)
   }
@@ -184,7 +205,9 @@ try {
   const prof = await get(`${RENDER}/api/users/t27_dev`)
   const tpl = await get(`${RENDER}/api/users/t27_dev/templates?limit=50`)
   const заявлено = Number(prof.json?.templates_count ?? -1)
-  const отдано = Array.isArray(tpl.json?.templates) ? tpl.json.templates.length : -1
+  const отдано = Array.isArray(tpl.json?.templates)
+    ? tpl.json.templates.length
+    : -1
   if (заявлено < 0 || отдано < 0) {
     bad('не удалось сверить счётчик работ с их списком')
   } else if (отдано === 0 && заявлено > 0) {
@@ -292,7 +315,9 @@ const предыдущее = история
   .slice()
   .reverse()
   .find(
-    h => JSON.stringify((h.anomalies || []).map(x => String(x)).sort()) !== текущийКлюч
+    h =>
+      JSON.stringify((h.anomalies || []).map(x => String(x)).sort()) !==
+      текущийКлюч
   )
 /**
  * ТРИ РАЗНЫХ СЛУЧАЯ, а не два.
@@ -335,7 +360,9 @@ if (ушедшие.length) {
   for (const k of ушедшие) console.log(`     ${k}`)
 }
 if (предыдущее && (новые.length || ушедшие.length)) {
-  console.log(`   (изменилось с ${String(предыдущее.at).slice(0, 16).replace('T', ' ')})`)
+  console.log(
+    `   (изменилось с ${String(предыдущее.at).slice(0, 16).replace('T', ' ')})`
+  )
 }
 if (!новые.length && !ушедшие.length) {
   console.log(
@@ -365,4 +392,6 @@ if (anomalies.length) {
   console.log(`⚠️  АНОМАЛИЙ: ${anomalies.length}. ${хвост}\n`)
   process.exit(1)
 }
-console.log(`✅ аномалий нет${notes.length ? ` (заметок: ${notes.length})` : ''}\n`)
+console.log(
+  `✅ аномалий нет${notes.length ? ` (заметок: ${notes.length})` : ''}\n`
+)

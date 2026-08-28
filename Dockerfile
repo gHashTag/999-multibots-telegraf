@@ -24,6 +24,16 @@ RUN npm install --omit=dev
 FROM node:20-slim AS builder
 WORKDIR /app
 
+# Инструменты сборки нативных модулей. Стадия deps их ставит, а builder
+# начинается с чистого node:20-slim — и полный `npm install` ниже (с dev-
+# зависимостями) падал на utf-8-validate: node-gyp не находил Python
+# («gyp ERR! find Python»). Из-за этого образ не собирался вообще.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 # Установка esbuild глобально (ОЧЕНЬ быстро)
 RUN npm install -g esbuild
 

@@ -105,6 +105,18 @@ jobs:
       - name: TypeScript check
         run: bun run typecheck
 
+      # Скрипты этих гейтов лежали в репозитории, но их не вызывал никто:
+      # ни один шаг CI на них не ссылался. Гейт, который не запускается,
+      # не отличим от отсутствующего.
+      - name: Мёртвый домен в коде
+        run: bun run check:dead-domain
+
+      - name: Осиротевшие Inngest-события
+        run: bun run check:events
+
+      - name: Секреты в отслеживаемых файлах
+        run: bun run security:scan
+
       - name: Check for circular dependencies
         run: bunx madge --circular src/
         continue-on-error: true
@@ -144,8 +156,11 @@ jobs:
           echo "SUPABASE_SERVICE_KEY=test_key" >> .env.test
           echo "NODE_ENV=test" >> .env.test
 
+      # Голый `bun test` подбирал ВСЕ *.test.ts, включая написанные под
+      # vitest: 548 падений и код возврата 1 — шаг был красным сам по себе.
+      # test:bun запускает только файлы, импортирующие 'bun:test'.
       - name: Run tests
-        run: bun test
+        run: bun run test:bun
         env:
           NODE_ENV: test
 
@@ -157,6 +172,17 @@ jobs:
 
       # Настоящий гейт: падает только если тест, который ПРОХОДИЛ, перестал
       # проходить. Сравнивает множества с .test-baseline.txt, а не суммы.
+      # У плеера своё окружение (jsdom) и свои зависимости: корневой
+      # `bun install` их не ставит — workspaces в корне нет.
+      - name: Установить зависимости плеера
+        run: npm ci --prefix apps/vibee-editor/player
+
+      - name: Тесты плеера (jsdom)
+        run: bun run test:player
+
+      - name: Типы плеера
+        run: bun run check:player-types
+
       - name: Регрессии тестов
         if: matrix.node-version == '20'
         run: node scripts/test-gate.cjs

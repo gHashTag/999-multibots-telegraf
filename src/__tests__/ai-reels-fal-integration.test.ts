@@ -7,8 +7,9 @@ describe('AI Reels Fal.ai Integration Tests', () => {
 
   beforeEach(async () => {
     // Устанавливаем FAL_KEY для тестов
-    process.env.FAL_KEY = '71230666-ca55-4440-8481-ebaa20c469d1:fbb06be418637f3abb3c61dc85ec45fc'
-    
+    process.env.FAL_KEY =
+      '71230666-ca55-4440-8481-ebaa20c469d1:fbb06be418637f3abb3c61dc85ec45fc'
+
     falProvider = new FalVeedFabricProvider()
   })
 
@@ -19,7 +20,7 @@ describe('AI Reels Fal.ai Integration Tests', () => {
       '123456789',
       {
         botName: 'test_bot',
-        resolution: '720p'
+        resolution: '720p',
       }
     )
 
@@ -45,16 +46,18 @@ describe('AI Reels Fal.ai Integration Tests', () => {
           resolution: '720p',
           contentType: 'video/mp4',
           provider: 'fal',
-          modelId: 'veed/fabric-1.0/fast'
-        }
-      }
+          modelId: 'veed/fabric-1.0/fast',
+        },
+      },
     }
 
     // Проверяем структуру ответа
     expect(mockResult.success).toBe(true)
     expect(mockResult.data).toBeDefined()
     expect(mockResult.data.id).toBe('test_id_123')
-    expect(mockResult.data.output).toBe('https://fal.media/files/test_video.mp4')
+    expect(mockResult.data.output).toBe(
+      'https://fal.media/files/test_video.mp4'
+    )
     expect(mockResult.data.status).toBe('succeeded')
   })
 
@@ -66,7 +69,7 @@ describe('AI Reels Fal.ai Integration Tests', () => {
       error: 'Fal.ai account locked due to insufficient balance',
       code: 'BALANCE_EXHAUSTED',
       provider: 'fal',
-      modelId: 'fal-veed-fabric-1.0-fast'
+      modelId: 'fal-veed-fabric-1.0-fast',
     }
 
     // Проверяем структуру ошибки
@@ -82,7 +85,7 @@ describe('AI Reels Fal.ai Integration Tests', () => {
       '123456789',
       {
         botName: 'test_bot',
-        resolution: '480p'
+        resolution: '480p',
       }
     )
 
@@ -92,7 +95,7 @@ describe('AI Reels Fal.ai Integration Tests', () => {
       '123456789',
       {
         botName: 'test_bot',
-        resolution: '720p'
+        resolution: '720p',
       }
     )
 
@@ -102,9 +105,12 @@ describe('AI Reels Fal.ai Integration Tests', () => {
 
   it('должен правильно обрабатывать метаданные Fal.ai провайдера', () => {
     const provider = new FalVeedFabricProvider()
-    
+
     expect(provider.providerId).toBe('fal')
-    expect(provider.providerName).toBe('Fal.ai Veed Fabric 1.0 Fast')
+    // Провайдер ведёт три модели (veed fabric, latentsync, hummingbird),
+    // поэтому его имя стало общим. Имя КОНКРЕТНОЙ модели по-прежнему
+    // 'Fal.ai Veed Fabric 1.0 Fast' — оно проверяется через modelUsed.
+    expect(provider.providerName).toBe('Fal.ai Lip-Sync')
     expect(provider.supportedModels).toContain('fal-veed-fabric-1.0-fast')
   })
 })

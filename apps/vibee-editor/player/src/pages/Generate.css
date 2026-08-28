@@ -3,7 +3,23 @@
 .generate-page {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  /**
+   * НЕ 100dvh.
+   *
+   * `dvh` — это высота ОКНА, а не доступного места. Внизу стоит полоса
+   * вкладок, и страница, сверстанная на полное окно, задвигает под неё всё,
+   * что прижимает к своему низу. На экране «ИИ» под вкладками оказывался
+   * лист «Сценарий»: виден заголовок, а поле ввода и кнопка — нет.
+   *
+   * Высоту полосы приложение публикует само (`--app-tabbar-total`, ставится
+   * в styles/telegram.css и обновляется наблюдателем размера), так что
+   * вычитаем измеренное значение, а не угаданную константу. Запасное 64px —
+   * на случай, если переменная ещё не выставлена в первом кадре.
+   *
+   * min-height, а не height: содержимое имеет право быть выше и прокручиваться.
+   */
+  min-height: calc(100dvh - var(--app-tabbar-total, 64px));
+  max-height: calc(100dvh - var(--app-tabbar-total, 64px));
   background: var(--color-bg-primary);
 }
 
@@ -105,6 +121,46 @@
   border-bottom: 1px solid var(--vibee-border, rgba(255, 255, 255, 0.08));
   overflow-x: auto;
   scrollbar-width: none;
+  /**
+   * ВИДНО, ЧТО ЭТО ЛИСТАЕТСЯ.
+   *
+   * Полоса прокручивалась и раньше, но выглядела обрезанной вёрсткой:
+   * четвёртая иконка срезалась ровно пополам у края экрана, и ничто не
+   * говорило, что справа есть ещё. Человек видит дефект там, где есть
+   * функция, и не пользуется ею.
+   *
+   * Тень у правого края появляется только когда есть что показать: это
+   * `background-attachment: local` на самом элементе — приём, который
+   * гасит подсказку, когда прокрутка дошла до конца. Плюс инерция и
+   * прилипание, чтобы элемент не замирал наполовину за краем.
+   */
+  background:
+    linear-gradient(to right, var(--color-bg-primary) 30%, transparent),
+    linear-gradient(to left, var(--color-bg-primary) 30%, transparent) 100% 0,
+    radial-gradient(
+      farthest-side at 0 50%,
+      rgba(255, 255, 255, 0.16),
+      transparent
+    ),
+    radial-gradient(
+        farthest-side at 100% 50%,
+        rgba(255, 255, 255, 0.16),
+        transparent
+      )
+      100% 0;
+  background-repeat: no-repeat;
+  background-size:
+    28px 100%,
+    28px 100%,
+    12px 100%,
+    12px 100%;
+  background-attachment: local, local, scroll, scroll;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
+
+.gen-switch__item {
+  scroll-snap-align: start;
 }
 .gen-switch::-webkit-scrollbar {
   display: none;
