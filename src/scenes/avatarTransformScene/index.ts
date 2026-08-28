@@ -906,9 +906,14 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.AvatarTransform,
   // Шаг 0: Объяснение ИИ Герои + выбор пола
   async ctx => {
-    console.log('🔴 [DEBUG avatarTransform] ========== STEP 0 ENTERED ==========')
+    console.log(
+      '🔴 [DEBUG avatarTransform] ========== STEP 0 ENTERED =========='
+    )
     console.log('🔴 [DEBUG avatarTransform] telegramId:', ctx.from?.id)
-    console.log('🔴 [DEBUG avatarTransform] messageText:', ctx.message && 'text' in ctx.message ? ctx.message.text : 'N/A')
+    console.log(
+      '🔴 [DEBUG avatarTransform] messageText:',
+      ctx.message && 'text' in ctx.message ? ctx.message.text : 'N/A'
+    )
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
 
@@ -1128,10 +1133,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             isRu ? '👨‍💼 Мужской образ' : '👨‍💼 Male style',
             isRu ? '👩‍💼 Женский образ' : '👩‍💼 Female style',
           ],
-          [
-            isRu ? 'Отмена' : 'Cancel',
-            getMainMenuText(isRu),
-          ],
+          [isRu ? 'Отмена' : 'Cancel', getMainMenuText(isRu)],
         ]).resize().reply_markup,
       }
     )
@@ -1151,10 +1153,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Обработка команд выхода из wizard
     if (text === '/menu' || text === '/cancel') {
-      logger.info('[AvatarTransformScene] User requested exit from gender selection', {
-        telegramId,
-        command: text,
-      })
+      logger.info(
+        '[AvatarTransformScene] User requested exit from gender selection',
+        {
+          telegramId,
+          command: text,
+        }
+      )
       await ctx.scene.leave()
       await ctx.scene.leave()
       const { showMainMenu } = await import('@/navigation')
@@ -1164,10 +1169,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Игнорируем другие команды - они будут обработаны command handler'ом
     if (text.startsWith('/')) {
-      logger.info('[AvatarTransformScene] Ignoring command in gender selection', {
-        telegramId,
-        command: text,
-      })
+      logger.info(
+        '[AvatarTransformScene] Ignoring command in gender selection',
+        {
+          telegramId,
+          command: text,
+        }
+      )
       return
     }
 
@@ -1187,7 +1195,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
     // Отмена
     if (text === (isRu ? 'Отмена' : 'Cancel')) {
       await ctx.reply(
-        isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+        isRu
+          ? '❌ Процесс отменён. Возвращаюсь в главное меню.'
+          : '❌ Process cancelled. Returning to main menu.',
         { reply_markup: { remove_keyboard: true } }
       )
       await ctx.scene.leave()
@@ -1234,13 +1244,12 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
             isRu
               ? '🤖 FLUX Kontext Max (Google)'
               : '🤖 FLUX Kontext Max (Google)',
-            isRu ? '🎭 SeeDream-4.5 (ByteDance)' : '🎭 SeeDream-4.5 (ByteDance)',
+            isRu
+              ? '🎭 SeeDream-4.5 (ByteDance)'
+              : '🎭 SeeDream-4.5 (ByteDance)',
             isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)',
           ],
-          [
-            isRu ? 'Отмена' : 'Cancel',
-            isRu ? '🔙 Назад' : '🔙 Back',
-          ],
+          [isRu ? 'Отмена' : 'Cancel', isRu ? '🔙 Назад' : '🔙 Back'],
         ]).resize().reply_markup,
       }
     )
@@ -1260,10 +1269,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Обработка команд выхода из wizard
     if (text === '/menu' || text === '/cancel') {
-      logger.info('[AvatarTransformScene] User requested exit from model selection', {
-        telegramId,
-        command: text,
-      })
+      logger.info(
+        '[AvatarTransformScene] User requested exit from model selection',
+        {
+          telegramId,
+          command: text,
+        }
+      )
       await ctx.scene.leave()
       await ctx.scene.leave()
       const { showMainMenu } = await import('@/navigation')
@@ -1273,17 +1285,22 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Игнорируем другие команды - они будут обработаны command handler'ом
     if (text.startsWith('/')) {
-      logger.info('[AvatarTransformScene] Ignoring command in model selection', {
-        telegramId,
-        command: text,
-      })
+      logger.info(
+        '[AvatarTransformScene] Ignoring command in model selection',
+        {
+          telegramId,
+          command: text,
+        }
+      )
       return
     }
 
     // Отмена
     if (text === (isRu ? 'Отмена' : 'Cancel')) {
       await ctx.reply(
-        isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+        isRu
+          ? '❌ Процесс отменён. Возвращаюсь в главное меню.'
+          : '❌ Process cancelled. Returning to main menu.',
         { reply_markup: { remove_keyboard: true } }
       )
       await ctx.scene.leave()
@@ -1337,7 +1354,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       (isRu ? '🎭 SeeDream-4.5 (ByteDance)' : '🎭 SeeDream-4.5 (ByteDance)')
     ) {
       selectedModel = 'seedream45'
-      logger.info('[AvatarTransformScene] SeeDream-4.5 selected', { telegramId })
+      logger.info('[AvatarTransformScene] SeeDream-4.5 selected', {
+        telegramId,
+      })
     } else if (
       text === (isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)')
     ) {
@@ -1474,7 +1493,8 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
   },
-  // Шаг 2: Обработка выбора действия (мой аватар или загрузить фото)
+  // Шаг 3: Обработка выбора действия (мой аватар или загрузить фото)
+  // (нумерация исправлена: раньше здесь стоял второй «Шаг 2»)
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -1487,10 +1507,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Обработка команд выхода из wizard
     if (text === '/menu' || text === '/cancel') {
-      logger.info('[AvatarTransformScene] User requested exit from action selection', {
-        telegramId,
-        command: text,
-      })
+      logger.info(
+        '[AvatarTransformScene] User requested exit from action selection',
+        {
+          telegramId,
+          command: text,
+        }
+      )
       await ctx.scene.leave()
       await ctx.scene.leave()
       const { showMainMenu } = await import('@/navigation')
@@ -1500,10 +1523,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Игнорируем другие команды - они будут обработаны command handler'ом
     if (text.startsWith('/')) {
-      logger.info('[AvatarTransformScene] Ignoring command in action selection', {
-        telegramId,
-        command: text,
-      })
+      logger.info(
+        '[AvatarTransformScene] Ignoring command in action selection',
+        {
+          telegramId,
+          command: text,
+        }
+      )
       return
     }
 
@@ -1537,7 +1563,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
               isRu
                 ? '🤖 FLUX Kontext Max (Google)'
                 : '🤖 FLUX Kontext Max (Google)',
-              isRu ? '🎭 SeeDream-4.5 (ByteDance)' : '🎭 SeeDream-4.5 (ByteDance)',
+              isRu
+                ? '🎭 SeeDream-4.5 (ByteDance)'
+                : '🎭 SeeDream-4.5 (ByteDance)',
               isRu ? '🍌 Nano Banana (Google)' : '🍌 Nano Banana (Google)',
             ],
             [isRu ? '🔙 Назад' : '🔙 Back'],
@@ -1576,9 +1604,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         )
         await ctx.scene.leave()
         await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+        const { showMainMenu } = await import('@/navigation')
+        await showMainMenu(ctx)
+        return
       }
 
       // Helper function to create rows with 2 buttons each
@@ -1760,8 +1788,20 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Пользователь хочет загрузить новое фото (поддержка текста с/без эмодзи)
     const uploadPhotoVariants = isRu
-      ? ['Загрузить фото', 'Загрузить другое фото', 'Загрузить своё фото', 'Upload photo', 'Upload my photo']
-      : ['Upload photo', 'Upload different photo', 'Upload my photo', 'Загрузить фото', 'Загрузить своё фото']
+      ? [
+          'Загрузить фото',
+          'Загрузить другое фото',
+          'Загрузить своё фото',
+          'Upload photo',
+          'Upload my photo',
+        ]
+      : [
+          'Upload photo',
+          'Upload different photo',
+          'Upload my photo',
+          'Загрузить фото',
+          'Загрузить своё фото',
+        ]
 
     if (uploadPhotoVariants.some(variant => text.includes(variant))) {
       await ctx.reply(
@@ -1773,7 +1813,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return ctx.wizard.selectStep(5) // Переходим к шагу загрузки фото (индекс 5)
     }
   },
-  // Шаг 3: Обработка выбора героя и генерация
+  // Шаг 4: Обработка выбора героя и генерация
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -2365,9 +2405,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         // 🛠️ ИСПРАВЛЕНИЕ: Полностью выходим из сцены перед переходом
         await ctx.scene.leave()
         await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+        const { showMainMenu } = await import('@/navigation')
+        await showMainMenu(ctx)
+        return
       }
 
       const prompt = createMarvelPromptByGender(gender, selectedHero)
@@ -2406,9 +2446,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         )
         await ctx.scene.leave()
         await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+        const { showMainMenu } = await import('@/navigation')
+        await showMainMenu(ctx)
+        return
       }
 
       // 🌟 Используем выбранную модель для трансформации
@@ -2699,7 +2739,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return
     }
   },
-  // Шаг 4: Обработка загруженной фотографии
+  // Шаг 5: Обработка загруженной фотографии
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -2856,7 +2896,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       return
     }
   },
-  // Шаг 5: Обработка кастомного промпта
+  // Шаг 6: Обработка кастомного промпта
   async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id?.toString() || 'unknown'
@@ -2874,10 +2914,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Обработка команд выхода из wizard
     if (customPrompt === '/menu' || customPrompt === '/cancel') {
-      logger.info('[AvatarTransformScene] User requested exit from custom prompt', {
-        telegramId,
-        command: customPrompt,
-      })
+      logger.info(
+        '[AvatarTransformScene] User requested exit from custom prompt',
+        {
+          telegramId,
+          command: customPrompt,
+        }
+      )
       await ctx.scene.leave()
       await ctx.scene.leave()
       const { showMainMenu } = await import('@/navigation')
@@ -2887,10 +2930,13 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
 
     // Игнорируем другие команды - они будут обработаны command handler'ом
     if (customPrompt.startsWith('/')) {
-      logger.info('[AvatarTransformScene] Ignoring command in custom prompt step', {
-        telegramId,
-        command: customPrompt,
-      })
+      logger.info(
+        '[AvatarTransformScene] Ignoring command in custom prompt step',
+        {
+          telegramId,
+          command: customPrompt,
+        }
+      )
       return
     }
 

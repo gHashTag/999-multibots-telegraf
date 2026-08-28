@@ -521,10 +521,13 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         // ✅ ВАЛИДАЦИЯ: Проверяем существование голоса в ElevenLabs API
         const { checkVoiceExists } = await import('@/core/elevenlabs')
 
-        logger.info('🔍 [AI REELS] Проверяем валидность voice_id в ElevenLabs', {
-          telegramId,
-          voiceId: userVoiceId,
-        })
+        logger.info(
+          '🔍 [AI REELS] Проверяем валидность voice_id в ElevenLabs',
+          {
+            telegramId,
+            voiceId: userVoiceId,
+          }
+        )
 
         const isVoiceValid = await checkVoiceExists(userVoiceId)
 
@@ -724,10 +727,13 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             }
 
             // ✅ ВАЛИДАЦИЯ: Проверяем существование голоса в ElevenLabs API
-            logger.info('🔍 [AI REELS] Проверяем валидность voice_id в ElevenLabs', {
-              telegramId,
-              voiceId,
-            })
+            logger.info(
+              '🔍 [AI REELS] Проверяем валидность voice_id в ElevenLabs',
+              {
+                telegramId,
+                voiceId,
+              }
+            )
 
             const isVoiceValid = await checkVoiceExists(voiceId)
 
@@ -926,6 +932,22 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
                 audioError instanceof Error ? audioError.stack : undefined,
               telegramId,
               textLength: text.length,
+            })
+
+            // Деньги уже списаны выше (updateUserBalance перед началом
+            // генерации), а работа не выполнена — без возврата пользователь
+            // платит за ничто. Соседние ветки отказа (Fal.ai lip-sync, строка
+            // ниже) возврат делают; здесь его не было.
+            await refundAndTell({
+              ctx,
+              telegramId,
+              amount: totalCost,
+              description: 'AI Reels refund - text-to-speech failed',
+              reason: {
+                ru: `Ошибка генерации аудио из текста (${totalCost.toFixed(2)}⭐)`,
+                en: `Text-to-speech generation failed (${totalCost.toFixed(2)}⭐)`,
+              },
+              isRu,
             })
 
             await ctx.reply(
@@ -1282,7 +1304,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    console.log('✅ [AI REELS] Step 3 - Validation passed, proceeding with Google Veo 3.1')
+    console.log(
+      '✅ [AI REELS] Step 3 - Validation passed, proceeding with Google Veo 3.1'
+    )
 
     try {
       const imageUrl = ctx.session.aiReels.imageUrl
@@ -1305,14 +1329,18 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         // ✅ ТЕСТОВЫЙ РЕЖИМ - отдельный флаг для Veo 3.1
         const isDev = process.env.NODE_ENV === 'development'
         const useTestVeo31 = isDev && process.env.USE_TEST_VEO31 === 'true'
-        const TEST_VEO31_VIDEO_URL = 'https://storage.googleapis.com/falserverless/example_outputs/veo31-r2v-output.mp4'
+        const TEST_VEO31_VIDEO_URL =
+          'https://storage.googleapis.com/falserverless/example_outputs/veo31-r2v-output.mp4'
 
         let veo31Result: { videoUrl?: string; output?: string; error?: string }
         let storyPrompt: string
 
         if (useTestVeo31) {
-          console.log('🧪 [AI REELS TEST MODE] Using test Veo 3.1 video URL (no API call)')
-          storyPrompt = 'The person from the reference image speaks confidently to camera. Professional studio setup, cinematic lighting, engaging delivery.' // fallback промпт
+          console.log(
+            '🧪 [AI REELS TEST MODE] Using test Veo 3.1 video URL (no API call)'
+          )
+          storyPrompt =
+            'The person from the reference image speaks confidently to camera. Professional studio setup, cinematic lighting, engaging delivery.' // fallback промпт
           veo31Result = {
             videoUrl: TEST_VEO31_VIDEO_URL,
             output: TEST_VEO31_VIDEO_URL,
@@ -1324,12 +1352,20 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           // 🎨 ГЕНЕРАЦИЯ STORY PROMPT на основе текста пользователя
           const userText = ctx.session.aiReels?.text || ''
 
-          console.log('📖 [AI REELS] Generating story continuation prompt from user text', {
-            userText: userText.substring(0, 100),
-            language: isRu ? 'ru' : 'en',
-          })
+          console.log(
+            '📖 [AI REELS] Generating story continuation prompt from user text',
+            {
+              userText: userText.substring(0, 100),
+              language: isRu ? 'ru' : 'en',
+            }
+          )
 
           // storyPrompt = await falVeo31.generateStoryPrompt(userText, isRu ? 'ru' : 'en')
+          // Вызов выше закомментирован, а storyPrompt читается ниже
+          // (storyPrompt.length) — без присваивания это TypeError на undefined.
+          // Тот же запасной промпт, что и в тестовом режиме.
+          storyPrompt =
+            'The person from the reference image speaks confidently to camera. Professional studio setup, cinematic lighting, engaging delivery.'
 
           console.log('✅ [AI REELS] Story prompt generated', {
             promptLength: storyPrompt.length,
@@ -1341,16 +1377,36 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             prompt: storyPrompt, // используем сгенерированный story prompt
             telegramId,
             botName: ctx.botInfo?.username || 'unknown_bot',
-            resolution: (ctx.session.aiReels?.resolution || '720p') as '720p' | '1080p',
+            resolution: (ctx.session.aiReels?.resolution || '720p') as
+              | '720p'
+              | '1080p',
             provider: 'fal' as const,
             modelId: 'fal-veo31',
           }
 
-          console.log('🚀 [AI REELS FAL VEO 3.1] Calling Fal.ai synchronously...', {
-            resolution: veo31Input.resolution,
-            promptLength: storyPrompt.length,
-          })
+          console.log(
+            '🚀 [AI REELS FAL VEO 3.1] Calling Fal.ai synchronously...',
+            {
+              resolution: veo31Input.resolution,
+              promptLength: storyPrompt.length,
+            }
+          )
           // veo31Result = await falVeo31.generate(veo31Input)
+
+          // ⚠️ ОБА ВЫЗОВА ВЫШЕ ЗАКОММЕНТИРОВАНЫ (и generateStoryPrompt, и
+          // generate). В продакшене (useTestVeo31 = false) это значило, что
+          // storyPrompt и veo31Result оставались undefined, а следующая же
+          // строка читала veo31Result.output — TypeError, причём ПОСЛЕ
+          // списания средств. Пользователь платил и получал падение.
+          //
+          // Не включаю платные вызовы Fal.ai за владельца, но и падать молча
+          // нельзя: помечаем состояние явной ошибкой, чтобы сработал штатный
+          // путь обработки ниже (сообщение пользователю + сохранение первого
+          // видео). Снимите комментарии, когда решите вернуть VEO 3.1.
+          veo31Result = {
+            error:
+              'VEO 3.1 generation is disabled: calls to FalVeo31Provider are commented out',
+          }
         }
 
         console.log('✅ [AI REELS FAL VEO 3.1] Generation completed:', {
@@ -1361,7 +1417,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         })
 
         if (veo31Result.error || !veo31Result.output) {
-          throw new Error(veo31Result.error || 'Fal.ai Veo 3.1 generation failed')
+          throw new Error(
+            veo31Result.error || 'Fal.ai Veo 3.1 generation failed'
+          )
         }
 
         const secondVideoUrl = veo31Result.output
@@ -1374,11 +1432,14 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           step: 'merging',
         }
 
-        logger.info('✅ [AI REELS] Второе видео (Google Veo 3.1) сгенерировано', {
-          telegramId,
-          secondVideoUrl: secondVideoUrl.substring(0, 100),
-          storyPromptUsed: storyPrompt.substring(0, 150),
-        })
+        logger.info(
+          '✅ [AI REELS] Второе видео (Google Veo 3.1) сгенерировано',
+          {
+            telegramId,
+            secondVideoUrl: secondVideoUrl.substring(0, 100),
+            storyPromptUsed: storyPrompt.substring(0, 150),
+          }
+        )
 
         // ✅ ОТПРАВЛЯЕМ VEO 3.1 ВИДЕО ПОЛЬЗОВАТЕЛЮ (промежуточный результат)
         await ctx.reply(
@@ -1400,16 +1461,22 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         console.error('❌ [AI REELS VEO 3.1] ERROR CAUGHT:', {
           error: veo31Error,
           errorMessage:
-            veo31Error instanceof Error ? veo31Error.message : String(veo31Error),
-          errorStack: veo31Error instanceof Error ? veo31Error.stack : undefined,
-          errorName: veo31Error instanceof Error ? veo31Error.name : typeof veo31Error,
+            veo31Error instanceof Error
+              ? veo31Error.message
+              : String(veo31Error),
+          errorStack:
+            veo31Error instanceof Error ? veo31Error.stack : undefined,
+          errorName:
+            veo31Error instanceof Error ? veo31Error.name : typeof veo31Error,
           telegramId,
         })
 
         logger.error('❌ [AI REELS] Ошибка генерации Veo 3.1', {
           error: veo31Error,
           errorMessage:
-            veo31Error instanceof Error ? veo31Error.message : String(veo31Error),
+            veo31Error instanceof Error
+              ? veo31Error.message
+              : String(veo31Error),
         })
 
         // Проверяем, является ли это timeout ошибкой
@@ -1592,7 +1659,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         secondVideoUrl: secondVideoUrl.substring(0, 50),
       })
 
-      console.log('🔥 [AI REELS STEP 4] Line 10: About to call logger.info for merging')
+      console.log(
+        '🔥 [AI REELS STEP 4] Line 10: About to call logger.info for merging'
+      )
 
       logger.info('🔗 [AI REELS] Начинаем склеивание видео', {
         telegramId,
@@ -1637,7 +1706,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           tempDir,
         })
 
-        console.log('🔥 [AI REELS STEP 4] Line 18: Starting Promise.all for downloads...')
+        console.log(
+          '🔥 [AI REELS STEP 4] Line 18: Starting Promise.all for downloads...'
+        )
 
         await Promise.all([
           downloadFile(firstVideoUrl, firstVideoPath),
@@ -1660,7 +1731,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           secondVideoSize,
         })
 
-        console.log('🔥 [AI REELS STEP 4] Line 21: About to call combineVideos...')
+        console.log(
+          '🔥 [AI REELS STEP 4] Line 21: About to call combineVideos...'
+        )
 
         // Склеиваем видео с помощью FFmpeg
         await combineVideos(
@@ -1685,10 +1758,13 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           step: 'completed' as any,
         }
 
-        logger.info('📤 [AI REELS] Отправляем финальное видео напрямую (без Supabase)', {
-          telegramId,
-          fileSize: finalVideoStats.size,
-        })
+        logger.info(
+          '📤 [AI REELS] Отправляем финальное видео напрямую (без Supabase)',
+          {
+            telegramId,
+            fileSize: finalVideoStats.size,
+          }
+        )
 
         // ✅ ОТПРАВЛЯЕМ ФАЙЛ НАПРЯМУЮ из локального хранилища
         const { createReadStream } = await import('fs')
@@ -1750,4 +1826,3 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     }
   }
 )
-

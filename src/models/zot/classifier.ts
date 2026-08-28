@@ -20,45 +20,45 @@ import {
   ZOTValidationWarning,
   ZOTQualityMetrics,
   ZOTMissingData,
-  ZOTValidationStatus
-} from './interfaces';
+  ZOTValidationStatus,
+} from './interfaces'
 
 /**
  * Transaction Data Interface for Classification
  */
 export interface ZOTTransactionData {
   /** Transaction ID */
-  id: string;
+  id: string
   /** Telegram user ID */
-  telegram_id: string;
+  telegram_id: string
   /** Transaction amount */
-  amount: number;
+  amount: number
   /** Stars amount */
-  stars?: number;
+  stars?: number
   /** Payment type (original) */
-  type: string;
+  type: string
   /** Payment method */
-  payment_method?: string;
+  payment_method?: string
   /** Service type */
-  service_type?: string;
+  service_type?: string
   /** Bot name */
-  bot_name: string;
+  bot_name: string
   /** Description */
-  description: string;
+  description: string
   /** Invoice ID */
-  inv_id?: string;
+  inv_id?: string
   /** Status */
-  status: string;
+  status: string
   /** Metadata */
-  metadata?: Record<string, any>;
+  metadata?: Record<string, any>
   /** Subscription type */
-  subscription?: string | null;
+  subscription?: string | null
   /** Currency */
-  currency?: string;
+  currency?: string
   /** Creation timestamp */
-  created_at: string;
+  created_at: string
   /** Update timestamp */
-  updated_at?: string;
+  updated_at?: string
 }
 
 /**
@@ -66,52 +66,54 @@ export interface ZOTTransactionData {
  */
 export interface ZOTClassificationResult {
   /** Original transaction data */
-  originalData: ZOTTransactionData;
+  originalData: ZOTTransactionData
   /** Classified payment type */
-  paymentType: ZOTPaymentType;
+  paymentType: ZOTPaymentType
   /** Money source */
-  moneySource: ZOTMoneySource;
+  moneySource: ZOTMoneySource
   /** Service category */
-  serviceCategory: ZOTServiceCategory;
+  serviceCategory: ZOTServiceCategory
   /** Classification confidence */
-  confidence: number;
+  confidence: number
   /** Confidence level */
-  confidenceLevel: ZOTConfidenceLevel;
+  confidenceLevel: ZOTConfidenceLevel
   /** Applied rules */
-  appliedRules: string[];
+  appliedRules: string[]
   /** Validation errors */
-  errors: ZOTValidationError[];
+  errors: ZOTValidationError[]
   /** Validation warnings */
-  warnings: ZOTValidationWarning[];
+  warnings: ZOTValidationWarning[]
   /** Corrected data */
-  correctedData?: Partial<ZOTTransactionData>;
+  correctedData?: Partial<ZOTTransactionData>
 }
 
 /**
  * ZOT Classification Engine Class
  */
 export class ZOTClassifier {
-  private classificationRules: ZOTClassificationRule[];
-  private strictMode: boolean;
-  private autoCorrection: boolean;
+  private classificationRules: ZOTClassificationRule[]
+  private strictMode: boolean
+  private autoCorrection: boolean
 
   constructor(
     rules: ZOTClassificationRule[] = [],
     strictMode: boolean = true,
     autoCorrection: boolean = false
   ) {
-    this.classificationRules = [...DEFAULT_CLASSIFICATION_RULES, ...rules];
-    this.strictMode = strictMode;
-    this.autoCorrection = autoCorrection;
+    this.classificationRules = [...DEFAULT_CLASSIFICATION_RULES, ...rules]
+    this.strictMode = strictMode
+    this.autoCorrection = autoCorrection
 
     // Sort rules by priority (higher first)
-    this.classificationRules.sort((a, b) => b.priority - a.priority);
+    this.classificationRules.sort((a, b) => b.priority - a.priority)
   }
 
   /**
    * Classify a single transaction
    */
-  public classifyTransaction(transaction: ZOTTransactionData): ZOTClassificationResult {
+  public classifyTransaction(
+    transaction: ZOTTransactionData
+  ): ZOTClassificationResult {
     const result: ZOTClassificationResult = {
       originalData: transaction,
       paymentType: ZOTPaymentType.REAL_INCOME, // Default
@@ -121,107 +123,110 @@ export class ZOTClassifier {
       confidenceLevel: ZOTConfidenceLevel.FAILED,
       appliedRules: [],
       errors: [],
-      warnings: []
-    };
+      warnings: [],
+    }
 
     // Step 1: Classify Money Source
-    const moneySourceResult = this.classifyMoneySource(transaction);
-    result.moneySource = moneySourceResult.source;
-    result.confidence += moneySourceResult.confidence * 0.3; // 30% weight
-    result.appliedRules.push(...moneySourceResult.appliedRules);
+    const moneySourceResult = this.classifyMoneySource(transaction)
+    result.moneySource = moneySourceResult.source
+    result.confidence += moneySourceResult.confidence * 0.3 // 30% weight
+    result.appliedRules.push(...moneySourceResult.appliedRules)
 
     // Step 2: Classify Payment Type
-    const paymentTypeResult = this.classifyPaymentType(transaction, result.moneySource);
-    result.paymentType = paymentTypeResult.type;
-    result.confidence += paymentTypeResult.confidence * 0.4; // 40% weight
-    result.appliedRules.push(...paymentTypeResult.appliedRules);
+    const paymentTypeResult = this.classifyPaymentType(
+      transaction,
+      result.moneySource
+    )
+    result.paymentType = paymentTypeResult.type
+    result.confidence += paymentTypeResult.confidence * 0.4 // 40% weight
+    result.appliedRules.push(...paymentTypeResult.appliedRules)
 
     // Step 3: Classify Service Category
-    const serviceCategoryResult = this.classifyServiceCategory(transaction);
-    result.serviceCategory = serviceCategoryResult.category;
-    result.confidence += serviceCategoryResult.confidence * 0.3; // 30% weight
-    result.appliedRules.push(...serviceCategoryResult.appliedRules);
+    const serviceCategoryResult = this.classifyServiceCategory(transaction)
+    result.serviceCategory = serviceCategoryResult.category
+    result.confidence += serviceCategoryResult.confidence * 0.3 // 30% weight
+    result.appliedRules.push(...serviceCategoryResult.appliedRules)
 
     // Step 4: Determine Confidence Level
-    result.confidenceLevel = this.getConfidenceLevel(result.confidence);
+    result.confidenceLevel = this.getConfidenceLevel(result.confidence)
 
     // Step 5: Validate Classification
-    const validationResult = this.validateClassification(transaction, result);
-    result.errors = validationResult.errors;
-    result.warnings = validationResult.warnings;
+    const validationResult = this.validateClassification(transaction, result)
+    result.errors = validationResult.errors
+    result.warnings = validationResult.warnings
 
     // Step 6: Apply Auto-Correction if enabled
     if (this.autoCorrection && result.errors.length > 0) {
-      result.correctedData = this.applyAutoCorrection(transaction, result);
+      result.correctedData = this.applyAutoCorrection(transaction, result)
     }
 
-    return result;
+    return result
   }
 
   /**
    * Classify Money Source
    */
   private classifyMoneySource(transaction: ZOTTransactionData): {
-    source: ZOTMoneySource;
-    confidence: number;
-    appliedRules: string[];
+    source: ZOTMoneySource
+    confidence: number
+    appliedRules: string[]
   } {
-    const appliedRules: string[] = [];
-    let source = ZOTMoneySource.UNKNOWN;
-    let confidence = 0;
+    const appliedRules: string[] = []
+    let source = ZOTMoneySource.UNKNOWN
+    let confidence = 0
 
     // Check payment method
     if (transaction.payment_method) {
-      const method = transaction.payment_method.toLowerCase();
+      const method = transaction.payment_method.toLowerCase()
       if (method.includes('robokassa') || method === 'robokassa') {
-        source = ZOTMoneySource.ROBOKASSA;
-        confidence = 95;
-        appliedRules.push('PAYMENT_METHOD_ROBOKASSA');
+        source = ZOTMoneySource.ROBOKASSA
+        confidence = 95
+        appliedRules.push('PAYMENT_METHOD_ROBOKASSA')
       } else if (method.includes('telegram') || method === 'telegram') {
-        source = ZOTMoneySource.TELEGRAM_STARS;
-        confidence = 95;
-        appliedRules.push('PAYMENT_METHOD_TELEGRAM');
+        source = ZOTMoneySource.TELEGRAM_STARS
+        confidence = 95
+        appliedRules.push('PAYMENT_METHOD_TELEGRAM')
       } else if (method.includes('crypto') || method === 'cryptobot') {
-        source = ZOTMoneySource.CRYPTOBOT;
-        confidence = 95;
-        appliedRules.push('PAYMENT_METHOD_CRYPTO');
+        source = ZOTMoneySource.CRYPTOBOT
+        confidence = 95
+        appliedRules.push('PAYMENT_METHOD_CRYPTO')
       } else if (method === 'manual' || method === 'admin') {
-        source = ZOTMoneySource.ADMIN;
-        confidence = 90;
-        appliedRules.push('PAYMENT_METHOD_MANUAL');
+        source = ZOTMoneySource.ADMIN
+        confidence = 90
+        appliedRules.push('PAYMENT_METHOD_MANUAL')
       }
     }
 
     // Check currency
     if (transaction.currency === 'XTR' || transaction.stars) {
       if (source === ZOTMoneySource.UNKNOWN) {
-        source = ZOTMoneySource.TELEGRAM_STARS;
-        confidence = 85;
-        appliedRules.push('CURRENCY_XTR');
+        source = ZOTMoneySource.TELEGRAM_STARS
+        confidence = 85
+        appliedRules.push('CURRENCY_XTR')
       }
     } else if (transaction.currency === 'RUB') {
       if (source === ZOTMoneySource.UNKNOWN) {
-        source = ZOTMoneySource.ROBOKASSA;
-        confidence = 70;
-        appliedRules.push('CURRENCY_RUB');
+        source = ZOTMoneySource.ROBOKASSA
+        confidence = 70
+        appliedRules.push('CURRENCY_RUB')
       }
     }
 
     // Check description patterns
     if (source === ZOTMoneySource.UNKNOWN) {
-      const desc = transaction.description.toLowerCase();
+      const desc = transaction.description.toLowerCase()
       if (desc.includes('bonus') || desc.includes('промо')) {
-        source = ZOTMoneySource.BONUS;
-        confidence = 80;
-        appliedRules.push('DESCRIPTION_BONUS');
+        source = ZOTMoneySource.BONUS
+        confidence = 80
+        appliedRules.push('DESCRIPTION_BONUS')
       } else if (desc.includes('admin') || desc.includes('manual')) {
-        source = ZOTMoneySource.ADMIN;
-        confidence = 80;
-        appliedRules.push('DESCRIPTION_ADMIN');
+        source = ZOTMoneySource.ADMIN
+        confidence = 80
+        appliedRules.push('DESCRIPTION_ADMIN')
       }
     }
 
-    return { source, confidence, appliedRules };
+    return { source, confidence, appliedRules }
   }
 
   /**
@@ -231,148 +236,172 @@ export class ZOTClassifier {
     transaction: ZOTTransactionData,
     moneySource: ZOTMoneySource
   ): {
-    type: ZOTPaymentType;
-    confidence: number;
-    appliedRules: string[];
+    type: ZOTPaymentType
+    confidence: number
+    appliedRules: string[]
   } {
-    const appliedRules: string[] = [];
-    let type = ZOTPaymentType.REAL_INCOME;
-    let confidence = 0;
+    const appliedRules: string[] = []
+    let type = ZOTPaymentType.REAL_INCOME
+    let confidence = 0
 
-    const originalType = transaction.type.toUpperCase();
+    const originalType = transaction.type.toUpperCase()
 
     // Map original types to ZOT types
     switch (originalType) {
       case 'MONEY_INCOME':
         if (moneySource === ZOTMoneySource.TELEGRAM_STARS) {
-          type = ZOTPaymentType.VIRTUAL_INCOME;
-          confidence = 95;
-          appliedRules.push('MONEY_INCOME_VIRTUAL');
-        } else if ([ZOTMoneySource.ROBOKASSA, ZOTMoneySource.CRYPTOBOT].includes(moneySource)) {
-          type = ZOTPaymentType.REAL_INCOME;
-          confidence = 95;
-          appliedRules.push('MONEY_INCOME_REAL');
+          type = ZOTPaymentType.VIRTUAL_INCOME
+          confidence = 95
+          appliedRules.push('MONEY_INCOME_VIRTUAL')
+        } else if (
+          [ZOTMoneySource.ROBOKASSA, ZOTMoneySource.CRYPTOBOT].includes(
+            moneySource
+          )
+        ) {
+          type = ZOTPaymentType.REAL_INCOME
+          confidence = 95
+          appliedRules.push('MONEY_INCOME_REAL')
         } else if (moneySource === ZOTMoneySource.BONUS) {
-          type = ZOTPaymentType.BONUS;
-          confidence = 90;
-          appliedRules.push('MONEY_INCOME_BONUS');
+          type = ZOTPaymentType.BONUS
+          confidence = 90
+          appliedRules.push('MONEY_INCOME_BONUS')
         } else {
-          type = ZOTPaymentType.REAL_INCOME;
-          confidence = 60;
-          appliedRules.push('MONEY_INCOME_DEFAULT');
+          type = ZOTPaymentType.REAL_INCOME
+          confidence = 60
+          appliedRules.push('MONEY_INCOME_DEFAULT')
         }
-        break;
+        break
 
       case 'MONEY_OUTCOME':
         if (transaction.stars && transaction.stars > 0) {
-          type = ZOTPaymentType.VIRTUAL_EXPENSE;
-          confidence = 95;
-          appliedRules.push('MONEY_OUTCOME_VIRTUAL');
+          type = ZOTPaymentType.VIRTUAL_EXPENSE
+          confidence = 95
+          appliedRules.push('MONEY_OUTCOME_VIRTUAL')
         } else {
-          type = ZOTPaymentType.REAL_EXPENSE;
-          confidence = 85;
-          appliedRules.push('MONEY_OUTCOME_REAL');
+          type = ZOTPaymentType.REAL_EXPENSE
+          confidence = 85
+          appliedRules.push('MONEY_OUTCOME_REAL')
         }
-        break;
+        break
 
       case 'REFUND':
-        type = ZOTPaymentType.REFUND;
-        confidence = 95;
-        appliedRules.push('REFUND_TYPE');
-        break;
+        type = ZOTPaymentType.REFUND
+        confidence = 95
+        appliedRules.push('REFUND_TYPE')
+        break
 
-      default:
+      default: {
         // Check description for hints
-        const desc = transaction.description.toLowerCase();
+        const desc = transaction.description.toLowerCase()
         if (desc.includes('refund') || desc.includes('возврат')) {
-          type = ZOTPaymentType.REFUND;
-          confidence = 70;
-          appliedRules.push('DESCRIPTION_REFUND');
+          type = ZOTPaymentType.REFUND
+          confidence = 70
+          appliedRules.push('DESCRIPTION_REFUND')
         } else if (desc.includes('bonus') || desc.includes('бонус')) {
-          type = ZOTPaymentType.BONUS;
-          confidence = 70;
-          appliedRules.push('DESCRIPTION_BONUS_TYPE');
+          type = ZOTPaymentType.BONUS
+          confidence = 70
+          appliedRules.push('DESCRIPTION_BONUS_TYPE')
         } else {
-          confidence = 30;
-          appliedRules.push('TYPE_UNKNOWN');
+          confidence = 30
+          appliedRules.push('TYPE_UNKNOWN')
         }
+      }
     }
 
-    return { type, confidence, appliedRules };
+    return { type, confidence, appliedRules }
   }
 
   /**
    * Classify Service Category
    */
   private classifyServiceCategory(transaction: ZOTTransactionData): {
-    category: ZOTServiceCategory;
-    confidence: number;
-    appliedRules: string[];
+    category: ZOTServiceCategory
+    confidence: number
+    appliedRules: string[]
   } {
-    const appliedRules: string[] = [];
-    let category = ZOTServiceCategory.UNKNOWN_SERVICE;
-    let confidence = 0;
+    const appliedRules: string[] = []
+    let category = ZOTServiceCategory.UNKNOWN_SERVICE
+    let confidence = 0
 
     if (!transaction.service_type) {
       // Check description for service hints
-      const desc = transaction.description.toLowerCase();
+      const desc = transaction.description.toLowerCase()
       if (desc.includes('subscription') || desc.includes('подписка')) {
-        category = ZOTServiceCategory.SUBSCRIPTION;
-        confidence = 80;
-        appliedRules.push('DESCRIPTION_SUBSCRIPTION');
+        category = ZOTServiceCategory.SUBSCRIPTION
+        confidence = 80
+        appliedRules.push('DESCRIPTION_SUBSCRIPTION')
       } else if (desc.includes('admin') || desc.includes('manual')) {
-        category = ZOTServiceCategory.ADMIN_OPERATION;
-        confidence = 80;
-        appliedRules.push('DESCRIPTION_ADMIN_OP');
+        category = ZOTServiceCategory.ADMIN_OPERATION
+        confidence = 80
+        appliedRules.push('DESCRIPTION_ADMIN_OP')
       }
-      return { category, confidence, appliedRules };
+      return { category, confidence, appliedRules }
     }
 
-    const serviceType = transaction.service_type.toLowerCase();
+    const serviceType = transaction.service_type.toLowerCase()
 
     // Map service types to categories
     if (serviceType.includes('photo') || serviceType === 'neuro_photo') {
-      category = ZOTServiceCategory.PHOTO_GENERATION;
-      confidence = 95;
-      appliedRules.push('SERVICE_PHOTO');
-    } else if (serviceType.includes('video') ||
-               ['kling_video', 'haiper_video', 'minimax_video', 'video_generation_other'].includes(serviceType)) {
-      category = ZOTServiceCategory.VIDEO_GENERATION;
-      confidence = 95;
-      appliedRules.push('SERVICE_VIDEO');
-    } else if (serviceType.includes('audio') || serviceType === 'text_to_speech') {
-      category = ZOTServiceCategory.AUDIO_GENERATION;
-      confidence = 95;
-      appliedRules.push('SERVICE_AUDIO');
-    } else if (serviceType === 'image_to_prompt' || serviceType.includes('analysis')) {
-      category = ZOTServiceCategory.IMAGE_ANALYSIS;
-      confidence = 95;
-      appliedRules.push('SERVICE_ANALYSIS');
-    } else if (serviceType.includes('training') || serviceType === 'model_training_other') {
-      category = ZOTServiceCategory.MODEL_TRAINING;
-      confidence = 95;
-      appliedRules.push('SERVICE_TRAINING');
-    } else if (serviceType.includes('morphing') || serviceType === 'morphing_seamless') {
-      category = ZOTServiceCategory.MORPHING;
-      confidence = 95;
-      appliedRules.push('SERVICE_MORPHING');
+      category = ZOTServiceCategory.PHOTO_GENERATION
+      confidence = 95
+      appliedRules.push('SERVICE_PHOTO')
+    } else if (
+      serviceType.includes('video') ||
+      [
+        'kling_video',
+        'haiper_video',
+        'minimax_video',
+        'video_generation_other',
+      ].includes(serviceType)
+    ) {
+      category = ZOTServiceCategory.VIDEO_GENERATION
+      confidence = 95
+      appliedRules.push('SERVICE_VIDEO')
+    } else if (
+      serviceType.includes('audio') ||
+      serviceType === 'text_to_speech'
+    ) {
+      category = ZOTServiceCategory.AUDIO_GENERATION
+      confidence = 95
+      appliedRules.push('SERVICE_AUDIO')
+    } else if (
+      serviceType === 'image_to_prompt' ||
+      serviceType.includes('analysis')
+    ) {
+      category = ZOTServiceCategory.IMAGE_ANALYSIS
+      confidence = 95
+      appliedRules.push('SERVICE_ANALYSIS')
+    } else if (
+      serviceType.includes('training') ||
+      serviceType === 'model_training_other'
+    ) {
+      category = ZOTServiceCategory.MODEL_TRAINING
+      confidence = 95
+      appliedRules.push('SERVICE_TRAINING')
+    } else if (
+      serviceType.includes('morphing') ||
+      serviceType === 'morphing_seamless'
+    ) {
+      category = ZOTServiceCategory.MORPHING
+      confidence = 95
+      appliedRules.push('SERVICE_MORPHING')
     } else {
-      confidence = 40;
-      appliedRules.push('SERVICE_UNKNOWN');
+      confidence = 40
+      appliedRules.push('SERVICE_UNKNOWN')
     }
 
-    return { category, confidence, appliedRules };
+    return { category, confidence, appliedRules }
   }
 
   /**
    * Get Confidence Level from score
    */
   private getConfidenceLevel(score: number): ZOTConfidenceLevel {
-    if (score >= 95) return ZOTConfidenceLevel.HIGH;
-    if (score >= 80) return ZOTConfidenceLevel.MEDIUM;
-    if (score >= 60) return ZOTConfidenceLevel.LOW;
-    if (score >= 40) return ZOTConfidenceLevel.VERY_LOW;
-    return ZOTConfidenceLevel.FAILED;
+    if (score >= 95) return ZOTConfidenceLevel.HIGH
+    if (score >= 80) return ZOTConfidenceLevel.MEDIUM
+    if (score >= 60) return ZOTConfidenceLevel.LOW
+    if (score >= 40) return ZOTConfidenceLevel.VERY_LOW
+    return ZOTConfidenceLevel.FAILED
   }
 
   /**
@@ -382,11 +411,11 @@ export class ZOTClassifier {
     transaction: ZOTTransactionData,
     result: ZOTClassificationResult
   ): {
-    errors: ZOTValidationError[];
-    warnings: ZOTValidationWarning[];
+    errors: ZOTValidationError[]
+    warnings: ZOTValidationWarning[]
   } {
-    const errors: ZOTValidationError[] = [];
-    const warnings: ZOTValidationWarning[] = [];
+    const errors: ZOTValidationError[] = []
+    const warnings: ZOTValidationWarning[] = []
 
     // Validate required fields
     if (!transaction.telegram_id) {
@@ -396,8 +425,8 @@ export class ZOTClassifier {
         severity: 'CRITICAL',
         field: 'telegram_id',
         value: transaction.telegram_id,
-        suggestion: 'Ensure telegram_id is provided and not null'
-      });
+        suggestion: 'Ensure telegram_id is provided and not null',
+      })
     }
 
     if (!transaction.amount && !transaction.stars) {
@@ -407,41 +436,50 @@ export class ZOTClassifier {
         severity: 'CRITICAL',
         field: 'amount',
         value: transaction.amount,
-        suggestion: 'Provide either amount (for RUB) or stars (for XTR)'
-      });
+        suggestion: 'Provide either amount (for RUB) or stars (for XTR)',
+      })
     }
 
     // Validate amount consistency
-    if (transaction.amount < 0 || (transaction.stars && transaction.stars < 0)) {
+    if (
+      transaction.amount < 0 ||
+      (transaction.stars && transaction.stars < 0)
+    ) {
       errors.push({
         code: 'NEGATIVE_AMOUNT',
         message: 'Amount and stars cannot be negative',
         severity: 'HIGH',
         field: 'amount',
         value: transaction.amount,
-        suggestion: 'Use positive values for amounts'
-      });
+        suggestion: 'Use positive values for amounts',
+      })
     }
 
     // Validate payment type consistency
-    if (result.paymentType === ZOTPaymentType.VIRTUAL_INCOME && !transaction.stars) {
+    if (
+      result.paymentType === ZOTPaymentType.VIRTUAL_INCOME &&
+      !transaction.stars
+    ) {
       warnings.push({
         code: 'VIRTUAL_INCOME_NO_STARS',
         message: 'Virtual income should have stars amount',
         field: 'stars',
         value: transaction.stars,
-        recommendation: 'Set stars amount for virtual income transactions'
-      });
+        recommendation: 'Set stars amount for virtual income transactions',
+      })
     }
 
-    if (result.paymentType === ZOTPaymentType.REAL_INCOME && !transaction.amount) {
+    if (
+      result.paymentType === ZOTPaymentType.REAL_INCOME &&
+      !transaction.amount
+    ) {
       warnings.push({
         code: 'REAL_INCOME_NO_AMOUNT',
         message: 'Real income should have amount in RUB',
         field: 'amount',
         value: transaction.amount,
-        recommendation: 'Set amount for real income transactions'
-      });
+        recommendation: 'Set amount for real income transactions',
+      })
     }
 
     // Validate confidence threshold
@@ -453,22 +491,26 @@ export class ZOTClassifier {
         field: 'confidence',
         value: result.confidence,
         expected: '>=60',
-        suggestion: 'Review transaction data for missing or unclear information'
-      });
+        suggestion:
+          'Review transaction data for missing or unclear information',
+      })
     }
 
     // Validate money source consistency
-    if (result.moneySource === ZOTMoneySource.TELEGRAM_STARS && transaction.currency !== 'XTR') {
+    if (
+      result.moneySource === ZOTMoneySource.TELEGRAM_STARS &&
+      transaction.currency !== 'XTR'
+    ) {
       warnings.push({
         code: 'CURRENCY_MISMATCH',
         message: 'Telegram Stars should use XTR currency',
         field: 'currency',
         value: transaction.currency,
-        recommendation: 'Set currency to XTR for Telegram Stars transactions'
-      });
+        recommendation: 'Set currency to XTR for Telegram Stars transactions',
+      })
     }
 
-    return { errors, warnings };
+    return { errors, warnings }
   }
 
   /**
@@ -478,41 +520,59 @@ export class ZOTClassifier {
     transaction: ZOTTransactionData,
     result: ZOTClassificationResult
   ): Partial<ZOTTransactionData> {
-    const corrections: Partial<ZOTTransactionData> = {};
+    const corrections: Partial<ZOTTransactionData> = {}
 
     // Correct currency based on money source
-    if (result.moneySource === ZOTMoneySource.TELEGRAM_STARS && transaction.currency !== 'XTR') {
-      corrections.currency = 'XTR';
-    } else if (result.moneySource === ZOTMoneySource.ROBOKASSA && transaction.currency !== 'RUB') {
-      corrections.currency = 'RUB';
+    if (
+      result.moneySource === ZOTMoneySource.TELEGRAM_STARS &&
+      transaction.currency !== 'XTR'
+    ) {
+      corrections.currency = 'XTR'
+    } else if (
+      result.moneySource === ZOTMoneySource.ROBOKASSA &&
+      transaction.currency !== 'RUB'
+    ) {
+      corrections.currency = 'RUB'
     }
 
     // Correct missing stars for virtual transactions
-    if (result.paymentType === ZOTPaymentType.VIRTUAL_INCOME && !transaction.stars && transaction.amount) {
-      corrections.stars = transaction.amount; // Assume 1:1 ratio for correction
+    if (
+      result.paymentType === ZOTPaymentType.VIRTUAL_INCOME &&
+      !transaction.stars &&
+      transaction.amount
+    ) {
+      corrections.stars = transaction.amount // Assume 1:1 ratio for correction
     }
 
-    return corrections;
+    return corrections
   }
 
   /**
    * Batch classify transactions
    */
-  public classifyTransactions(transactions: ZOTTransactionData[]): ZOTClassificationResult[] {
-    return transactions.map(transaction => this.classifyTransaction(transaction));
+  public classifyTransactions(
+    transactions: ZOTTransactionData[]
+  ): ZOTClassificationResult[] {
+    return transactions.map(transaction =>
+      this.classifyTransaction(transaction)
+    )
   }
 
   /**
    * Validate batch of transactions
    */
-  public validateBatch(transactions: ZOTTransactionData[]): ZOTValidationResult {
-    const startTime = Date.now();
-    const results = this.classifyTransactions(transactions);
-    const processingTime = Date.now() - startTime;
+  public validateBatch(
+    transactions: ZOTTransactionData[]
+  ): ZOTValidationResult {
+    const startTime = Date.now()
+    const results = this.classifyTransactions(transactions)
+    const processingTime = Date.now() - startTime
 
-    const totalErrors = results.reduce((sum, r) => sum + r.errors.length, 0);
-    const totalWarnings = results.reduce((sum, r) => sum + r.warnings.length, 0);
-    const recordsWithIssues = results.filter(r => r.errors.length > 0 || r.warnings.length > 0).length;
+    const totalErrors = results.reduce((sum, r) => sum + r.errors.length, 0)
+    const totalWarnings = results.reduce((sum, r) => sum + r.warnings.length, 0)
+    const recordsWithIssues = results.filter(
+      r => r.errors.length > 0 || r.warnings.length > 0
+    ).length
 
     const qualityMetrics: ZOTQualityMetrics = {
       completeness: this.calculateCompleteness(transactions),
@@ -522,25 +582,28 @@ export class ZOTClassifier {
       overallScore: 0,
       recordsProcessed: transactions.length,
       recordsWithIssues,
-      processingTime
-    };
+      processingTime,
+    }
 
-    qualityMetrics.overallScore = (
+    qualityMetrics.overallScore =
       qualityMetrics.completeness * 0.3 +
       qualityMetrics.accuracy * 0.3 +
       qualityMetrics.consistency * 0.2 +
       qualityMetrics.timeliness * 0.2
-    );
 
-    const allErrors = results.flatMap(r => r.errors);
-    const allWarnings = results.flatMap(r => r.warnings);
+    const allErrors = results.flatMap(r => r.errors)
+    const allWarnings = results.flatMap(r => r.warnings)
 
     return {
       isValid: totalErrors === 0,
-      confidenceLevel: qualityMetrics.overallScore >= 95 ? ZOTConfidenceLevel.HIGH :
-                     qualityMetrics.overallScore >= 80 ? ZOTConfidenceLevel.MEDIUM :
-                     qualityMetrics.overallScore >= 60 ? ZOTConfidenceLevel.LOW :
-                     ZOTConfidenceLevel.VERY_LOW,
+      confidenceLevel:
+        qualityMetrics.overallScore >= 95
+          ? ZOTConfidenceLevel.HIGH
+          : qualityMetrics.overallScore >= 80
+            ? ZOTConfidenceLevel.MEDIUM
+            : qualityMetrics.overallScore >= 60
+              ? ZOTConfidenceLevel.LOW
+              : ZOTConfidenceLevel.VERY_LOW,
       confidenceScore: qualityMetrics.overallScore,
       errors: allErrors,
       warnings: allWarnings,
@@ -548,130 +611,136 @@ export class ZOTClassifier {
       validatedAt: new Date(),
       qualityMetrics,
       missingData: this.detectMissingData(transactions),
-      classificationAccuracy: qualityMetrics.accuracy
-    };
+      classificationAccuracy: qualityMetrics.accuracy,
+    }
   }
 
   private calculateCompleteness(transactions: ZOTTransactionData[]): number {
-    const requiredFields = ['telegram_id', 'type', 'bot_name', 'description'];
-    let totalScore = 0;
+    const requiredFields = ['telegram_id', 'type', 'bot_name', 'description']
+    let totalScore = 0
 
     transactions.forEach(t => {
       const score = requiredFields.reduce((acc, field) => {
-        return acc + (t[field as keyof ZOTTransactionData] ? 1 : 0);
-      }, 0);
-      totalScore += (score / requiredFields.length) * 100;
-    });
+        return acc + (t[field as keyof ZOTTransactionData] ? 1 : 0)
+      }, 0)
+      totalScore += (score / requiredFields.length) * 100
+    })
 
-    return transactions.length > 0 ? totalScore / transactions.length : 0;
+    return transactions.length > 0 ? totalScore / transactions.length : 0
   }
 
   private calculateAccuracy(results: ZOTClassificationResult[]): number {
-    const totalConfidence = results.reduce((sum, r) => sum + r.confidence, 0);
-    return results.length > 0 ? totalConfidence / results.length : 0;
+    const totalConfidence = results.reduce((sum, r) => sum + r.confidence, 0)
+    return results.length > 0 ? totalConfidence / results.length : 0
   }
 
   private calculateConsistency(results: ZOTClassificationResult[]): number {
     // Check consistency of classifications for similar transactions
-    const groupedResults = new Map<string, ZOTClassificationResult[]>();
+    const groupedResults = new Map<string, ZOTClassificationResult[]>()
 
     results.forEach(result => {
-      const key = `${result.originalData.bot_name}-${result.originalData.service_type}`;
+      const key = `${result.originalData.bot_name}-${result.originalData.service_type}`
       if (!groupedResults.has(key)) {
-        groupedResults.set(key, []);
+        groupedResults.set(key, [])
       }
-      groupedResults.get(key)!.push(result);
-    });
+      groupedResults.get(key)!.push(result)
+    })
 
-    let consistencyScore = 0;
-    let groupCount = 0;
+    let consistencyScore = 0
+    let groupCount = 0
 
     groupedResults.forEach(group => {
       if (group.length > 1) {
-        const firstType = group[0].paymentType;
-        const consistent = group.every(r => r.paymentType === firstType);
-        consistencyScore += consistent ? 100 : 0;
-        groupCount++;
+        const firstType = group[0].paymentType
+        const consistent = group.every(r => r.paymentType === firstType)
+        consistencyScore += consistent ? 100 : 0
+        groupCount++
       }
-    });
+    })
 
-    return groupCount > 0 ? consistencyScore / groupCount : 100;
+    return groupCount > 0 ? consistencyScore / groupCount : 100
   }
 
   private calculateTimeliness(transactions: ZOTTransactionData[]): number {
     // Check if transactions have recent timestamps
-    const now = new Date();
-    const dayMs = 24 * 60 * 60 * 1000;
+    const now = new Date()
+    const dayMs = 24 * 60 * 60 * 1000
 
-    let timelinessScore = 0;
+    let timelinessScore = 0
 
     transactions.forEach(t => {
-      const createdAt = new Date(t.created_at);
-      const daysDiff = (now.getTime() - createdAt.getTime()) / dayMs;
+      const createdAt = new Date(t.created_at)
+      const daysDiff = (now.getTime() - createdAt.getTime()) / dayMs
 
       // Score based on how recent the transaction is
-      if (daysDiff <= 1) timelinessScore += 100;
-      else if (daysDiff <= 7) timelinessScore += 80;
-      else if (daysDiff <= 30) timelinessScore += 60;
-      else timelinessScore += 40;
-    });
+      if (daysDiff <= 1) timelinessScore += 100
+      else if (daysDiff <= 7) timelinessScore += 80
+      else if (daysDiff <= 30) timelinessScore += 60
+      else timelinessScore += 40
+    })
 
-    return transactions.length > 0 ? timelinessScore / transactions.length : 100;
+    return transactions.length > 0 ? timelinessScore / transactions.length : 100
   }
 
   private generateSuggestions(results: ZOTClassificationResult[]): string[] {
-    const suggestions: string[] = [];
-    const errorCounts = new Map<string, number>();
+    const suggestions: string[] = []
+    const errorCounts = new Map<string, number>()
 
     results.forEach(r => {
       r.errors.forEach(e => {
-        errorCounts.set(e.code, (errorCounts.get(e.code) || 0) + 1);
-      });
-    });
+        errorCounts.set(e.code, (errorCounts.get(e.code) || 0) + 1)
+      })
+    })
 
     if (errorCounts.get('MISSING_TELEGRAM_ID')) {
-      suggestions.push('Ensure all transactions include telegram_id field');
+      suggestions.push('Ensure all transactions include telegram_id field')
     }
 
     if (errorCounts.get('LOW_CONFIDENCE')) {
-      suggestions.push('Review transaction descriptions and service types for clarity');
+      suggestions.push(
+        'Review transaction descriptions and service types for clarity'
+      )
     }
 
     if (errorCounts.get('CURRENCY_MISMATCH')) {
-      suggestions.push('Standardize currency mapping based on payment method');
+      suggestions.push('Standardize currency mapping based on payment method')
     }
 
-    return suggestions;
+    return suggestions
   }
 
-  private detectMissingData(transactions: ZOTTransactionData[]): ZOTMissingData[] {
-    const missing: ZOTMissingData[] = [];
+  private detectMissingData(
+    transactions: ZOTTransactionData[]
+  ): ZOTMissingData[] {
+    const missing: ZOTMissingData[] = []
 
     // Check for missing service types
-    const noServiceType = transactions.filter(t => !t.service_type).length;
+    const noServiceType = transactions.filter(t => !t.service_type).length
     if (noServiceType > 0) {
       missing.push({
         type: 'REQUIRED_FIELD',
         description: 'Missing service_type field',
         impact: 'HIGH',
         affectedRecords: noServiceType,
-        resolution: 'Add service_type field to all transactions'
-      });
+        resolution: 'Add service_type field to all transactions',
+      })
     }
 
     // Check for missing metadata
-    const noMetadata = transactions.filter(t => !t.metadata || Object.keys(t.metadata).length === 0).length;
+    const noMetadata = transactions.filter(
+      t => !t.metadata || Object.keys(t.metadata).length === 0
+    ).length
     if (noMetadata > 0) {
       missing.push({
         type: 'INCOMPLETE_RECORD',
         description: 'Missing metadata information',
         impact: 'MEDIUM',
         affectedRecords: noMetadata,
-        resolution: 'Include relevant metadata for transaction context'
-      });
+        resolution: 'Include relevant metadata for transaction context',
+      })
     }
 
-    return missing;
+    return missing
   }
 }
 
@@ -685,12 +754,12 @@ export const DEFAULT_CLASSIFICATION_RULES: ZOTClassificationRule[] = [
     description: 'Classify Robokassa payments as real income',
     conditions: [
       { field: 'payment_method', operator: 'equals', value: 'Robokassa' },
-      { field: 'type', operator: 'equals', value: 'MONEY_INCOME' }
+      { field: 'type', operator: 'equals', value: 'MONEY_INCOME' },
     ],
     targetClassification: ZOTPaymentType.REAL_INCOME,
     priority: 100,
     confidenceWeight: 95,
-    enabled: true
+    enabled: true,
   },
   {
     ruleId: 'TELEGRAM_VIRTUAL_INCOME',
@@ -698,12 +767,12 @@ export const DEFAULT_CLASSIFICATION_RULES: ZOTClassificationRule[] = [
     description: 'Classify Telegram Stars as virtual income',
     conditions: [
       { field: 'payment_method', operator: 'equals', value: 'Telegram' },
-      { field: 'type', operator: 'equals', value: 'MONEY_INCOME' }
+      { field: 'type', operator: 'equals', value: 'MONEY_INCOME' },
     ],
     targetClassification: ZOTPaymentType.VIRTUAL_INCOME,
     priority: 100,
     confidenceWeight: 95,
-    enabled: true
+    enabled: true,
   },
   {
     ruleId: 'SERVICE_VIRTUAL_EXPENSE',
@@ -711,12 +780,12 @@ export const DEFAULT_CLASSIFICATION_RULES: ZOTClassificationRule[] = [
     description: 'Classify service usage as virtual expense',
     conditions: [
       { field: 'type', operator: 'equals', value: 'MONEY_OUTCOME' },
-      { field: 'stars', operator: 'greater_than', value: 0 }
+      { field: 'stars', operator: 'greater_than', value: 0 },
     ],
     targetClassification: ZOTPaymentType.VIRTUAL_EXPENSE,
     priority: 90,
     confidenceWeight: 90,
-    enabled: true
+    enabled: true,
   },
   {
     ruleId: 'ADMIN_BONUS',
@@ -724,16 +793,25 @@ export const DEFAULT_CLASSIFICATION_RULES: ZOTClassificationRule[] = [
     description: 'Classify admin grants as bonus',
     conditions: [
       { field: 'payment_method', operator: 'equals', value: 'Manual' },
-      { field: 'description', operator: 'contains', value: 'bonus', caseSensitive: false }
+      {
+        field: 'description',
+        operator: 'contains',
+        value: 'bonus',
+        caseSensitive: false,
+      },
     ],
     targetClassification: ZOTPaymentType.BONUS,
     priority: 85,
     confidenceWeight: 85,
-    enabled: true
-  }
-];
+    enabled: true,
+  },
+]
 
 /**
  * Export default classifier instance
  */
-export const defaultZOTClassifier = new ZOTClassifier(DEFAULT_CLASSIFICATION_RULES, true, false);
+export const defaultZOTClassifier = new ZOTClassifier(
+  DEFAULT_CLASSIFICATION_RULES,
+  true,
+  false
+)

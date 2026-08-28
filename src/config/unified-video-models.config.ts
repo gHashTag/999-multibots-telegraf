@@ -601,21 +601,24 @@ export function getUnifiedModelPrice(
     case 'fixed':
       return model.pricing.fixedPriceStars!
 
-    case 'per_second':
+    case 'per_second': {
       const duration = options?.duration || model.pricing.defaultDuration || 5
       const priceUSD = model.pricing.pricePerSecondUSD! * duration
       return Math.round((priceUSD * MARKUP_MULTIPLIER) / STAR_COST_USD)
+    }
 
-    case 'per_resolution':
+    case 'per_resolution': {
       const resolution =
         options?.resolution ||
         model.apiSettings.resolutions?.[0] || // Use first supported resolution as default
         '720p'
       return model.pricing.priceByResolution![resolution] || 0
+    }
 
-    case 'per_duration':
+    case 'per_duration': {
       const dur = options?.duration || model.pricing.defaultDuration || 5
       return model.pricing.priceByDuration![dur] || 0
+    }
 
     case 'per_duration_resolution': {
       // WAN 2.5: цена зависит от длительности И разрешения
@@ -945,13 +948,17 @@ export function parseModelButton(buttonText: string): ParsedModelButton {
   }
 
   // ✅ УНИФИКАЦИЯ ЦЕН: Используем реальную цену из конфигурации модели
-  const modelConfig = UNIFIED_VIDEO_MODELS[result.modelId as keyof typeof UNIFIED_VIDEO_MODELS]
-  if (modelConfig?.pricing?.type === 'fixed' && modelConfig.pricing.fixedPriceStars) {
+  const modelConfig =
+    UNIFIED_VIDEO_MODELS[result.modelId as keyof typeof UNIFIED_VIDEO_MODELS]
+  if (
+    modelConfig?.pricing?.type === 'fixed' &&
+    modelConfig.pricing.fixedPriceStars
+  ) {
     result.cost = modelConfig.pricing.fixedPriceStars
     logger.info('[parseModelButton] Unified price', {
       modelId: result.modelId,
       cost: result.cost,
-      source: 'unified-video-models.config'
+      source: 'unified-video-models.config',
     })
   }
 
@@ -964,13 +971,17 @@ export function parseModelButton(buttonText: string): ParsedModelButton {
  * Используется ВЕЗДЕ вместо хардкода
  */
 export function getModelPriceStars(modelId: string): number | undefined {
-  const modelConfig = UNIFIED_VIDEO_MODELS[modelId as keyof typeof UNIFIED_VIDEO_MODELS]
+  const modelConfig =
+    UNIFIED_VIDEO_MODELS[modelId as keyof typeof UNIFIED_VIDEO_MODELS]
   if (!modelConfig) {
     logger.warn('[getModelPriceStars] Model not found', { modelId })
     return undefined
   }
 
-  if (modelConfig.pricing?.type === 'fixed' && modelConfig.pricing.fixedPriceStars) {
+  if (
+    modelConfig.pricing?.type === 'fixed' &&
+    modelConfig.pricing.fixedPriceStars
+  ) {
     return modelConfig.pricing.fixedPriceStars
   }
 
@@ -1010,7 +1021,10 @@ export function generateModelKeyboard(
       inputType: validated.inputType,
       totalActiveModels: getActiveModels().length,
       filteredModels: models.map(m => m.id),
-      modelInputTypes: models.map(m => ({ id: m.id, inputTypes: m.inputTypes }))
+      modelInputTypes: models.map(m => ({
+        id: m.id,
+        inputTypes: m.inputTypes,
+      })),
     })
   }
 

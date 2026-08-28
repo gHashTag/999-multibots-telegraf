@@ -4,6 +4,14 @@ import { getUserDetailsSubscription } from '@/core/supabase/getUserDetailsSubscr
 import { supabase } from '@/core/supabase/client'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 
+// Разбор ЖИВОЙ базы через Infisical: без креденшелов файл падает с
+// «Infisical credentials missing». Запускаем только при их наличии.
+const HAS_INFISICAL = Boolean(
+  process.env.INFISICAL_CLIENT_ID &&
+    process.env.INFISICAL_CLIENT_SECRET &&
+    process.env.INFISICAL_PROJECT_ID
+)
+
 // Mock dependencies
 vi.mock('@/core/supabase/client')
 vi.mock('@/core/supabase/getUserDetailsSubscription')
@@ -15,7 +23,7 @@ vi.mock('@/config', () => ({
 const mockSupabase = supabase as any
 const mockGetUserDetailsSubscription = getUserDetailsSubscription as any
 
-describe('checkSuperheroGenerationUsage', () => {
+describe.skipIf(!HAS_INFISICAL)('checkSuperheroGenerationUsage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })

@@ -19,9 +19,16 @@ import {
   getUsdcContractAddress,
   getChainId,
 } from '@/core/x402'
-import { getPaymentByInvId, updatePaymentStatus } from '@/core/supabase/payments'
+import {
+  getPaymentByInvId,
+  updatePaymentStatus,
+} from '@/core/supabase/payments'
 import { updateUserBalance } from '@/core/supabase'
-import { PaymentStatus, PaymentType, PaymentMethod } from '@/interfaces/payments.interface'
+import {
+  PaymentStatus,
+  PaymentType,
+  PaymentMethod,
+} from '@/interfaces/payments.interface'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces'
 
@@ -46,150 +53,160 @@ export function setX402BotInstance(bot: Telegraf<MyContext>): void {
  * - Middleware verifies payment
  * - Request proceeds to handler
  */
-router.get('/x402-topup', async (req: Request, res: Response): Promise<void> => {
-  const { inv_id, telegram_id, amount, stars } = req.query
+router.get(
+  '/x402-topup',
+  async (req: Request, res: Response): Promise<void> => {
+    const { inv_id, telegram_id, amount, stars } = req.query
 
-  logger.info('[x402] Top-up request received', {
-    inv_id,
-    telegram_id,
-    amount,
-    stars,
-    headers: req.headers,
-  })
-
-  // Validate required parameters
-  if (!inv_id || !telegram_id || !amount || !stars) {
-    res.status(400).json({
-      error: 'Missing required parameters',
-      required: ['inv_id', 'telegram_id', 'amount', 'stars'],
+    logger.info('[x402] Top-up request received', {
+      inv_id,
+      telegram_id,
+      amount,
+      stars,
+      headers: req.headers,
     })
-    return
-  }
 
-  // Check if x402 is configured
-  if (!isX402Configured()) {
-    res.status(503).json({
-      error: 'x402 payment not configured',
-    })
-    return
-  }
-
-  const config = getX402Config()
-  const amountUsd = parseFloat(amount as string)
-  const starsAmount = parseInt(stars as string, 10)
-
-  // Check for X-PAYMENT header (indicates payment was made)
-  const paymentHeader = req.headers['x-payment'] as string | undefined
-
-  if (paymentHeader) {
-    // Payment was made - process it
-    try {
-      logX402Event('Payment header received', {
-        inv_id,
-        telegram_id,
-        amount: amountUsd,
-        stars: starsAmount,
-      })
-
-      // ЗАЧИСЛЕНИЕ ЗАКРЫТО, ПОКА НЕТ ПРОВЕРКИ ПЛАТЕЖА.
-      //
-      // Ниже стояло зачисление баланса, у которого единственной защитой было
-      // НАЛИЧИЕ заголовка X-PAYMENT — его содержимое не проверялось ничем.
-      // При этом telegram_id и stars брались из СТРОКИ ЗАПРОСА, то есть их
-      // задаёт вызывающий. Любой человек с любым pending inv_id мог написать
-      //
-      //   GET /api/x402-topup?inv_id=…&telegram_id=<чужой>&stars=999999
-      //   X-PAYMENT: что угодно
-      //
-      // и получить эти звёзды на любой аккаунт.
-      //
-      // Сейчас роутер НЕ ПРИМОНТИРОВАН (в api_server/index.ts нет app.use для
-      // x402Router), и это единственное, что мешало. Полагаться на забытую
-      // строку нельзя: кто-нибудь её допишет, увидев неработающую оплату.
-      //
-      // Настоящей проверки в проекте нет. `validatePaymentHeader` в
-      // core/x402/index.ts существует, но НЕ ВЫЗЫВАЕТСЯ ни разу и всё равно
-      // проверяет лишь наличие четырёх полей, а не подпись. Сверки с
-      // facilitator'ом (settle/verify) нет вовсе.
-      //
-      // Поэтому отказываем явно. Чтобы включить: сверить платёж с
-      // facilitator'ом по сети И брать сумму со звёздами из строки payments_v2,
-      // а не из запроса.
-      logger.error('[x402] Зачисление отклонено: проверки платежа не существует', {
-        inv_id,
-        telegram_id_from_query: telegram_id,
-        stars_from_query: starsAmount,
-      })
-      res.status(501).json({
-        error: 'x402 settlement verification is not implemented',
-        detail:
-          'Balance crediting is disabled until the X-PAYMENT header is verified ' +
-          'against the facilitator and the amount is read from the payment record.',
+    // Validate required parameters
+    if (!inv_id || !telegram_id || !amount || !stars) {
+      res.status(400).json({
+        error: 'Missing required parameters',
+        required: ['inv_id', 'telegram_id', 'amount', 'stars'],
       })
       return
+    }
 
-      // eslint-disable-next-line no-unreachable
-      // Verify payment exists in database
-      const { data: payment, error: paymentError } = await getPaymentByInvId(inv_id as string)
-      if (paymentError || !payment) {
-        res.status(404).json({ error: 'Payment not found' })
-        return
-      }
+    // Check if x402 is configured
+    if (!isX402Configured()) {
+      res.status(503).json({
+        error: 'x402 payment not configured',
+      })
+      return
+    }
 
-      if (payment.status === PaymentStatus.COMPLETED) {
-        res.status(200).json({
-          success: true,
-          message: 'Payment already processed',
+    const config = getX402Config()
+    const amountUsd = parseFloat(amount as string)
+    const starsAmount = parseInt(stars as string, 10)
+
+    // Check for X-PAYMENT header (indicates payment was made)
+    const paymentHeader = req.headers['x-payment'] as string | undefined
+
+    if (paymentHeader) {
+      // Payment was made - process it
+      try {
+        logX402Event('Payment header received', {
+          inv_id,
+          telegram_id,
+          amount: amountUsd,
           stars: starsAmount,
         })
+
+        // ЗАЧИСЛЕНИЕ ЗАКРЫТО, ПОКА НЕТ ПРОВЕРКИ ПЛАТЕЖА.
+        //
+        // Ниже стояло зачисление баланса, у которого единственной защитой было
+        // НАЛИЧИЕ заголовка X-PAYMENT — его содержимое не проверялось ничем.
+        // При этом telegram_id и stars брались из СТРОКИ ЗАПРОСА, то есть их
+        // задаёт вызывающий. Любой человек с любым pending inv_id мог написать
+        //
+        //   GET /api/x402-topup?inv_id=…&telegram_id=<чужой>&stars=999999
+        //   X-PAYMENT: что угодно
+        //
+        // и получить эти звёзды на любой аккаунт.
+        //
+        // Сейчас роутер НЕ ПРИМОНТИРОВАН (в api_server/index.ts нет app.use для
+        // x402Router), и это единственное, что мешало. Полагаться на забытую
+        // строку нельзя: кто-нибудь её допишет, увидев неработающую оплату.
+        //
+        // Настоящей проверки в проекте нет. `validatePaymentHeader` в
+        // core/x402/index.ts существует, но НЕ ВЫЗЫВАЕТСЯ ни разу и всё равно
+        // проверяет лишь наличие четырёх полей, а не подпись. Сверки с
+        // facilitator'ом (settle/verify) нет вовсе.
+        //
+        // Поэтому отказываем явно. Чтобы включить: сверить платёж с
+        // facilitator'ом по сети И брать сумму со звёздами из строки payments_v2,
+        // а не из запроса.
+        logger.error(
+          '[x402] Зачисление отклонено: проверки платежа не существует',
+          {
+            inv_id,
+            telegram_id_from_query: telegram_id,
+            stars_from_query: starsAmount,
+          }
+        )
+        res.status(501).json({
+          error: 'x402 settlement verification is not implemented',
+          detail:
+            'Balance crediting is disabled until the X-PAYMENT header is verified ' +
+            'against the facilitator and the amount is read from the payment record.',
+        })
         return
-      }
 
-      // Update payment status to COMPLETED
-      await updatePaymentStatus(inv_id as string, PaymentStatus.COMPLETED)
-
-      // Credit user balance
-      await updateUserBalance(
-        telegram_id as string,
-        starsAmount,
-        PaymentType.MONEY_INCOME,
-        `x402 top-up: ${amountUsd} USDC`,
-        {
-          inv_id: inv_id as string,
-          amount_usd: amountUsd,
-          payment_method: PaymentMethod.X402,
-          network: config.network,
+        // Verify payment exists in database
+        // eslint-disable-next-line no-unreachable
+        const { data: payment, error: paymentError } = await getPaymentByInvId(
+          inv_id as string
+        )
+        if (paymentError || !payment) {
+          res.status(404).json({ error: 'Payment not found' })
+          return
         }
-      )
 
-      logX402Event('Payment completed', {
-        inv_id,
-        telegram_id,
-        amount: amountUsd,
-        stars: starsAmount,
-      })
-
-      // Send notification to user
-      if (botInstance) {
-        try {
-          const telegramIdNum = parseInt(telegram_id as string, 10)
-          await botInstance.telegram.sendMessage(
-            telegramIdNum,
-            `✅ Баланс пополнен!\n\n` +
-              `💰 Сумма: $${amountUsd} USDC\n` +
-              `⭐️ Получено: ${starsAmount} звезд\n\n` +
-              `Спасибо за покупку! / Thank you for your purchase!`
-          )
-        } catch (notifyError) {
-          logger.error('[x402] Failed to send notification', {
-            error: notifyError instanceof Error ? notifyError.message : String(notifyError),
-            telegram_id,
+        if (payment.status === PaymentStatus.COMPLETED) {
+          res.status(200).json({
+            success: true,
+            message: 'Payment already processed',
+            stars: starsAmount,
           })
+          return
         }
-      }
 
-      // Return success page
-      res.status(200).send(`
+        // Update payment status to COMPLETED
+        await updatePaymentStatus(inv_id as string, PaymentStatus.COMPLETED)
+
+        // Credit user balance
+        await updateUserBalance(
+          telegram_id as string,
+          starsAmount,
+          PaymentType.MONEY_INCOME,
+          `x402 top-up: ${amountUsd} USDC`,
+          {
+            inv_id: inv_id as string,
+            amount_usd: amountUsd,
+            payment_method: PaymentMethod.X402,
+            network: config.network,
+          }
+        )
+
+        logX402Event('Payment completed', {
+          inv_id,
+          telegram_id,
+          amount: amountUsd,
+          stars: starsAmount,
+        })
+
+        // Send notification to user
+        if (botInstance) {
+          try {
+            const telegramIdNum = parseInt(telegram_id as string, 10)
+            await botInstance.telegram.sendMessage(
+              telegramIdNum,
+              `✅ Баланс пополнен!\n\n` +
+                `💰 Сумма: $${amountUsd} USDC\n` +
+                `⭐️ Получено: ${starsAmount} звезд\n\n` +
+                `Спасибо за покупку! / Thank you for your purchase!`
+            )
+          } catch (notifyError) {
+            logger.error('[x402] Failed to send notification', {
+              error:
+                notifyError instanceof Error
+                  ? notifyError.message
+                  : String(notifyError),
+              telegram_id,
+            })
+          }
+        }
+
+        // Return success page
+        res.status(200).send(`
         <!DOCTYPE html>
         <html>
         <head>
@@ -245,23 +262,24 @@ router.get('/x402-topup', async (req: Request, res: Response): Promise<void> => 
         </body>
         </html>
       `)
-    } catch (error) {
-      logger.error('[x402] Error processing payment', {
-        error: error instanceof Error ? error.message : String(error),
-        inv_id,
-        telegram_id,
-      })
-      res.status(500).json({ error: 'Payment processing failed' })
-    }
-  } else {
-    // No payment yet - show payment page with wallet connect
-    const networkName = config.network === 'base-mainnet' ? 'Base' : 'Base Sepolia'
-    const chainId = getChainId(config.network)
-    const usdcContract = getUsdcContractAddress(config.network)
-    const amountWei = (amountUsd * 1e6).toString() // USDC has 6 decimals
+      } catch (error) {
+        logger.error('[x402] Error processing payment', {
+          error: error instanceof Error ? error.message : String(error),
+          inv_id,
+          telegram_id,
+        })
+        res.status(500).json({ error: 'Payment processing failed' })
+      }
+    } else {
+      // No payment yet - show payment page with wallet connect
+      const networkName =
+        config.network === 'base-mainnet' ? 'Base' : 'Base Sepolia'
+      const chainId = getChainId(config.network)
+      const usdcContract = getUsdcContractAddress(config.network)
+      const amountWei = (amountUsd * 1e6).toString() // USDC has 6 decimals
 
-    // Return HTML payment page - Black & Yellow Design with i18n
-    res.status(200).send(`
+      // Return HTML payment page - Black & Yellow Design with i18n
+      res.status(200).send(`
       <!DOCTYPE html>
       <html>
       <head>
@@ -465,12 +483,16 @@ router.get('/x402-topup', async (req: Request, res: Response): Promise<void> => 
             <div class="stars">+${starsAmount} <span data-i18n="stars">Stars</span></div>
           </div>
 
-          ${config.network === 'base-sepolia' ? `
+          ${
+            config.network === 'base-sepolia'
+              ? `
           <div class="testnet-badge">
             <span data-i18n="testnetMode">TESTNET MODE</span> — Base Sepolia<br>
             <a href="https://faucet.circle.com/" target="_blank" data-i18n="getTestUsdc">Get free test USDC</a>
           </div>
-          ` : ''}
+          `
+              : ''
+          }
 
           <div class="info">
             <div class="info-row">
@@ -483,7 +505,7 @@ router.get('/x402-topup', async (req: Request, res: Response): Promise<void> => 
             </div>
             <div class="info-row">
               <span class="info-label" data-i18n="recipient">Recipient</span>
-              <span class="info-value">${config.walletAddress.slice(0,6)}...${config.walletAddress.slice(-4)}</span>
+              <span class="info-value">${config.walletAddress.slice(0, 6)}...${config.walletAddress.slice(-4)}</span>
             </div>
           </div>
 
@@ -780,107 +802,115 @@ router.get('/x402-topup', async (req: Request, res: Response): Promise<void> => 
       </body>
       </html>
     `)
+    }
   }
-})
+)
 
 /**
  * x402 Payment Callback (alternative verification endpoint)
  *
  * Some x402 clients may POST payment proof here instead of resending GET
  */
-router.post('/x402-payment', async (req: Request, res: Response): Promise<void> => {
-  const { inv_id, telegram_id, amount, stars, transaction_hash } = req.body
+router.post(
+  '/x402-payment',
+  async (req: Request, res: Response): Promise<void> => {
+    const { inv_id, telegram_id, amount, stars, transaction_hash } = req.body
 
-  logger.info('[x402] Payment callback received', {
-    inv_id,
-    telegram_id,
-    amount,
-    stars,
-    transaction_hash,
-  })
-
-  if (!inv_id || !telegram_id) {
-    res.status(400).json({ error: 'Missing required parameters' })
-    return
-  }
-
-  try {
-    // Verify payment exists
-    const { data: payment, error: paymentError } = await getPaymentByInvId(inv_id)
-    if (paymentError || !payment) {
-      res.status(404).json({ error: 'Payment not found' })
-      return
-    }
-
-    if (payment.status === PaymentStatus.COMPLETED) {
-      res.status(200).json({
-        success: true,
-        message: 'Payment already processed',
-      })
-      return
-    }
-
-    const config = getX402Config()
-    const starsAmount = parseInt(stars, 10) || (payment as any).stars
-    const amountUsd = parseFloat(amount) || (payment as any).amount
-
-    // Update payment status
-    await updatePaymentStatus(inv_id, PaymentStatus.COMPLETED)
-
-    // Credit user balance
-    await updateUserBalance(
-      telegram_id,
-      starsAmount,
-      PaymentType.MONEY_INCOME,
-      `x402 top-up: ${amountUsd} USDC`,
-      {
-        inv_id,
-        amount_usd: amountUsd,
-        transaction_hash,
-        payment_method: PaymentMethod.X402,
-        network: config.network,
-      }
-    )
-
-    logX402Event('Payment callback processed', {
+    logger.info('[x402] Payment callback received', {
       inv_id,
       telegram_id,
-      amount: amountUsd,
-      stars: starsAmount,
+      amount,
+      stars,
       transaction_hash,
     })
 
-    // Send notification
-    if (botInstance) {
-      try {
-        await botInstance.telegram.sendMessage(
-          parseInt(telegram_id, 10),
-          `✅ Баланс пополнен!\n\n` +
-            `💰 Сумма: $${amountUsd} USDC\n` +
-            `⭐️ Получено: ${starsAmount} звезд\n\n` +
-            `Спасибо за покупку! / Thank you for your purchase!`
-        )
-      } catch (notifyError) {
-        logger.error('[x402] Failed to send notification', {
-          error: notifyError instanceof Error ? notifyError.message : String(notifyError),
-          telegram_id,
-        })
-      }
+    if (!inv_id || !telegram_id) {
+      res.status(400).json({ error: 'Missing required parameters' })
+      return
     }
 
-    res.status(200).json({
-      success: true,
-      message: 'Payment processed successfully',
-      stars: starsAmount,
-    })
-  } catch (error) {
-    logger.error('[x402] Error in payment callback', {
-      error: error instanceof Error ? error.message : String(error),
-      inv_id,
-    })
-    res.status(500).json({ error: 'Payment processing failed' })
+    try {
+      // Verify payment exists
+      const { data: payment, error: paymentError } =
+        await getPaymentByInvId(inv_id)
+      if (paymentError || !payment) {
+        res.status(404).json({ error: 'Payment not found' })
+        return
+      }
+
+      if (payment.status === PaymentStatus.COMPLETED) {
+        res.status(200).json({
+          success: true,
+          message: 'Payment already processed',
+        })
+        return
+      }
+
+      const config = getX402Config()
+      const starsAmount = parseInt(stars, 10) || (payment as any).stars
+      const amountUsd = parseFloat(amount) || (payment as any).amount
+
+      // Update payment status
+      await updatePaymentStatus(inv_id, PaymentStatus.COMPLETED)
+
+      // Credit user balance
+      await updateUserBalance(
+        telegram_id,
+        starsAmount,
+        PaymentType.MONEY_INCOME,
+        `x402 top-up: ${amountUsd} USDC`,
+        {
+          inv_id,
+          amount_usd: amountUsd,
+          transaction_hash,
+          payment_method: PaymentMethod.X402,
+          network: config.network,
+        }
+      )
+
+      logX402Event('Payment callback processed', {
+        inv_id,
+        telegram_id,
+        amount: amountUsd,
+        stars: starsAmount,
+        transaction_hash,
+      })
+
+      // Send notification
+      if (botInstance) {
+        try {
+          await botInstance.telegram.sendMessage(
+            parseInt(telegram_id, 10),
+            `✅ Баланс пополнен!\n\n` +
+              `💰 Сумма: $${amountUsd} USDC\n` +
+              `⭐️ Получено: ${starsAmount} звезд\n\n` +
+              `Спасибо за покупку! / Thank you for your purchase!`
+          )
+        } catch (notifyError) {
+          logger.error('[x402] Failed to send notification', {
+            error:
+              notifyError instanceof Error
+                ? notifyError.message
+                : String(notifyError),
+            telegram_id,
+          })
+        }
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Payment processed successfully',
+        stars: starsAmount,
+      })
+    } catch (error) {
+      logger.error('[x402] Error in payment callback', {
+        error: error instanceof Error ? error.message : String(error),
+        inv_id,
+      })
+      res.status(500).json({ error: 'Payment processing failed' })
+    }
   }
-})
+)
 
 /**
  * x402 Status endpoint - check if x402 is configured

@@ -24,7 +24,7 @@ import {
   isBackButton,
   ButtonMatcher,
   buttonMatcher,
-  ButtonMatchResult
+  ButtonMatchResult,
 } from '@/navigation/middleware/buttonMatcher'
 
 // Mock logger
@@ -33,8 +33,8 @@ vi.mock('@/utils/logger', () => ({
     debug: vi.fn(),
     info: vi.fn(),
     error: vi.fn(),
-    warn: vi.fn()
-  }
+    warn: vi.fn(),
+  },
 }))
 
 describe('ButtonMatcher', () => {
@@ -204,10 +204,14 @@ describe('ButtonMatcher', () => {
       expect(result?.button.id).toBe('avatars')
     })
 
-    it('находит кнопку Инструменты', () => {
-      const result = matchCategoryButton('🛠️ Инструменты')
-      expect(result).not.toBeNull()
-      expect(result?.button.id).toBe('tools')
+    // Категории 'tools' («🛠️ Инструменты») больше нет: её место занял
+    // 'marketplace', но это кнопка ПРЯМОГО перехода (items: [] + sceneId в
+    // categories.config.ts), а matchCategoryButton отвечает только за
+    // категории с подменю — маркетплейс живёт в unified-navigation.config.
+    // Фиксируем это разграничение, чтобы разница не потерялась снова.
+    it('маркетплейс не является категорией с подменю', () => {
+      expect(matchCategoryButton('🛒 Маркетплейс')).toBeNull()
+      expect(matchCategoryButton('📸 Фото')).not.toBeNull()
     })
 
     it('находит кнопку Профиль', () => {

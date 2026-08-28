@@ -13,13 +13,13 @@ import {
   sendPromptImprovementFailureMessage,
   getStepSelectionMenu,
   getStepSelectionMenuV2,
-  createGenerateImageKeyboard
+  createGenerateImageKeyboard,
 } from '@/navigation/helpers/messages'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 
 // Mock centralizedLanguage
 vi.mock('@/helpers/centralizedLanguage', () => ({
-  isRussianFromState: vi.fn()
+  isRussianFromState: vi.fn(),
 }))
 
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -38,9 +38,9 @@ describe('messages', () => {
       from: { id: 123456 } as any,
       reply: mockReply,
       state: {
-        userLanguage: 'ru' as 'ru' | 'en'
+        userLanguage: 'ru' as 'ru' | 'en',
       } as any,
-      session: {} as any
+      session: {} as any,
     }
 
     // По умолчанию - русский язык
@@ -96,8 +96,8 @@ describe('messages', () => {
         '❌ Операция отменена',
         expect.objectContaining({
           reply_markup: expect.objectContaining({
-            inline_keyboard: expect.any(Array)
-          })
+            inline_keyboard: expect.any(Array),
+          }),
         })
       )
     })
@@ -122,7 +122,9 @@ describe('messages', () => {
       const keyboard = callArgs[1]
 
       expect(keyboard.reply_markup.inline_keyboard).toBeDefined()
-      expect(keyboard.reply_markup.inline_keyboard[0][0].callback_data).toBe('back_to_menu')
+      expect(keyboard.reply_markup.inline_keyboard[0][0].callback_data).toBe(
+        'back_to_menu'
+      )
     })
   })
 
@@ -181,8 +183,12 @@ describe('messages', () => {
 
       await sendPhotoDescriptionRequest(mockContext as MyContext)
 
+      // Текст стал подробнее (добавлен пример), смысл прежний. Проверяем
+      // суть, а не литерал целиком — иначе тест ломается от любой правки копии.
       expect(mockReply).toHaveBeenCalledWith(
-        '📸 Отправьте описание для генерации изображения:',
+        expect.stringContaining(
+          'Опишите текстом, какое изображение вы хотите сгенерировать'
+        ),
         expect.any(Object)
       )
     })
@@ -193,7 +199,9 @@ describe('messages', () => {
       await sendPhotoDescriptionRequest(mockContext as MyContext)
 
       expect(mockReply).toHaveBeenCalledWith(
-        '📸 Send a description for image generation:',
+        expect.stringContaining(
+          'Describe in text what image you want to generate'
+        ),
         expect.any(Object)
       )
     })
@@ -204,7 +212,9 @@ describe('messages', () => {
       const callArgs = mockReply.mock.calls[0]
       const keyboard = callArgs[1]
 
-      expect(keyboard.reply_markup.inline_keyboard[0][0].callback_data).toBe('cancel')
+      expect(keyboard.reply_markup.inline_keyboard[0][0].callback_data).toBe(
+        'cancel'
+      )
     })
   })
 
@@ -371,9 +381,9 @@ describe('messages', () => {
         inline_keyboard: [
           [
             { text: 'Сгенерировать', callback_data: 'generate_image' },
-            { text: 'Отмена', callback_data: 'cancel' }
-          ]
-        ]
+            { text: 'Отмена', callback_data: 'cancel' },
+          ],
+        ],
       })
     })
   })
@@ -391,14 +401,20 @@ describe('messages', () => {
       // Русский
       ;(isRussianFromState as Mock).mockReturnValue(true)
       await cancelMenu(mockContext as MyContext)
-      expect(mockReply).toHaveBeenCalledWith('❌ Операция отменена', expect.any(Object))
+      expect(mockReply).toHaveBeenCalledWith(
+        '❌ Операция отменена',
+        expect.any(Object)
+      )
 
       vi.clearAllMocks()
 
       // Английский
       ;(isRussianFromState as Mock).mockReturnValue(false)
       await cancelMenu(mockContext as MyContext)
-      expect(mockReply).toHaveBeenCalledWith('❌ Operation cancelled', expect.any(Object))
+      expect(mockReply).toHaveBeenCalledWith(
+        '❌ Operation cancelled',
+        expect.any(Object)
+      )
     })
 
     it('меню шагов имеют resize и oneTime', () => {

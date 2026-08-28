@@ -55,7 +55,10 @@ jobs:
       - name: Check if tests exist
         id: check_tests
         run: |
-          if [ -d "__tests__" ] && [ "$(find __tests__ -name "*.test.ts" -o -name "*.spec.ts" | wc -l)" -gt 0 ]; then
+          # Тесты лежат в src/__tests__, tests/ и src/inngest_app/test — искать
+          # только корневой __tests__ значило «тестов нет» на каждом прогоне,
+          # и job Tests молча пропускался.
+          if [ "$(find . -path ./node_modules -prune -o \( -name '*.test.ts' -o -name '*.spec.ts' \) -print | head -1 | wc -l)" -gt 0 ]; then
             echo "has_tests=true" >> $GITHUB_OUTPUT
           else
             echo "has_tests=false" >> $GITHUB_OUTPUT
@@ -146,11 +149,19 @@ jobs:
         env:
           NODE_ENV: test
 
-      - name: Run Vitest tests
+      - name: Run Vitest tests (информативно)
         run: bun run test:vitest
         env:
           NODE_ENV: test
         continue-on-error: true
+
+      # Настоящий гейт: падает только если тест, который ПРОХОДИЛ, перестал
+      # проходить. Сравнивает множества с .test-baseline.txt, а не суммы.
+      - name: Регрессии тестов
+        if: matrix.node-version == '20'
+        run: node scripts/test-gate.cjs
+        env:
+          NODE_ENV: test
 
       - name: Generate test coverage
         if: matrix.node-version == '20'

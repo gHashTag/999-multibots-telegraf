@@ -13,7 +13,9 @@ vi.mock('@/helpers/centralizedLanguage', () => ({
 vi.mock('@/navigation', () => ({
   handleHelpCancel: vi.fn(() => Promise.resolve(false)),
   createHelpCancelKeyboard: vi.fn(() => ({ reply_markup: { keyboard: [] } })),
-  getMainMenuText: vi.fn((isRu: boolean) => (isRu ? 'Главное меню' : 'Main menu')),
+  getMainMenuText: vi.fn((isRu: boolean) =>
+    isRu ? 'Главное меню' : 'Main menu'
+  ),
   showMainMenu: vi.fn(() => Promise.resolve()),
 }))
 
@@ -64,7 +66,12 @@ vi.mock('@/interfaces', () => ({
 
 // Import after mocks
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { handleHelpCancel, createHelpCancelKeyboard, getMainMenuText, showMainMenu } from '@/navigation'
+import {
+  handleHelpCancel,
+  createHelpCancelKeyboard,
+  getMainMenuText,
+  showMainMenu,
+} from '@/navigation'
 import { generateInstagramScraping } from '@/services/generateInstagramScraping'
 import { updateUserBalance } from '@/core/supabase'
 import { ADMIN_IDS_ARRAY } from '@/config'
@@ -101,10 +108,12 @@ describe('instagramParserWizard (Instagram Parsing)', () => {
     mockContext.message = null
     mockContext.callbackQuery = null
     mockContext.from = { id: 123456789, username: 'testuser' }
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(handleHelpCancel as Mock).mockResolvedValue(false)
-    ;(updateUserBalance as Mock).mockResolvedValue({ error: null, data: { balance: 1000 } })
+    ;(updateUserBalance as Mock).mockResolvedValue({
+      error: null,
+      data: { balance: 1000 },
+    })
     ;(generateInstagramScraping as Mock).mockResolvedValue({
       success: true,
       eventId: 'test-event-id-123',
@@ -134,14 +143,18 @@ describe('instagramParserWizard (Instagram Parsing)', () => {
 
     it('should show Russian access denied message', async () => {
       const isRu = true
-      const message = isRu ? '❌ У вас нет доступа к этой функции.' : '❌ You have no access to this function.'
+      const message = isRu
+        ? '❌ У вас нет доступа к этой функции.'
+        : '❌ You have no access to this function.'
 
       expect(message).toBe('❌ У вас нет доступа к этой функции.')
     })
 
     it('should show English access denied message', async () => {
       const isRu = false
-      const message = isRu ? '❌ У вас нет доступа к этой функции.' : '❌ You have no access to this function.'
+      const message = isRu
+        ? '❌ У вас нет доступа к этой функции.'
+        : '❌ You have no access to this function.'
 
       expect(message).toBe('❌ You have no access to this function.')
     })
@@ -189,15 +202,21 @@ describe('instagramParserWizard (Instagram Parsing)', () => {
         userId: 123456789,
       })
 
-      expect(logger.info).toHaveBeenCalledWith('Instagram Parser Wizard: Step 0 - Type selection', {
-        userId: 123456789,
-      })
+      expect(logger.info).toHaveBeenCalledWith(
+        'Instagram Parser Wizard: Step 0 - Type selection',
+        {
+          userId: 123456789,
+        }
+      )
     })
 
     it('should provide keyboard with Competitor and Hashtag options', () => {
       const isRu = true
       const keyboard = [
-        [isRu ? '👤 Конкурент' : '👤 Competitor', isRu ? '#️⃣ Хештег' : '#️⃣ Hashtag'],
+        [
+          isRu ? '👤 Конкурент' : '👤 Competitor',
+          isRu ? '#️⃣ Хештег' : '#️⃣ Hashtag',
+        ],
         [
           isRu ? 'Справка по команде' : 'Help for the command',
           isRu ? 'Отмена' : 'Cancel',
@@ -427,7 +446,13 @@ describe('instagramParserWizard (Instagram Parsing)', () => {
 
     it('should reject unknown quantity option', () => {
       const text = '500 (100⭐)'
-      const validOptions = ['10 (3⭐)', '25 (8⭐)', '50 (15⭐)', '100 (30⭐)', '200 (55⭐)']
+      const validOptions = [
+        '10 (3⭐)',
+        '25 (8⭐)',
+        '50 (15⭐)',
+        '100 (30⭐)',
+        '200 (55⭐)',
+      ]
 
       expect(validOptions).not.toContain(text)
     })
@@ -678,7 +703,13 @@ describe('instagramParserWizard (Instagram Parsing)', () => {
       ;(updateUserBalance as Mock).mockRejectedValue(new Error('Refund failed'))
 
       try {
-        await updateUserBalance('123456789', 15, PaymentType.MONEY_INCOME, 'Refund', {})
+        await updateUserBalance(
+          '123456789',
+          15,
+          PaymentType.MONEY_INCOME,
+          'Refund',
+          {}
+        )
       } catch (error) {
         logger.error('Failed to refund user', {
           refundError: error,
@@ -697,7 +728,8 @@ describe('instagramParserWizard (Instagram Parsing)', () => {
         message: 'Too many requests',
       }
 
-      const errorMessage = result.error || result.message || 'Неизвестная ошибка'
+      const errorMessage =
+        result.error || result.message || 'Неизвестная ошибка'
 
       expect(errorMessage).toContain('Rate limit exceeded')
     })
@@ -847,7 +879,11 @@ describe('instagramParserWizard (Instagram Parsing)', () => {
   describe('10. Edge Cases and Validation', () => {
     it('should handle missing message object', () => {
       mockContext.message = null
-      const hasText = mockContext.message && 'text' in mockContext.message
+      // `null && …` вычисляется в null, а не в false — прежнее ожидание
+      // спотыкалось о правила JS, а не о поведение сцены. Приводим к булеву.
+      const hasText = Boolean(
+        mockContext.message && 'text' in mockContext.message
+      )
 
       expect(hasText).toBe(false)
     })
@@ -889,7 +925,7 @@ describe('instagramParserWizard (Instagram Parsing)', () => {
 
     it('should handle undefined session state', () => {
       mockContext.wizard.state = undefined as any
-      const hasValidState = !!(mockContext.wizard.state?.target)
+      const hasValidState = !!mockContext.wizard.state?.target
 
       expect(hasValidState).toBe(false)
     })
@@ -905,8 +941,10 @@ describe('instagramParserWizard (Instagram Parsing)', () => {
       const competitorText = '👤 Конкурент'
       const hashtagText = '#️⃣ Хештег'
 
-      const isCompetitor = competitorText === '👤 Конкурент' || competitorText === '👤 Competitor'
-      const isHashtag = hashtagText === '#️⃣ Хештег' || hashtagText === '#️⃣ Hashtag'
+      const isCompetitor =
+        competitorText === '👤 Конкурент' || competitorText === '👤 Competitor'
+      const isHashtag =
+        hashtagText === '#️⃣ Хештег' || hashtagText === '#️⃣ Hashtag'
 
       expect(isCompetitor).toBe(true)
       expect(isHashtag).toBe(true)

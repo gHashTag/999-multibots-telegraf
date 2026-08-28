@@ -41,6 +41,10 @@ import { generateNanoBananaPro } from '@/services/generateNanoBananaPro'
 
 describe('Nano Banana Pro Integration', () => {
   beforeEach(() => {
+    // Реализация читает ключ из process.env.FAL_KEY напрямую, а не из
+    // мокнутого @/config (см. комментарий «✅ ИСПРАВЛЕНО» в
+    // generateNanoBananaPro.ts). Задаём переменную сами.
+    process.env.FAL_KEY = 'test-fal-key'
     vi.clearAllMocks()
   })
 
@@ -222,7 +226,11 @@ describe('Nano Banana Pro Integration', () => {
         'fal-ai/nano-banana-pro',
         expect.objectContaining({
           input: expect.objectContaining({
-            aspect_ratio: '2:3',
+            // 1080×1920 — это ровно 9:16. Прежнее ожидание '2:3' закрепляло
+            // ошибку в лестнице соотношений (границы были сдвинуты на корзину:
+            // 9:16=0.5625 попадало в ветку '2:3'). Лестница исправлена по
+            // серединам между соседними соотношениями.
+            aspect_ratio: '9:16',
           }),
         })
       )

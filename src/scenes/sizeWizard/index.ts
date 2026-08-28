@@ -1,5 +1,11 @@
 import { Markup, Scenes } from 'telegraf'
-import { MyContext, ModeEnum } from '../../interfaces'
+import { MyContext } from '../../interfaces'
+// ModeEnum берём НАПРЯМУЮ из модуля перечисления, а не через бочку
+// '../../interfaces': бочка участвует в цикле импортов (navigation ↔ scenes),
+// и при некоторых порядках загрузки ModeEnum оказывается undefined —
+// «Cannot read properties of undefined (reading 'SizeWizard')» прямо при
+// вычислении модуля сцены.
+import { ModeEnum } from '../../interfaces/modes'
 import { isRussian } from '../../helpers/language'
 import { handleSizeSelection } from '../../handlers'
 

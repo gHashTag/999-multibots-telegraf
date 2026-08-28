@@ -21,7 +21,13 @@ import {
   sendGenericErrorMessage,
   sendPhotoDescriptionRequest,
 } from '@/navigation'
-import { getButtonTextsByMode, showMainMenu, createMainMenuKeyboard, handleHelpCancel, mainMenu } from '@/navigation'
+import {
+  getButtonTextsByMode,
+  showMainMenu,
+  createMainMenuKeyboard,
+  handleHelpCancel,
+  mainMenu,
+} from '@/navigation'
 import { Scenes } from 'telegraf'
 
 import { getUserInfo } from '@/handlers/getUserInfo'
@@ -303,8 +309,6 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       console.log('CASE: Главное меню')
       return
     }
-
-    return
 
     // Обработка кнопок с числами
     const numImages = parseInt(text[0])

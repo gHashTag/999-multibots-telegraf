@@ -63,15 +63,29 @@ export async function generateNanoBananaPro(
     // If width/height provided, calculate aspect ratio
     if (request.width && request.height) {
       const ratio = request.width / request.height
-      if (ratio > 2.2) aspectRatio = '21:9'
-      else if (ratio > 1.7) aspectRatio = '16:9'
-      else if (ratio > 1.4) aspectRatio = '3:2'
-      else if (ratio > 1.2) aspectRatio = '4:3'
-      else if (ratio > 1.1) aspectRatio = '5:4'
-      else if (ratio > 0.9) aspectRatio = '1:1'
-      else if (ratio > 0.7) aspectRatio = '4:5'
-      else if (ratio > 0.6) aspectRatio = '3:4'
-      else if (ratio > 0.5) aspectRatio = '2:3'
+      // Границы — СЕРЕДИНЫ между соседними соотношениями, иначе корзины
+      // съезжают. Прежние пороги ошибались на 4 из 10 канонических форматов:
+      // 9:16 (0.5625) попадало в '2:3', 2:3 (0.667) — в '3:4',
+      // 3:4 (0.75) — в '4:5', 5:4 (1.25) — в '4:3'. То есть пользователь,
+      // приславший вертикальные 1080×1920, получал 2:3.
+      if (ratio > 2.0556)
+        aspectRatio = '21:9' // 21:9=2.333 | 16:9=1.778
+      else if (ratio > 1.6389)
+        aspectRatio = '16:9' // 16:9=1.778 | 3:2=1.5
+      else if (ratio > 1.4167)
+        aspectRatio = '3:2' // 3:2=1.5 | 4:3=1.333
+      else if (ratio > 1.2917)
+        aspectRatio = '4:3' // 4:3=1.333 | 5:4=1.25
+      else if (ratio > 1.125)
+        aspectRatio = '5:4' // 5:4=1.25 | 1:1=1.0
+      else if (ratio > 0.9)
+        aspectRatio = '1:1' // 1:1=1.0 | 4:5=0.8
+      else if (ratio > 0.775)
+        aspectRatio = '4:5' // 4:5=0.8 | 3:4=0.75
+      else if (ratio > 0.7083)
+        aspectRatio = '3:4' // 3:4=0.75 | 2:3=0.667
+      else if (ratio > 0.6146)
+        aspectRatio = '2:3' // 2:3=0.667 | 9:16=0.5625
       else aspectRatio = '9:16'
     }
 

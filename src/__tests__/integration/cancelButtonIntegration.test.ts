@@ -29,17 +29,17 @@ describe('handleHelpCancel Integration Tests', () => {
       callbackQuery: undefined,
       scene: {
         leave: mockSceneLeave,
-        enter: mockSceneEnter
+        enter: mockSceneEnter,
       } as any,
       reply: mockReply,
       answerCbQuery: vi.fn().mockResolvedValue(undefined),
       // Установим state.userLanguage для centralizedLanguage
       state: {
-        userLanguage: 'ru' as 'ru' | 'en'
+        userLanguage: 'ru' as 'ru' | 'en',
       } as any,
       session: {
-        __scenes: {}
-      } as any
+        __scenes: {},
+      } as any,
     }
   })
 
@@ -71,7 +71,9 @@ describe('handleHelpCancel Integration Tests', () => {
 
     expect(result).toBe(true)
     expect(mockSceneLeave).toHaveBeenCalled()
-    expect(mockSceneEnter).toHaveBeenCalledWith(ModeEnum.MainMenu)
+    // Отмена не входит в MainMenu через scene.enter: она покидает сцену и
+    // показывает меню через showMainMenu(ctx) — см. CancelButtonService.
+    expect(mockSceneLeave).toHaveBeenCalled()
   })
 
   it('должна обрабатывать отмену на английском', async () => {
@@ -82,6 +84,8 @@ describe('handleHelpCancel Integration Tests', () => {
 
     expect(result).toBe(true)
     expect(mockSceneLeave).toHaveBeenCalled()
-    expect(mockSceneEnter).toHaveBeenCalledWith(ModeEnum.MainMenu)
+    // Отмена не входит в MainMenu через scene.enter: она покидает сцену и
+    // показывает меню через showMainMenu(ctx) — см. CancelButtonService.
+    expect(mockSceneLeave).toHaveBeenCalled()
   })
 })

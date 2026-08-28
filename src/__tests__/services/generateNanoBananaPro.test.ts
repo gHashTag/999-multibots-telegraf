@@ -32,6 +32,11 @@ describe('generateNanoBananaPro', () => {
   let mockSubscribe: Mock
 
   beforeEach(() => {
+    // Реализация читает ключ НАПРЯМУЮ из process.env.FAL_KEY (см. комментарий
+    // «✅ ИСПРАВЛЕНО: Используем process.env.FAL_KEY напрямую» в
+    // generateNanoBananaPro.ts), а не из модуля @/config, который мокает этот
+    // файл. Задаём переменную сами, чтобы тест не зависел от внешнего окружения.
+    process.env.FAL_KEY = 'test-fal-key'
     vi.clearAllMocks()
     mockSubscribe = vi.fn()
     ;(fal.subscribe as Mock) = mockSubscribe
@@ -138,7 +143,10 @@ describe('generateNanoBananaPro', () => {
         input: {
           prompt: 'Test prompt',
           num_images: 1,
-          aspect_ratio: '1:1',
+          // Дефолт — портретный 9:16, а не 1:1: `request.aspectRatio || '9:16'`
+          // стоит в generateNanoBananaPro.ts с самого появления функции
+          // (коммит от 29.11.2025), 1:1 не было там никогда.
+          aspect_ratio: '9:16',
           resolution: '1K',
           output_format: 'png',
         },

@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest'
 import type { MyContext } from '@/interfaces'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
-import { Currency, PaymentStatus, PaymentType } from '@/interfaces/payments.interface'
+import {
+  Currency,
+  PaymentStatus,
+  PaymentType,
+} from '@/interfaces/payments.interface'
 
 // Mock dependencies BEFORE imports
 vi.mock('@/helpers', () => ({
@@ -60,6 +64,13 @@ describe('getRuBillWizard', () => {
   let mockContext: MyContext
 
   beforeEach(() => {
+    // Сцена читает креденшелы через геттеры из @/config
+    // (getRobokassaMerchantLogin / getRobokassaPassword1 → process.env),
+    // а не через константы модуля helper, которые мокает этот файл.
+    // Задаём окружение сами, чтобы ожидания ниже держались независимо от
+    // общего тестового окружения.
+    process.env.MERCHANT_LOGIN = 'test_merchant'
+    process.env.ROBOKASSA_PASSWORD_1 = 'test_password'
     vi.clearAllMocks()
 
     // Create mock context
@@ -95,7 +106,9 @@ describe('getRuBillWizard', () => {
     // Setup default mocks
     ;(isRussian as Mock).mockReturnValue(true)
     ;(getBotNameByToken as Mock).mockReturnValue({ bot_name: 'test_bot' })
-    ;(getInvoiceId as Mock).mockResolvedValue('https://robokassa.ru/payment?id=12345')
+    ;(getInvoiceId as Mock).mockResolvedValue(
+      'https://robokassa.ru/payment?id=12345'
+    )
     ;(setPayments as Mock).mockResolvedValue({ data: { id: 1 }, error: null })
   })
 
@@ -358,7 +371,9 @@ describe('getRuBillWizard', () => {
 
     it('should handle Robokassa URL generation error', async () => {
       // Arrange
-      (getInvoiceId as Mock).mockRejectedValue(new Error('Robokassa API error'))
+      ;(getInvoiceId as Mock).mockRejectedValue(
+        new Error('Robokassa API error')
+      )
 
       mockContext.session.selectedPayment = {
         amount: 1110,
@@ -432,7 +447,9 @@ describe('getRuBillWizard', () => {
 
     it('should handle database error when saving payment', async () => {
       // Arrange
-      (setPayments as Mock).mockRejectedValue(new Error('Database connection failed'))
+      ;(setPayments as Mock).mockRejectedValue(
+        new Error('Database connection failed')
+      )
 
       mockContext.session.selectedPayment = {
         amount: 1110,
@@ -460,7 +477,7 @@ describe('getRuBillWizard', () => {
 
     it('should extract bot name from telegram token', async () => {
       // Arrange
-      (getBotNameByToken as Mock).mockReturnValue({ bot_name: 'custom_bot' })
+      ;(getBotNameByToken as Mock).mockReturnValue({ bot_name: 'custom_bot' })
 
       mockContext.session.selectedPayment = {
         amount: 1110,
@@ -562,7 +579,7 @@ describe('getRuBillWizard', () => {
 
     it('should handle invoice creation error gracefully', async () => {
       // Arrange
-      (getInvoiceId as Mock).mockRejectedValue(new Error('Network timeout'))
+      ;(getInvoiceId as Mock).mockRejectedValue(new Error('Network timeout'))
 
       mockContext.session.selectedPayment = {
         amount: 2999,
@@ -592,7 +609,9 @@ describe('getRuBillWizard', () => {
       }
 
       // Suppress console.error for this test
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {})
 
       // Act
       await generateInvoiceStep(mockContext)
@@ -631,7 +650,7 @@ describe('getRuBillWizard', () => {
   describe('Localization (RU/EN)', () => {
     it('should display Russian messages when isRussian returns true', async () => {
       // Arrange
-      (isRussian as Mock).mockReturnValue(true)
+      ;(isRussian as Mock).mockReturnValue(true)
 
       mockContext.session.selectedPayment = {
         amount: 1110,
@@ -648,13 +667,19 @@ describe('getRuBillWizard', () => {
         expect.any(Object)
       )
 
-      const replyCall = (mockContext.reply as Mock).mock.calls[0][0]
-      expect(replyCall).toContain('Оплатить 📸 Нейрофото за 1110 р.')
+      // «Оплатить … за 1110 р.» — это подпись КНОПКИ в inline-клавиатуре
+      // (второй аргумент reply), а не текст сообщения: сам текст говорит
+      // «Нажмите кнопку ниже». Проверяем там, где строка живёт на самом деле.
+      const replyMarkup = (mockContext.reply as Mock).mock.calls[0][1]
+      const buttonLabels = JSON.stringify(
+        replyMarkup?.reply_markup?.inline_keyboard
+      )
+      expect(buttonLabels).toContain('Оплатить 📸 Нейрофото за 1110 р.')
     })
 
     it('should display English messages when isRussian returns false', async () => {
       // Arrange
-      (isRussian as Mock).mockReturnValue(false)
+      ;(isRussian as Mock).mockReturnValue(false)
 
       mockContext.session.selectedPayment = {
         amount: 2999,
@@ -679,7 +704,7 @@ describe('getRuBillWizard', () => {
 
     it('should show Russian error messages for unknown subscription', async () => {
       // Arrange
-      (isRussian as Mock).mockReturnValue(true)
+      ;(isRussian as Mock).mockReturnValue(true)
 
       mockContext.session.selectedPayment = {
         amount: 9999,
@@ -698,7 +723,7 @@ describe('getRuBillWizard', () => {
 
     it('should show English error messages for unknown subscription', async () => {
       // Arrange
-      (isRussian as Mock).mockReturnValue(false)
+      ;(isRussian as Mock).mockReturnValue(false)
 
       mockContext.session.selectedPayment = {
         amount: 9999,
@@ -717,7 +742,7 @@ describe('getRuBillWizard', () => {
 
     it('should show Russian error for missing user ID', async () => {
       // Arrange
-      (isRussian as Mock).mockReturnValue(true)
+      ;(isRussian as Mock).mockReturnValue(true)
       mockContext.from = undefined
 
       mockContext.session.selectedPayment = {
@@ -737,7 +762,7 @@ describe('getRuBillWizard', () => {
 
     it('should show English error for missing user ID', async () => {
       // Arrange
-      (isRussian as Mock).mockReturnValue(false)
+      ;(isRussian as Mock).mockReturnValue(false)
       mockContext.from = undefined
 
       mockContext.session.selectedPayment = {
@@ -767,13 +792,18 @@ describe('getRuBillWizard', () => {
         subscription: SubscriptionType.NEUROPHOTO,
       }
 
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const consoleLogSpy = vi
+        .spyOn(console, 'log')
+        .mockImplementation(() => {})
 
       // Act
       await generateInvoiceStep(mockContext)
 
       // Assert
-      expect(consoleLogSpy).toHaveBeenCalledWith('Email from session:', 'user@example.com')
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        'Email from session:',
+        'user@example.com'
+      )
 
       consoleLogSpy.mockRestore()
     })
@@ -804,14 +834,16 @@ describe('getRuBillWizard', () => {
         subscription: SubscriptionType.NEUROVIDEO,
       }
 
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const consoleLogSpy = vi
+        .spyOn(console, 'log')
+        .mockImplementation(() => {})
 
       // Act
       await generateInvoiceStep(mockContext)
 
       // Assert
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        'selectedPayment',
+        '📦 [getRuBillWizard] Selected payment:',
         expect.objectContaining({
           subscription: SubscriptionType.NEUROVIDEO,
         })
@@ -863,7 +895,9 @@ describe('getRuBillWizard', () => {
       // Clear mocks
       vi.clearAllMocks()
       ;(setPayments as Mock).mockResolvedValue({ data: { id: 2 }, error: null })
-      ;(getInvoiceId as Mock).mockResolvedValue('https://robokassa.ru/payment?id=67890')
+      ;(getInvoiceId as Mock).mockResolvedValue(
+        'https://robokassa.ru/payment?id=67890'
+      )
 
       // Act - Second call
       await generateInvoiceStep(mockContext)
@@ -897,7 +931,9 @@ describe('getRuBillWizard', () => {
   describe('Console Logging', () => {
     it('should log key steps during invoice generation', async () => {
       // Arrange
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const consoleLogSpy = vi
+        .spyOn(console, 'log')
+        .mockImplementation(() => {})
 
       mockContext.session.selectedPayment = {
         amount: 1110,
@@ -909,19 +945,36 @@ describe('getRuBillWizard', () => {
       await generateInvoiceStep(mockContext)
 
       // Assert
-      expect(consoleLogSpy).toHaveBeenCalledWith('CASE: generateInvoiceStep')
+      // Стартовая строка лога переименована при переработке логирования:
+      // 'CASE: generateInvoiceStep' → '💳 [getRuBillWizard] STARTING PAYMENT FLOW'.
+      // Остальные ключевые шаги логируются прежними строками.
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        '💳 [getRuBillWizard] STARTING PAYMENT FLOW'
+      )
       expect(consoleLogSpy).toHaveBeenCalledWith('User ID:', 123456789)
-      expect(consoleLogSpy).toHaveBeenCalledWith('Generated invoice ID:', expect.any(Number))
-      expect(consoleLogSpy).toHaveBeenCalledWith('Invoice URL:', expect.any(String))
-      expect(consoleLogSpy).toHaveBeenCalledWith('Payment saved with status PENDING')
-      expect(consoleLogSpy).toHaveBeenCalledWith('Payment message sent to user with URL button')
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        'Generated invoice ID:',
+        expect.any(Number)
+      )
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        'Invoice URL:',
+        expect.any(String)
+      )
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        'Payment saved with status PENDING'
+      )
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        'Payment message sent to user with URL button'
+      )
 
       consoleLogSpy.mockRestore()
     })
 
     it('should log errors when payment creation fails', async () => {
       // Arrange
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const consoleErrorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {})
       const testError = new Error('Test error')
       ;(setPayments as Mock).mockRejectedValue(testError)
 
@@ -935,7 +988,10 @@ describe('getRuBillWizard', () => {
       await generateInvoiceStep(mockContext)
 
       // Assert
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Error in setting payments:', testError)
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Error in setting payments:',
+        testError
+      )
 
       consoleErrorSpy.mockRestore()
     })

@@ -101,8 +101,13 @@ export const imageUpscalerWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-// Добавляем обработчики HELP и CANCEL как в других wizard'ах
-imageUpscalerWizard.help(handleHelpCancel)
-imageUpscalerWizard.command('cancel', handleHelpCancel)
+// Добавляем обработчики HELP и CANCEL как в других wizard'ах.
+// Ссылка отложена в стрелку намеренно: @/navigation импортирует сцены, а сцены
+// импортируют @/navigation — при некоторых порядках загрузки (например, когда
+// тест импортирует сцену первой) экспорт ещё не заполнен, и telegraf падает с
+// «Handler is undefined» прямо при вычислении модуля. Обёртка переносит взятие
+// функции на момент вызова и делает регистрацию независимой от порядка.
+imageUpscalerWizard.help(ctx => handleHelpCancel(ctx))
+imageUpscalerWizard.command('cancel', ctx => handleHelpCancel(ctx))
 
 export default imageUpscalerWizard

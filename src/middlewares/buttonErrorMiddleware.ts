@@ -31,7 +31,7 @@ export function createButtonErrorMiddleware() {
         logger.warn('[ButtonErrorMiddleware] Invalid callback data detected', {
           telegramId,
           callbackData,
-          error: validation.error
+          error: validation.error,
         })
 
         await handleCallbackQueryError(
@@ -45,51 +45,54 @@ export function createButtonErrorMiddleware() {
       // Log callback processing
       logger.debug('[ButtonErrorMiddleware] Processing valid callback', {
         telegramId,
-        callbackData: callbackData.substring(0, 50) + (callbackData.length > 50 ? '...' : ''),
-        username: ctx.from?.username
+        callbackData:
+          callbackData.substring(0, 50) +
+          (callbackData.length > 50 ? '...' : ''),
+        username: ctx.from?.username,
       })
 
       // Continue to next middleware/handler
       await next()
-
     } catch (error) {
       const errorObj = error instanceof Error ? error : new Error(String(error))
 
       // Check if this is a BUTTON_DATA_INVALID error
-      if (errorObj.message.includes('BUTTON_DATA_INVALID') ||
-          errorObj.message.includes('400: Bad Request: invalid button') ||
-          errorObj.message.includes('callback query is too old')) {
-
-        logger.error('[ButtonErrorMiddleware] Button data invalid error caught', {
-          telegramId,
-          callbackData,
-          error: errorObj.message,
-          stack: errorObj.stack
-        })
-
-        await handleCallbackQueryError(
-          ctx,
-          errorObj
+      if (
+        errorObj.message.includes('BUTTON_DATA_INVALID') ||
+        errorObj.message.includes('400: Bad Request: invalid button') ||
+        errorObj.message.includes('callback query is too old')
+      ) {
+        logger.error(
+          '[ButtonErrorMiddleware] Button data invalid error caught',
+          {
+            telegramId,
+            callbackData,
+            error: errorObj.message,
+            stack: errorObj.stack,
+          }
         )
+
+        await handleCallbackQueryError(ctx, errorObj)
 
         return
       }
 
       // Handle other callback-related errors
-      if (errorObj.message.includes('callback') ||
-          errorObj.message.includes('answerCbQuery') ||
-          errorObj.message.includes('inline keyboard')) {
-
-        logger.error('[ButtonErrorMiddleware] Callback processing error caught', {
-          telegramId,
-          callbackData,
-          error: errorObj.message
-        })
-
-        await handleCallbackQueryError(
-          ctx,
-          errorObj
+      if (
+        errorObj.message.includes('callback') ||
+        errorObj.message.includes('answerCbQuery') ||
+        errorObj.message.includes('inline keyboard')
+      ) {
+        logger.error(
+          '[ButtonErrorMiddleware] Callback processing error caught',
+          {
+            telegramId,
+            callbackData,
+            error: errorObj.message,
+          }
         )
+
+        await handleCallbackQueryError(ctx, errorObj)
 
         return
       }
@@ -118,7 +121,7 @@ export function createButtonStateValidationMiddleware() {
         logger.warn('[ButtonStateValidation] Callback data exceeds limit', {
           telegramId,
           callbackDataLength: callbackData.length,
-          callbackData: callbackData.substring(0, 50) + '...'
+          callbackData: callbackData.substring(0, 50) + '...',
         })
 
         await ctx.answerCbQuery(
@@ -130,13 +133,19 @@ export function createButtonStateValidationMiddleware() {
         return
       }
 
-      // Check for potentially dangerous characters
-      if (/[<>\"'&\x00-\x1f\x7f-\x9f]/.test(callbackData)) {
-        logger.warn('[ButtonStateValidation] Potentially dangerous callback data', {
-          telegramId,
-          callbackData,
-          dangerousChars: callbackData.match(/[<>\"'&\x00-\x1f\x7f-\x9f]/g)
-        })
+      // Check for potentially dangerous characters.
+      // Управляющие символы здесь — цель проверки, а не случайность.
+      // eslint-disable-next-line no-control-regex
+      if (/[<>"'&\x00-\x1f\x7f-\x9f]/.test(callbackData)) {
+        logger.warn(
+          '[ButtonStateValidation] Potentially dangerous callback data',
+          {
+            telegramId,
+            callbackData,
+            // eslint-disable-next-line no-control-regex
+            dangerousChars: callbackData.match(/[<>"'&\x00-\x1f\x7f-\x9f]/g),
+          }
+        )
 
         await ctx.answerCbQuery(
           ctx.session?.userLanguage === 'en'
@@ -148,12 +157,11 @@ export function createButtonStateValidationMiddleware() {
       }
 
       await next()
-
     } catch (error) {
       logger.error('[ButtonStateValidation] Error in button state validation', {
         telegramId,
         callbackData,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       })
 
       // Fallback to general error handling
@@ -185,17 +193,14 @@ export function createCallbackTimeoutMiddleware(timeoutMs: number = 5000) {
       })
 
       // Race between actual processing and timeout
-      await Promise.race([
-        next(),
-        timeoutPromise
-      ])
-
+      await Promise.race([next(), timeoutPromise])
     } catch (error) {
       if (error instanceof Error && error.message.includes('timeout')) {
         logger.warn('[CallbackTimeout] Callback processing timed out', {
           telegramId,
-          callbackData: 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : 'unknown',
-          timeoutMs
+          callbackData:
+            'data' in ctx.callbackQuery ? ctx.callbackQuery.data : 'unknown',
+          timeoutMs,
         })
 
         await ctx.answerCbQuery(
@@ -215,11 +220,13 @@ export function createCallbackTimeoutMiddleware(timeoutMs: number = 5000) {
 /**
  * Combined middleware that includes all button error handling features
  */
-export function createComprehensiveButtonMiddleware(options: {
-  timeoutMs?: number
-  enableValidation?: boolean
-  enableErrorHandling?: boolean
-} = {}) {
+export function createComprehensiveButtonMiddleware(
+  options: {
+    timeoutMs?: number
+    enableValidation?: boolean
+    enableErrorHandling?: boolean
+  } = {}
+) {
   const middlewares = []
 
   if (options.enableValidation !== false) {

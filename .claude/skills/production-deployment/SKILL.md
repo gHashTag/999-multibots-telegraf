@@ -17,6 +17,7 @@ Expert knowledge for deploying this Telegram bot to production server.
 ## Deployment Methods
 
 ### 1. Automated Deployment (Recommended)
+
 ```bash
 npm run deploy
 # or
@@ -24,6 +25,7 @@ npm run deploy
 ```
 
 This script:
+
 1. Syncs `.env` file to production
 2. Copies source code via rsync
 3. Rebuilds Docker container on production
@@ -31,6 +33,7 @@ This script:
 5. Monitors startup for errors
 
 ### 2. Manual Deployment
+
 ```bash
 # SSH to production
 ssh root@188.137.250.69
@@ -51,17 +54,20 @@ docker-compose logs -f --tail=100
 ```
 
 ### 3. Quick Check Deployment
+
 ```bash
-npm run deploy:check       # Full error check
-npm run deploy:check:quick # Quick 20-line check
+bun run typecheck          # ошибки типов
+npm run test:gate          # регрессии против baseline
 ```
 
 ## Docker Configuration
 
 ### docker-compose.yml Location
+
 `/root/bot-farm/docker-compose.yml` on production
 
 ### Key Docker Commands
+
 ```bash
 # View running containers
 docker ps
@@ -88,35 +94,32 @@ docker-compose up -d --build
 
 ## Health Monitoring
 
-### Health Check Script
+Деплой идёт в Railway (сервис `999-multibots-telegraf`), поэтому состояние
+смотрится его инструментами:
+
 ```bash
-npm run health:check    # Single check
-npm run health:monitor  # Continuous monitoring
-npm run health:rollback # Rollback if issues
+railway deployment list   # состояние последних сборок
+railway logs              # логи сервиса
 ```
 
-Health checks verify:
-- Container running status
-- Process responsiveness
-- No critical errors in logs
-- Bot webhook/polling active
+Проверять после деплоя:
+
+- сборка в состоянии SUCCESS, а не CRASHED
+- в логах нет критических ошибок старта
+- бот отвечает на `/start` в Telegram
 
 ### Log Monitoring
-```bash
-npm run logs           # Interactive log viewer
-npm run logs:follow    # Follow logs in real-time
-npm run logs:tail      # View last 200 lines
-```
 
-The log monitor:
-- Detects JavaScript errors
-- Shows error context
-- Suggests fixes
-- Can auto-apply common fixes
+```bash
+railway logs                                     # прод, стрим
+docker logs 999-multibots --tail 100 --follow    # локальный контейнер
+docker-compose logs -f --tail=100                # локальный стек
+```
 
 ## Deployment Checklist
 
 ### Pre-Deployment
+
 - [ ] Run `bun test` locally
 - [ ] Run `npm run typecheck`
 - [ ] Run `npm run build:nocheck`
@@ -125,13 +128,15 @@ The log monitor:
 - [ ] Review recent git commits
 
 ### During Deployment
+
 - [ ] Run `npm run deploy`
 - [ ] Watch deployment output for errors
 - [ ] Verify Docker container starts
 - [ ] Check initial logs for startup errors
 
 ### Post-Deployment
-- [ ] Run `npm run deploy:check`
+
+- [ ] Run `npm run test:gate`
 - [ ] Test bot in Telegram (send /start)
 - [ ] Check critical features work
 - [ ] Monitor logs for 5-10 minutes
@@ -140,6 +145,7 @@ The log monitor:
 ## Common Issues and Fixes
 
 ### Issue: Container Won't Start
+
 ```bash
 # Check Docker logs
 ssh root@188.137.250.69 "cd /root/bot-farm && docker-compose logs --tail=50"
@@ -152,15 +158,16 @@ ssh root@188.137.250.69 "cd /root/bot-farm && docker-compose logs --tail=50"
 ```
 
 ### Issue: JavaScript Errors in Production
+
 ```bash
 # Check errors
-npm run deploy:check
+bun run typecheck
 
 # View detailed logs
-npm run logs
+railway logs
 
 # If simple fix needed
-npm run deploy:check:fix
+bunx eslint . --ext .ts --fix
 
 # Manual fix and redeploy
 # Fix code locally, then:
@@ -168,6 +175,7 @@ npm run deploy
 ```
 
 ### Issue: Old Container Running
+
 ```bash
 ssh root@188.137.250.69
 docker ps -a
@@ -176,6 +184,7 @@ docker-compose up -d --build
 ```
 
 ### Issue: Port Conflicts
+
 ```bash
 # Check what's using port
 ssh root@188.137.250.69 "lsof -i :3000"
@@ -190,10 +199,12 @@ npm run deploy
 ## Environment Variables
 
 ### Production .env Location
+
 - Local: `/Users/playra/999-agents-telegraf/.env`
 - Production: `/root/bot-farm/.env`
 
 ### Critical Variables (Managed by Infisical)
+
 ```bash
 INFISICAL_CLIENT_ID=...
 INFISICAL_CLIENT_SECRET=...
@@ -207,27 +218,35 @@ NODE_ENV=production
 ## Deployment Scripts Reference
 
 ### scripts/deploy.sh
+
 Main deployment script:
+
 - Syncs code to production
 - Rebuilds Docker container
 - Monitors startup
 - Reports errors
 
 ### scripts/health-monitor.sh
+
 Health monitoring:
+
 - `check`: Single health check
 - `monitor`: Continuous monitoring
 - `rollback`: Emergency rollback
 
 ### scripts/logs-monitor.js
+
 Log analysis:
+
 - Real-time error detection
 - Error context extraction
 - Fix suggestions
 - Auto-fix capability
 
 ### scripts/js-error-check.sh
+
 Production error checker:
+
 - Scans last 100 log lines
 - Identifies JS errors
 - Provides detailed error info
@@ -236,6 +255,7 @@ Production error checker:
 ## SSH Configuration
 
 ### SSH Access
+
 ```bash
 # Direct SSH
 ssh root@188.137.250.69
@@ -249,7 +269,9 @@ rsync -avz src/ root@188.137.250.69:/root/bot-farm/src/
 ```
 
 ### Pre-approved SSH Commands
+
 These commands don't require user approval in Claude Code:
+
 - `ssh root@188.137.250.69:*`
 - `scp * root@188.137.250.69:/root/bot-farm/`
 - `rsync * root@188.137.250.69:/root/bot-farm/`
@@ -257,11 +279,13 @@ These commands don't require user approval in Claude Code:
 ## Rollback Procedure
 
 ### Quick Rollback
+
 ```bash
-npm run health:rollback
+railway deployment list
 ```
 
 ### Manual Rollback
+
 ```bash
 ssh root@188.137.250.69
 cd /root/bot-farm
@@ -281,11 +305,13 @@ docker-compose logs -f
 ## Performance Monitoring
 
 ### Resource Usage
+
 ```bash
 ssh root@188.137.250.69 "docker stats --no-stream"
 ```
 
 ### Log Size Management
+
 ```bash
 # Check log size
 ssh root@188.137.250.69 "du -sh /root/bot-farm/logs"
@@ -297,6 +323,7 @@ ssh root@188.137.250.69 "cd /root/bot-farm && find logs -name '*.log' -mtime +7 
 ## Emergency Procedures
 
 ### Bot Completely Down
+
 ```bash
 # 1. Check if container running
 ssh root@188.137.250.69 "docker ps"
@@ -311,10 +338,11 @@ ssh root@188.137.250.69 "cd /root/bot-farm && docker-compose restart"
 npm run deploy
 
 # 5. If still issues, rollback
-npm run health:rollback
+railway deployment list
 ```
 
 ### Database Connection Issues
+
 ```bash
 # Check Supabase status
 # Check Infisical for correct credentials
@@ -326,6 +354,7 @@ docker-compose logs | grep -i "supabase\|database"
 ```
 
 ### Memory Issues
+
 ```bash
 # Check memory usage
 ssh root@188.137.250.69 "free -h"
@@ -368,11 +397,11 @@ npm run deploy
        ↓
 Watch deployment output
        ↓
-npm run deploy:check
+bun run typecheck
        ↓
 Test in Telegram
        ↓
-npm run logs (monitor)
+railway logs (monitor)
        ↓
 Success ✅
 ```
@@ -384,10 +413,10 @@ Success ✅
 ssh root@188.137.250.69 "cd /root/bot-farm && docker-compose ps"
 
 # Full system check
-npm run health:check
+railway deployment list
 
 # View recent errors
-npm run logs:tail
+railway logs
 
 # Test bot responsiveness
 # Send /start command in Telegram

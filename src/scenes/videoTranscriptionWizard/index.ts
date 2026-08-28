@@ -2,7 +2,12 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussian } from '@/helpers/language'
-import { handleHelpCancel, createHelpCancelKeyboard, sendGenericErrorMessage, getMainMenuText } from '@/navigation'
+import {
+  handleHelpCancel,
+  createHelpCancelKeyboard,
+  sendGenericErrorMessage,
+  getMainMenuText,
+} from '@/navigation'
 import { logger } from '@/utils/logger'
 import {
   transcribeInstagramReel,
@@ -348,11 +353,7 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
 
         const keyboard = Markup.keyboard([
           [Markup.button.text(isRu ? '📺 Еще одно видео' : '📺 Another video')],
-          [
-            Markup.button.text(
-              getMainMenuText(isRu)
-            ),
-          ], // Главное меню
+          [Markup.button.text(getMainMenuText(isRu))], // Главное меню
         ]).resize()
 
         await ctx.reply(
@@ -416,7 +417,10 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
         logger.error('❌ [VideoTranscription] CRITICAL: Refund failed!', {
           telegramId: ctx.from.id,
           refundAmount: costInStars,
-          error: refundError instanceof Error ? refundError.message : String(refundError),
+          error:
+            refundError instanceof Error
+              ? refundError.message
+              : String(refundError),
         })
       }
 
@@ -466,5 +470,5 @@ videoTranscriptionWizard.hears(
 )
 
 // Добавляем обработчики HELP и CANCEL как в других wizard'ах
-videoTranscriptionWizard.help(handleHelpCancel)
-videoTranscriptionWizard.command('cancel', handleHelpCancel)
+videoTranscriptionWizard.help(ctx => handleHelpCancel(ctx))
+videoTranscriptionWizard.command('cancel', ctx => handleHelpCancel(ctx))

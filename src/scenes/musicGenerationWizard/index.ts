@@ -13,7 +13,12 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussian } from '@/helpers/language'
-import { handleHelpCancel, createHelpCancelKeyboard, sendGenericErrorMessage, getMainMenuText } from '@/navigation'
+import {
+  handleHelpCancel,
+  createHelpCancelKeyboard,
+  sendGenericErrorMessage,
+  getMainMenuText,
+} from '@/navigation'
 import { logger } from '@/utils/logger'
 import { getUserBalance, updateUserBalance } from '@/core/supabase'
 import { PaymentType } from '@/interfaces/payments.interface'
@@ -67,10 +72,21 @@ export const musicGenerationWizard = new Scenes.WizardScene<MyContext>(
 
     const keyboard = Markup.inlineKeyboard([
       [
-        Markup.button.callback(isRu ? '🎹 Инструментал' : '🎹 Instrumental', 'music_instrumental'),
-        Markup.button.callback(isRu ? '🎤 С вокалом' : '🎤 With Vocals', 'music_vocal'),
+        Markup.button.callback(
+          isRu ? '🎹 Инструментал' : '🎹 Instrumental',
+          'music_instrumental'
+        ),
+        Markup.button.callback(
+          isRu ? '🎤 С вокалом' : '🎤 With Vocals',
+          'music_vocal'
+        ),
       ],
-      [Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'music_cancel')],
+      [
+        Markup.button.callback(
+          isRu ? '❌ Отмена' : '❌ Cancel',
+          'music_cancel'
+        ),
+      ],
     ])
 
     await ctx.reply(text, { parse_mode: 'HTML', ...keyboard })
@@ -144,13 +160,13 @@ export const musicGenerationWizard = new Scenes.WizardScene<MyContext>(
       await ctx.reply(
         isRu
           ? `❌ Недостаточно средств для генерации музыки.\n\n` +
-            `💰 Нужно: ${cost} ⭐\n` +
-            `💳 Ваш баланс: ${currentBalance.toFixed(2)} ⭐\n\n` +
-            `Пополните баланс и попробуйте снова.`
+              `💰 Нужно: ${cost} ⭐\n` +
+              `💳 Ваш баланс: ${currentBalance.toFixed(2)} ⭐\n\n` +
+              `Пополните баланс и попробуйте снова.`
           : `❌ Insufficient funds for music generation.\n\n` +
-            `💰 Required: ${cost} ⭐\n` +
-            `💳 Your balance: ${currentBalance.toFixed(2)} ⭐\n\n` +
-            `Top up your balance and try again.`
+              `💰 Required: ${cost} ⭐\n` +
+              `💳 Your balance: ${currentBalance.toFixed(2)} ⭐\n\n` +
+              `Top up your balance and try again.`
       )
       return ctx.scene.leave()
     }
@@ -184,13 +200,13 @@ export const musicGenerationWizard = new Scenes.WizardScene<MyContext>(
     const statusMsg = await ctx.reply(
       isRu
         ? `⏳ Генерирую музыку... Это может занять 2-3 минуты.\n\n` +
-          `🎵 Тип: ${wizardData.instrumental ? 'Инструментал' : 'С вокалом'}\n` +
-          `⏱ Длительность: ${wizardData.duration / 60} мин\n` +
-          `💰 Списано: ${cost} ⭐`
+            `🎵 Тип: ${wizardData.instrumental ? 'Инструментал' : 'С вокалом'}\n` +
+            `⏱ Длительность: ${wizardData.duration / 60} мин\n` +
+            `💰 Списано: ${cost} ⭐`
         : `⏳ Generating music... This may take 2-3 minutes.\n\n` +
-          `🎵 Type: ${wizardData.instrumental ? 'Instrumental' : 'With Vocals'}\n` +
-          `⏱ Duration: ${wizardData.duration / 60} min\n` +
-          `💰 Charged: ${cost} ⭐`,
+            `🎵 Type: ${wizardData.instrumental ? 'Instrumental' : 'With Vocals'}\n` +
+            `⏱ Duration: ${wizardData.duration / 60} min\n` +
+            `💰 Charged: ${cost} ⭐`,
       Markup.removeKeyboard()
     )
 
@@ -326,7 +342,10 @@ export const musicGenerationWizard = new Scenes.WizardScene<MyContext>(
         logger.error('[MusicGeneration] CRITICAL: Refund failed!', {
           telegramId: ctx.from.id,
           refundAmount: cost,
-          error: refundError instanceof Error ? refundError.message : String(refundError),
+          error:
+            refundError instanceof Error
+              ? refundError.message
+              : String(refundError),
         })
 
         await ctx.reply(
@@ -400,8 +419,14 @@ musicGenerationWizard.action('music_back_type', async ctx => {
 
   const keyboard = Markup.inlineKeyboard([
     [
-      Markup.button.callback(isRu ? '🎹 Инструментал' : '🎹 Instrumental', 'music_instrumental'),
-      Markup.button.callback(isRu ? '🎤 С вокалом' : '🎤 With Vocals', 'music_vocal'),
+      Markup.button.callback(
+        isRu ? '🎹 Инструментал' : '🎹 Instrumental',
+        'music_instrumental'
+      ),
+      Markup.button.callback(
+        isRu ? '🎤 С вокалом' : '🎤 With Vocals',
+        'music_vocal'
+      ),
     ],
     [Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'music_cancel')],
   ])
@@ -431,8 +456,8 @@ musicGenerationWizard.hears(['🎵 Ещё трек', '🎵 Another track'], asyn
 })
 
 // Help и Cancel команды
-musicGenerationWizard.help(handleHelpCancel)
-musicGenerationWizard.command('cancel', handleHelpCancel)
+musicGenerationWizard.help(ctx => handleHelpCancel(ctx))
+musicGenerationWizard.command('cancel', ctx => handleHelpCancel(ctx))
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔧 HELPER FUNCTIONS
@@ -441,7 +466,10 @@ musicGenerationWizard.command('cancel', handleHelpCancel)
 /**
  * Показать выбор длительности
  */
-async function showDurationSelection(ctx: MyContext, isRu: boolean): Promise<void> {
+async function showDurationSelection(
+  ctx: MyContext,
+  isRu: boolean
+): Promise<void> {
   const wizardData = ctx.session.wizardData as MusicWizardData
 
   const text = isRu
@@ -473,7 +501,11 @@ async function showDurationSelection(ctx: MyContext, isRu: boolean): Promise<voi
 /**
  * Показать ввод описания
  */
-async function showPromptInput(ctx: MyContext, isRu: boolean, wizardData: MusicWizardData): Promise<void> {
+async function showPromptInput(
+  ctx: MyContext,
+  isRu: boolean,
+  wizardData: MusicWizardData
+): Promise<void> {
   const text = isRu
     ? `🎵 <b>Генерация музыки</b>\n\n` +
       `Тип: ${wizardData.instrumental ? '🎹 Инструментал' : '🎤 С вокалом'}\n` +
@@ -484,7 +516,9 @@ async function showPromptInput(ctx: MyContext, isRu: boolean, wizardData: MusicW
       `• "Энергичная электронная музыка для тренировки"\n` +
       `• "Спокойная акустическая гитара для релакса"\n` +
       `• "Эпический оркестр для трейлера"\n` +
-      (wizardData.instrumental ? '' : `\n📝 Или отправьте текст песни для вокала`)
+      (wizardData.instrumental
+        ? ''
+        : `\n📝 Или отправьте текст песни для вокала`)
     : `🎵 <b>Music Generation</b>\n\n` +
       `Type: ${wizardData.instrumental ? '🎹 Instrumental' : '🎤 With Vocals'}\n` +
       `Duration: ${wizardData.duration / 60} min\n` +
