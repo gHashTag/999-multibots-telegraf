@@ -8,6 +8,7 @@ import {
 import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
 import { CreatePaymentV2Schema } from '@/interfaces/zod/payment.zod'
 import { calculateServiceCost } from '@/price/helpers/calculateServiceCost'
+import { withUserBalanceLock } from './balanceLock'
 
 type BalanceUpdateMetadata = {
   stars?: number
@@ -53,7 +54,10 @@ type BalanceUpdateMetadata = {
  * Передавайте ПОЛОЖИТЕЛЬНУЮ сумму и правильный `type`. Отрицательная теперь
  * отклоняется явно — см. проверку после блока подмены.
  */
-export const updateUserBalance = async (
+// Serialized per user by withUserBalanceLock below. The implementation is
+// unchanged; the lock closes the read-check-write double-spend race (#999) for
+// the single-process case. Do NOT call this directly — use updateUserBalance.
+const updateUserBalanceUnlocked = async (
   telegram_id: string,
   amount: number,
   type: PaymentType,
@@ -621,3 +625,26 @@ export const updateUserBalance = async (
     return false
   }
 }
+
+/**
+ * Public entry: serialize every balance write for a given user, then run the
+ * unchanged implementation. See balanceLock.ts and #999.
+ */
+export const updateUserBalance = (
+  telegram_id: string,
+  amount: number,
+  type: PaymentType,
+  description?: string,
+  metadata?: BalanceUpdateMetadata,
+  cost_in_stars?: number
+): Promise<boolean> =>
+  withUserBalanceLock(String(telegram_id), () =>
+    updateUserBalanceUnlocked(
+      telegram_id,
+      amount,
+      type,
+      description,
+      metadata,
+      cost_in_stars
+    )
+  )
