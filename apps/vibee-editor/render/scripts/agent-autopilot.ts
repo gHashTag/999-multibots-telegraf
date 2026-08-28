@@ -106,7 +106,9 @@ async function call(name: string, args: Record<string, unknown> = {}) {
  */
 async function blogTopics(published: string[]): Promise<Topic[]> {
   try {
-    const r = await fetch(`${BASE}/api/blog`, { signal: AbortSignal.timeout(20_000) })
+    const r = await fetch(`${BASE}/api/blog`, {
+      signal: AbortSignal.timeout(20_000),
+    })
     if (!r.ok) return []
     const d = (await r.json()) as {
       items?: { title: string; description: string; pubDate: string }[]
@@ -314,7 +316,8 @@ async function main() {
     // пользователи платят токенами, конвейер — из кассы канала.
     try {
       const BASE2 =
-        process.env.SELF_URL || 'http://127.0.0.1:' + (process.env.PORT || '3333')
+        process.env.SELF_URL ||
+        'http://127.0.0.1:' + (process.env.PORT || '3333')
       // Две попытки: первый запуск витка №121 упал на транзиенте сети
       // («fetch failed» внутри Replicate-путья) — видео-слой слишком ценен,
       // чтобы терять его на одном миге соединения.
@@ -370,7 +373,9 @@ async function main() {
   })
   if (!reel?.готово || typeof reel.url !== 'string') {
     log(`рендер не удался: ${JSON.stringify(reel).slice(0, 200)}`)
-    process.exit(1)
+    // return, а не process.exit: в режиме демона (--loop) один неудачный
+    // рендер не должен убивать планировщик — следующий виток попробует снова.
+    return
   }
 
   // 5. Публикация: текст СРАЗУ готов к переносу в Instagram — первая строка
@@ -405,7 +410,8 @@ async function main() {
   })
   if (!pub?.опубликовано) {
     log(`публикация отклонена: ${JSON.stringify(pub).slice(0, 200)}`)
-    process.exit(1)
+    // return, а не process.exit — см. пояснение у рендера выше.
+    return
   }
 
   writeState({
@@ -433,7 +439,47 @@ async function main() {
   }
 }
 
-main().catch(e => {
-  log(`падение: ${String(e).slice(0, 300)}`)
-  process.exit(1)
-})
+/**
+ * РЕЖИМ ДЕМОНА (--loop или AUTOPILOT_LOOP=1).
+ *
+ * До сих пор автопилот был one-shot: кто-то (крон человека) должен был звать
+ * его руками. Крон не шёл — и конвейер стоял 32 часа при полной очереди тем,
+ * а причину монитор списывал на провайдеров. Демон закрывает эту дыру: он
+ * запускает виток сам по интервалу.
+ *
+ * Почему это безопасно повторять по таймеру: main() уже соблюдает суточный
+ * лимит (MAX_POSTS_PER_DAY) и пустую очередь — лишний виток при исчерпанном
+ * лимите просто отдохнёт, ничего не потратив. Один упавший виток больше не
+ * убивает процесс (внутренние process.exit заменены на return выше), поэтому
+ * планировщик переживает сбой рендера/публикации и пробует снова.
+ *
+ * Развёртывание: как Railway-сервис/крон с этим модулем в качестве команды и
+ * AUTOPILOT_LOOP=1. Однопроцессность (не два демона разом) — забота
+ * развёртывания; guard из ветки fix/autopilot-singleton решает это на уровне
+ * файлового лока, если демонов запустят несколько.
+ */
+const LOOP =
+  process.argv.includes('--loop') || process.env.AUTOPILOT_LOOP === '1'
+const INTERVAL_MS = Math.max(
+  60_000,
+  Number(process.env.AUTOPILOT_INTERVAL_MS) || 30 * 60_000
+)
+
+async function once() {
+  try {
+    await main()
+  } catch (e) {
+    log(`падение витка: ${String(e).slice(0, 300)}`)
+  }
+}
+
+if (LOOP) {
+  log(`автопилот-демон: интервал ${(INTERVAL_MS / 60_000).toFixed(0)} мин`)
+  await once() // первый виток сразу, не ждём интервал
+  setInterval(once, INTERVAL_MS)
+} else {
+  main().catch(e => {
+    log(`падение: ${String(e).slice(0, 300)}`)
+    process.exit(1)
+  })
+}
