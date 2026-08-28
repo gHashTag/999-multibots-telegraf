@@ -65,6 +65,7 @@ a2a: ## только агент/A2A-харнесс (render без Remotion/face-
 	@cd $(RENDER_DIR) && A2A_PORT=$(A2A_PORT) SELF_URL=http://localhost:$(A2A_PORT) npx tsx a2a-local.ts
 
 mock: ## MOCK-сервер: эмуляция ВСЕХ функций (генерация/MCP/A2A/лента) на :$(MOCK_PORT)
+	@kill $$(lsof -ti:$(MOCK_PORT) 2>/dev/null) 2>/dev/null || true
 	@cd $(RENDER_DIR) && MOCK_PORT=$(MOCK_PORT) npx tsx mock-server.ts
 
 render: ## полный рендер-сервер (нужен face-api: сперва make render-deps)

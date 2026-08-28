@@ -279,7 +279,7 @@ function send(res: any, code: number, obj: any) {
   res.end(JSON.stringify(obj))
 }
 
-createServer(async (req, res) => {
+const srv = createServer(async (req, res) => {
   const u = (req.url || '').split('?')[0]
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
@@ -491,7 +491,18 @@ createServer(async (req, res) => {
     ],
     функций: TOOL_NAMES.length,
   })
-}).listen(PORT, () =>
+})
+srv.on('error', (e: NodeJS.ErrnoException) => {
+  if (e.code === 'EADDRINUSE') {
+    console.log(
+      `🎭 MOCK уже запущен на :${PORT} — открой http://localhost:${PORT}. ` +
+        `Другой порт: MOCK_PORT=3337 make mock`
+    )
+    process.exit(0)
+  }
+  throw e
+})
+srv.listen(PORT, () =>
   console.log(
     `🎭 MOCK-сервер (эмуляция ${TOOL_NAMES.length} функций + генерация) на http://localhost:${PORT}`
   )
