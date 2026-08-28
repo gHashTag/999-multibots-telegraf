@@ -365,12 +365,20 @@ export const updateUserBalance = async (
         return false
       }
     } else {
-      // Для операций пополнения просто проверяем существование пользователя
-      const { data: userData, error: userError } = await supabase
+      // Top-ups only need to know the user exists.
+      //
+      // limit(1) instead of .single(): telegram_id is NOT unique in `users`.
+      // Measured on production 2026-08-28: 2371 rows for 2336 distinct
+      // telegram_ids -- 19 people have 2-3 rows each. `.single()` errors on
+      // more than one row, so for exactly those people EVERY top-up and refund
+      // was rejected below as "no users row" while their money was already
+      // taken. Existence is all this branch needs, so take the first row.
+      const { data: userRows, error: userError } = await supabase
         .from('users')
         .select('id')
         .eq('telegram_id', telegram_id)
-        .single()
+        .limit(1)
+      const userData = userRows?.[0] ?? null
 
       // ЗДЕСЬ ЧЕЛОВЕК УЖЕ ЗАПЛАТИЛ. Отказ означает, что деньги списаны на
       // стороне платёжной системы, а звёзды не зачислены.
