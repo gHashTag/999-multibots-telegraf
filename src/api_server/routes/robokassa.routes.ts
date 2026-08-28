@@ -188,13 +188,21 @@ async function handlePaymentSuccess(req: any, res: any) {
     // оставалась PENDING, и человек НЕ получал звёзды — хотя до правки
     // получал. Хуже всего, что отказ вероятнее всего у тех, у кого нет строки
     // в users, — то есть у тех, кого я и собирался защитить.
-    const { error: updateError } = await supabaseAdmin
+    // Compare-and-set the claim. The early "already COMPLETED" read above is
+    // not atomic with this update, so two concurrent deliveries of the same
+    // ResultURL — Robokassa retries, and a slow first request can overlap a
+    // retry — both read PENDING and would both credit. .eq('status', PENDING)
+    // makes the flip atomic in Postgres, and .select() reports whether this
+    // delivery won; only the winner credits below.
+    const { data: claimed, error: updateError } = await supabaseAdmin
       .from('payments_v2')
       .update({
         status: PaymentStatus.COMPLETED,
         payment_date: new Date().toISOString(),
       })
       .eq('inv_id', InvId)
+      .eq('status', PaymentStatus.PENDING)
+      .select('inv_id')
 
     if (updateError) {
       logger.error('❌ Error updating payment status', {
@@ -202,6 +210,15 @@ async function handlePaymentSuccess(req: any, res: any) {
         error: updateError,
       })
       return res.status(500).send('Database error')
+    }
+
+    if (!claimed || claimed.length === 0) {
+      // A concurrent delivery already flipped this payment to COMPLETED and
+      // credited it. Acknowledge so Robokassa stops retrying; do NOT credit.
+      logger.info('ℹ️ Payment already claimed by a concurrent delivery', {
+        InvId,
+      })
+      return res.status(200).send(`OK${InvId}`)
     }
 
     logger.info('✅ Payment status updated to COMPLETED', {
