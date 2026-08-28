@@ -141,67 +141,11 @@ struct AgentChatView: View {
   }
 }
 
-struct ProfileView: View {
-  /// Меняется при входе и выходе — по нему перерисовывается вся секция.
-  @State private var версияЛичности = 0
-
-  var body: some View {
-    VStack(spacing: 0) {
-      /**
-       * Доступ — НАД вебом, а не внутри него.
-       *
-       * Веб-профиль на app.t27.ai живёт своей жизнью и про нашу сессию ничего
-       * не знает. Прятать вход внутрь вебвью значило бы просить человека
-       * искать настройку приложения на странице сайта.
-       *
-       * Секция сворачивается, когда вход уже сделан: то, что делают один раз,
-       * не должно занимать экран каждый день.
-       */
-      DisclosureGroup(isExpanded: .constant(!Identity.known)) {
-        VStack(alignment: .leading, spacing: 12) {
-          if Identity.known {
-            Text(Identity.hasSession
-                 ? "Сессия этого устройства. Хранится в Keychain и обновляется сама."
-                 : "Отладочный ключ агента. Войдите по коду — сессия надёжнее: "
-                   + "её можно отозвать, и она не живёт вечно.")
-              .font(.caption)
-              .foregroundStyle(.white.opacity(0.55))
-              .fixedSize(horizontal: false, vertical: true)
-
-            if Identity.hasSession {
-              Button("Выйти", role: .destructive) {
-                Task {
-                  await Identity.logout()
-                  версияЛичности += 1
-                }
-              }
-              .buttonStyle(.bordered)
-            } else {
-              SignInView { версияЛичности += 1 }
-            }
-          } else {
-            SignInView { версияЛичности += 1 }
-          }
-        }
-        .padding(.top, 8)
-        .id(версияЛичности)
-      } label: {
-        Label(
-          Identity.hasSession ? "Вы вошли"
-            : (Identity.known ? "Временный доступ" : "Нужен вход"),
-          systemImage: Identity.hasSession ? "checkmark.shield"
-            : (Identity.known ? "shield.lefthalf.filled" : "exclamationmark.shield")
-        )
-        .font(.subheadline.weight(.medium))
-        .foregroundStyle(Identity.hasSession ? .green
-                         : (Identity.known ? .yellow : .orange))
-      }
-      .tint(.green)
-      .padding(14)
-      .background(Color.white.opacity(0.05))
-
-      WebScreen(path: "/profile")
-    }
-    .background(Color.black)
-  }
-}
+/**
+ * Профиль переехал в ProfileScreen.swift и стал нативным целиком.
+ *
+ * Имя оставлено псевдонимом: на него ссылается таб-бар, и менять две вещи
+ * разом — лишний способ ошибиться. Псевдоним уберём, когда останется один
+ * вызов.
+ */
+typealias ProfileView = ProfileScreen

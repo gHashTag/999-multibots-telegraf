@@ -55,6 +55,14 @@ enum Identity {
   /// Настоящая сессия, а не отладочный ключ. Разница видна в Профиле.
   static var hasSession: Bool { refreshToken != nil }
 
+  /// Свой telegram_id — сервер называет его при обмене кода. Без него
+  /// Профиль не знает, чей профиль показывать, и это единственное, что ему
+  /// нужно: имя и аватар он возьмёт с сервера.
+  static var telegramId: String? {
+    get { прочитать("telegram-id") }
+    set { записать("telegram-id", newValue) }
+  }
+
   /**
    * Заголовки для любого запроса к API.
    *
@@ -175,6 +183,7 @@ extension Identity {
     // access, который через час протухнет навсегда.
     refreshToken = тело["refresh_token"] as? String
     accessToken = тело["access_token"] as? String
+    telegramId = тело["telegram_id"] as? String
     // Ключ агента больше не нужен и не должен пережить вход: два способа
     // представиться — это два способа разойтись.
     agentKey = nil
@@ -221,6 +230,7 @@ extension Identity {
     accessToken = nil
     refreshToken = nil
     agentKey = nil
+    telegramId = nil
   }
 
   /// Выйти по-настоящему: и здесь, и на сервере.
