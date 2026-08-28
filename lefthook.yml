@@ -80,6 +80,16 @@ pre-commit:
       run: node scripts/check-player-types.cjs
       fail_text: "Ошибок типов в плеере стало больше. Это находки, а не фон."
 
+    # 6. No Cyrillic in code comments. The bot is bilingual, so Cyrillic inside
+    #    string literals (UI text) stays allowed — the guard strips string
+    #    literals first and only rejects Cyrillic left in comments/identifiers.
+    #    Ratchet on the staged diff: existing Russian comments and .md docs are
+    #    untouched. Escape hatch: put  cyrillic-ok  on the line.
+    no-cyrillic:
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
+      run: node scripts/no-cyrillic-guard.cjs staged
+      fail_text: "Cyrillic in a code comment. Write comments in English."
+
 commit-msg:
   commands:
     # Сообщение коммита уходит в публичный репозиторий вместе с кодом:
@@ -90,6 +100,12 @@ commit-msg:
           echo "В сообщении коммита похоже на токен. Уберите его."
           exit 1
         fi
+
+    # Commit messages go to the public repo and are read by everyone: keep them
+    # English. Translations (UI string literals) stay Russian — see the
+    # pre-commit no-cyrillic guard; this only covers the message text.
+    no-cyrillic-in-message:
+      run: node scripts/no-cyrillic-guard.cjs msg {1}
 
 pre-push:
   parallel: true
