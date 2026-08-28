@@ -4200,6 +4200,7 @@ const processSingleAiPhotoshopModel = async (
                         ? '1:1'
                         : 'match_input_image',
                   suppressUserErrors: true, // ✅ Don't notify user of errors in ALL_MODELS mode
+                  skipBalanceCheck: true, // ✅ Balance already charged before loop
                 })
               } else if (modelKey === 'seededit_3') {
                 const seedEdit3Size = ctx.session?.aiPhotoshopSize || '2K'

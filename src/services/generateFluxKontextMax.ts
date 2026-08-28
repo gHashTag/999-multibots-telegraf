@@ -41,6 +41,7 @@ export interface FluxKontextMaxServiceParams {
   safety_tolerance?: number
   suppressUserErrors?: boolean // ✅ Don't notify user of errors (for fallback chains)
   is_welcome_gift?: boolean // ✅ Skip payment for welcome generation (lead magnet)
+  skipBalanceCheck?: boolean // If true, skip balance check (already charged before loop)
 }
 
 // FLUX Kontext Max model configuration
@@ -157,8 +158,11 @@ export const generateFluxKontextMax = async (
       await updateUserLevelPlusOne(telegram_id, level)
     }
 
-    // Process balance operation - SKIP for welcome gifts (lead magnet)
-    if (!params.is_welcome_gift) {
+    // Process balance operation - SKIP for welcome gifts (lead magnet) and for
+    // batch flows that already charged before the loop (skipBalanceCheck),
+    // mirroring generateFluxKontextPro. Without this, ALL_MODELS mode charged
+    // twice: the batch total up front AND costPerImage here.
+    if (!params.is_welcome_gift && !params.skipBalanceCheck) {
       const balanceCheck = await processBalanceOperation({
         ctx,
         telegram_id: Number(telegram_id),
