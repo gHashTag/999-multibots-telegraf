@@ -447,8 +447,8 @@ describe('categories.config', () => {
       // Расширенный regex для всех типов эмодзи, включая ⬆️, 🦸‍♂️ и другие.
       // Селекторы вариаций (FE00-FE0F) входят в класс намеренно — именно они
       // отличают ⬆️ от ⬆, поэтому предупреждение правила здесь ложное.
-      // eslint-disable-next-line no-misleading-character-class
       const emojiRegex =
+        // eslint-disable-next-line no-misleading-character-class
         /[\u{1F300}-\u{1FAD6}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}]/u
 
       CATEGORIES.forEach(category => {
