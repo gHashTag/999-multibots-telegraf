@@ -57,7 +57,11 @@ type BalanceUpdateMetadata = {
 // Serialized per user by withUserBalanceLock below. The implementation is
 // unchanged; the lock closes the read-check-write double-spend race (#999) for
 // the single-process case. Do NOT call this directly — use updateUserBalance.
-const updateUserBalanceUnlocked = async (
+// Exported ONLY for callers that already hold withUserBalanceLock for the same
+// telegram_id and must run a check-then-write atomically with the balance (see
+// refundUser). Calling this outside the lock reopens the race — use
+// updateUserBalance instead.
+export const updateUserBalanceUnlocked = async (
   telegram_id: string,
   amount: number,
   type: PaymentType,
