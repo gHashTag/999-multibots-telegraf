@@ -298,6 +298,16 @@ aiCoverWizard.action('confirm_cover', async ctx => {
     return ctx.scene.leave()
   }
 
+  // A fast double-tap on Confirm delivers two callbacks and answerCbQuery does
+  // not stop the second, so without this in-flight guard the user was charged
+  // twice and two covers were generated. The reject returns before the flag is
+  // set, so it never releases the flag the first tap holds. Same fix as
+  // morphingWizard's morphingGenerationInProgress.
+  if (ctx.session?.aiCoverGenerationInProgress) {
+    return
+  }
+  ctx.session.aiCoverGenerationInProgress = true
+
   const cost = getAICoverCost()
 
   try {
@@ -415,6 +425,11 @@ aiCoverWizard.action('confirm_cover', async ctx => {
         : '❌ Error during generation. Funds refunded.'
     )
     return ctx.scene.leave()
+  } finally {
+    // Always release: on error the charge is refunded above, so a retry works.
+    if (ctx.session) {
+      ctx.session.aiCoverGenerationInProgress = false
+    }
   }
 })
 
