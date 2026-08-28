@@ -4887,6 +4887,41 @@ const server = createServer(async (req, res) => {
     req.on('end', async () => {
       try {
         const data = JSON.parse(body)
+
+        // The owner of the post is the VERIFIED caller, never the body's claim.
+        //
+        // publishTemplateRow keys the upsert on data.telegram_id and re-stamps
+        // creator_username from that user's row. Left to the body, any signed-in
+        // mini-app user could POST another user's telegram_id + name and
+        // overwrite their feed post — video, thumbnail, description — force it
+        // public (is_public = TRUE) and resurrect one they had removed
+        // (deleted_at = NULL), all still carrying the victim's real @username.
+        //
+        // The route is not public (isPublic returns false for POST
+        // /api/feed/publish), so the global guard already required a credential:
+        // a Telegram signature or the internal X-Api-Key. A signed caller is
+        // pinned to their own id here. The internal render->self call carries
+        // the key, not a signature, so chatIdentity is null for it — and only
+        // then is the body's telegram_id trusted, exactly as the sibling
+        // DELETE /api/feed/:id does it.
+        const signer = chatIdentity(req, verifiedTelegramId(req))
+        const owner = signer
+          ? String(signer)
+          : data.telegram_id
+            ? String(data.telegram_id)
+            : null
+        if (!owner) {
+          res.writeHead(401, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              error: 'unauthorized',
+              detail: 'need a Telegram signature or the internal key',
+            })
+          )
+          return
+        }
+        data.telegram_id = owner
+
         // Тот же код, что и у автопубликации после рендера. Раньше SQL был
         // написан здесь второй раз, а рендер ходил сюда по сети к самому себе.
         const row = await publishTemplateRow(data)
