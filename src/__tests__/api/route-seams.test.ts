@@ -214,6 +214,11 @@ describe('швы маршрутов api_server', () => {
       '/generate/text-to-speech',
       '/generate/voice-avatar',
       '/generate', // FoundationUsageExamples — пример, не рабочий код
+      // Kie.ai, not our server: in KieAiProvider `this.baseUrl` is hard-coded
+      // to 'https://api.kie.ai/api/v1' (line 133). That external path starts
+      // with /generate, one of the prefixes the pattern below looks for, so the
+      // test failed on main reporting a break where no route of ours belongs.
+      '/generate/record-info',
     ]
 
     // Ищем в коде шаблоны вида `${ЧТО_ТО}/путь`, похожие на наш собственный
@@ -232,8 +237,14 @@ describe('швы маршрутов api_server', () => {
     // Комментарии вырезаем: в них намеренно цитируются СТАРЫЕ неверные адреса,
     // чтобы объяснить, почему их поменяли. Без этого тест ловил бы собственное
     // объяснение как дефект.
+    // Newlines are KEPT: the line number below is counted on this same text,
+    // and without them it drifts upward by every line inside every stripped
+    // block comment. The report said line 1429 while the call sits at 1459 —
+    // thirty lines off, so the reader looks in the wrong place.
     const stripComments = (s: string) =>
-      s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+      s
+        .replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '))
+        .replace(/(^|[^:])\/\/.*$/gm, '$1')
 
     const bad: string[] = []
     for (const f of files) {
