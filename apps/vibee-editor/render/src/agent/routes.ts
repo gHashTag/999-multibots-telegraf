@@ -44,13 +44,64 @@ export function agentKeyOwner(key: string): string | null {
   return null
 }
 
-export function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise(resolve => {
+/**
+ * Read a request body, bounded.
+ *
+ * The old version accumulated `b += c.toString()` with no cap, no deadline and
+ * no error handler, and it is the shared body reader for ~10 POST/DELETE routes
+ * (feed, assets, tokens, agent-chat, mcp, a2a). Three ways to hurt it: a huge
+ * body exhausted memory; a client that never sent `end` left the promise
+ * pending forever, holding the connection; a socket error left it pending with
+ * no resolve and no reject. See #901.
+ *
+ * Now it rejects on any of the three. Every caller already does
+ * `JSON.parse(await readBody(req))` inside a try/catch — bad JSON would crash
+ * them otherwise — so a rejection is caught by the same handler that catches a
+ * parse error, and turns into that route's error response.
+ *
+ * The limits are generous on purpose: bodies here are JSON, so 10 MB is far
+ * above anything legitimate while still bounding the unbounded case, and 60 s
+ * outlasts a slow-but-real upload while still bounding a client that stalls.
+ */
+export function readBody(
+  req: IncomingMessage,
+  maxBytes = 10 * 1024 * 1024,
+  timeoutMs = 60_000
+): Promise<string> {
+  return new Promise((resolve, reject) => {
     let b = ''
+    let size = 0
+    let settled = false
+    const settle = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      fn()
+    }
+    const timer = setTimeout(
+      () =>
+        settle(() => {
+          req.destroy()
+          reject(new Error('readBody: timed out'))
+        }),
+      timeoutMs
+    )
     req.on('data', (c: Buffer) => {
+      size += c.length
+      if (size > maxBytes) {
+        settle(() => {
+          req.destroy()
+          reject(new Error('readBody: body too large'))
+        })
+        return
+      }
       b += c.toString()
     })
-    req.on('end', () => resolve(b))
+    req.on('end', () => settle(() => resolve(b)))
+    req.on('error', err => settle(() => reject(err)))
+    req.on('aborted', () =>
+      settle(() => reject(new Error('readBody: client aborted')))
+    )
   })
 }
 
