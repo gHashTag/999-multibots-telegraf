@@ -398,13 +398,35 @@ router.post('/video-callback/:telegramId', async (req: any, res: any) => {
       payloadKeys: Object.keys(payload),
     })
 
+    // The callback token is verified HERE, before the switch, so no provider
+    // branch can route around it. It used to be checked in exactly one place —
+    // inside processGenericVideoWebhook — while the kie-sora / kie-wan / kie-veed
+    // branches called processSoraWebhookAsync / processKieAiWebhookAsync with the
+    // url's telegramId and no token. A forged callback with a made-up taskId
+    // misses videoTaskStore and falls into those handlers' direct-send branch,
+    // delivering an attacker-chosen video (or, on the fail path, an
+    // attacker-chosen error message) from the bot to any telegram_id.
+    //
+    // Legit provider callbacks DO carry the signature: getAvailableCallbackUrl
+    // (utils/webhookHealthCheck.ts) and render-server-client both sign the url
+    // with buildCallbackToken. verifyCallbackToken is fail-closed and timing-safe.
+    //
+    // When the token does not verify we withhold the url's telegramId from the
+    // direct-send-capable branches: a task genuinely matched in videoTaskStore
+    // still delivers (that path uses the STORED recipient, not this param), but a
+    // caller can no longer direct-send to a recipient it named itself.
+    const signatureOk = telegramIdFromUrl
+      ? verifyCallbackToken(telegramIdFromUrl, callbackToken)
+      : false
+    const trustedTelegramId = signatureOk ? telegramIdFromUrl : undefined
+
     // Route to appropriate handler based on detected provider
     switch (detectedProvider) {
       case 'kie-sora':
         logger.info('🎬 [UNIVERSAL VIDEO WEBHOOK] Kie.ai Sora webhook detected')
         await processSoraWebhookAsync(
           normalizeKieSoraPayload(payload),
-          telegramIdFromUrl
+          trustedTelegramId
         )
         break
 
@@ -418,7 +440,7 @@ router.post('/video-callback/:telegramId', async (req: any, res: any) => {
         )
         await processKieAiWebhookAsync(
           normalizeKiePayload(payload),
-          telegramIdFromUrl
+          trustedTelegramId
         )
         break
 

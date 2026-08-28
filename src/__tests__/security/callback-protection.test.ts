@@ -34,6 +34,10 @@ const MUST_VERIFY: Record<string, string> = {
 const MUST_SIGN: Record<string, string> = {
   'src/inngest_app/render-server-client.ts': 'адрес обратного вызова рендера',
   'src/utils/webhookHealthCheck.ts': 'адрес обратного вызова видео',
+  // The one /api/video-callback/:telegramId builder that signed nothing. The
+  // handler now refuses a direct send without the signature, so this URL must
+  // carry it — otherwise nano-banana delivery breaks.
+  'src/services/generateNanoBananaKie.ts': 'nano-banana callback address',
 }
 
 describe('обратные вызовы закрыты меткой', () => {
@@ -84,5 +88,53 @@ describe('обратные вызовы закрыты меткой', () => {
       }
     }
     expect(wrong).toEqual([])
+  })
+  it('the :telegramId handler checks the signature before the provider switch', () => {
+    // The old check's weak spot: it only asked whether verifyCallbackToken
+    // appeared SOMEWHERE in the file. It appears once, inside
+    // processGenericVideoWebhook, while the kie-sora / kie-wan / kie-veed
+    // branches walked past it. A forged callback with a made-up taskId missed
+    // videoTaskStore and fell into those branches' direct send, delivering
+    // someone else's video to another user.
+    //
+    // The real invariant: the signature is checked BEFORE the provider switch,
+    // so every branch passes through it. Slice out the :telegramId handler
+    // block and compare verifyCallbackToken's position to switch (detectedProvider).
+    const file = 'src/api_server/routes/kie-ai-webhook.routes.ts'
+    const full = strip(fs.readFileSync(file, 'utf8'))
+    const start = full.indexOf("router.post('/video-callback/:telegramId'")
+    expect(start, ':telegramId handler not found').toBeGreaterThan(-1)
+    const after = full.indexOf('router.post(', start + 1)
+    const block = after === -1 ? full.slice(start) : full.slice(start, after)
+
+    const check = block.indexOf('verifyCallbackToken')
+    const branch = block.indexOf('switch (detectedProvider)')
+    expect(check, ':telegramId handler has no signature check').toBeGreaterThan(
+      -1
+    )
+    expect(branch, 'provider switch not found').toBeGreaterThan(-1)
+    expect(
+      check < branch,
+      'signature checked AFTER the switch — some branches skip it'
+    ).toBe(true)
+  })
+
+  it('no :telegramId branch sends to the raw telegramId from the URL', () => {
+    // After the signature check the direct send uses the verified value
+    // (trustedTelegramId), not the raw telegramIdFromUrl from the URL.
+    const file = 'src/api_server/routes/kie-ai-webhook.routes.ts'
+    const full = strip(fs.readFileSync(file, 'utf8'))
+    const start = full.indexOf("router.post('/video-callback/:telegramId'")
+    const after = full.indexOf('router.post(', start + 1)
+    const block = after === -1 ? full.slice(start) : full.slice(start, after)
+    // Direct processor calls with the raw telegramIdFromUrl are forbidden here.
+    const raw =
+      /process(?:Sora|KieAi)WebhookAsync\([^)]*\btelegramIdFromUrl\b/.test(
+        block
+      )
+    expect(
+      raw,
+      'a branch passes the raw telegramIdFromUrl to direct send'
+    ).toBe(false)
   })
 })
