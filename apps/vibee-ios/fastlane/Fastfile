@@ -1,8 +1,14 @@
 # Сборка и выкладка в TestFlight.
 #
-#   fastlane beta          собрать и отправить в TestFlight
-#   fastlane build_only    только собрать .ipa, без отправки
-#   fastlane bump          поднять номер сборки
+#   fastlane preflight     проверить готовность, ничего не отправляя
+#   fastlane build_only    собрать .ipa для App Store, без отправки
+#   fastlane beta          собрать релиз и подготовить к отправке
+#
+# ОТПРАВКА ЗДЕСЬ ВЫКЛЮЧЕНА НАМЕРЕННО. Вызов `upload_to_testflight` в lane
+# `beta` закомментирован, и снять комментарий должен владелец — потому что
+# отправка публикует сборку от его имени и требует его учётных данных
+# App Store Connect, которых у автора этого файла нет и не должно быть.
+# Подробности — рядом с самим вызовом.
 #
 # ЧЕГО ЗДЕСЬ НЕТ. Ни одного пароля, ключа или сертификата. Аутентификация
 # идёт ключом App Store Connect API, который лежит ВНЕ репозитория и
@@ -16,6 +22,50 @@ default_platform(:ios)
 # found», и причина будет неочевидна.
 XCODEPROJ = "Vibee.xcodeproj"
 SCHEME    = "Vibee"
+BUNDLE_ID = ENV["VIBEE_BUNDLE_ID"] || "ai.t27.vibee"
+
+# Номер сборки — количество коммитов, а не счётчик в файле.
+#
+# ПОЧЕМУ НЕ increment_build_number. Он зовёт agvtool, тот правит
+# Vibee/Info.plist — файл, который отслеживается git и который
+# ПЕРЕГЕНЕРИРУЕТ xcodegen из project.yml. То есть номер, во-первых, остаётся
+# незакоммиченной правкой в рабочем дереве, во-вторых, молча возвращается
+# назад при следующем `xcodegen generate` (а `run.sh` зовёт его безусловно).
+# Проверено: agvtool пишет «Updated CFBundleVersion … to 42», после чего
+# xcodegen возвращает 1, и выкладка уходит со старым номером.
+#
+# Счёт коммитов монотонен, одинаков на любой машине и не требует ни файла,
+# ни обращения к Apple. Перекрыть можно переменной VIBEE_BUILD.
+def build_number
+  return ENV["VIBEE_BUILD"] if ENV["VIBEE_BUILD"].to_s.strip != ""
+  Dir.chdir("..") { `git rev-list --count HEAD`.strip }
+end
+
+# Есть ли сертификат, которым вообще можно подписать сборку для App Store.
+# Development-сертификат для этого НЕ годится: с ним `gym` соберёт .app, но
+# экспорт с export_method «app-store» упадёт — и упадёт в конце, после
+# нескольких минут компиляции.
+def distribution_identity?
+  `security find-identity -v -p codesigning 2>/dev/null`.include?("Apple Distribution")
+end
+
+# Установлена ли поддержка платформы iOS для текущего SDK.
+#
+# Спрашиваем не про SDK и не про рантаймы по отдельности, а про то, что
+# реально нужно: есть ли у схемы хоть одно ПРИГОДНОЕ назначение. Без него
+# `xcodebuild archive` — а значит и gym — отказывается работать вовсе:
+#
+#   xcodebuild: error: Found no destinations for the scheme 'Vibee'
+#               and action archive.
+#
+# Тот же пробел валит и сборку иконки в actool. Причина одна: платформа
+# iOS 26.5 не установлена, хотя SDK на месте и обычный `xcodebuild build
+# -sdk iphoneos` проходит. Именно поэтому проверка смотрит на назначения,
+# а не на наличие SDK: наличие SDK ничего не доказывает.
+def archive_destination_available?
+  out = `xcodebuild -project #{XCODEPROJ} -scheme #{SCHEME} -showdestinations 2>&1`
+  out.include?("Available destinations for the \"#{SCHEME}\" scheme:")
+end
 
 platform :ios do
   before_all do
@@ -41,23 +91,106 @@ platform :ios do
     )
   end
 
-  desc "Поднять номер сборки до следующего свободного в TestFlight"
-  lane :bump do
-    key = api_key
-    # Номер берём У APPLE, а не из локального файла: локальный счётчик
-    # разъезжается, как только сборку сделали с другой машины или из CI, и
-    # выкладка падает на «build already exists» уже после долгой сборки.
-    latest = latest_testflight_build_number(
-      api_key: key,
-      app_identifier: ENV["VIBEE_BUNDLE_ID"] || "ai.t27.vibee",
-      initial_build_number: 0
-    )
-    increment_build_number(xcodeproj: XCODEPROJ, build_number: latest + 1)
-    UI.success("Номер сборки: #{latest + 1}")
+  desc "Проверить готовность к TestFlight, ничего не отправляя и не требуя учётной записи"
+  lane :preflight do
+    # Смысл этого lane: назвать ВСЕ препятствия сразу, за секунды, а не по
+    # одному в конце каждой десятиминутной сборки. Он ничего не чинит и
+    # никуда не ходит с учётными данными — только смотрит.
+    Dir.chdir("..") { sh("xcodegen generate") }
+
+    blockers = []
+    notes    = []
+
+    scheme_path = "../#{XCODEPROJ}/xcshareddata/xcschemes/#{SCHEME}.xcscheme"
+    if File.exist?(scheme_path)
+      notes << "схема #{SCHEME} общая (shared) — gym её найдёт"
+    else
+      blockers << "схема #{SCHEME} не расшарена: gym упадёт на «scheme not found»"
+    end
+
+    icon = "../AppIcon.xcassets/AppIcon.appiconset/AppIcon-1024.png"
+    if File.exist?(icon)
+      notes << "иконка 1024×1024 лежит в AppIcon.xcassets"
+    else
+      blockers << "нет файла #{icon}: App Store Connect отклонит загрузку без иконки"
+    end
+
+    # Каталог иконок подключается к цели ОТДЕЛЬНОЙ строкой в project.yml.
+    # Пока она закомментирована, .app собирается без Assets.car — и это
+    # ровно та поломка, которую видно только на этапе загрузки.
+    # encoding указано ЯВНО. Без него File.read берёт кодировку из локали:
+    # у fastlane она сплошь и рядом US-ASCII (он сам об этом предупреждает),
+    # и первое же обращение к строке с кириллицей падает с
+    # «invalid byte sequence in US-ASCII» — прямо на этой строке, проверено.
+    spec = File.read("../project.yml", encoding: "UTF-8")
+    if spec.match?(/^\s*-\s*AppIcon\.xcassets\s*$/)
+      notes << "AppIcon.xcassets подключён к цели"
+    else
+      blockers << "AppIcon.xcassets НЕ подключён к цели: раскомментируйте строку " \
+                  "«- AppIcon.xcassets» в project.yml (там же написано, почему она выключена)"
+    end
+
+    if archive_destination_available?
+      notes << "поддержка платформы iOS установлена — архив собирается, иконка компилируется"
+    else
+      blockers << "платформа iOS для текущего SDK не установлена. Из-за этого НЕВОЗМОЖЕН " \
+                  "сам архив («Found no destinations for the scheme»), и отдельно не " \
+                  "собирается иконка («No simulator runtime version …»). " \
+                  "Лечится командой `xcodebuild -downloadPlatform iOS`"
+    end
+
+    if distribution_identity?
+      notes << "сертификат Apple Distribution найден"
+    else
+      blockers << "нет сертификата Apple Distribution: экспорт с export_method «app-store» " \
+                  "нечем подписать (development-сертификат для этого не годится)"
+    end
+
+    missing_env = %w[ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8].reject { |k| ENV[k] }
+    if missing_env.empty?
+      notes << "ключ App Store Connect API задан в окружении"
+    else
+      blockers << "не заданы переменные ключа ASC: #{missing_env.join(', ')}"
+    end
+
+    notes << "номер сборки будет #{build_number} (счёт коммитов)"
+    notes << "идентификатор приложения #{BUNDLE_ID}"
+
+    notes.each { |n| UI.success("  ✓ #{n}") }
+    blockers.each { |b| UI.error("  ✗ #{b}") }
+
+    if blockers.empty?
+      UI.success("Готово к `fastlane beta`.")
+    else
+      UI.important("Препятствий: #{blockers.count}. Каждое требует действия человека " \
+                   "с доступом к учётной записи Apple или к этой машине.")
+    end
   end
 
-  desc "Собрать .ipa без отправки"
+  desc "Собрать .ipa для App Store, без отправки"
   lane :build_only do
+    unless archive_destination_available?
+      UI.user_error!(
+        "У схемы #{SCHEME} нет ни одного пригодного назначения — gym не сможет " \
+        "собрать архив («Found no destinations for the scheme»).\n" \
+        "Установите поддержку платформы: xcodebuild -downloadPlatform iOS\n" \
+        "Обычная сборка `-sdk iphoneos build` при этом проходит, поэтому зелёная " \
+        "сборка ничего про архив не доказывает."
+      )
+    end
+
+    unless distribution_identity?
+      UI.user_error!(
+        "Нет сертификата Apple Distribution — подписать сборку для App Store нечем.\n" \
+        "Проверка сделана ДО сборки намеренно: иначе отказ пришёл бы на экспорте, " \
+        "через несколько минут компиляции.\n" \
+        "Что делать — `fastlane preflight` и раздел «Подпись» в README."
+      )
+    end
+
+    number = build_number
+    UI.message("Номер сборки: #{number}")
+
     gym(
       project: XCODEPROJ,
       scheme: SCHEME,
@@ -65,27 +198,64 @@ platform :ios do
       export_method: "app-store",
       clean: true,
       output_directory: "build/ipa",
+      # Номер сборки задаётся ПЕРЕМЕННОЙ СБОРКИ, а не правкой файла: см.
+      # комментарий к build_number. Info.plist ссылается на
+      # $(CURRENT_PROJECT_VERSION), поэтому значение доезжает до бандла.
+      xcargs: "CURRENT_PROJECT_VERSION=#{number}",
       # Логи gym по умолчанию тонут в шуме xcodebuild; при падении важна
       # именно последняя ошибка, а не вся простыня.
       buildlog_path: "build/logs"
     )
   end
 
-  desc "Собрать и отправить в TestFlight"
+  desc "Собрать релиз и подготовить к отправке в TestFlight (сама отправка выключена)"
   lane :beta do
-    key = api_key
-    bump
+    preflight
     build_only
-    upload_to_testflight(
-      api_key: key,
-      # Ждать обработки НЕ будем: Apple обрабатывает сборку от минут до часа,
-      # и держать процесс всё это время значит вешать CI на пустом месте.
-      # Готовность видно в App Store Connect и по письму.
-      skip_waiting_for_build_processing: true,
-      # Заметки о сборке — из последнего коммита: человек в TestFlight
-      # должен понимать, что именно он тестирует.
-      changelog: last_git_commit[:message].to_s[0, 4000]
+
+    ipa = lane_context[SharedValues::IPA_OUTPUT_PATH]
+    UI.success("Собрано: #{ipa}")
+    UI.important(
+      "Отправка НЕ выполнена — вызов upload_to_testflight закомментирован ниже.\n" \
+      "Снять комментарий должен владелец учётной записи: отправка публикует сборку " \
+      "в App Store Connect от его имени и требует его ключа ASC."
     )
-    UI.success("Отправлено. Обработка у Apple занимает от нескольких минут.")
+
+    # ------------------------------------------------------------------
+    # ОТПРАВКА В TESTFLIGHT — ЗАКОММЕНТИРОВАНА НАМЕРЕННО.
+    #
+    # ПОЧЕМУ ИМЕННО КОММЕНТАРИЙ, А НЕ ФЛАГ ИЛИ ПЕРЕМЕННАЯ. Флаг можно
+    # выставить случайно — переменной окружения из чужого шелла, забытым
+    # аргументом в CI. Здесь нужно осознанное действие человека: открыть
+    # файл, прочитать этот текст, убрать решётки, закоммитить. Отправка
+    # необратима — сборка уходит в App Store Connect, получает номер,
+    # рассылается тестерам; отозвать её можно, но «как не было» уже не
+    # будет.
+    #
+    # ЧТО ТРЕБУЕТСЯ ОТ ВЛАДЕЛЬЦА, прежде чем это включать:
+    #   1. Ключ App Store Connect API (ASC_KEY_ID / ASC_ISSUER_ID /
+    #      ASC_KEY_P8). Выпускается под ролью Admin или Account Holder;
+    #      .p8 скачивается один раз.
+    #   2. Запись приложения в App Store Connect с идентификатором
+    #      ai.t27.vibee (или тем, что задан в VIBEE_BUNDLE_ID).
+    #   3. Сертификат Apple Distribution и профиль App Store.
+    #   4. Ответ на вопрос об экспортном соответствии — либо в ASC руками,
+    #      либо строкой ITSAppUsesNonExemptEncryption в project.yml.
+    # `fastlane preflight` проверяет пункты 1 и 3 и называет недостающее.
+    #
+    # key = api_key
+    # upload_to_testflight(
+    #   api_key: key,
+    #   app_identifier: BUNDLE_ID,
+    #   # Ждать обработки НЕ будем: Apple обрабатывает сборку от минут до
+    #   # часа, и держать процесс всё это время значит вешать CI на пустом
+    #   # месте. Готовность видно в App Store Connect и по письму.
+    #   skip_waiting_for_build_processing: true,
+    #   # Заметки о сборке — из последнего коммита: человек в TestFlight
+    #   # должен понимать, что именно он тестирует.
+    #   changelog: last_git_commit[:message].to_s[0, 4000]
+    # )
+    # UI.success("Отправлено. Обработка у Apple занимает от нескольких минут.")
+    # ------------------------------------------------------------------
   end
 end
