@@ -67,3 +67,44 @@ describe('generation jobs', () => {
     expect(() => failJob('no-such-id', 'boom')).not.toThrow()
   })
 })
+
+describe('the JSON shape the native client decodes', () => {
+  beforeEach(() => _resetJobs())
+
+  /**
+   * The iOS client decodes {id, kind, state, url, provider, error} and looks
+   * for state === 'done'. Nothing in Swift can fail at compile time if a key
+   * here is renamed -- the decode simply returns nil at runtime, on the exact
+   * path that exists to rescue a paid generation. So the contract is asserted
+   * here, where a rename does break something.
+   */
+  it('carries every key the client reads, spelled as it reads them', () => {
+    const job = startJob('video', '4242', 'a cat')
+    finishJob(job.id, 'https://storage/a.mp4', 'replicate/seedance')
+
+    const wire = JSON.parse(JSON.stringify(getJob(job.id)))
+
+    for (const key of ['id', 'kind', 'state', 'url', 'provider']) {
+      expect(wire, `client reads "${key}"`).toHaveProperty(key)
+    }
+    // The literals the client compares against, not just the keys.
+    expect(wire.state).toBe('done')
+    expect(wire.kind).toBe('video')
+  })
+
+  it('the four kind names match what the client sends', () => {
+    // The Swift side maps its own enum to these strings explicitly rather than
+    // deriving them, so both sides must agree on the spelling.
+    for (const kind of ['image', 'video', 'audio', 'lipsync'] as const) {
+      const j = startJob(kind, '4242')
+      expect(getJob(j.id)?.kind).toBe(kind)
+    }
+  })
+
+  it('a running job carries no url, so the client cannot show an empty link', () => {
+    const job = startJob('video', '4242')
+    const wire = JSON.parse(JSON.stringify(getJob(job.id)))
+    expect(wire.state).toBe('running')
+    expect(wire.url).toBeUndefined()
+  })
+})
