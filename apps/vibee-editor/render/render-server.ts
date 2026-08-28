@@ -1916,6 +1916,8 @@ function startRenderAsync(req: RenderRequest): string {
 }
 
 // Simple HTTP server
+// deploy-trigger 2026-08-28: форс сборки HEAD (A2A #894 + фикс регрессии #905),
+// который Railway пропустил — поверх render-правки легли не-render коммиты.
 const server = createServer(async (req, res) => {
   // Log all requests
   console.log(`📥 ${req.method} ${req.url}`)
