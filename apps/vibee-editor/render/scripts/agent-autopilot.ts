@@ -51,6 +51,9 @@ interface State {
   lastPostAt?: string
 }
 
+/** Обработчик снятия лока вешается один раз на весь процесс (см. main). */
+let lockReleaseRegistered = false
+
 function log(line: string) {
   const stamp = new Date().toISOString()
   fs.appendFileSync(LOG_FILE, `- ${stamp} ${line}\n`)
@@ -182,7 +185,12 @@ async function main() {
   const LOCK_FILE = path.join(LOOP_DIR, '.autopilot.lock')
   try {
     const prev = Number(fs.readFileSync(LOCK_FILE, 'utf8').trim())
-    if (prev && process.kill(prev, 0)) {
+    // prev !== process.pid обязателен для режима демона: там main() вызывается
+    // повторно в ОДНОМ процессе, lock-файл между витками держит наш же PID, и
+    // без этой проверки второй виток увидел бы «уже работаю» и вышел — демон
+    // отработал бы раз и замолчал навсегда. Наложение витков внутри процесса
+    // отсекается отдельно, в once() ниже.
+    if (prev && prev !== process.pid && process.kill(prev, 0)) {
       log(`уже работает автопилот (PID ${prev}) — выхожу без спора`)
       return
     }
@@ -190,14 +198,20 @@ async function main() {
     /* файла нет или PID мёртв — берём лок сами */
   }
   fs.writeFileSync(LOCK_FILE, String(process.pid))
-  const releaseLock = () => {
-    try {
-      fs.unlinkSync(LOCK_FILE)
-    } catch {
-      /* уже убран */
-    }
+  // Снимаем лок на выходе процесса — но регистрируем обработчик ОДИН раз.
+  // В режиме демона main() вызывается многократно; без этого флага на каждый
+  // виток вешался бы новый слушатель 'exit', и после десятка витков Node
+  // ругался бы MaxListenersExceededWarning.
+  if (!lockReleaseRegistered) {
+    lockReleaseRegistered = true
+    process.on('exit', () => {
+      try {
+        fs.unlinkSync(path.join(LOOP_DIR, '.autopilot.lock'))
+      } catch {
+        /* уже убран */
+      }
+    })
   }
-  process.on('exit', releaseLock)
 
   const withImage = process.argv.includes('--with-image')
   // Последний пост дня автоматически с b-roll: один видео-слой в день —
@@ -465,11 +479,22 @@ const INTERVAL_MS = Math.max(
   Number(process.env.AUTOPILOT_INTERVAL_MS) || 30 * 60_000
 )
 
+let виток_идёт = false
 async function once() {
+  // Наложение витков в одном процессе: setInterval выстрелит по расписанию,
+  // даже если прошлый виток ещё рендерит (рендер живёт до ~80с). Второй виток
+  // поверх первого — двойная публикация и спор за lock. Пропускаем.
+  if (виток_идёт) {
+    log('прошлый виток ещё идёт — пропускаю тик')
+    return
+  }
+  виток_идёт = true
   try {
     await main()
   } catch (e) {
     log(`падение витка: ${String(e).slice(0, 300)}`)
+  } finally {
+    виток_идёт = false
   }
 }
 
