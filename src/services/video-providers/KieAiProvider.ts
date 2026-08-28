@@ -1334,55 +1334,148 @@ export class KieAiProvider {
       instrumental = false,
     } = request
 
-    const requestData: any = {
-      model,
-      prompt,
-      duration,
+    // Kie AI music is the Suno API. CREATE is POST /generate and returns ONLY a
+    // taskId; the audio is produced asynchronously and must be polled from
+    // /generate/record-info. The old code POSTed /music/generate and read
+    // response.audio_url synchronously, so it always returned no audio.
+    // Model must be the documented Suno enum, not the config slug.
+    const SUNO_MODEL_MAP: Record<string, string> = {
+      'suno-v5': 'V5',
+      'suno-v4.5-plus': 'V4_5PLUS',
+      'suno-v4.5': 'V4_5',
+      'suno-v4': 'V4',
+    }
+    const sunoModel = SUNO_MODEL_MAP[model] || 'V4_5PLUS'
+
+    // Simple mode (customMode:false) needs only prompt/model/instrumental. Fold
+    // user lyrics into the prompt so intent is not lost without requiring
+    // customMode's mandatory title/style fields.
+    const description =
+      lyrics && !instrumental ? `${prompt}\n\nLyrics:\n${lyrics}` : prompt
+
+    const requestData: Record<string, unknown> = {
+      prompt: description,
+      customMode: false,
       instrumental,
+      model: sunoModel,
+      // Kie requires callBackUrl to be present; polling retrieves the result
+      // regardless of whether the callback ever fires (same as Veo/Sora).
+      callBackUrl: process.env.BASE_WEBHOOK_URL
+        ? `${process.env.BASE_WEBHOOK_URL}/api/music-callback`
+        : 'https://api.kie.ai/callback',
     }
-
     if (genre) {
-      requestData.genre = genre
-    }
-
-    if (lyrics) {
-      requestData.lyrics = lyrics
+      requestData.style = genre
     }
 
     try {
-      const response = await this.makeRequest<any>(
-        '/music/generate',
-        requestData
-      )
-
-      const costUSD = this.calculateMusicCost(model, duration)
-      const costStars = this.usdToStars(costUSD)
-
-      return {
-        success: true,
-        data: {
-          audioUrl: response.audio_url,
-          duration: response.duration || duration,
-        },
-        cost: {
-          usd: costUSD,
-          stars: costStars,
-        },
-        provider: 'Veo 3 API',
-        model,
-        processingTime: response.processingTime,
+      const createResp = await this.makeRequest<any>('/generate', requestData)
+      const taskId = createResp?.data?.taskId
+      if (!taskId) {
+        throw new Error(
+          createResp?.msg || 'Kie music: CREATE returned no taskId'
+        )
       }
+      logger.info('[KieAiProvider] Suno music task created, polling', {
+        taskId,
+        model: sunoModel,
+      })
+      return await this.pollMusicTaskStatus(taskId, model, duration)
     } catch (error) {
       return {
         success: false,
-        cost: {
-          usd: 0,
-          stars: 0,
-        },
-        provider: 'Veo 3 API',
+        cost: { usd: 0, stars: 0 },
+        provider: 'Kie.ai Suno',
         model,
         error: error instanceof Error ? error.message : 'Unknown error',
       }
+    }
+  }
+
+  /**
+   * Poll a Suno music task until it produces audio. Mirrors pollSoraTaskStatus:
+   * GET /generate/record-info until status is SUCCESS/FIRST_SUCCESS (audio
+   * ready) or a terminal failure. Suno takes ~1-3 minutes.
+   */
+  async pollMusicTaskStatus(
+    taskId: string,
+    model: string,
+    fallbackDuration: number
+  ): Promise<KieAiMusicResponse> {
+    const maxWaitTime = 300000 // 5 minutes
+    const maxAttempts = 40
+    const startTime = Date.now()
+    let attempt = 0
+    const SUCCESS = new Set(['SUCCESS', 'FIRST_SUCCESS'])
+    const FAILED = new Set([
+      'CREATE_TASK_FAILED',
+      'GENERATE_AUDIO_FAILED',
+      'CALLBACK_EXCEPTION',
+      'SENSITIVE_WORD_ERROR',
+    ])
+
+    while (Date.now() - startTime < maxWaitTime && attempt < maxAttempts) {
+      attempt++
+      const status = await this.checkMusicStatus(taskId)
+
+      if (SUCCESS.has(status.status) && status.audioUrl) {
+        const finalDuration = status.duration || fallbackDuration
+        const costUSD = this.calculateMusicCost(model, finalDuration)
+        return {
+          success: true,
+          data: { audioUrl: status.audioUrl, duration: finalDuration },
+          cost: { usd: costUSD, stars: this.usdToStars(costUSD) },
+          provider: 'Kie.ai Suno',
+          model,
+        }
+      }
+      if (FAILED.has(status.status)) {
+        throw new Error(
+          status.error || `Music generation failed: ${status.status}`
+        )
+      }
+
+      const delay = Math.min(5000 * Math.pow(1.5, attempt - 1), 30000)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+
+    throw new Error(
+      `Music generation timeout after ${Math.floor(
+        (Date.now() - startTime) / 1000
+      )} seconds`
+    )
+  }
+
+  /**
+   * One status read for a Suno music task via GET /generate/record-info.
+   * Success payload carries data.response.sunoData[0].audioUrl.
+   */
+  async checkMusicStatus(taskId: string): Promise<{
+    status: string
+    audioUrl?: string
+    duration?: number
+    error?: string
+  }> {
+    const response = await axios.get(`${this.baseUrl}/generate/record-info`, {
+      params: { taskId },
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: this.timeout,
+    })
+
+    if (response.data.code !== 200) {
+      throw new Error(response.data.msg || 'Failed to check music status')
+    }
+
+    const data = response.data.data
+    const first = data?.response?.sunoData?.[0]
+    return {
+      status: data?.status ?? 'PENDING',
+      audioUrl: first?.audioUrl,
+      duration: first?.duration,
+      error: data?.errorMessage,
     }
   }
 
