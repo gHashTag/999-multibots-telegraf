@@ -214,3 +214,173 @@ enum API {
   }
 
 }
+
+// MARK: - Проекты
+
+/**
+ * Проекты человека: таймлайн, который держит сервер.
+ *
+ * ЗАЧЕМ. Редактор открывал `Composition.демо` — выдумку, зашитую в код. Всё,
+ * что человек в нём двигал, никуда не сохранялось и ниоткуда не приходило.
+ * Экран выглядел работающим и не был подключён ни к чему; ровно тот класс,
+ * который в этом репозитории уже трижды кончался правками в мёртвых файлах.
+ *
+ * Сервер до сих пор не умел хранить проект вовсе: маршрутов со словом project
+ * не было ни одного (живой GET /api/projects отвечал 404 «Not found»). Поэтому
+ * половина работы — серверная, `render/project-routes.ts`, и формы ниже
+ * повторяют ЕЁ ответы, а не наоборот.
+ *
+ * ПОЧЕМУ snake_case В ПОЛЯХ. Так отвечает сам маршрут — он писался рядом с
+ * маршрутами входа, у которых `access_token` и `telegram_id`. Причёсывать
+ * имена на клиенте значит завести место, где они разойдутся молча.
+ */
+extension API {
+  /// Строка списка: без композиции. Двадцать проектов не должны означать
+  /// двадцать таймлайнов на проводе — композиция приходит вторым запросом.
+  struct ProjectSummary: Decodable, Identifiable {
+    let id: String
+    let name: String
+    let updated_at: String
+  }
+
+  struct Project: Decodable {
+    let id: String
+    let name: String
+    let updated_at: String
+    let composition: Composition
+  }
+
+  private struct ProjectList: Decodable { let projects: [ProjectSummary] }
+
+  enum ProjectError: LocalizedError {
+    case нетВхода
+    case отказ(Int, String)
+    case сеть(Error)
+    case разбор(String)
+
+    var errorDescription: String? {
+      switch self {
+      case .нетВхода:
+        return "Вы не вошли"
+      case .отказ(let код, let текст):
+        return текст.isEmpty ? "Сервер отказал: HTTP \(код)" : текст
+      case .сеть(let e):
+        return "Не дошло до сервера: \(e.localizedDescription)"
+      case .разбор(let что):
+        return "Ответ сервера не разобран: \(что)"
+      }
+    }
+  }
+
+  /**
+   * Запрос с личностью и ОДНОЙ попыткой обновить сессию.
+   *
+   * ЗАЧЕМ ОТДЕЛЬНЫЙ ПОМОЩНИК. Access-токен живёт десять минут
+   * (`ACCESS_TTL_SECONDS = 600` в session.ts), а редактор открыт дольше.
+   * Без обновления первый же запрос после десяти минут получал бы 401, и
+   * человек видел бы «вы не вошли», хотя сессия жива и обновляема.
+   *
+   * `Identity.refreshSession()` для этого и написан — и до сих пор НЕ
+   * ВЫЗЫВАЛСЯ НИОТКУДА (`grep refreshSession` находил одно объявление).
+   * Готовый механизм, к которому забыли подвести провод: то же, что в этом
+   * проекте уже случалось с `checkStuckTrainings` и `sanitizeUrl`.
+   *
+   * Повтор РОВНО ОДИН. Цикл повторов на 401 — это способ саморазлогиниться:
+   * refresh одноразовый, и сервер считает повторное предъявление кражей,
+   * отзывая всю семью сессий.
+   */
+  private static func сЛичностью(_ запрос: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    func послать() async throws -> (Data, HTTPURLResponse) {
+      var r = запрос
+      for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+      do {
+        let (d, resp) = try await URLSession.shared.data(for: r)
+        guard let http = resp as? HTTPURLResponse else {
+          throw ProjectError.разбор("ответ не HTTP")
+        }
+        return (d, http)
+      } catch let e as ProjectError {
+        throw e
+      } catch {
+        throw ProjectError.сеть(error)
+      }
+    }
+
+    let (d, http) = try await послать()
+    guard http.statusCode == 401, await Identity.refreshSession() else {
+      return (d, http)
+    }
+    return try await послать()
+  }
+
+  /// Текст отказа берём из ТЕЛА ответа, а не из `statusText`: на HTTP/2,
+  /// который отдаёт Railway, он пуст всегда. Тело — единственное место, где
+  /// сервер объясняет по-человечески.
+  private static func причина(_ данные: Data, _ код: Int) -> ProjectError {
+    let тело = (try? JSONSerialization.jsonObject(with: данные)) as? [String: Any] ?? [:]
+    let текст = [тело["error"] as? String, тело["detail"] as? String]
+      .compactMap { $0 }
+      .joined(separator: ". ")
+    return .отказ(код, текст)
+  }
+
+  /// Свои проекты, свежие сверху.
+  static func projects() async throws -> [ProjectSummary] {
+    guard Identity.known else { throw ProjectError.нетВхода }
+    let (d, http) = try await сЛичностью(
+      URLRequest(url: base.appendingPathComponent("api/projects")))
+    guard http.statusCode == 200 else { throw причина(d, http.statusCode) }
+    do {
+      return try JSONDecoder().decode(ProjectList.self, from: d).projects
+    } catch {
+      throw ProjectError.разбор(error.localizedDescription)
+    }
+  }
+
+  /// Один проект вместе с композицией.
+  static func project(id: String) async throws -> Project {
+    guard Identity.known else { throw ProjectError.нетВхода }
+    let (d, http) = try await сЛичностью(
+      URLRequest(url: base.appendingPathComponent("api/projects/\(id)")))
+    guard http.statusCode == 200 else { throw причина(d, http.statusCode) }
+    do {
+      return try JSONDecoder().decode(Project.self, from: d)
+    } catch {
+      /**
+       * Разбор — это НЕ «проект пустой».
+       *
+       * Композиция могла быть записана другим редактором в форме, которой эта
+       * модель не знает. Промолчать и показать демку значило бы сказать
+       * человеку «у вас нет проектов», когда проект есть и просто не понят, —
+       * молчаливая подделка вместо отказа.
+       */
+      throw ProjectError.разбор(error.localizedDescription)
+    }
+  }
+
+  /// Создать или заменить свой проект. Идентификатор выбирает клиент — на
+  /// сервере поэтому один PUT вместо пары POST+PUT.
+  @discardableResult
+  static func saveProject(
+    id: String, name: String, composition: Composition
+  ) async throws -> ProjectSummary {
+    guard Identity.known else { throw ProjectError.нетВхода }
+    struct Тело: Encodable {
+      let name: String
+      let composition: Composition
+    }
+
+    var r = URLRequest(url: base.appendingPathComponent("api/projects/\(id)"))
+    r.httpMethod = "PUT"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    r.httpBody = try JSONEncoder().encode(Тело(name: name, composition: composition))
+
+    let (d, http) = try await сЛичностью(r)
+    guard http.statusCode == 200 else { throw причина(d, http.statusCode) }
+    do {
+      return try JSONDecoder().decode(ProjectSummary.self, from: d)
+    } catch {
+      throw ProjectError.разбор(error.localizedDescription)
+    }
+  }
+}

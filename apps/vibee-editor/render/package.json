@@ -9,7 +9,7 @@
     "captions": "tsx scripts/auto-captions.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "typecheck:tests": "tsc -p tsconfig.test.json --noEmit --pretty false",
-    "test": "vitest run --root ../../..  apps/vibee-editor/render"
+    "test": "vitest run"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.948.0",
