@@ -406,5 +406,11 @@
     "file": "apps/vibee-editor/render/src/agent/tools.ts",
     "needle": "name: 'my_renders'",
     "note": "агент видит свои рендеры"
+  },
+  {
+    "pr": 868,
+    "file": ".claude/loop-opus/verify-landed.mjs",
+    "needle": "fileURLToPath",
+    "note": "verify-landed выводит REPO из пути скрипта, не хардкод playom"
   }
 ]
