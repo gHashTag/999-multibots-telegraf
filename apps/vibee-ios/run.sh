@@ -50,6 +50,16 @@ if ! xcodebuild -project Vibee.xcodeproj -target Vibee \
       SYMROOT="$PWD/build2" build > /tmp/vibee-build.log 2>&1; then
   echo "❌ сборка упала:"
   grep -E 'error:' /tmp/vibee-build.log | head -20
+  # Одна ошибка стоит отдельной подсказки: она приходит от actool, говорит
+  # про симуляторные рантаймы и НИКАК не намекает, что дело в иконке.
+  # Появляется, если в project.yml включили «- AppIcon.xcassets», не
+  # установив поддержку платформы.
+  if grep -q 'No simulator runtime version' /tmp/vibee-build.log; then
+    echo ""
+    echo "   Это не про код: actool не может собрать иконку приложения."
+    echo "   Либо установите платформу:  xcodebuild -downloadPlatform iOS"
+    echo "   либо снова закомментируйте «- AppIcon.xcassets» в project.yml."
+  fi
   exit 1
 fi
 
