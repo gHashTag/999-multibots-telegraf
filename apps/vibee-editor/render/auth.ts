@@ -21,6 +21,7 @@
  * знаешь. Сначала сутки в warn и смотрим лог, потом enforce.
  */
 import crypto from 'node:crypto'
+import { verifyAppSession, SessionError } from './session'
 import type { IncomingMessage } from 'node:http'
 
 // Env читается ЛЕНИВО, а не на импорте. На импорте это делало модуль
@@ -229,8 +230,16 @@ export interface AuthResult {
   allowed: boolean
   /** true, если пропущено только из-за режима warn. */
   wouldReject: boolean
-  via: 'public' | 'api-key' | 'telegram' | 'none'
+  via: 'public' | 'api-key' | 'telegram' | 'session' | 'none'
   reason?: string
+  /**
+   * telegram_id, если способ аутентификации его знает.
+   *
+   * Есть только у `session`: ключ сервера безличен, а у подписи личность
+   * достаёт `verifiedTelegramId` отдельно — она разбирает ту же строку и
+   * держать два источника одного значения незачем.
+   */
+  telegramId?: string
 }
 
 export function authenticate(req: IncomingMessage): AuthResult {
@@ -243,6 +252,53 @@ export function authenticate(req: IncomingMessage): AuthResult {
     const b = Buffer.from(expectedKey)
     if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
       return { allowed: true, wouldReject: false, via: 'api-key' }
+    }
+  }
+
+  /**
+   * СЕССИЯ ПРИЛОЖЕНИЯ — третья ветка, а не отдельное пространство маршрутов.
+   *
+   * Нативный клиент не может добыть initData: она существует только внутри
+   * Telegram WebView. Соблазн — завести /api/ios/* со своей проверкой, и это
+   * ровно та вторая дверь, которая в этом файле уже расходилась молча.
+   * Вместо этого ветка встраивается ЗДЕСЬ, и всё, что уже зовёт
+   * chatIdentity, начинает работать для приложения без единой правки.
+   *
+   * Порядок веток намеренный: ключ сервера, потом сессия, потом подпись.
+   * Сессия выше подписи, потому что у нативного клиента её просто нет, а
+   * лишний разбор пустого заголовка на каждом запросе — работа впустую.
+   *
+   * Проверка СИНХРОННАЯ и без обращения к базе (см. session.ts): она идёт на
+   * каждом запросе, и поход в Postgres здесь стоил бы дороже всего
+   * остального вместе взятого.
+   */
+  const bearer = (req.headers['authorization'] as string | undefined) || ''
+  if (bearer.startsWith('Bearer ')) {
+    try {
+      const claims = verifyAppSession(bearer.slice(7).trim())
+      return {
+        allowed: true,
+        wouldReject: false,
+        via: 'session',
+        telegramId: claims.sub,
+      }
+    } catch (e) {
+      /**
+       * Отказ НЕ проваливается в следующую ветку.
+       *
+       * Клиент, приславший Bearer, заявил, чем он аутентифицируется. Если
+       * токен протух или отозван, честный ответ — 401 с причиной, чтобы
+       * клиент обновил токен. Молчаливое падение в проверку подписи дало бы
+       * ему «unauthorized» без объяснения, и он бы не понял, что нужно
+       * именно обновление.
+       */
+      const code = e instanceof SessionError ? e.code : 'malformed'
+      return {
+        allowed: mode() !== 'enforce',
+        wouldReject: true,
+        via: 'none',
+        reason: `session rejected: ${code}`,
+      }
     }
   }
 

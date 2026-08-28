@@ -214,11 +214,13 @@ async function main() {
     const todayPosts = posts.filter(
       x => String(x.created_at || '').slice(0, 10) === today
     )
+    let fixed = false
     if (todayPosts.length > state0.postsToday) {
       log(
         `сверка с лентой: счётчик ${state0.postsToday} < факта ${todayPosts.length} за сегодня — верю ленте`
       )
       state0.postsToday = todayPosts.length
+      fixed = true
     }
     const lastCreated = posts[0]?.created_at
     if (
@@ -227,7 +229,12 @@ async function main() {
         Date.parse(lastCreated) > Date.parse(state0.lastPostAt))
     ) {
       state0.lastPostAt = lastCreated
+      fixed = true
     }
+    // Исправленное значение живёт и в файле: иначе каждый прогон заново
+    // ловит расхождение, а при сбое сети сверка не случится — и заниженный
+    // счётчик пропустит лишний пост.
+    if (fixed) writeState(state0)
   } catch (e) {
     log(`сверка с лентой не удалась (продолжаю по state): ${String(e).slice(0, 80)}`)
   }

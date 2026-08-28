@@ -21,6 +21,7 @@
  *    одной существующей композиции.
  */
 import type { IncomingMessage, ServerResponse } from 'http'
+import { verifyAppSession } from '../../session'
 import { TOOLS_BY_NAME, toMcpTools } from './tools'
 import { runAgent, type ChatMessage } from './chat'
 import { resolveProvider } from './provider'
@@ -211,6 +212,26 @@ export function chatIdentity(
   verified: string | null
 ): string | null {
   if (verified) return verified
+  /**
+   * Сессия приложения — второй источник личности после подписи.
+   *
+   * Порядок важен: подпись мини-аппа доказывает, что человек прямо сейчас в
+   * Telegram, и это сильнее долгоживущего токена. Сессия идёт следом, ключ
+   * агента — последним, потому что он для отладки curl-ом.
+   *
+   * Проверка та же самая, что в `authenticate`: одна функция, один результат.
+   * Две реализации проверки токена разошлись бы ровно так же, как когда-то
+   * разошлись две двери в public_templates.
+   */
+  const bearer = (req.headers['authorization'] as string | undefined) || ''
+  if (bearer.startsWith('Bearer ')) {
+    try {
+      return verifyAppSession(bearer.slice(7).trim()).sub
+    } catch {
+      // Молча вниз: разбираться с причиной — дело authenticate, который
+      // отвечает клиенту. Здесь важно лишь, знаем мы личность или нет.
+    }
+  }
   const key = (req.headers['x-agent-key'] as string | undefined) || ''
   return key ? agentKeyOwner(key) : null
 }
