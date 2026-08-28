@@ -76,6 +76,7 @@ declare -a NAMES=(
   "секрет в переменной"
   "машинная учётка Infisical"
   "ключ xAI"
+  "ключ Fal.ai"
 )
 declare -a PATTERNS=(
   '(^|[^0-9])[0-9]{8,10}:AA[A-Za-z0-9_-]{30,}'
@@ -90,6 +91,11 @@ declare -a PATTERNS=(
   '(SECRET|TOKEN|API_KEY|PASSWORD|SERVICE_KEY|SERVICE_ROLE_KEY|CLIENT_SECRET)[A-Za-z_]*[[:space:]]*[=:][[:space:]]*["'"'"']?[A-Za-z0-9_/+=-]{16,}'
   '(INFISICAL_CLIENT_SECRET|clientSecret)[[:space:]]*[=:][[:space:]]*["'"'"']?[a-f0-9]{64}'
   'xai-[A-Za-z0-9]{40,}'
+  # Ключ Fal.ai: UUID, двоеточие, 32 hex. Гвард этой формы не знал, и
+  # рабочий FAL_KEY пролежал в src/__tests__/ai-reels-fal-integration.test.ts
+  # незамеченным — нашла его сторонняя проверка, не эта. Шаблон проверен на
+  # той самой строке: до правки гвард молчал, после — ловит.
+  '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{32}'
 )
 
 found=0

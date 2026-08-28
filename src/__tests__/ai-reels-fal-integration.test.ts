@@ -6,9 +6,10 @@ describe('AI Reels Fal.ai Integration Tests', () => {
   let falProvider: FalVeedFabricProvider
 
   beforeEach(async () => {
-    // Устанавливаем FAL_KEY для тестов
-    process.env.FAL_KEY =
-      '71230666-ca55-4440-8481-ebaa20c469d1:fbb06be418637f3abb3c61dc85ec45fc'
+    // Здесь лежал РАБОЧИЙ ключ Fal.ai (UUID:hex32), попавший в репозиторий
+    // с ad20784. Тестам он не нужен: ни один из них не ходит в сеть.
+    // Значение-заглушка приходит из scripts/bun-test-env.ts.
+    process.env.FAL_KEY = process.env.FAL_KEY || 'test_fal_key'
 
     falProvider = new FalVeedFabricProvider()
   })
