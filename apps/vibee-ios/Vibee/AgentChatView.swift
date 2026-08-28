@@ -88,10 +88,28 @@ struct AgentChatView: View {
     сообщения.append(.init(свой: false, текст: ""))
     let i = сообщения.count - 1
 
+    guard Identity.known else {
+      /**
+       * Нечем представиться — говорим об этом ВМЕСТО молчания.
+       *
+       * Раньше запрос уходил без личности, сервер отвечал 401, поток
+       * заканчивался пустым, и в чате оставался пустой пузырь. Человек видел
+       * неработающего агента без единого слова о причине.
+       */
+      сообщения[i].текст =
+        "Не могу представиться серверу — он не знает, кто спрашивает, и "
+        + "отвечает отказом.\n\nЗайдите в Профиль и вставьте ключ агента. "
+        + "Вход через Telegram появится следом: серверная половина уже готова."
+      return
+    }
+
     do {
       var r = URLRequest(url: API.base.appendingPathComponent("api/agent/chat"))
       r.httpMethod = "POST"
       r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      // Личность. Без неё сервер отвечает 401, а экран молчал: агент просто
+      // не отвечал, и понять почему было нельзя.
+      for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
       r.httpBody = try JSONSerialization.data(
         withJSONObject: ["messages": [["role": "user", "content": вопрос]]])
 
@@ -124,5 +142,66 @@ struct AgentChatView: View {
 }
 
 struct ProfileView: View {
-  var body: some View { WebScreen(path: "/profile") }
+  @State private var ключ = Identity.agentKey ?? ""
+  @State private var сохранён = false
+
+  var body: some View {
+    VStack(spacing: 0) {
+      /**
+       * Ключ доступа — НАД вебом, а не внутри него.
+       *
+       * Веб-профиль на app.t27.ai живёт своей жизнью и про наш ключ ничего не
+       * знает. Прятать поле внутрь вебвью значило бы просить человека искать
+       * настройку приложения на странице сайта.
+       *
+       * Секция сворачивается, когда ключ уже есть: настройка, которую делают
+       * один раз, не должна занимать экран каждый день.
+       */
+      DisclosureGroup(isExpanded: .constant(!Identity.known)) {
+        VStack(alignment: .leading, spacing: 10) {
+          Text("Ключ привязан к вашему Telegram на стороне сервера и хранится "
+               + "только на этом устройстве, в Keychain.")
+            .font(.caption)
+            .foregroundStyle(.white.opacity(0.55))
+
+          SecureField("ключ агента", text: $ключ)
+            .textFieldStyle(.roundedBorder)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+
+          HStack {
+            Button("Сохранить") {
+              let обрезанный = ключ.trimmingCharacters(in: .whitespacesAndNewlines)
+              Identity.agentKey = обрезанный.isEmpty ? nil : обрезанный
+              сохранён = true
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
+            .disabled(ключ.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            if сохранён {
+              Label("сохранён", systemImage: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(.green)
+            }
+            Spacer()
+          }
+        }
+        .padding(.top, 8)
+      } label: {
+        Label(
+          Identity.known ? "Доступ настроен" : "Нужен ключ доступа",
+          systemImage: Identity.known ? "checkmark.shield" : "exclamationmark.shield"
+        )
+        .font(.subheadline.weight(.medium))
+        .foregroundStyle(Identity.known ? .green : .orange)
+      }
+      .tint(.green)
+      .padding(14)
+      .background(Color.white.opacity(0.05))
+
+      WebScreen(path: "/profile")
+    }
+    .background(Color.black)
+  }
 }
