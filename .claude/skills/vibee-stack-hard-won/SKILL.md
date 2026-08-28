@@ -4337,3 +4337,25 @@ Two companions worth keeping together:
 - a record that is not yours must answer exactly like a record that does not
   exist. Distinguishing them lets someone enumerate ids by watching which
   ones say "forbidden".
+
+## Контракт между языками закрепляют там, где переименование ломает
+
+The iOS client decodes a JSON job and looks for `state === 'done'`. Rename a
+key on the server and NOTHING fails at compile time: Swift's decode returns
+nil at runtime, silently, on the exact path that exists to rescue a paid
+generation. The failure would surface as "the rescue never works", months
+later, with no error anywhere.
+
+So the contract is asserted on the SERVER side, in a test that reads the
+serialised object and checks for the keys and literals the client compares
+against. A rename now breaks a test instead of breaking a person's refund.
+
+Rule: when two languages agree on a wire format, the assertion belongs in
+whichever of them can fail loudly. Not in both, and not in the one that
+merely gets nil.
+
+Companion detail: enum names that cross the boundary get listed explicitly on
+both sides, never derived from rawValue. Here the Swift enum's rawValue is
+Russian and the server's is English, so a silent coincidence was never even
+possible -- but where the two DO coincide, the coincidence is the danger: it
+holds until the first rename and then fails with no error.
