@@ -3,7 +3,13 @@
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
 import * as dns from 'node:dns'
 import { handleAuthRoute } from './session-routes'
-import { startJob, getJob, listJobs, recordInto } from './generate-jobs'
+import {
+  startJob,
+  recordInto,
+  attachStore,
+  getJobDurable,
+  listJobsDurable,
+} from './generate-jobs'
 import { handleProjectRoute } from './project-routes'
 ;(dns as any).setDefaultResultOrder?.('ipv4first')
 
@@ -1593,6 +1599,20 @@ interface WebhookPayload {
 }
 
 const renderJobs = new Map<string, RenderJob>()
+
+/**
+ * One attempt at wiring the durable job store, not one per request.
+ *
+ * Repeating getPool() on every request would repeat its synchronous throw on
+ * every request too, turning a missing DATABASE_URL from a quiet degradation
+ * into a per-request cost.
+ */
+let storeAttached = false
+function attachStoreOnce(): void {
+  if (storeAttached) return
+  storeAttached = true
+  attachStore(getPool() as never)
+}
 
 /** Кэш RSS-блога t27.ai для GET /api/blog (см. обработчик ниже). */
 let blogCache: { at: number; data: unknown } | null = null
@@ -4956,10 +4976,25 @@ const server = createServer(async (req, res) => {
    * cannot be forgotten by the next caller.
    */
   if (req.url?.startsWith('/api/generate/jobs') && req.method === 'GET') {
+    /**
+     * Attach the store lazily, and inside a try.
+     *
+     * `getPool()` throws SYNCHRONOUSLY when DATABASE_URL is unset. Outside a
+     * try that escapes an async handler and Node kills the process -- a
+     * one-request denial of service, already paid for once in this file's
+     * history. A server with no database keeps working memory-only, which is
+     * exactly what it did before this table existed.
+     */
+    try {
+      attachStoreOnce()
+    } catch {
+      // Memory-only. The generation itself never depended on this.
+    }
+
     const id = req.url.split('?')[0].replace('/api/generate/jobs', '').replace(/^\//, '')
     const who = verifiedTelegramId(req) ?? ''
     if (id) {
-      const job = getJob(id)
+      const job = await getJobDurable(id)
       // A job that is not yours answers exactly like a job that does not
       // exist. Distinguishing them would let someone enumerate other people's
       // ids by watching which ones say "forbidden".
@@ -4973,7 +5008,7 @@ const server = createServer(async (req, res) => {
       return
     }
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ jobs: listJobs(who) }))
+    res.end(JSON.stringify({ jobs: await listJobsDurable(who) }))
     return
   }
 
