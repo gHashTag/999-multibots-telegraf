@@ -171,6 +171,16 @@ cmd_who() {
 # ─────────────────────────────────────────────────────────────────────────
 cmd_in_tsc() {
   local target="${1:?нужен путь к файлу}"
+
+  # ТРЕТИЙ ИСХОД. Раньше несуществующему файлу эта команда отвечала «НЕ в
+  # программе» — то есть выдавала отсутствие данных за отрицательный ответ.
+  # Тот же изъян, что у ворот, принявших пропавший node_modules за красные
+  # тесты, и у проверки живости, совпавшей на подстроке.
+  if [ ! -f "$target" ]; then
+    warn "файла $target нет — померить нечего"
+    paint '33' '       Это НЕ «не в программе»: данных просто не получено.'
+    return 3
+  fi
   local conf="${2:-}"
   local base; base="$(basename "$target")"
   local here; here="$(cd "$(dirname "$target")" && pwd)"
@@ -187,9 +197,17 @@ cmd_in_tsc() {
 
   printf '  конфиг: %s\n' "$conf"
   local hits
-  hits=$(cd "$(dirname "$conf")" \
-    && npx tsc -p "$conf" --noEmit --pretty false --listFiles 2>/dev/null \
-    | grep -c "/$base$")
+  # Считаем ВЕСЬ вывод, а не только совпадения: пустой список файлов означает,
+  # что tsc не отработал вовсе, и тогда ноль совпадений ничего не доказывает.
+  local listing
+  listing=$(cd "$(dirname "$conf")" \
+    && npx tsc -p "$conf" --noEmit --pretty false --listFiles 2>/dev/null)
+  if [ -z "$listing" ]; then
+    warn 'tsc не выдал списка файлов — померить не удалось'
+    paint '33' '       Проверьте, что зависимости на месте и конфиг читается.'
+    return 3
+  fi
+  hits=$(printf '%s' "$listing" | grep -c "/$base$")
 
   if [ "${hits:-0}" -gt 0 ]; then
     good "$base В программе — ноль ошибок здесь что-то значит"
