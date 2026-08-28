@@ -5,7 +5,8 @@
 // ===============================
 
 import { API_BASE } from '../config'
-import { getInitData } from './telegram'
+import { getInitData, isTelegram } from './telegram'
+import { isAdmin } from '../config/admin'
 
 // Use Vibee MCP for AI generations (not render server)
 const API_URL = API_BASE
@@ -25,6 +26,11 @@ const API_URL = API_BASE
 const realFetch = globalThis.fetch.bind(globalThis)
 export function isMockMode(): boolean {
   try {
+    // Только для АДМИНОВ: в проде Telegram платящий юзер не должен попасть в
+    // mock (иначе получит фейковый результат вместо реальной генерации). В
+    // обычном браузере (не Telegram) — это разработка, там платящих нет, mock
+    // разрешён любому. Итог: блокируем mock только для НЕ-админа в Telegram.
+    if (isTelegram() && !isAdmin()) return false
     const p = new URLSearchParams(window.location.search)
     if (p.get('mock') === '1') localStorage.setItem('vibee_mock', '1')
     if (p.get('mock') === '0') localStorage.removeItem('vibee_mock')
