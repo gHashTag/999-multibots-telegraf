@@ -13,10 +13,32 @@ targets:
         CFBundleDisplayName: Trinity S³AI
         UILaunchScreen: {}
         NSAppTransportSecurity: { NSAllowsArbitraryLoads: true }
+        # Версии — ССЫЛКАМИ на настройки сборки, а не числами.
+        #
+        # Info.plist ГЕНЕРИРУЕТСЯ из этого файла: `xcodegen generate`
+        # перезаписывает Vibee/Info.plist целиком. Проверено — вписанный
+        # руками CFBundleVersion 42 после генерации снова стал 1.
+        #
+        # Из-за этого числа в plist ломали выкладку молча. `fastlane bump`
+        # не находил CURRENT_PROJECT_VERSION («There does not seem to be a
+        # CURRENT_PROJECT_VERSION key set for this project»), откатывался на
+        # agvtool, и тот правил ОТСЛЕЖИВАЕМЫЙ git-файл Vibee/Info.plist —
+        # который следующая генерация обнуляла. Номер сборки не менялся, и
+        # вторая выкладка падала бы на «build already exists» в самом конце,
+        # уже после сборки и загрузки.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: ai.t27.vibee
       GENERATE_INFOPLIST_FILE: NO
       TARGETED_DEVICE_FAMILY: 1
+      # Версия для человека: её видно в TestFlight и в App Store. Меняется
+      # руками, когда меняется продукт.
+      MARKETING_VERSION: "1.0"
+      # Номер сборки: уникален внутри версии. Значение здесь — только
+      # отправная точка; перед выкладкой `fastlane bump` спрашивает у Apple
+      # последний занятый номер и ставит следующий.
+      CURRENT_PROJECT_VERSION: "1"
       # Симулятор нужен явно. На этой машине стоит Xcode с SDK iOS 26.5, а
       # из рантаймов установлен только 18.4 — и без этой строки xcodebuild
       # предлагал ТОЛЬКО устройства, каждое с «iOS 26.5 is not installed».

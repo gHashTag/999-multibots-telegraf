@@ -1,13 +1,17 @@
 # Сборка и выкладка в TestFlight.
 #
-#   fastlane beta          собрать и отправить в TestFlight
+#   fastlane preflight     проверить готовность, ничего не собирая (2 секунды)
+#   fastlane bump          показать, какой номер сборки будет следующим
 #   fastlane build_only    только собрать .ipa, без отправки
-#   fastlane bump          поднять номер сборки
+#   fastlane beta          собрать и отправить в TestFlight — СПРОСИТ ПОДТВЕРЖДЕНИЕ
 #
 # ЧЕГО ЗДЕСЬ НЕТ. Ни одного пароля, ключа или сертификата. Аутентификация
 # идёт ключом App Store Connect API, который лежит ВНЕ репозитория и
 # передаётся тремя переменными окружения (см. README). Ключ .p8 нельзя
 # скачать повторно — потерял значит выпускай новый.
+
+require "shellwords"
+require "tmpdir"
 
 default_platform(:ios)
 
@@ -16,10 +20,20 @@ default_platform(:ios)
 # found», и причина будет неочевидна.
 XCODEPROJ = "Vibee.xcodeproj"
 SCHEME    = "Vibee"
+ICON_SET  = "Vibee/Assets.xcassets/AppIcon.appiconset"
 
 platform :ios do
   before_all do
-    Dir.chdir("..") { sh("xcodegen generate") } unless File.exist?("../#{XCODEPROJ}")
+    # Генерируем ВСЕГДА, а не только когда файла нет.
+    #
+    # Раньше стояло `unless File.exist?`. Но .xcodeproj остаётся на диске от
+    # прошлых запусков, и после правки project.yml сборка молча шла по
+    # СТАРЫМ настройкам: правка версии или подписи просто не доезжала до
+    # сборки, а лог при этом был зелёный.
+    Dir.chdir("..") do
+      UI.user_error!("Нет xcodegen. Установите: brew install xcodegen") if `which xcodegen`.empty?
+      sh("xcodegen generate")
+    end
   end
 
   desc "Ключ App Store Connect API из окружения"
@@ -41,23 +55,132 @@ platform :ios do
     )
   end
 
-  desc "Поднять номер сборки до следующего свободного в TestFlight"
-  lane :bump do
-    key = api_key
-    # Номер берём У APPLE, а не из локального файла: локальный счётчик
-    # разъезжается, как только сборку сделали с другой машины или из CI, и
-    # выкладка падает на «build already exists» уже после долгой сборки.
+  desc "Проверить готовность к выкладке, ничего не собирая"
+  lane :preflight do
+    # Всё, что здесь проверяется, Apple проверяет тоже — но ПОСЛЕ того, как
+    # мы потратили десять минут на сборку и загрузку. Дешевле упасть сразу.
+    проблемы = []
+
+    Dir.chdir("..") do
+      # Иконка. Без неё App Store Connect отвергает загрузку целиком
+      # (ITMS-90022 «Missing required icon»), и узнать об этом можно только
+      # письмом через несколько минут после отправки.
+      icons = File.directory?(ICON_SET) ? Dir.glob("#{ICON_SET}/*.png") : []
+      if icons.empty?
+        проблемы << "Нет иконки приложения: #{ICON_SET} отсутствует или пуст.\n" \
+                "     Нужен исходник от владельца — квадратный PNG 1024x1024 без\n" \
+                "     прозрачности и без скруглений (систему скруглит сама)."
+      else
+        # Наличия файла НЕ ДОСТАТОЧНО, и это выяснилось проверкой: подложенный
+        # PNG 8x8 с прозрачностью проходил проверку на «иконка есть», а Apple
+        # отвергает и не тот размер, и альфа-канал (ITMS-90717) — то есть
+        # проверка пропускала ровно те два случая, ради которых нужна.
+        icons.each do |png|
+          свойства = `sips -g pixelWidth -g pixelHeight -g hasAlpha #{png.shellescape} 2>/dev/null`
+          ширина = свойства[/pixelWidth: (\d+)/, 1].to_i
+          высота = свойства[/pixelHeight: (\d+)/, 1].to_i
+          if ширина != 1024 || высота != 1024
+            проблемы << "Иконка #{File.basename(png)} — #{ширина}x#{высота}, а нужен 1024x1024."
+          end
+          if свойства.include?("hasAlpha: yes")
+            проблемы << "У иконки #{File.basename(png)} есть альфа-канал.\n" \
+                        "     App Store отвергает прозрачность в иконке (ITMS-90717).\n" \
+                        "     Убрать: sips -s format png --deleteColorManagementProperties …\n" \
+                        "     или пересохранить поверх непрозрачного фона."
+          end
+        end
+
+        # А теперь — соберётся ли каталог ресурсов ВООБЩЕ на этой машине.
+        #
+        # Проверка не праздная. Пока иконки не было, каталог был пуст и
+        # собирался; стоило положить настоящий PNG — и упали ОБЕ сборки, и
+        # симуляторная, и устройственная, на actool. Причина не в проекте:
+        # тот же actool падает так же, запущенный руками вне xcodebuild.
+        # Xcode 26.6 несёт SDK 26.5, а из симуляторных рантаймов установлен
+        # только 18.4, и actool отказывается работать с любым каталогом.
+        # Без этой проверки человек добавил бы иконку и решил, что сломал
+        # её именно он.
+        actool = File.join(`xcode-select -p`.strip, "usr/bin/actool")
+        куда = Dir.mktmpdir
+        команда = [
+          actool.shellescape,
+          File.dirname(ICON_SET).shellescape,
+          "--compile", куда.shellescape,
+          "--platform iphoneos --minimum-deployment-target 17.0 --target-device iphone",
+          "--app-icon AppIcon --output-format human-readable-text",
+          "--output-partial-info-plist", File.join(куда, "p.plist").shellescape,
+          "2>&1"
+        ].join(" ")
+        вывод = `#{команда}`
+        if вывод.include?("No simulator runtime version")
+          проблемы << "actool не собирает каталог ресурсов на этой машине:\n" \
+                      "     «#{вывод[/No simulator runtime version[^\n]*/]}»\n" \
+                      "     Установленный симуляторный рантайм старше SDK. Лечится\n" \
+                      "     докачкой рантайма, а не правкой проекта:\n" \
+                      "       xcodebuild -downloadPlatform iOS\n" \
+                      "     (несколько гигабайт; можно и через Xcode → Settings → Components)"
+        end
+      end
+
+      # Сертификат распространения. `export_method: app-store` подписывает
+      # НЕ тем сертификатом, что обычная локальная сборка: Apple Development
+      # годится для запуска на своём устройстве и не годится для выкладки.
+      unless ENV["VIBEE_SKIP_CERT_CHECK"] == "yes"
+        identities = `security find-identity -v -p codesigning 2>/dev/null`
+        unless identities.include?("Apple Distribution")
+          проблемы << "В связке ключей нет сертификата «Apple Distribution» —\n" \
+                  "     с ним подписывается .ipa для App Store Connect.\n" \
+                  "     Выпускается в учётной записи Apple Developer (роль Admin\n" \
+                  "     или Account Holder), поэтому его заводит владелец.\n" \
+                  "     Если сертификат лежит в другой связке: VIBEE_SKIP_CERT_CHECK=yes"
+        end
+      end
+
+      # Версии. Если их нет в настройках сборки, номер сборки не поменяется
+      # между выкладками, и вторая упадёт на «build already exists».
+      settings = `xcodebuild -project #{XCODEPROJ} -target #{SCHEME} -showBuildSettings 2>/dev/null`
+      %w[MARKETING_VERSION CURRENT_PROJECT_VERSION].each do |key|
+        проблемы << "В настройках сборки нет #{key} — добавьте в project.yml" unless settings.include?(key)
+      end
+    end
+
+    if проблемы.any?
+      UI.user_error!("К выкладке не готово:\n\n" + проблемы.map { |m| "  ✗ #{m}" }.join("\n\n"))
+    end
+    UI.success("Готово к выкладке: иконка, сертификат распространения и версии на месте.")
+  end
+
+  desc "Следующий свободный номер сборки — у Apple, не из локального файла"
+  private_lane :next_build_number do
     latest = latest_testflight_build_number(
-      api_key: key,
+      api_key: api_key,
       app_identifier: ENV["VIBEE_BUNDLE_ID"] || "ai.t27.vibee",
       initial_build_number: 0
     )
-    increment_build_number(xcodeproj: XCODEPROJ, build_number: latest + 1)
-    UI.success("Номер сборки: #{latest + 1}")
+    latest + 1
+  end
+
+  desc "Показать, какой номер сборки будет следующим"
+  lane :bump do
+    UI.success("Следующий номер сборки: #{next_build_number}")
+    # ЭТА КОМАНДА НИЧЕГО НЕ ЗАПИСЫВАЕТ, и это не упущение.
+    #
+    # Здесь стоял `increment_build_number`. Проверено запуском: он зовёт
+    # `agvtool new-version -all`, а тот правит Vibee/Info.plist — файл
+    # ГЕНЕРИРУЕМЫЙ (его пишет xcodegen из project.yml) и при этом
+    # отслеживаемый git. Получалось два поражения сразу: рабочее дерево
+    # пачкалось при каждой выкладке, а следующий `xcodegen generate`
+    # затирал номер обратно. Проверено: вписанный agvtool'ом 7 после
+    # генерации снова становился 1.
+    #
+    # Поэтому номер теперь не хранится в файлах вообще: `beta` берёт его у
+    # Apple и передаёт сборке как CURRENT_PROJECT_VERSION через xcargs.
   end
 
   desc "Собрать .ipa без отправки"
-  lane :build_only do
+  lane :build_only do |options|
+    # Номер сборки — параметром компилятору, а не правкой файлов на диске.
+    xcargs = options[:build_number] ? "CURRENT_PROJECT_VERSION=#{options[:build_number]}" : nil
     gym(
       project: XCODEPROJ,
       scheme: SCHEME,
@@ -65,6 +188,7 @@ platform :ios do
       export_method: "app-store",
       clean: true,
       output_directory: "build/ipa",
+      xcargs: xcargs,
       # Логи gym по умолчанию тонут в шуме xcodebuild; при падении важна
       # именно последняя ошибка, а не вся простыня.
       buildlog_path: "build/logs"
@@ -73,9 +197,40 @@ platform :ios do
 
   desc "Собрать и отправить в TestFlight"
   lane :beta do
+    # ПОДТВЕРЖДЕНИЕ ПЕРЕД ОТПРАВКОЙ.
+    #
+    # Отправка необратима в том смысле, который важен: сборка уходит на
+    # серверы Apple под учётной записью владельца, попадает в TestFlight и
+    # рассылается тестировщикам. Отозвать её нельзя — можно только выпустить
+    # следующую. Номер сборки при этом сгорает навсегда: повторно занять
+    # его уже не выйдет.
+    #
+    # Поэтому `beta` не отправляет молча даже тогда, когда все ключи на
+    # месте: ключи в окружении означают «право отправить», а не «намерение
+    # отправить сейчас». Одна опечатка в имени команды не должна стоить
+    # выкладки.
+    unless ENV["VIBEE_TESTFLIGHT_CONFIRM"] == "yes"
+      unless UI.interactive?
+        UI.user_error!(
+          "Отправка в TestFlight не подтверждена.\n" \
+          "Терминал неинтерактивный (CI), спросить некого — поэтому нужно\n" \
+          "заявить намерение явно:\n\n" \
+          "  VIBEE_TESTFLIGHT_CONFIRM=yes fastlane beta\n\n" \
+          "Только собрать, ничего не отправляя: fastlane build_only"
+        )
+      end
+      UI.important("Сейчас сборка уйдёт в TestFlight под учётной записью владельца.")
+      UI.important("Отозвать отправленную сборку нельзя; номер сборки сгорает.")
+      unless UI.confirm("Отправлять?")
+        UI.user_error!("Отменено. Собрать без отправки: fastlane build_only")
+      end
+    end
+
+    preflight
     key = api_key
-    bump
-    build_only
+    number = next_build_number
+    UI.message("Номер сборки: #{number}")
+    build_only(build_number: number)
     upload_to_testflight(
       api_key: key,
       # Ждать обработки НЕ будем: Apple обрабатывает сборку от минут до часа,
