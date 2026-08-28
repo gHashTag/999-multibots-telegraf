@@ -400,6 +400,9 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   // Six buttons reach startMorphingGeneration and the charge happens inside it,
   // so without this a fast double-tap charged twice and started two jobs.
   morphingGenerationInProgress?: boolean
+  // In-flight guard for the AI Cover confirm button: a double-tap otherwise
+  // charged twice and generated two covers (same shape as morphing above).
+  aiCoverGenerationInProgress?: boolean
 
   // Text-to-video direct generation fields
   videoJobId?: string // ID задачи генерации видео для отслеживания статуса
