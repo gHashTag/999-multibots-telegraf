@@ -92,9 +92,9 @@ export async function promptForCompetitorUsername(
   logger.info('[promptForCompetitorUsername] Called', {
     userId: ctx.from?.id,
     isRu,
-    sessionBefore: ctx.session
+    sessionBefore: ctx.session,
   })
-  
+
   const message = isRu
     ? `🔍 Мониторинг конкурентов Instagram
 
@@ -117,27 +117,31 @@ export async function promptForCompetitorUsername(
 
   // Сохраняем состояние "ожидания ввода конкурента" в сессии
   if (!ctx.session.competitorMonitoring) {
-    logger.info('[promptForCompetitorUsername] Creating competitorMonitoring object in session')
+    logger.info(
+      '[promptForCompetitorUsername] Creating competitorMonitoring object in session'
+    )
     ctx.session.competitorMonitoring = {}
   }
   ctx.session.competitorMonitoring.waitingForUsername = true
-  
+
   logger.info('[promptForCompetitorUsername] Set waitingForUsername = true', {
-    sessionAfter: ctx.session
+    sessionAfter: ctx.session,
   })
 
   try {
     await ctx.reply(message)
     logger.info('[promptForCompetitorUsername] Message sent successfully')
-    
+
     // Выходим из текущей сцены, чтобы обработчик текста мог работать правильно
     if (ctx.scene && ctx.scene.current) {
-      logger.info('[promptForCompetitorUsername] Leaving current scene to enable text input handling')
+      logger.info(
+        '[promptForCompetitorUsername] Leaving current scene to enable text input handling'
+      )
       await ctx.scene.leave()
     }
   } catch (error) {
     logger.error('[promptForCompetitorUsername] Failed to send message', {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
     throw error
   }

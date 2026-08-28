@@ -3,6 +3,8 @@ import { PINATA_JWT, PINATA_GATEWAY } from '@/config'
 
 export const pinata = {
   upload: {
-    file: () => { throw new Error('Pinata temporarily disabled') }
-  }
+    file: () => {
+      throw new Error('Pinata temporarily disabled')
+    },
+  },
 } // Заглушка

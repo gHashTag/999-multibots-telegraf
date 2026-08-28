@@ -23,7 +23,9 @@ export async function getUserByTelegramIdString(telegram_id: TelegramId) {
 
     // 🚨 BEST PRACTICE: Handle duplicates gracefully
     if (users.length > 1) {
-      console.warn(`DUPLICATE WARNING: Found ${users.length} users for telegram_id ${telegram_id}. Using most recent.`)
+      console.warn(
+        `DUPLICATE WARNING: Found ${users.length} users for telegram_id ${telegram_id}. Using most recent.`
+      )
     }
 
     return users[0] // Most recent user

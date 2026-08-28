@@ -23,7 +23,8 @@ import fs from 'fs'
 const directPaymentProcessor = vi.fn()
 
 vi.mock('@/core/supabase/directPayment', () => ({
-  directPaymentProcessor: (...args: unknown[]) => directPaymentProcessor(...args),
+  directPaymentProcessor: (...args: unknown[]) =>
+    directPaymentProcessor(...args),
 }))
 
 import {
@@ -58,8 +59,12 @@ describe('награда за приглашение', () => {
     // Главная защита от двойной выплаты: база не примет вторую строку с тем
     // же номером счёта. Если номер станет случайным, защита исчезнет молча.
     expect(referralInvoiceId('111', '222')).toBe(referralInvoiceId(111, 222))
-    expect(referralInvoiceId('111', '222')).not.toBe(referralInvoiceId('111', '333'))
-    expect(referralInvoiceId('111', '222')).not.toBe(referralInvoiceId('333', '222'))
+    expect(referralInvoiceId('111', '222')).not.toBe(
+      referralInvoiceId('111', '333')
+    )
+    expect(referralInvoiceId('111', '222')).not.toBe(
+      referralInvoiceId('333', '222')
+    )
   })
 
   it('номер счёта не содержит времени и случайности', () => {
@@ -87,11 +92,16 @@ describe('текст сцены приглашения обещает тольк
   it('обещание звёзд стоит под условием включённой награды', () => {
     // Безусловное обещание — это то, с чего всё началось.
     expect(scene).toMatch(/REFERRAL_BONUS_STARS/)
-    expect(scene).toMatch(/bonus > 0 \?/)
+    // \s* вместо пробела: prettier переносит длинный тернарник, и
+    // `bonus > 0 ?` становится `bonus > 0\n  ? …`. Проверяется условие,
+    // а не то, как форматтер расставил переводы строк.
+    expect(scene).toMatch(/bonus > 0\s*\?/)
   })
 
   it('не обещает уровней и эксклюзивных функций', () => {
     // Ни того, ни другого не существует: level равен нулю у 2351 из 2354.
-    expect(scene).not.toMatch(/Повышение уровня|Level up|эксклюзивным функциям|exclusive features/i)
+    expect(scene).not.toMatch(
+      /Повышение уровня|Level up|эксклюзивным функциям|exclusive features/i
+    )
   })
 })

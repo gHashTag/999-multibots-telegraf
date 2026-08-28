@@ -34,10 +34,10 @@ export function sanitizePath(path: string): string {
   }
 
   // Удаляем ../ и абсолютные пути
-  let sanitized = path
+  const sanitized = path
     .replace(/\.\./g, '') // Убираем ../
-    .replace(/^\/+/, '')  // Убираем начальные слеши
-    .replace(/\/+/g, '/')  // Нормализуем множественные слеши
+    .replace(/^\/+/, '') // Убираем начальные слеши
+    .replace(/\/+/g, '/') // Нормализуем множественные слеши
 
   // Проверяем что не осталось опасных последовательностей
   if (sanitized.includes('..') || sanitized.startsWith('/')) {
@@ -51,7 +51,10 @@ export function sanitizePath(path: string): string {
  * Sanitize URL для защиты от SSRF
  * Проверяет что URL использует безопасный протокол
  */
-export function sanitizeUrl(url: string, allowedProtocols: string[] = ['http', 'https']): string {
+export function sanitizeUrl(
+  url: string,
+  allowedProtocols: string[] = ['http', 'https']
+): string {
   if (!url) {
     throw new Error('URL cannot be empty')
   }
@@ -62,7 +65,9 @@ export function sanitizeUrl(url: string, allowedProtocols: string[] = ['http', '
     // Проверяем протокол
     const protocol = parsed.protocol.replace(':', '')
     if (!allowedProtocols.includes(protocol)) {
-      throw new Error(`Protocol ${protocol} not allowed. Allowed: ${allowedProtocols.join(', ')}`)
+      throw new Error(
+        `Protocol ${protocol} not allowed. Allowed: ${allowedProtocols.join(', ')}`
+      )
     }
 
     // Защита от localhost/private IPs в production
@@ -102,16 +107,16 @@ export function sanitizeShellArg(arg: string): string {
 
   // Экранируем опасные символы
   return arg
-    .replace(/\\/g, '\\\\')  // Backslash
-    .replace(/"/g, '\\"')    // Quotes
-    .replace(/\$/g, '\\$')   // Dollar
-    .replace(/`/g, '\\`')    // Backtick
-    .replace(/!/g, '\\!')    // Exclamation
-    .replace(/\|/g, '\\|')   // Pipe
-    .replace(/&/g, '\\&')    // Ampersand
-    .replace(/;/g, '\\;')    // Semicolon
-    .replace(/</g, '\\<')    // Less than
-    .replace(/>/g, '\\>')    // Greater than
+    .replace(/\\/g, '\\\\') // Backslash
+    .replace(/"/g, '\\"') // Quotes
+    .replace(/\$/g, '\\$') // Dollar
+    .replace(/`/g, '\\`') // Backtick
+    .replace(/!/g, '\\!') // Exclamation
+    .replace(/\|/g, '\\|') // Pipe
+    .replace(/&/g, '\\&') // Ampersand
+    .replace(/;/g, '\\;') // Semicolon
+    .replace(/</g, '\\<') // Less than
+    .replace(/>/g, '\\>') // Greater than
 }
 
 /**

@@ -14,7 +14,8 @@ console.log('🔐 ENV Check:', {
 })
 
 const TELEGRAM_ID = '144022504'
-const BOT_TOKEN = process.env.BOT_TOKEN_NEURO_BLOGGER || process.env.MAIN_BOT_TOKEN
+const BOT_TOKEN =
+  process.env.BOT_TOKEN_NEURO_BLOGGER || process.env.MAIN_BOT_TOKEN
 
 interface TestResult {
   functionName: string
@@ -103,8 +104,9 @@ async function runTests() {
 
   await sendTelegramMessage(
     '🚀 <b>E2E Тестирование началось!</b>\n\n' +
-    '📊 Всего функций: 25\n' +
-    '⏱️ ' + new Date().toLocaleString('ru-RU')
+      '📊 Всего функций: 25\n' +
+      '⏱️ ' +
+      new Date().toLocaleString('ru-RU')
   )
 
   const results: TestResult[] = []
@@ -114,12 +116,20 @@ async function runTests() {
     ['Test Simple', 'test/simple', { message: 'E2E Test' }],
     ['Test Message', 'test/simple.message', { message: 'E2E Test' }],
     ['Test Loop', 'test/advanced.loop', { iterations: 2 }],
-    ['Analyze Reels', 'instagram/analyze-competitor-reels', { competitors: ['test'] }],
+    [
+      'Analyze Reels',
+      'instagram/analyze-competitor-reels',
+      { competitors: ['test'] },
+    ],
     ['Extract Content', 'instagram/extract-top-content', { username: 'test' }],
     ['Find Competitors', 'instagram/find-competitors', { niche: 'tech' }],
     ['Generate Scripts', 'content/generate-scripts', { topic: 'AI' }],
     ['Detailed Script', 'content/generate-detailed-script', { topic: 'Tech' }],
-    ['Scenario Clips', 'content/generate-scenario-clips', { scenario: 'Review' }],
+    [
+      'Scenario Clips',
+      'content/generate-scenario-clips',
+      { scenario: 'Review' },
+    ],
     ['Scraper V2', 'instagram/scraper-v2', { username: 'test' }],
     ['Reels Test', 'instagram/reels-test', {}],
     ['Error Monitor', 'monitoring/critical-error', { error: 'Test' }],
@@ -136,19 +146,39 @@ async function runTests() {
 
   for (const [name, event, data] of tests) {
     results.push(await testFunction(name as string, event as string, data))
-    await new Promise((resolve) => setTimeout(resolve, 100)) // Small delay
+    await new Promise(resolve => setTimeout(resolve, 100)) // Small delay
   }
 
   // Add skipped functions
-  results.push({ functionName: 'Model Training V2', status: 'skipped', error: 'Requires ZIP', duration: 0 })
-  results.push({ functionName: 'Morph Images', status: 'skipped', error: 'Requires images', duration: 0 })
-  results.push({ functionName: 'Payment', status: 'skipped', error: 'Requires payment', duration: 0 })
-  results.push({ functionName: 'Model Training', status: 'skipped', error: 'Duplicate', duration: 0 })
+  results.push({
+    functionName: 'Model Training V2',
+    status: 'skipped',
+    error: 'Requires ZIP',
+    duration: 0,
+  })
+  results.push({
+    functionName: 'Morph Images',
+    status: 'skipped',
+    error: 'Requires images',
+    duration: 0,
+  })
+  results.push({
+    functionName: 'Payment',
+    status: 'skipped',
+    error: 'Requires payment',
+    duration: 0,
+  })
+  results.push({
+    functionName: 'Model Training',
+    status: 'skipped',
+    error: 'Duplicate',
+    duration: 0,
+  })
 
   // Calculate stats
-  const success = results.filter((r) => r.status === 'success').length
-  const errors = results.filter((r) => r.status === 'error').length
-  const skipped = results.filter((r) => r.status === 'skipped').length
+  const success = results.filter(r => r.status === 'success').length
+  const errors = results.filter(r => r.status === 'error').length
+  const skipped = results.filter(r => r.status === 'skipped').length
   const total = results.reduce((sum, r) => sum + r.duration, 0)
 
   // Report
@@ -161,7 +191,8 @@ async function runTests() {
   report += '<b>Результаты:</b>\n'
 
   results.forEach((r, i) => {
-    const emoji = r.status === 'success' ? '✅' : r.status === 'error' ? '❌' : '⏭️'
+    const emoji =
+      r.status === 'success' ? '✅' : r.status === 'error' ? '❌' : '⏭️'
     report += `${i + 1}. ${emoji} ${r.functionName}\n`
   })
 
@@ -175,7 +206,7 @@ async function runTests() {
   console.log('='.repeat(60))
 
   console.table(
-    results.map((r) => ({
+    results.map(r => ({
       Function: r.functionName,
       Status: r.status.toUpperCase(),
       EventID: r.eventId || r.error || 'N/A',
@@ -186,7 +217,7 @@ async function runTests() {
   process.exit(errors > 0 ? 1 : 0)
 }
 
-runTests().catch((error) => {
+runTests().catch(error => {
   console.error('Fatal error:', error)
   process.exit(1)
 })

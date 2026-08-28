@@ -403,9 +403,9 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
             ? `${process.env.API_SERVER_URL}/api/video-callback`
             : process.env.BASE_WEBHOOK_URL
               ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback`
-              // Ни одной переменной нет — лучше без коллбэка, чем на мёртвый
-              // three-head-dragon.shop (188.137.250.69, HTTP 000).
-              : undefined
+              : // Ни одной переменной нет — лучше без коллбэка, чем на мёртвый
+                // three-head-dragon.shop (188.137.250.69, HTTP 000).
+                undefined
 
       logger.info('🔗 [KIE PROVIDER] Callback URL определен', {
         callback_url: callbackUrl,
@@ -690,7 +690,8 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
       // ✅ КРИТИЧЕСКОЕ ЛОГИРОВАНИЕ: Детали ошибки API запроса
       const errorStatus = (error as any).response?.status
       const errorData = (error as any).response?.data
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error'
       const isAxiosError = (error as any).isAxiosError === true
       const isTimeout = errorMessage.includes('timeout')
       const isNetworkError = errorMessage.includes('Network Error')
@@ -717,14 +718,16 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         data: errorData,
         isTimeout,
         isNetworkError,
-        fullError: isAxiosError ? {
-          message: errorMessage,
-          code: (error as any).code,
-          response: {
-            status: errorStatus,
-            data: errorData,
-          }
-        } : errorMessage,
+        fullError: isAxiosError
+          ? {
+              message: errorMessage,
+              code: (error as any).code,
+              response: {
+                status: errorStatus,
+                data: errorData,
+              },
+            }
+          : errorMessage,
       })
 
       return {

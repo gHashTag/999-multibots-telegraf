@@ -75,12 +75,16 @@ function creditingFiles(): string[] {
  * Запись без причины хуже отсутствия записи: она выглядит как разрешение.
  */
 const CREDITING_SITES: Record<string, string> = {
-  'src/api_server/routes/robokassa.routes.ts': 'оплата картой, подтверждение от Robokassa',
+  'src/api_server/routes/robokassa.routes.ts':
+    'оплата картой, подтверждение от Robokassa',
   'src/api_server/routes/x402.routes.ts':
     'оплата по протоколу x402 — маршрут НЕ подключён в api_server/index.ts',
-  'src/commands/adminSubscriptionCommand.ts': 'выдача подписки владельцем вручную',
-  'src/core/supabase/createSuccessfulPayment.ts': 'общая запись состоявшейся оплаты',
-  'src/core/supabase/directPayment.ts': 'прямая запись платежа без внешней системы',
+  'src/commands/adminSubscriptionCommand.ts':
+    'выдача подписки владельцем вручную',
+  'src/core/supabase/createSuccessfulPayment.ts':
+    'общая запись состоявшейся оплаты',
+  'src/core/supabase/directPayment.ts':
+    'прямая запись платежа без внешней системы',
   'src/core/supabase/updateUserBalance.ts': 'списания и начисления из кода',
   'src/handlers/paymentHandlers/index.ts': 'оплата звёздами Telegram',
   'src/scenes/tonNativePaymentScene/index.ts': 'оплата монетой TON',
@@ -109,7 +113,9 @@ describe('карта денег: типы операций', () => {
   it('ровно один тип списывает — остальные прибавляют', () => {
     // Свойство не кода, а формулы баланса. Держим его на виду: если типов,
     // трактуемых как расход, станет два, формулу в базе тоже надо менять.
-    expect(paymentTypes().filter(t => /OUTCOME/.test(t))).toEqual(['MONEY_OUTCOME'])
+    expect(paymentTypes().filter(t => /OUTCOME/.test(t))).toEqual([
+      'MONEY_OUTCOME',
+    ])
   })
 })
 

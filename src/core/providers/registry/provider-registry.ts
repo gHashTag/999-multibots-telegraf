@@ -5,7 +5,10 @@
 
 import * as t from 'io-ts'
 import { Provider } from '../adapters/types'
-import { ProviderConfig, ProviderName } from '../../../core/functional/types/media.types'
+import {
+  ProviderConfig,
+  ProviderName,
+} from '../../../core/functional/types/media.types'
 import createKieAiProvider from '../adapters/kie-ai.adapter'
 import createReplicateProvider from '../adapters/replicate.adapter'
 import createElevenLabsProvider from '../adapters/elevenlabs.adapter'
@@ -28,15 +31,17 @@ export interface ProviderRegistry {
 
 const providerFactories = {
   'kie-ai': createKieAiProvider,
-  'replicate': createReplicateProvider,
-  'elevenlabs': createElevenLabsProvider,
-  'fal': createFalProvider
+  replicate: createReplicateProvider,
+  elevenlabs: createElevenLabsProvider,
+  fal: createFalProvider,
   // 'openrouter': createOpenRouterProvider
 } as const
 
 // ===== REGISTRY CREATION =====
 
-export const createProviderRegistry = (configs: ProviderConfig[]): ProviderRegistry => {
+export const createProviderRegistry = (
+  configs: ProviderConfig[]
+): ProviderRegistry => {
   const providers = new Map<string, Provider>()
   const capabilities = new Set<string>()
 
@@ -50,10 +55,17 @@ export const createProviderRegistry = (configs: ProviderConfig[]): ProviderRegis
       providers.set(providerName, provider)
 
       // Extract capabilities
-      const operationMethods = ['generateVideo', 'generateImage', 'generateAudio', 'performFaceSwap']
+      const operationMethods = [
+        'generateVideo',
+        'generateImage',
+        'generateAudio',
+        'performFaceSwap',
+      ]
       operationMethods.forEach(method => {
         if (method in provider) {
-          capabilities.add(method.replace('generate', '').replace('perform', ''))
+          capabilities.add(
+            method.replace('generate', '').replace('perform', '')
+          )
         }
       })
     }
@@ -95,19 +107,21 @@ export const createProviderRegistry = (configs: ProviderConfig[]): ProviderRegis
 
   // ===== HEALTH CHECK ALL =====
 
-  const healthCheckAll = async (): Promise<{ name: string; healthy: boolean }[]> => {
+  const healthCheckAll = async (): Promise<
+    { name: string; healthy: boolean }[]
+  > => {
     const results = await Promise.all(
       Array.from(providers.entries()).map(async ([name, provider]) => {
         try {
           const health = await provider.healthCheck()()
           return {
             name,
-            healthy: health._tag === 'Right'
+            healthy: health._tag === 'Right',
           }
         } catch (error) {
           return {
             name,
-            healthy: false
+            healthy: false,
           }
         }
       })
@@ -118,7 +132,9 @@ export const createProviderRegistry = (configs: ProviderConfig[]): ProviderRegis
 
   // ===== GET HEALTHY PROVIDERS =====
 
-  const getHealthyProviders = async (capability: string): Promise<Provider[]> => {
+  const getHealthyProviders = async (
+    capability: string
+  ): Promise<Provider[]> => {
     const providersByCapability = getProvidersByCapability(capability)
     const healthyProviders: Provider[] = []
 
@@ -162,7 +178,7 @@ export const createProviderRegistry = (configs: ProviderConfig[]): ProviderRegis
     getHealthyProviders,
     hasProvider,
     getProviderCount,
-    getCapabilities
+    getCapabilities,
   }
 }
 
@@ -185,9 +201,9 @@ export const createDefaultRegistry = (): ProviderRegistry => {
       baseUrl: process.env.KIE_AI_BASE_URL || 'https://api.kie.ai',
       timeout: 30000,
       rateLimit: {
-        requestsPerMinute: 60
-      }
-    }
+        requestsPerMinute: 60,
+      },
+    },
   ]
 
   return createProviderRegistry(defaultConfigs)
@@ -195,7 +211,10 @@ export const createDefaultRegistry = (): ProviderRegistry => {
 
 // ===== REGISTRY HELPERS =====
 
-export const getProviderByName = (registry: ProviderRegistry, name: string): Provider | undefined => {
+export const getProviderByName = (
+  registry: ProviderRegistry,
+  name: string
+): Provider | undefined => {
   return registry.getProvider(name)
 }
 
@@ -237,7 +256,9 @@ export const printRegistryStatus = (registry: ProviderRegistry) => {
   const providers = registry.listProviders()
   console.log(`\n📋 Provider Registry Status:`)
   console.log(`   Total Providers: ${providers.length}`)
-  console.log(`   Available Capabilities: ${registry.getCapabilities().join(', ')}`)
+  console.log(
+    `   Available Capabilities: ${registry.getCapabilities().join(', ')}`
+  )
 
   providers.forEach(provider => {
     console.log(`   - ${provider.name}: ${provider.config.baseUrl}`)
@@ -254,5 +275,5 @@ export default {
   getBestProvider,
   getAllHealthyProviders,
   healthCheckRegistry,
-  printRegistryStatus
+  printRegistryStatus,
 }

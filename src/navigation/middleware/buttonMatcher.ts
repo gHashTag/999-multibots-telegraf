@@ -1,6 +1,6 @@
 /**
  * 🎯 УНИВЕРСАЛЬНЫЙ МАТЧЕР КНОПОК
- * 
+ *
  * Сопоставляет текст сообщения с конфигурацией кнопок.
  * Поддерживает:
  * - Нормализацию текста (trim, lowercase)
@@ -9,12 +9,12 @@
  * - Удаление эмодзи для сравнения
  */
 
-import { 
-  ButtonConfig, 
-  ALL_BUTTONS, 
+import {
+  ButtonConfig,
+  ALL_BUTTONS,
   NAVIGATION_BUTTONS,
   CATEGORY_BUTTONS,
-  PROFILE_BUTTONS
+  PROFILE_BUTTONS,
 } from '../config/buttons.config'
 import { logger } from '@/utils/logger'
 
@@ -36,28 +36,31 @@ export interface ButtonMatchResult {
  * Нормализует текст для сравнения
  */
 export function normalizeText(text: string): string {
-  return text
-    .trim()
-    .toLowerCase()
-    // Удаляем эмодзи для нечёткого сравнения
-    .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')
-    .replace(/\s+/g, ' ')
-    .trim()
+  return (
+    text
+      .trim()
+      .toLowerCase()
+      // Удаляем эмодзи для нечёткого сравнения
+      .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  )
 }
 
 /**
  * Удаляет эмодзи из текста
  */
 export function removeEmoji(text: string): string {
-  return text
-    .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')
-    .trim()
+  return text.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim()
 }
 
 /**
  * Проверяет, совпадает ли текст с кнопкой
  */
-function matchesButton(text: string, button: ButtonConfig): ButtonMatchResult | null {
+function matchesButton(
+  text: string,
+  button: ButtonConfig
+): ButtonMatchResult | null {
   const trimmedText = text.trim()
   const lowercaseText = trimmedText.toLowerCase()
   const normalizedText = normalizeText(text)
@@ -68,7 +71,7 @@ function matchesButton(text: string, button: ButtonConfig): ButtonMatchResult | 
       button,
       originalText: text,
       normalizedText,
-      matchMethod: 'exact_ru'
+      matchMethod: 'exact_ru',
     }
   }
 
@@ -78,17 +81,20 @@ function matchesButton(text: string, button: ButtonConfig): ButtonMatchResult | 
       button,
       originalText: text,
       normalizedText,
-      matchMethod: 'exact_en'
+      matchMethod: 'exact_en',
     }
   }
 
   // 3. Совпадение с lowercase вариантами
-  if (lowercaseText === button.ru.toLowerCase() || lowercaseText === button.en.toLowerCase()) {
+  if (
+    lowercaseText === button.ru.toLowerCase() ||
+    lowercaseText === button.en.toLowerCase()
+  ) {
     return {
       button,
       originalText: text,
       normalizedText,
-      matchMethod: 'normalized'
+      matchMethod: 'normalized',
     }
   }
 
@@ -99,7 +105,7 @@ function matchesButton(text: string, button: ButtonConfig): ButtonMatchResult | 
         button,
         originalText: text,
         normalizedText,
-        matchMethod: 'alias'
+        matchMethod: 'alias',
       }
     }
   }
@@ -107,13 +113,16 @@ function matchesButton(text: string, button: ButtonConfig): ButtonMatchResult | 
   // 5. Нечёткое совпадение (без эмодзи)
   const buttonRuNoEmoji = removeEmoji(button.ru).toLowerCase()
   const buttonEnNoEmoji = removeEmoji(button.en).toLowerCase()
-  
-  if (normalizedText === buttonRuNoEmoji || normalizedText === buttonEnNoEmoji) {
+
+  if (
+    normalizedText === buttonRuNoEmoji ||
+    normalizedText === buttonEnNoEmoji
+  ) {
     return {
       button,
       originalText: text,
       normalizedText,
-      matchMethod: 'normalized'
+      matchMethod: 'normalized',
     }
   }
 
@@ -134,7 +143,7 @@ export function matchButton(text: string): ButtonMatchResult | null {
       logger.debug('[ButtonMatcher] Button matched', {
         buttonId: result.button.id,
         originalText: result.originalText.substring(0, 30),
-        matchMethod: result.matchMethod
+        matchMethod: result.matchMethod,
       })
       return result
     }

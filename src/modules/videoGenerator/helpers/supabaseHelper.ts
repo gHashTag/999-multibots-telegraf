@@ -120,7 +120,9 @@ export async function saveVideoUrlHelper(
   //
   // Делегируем, а не копируем зеркалирование: две копии логики разъедутся, и
   // разъедутся молча — ровно так и вышло в прошлый раз.
-  const { saveVideoUrlToSupabase } = await import('@/core/supabase/saveVideoUrlToSupabase')
+  const { saveVideoUrlToSupabase } = await import(
+    '@/core/supabase/saveVideoUrlToSupabase'
+  )
 
   logger.info('[saveVideoUrlHelper] Called', {
     telegramId,
@@ -151,4 +153,3 @@ export async function saveVideoUrlHelper(
     })
   }
 }
-

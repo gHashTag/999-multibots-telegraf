@@ -14,7 +14,10 @@ export const getVoiceId = async (telegram_id: string) => {
 
   if (error) {
     console.error('[getVoiceId] ERROR:', error)
-    logger.error('[getVoiceId] Database error', { telegram_id, error: error.message })
+    logger.error('[getVoiceId] Database error', {
+      telegram_id,
+      error: error.message,
+    })
     throw new Error(
       `Ошибка при получении voice_id_elevenlabs: ${error.message}`
     )
@@ -28,15 +31,17 @@ export const getVoiceId = async (telegram_id: string) => {
   if (!userVoiceId) {
     logger.warn('[getVoiceId] No user voice ID found, using fallback', {
       telegram_id,
-      fallbackVoiceId: PRIMARY_FALLBACK_VOICE_ID
+      fallbackVoiceId: PRIMARY_FALLBACK_VOICE_ID,
     })
-    console.log(`[getVoiceId] No voice ID for user ${telegram_id}, using fallback: ${PRIMARY_FALLBACK_VOICE_ID}`)
+    console.log(
+      `[getVoiceId] No voice ID for user ${telegram_id}, using fallback: ${PRIMARY_FALLBACK_VOICE_ID}`
+    )
     return PRIMARY_FALLBACK_VOICE_ID
   }
 
   logger.info('[getVoiceId] User voice ID found', {
     telegram_id,
-    voiceId: userVoiceId
+    voiceId: userVoiceId,
   })
 
   return userVoiceId
@@ -49,7 +54,7 @@ export const getFallbackVoiceId = (preferredLanguage?: 'ru' | 'en'): string => {
   // Можно в будущем добавить логику выбора голоса по языку
   logger.info('[getFallbackVoiceId] Returning primary fallback voice', {
     fallbackVoiceId: PRIMARY_FALLBACK_VOICE_ID,
-    preferredLanguage
+    preferredLanguage,
   })
   return PRIMARY_FALLBACK_VOICE_ID
 }

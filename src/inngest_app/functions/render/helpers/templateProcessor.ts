@@ -56,8 +56,12 @@ export interface TextSettings {
 /**
  * Extract layer settings section from template JSON
  */
-export function getLayerSettings(templateJson: TemplateSection[]): LayerSettings {
-  const layerSection = templateJson.find(section => section.key === 'layerSettings')
+export function getLayerSettings(
+  templateJson: TemplateSection[]
+): LayerSettings {
+  const layerSection = templateJson.find(
+    section => section.key === 'layerSettings'
+  )
   if (!layerSection) {
     throw new Error('Layer settings section not found in template')
   }
@@ -67,8 +71,12 @@ export function getLayerSettings(templateJson: TemplateSection[]): LayerSettings
 /**
  * Extract composition settings section from template JSON
  */
-export function getCompositionSettings(templateJson: TemplateSection[]): CompositionSettings {
-  const compSection = templateJson.find(section => section.key === 'compositionSettings')
+export function getCompositionSettings(
+  templateJson: TemplateSection[]
+): CompositionSettings {
+  const compSection = templateJson.find(
+    section => section.key === 'compositionSettings'
+  )
   if (!compSection) {
     throw new Error('Composition settings section not found in template')
   }
@@ -128,7 +136,9 @@ export function updateCircleSettings(
       propertyName: 'Anchor Point',
       value: anchorPoint,
     }
-    logger?.info(`✅ Updated circle position, scale, and anchor point in layer 4569`)
+    logger?.info(
+      `✅ Updated circle position, scale, and anchor point in layer 4569`
+    )
   } else {
     logger?.info(`✅ Updated circle position and scale in layer 4569`)
   }
@@ -172,7 +182,9 @@ export function substituteBrollUrls(
     }
   }
 
-  logger.info(`✅ Substituted ${substitutedCount}/${brollData.length} B-roll URLs`)
+  logger.info(
+    `✅ Substituted ${substitutedCount}/${brollData.length} B-roll URLs`
+  )
 }
 
 /**
@@ -239,7 +251,9 @@ export function updateWorkAreaDuration(
   }
 
   compositions['18'].workAreaDuration = avatarDuration
-  logger.info(`✅ Updated work area duration to ${avatarDuration}s in composition 18`)
+  logger.info(
+    `✅ Updated work area duration to ${avatarDuration}s in composition 18`
+  )
 }
 
 /**
@@ -250,7 +264,11 @@ export function extractBrollLayers(
   templateJson: TemplateSection[]
 ): Array<{ layer_id: string; in_point: number; out_point: number }> {
   const layers = getLayerSettings(templateJson)
-  const brollLayers: Array<{ layer_id: string; in_point: number; out_point: number }> = []
+  const brollLayers: Array<{
+    layer_id: string
+    in_point: number
+    out_point: number
+  }> = []
 
   for (const [layerId, layerData] of Object.entries(layers)) {
     if (layerData.footageUrl === 'broll') {
@@ -293,7 +311,13 @@ export function processRiddleTemplate(
   // Substitute all assets and settings
   substituteAvatarUrl(layers, params.avatarUrl, logger)
   substituteCoverUrl(layers, params.coverUrl, logger)
-  updateCircleSettings(layers, params.circlePosition, params.circleScale, params.circleAnchorPoint, logger)
+  updateCircleSettings(
+    layers,
+    params.circlePosition,
+    params.circleScale,
+    params.circleAnchorPoint,
+    logger
+  )
   substituteBrollUrls(layers, params.brollData, logger)
   updateIntroText1(layers, params.introText1, logger)
   updateIntroText2(layers, params.introText2, logger)

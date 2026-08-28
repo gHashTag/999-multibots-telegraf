@@ -23,7 +23,10 @@ import fs from 'fs'
 import path from 'path'
 
 const strip = (s: string) =>
-  s.replace(/\/\*[\s\S]*?\*\//g, m => '\n'.repeat((m.match(/\n/g) || []).length))
+  s
+    .replace(/\/\*[\s\S]*?\*\//g, m =>
+      '\n'.repeat((m.match(/\n/g) || []).length)
+    )
     .replace(/(^|[^:])\/\/.*$/gm, '$1')
 
 function collect(): string[] {
@@ -85,7 +88,9 @@ describe('цена не выдумывается', () => {
   it('в двух починенных местах выдуманных чисел больше нет', () => {
     // Комментарии вырезаем: пояснение к правке цитирует старую строку, и без
     // этого проверка падала бы на собственном объяснении. Такое уже было.
-    const itv = strip(fs.readFileSync('src/handlers/handleImageToVideoDirect.ts', 'utf8'))
+    const itv = strip(
+      fs.readFileSync('src/handlers/handleImageToVideoDirect.ts', 'utf8')
+    )
     expect(itv).not.toMatch(/return 40\s*\/\/\s*Fallback price/)
     expect(itv).toMatch(/return null/)
     // И отказ доходит до человека, а не только в журнал.
@@ -95,7 +100,9 @@ describe('цена не выдумывается', () => {
 
   it('перед списанием цена проверяется, а не подставляется', () => {
     const req = fs.readFileSync('src/core/openai/requests.ts', 'utf8')
-    expect(req).toMatch(/typeof costPerImage !== 'number' \|\| costPerImage <= 0/)
+    expect(req).toMatch(
+      /typeof costPerImage !== 'number' \|\| costPerImage <= 0/
+    )
     expect(req).toMatch(/СПИСАНИЯ НЕ БЫЛО/)
   })
 

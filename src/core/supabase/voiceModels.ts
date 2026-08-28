@@ -175,7 +175,9 @@ export async function getVoiceModelByTrainingId(
 /**
  * Проверяет, есть ли у пользователя готовая модель
  */
-export async function hasReadyVoiceModel(telegram_id: string): Promise<boolean> {
+export async function hasReadyVoiceModel(
+  telegram_id: string
+): Promise<boolean> {
   const model = await getVoiceModel(telegram_id)
   return model !== null
 }

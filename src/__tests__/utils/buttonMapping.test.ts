@@ -8,7 +8,7 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   validateCallbackData,
   sanitizeInput,
-  handleButtonError
+  handleButtonError,
 } from '@/utils/buttonMapping'
 
 // Mock logger
@@ -17,8 +17,8 @@ vi.mock('@/utils/logger', () => ({
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
-    error: vi.fn()
-  }
+    error: vi.fn(),
+  },
 }))
 
 describe('Button Mapping Utilities', () => {
@@ -32,7 +32,9 @@ describe('Button Mapping Utilities', () => {
   // хватает, и оно точнее любого TODO.
   describe.skip('normalizeButtonText (не реализовано)', () => {
     it('should normalize whitespace correctly', () => {
-      expect(normalizeButtonText('  Multiple   spaces  ')).toBe('Multiple spaces')
+      expect(normalizeButtonText('  Multiple   spaces  ')).toBe(
+        'Multiple spaces'
+      )
       expect(normalizeButtonText('\t\nNew\nlines\t')).toBe('New lines')
       expect(normalizeButtonText('Normal text')).toBe('Normal text')
     })
@@ -45,7 +47,9 @@ describe('Button Mapping Utilities', () => {
     })
 
     it('should handle emoji-safe mode', () => {
-      const result = normalizeButtonText('Text with 🚀 emojis', { emojiSafe: true })
+      const result = normalizeButtonText('Text with 🚀 emojis', {
+        emojiSafe: true,
+      })
       expect(result).toBe('Text with  emojis')
     })
   })
@@ -72,7 +76,9 @@ describe('Button Mapping Utilities', () => {
     })
 
     it('should respect custom max length', () => {
-      const result = generateSafeCallbackData('prefix', '123456789', { maxCallbackLength: 10 })
+      const result = generateSafeCallbackData('prefix', '123456789', {
+        maxCallbackLength: 10,
+      })
       expect(result).toBe('prefix_56789')
     })
   })
@@ -117,7 +123,7 @@ describe('Button Mapping Utilities', () => {
     const testItems = [
       { id: '12345', name: 'Item 1' },
       { id: '67890', name: 'Item 2' },
-      { id: '1234567890123456', name: 'Long ID Item' }
+      { id: '1234567890123456', name: 'Long ID Item' },
     ]
 
     it('should find item by exact ID match', () => {
@@ -188,7 +194,10 @@ describe('Button Mapping Utilities', () => {
     })
 
     it('should respect max length', () => {
-      const result = sanitizeInput('Very long text that should be truncated', 10)
+      const result = sanitizeInput(
+        'Very long text that should be truncated',
+        10
+      )
       expect(result).toBe('Very long ')
       expect(result.length).toBe(10)
     })
@@ -213,7 +222,7 @@ describe('Button Mapping Utilities', () => {
       { id: '1', name: 'Item 1' },
       { id: '2', name: 'Item 2' },
       { id: '3', name: 'Item 3' },
-      { id: '4', name: 'Item 4' }
+      { id: '4', name: 'Item 4' },
     ]
 
     it('should create keyboard buttons in rows', () => {
@@ -316,12 +325,20 @@ describe('Button Mapping Utilities', () => {
     })
 
     it('should handle special characters in text', () => {
-      const mapping = createButtonMapping('Text with "quotes" & symbols', 'select', '123')
+      const mapping = createButtonMapping(
+        'Text with "quotes" & symbols',
+        'select',
+        '123'
+      )
       expect(mapping.text).toBe('Text with "quotes" & symbols')
     })
 
     it('should handle unicode characters', () => {
-      const mapping = createButtonMapping('Русский текст с эмодзи 🚀', 'select', '123')
+      const mapping = createButtonMapping(
+        'Русский текст с эмодзи 🚀',
+        'select',
+        '123'
+      )
       expect(mapping.text).toBe('Русский текст с эмодзи 🚀')
     })
 
@@ -334,7 +351,7 @@ describe('Button Mapping Utilities', () => {
     it('should handle prefix collision in callback data', () => {
       const items = [
         { id: 'select_123', name: 'Collision Item' },
-        { id: '123', name: 'Normal Item' }
+        { id: '123', name: 'Normal Item' },
       ]
 
       const result1 = findByCallbackData(items, 'select_select_123', 'select')

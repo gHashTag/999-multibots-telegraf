@@ -11,16 +11,20 @@ vi.mock('@/helpers/centralizedLanguage', () => ({
 }))
 
 vi.mock('@/core/supabase', () => ({
-  getUserData: vi.fn(() => Promise.resolve({
-    telegram_id: '223757230',
-    username: 'testuser',
-    balance: 100,
-  })),
-  getTranslation: vi.fn(() => Promise.resolve({
-    translation: '👋 Привет, {name}!\n\n🤖 Добро пожаловать в {botName}!',
-    url: null,
-    buttons: [],
-  })),
+  getUserData: vi.fn(() =>
+    Promise.resolve({
+      telegram_id: '223757230',
+      username: 'testuser',
+      balance: 100,
+    })
+  ),
+  getTranslation: vi.fn(() =>
+    Promise.resolve({
+      translation: '👋 Привет, {name}!\n\n🤖 Добро пожаловать в {botName}!',
+      url: null,
+      buttons: [],
+    })
+  ),
 }))
 
 vi.mock('@/core/bot', () => ({
@@ -77,7 +81,6 @@ describe('startScene (User Initialization)', () => {
     mockContext.scene.state = {}
     mockContext.from.first_name = 'Иван'
     mockContext.from.username = 'testuser'
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(getUserData as Mock).mockResolvedValue({
       telegram_id: '223757230',
@@ -221,14 +224,17 @@ describe('startScene (User Initialization)', () => {
     })
 
     it('должен заменять оба плейсхолдера', () => {
-      const translation = '👋 Привет, {name}!\n\n🤖 Добро пожаловать в {botName}!'
+      const translation =
+        '👋 Привет, {name}!\n\n🤖 Добро пожаловать в {botName}!'
       const name = 'Иван'
       const botName = 'NeuroBotTest'
       const result = translation
         .replace(/{name}/g, name)
         .replace(/{botName}/g, botName)
 
-      expect(result).toBe('👋 Привет, Иван!\n\n🤖 Добро пожаловать в NeuroBotTest!')
+      expect(result).toBe(
+        '👋 Привет, Иван!\n\n🤖 Добро пожаловать в NeuroBotTest!'
+      )
     })
   })
 

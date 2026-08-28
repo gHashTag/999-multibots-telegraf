@@ -23,32 +23,36 @@ export const paymentScene = new Scenes.BaseScene<MyContext>(
 )
 
 paymentScene.enter(async ctx => {
-  logger.info(`🔍 [PAYMENT DEBUG] [${ModeEnum.PaymentScene}] ===== ENTER HANDLER CALLED =====`, {
-    telegram_id: ctx.from?.id,
-    timestamp: new Date().toISOString(),
-    botInfo: ctx.botInfo, // Логируем для отладки
-    session_selectedPayment: ctx.session.selectedPayment, // Логируем, что в сессии
-    sceneId: ctx.scene?.current?.id,
-    hasScene: !!ctx.scene?.current,
-    sceneCurrent: ctx.scene?.current,
-  })
+  logger.info(
+    `🔍 [PAYMENT DEBUG] [${ModeEnum.PaymentScene}] ===== ENTER HANDLER CALLED =====`,
+    {
+      telegram_id: ctx.from?.id,
+      timestamp: new Date().toISOString(),
+      botInfo: ctx.botInfo, // Логируем для отладки
+      session_selectedPayment: ctx.session.selectedPayment, // Логируем, что в сессии
+      sceneId: ctx.scene?.current?.id,
+      hasScene: !!ctx.scene?.current,
+      sceneCurrent: ctx.scene?.current,
+    }
+  )
   const isRu = isRussian(ctx)
   const showRublesButton = shouldShowRubles(ctx) // Используем хелпер
 
-  logger.info(`[${ModeEnum.PaymentScene}] Enter scene - showRublesButton: ${showRublesButton}`, {
-    telegram_id: ctx.from?.id,
-    botInfo: ctx.botInfo,
-    showRublesButton,
-  })
+  logger.info(
+    `[${ModeEnum.PaymentScene}] Enter scene - showRublesButton: ${showRublesButton}`,
+    {
+      telegram_id: ctx.from?.id,
+      botInfo: ctx.botInfo,
+      showRublesButton,
+    }
+  )
 
   try {
     const message = isRu ? 'Выберите способ оплаты:' : 'Select payment method:'
     const showCryptoButton = isX402Configured()
 
     // Первая строка: все способы оплаты в одну линию
-    const paymentRow = [
-      Markup.button.text(isRu ? '⭐ Звездами' : '⭐ Stars'),
-    ]
+    const paymentRow = [Markup.button.text(isRu ? '⭐ Звездами' : '⭐ Stars')]
 
     // Добавляем единую кнопку Криптой (показывает inline-меню с выбором)
     // Показываем всегда - есть TON USDT и TON даже без x402
@@ -60,14 +64,20 @@ paymentScene.enter(async ctx => {
     // Добавляем кнопку Рублями только если хелпер разрешает
     if (showRublesButton) {
       paymentRow.push(Markup.button.text(isRu ? '💳 Рублями' : '💳 Rubles'))
-      logger.info(`[${ModeEnum.PaymentScene}] Added Rubles button to keyboard`, {
-        telegram_id: ctx.from?.id,
-      })
+      logger.info(
+        `[${ModeEnum.PaymentScene}] Added Rubles button to keyboard`,
+        {
+          telegram_id: ctx.from?.id,
+        }
+      )
     } else {
-      logger.warn(`[${ModeEnum.PaymentScene}] Rubles button NOT added (showRublesButton=false)`, {
-        telegram_id: ctx.from?.id,
-        botInfo: ctx.botInfo,
-      })
+      logger.warn(
+        `[${ModeEnum.PaymentScene}] Rubles button NOT added (showRublesButton=false)`,
+        {
+          telegram_id: ctx.from?.id,
+          botInfo: ctx.botInfo,
+        }
+      )
     }
 
     const buttons = [
@@ -96,61 +106,64 @@ paymentScene.enter(async ctx => {
 })
 
 // Переход в сцену оплаты Звездами
-paymentScene.hears(['⭐️ Звездами', '⭐️ Stars', '⭐ Звездами', '⭐ Stars'], async ctx => {
-  const isRu = isRussian(ctx)
-  const selectedPaymentInfo = ctx.session.selectedPayment
+paymentScene.hears(
+  ['⭐️ Звездами', '⭐️ Stars', '⭐ Звездами', '⭐ Stars'],
+  async ctx => {
+    const isRu = isRussian(ctx)
+    const selectedPaymentInfo = ctx.session.selectedPayment
 
-  // ----- >>> ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ СЕССИИ ПЕРЕД РЕШЕНИЕМ <<< -----
-  logger.info(
-    `[${ModeEnum.PaymentScene}] HEARS '⭐️ Звездами': Checking session BEFORE decision.`,
-    {
-      telegram_id: ctx.from?.id,
-      session_dump: JSON.stringify(ctx.session, null, 2), // Выводим всю сессию
-      extracted_selectedPaymentInfo: selectedPaymentInfo, // Выводим извлеченное значение
-    }
-  )
-  // ----- >>> КОНЕЦ ДЕТАЛЬНОГО ЛОГИРОВАНИЯ <<< -----
-
-  logger.info(
-    `[${ModeEnum.PaymentScene}] User chose Stars. Session selectedPayment:`,
-    { telegram_id: ctx.from?.id, selectedPaymentInfo }
-  )
-
-  // Проверяем, есть ли в сессии информация о выбранной ПОДПИСКЕ
-  if (
-    selectedPaymentInfo &&
-    selectedPaymentInfo.type === PaymentType.MONEY_INCOME &&
-    selectedPaymentInfo.subscription
-  ) {
+    // ----- >>> ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ СЕССИИ ПЕРЕД РЕШЕНИЕМ <<< -----
     logger.info(
-      `[${ModeEnum.PaymentScene}] Detected SUBSCRIPTION purchase flow for stars. Calling handleBuySubscription.`,
+      `[${ModeEnum.PaymentScene}] HEARS '⭐️ Звездами': Checking session BEFORE decision.`,
       {
         telegram_id: ctx.from?.id,
-        subscription: selectedPaymentInfo.subscription,
+        session_dump: JSON.stringify(ctx.session, null, 2), // Выводим всю сессию
+        extracted_selectedPaymentInfo: selectedPaymentInfo, // Выводим извлеченное значение
       }
     )
-    // Это покупка конкретной подписки
-    await handleBuySubscription({ ctx, isRu })
-    // handleBuySubscription должен сам управлять выходом из сцены или дальнейшими шагами
-  } else {
+    // ----- >>> КОНЕЦ ДЕТАЛЬНОГО ЛОГИРОВАНИЯ <<< -----
+
     logger.info(
-      `[${ModeEnum.PaymentScene}] Detected BALANCE TOP-UP flow for stars. Calling handleSelectStars.`,
-      { telegram_id: ctx.from?.id }
+      `[${ModeEnum.PaymentScene}] User chose Stars. Session selectedPayment:`,
+      { telegram_id: ctx.from?.id, selectedPaymentInfo }
     )
-    // Это пополнение баланса
-    await handleSelectStars({ ctx, starAmounts, isRu })
-    // НЕ ВХОДИМ НИ В КАКУЮ СЦЕНУ ЗДЕСЬ.
-    // Обработка нажатия на кнопки 'top_up_X' произойдет через bot.action
-    // и вызовет handleTopUp -> handleBuy, который отправит инвойс.
+
+    // Проверяем, есть ли в сессии информация о выбранной ПОДПИСКЕ
+    if (
+      selectedPaymentInfo &&
+      selectedPaymentInfo.type === PaymentType.MONEY_INCOME &&
+      selectedPaymentInfo.subscription
+    ) {
+      logger.info(
+        `[${ModeEnum.PaymentScene}] Detected SUBSCRIPTION purchase flow for stars. Calling handleBuySubscription.`,
+        {
+          telegram_id: ctx.from?.id,
+          subscription: selectedPaymentInfo.subscription,
+        }
+      )
+      // Это покупка конкретной подписки
+      await handleBuySubscription({ ctx, isRu })
+      // handleBuySubscription должен сам управлять выходом из сцены или дальнейшими шагами
+    } else {
+      logger.info(
+        `[${ModeEnum.PaymentScene}] Detected BALANCE TOP-UP flow for stars. Calling handleSelectStars.`,
+        { telegram_id: ctx.from?.id }
+      )
+      // Это пополнение баланса
+      await handleSelectStars({ ctx, starAmounts, isRu })
+      // НЕ ВХОДИМ НИ В КАКУЮ СЦЕНУ ЗДЕСЬ.
+      // Обработка нажатия на кнопки 'top_up_X' произойдет через bot.action
+      // и вызовет handleTopUp -> handleBuy, который отправит инвойс.
+    }
   }
-})
+)
 
 // Переход в сцену оплаты Рублями
 // Используем версию из origin/main (обработчик восстановлен)
 paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
   logger.info(
     `🔍 [PAYMENT DEBUG] [${ModeEnum.PaymentScene}] ===== HEARS HANDLER TRIGGERED: User chose Rubles =====`,
-    { 
+    {
       telegram_id: ctx.from?.id,
       timestamp: new Date().toISOString(),
       currentScene: ctx.scene?.current?.id,
@@ -158,11 +171,12 @@ paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
       sceneCurrent: ctx.scene?.current,
       hasScene: !!ctx.scene?.current,
       sessionSelectedPayment: ctx.session.selectedPayment,
-      messageText: ctx.message && 'text' in ctx.message ? ctx.message.text : 'N/A',
+      messageText:
+        ctx.message && 'text' in ctx.message ? ctx.message.text : 'N/A',
       messageType: ctx.message ? Object.keys(ctx.message) : 'no_message',
     }
   )
-  
+
   // ✅ КРИТИЧЕСКАЯ ПРОВЕРКА: Убеждаемся, что пользователь находится в PaymentScene
   if (ctx.scene?.current?.id !== ModeEnum.PaymentScene) {
     logger.error(
@@ -183,16 +197,16 @@ paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
     await ctx.scene.leave()
     return
   }
-  
+
   logger.info(
     `[${ModeEnum.PaymentScene}] User chose Rubles. Entering RublePaymentScene.`,
-    { 
+    {
       telegram_id: ctx.from?.id,
       currentScene: ctx.scene?.current?.id,
-      sessionSelectedPayment: ctx.session.selectedPayment
+      sessionSelectedPayment: ctx.session.selectedPayment,
     }
   )
-  
+
   try {
     const paymentInfo = ctx.session.selectedPayment
     if (
@@ -211,11 +225,11 @@ paymentScene.hears(['💳 Рублями', '💳 Rubles'], async ctx => {
       // Иначе (пополнение баланса) просто входим в сцену для выбора суммы пополнения рублями
       logger.info(
         `[${ModeEnum.PaymentScene}] Entering RublePaymentScene for balance top-up.`,
-        { 
+        {
           telegram_id: ctx.from?.id,
           hasPaymentInfo: !!paymentInfo,
           paymentInfoType: paymentInfo?.type,
-          paymentInfoSubscription: paymentInfo?.subscription
+          paymentInfoSubscription: paymentInfo?.subscription,
         }
       )
       await ctx.scene.enter(ModeEnum.RublePaymentScene)
@@ -288,10 +302,7 @@ paymentScene.hears(['💎 Криптой', '💎 Crypto'], async ctx => {
 
     // Кнопка назад
     cryptoButtons.push([
-      Markup.button.callback(
-        isRu ? '◀️ Назад' : '◀️ Back',
-        'crypto_back'
-      ),
+      Markup.button.callback(isRu ? '◀️ Назад' : '◀️ Back', 'crypto_back'),
     ])
 
     await ctx.reply(message, {
@@ -299,14 +310,11 @@ paymentScene.hears(['💎 Криптой', '💎 Crypto'], async ctx => {
       ...Markup.inlineKeyboard(cryptoButtons),
     })
   } catch (error: any) {
-    logger.error(
-      `❌ [${ModeEnum.PaymentScene}] Error showing crypto menu:`,
-      {
-        error: error.message,
-        stack: error.stack,
-        telegram_id: ctx.from?.id,
-      }
-    )
+    logger.error(`❌ [${ModeEnum.PaymentScene}] Error showing crypto menu:`, {
+      error: error.message,
+      stack: error.stack,
+      telegram_id: ctx.from?.id,
+    })
     await ctx.reply(
       isRu
         ? '❌ Произошла ошибка. Попробуйте позже.'
@@ -377,7 +385,11 @@ paymentScene.hears(/^🏠/, async ctx => {
   const isRu = isRussian(ctx)
   const mainMenuText = getMainMenuText(isRu)
 
-  if (ctx.message && 'text' in ctx.message && ctx.message.text === mainMenuText) {
+  if (
+    ctx.message &&
+    'text' in ctx.message &&
+    ctx.message.text === mainMenuText
+  ) {
     logger.info(
       `[${ModeEnum.PaymentScene}] User chose Main Menu. Leaving scene.`,
       { telegram_id: ctx.from?.id }
@@ -402,13 +414,15 @@ paymentScene.on('message', async ctx => {
   // ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем кнопки меню
   try {
     const { ALL_BUTTONS } = await import('@/navigation/config/buttons.config')
-    const button = Object.values(ALL_BUTTONS).find(btn => btn.ru === messageText || btn.en === messageText)
+    const button = Object.values(ALL_BUTTONS).find(
+      btn => btn.ru === messageText || btn.en === messageText
+    )
 
     if (button) {
       // Это кнопка меню! Выходим из сцены и позволяем глобальному обработчику её обработать
       logger.info('🔄 [paymentScene] Menu button detected, exiting scene', {
         telegramId: ctx.from?.id,
-        buttonText: messageText
+        buttonText: messageText,
       })
       ctx.session.selectedPayment = undefined
       return ctx.scene.leave()
@@ -417,7 +431,7 @@ paymentScene.on('message', async ctx => {
     // Если не удалось импортировать, продолжаем с обычной обработкой
     logger.warn('⚠️ [paymentScene] Failed to import buttons config', {
       error: error instanceof Error ? error.message : String(error),
-      telegramId: ctx.from?.id
+      telegramId: ctx.from?.id,
     })
   }
 

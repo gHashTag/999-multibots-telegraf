@@ -144,7 +144,7 @@ function autoFitColumns(sheet: XLSX.WorkSheet, data: any[][]): void {
 
   // Устанавливаем ширину колонок (минимум 10, максимум 50 символов)
   sheet['!cols'] = colWidths.map(width => ({
-    wch: Math.min(Math.max(width + 2, 10), 50) // +2 для отступов
+    wch: Math.min(Math.max(width + 2, 10), 50), // +2 для отступов
   }))
 }
 
@@ -162,32 +162,38 @@ export async function generateAdminExcelReport_RESTORED(
     const workbook = XLSX.utils.book_new()
 
     // Лист 1: Общая сводка
-    const { sheet: summarySheet, data: summaryData } = createBotSummarySheet(reportData)
+    const { sheet: summarySheet, data: summaryData } =
+      createBotSummarySheet(reportData)
     autoFitColumns(summarySheet, summaryData)
     XLSX.utils.book_append_sheet(workbook, summarySheet, '📊 Общая сводка')
 
     // Лист 2: Финансовая аналитика
-    const { sheet: financialSheet, data: financialData } = createFinancialAnalyticsSheet(reportData)
+    const { sheet: financialSheet, data: financialData } =
+      createFinancialAnalyticsSheet(reportData)
     autoFitColumns(financialSheet, financialData)
     XLSX.utils.book_append_sheet(workbook, financialSheet, '💰 Финансы')
 
     // Лист 3: Аналитика по сервисам
-    const { sheet: servicesSheet, data: servicesData } = createServicesAnalyticsSheet(reportData)
+    const { sheet: servicesSheet, data: servicesData } =
+      createServicesAnalyticsSheet(reportData)
     autoFitColumns(servicesSheet, servicesData)
     XLSX.utils.book_append_sheet(workbook, servicesSheet, '🛠️ Сервисы')
 
     // Лист 4: Пользователи
-    const { sheet: usersSheet, data: usersData } = createUsersAnalyticsSheet(reportData)
+    const { sheet: usersSheet, data: usersData } =
+      createUsersAnalyticsSheet(reportData)
     autoFitColumns(usersSheet, usersData)
     XLSX.utils.book_append_sheet(workbook, usersSheet, '👥 Пользователи')
 
     // Лист 5: Временная аналитика
-    const { sheet: timeSheet, data: timeData } = createTimeAnalyticsSheet(reportData)
+    const { sheet: timeSheet, data: timeData } =
+      createTimeAnalyticsSheet(reportData)
     autoFitColumns(timeSheet, timeData)
     XLSX.utils.book_append_sheet(workbook, timeSheet, '📅 Динамика')
 
     // Лист 6: Все транзакции
-    const { sheet: transactionsSheet, data: transactionsData } = createTransactionsSheet(reportData)
+    const { sheet: transactionsSheet, data: transactionsData } =
+      createTransactionsSheet(reportData)
     autoFitColumns(transactionsSheet, transactionsData)
     XLSX.utils.book_append_sheet(workbook, transactionsSheet, '📋 Транзакции')
 
@@ -399,7 +405,10 @@ async function getBotReportData(botName: string): Promise<BotReportData> {
   }
 }
 
-function createBotSummarySheet(data: BotReportData): { sheet: XLSX.WorkSheet; data: any[][] } {
+function createBotSummarySheet(data: BotReportData): {
+  sheet: XLSX.WorkSheet
+  data: any[][]
+} {
   const summaryData: any[][] = [
     ['🤖 ОТЧЕТ ПО БОТУ - ОБЩАЯ СВОДКА', '', '', ''],
     ['', '', '', ''],
@@ -564,7 +573,10 @@ function createBotSummarySheet(data: BotReportData): { sheet: XLSX.WorkSheet; da
   return { sheet: XLSX.utils.aoa_to_sheet(summaryData), data: summaryData }
 }
 
-function createFinancialAnalyticsSheet(data: BotReportData): { sheet: XLSX.WorkSheet; data: any[][] } {
+function createFinancialAnalyticsSheet(data: BotReportData): {
+  sheet: XLSX.WorkSheet
+  data: any[][]
+} {
   const headers = [
     '📅 Период',
     '�� Доходы (⭐)',
@@ -680,7 +692,10 @@ function createFinancialAnalyticsSheet(data: BotReportData): { sheet: XLSX.WorkS
   return { sheet: XLSX.utils.aoa_to_sheet(financialData), data: financialData }
 }
 
-function createServicesAnalyticsSheet(data: BotReportData): { sheet: XLSX.WorkSheet; data: any[][] } {
+function createServicesAnalyticsSheet(data: BotReportData): {
+  sheet: XLSX.WorkSheet
+  data: any[][]
+} {
   const headers = [
     '🛠️ Сервис',
     '🔢 Операций',
@@ -726,7 +741,10 @@ function createServicesAnalyticsSheet(data: BotReportData): { sheet: XLSX.WorkSh
   return { sheet: XLSX.utils.aoa_to_sheet(servicesData), data: servicesData }
 }
 
-function createUsersAnalyticsSheet(data: BotReportData): { sheet: XLSX.WorkSheet; data: any[][] } {
+function createUsersAnalyticsSheet(data: BotReportData): {
+  sheet: XLSX.WorkSheet
+  data: any[][]
+} {
   const headers = [
     '👤 ID пользователя',
     '📱 Username',
@@ -773,7 +791,10 @@ function createUsersAnalyticsSheet(data: BotReportData): { sheet: XLSX.WorkSheet
   return { sheet: XLSX.utils.aoa_to_sheet(usersData), data: usersData }
 }
 
-function createTimeAnalyticsSheet(data: BotReportData): { sheet: XLSX.WorkSheet; data: any[][] } {
+function createTimeAnalyticsSheet(data: BotReportData): {
+  sheet: XLSX.WorkSheet
+  data: any[][]
+} {
   const monthlyHeaders = [
     '📅 Месяц',
     '💰 Доходы (⭐)',
@@ -823,7 +844,10 @@ function createTimeAnalyticsSheet(data: BotReportData): { sheet: XLSX.WorkSheet;
   return { sheet: XLSX.utils.aoa_to_sheet(timeData), data: timeData }
 }
 
-function createTransactionsSheet(data: BotReportData): { sheet: XLSX.WorkSheet; data: any[][] } {
+function createTransactionsSheet(data: BotReportData): {
+  sheet: XLSX.WorkSheet
+  data: any[][]
+} {
   const headers = [
     '📅 Дата',
     '📊 Тип',
@@ -859,15 +883,19 @@ function createTransactionsSheet(data: BotReportData): { sheet: XLSX.WorkSheet; 
       payment.category === 'REAL'
         ? '💎 Реальные'
         : payment.category === 'BONUS'
-        ? '🎁 Бонусы'
-        : payment.payment_method === 'Admin' ||
-          (payment.description && payment.description.includes('Admin balance'))
-        ? '👨‍💼 Админские'
-        : '❓ Неизвестно',
+          ? '🎁 Бонусы'
+          : payment.payment_method === 'Admin' ||
+              (payment.description &&
+                payment.description.includes('Admin balance'))
+            ? '👨‍💼 Админские'
+            : '❓ Неизвестно',
     ]),
   ]
 
-  return { sheet: XLSX.utils.aoa_to_sheet(transactionsData), data: transactionsData }
+  return {
+    sheet: XLSX.utils.aoa_to_sheet(transactionsData),
+    data: transactionsData,
+  }
 }
 
 function getPaymentMethodDisplay(payment: any): string {

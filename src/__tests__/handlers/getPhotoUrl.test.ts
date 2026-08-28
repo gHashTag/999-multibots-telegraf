@@ -32,7 +32,10 @@ import type { MyContext } from '@/interfaces'
 const ctx = { telegram: { token: 'tok' } } as unknown as MyContext
 
 const withAvatar = (avatar_url: string | null) =>
-  single.mockResolvedValue({ data: avatar_url ? { avatar_url } : null, error: null })
+  single.mockResolvedValue({
+    data: avatar_url ? { avatar_url } : null,
+    error: null,
+  })
 
 describe('getPhotoUrl', () => {
   beforeEach(() => vi.clearAllMocks())

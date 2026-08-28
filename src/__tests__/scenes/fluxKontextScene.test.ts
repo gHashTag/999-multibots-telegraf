@@ -20,10 +20,12 @@ vi.mock('@/price/models/FLUX_KONTEXT_MODELS', () => ({
 }))
 
 vi.mock('@/services/generateFluxKontext', () => ({
-  generateAdvancedFluxKontext: vi.fn(() => Promise.resolve({
-    success: true,
-    prompt_id: 'prompt_123',
-  })),
+  generateAdvancedFluxKontext: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      prompt_id: 'prompt_123',
+    })
+  ),
 }))
 
 vi.mock('@/core/supabase', () => ({
@@ -52,20 +54,26 @@ import { showMainMenu } from '@/navigation'
 
 // Camera angles from source
 const FLUX_CAMERA_ANGLES = {
-  medium_shot: '[camera: medium shot, balanced composition, natural perspective]',
+  medium_shot:
+    '[camera: medium shot, balanced composition, natural perspective]',
   close_up: '[camera: close-up shot, intimate detail, emotional connection]',
-  extreme_close_up: '[camera: extreme close-up, fine detail focus, artistic impact]',
+  extreme_close_up:
+    '[camera: extreme close-up, fine detail focus, artistic impact]',
   wide_shot: '[camera: wide shot, environmental context, spacious composition]',
   profile_shot: '[camera: profile shot, sculptural beauty, classic elegance]',
-  three_quarter: '[camera: three-quarter view, dimensional depth, natural pose]',
+  three_quarter:
+    '[camera: three-quarter view, dimensional depth, natural pose]',
 }
 
 // Lighting setups from source
 const FLUX_LIGHTING_SETUPS = {
-  soft_natural: '[lighting: soft natural light, gentle illumination, flattering glow]',
+  soft_natural:
+    '[lighting: soft natural light, gentle illumination, flattering glow]',
   dramatic: '[lighting: dramatic lighting, high contrast, artistic shadows]',
-  golden_hour: '[lighting: golden hour warmth, magical illumination, perfect timing]',
-  studio: '[lighting: professional studio setup, perfect illumination, commercial quality]',
+  golden_hour:
+    '[lighting: golden hour warmth, magical illumination, perfect timing]',
+  studio:
+    '[lighting: professional studio setup, perfect illumination, commercial quality]',
 }
 
 // Mode configurations
@@ -134,7 +142,9 @@ describe('fluxKontextScene (FLUX Kontext AI Image Editing)', () => {
       cursor: 0,
     },
     telegram: {
-      getFileLink: vi.fn(() => Promise.resolve({ href: 'https://example.com/image.jpg' })),
+      getFileLink: vi.fn(() =>
+        Promise.resolve({ href: 'https://example.com/image.jpg' })
+      ),
     },
     message: null as any,
   }
@@ -154,7 +164,6 @@ describe('fluxKontextScene (FLUX Kontext AI Image Editing)', () => {
       awaitingFluxKontextPrompt: false,
     }
     mockContext.message = null
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(getUserBalance as Mock).mockResolvedValue(100)
     ;(generateAdvancedFluxKontext as Mock).mockResolvedValue({

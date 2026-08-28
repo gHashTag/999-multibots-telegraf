@@ -11,7 +11,7 @@ vi.mock('@/helpers/language', () => ({
 }))
 
 vi.mock('@/navigation', () => ({
-  createHelpCancelKeyboard: vi.fn((isRu) => ({
+  createHelpCancelKeyboard: vi.fn(isRu => ({
     reply_markup: { keyboard: [[{ text: isRu ? 'Отмена' : 'Cancel' }]] },
   })),
   handleHelpCancel: vi.fn(() => Promise.resolve(false)),
@@ -22,14 +22,18 @@ vi.mock('@/core/openai/requests', () => ({
 }))
 
 vi.mock('@/core/supabase', () => ({
-  getUserByTelegramId: vi.fn(() => Promise.resolve({
-    telegram_id: '223757230',
-    level: 4,
-  })),
-  getUserData: vi.fn(() => Promise.resolve({
-    telegram_id: '223757230',
-    gender: 'male',
-  })),
+  getUserByTelegramId: vi.fn(() =>
+    Promise.resolve({
+      telegram_id: '223757230',
+      level: 4,
+    })
+  ),
+  getUserData: vi.fn(() =>
+    Promise.resolve({
+      telegram_id: '223757230',
+      gender: 'male',
+    })
+  ),
   getUserModel: vi.fn(() => Promise.resolve('deepseek-chat')),
   updateUserLevelPlusOne: vi.fn(() => Promise.resolve()),
 }))
@@ -57,7 +61,12 @@ vi.mock('@/utils/logger', () => ({
 import { isRussian } from '@/helpers/language'
 import { createHelpCancelKeyboard, handleHelpCancel } from '@/navigation'
 import { answerAi } from '@/core/openai/requests'
-import { getUserByTelegramId, getUserData, getUserModel, updateUserLevelPlusOne } from '@/core/supabase'
+import {
+  getUserByTelegramId,
+  getUserData,
+  getUserModel,
+  updateUserLevelPlusOne,
+} from '@/core/supabase'
 import { getUserLanguageFromState } from '@/helpers/centralizedLanguage'
 import { ModeEnum } from '@/interfaces/modes'
 
@@ -85,7 +94,6 @@ describe('chatWithAvatarWizard (Chat with AI Avatar)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockContext.message = null
-
     ;(isRussian as Mock).mockReturnValue(true)
     ;(handleHelpCancel as Mock).mockResolvedValue(false)
     ;(answerAi as Mock).mockResolvedValue('AI response message')
@@ -270,7 +278,8 @@ describe('chatWithAvatarWizard (Chat with AI Avatar)', () => {
         true
       )
 
-      const isImageResponse = typeof response === 'object' && response.type === 'image'
+      const isImageResponse =
+        typeof response === 'object' && response.type === 'image'
       expect(isImageResponse).toBe(true)
     })
 

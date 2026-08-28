@@ -80,7 +80,6 @@ describe('starPaymentScene (Telegram Stars)', () => {
     vi.clearAllMocks()
     mockContext.session.selectedPayment = null
     mockContext.callbackQuery = { data: '' }
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(handleSelectStars as Mock).mockResolvedValue(undefined)
     ;(handleBuySubscription as Mock).mockResolvedValue(undefined)
@@ -120,8 +119,7 @@ describe('starPaymentScene (Telegram Stars)', () => {
       mockContext.session.selectedPayment = null
 
       // Имитируем вход в сцену без подписки
-      const hasSubscription =
-        mockContext.session.selectedPayment?.subscription
+      const hasSubscription = mockContext.session.selectedPayment?.subscription
 
       if (!hasSubscription) {
         await handleSelectStars({
@@ -147,8 +145,7 @@ describe('starPaymentScene (Telegram Stars)', () => {
         stars: 476,
       }
 
-      const hasSubscription =
-        mockContext.session.selectedPayment?.subscription
+      const hasSubscription = mockContext.session.selectedPayment?.subscription
 
       if (hasSubscription) {
         await handleBuySubscription({
@@ -382,7 +379,9 @@ describe('starPaymentScene (Telegram Stars)', () => {
       }
 
       expect(mockContext.session.selectedPayment).toBeDefined()
-      expect(mockContext.session.selectedPayment.subscription).toBe('neurovideo')
+      expect(mockContext.session.selectedPayment.subscription).toBe(
+        'neurovideo'
+      )
     })
 
     it('должен иметь null selectedPayment для обычного пополнения', () => {

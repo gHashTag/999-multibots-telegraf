@@ -82,7 +82,9 @@ export async function scrapeInstagramDirect(
     })
 
     if (!run || !run.id) {
-      throw new Error('Apify не вернул корректный run объект. Возможно, сервис недоступен.')
+      throw new Error(
+        'Apify не вернул корректный run объект. Возможно, сервис недоступен.'
+      )
     }
 
     console.log(`✅ Actor run started with ID: ${run.id}`)
@@ -101,19 +103,23 @@ export async function scrapeInstagramDirect(
 
     // Get the results
     const dataset = await client.dataset(run.defaultDatasetId)
-    
+
     if (!dataset) {
-      throw new Error('Не удалось получить dataset. Возможно, проблема с Apify API.')
+      throw new Error(
+        'Не удалось получить dataset. Возможно, проблема с Apify API.'
+      )
     }
-    
+
     const results = await dataset.listItems()
-    
+
     if (!results || !Array.isArray(results.items)) {
-      throw new Error('Apify вернул некорректные данные. Возможно, проблема с API.')
+      throw new Error(
+        'Apify вернул некорректные данные. Возможно, проблема с API.'
+      )
     }
 
     console.log(`📊 Retrieved ${results.items.length} posts`)
-    
+
     // Логируем детали для диагностики
     logger.info('Apify parsing results details', {
       totalItems: results.items.length,
@@ -121,25 +127,31 @@ export async function scrapeInstagramDirect(
       finalStatus: finalRun?.status,
       hasDataset: !!dataset,
       target: username_or_hashtag,
-      type
+      type,
     })
 
     // Debug: log first item structure
     if (results.items.length > 0) {
-      console.log('🔍 DEBUG: First item structure:', JSON.stringify(results.items[0], null, 2))
+      console.log(
+        '🔍 DEBUG: First item structure:',
+        JSON.stringify(results.items[0], null, 2)
+      )
     }
 
     // Filter for reels/videos
     const reels = results.items.filter((item: any) => {
-      const isVideo = item.type === 'Video' || 
-                     item.type === 'Reel' || 
-                     item.videoUrl ||
-                     (item.videos && item.videos.length > 0) ||
-                     item.isVideo ||
-                     item.__typename === 'GraphVideo' ||
-                     item.media_type === 2  // Instagram API: 2 = video
+      const isVideo =
+        item.type === 'Video' ||
+        item.type === 'Reel' ||
+        item.videoUrl ||
+        (item.videos && item.videos.length > 0) ||
+        item.isVideo ||
+        item.__typename === 'GraphVideo' ||
+        item.media_type === 2 // Instagram API: 2 = video
 
-      console.log(`🔍 Item type: ${item.type}, isVideo: ${isVideo}, hasVideoUrl: ${!!item.videoUrl}, videos: ${item.videos?.length || 0}`)
+      console.log(
+        `🔍 Item type: ${item.type}, isVideo: ${isVideo}, hasVideoUrl: ${!!item.videoUrl}, videos: ${item.videos?.length || 0}`
+      )
       return isVideo
     })
 
@@ -147,11 +159,22 @@ export async function scrapeInstagramDirect(
 
     // Определяем статус операции на основе результатов
     const hasValidResults = reels.length > 0
-    const operationStatus = hasValidResults ? 'completed' : 'completed_no_results'
-    
+    const operationStatus = hasValidResults
+      ? 'completed'
+      : 'completed_no_results'
+
     // Save to database - всегда сохраняем результат для аудита
-    const costCalculation = maxPosts <= 10 ? 3 : maxPosts <= 25 ? 8 : maxPosts <= 50 ? 15 : maxPosts <= 100 ? 30 : 55
-    
+    const costCalculation =
+      maxPosts <= 10
+        ? 3
+        : maxPosts <= 25
+          ? 8
+          : maxPosts <= 50
+            ? 15
+            : maxPosts <= 100
+              ? 30
+              : 55
+
     const { error: dbError } = await supabaseAdmin
       .from('instagram_scrapings')
       .insert({
@@ -177,7 +200,7 @@ export async function scrapeInstagramDirect(
       runId: run.id,
       hasResults: hasValidResults,
       totalItemsProcessed: results.items.length,
-      reelsFiltered: reels.length
+      reelsFiltered: reels.length,
     }
   } catch (error) {
     logger.error('Instagram scraping failed', { error, params })

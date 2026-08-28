@@ -93,11 +93,9 @@ describe('Multi-Photo Neurophoto System', () => {
       from: { id: 123456789, username: 'testuser' },
       chat: { id: 123456789 },
       telegram: {
-        getFileLink: vi
-          .fn()
-          .mockResolvedValue({
-            href: 'https://api.telegram.org/file/test.jpg',
-          }),
+        getFileLink: vi.fn().mockResolvedValue({
+          href: 'https://api.telegram.org/file/test.jpg',
+        }),
       },
       reply: vi.fn().mockResolvedValue({}),
       scene: {

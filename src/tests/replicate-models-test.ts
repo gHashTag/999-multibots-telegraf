@@ -81,7 +81,9 @@ async function testUserModels(telegramId: string) {
       )
 
       if (result && result.success) {
-        console.log(`   ✅ SUCCESS: ${result.urls?.length || 0} images generated`)
+        console.log(
+          `   ✅ SUCCESS: ${result.urls?.length || 0} images generated`
+        )
         successCount++
       } else {
         console.log(`   ❌ FAILED: ${result?.data || 'Unknown error'}`)
@@ -98,7 +100,9 @@ async function testUserModels(telegramId: string) {
   console.log(`   Всего моделей: ${models.length}`)
   console.log(`   Успешных: ${successCount}`)
   console.log(`   Неудачных: ${failCount}`)
-  console.log(`   Успешность: ${((successCount / models.length) * 100).toFixed(1)}%`)
+  console.log(
+    `   Успешность: ${((successCount / models.length) * 100).toFixed(1)}%`
+  )
 }
 
 // Основная функция
@@ -106,7 +110,7 @@ async function main() {
   console.log('🚀 Запуск тестирования Replicate моделей\n')
 
   const telegramIds = [
-    '144022504',  // Проблемный пользователь
+    '144022504', // Проблемный пользователь
     // Можно добавить других пользователей для теста
   ]
 

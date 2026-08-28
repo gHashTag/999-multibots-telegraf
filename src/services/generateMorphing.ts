@@ -437,7 +437,10 @@ export async function generateMorphing(
     }
 
     // Пробрасываем оригинальную ошибку с префиксом для контекста
-    const originalMessage = error instanceof Error ? error.message : 'Unknown error'
-    throw new Error(`Произошла ошибка при создании морфинга: ${originalMessage}`)
+    const originalMessage =
+      error instanceof Error ? error.message : 'Unknown error'
+    throw new Error(
+      `Произошла ошибка при создании морфинга: ${originalMessage}`
+    )
   }
 }

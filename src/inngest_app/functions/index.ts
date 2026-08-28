@@ -17,8 +17,14 @@
 // export { instagramReelsTest as instagramScraperV2SimpleFunction } from './instagram/instagramScraper-v2-simple'
 
 // Monitoring Functions
-export { criticalErrorMonitor as criticalErrorMonitorFunction, healthCheck as healthCheckFunction } from './monitoring/criticalErrorMonitor'
-export { logMonitor as logMonitorFunction, triggerLogMonitor as triggerLogMonitorFunction } from './monitoring/logMonitor'
+export {
+  criticalErrorMonitor as criticalErrorMonitorFunction,
+  healthCheck as healthCheckFunction,
+} from './monitoring/criticalErrorMonitor'
+export {
+  logMonitor as logMonitorFunction,
+  triggerLogMonitor as triggerLogMonitorFunction,
+} from './monitoring/logMonitor'
 
 // Training Functions
 export { generateModelTraining as generateModelTrainingOriginalFunction } from './training/generateModelTraining'
@@ -51,7 +57,11 @@ export { generateModelTrainingFunction } from './existing/generateModelTrainingF
 // export { wan25Helpers } from './wan25-helpers'
 
 // Import render functions explicitly
-import { renderFunction, renderAvatarVideoFunction, renderRiddleFunction } from './render'
+import {
+  renderFunction,
+  renderAvatarVideoFunction,
+  renderRiddleFunction,
+} from './render'
 
 // Import all other functions for getAllFunctions
 // TEMPORARILY DISABLED due to broken imports
@@ -63,7 +73,10 @@ import { renderFunction, renderAvatarVideoFunction, renderRiddleFunction } from 
 // import { generateScenarioClips } from './content/generateScenarioClips'
 // import { instagramScraperV2 } from './instagram/instagramScraper-v2'
 // import { instagramReelsTest as instagramScraperV2Simple } from './instagram/instagramScraper-v2-simple'
-import { criticalErrorMonitor, healthCheck } from './monitoring/criticalErrorMonitor'
+import {
+  criticalErrorMonitor,
+  healthCheck,
+} from './monitoring/criticalErrorMonitor'
 import { logMonitor, triggerLogMonitor } from './monitoring/logMonitor'
 import { generateModelTraining } from './training/generateModelTraining'
 // TEMPORARILY DISABLED due to broken imports

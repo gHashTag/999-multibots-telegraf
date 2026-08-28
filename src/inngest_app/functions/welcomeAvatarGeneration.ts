@@ -48,13 +48,13 @@ const getHeroPrompt = (heroName: string, gender: 'male' | 'female'): string => {
       gender === 'male' ? 'Strong patriotic stance' : 'Confident patriotic pose'
     }. Holding a circular shield-like prop. Red, white and blue color palette throughout. Classic heroic lighting.`,
 
-    'Тор': `${baseSettings} A mighty ${
+    Тор: `${baseSettings} A mighty ${
       gender === 'male' ? 'Norse god' : 'Norse goddess'
     } in royal blue and silver Asgardian armor with cape. ${
       gender === 'male' ? 'Godlike powerful stance' : 'Divine warrior pose'
     }. Mystical hammer in hand with lightning effects. Lightning bolts crackling around. Divine golden light.`,
 
-    'Бэтмен': `${baseSettings} A mysterious ${
+    Бэтмен: `${baseSettings} A mysterious ${
       gender === 'male' ? 'man' : 'woman'
     } in dark tactical armor with bat-themed elements. ${
       gender === 'male' ? 'Brooding vigilante stance' : 'Shadow warrior pose'
@@ -72,13 +72,13 @@ const getHeroPrompt = (heroName: string, gender: 'male' | 'female'): string => {
       gender === 'male' ? 'Secret agent stance' : 'Black Widow combat pose'
     }. Red hair flowing. High-tech gadgets visible. Urban night background with red and black accents.`,
 
-    'Супергёрл': `${baseSettings} A powerful ${
+    Супергёрл: `${baseSettings} A powerful ${
       gender === 'male' ? 'Kryptonian hero' : 'Kryptonian heroine'
     } in blue outfit with red cape and S symbol. ${
       gender === 'male' ? 'Hero landing pose' : 'Supergirl flying pose'
     }. Cape billowing dramatically. Sky background with clouds and golden sunlight.`,
 
-    'Гамора': `${baseSettings} A deadly ${
+    Гамора: `${baseSettings} A deadly ${
       gender === 'male' ? 'assassin' : 'assassin warrior'
     } with green skin in black and purple tactical gear. ${
       gender === 'male' ? 'Deadly warrior stance' : 'Guardian assassin pose'
@@ -144,8 +144,12 @@ export const welcomeAvatarGeneration = inngest.createFunction(
     })
 
     if (!botValidation.valid) {
-      const errorMsg = 'error' in botValidation ? botValidation.error : 'Bot validation failed'
-      logger.error('🎁 [Welcome Avatar] Bot not found', { bot_name, error: errorMsg })
+      const errorMsg =
+        'error' in botValidation ? botValidation.error : 'Bot validation failed'
+      logger.error('🎁 [Welcome Avatar] Bot not found', {
+        bot_name,
+        error: errorMsg,
+      })
       return { success: false, error: errorMsg }
     }
 
@@ -171,7 +175,9 @@ export const welcomeAvatarGeneration = inngest.createFunction(
       // Get fresh bot instance inside step (avoids serialization issues)
       const botData = getBotByNameAdapter(bot_name)
       if (!botData.bot) {
-        logger.error('🎁 [Welcome Avatar] Bot not available in generate step', { bot_name })
+        logger.error('🎁 [Welcome Avatar] Bot not available in generate step', {
+          bot_name,
+        })
         return { success: false, error: 'Bot not available' }
       }
       const bot = botData.bot
@@ -194,7 +200,11 @@ export const welcomeAvatarGeneration = inngest.createFunction(
         deleteMessage: async () => {},
         replyWithPhoto: async (photo: any, options?: any) => {
           if (typeof photo === 'object' && 'source' in photo) {
-            await bot.telegram.sendPhoto(telegram_id, { source: photo.source }, options)
+            await bot.telegram.sendPhoto(
+              telegram_id,
+              { source: photo.source },
+              options
+            )
           } else {
             await bot.telegram.sendPhoto(telegram_id, photo, options)
           }
@@ -223,7 +233,10 @@ export const welcomeAvatarGeneration = inngest.createFunction(
           telegram_id,
           error: error instanceof Error ? error.message : 'Unknown error',
         })
-        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
       }
     })
 
@@ -233,7 +246,9 @@ export const welcomeAvatarGeneration = inngest.createFunction(
       // Get fresh bot instance inside step
       const botData = getBotByNameAdapter(bot_name)
       if (!botData.bot) {
-        logger.error('🎁 [Welcome Avatar] Bot not available in welcome step', { bot_name })
+        logger.error('🎁 [Welcome Avatar] Bot not available in welcome step', {
+          bot_name,
+        })
         return
       }
       const bot = botData.bot
@@ -243,7 +258,9 @@ export const welcomeAvatarGeneration = inngest.createFunction(
           ? `🎁 *Добро пожаловать!*\n\nВот ваш первый нейро-портрет в образе *${selectedHero}* в подарок!\n\n✨ Попробуйте создать ещё больше образов в главном меню.`
           : `🎁 *Welcome!*\n\nHere's your first AI portrait as *${selectedHero}* as a gift!\n\n✨ Try creating more looks in the main menu.`
 
-        await bot.telegram.sendMessage(telegram_id, message, { parse_mode: 'Markdown' })
+        await bot.telegram.sendMessage(telegram_id, message, {
+          parse_mode: 'Markdown',
+        })
       } else {
         // Fallback message if generation failed
         const fallbackMessage = is_ru

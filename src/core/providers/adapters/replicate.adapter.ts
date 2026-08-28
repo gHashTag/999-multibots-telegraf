@@ -4,7 +4,12 @@
  */
 
 import { pipe } from '../../../core/functional/utils/composition'
-import { TaskEither, Either, left, right } from '../../../core/functional/utils/result'
+import {
+  TaskEither,
+  Either,
+  left,
+  right,
+} from '../../../core/functional/utils/result'
 import {
   VideoRequest,
   VideoResult,
@@ -16,7 +21,7 @@ import {
   FaceSwapResult,
   ProviderConfig,
   HealthStatus,
-  Balance
+  Balance,
 } from '../../../core/functional/types/media.types'
 import type {
   Provider,
@@ -27,13 +32,15 @@ import type {
   GenerateImage,
   GenerateAudio,
   PerformFaceSwap,
-  ProviderError
+  ProviderError,
 } from './types'
 import { createProviderError } from './types'
 
 // ===== CONFIG VALIDATION =====
 
-const validateConfig = (config: ProviderConfig): Either<Error, ProviderConfig> => {
+const validateConfig = (
+  config: ProviderConfig
+): Either<Error, ProviderConfig> => {
   if (!config.apiKey) {
     return left(new Error('API key is required'))
   }
@@ -57,14 +64,14 @@ const createHttpClient = (config: ProviderConfig) => {
     const url = `${config.baseUrl}${endpoint}`
     const headers = {
       'Content-Type': 'application/json',
-      'Authorization': `Token ${config.apiKey}`
+      Authorization: `Token ${config.apiKey}`,
     }
 
     const response = await fetch(url, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(config.timeout || 30000)
+      signal: AbortSignal.timeout(config.timeout || 30000),
     })
 
     if (!response.ok) {
@@ -92,23 +99,29 @@ const buildVideoPayload = (request: VideoRequest) => {
       duration: request.duration,
       aspect_ratio: request.aspectRatio,
       image_url: request.imageUrl,
-      metadata: request.metadata
-    }
+      metadata: request.metadata,
+    },
   }
   return payload
 }
 
-const handleVideoResponse = (data: any, request: VideoRequest, providerName: any): VideoResult => ({
+const handleVideoResponse = (
+  data: any,
+  request: VideoRequest,
+  providerName: any
+): VideoResult => ({
   videoUrl: data.output?.video_url || data.output?.[0] || '',
   taskId: data.id,
   provider: providerName,
   duration: data.input?.duration || request.duration,
   metadata: data.metadata || {},
-  cost: data.cost || { usd: 0, stars: 0 }
+  cost: data.cost || { usd: 0, stars: 0 },
 })
 
-export const generateVideo = (config: ProviderConfig): GenerateVideo =>
-  (request: VideoRequest) => async (): Promise<Either<Error, VideoResult>> => {
+export const generateVideo =
+  (config: ProviderConfig): GenerateVideo =>
+  (request: VideoRequest) =>
+  async (): Promise<Either<Error, VideoResult>> => {
     const http = createHttpClient(config)
 
     try {
@@ -139,23 +152,29 @@ const buildImagePayload = (request: ImageRequest) => {
       num_images: request.numImages || 1,
       style: request.style,
       image_url: request.imageUrl,
-      metadata: request.metadata
-    }
+      metadata: request.metadata,
+    },
   }
   return payload
 }
 
-const handleImageResponse = (data: any, request: ImageRequest, providerName: any): ImageResult => ({
+const handleImageResponse = (
+  data: any,
+  request: ImageRequest,
+  providerName: any
+): ImageResult => ({
   imageUrl: data.output?.[0] || data.output,
   taskId: data.id,
   provider: providerName,
   width: data.input?.width || request.width || 512,
   height: data.input?.height || request.height || 512,
-  metadata: data.metadata || {}
+  metadata: data.metadata || {},
 })
 
-export const generateImage = (config: ProviderConfig): GenerateImage =>
-  (request: ImageRequest) => async (): Promise<Either<Error, ImageResult>> => {
+export const generateImage =
+  (config: ProviderConfig): GenerateImage =>
+  (request: ImageRequest) =>
+  async (): Promise<Either<Error, ImageResult>> => {
     const http = createHttpClient(config)
 
     try {
@@ -184,22 +203,28 @@ const buildAudioPayload = (request: AudioRequest) => {
       voice_id: request.voice_id,
       duration: request.duration,
       language: request.language,
-      metadata: request.metadata
-    }
+      metadata: request.metadata,
+    },
   }
   return payload
 }
 
-const handleAudioResponse = (data: any, request: AudioRequest, providerName: any): AudioResult => ({
+const handleAudioResponse = (
+  data: any,
+  request: AudioRequest,
+  providerName: any
+): AudioResult => ({
   audioUrl: data.output?.audio_url || data.output,
   taskId: data.id,
   provider: providerName,
   duration: data.input?.duration || request.duration || 5,
-  metadata: data.metadata || {}
+  metadata: data.metadata || {},
 })
 
-export const generateAudio = (config: ProviderConfig): GenerateAudio =>
-  (request: AudioRequest) => async (): Promise<Either<Error, AudioResult>> => {
+export const generateAudio =
+  (config: ProviderConfig): GenerateAudio =>
+  (request: AudioRequest) =>
+  async (): Promise<Either<Error, AudioResult>> => {
     const http = createHttpClient(config)
 
     try {
@@ -226,21 +251,26 @@ const buildFaceSwapPayload = (request: FaceSwapRequest) => {
     input: {
       target_image_url: request.targetImageUrl,
       swap_image_url: request.swapImageUrl,
-      metadata: request.metadata
-    }
+      metadata: request.metadata,
+    },
   }
   return payload
 }
 
-const handleFaceSwapResponse = (data: any, providerName: any): FaceSwapResult => ({
+const handleFaceSwapResponse = (
+  data: any,
+  providerName: any
+): FaceSwapResult => ({
   imageUrl: data.output?.[0] || data.output,
   taskId: data.id,
   provider: providerName,
-  metadata: data.metadata || {}
+  metadata: data.metadata || {},
 })
 
-export const performFaceSwap = (config: ProviderConfig): PerformFaceSwap =>
-  (request: FaceSwapRequest) => async (): Promise<Either<Error, FaceSwapResult>> => {
+export const performFaceSwap =
+  (config: ProviderConfig): PerformFaceSwap =>
+  (request: FaceSwapRequest) =>
+  async (): Promise<Either<Error, FaceSwapResult>> => {
     const http = createHttpClient(config)
 
     try {
@@ -261,8 +291,10 @@ export const performFaceSwap = (config: ProviderConfig): PerformFaceSwap =>
 
 // ===== HEALTH CHECK =====
 
-export const healthCheck = (config: ProviderConfig): HealthCheck =>
-  () => async (): Promise<Either<Error, HealthStatus>> => {
+export const healthCheck =
+  (config: ProviderConfig): HealthCheck =>
+  () =>
+  async (): Promise<Either<Error, HealthStatus>> => {
     const http = createHttpClient(config)
 
     try {
@@ -274,7 +306,7 @@ export const healthCheck = (config: ProviderConfig): HealthCheck =>
         status: response ? 'healthy' : 'unhealthy',
         latency,
         uptime: response?.usage?.uptime || 0,
-        lastCheck: Date.now()
+        lastCheck: Date.now(),
       }
 
       return right(health)
@@ -283,16 +315,20 @@ export const healthCheck = (config: ProviderConfig): HealthCheck =>
         status: 'unhealthy',
         latency: config.timeout || 30000,
         uptime: 0,
-        lastCheck: Date.now()
+        lastCheck: Date.now(),
       }
-      return left(error instanceof Error ? error : new Error('Health check failed'))
+      return left(
+        error instanceof Error ? error : new Error('Health check failed')
+      )
     }
   }
 
 // ===== BALANCE CHECK =====
 
-export const getBalance = (config: ProviderConfig): GetBalance =>
-  () => async (): Promise<Either<Error, Balance>> => {
+export const getBalance =
+  (config: ProviderConfig): GetBalance =>
+  () =>
+  async (): Promise<Either<Error, Balance>> => {
     const http = createHttpClient(config)
 
     try {
@@ -302,20 +338,24 @@ export const getBalance = (config: ProviderConfig): GetBalance =>
         currency: 'usd',
         available: response?.billing?.balance || 0,
         reserved: response?.billing?.credits_used || 0,
-        lastUpdated: Date.now()
+        lastUpdated: Date.now(),
       }
 
       return right(balance)
     } catch (error) {
-      return left(error instanceof Error ? error : new Error('Balance check failed'))
+      return left(
+        error instanceof Error ? error : new Error('Balance check failed')
+      )
     }
   }
 
 // ===== RATE LIMITER =====
 
-export const rateLimit = (config: ProviderConfig): RateLimit =>
-  (request: any) => async (): Promise<Either<Error, void>> => {
-    const rateLimiter = (config.rateLimit?.requestsPerMinute || 60)
+export const rateLimit =
+  (config: ProviderConfig): RateLimit =>
+  (request: any) =>
+  async (): Promise<Either<Error, void>> => {
+    const rateLimiter = config.rateLimit?.requestsPerMinute || 60
     const key = `${config.name}-${request.userId}`
 
     return right(undefined)
@@ -341,7 +381,7 @@ export const createReplicateProvider = (config: ProviderConfig): Provider => {
     performFaceSwap: performFaceSwap(validated),
     healthCheck: healthCheck(validated),
     getBalance: getBalance(validated),
-    rateLimit: rateLimit(validated)
+    rateLimit: rateLimit(validated),
   }
 }
 

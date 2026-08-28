@@ -23,7 +23,7 @@ import {
   createSceneGuardMiddleware,
   isStuckNavigation,
   forceNavigationReset,
-  SceneGuardConfig
+  SceneGuardConfig,
 } from '@/navigation/middleware/sceneGuard'
 import { ModeEnum } from '@/interfaces/modes'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
@@ -34,8 +34,8 @@ vi.mock('@/utils/logger', () => ({
     info: vi.fn(),
     debug: vi.fn(),
     error: vi.fn(),
-    warn: vi.fn()
-  }
+    warn: vi.fn(),
+  },
 }))
 
 // Mock navigationLogger
@@ -46,13 +46,13 @@ vi.mock('@/navigation/helpers/navigationLogger', () => ({
   logGoBack: vi.fn(),
   logNavigationWarning: vi.fn(),
   logNavigationError: vi.fn(),
-  dumpNavigationState: vi.fn()
+  dumpNavigationState: vi.fn(),
 }))
 
 // Mock sceneTransition
 vi.mock('@/navigation/helpers/sceneTransition', () => ({
   goBack: vi.fn().mockResolvedValue(true),
-  goToMainMenu: vi.fn().mockResolvedValue(true)
+  goToMainMenu: vi.fn().mockResolvedValue(true),
 }))
 
 // Mock buttonMatcher
@@ -60,11 +60,16 @@ vi.mock('@/navigation/middleware/buttonMatcher', () => ({
   matchButton: vi.fn(),
   isMainMenuButton: vi.fn(),
   isCancelButton: vi.fn(),
-  isBackButton: vi.fn()
+  isBackButton: vi.fn(),
 }))
 
 import { goBack, goToMainMenu } from '@/navigation/helpers/sceneTransition'
-import { matchButton, isMainMenuButton, isCancelButton, isBackButton } from '@/navigation/middleware/buttonMatcher'
+import {
+  matchButton,
+  isMainMenuButton,
+  isCancelButton,
+  isBackButton,
+} from '@/navigation/middleware/buttonMatcher'
 import type { MutableCtx } from '../helpers/mutableContext'
 
 describe('sceneGuard', () => {
@@ -83,14 +88,14 @@ describe('sceneGuard', () => {
       message: { text: 'test' } as any,
       session: {
         navigationHistory: [],
-        mode: ModeEnum.MainMenu
+        mode: ModeEnum.MainMenu,
       } as any,
       scene: {
         current: { id: 'testScene' },
         leave: mockSceneLeave,
         enter: mockSceneEnter,
-        state: {}
-      } as any
+        state: {},
+      } as any,
     }
 
     // Сбрасываем моки к дефолтным значениям
@@ -149,10 +154,13 @@ describe('sceneGuard', () => {
         maxDepthWarning: 2,
         maxDepthForceReset: 3,
         excludeScenes: [],
-        dumpOnError: false
+        dumpOnError: false,
       }
 
-      const result = checkNavigationDepth(mockContext as MyContext, customConfig)
+      const result = checkNavigationDepth(
+        mockContext as MyContext,
+        customConfig
+      )
 
       expect(result.depth).toBe(2)
       expect(result.warning).not.toBeNull()
@@ -202,7 +210,9 @@ describe('sceneGuard', () => {
     it('делает fallback при ошибке goToMainMenu', async () => {
       mockContext.message = { text: '🏠 Главное меню' } as any
       ;(isMainMenuButton as Mock).mockReturnValue(true)
-      ;(goToMainMenu as Mock).mockRejectedValueOnce(new Error('Navigation error'))
+      ;(goToMainMenu as Mock).mockRejectedValueOnce(
+        new Error('Navigation error')
+      )
 
       const result = await handleMainMenuButton(mockContext as MyContext)
 
@@ -214,7 +224,9 @@ describe('sceneGuard', () => {
     it('возвращает false при double fallback failure', async () => {
       mockContext.message = { text: '🏠 Главное меню' } as any
       ;(isMainMenuButton as Mock).mockReturnValue(true)
-      ;(goToMainMenu as Mock).mockRejectedValueOnce(new Error('Navigation error'))
+      ;(goToMainMenu as Mock).mockRejectedValueOnce(
+        new Error('Navigation error')
+      )
       mockSceneLeave.mockRejectedValueOnce(new Error('Leave error'))
 
       const result = await handleMainMenuButton(mockContext as MyContext)
@@ -265,7 +277,9 @@ describe('sceneGuard', () => {
     it('возвращает false при ошибке goToMainMenu', async () => {
       mockContext.message = { text: 'Отмена' } as any
       ;(isCancelButton as Mock).mockReturnValue(true)
-      ;(goToMainMenu as Mock).mockRejectedValueOnce(new Error('Navigation error'))
+      ;(goToMainMenu as Mock).mockRejectedValueOnce(
+        new Error('Navigation error')
+      )
 
       const result = await handleCancelButton(mockContext as MyContext)
 
@@ -416,7 +430,7 @@ describe('sceneGuard', () => {
         maxDepthWarning: 1,
         maxDepthForceReset: 2,
         excludeScenes: [],
-        dumpOnError: false
+        dumpOnError: false,
       }
       const middleware = createSceneGuardMiddleware(customConfig)
       const next = vi.fn().mockResolvedValue(undefined)

@@ -47,7 +47,7 @@ export async function handleCancel(
     logger.info(`[handleCancel] User ${telegramId} cancelled operation`, {
       sceneId: ctx.scene?.current?.id,
       sessionMode: ctx.session?.mode,
-      hasOptions: !!options
+      hasOptions: !!options,
     })
 
     // Подтверждаем callback query если это callback
@@ -57,8 +57,8 @@ export async function handleCancel(
 
     // Показываем сообщение об отмене
     const message = isRu
-      ? (options.messageRu || '❌ Операция отменена')
-      : (options.messageEn || '❌ Operation cancelled')
+      ? options.messageRu || '❌ Операция отменена'
+      : options.messageEn || '❌ Operation cancelled'
 
     await ctx.reply(message)
 
@@ -88,11 +88,10 @@ export async function handleCancel(
 
     // Переходим в главное меню
     await ctx.scene.enter(ModeEnum.MainMenu)
-
   } catch (error) {
     logger.error(`[handleCancel] Error during cancel operation`, {
       telegramId,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
 
     // В любом случае пытаемся показать главное меню
@@ -103,7 +102,8 @@ export async function handleCancel(
     } catch (menuError) {
       logger.error(`[handleCancel] Failed to show main menu`, {
         telegramId,
-        error: menuError instanceof Error ? menuError.message : String(menuError)
+        error:
+          menuError instanceof Error ? menuError.message : String(menuError),
       })
     }
   }
@@ -122,7 +122,7 @@ export function createCancelActionHandler(
       messageRu: options.messageRu || '❌ Операция отменена',
       messageEn: options.messageEn || '❌ Operation cancelled',
       clearSession: options.clearSession !== false,
-      onCancel: options.onCancel
+      onCancel: options.onCancel,
     })
   }
 }
@@ -153,28 +153,29 @@ export function createCancelKeyboard(isRu: boolean): any {
   const { Markup } = require('telegraf')
 
   return Markup.inlineKeyboard([
-    [Markup.button.callback(
-      isRu ? '❌ Отмена' : '❌ Cancel',
-      'cancel_operation'
-    )]
+    [
+      Markup.button.callback(
+        isRu ? '❌ Отмена' : '❌ Cancel',
+        'cancel_operation'
+      ),
+    ],
   ])
 }
 
 /**
  * Добавляет кнопку отмены к существующей клавиатуре
  */
-export function addCancelButton(
-  keyboard: any[][],
-  isRu: boolean
-): any[][] {
+export function addCancelButton(keyboard: any[][], isRu: boolean): any[][] {
   const { Markup } = require('telegraf')
 
   return [
     ...keyboard,
-    [Markup.button.callback(
-      isRu ? '❌ Отмена' : '❌ Cancel',
-      'cancel_operation'
-    )]
+    [
+      Markup.button.callback(
+        isRu ? '❌ Отмена' : '❌ Cancel',
+        'cancel_operation'
+      ),
+    ],
   ]
 }
 

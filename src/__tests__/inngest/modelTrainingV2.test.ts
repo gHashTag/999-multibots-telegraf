@@ -97,18 +97,14 @@ describe('modelTrainingV2 (BFL API)', () => {
       level: 1,
       balance: 1000,
     })
-
     ;(getUserBalance as Mock).mockResolvedValue(1000)
-
     ;(processBalanceOperation as Mock).mockResolvedValue({
       success: true,
       currentBalance: 1000,
     })
-
     ;(axios.get as Mock).mockResolvedValue({
       data: Buffer.from('mock zip content'),
     })
-
     ;(createModelTrainingV2Db as Mock).mockResolvedValue(undefined)
     ;(updateUserBalance as Mock).mockResolvedValue(undefined)
     ;(updateUserLevelPlusOne as Mock).mockResolvedValue(undefined)
@@ -384,7 +380,7 @@ describe('modelTrainingV2 (BFL API)', () => {
       const enMessage =
         '✅ Your model "my-avatar-model" training has started! We\'ll notify you when it\'s ready.'
       expect(enMessage).toContain('training has started')
-      expect(enMessage).toContain("notify you")
+      expect(enMessage).toContain('notify you')
     })
   })
 
@@ -532,7 +528,9 @@ describe('modelTrainingV2 (BFL API)', () => {
         webhook_events_filter: ['completed'],
       }
 
-      expect(replicateWebhookConfig.webhook_events_filter).toContain('completed')
+      expect(replicateWebhookConfig.webhook_events_filter).toContain(
+        'completed'
+      )
     })
   })
 
@@ -563,7 +561,7 @@ describe('modelTrainingV2 (BFL API)', () => {
         'deduct-balance',
       ]
 
-      expectedSteps.forEach((step) => {
+      expectedSteps.forEach(step => {
         expect(step).toBeDefined()
       })
     })

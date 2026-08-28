@@ -82,7 +82,9 @@ function definitionFiles(): string[] {
 
   return out
     .filter(f => !f.includes('/test/') && !f.includes('__tests__'))
-    .filter(f => /inngest\.createFunction\s*\(/.test(strip(fs.readFileSync(f, 'utf8'))))
+    .filter(f =>
+      /inngest\.createFunction\s*\(/.test(strip(fs.readFileSync(f, 'utf8')))
+    )
     .map(f => f.replace(`${ROOT}/`, '').replace(/\.ts$/, ''))
 }
 
@@ -111,12 +113,16 @@ describe('регистрация функций Inngest', () => {
 
   it('в списке исключений нет тех, кого уже подключили', () => {
     // Иначе запись переживёт свою причину и молча прикроет следующую ошибку.
-    const stale = Object.keys(DELIBERATELY_UNREGISTERED).filter(f => registered.has(f))
+    const stale = Object.keys(DELIBERATELY_UNREGISTERED).filter(f =>
+      registered.has(f)
+    )
     expect(stale).toEqual([])
   })
 
   it('в списке исключений нет несуществующих файлов', () => {
-    const gone = Object.keys(DELIBERATELY_UNREGISTERED).filter(f => !defined.includes(f))
+    const gone = Object.keys(DELIBERATELY_UNREGISTERED).filter(
+      f => !defined.includes(f)
+    )
     expect(gone).toEqual([])
   })
 })

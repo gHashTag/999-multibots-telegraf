@@ -33,14 +33,16 @@ export class ElevenLabsService {
     console.log('[ELEVENLABS STUB] Generating speech', {
       text_length: request.text.length,
       voice_id: request.voice_id,
-      model_id: request.model_id
+      model_id: request.model_id,
     })
 
     // Return stub MP3 buffer (minimal valid MP3 header)
-    return Buffer.from([0xFF, 0xFB, 0x90, 0x00])
+    return Buffer.from([0xff, 0xfb, 0x90, 0x00])
   }
 
-  async transcribeAudioFromUrl(audioUrl: string): Promise<TranscriptionResponse> {
+  async transcribeAudioFromUrl(
+    audioUrl: string
+  ): Promise<TranscriptionResponse> {
     // ПАДАЕМ, а не возвращаем выдуманные слова.
     //
     // Раньше отсюда возвращалось "Stub transcription text" с таймингами
@@ -71,7 +73,7 @@ export async function generateSpeech(
     text_length: request.text.length,
     voice_id: request.voice_id,
     userId,
-    jobId
+    jobId,
   })
 
   // Return stub URL
@@ -108,7 +110,7 @@ export async function transcribeAudio(
     buffer_size: audioBuffer.length,
     userId,
     jobId,
-    model
+    model,
   })
 
   // ПАДАЕМ. Это та самая функция, которую зовёт шаг 'generate-transcription'

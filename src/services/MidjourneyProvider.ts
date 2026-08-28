@@ -33,7 +33,9 @@ export class MidjourneyProvider {
   constructor() {
     this.apiKey = process.env.MIDJOURNEY_API_KEY || ''
     if (!this.apiKey) {
-      console.warn('⚠️  MIDJOURNEY_API_KEY not provided - provider will work in test mode only')
+      console.warn(
+        '⚠️  MIDJOURNEY_API_KEY not provided - provider will work in test mode only'
+      )
     }
   }
 
@@ -116,7 +118,12 @@ export class MidjourneyProvider {
       }
     }
 
-    const { prompt, aspectRatio = '1:1', version = 'v6', style = 'raw' } = request
+    const {
+      prompt,
+      aspectRatio = '1:1',
+      version = 'v6',
+      style = 'raw',
+    } = request
 
     const requestData = {
       model: `midjourney-${version}`,
@@ -126,7 +133,10 @@ export class MidjourneyProvider {
     }
 
     try {
-      const response = await this.makeRequest<any>('/images/generations', requestData)
+      const response = await this.makeRequest<any>(
+        '/images/generations',
+        requestData
+      )
 
       const costUSD = this.calculateImageCost(version)
       const costStars = this.usdToStars(costUSD)
@@ -205,7 +215,9 @@ export class MidjourneyProvider {
           model: 'midjourney-v6',
         }
       } else if (response.data.status === 'failed') {
-        throw new Error(`Image generation failed: ${response.data?.error || response.data?.msg || 'Unknown reason'}`)
+        throw new Error(
+          `Image generation failed: ${response.data?.error || response.data?.msg || 'Unknown reason'}`
+        )
       } else {
         // Still processing
         return {
@@ -220,7 +232,10 @@ export class MidjourneyProvider {
         }
       }
     } catch (error) {
-      logger.error('[MidjourneyProvider] Error checking image status', { taskId, error })
+      logger.error('[MidjourneyProvider] Error checking image status', {
+        taskId,
+        error,
+      })
       return {
         success: false,
         cost: { usd: 0, stars: 0 },
@@ -233,11 +248,11 @@ export class MidjourneyProvider {
 
   private calculateImageCost(version: string): number {
     const pricing: Record<string, number> = {
-      'v5': 0.15,
-      'v6': 0.20,
+      v5: 0.15,
+      v6: 0.2,
     }
 
-    const price = pricing[version] || 0.20
+    const price = pricing[version] || 0.2
     return price
   }
 

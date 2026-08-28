@@ -45,14 +45,19 @@ describe('mirrorToOwnStorage', () => {
   })
 
   it('перекладывает чужой файл и отдаёт свою ссылку', async () => {
-    vi.stubGlobal('fetch', async () =>
-      new Response(new Uint8Array(1234), {
-        status: 200,
-        headers: { 'content-type': 'image/png' },
-      })
+    vi.stubGlobal(
+      'fetch',
+      async () =>
+        new Response(new Uint8Array(1234), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        })
     )
 
-    const out = await mirrorToOwnStorage('https://provider.example/pic.png', '42')
+    const out = await mirrorToOwnStorage(
+      'https://provider.example/pic.png',
+      '42'
+    )
 
     expect(out).toMatch(/^https:\/\/own\.example\.com\/storage\//)
     expect(uploads).toHaveLength(1)
@@ -73,8 +78,9 @@ describe('mirrorToOwnStorage', () => {
   })
 
   it('при отказе хранилища возвращает исходную ссылку', async () => {
-    vi.stubGlobal('fetch', async () =>
-      new Response(new Uint8Array(10), { status: 200 })
+    vi.stubGlobal(
+      'fetch',
+      async () => new Response(new Uint8Array(10), { status: 200 })
     )
     uploadError = { message: 'Access Denied' }
 
@@ -96,8 +102,9 @@ describe('mirrorToOwnStorage', () => {
   })
 
   it('пустой ответ источника не считается успехом', async () => {
-    vi.stubGlobal('fetch', async () =>
-      new Response(new Uint8Array(0), { status: 200 })
+    vi.stubGlobal(
+      'fetch',
+      async () => new Response(new Uint8Array(0), { status: 200 })
     )
 
     const src = 'https://provider.example/empty.png'

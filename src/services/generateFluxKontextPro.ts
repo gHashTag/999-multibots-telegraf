@@ -42,8 +42,10 @@ const FLUX_KONTEXT_PRO_MODEL = {
   key: FLUX_KONTEXT_PRO_CONFIG.modelKey,
   costPerImage: calculateFinalImageCostInStars(FLUX_KONTEXT_PRO_CONFIG.costUSD),
   name: 'FLUX Kontext Pro',
-  description_en: 'FLUX Kontext Pro - 8x faster, Adobe Photoshop Beta integrated image editing',
-  description_ru: 'FLUX Kontext Pro - в 8 раз быстрее, интегрировано с Adobe Photoshop Beta'
+  description_en:
+    'FLUX Kontext Pro - 8x faster, Adobe Photoshop Beta integrated image editing',
+  description_ru:
+    'FLUX Kontext Pro - в 8 раз быстрее, интегрировано с Adobe Photoshop Beta',
 }
 
 /**
@@ -71,7 +73,7 @@ export const generateFluxKontextPro = async (
       is_ru,
       ctx,
       size = '2K',
-      aspect_ratio
+      aspect_ratio,
     } = params
 
     // ✅ Validate input image is provided
@@ -141,9 +143,12 @@ export const generateFluxKontextPro = async (
         balanceCheckSuccess: !!balanceResult,
       })
     } else {
-      logger.info('⏭️ [FluxKontextPro] Skipping balance check (already verified)', {
-        telegram_id,
-      })
+      logger.info(
+        '⏭️ [FluxKontextPro] Skipping balance check (already verified)',
+        {
+          telegram_id,
+        }
+      )
     }
 
     // ✅ Send status message ONLY if NOT in silent mode
@@ -189,13 +194,17 @@ export const generateFluxKontextPro = async (
       })
 
       // ✅ Refund user on API failure (silent mode if needed)
-      await refundUser(ctx, totalCost, { silent: params.silent || false, reason: "generation_failed" })
+      await refundUser(ctx, totalCost, {
+        silent: params.silent || false,
+        reason: 'generation_failed',
+      })
 
       throw error
     }
 
     // ✅ Validate response with Zod
-    const validatedResponse: FluxKontextProResponse = validateFluxKontextProResponse(replicateOutput)
+    const validatedResponse: FluxKontextProResponse =
+      validateFluxKontextProResponse(replicateOutput)
 
     logger.info('✅ [FluxKontextPro] Response validated successfully!', {
       telegram_id,
@@ -254,10 +263,7 @@ export const generateFluxKontextPro = async (
         ? `✅ Готово!\n\n💰 Стоимость: ${totalCost}⭐`
         : `✅ Done!\n\n💰 Cost: ${totalCost}⭐`
 
-      await ctx.replyWithPhoto(
-        { url: imageUrl },
-        { caption }
-      )
+      await ctx.replyWithPhoto({ url: imageUrl }, { caption })
 
       logger.info('📬 [FluxKontextPro] Photo sent successfully!', {
         telegram_id,
@@ -281,21 +287,27 @@ export const generateFluxKontextPro = async (
         prompt: finalPrompt,
         botName: ctx.botInfo?.username || 'unknown',
         additionalInfo: {
-          'Model': FLUX_KONTEXT_PRO_MODEL.name,
-          'Quality': size,
-          'Cost': `${totalCost} stars`,
-          'Type': 'AI Image Editing'
-        }
+          Model: FLUX_KONTEXT_PRO_MODEL.name,
+          Quality: size,
+          Cost: `${totalCost} stars`,
+          Type: 'AI Image Editing',
+        },
       })
 
       logger.info('✅ [FluxKontextPro] Pulse channel send SUCCESS!', {
         telegram_id,
       })
     } catch (pulseError) {
-      logger.error('⚠️ [FluxKontextPro] Pulse channel send failed (non-critical):', {
-        telegram_id,
-        error: pulseError instanceof Error ? pulseError.message : String(pulseError),
-      })
+      logger.error(
+        '⚠️ [FluxKontextPro] Pulse channel send failed (non-critical):',
+        {
+          telegram_id,
+          error:
+            pulseError instanceof Error
+              ? pulseError.message
+              : String(pulseError),
+        }
+      )
     }
 
     return {

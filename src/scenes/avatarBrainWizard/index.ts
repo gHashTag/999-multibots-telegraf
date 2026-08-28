@@ -2,7 +2,11 @@ import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { updateUserSoul } from '../../core/supabase'
 import { isRussianFromState } from '../../helpers/centralizedLanguage'
-import { handleHelpCancel, createHelpCancelKeyboard, getMainMenuText } from '@/navigation'
+import {
+  handleHelpCancel,
+  createHelpCancelKeyboard,
+  getMainMenuText,
+} from '@/navigation'
 import {
   getUserByTelegramId,
   updateUserLevelPlusOne,

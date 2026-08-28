@@ -6,11 +6,13 @@ import { telegramLogService } from '@/services/telegram-log.service'
 // Заглушка для supportRequest (заменена на telegramLogService)
 const supportRequest = (message: string, data: any) => {
   // Отправляем в группу НейроМентор
-  telegramLogService.logError({
-    error: message,
-    context: data.method || 'supportRequest',
-    botName: data.bot_name,
-  }).catch(err => logger.warn('Failed to send error to log group:', err))
+  telegramLogService
+    .logError({
+      error: message,
+      context: data.method || 'supportRequest',
+      botName: data.bot_name,
+    })
+    .catch(err => logger.warn('Failed to send error to log group:', err))
 }
 
 // Интерфейс для типизации ошибки Telegram API
@@ -101,13 +103,15 @@ export const setupErrorHandler = (bot: Telegraf<MyContext>): void => {
       })
 
       // Логируем в группу НейроМентор
-      telegramLogService.logError({
-        telegramId: userId?.toString(),
-        username: username,
-        error: error.message || 'Forbidden Error',
-        context: `403 Forbidden: ${error.on?.method || 'unknown'}`,
-        botName: ctx?.botInfo?.username,
-      }).catch(() => {})
+      telegramLogService
+        .logError({
+          telegramId: userId?.toString(),
+          username: username,
+          error: error.message || 'Forbidden Error',
+          context: `403 Forbidden: ${error.on?.method || 'unknown'}`,
+          botName: ctx?.botInfo?.username,
+        })
+        .catch(() => {})
     } else {
       logger.error('❌ Ошибка Telegram API:', {
         description: 'Telegram API Error',
@@ -122,13 +126,15 @@ export const setupErrorHandler = (bot: Telegraf<MyContext>): void => {
       })
 
       // Логируем критические ошибки в группу НейроМентор
-      telegramLogService.logError({
-        telegramId: userId?.toString(),
-        username: username,
-        error: error.message || 'Unknown Telegram API Error',
-        context: `${error.on?.method || 'unknown'} (code: ${error_code || 'N/A'})`,
-        botName: ctx?.botInfo?.username,
-      }).catch(() => {})
+      telegramLogService
+        .logError({
+          telegramId: userId?.toString(),
+          username: username,
+          error: error.message || 'Unknown Telegram API Error',
+          context: `${error.on?.method || 'unknown'} (code: ${error_code || 'N/A'})`,
+          botName: ctx?.botInfo?.username,
+        })
+        .catch(() => {})
     }
 
     // Возвращаем Promise<void> вместо boolean

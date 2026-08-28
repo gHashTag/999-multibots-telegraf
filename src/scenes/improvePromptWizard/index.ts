@@ -5,7 +5,12 @@ import { MyContext } from '@/interfaces'
 import { generateTextToImageDirect } from '@/services/generateTextToImageDirect'
 import { generateNeuroPhotoHybrid } from '@/services/generateNeuroPhotoHybrid'
 import { generateTextToVideo } from '@/modules/videoGenerator/generateTextToVideo'
-import { sendPromptImprovementMessage, sendPromptImprovementFailureMessage, sendGenericErrorMessage, getMainMenuText } from '@/navigation'
+import {
+  sendPromptImprovementMessage,
+  sendPromptImprovementFailureMessage,
+  sendGenericErrorMessage,
+  getMainMenuText,
+} from '@/navigation'
 import { ModeEnum } from '@/interfaces/modes'
 import { getUserProfileAndSettings } from '@/db/userSettings'
 import { logger, logSessionSafely } from '@/utils/logger'
@@ -99,27 +104,18 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
 
     ctx.session.prompt = improvedPrompt
 
-    await sendImprovedPrompt(
-      ctx,
-      improvedPrompt,
-      isRu,
-      {
-        reply_markup: Markup.keyboard([
-          [
-            Markup.button.text(
-              isRu ? '✅ Да. Cгенерировать?' : '✅ Yes. Generate?'
-            ),
-          ],
-          [
-            Markup.button.text(
-              isRu ? '🔄 Еще раз улучшить' : '🔄 Improve again'
-            ),
-          ],
-          [Markup.button.text(isRu ? 'Отмена' : 'Cancel')],
-        ]).resize().reply_markup,
-        parse_mode: 'MarkdownV2',
-      }
-    )
+    await sendImprovedPrompt(ctx, improvedPrompt, isRu, {
+      reply_markup: Markup.keyboard([
+        [
+          Markup.button.text(
+            isRu ? '✅ Да. Cгенерировать?' : '✅ Yes. Generate?'
+          ),
+        ],
+        [Markup.button.text(isRu ? '🔄 Еще раз улучшить' : '🔄 Improve again')],
+        [Markup.button.text(isRu ? 'Отмена' : 'Cancel')],
+      ]).resize().reply_markup,
+      parse_mode: 'MarkdownV2',
+    })
 
     return ctx.wizard.next()
   },
@@ -148,26 +144,26 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
         )
         await ctx.scene.leave()
         await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+        const { showMainMenu } = await import('@/navigation')
+        await showMainMenu(ctx)
+        return
       }
 
       if (!ctx.session.prompt) {
         await sendPromptImprovementFailureMessage(ctx, isRu)
         await ctx.scene.leave()
         await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+        const { showMainMenu } = await import('@/navigation')
+        await showMainMenu(ctx)
+        return
       }
       if (!ctx.session.mode) {
         await sendPromptImprovementFailureMessage(ctx, isRu)
         await ctx.scene.leave()
         await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+        const { showMainMenu } = await import('@/navigation')
+        await showMainMenu(ctx)
+        return
       }
       switch (text) {
         case isRu ? '✅ Да. Cгенерировать?' : '✅ Yes. Generate?': {
@@ -205,9 +201,9 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             )
             await ctx.scene.leave()
             await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+            const { showMainMenu } = await import('@/navigation')
+            await showMainMenu(ctx)
+            return
           }
 
           console.log(mode, 'mode')
@@ -288,9 +284,9 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
                   )
                   await ctx.scene.leave()
                   await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+                  const { showMainMenu } = await import('@/navigation')
+                  await showMainMenu(ctx)
+                  return
                 }
                 await generateTextToImageDirect(
                   ctx.session.prompt,
@@ -361,15 +357,15 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             await sendGenericErrorMessage(ctx, isRu)
             await ctx.scene.leave()
             await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+            const { showMainMenu } = await import('@/navigation')
+            await showMainMenu(ctx)
+            return
           }
           await ctx.scene.leave()
           await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+          const { showMainMenu } = await import('@/navigation')
+          await showMainMenu(ctx)
+          return
         }
 
         case isRu ? '🔄 Еще раз улучшить' : '🔄 Improve again': {
@@ -383,9 +379,9 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             )
             await ctx.scene.leave()
             await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+            const { showMainMenu } = await import('@/navigation')
+            await showMainMenu(ctx)
+            return
           }
 
           await ctx.reply(
@@ -397,43 +393,38 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             await sendPromptImprovementFailureMessage(ctx, isRu)
             await ctx.scene.leave()
             await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+            const { showMainMenu } = await import('@/navigation')
+            await showMainMenu(ctx)
+            return
           }
           const improvedPrompt = await upgradePrompt(ctx.session.prompt)
           if (!improvedPrompt) {
             await sendPromptImprovementFailureMessage(ctx, isRu)
             await ctx.scene.leave()
             await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+            const { showMainMenu } = await import('@/navigation')
+            await showMainMenu(ctx)
+            return
           }
 
           ctx.session.prompt = improvedPrompt
 
-          await sendImprovedPrompt(
-            ctx,
-            improvedPrompt,
-            isRu,
-            {
-              reply_markup: Markup.keyboard([
-                [
-                  Markup.button.text(
-                    isRu ? '✅ Да. Cгенерировать?' : '✅ Yes. Generate?'
-                  ),
-                ],
-                [
-                  Markup.button.text(
-                    isRu ? '🔄 Еще раз улучшить' : '🔄 Improve again'
-                  ),
-                ],
-                [Markup.button.text(isRu ? 'Отмена' : 'Cancel')],
-              ]).resize().reply_markup,
-              parse_mode: 'MarkdownV2',
-            }
-          )
+          await sendImprovedPrompt(ctx, improvedPrompt, isRu, {
+            reply_markup: Markup.keyboard([
+              [
+                Markup.button.text(
+                  isRu ? '✅ Да. Cгенерировать?' : '✅ Yes. Generate?'
+                ),
+              ],
+              [
+                Markup.button.text(
+                  isRu ? '🔄 Еще раз улучшить' : '🔄 Improve again'
+                ),
+              ],
+              [Markup.button.text(isRu ? 'Отмена' : 'Cancel')],
+            ]).resize().reply_markup,
+            parse_mode: 'MarkdownV2',
+          })
           break
         }
 
@@ -441,18 +432,18 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
           await ctx.reply(isRu ? 'Операция отменена' : 'Operation cancelled')
           await ctx.scene.leave()
           await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+          const { showMainMenu } = await import('@/navigation')
+          await showMainMenu(ctx)
+          return
         }
 
         default: {
           await sendGenericErrorMessage(ctx, isRu)
           await ctx.scene.leave()
           await ctx.scene.leave()
-      const { showMainMenu } = await import('@/navigation')
-      await showMainMenu(ctx)
-      return
+          const { showMainMenu } = await import('@/navigation')
+          await showMainMenu(ctx)
+          return
         }
       }
     }

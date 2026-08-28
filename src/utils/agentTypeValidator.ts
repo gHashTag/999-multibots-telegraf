@@ -90,10 +90,10 @@ export const VALID_AGENT_TYPES = [
 
   // Migration & Planning
   'migration-planner',
-  'swarm-init'
+  'swarm-init',
 ] as const
 
-export type ValidAgentType = typeof VALID_AGENT_TYPES[number]
+export type ValidAgentType = (typeof VALID_AGENT_TYPES)[number]
 
 /**
  * Configuration for agent type validation and mapping
@@ -104,76 +104,76 @@ export const AGENT_TYPE_CONFIG: AgentTypeConfig = {
   // Type aliases - map common mistakes to correct types
   typeAliases: {
     // Primary fix: analyst -> code-analyzer
-    'analyst': 'code-analyzer',
-    'analyzer': 'code-analyzer',
+    analyst: 'code-analyzer',
+    analyzer: 'code-analyzer',
     'code-analyst': 'code-analyzer',
 
     // Common aliases
-    'dev': 'coder',
-    'developer': 'coder',
-    'programmer': 'coder',
-    'engineer': 'coder',
+    dev: 'coder',
+    developer: 'coder',
+    programmer: 'coder',
+    engineer: 'coder',
 
-    'test': 'tester',
-    'testing': 'tester',
-    'qa': 'tester',
+    test: 'tester',
+    testing: 'tester',
+    qa: 'tester',
 
-    'review': 'reviewer',
+    review: 'reviewer',
     'reviewer-agent': 'reviewer',
 
-    'research': 'researcher',
+    research: 'researcher',
     'researcher-agent': 'researcher',
 
-    'plan': 'planner',
-    'planning': 'planner',
+    plan: 'planner',
+    planning: 'planner',
 
-    'architect': 'system-architect',
+    architect: 'system-architect',
     'architecture-agent': 'system-architect',
 
-    'backend': 'backend-dev',
+    backend: 'backend-dev',
     'backend-developer': 'backend-dev',
-    'mobile': 'mobile-dev',
+    mobile: 'mobile-dev',
     'mobile-developer': 'mobile-dev',
 
-    'ml': 'ml-developer',
+    ml: 'ml-developer',
     'machine-learning': 'ml-developer',
     'ai-developer': 'ml-developer',
 
-    'devops': 'cicd-engineer',
-    'ci': 'cicd-engineer',
-    'cd': 'cicd-engineer',
-    'deployment': 'cicd-engineer',
+    devops: 'cicd-engineer',
+    ci: 'cicd-engineer',
+    cd: 'cicd-engineer',
+    deployment: 'cicd-engineer',
 
-    'docs': 'api-docs',
-    'documentation': 'api-docs',
+    docs: 'api-docs',
+    documentation: 'api-docs',
     'doc-writer': 'api-docs',
 
-    'security': 'security-manager',
-    'sec': 'security-manager',
+    security: 'security-manager',
+    sec: 'security-manager',
 
-    'performance': 'perf-analyzer',
-    'perf': 'perf-analyzer',
-    'benchmark': 'performance-benchmarker',
+    performance: 'perf-analyzer',
+    perf: 'perf-analyzer',
+    benchmark: 'performance-benchmarker',
 
-    'github': 'github-modes',
-    'git': 'github-modes',
-    'pr': 'pr-manager',
+    github: 'github-modes',
+    git: 'github-modes',
+    pr: 'pr-manager',
     'pull-request': 'pr-manager',
 
-    'telegram': 'telegram-user-agent',
+    telegram: 'telegram-user-agent',
     'telegram-agent': 'telegram-user-agent',
-    'user-agent': 'telegram-user-agent'
+    'user-agent': 'telegram-user-agent',
   },
 
   // Deprecated types with replacements
   deprecatedTypes: {
-    'analyst': 'code-analyzer',
+    analyst: 'code-analyzer',
     'code-analyst': 'code-analyzer',
-    'analyzer': 'code-analyzer'
+    analyzer: 'code-analyzer',
   },
 
   // Default fallback when all else fails
-  defaultFallback: 'coder'
+  defaultFallback: 'coder',
 }
 
 /**
@@ -197,7 +197,7 @@ export function validateAndMapAgentType(agentType: string): {
       mappedType: agentType,
       originalType,
       warnings: [],
-      suggestions: []
+      suggestions: [],
     }
   }
 
@@ -206,7 +206,9 @@ export function validateAndMapAgentType(agentType: string): {
     const mappedType = AGENT_TYPE_CONFIG.typeAliases[agentType]
 
     if (AGENT_TYPE_CONFIG.deprecatedTypes[agentType]) {
-      warnings.push(`Agent type '${agentType}' is deprecated. Use '${mappedType}' instead.`)
+      warnings.push(
+        `Agent type '${agentType}' is deprecated. Use '${mappedType}' instead.`
+      )
     } else {
       warnings.push(`Agent type '${agentType}' mapped to '${mappedType}'.`)
     }
@@ -216,7 +218,7 @@ export function validateAndMapAgentType(agentType: string): {
       mappedType,
       originalType,
       warnings,
-      suggestions: []
+      suggestions: [],
     }
   }
 
@@ -233,17 +235,23 @@ export function validateAndMapAgentType(agentType: string): {
     mappedType: AGENT_TYPE_CONFIG.defaultFallback,
     originalType,
     warnings,
-    suggestions
+    suggestions,
   }
 }
 
 /**
  * Finds similar agent types based on string similarity
  */
-function findSimilarAgentTypes(agentType: string, maxSuggestions: number = 3): string[] {
+function findSimilarAgentTypes(
+  agentType: string,
+  maxSuggestions: number = 3
+): string[] {
   const similarities = AGENT_TYPE_CONFIG.validTypes.map(validType => ({
     type: validType,
-    similarity: calculateSimilarity(agentType.toLowerCase(), validType.toLowerCase())
+    similarity: calculateSimilarity(
+      agentType.toLowerCase(),
+      validType.toLowerCase()
+    ),
   }))
 
   return similarities
@@ -279,8 +287,8 @@ function calculateSimilarity(str1: string, str2: string): number {
       } else {
         matrix[i][j] = Math.min(
           matrix[i - 1][j - 1] + 1, // substitution
-          matrix[i][j - 1] + 1,     // insertion
-          matrix[i - 1][j] + 1      // deletion
+          matrix[i][j - 1] + 1, // insertion
+          matrix[i - 1][j] + 1 // deletion
         )
       }
     }
@@ -300,7 +308,7 @@ export function validateAgentTypeWithLogging(agentType: string): string {
     logger.warn('[AgentTypeValidator] Agent type validation warnings', {
       originalType: validation.originalType,
       mappedType: validation.mappedType,
-      warnings: validation.warnings
+      warnings: validation.warnings,
     })
   }
 
@@ -309,7 +317,7 @@ export function validateAgentTypeWithLogging(agentType: string): string {
       originalType: validation.originalType,
       mappedType: validation.mappedType,
       suggestions: validation.suggestions,
-      availableTypes: AGENT_TYPE_CONFIG.validTypes.slice(0, 10) // Show first 10 for reference
+      availableTypes: AGENT_TYPE_CONFIG.validTypes.slice(0, 10), // Show first 10 for reference
     })
   }
 
@@ -322,11 +330,11 @@ export function validateAgentTypeWithLogging(agentType: string): string {
 export function getAvailableAgentTypes(): Record<string, string> {
   return {
     // Core Development
-    'coder': 'General-purpose coder for implementation tasks',
-    'reviewer': 'Code review and quality assurance',
-    'tester': 'Test creation and validation',
-    'planner': 'Task planning and organization',
-    'researcher': 'Research and analysis tasks',
+    coder: 'General-purpose coder for implementation tasks',
+    reviewer: 'Code review and quality assurance',
+    tester: 'Test creation and validation',
+    planner: 'Task planning and organization',
+    researcher: 'Research and analysis tasks',
 
     // Specialized Development
     'backend-dev': 'Backend development specialist',
@@ -341,10 +349,10 @@ export function getAvailableAgentTypes(): Record<string, string> {
     // SPARC Methodology
     'sparc-coord': 'SPARC methodology coordinator',
     'sparc-coder': 'SPARC-specific coding tasks',
-    'specification': 'Requirements specification',
-    'pseudocode': 'Algorithm design and pseudocode',
-    'architecture': 'Architecture design',
-    'refinement': 'Code refinement and optimization',
+    specification: 'Requirements specification',
+    pseudocode: 'Algorithm design and pseudocode',
+    architecture: 'Architecture design',
+    refinement: 'Code refinement and optimization',
 
     // Testing & Validation
     'tdd-london-swarm': 'Test-driven development (London style)',
@@ -362,7 +370,7 @@ export function getAvailableAgentTypes(): Record<string, string> {
     'multi-repo-swarm': 'Multi-repository coordination',
 
     // Telegram Bot Management
-    'telegram-user-agent': 'Telegram bot user management and automation'
+    'telegram-user-agent': 'Telegram bot user management and automation',
   }
 }
 
@@ -403,8 +411,10 @@ Run getAvailableAgentTypes() for a complete list with descriptions.
  * Utility function to check if an agent type exists
  */
 export function isValidAgentType(agentType: string): boolean {
-  return AGENT_TYPE_CONFIG.validTypes.includes(agentType) ||
-         agentType in AGENT_TYPE_CONFIG.typeAliases
+  return (
+    AGENT_TYPE_CONFIG.validTypes.includes(agentType) ||
+    agentType in AGENT_TYPE_CONFIG.typeAliases
+  )
 }
 
 /**

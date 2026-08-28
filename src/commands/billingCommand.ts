@@ -42,7 +42,11 @@ async function fetchPayments(
       .eq('type', type)
       .range(offset, offset + PAGE - 1)
     if (error) {
-      logger.error('Billing query failed', { botName, type, error: error.message })
+      logger.error('Billing query failed', {
+        botName,
+        type,
+        error: error.message,
+      })
       break
     }
     if (!data || data.length === 0) break
@@ -100,7 +104,14 @@ async function getOwnerReport(ownerTelegramId: number): Promise<string> {
       cost_by_svc[svc] = (cost_by_svc[svc] || 0) + cost
     }
 
-    reports.push({ bot_name: bn, income_stars, income_rub, cost_stars, cost_by_svc, clients })
+    reports.push({
+      bot_name: bn,
+      income_stars,
+      income_rub,
+      cost_stars,
+      cost_by_svc,
+      clients,
+    })
   }
 
   let total_inc_rub = 0
@@ -113,7 +124,7 @@ async function getOwnerReport(ownerTelegramId: number): Promise<string> {
     const cost_rub = r.cost_stars * STAR_USD * USD_RUB
     const cost_usd = r.cost_stars * STAR_USD
     const profit_rub = inc_rub - cost_rub
-    const margin = inc_rub > 0 ? Math.round(profit_rub / inc_rub * 100) : 0
+    const margin = inc_rub > 0 ? Math.round((profit_rub / inc_rub) * 100) : 0
 
     total_inc_rub += inc_rub
     total_cost_rub += cost_rub

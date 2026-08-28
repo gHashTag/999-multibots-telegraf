@@ -93,7 +93,7 @@ export const generateTextToImageDirect = async (
     }
 
     // 🔄 СОХРАНЯЕМ СТОИМОСТЬ для возможного возврата при ошибке
-    let chargedAmount = totalCost
+    const chargedAmount = totalCost
     let successfulGenerations = 0
 
     const userAspectRatio = await getAspectRatio(Number(telegram_id))
@@ -155,7 +155,9 @@ export const generateTextToImageDirect = async (
         // ✅ Check if model_type is midjourney-v7 (modelId used for other purposes)
         if (model_type.toLowerCase() === 'midjourney-v7') {
           logger.info('[generateTextToImageDirect] Using Midjourney generator')
-          const { generateMidjourneyImage } = await import('./generateMidjourneyImage')
+          const { generateMidjourneyImage } = await import(
+            './generateMidjourneyImage'
+          )
           const midjourneyResult = await generateMidjourneyImage({
             prompt: inputParams.prompt,
             aspectRatio: inputParams.aspect_ratio,
@@ -163,14 +165,24 @@ export const generateTextToImageDirect = async (
             telegramId: telegram_id,
           })
 
-          if (!midjourneyResult.success || !midjourneyResult.imageUrls || midjourneyResult.imageUrls.length === 0) {
-            throw new Error(midjourneyResult.error || 'Midjourney generation failed')
+          if (
+            !midjourneyResult.success ||
+            !midjourneyResult.imageUrls ||
+            midjourneyResult.imageUrls.length === 0
+          ) {
+            throw new Error(
+              midjourneyResult.error || 'Midjourney generation failed'
+            )
           }
 
           imageUrl = midjourneyResult.imageUrls[0]
         } else if (model_type.toLowerCase() === 'fal-ai/nano-banana-pro') {
-          logger.info('[generateTextToImageDirect] Using Nano Banana Pro generator')
-          const { generateNanoBananaPro } = await import('./generateNanoBananaPro')
+          logger.info(
+            '[generateTextToImageDirect] Using Nano Banana Pro generator'
+          )
+          const { generateNanoBananaPro } = await import(
+            './generateNanoBananaPro'
+          )
           const nanoBananaResult = await generateNanoBananaPro({
             prompt: inputParams.prompt,
             aspectRatio: inputParams.aspect_ratio,
@@ -178,7 +190,10 @@ export const generateTextToImageDirect = async (
             telegramId: telegram_id,
           })
 
-          if (!nanoBananaResult.images || nanoBananaResult.images.length === 0) {
+          if (
+            !nanoBananaResult.images ||
+            nanoBananaResult.images.length === 0
+          ) {
             throw new Error('Nano Banana Pro generation failed')
           }
 
@@ -235,14 +250,21 @@ export const generateTextToImageDirect = async (
         successfulGenerations++ // ✅ Увеличиваем счетчик успешных генераций
 
         // Track successful generation for skill learning
-        import('./skillManager').then(sm => sm.trackGeneration({
-          telegram_id,
-          service_type: 'text_to_image',
-          prompt,
-          model: model_type,
-          settings: { aspect_ratio: inputParams.aspect_ratio || inputParams.size, num_images },
-          success: true,
-        })).catch(() => {})
+        import('./skillManager')
+          .then(sm =>
+            sm.trackGeneration({
+              telegram_id,
+              service_type: 'text_to_image',
+              prompt,
+              model: model_type,
+              settings: {
+                aspect_ratio: inputParams.aspect_ratio || inputParams.size,
+                num_images,
+              },
+              success: true,
+            })
+          )
+          .catch(() => {})
       } catch (error) {
         console.error(`Попытка не удалась для изображения ${i + 1}:`, error)
         let errorMessageToUser = '❌ Произошла ошибка.'
@@ -278,13 +300,19 @@ export const generateTextToImageDirect = async (
 
         // 💸 ВОЗВРАЩАЕМ ДЕНЬГИ за неудачную генерацию
         const failedImageCost = modelConfig.costPerImage
-        logger.info(`[generateTextToImageDirect] Refunding ${failedImageCost} stars for failed image ${i + 1}/${num_images}`, {
-          telegram_id,
-          failedImage: i + 1,
-          totalImages: num_images,
-        })
+        logger.info(
+          `[generateTextToImageDirect] Refunding ${failedImageCost} stars for failed image ${i + 1}/${num_images}`,
+          {
+            telegram_id,
+            failedImage: i + 1,
+            totalImages: num_images,
+          }
+        )
 
-        await refundUser(ctx, failedImageCost, { silent: true, reason: "partial_failure" }) // silent refund
+        await refundUser(ctx, failedImageCost, {
+          silent: true,
+          reason: 'partial_failure',
+        }) // silent refund
 
         // Если это была первая/единственная картинка - прокидываем ошибку дальше
         if (num_images === 1 || i === 0) {

@@ -33,11 +33,11 @@ export interface ModelButtonOptions {
 import {
   createWizardCallbackHandler,
   createStandardWizardHandlers,
-  WizardButtonHandler
+  WizardButtonHandler,
 } from './wizardButtonHandlers'
 import {
   handleSystemError,
-  handleCallbackQueryError
+  handleCallbackQueryError,
 } from './systemErrorHandlers'
 
 /**
@@ -63,7 +63,7 @@ export async function setupModelSelectionStep(
       const error = 'No models provided for selection'
       logger.warn('[ButtonMappingIntegration] No models for selection', {
         telegramId: ctx.from?.id?.toString(),
-        modelCount: models?.length || 0
+        modelCount: models?.length || 0,
       })
 
       if (options.onError) {
@@ -80,9 +80,12 @@ export async function setupModelSelectionStep(
     }
 
     // TODO: Restore keyboard creation when modelButtonMapping is reimplemented
-    logger.error('[ButtonMappingIntegration] Model selection disabled - modelButtonMapping module removed', {
-      telegramId: ctx.from?.id?.toString()
-    })
+    logger.error(
+      '[ButtonMappingIntegration] Model selection disabled - modelButtonMapping module removed',
+      {
+        telegramId: ctx.from?.id?.toString(),
+      }
+    )
 
     const error = 'Model selection currently unavailable'
     if (options.onError) {
@@ -96,14 +99,16 @@ export async function setupModelSelectionStep(
     }
 
     return { success: false, error }
-
   } catch (error) {
     const errorObj = error instanceof Error ? error : new Error(String(error))
 
-    logger.error('[ButtonMappingIntegration] Error setting up model selection', {
-      telegramId: ctx.from?.id?.toString(),
-      error: errorObj.message
-    })
+    logger.error(
+      '[ButtonMappingIntegration] Error setting up model selection',
+      {
+        telegramId: ctx.from?.id?.toString(),
+        error: errorObj.message,
+      }
+    )
 
     if (options.onError) {
       await options.onError(ctx, errorObj)
@@ -133,17 +138,23 @@ export function createModelSelectionCallbackHandler(
   const handlers: Record<string, WizardButtonHandler> = {
     ...createStandardWizardHandlers(wizardName, {
       onCancel: options.onCancel,
-      onError: options.onError
+      onError: options.onError,
     }),
 
     [callbackPrefix]: {
       validate: async (ctx: MyContext, callbackData: string) => {
-        const userModels = ctx.scene?.state ? (ctx.scene.state as any).userModels : null
+        const userModels = ctx.scene?.state
+          ? (ctx.scene.state as any).userModels
+          : null
 
-        if (!userModels || !Array.isArray(userModels) || userModels.length === 0) {
+        if (
+          !userModels ||
+          !Array.isArray(userModels) ||
+          userModels.length === 0
+        ) {
           return {
             isValid: false,
-            error: 'No models found in session state'
+            error: 'No models found in session state',
           }
         }
 
@@ -152,19 +163,22 @@ export function createModelSelectionCallbackHandler(
 
       handle: async (ctx: MyContext, callbackData: string) => {
         // TODO: Restore when modelButtonMapping module is reimplemented
-        logger.error('[ButtonMappingIntegration] Model selection handler disabled', {
-          telegramId: ctx.from?.id?.toString(),
-          wizardName
-        })
+        logger.error(
+          '[ButtonMappingIntegration] Model selection handler disabled',
+          {
+            telegramId: ctx.from?.id?.toString(),
+            wizardName,
+          }
+        )
 
         return {
           success: false,
-          error: 'Model selection currently unavailable'
+          error: 'Model selection currently unavailable',
         }
       },
 
-      onError: options.onError
-    }
+      onError: options.onError,
+    },
   }
 
   return createWizardCallbackHandler(`${wizardName}_model_selection`, handlers)
@@ -199,9 +213,7 @@ export const ErrorRecoveryStrategies = {
     const isRu = isRussianFromState(ctx)
 
     await ctx.reply(
-      isRu
-        ? '❌ Ошибка. Попробуем еще раз.'
-        : '❌ Error. Let\'s try again.'
+      isRu ? '❌ Ошибка. Попробуем еще раз.' : "❌ Error. Let's try again."
     )
 
     if (ctx.wizard && (ctx.wizard?.cursor ?? 0) > 0) {
@@ -237,7 +249,7 @@ export const ErrorRecoveryStrategies = {
         ? `❌ ${error.message}\n\nПопробуйте еще раз или используйте кнопку "Отмена".`
         : `❌ ${error.message}\n\nTry again or use the "Cancel" button.`
     )
-  }
+  },
 }
 
 /**
@@ -256,18 +268,21 @@ export function upgradeWizardWithButtonMapping(
   const handlers: Record<string, WizardButtonHandler> = {}
 
   // Add standard handlers
-  Object.assign(handlers, createStandardWizardHandlers(wizardName, {
-    onError: options.errorStrategy
-      ? ErrorRecoveryStrategies[options.errorStrategy]
-      : ErrorRecoveryStrategies.returnToMainMenu
-  }))
+  Object.assign(
+    handlers,
+    createStandardWizardHandlers(wizardName, {
+      onError: options.errorStrategy
+        ? ErrorRecoveryStrategies[options.errorStrategy]
+        : ErrorRecoveryStrategies.returnToMainMenu,
+    })
+  )
 
   // Add model selection if enabled
   if (options.enableModelSelection) {
     const modelHandler = createModelSelectionCallbackHandler(wizardName, {
       onError: options.errorStrategy
         ? ErrorRecoveryStrategies[options.errorStrategy]
-        : undefined
+        : undefined,
     })
 
     // Merge model handler
@@ -288,8 +303,10 @@ export function upgradeWizardWithButtonMapping(
   logger.info(`[ButtonMappingIntegration] Upgraded wizard ${wizardName}`, {
     enableModelSelection: options.enableModelSelection,
     enableErrorRecovery: options.enableErrorRecovery,
-    customHandlerCount: options.customHandlers ? Object.keys(options.customHandlers).length : 0,
-    errorStrategy: options.errorStrategy
+    customHandlerCount: options.customHandlers
+      ? Object.keys(options.customHandlers).length
+      : 0,
+    errorStrategy: options.errorStrategy,
   })
 
   return wizard
@@ -307,16 +324,19 @@ export function diagnoseLiveButtonMapping(ctx: MyContext) {
     hasUserModels: !!(ctx.scene?.state as any)?.userModels,
     userModelCount: ((ctx.scene?.state as any)?.userModels || []).length,
     language: isRussianFromState(ctx) ? 'ru' : 'en',
-    callbackQuery: ctx.callbackQuery ? {
-      hasData: 'data' in ctx.callbackQuery,
-      dataLength: 'data' in ctx.callbackQuery ? ctx.callbackQuery.data.length : 0,
-      data: 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : null
-    } : null
+    callbackQuery: ctx.callbackQuery
+      ? {
+          hasData: 'data' in ctx.callbackQuery,
+          dataLength:
+            'data' in ctx.callbackQuery ? ctx.callbackQuery.data.length : 0,
+          data: 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : null,
+        }
+      : null,
   }
 
   logger.debug('[ButtonMappingIntegration] Live diagnostics', {
     telegramId,
-    diagnostics
+    diagnostics,
   })
 
   return diagnostics

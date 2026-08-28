@@ -48,7 +48,10 @@ function parseImports(src: string): Map<string, string> {
 function parseMounts(src: string): Array<{ mount: string; varName: string }> {
   const out: Array<{ mount: string; varName: string }> = []
   for (const m of src.matchAll(/app\.use\(\s*['"]([^'"]+)['"]\s*,([^)]+)\)/g)) {
-    const args = m[2].split(',').map(x => x.trim()).filter(Boolean)
+    const args = m[2]
+      .split(',')
+      .map(x => x.trim())
+      .filter(Boolean)
     if (!args.length) continue
     out.push({ mount: m[1], varName: args[args.length - 1] })
   }
@@ -59,11 +62,15 @@ function routeFileFor(rel: string): string {
   return path.normalize(path.join(ROOT, rel.replace(/^\.\//, ''))) + '.ts'
 }
 
-function declaredRoutes(file: string): Array<{ method: string; declPath: string }> {
+function declaredRoutes(
+  file: string
+): Array<{ method: string; declPath: string }> {
   const src = fs.readFileSync(file, 'utf8')
-  return [...src.matchAll(/router\.(get|post|put|patch|delete)\(\s*['"]([^'"]+)['"]/g)].map(
-    m => ({ method: m[1].toUpperCase(), declPath: m[2] })
-  )
+  return [
+    ...src.matchAll(
+      /router\.(get|post|put|patch|delete)\(\s*['"]([^'"]+)['"]/g
+    ),
+  ].map(m => ({ method: m[1].toUpperCase(), declPath: m[2] }))
 }
 
 const imports = parseImports(indexSrc)
@@ -103,7 +110,9 @@ describe('швы маршрутов api_server', () => {
         // '/api' + '/api/foo' -> '/api/api/foo'. Именно так подписки на
         // конкурентов уехали на несуществующий адрес.
         if (declPath === mount || declPath.startsWith(mount + '/')) {
-          doubled.push(`${path.basename(file)}: ${method} ${declPath} при монтировании ${mount} -> ${mount}${declPath}`)
+          doubled.push(
+            `${path.basename(file)}: ${method} ${declPath} при монтировании ${mount} -> ${mount}${declPath}`
+          )
         }
       }
     }
@@ -155,7 +164,9 @@ describe('швы маршрутов api_server', () => {
 
   it('в списке исключений нет тех, кого уже примонтировали', () => {
     const mountedVars = new Set(mounts.map(m => m.varName))
-    const stale = Object.keys(DELIBERATELY_UNMOUNTED).filter(v => mountedVars.has(v))
+    const stale = Object.keys(DELIBERATELY_UNMOUNTED).filter(v =>
+      mountedVars.has(v)
+    )
     // Иначе исключение переживёт свою причину и будет молча прикрывать
     // следующую ошибку.
     expect(stale).toEqual([])
@@ -236,7 +247,9 @@ describe('швы маршрутов api_server', () => {
         // Пути с параметрами и префиксные монтирования сверяем по шаблону.
         const hit = [...real].some(r => {
           const rx = new RegExp(
-            '^' + r.replace(/\/\*\*$/, '(/.*)?').replace(/:[^/]+/g, '[^/]+') + '$'
+            '^' +
+              r.replace(/\/\*\*$/, '(/.*)?').replace(/:[^/]+/g, '[^/]+') +
+              '$'
           )
           return rx.test(p)
         })

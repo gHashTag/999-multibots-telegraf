@@ -28,12 +28,7 @@ const createUpscalerResultKeyboard = (is_ru: boolean) => {
         'upscale_another_photo'
       ),
     ],
-    [
-      Markup.button.callback(
-        getMainMenuText(is_ru),
-        'go_main_menu'
-      ),
-    ],
+    [Markup.button.callback(getMainMenuText(is_ru), 'go_main_menu')],
   ])
 }
 
@@ -51,7 +46,7 @@ export const upscaleImage = async (
   params: ImageUpscalerParams
 ): Promise<GenerationResult> => {
   const { imageUrl, telegram_id, username, is_ru, ctx, originalPrompt } = params
-  
+
   // Немедленное логирование при входе в функцию
   logger.info('⚡ UPSCALE_IMAGE FUNCTION CALLED', {
     telegram_id,
@@ -61,7 +56,7 @@ export const upscaleImage = async (
     is_ru,
     timestamp: new Date().toISOString(),
   })
-  
+
   console.log('🔵 UPSCALE_IMAGE CALLED FOR USER:', telegram_id)
 
   // Стоимость upscaling - обновленная цена $0.04 с наценкой 50%
@@ -92,7 +87,7 @@ export const upscaleImage = async (
     // Отправка сообщения о начале upscaling
     logger.info('📨 Sending initial upscaling message', { telegram_id })
     console.log('🟡 SENDING INITIAL MESSAGE TO:', telegram_id)
-    
+
     await ctx.telegram.sendMessage(
       telegram_id,
       is_ru
@@ -102,7 +97,7 @@ export const upscaleImage = async (
         reply_markup: { remove_keyboard: true },
       }
     )
-    
+
     logger.info('✅ Initial message sent successfully', { telegram_id })
     console.log('🟢 INITIAL MESSAGE SENT TO:', telegram_id)
 
@@ -125,7 +120,7 @@ export const upscaleImage = async (
       model: 'philz1337x/clarity-upscaler',
       inputParams,
     })
-    
+
     const output: ApiResponse = (await replicate.run(
       'philz1337x/clarity-upscaler:dfad41707589d68ecdccd1dfa600d55a208f9310748e44bfe35b4a6291453d5e',
       {
@@ -141,10 +136,12 @@ export const upscaleImage = async (
     })
 
     const upscaledImageUrl = await processApiResponse(output)
-    
+
     logger.info('Processed API response', {
       telegram_id,
-      upscaledImageUrl: upscaledImageUrl ? upscaledImageUrl.substring(0, 100) + '...' : 'null',
+      upscaledImageUrl: upscaledImageUrl
+        ? upscaledImageUrl.substring(0, 100) + '...'
+        : 'null',
     })
 
     // Сохранение локально
@@ -186,7 +183,9 @@ export const upscaleImage = async (
     })
 
     // Отправка результата с простой клавиатурой
-    const fileSize = fs.existsSync(imageLocalPath) ? fs.statSync(imageLocalPath).size : 0
+    const fileSize = fs.existsSync(imageLocalPath)
+      ? fs.statSync(imageLocalPath).size
+      : 0
     const MAX_PHOTO_SIZE = 10 * 1024 * 1024 // 10 MB limit for sendPhoto
 
     logger.info('Sending photo to Telegram', {
@@ -198,9 +197,7 @@ export const upscaleImage = async (
 
     const caption = is_ru
       ? `⬆️ Качество фото увеличено в 2 раза!\n\n🔧 Модель: Clarity Upscaler\n✨ Качество: Высокое разрешение\n💎 Стоимость: ${upscaleCost} ⭐${
-          originalPrompt
-            ? `\n📝 Исходное изображение: ${originalPrompt}`
-            : ''
+          originalPrompt ? `\n📝 Исходное изображение: ${originalPrompt}` : ''
         }${fileSize > MAX_PHOTO_SIZE ? '\n\n📦 Файл отправлен как документ из-за большого размера' : ''}`
       : `⬆️ Photo quality enhanced 2x!\n\n🔧 Model: Clarity Upscaler\n✨ Quality: High resolution\n💎 Cost: ${upscaleCost} ⭐${
           originalPrompt ? `\n📝 Original image: ${originalPrompt}` : ''
@@ -275,7 +272,8 @@ export const upscaleImage = async (
     } catch (sendError) {
       logger.error('Failed to send photo/document to Telegram', {
         telegram_id,
-        error: sendError instanceof Error ? sendError.message : 'Unknown send error',
+        error:
+          sendError instanceof Error ? sendError.message : 'Unknown send error',
         errorStack: sendError instanceof Error ? sendError.stack : undefined,
         imageLocalPath,
         fileSize,
@@ -317,7 +315,9 @@ export const upscaleImage = async (
         amount: upscaleCost,
       })
       try {
-        await refundUser(params.ctx, upscaleCost, { reason: "generation_failed" })
+        await refundUser(params.ctx, upscaleCost, {
+          reason: 'generation_failed',
+        })
       } catch (refundError) {
         logger.error('Failed to refund user after upscaling failure', {
           telegram_id: params.telegram_id,

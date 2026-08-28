@@ -11,10 +11,12 @@ vi.mock('@/helpers/language', () => ({
 }))
 
 vi.mock('@/services/plan_b/createVoiceAvatar', () => ({
-  createVoiceAvatar: vi.fn(() => Promise.resolve({
-    success: true,
-    voiceId: 'voice_123',
-  })),
+  createVoiceAvatar: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      voiceId: 'voice_123',
+    })
+  ),
 }))
 
 vi.mock('@/core/supabase', () => ({
@@ -28,7 +30,7 @@ vi.mock('@/price/helpers', () => ({
 }))
 
 vi.mock('@/navigation', () => ({
-  createHelpCancelKeyboard: vi.fn((isRu) => ({
+  createHelpCancelKeyboard: vi.fn(isRu => ({
     reply_markup: { keyboard: [[{ text: isRu ? 'Отмена' : 'Cancel' }]] },
   })),
   handleHelpCancel: vi.fn(() => Promise.resolve(false)),
@@ -55,7 +57,11 @@ vi.mock('@/interfaces/modes', () => ({
 import { isRussian } from '@/helpers/language'
 import { createVoiceAvatar } from '@/services/plan_b/createVoiceAvatar'
 import { getUserBalance } from '@/core/supabase'
-import { createHelpCancelKeyboard, handleHelpCancel, showMainMenu } from '@/navigation'
+import {
+  createHelpCancelKeyboard,
+  handleHelpCancel,
+  showMainMenu,
+} from '@/navigation'
 import { ModeEnum } from '@/interfaces/modes'
 
 describe('voiceAvatarWizard (Voice Avatar Creation)', () => {
@@ -78,10 +84,12 @@ describe('voiceAvatarWizard (Voice Avatar Creation)', () => {
     },
     telegram: {
       token: 'test_token',
-      getFile: vi.fn(() => Promise.resolve({
-        file_id: 'file_123',
-        file_path: 'voice/test.ogg',
-      })),
+      getFile: vi.fn(() =>
+        Promise.resolve({
+          file_id: 'file_123',
+          file_path: 'voice/test.ogg',
+        })
+      ),
     },
     message: null as any,
   }
@@ -93,7 +101,6 @@ describe('voiceAvatarWizard (Voice Avatar Creation)', () => {
       veedFabric: null,
     }
     mockContext.message = null
-
     ;(isRussian as Mock).mockReturnValue(true)
     ;(handleHelpCancel as Mock).mockResolvedValue(false)
     ;(createVoiceAvatar as Mock).mockResolvedValue({
@@ -155,7 +162,9 @@ describe('voiceAvatarWizard (Voice Avatar Creation)', () => {
     it('должен обрабатывать /menu команду', () => {
       mockContext.message = { text: '/menu' }
 
-      const isMenuCommand = mockContext.message?.text === '/menu' || mockContext.message?.text === '/cancel'
+      const isMenuCommand =
+        mockContext.message?.text === '/menu' ||
+        mockContext.message?.text === '/cancel'
       expect(isMenuCommand).toBe(true)
     })
 
@@ -212,9 +221,7 @@ describe('voiceAvatarWizard (Voice Avatar Creation)', () => {
 
       const fileId = mockContext.message.audio.file_id
       expect(fileId).toBe('audio_123')
-    }
-
-    )
+    })
 
     it('должен формировать URL файла', async () => {
       const file = await mockContext.telegram.getFile('voice_123')
@@ -229,8 +236,11 @@ describe('voiceAvatarWizard (Voice Avatar Creation)', () => {
     it('должен отклонять сообщения без voice/audio/text', () => {
       mockContext.message = { photo: [{ file_id: 'photo_123' }] }
 
-      const hasValidMessage = mockContext.message &&
-        ('voice' in mockContext.message || 'audio' in mockContext.message || 'text' in mockContext.message)
+      const hasValidMessage =
+        mockContext.message &&
+        ('voice' in mockContext.message ||
+          'audio' in mockContext.message ||
+          'text' in mockContext.message)
 
       expect(hasValidMessage).toBe(false)
     })
@@ -300,7 +310,9 @@ describe('voiceAvatarWizard (Voice Avatar Creation)', () => {
     it('должен входить в VeedFabricLipSync сцену', async () => {
       await mockContext.scene.enter(ModeEnum.VeedFabricLipSync)
 
-      expect(mockContext.scene.enter).toHaveBeenCalledWith('veed_fabric_lipsync')
+      expect(mockContext.scene.enter).toHaveBeenCalledWith(
+        'veed_fabric_lipsync'
+      )
     })
 
     it('должен показывать сообщение о возврате к lip-sync', () => {
@@ -385,7 +397,9 @@ describe('voiceAvatarWizard (Voice Avatar Creation)', () => {
       const fileId = mockContext.message?.voice?.file_id
 
       if (!fileId) {
-        await mockContext.reply('Ошибка: не удалось получить идентификатор файла')
+        await mockContext.reply(
+          'Ошибка: не удалось получить идентификатор файла'
+        )
       }
 
       expect(mockContext.reply).toHaveBeenCalled()
@@ -404,9 +418,7 @@ describe('voiceAvatarWizard (Voice Avatar Creation)', () => {
   describe('10. Локализация сообщений', () => {
     it('должен показывать подсказку о Text to Speech', () => {
       const isRu = true
-      const hint = isRu
-        ? '🎙️ Текст в голос'
-        : '🎙️ Text to speech'
+      const hint = isRu ? '🎙️ Текст в голос' : '🎙️ Text to speech'
 
       expect(hint).toContain('🎙️')
     })

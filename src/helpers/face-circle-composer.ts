@@ -71,8 +71,18 @@ export async function createCircleCompositionSimple(
     const cy = centerY ?? targetHeight / 2
 
     // Создаем круглую маску для целевого размера
-    const maskPath = path.join(path.dirname(outputPath), 'circle_mask_simple.png')
-    await createCircleMask(targetWidth, targetHeight, cx, cy, circleRadius, maskPath)
+    const maskPath = path.join(
+      path.dirname(outputPath),
+      'circle_mask_simple.png'
+    )
+    await createCircleMask(
+      targetWidth,
+      targetHeight,
+      cx,
+      cy,
+      circleRadius,
+      maskPath
+    )
 
     // FFmpeg команда для создания вертикального 9:16 видео
     // ⚠️ Background video audio is MUTED (-an flag) - only lip-sync audio is used
@@ -88,7 +98,10 @@ export async function createCircleCompositionSimple(
     await execAsync(ffmpegCommand)
     await fs.unlink(maskPath).catch(() => {})
 
-    logger.info('✅ [CIRCLE COMPOSITION SIMPLE] Vertical 9:16 composition created', { outputPath })
+    logger.info(
+      '✅ [CIRCLE COMPOSITION SIMPLE] Vertical 9:16 composition created',
+      { outputPath }
+    )
 
     return outputPath
   } catch (error) {

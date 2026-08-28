@@ -244,8 +244,8 @@ export const neuroImageGeneration = inngest.createFunction(
               userGender === 'male'
                 ? 'handsome man, masculine features'
                 : userGender === 'female'
-                ? 'beautiful woman, feminine features'
-                : 'person' // fallback если gender не определен
+                  ? 'beautiful woman, feminine features'
+                  : 'person' // fallback если gender не определен
 
             const input = {
               prompt: `Fashionable ${genderPrompt}: ${prompt}. Cinematic Lighting, realistic, intricate details, extremely detailed, incredible details, full colored, complex details, insanely detailed and intricate, hypermaximalist, extremely detailed with rich colors. Masterpiece, best quality, aerial view, HDR, UHD, unreal engine, Representative, fair skin, beautiful face, Rich in details, high quality, gorgeous, glamorous, 8K, super detail, gorgeous light and shadow, detailed decoration, detailed lines.`,
@@ -261,10 +261,10 @@ export const neuroImageGeneration = inngest.createFunction(
               ...(aspect_ratio === '1:1'
                 ? { width: 1024, height: 1024 }
                 : aspect_ratio === '16:9'
-                ? { width: 1368, height: 768 }
-                : aspect_ratio === '9:16'
-                ? { width: 768, height: 1368 }
-                : { width: 1024, height: 1024 }),
+                  ? { width: 1368, height: 768 }
+                  : aspect_ratio === '9:16'
+                    ? { width: 768, height: 1368 }
+                    : { width: 1024, height: 1024 }),
               sampler: 'flowmatch',
               num_outputs: 1,
               aspect_ratio,
@@ -450,7 +450,10 @@ export const neuroImageGeneration = inngest.createFunction(
         } catch (notifyError) {
           // Сообщить не удалось — это не повод потерять исходную ошибку.
           logger.error('Не удалось уведомить пользователя о сбое генерации', {
-            error: notifyError instanceof Error ? notifyError.message : String(notifyError),
+            error:
+              notifyError instanceof Error
+                ? notifyError.message
+                : String(notifyError),
             telegram_id: event.data.telegram_id,
           })
         }

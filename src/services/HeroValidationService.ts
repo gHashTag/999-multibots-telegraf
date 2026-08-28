@@ -17,7 +17,7 @@ import {
   validateHero,
   HEROES_REGISTRY,
   getCriticalMissingHeroes,
-  getHeroSystemStats
+  getHeroSystemStats,
 } from '@/types/heroes'
 
 export class HeroValidationService {
@@ -40,7 +40,7 @@ export class HeroValidationService {
         error: result.error,
         timestamp: new Date(),
         userId,
-        context
+        context,
       }
 
       this.errorLog.push(errorDetails)
@@ -52,7 +52,7 @@ export class HeroValidationService {
         userId,
         context,
         hasPrompt: HEROES_REGISTRY[heroName as HeroName]?.hasPrompt,
-        heroExists: heroName in HEROES_REGISTRY
+        heroExists: heroName in HEROES_REGISTRY,
       })
 
       // Отправляем метрики (если подключена аналитика)
@@ -61,7 +61,7 @@ export class HeroValidationService {
       console.log(`✅ [HERO VALIDATION SUCCESS] Hero validated successfully`, {
         heroName,
         userId,
-        context
+        context,
       })
     }
 
@@ -103,7 +103,7 @@ export class HeroValidationService {
     const isRu = true // Заглушка, нужно получать из контекста
 
     let errorMessage = ''
-    let shouldRedirect = true
+    const shouldRedirect = true
 
     switch (validation.error) {
       case 'HERO_NOT_FOUND':
@@ -167,13 +167,12 @@ export class HeroValidationService {
 
       console.log('🏠 [HERO VALIDATION] User redirected to main menu', {
         userId: ctx.from?.id?.toString(),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       })
-
     } catch (error) {
       console.error('🚨 [HERO VALIDATION] Failed to redirect to main menu', {
         error,
-        userId: ctx.from?.id?.toString()
+        userId: ctx.from?.id?.toString(),
       })
     }
   }
@@ -181,7 +180,9 @@ export class HeroValidationService {
   /**
    * 📊 ОТПРАВКА МЕТРИК ВАЛИДАЦИИ
    */
-  static async sendValidationMetrics(errorDetails: HeroErrorDetails): Promise<void> {
+  static async sendValidationMetrics(
+    errorDetails: HeroErrorDetails
+  ): Promise<void> {
     try {
       // Здесь можно интегрироваться с аналитическими системами
       // Например: Amplitude, Mixpanel, собственная аналитика
@@ -193,8 +194,8 @@ export class HeroValidationService {
           error_type: errorDetails.error,
           user_id: errorDetails.userId,
           context: errorDetails.context,
-          timestamp: errorDetails.timestamp.toISOString()
-        }
+          timestamp: errorDetails.timestamp.toISOString(),
+        },
       }
 
       // Пример интеграции (раскомментировать при подключении аналитики):
@@ -216,10 +217,10 @@ export class HeroValidationService {
     recentErrors: HeroErrorDetails[]
   } {
     const errorsByType: Record<HeroValidationError, number> = {
-      'HERO_NOT_FOUND': 0,
-      'PROMPT_MISSING': 0,
-      'INVALID_GENDER': 0,
-      'SYSTEM_ERROR': 0
+      HERO_NOT_FOUND: 0,
+      PROMPT_MISSING: 0,
+      INVALID_GENDER: 0,
+      SYSTEM_ERROR: 0,
     }
 
     const errorsByHero: Record<string, number> = {}
@@ -233,7 +234,7 @@ export class HeroValidationService {
       totalErrors: this.errorLog.length,
       errorsByType,
       errorsByHero,
-      recentErrors: this.errorLog.slice(-10) // Последние 10 ошибок
+      recentErrors: this.errorLog.slice(-10), // Последние 10 ошибок
     }
   }
 
@@ -264,19 +265,23 @@ export class HeroValidationService {
 
     if (criticalMissing.length > 0) {
       systemHealth = 'critical'
-      recommendations.push(`🚨 КРИТИЧНО: Отсутствуют промпты для критических героев: ${criticalMissing.join(', ')}`)
+      recommendations.push(
+        `🚨 КРИТИЧНО: Отсутствуют промпты для критических героев: ${criticalMissing.join(', ')}`
+      )
     }
 
     if (errorStats.totalErrors > 100) {
       systemHealth = 'warning'
-      recommendations.push('⚠️ ВНИМАНИЕ: Много ошибок валидации героев за последнее время')
+      recommendations.push(
+        '⚠️ ВНИМАНИЕ: Много ошибок валидации героев за последнее время'
+      )
     }
 
     return {
       systemHealth,
       stats,
       criticalMissingHeroes: criticalMissing,
-      recommendations
+      recommendations,
     }
   }
 }

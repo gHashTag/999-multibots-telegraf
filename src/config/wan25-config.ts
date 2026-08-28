@@ -39,7 +39,7 @@ export const WAN25_MODELS: Record<WAN25ModelType, WAN25Config> = {
     provider: 'kie',
     modelId: 'wan/2-5-image-to-video',
     costPerSecond720p: 0.06, // $0.06/сек = 12 кредитов
-    costPerSecond1080p: 0.10, // $0.10/сек = 20 кредитов
+    costPerSecond1080p: 0.1, // $0.10/сек = 20 кредитов
     costPerSecondStars720p: 3.6, // ~$0.06 × 60 = 3.6⭐/сек
     costPerSecondStars1080p: 6.0, // ~$0.10 × 60 = 6.0⭐/сек
     maxDuration: 10, // максимум 10 секунд
@@ -67,7 +67,7 @@ export const WAN25_MODELS: Record<WAN25ModelType, WAN25Config> = {
     provider: 'kie',
     modelId: 'wan/2-5-text-to-video',
     costPerSecond720p: 0.06, // $0.06/сек = 12 кредитов
-    costPerSecond1080p: 0.10, // $0.10/сек = 20 кредитов
+    costPerSecond1080p: 0.1, // $0.10/сек = 20 кредитов
     costPerSecondStars720p: 3.6, // ~$0.06 × 60 = 3.6⭐/сек
     costPerSecondStars1080p: 6.0, // ~$0.10 × 60 = 6.0⭐/сек
     maxDuration: 10,
@@ -114,9 +114,8 @@ export function calculateWAN25CostUSD(
     throw new Error(`WAN 2.5 model not found: ${modelId}`)
   }
 
-  const costPerSecond = resolution === '1080p'
-    ? model.costPerSecond1080p
-    : model.costPerSecond720p
+  const costPerSecond =
+    resolution === '1080p' ? model.costPerSecond1080p : model.costPerSecond720p
 
   return durationSeconds * costPerSecond
 }
@@ -134,9 +133,10 @@ export function calculateWAN25CostStars(
     throw new Error(`WAN 2.5 model not found: ${modelId}`)
   }
 
-  const costPerSecond = resolution === '1080p'
-    ? model.costPerSecondStars1080p
-    : model.costPerSecondStars720p
+  const costPerSecond =
+    resolution === '1080p'
+      ? model.costPerSecondStars1080p
+      : model.costPerSecondStars720p
 
   return Math.ceil(durationSeconds * costPerSecond)
 }
@@ -163,28 +163,28 @@ export function validateWAN25Parameters(
   if (!model.supportedDurations.includes(duration)) {
     return {
       isValid: false,
-      error: `Duration ${duration}s not supported. Supported: ${model.supportedDurations.join(', ')}s`
+      error: `Duration ${duration}s not supported. Supported: ${model.supportedDurations.join(', ')}s`,
     }
   }
 
   if (!model.supportedResolutions.includes(resolution)) {
     return {
       isValid: false,
-      error: `Resolution ${resolution} not supported. Supported: ${model.supportedResolutions.join(', ')}`
+      error: `Resolution ${resolution} not supported. Supported: ${model.supportedResolutions.join(', ')}`,
     }
   }
 
   if (aspectRatio && !model.supportedAspectRatios.includes(aspectRatio)) {
     return {
       isValid: false,
-      error: `Aspect ratio ${aspectRatio} not supported. Supported: ${model.supportedAspectRatios.join(', ')}`
+      error: `Aspect ratio ${aspectRatio} not supported. Supported: ${model.supportedAspectRatios.join(', ')}`,
     }
   }
 
   if (duration > model.maxDuration) {
     return {
       isValid: false,
-      error: `Duration ${duration}s exceeds maximum ${model.maxDuration}s`
+      error: `Duration ${duration}s exceeds maximum ${model.maxDuration}s`,
     }
   }
 
@@ -278,19 +278,21 @@ export interface WAN25Error {
  */
 export const WAN25_DEFAULT_PROMPTS = {
   CINEMATIC: {
-    ru: "Персонаж с изображения выполняет выразительные движения, жестикулирует руками, меняет позу и выражение лица. Создайте динамичное видео с плавными переходами, где персонаж демонстрирует эмоции и живую мимику. Высокое качество, кинематографичная картинка, естественное освещение.",
-    en: "The character from the image performs expressive movements, gesticulates with hands, changes pose and facial expression. Create a dynamic video with smooth transitions where the character demonstrates emotions and lively facial expressions. High quality, cinematic picture, natural lighting."
+    ru: 'Персонаж с изображения выполняет выразительные движения, жестикулирует руками, меняет позу и выражение лица. Создайте динамичное видео с плавными переходами, где персонаж демонстрирует эмоции и живую мимику. Высокое качество, кинематографичная картинка, естественное освещение.',
+    en: 'The character from the image performs expressive movements, gesticulates with hands, changes pose and facial expression. Create a dynamic video with smooth transitions where the character demonstrates emotions and lively facial expressions. High quality, cinematic picture, natural lighting.',
   },
   PORTRAIT: {
-    ru: "Портретное видео персонажа с естественными микро-движениями лица, моргание, легкие повороты головы, дыхание. Студийное освещение, профессиональное качество.",
-    en: "Portrait video of the character with natural facial micro-movements, blinking, slight head turns, breathing. Studio lighting, professional quality."
+    ru: 'Портретное видео персонажа с естественными микро-движениями лица, моргание, легкие повороты головы, дыхание. Студийное освещение, профессиональное качество.',
+    en: 'Portrait video of the character with natural facial micro-movements, blinking, slight head turns, breathing. Studio lighting, professional quality.',
   },
   DYNAMIC: {
-    ru: "Энергичное видео с активными движениями персонажа, эмоциональная мимика, жесты руками, изменение позы. Драматическое освещение, высокая детализация.",
-    en: "Energetic video with active character movements, emotional facial expressions, hand gestures, pose changes. Dramatic lighting, high detail."
+    ru: 'Энергичное видео с активными движениями персонажа, эмоциональная мимика, жесты руками, изменение позы. Драматическое освещение, высокая детализация.',
+    en: 'Energetic video with active character movements, emotional facial expressions, hand gestures, pose changes. Dramatic lighting, high detail.',
   },
 }
 
 console.log('🎬 [WAN 2.5 CONFIG] Configuration loaded')
-console.log(`🎬 [WAN 2.5 CONFIG] Available models: ${getAvailableWAN25Models().length}`)
+console.log(
+  `🎬 [WAN 2.5 CONFIG] Available models: ${getAvailableWAN25Models().length}`
+)
 console.log(`🎬 [WAN 2.5 CONFIG] API Base URL: ${WAN25_API_CONFIG.BASE_URL}`)

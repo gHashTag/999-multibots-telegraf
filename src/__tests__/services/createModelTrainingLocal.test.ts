@@ -99,7 +99,6 @@ describe('createModelTrainingLocal (Replicate API)', () => {
     ;(fs.existsSync as Mock).mockReturnValue(true)
     ;(fs.statSync as Mock).mockReturnValue({ size: 1024000 })
     ;(fs.readFileSync as Mock).mockReturnValue(Buffer.from('mock zip content'))
-
     ;(replicate.models.get as Mock).mockRejectedValue({
       response: { status: 404 },
     })
@@ -108,12 +107,10 @@ describe('createModelTrainingLocal (Replicate API)', () => {
       id: 'training-123',
       status: 'starting',
     })
-
     ;(isValidReplicateModelName as Mock).mockReturnValue(true)
     ;(sanitizeModelName as Mock).mockImplementation((name: string) =>
       name.toLowerCase().replace(/[^a-z0-9-]/g, '-')
     )
-
     ;(supabase.from as Mock).mockReturnValue({
       insert: vi.fn(() => ({ error: null })),
     })
@@ -144,7 +141,6 @@ describe('createModelTrainingLocal (Replicate API)', () => {
     it('должен проверять существование ZIP файла', () => {
       ;(fs.existsSync as Mock).mockReturnValue(true)
       expect(fs.existsSync('/tmp/training-123.zip')).toBe(true)
-
       ;(fs.existsSync as Mock).mockReturnValue(false)
       expect(fs.existsSync('/tmp/nonexistent.zip')).toBe(false)
     })
@@ -245,7 +241,9 @@ describe('createModelTrainingLocal (Replicate API)', () => {
         id: 'training-abc-123',
         status: 'starting',
       }
-      ;(replicate.trainings.create as Mock).mockResolvedValue(mockTrainingResult)
+      ;(replicate.trainings.create as Mock).mockResolvedValue(
+        mockTrainingResult
+      )
 
       const result = await replicate.trainings.create(
         'ostris',

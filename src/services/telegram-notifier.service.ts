@@ -51,28 +51,28 @@ export class TelegramNotifierService {
 
   async notifyAutoFixStart(data: AutoFixStartNotification): Promise<void> {
     const message = this.formatAutoFixStartMessage(data)
-    
+
     await this.sendToAdmin(message)
     await this.sendToDevChannel(message)
   }
 
   async notifyAutoFixSuccess(data: AutoFixSuccessNotification): Promise<void> {
     const message = this.formatAutoFixSuccessMessage(data)
-    
+
     await this.sendToAdmin(message)
     await this.sendToDevChannel(message)
   }
 
   async notifyAutoFixError(data: AutoFixErrorNotification): Promise<void> {
     const message = this.formatAutoFixErrorMessage(data)
-    
+
     await this.sendToAdmin(message)
     await this.sendToDevChannel(message)
   }
 
   async notifyNoFixesNeeded(data: NoFixesNeededNotification): Promise<void> {
     const message = this.formatNoFixesNeededMessage(data)
-    
+
     await this.sendToDevChannel(message)
   }
 
@@ -87,10 +87,15 @@ export class TelegramNotifierService {
 <a href="${data.url}">View PR on GitHub</a>`
   }
 
-  private formatAutoFixSuccessMessage(data: AutoFixSuccessNotification): string {
+  private formatAutoFixSuccessMessage(
+    data: AutoFixSuccessNotification
+  ): string {
     const fixesByType = this.groupFixesByType(data.fixes)
     const fixesText = Object.entries(fixesByType)
-      .map(([type, count]) => `${this.getFixTypeIcon(type)} ${this.getFixTypeName(type)}: ${count}`)
+      .map(
+        ([type, count]) =>
+          `${this.getFixTypeIcon(type)} ${this.getFixTypeName(type)}: ${count}`
+      )
       .join('\\n')
 
     return `✅ <b>AutoFixer Success</b>
@@ -129,10 +134,13 @@ ${fixesText}
   }
 
   private groupFixesByType(fixes: FixResult[]): Record<string, number> {
-    return fixes.reduce((acc, fix) => {
-      acc[fix.type] = (acc[fix.type] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
+    return fixes.reduce(
+      (acc, fix) => {
+        acc[fix.type] = (acc[fix.type] || 0) + 1
+        return acc
+      },
+      {} as Record<string, number>
+    )
   }
 
   private getFixTypeIcon(type: string): string {
@@ -141,7 +149,7 @@ ${fixesText}
       eslint: '📏',
       telegraf: '🤖',
       scene: '🎭',
-      async: '⚡'
+      async: '⚡',
     }
     return icons[type] || '🔧'
   }
@@ -152,7 +160,7 @@ ${fixesText}
       eslint: 'ESLint',
       telegraf: 'Telegraf',
       scene: 'Scene Issues',
-      async: 'Async/Await'
+      async: 'Async/Await',
     }
     return names[type] || type
   }
@@ -163,10 +171,13 @@ ${fixesText}
     try {
       await this.bot.telegram.sendMessage(this.adminChatId, message, {
         parse_mode: 'HTML',
-        link_preview_options: { is_disabled: true }
+        link_preview_options: { is_disabled: true },
       })
     } catch (error) {
-      console.error('❌ [TelegramNotifier] Failed to send admin message:', error)
+      console.error(
+        '❌ [TelegramNotifier] Failed to send admin message:',
+        error
+      )
     }
   }
 
@@ -176,10 +187,13 @@ ${fixesText}
     try {
       await this.bot.telegram.sendMessage(this.devChannelId, message, {
         parse_mode: 'HTML',
-        link_preview_options: { is_disabled: true }
+        link_preview_options: { is_disabled: true },
       })
     } catch (error) {
-      console.error('❌ [TelegramNotifier] Failed to send channel message:', error)
+      console.error(
+        '❌ [TelegramNotifier] Failed to send channel message:',
+        error
+      )
     }
   }
 

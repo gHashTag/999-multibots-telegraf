@@ -44,9 +44,12 @@ export async function handleCallbackQuery(ctx: MyContext): Promise<boolean> {
   if (data === 'cancel' || data === 'go_back') {
     // ✅ Если в сцене chatWithAvatarWizard - передаём обработку сцене
     if (ctx.scene?.current?.id === 'chat_with_avatar') {
-      logger.info('❌ [Callback] Cancel in chatWithAvatarWizard - delegating to scene', {
-        telegramId: ctx.from?.id,
-      })
+      logger.info(
+        '❌ [Callback] Cancel in chatWithAvatarWizard - delegating to scene',
+        {
+          telegramId: ctx.from?.id,
+        }
+      )
       return false // Не обрабатываем глобально, передаём в сцену
     }
 
@@ -73,9 +76,12 @@ export async function handleCallbackQuery(ctx: MyContext): Promise<boolean> {
   if (data === 'help') {
     // ✅ Если в сцене chatWithAvatarWizard - передаём обработку сцене
     if (ctx.scene?.current?.id === 'chat_with_avatar') {
-      logger.info('❓ [Callback] Help in chatWithAvatarWizard - delegating to scene', {
-        telegramId: ctx.from?.id,
-      })
+      logger.info(
+        '❓ [Callback] Help in chatWithAvatarWizard - delegating to scene',
+        {
+          telegramId: ctx.from?.id,
+        }
+      )
       return false // Не обрабатываем глобально, передаём в сцену
     }
 

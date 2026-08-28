@@ -247,9 +247,8 @@ export const processPayment = inngest.createFunction(
     } catch (error) {
       // Получаем информацию о пользователе для отправки уведомления об ошибке
       try {
-        const { telegram_id, language_code } = await getTelegramIdFromInvId(
-          inv_id
-        )
+        const { telegram_id, language_code } =
+          await getTelegramIdFromInvId(inv_id)
         errorMessage(null, error as Error, language_code === 'ru')
         errorMessageAdmin(null, error as Error)
       } catch (innerError) {

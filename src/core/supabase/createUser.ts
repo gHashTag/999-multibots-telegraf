@@ -85,25 +85,31 @@ export const createUser = async (
       updates.language_code = language_code
 
     if (Object.keys(updates).length > 0) {
-      logger.info('Обнаружены изменения в данных пользователя, попытка обновления', {
-        telegramId: telegram_id,
-        userId: existingUser.id,
-        updates,
-        function: 'createUser_STEP1_attemptUpdate',
-      })
+      logger.info(
+        'Обнаружены изменения в данных пользователя, попытка обновления',
+        {
+          telegramId: telegram_id,
+          userId: existingUser.id,
+          updates,
+          function: 'createUser_STEP1_attemptUpdate',
+        }
+      )
       const { error: updateError } = await supabase
         .from('users')
         .update(updates)
         .eq('telegram_id', telegram_id)
 
       if (updateError) {
-        logger.error('Ошибка при обновлении данных существующего пользователя', {
-          telegramId: telegram_id,
-          userId: existingUser.id,
-          error: updateError.message,
-          details: updateError,
-          function: 'createUser_STEP1_updateError',
-        })
+        logger.error(
+          'Ошибка при обновлении данных существующего пользователя',
+          {
+            telegramId: telegram_id,
+            userId: existingUser.id,
+            error: updateError.message,
+            details: updateError,
+            function: 'createUser_STEP1_updateError',
+          }
+        )
         // Не критично, возвращаем найденного пользователя
       } else {
         logger.info('Данные существующего пользователя успешно обновлены', {
@@ -126,10 +132,13 @@ export const createUser = async (
 
   // === НАЧАЛО УЛУЧШЕННОЙ ЛОГИКИ ===
   // Пользователь НЕ найден в 'users'. Проверим, есть ли он в 'payments_v2'.
-  logger.info(`Пользователь ${telegram_id} не найден в 'users'. Проверяем 'payments_v2' для признаков прошлой активности...`, {
-    telegramId: telegram_id,
-    function: 'createUser_checkPaymentsV2_START',
-  })
+  logger.info(
+    `Пользователь ${telegram_id} не найден в 'users'. Проверяем 'payments_v2' для признаков прошлой активности...`,
+    {
+      telegramId: telegram_id,
+      function: 'createUser_checkPaymentsV2_START',
+    }
+  )
 
   const { data: paymentRecords, error: paymentError } = await supabase
     .from('payments_v2')
@@ -139,27 +148,36 @@ export const createUser = async (
 
   if (paymentError) {
     // Используем warn, так как это не блокирующая ошибка для создания нового
-    logger.warn(`Ошибка при проверке 'payments_v2' для ${telegram_id}. Продолжаем как для нового пользователя.`, {
-      error: paymentError.message,
-      details: paymentError,
-      function: 'createUser_checkPaymentsV2_Error',
-    })
+    logger.warn(
+      `Ошибка при проверке 'payments_v2' для ${telegram_id}. Продолжаем как для нового пользователя.`,
+      {
+        error: paymentError.message,
+        details: paymentError,
+        function: 'createUser_checkPaymentsV2_Error',
+      }
+    )
     // Ошибка при доступе к payments_v2, продолжаем с обычной логикой создания нового пользователя
   } else if (paymentRecords && paymentRecords.length > 0) {
     // Пользователь найден в 'payments_v2'! Это означает, что он существовал ранее.
     // Создаем его в 'users' как "восстановленного".
-    logger.info(`Обнаружены записи в 'payments_v2' для ${telegram_id}. Пользователь существовал ранее. Создаем запись в 'users'.`, {
-      telegramId: telegram_id,
-      paymentRecordsCount: paymentRecords.length,
-      function: 'createUser_checkPaymentsV2_FoundAndRecover',
-    })
+    logger.info(
+      `Обнаружены записи в 'payments_v2' для ${telegram_id}. Пользователь существовал ранее. Создаем запись в 'users'.`,
+      {
+        telegramId: telegram_id,
+        paymentRecordsCount: paymentRecords.length,
+        function: 'createUser_checkPaymentsV2_FoundAndRecover',
+      }
+    )
     // Переходим к логике создания нового пользователя НИЖЕ, но с этим знанием.
   } else {
     // Записей в 'payments_v2' не найдено. Это действительно новый пользователь.
-    logger.info(`Записей в 'payments_v2' для ${telegram_id} не найдено. Это новый пользователь.`, {
-      telegramId: telegram_id,
-      function: 'createUser_checkPaymentsV2_NotFound',
-    })
+    logger.info(
+      `Записей в 'payments_v2' для ${telegram_id} не найдено. Это новый пользователь.`,
+      {
+        telegramId: telegram_id,
+        function: 'createUser_checkPaymentsV2_NotFound',
+      }
+    )
   }
   // === КОНЕЦ УЛУЧШЕННОЙ ЛОГИКИ ===
 
@@ -167,13 +185,16 @@ export const createUser = async (
   //    пытаемся создать нового в 'users'.
   //    Если он был в payments_v2, это просто означает, что мы создаем для него запись в users,
   //    используя предоставленные userData.
-  logger.info(`Шаг 2: Попытка создания новой записи в 'users' для ${telegram_id}`, {
-    telegramId: telegram_id,
-    username: finalUsername,
-    inviter,
-    inputUserDataForInsert: userData,
-    function: 'createUser_STEP2_insertNew_START',
-  })
+  logger.info(
+    `Шаг 2: Попытка создания новой записи в 'users' для ${telegram_id}`,
+    {
+      telegramId: telegram_id,
+      username: finalUsername,
+      inviter,
+      inputUserDataForInsert: userData,
+      function: 'createUser_STEP2_insertNew_START',
+    }
+  )
 
   const { data: newUser, error: createError } = await supabase
     .from('users')
@@ -192,10 +213,13 @@ export const createUser = async (
     // Обработка возможной гонки условий: если кто-то создал пользователя между find и insert
     if (createError.code === '23505') {
       // Код ошибки уникальности
-      logger.warn('Конфликт при создании (23505), пользователь мог быть создан параллельно. Повторный поиск.', {
-        telegramId: telegram_id,
-        function: 'createUser_STEP2_handleRace_23505',
-      })
+      logger.warn(
+        'Конфликт при создании (23505), пользователь мог быть создан параллельно. Повторный поиск.',
+        {
+          telegramId: telegram_id,
+          function: 'createUser_STEP2_handleRace_23505',
+        }
+      )
       // Повторно ищем пользователя
       const { data: raceUser, error: raceFindError } = await supabase
         .from('users')
@@ -205,11 +229,14 @@ export const createUser = async (
 
       if (raceUser) {
         // Найден по telegram_id при повторном поиске
-        logger.info('Пользователь найден по telegram_id при повторном поиске после конфликта 23505', {
-          telegramId: telegram_id,
-          userId: raceUser.id,
-          function: 'createUser_STEP2_handleRace_foundByTgId',
-        })
+        logger.info(
+          'Пользователь найден по telegram_id при повторном поиске после конфликта 23505',
+          {
+            telegramId: telegram_id,
+            userId: raceUser.id,
+            function: 'createUser_STEP2_handleRace_foundByTgId',
+          }
+        )
         logger.debug({
           message:
             'Возвращаем пользователя, найденного после гонки (по telegram_id)',
@@ -221,12 +248,15 @@ export const createUser = async (
       } else if (raceFindError && raceFindError.code !== 'PGRST116') {
         // PGRST116 - no rows returned
         // Другая ошибка при поиске по telegram_id
-        logger.error('Неожиданная ошибка при повторном поиске по telegram_id после конфликта 23505', {
-          telegramId: telegram_id,
-          error: raceFindError.message,
-          details: raceFindError,
-          function: 'createUser_STEP2_handleRace_tgIdSearchError',
-        })
+        logger.error(
+          'Неожиданная ошибка при повторном поиске по telegram_id после конфликта 23505',
+          {
+            telegramId: telegram_id,
+            error: raceFindError.message,
+            details: raceFindError,
+            function: 'createUser_STEP2_handleRace_tgIdSearchError',
+          }
+        )
         logger.debug({
           message:
             'Возвращаем null из-за ошибки повторного поиска по telegram_id',
@@ -238,11 +268,14 @@ export const createUser = async (
 
       // Если не найден по telegram_id (raceFindError.code === 'PGRST116' или !raceUser),
       // пробуем найти по username, так как конфликт мог быть по нему
-      logger.warn('Пользователь не найден по telegram_id после конфликта 23505, пытаемся найти по username.', {
-        telegramId: telegram_id,
-        username: finalUsername,
-        function: 'createUser_STEP2_handleRace_tryUsername',
-      })
+      logger.warn(
+        'Пользователь не найден по telegram_id после конфликта 23505, пытаемся найти по username.',
+        {
+          telegramId: telegram_id,
+          username: finalUsername,
+          function: 'createUser_STEP2_handleRace_tryUsername',
+        }
+      )
 
       const { data: userByUsername, error: usernameFindError } = await supabase
         .from('users')
@@ -252,12 +285,15 @@ export const createUser = async (
 
       if (userByUsername) {
         // Пользователь найден по username! Это наш случай. Обновим его telegram_id.
-        logger.info('Пользователь найден по username после конфликта 23505. Обновляем telegram_id.', {
-          currentTelegramId: userByUsername.telegram_id,
-          newTelegramId: telegram_id,
-          userId: userByUsername.id,
-          function: 'createUser_STEP2_handleRace_foundByUsername',
-        })
+        logger.info(
+          'Пользователь найден по username после конфликта 23505. Обновляем telegram_id.',
+          {
+            currentTelegramId: userByUsername.telegram_id,
+            newTelegramId: telegram_id,
+            userId: userByUsername.id,
+            function: 'createUser_STEP2_handleRace_foundByUsername',
+          }
+        )
         const { data: updatedUserAfterRace, error: updateError } =
           await supabase
             .from('users')
@@ -267,12 +303,15 @@ export const createUser = async (
             .single()
 
         if (updateError) {
-          logger.error('Ошибка при обновлении telegram_id для пользователя, найденного по username после конфликта.', {
-            userId: userByUsername.id,
-            error: updateError.message,
-            details: updateError,
-            function: 'createUser_STEP2_handleRace_usernameUpdateError',
-          })
+          logger.error(
+            'Ошибка при обновлении telegram_id для пользователя, найденного по username после конфликта.',
+            {
+              userId: userByUsername.id,
+              error: updateError.message,
+              details: updateError,
+              function: 'createUser_STEP2_handleRace_usernameUpdateError',
+            }
+          )
           logger.debug({
             message:
               'Возвращаем пользователя (userByUsername) после ошибки обновления telegram_id',
@@ -282,17 +321,20 @@ export const createUser = async (
           })
           return [false, userByUsername] // Возвращаем пользователя как есть, хоть и не смогли обновить
         }
-        logger.info('Успешно обновлен telegram_id для пользователя, найденного по username.', {
-          userId: userByUsername.id,
-          updatedUser: updatedUserAfterRace
-            ? {
-                id: updatedUserAfterRace.id,
-                username: updatedUserAfterRace.username,
-                telegram_id: updatedUserAfterRace.telegram_id,
-              }
-            : null,
-          function: 'createUser_STEP2_handleRace_usernameUpdateSuccess',
-        })
+        logger.info(
+          'Успешно обновлен telegram_id для пользователя, найденного по username.',
+          {
+            userId: userByUsername.id,
+            updatedUser: updatedUserAfterRace
+              ? {
+                  id: updatedUserAfterRace.id,
+                  username: updatedUserAfterRace.username,
+                  telegram_id: updatedUserAfterRace.telegram_id,
+                }
+              : null,
+            function: 'createUser_STEP2_handleRace_usernameUpdateSuccess',
+          }
+        )
         logger.debug({
           message:
             'Возвращаем обновленного пользователя (updatedUserAfterRace)',
@@ -301,13 +343,16 @@ export const createUser = async (
         })
         return [false, updatedUserAfterRace]
       } else if (usernameFindError && usernameFindError.code !== 'PGRST116') {
-        logger.error('Неожиданная ошибка при поиске по username после конфликта 23505 (и неудачи по telegram_id).', {
-          telegramId: telegram_id,
-          username: finalUsername,
-          error: usernameFindError.message,
-          details: usernameFindError,
-          function: 'createUser_STEP2_handleRace_usernameSearchError',
-        })
+        logger.error(
+          'Неожиданная ошибка при поиске по username после конфликта 23505 (и неудачи по telegram_id).',
+          {
+            telegramId: telegram_id,
+            username: finalUsername,
+            error: usernameFindError.message,
+            details: usernameFindError,
+            function: 'createUser_STEP2_handleRace_usernameSearchError',
+          }
+        )
         logger.debug({
           message: 'Возвращаем null из-за ошибки поиска по username',
           telegramId: telegram_id,
@@ -316,11 +361,14 @@ export const createUser = async (
         return [false, null]
       } else {
         // Не найден ни по telegram_id, ни по username после конфликта 23505. Это странно.
-        logger.error('Критическая ошибка: Конфликт 23505, но пользователь не найден ни по telegram_id, ни по username. Это не должно происходить.', {
-          telegramId: telegram_id,
-          username: finalUsername,
-          function: 'createUser_STEP2_handleRace_CRITICAL_notFound',
-        })
+        logger.error(
+          'Критическая ошибка: Конфликт 23505, но пользователь не найден ни по telegram_id, ни по username. Это не должно происходить.',
+          {
+            telegramId: telegram_id,
+            username: finalUsername,
+            function: 'createUser_STEP2_handleRace_CRITICAL_notFound',
+          }
+        )
         logger.debug({
           message: 'Возвращаем null из-за критической ошибки после 23505',
           telegramId: telegram_id,

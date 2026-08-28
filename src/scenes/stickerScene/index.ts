@@ -7,12 +7,12 @@ const stickerScene = new Scenes.WizardScene<MyContext>(
   'stickerScene',
 
   // Step 1: Show stickers menu
-  async (ctx) => {
+  async ctx => {
     const isRu = await isRussianFromState(ctx)
 
     ctx.session.wizardData = {
       step: 1,
-      action: null
+      action: null,
     }
 
     const menu = isRu
@@ -25,14 +25,14 @@ const stickerScene = new Scenes.WizardScene<MyContext>(
           [Markup.button.callback('🖼️ Конвертировать в фото', 'convert')],
           [Markup.button.callback('ℹ️ Информация о стикере', 'info')],
           [Markup.button.callback('➕ Добавить в набор', 'add_to_set')],
-          [Markup.button.callback('❌ Отмена', 'cancel')]
+          [Markup.button.callback('❌ Отмена', 'cancel')],
         ])
       : Markup.inlineKeyboard([
           [Markup.button.callback('📊 Analyze sticker', 'analyze')],
           [Markup.button.callback('🖼️ Convert to photo', 'convert')],
           [Markup.button.callback('ℹ️ Sticker info', 'info')],
           [Markup.button.callback('➕ Add to set', 'add_to_set')],
-          [Markup.button.callback('❌ Cancel', 'cancel')]
+          [Markup.button.callback('❌ Cancel', 'cancel')],
         ])
 
     await ctx.reply(menu, keyboard)
@@ -40,7 +40,7 @@ const stickerScene = new Scenes.WizardScene<MyContext>(
   },
 
   // Step 2: Handle action selection
-  async (ctx) => {
+  async ctx => {
     if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
       await ctx.reply('❌ Ошибка выбора')
       return ctx.scene.leave()
@@ -85,7 +85,7 @@ const stickerScene = new Scenes.WizardScene<MyContext>(
   },
 
   // Step 3: Process sticker
-  async (ctx) => {
+  async ctx => {
     if (!ctx.message) {
       const isRu = await isRussianFromState(ctx)
       await ctx.reply(isRu ? '❌ Нет сообщения' : '❌ No message')
@@ -110,7 +110,7 @@ const stickerScene = new Scenes.WizardScene<MyContext>(
       logger.info('[STICKER SCENE] Processing sticker', {
         action,
         fileId: sticker.file_id,
-        emoji: sticker.emoji
+        emoji: sticker.emoji,
       })
 
       let response = ''
@@ -172,69 +172,75 @@ const stickerScene = new Scenes.WizardScene<MyContext>(
       const keyboard = isRu
         ? Markup.inlineKeyboard([
             [Markup.button.callback('🔄 Еще один стикер', 'repeat')],
-            [Markup.button.callback('❌ Завершить', 'finish')]
+            [Markup.button.callback('❌ Завершить', 'finish')],
           ])
         : Markup.inlineKeyboard([
             [Markup.button.callback('🔄 Another sticker', 'repeat')],
-            [Markup.button.callback('❌ Finish', 'finish')]
+            [Markup.button.callback('❌ Finish', 'finish')],
           ])
 
-      await ctx.reply(
-        isRu ? '🔄 Что дальше?' : '🔄 What next?',
-        keyboard
-      )
-
+      await ctx.reply(isRu ? '🔄 Что дальше?' : '🔄 What next?', keyboard)
     } catch (error) {
       logger.error('[STICKER SCENE] Error processing sticker', { error })
       await ctx.reply(
-        isRu
-          ? '❌ Ошибка при обработке стикера'
-          : '❌ Error processing sticker'
+        isRu ? '❌ Ошибка при обработке стикера' : '❌ Error processing sticker'
       )
     }
   }
 )
 
 // Action handlers
-stickerScene.action('analyze', async (ctx) => {
+stickerScene.action('analyze', async ctx => {
   await ctx.answerCbQuery()
   ctx.session.wizardData.action = 'analyze'
   const isRu = await isRussianFromState(ctx)
-  await ctx.reply(isRu ? '📤 Отправьте стикер для анализа' : '📤 Send sticker to analyze')
+  await ctx.reply(
+    isRu ? '📤 Отправьте стикер для анализа' : '📤 Send sticker to analyze'
+  )
   return ctx.wizard.next()
 })
 
-stickerScene.action('convert', async (ctx) => {
+stickerScene.action('convert', async ctx => {
   await ctx.answerCbQuery()
   ctx.session.wizardData.action = 'convert'
   const isRu = await isRussianFromState(ctx)
-  await ctx.reply(isRu ? '📤 Отправьте стикер для конвертации' : '📤 Send sticker to convert')
+  await ctx.reply(
+    isRu ? '📤 Отправьте стикер для конвертации' : '📤 Send sticker to convert'
+  )
   return ctx.wizard.next()
 })
 
-stickerScene.action('info', async (ctx) => {
+stickerScene.action('info', async ctx => {
   await ctx.answerCbQuery()
   ctx.session.wizardData.action = 'info'
   const isRu = await isRussianFromState(ctx)
-  await ctx.reply(isRu ? '📤 Отправьте стикер для получения информации' : '📤 Send sticker to get info')
+  await ctx.reply(
+    isRu
+      ? '📤 Отправьте стикер для получения информации'
+      : '📤 Send sticker to get info'
+  )
   return ctx.wizard.next()
 })
 
-stickerScene.action('add_to_set', async (ctx) => {
+stickerScene.action('add_to_set', async ctx => {
   await ctx.answerCbQuery()
   ctx.session.wizardData.action = 'add_to_set'
   const isRu = await isRussianFromState(ctx)
-  await ctx.reply(isRu ? '📤 Отправьте стикер и укажите название набора' : '📤 Send sticker and specify set name')
+  await ctx.reply(
+    isRu
+      ? '📤 Отправьте стикер и укажите название набора'
+      : '📤 Send sticker and specify set name'
+  )
   return ctx.wizard.next()
 })
 
-stickerScene.action('cancel', async (ctx) => {
+stickerScene.action('cancel', async ctx => {
   await ctx.answerCbQuery()
   await ctx.reply('✅ Отменено')
   return ctx.scene.leave()
 })
 
-stickerScene.action('repeat', async (ctx) => {
+stickerScene.action('repeat', async ctx => {
   await ctx.answerCbQuery()
   ctx.session.wizardData.action = null
   const isRu = await isRussianFromState(ctx)
@@ -249,21 +255,21 @@ stickerScene.action('repeat', async (ctx) => {
         [Markup.button.callback('🖼️ Конвертировать в фото', 'convert')],
         [Markup.button.callback('ℹ️ Информация о стикере', 'info')],
         [Markup.button.callback('➕ Добавить в набор', 'add_to_set')],
-        [Markup.button.callback('❌ Отмена', 'cancel')]
+        [Markup.button.callback('❌ Отмена', 'cancel')],
       ])
     : Markup.inlineKeyboard([
         [Markup.button.callback('📊 Analyze sticker', 'analyze')],
         [Markup.button.callback('🖼️ Convert to photo', 'convert')],
         [Markup.button.callback('ℹ️ Sticker info', 'info')],
         [Markup.button.callback('➕ Add to set', 'add_to_set')],
-        [Markup.button.callback('❌ Cancel', 'cancel')]
+        [Markup.button.callback('❌ Cancel', 'cancel')],
       ])
 
   await ctx.reply(menu, keyboard)
   return ctx.wizard.next()
 })
 
-stickerScene.action('finish', async (ctx) => {
+stickerScene.action('finish', async ctx => {
   await ctx.answerCbQuery()
   await ctx.reply('✅ Завершено')
   return ctx.scene.leave()

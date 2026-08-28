@@ -47,7 +47,8 @@ let secretCache: SecretCache = {}
 // 🔐 ПОДДЕРЖКА ТРЕХ ОКРУЖЕНИЙ: development, staging, production
 // Environment detection с поддержкой трех окружений
 const isDev = process.env.NODE_ENV !== 'production'
-const environment = (process.env.INFISICAL_ENVIRONMENT || (isDev ? 'dev' : 'prod')) as 'dev' | 'staging' | 'prod'
+const environment = (process.env.INFISICAL_ENVIRONMENT ||
+  (isDev ? 'dev' : 'prod')) as 'dev' | 'staging' | 'prod'
 
 /**
  * 🚀 Инициализация Infisical и загрузка ВСЕХ секретов
@@ -64,12 +65,15 @@ export async function initInfisical(): Promise<void> {
   const projectId = process.env.INFISICAL_PROJECT_ID
 
   if (!clientId || !clientSecret || !projectId) {
-    const error = new Error('❌ CRITICAL: Infisical credentials missing! Application cannot start.')
+    const error = new Error(
+      '❌ CRITICAL: Infisical credentials missing! Application cannot start.'
+    )
     logError('Missing required credentials:', {
       hasClientId: !!clientId,
       hasClientSecret: !!clientSecret,
       hasProjectId: !!projectId,
-      message: 'Set INFISICAL_CLIENT_ID, INFISICAL_CLIENT_SECRET, INFISICAL_PROJECT_ID'
+      message:
+        'Set INFISICAL_CLIENT_ID, INFISICAL_CLIENT_SECRET, INFISICAL_PROJECT_ID',
     })
     throw error
   }
@@ -80,7 +84,7 @@ export async function initInfisical(): Promise<void> {
 
     // Создаем клиент Infisical SDK
     infisicalClient = new InfisicalSDK({
-      siteUrl: process.env.INFISICAL_SITE_URL || 'https://app.infisical.com'
+      siteUrl: process.env.INFISICAL_SITE_URL || 'https://app.infisical.com',
     })
 
     if (serviceToken) {
@@ -92,7 +96,7 @@ export async function initInfisical(): Promise<void> {
       logInfo('Authenticating with Universal Auth...')
       await infisicalClient.auth().universalAuth.login({
         clientId,
-        clientSecret
+        clientSecret,
       })
     }
 
@@ -106,18 +110,25 @@ export async function initInfisical(): Promise<void> {
       projectId,
       environment,
       secretsLoaded: Object.keys(secretCache).length,
-      siteUrl: process.env.INFISICAL_SITE_URL || 'https://app.infisical.com'
+      siteUrl: process.env.INFISICAL_SITE_URL || 'https://app.infisical.com',
     })
   } catch (error) {
     logInfo('⚠️ Infisical unavailable, using process.env fallback')
     isAuthenticated = false
     secretCache = {}
     for (const [key, value] of Object.entries(process.env)) {
-      if (key && value && !key.startsWith('INFISICAL_') && !key.startsWith('RAILWAY_')) {
+      if (
+        key &&
+        value &&
+        !key.startsWith('INFISICAL_') &&
+        !key.startsWith('RAILWAY_')
+      ) {
         secretCache[key] = value
       }
     }
-    logInfo(`✅ Loaded ${Object.keys(secretCache).length} secrets from process.env (Infisical fallback)`)
+    logInfo(
+      `✅ Loaded ${Object.keys(secretCache).length} secrets from process.env (Infisical fallback)`
+    )
   }
 }
 
@@ -139,7 +150,7 @@ async function loadAllSecrets(): Promise<void> {
     const result = await infisicalClient.secrets().listSecrets({
       projectId,
       environment,
-      secretPath: '/'
+      secretPath: '/',
     })
 
     // Сохраняем в кэш И в process.env для совместимости с библиотеками
@@ -148,8 +159,8 @@ async function loadAllSecrets(): Promise<void> {
     // 🔥 Fly.io secrets that should NOT be overridden by Infisical
     // These are set via `flyctl secrets set` and take precedence
     const flySecrets = new Set([
-      'INNGEST_SERVE_ORIGIN',  // Must match Fly.io app URL
-      'BASE_WEBHOOK_URL',      // Webhook URL for Replicate callbacks
+      'INNGEST_SERVE_ORIGIN', // Must match Fly.io app URL
+      'BASE_WEBHOOK_URL', // Webhook URL for Replicate callbacks
     ])
 
     // Save current Fly.io secret values before Infisical override
@@ -163,8 +174,13 @@ async function loadAllSecrets(): Promise<void> {
     for (const secret of result.secrets) {
       secretCache[secret.secretKey] = secret.secretValue
       // 🔥 CRITICAL: Не перезаписываем Fly.io секреты
-      if (flySecrets.has(secret.secretKey) && flySecretValues[secret.secretKey]) {
-        console.log(`[Infisical] ⚠️ Preserving Fly.io secret: ${secret.secretKey}`)
+      if (
+        flySecrets.has(secret.secretKey) &&
+        flySecretValues[secret.secretKey]
+      ) {
+        console.log(
+          `[Infisical] ⚠️ Preserving Fly.io secret: ${secret.secretKey}`
+        )
         continue
       }
       // Также записываем в process.env для совместимости
@@ -173,7 +189,11 @@ async function loadAllSecrets(): Promise<void> {
     }
 
     // 🔥 Логируем наличие критических ключей
-    const criticalKeys = ['INNGEST_EVENT_KEY', 'INNGEST_SIGNING_KEY', 'SUPABASE_SERVICE_KEY']
+    const criticalKeys = [
+      'INNGEST_EVENT_KEY',
+      'INNGEST_SIGNING_KEY',
+      'SUPABASE_SERVICE_KEY',
+    ]
     const missingCritical = criticalKeys.filter(k => !secretCache[k])
 
     logInfo('✅ All secrets loaded into memory and process.env', {
@@ -184,18 +204,19 @@ async function loadAllSecrets(): Promise<void> {
         INNGEST_SIGNING_KEY: !!secretCache['INNGEST_SIGNING_KEY'],
         RENDER_INNGEST_EVENT_KEY: !!secretCache['RENDER_INNGEST_EVENT_KEY'],
       },
-      missingCriticalKeys: missingCritical.length > 0 ? missingCritical : 'none'
+      missingCriticalKeys:
+        missingCritical.length > 0 ? missingCritical : 'none',
     })
 
     if (missingCritical.length > 0) {
       logWarn('⚠️ Missing critical secrets!', {
         missing: missingCritical,
-        hint: 'Add these secrets to Infisical'
+        hint: 'Add these secrets to Infisical',
       })
     }
   } catch (error) {
     logError('❌ Failed to load secrets', {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
     throw error
   }
@@ -214,7 +235,7 @@ export function getSecret(secretName: string): string {
   if (value === undefined) {
     logError(`❌ Secret "${secretName}" not found in cache!`, {
       availableSecrets: Object.keys(secretCache).length,
-      requestedSecret: secretName
+      requestedSecret: secretName,
     })
     throw new Error(`Secret "${secretName}" not found in Infisical`)
   }
@@ -229,7 +250,10 @@ export function getSecret(secretName: string): string {
  * @param defaultValue - Значение по умолчанию если секрет не найден
  * @returns Значение секрета или defaultValue
  */
-export function getSecretOrDefault(secretName: string, defaultValue: string): string {
+export function getSecretOrDefault(
+  secretName: string,
+  defaultValue: string
+): string {
   const value = secretCache[secretName]
 
   if (value === undefined) {
@@ -263,7 +287,7 @@ export function getSecrets(secretNames: string[]): Record<string, string> {
   if (missingSecrets.length > 0) {
     logError(`❌ Missing secrets:`, {
       missing: missingSecrets,
-      available: Object.keys(secretCache).length
+      available: Object.keys(secretCache).length,
     })
     throw new Error(`Secrets not found: ${missingSecrets.join(', ')}`)
   }
@@ -294,7 +318,7 @@ export function getSecretsStats(): {
     totalSecrets: Object.keys(secretCache).length,
     secretKeys: Object.keys(secretCache),
     authenticated: isAuthenticated,
-    environment
+    environment,
   }
 }
 
@@ -302,5 +326,9 @@ export function getSecretsStats(): {
  * ✅ Проверка готовности Infisical
  */
 export function isInfisicalReady(): boolean {
-  return infisicalClient !== null && isAuthenticated && Object.keys(secretCache).length > 0
+  return (
+    infisicalClient !== null &&
+    isAuthenticated &&
+    Object.keys(secretCache).length > 0
+  )
 }

@@ -73,7 +73,10 @@ export async function isLimitAi(
       .gte('created_at', firstOfMonth)
 
     if (monthlyError && monthlyError.code !== 'PGRST116') {
-      console.error('isLimitAi: Ошибка при получении месячного лимита:', monthlyError)
+      console.error(
+        'isLimitAi: Ошибка при получении месячного лимита:',
+        monthlyError
+      )
       return false
     }
 
@@ -141,10 +144,7 @@ export async function isLimitAi(
  * Records a single AI request for monthly-limited tiers.
  * @returns `false` (request is allowed).
  */
-async function recordRequest(
-  user_id: string,
-  today: string
-): Promise<boolean> {
+async function recordRequest(user_id: string, today: string): Promise<boolean> {
   const { data: existingData, error: fetchError } = await supabase
     .from('ai_requests')
     .select('*')

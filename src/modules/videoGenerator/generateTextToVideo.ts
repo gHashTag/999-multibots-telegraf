@@ -100,7 +100,9 @@ export async function generateTextToVideo(
       let aspectRatio = selectedAspectRatio || userAspectRatio
       if (modelConfig.apiSettings?.aspectRatios) {
         // Проверяем, что выбранный aspectRatio поддерживается
-        if (!modelConfig.apiSettings.aspectRatios.includes(aspectRatio as any)) {
+        if (
+          !modelConfig.apiSettings.aspectRatios.includes(aspectRatio as any)
+        ) {
           aspectRatio = modelConfig.apiSettings.aspectRatios[0]
         }
       }
@@ -230,17 +232,21 @@ export async function generateTextToVideo(
       logger.info('[generateTextToVideo] Using KieAiProvider for model:', {
         modelId: modelConfig.id,
         telegram_id,
-        hasPrompt: !!prompt
+        hasPrompt: !!prompt,
       })
 
       // Импортируем KieAiProvider
-      const { KieAiProvider } = await import('@/services/video-providers/KieAiProvider')
+      const { KieAiProvider } = await import(
+        '@/services/video-providers/KieAiProvider'
+      )
       const kieProvider = new KieAiProvider()
 
       // Преобразуем aspectRatio в формат Kie.ai
       const rawAspectRatio = selectedAspectRatio || userAspectRatio
       const kieAspectRatio: '16:9' | '9:16' | '1:1' =
-        rawAspectRatio === '16:9' || rawAspectRatio === '9:16' || rawAspectRatio === '1:1'
+        rawAspectRatio === '16:9' ||
+        rawAspectRatio === '9:16' ||
+        rawAspectRatio === '1:1'
           ? rawAspectRatio
           : '9:16'
 
@@ -248,7 +254,7 @@ export async function generateTextToVideo(
         model: modelConfig.id,
         promptLength: prompt.length,
         aspectRatio: kieAspectRatio,
-        duration: selectedDuration
+        duration: selectedDuration,
       })
 
       // Генерируем видео через Kie.ai
@@ -265,7 +271,7 @@ export async function generateTextToVideo(
         hasData: !!kieResponse.data,
         hasVideoUrl: !!kieResponse.data?.videoUrl,
         hasTaskId: !!kieResponse.data?.taskId,
-        error: kieResponse.error
+        error: kieResponse.error,
       })
 
       if (!kieResponse.success || !kieResponse.data) {
@@ -275,15 +281,21 @@ export async function generateTextToVideo(
       // Если видео готово сразу (синхронный ответ)
       if (kieResponse.data.videoUrl) {
         videoUrl = kieResponse.data.videoUrl
-        logger.info('[generateTextToVideo] Video URL received from KieAi', { telegram_id, videoUrl })
+        logger.info('[generateTextToVideo] Video URL received from KieAi', {
+          telegram_id,
+          videoUrl,
+        })
       }
       // Если асинхронная генерация (taskId) - для WAN моделей это нормально
       else if (kieResponse.data.taskId) {
-        logger.info('[generateTextToVideo] Async generation started via KieAi', {
-          telegram_id,
-          taskId: kieResponse.data.taskId,
-          modelId: modelConfig.id
-        })
+        logger.info(
+          '[generateTextToVideo] Async generation started via KieAi',
+          {
+            telegram_id,
+            taskId: kieResponse.data.taskId,
+            modelId: modelConfig.id,
+          }
+        )
         // Для WAN и других асинхронных моделей возвращаем taskId
         // Вызывающая функция должна обработать это через jobId polling
         return kieResponse.data.taskId
@@ -301,9 +313,12 @@ export async function generateTextToVideo(
           modelConfig.id === 'runway-aleph',
       })
 
-      const replicateResult = await replicate.run(finalReplicateModelId as any, {
-        input: modelInput,
-      })
+      const replicateResult = await replicate.run(
+        finalReplicateModelId as any,
+        {
+          input: modelInput,
+        }
+      )
 
       logger.info('[generateTextToVideo] replicate.run finished.', {
         telegram_id,
@@ -356,18 +371,25 @@ export async function generateTextToVideo(
 
     // ✅ FIX: Специальная обработка для ошибки 403 (Wan API)
     if (isAxiosError(error) && error.response?.status === 403) {
-      logger.error('[generateTextToVideo] WAN API 403 error - authorization failed', {
-        telegram_id,
-        modelId: modelConfig.id,
-        status: error.response.status,
-        statusText: error.response.statusText,
-        data: error.response.data
-      })
+      logger.error(
+        '[generateTextToVideo] WAN API 403 error - authorization failed',
+        {
+          telegram_id,
+          modelId: modelConfig.id,
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+        }
+      )
 
       errorMessage = is_ru
         ? '🚫 Ошибка авторизации API. Проверьте настройки API ключей или обратитесь к администратору.'
         : '🚫 API authorization error. Check API key settings or contact administrator.'
-    } else if (error.response && error.response.data && error.response.data.detail) {
+    } else if (
+      error.response &&
+      error.response.data &&
+      error.response.data.detail
+    ) {
       errorMessage = `Replicate error: ${error.response.data.detail}`
     } else if (error.message) {
       errorMessage = error.message

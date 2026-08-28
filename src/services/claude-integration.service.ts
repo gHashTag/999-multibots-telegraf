@@ -1,7 +1,12 @@
 import { FixResult } from '../webhooks/github-autofixer.service'
 
 export interface BotCodeIssue {
-  type: 'missing_async' | 'missing_await' | 'scene_transition' | 'context_type' | 'error_handling'
+  type:
+    | 'missing_async'
+    | 'missing_await'
+    | 'scene_transition'
+    | 'context_type'
+    | 'error_handling'
   line: number
   description: string
   severity: 'error' | 'warning' | 'info'
@@ -36,9 +41,10 @@ export class ClaudeIntegrationService {
       // Пока возвращаем моковые результаты на основе известных проблем
       const fixes = this.generateMockFixes(request)
 
-      console.log(`✅ [Claude] Found ${fixes.length} fixes for ${request.filePath}`)
+      console.log(
+        `✅ [Claude] Found ${fixes.length} fixes for ${request.filePath}`
+      )
       return fixes
-
     } catch (error) {
       console.error('❌ [Claude] Analysis error:', error)
       return []
@@ -131,34 +137,34 @@ Return only fixes that are specific to Telegram Bot development with Telegraf fr
             type: 'async',
             description: 'Add missing async/await to Telegraf handler',
             filePath: request.filePath,
-            lineNumber: issue.line
+            lineNumber: issue.line,
           })
           break
-          
+
         case 'scene_transition':
           fixes.push({
             type: 'scene',
             description: 'Fix scene transition with proper async handling',
             filePath: request.filePath,
-            lineNumber: issue.line
+            lineNumber: issue.line,
           })
           break
-          
+
         case 'context_type':
           fixes.push({
             type: 'typescript',
             description: 'Add proper MyContext type to handler',
             filePath: request.filePath,
-            lineNumber: issue.line
+            lineNumber: issue.line,
           })
           break
-          
+
         case 'error_handling':
           fixes.push({
             type: 'telegraf',
             description: 'Add try-catch block for Bot API calls',
             filePath: request.filePath,
-            lineNumber: issue.line
+            lineNumber: issue.line,
           })
           break
       }
@@ -171,7 +177,7 @@ Return only fixes that are specific to Telegram Bot development with Telegraf fr
       fixes.push({
         type: 'async',
         description: 'Add async keyword to bot.action handler',
-        filePath: request.filePath
+        filePath: request.filePath,
       })
     }
 
@@ -179,7 +185,7 @@ Return only fixes that are specific to Telegram Bot development with Telegraf fr
       fixes.push({
         type: 'async',
         description: 'Add await to ctx.reply() calls',
-        filePath: request.filePath
+        filePath: request.filePath,
       })
     }
 
@@ -187,7 +193,7 @@ Return only fixes that are specific to Telegram Bot development with Telegraf fr
       fixes.push({
         type: 'scene',
         description: 'Add async to scene.enter handler',
-        filePath: request.filePath
+        filePath: request.filePath,
       })
     }
 
@@ -205,10 +211,7 @@ Return only fixes that are specific to Telegram Bot development with Telegraf fr
     )
 
     // Добавляем await к ctx.reply
-    fixedContent = fixedContent.replace(
-      /(ctx\\.reply\\([^)]+\\))/g,
-      'await $1'
-    )
+    fixedContent = fixedContent.replace(/(ctx\\.reply\\([^)]+\\))/g, 'await $1')
 
     return fixedContent
   }
@@ -247,8 +250,12 @@ Return only fixes that are specific to Telegram Bot development with Telegraf fr
     let fixedContent = content
 
     // Добавляем недостающие импорты
-    if (!fixedContent.includes("import { MyContext }") && fixedContent.includes('MyContext')) {
-      fixedContent = `import { MyContext } from '../interfaces'\n` + fixedContent
+    if (
+      !fixedContent.includes('import { MyContext }') &&
+      fixedContent.includes('MyContext')
+    ) {
+      fixedContent =
+        `import { MyContext } from '../interfaces'\n` + fixedContent
     }
 
     return fixedContent

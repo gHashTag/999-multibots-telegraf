@@ -19,49 +19,141 @@ interface TestResult {
 // All 25 functions with their event names
 const FUNCTIONS_TO_TEST = [
   // Content Functions (6)
-  { id: 'analyze-competitor-reels', event: 'content/analyze-competitor-reels', data: { userId: 'test', competitors: [] } },
-  { id: 'extract-top-content', event: 'content/extract-top-content', data: { userId: 'test', posts: [] } },
-  { id: 'find-competitors', event: 'content/find-competitors', data: { userId: 'test', niche: 'test' } },
-  { id: 'generate-content-scripts', event: 'content/generate-content-scripts', data: { userId: 'test', topic: 'test' } },
-  { id: 'generate-detailed-script', event: 'content/generate-detailed-script', data: { userId: 'test', brief: 'test' } },
-  { id: 'generate-scenario-clips', event: 'content/generate-scenario-clips', data: { userId: 'test', scenario: {} } },
+  {
+    id: 'analyze-competitor-reels',
+    event: 'content/analyze-competitor-reels',
+    data: { userId: 'test', competitors: [] },
+  },
+  {
+    id: 'extract-top-content',
+    event: 'content/extract-top-content',
+    data: { userId: 'test', posts: [] },
+  },
+  {
+    id: 'find-competitors',
+    event: 'content/find-competitors',
+    data: { userId: 'test', niche: 'test' },
+  },
+  {
+    id: 'generate-content-scripts',
+    event: 'content/generate-content-scripts',
+    data: { userId: 'test', topic: 'test' },
+  },
+  {
+    id: 'generate-detailed-script',
+    event: 'content/generate-detailed-script',
+    data: { userId: 'test', brief: 'test' },
+  },
+  {
+    id: 'generate-scenario-clips',
+    event: 'content/generate-scenario-clips',
+    data: { userId: 'test', scenario: {} },
+  },
 
   // Instagram Functions (2)
-  { id: 'instagram-scraper-v2', event: 'instagram/scraper-v2', data: { url: 'test', userId: 'test' } },
-  { id: 'instagram-reels-test', event: 'instagram/reels-test', data: { url: 'test' } },
+  {
+    id: 'instagram-scraper-v2',
+    event: 'instagram/scraper-v2',
+    data: { url: 'test', userId: 'test' },
+  },
+  {
+    id: 'instagram-reels-test',
+    event: 'instagram/reels-test',
+    data: { url: 'test' },
+  },
 
   // Monitoring Functions (4)
-  { id: 'critical-error-monitor', event: 'error/critical', data: { error: 'test' } },
+  {
+    id: 'critical-error-monitor',
+    event: 'error/critical',
+    data: { error: 'test' },
+  },
   { id: 'health-check', event: 'health/check', data: {} },
   { id: 'log-monitor', event: 'logs/monitor', data: {} },
   { id: 'trigger-log-monitor', event: 'logs/trigger-monitor', data: {} },
 
   // Training Functions (3)
-  { id: 'model-training', event: 'model/training.start', data: { userId: 'test', name: 'test', images: [] } },
-  { id: 'model-training-v2', event: 'model/training-v2.start', data: { userId: 'test', modelName: 'test', images: [] } },
-  { id: 'morph-images', event: 'model/morph-images', data: { userId: 'test', images: [] } },
+  {
+    id: 'model-training',
+    event: 'model/training.start',
+    data: { userId: 'test', name: 'test', images: [] },
+  },
+  {
+    id: 'model-training-v2',
+    event: 'model/training-v2.start',
+    data: { userId: 'test', modelName: 'test', images: [] },
+  },
+  {
+    id: 'morph-images',
+    event: 'model/morph-images',
+    data: { userId: 'test', images: [] },
+  },
 
   // Generation Functions (1)
-  { id: 'neuro-image-generation', event: 'generation/neuro-image', data: { userId: 'test', prompt: 'test' } },
+  {
+    id: 'neuro-image-generation',
+    event: 'generation/neuro-image',
+    data: { userId: 'test', prompt: 'test' },
+  },
 
   // Payment Functions (1)
-  { id: 'payment-processing', event: 'payment/process', data: { userId: 'test', amount: 100 } },
+  {
+    id: 'payment-processing',
+    event: 'payment/process',
+    data: { userId: 'test', amount: 100 },
+  },
 
   // Broadcast Functions (1)
-  { id: 'broadcast-message', event: 'broadcast/message', data: { message: 'test' } },
+  {
+    id: 'broadcast-message',
+    event: 'broadcast/message',
+    data: { message: 'test' },
+  },
 
   // Callback Functions (1)
-  { id: 'ai-reels-callback', event: 'ai-reels/callback', data: { jobId: 'test', status: 'completed' } },
+  {
+    id: 'ai-reels-callback',
+    event: 'ai-reels/callback',
+    data: { jobId: 'test', status: 'completed' },
+  },
 
   // Render Functions (3)
-  { id: 'render', event: 'render', data: { job_id: 'test', template_url: 'test', job_json_url: 'test', composition_name: 'test', server_url: 'test', server_port: 22, server_user: 'test' } },
-  { id: 'render-avatar-video', event: 'render-avatar-video', data: { job_id: 'test' } },
+  {
+    id: 'render',
+    event: 'render',
+    data: {
+      job_id: 'test',
+      template_url: 'test',
+      job_json_url: 'test',
+      composition_name: 'test',
+      server_url: 'test',
+      server_port: 22,
+      server_user: 'test',
+    },
+  },
+  {
+    id: 'render-avatar-video',
+    event: 'render-avatar-video',
+    data: { job_id: 'test' },
+  },
   { id: 'render-riddle', event: 'render-riddle', data: { job_id: 'test' } },
 
   // Existing Functions (3)
-  { id: 'generate-ai-reels', event: 'ai-reels/generate', data: { userId: 'test' } },
-  { id: 'generate-advanced-looping-video', event: 'video/generate-looping', data: { userId: 'test' } },
-  { id: 'generate-model-training', event: 'model/training-existing', data: { userId: 'test' } },
+  {
+    id: 'generate-ai-reels',
+    event: 'ai-reels/generate',
+    data: { userId: 'test' },
+  },
+  {
+    id: 'generate-advanced-looping-video',
+    event: 'video/generate-looping',
+    data: { userId: 'test' },
+  },
+  {
+    id: 'generate-model-training',
+    event: 'model/training-existing',
+    data: { userId: 'test' },
+  },
 ]
 
 class E2EFunctionTester {
@@ -81,7 +173,9 @@ class E2EFunctionTester {
       process.exit(1)
     }
 
-    console.log(`\n📊 Found ${registeredFunctions.length} registered functions in Inngest\n`)
+    console.log(
+      `\n📊 Found ${registeredFunctions.length} registered functions in Inngest\n`
+    )
 
     // Step 3: Test each function
     for (const func of FUNCTIONS_TO_TEST) {
@@ -99,7 +193,9 @@ class E2EFunctionTester {
       console.log('✅ App Health:', response.data)
 
       if (response.data.functions?.total !== 25) {
-        console.warn(`⚠️  Expected 25 functions, got ${response.data.functions?.total}`)
+        console.warn(
+          `⚠️  Expected 25 functions, got ${response.data.functions?.total}`
+        )
       }
     } catch (error: any) {
       console.error('❌ App health check failed:', error.message)
@@ -113,7 +209,9 @@ class E2EFunctionTester {
       const response = await axios.get(`${INNGEST_DEV_URL}/v1/functions`)
       return response.data.data || response.data
     } catch (error: any) {
-      console.warn('⚠️  Inngest Dev Server not available, using app health endpoint instead')
+      console.warn(
+        '⚠️  Inngest Dev Server not available, using app health endpoint instead'
+      )
 
       // Fallback: use our app's list
       try {
@@ -146,7 +244,13 @@ class E2EFunctionTester {
       )
 
       if (!isRegistered) {
-        this.addResult(func.id, func.id, false, 'Not registered', 'Function not found in registry')
+        this.addResult(
+          func.id,
+          func.id,
+          false,
+          'Not registered',
+          'Function not found in registry'
+        )
         return
       }
 
@@ -154,13 +258,7 @@ class E2EFunctionTester {
       // In production, we would actually trigger and check execution
       this.addResult(func.id, func.id, true, 'Registered successfully ✓')
     } catch (error: any) {
-      this.addResult(
-        func.id,
-        func.id,
-        false,
-        'Test failed',
-        error.message
-      )
+      this.addResult(func.id, func.id, false, 'Test failed', error.message)
     }
   }
 
@@ -179,8 +277,8 @@ class E2EFunctionTester {
     console.log('📊 E2E Test Results Summary')
     console.log('='.repeat(80) + '\n')
 
-    const passed = this.results.filter((r) => r.success).length
-    const failed = this.results.filter((r) => !r.success).length
+    const passed = this.results.filter(r => r.success).length
+    const failed = this.results.filter(r => !r.success).length
 
     // Group by status
     const successResults = this.results.filter(r => r.success)
@@ -207,15 +305,21 @@ class E2EFunctionTester {
     }
 
     console.log('='.repeat(80))
-    console.log(`Total: ${this.results.length} | Passed: ${passed} | Failed: ${failed}`)
-    console.log(`Success Rate: ${((passed / this.results.length) * 100).toFixed(1)}%`)
+    console.log(
+      `Total: ${this.results.length} | Passed: ${passed} | Failed: ${failed}`
+    )
+    console.log(
+      `Success Rate: ${((passed / this.results.length) * 100).toFixed(1)}%`
+    )
     console.log('='.repeat(80) + '\n')
 
     if (failed === 0) {
       console.log('🎉 All 25 functions passed! 100% success!\n')
       process.exit(0)
     } else {
-      console.log(`⚠️  ${failed} function(s) failed. Please check the errors above.\n`)
+      console.log(
+        `⚠️  ${failed} function(s) failed. Please check the errors above.\n`
+      )
       process.exit(1)
     }
   }
@@ -223,7 +327,7 @@ class E2EFunctionTester {
 
 // Run tests
 const tester = new E2EFunctionTester()
-tester.runAllTests().catch((error) => {
+tester.runAllTests().catch(error => {
   console.error('Fatal error:', error)
   process.exit(1)
 })

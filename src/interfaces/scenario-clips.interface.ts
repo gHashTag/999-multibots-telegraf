@@ -5,16 +5,16 @@
 import { z } from 'zod'
 
 export interface ScenarioClip {
-  id: string;
-  title: string;
-  description: string;
-  duration: number;
+  id: string
+  title: string
+  description: string
+  duration: number
 }
 
 export interface GenerateScenarioClipsPayload {
-  scenarioId: string;
-  userId: string;
-  clips: ScenarioClip[];
+  scenarioId: string
+  userId: string
+  clips: ScenarioClip[]
 }
 
 // Database record type for scenario_clips table

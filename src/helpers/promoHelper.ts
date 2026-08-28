@@ -235,10 +235,13 @@ export async function processPromoLink(
     )
     if (alreadyReceived) {
       // Либо получал раньше, либо проверить не удалось — см. hasReceivedPromo.
-      logger.info('🚫 [PromoHelper] Промо не выдаём: получал или не проверили', {
-        telegram_id,
-        promo_type: config.promoType,
-      })
+      logger.info(
+        '🚫 [PromoHelper] Промо не выдаём: получал или не проверили',
+        {
+          telegram_id,
+          promo_type: config.promoType,
+        }
+      )
       return false
     }
 

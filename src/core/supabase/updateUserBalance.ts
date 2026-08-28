@@ -413,7 +413,10 @@ export const updateUserBalance = async (
       }
 
       if (!userData) {
-        logger.error('💸❌ Пополнение отклонено: профиля нет в users (пустой ответ)', moneyArrivedBlindly)
+        logger.error(
+          '💸❌ Пополнение отклонено: профиля нет в users (пустой ответ)',
+          moneyArrivedBlindly
+        )
         return false
       }
     }

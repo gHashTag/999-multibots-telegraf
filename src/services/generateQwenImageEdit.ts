@@ -45,8 +45,9 @@ const QWEN_IMAGE_EDIT_MODEL = {
   costPerImage: calculateFinalImageCostInStars(QWEN_IMAGE_EDIT_CONFIG.costUSD),
   name: 'Qwen Edit (SOTA)',
   description_en: 'Qwen Image Edit - SOTA performance, bilingual text editing',
-  description_ru: 'Qwen Edit - SOTA производительность, билингвальное редактирование',
-  emoji: '🔥'
+  description_ru:
+    'Qwen Edit - SOTA производительность, билингвальное редактирование',
+  emoji: '🔥',
 }
 
 /**
@@ -77,7 +78,7 @@ export const generateQwenImageEdit = async (
       is_ru,
       ctx,
       editing_mode,
-      preserve_quality = true
+      preserve_quality = true,
     } = params
 
     // ✅ Validate input image is provided
@@ -97,7 +98,8 @@ export const generateQwenImageEdit = async (
     }
 
     // ✅ Auto-detect language and adjust editing mode
-    const autoDetectedMode = editing_mode || detectLanguageAndAdjustMode(finalPrompt)
+    const autoDetectedMode =
+      editing_mode || detectLanguageAndAdjustMode(finalPrompt)
 
     logger.info('🌐 [QwenImageEdit] Language detection:', {
       telegram_id,
@@ -155,17 +157,22 @@ export const generateQwenImageEdit = async (
         balanceCheckSuccess: !!balanceResult,
       })
     } else {
-      logger.info('⏭️ [QwenImageEdit] Skipping balance check (already verified)', {
-        telegram_id,
-      })
+      logger.info(
+        '⏭️ [QwenImageEdit] Skipping balance check (already verified)',
+        {
+          telegram_id,
+        }
+      )
     }
 
     // ✅ Send status message ONLY if NOT in silent mode
     if (!params.silent) {
       const modeText = is_ru
-        ? autoDetectedMode === 'semantic' ? 'семантический'
-          : autoDetectedMode === 'appearance' ? 'визуальный'
-          : 'авто'
+        ? autoDetectedMode === 'semantic'
+          ? 'семантический'
+          : autoDetectedMode === 'appearance'
+            ? 'визуальный'
+            : 'авто'
         : autoDetectedMode
 
       const statusMessage = await ctx.reply(
@@ -209,13 +216,17 @@ export const generateQwenImageEdit = async (
       })
 
       // ✅ Refund user on API failure (silent mode if needed)
-      await refundUser(params.ctx, totalCost, { silent: params.silent || false, reason: "generation_failed" })
+      await refundUser(params.ctx, totalCost, {
+        silent: params.silent || false,
+        reason: 'generation_failed',
+      })
 
       throw error
     }
 
     // ✅ Validate response with Zod
-    const validatedResponse: QwenImageEditResponse = validateQwenImageEditResponse(replicateOutput)
+    const validatedResponse: QwenImageEditResponse =
+      validateQwenImageEditResponse(replicateOutput)
 
     logger.info('✅ [QwenImageEdit] Response validated successfully!', {
       telegram_id,
@@ -274,10 +285,7 @@ export const generateQwenImageEdit = async (
         ? `✅ Готово!\n\n💰 Стоимость: ${totalCost}⭐`
         : `✅ Done!\n\n💰 Cost: ${totalCost}⭐`
 
-      await ctx.replyWithPhoto(
-        { url: imageUrl },
-        { caption }
-      )
+      await ctx.replyWithPhoto({ url: imageUrl }, { caption })
 
       logger.info('📬 [QwenImageEdit] Photo sent successfully!', {
         telegram_id,
@@ -301,21 +309,27 @@ export const generateQwenImageEdit = async (
         prompt: finalPrompt,
         botName: ctx.botInfo?.username || 'unknown',
         additionalInfo: {
-          'Model': QWEN_IMAGE_EDIT_MODEL.name,
+          Model: QWEN_IMAGE_EDIT_MODEL.name,
           'Editing Mode': autoDetectedMode,
-          'Cost': `${totalCost} stars`,
-          'Type': 'AI Image Editing'
-        }
+          Cost: `${totalCost} stars`,
+          Type: 'AI Image Editing',
+        },
       })
 
       logger.info('✅ [QwenImageEdit] Pulse channel send SUCCESS!', {
         telegram_id,
       })
     } catch (pulseError) {
-      logger.error('⚠️ [QwenImageEdit] Pulse channel send failed (non-critical):', {
-        telegram_id,
-        error: pulseError instanceof Error ? pulseError.message : String(pulseError),
-      })
+      logger.error(
+        '⚠️ [QwenImageEdit] Pulse channel send failed (non-critical):',
+        {
+          telegram_id,
+          error:
+            pulseError instanceof Error
+              ? pulseError.message
+              : String(pulseError),
+        }
+      )
     }
 
     return {
@@ -332,7 +346,10 @@ export const generateQwenImageEdit = async (
     // ✅ Refund on any outer error (if not already refunded in inner catch)
     try {
       if (totalCost > 0 && params.ctx) {
-        await refundUser(params.ctx, totalCost, { silent: params.silent || false, reason: "generation_failed" })
+        await refundUser(params.ctx, totalCost, {
+          silent: params.silent || false,
+          reason: 'generation_failed',
+        })
         logger.info('💰 Balance refunded after QwenImageEdit error', {
           telegram_id: params.telegram_id,
           refundAmount: totalCost,
@@ -341,7 +358,8 @@ export const generateQwenImageEdit = async (
     } catch (refundError) {
       logger.error('Failed to refund after QwenImageEdit error', {
         telegram_id: params.telegram_id,
-        refundError: refundError instanceof Error ? refundError.message : 'Unknown',
+        refundError:
+          refundError instanceof Error ? refundError.message : 'Unknown',
       })
     }
 

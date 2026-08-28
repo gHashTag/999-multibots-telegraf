@@ -32,10 +32,14 @@ describe('generateMorphing', () => {
   })
 
   it('should pass original error message on failure', async () => {
-    const { createMorphingVideo } = await import('@/services/localMorphingProcessor')
+    const { createMorphingVideo } = await import(
+      '@/services/localMorphingProcessor'
+    )
     const { generateMorphing } = await import('@/services/generateMorphing')
 
-    vi.mocked(createMorphingVideo).mockRejectedValue(new Error('Replicate API 401 Unauthorized'))
+    vi.mocked(createMorphingVideo).mockRejectedValue(
+      new Error('Replicate API 401 Unauthorized')
+    )
 
     const requestData = {
       images: [
@@ -56,7 +60,9 @@ describe('generateMorphing', () => {
   })
 
   it('should cleanup temp directory on error', async () => {
-    const { createMorphingVideo } = await import('@/services/localMorphingProcessor')
+    const { createMorphingVideo } = await import(
+      '@/services/localMorphingProcessor'
+    )
     const { generateMorphing } = await import('@/services/generateMorphing')
 
     vi.mocked(createMorphingVideo).mockRejectedValue(new Error('API Error'))

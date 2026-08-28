@@ -24,11 +24,3 @@ export class HeyGenService {
     throw new Error('HeyGenService.waitForCompletion not implemented')
   }
 }
-
-
-
-
-
-
-
-

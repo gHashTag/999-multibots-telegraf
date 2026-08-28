@@ -28,13 +28,16 @@ router.get('/billing', async (_req: any, res: any) => {
     ]
 
     const summaries = await Promise.all(
-      botNames.map((name) => calculateOwnerDebt(name as string))
+      botNames.map(name => calculateOwnerDebt(name as string))
     )
 
     return res.json({
       timestamp: new Date().toISOString(),
       bots: summaries,
-      total_platform_debt: summaries.reduce((s, b) => s + Math.max(b.debt, 0), 0),
+      total_platform_debt: summaries.reduce(
+        (s, b) => s + Math.max(b.debt, 0),
+        0
+      ),
     })
   } catch (err) {
     logger.error('[Billing API] GET /billing failed', {
@@ -81,7 +84,11 @@ router.post('/billing/:botName/pay', async (req: any, res: any) => {
       return res.status(403).json({ error: 'Forbidden: invalid admin_key' })
     }
 
-    if (!amount_stars || typeof amount_stars !== 'number' || amount_stars <= 0) {
+    if (
+      !amount_stars ||
+      typeof amount_stars !== 'number' ||
+      amount_stars <= 0
+    ) {
       return res
         .status(400)
         .json({ error: 'amount_stars must be a positive number' })

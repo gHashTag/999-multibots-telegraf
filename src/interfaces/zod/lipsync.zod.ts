@@ -15,8 +15,10 @@ import { sanitizeUrl } from '@/utils/sanitize'
  * отклоняет localhost, 127.*, 10.*, 172.16-31.*, 192.168.*, 0.0.0.0.
  * Импортов у неё было НОЛЬ. Подключаем.
  */
-export const URLSchema = z.string().min(1, 'URL не может быть пустым').superRefine(
-  (value, ctx) => {
+export const URLSchema = z
+  .string()
+  .min(1, 'URL не может быть пустым')
+  .superRefine((value, ctx) => {
     try {
       sanitizeUrl(value, ['http', 'https'])
     } catch (e) {
@@ -32,14 +34,16 @@ export const URLSchema = z.string().min(1, 'URL не может быть пус�
             : 'Неверный формат URL',
       })
     }
-  }
-)
+  })
 
 // Схема для файлов Telegram
 export const TelegramFileSchema = z.object({
   file_id: z.string().min(1, 'file_id не может быть пустым'),
   file_path: z.string().optional(),
-  file_size: z.number().max(50 * 1024 * 1024, 'Максимальный размер файла: 50MB').optional(),
+  file_size: z
+    .number()
+    .max(50 * 1024 * 1024, 'Максимальный размер файла: 50MB')
+    .optional(),
 })
 
 // Enum для типов медиа
@@ -62,11 +66,20 @@ export const MediaInputSchema = z.discriminatedUnion('type', [
 export type MediaInput = z.infer<typeof MediaInputSchema>
 
 // Enum для статуса обработки
-export const LipsyncStatusEnum = z.enum(['pending', 'processing', 'completed', 'failed'])
+export const LipsyncStatusEnum = z.enum([
+  'pending',
+  'processing',
+  'completed',
+  'failed',
+])
 export type LipsyncStatus = z.infer<typeof LipsyncStatusEnum>
 
 // Enum для моделей лип-синка
-export const LipsyncModelEnum = z.enum(['kling-lipsync', 'sync-v2', 'ai-server'])
+export const LipsyncModelEnum = z.enum([
+  'kling-lipsync',
+  'sync-v2',
+  'ai-server',
+])
 export type LipsyncModel = z.infer<typeof LipsyncModelEnum>
 
 // Схема для конфигурации лип-синка
@@ -135,7 +148,10 @@ export type TelegramContext = z.infer<typeof TelegramContextSchema>
 export const MediaFileValidationSchema = z.object({
   type: MediaTypeEnum,
   size: z.number().max(50 * 1024 * 1024, 'Максимальный размер файла: 50MB'),
-  duration: z.number().max(300, 'Максимальная длительность: 5 минут').optional(),
+  duration: z
+    .number()
+    .max(300, 'Максимальная длительность: 5 минут')
+    .optional(),
   format: z.string().optional(),
   url: URLSchema,
 })
@@ -197,9 +213,15 @@ export const validateSession = (session: any): LipsyncSession => {
   return LipsyncSessionSchema.parse(session)
 }
 
-export const isValidAdmin = (telegramId: string, adminIds: string[]): boolean => {
+export const isValidAdmin = (
+  telegramId: string,
+  adminIds: string[]
+): boolean => {
   try {
-    const validation = AdminValidationSchema.parse({ telegram_id: telegramId, admin_ids: adminIds })
+    const validation = AdminValidationSchema.parse({
+      telegram_id: telegramId,
+      admin_ids: adminIds,
+    })
     return validation.admin_ids.includes(validation.telegram_id)
   } catch {
     return false

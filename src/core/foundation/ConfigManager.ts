@@ -83,7 +83,9 @@ export class ConfigManager {
   public getApiServerUrl(): string {
     const apiUrl = this._config.apiServerUrl || this._config.localServerUrl
     if (!apiUrl) {
-      throw new Error('Neither API_SERVER_URL nor LOCAL_SERVER_URL is configured')
+      throw new Error(
+        'Neither API_SERVER_URL nor LOCAL_SERVER_URL is configured'
+      )
     }
     return apiUrl
   }
@@ -103,15 +105,13 @@ export class ConfigManager {
    * Валидация обязательных переменных окружения
    */
   private validateRequiredEnvVars(): void {
-    const required = [
-      'SECRET_API_KEY',
-      'SUPABASE_URL', 
-      'SUPABASE_SERVICE_KEY'
-    ]
+    const required = ['SECRET_API_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY']
 
     const missing = required.filter(key => !process.env[key])
     if (missing.length > 0) {
-      throw new Error(`Missing required environment variables: ${missing.join(', ')}`)
+      throw new Error(
+        `Missing required environment variables: ${missing.join(', ')}`
+      )
     }
   }
 
@@ -120,7 +120,8 @@ export class ConfigManager {
    */
   public isAdmin(telegramId: string | number): boolean {
     const adminIds: number[] = this.get('adminIds')
-    const id = typeof telegramId === 'string' ? parseInt(telegramId, 10) : telegramId
+    const id =
+      typeof telegramId === 'string' ? parseInt(telegramId, 10) : telegramId
     return adminIds.includes(id)
   }
 }

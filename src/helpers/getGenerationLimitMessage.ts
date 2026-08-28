@@ -55,7 +55,9 @@ export const getGenerationLimitMessage = (
 
   if (currentUsage >= maxUsage) {
     const resetInfo = resetDate
-      ? (isRussian ? ` Лимит обновится 1 числа следующего месяца.` : ` Limit resets on the 1st of next month.`)
+      ? isRussian
+        ? ` Лимит обновится 1 числа следующего месяца.`
+        : ` Limit resets on the 1st of next month.`
       : ''
 
     return isRussian
@@ -126,18 +128,21 @@ export const getGenerationStatusBadgeAsync = async (
 ): Promise<string> => {
   try {
     const generationCheck = await checkSuperheroGenerationUsage(telegramId)
-    
+
     return getGenerationStatusBadge(
       generationCheck.hasUnlimitedAccess,
       generationCheck.currentUsage,
       generationCheck.maxUsage
     )
   } catch (error) {
-    logger.warn('[getGenerationStatusBadgeAsync] Failed to get generation status', {
-      telegramId,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
-    
+    logger.warn(
+      '[getGenerationStatusBadgeAsync] Failed to get generation status',
+      {
+        telegramId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    )
+
     // В случае ошибки возвращаем нейтральную иконку
     return '🎮'
   }

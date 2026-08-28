@@ -30,7 +30,9 @@ async function buildJobJson(
   const jobParameters = response.data
 
   if (!Array.isArray(jobParameters)) {
-    throw new NonRetriableError('job_json_url must return an array of parameters')
+    throw new NonRetriableError(
+      'job_json_url must return an array of parameters'
+    )
   }
 
   // Build nexrender job structure
@@ -195,7 +197,7 @@ export async function renderFunction(
     // Execute render with streaming output
     const result = await ssh.execStream(
       command,
-      (line) => {
+      line => {
         // Check for completion message
         if (line.includes('job rendering successfully finished')) {
           renderCompleted = true
@@ -208,7 +210,10 @@ export async function renderFunction(
           const progress = parseFloat(progressMatch[1])
 
           // Log every 10% or when reaching 100%
-          if (progress >= 100.0 || Math.floor(progress / 10) > Math.floor(lastProgress / 10)) {
+          if (
+            progress >= 100.0 ||
+            Math.floor(progress / 10) > Math.floor(lastProgress / 10)
+          ) {
             logger.info(`Render progress: ${progress.toFixed(1)}%`)
             lastProgress = progress
           }
@@ -228,7 +233,9 @@ export async function renderFunction(
     }
 
     if (!renderCompleted) {
-      throw new NonRetriableError('Render process did not complete successfully')
+      throw new NonRetriableError(
+        'Render process did not complete successfully'
+      )
     }
 
     logger.info(`Render completed for job ${job_id}`)

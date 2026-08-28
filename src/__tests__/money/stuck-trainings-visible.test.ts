@@ -24,7 +24,9 @@ let queryError: { message: string } | null = null
 function chain() {
   const link: Record<string, unknown> = {}
   for (const m of ['select', 'eq', 'in', 'order']) link[m] = vi.fn(() => link)
-  link.limit = vi.fn(() => Promise.resolve({ data: queryError ? null : rows, error: queryError }))
+  link.limit = vi.fn(() =>
+    Promise.resolve({ data: queryError ? null : rows, error: queryError })
+  )
   return link
 }
 
@@ -52,14 +54,22 @@ describe('застрявшее обучение видно человеку', ()
   })
 
   it('долгое обучение попадает в список', async () => {
-    rows = [{ created_at: hoursAgo(400), model_name: 'user7007992081', status: 'running' }]
+    rows = [
+      {
+        created_at: hoursAgo(400),
+        model_name: 'user7007992081',
+        status: 'running',
+      },
+    ]
     const stuck = await getStuckTrainings('7007992081', NOW)
     expect(stuck).toHaveLength(1)
     expect(stuck[0].hoursStuck).toBe(400)
   })
 
   it('недавнее обучение в список НЕ попадает', async () => {
-    rows = [{ created_at: hoursAgo(1), model_name: 'свежее', status: 'running' }]
+    rows = [
+      { created_at: hoursAgo(1), model_name: 'свежее', status: 'running' },
+    ]
     expect(await getStuckTrainings('1', NOW)).toEqual([])
   })
 
@@ -72,7 +82,13 @@ describe('застрявшее обучение видно человеку', ()
 
   it('в тексте названы срок и то, что деньги вернут', async () => {
     const msg = stuckTrainingsMessage(
-      [{ created_at: hoursAgo(400), model_name: 'user7007992081', hoursStuck: 400 }],
+      [
+        {
+          created_at: hoursAgo(400),
+          model_name: 'user7007992081',
+          hoursStuck: 400,
+        },
+      ],
       true
     )
     expect(msg).toMatch(/16 дн/)

@@ -28,16 +28,18 @@ export class HeyGenService {
     console.log('[HEYGEN STUB] Service initialized (stub mode)')
   }
 
-  async generateAvatarVideo(request: HeyGenVideoRequest): Promise<HeyGenVideoResponse> {
+  async generateAvatarVideo(
+    request: HeyGenVideoRequest
+  ): Promise<HeyGenVideoResponse> {
     console.log('[HEYGEN STUB] Generating avatar video', {
       avatar_id: request.avatar_id,
       voice_id: request.voice_id,
-      speech_length: request.avatar_speech.length
+      speech_length: request.avatar_speech.length,
     })
 
     return {
       video_id: `heygen_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-      status: 'processing'
+      status: 'processing',
     }
   }
 
@@ -52,7 +54,7 @@ export class HeyGenService {
     return {
       video_url: `https://stub.heygen.com/videos/${videoId}.mp4`,
       duration: 30,
-      status: 'completed'
+      status: 'completed',
     }
   }
 
@@ -70,8 +72,8 @@ export class HeyGenService {
       status: 'completed',
       data: {
         video_url: `https://stub.heygen.com/videos/${videoId}.mp4`,
-        duration: 30
-      }
+        duration: 30,
+      },
     }
   }
 }

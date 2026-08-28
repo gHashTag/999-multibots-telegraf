@@ -152,7 +152,8 @@ describe('saveVideoUrlToSupabase', () => {
   it('storage_path сохраняется, когда файл действительно у нас', async () => {
     await saveVideoUrlToSupabase({
       telegramId: '1',
-      publicUrl: 'https://xyz.supabase.co/storage/v1/object/public/videos/a.mp4',
+      publicUrl:
+        'https://xyz.supabase.co/storage/v1/object/public/videos/a.mp4',
       storagePath: 'videos/a.mp4',
       type: 'ai_reels_inngest',
     })

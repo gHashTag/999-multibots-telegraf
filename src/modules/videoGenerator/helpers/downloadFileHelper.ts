@@ -3,7 +3,10 @@ import { logger } from '@/utils/logger'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB - максимальный размер для Telegram
 
-export async function downloadFileHelper(url: string, maxRetries = 3): Promise<Buffer> {
+export async function downloadFileHelper(
+  url: string,
+  maxRetries = 3
+): Promise<Buffer> {
   if (!url || typeof url !== 'string' || !url.startsWith('http')) {
     throw new Error(`Invalid URL received: ${url}`)
   }
@@ -15,7 +18,7 @@ export async function downloadFileHelper(url: string, maxRetries = 3): Promise<B
     try {
       logger.info(`[downloadFileHelper] Attempt ${attempt}/${maxRetries}`, {
         url: url.substring(0, 100) + '...',
-        attempt
+        attempt,
       })
 
       const response = await axios.get(url, {
@@ -25,8 +28,8 @@ export async function downloadFileHelper(url: string, maxRetries = 3): Promise<B
         validateStatus: status => status === 200,
         headers: {
           'User-Agent': 'TelegramBot/1.0 (compatible; VideoGenerator)',
-          'Accept': 'image/*,video/*,*/*'
-        }
+          Accept: 'image/*,video/*,*/*',
+        },
       })
 
       if (!response.data) {
@@ -44,11 +47,10 @@ export async function downloadFileHelper(url: string, maxRetries = 3): Promise<B
       logger.info('[downloadFileHelper] Successfully downloaded file', {
         attempt,
         size: buffer.length,
-        url: url.substring(0, 100) + '...'
+        url: url.substring(0, 100) + '...',
       })
 
       return buffer
-
     } catch (error) {
       lastError = error as Error
 
@@ -60,18 +62,23 @@ export async function downloadFileHelper(url: string, maxRetries = 3): Promise<B
           statusText: error.response?.statusText,
           code: error.code,
           message: error.message,
-          url: url.substring(0, 100) + '...'
+          url: url.substring(0, 100) + '...',
         })
 
         // Если получили 404 или другую постоянную ошибку, не повторяем
-        if (error.response?.status && [404, 403, 401, 400].includes(error.response.status)) {
-          throw new Error(`Permanent error (${error.response.status}): ${error.message}`)
+        if (
+          error.response?.status &&
+          [404, 403, 401, 400].includes(error.response.status)
+        ) {
+          throw new Error(
+            `Permanent error (${error.response.status}): ${error.message}`
+          )
         }
       } else {
         logger.error(`[downloadFileHelper] Error on attempt ${attempt}`, {
           attempt,
           error: lastError.message,
-          url: url.substring(0, 100) + '...'
+          url: url.substring(0, 100) + '...',
         })
       }
 
@@ -88,7 +95,7 @@ export async function downloadFileHelper(url: string, maxRetries = 3): Promise<B
       const waitTime = 2000 * attempt // 2, 4, 6 секунд
       logger.info(`[downloadFileHelper] Waiting ${waitTime}ms before retry`, {
         attempt,
-        waitTime
+        waitTime,
       })
 
       await new Promise(resolve => setTimeout(resolve, waitTime))

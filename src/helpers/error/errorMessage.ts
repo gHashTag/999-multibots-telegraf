@@ -1,6 +1,10 @@
 import { MyContext } from '@/interfaces'
 
-export const errorMessage = (ctx: MyContext | null, error: Error, isRu?: boolean) => {
+export const errorMessage = (
+  ctx: MyContext | null,
+  error: Error,
+  isRu?: boolean
+) => {
   if (!ctx || !ctx.from?.id) {
     console.error('Cannot send error message - no context:', error.message)
     return

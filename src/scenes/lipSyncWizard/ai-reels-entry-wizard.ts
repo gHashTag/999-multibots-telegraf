@@ -204,7 +204,9 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
       await ctx.scene.enter(ModeEnum.HedraRenderWizard)
       return
     } else if (choice === 'service_heygen_render') {
-      logger.info('🎬 [AI REELS ENTRY] Routing to HeyGen wizard', { telegramId })
+      logger.info('🎬 [AI REELS ENTRY] Routing to HeyGen wizard', {
+        telegramId,
+      })
 
       // Очищаем сессию перед переходом
       delete ctx.session.aiReelsRender
@@ -221,13 +223,20 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
       delete ctx.session.aiReelsRender
       delete (ctx.session as any).__scenes
 
-      console.log('🎯 [AI REELS ENTRY] About to enter fal_render_wizard scene...')
+      console.log(
+        '🎯 [AI REELS ENTRY] About to enter fal_render_wizard scene...'
+      )
       try {
         await ctx.scene.enter(ModeEnum.FalRenderWizard) // ✅ Сцена существует и зарегистрирована
         console.log('🎯 [AI REELS ENTRY] Scene entered successfully!')
       } catch (error) {
-        console.error('❌ [AI REELS ENTRY] Error entering fal_render_wizard:', error)
-        logger.error('[AI REELS ENTRY] Error entering fal_render_wizard', { error })
+        console.error(
+          '❌ [AI REELS ENTRY] Error entering fal_render_wizard:',
+          error
+        )
+        logger.error('[AI REELS ENTRY] Error entering fal_render_wizard', {
+          error,
+        })
       }
       return
     } else if (choice === 'ai_reels_cancel') {
@@ -288,10 +297,30 @@ export const aiReelsEntryWizard = new Scenes.WizardScene<MyContext>(
         {
           parse_mode: 'HTML',
           ...Markup.inlineKeyboard([
-            [Markup.button.callback(isRu ? '🎭 Hedra' : '🎭 Hedra', 'service_hedra_render')],
-            [Markup.button.callback(isRu ? '🎬 HeyGen' : '🎬 HeyGen', 'service_heygen_render')],
-            [Markup.button.callback(isRu ? '🎯 Fal (Fabric)' : '🎯 Fal (Fabric)', 'service_fal_render')],
-            [Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'ai_reels_cancel')],
+            [
+              Markup.button.callback(
+                isRu ? '🎭 Hedra' : '🎭 Hedra',
+                'service_hedra_render'
+              ),
+            ],
+            [
+              Markup.button.callback(
+                isRu ? '🎬 HeyGen' : '🎬 HeyGen',
+                'service_heygen_render'
+              ),
+            ],
+            [
+              Markup.button.callback(
+                isRu ? '🎯 Fal (Fabric)' : '🎯 Fal (Fabric)',
+                'service_fal_render'
+              ),
+            ],
+            [
+              Markup.button.callback(
+                isRu ? 'Отмена' : 'Cancel',
+                'ai_reels_cancel'
+              ),
+            ],
           ]),
         }
       )

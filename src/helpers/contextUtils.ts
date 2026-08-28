@@ -17,11 +17,14 @@ export function extractInviteCodeFromContext(ctx: MyContext): string {
 
     // First check if it's a promo link - if so, don't extract as referral
     if (messageText.match(/^\/start\s+promo(?:\s+\S+)?/i)) {
-      logger.info('[extractInviteCode] Promo link detected, skipping referral extraction', {
-        telegramId,
-        function: 'extractInviteCodeFromContext',
-        messageText,
-      })
+      logger.info(
+        '[extractInviteCode] Promo link detected, skipping referral extraction',
+        {
+          telegramId,
+          function: 'extractInviteCodeFromContext',
+          messageText,
+        }
+      )
       return ''
     }
 
@@ -48,18 +51,24 @@ export function extractInviteCodeFromContext(ctx: MyContext): string {
         })
       } else {
         // This case should ideally not happen if codeMatch is not null, but added for safety
-        logger.warn('[extractInviteCode] Regex matched but no invite code captured.', {
-          telegramId,
-          function: 'extractInviteCodeFromContext',
-          matchedText: messageText,
-        })
+        logger.warn(
+          '[extractInviteCode] Regex matched but no invite code captured.',
+          {
+            telegramId,
+            function: 'extractInviteCodeFromContext',
+            matchedText: messageText,
+          }
+        )
       }
     }
   } else {
-    logger.info('[extractInviteCode] No message text found in context to extract invite code.', {
-      telegramId,
-      function: 'extractInviteCodeFromContext',
-    })
+    logger.info(
+      '[extractInviteCode] No message text found in context to extract invite code.',
+      {
+        telegramId,
+        function: 'extractInviteCodeFromContext',
+      }
+    )
   }
 
   return inviteCode
@@ -79,12 +88,12 @@ export function extractPromoFromContext(
 
   if (ctx.message && 'text' in ctx.message) {
     const messageText = (ctx.message as Message.TextMessage).text
-    
+
     // Логирование для отладки промо-ссылок
     logger.info('[extractPromo] Анализируем команду', {
       telegramId,
       messageText,
-      function: 'extractPromoFromContext'
+      function: 'extractPromoFromContext',
     })
 
     // Check for /start promo command with optional parameter
@@ -135,8 +144,8 @@ export function extractPromoFromContext(
   // Промо-команда не обнаружена (нормальное поведение для обычных команд)
   logger.debug('[extractPromo] Промо-команда не обнаружена', {
     telegramId,
-    function: 'extractPromoFromContext'
+    function: 'extractPromoFromContext',
   })
-  
+
   return null
 }

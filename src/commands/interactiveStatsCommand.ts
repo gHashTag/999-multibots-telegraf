@@ -45,7 +45,8 @@ const FALLBACK_ADMIN_IDS = [144022504] // gHashTag
  * Проверяет является ли пользователь супер-админом
  */
 function isUserAdmin(userId: string): boolean {
-  const adminIds = ADMIN_IDS_ARRAY.length > 0 ? ADMIN_IDS_ARRAY : FALLBACK_ADMIN_IDS
+  const adminIds =
+    ADMIN_IDS_ARRAY.length > 0 ? ADMIN_IDS_ARRAY : FALLBACK_ADMIN_IDS
   const isAdmin = adminIds.includes(parseInt(userId))
 
   logger.info('[STATS] isUserAdmin check', {
@@ -1036,8 +1037,8 @@ async function sendTrendAnalysis(
         trends.revenue_forecast.trend_direction === 'growing'
           ? '📈'
           : trends.revenue_forecast.trend_direction === 'declining'
-          ? '📉'
-          : '➡️'
+            ? '📉'
+            : '➡️'
 
       message += `   ${trendEmoji} Следующий месяц: ${trends.revenue_forecast.predicted_amount.toLocaleString()}⭐\n`
       message += `   📊 Рост: ${
@@ -1061,8 +1062,8 @@ async function sendTrendAnalysis(
           alert.severity === 'high'
             ? '🔴'
             : alert.severity === 'medium'
-            ? '🟡'
-            : '🟢'
+              ? '🟡'
+              : '🟢'
         message += `${index + 1}. ${severityEmoji} ${alert.message}\n`
         message += `   💡 ${alert.recommendation}\n\n`
       })

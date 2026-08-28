@@ -4,17 +4,19 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { logger } from '@/utils/logger'
 import { handleTextToVideoDirect } from '@/handlers/handleTextToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
-import { generateModelButton, parseModelButton, generateModelKeyboard, getModelPriceStars } from '@/config/unified-video-models.config'
 import {
-  TEXT_TO_VIDEO_CONSTANTS,
-} from '@/interfaces/zod/textToVideo.zod'
+  generateModelButton,
+  parseModelButton,
+  generateModelKeyboard,
+  getModelPriceStars,
+} from '@/config/unified-video-models.config'
+import { TEXT_TO_VIDEO_CONSTANTS } from '@/interfaces/zod/textToVideo.zod'
 import { handleHelpCancel, getMainMenuText } from '@/navigation'
-
 
 export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
   'text_to_video',
 
-  async (ctx) => {
+  async ctx => {
     try {
       const isRu = isRussianFromState(ctx)
 
@@ -30,7 +32,7 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Кнопки назад и отмена
       keyboardRows.push([
         isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu',
-        isRu ? 'Отмена' : 'Cancel'
+        isRu ? 'Отмена' : 'Cancel',
       ])
       const keyboard = Markup.keyboard(keyboardRows).resize()
 
@@ -44,7 +46,6 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       console.log('🎬 [WIZARD] Step 1: ✅ REPLY SENT! Moving to next step...')
       ctx.wizard.next()
       return
-      
     } catch (error) {
       console.error('🎬 [WIZARD] 💥 STEP 1 ERROR:', error)
       await ctx.reply('❌ Ошибка в мастере генерации видео')
@@ -52,25 +53,30 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  async (ctx) => {
+  async ctx => {
     console.log('🎬 [WIZARD] 🔥 STEP 2 STARTED! User:', ctx.from?.id)
-    console.log('🎬 [WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'not initialized yet')
-    
+    console.log(
+      '🎬 [WIZARD] Current cursor:',
+      ctx.wizard?.cursor ?? 'not initialized yet'
+    )
+
     try {
       const isRu = isRussianFromState(ctx)
-      
+
       // Проверяем отмену/справку
       const isCancel = await handleHelpCancel(ctx)
       if (isCancel) {
         return ctx.scene.leave()
       }
-      
+
       const message = ctx.message
 
       if (!message || !('text' in message)) {
         console.log('🎬 [WIZARD] Step 2: No text message')
         await ctx.reply(
-          isRu ? 'Выберите модель из кнопок выше или введите описание видео.' : 'Select a model from the buttons above or enter video description.'
+          isRu
+            ? 'Выберите модель из кнопок выше или введите описание видео.'
+            : 'Select a model from the buttons above or enter video description.'
         )
         return
       }
@@ -81,7 +87,9 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Назад в меню
       if (selectedText.includes('Назад') || selectedText.includes('Back')) {
         console.log('🎬 [WIZARD] Step 2: Going back to menu')
-        await ctx.reply(isRu ? 'Возвращаемся в меню...' : 'Returning to menu...')
+        await ctx.reply(
+          isRu ? 'Возвращаемся в меню...' : 'Returning to menu...'
+        )
         return ctx.scene.leave()
       }
 
@@ -113,9 +121,14 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
           {
             reply_markup: {
               inline_keyboard: [
-                [{ text: isRu ? 'Отмена' : 'Cancel', callback_data: 'cancel_video_generation' }]
-              ]
-            }
+                [
+                  {
+                    text: isRu ? 'Отмена' : 'Cancel',
+                    callback_data: 'cancel_video_generation',
+                  },
+                ],
+              ],
+            },
           }
         )
 
@@ -124,16 +137,16 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
-
       // ЛОГИКА 3: Если модель не выбрана - просим выбрать
       console.log('🎬 [WIZARD] Step 2: No model selected, asking to select')
       await ctx.reply(
-        isRu ? 'Пожалуйста, выберите модель из кнопок выше.' : 'Please select a model from the buttons above.'
+        isRu
+          ? 'Пожалуйста, выберите модель из кнопок выше.'
+          : 'Please select a model from the buttons above.'
       )
 
       // ✅ FIX: Остаёмся на текущем шаге, не двигаемся дальше
       return
-
     } catch (error) {
       console.error('🎬 [WIZARD] Step 2 ERROR:', error)
       await ctx.reply('❌ Ошибка во втором шаге wizard')
@@ -141,19 +154,22 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  async (ctx) => {
+  async ctx => {
     console.log('🎬 [WIZARD] 🔥 STEP 3 STARTED! User:', ctx.from?.id)
-    console.log('🎬 [WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'not initialized yet')
-    
+    console.log(
+      '🎬 [WIZARD] Current cursor:',
+      ctx.wizard?.cursor ?? 'not initialized yet'
+    )
+
     try {
       const isRu = isRussianFromState(ctx)
-      
+
       // Проверяем отмену/справку
       const isCancel = await handleHelpCancel(ctx)
       if (isCancel) {
         return ctx.scene.leave()
       }
-      
+
       const message = ctx.message
 
       if (!message || !('text' in message)) {
@@ -164,19 +180,26 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
-      let prompt = message.text.trim()
+      const prompt = message.text.trim()
       console.log('🎬 [WIZARD] Step 3: Received prompt:', prompt)
       // ОТПРАВЛЯЕМ КАК ЕСТЬ - модель Veo поддерживает JSON формат!
 
       // Назад в меню
       if (prompt.includes('Назад') || prompt.includes('Back')) {
         console.log('🎬 [WIZARD] Step 3: Going back to menu')
-        await ctx.reply(isRu ? 'Возвращаемся в меню...' : 'Returning to menu...')
+        await ctx.reply(
+          isRu ? 'Возвращаемся в меню...' : 'Returning to menu...'
+        )
         return ctx.scene.leave()
       }
 
-      if (!prompt || prompt.length < TEXT_TO_VIDEO_CONSTANTS.MIN_PROMPT_LENGTH) {
-        await ctx.reply(isRu ? 'Описание слишком короткое.' : 'Description is too short.')
+      if (
+        !prompt ||
+        prompt.length < TEXT_TO_VIDEO_CONSTANTS.MIN_PROMPT_LENGTH
+      ) {
+        await ctx.reply(
+          isRu ? 'Описание слишком короткое.' : 'Description is too short.'
+        )
         return
       }
 
@@ -188,13 +211,22 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
 
       // Получаем параметры из сессии
       const selectedModel = ctx.session.selectedVideoModel
-      const aspectRatio = ctx.session.selectedAspectRatio || TEXT_TO_VIDEO_CONSTANTS.DEFAULT_ASPECT_RATIO
-      const cost = ctx.session.selectedVideoCost || getModelPriceStars(selectedModel) || 25 // ✅ УНИФИКАЦИЯ ЦЕН
+      const aspectRatio =
+        ctx.session.selectedAspectRatio ||
+        TEXT_TO_VIDEO_CONSTANTS.DEFAULT_ASPECT_RATIO
+      const cost =
+        ctx.session.selectedVideoCost || getModelPriceStars(selectedModel) || 25 // ✅ УНИФИКАЦИЯ ЦЕН
       const duration = ctx.session.selectedDuration
 
       if (!selectedModel) {
-        console.log('🎬 [WIZARD] Step 3: No model selected - returning to step 1')
-        await ctx.reply(isRu ? 'Модель не выбрана. Начинаем заново.' : 'No model selected. Starting over.')
+        console.log(
+          '🎬 [WIZARD] Step 3: No model selected - returning to step 1'
+        )
+        await ctx.reply(
+          isRu
+            ? 'Модель не выбрана. Начинаем заново.'
+            : 'No model selected. Starting over.'
+        )
         if (ctx.wizard && ctx.wizard.selectStep) {
           ctx.wizard.selectStep(0)
         }
@@ -202,7 +234,10 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       }
 
       console.log('🎬 [WIZARD] Step 3: Starting generation with params:', {
-        selectedModel, aspectRatio, cost, duration
+        selectedModel,
+        aspectRatio,
+        cost,
+        duration,
       })
 
       // Генерируем видео - показываем ПОЛНЫЙ промпт пользователю
@@ -213,14 +248,19 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       )
 
       const videoModelId = selectedModel as VideoModelId
-      await handleTextToVideoDirect(ctx, prompt, videoModelId, duration, aspectRatio)
+      await handleTextToVideoDirect(
+        ctx,
+        prompt,
+        videoModelId,
+        duration,
+        aspectRatio
+      )
       console.log('🎬 [WIZARD] Video generation success!')
 
       // ✅ FIX: Сохраняем последнюю сцену для кнопки "Повторить генерацию"
       ctx.session.lastCompletedVideoScene = 'text_to_video' as any
 
       return ctx.scene.leave()
-      
     } catch (error) {
       console.error('🎬 [WIZARD] Step 3 ERROR:', error)
 
@@ -230,14 +270,18 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
       if (selectedModel === 'wan-2.2-t2v-fast') {
         logger.error('[WIZARD] Wan 2.2 error detected:', {
           modelId: selectedModel,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         })
 
         // Определяем тип ошибки
         let errorMessage = '❌ Ошибка генерации видео'
         if (error instanceof Error) {
           const msg = error.message.toLowerCase()
-          if (msg.includes('403') || msg.includes('authorization') || msg.includes('forbidden')) {
+          if (
+            msg.includes('403') ||
+            msg.includes('authorization') ||
+            msg.includes('forbidden')
+          ) {
             errorMessage = isRu
               ? '🚫 Ошибка авторизации API для модели WAN 2.2.\n\nПопробуйте позже или выберите другую модель.'
               : '🚫 API authorization error for WAN 2.2 model.\n\nTry later or choose another model.'
@@ -257,7 +301,9 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         // Предлагаем альтернативы
         const keyboard = Markup.keyboard([
           [
-            isRu ? '🔄 Попробовать снова (другая модель)' : '🔄 Try Again (different model)',
+            isRu
+              ? '🔄 Попробовать снова (другая модель)'
+              : '🔄 Try Again (different model)',
           ],
           [
             isRu ? '🎬 WAN 2.2 T2V Fast (480p)' : '🎬 WAN 2.2 T2V Fast (480p)',
@@ -289,7 +335,6 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
   }
 )
-
 
 // ✅ Обработчик кнопки отмены
 textToVideoWizard.action('cancel_video_generation', async ctx => {

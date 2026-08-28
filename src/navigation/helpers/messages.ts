@@ -43,11 +43,11 @@ export async function sendGenericErrorMessage(
     isRu = await isRussianFromState(ctx)
   }
 
-  const message = errorText || (
-    isRu
+  const message =
+    errorText ||
+    (isRu
       ? '❌ Произошла ошибка. Попробуйте позже.'
-      : '❌ An error occurred. Please try again later.'
-  )
+      : '❌ An error occurred. Please try again later.')
 
   await ctx.reply(message)
 }
@@ -58,15 +58,15 @@ export async function sendGenericErrorMessage(
 export async function cancelMenu(ctx: MyContext) {
   const isRu = await isRussianFromState(ctx)
 
-  const message = isRu
-    ? '❌ Операция отменена'
-    : '❌ Operation cancelled'
+  const message = isRu ? '❌ Операция отменена' : '❌ Operation cancelled'
 
   const keyboard = Markup.inlineKeyboard([
-    [Markup.button.callback(
-      isRu ? 'Вернуться в меню' : 'Back to menu',
-      'back_to_menu'
-    )]
+    [
+      Markup.button.callback(
+        isRu ? 'Вернуться в меню' : 'Back to menu',
+        'back_to_menu'
+      ),
+    ],
   ])
 
   await ctx.reply(message, keyboard)
@@ -77,15 +77,9 @@ export async function cancelMenu(ctx: MyContext) {
  */
 export const cancelHelpArray = [
   [
-    Markup.button.callback(
-      '❌ Отмена',
-      'cancel'
-    ),
-    Markup.button.callback(
-      '❓ Помощь',
-      'help'
-    )
-  ]
+    Markup.button.callback('❌ Отмена', 'cancel'),
+    Markup.button.callback('❓ Помощь', 'help'),
+  ],
 ]
 
 /**
@@ -94,15 +88,9 @@ export const cancelHelpArray = [
 export function createHelpCancelKeyboard(isRu: boolean) {
   return Markup.inlineKeyboard([
     [
-      Markup.button.callback(
-        isRu ? '❌ Отмена' : '❌ Cancel',
-        'cancel'
-      ),
-      Markup.button.callback(
-        isRu ? '❓ Помощь' : '❓ Help',
-        'help'
-      )
-    ]
+      Markup.button.callback(isRu ? '❌ Отмена' : '❌ Cancel', 'cancel'),
+      Markup.button.callback(isRu ? '❓ Помощь' : '❓ Help', 'help'),
+    ],
   ])
 }
 
@@ -126,10 +114,7 @@ export async function sendPhotoDescriptionRequest(
     : '✍️ Describe in text what image you want to generate:\n\n💡 For example: "beautiful portrait by the sea" or "business style in the office"'
 
   const keyboard = Markup.inlineKeyboard([
-    [Markup.button.callback(
-      isRussian ? '❌ Отмена' : '❌ Cancel',
-      'cancel'
-    )]
+    [Markup.button.callback(isRussian ? '❌ Отмена' : '❌ Cancel', 'cancel')],
   ])
 
   await ctx.reply(message, keyboard)

@@ -26,13 +26,17 @@ vi.mock('@/core/supabase', () => ({
     })),
   },
   getActiveUserModelsByType: vi.fn(() => Promise.resolve([])),
-  getReferalsCountAndUserData: vi.fn(() => Promise.resolve({
-    subscriptionType: 'neurophoto',
-  })),
-  getUserData: vi.fn(() => Promise.resolve({
-    telegram_id: '223757230',
-    gender: 'male',
-  })),
+  getReferalsCountAndUserData: vi.fn(() =>
+    Promise.resolve({
+      subscriptionType: 'neurophoto',
+    })
+  ),
+  getUserData: vi.fn(() =>
+    Promise.resolve({
+      telegram_id: '223757230',
+      gender: 'male',
+    })
+  ),
   getAspectRatio: vi.fn(() => Promise.resolve('1:1')),
 }))
 
@@ -48,7 +52,10 @@ vi.mock('@/core/bot', () => ({
 vi.mock('@/navigation', () => ({
   sendGenericErrorMessage: vi.fn(),
   sendPhotoDescriptionRequest: vi.fn(() => Promise.resolve()),
-  getButtonTextsByMode: vi.fn(() => ({ ru: '🏠 Главное меню', en: '🏠 Main menu' })),
+  getButtonTextsByMode: vi.fn(() => ({
+    ru: '🏠 Главное меню',
+    en: '🏠 Main menu',
+  })),
   createMainMenuKeyboard: vi.fn(() => ({
     reply_markup: { keyboard: [], resize_keyboard: true },
   })),
@@ -56,10 +63,12 @@ vi.mock('@/navigation', () => ({
 }))
 
 vi.mock('@/services/generateNeuroPhotoHybrid', () => ({
-  generateNeuroPhotoHybrid: vi.fn(() => Promise.resolve({
-    success: true,
-    urls: ['https://example.com/image1.jpg'],
-  })),
+  generateNeuroPhotoHybrid: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      urls: ['https://example.com/image1.jpg'],
+    })
+  ),
 }))
 
 vi.mock('@/services/CancelButtonService', () => ({
@@ -147,7 +156,6 @@ describe('neuroPhotoWizard (NeuroPhoto Generation)', () => {
     mockContext.session.prompt = null
     mockContext.message = null
     mockContext.callbackQuery = null
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(getActiveUserModelsByType as Mock).mockResolvedValue([mockUserModel])
     ;(getReferalsCountAndUserData as Mock).mockResolvedValue({
@@ -173,7 +181,10 @@ describe('neuroPhotoWizard (NeuroPhoto Generation)', () => {
     it('должен получать модели типа replicate', async () => {
       const models = await getActiveUserModelsByType(223757230, 'replicate')
 
-      expect(getActiveUserModelsByType).toHaveBeenCalledWith(223757230, 'replicate')
+      expect(getActiveUserModelsByType).toHaveBeenCalledWith(
+        223757230,
+        'replicate'
+      )
       expect(models).toEqual([mockUserModel])
     })
 

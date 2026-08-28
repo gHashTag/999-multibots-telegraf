@@ -1,10 +1,10 @@
 import { saveVideoUrlToSupabase } from '@/core/supabase/saveVideoUrlToSupabase'
 import { logger } from '@/utils/logger'
 import { PUBLIC_URL } from '@/config'
-import { 
+import {
   generateLipSyncViaAiServer,
   getLipSyncStatusFromAiServer,
-  AiServerLipSyncRequest 
+  AiServerLipSyncRequest,
 } from '../ai-server/lipsync-adapter'
 
 export interface AiServerLipSyncResponse {
@@ -23,7 +23,9 @@ export interface AiServerLipSyncError {
   error?: string
 }
 
-export type AiServerLipSyncResult = AiServerLipSyncResponse | AiServerLipSyncError
+export type AiServerLipSyncResult =
+  | AiServerLipSyncResponse
+  | AiServerLipSyncError
 
 /**
  * Генерирует видео с липсинком используя ai-server как прокси
@@ -46,7 +48,7 @@ export async function generateAiServerLipSync(
       video_url: videoUrl,
       audio_url: audioUrl,
       user_id: telegramId,
-      model: 'kwaivgi/kling-lip-sync'
+      model: 'kwaivgi/kling-lip-sync',
     }
 
     const result = await generateLipSyncViaAiServer(request)
@@ -66,8 +68,12 @@ export async function generateAiServerLipSync(
 
     return {
       id: result.id,
-      status: result.status === 'completed' ? 'succeeded' : 
-             result.status === 'failed' ? 'failed' : 'starting',
+      status:
+        result.status === 'completed'
+          ? 'succeeded'
+          : result.status === 'failed'
+            ? 'failed'
+            : 'starting',
       output: result.result_url,
       error: result.error,
       // Домен берётся из конфигурации. Здесь был зашит three-head-dragon.shop —
@@ -79,7 +85,6 @@ export async function generateAiServerLipSync(
         cancel: `${PUBLIC_URL}/api/lipsync/${result.id}/cancel`,
       },
     } as AiServerLipSyncResponse
-
   } catch (error) {
     logger.error('❌ Ошибка при генерации AiServer LipSync', {
       error: error instanceof Error ? error.message : String(error),
@@ -112,8 +117,12 @@ export async function getAiServerLipSyncStatus(
 
     return {
       id: result.id,
-      status: result.status === 'completed' ? 'succeeded' : 
-             result.status === 'failed' ? 'failed' : 'processing',
+      status:
+        result.status === 'completed'
+          ? 'succeeded'
+          : result.status === 'failed'
+            ? 'failed'
+            : 'processing',
       output: result.result_url,
       error: result.error,
       // Домен берётся из конфигурации. Здесь был зашит three-head-dragon.shop —
@@ -125,7 +134,6 @@ export async function getAiServerLipSyncStatus(
         cancel: `${PUBLIC_URL}/api/lipsync/${result.id}/cancel`,
       },
     } as AiServerLipSyncResponse
-
   } catch (error) {
     logger.error('❌ Ошибка при получении статуса AiServer LipSync', {
       error: error instanceof Error ? error.message : String(error),

@@ -62,7 +62,7 @@ export class SSHService {
           }
           resolve()
         })
-        .on('error', (err) => {
+        .on('error', err => {
           if (this.logger) {
             this.logger.error('SSH connection error', { error: err.message })
           }
@@ -226,7 +226,7 @@ export class SSHService {
           resolve()
         })
 
-        stream.on('error', (error) => {
+        stream.on('error', error => {
           reject(error)
         })
 
@@ -287,7 +287,7 @@ export class SSHService {
     // Stream output to monitor progress
     await this.execStream(
       command,
-      (line) => {
+      line => {
         // Parse progress from curl output
         const progressMatch = line.match(/(\d+\.\d+)%/)
         if (progressMatch && this.logger) {

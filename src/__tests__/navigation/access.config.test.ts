@@ -18,12 +18,12 @@ import {
   isAdmin,
   isSuperAdmin,
   getParsingAccess,
-  ParsingAccessResult
+  ParsingAccessResult,
 } from '@/navigation/config/access.config'
 
 // Mock getBotNameByToken
 vi.mock('@/core/bot', () => ({
-  getBotNameByToken: vi.fn()
+  getBotNameByToken: vi.fn(),
 }))
 
 import { getBotNameByToken } from '@/core/bot'
@@ -198,11 +198,15 @@ describe('access.config', () => {
 
     describe('HaimGroupMedia_bot', () => {
       beforeEach(() => {
-        ;(getBotNameByToken as any).mockReturnValue({ bot_name: 'HaimGroupMedia_bot' })
+        ;(getBotNameByToken as any).mockReturnValue({
+          bot_name: 'HaimGroupMedia_bot',
+        })
       })
 
       it('сотрудник HAIM_GROUP имеет доступ', () => {
-        const staffId = HAIM_GROUP_STAFF_IDS.find(id => id !== SUPER_ADMIN_ID) || SUPER_ADMIN_ID
+        const staffId =
+          HAIM_GROUP_STAFF_IDS.find(id => id !== SUPER_ADMIN_ID) ||
+          SUPER_ADMIN_ID
 
         const result = getParsingAccess(staffId, 'haim-token')
 
@@ -210,7 +214,9 @@ describe('access.config', () => {
       })
 
       it('сотрудник HAIM_GROUP имеет ограниченные проекты', () => {
-        const staffId = HAIM_GROUP_STAFF_IDS.find(id => id !== SUPER_ADMIN_ID) || SUPER_ADMIN_ID
+        const staffId =
+          HAIM_GROUP_STAFF_IDS.find(id => id !== SUPER_ADMIN_ID) ||
+          SUPER_ADMIN_ID
 
         const result = getParsingAccess(staffId, 'haim-token')
 
@@ -230,11 +236,14 @@ describe('access.config', () => {
 
     describe('MetaMuse_Manifest_bot', () => {
       beforeEach(() => {
-        ;(getBotNameByToken as any).mockReturnValue({ bot_name: 'MetaMuse_Manifest_bot' })
+        ;(getBotNameByToken as any).mockReturnValue({
+          bot_name: 'MetaMuse_Manifest_bot',
+        })
       })
 
       it('сотрудник METAMUSE имеет доступ', () => {
-        const staffId = METAMUSE_STAFF_IDS.find(id => id !== SUPER_ADMIN_ID) || SUPER_ADMIN_ID
+        const staffId =
+          METAMUSE_STAFF_IDS.find(id => id !== SUPER_ADMIN_ID) || SUPER_ADMIN_ID
 
         const result = getParsingAccess(staffId, 'metamuse-token')
 
@@ -242,7 +251,8 @@ describe('access.config', () => {
       })
 
       it('сотрудник METAMUSE имеет доступ ко всем проектам', () => {
-        const staffId = METAMUSE_STAFF_IDS.find(id => id !== SUPER_ADMIN_ID) || SUPER_ADMIN_ID
+        const staffId =
+          METAMUSE_STAFF_IDS.find(id => id !== SUPER_ADMIN_ID) || SUPER_ADMIN_ID
 
         const result = getParsingAccess(staffId, 'metamuse-token')
 
@@ -282,7 +292,9 @@ describe('access.config', () => {
 
   describe('ParsingAccessResult interface', () => {
     it('hasAccess=true возвращается с allowedProjects', () => {
-      ;(getBotNameByToken as any).mockReturnValue({ bot_name: 'HaimGroupMedia_bot' })
+      ;(getBotNameByToken as any).mockReturnValue({
+        bot_name: 'HaimGroupMedia_bot',
+      })
 
       const staffId = HAIM_GROUP_STAFF_IDS[0]
       const result = getParsingAccess(staffId, 'token')

@@ -61,7 +61,10 @@ function extractBRollSegments(transcription: any): BRollSegment[] {
   let currentStart = 0
 
   while (currentStart < words[words.length - 1].end) {
-    const currentEnd = Math.min(currentStart + segmentDuration, words[words.length - 1].end)
+    const currentEnd = Math.min(
+      currentStart + segmentDuration,
+      words[words.length - 1].end
+    )
 
     // Find words in this time range
     const segmentWords = words.filter(
@@ -94,7 +97,8 @@ function createJobSettings(
 ): any {
   // Extract avatar duration
   const avatarMeta = avatarAttachment.meta_data || {}
-  const avatarDuration = avatarMeta.format?.duration || avatarMeta.duration_seconds || 60
+  const avatarDuration =
+    avatarMeta.format?.duration || avatarMeta.duration_seconds || 60
 
   // Create avatar layer
   const avatarLayer = {
@@ -138,7 +142,10 @@ function createJobSettings(
 /**
  * Upload settings to S3
  */
-async function uploadSettingsToS3(jobId: string, settings: any): Promise<string> {
+async function uploadSettingsToS3(
+  jobId: string,
+  settings: any
+): Promise<string> {
   const s3Client = new S3Client({
     region: process.env.AWS_REGION || 'us-east-1',
     credentials: {
@@ -176,7 +183,9 @@ export const renderAvatarVideoFunction = inngest.createFunction(
     // Validate event data before processing
     const data = validateRenderAvatarVideoEventData(event.data)
 
-    logger.info(`Starting render-avatar-video workflow for user ${data.user_id}`)
+    logger.info(
+      `Starting render-avatar-video workflow for user ${data.user_id}`
+    )
 
     // Step 1: Create job if not provided
     let jobId = data.job_id
@@ -229,39 +238,47 @@ export const renderAvatarVideoFunction = inngest.createFunction(
       })
 
       // Step 2b: Start Hedra avatar generation
-      const hedraGenerationId = await step.run('start-hedra-generation', async () => {
-        logger.info('Starting Hedra avatar generation')
+      const hedraGenerationId = await step.run(
+        'start-hedra-generation',
+        async () => {
+          logger.info('Starting Hedra avatar generation')
 
-        const hedra = new HedraService(data.avatar_settings.api_key)
+          const hedra = new HedraService(data.avatar_settings.api_key)
 
-        // Create and upload image asset
-        const imageAsset = await hedra.createAsset('avatar_image', 'image')
-        await hedra.uploadAsset(imageAsset.id, data.avatar_settings.avatar_photo_url!)
+          // Create and upload image asset
+          const imageAsset = await hedra.createAsset('avatar_image', 'image')
+          await hedra.uploadAsset(
+            imageAsset.id,
+            data.avatar_settings.avatar_photo_url!
+          )
 
-        // Create and upload audio asset
-        const audioAsset = await hedra.createAsset('avatar_audio', 'audio')
-        await hedra.uploadAsset(audioAsset.id, audioUrl)
+          // Create and upload audio asset
+          const audioAsset = await hedra.createAsset('avatar_audio', 'audio')
+          await hedra.uploadAsset(audioAsset.id, audioUrl)
 
-        // Start generation
-        const generation = await hedra.startGeneration(
-          imageAsset.id,
-          audioAsset.id,
-          'Generate a video with the provided image and audio.'
-        )
+          // Start generation
+          const generation = await hedra.startGeneration(
+            imageAsset.id,
+            audioAsset.id,
+            'Generate a video with the provided image and audio.'
+          )
 
-        logger.info(`Started Hedra generation: ${generation.id}`)
-        return generation.id
-      })
+          logger.info(`Started Hedra generation: ${generation.id}`)
+          return generation.id
+        }
+      )
 
       // Step 2c: Wait for Hedra completion
-      avatarAttachment = await step.run('wait-hedra-completion', async () => {
+      avatarAttachment = (await step.run('wait-hedra-completion', async () => {
         logger.info(`Waiting for Hedra generation: ${hedraGenerationId}`)
 
         const hedra = new HedraService(data.avatar_settings.api_key)
         const result = await hedra.waitForCompletion(hedraGenerationId)
 
         if (!result.url) {
-          throw new NonRetriableError('Hedra generation did not return video URL')
+          throw new NonRetriableError(
+            'Hedra generation did not return video URL'
+          )
         }
 
         return {
@@ -270,32 +287,37 @@ export const renderAvatarVideoFunction = inngest.createFunction(
           object_key: `jobs/${jobId}/avatar_video.mp4`,
           meta_data: { format: { duration: 60 } },
         } as Attachment
-      }) as unknown as Attachment
+      })) as unknown as Attachment
     } else if (data.avatar_gen_service === 'heygen') {
       // Step 2a: Start HeyGen avatar generation
-      const heygenVideoId = await step.run('start-heygen-generation', async () => {
-        logger.info('Starting HeyGen avatar generation')
+      const heygenVideoId = await step.run(
+        'start-heygen-generation',
+        async () => {
+          logger.info('Starting HeyGen avatar generation')
 
-        const heygen = new HeyGenService(data.avatar_settings.api_key)
-        const result = await heygen.generateAvatarVideo({
-          avatar_speech: data.avatar_settings.avatar_speech,
-          avatar_id: data.avatar_settings.avatar_id!,
-          voice_id: data.avatar_settings.voice_id,
-        })
+          const heygen = new HeyGenService(data.avatar_settings.api_key)
+          const result = await heygen.generateAvatarVideo({
+            avatar_speech: data.avatar_settings.avatar_speech,
+            avatar_id: data.avatar_settings.avatar_id!,
+            voice_id: data.avatar_settings.voice_id,
+          })
 
-        logger.info(`Started HeyGen generation: ${result.video_id}`)
-        return result.video_id
-      })
+          logger.info(`Started HeyGen generation: ${result.video_id}`)
+          return result.video_id
+        }
+      )
 
       // Step 2b: Wait for HeyGen completion
-      avatarAttachment = await step.run('wait-heygen-completion', async () => {
+      avatarAttachment = (await step.run('wait-heygen-completion', async () => {
         logger.info(`Waiting for HeyGen generation: ${heygenVideoId}`)
 
         const heygen = new HeyGenService(data.avatar_settings.api_key)
         const result = await heygen.waitForCompletion(heygenVideoId)
 
         if (!result.video_url) {
-          throw new NonRetriableError('HeyGen generation did not return video URL')
+          throw new NonRetriableError(
+            'HeyGen generation did not return video URL'
+          )
         }
 
         return {
@@ -304,12 +326,14 @@ export const renderAvatarVideoFunction = inngest.createFunction(
           object_key: `jobs/${jobId}/avatar_video.mp4`,
           meta_data: { duration_seconds: result.duration || 60 },
         } as Attachment
-      }) as unknown as Attachment
+      })) as unknown as Attachment
 
       // HeyGen videos have embedded audio
       audioUrl = avatarAttachment.url
     } else {
-      throw new NonRetriableError(`Unsupported avatar generation service: ${data.avatar_gen_service}`)
+      throw new NonRetriableError(
+        `Unsupported avatar generation service: ${data.avatar_gen_service}`
+      )
     }
 
     // Step 3: Generate transcription from audio
@@ -334,62 +358,80 @@ export const renderAvatarVideoFunction = inngest.createFunction(
     })
 
     // Step 5: Generate B-roll videos in parallel
-    const brollGenerations = await step.run('generate-brolls-parallel', async () => {
-      logger.info(`Starting parallel generation of ${brollSegments.length} B-roll videos`)
+    const brollGenerations = (await step.run(
+      'generate-brolls-parallel',
+      async () => {
+        logger.info(
+          `Starting parallel generation of ${brollSegments.length} B-roll videos`
+        )
 
-      const kieAI = new KieAIService(data.kie_api_key)
+        const kieAI = new KieAIService(data.kie_api_key)
 
-      return await Promise.all(
-        brollSegments.map(async segment => {
-          const seeds = Math.floor(Math.random() * 90000) + 10000
+        return await Promise.all(
+          brollSegments.map(async segment => {
+            const seeds = Math.floor(Math.random() * 90000) + 10000
 
-          const result = await kieAI.createVideo({
-            prompt: segment.prompt,
-            seeds,
+            const result = await kieAI.createVideo({
+              prompt: segment.prompt,
+              seeds,
+            })
+
+            logger.info(
+              `B-roll task created for segment ${segment.id}: ${result.taskId}`
+            )
+
+            return { segment, task_id: result.taskId }
           })
-
-          logger.info(`B-roll task created for segment ${segment.id}: ${result.taskId}`)
-
-          return { segment, task_id: result.taskId }
-        })
-      )
-    }) as unknown as { segment: BRollSegment; task_id: string }[]
+        )
+      }
+    )) as unknown as { segment: BRollSegment; task_id: string }[]
 
     // Step 6: Wait for all B-roll completions in parallel
-    const completedBRolls = await step.run('wait-brolls-completion', async () => {
-      logger.info(`Waiting for ${brollGenerations.length} B-roll videos to complete`)
+    const completedBRolls = (await step.run(
+      'wait-brolls-completion',
+      async () => {
+        logger.info(
+          `Waiting for ${brollGenerations.length} B-roll videos to complete`
+        )
 
-      const kieAI = new KieAIService(data.kie_api_key)
+        const kieAI = new KieAIService(data.kie_api_key)
 
-      const completed = await Promise.all(
-        brollGenerations.map(async gen => {
-          try {
-            const result = await kieAI.waitForCompletion(gen.task_id)
+        const completed = await Promise.all(
+          brollGenerations.map(async gen => {
+            try {
+              const result = await kieAI.waitForCompletion(gen.task_id)
 
-            if (!result.video_urls || result.video_urls.length === 0) {
-              throw new Error(`No video URLs returned for task ${gen.task_id}`)
+              if (!result.video_urls || result.video_urls.length === 0) {
+                throw new Error(
+                  `No video URLs returned for task ${gen.task_id}`
+                )
+              }
+
+              return {
+                segment: gen.segment,
+                attachment: {
+                  id: `broll_${gen.segment.id}`,
+                  url: result.video_urls[0],
+                  object_key: `jobs/${jobId}/broll_${gen.segment.id}.mp4`,
+                },
+              }
+            } catch (error: any) {
+              logger.error(
+                `B-roll failed for segment ${gen.segment.id}: ${error.message}`
+              )
+              return null
             }
+          })
+        )
 
-            return {
-              segment: gen.segment,
-              attachment: {
-                id: `broll_${gen.segment.id}`,
-                url: result.video_urls[0],
-                object_key: `jobs/${jobId}/broll_${gen.segment.id}.mp4`,
-              },
-            }
-          } catch (error: any) {
-            logger.error(`B-roll failed for segment ${gen.segment.id}: ${error.message}`)
-            return null
-          }
-        })
-      )
+        const successful = completed.filter(b => b !== null)
+        logger.info(
+          `${successful.length}/${completed.length} B-rolls completed successfully`
+        )
 
-      const successful = completed.filter(b => b !== null)
-      logger.info(`${successful.length}/${completed.length} B-rolls completed successfully`)
-
-      return successful
-    }) as unknown as { segment: BRollSegment; attachment: Attachment }[]
+        return successful
+      }
+    )) as unknown as { segment: BRollSegment; attachment: Attachment }[]
 
     // Step 7: Create job settings JSON
     const settings = await step.run('create-job-settings', async () => {
@@ -397,7 +439,9 @@ export const renderAvatarVideoFunction = inngest.createFunction(
 
       const jobSettings = createJobSettings(avatarAttachment, completedBRolls)
 
-      logger.info(`Job settings created with ${completedBRolls.length} B-roll layers`)
+      logger.info(
+        `Job settings created with ${completedBRolls.length} B-roll layers`
+      )
       return jobSettings
     })
 

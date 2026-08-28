@@ -11,35 +11,35 @@ import { ModeEnum } from '@/interfaces/modes'
  * Типы сцен по функциональному назначению
  */
 export enum SceneCategory {
-  SYSTEM = 'system',           // Системные сцены (меню, справка)
-  GENERATION = 'generation',   // Генерация контента (изображения, видео)
-  PAYMENT = 'payment',         // Платежные операции
-  WIZARD = 'wizard',           // Пошаговые мастера
-  TOOLS = 'tools',             // Инструменты (парсинг, анализ)
-  AVATAR = 'avatar',           // Аватары и персонажи
-  ADMIN = 'admin',             // Админ-панели
-  UTILITY = 'utility'          // Вспомогательные сцены
+  SYSTEM = 'system', // Системные сцены (меню, справка)
+  GENERATION = 'generation', // Генерация контента (изображения, видео)
+  PAYMENT = 'payment', // Платежные операции
+  WIZARD = 'wizard', // Пошаговые мастера
+  TOOLS = 'tools', // Инструменты (парсинг, анализ)
+  AVATAR = 'avatar', // Аватары и персонажи
+  ADMIN = 'admin', // Админ-панели
+  UTILITY = 'utility', // Вспомогательные сцены
 }
 
 /**
  * Уровень доступа к сцене
  */
 export enum AccessLevel {
-  PUBLIC = 'public',         // Доступно всем
+  PUBLIC = 'public', // Доступно всем
   SUBSCRIBER = 'subscriber', // Требует подписки
-  PREMIUM = 'premium',       // Требует премиум подписку
-  ADMIN = 'admin',           // Только для админов
-  STAFF = 'staff'            // Для персонала
+  PREMIUM = 'premium', // Требует премиум подписку
+  ADMIN = 'admin', // Только для админов
+  STAFF = 'staff', // Для персонала
 }
 
 /**
  * Статус сцены в системе
  */
 export enum SceneStatus {
-  ACTIVE = 'active',         // Активная сцена
+  ACTIVE = 'active', // Активная сцена
   DEPRECATED = 'deprecated', // Устарела, но доступна
-  DISABLED = 'disabled',     // Отключена
-  PLANNED = 'planned'        // В разработке
+  DISABLED = 'disabled', // Отключена
+  PLANNED = 'planned', // В разработке
 }
 
 /**
@@ -122,7 +122,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     modeEnum: ModeEnum.MenuScene,
     supportedLanguages: ['ru', 'en'],
     tags: ['menu', 'main', 'navigation'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   helpScene: {
@@ -135,7 +135,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     modeEnum: ModeEnum.Help,
     supportedLanguages: ['ru', 'en'],
     tags: ['help', 'info', 'guide'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   techSupportScene: {
@@ -148,7 +148,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['support', 'help', 'contact'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   checkBalanceScene: {
@@ -162,7 +162,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['balance', 'check', 'access'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   // ========================================
@@ -180,7 +180,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['subscription', 'payment', 'plan'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   paymentScene: {
@@ -194,7 +194,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['payment', 'billing'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   rublePaymentScene: {
@@ -208,7 +208,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru'],
     tags: ['payment', 'rubles', 'robokassa'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   starPaymentScene: {
@@ -222,7 +222,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['payment', 'stars', 'telegram'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   cryptoPaymentScene: {
@@ -236,7 +236,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['payment', 'crypto', 'usdc', 'x402', 'base'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   // ========================================
@@ -255,7 +255,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 10,
     supportedLanguages: ['ru', 'en'],
     tags: ['photo', 'generation', 'ai'],
-    version: '2.0.0'
+    version: '2.0.0',
   },
 
   neuroPhotoWizardV2: {
@@ -270,7 +270,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 15,
     supportedLanguages: ['ru', 'en'],
     tags: ['photo', 'generation', 'ai', 'v2'],
-    version: '2.0.0'
+    version: '2.0.0',
   },
 
   textToImageWizard: {
@@ -285,7 +285,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 8,
     supportedLanguages: ['ru', 'en'],
     tags: ['text', 'image', 'generation'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   textToVideoWizard: {
@@ -300,7 +300,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 50,
     supportedLanguages: ['ru', 'en'],
     tags: ['text', 'video', 'generation'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   imageToVideoWizard: {
@@ -315,7 +315,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 40,
     supportedLanguages: ['ru', 'en'],
     tags: ['image', 'video', 'generation'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   // ========================================
@@ -333,7 +333,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['wizard', 'model', 'selection'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   improvePromptWizard: {
@@ -347,7 +347,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 2,
     supportedLanguages: ['ru', 'en'],
     tags: ['prompt', 'improve', 'ai'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   sizeWizard: {
@@ -361,7 +361,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['size', 'wizard', 'selection'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   // ========================================
@@ -381,7 +381,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     allowedParents: ['menuScene'],
     supportedLanguages: ['ru', 'en'],
     tags: ['instagram', 'parsing', 'tool'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   instagramParserWizard: {
@@ -395,7 +395,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['instagram', 'parser', 'analysis'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   // ========================================
@@ -414,7 +414,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 20,
     supportedLanguages: ['ru', 'en'],
     tags: ['avatar', 'transform', 'digital'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   digitalAvatarBodyWizard: {
@@ -429,7 +429,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 100,
     supportedLanguages: ['ru', 'en'],
     tags: ['avatar', 'body', 'digital'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   lipSyncWizard: {
@@ -444,7 +444,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 30,
     supportedLanguages: ['ru', 'en'],
     tags: ['lip', 'sync', 'video', 'audio'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   // ========================================
@@ -462,7 +462,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['balance', 'wallet', 'history'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   inviteScene: {
@@ -476,7 +476,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['invite', 'referral', 'friends'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   // ========================================
@@ -495,7 +495,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 15,
     supportedLanguages: ['ru', 'en'],
     tags: ['face', 'swap', 'generation'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   morphingWizard: {
@@ -510,7 +510,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 20,
     supportedLanguages: ['ru', 'en'],
     tags: ['morphing', 'generation'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   imageUpscalerWizard: {
@@ -525,7 +525,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 5,
     supportedLanguages: ['ru', 'en'],
     tags: ['upscale', 'image', 'quality'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   imageToPromptWizard: {
@@ -540,7 +540,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 5,
     supportedLanguages: ['ru', 'en'],
     tags: ['image', 'prompt', 'analysis'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   aiPhotoshopScene: {
@@ -555,7 +555,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 10,
     supportedLanguages: ['ru', 'en'],
     tags: ['photoshop', 'ai', 'edit'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   fluxKontextScene: {
@@ -570,7 +570,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 15,
     supportedLanguages: ['ru', 'en'],
     tags: ['flux', 'kontext', 'generation'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   // ========================================
@@ -589,7 +589,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 5,
     supportedLanguages: ['ru', 'en'],
     tags: ['tts', 'voice', 'speech'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   videoTranscriptionWizard: {
@@ -604,7 +604,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 10,
     supportedLanguages: ['ru', 'en'],
     tags: ['transcription', 'video', 'text'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   // ========================================
@@ -623,7 +623,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 50,
     supportedLanguages: ['ru', 'en'],
     tags: ['reels', 'ai', 'video'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   aiReelsEntryWizard: {
@@ -638,7 +638,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['reels', 'entry'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   hedraRenderWizard: {
@@ -653,7 +653,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 30,
     supportedLanguages: ['ru', 'en'],
     tags: ['hedra', 'render', 'lipsync'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   heygenRenderWizard: {
@@ -668,7 +668,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 50,
     supportedLanguages: ['ru', 'en'],
     tags: ['heygen', 'render', 'lipsync'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   falRenderWizard: {
@@ -683,7 +683,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 30,
     supportedLanguages: ['ru', 'en'],
     tags: ['fal', 'render', 'lipsync'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   veedFabricWizard: {
@@ -698,7 +698,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 40,
     supportedLanguages: ['ru', 'en'],
     tags: ['veed', 'fabric', 'lipsync'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   // ========================================
@@ -717,7 +717,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 150,
     supportedLanguages: ['ru', 'en'],
     tags: ['avatar', 'body', 'v2'],
-    version: '2.0.0'
+    version: '2.0.0',
   },
 
   avatarBrainWizard: {
@@ -732,7 +732,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 20,
     supportedLanguages: ['ru', 'en'],
     tags: ['avatar', 'brain', 'ai'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   voiceAvatarWizard: {
@@ -747,7 +747,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 30,
     supportedLanguages: ['ru', 'en'],
     tags: ['voice', 'avatar', 'audio'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   chatWithAvatarWizard: {
@@ -762,7 +762,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 5,
     supportedLanguages: ['ru', 'en'],
     tags: ['chat', 'avatar', 'ai'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   // ========================================
@@ -781,7 +781,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 500,
     supportedLanguages: ['ru', 'en'],
     tags: ['train', 'flux', 'model'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   uploadTrainFluxModelScene: {
@@ -795,7 +795,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['upload', 'train', 'flux'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   // ========================================
@@ -813,7 +813,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['start', 'welcome', 'registration'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   createUserScene: {
@@ -827,7 +827,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['user', 'create', 'registration'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   changeLanguageScene: {
@@ -841,7 +841,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['language', 'settings'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   subscriptionCheckScene: {
@@ -855,7 +855,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['subscription', 'check'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   // ========================================
@@ -873,7 +873,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['email', 'settings'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   getRuBillWizard: {
@@ -887,7 +887,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru'],
     tags: ['bill', 'invoice', 'payment'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   cancelPredictionsWizard: {
@@ -901,7 +901,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 0,
     supportedLanguages: ['ru', 'en'],
     tags: ['cancel', 'predictions'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   neuroCoderScene: {
@@ -916,7 +916,7 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 10,
     supportedLanguages: ['ru', 'en'],
     tags: ['code', 'ai', 'developer'],
-    version: '1.0.0'
+    version: '1.0.0',
   },
 
   generateImageWizard: {
@@ -931,8 +931,8 @@ export const SCENE_REGISTRY: Record<string, SceneMetadata> = {
     cost: 8,
     supportedLanguages: ['ru', 'en'],
     tags: ['generate', 'image'],
-    version: '1.0.0'
-  }
+    version: '1.0.0',
+  },
 }
 
 /**
@@ -960,7 +960,8 @@ export function getScenesByAccessLevel(
   accessLevel: AccessLevel
 ): SceneMetadata[] {
   return Object.values(SCENE_REGISTRY).filter(
-    scene => scene.accessLevel === accessLevel && scene.status === SceneStatus.ACTIVE
+    scene =>
+      scene.accessLevel === accessLevel && scene.status === SceneStatus.ACTIVE
   )
 }
 
@@ -974,7 +975,9 @@ export function getSceneById(id: string): SceneMetadata | undefined {
 /**
  * Найти сцену по ModeEnum
  */
-export function getSceneByModeEnum(modeEnum: ModeEnum | string): SceneMetadata | undefined {
+export function getSceneByModeEnum(
+  modeEnum: ModeEnum | string
+): SceneMetadata | undefined {
   return Object.values(SCENE_REGISTRY).find(
     scene => scene.modeEnum === modeEnum
   )
@@ -994,12 +997,17 @@ export function isSceneAccessible(
   }
 
   // Проверяем уровень доступа
-  if (scene.accessLevel === AccessLevel.ADMIN && userAccessLevel !== AccessLevel.ADMIN) {
+  if (
+    scene.accessLevel === AccessLevel.ADMIN &&
+    userAccessLevel !== AccessLevel.ADMIN
+  ) {
     return false
   }
 
-  if (scene.accessLevel === AccessLevel.STAFF &&
-      ![AccessLevel.ADMIN, AccessLevel.STAFF].includes(userAccessLevel)) {
+  if (
+    scene.accessLevel === AccessLevel.STAFF &&
+    ![AccessLevel.ADMIN, AccessLevel.STAFF].includes(userAccessLevel)
+  ) {
     return false
   }
 
@@ -1040,7 +1048,10 @@ export function getAllowedTransitions(sceneId: string): string[] {
 /**
  * Проверить разрешен ли переход из одной сцены в другую
  */
-export function isTransitionAllowed(fromSceneId: string, toSceneId: string): boolean {
+export function isTransitionAllowed(
+  fromSceneId: string,
+  toSceneId: string
+): boolean {
   const fromScene = SCENE_REGISTRY[fromSceneId]
   if (!fromScene) {
     return false
@@ -1052,8 +1063,10 @@ export function isTransitionAllowed(fromSceneId: string, toSceneId: string): boo
   }
 
   // Проверяем разрешенных детей
-  if (fromScene.allowedChildren &&
-      !fromScene.allowedChildren.includes(toSceneId)) {
+  if (
+    fromScene.allowedChildren &&
+    !fromScene.allowedChildren.includes(toSceneId)
+  ) {
     return false
   }
 

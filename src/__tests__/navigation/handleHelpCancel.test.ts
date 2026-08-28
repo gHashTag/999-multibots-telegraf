@@ -9,18 +9,18 @@ vi.mock('@/utils/logger', () => ({
     info: vi.fn(),
     error: vi.fn(),
     warn: vi.fn(),
-    debug: vi.fn()
-  }
+    debug: vi.fn(),
+  },
 }))
 
 // Mock showMainMenu
 vi.mock('@/navigation/helpers/menuKeyboard', () => ({
-  showMainMenu: vi.fn().mockResolvedValue(undefined)
+  showMainMenu: vi.fn().mockResolvedValue(undefined),
 }))
 
 // Mock centralizedLanguage
 vi.mock('@/helpers/centralizedLanguage', () => ({
-  isRussianFromState: vi.fn().mockReturnValue(true)
+  isRussianFromState: vi.fn().mockReturnValue(true),
 }))
 
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -52,17 +52,17 @@ describe('handleHelpCancel Integration Tests', () => {
       callbackQuery: undefined,
       scene: {
         leave: mockSceneLeave,
-        enter: mockSceneEnter
+        enter: mockSceneEnter,
       } as any,
       reply: mockReply,
       answerCbQuery: vi.fn().mockResolvedValue(undefined),
       // Установим state.userLanguage для centralizedLanguage
       state: {
-        userLanguage: 'ru' as 'ru' | 'en'
+        userLanguage: 'ru' as 'ru' | 'en',
       } as any,
       session: {
-        __scenes: {}
-      } as any
+        __scenes: {},
+      } as any,
     }
   })
 

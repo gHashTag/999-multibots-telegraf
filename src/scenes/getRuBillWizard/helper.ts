@@ -1,6 +1,4 @@
-import {
-  UNIFIED_RESULT_URL,
-} from '@/config'
+import { UNIFIED_RESULT_URL } from '@/config'
 import md5 from 'md5'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
 
@@ -51,7 +49,9 @@ const ROBOKASSA_BASE_URL = `https://auth.robokassa.${ROBOKASSA_DOMAIN}/Merchant/
 
 // 🧪 Test mode: IsTest=1 для тестовых платежей
 // В тестовом режиме Robokassa НЕ списывает реальные деньги
-const isTestMode = process.env.NODE_ENV !== 'production' || process.env.ROBOKASSA_TEST_MODE === 'true'
+const isTestMode =
+  process.env.NODE_ENV !== 'production' ||
+  process.env.ROBOKASSA_TEST_MODE === 'true'
 
 console.log('🔧 [Robokassa Config]:', {
   domain: ROBOKASSA_DOMAIN,
@@ -104,7 +104,9 @@ export function generateRobokassaUrl(
   const signatureValue = md5(signatureString).toUpperCase()
 
   console.log('📝 [generateRobokassaUrl] Input params:', {
-    merchantLogin: merchantLogin ? `${merchantLogin.substring(0, 5)}...` : 'MISSING',
+    merchantLogin: merchantLogin
+      ? `${merchantLogin.substring(0, 5)}...`
+      : 'MISSING',
     outSum,
     invId,
     description,
@@ -114,9 +116,20 @@ export function generateRobokassaUrl(
   })
 
   // 🚨 ВАЖНО: Полный ResultURL для webhook
-  console.log('🌐 [generateRobokassaUrl] ResultURL (webhook endpoint):', resultUrl2)
-  console.log('🔧 [generateRobokassaUrl] Test mode:', isTestMode ? 'YES (IsTest=1)' : 'NO (Production)')
-  console.log('🌍 [generateRobokassaUrl] Domain:', ROBOKASSA_DOMAIN, '→', ROBOKASSA_BASE_URL)
+  console.log(
+    '🌐 [generateRobokassaUrl] ResultURL (webhook endpoint):',
+    resultUrl2
+  )
+  console.log(
+    '🔧 [generateRobokassaUrl] Test mode:',
+    isTestMode ? 'YES (IsTest=1)' : 'NO (Production)'
+  )
+  console.log(
+    '🌍 [generateRobokassaUrl] Domain:',
+    ROBOKASSA_DOMAIN,
+    '→',
+    ROBOKASSA_BASE_URL
+  )
 
   // 🏗️ Собираем URL с параметрами
   const params = new URLSearchParams({
@@ -163,7 +176,9 @@ export async function getInvoiceId(
   password1: string
 ): Promise<string> {
   console.log('🔍 [getInvoiceId] Starting invoice generation', {
-    merchantLogin: merchantLogin ? `${merchantLogin.substring(0, 3)}...` : 'MISSING',
+    merchantLogin: merchantLogin
+      ? `${merchantLogin.substring(0, 3)}...`
+      : 'MISSING',
     outSum,
     invId,
     description,
@@ -174,7 +189,9 @@ export async function getInvoiceId(
   try {
     // ✅ КРИТИЧЕСКАЯ ПРОВЕРКА: Все параметры обязательны
     if (!merchantLogin || merchantLogin.trim() === '') {
-      const error = new Error('❌ MERCHANT_LOGIN is missing or empty in getInvoiceId!')
+      const error = new Error(
+        '❌ MERCHANT_LOGIN is missing or empty in getInvoiceId!'
+      )
       console.error('❌ [getInvoiceId] Validation failed:', {
         hasMerchantLogin: !!merchantLogin,
         merchantLoginValue: merchantLogin,
@@ -183,7 +200,9 @@ export async function getInvoiceId(
     }
 
     if (!password1 || password1.trim() === '') {
-      const error = new Error('❌ ROBOKASSA_PASSWORD_1 is missing or empty in getInvoiceId!')
+      const error = new Error(
+        '❌ ROBOKASSA_PASSWORD_1 is missing or empty in getInvoiceId!'
+      )
       console.error('❌ [getInvoiceId] Validation failed:', {
         hasPassword: !!password1,
       })
@@ -191,7 +210,9 @@ export async function getInvoiceId(
     }
 
     if (!resultUrl2 || resultUrl2.trim() === '') {
-      const error = new Error('❌ UNIFIED_RESULT_URL is missing or empty in getInvoiceId!')
+      const error = new Error(
+        '❌ UNIFIED_RESULT_URL is missing or empty in getInvoiceId!'
+      )
       console.error('❌ [getInvoiceId] Validation failed:', {
         hasResultUrl: !!resultUrl2,
         resultUrl2Value: resultUrl2,
@@ -212,7 +233,9 @@ export async function getInvoiceId(
     }
 
     if (!description || description.trim() === '') {
-      const error = new Error('❌ Description is missing or empty in getInvoiceId!')
+      const error = new Error(
+        '❌ Description is missing or empty in getInvoiceId!'
+      )
       console.error('❌ [getInvoiceId] Validation failed:', { description })
       throw error
     }
@@ -238,7 +261,9 @@ export async function getInvoiceId(
     console.error('❌ [getInvoiceId] Error generating invoice:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      merchantLogin: merchantLogin ? `${merchantLogin.substring(0, 3)}...` : 'MISSING',
+      merchantLogin: merchantLogin
+        ? `${merchantLogin.substring(0, 3)}...`
+        : 'MISSING',
       outSum,
       invId,
       hasPassword: !!password1,

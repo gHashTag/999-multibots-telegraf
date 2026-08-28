@@ -1,14 +1,17 @@
 import axios from 'axios'
 
-import { isDev, SECRET_API_KEY, LOCAL_SERVER_URL, API_SERVER_URL } from '@/config'
+import {
+  isDev,
+  SECRET_API_KEY,
+  LOCAL_SERVER_URL,
+  API_SERVER_URL,
+} from '@/config'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
 
 // Используем заглушку, если переменная не установлена
-const PUBLIC_URL =
-  process.env.SERVER_PUBLIC_URL ||
-  process.env.BASE_WEBHOOK_URL
+const PUBLIC_URL = process.env.SERVER_PUBLIC_URL || process.env.BASE_WEBHOOK_URL
 
 export async function generateNeuroImage(
   prompt: string,
@@ -44,7 +47,9 @@ export async function generateNeuroImage(
     // Не обращаемся к внешнему API
 
     // Используем локальные AI сервисы для генерации
-    const { generateNeuroPhotoHybrid } = await import('./generateNeuroPhotoHybrid')
+    const { generateNeuroPhotoHybrid } = await import(
+      './generateNeuroPhotoHybrid'
+    )
 
     logger.info('Using local AI service for neuro image generation')
 

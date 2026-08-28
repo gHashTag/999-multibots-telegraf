@@ -40,7 +40,6 @@ describe('uploadTrainFluxModelScene - Supabase Storage Upload', () => {
     mockServiceClient = {
       storage: mockStorage,
     }
-
     ;(createClient as any).mockReturnValue(mockServiceClient)
 
     // Мокируем process.env
@@ -53,7 +52,8 @@ describe('uploadTrainFluxModelScene - Supabase Storage Upload', () => {
       const zipPath = '/tmp/test.zip'
       const zipBuffer = Buffer.from('test zip content')
       const zipFileName = `train/123/${Date.now()}_test.zip`
-      const publicUrl = 'https://test.supabase.co/storage/v1/object/public/images/train/123/test.zip'
+      const publicUrl =
+        'https://test.supabase.co/storage/v1/object/public/images/train/123/test.zip'
 
       // Мокируем fs.promises.readFile
       ;(fs.promises.readFile as any).mockResolvedValue(zipBuffer)
@@ -81,13 +81,15 @@ describe('uploadTrainFluxModelScene - Supabase Storage Upload', () => {
         throw new Error('Supabase credentials not configured')
       }
 
-      const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+      const serviceClient = createClient(
+        SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY
+      )
       const buffer = await fs.promises.readFile(zipPath)
       const fileName = `train/123/${Date.now()}_${path.basename(zipPath)}`
 
-      const { data: uploadData, error: uploadError } = await serviceClient.storage
-        .from('images')
-        .upload(fileName, buffer, {
+      const { data: uploadData, error: uploadError } =
+        await serviceClient.storage.from('images').upload(fileName, buffer, {
           contentType: 'application/zip',
           upsert: true,
         })
@@ -121,7 +123,9 @@ describe('uploadTrainFluxModelScene - Supabase Storage Upload', () => {
 
       if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
         await expect(
-          Promise.reject(new Error('Supabase credentials not configured in environment'))
+          Promise.reject(
+            new Error('Supabase credentials not configured in environment')
+          )
         ).rejects.toThrow('Supabase credentials not configured in environment')
       }
     })
@@ -145,11 +149,15 @@ describe('uploadTrainFluxModelScene - Supabase Storage Upload', () => {
       })
 
       const { createClient } = await import('@supabase/supabase-js')
-      const SUPABASE_URL = process.env.SUPABASE_URL || 'https://test.supabase.co'
+      const SUPABASE_URL =
+        process.env.SUPABASE_URL || 'https://test.supabase.co'
       const SUPABASE_SERVICE_ROLE_KEY =
         process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-key'
 
-      const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+      const serviceClient = createClient(
+        SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY
+      )
       const buffer = await fs.promises.readFile(zipPath)
       const fileName = `train/123/${Date.now()}_${path.basename(zipPath)}`
 
@@ -167,8 +175,12 @@ describe('uploadTrainFluxModelScene - Supabase Storage Upload', () => {
       // Проверяем, что ошибка правильно обрабатывается
       if (error) {
         await expect(
-          Promise.reject(new Error(`Failed to upload ZIP to Supabase: ${error.message}`))
-        ).rejects.toThrow('Failed to upload ZIP to Supabase: new row violates row-level security policy')
+          Promise.reject(
+            new Error(`Failed to upload ZIP to Supabase: ${error.message}`)
+          )
+        ).rejects.toThrow(
+          'Failed to upload ZIP to Supabase: new row violates row-level security policy'
+        )
       }
     })
 
@@ -177,9 +189,15 @@ describe('uploadTrainFluxModelScene - Supabase Storage Upload', () => {
       const SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
 
       const { createClient } = await import('@supabase/supabase-js')
-      const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+      const serviceClient = createClient(
+        SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY
+      )
 
-      expect(createClient).toHaveBeenCalledWith(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+      expect(createClient).toHaveBeenCalledWith(
+        SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY
+      )
       expect(serviceClient).toBeDefined()
       expect(serviceClient.storage).toBeDefined()
     })
@@ -197,11 +215,15 @@ describe('uploadTrainFluxModelScene - Supabase Storage Upload', () => {
       })
 
       const { createClient } = await import('@supabase/supabase-js')
-      const SUPABASE_URL = process.env.SUPABASE_URL || 'https://test.supabase.co'
+      const SUPABASE_URL =
+        process.env.SUPABASE_URL || 'https://test.supabase.co'
       const SUPABASE_SERVICE_ROLE_KEY =
         process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-key'
 
-      const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+      const serviceClient = createClient(
+        SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY
+      )
       const buffer = await fs.promises.readFile(zipPath)
       const fileName = `train/123/${Date.now()}_${path.basename(zipPath)}`
 
@@ -216,4 +238,3 @@ describe('uploadTrainFluxModelScene - Supabase Storage Upload', () => {
     })
   })
 })
-

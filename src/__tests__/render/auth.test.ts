@@ -22,8 +22,14 @@ function signInitData(
     .sort()
     .map(k => `${k}=${fields[k]}`)
     .join('\n')
-  const secret = crypto.createHmac('sha256', 'WebAppData').update(token).digest()
-  const hash = crypto.createHmac('sha256', secret).update(checkString).digest('hex')
+  const secret = crypto
+    .createHmac('sha256', 'WebAppData')
+    .update(token)
+    .digest()
+  const hash = crypto
+    .createHmac('sha256', secret)
+    .update(checkString)
+    .digest('hex')
   const p = new URLSearchParams(fields)
   p.set('hash', hash)
   return p.toString()
@@ -31,14 +37,12 @@ function signInitData(
 
 const nowSec = () => Math.floor(Date.now() / 1000)
 
-
 import {
   verifyTelegramInitData,
   isPublic,
 } from '../../../apps/vibee-editor/render/auth'
 
 describe('verifyTelegramInitData', () => {
-
   it('принимает подпись, сделанную настоящим токеном', async () => {
     const data = signInitData({
       auth_date: String(nowSec()),
@@ -49,7 +53,10 @@ describe('verifyTelegramInitData', () => {
   })
 
   it('отвергает подпись, сделанную ДРУГИМ токеном', async () => {
-    const data = signInitData({ auth_date: String(nowSec()), query_id: 'AAE' }, '999:WRONG')
+    const data = signInitData(
+      { auth_date: String(nowSec()), query_id: 'AAE' },
+      '999:WRONG'
+    )
     const r = verifyTelegramInitData(data)
     expect(r.ok).toBe(false)
     expect(r.reason).toContain('mismatch')
@@ -85,24 +92,40 @@ describe('verifyTelegramInitData', () => {
   })
 
   it('отвергает auth_date=0 — иначе он прошёл бы как «очень старый, но валидный»', async () => {
-    expect(verifyTelegramInitData(signInitData({ auth_date: '0' })).ok).toBe(false)
+    expect(verifyTelegramInitData(signInitData({ auth_date: '0' })).ok).toBe(
+      false
+    )
   })
 })
 
 describe('isPublic', () => {
   it('health и уже отрендеренные файлы открыты', async () => {
-    for (const url of ['/health', '/renders/abc.mp4', '/hls/x/index.m3u8', '/s3/assets/a.png']) {
+    for (const url of [
+      '/health',
+      '/renders/abc.mp4',
+      '/hls/x/index.m3u8',
+      '/s3/assets/a.png',
+    ]) {
       expect(isPublic({ url, method: 'GET' } as never), url).toBe(true)
     }
   })
 
   it('лента читается свободно, но публикация в неё — нет', async () => {
-    expect(isPublic({ url: '/api/feed?limit=10', method: 'GET' } as never)).toBe(true)
-    expect(isPublic({ url: '/api/feed/publish', method: 'POST' } as never)).toBe(false)
+    expect(
+      isPublic({ url: '/api/feed?limit=10', method: 'GET' } as never)
+    ).toBe(true)
+    expect(
+      isPublic({ url: '/api/feed/publish', method: 'POST' } as never)
+    ).toBe(false)
   })
 
   it('дорогие эндпоинты закрыты', async () => {
-    for (const url of ['/upload', '/render', '/transcribe', '/api/generate/video']) {
+    for (const url of [
+      '/upload',
+      '/render',
+      '/transcribe',
+      '/api/generate/video',
+    ]) {
       expect(isPublic({ url, method: 'POST' } as never), url).toBe(false)
     }
   })

@@ -89,18 +89,17 @@ async function runE2ETests() {
 
   await sendTelegramMessage(
     '🚀 <b>E2E Тестирование Inngest функций началось!</b>\n\n' +
-    '📊 Всего функций: 25\n' +
-    '⏱️ Начало: ' + new Date().toLocaleString('ru-RU')
+      '📊 Всего функций: 25\n' +
+      '⏱️ Начало: ' +
+      new Date().toLocaleString('ru-RU')
   )
 
   // 1. Test Simple Function
   testResults.push(
-    await testFunction(
-      'Test Simple Function',
-      'test-simple',
-      'test/simple',
-      { message: 'E2E Test', userId: TELEGRAM_ID }
-    )
+    await testFunction('Test Simple Function', 'test-simple', 'test/simple', {
+      message: 'E2E Test',
+      userId: TELEGRAM_ID,
+    })
   )
 
   // 2. Test Simple Message
@@ -248,16 +247,11 @@ async function runE2ETests() {
 
   // 13. Log Monitor
   testResults.push(
-    await testFunction(
-      'Log Monitor',
-      'log-monitor',
-      'monitoring/log-monitor',
-      {
-        logLevel: 'info',
-        message: 'E2E test log',
-        userId: TELEGRAM_ID,
-      }
-    )
+    await testFunction('Log Monitor', 'log-monitor', 'monitoring/log-monitor', {
+      logLevel: 'info',
+      message: 'E2E test log',
+      userId: TELEGRAM_ID,
+    })
   )
 
   // 14. Model Training V2 (skip - requires ZIP file)
@@ -331,15 +325,10 @@ async function runE2ETests() {
 
   // 20. Render Workflow
   testResults.push(
-    await testFunction(
-      'Render Workflow',
-      'render-workflow',
-      'render/start',
-      {
-        userId: TELEGRAM_ID,
-        template: 'default',
-      }
-    )
+    await testFunction('Render Workflow', 'render-workflow', 'render/start', {
+      userId: TELEGRAM_ID,
+      template: 'default',
+    })
   )
 
   // 21. Render Avatar Video
@@ -358,16 +347,11 @@ async function runE2ETests() {
 
   // 22. Render Riddle
   testResults.push(
-    await testFunction(
-      'Render Riddle',
-      'render-riddle',
-      'render/riddle',
-      {
-        userId: TELEGRAM_ID,
-        riddle: 'What has keys but no locks?',
-        answer: 'A keyboard',
-      }
-    )
+    await testFunction('Render Riddle', 'render-riddle', 'render/riddle', {
+      userId: TELEGRAM_ID,
+      riddle: 'What has keys but no locks?',
+      answer: 'A keyboard',
+    })
   )
 
   // 23. AI Reels Generation
@@ -406,9 +390,9 @@ async function runE2ETests() {
   })
 
   // Подсчет результатов
-  const successCount = testResults.filter((r) => r.status === 'success').length
-  const errorCount = testResults.filter((r) => r.status === 'error').length
-  const skippedCount = testResults.filter((r) => r.status === 'skipped').length
+  const successCount = testResults.filter(r => r.status === 'success').length
+  const errorCount = testResults.filter(r => r.status === 'error').length
+  const skippedCount = testResults.filter(r => r.status === 'skipped').length
   const totalDuration = testResults.reduce((sum, r) => sum + r.duration, 0)
 
   // Формирование отчета
@@ -422,7 +406,12 @@ async function runE2ETests() {
   report += '<b>Детальные результаты:</b>\n\n'
 
   testResults.forEach((result, index) => {
-    const emoji = result.status === 'success' ? '✅' : result.status === 'error' ? '❌' : '⏭️'
+    const emoji =
+      result.status === 'success'
+        ? '✅'
+        : result.status === 'error'
+          ? '❌'
+          : '⏭️'
     report += `${index + 1}. ${emoji} <code>${result.functionName}</code>\n`
     if (result.eventId) {
       report += `   ID: ${result.eventId}\n`
@@ -446,7 +435,7 @@ async function runE2ETests() {
 
   // Вывод детальной таблицы
   console.table(
-    testResults.map((r) => ({
+    testResults.map(r => ({
       Function: r.functionName,
       Status: r.status,
       EventID: r.eventId || r.error || 'N/A',
@@ -458,7 +447,7 @@ async function runE2ETests() {
 }
 
 // Запуск тестов
-runE2ETests().catch((error) => {
+runE2ETests().catch(error => {
   console.error('Fatal error during E2E testing:', error)
   process.exit(1)
 })

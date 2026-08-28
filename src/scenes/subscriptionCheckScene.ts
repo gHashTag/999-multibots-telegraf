@@ -15,11 +15,14 @@ const checkUserExists = async (ctx: MyContext) => {
   })
 
   if (!ctx.from?.id) {
-    logger.info('❌ [SubscriptionCheck] ID пользователя не найден в контексте', {
-      telegramId: 'unknown',
-      function: 'checkUserExists',
-      result: 'failed',
-    })
+    logger.info(
+      '❌ [SubscriptionCheck] ID пользователя не найден в контексте',
+      {
+        telegramId: 'unknown',
+        function: 'checkUserExists',
+        result: 'failed',
+      }
+    )
     return null
   }
 
@@ -62,12 +65,15 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
 
   // Проверка на админа (пропуск всех проверок)
   if (ADMIN_IDS_ARRAY.includes(ctx.from?.id ?? 0)) {
-    logger.info('[SubscriptionCheck] [Admin Bypass] Пользователь является администратором, пропуск проверок', {
-      telegramId,
-      function: 'subscriptionCheckStep',
-      isAdmin: true,
-      result: 'admin_bypass',
-    })
+    logger.info(
+      '[SubscriptionCheck] [Admin Bypass] Пользователь является администратором, пропуск проверок',
+      {
+        telegramId,
+        function: 'subscriptionCheckStep',
+        isAdmin: true,
+        result: 'admin_bypass',
+      }
+    )
     await ctx.scene.leave()
     const { showMainMenu } = await import('@/navigation')
     await showMainMenu(ctx)
@@ -77,12 +83,15 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
   // Проверка существования пользователя
   const user = await checkUserExists(ctx)
   if (!user) {
-    logger.info('➡️ [SubscriptionCheck] Перенаправление на сцену создания пользователя', {
-      telegramId,
-      function: 'subscriptionCheckStep',
-      result: 'redirect_to_create_user',
-      nextScene: ModeEnum.CreateUserScene,
-    })
+    logger.info(
+      '➡️ [SubscriptionCheck] Перенаправление на сцену создания пользователя',
+      {
+        telegramId,
+        function: 'subscriptionCheckStep',
+        result: 'redirect_to_create_user',
+        nextScene: ModeEnum.CreateUserScene,
+      }
+    )
     return ctx.scene.enter(ModeEnum.CreateUserScene)
   }
 
@@ -95,19 +104,25 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
     user.subscription === SubscriptionType.NEUROVIDEO ||
     user.subscription === SubscriptionType.STARS
   ) {
-    logger.info('⭐ [SubscriptionCheck] У пользователя есть платная подписка, доступ разрешен', {
-      telegramId,
-      function: 'subscriptionCheckStep',
-      userSubscription: user.subscription,
-      result: 'paid_subscription_active',
-    })
+    logger.info(
+      '⭐ [SubscriptionCheck] У пользователя есть платная подписка, доступ разрешен',
+      {
+        telegramId,
+        function: 'subscriptionCheckStep',
+        userSubscription: user.subscription,
+        result: 'paid_subscription_active',
+      }
+    )
   } else {
-    logger.info('❌ [SubscriptionCheck] У пользователя нет платной подписки, требуется оплата', {
-      telegramId,
-      function: 'subscriptionCheckStep',
-      userSubscription: user.subscription,
-      result: 'no_paid_subscription',
-    })
+    logger.info(
+      '❌ [SubscriptionCheck] У пользователя нет платной подписки, требуется оплата',
+      {
+        telegramId,
+        function: 'subscriptionCheckStep',
+        userSubscription: user.subscription,
+        result: 'no_paid_subscription',
+      }
+    )
 
     // Направляем в subscriptionScene для оформления подписки
     await ctx.scene.leave()
@@ -141,12 +156,15 @@ const subscriptionCheckStep = async (ctx: MyContext) => {
     }
   } else {
     // Если режим не является допустимым ModeEnum, обрабатываем как ошибку или возвращаемся в меню
-    logger.warn('🤔 Недопустимый или отсутствующий режим в сессии при проверке подписки', {
-      description:
-        'Invalid or missing mode in session during subscription check',
-      telegramId: ctx.from?.id?.toString(),
-      currentMode: currentMode,
-    })
+    logger.warn(
+      '🤔 Недопустимый или отсутствующий режим в сессии при проверке подписки',
+      {
+        description:
+          'Invalid or missing mode in session during subscription check',
+        telegramId: ctx.from?.id?.toString(),
+        currentMode: currentMode,
+      }
+    )
     return // Возврат в главное меню как безопасный вариант
   }
 }

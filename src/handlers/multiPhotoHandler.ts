@@ -33,7 +33,7 @@ class PhotoQueueManager {
       userId,
       queueSize: queue.length,
       mediaGroupId: photo.mediaGroupId,
-      timestamp: photo.timestamp
+      timestamp: photo.timestamp,
     })
 
     // Clear existing timer and set new one
@@ -41,9 +41,12 @@ class PhotoQueueManager {
       clearTimeout(this.timers.get(userId)!)
     }
 
-    this.timers.set(userId, setTimeout(() => {
-      this.processQueue(userId)
-    }, this.PROCESSING_DELAY))
+    this.timers.set(
+      userId,
+      setTimeout(() => {
+        this.processQueue(userId)
+      }, this.PROCESSING_DELAY)
+    )
   }
 
   private async processQueue(userId: string): Promise<void> {
@@ -52,7 +55,7 @@ class PhotoQueueManager {
 
     logger.info('🔄 Multi-photo: Processing queue', {
       userId,
-      queueSize: queue.length
+      queueSize: queue.length,
     })
 
     // Group photos by media_group_id
@@ -84,7 +87,7 @@ class PhotoQueueManager {
     if (singlePhotos.length > 0) {
       logger.info('📷 Multi-photo: Found single photos, processing normally', {
         userId,
-        singlePhotosCount: singlePhotos.length
+        singlePhotosCount: singlePhotos.length,
       })
     }
 
@@ -93,11 +96,14 @@ class PhotoQueueManager {
     this.timers.delete(userId)
   }
 
-  private async triggerMultiPhotoNeurophoto(userId: string, photos: PhotoQueueItem[]): Promise<void> {
+  private async triggerMultiPhotoNeurophoto(
+    userId: string,
+    photos: PhotoQueueItem[]
+  ): Promise<void> {
     logger.info('🎯 Multi-photo: Triggering multi-image neurophoto', {
       userId,
       photoCount: photos.length,
-      mediaGroupId: photos[0].mediaGroupId
+      mediaGroupId: photos[0].mediaGroupId,
     })
 
     // Emit event for multi-photo neurophoto
@@ -106,7 +112,7 @@ class PhotoQueueManager {
       type: 'multi_photo_neurophoto',
       userId,
       photos: photos.sort((a, b) => a.timestamp - b.timestamp), // Sort by timestamp
-      photoCount: photos.length
+      photoCount: photos.length,
     }
 
     // Store in global context for pickup by photo handler
@@ -139,14 +145,15 @@ export async function detectMultiPhotoUpload(ctx: MyContext): Promise<boolean> {
 
   try {
     const fileLink = await ctx.telegram.getFileLink(photo.file_id)
-    const mediaGroupId = 'media_group_id' in ctx.message ? ctx.message.media_group_id : undefined
+    const mediaGroupId =
+      'media_group_id' in ctx.message ? ctx.message.media_group_id : undefined
 
     const photoItem: PhotoQueueItem = {
       fileId: photo.file_id,
       fileUrl: fileLink.href,
       timestamp: Date.now(),
       mediaGroupId,
-      messageId: ctx.message.message_id
+      messageId: ctx.message.message_id,
     }
 
     // Add to queue for processing
@@ -160,14 +167,14 @@ export async function detectMultiPhotoUpload(ctx: MyContext): Promise<boolean> {
       fileId: photo.file_id,
       mediaGroupId,
       queueSize,
-      isMultiPhoto: !!mediaGroupId || queueSize > 1
+      isMultiPhoto: !!mediaGroupId || queueSize > 1,
     })
 
     return !!mediaGroupId || queueSize > 1
   } catch (error) {
     logger.error('❌ Multi-photo: Error processing photo', {
       userId,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     })
     return false
   }
@@ -176,7 +183,10 @@ export async function detectMultiPhotoUpload(ctx: MyContext): Promise<boolean> {
 /**
  * Handles multi-photo neurophoto generation
  */
-export async function handleMultiPhotoNeurophoto(ctx: MyContext, photos: PhotoQueueItem[]): Promise<void> {
+export async function handleMultiPhotoNeurophoto(
+  ctx: MyContext,
+  photos: PhotoQueueItem[]
+): Promise<void> {
   const userId = ctx.from?.id?.toString()
   if (!userId) return
 
@@ -186,7 +196,7 @@ export async function handleMultiPhotoNeurophoto(ctx: MyContext, photos: PhotoQu
   logger.info('🎨 Multi-photo: Starting multi-image neurophoto', {
     userId,
     photoCount,
-    photos: photos.map(p => ({ fileId: p.fileId, timestamp: p.timestamp }))
+    photos: photos.map(p => ({ fileId: p.fileId, timestamp: p.timestamp })),
   })
 
   try {
@@ -198,16 +208,20 @@ export async function handleMultiPhotoNeurophoto(ctx: MyContext, photos: PhotoQu
       {
         reply_markup: {
           inline_keyboard: [
-            [{
-              text: isRu ? '✅ Продолжить' : '✅ Continue',
-              callback_data: `multi_neurophoto_${userId}_${photoCount}`
-            }],
-            [{
-              text: isRu ? 'Отмена' : 'Cancel',
-              callback_data: 'multi_neurophoto_cancel'
-            }]
-          ]
-        }
+            [
+              {
+                text: isRu ? '✅ Продолжить' : '✅ Continue',
+                callback_data: `multi_neurophoto_${userId}_${photoCount}`,
+              },
+            ],
+            [
+              {
+                text: isRu ? 'Отмена' : 'Cancel',
+                callback_data: 'multi_neurophoto_cancel',
+              },
+            ],
+          ],
+        },
       }
     )
 
@@ -217,12 +231,11 @@ export async function handleMultiPhotoNeurophoto(ctx: MyContext, photos: PhotoQu
       ctx.session.multiPhotoCount = photoCount
       ctx.session.awaitingMultiPhotoConfirmation = true
     }
-
   } catch (error) {
     logger.error('❌ Multi-photo: Error handling multi-photo neurophoto', {
       userId,
       photoCount,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     })
 
     await ctx.reply(
@@ -240,13 +253,13 @@ export async function checkMultiPhotoEvents(ctx: MyContext): Promise<boolean> {
   const userId = ctx.from?.id?.toString()
   if (!userId) return false
 
-  const events = global.multiPhotoEvents as Map<string, any> || new Map()
+  const events = (global.multiPhotoEvents as Map<string, any>) || new Map()
   const event = events.get(userId)
 
   if (event && event.type === 'multi_photo_neurophoto') {
     logger.info('🎯 Multi-photo: Processing pending multi-photo event', {
       userId,
-      photoCount: event.photoCount
+      photoCount: event.photoCount,
     })
 
     events.delete(userId)

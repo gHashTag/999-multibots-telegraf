@@ -20,22 +20,28 @@ vi.mock('@/helpers', () => ({
 }))
 
 vi.mock('@/core/supabase', () => ({
-  getReferalsCountAndUserData: vi.fn(() => Promise.resolve({
-    level: 1,
-    referals_count: 0,
-    subscriptionType: null,
-  })),
-  getUserDetailsSubscription: vi.fn(() => Promise.resolve({
-    subscriptionType: null,
-  })),
+  getReferalsCountAndUserData: vi.fn(() =>
+    Promise.resolve({
+      level: 1,
+      referals_count: 0,
+      subscriptionType: null,
+    })
+  ),
+  getUserDetailsSubscription: vi.fn(() =>
+    Promise.resolve({
+      subscriptionType: null,
+    })
+  ),
 }))
 
 vi.mock('@/core', () => ({
-  getTranslation: vi.fn(() => Promise.resolve({
-    translation: '🏠 Главное меню\nВыберите нужный раздел 👇',
-    url: null,
-    buttons: [],
-  })),
+  getTranslation: vi.fn(() =>
+    Promise.resolve({
+      translation: '🏠 Главное меню\nВыберите нужный раздел 👇',
+      url: null,
+      buttons: [],
+    })
+  ),
 }))
 
 vi.mock('@/core/bot', () => ({
@@ -46,10 +52,7 @@ vi.mock('@/navigation', () => ({
   sendGenericErrorMessage: vi.fn(),
   createMainMenuKeyboard: vi.fn(() => ({
     reply_markup: {
-      keyboard: [
-        [{ text: '📸 НейроФото' }],
-        [{ text: '🏠 Главное меню' }],
-      ],
+      keyboard: [[{ text: '📸 НейроФото' }], [{ text: '🏠 Главное меню' }]],
       resize_keyboard: true,
     },
   })),
@@ -87,7 +90,12 @@ import { createMainMenuKeyboard, sendGenericErrorMessage } from '@/navigation'
 
 describe('menuScene (Main Menu)', () => {
   const mockContext = {
-    from: { id: 223757230, language_code: 'ru', username: 'testuser', first_name: 'Test' },
+    from: {
+      id: 223757230,
+      language_code: 'ru',
+      username: 'testuser',
+      first_name: 'Test',
+    },
     reply: vi.fn(),
     answerCbQuery: vi.fn(),
     scene: {
@@ -116,7 +124,6 @@ describe('menuScene (Main Menu)', () => {
     mockContext.scene.state = {}
     mockContext.session.mode = null
     mockContext.update = {}
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(isRussianWithUserChoice as Mock).mockResolvedValue(true)
     ;(getUserDetailsSubscription as Mock).mockResolvedValue({

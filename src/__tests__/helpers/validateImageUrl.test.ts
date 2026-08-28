@@ -20,7 +20,10 @@ vi.mock('@/utils/logger', () => ({
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
-import { validateImageUrl, ImageValidationResult } from '@/helpers/validateImageUrl'
+import {
+  validateImageUrl,
+  ImageValidationResult,
+} from '@/helpers/validateImageUrl'
 
 describe('validateImageUrl', () => {
   beforeEach(() => {
@@ -249,7 +252,9 @@ describe('validateImageUrl', () => {
       })
 
       // Invalid magic bytes (not an image)
-      const invalidBytes = new Uint8Array([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+      const invalidBytes = new Uint8Array([
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      ])
       mockFetch.mockResolvedValueOnce({
         ok: true,
         status: 206,
@@ -302,7 +307,9 @@ describe('validateImageUrl', () => {
       })
 
       // WebP magic bytes (RIFF....WEBP)
-      const webpBytes = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50])
+      const webpBytes = new Uint8Array([
+        0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
+      ])
       mockFetch.mockResolvedValueOnce({
         ok: true,
         status: 206,

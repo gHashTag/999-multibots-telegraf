@@ -9,11 +9,3 @@ import { createHandleModelTrainingCompletedFunction } from './existing/handleMod
 // Export the created function by calling the factory
 export const handleModelTrainingCompleted =
   createHandleModelTrainingCompletedFunction(inngest)
-
-
-
-
-
-
-
-

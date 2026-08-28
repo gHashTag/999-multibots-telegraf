@@ -136,23 +136,19 @@ export const morphImages = inngest.createFunction(
     }
 
     // Приводим тип morphing_type к правильному enum
-    const morphingTypeEnum =
-      morphing_type === 'seamless' ? 'seamless' : 'loop'
+    const morphingTypeEnum = morphing_type === 'seamless' ? 'seamless' : 'loop'
 
     // Определяем сколько пар нужно обработать
     const totalPairs =
       extractedImages.length -
       1 +
-      (morphingTypeEnum === 'loop' && extractedImages.length > 2
-        ? 1
-        : 0)
+      (morphingTypeEnum === 'loop' && extractedImages.length > 2 ? 1 : 0)
     logger.info('🧬 🎯 Начинаем пошаговую обработку морфинг пар:', {
       telegram_id,
       total_images: extractedImages.length,
       total_pairs: totalPairs,
       morphing_type: morphingTypeEnum,
-      includes_loop:
-        morphingTypeEnum === 'loop' && extractedImages.length > 2,
+      includes_loop: morphingTypeEnum === 'loop' && extractedImages.length > 2,
     })
 
     // ШАГ 4.1: 🚀 УНИВЕРСАЛЬНАЯ ОБРАБОТКА ВСЕХ ПАР (любое количество!)

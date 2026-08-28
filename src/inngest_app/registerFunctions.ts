@@ -20,8 +20,14 @@ import { generateScenarioClips } from './functions/content/generateScenarioClips
 // import { instagramReelsTest } from './functions/instagram/instagramScraper-v2-simple'
 
 // Monitoring Functions
-import { criticalErrorMonitor, healthCheck } from './functions/monitoring/criticalErrorMonitor'
-import { logMonitor, triggerLogMonitor } from './functions/monitoring/logMonitor'
+import {
+  criticalErrorMonitor,
+  healthCheck,
+} from './functions/monitoring/criticalErrorMonitor'
+import {
+  logMonitor,
+  triggerLogMonitor,
+} from './functions/monitoring/logMonitor'
 
 // Training Functions
 import { modelTrainingV2 } from './functions/training/modelTrainingV2'
@@ -105,7 +111,9 @@ const allFunctionsRaw = [
 
 export const allInngestFunctions = allFunctionsRaw.filter((f, index) => {
   if (!f) {
-    logger.warn(`⚠️ [INNGEST] Function at index ${index} is undefined - skipping`)
+    logger.warn(
+      `⚠️ [INNGEST] Function at index ${index} is undefined - skipping`
+    )
     return false
   }
   return true

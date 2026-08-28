@@ -20,12 +20,14 @@ export interface AvatarAnalysisResult {
  * Model: vikhyatk/moondream2
  * Cost: ~$0.0001 per image (very cheap)
  */
-export async function analyzeAvatar(imageUrl: string): Promise<AvatarAnalysisResult> {
+export async function analyzeAvatar(
+  imageUrl: string
+): Promise<AvatarAnalysisResult> {
   const defaultResult: AvatarAnalysisResult = {
     hasFace: false,
     gender: 'unknown',
     confidence: 0,
-    avatarUrl: imageUrl
+    avatarUrl: imageUrl,
   }
 
   if (!imageUrl) {
@@ -34,7 +36,9 @@ export async function analyzeAvatar(imageUrl: string): Promise<AvatarAnalysisRes
   }
 
   try {
-    logger.info('[AnalyzeAvatar] Starting analysis', { imageUrl: imageUrl.substring(0, 50) + '...' })
+    logger.info('[AnalyzeAvatar] Starting analysis', {
+      imageUrl: imageUrl.substring(0, 50) + '...',
+    })
 
     // Use Moondream2 - fast vision model for image analysis
     // Model: lucataco/moondream2 (updated from vikhyatk/moondream2)
@@ -44,8 +48,9 @@ export async function analyzeAvatar(imageUrl: string): Promise<AvatarAnalysisRes
       {
         input: {
           image: imageUrl,
-          prompt: 'Analyze this image. Answer these questions:\n1. Is there a human face clearly visible in this image? (yes/no)\n2. If yes, what is the apparent gender of the person? (male/female/unclear)\nAnswer in format: FACE:yes/no GENDER:male/female/unclear'
-        }
+          prompt:
+            'Analyze this image. Answer these questions:\n1. Is there a human face clearly visible in this image? (yes/no)\n2. If yes, what is the apparent gender of the person? (male/female/unclear)\nAnswer in format: FACE:yes/no GENDER:male/female/unclear',
+        },
       }
     )
 
@@ -55,20 +60,28 @@ export async function analyzeAvatar(imageUrl: string): Promise<AvatarAnalysisRes
     const response = String(output).toLowerCase()
 
     // Detect face presence
-    const hasFace = response.includes('face:yes') ||
-                   (response.includes('yes') && !response.includes('no face')) ||
-                   response.includes('human face') ||
-                   response.includes('person')
+    const hasFace =
+      response.includes('face:yes') ||
+      (response.includes('yes') && !response.includes('no face')) ||
+      response.includes('human face') ||
+      response.includes('person')
 
     // Detect gender
     let gender: 'male' | 'female' | 'unknown' = 'unknown'
     let confidence = 0
 
     if (hasFace) {
-      if (response.includes('gender:male') || response.includes('male') && !response.includes('female')) {
+      if (
+        response.includes('gender:male') ||
+        (response.includes('male') && !response.includes('female'))
+      ) {
         gender = 'male'
         confidence = 80
-      } else if (response.includes('gender:female') || response.includes('female') || response.includes('woman')) {
+      } else if (
+        response.includes('gender:female') ||
+        response.includes('female') ||
+        response.includes('woman')
+      ) {
         gender = 'female'
         confidence = 80
       } else if (response.includes('man') && !response.includes('woman')) {
@@ -85,21 +98,20 @@ export async function analyzeAvatar(imageUrl: string): Promise<AvatarAnalysisRes
       hasFace,
       gender,
       confidence,
-      avatarUrl: imageUrl
+      avatarUrl: imageUrl,
     }
 
     logger.info('[AnalyzeAvatar] Analysis complete', result)
     return result
-
   } catch (error) {
     logger.error('[AnalyzeAvatar] Analysis failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
-      imageUrl: imageUrl.substring(0, 50) + '...'
+      imageUrl: imageUrl.substring(0, 50) + '...',
     })
 
     return {
       ...defaultResult,
-      error: error instanceof Error ? error.message : 'Analysis failed'
+      error: error instanceof Error ? error.message : 'Analysis failed',
     }
   }
 }
@@ -115,14 +127,13 @@ export async function quickFaceCheck(imageUrl: string): Promise<boolean> {
       {
         input: {
           image: imageUrl,
-          prompt: 'Is there a human face in this image? Answer only yes or no.'
-        }
+          prompt: 'Is there a human face in this image? Answer only yes or no.',
+        },
       }
     )
 
     const response = String(output).toLowerCase()
     return response.includes('yes')
-
   } catch (error) {
     logger.error('[QuickFaceCheck] Failed', { error })
     return false

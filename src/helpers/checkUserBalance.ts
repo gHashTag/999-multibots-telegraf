@@ -7,7 +7,7 @@ import { logger } from '@/utils/logger'
 /**
  * Checks if the user has enough balance for the operation.
  * If not, sends an insufficient balance message.
- * 
+ *
  * @param ctx - Telegraf context
  * @param cost - Cost of the operation in stars
  * @returns true if balance is sufficient, false otherwise
@@ -24,13 +24,13 @@ export async function checkUserBalance(
 
   try {
     const currentBalance = await getUserBalance(telegramId)
-    
+
     if (currentBalance < cost) {
       const isRu = isRussianFromState(ctx)
       logger.info('[checkUserBalance] Insufficient funds', {
         telegramId,
         currentBalance,
-        cost
+        cost,
       })
       await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
       return false
@@ -43,8 +43,8 @@ export async function checkUserBalance(
     // but we should probably inform the user.
     const isRu = isRussianFromState(ctx)
     await ctx.reply(
-      isRu 
-        ? '❌ Ошибка при проверке баланса. Пожалуйста, попробуйте позже.' 
+      isRu
+        ? '❌ Ошибка при проверке баланса. Пожалуйста, попробуйте позже.'
         : '❌ Error checking balance. Please try again later.'
     )
     return false

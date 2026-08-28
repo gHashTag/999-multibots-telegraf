@@ -39,14 +39,16 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
     if (!ctx.session.modelName) {
       ctx.session.modelName = 'digital_avatar_model'
       ctx.session.triggerWord = ctx.session.modelName.toUpperCase()
-      console.log('[trainFluxModelWizard] Using default model name: digital_avatar_model')
+      console.log(
+        '[trainFluxModelWizard] Using default model name: digital_avatar_model'
+      )
     }
 
     console.log(`[trainFluxModelWizard] Model data initialized:`, {
       gender: ctx.session.gender,
       modelName: ctx.session.modelName,
       username: ctx.session.username,
-      targetUserId: ctx.session.targetUserId
+      targetUserId: ctx.session.targetUserId,
     })
 
     await ctx.reply(
@@ -112,9 +114,14 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
         const file = await ctx.telegram.getFile(photo.file_id)
 
         if (!file.file_path) {
-          console.error('[trainFluxModelWizard] File path not found for photo:', photo.file_id)
+          console.error(
+            '[trainFluxModelWizard] File path not found for photo:',
+            photo.file_id
+          )
           await ctx.reply(
-            isRu ? '❌ Ошибка получения файла. Попробуйте загрузить фото еще раз.' : '❌ Error getting file. Please try uploading the photo again.'
+            isRu
+              ? '❌ Ошибка получения файла. Попробуйте загрузить фото еще раз.'
+              : '❌ Error getting file. Please try uploading the photo again.'
           )
           return
         }
@@ -124,9 +131,14 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
         )
 
         if (!response.ok) {
-          console.error('[trainFluxModelWizard] Failed to download photo:', response.status)
+          console.error(
+            '[trainFluxModelWizard] Failed to download photo:',
+            response.status
+          )
           await ctx.reply(
-            isRu ? '❌ Ошибка загрузки фото. Попробуйте еще раз.' : '❌ Failed to download photo. Please try again.'
+            isRu
+              ? '❌ Ошибка загрузки фото. Попробуйте еще раз.'
+              : '❌ Failed to download photo. Please try again.'
           )
           return
         }

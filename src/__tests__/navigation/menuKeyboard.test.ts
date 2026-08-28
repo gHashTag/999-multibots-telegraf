@@ -17,7 +17,7 @@ import {
   showMainMenu,
   showCategoryMenu,
   navigateToMainMenu,
-  navigateToCategory
+  navigateToCategory,
 } from '@/navigation/helpers/menuKeyboard'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { CATEGORIES } from '@/navigation/config/categories.config'
@@ -28,19 +28,19 @@ vi.mock('@/utils/logger', () => ({
     info: vi.fn(),
     debug: vi.fn(),
     error: vi.fn(),
-    warn: vi.fn()
-  }
+    warn: vi.fn(),
+  },
 }))
 
 // Mock navigationLogger
 vi.mock('@/navigation/helpers/navigationLogger', () => ({
   logSceneEnter: vi.fn(),
-  logMainMenuReturn: vi.fn()
+  logMainMenuReturn: vi.fn(),
 }))
 
 // Mock centralizedLanguage
 vi.mock('@/helpers/centralizedLanguage', () => ({
-  isRussianFromState: vi.fn()
+  isRussianFromState: vi.fn(),
 }))
 
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -63,13 +63,13 @@ describe('menuKeyboard', () => {
       scene: {
         current: { id: 'testScene' },
         leave: mockSceneLeave,
-        enter: vi.fn().mockResolvedValue(undefined)
+        enter: vi.fn().mockResolvedValue(undefined),
       } as any,
       reply: mockReply,
       state: {
-        userLanguage: 'ru' as 'ru' | 'en'
+        userLanguage: 'ru' as 'ru' | 'en',
       } as any,
-      session: {} as any
+      session: {} as any,
     }
 
     // По умолчанию - русский язык
@@ -129,7 +129,10 @@ describe('menuKeyboard', () => {
     it('создаёт клавиатуру для существующей категории', () => {
       const categoryId = CATEGORIES[0].id
 
-      const keyboard = createCategoryKeyboard(mockContext as MyContext, categoryId)
+      const keyboard = createCategoryKeyboard(
+        mockContext as MyContext,
+        categoryId
+      )
 
       expect(keyboard).toBeDefined()
       expect(keyboard.reply_markup).toBeDefined()
@@ -137,7 +140,10 @@ describe('menuKeyboard', () => {
     })
 
     it('возвращает главное меню для несуществующей категории', () => {
-      const keyboard = createCategoryKeyboard(mockContext as MyContext, 'non-existent')
+      const keyboard = createCategoryKeyboard(
+        mockContext as MyContext,
+        'non-existent'
+      )
 
       expect(keyboard).toBeDefined()
       // Должна вернуться клавиатура главного меню (количество категорий)
@@ -148,7 +154,10 @@ describe('menuKeyboard', () => {
     it('группирует кнопки по 3 в ряд', () => {
       const categoryId = CATEGORIES[0].id
 
-      const keyboard = createCategoryKeyboard(mockContext as MyContext, categoryId)
+      const keyboard = createCategoryKeyboard(
+        mockContext as MyContext,
+        categoryId
+      )
       const rows = keyboard.reply_markup.keyboard
 
       // Каждый ряд (кроме последнего с кнопкой "Главное меню") должен иметь макс 3 кнопки
@@ -161,34 +170,51 @@ describe('menuKeyboard', () => {
       ;(isRussianFromState as Mock).mockReturnValue(true)
       const categoryId = CATEGORIES[0].id
 
-      const keyboard = createCategoryKeyboard(mockContext as MyContext, categoryId)
+      const keyboard = createCategoryKeyboard(
+        mockContext as MyContext,
+        categoryId
+      )
       const lastRow = keyboard.reply_markup.keyboard.at(-1)
 
       // Последний ряд должен содержать кнопку "Главное меню"
       expect(lastRow).toBeDefined()
       const buttonTexts = lastRow.map((btn: any) => btn.text || btn)
-      expect(buttonTexts.some((text: string) =>
-        text.includes('Главное меню') || text.includes('Main menu')
-      )).toBe(true)
+      expect(
+        buttonTexts.some(
+          (text: string) =>
+            text.includes('Главное меню') || text.includes('Main menu')
+        )
+      ).toBe(true)
     })
 
     it('не добавляет кнопку "Главное меню" при includeBack: false', () => {
       ;(isRussianFromState as Mock).mockReturnValue(true)
       const categoryId = CATEGORIES[0].id
 
-      const keyboardWithBack = createCategoryKeyboard(mockContext as MyContext, categoryId, { includeBack: true })
-      const keyboardWithoutBack = createCategoryKeyboard(mockContext as MyContext, categoryId, { includeBack: false })
+      const keyboardWithBack = createCategoryKeyboard(
+        mockContext as MyContext,
+        categoryId,
+        { includeBack: true }
+      )
+      const keyboardWithoutBack = createCategoryKeyboard(
+        mockContext as MyContext,
+        categoryId,
+        { includeBack: false }
+      )
 
       // Без кнопки "Назад" должно быть меньше строк или кнопок
-      expect(keyboardWithoutBack.reply_markup.keyboard.length).toBeLessThanOrEqual(
-        keyboardWithBack.reply_markup.keyboard.length
-      )
+      expect(
+        keyboardWithoutBack.reply_markup.keyboard.length
+      ).toBeLessThanOrEqual(keyboardWithBack.reply_markup.keyboard.length)
     })
 
     it('не показывает админские кнопки', () => {
       const categoryId = CATEGORIES[0].id
 
-      const keyboard = createCategoryKeyboard(mockContext as MyContext, categoryId)
+      const keyboard = createCategoryKeyboard(
+        mockContext as MyContext,
+        categoryId
+      )
       const allButtons = keyboard.reply_markup.keyboard.flat()
       const buttonTexts = allButtons.map((btn: any) => btn.text || btn)
 
@@ -205,7 +231,10 @@ describe('menuKeyboard', () => {
     it('имеет resize: true', () => {
       const categoryId = CATEGORIES[0].id
 
-      const keyboard = createCategoryKeyboard(mockContext as MyContext, categoryId)
+      const keyboard = createCategoryKeyboard(
+        mockContext as MyContext,
+        categoryId
+      )
 
       expect(keyboard.reply_markup.resize_keyboard).toBe(true)
     })
@@ -246,7 +275,7 @@ describe('menuKeyboard', () => {
       expect(mockReply).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          parse_mode: 'Markdown'
+          parse_mode: 'Markdown',
         })
       )
     })
@@ -268,7 +297,7 @@ describe('menuKeyboard', () => {
       expect(mockReply).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          reply_markup: expect.any(Object)
+          reply_markup: expect.any(Object),
         })
       )
     })
@@ -454,7 +483,10 @@ describe('menuKeyboard', () => {
       ;(isRussianFromState as Mock).mockReturnValue(true)
       const category = CATEGORIES[0]
 
-      const keyboard = createCategoryKeyboard(mockContext as MyContext, category.id)
+      const keyboard = createCategoryKeyboard(
+        mockContext as MyContext,
+        category.id
+      )
       const allButtonTexts = keyboard.reply_markup.keyboard
         .flat()
         .map((btn: any) => btn.text || btn)

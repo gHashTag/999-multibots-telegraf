@@ -1,6 +1,6 @@
 /**
  * 🎯 МОДУЛЬ НАВИГАЦИИ
- * 
+ *
  * Централизованное управление навигацией бота:
  * - Конфигурация кнопок и категорий
  * - Middleware для перехвата навигации
@@ -8,29 +8,29 @@
  * - Логирование и отладка навигации
  * - Защита от проблем в глубоких сценах
  * - Права доступа
- * 
+ *
  * @example
  * // Показать главное меню
  * import { showMainMenu, navigateToMainMenu } from '@/navigation'
  * await showMainMenu(ctx)
- * 
+ *
  * @example
  * // Использование матчера кнопок
  * import { buttonMatcher } from '@/navigation'
  * const result = buttonMatcher.match(text)
  * if (result?.button.id === 'mainMenu') { ... }
- * 
+ *
  * @example
  * // Безопасный переход между сценами
  * import { safeEnterScene, goBack } from '@/navigation'
  * await safeEnterScene(ctx, ModeEnum.NeuroPhoto, { mode: ModeEnum.NeuroPhoto })
  * await goBack(ctx)
- * 
+ *
  * @example
  * // Защита сцены от проблем с навигацией
  * import { addSceneGuard } from '@/navigation'
  * const protectedScene = addSceneGuard(myScene)
- * 
+ *
  * @example
  * // Проверка прав доступа
  * import { isAdmin, getParsingAccess } from '@/navigation'
@@ -49,7 +49,7 @@ export {
   getMainMenuText,
   getBackText,
   getCancelText,
-  getHelpText
+  getHelpText,
 } from './config/buttons.config'
 
 // ========================================
@@ -61,7 +61,7 @@ export * from './helpers/messages'
 export {
   getStepSelectionMenu,
   getStepSelectionMenuV2,
-  createGenerateImageKeyboard
+  createGenerateImageKeyboard,
 } from './helpers/messages'
 
 // ========================================
@@ -85,13 +85,13 @@ export * from './helpers/menuKeyboard'
 export { buttonMatcher } from './middleware/buttonMatcher'
 
 // Переходы между сценами
-export { 
-  safeEnterScene, 
-  goBack, 
+export {
+  safeEnterScene,
+  goBack,
   goToMainMenu,
   canGoBack,
   getPreviousScene,
-  clearNavigationHistory
+  clearNavigationHistory,
 } from './helpers/sceneTransition'
 
 // Защита сцен
@@ -101,7 +101,7 @@ export {
   handleNavigationButton,
   debugNavigation,
   isStuckNavigation,
-  forceNavigationReset
+  forceNavigationReset,
 } from './middleware/sceneGuard'
 
 // Логирование
@@ -118,7 +118,7 @@ export {
   logDeepScene,
   dumpNavigationState,
   createNavigationLoggingMiddleware,
-  NavigationLogLevel
+  NavigationLogLevel,
 } from './helpers/navigationLogger'
 
 // Меню и клавиатуры
@@ -128,7 +128,7 @@ export {
   createMainMenuKeyboard,
   createCategoryKeyboard,
   navigateToMainMenu,
-  navigateToCategory
+  navigateToCategory,
 } from './helpers/menuKeyboard'
 
 export { mainMenu } from './unified-navigation.config'
@@ -140,7 +140,7 @@ export {
   SUPER_ADMIN_ID,
   getParsingAccess,
   isAdmin,
-  isSuperAdmin
+  isSuperAdmin,
 } from './config/access.config'
 
 // ========================================
@@ -148,7 +148,9 @@ export {
 // ========================================
 
 // Регистрация команд и Stage
-console.log('🔴🔴🔴 DIAGNOSTIC: Loading registerCommands from /navigation/registerCommands.ts')
+console.log(
+  '🔴🔴🔴 DIAGNOSTIC: Loading registerCommands from /navigation/registerCommands.ts'
+)
 export { registerCommands, createStage } from './registerCommands'
 
 // Утилиты для работы с кнопками (замена levels[])
@@ -159,7 +161,7 @@ export {
   getCategoryButtonTexts,
   getAllButtonTexts,
   // ❌ getSpecialButtonTexts - УДАЛЕНО, используйте NAVIGATION_BUTTONS из buttons.config.ts
-  getCategoryItems
+  getCategoryItems,
 } from './buttonUtils'
 
 // Глобальная навигация (middleware)
@@ -172,7 +174,7 @@ export {
   CancelButtonService,
   createCancelButton,
   handleCancelButton,
-  cancelHelpArray
+  cancelHelpArray,
 } from './services/CancelButtonService'
 
 // ========================================
@@ -185,4 +187,8 @@ export { handleHelpCancel } from './handlers/handleHelpCancel'
 // ========================================
 
 // Core bot functions (needed in navigation)
-export { getBotNameByToken, getBotNameByUsername, getTokenByBotName } from '@/core/bot'
+export {
+  getBotNameByToken,
+  getBotNameByUsername,
+  getTokenByBotName,
+} from '@/core/bot'

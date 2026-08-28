@@ -15,7 +15,7 @@ describe('ContextUtils Tests', () => {
     it('should detect /start neurovideo command', () => {
       const ctx = createMockContext('/start neurovideo')
       const result = extractPromoFromContext(ctx)
-      
+
       expect(result).not.toBeNull()
       expect(result?.isPromo).toBe(true)
       expect(result?.parameter).toBe('neurovideo')
@@ -24,7 +24,7 @@ describe('ContextUtils Tests', () => {
     it('should detect /start neurophoto command', () => {
       const ctx = createMockContext('/start neurophoto')
       const result = extractPromoFromContext(ctx)
-      
+
       expect(result).not.toBeNull()
       expect(result?.isPromo).toBe(true)
       expect(result?.parameter).toBe('neurophoto')
@@ -33,7 +33,7 @@ describe('ContextUtils Tests', () => {
     it('should detect /start promo neurovideo command', () => {
       const ctx = createMockContext('/start promo neurovideo')
       const result = extractPromoFromContext(ctx)
-      
+
       expect(result).not.toBeNull()
       expect(result?.isPromo).toBe(true)
       expect(result?.parameter).toBe('neurovideo')
@@ -42,7 +42,7 @@ describe('ContextUtils Tests', () => {
     it('should detect /start promo without parameter', () => {
       const ctx = createMockContext('/start promo')
       const result = extractPromoFromContext(ctx)
-      
+
       expect(result).not.toBeNull()
       expect(result?.isPromo).toBe(true)
       expect(result?.parameter).toBe('')
@@ -51,21 +51,21 @@ describe('ContextUtils Tests', () => {
     it('should NOT detect regular /start command', () => {
       const ctx = createMockContext('/start')
       const result = extractPromoFromContext(ctx)
-      
+
       expect(result).toBeNull()
     })
 
     it('should NOT detect /start with numeric parameter (referral)', () => {
       const ctx = createMockContext('/start 123456789')
       const result = extractPromoFromContext(ctx)
-      
+
       expect(result).toBeNull()
     })
 
     it('should handle case insensitive matching', () => {
       const ctx = createMockContext('/start NEUROVIDEO')
       const result = extractPromoFromContext(ctx)
-      
+
       expect(result).not.toBeNull()
       expect(result?.isPromo).toBe(true)
       expect(result?.parameter).toBe('NEUROVIDEO')
@@ -74,17 +74,17 @@ describe('ContextUtils Tests', () => {
     it('should handle context without message', () => {
       const ctx = { from: { id: 123456789 } } as MyContext
       const result = extractPromoFromContext(ctx)
-      
+
       expect(result).toBeNull()
     })
 
     it('should handle context without text message', () => {
       const ctx = {
         from: { id: 123456789 },
-        message: { photo: [] }
+        message: { photo: [] },
       } as MyContext
       const result = extractPromoFromContext(ctx)
-      
+
       expect(result).toBeNull()
     })
   })

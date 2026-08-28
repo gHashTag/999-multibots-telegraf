@@ -21,11 +21,7 @@ export async function withErrorHandler<T>(
   operation: () => Promise<T>,
   options: ErrorHandlerOptions = {}
 ): Promise<T | null> {
-  const {
-    errorMessage,
-    fallbackToMenu = true,
-    logContext = {}
-  } = options
+  const { errorMessage, fallbackToMenu = true, logContext = {} } = options
 
   const telegramId = ctx.from?.id?.toString()
   const isRu = await isRussianFromState(ctx)
@@ -38,16 +34,18 @@ export async function withErrorHandler<T>(
       telegramId,
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
-      ...logContext
+      ...logContext,
     })
 
     // Send user-friendly error message
-    const userMessage = errorMessage || (isRu
-      ? '❌ Функция временно недоступна. Возвращаю в главное меню.'
-      : '❌ Feature temporarily unavailable. Returning to main menu.')
+    const userMessage =
+      errorMessage ||
+      (isRu
+        ? '❌ Функция временно недоступна. Возвращаю в главное меню.'
+        : '❌ Feature temporarily unavailable. Returning to main menu.')
 
     await ctx.reply(userMessage, {
-      reply_markup: { remove_keyboard: true }
+      reply_markup: { remove_keyboard: true },
     })
 
     // Fallback to main menu if requested
@@ -59,7 +57,10 @@ export async function withErrorHandler<T>(
       } catch (navigationError) {
         logger.error('[ErrorHandler] Menu navigation failed', {
           telegramId,
-          navigationError: navigationError instanceof Error ? navigationError.message : 'Unknown error'
+          navigationError:
+            navigationError instanceof Error
+              ? navigationError.message
+              : 'Unknown error',
         })
       }
     }
@@ -74,7 +75,10 @@ export async function withErrorHandler<T>(
 export async function handleHeroSelectionError(
   ctx: MyContext,
   receivedText: string,
-  errorType: 'invalid_selection' | 'missing_prompt' | 'validation_error' = 'invalid_selection'
+  errorType:
+    | 'invalid_selection'
+    | 'missing_prompt'
+    | 'validation_error' = 'invalid_selection'
 ): Promise<void> {
   const telegramId = ctx.from?.id?.toString()
   const isRu = await isRussianFromState(ctx)
@@ -86,8 +90,8 @@ export async function handleHeroSelectionError(
     errorType,
     sessionState: {
       selectedGender: ctx.session?.selectedGender,
-      currentStep: ctx.wizard?.cursor
-    }
+      currentStep: ctx.wizard?.cursor,
+    },
   })
 
   let userMessage: string
@@ -116,7 +120,7 @@ export async function handleHeroSelectionError(
 
   // Send error message and redirect to main menu
   await ctx.reply(userMessage, {
-    reply_markup: { remove_keyboard: true }
+    reply_markup: { remove_keyboard: true },
   })
 
   // Emergency navigation to main menu
@@ -124,9 +128,7 @@ export async function handleHeroSelectionError(
     await ctx.scene.leave()
 
     // Trigger main menu
-    const menuMessage = isRu
-      ? '🏠 Главное меню'
-      : '🏠 Main Menu'
+    const menuMessage = isRu ? '🏠 Главное меню' : '🏠 Main Menu'
 
     await ctx.reply(menuMessage)
 
@@ -137,42 +139,41 @@ export async function handleHeroSelectionError(
       } catch (e) {
         logger.error('[HeroSelection] Failed to trigger start command', {
           telegramId,
-          error: e instanceof Error ? e.message : 'Unknown error'
+          error: e instanceof Error ? e.message : 'Unknown error',
         })
       }
     }, 500)
-
   } catch (navigationError) {
     logger.error('[HeroSelection] Emergency navigation failed', {
       telegramId,
-      navigationError: navigationError instanceof Error ? navigationError.message : 'Unknown error'
+      navigationError:
+        navigationError instanceof Error
+          ? navigationError.message
+          : 'Unknown error',
     })
 
     // Last resort - just send a message asking user to restart
-    await ctx.reply(isRu
-      ? '🔄 Пожалуйста, нажмите /start для перезапуска бота'
-      : '🔄 Please press /start to restart the bot')
+    await ctx.reply(
+      isRu
+        ? '🔄 Пожалуйста, нажмите /start для перезапуска бота'
+        : '🔄 Please press /start to restart the bot'
+    )
   }
 }
 
 /**
  * Generic scene error wrapper - can be used for any scene
  */
-export function wrapSceneWithErrorHandler<T extends (...args: any[]) => Promise<any>>(
-  sceneFunction: T,
-  sceneName: string
-): T {
+export function wrapSceneWithErrorHandler<
+  T extends (...args: any[]) => Promise<any>,
+>(sceneFunction: T, sceneName: string): T {
   return (async (...args: any[]) => {
     const ctx = args[0] as MyContext
 
-    return withErrorHandler(
-      ctx,
-      () => sceneFunction(...args),
-      {
-        errorMessage: undefined, // Will use default
-        fallbackToMenu: true,
-        logContext: { sceneName, functionName: sceneFunction.name }
-      }
-    )
+    return withErrorHandler(ctx, () => sceneFunction(...args), {
+      errorMessage: undefined, // Will use default
+      fallbackToMenu: true,
+      logContext: { sceneName, functionName: sceneFunction.name },
+    })
   }) as T
 }

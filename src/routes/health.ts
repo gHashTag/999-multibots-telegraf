@@ -14,11 +14,11 @@ export const healthCheck = async (req: any, res: any) => {
       memory: {
         used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
         total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
-        unit: 'MB'
+        unit: 'MB',
       },
       bots: {
         active: true, // В будущем можно добавить проверку активных ботов
-      }
+      },
     }
 
     // Возвращаем статус 200 для Docker health check
@@ -28,7 +28,7 @@ export const healthCheck = async (req: any, res: any) => {
     res.status(503).json({
       status: 'unhealthy',
       error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     })
   }
 }

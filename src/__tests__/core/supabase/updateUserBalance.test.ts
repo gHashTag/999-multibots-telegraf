@@ -5,7 +5,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'
-import { PaymentType, PaymentStatus, Currency } from '@/interfaces/payments.interface'
+import {
+  PaymentType,
+  PaymentStatus,
+  Currency,
+} from '@/interfaces/payments.interface'
 
 // Mock dependencies BEFORE imports
 vi.mock('@/utils/logger', () => ({
@@ -50,13 +54,15 @@ import { logger } from '@/utils/logger'
 import { invalidateBalanceCache } from '@/core/supabase/getUserBalance'
 
 // Helper to setup supabase mocks
-const setupSupabaseMocks = (options: {
-  userExists?: boolean
-  balance?: number
-  insertError?: any
-  updateError?: any
-  rpcError?: any
-} = {}) => {
+const setupSupabaseMocks = (
+  options: {
+    userExists?: boolean
+    balance?: number
+    insertError?: any
+    updateError?: any
+    rpcError?: any
+  } = {}
+) => {
   const {
     userExists = true,
     balance = 100,
@@ -84,7 +90,6 @@ const setupSupabaseMocks = (options: {
     eq: mockEq,
     single: mockSingle,
   })
-
   ;(supabase.rpc as Mock).mockResolvedValue({
     data: rpcError ? null : balance,
     error: rpcError,
@@ -338,7 +343,8 @@ describe('updateUserBalance', () => {
       // Setup with RPC error
       const mockSelect = vi.fn().mockReturnThis()
       const mockEq = vi.fn().mockReturnThis()
-      const mockSingle = vi.fn()
+      const mockSingle = vi
+        .fn()
         .mockResolvedValueOnce({ data: { id: 1 }, error: null }) // First call for user check
         .mockResolvedValueOnce({ data: mockPaymentsData, error: null }) // Fallback payments query
       const mockInsert = vi.fn().mockResolvedValue({ data: null, error: null })
@@ -350,7 +356,6 @@ describe('updateUserBalance', () => {
         eq: mockEq,
         single: mockSingle,
       })
-
       ;(supabase.rpc as Mock).mockResolvedValue({
         data: null,
         error: { message: 'RPC function not found' },
@@ -359,7 +364,9 @@ describe('updateUserBalance', () => {
       // Mock the payments query separately
       mockSelect.mockImplementation(() => ({
         eq: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: mockPaymentsData, error: null }),
+          eq: vi
+            .fn()
+            .mockResolvedValue({ data: mockPaymentsData, error: null }),
         }),
       }))
 
@@ -420,11 +427,7 @@ describe('updateUserBalance', () => {
     it('should log final transaction amount', async () => {
       setupSupabaseMocks({ userExists: true })
 
-      await updateUserBalance(
-        '123456789',
-        50,
-        PaymentType.MONEY_INCOME
-      )
+      await updateUserBalance('123456789', 50, PaymentType.MONEY_INCOME)
 
       expect(logger.info).toHaveBeenCalledWith(
         expect.stringContaining('Финальная сумма'),
@@ -435,11 +438,7 @@ describe('updateUserBalance', () => {
     it('should invalidate cache after successful operation', async () => {
       setupSupabaseMocks({ userExists: true })
 
-      await updateUserBalance(
-        '123456789',
-        50,
-        PaymentType.MONEY_INCOME
-      )
+      await updateUserBalance('123456789', 50, PaymentType.MONEY_INCOME)
 
       expect(invalidateBalanceCache).toHaveBeenCalledWith('123456789')
     })

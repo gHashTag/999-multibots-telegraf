@@ -3,7 +3,7 @@ import { logger } from '@/utils/logger'
 
 export interface FaceSwapRequest {
   targetImageUrl: string // input_image - the person whose face will be replaced
-  swapImageUrl: string   // swap_image - the face to swap in
+  swapImageUrl: string // swap_image - the face to swap in
 }
 
 export interface FaceSwapResponse {
@@ -46,7 +46,8 @@ export async function generateFaceSwap(
     const processingTime = Date.now() - startTime
 
     // Output is a single URL string
-    const resultUrl = typeof output === 'string' ? output : (output as any)?.[0] || ''
+    const resultUrl =
+      typeof output === 'string' ? output : (output as any)?.[0] || ''
 
     if (!resultUrl) {
       throw new Error('No result URL returned from face-swap model')
@@ -85,7 +86,10 @@ export async function generateFaceSwap(
 
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred during face swap',
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Unknown error occurred during face swap',
       processingTime,
     }
   }

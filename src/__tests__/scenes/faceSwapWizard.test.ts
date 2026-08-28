@@ -19,15 +19,17 @@ vi.mock('@/core/supabase/updateUserBalance', () => ({
 }))
 
 vi.mock('@/services/generateFaceSwap', () => ({
-  generateFaceSwap: vi.fn(() => Promise.resolve({
-    success: true,
-    resultUrl: 'https://example.com/result.jpg',
-    processingTime: 15000,
-  })),
+  generateFaceSwap: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      resultUrl: 'https://example.com/result.jpg',
+      processingTime: 15000,
+    })
+  ),
 }))
 
 vi.mock('@/utils/cancelButton', () => ({
-  createCancelButton: vi.fn((isRu) => ({
+  createCancelButton: vi.fn(isRu => ({
     text: isRu ? '❌ Отмена' : '❌ Cancel',
   })),
   handleCancelButton: vi.fn(() => Promise.resolve(false)),
@@ -77,7 +79,9 @@ describe('faceSwapWizard (Face Swap Generation)', () => {
     },
     telegram: {
       token: 'test_token',
-      getFile: vi.fn(() => Promise.resolve({ file_path: 'photos/file_123.jpg' })),
+      getFile: vi.fn(() =>
+        Promise.resolve({ file_path: 'photos/file_123.jpg' })
+      ),
       deleteMessage: vi.fn(),
     },
     chat: { id: 123456 },
@@ -91,7 +95,6 @@ describe('faceSwapWizard (Face Swap Generation)', () => {
       targetFileId: null,
     }
     mockContext.update = { message: null as any }
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(getUserBalance as Mock).mockResolvedValue(100)
     ;(updateUserBalance as Mock).mockResolvedValue(true)
@@ -198,7 +201,8 @@ describe('faceSwapWizard (Face Swap Generation)', () => {
     })
 
     it('должен сохранять targetImageUrl в сессии', () => {
-      const targetImageUrl = 'https://api.telegram.org/file/bottest_token/photos/file_123.jpg'
+      const targetImageUrl =
+        'https://api.telegram.org/file/bottest_token/photos/file_123.jpg'
       mockContext.session.targetImageUrl = targetImageUrl
 
       expect(mockContext.session.targetImageUrl).toBe(targetImageUrl)
@@ -283,7 +287,8 @@ describe('faceSwapWizard (Face Swap Generation)', () => {
       ;(getUserBalance as Mock).mockResolvedValue(null)
 
       const balance = await getUserBalance('223757230')
-      const isInvalid = balance === null || balance === undefined || isNaN(balance)
+      const isInvalid =
+        balance === null || balance === undefined || isNaN(balance)
 
       expect(isInvalid).toBe(true)
     })
@@ -365,7 +370,13 @@ describe('faceSwapWizard (Face Swap Generation)', () => {
     it('должен обрабатывать ошибку списания', async () => {
       ;(updateUserBalance as Mock).mockResolvedValue(false)
 
-      const result = await updateUserBalance('223757230', -10, PaymentType.MONEY_OUTCOME, 'Test', {})
+      const result = await updateUserBalance(
+        '223757230',
+        -10,
+        PaymentType.MONEY_OUTCOME,
+        'Test',
+        {}
+      )
       expect(result).toBe(false)
     })
   })
@@ -375,7 +386,9 @@ describe('faceSwapWizard (Face Swap Generation)', () => {
       const resultUrl = 'https://example.com/result.jpg'
       await mockContext.replyWithPhoto(resultUrl, { caption: 'Test' })
 
-      expect(mockContext.replyWithPhoto).toHaveBeenCalledWith(resultUrl, { caption: 'Test' })
+      expect(mockContext.replyWithPhoto).toHaveBeenCalledWith(resultUrl, {
+        caption: 'Test',
+      })
     })
 
     it('должен показывать информацию о результате на русском', () => {
@@ -396,13 +409,21 @@ describe('faceSwapWizard (Face Swap Generation)', () => {
   describe('8. Удаление processing сообщения', () => {
     it('должен удалять сообщение о процессе', async () => {
       const processingMsgId = 12345
-      await mockContext.telegram.deleteMessage(mockContext.chat.id, processingMsgId)
+      await mockContext.telegram.deleteMessage(
+        mockContext.chat.id,
+        processingMsgId
+      )
 
-      expect(mockContext.telegram.deleteMessage).toHaveBeenCalledWith(123456, 12345)
+      expect(mockContext.telegram.deleteMessage).toHaveBeenCalledWith(
+        123456,
+        12345
+      )
     })
 
     it('должен игнорировать ошибку удаления', async () => {
-      mockContext.telegram.deleteMessage = vi.fn().mockRejectedValue(new Error('Message not found'))
+      mockContext.telegram.deleteMessage = vi
+        .fn()
+        .mockRejectedValue(new Error('Message not found'))
 
       try {
         await mockContext.telegram.deleteMessage(mockContext.chat.id, 12345)

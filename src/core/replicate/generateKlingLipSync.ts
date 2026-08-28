@@ -8,7 +8,9 @@ let _replicate: any = null
 function getReplicate() {
   if (!_replicate) {
     if (!process.env.REPLICATE_API_TOKEN) {
-      throw new Error('REPLICATE_API_TOKEN is not set. Ensure Infisical loaded secrets.')
+      throw new Error(
+        'REPLICATE_API_TOKEN is not set. Ensure Infisical loaded secrets.'
+      )
     }
     _replicate = new Replicate({
       auth: process.env.REPLICATE_API_TOKEN,
@@ -17,11 +19,14 @@ function getReplicate() {
   return _replicate
 }
 
-const replicate = new Proxy({}, {
-  get(target, prop) {
-    return (getReplicate() as any)[prop]
+const replicate = new Proxy(
+  {},
+  {
+    get(target, prop) {
+      return (getReplicate() as any)[prop]
+    },
   }
-}) as any
+) as any
 
 export interface KlingLipSyncResponse {
   id: string

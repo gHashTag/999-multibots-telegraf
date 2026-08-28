@@ -107,11 +107,14 @@ export async function getTranslation({
   } catch (error) {
     // Fallback to Telegram language if state fails
     userLanguage = ctx.from?.language_code?.startsWith('ru') ? 'ru' : 'en'
-    logger.warn('[getTranslation] State language failed, using Telegram fallback', {
-      telegramId: ctx.from?.id,
-      fallbackLanguage: userLanguage,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
+    logger.warn(
+      '[getTranslation] State language failed, using Telegram fallback',
+      {
+        telegramId: ctx.from?.id,
+        fallbackLanguage: userLanguage,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    )
   }
   const language_code = userLanguage // 'ru' | 'en'
 
@@ -144,7 +147,8 @@ export async function getTranslation({
 
     return {
       data: singleData,
-      error: !singleData && !error ? { message: 'No translation found' } : error
+      error:
+        !singleData && !error ? { message: 'No translation found' } : error,
     }
   }
   try {
@@ -156,7 +160,7 @@ export async function getTranslation({
         language_code,
         key,
         error: error.message,
-        telegram_id: telegramId
+        telegram_id: telegramId,
       })
 
       // Try with DEFAULT_BOT_NAME fallback
@@ -165,13 +169,16 @@ export async function getTranslation({
 
       // If still not found, try common translations
       if (error) {
-        logger.warn(`Translation not found with DEFAULT_BOT_NAME for key "${key}"`, {
-          bot_name: defaultBot,
-          language_code,
-          key,
-          error: error.message,
-          telegram_id: telegramId
-        })
+        logger.warn(
+          `Translation not found with DEFAULT_BOT_NAME for key "${key}"`,
+          {
+            bot_name: defaultBot,
+            language_code,
+            key,
+            error: error.message,
+            telegram_id: telegramId,
+          }
+        )
 
         // Try common bot translations
         ;({ data, error } = await fetchTranslation(COMMON_BOT_NAME))
@@ -181,7 +188,7 @@ export async function getTranslation({
             bot_name: COMMON_BOT_NAME,
             language_code,
             key,
-            telegram_id: telegramId
+            telegram_id: telegramId,
           })
         } else {
           // Ultimate fallback - try opposite language
@@ -197,12 +204,15 @@ export async function getTranslation({
           if (fallbackResult.data && fallbackResult.data.length > 0) {
             data = fallbackResult.data[0]
             error = null
-            logger.info(`Using fallback language translation for key "${key}"`, {
-              original_language: language_code,
-              fallback_language: fallbackLanguage,
-              key,
-              telegram_id: telegramId
-            })
+            logger.info(
+              `Using fallback language translation for key "${key}"`,
+              {
+                original_language: language_code,
+                fallback_language: fallbackLanguage,
+                key,
+                telegram_id: telegramId,
+              }
+            )
           }
         }
       }
@@ -252,16 +262,13 @@ export async function getTranslation({
 
     if (keysNeedingDefaultButtons.includes(key) && buttons.length === 0) {
       buttons = language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN
-      logger.info(
-        `[getTranslation] Applied default buttons for key "${key}"`,
-        {
-          telegramId,
-          key,
-          language_code,
-          buttonsCount: buttons.length,
-          buttonsApplied: 'DEFAULT_FALLBACK'
-        }
-      )
+      logger.info(`[getTranslation] Applied default buttons for key "${key}"`, {
+        telegramId,
+        key,
+        language_code,
+        buttonsCount: buttons.length,
+        buttonsApplied: 'DEFAULT_FALLBACK',
+      })
     }
 
     // ✅ MENU: Generate all menu buttons from levels if buttons are missing
@@ -269,13 +276,18 @@ export async function getTranslation({
       try {
         // Dynamically import to avoid circular dependency
         const { getAllButtonTexts } = await import('@/navigation')
-        const { SubscriptionType } = await import('@/interfaces/subscription.interface')
+        const { SubscriptionType } = await import(
+          '@/interfaces/subscription.interface'
+        )
 
-        logger.info(`[getTranslation] Generating menu buttons from levels for "${key}"`, {
-          telegramId,
-          language_code,
-          totalLevels: getAllButtonTexts().length
-        })
+        logger.info(
+          `[getTranslation] Generating menu buttons from levels for "${key}"`,
+          {
+            telegramId,
+            language_code,
+            totalLevels: getAllButtonTexts().length,
+          }
+        )
 
         buttons = getAllButtonTexts()
           .map((item, index) => {
@@ -289,27 +301,36 @@ export async function getTranslation({
 
             // 🐛 DEBUG: Log first 3 buttons to see what's happening
             if (index < 3) {
-              logger.info(`[getTranslation DEBUG] Button ${index} BEFORE selection:`, {
-                language_code,
-                language_code_type: typeof language_code,
-                language_code_length: language_code?.length,
-                language_code_charCodes: language_code?.split('').map((c: string) => c.charCodeAt(0)),
-                title_ru: item.ru,
-                title_en: item.en,
-                comparison_result: language_code === 'ru',
-                strict_equals_ru: language_code === 'ru',
-                loose_equals_ru: language_code == 'ru',
-              })
+              logger.info(
+                `[getTranslation DEBUG] Button ${index} BEFORE selection:`,
+                {
+                  language_code,
+                  language_code_type: typeof language_code,
+                  language_code_length: language_code?.length,
+                  language_code_charCodes: language_code
+                    ?.split('')
+                    .map((c: string) => c.charCodeAt(0)),
+                  title_ru: item.ru,
+                  title_en: item.en,
+                  comparison_result: language_code === 'ru',
+                  strict_equals_ru: language_code === 'ru',
+                  loose_equals_ru: language_code == 'ru',
+                }
+              )
             }
 
             const textValue = language_code === 'ru' ? item.ru : item.en
 
             // 🐛 DEBUG: Log selected value
             if (index < 3) {
-              logger.info(`[getTranslation DEBUG] Button ${index} AFTER selection:`, {
-                selected_text: textValue,
-                selected_from: language_code === 'ru' ? 'title_ru' : 'title_en'
-              })
+              logger.info(
+                `[getTranslation DEBUG] Button ${index} AFTER selection:`,
+                {
+                  selected_text: textValue,
+                  selected_from:
+                    language_code === 'ru' ? 'title_ru' : 'title_en',
+                }
+              )
             }
 
             return {
@@ -332,35 +353,39 @@ export async function getTranslation({
             key,
             language_code,
             buttonsCount: buttons.length,
-            buttonsApplied: 'GENERATED_FROM_LEVELS'
+            buttonsApplied: 'GENERATED_FROM_LEVELS',
           }
         )
       } catch (error) {
-        logger.error(`[getTranslation] Failed to generate menu buttons from levels`, {
-          telegramId,
-          key,
-          error: error instanceof Error ? error.message : String(error)
-        })
+        logger.error(
+          `[getTranslation] Failed to generate menu buttons from levels`,
+          {
+            telegramId,
+            key,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        )
         // Fallback to minimal default
-        buttons = language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN
+        buttons =
+          language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN
       }
     }
 
     // ✅ FINAL FALLBACK: If still no translation, provide minimal default
     if (!data?.translation && !error) {
       const defaultTranslations: Record<string, Record<string, string>> = {
-        'digitalAvatar': {
-          'ru': '📸 НейроФото - создание уникальных аватаров',
-          'en': '📸 NeuroPhoto - create unique avatars'
+        digitalAvatar: {
+          ru: '📸 НейроФото - создание уникальных аватаров',
+          en: '📸 NeuroPhoto - create unique avatars',
         },
-        'menu': {
-          'ru': '🏠 Главное меню',
-          'en': '🏠 Main menu'
+        menu: {
+          ru: '🏠 Главное меню',
+          en: '🏠 Main menu',
         },
-        'subscriptionScene': {
-          'ru': '💳 Подписки и тарифы',
-          'en': '💳 Subscriptions and plans'
-        }
+        subscriptionScene: {
+          ru: '💳 Подписки и тарифы',
+          en: '💳 Subscriptions and plans',
+        },
       }
 
       const defaultTranslation = defaultTranslations[key]?.[language_code]
@@ -368,13 +393,13 @@ export async function getTranslation({
         data = {
           translation: defaultTranslation,
           url: '',
-          buttons: null
+          buttons: null,
         }
         logger.info('[getTranslation] Applied emergency default translation', {
           telegramId,
           key,
           language_code,
-          source: 'EMERGENCY_DEFAULT'
+          source: 'EMERGENCY_DEFAULT',
         })
       }
     }
@@ -405,32 +430,36 @@ export async function getTranslation({
       language_code,
       key,
       telegramId,
-      stack: e instanceof Error ? e.stack : undefined
+      stack: e instanceof Error ? e.stack : undefined,
     })
 
     // ✅ EMERGENCY FALLBACK with basic translations
     const emergencyTranslations: Record<string, Record<string, string>> = {
-      'digitalAvatar': {
-        'ru': '📸 НейроФото',
-        'en': '📸 NeuroPhoto'
+      digitalAvatar: {
+        ru: '📸 НейроФото',
+        en: '📸 NeuroPhoto',
       },
-      'menu': {
-        'ru': '🏠 Меню',
-        'en': '🏠 Menu'
+      menu: {
+        ru: '🏠 Меню',
+        en: '🏠 Menu',
       },
-      'start': {
-        'ru': '🚀 Добро пожаловать!',
-        'en': '🚀 Welcome!'
-      }
+      start: {
+        ru: '🚀 Добро пожаловать!',
+        en: '🚀 Welcome!',
+      },
     }
 
-    const emergencyTranslation = emergencyTranslations[key]?.[language_code] ||
-                                emergencyTranslations[key]?.['en'] ||
-                                `⚠️ Translation unavailable (${key})`
+    const emergencyTranslation =
+      emergencyTranslations[key]?.[language_code] ||
+      emergencyTranslations[key]?.['en'] ||
+      `⚠️ Translation unavailable (${key})`
 
-    const emergencyButtons = (key === 'digitalAvatar' || key === 'subscriptionScene' || key === 'menu')
-      ? (language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN)
-      : []
+    const emergencyButtons =
+      key === 'digitalAvatar' || key === 'subscriptionScene' || key === 'menu'
+        ? language_code === 'ru'
+          ? DEFAULT_BUTTONS_RU
+          : DEFAULT_BUTTONS_EN
+        : []
 
     logger.info(`[getTranslation] 🆘 EMERGENCY FALLBACK APPLIED:`, {
       telegramId,
@@ -439,7 +468,7 @@ export async function getTranslation({
       translation: emergencyTranslation,
       buttonsCount: emergencyButtons.length,
       error: errorMessage,
-      source: 'EMERGENCY_HARDCODED'
+      source: 'EMERGENCY_HARDCODED',
     })
 
     return {

@@ -22,7 +22,10 @@ import {
   sendRenderAvatarVideoEvent,
   createRenderAvatarPayload,
 } from '@/inngest_app/render-server-client'
-import { HEYGEN_AVATAR_SETS, getVoiceIdForAvatar } from './heygen-avatars-config'
+import {
+  HEYGEN_AVATAR_SETS,
+  getVoiceIdForAvatar,
+} from './heygen-avatars-config'
 import { videoTaskStore } from '@/services/video-task-store'
 import { refundAndTell } from '@/price/helpers/refundAndTell'
 
@@ -332,10 +335,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
       // Добавляем кнопку отмены
       avatarButtons.push([
-        Markup.button.callback(
-          isRu ? 'Отмена' : 'Cancel',
-          'ai_reels_cancel'
-        ),
+        Markup.button.callback(isRu ? 'Отмена' : 'Cancel', 'ai_reels_cancel'),
       ])
 
       await ctx.editMessageText(
@@ -1062,11 +1062,14 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         const service = ctx.session.aiReelsRender.avatarService
         const serviceName = service === 'hedra' ? '🎭 Hedra' : '🎬 HeyGen'
 
-        logger.info('🎬 [AI REELS RENDER] Service already selected, skipping duplicate choice', {
-          telegramId,
-          avatarService: service,
-          heygenAvatarId: ctx.session.aiReelsRender.heygenAvatarId,
-        })
+        logger.info(
+          '🎬 [AI REELS RENDER] Service already selected, skipping duplicate choice',
+          {
+            telegramId,
+            avatarService: service,
+            heygenAvatarId: ctx.session.aiReelsRender.heygenAvatarId,
+          }
+        )
 
         await ctx.reply(
           isRu
@@ -1090,10 +1093,13 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         )
 
         // ✅ ИСПРАВЛЕНИЕ: Переходим к Step 6
-        logger.info('🎬 [AI REELS RENDER] Service already selected, proceeding to Step 6', {
-          telegramId,
-          avatarService: service,
-        })
+        logger.info(
+          '🎬 [AI REELS RENDER] Service already selected, proceeding to Step 6',
+          {
+            telegramId,
+            avatarService: service,
+          }
+        )
 
         // Переключаем на Step 6 (индекс 9, после добавления cover шага)
         ctx.wizard.selectStep(9)
@@ -1228,7 +1234,10 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         const heygenVoiceId = getVoiceIdForAvatar(heygenAvatarId)
 
         if (!heygenVoiceId) {
-          console.log('🔴 [STEP 6] ERROR: Could not find voice_id for avatar:', heygenAvatarId)
+          console.log(
+            '🔴 [STEP 6] ERROR: Could not find voice_id for avatar:',
+            heygenAvatarId
+          )
           await ctx.reply(
             isRu
               ? '❌ Ошибка: не найден voice_id для выбранного аватара'
@@ -1275,7 +1284,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           // Используем дефолтный аватар Cocoage как fallback
           const defaultAvatar = HEYGEN_AVATAR_SETS.cocoage.avatars[0]
           ctx.session.aiReelsRender.heygenAvatarId = defaultAvatar.id
-          ctx.session.aiReelsRender.heygenApiKey = HEYGEN_AVATAR_SETS.cocoage.apiKey
+          ctx.session.aiReelsRender.heygenApiKey =
+            HEYGEN_AVATAR_SETS.cocoage.apiKey
 
           // ✅ Перечитываем значения после fallback
           heygenAvatarId = ctx.session.aiReelsRender.heygenAvatarId
@@ -1304,11 +1314,21 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           // ✅ NEW API: avatarService, heygenApiKey, heygenAvatarId, falApiKey, falResolution - используем из сессии!
           avatarService,
           heygenApiKey: avatarService === 'heygen' ? heygenApiKey : undefined,
-          heygenAvatarId: avatarService === 'heygen' ? heygenAvatarId : undefined,
-          heygenAvatarSet: avatarService === 'heygen' ? ctx.session.aiReelsRender.heygenAvatarSet : undefined,
+          heygenAvatarId:
+            avatarService === 'heygen' ? heygenAvatarId : undefined,
+          heygenAvatarSet:
+            avatarService === 'heygen'
+              ? ctx.session.aiReelsRender.heygenAvatarSet
+              : undefined,
           // ✅ FAL support
-          falApiKey: avatarService === 'fal' ? ctx.session.aiReelsRender.falApiKey : undefined,
-          falResolution: avatarService === 'fal' ? ctx.session.aiReelsRender.falResolution : undefined,
+          falApiKey:
+            avatarService === 'fal'
+              ? ctx.session.aiReelsRender.falApiKey
+              : undefined,
+          falResolution:
+            avatarService === 'fal'
+              ? ctx.session.aiReelsRender.falResolution
+              : undefined,
           // ✅ Передаем имя бота для правильной отправки видео через callback
           botName: ctx.botInfo?.username || 'MetaMuse_Manifest_bot',
         }
@@ -1328,10 +1348,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      console.log(
-        '🔴 [STEP 6] Payload created with voice ID:',
-        voiceIdToUse
-      )
+      console.log('🔴 [STEP 6] Payload created with voice ID:', voiceIdToUse)
       console.log(
         '🔴 [STEP 6] ElevenLabs token (masked):',
         elevenLabsToken.substring(0, 10) + '...'
@@ -1343,7 +1360,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         hasElevenLabsToken: !!payload.eleven_labs_api_key,
         elevenLabsTokenPrefix: payload.eleven_labs_api_key.substring(0, 10),
         voiceId: voiceIdToUse,
-        voiceIdType: avatarService === 'heygen' ? 'heygen_default' : 'user_voice',
+        voiceIdType:
+          avatarService === 'heygen' ? 'heygen_default' : 'user_voice',
         avatarService,
         avatarPhotoUrl: ctx.session.aiReelsRender.imageUrl?.substring(0, 50),
         textLength: ctx.session.aiReelsRender.text?.length,
@@ -1436,7 +1454,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
             avatar_id: payload.avatar_settings.avatar_id,
             voice_id: payload.avatar_settings.voice_id,
             avatar_speech_length: payload.avatar_settings.avatar_speech.length,
-            avatar_photo_url_present: !!payload.avatar_settings.avatar_photo_url,
+            avatar_photo_url_present:
+              !!payload.avatar_settings.avatar_photo_url,
             api_key_present: !!payload.avatar_settings.api_key,
           },
           intro_text_1: payload.intro_text_1.text,
@@ -1481,9 +1500,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           messageId: statusMessage.message_id,
         })
 
-        console.log(
-          '🔴 [STEP 6] About to call sendRenderAvatarVideoEvent()...'
-        )
+        console.log('🔴 [STEP 6] About to call sendRenderAvatarVideoEvent()...')
         const { eventId } = await sendRenderAvatarVideoEvent(payload)
         console.log('🔴 [STEP 6] Event sent! Event ID:', eventId)
 

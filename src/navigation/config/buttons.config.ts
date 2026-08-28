@@ -1,6 +1,6 @@
 /**
  * 🎯 ЕДИНАЯ КОНФИГУРАЦИЯ КНОПОК НАВИГАЦИИ
- * 
+ *
  * Все тексты кнопок определены в одном месте.
  * Это позволяет:
  * 1. Легко менять текст кнопки везде сразу
@@ -223,7 +223,10 @@ export const ALL_BUTTONS: Record<string, ButtonConfig> = {
 /**
  * Получить текст кнопки по языку
  */
-export function getButtonText(button: ButtonConfig, isRussian: boolean): string {
+export function getButtonText(
+  button: ButtonConfig,
+  isRussian: boolean
+): string {
   return isRussian ? button.ru : button.en
 }
 

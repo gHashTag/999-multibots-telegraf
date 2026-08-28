@@ -22,10 +22,12 @@ export async function transcribeAudioFile(
   try {
     // Check if file exists
     if (!fs.existsSync(audioFilePath)) {
-      logger.error('[AudioTranscription] Audio file not found', { audioFilePath })
+      logger.error('[AudioTranscription] Audio file not found', {
+        audioFilePath,
+      })
       return {
         success: false,
-        error: 'Audio file not found'
+        error: 'Audio file not found',
       }
     }
 
@@ -40,65 +42,65 @@ export async function transcribeAudioFile(
 
     logger.info('[AudioTranscription] Sending audio to OpenAI Whisper', {
       filePath: audioFilePath,
-      fileSize: fs.statSync(audioFilePath).size
+      fileSize: fs.statSync(audioFilePath).size,
     })
 
     // Use OpenAI client for transcription
-    const response = await openai.audio.transcriptions.create({
+    const response = (await openai.audio.transcriptions.create({
       file: fs.createReadStream(audioFilePath) as any,
       model: 'whisper-1',
       language: 'ru',
-      response_format: 'json'
-    }) as any
+      response_format: 'json',
+    })) as any
 
     if (response.data && response.data.text) {
       logger.info('[AudioTranscription] Transcription successful', {
         textLength: response.data.text.length,
-        language: response.data.language
+        language: response.data.language,
       })
 
       return {
         success: true,
         text: response.data.text,
         language: response.data.language,
-        duration: response.data.duration
+        duration: response.data.duration,
       }
     } else {
       logger.error('[AudioTranscription] Unexpected response format', {
-        response: response.data
+        response: response.data,
       })
       return {
         success: false,
-        error: 'Unexpected response format from transcription service'
+        error: 'Unexpected response format from transcription service',
       }
     }
   } catch (error: any) {
     logger.error('[AudioTranscription] Error transcribing audio', {
       error: error.message,
-      response: error.response?.data
+      response: error.response?.data,
     })
 
     // Handle specific error cases
     if (error.response?.status === 401) {
       return {
         success: false,
-        error: 'Invalid API credentials'
+        error: 'Invalid API credentials',
       }
     } else if (error.response?.status === 413) {
       return {
         success: false,
-        error: 'Audio file too large (max 25MB)'
+        error: 'Audio file too large (max 25MB)',
       }
     } else if (error.response?.status === 429) {
       return {
         success: false,
-        error: 'Too many requests, please try again later'
+        error: 'Too many requests, please try again later',
       }
     }
 
     return {
       success: false,
-      error: error.message || 'Failed to transcribe audio'
+      error: error.message || 'Failed to transcribe audio',
     }
   }
 }
@@ -109,7 +111,11 @@ export async function transcribeAudioFile(
 export async function transcribeAudioFromUrl(
   audioUrl: string
 ): Promise<AudioTranscriptionResult> {
-  const tempFilePath = path.join(process.cwd(), 'temp', `audio_${Date.now()}.ogg`)
+  const tempFilePath = path.join(
+    process.cwd(),
+    'temp',
+    `audio_${Date.now()}.ogg`
+  )
 
   try {
     // Ensure temp directory exists
@@ -123,7 +129,7 @@ export async function transcribeAudioFromUrl(
     // Download audio file
     const response = await axios.get(audioUrl, {
       responseType: 'stream',
-      timeout: 30000
+      timeout: 30000,
     })
 
     // Save to temporary file
@@ -135,10 +141,13 @@ export async function transcribeAudioFromUrl(
       writer.on('error', reject)
     })
 
-    logger.info('[AudioTranscription] Audio downloaded, starting transcription', {
-      tempFilePath,
-      fileSize: fs.statSync(tempFilePath).size
-    })
+    logger.info(
+      '[AudioTranscription] Audio downloaded, starting transcription',
+      {
+        tempFilePath,
+        fileSize: fs.statSync(tempFilePath).size,
+      }
+    )
 
     // Transcribe the downloaded file
     const result = await transcribeAudioFile(tempFilePath)
@@ -148,7 +157,7 @@ export async function transcribeAudioFromUrl(
       fs.unlinkSync(tempFilePath)
     } catch (cleanupError) {
       logger.warn('[AudioTranscription] Failed to cleanup temp file', {
-        error: cleanupError
+        error: cleanupError,
       })
     }
 
@@ -161,18 +170,18 @@ export async function transcribeAudioFromUrl(
       }
     } catch (cleanupError) {
       logger.warn('[AudioTranscription] Failed to cleanup temp file on error', {
-        error: cleanupError
+        error: cleanupError,
       })
     }
 
     logger.error('[AudioTranscription] Error downloading/transcribing audio', {
       error: error.message,
-      audioUrl
+      audioUrl,
     })
 
     return {
       success: false,
-      error: error.message || 'Failed to download and transcribe audio'
+      error: error.message || 'Failed to download and transcribe audio',
     }
   }
 }

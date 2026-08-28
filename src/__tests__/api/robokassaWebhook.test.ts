@@ -72,9 +72,24 @@ describe('Robokassa Webhook Handler', () => {
   ]
 
   const SUBSCRIPTION_PLANS = [
-    { text: '🎨 NeuroPhoto', ru_price: 1110, stars_price: 476, callback_data: 'neurophoto' },
-    { text: '📚 NeuroVideo', ru_price: 2999, stars_price: 1303, callback_data: 'neurovideo' },
-    { text: '🤖 NeuroBlogger', ru_price: 75000, stars_price: 32608, callback_data: 'neuroblogger' },
+    {
+      text: '🎨 NeuroPhoto',
+      ru_price: 1110,
+      stars_price: 476,
+      callback_data: 'neurophoto',
+    },
+    {
+      text: '📚 NeuroVideo',
+      ru_price: 2999,
+      stars_price: 1303,
+      callback_data: 'neurovideo',
+    },
+    {
+      text: '🤖 NeuroBlogger',
+      ru_price: 75000,
+      stars_price: 32608,
+      callback_data: 'neuroblogger',
+    },
   ]
 
   const mockPayment = {
@@ -97,7 +112,6 @@ describe('Robokassa Webhook Handler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-
     ;(validateRobokassaSignature as Mock).mockReturnValue(true)
     ;(getPaymentByInvId as Mock).mockResolvedValue({
       data: mockPayment,
@@ -120,7 +134,9 @@ describe('Robokassa Webhook Handler', () => {
       const password2 = 'test_password_2'
 
       // Robokassa signature format: MD5(OutSum:InvId:Password2)
-      const expectedSignature = md5(`${OutSum}:${InvId}:${password2}`).toUpperCase()
+      const expectedSignature = md5(
+        `${OutSum}:${InvId}:${password2}`
+      ).toUpperCase()
 
       expect(expectedSignature).toHaveLength(32)
       expect(expectedSignature).toMatch(/^[A-F0-9]+$/)
@@ -133,7 +149,12 @@ describe('Robokassa Webhook Handler', () => {
 
       ;(validateRobokassaSignature as Mock).mockReturnValue(true)
 
-      const isValid = validateRobokassaSignature(OutSum, InvId, 'pass', SignatureValue)
+      const isValid = validateRobokassaSignature(
+        OutSum,
+        InvId,
+        'pass',
+        SignatureValue
+      )
 
       expect(isValid).toBe(true)
       expect(validateRobokassaSignature).toHaveBeenCalledWith(
@@ -147,7 +168,12 @@ describe('Robokassa Webhook Handler', () => {
     it('должен отклонять некорректную подпись', () => {
       ;(validateRobokassaSignature as Mock).mockReturnValue(false)
 
-      const isValid = validateRobokassaSignature('100', '12345', 'pass', 'INVALID')
+      const isValid = validateRobokassaSignature(
+        '100',
+        '12345',
+        'pass',
+        'INVALID'
+      )
 
       expect(isValid).toBe(false)
     })
@@ -220,7 +246,9 @@ describe('Robokassa Webhook Handler', () => {
   describe('4. Определение звезд по сумме платежа', () => {
     it('должен определять звезды для стандартных пакетов', () => {
       PAYMENT_OPTIONS.forEach(option => {
-        const foundOption = PAYMENT_OPTIONS.find(o => o.amount === option.amount)
+        const foundOption = PAYMENT_OPTIONS.find(
+          o => o.amount === option.amount
+        )
         expect(foundOption).toBeDefined()
         expect(foundOption?.stars).toBe(option.stars)
       })
@@ -323,7 +351,13 @@ describe('Robokassa Webhook Handler', () => {
     it('должен логировать ошибку при неудачном обновлении баланса', async () => {
       ;(updateUserBalance as Mock).mockResolvedValue(false)
 
-      const result = await updateUserBalance('123', 100, 'MONEY_INCOME', 'desc', {})
+      const result = await updateUserBalance(
+        '123',
+        100,
+        'MONEY_INCOME',
+        'desc',
+        {}
+      )
 
       expect(result).toBe(false)
     })
@@ -366,7 +400,10 @@ describe('Robokassa Webhook Handler', () => {
     })
 
     it('должен обрабатывать ошибку отправки уведомления', async () => {
-      ;(getBotByName as Mock).mockReturnValue({ bot: null, error: 'Bot not found' })
+      ;(getBotByName as Mock).mockReturnValue({
+        bot: null,
+        error: 'Bot not found',
+      })
 
       const result = getBotByName('unknown_bot')
 
@@ -393,14 +430,22 @@ describe('Robokassa Webhook Handler', () => {
     it('должен возвращать статус 400 для невалидной подписи', () => {
       ;(validateRobokassaSignature as Mock).mockReturnValue(false)
 
-      const isValid = validateRobokassaSignature('100', '123', 'pass', 'INVALID')
+      const isValid = validateRobokassaSignature(
+        '100',
+        '123',
+        'pass',
+        'INVALID'
+      )
       const statusCode = isValid ? 200 : 400
 
       expect(statusCode).toBe(400)
     })
 
     it('должен возвращать статус 404 для несуществующего платежа', async () => {
-      ;(getPaymentByInvId as Mock).mockResolvedValue({ data: null, error: null })
+      ;(getPaymentByInvId as Mock).mockResolvedValue({
+        data: null,
+        error: null,
+      })
 
       const result = await getPaymentByInvId('99999')
       const statusCode = result.data ? 200 : 404
@@ -496,7 +541,13 @@ describe('Robokassa Webhook Handler', () => {
       expect(option?.stars).toBe(217)
 
       // 5. Обновляем баланс
-      await updateUserBalance(payment.data.telegram_id, option!.stars, 'MONEY_INCOME', '', {})
+      await updateUserBalance(
+        payment.data.telegram_id,
+        option!.stars,
+        'MONEY_INCOME',
+        '',
+        {}
+      )
       expect(updateUserBalance).toHaveBeenCalledWith(
         '223757230',
         217,

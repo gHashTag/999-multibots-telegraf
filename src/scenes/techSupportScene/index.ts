@@ -5,15 +5,17 @@ import { logger } from '@/utils/logger'
 import { Markup } from 'telegraf'
 import { avatarService } from '@/services/plan_b/avatar.service'
 
-export const techSupportScene = new Scenes.BaseScene<MyContext>('techSupportScene')
+export const techSupportScene = new Scenes.BaseScene<MyContext>(
+  'techSupportScene'
+)
 
-techSupportScene.enter(async (ctx) => {
+techSupportScene.enter(async ctx => {
   const isRu = isRussianFromState(ctx)
   const telegramId = ctx.from?.id
 
   logger.info('🛠 [TechSupport] Tech support screen opened', {
     telegramId,
-    currentLanguage: isRu ? 'ru' : 'en'
+    currentLanguage: isRu ? 'ru' : 'en',
   })
 
   let support = 'neuro_sage'
@@ -21,13 +23,18 @@ techSupportScene.enter(async (ctx) => {
   // ✅ ЗАЩИТА: Если avatarService недоступен, используем fallback
   try {
     if (telegramId) {
-      const avatar = await avatarService.getAvatarByTelegramId(telegramId.toString())
+      const avatar = await avatarService.getAvatarByTelegramId(
+        telegramId.toString()
+      )
       if (avatar && avatar.support) {
         support = avatar.support
       }
     }
   } catch (error) {
-    console.warn('⚠️ [TechSupport] avatarService недоступен, используем fallback support:', error)
+    console.warn(
+      '⚠️ [TechSupport] avatarService недоступен, используем fallback support:',
+      error
+    )
     // Оставляем support = 'neuro_sage' (fallback)
   }
 
@@ -42,20 +49,18 @@ techSupportScene.enter(async (ctx) => {
   // Создаем клавиатуру с кнопкой "Назад"
   const keyboard = {
     inline_keyboard: [
-      [
-        { text: '◀️ Назад в меню', callback_data: 'back_to_menu' }
-      ]
-    ]
+      [{ text: '◀️ Назад в меню', callback_data: 'back_to_menu' }],
+    ],
   }
 
   await ctx.reply(message, {
     parse_mode: 'Markdown',
-    reply_markup: keyboard
+    reply_markup: keyboard,
   })
 })
 
 // Обработчик кнопки "Назад"
-techSupportScene.action('back_to_menu', async (ctx) => {
+techSupportScene.action('back_to_menu', async ctx => {
   await ctx.answerCbQuery()
   await ctx.scene.leave()
   const { showMainMenu } = await import('@/navigation')

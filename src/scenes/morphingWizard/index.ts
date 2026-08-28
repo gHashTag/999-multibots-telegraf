@@ -32,7 +32,7 @@ const getDefaultMorphingModel = () => {
       logger.info('[getDefaultMorphingModel] Using Kie.ai model for morphing', {
         modelId: model.id,
         modelName: model.name,
-        provider: model.provider
+        provider: model.provider,
       })
       return model
     }
@@ -40,14 +40,19 @@ const getDefaultMorphingModel = () => {
 
   // Fallback: любая доступная morph модель
   if (models.length > 0) {
-    logger.warn('[getDefaultMorphingModel] No preferred models, using first available', {
-      modelId: models[0].id
-    })
+    logger.warn(
+      '[getDefaultMorphingModel] No preferred models, using first available',
+      {
+        modelId: models[0].id,
+      }
+    )
     return models[0]
   }
 
   // ✅ ЗАЩИТА: Если нет активных morph моделей, используем fallback на image модели
-  logger.error('[getDefaultMorphingModel] No active morph models found, using fallback image model')
+  logger.error(
+    '[getDefaultMorphingModel] No active morph models found, using fallback image model'
+  )
   const imageModels = getModelsByInputType('image')
   const fallback = imageModels[0]
   if (!fallback) {
@@ -58,10 +63,14 @@ const getDefaultMorphingModel = () => {
 
 // ✅ ПРЕСЕТЫ ПРОМПТОВ ДЛЯ ПЕРЕХОДОВ (основано на исследовании best practices 2025)
 const PROMPT_PRESETS = {
-  cinematic: 'smooth cinematic transition, elegant camera glide between frames, professional cinematography with soft lighting, constant camera movement, motion blur enabled, film grain, 4k quality, dramatic depth of field',
-  dramatic: 'high energy dramatic transition, powerful emotional impact, intense lighting changes, dynamic camera movement, bold color shifts, cinematic drama, epic transformation, theatrical mood',
-  smooth: 'seamless gradual transition, ultra-smooth morphing between frames, gentle motion blur, fluid movement at constant speed, soft blending, natural flow, peaceful transformation, 60fps quality',
-  artistic: 'creative abstract transition, unique visual transformation, artistic morphing effect, fluid color blending, imaginative visual elements, expressive camera work, abstract patterns emerging, creative visual storytelling'
+  cinematic:
+    'smooth cinematic transition, elegant camera glide between frames, professional cinematography with soft lighting, constant camera movement, motion blur enabled, film grain, 4k quality, dramatic depth of field',
+  dramatic:
+    'high energy dramatic transition, powerful emotional impact, intense lighting changes, dynamic camera movement, bold color shifts, cinematic drama, epic transformation, theatrical mood',
+  smooth:
+    'seamless gradual transition, ultra-smooth morphing between frames, gentle motion blur, fluid movement at constant speed, soft blending, natural flow, peaceful transformation, 60fps quality',
+  artistic:
+    'creative abstract transition, unique visual transformation, artistic morphing effect, fluid color blending, imaginative visual elements, expressive camera work, abstract patterns emerging, creative visual storytelling',
 } as const
 
 // ✅ ZIP архив больше не нужен - работаем напрямую с изображениями
@@ -101,8 +110,8 @@ const createProgressMessage = (images: any[], isRu: boolean): string => {
         ? 'Достаточно изображений для создания морфинга!'
         : 'Enough images to create morphing!'
       : isRu
-      ? 'Загрузите еще изображения'
-      : 'Upload more images'
+        ? 'Загрузите еще изображения'
+        : 'Upload more images'
 
   // ✅ НОВОЕ: Создание списка последовательности изображений
   let sequenceText = ''
@@ -727,7 +736,10 @@ morphingWizard.action('morphing_start_generation', async ctx => {
     await ctx.answerCbQuery()
     const isRu = isRussianFromState(ctx)
 
-    console.log('🚀 [MORPHING_START] Current wizard cursor:', ctx.wizard?.cursor ?? 0)
+    console.log(
+      '🚀 [MORPHING_START] Current wizard cursor:',
+      ctx.wizard?.cursor ?? 0
+    )
     console.log(
       '🚀 [MORPHING_START] Images count:',
       ctx.session?.morphingImages?.length
@@ -745,7 +757,10 @@ morphingWizard.action('morphing_start_generation', async ctx => {
 
     // ✅ ПЕРЕХОДИМ К ШАГУ ВЫБОРА ЛУПА (ШАГ 2)
     console.log('🚀 [MORPHING_START] About to go to step 2 (loop selection)')
-    console.log('🚀 [MORPHING_START] Current cursor before:', ctx.wizard?.cursor ?? 0)
+    console.log(
+      '🚀 [MORPHING_START] Current cursor before:',
+      ctx.wizard?.cursor ?? 0
+    )
 
     // Принудительно переходим к шагу 2 (выбор лупа)
     ctx.wizard.selectStep(2)
@@ -1059,7 +1074,7 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     logger.info('✅ [MORPHING DEBUG] Step 2: Model retrieved', {
       modelId: defaultModel?.id,
       modelName: defaultModel?.name,
-      hasModel: !!defaultModel
+      hasModel: !!defaultModel,
     })
 
     logger.info('[startMorphingGeneration] Processing balance for morphing', {
@@ -1109,8 +1124,8 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
         ? '🔄 С зацикливанием (LOOP)'
         : '➡️ Линейный (БЕЗ лупа)'
       : withLoop
-      ? '🔄 With Loop'
-      : '➡️ Linear (No Loop)'
+        ? '🔄 With Loop'
+        : '➡️ Linear (No Loop)'
 
     const costMessage = isRu
       ? `💰 <b>Информация о стоимости Infinity Морфинг:</b>
@@ -1210,7 +1225,10 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     // ✅ ВОЗВРАТ БАЛАНСА при ошибке генерации
     try {
       if (typeof paymentAmount === 'number' && paymentAmount > 0) {
-        await refundUser(ctx, paymentAmount, { silent: true, reason: "generation_failed" }) // silent refund
+        await refundUser(ctx, paymentAmount, {
+          silent: true,
+          reason: 'generation_failed',
+        }) // silent refund
         logger.info('💰 Balance refunded after morphing error', {
           telegramId: ctx.from?.id,
           refundAmount: paymentAmount,
@@ -1219,7 +1237,8 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     } catch (refundError) {
       logger.error('Failed to refund after morphing error', {
         telegramId: ctx.from?.id,
-        refundError: refundError instanceof Error ? refundError.message : 'Unknown',
+        refundError:
+          refundError instanceof Error ? refundError.message : 'Unknown',
       })
     }
 

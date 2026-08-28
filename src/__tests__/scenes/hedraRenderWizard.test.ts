@@ -23,7 +23,9 @@ vi.mock('@/core/supabase/getVoiceId', () => ({
 }))
 
 vi.mock('@/inngest_app/render-server-client', () => ({
-  sendRenderAvatarVideoEvent: vi.fn(() => Promise.resolve({ eventId: 'event_hedra_123' })),
+  sendRenderAvatarVideoEvent: vi.fn(() =>
+    Promise.resolve({ eventId: 'event_hedra_123' })
+  ),
   createRenderAvatarPayload: vi.fn(() => ({ telegramId: '223757230' })),
 }))
 
@@ -59,8 +61,14 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { getVoiceId } from '@/core/supabase/getVoiceId'
-import { sendRenderAvatarVideoEvent, createRenderAvatarPayload } from '@/inngest_app/render-server-client'
-import { calculateAIReelsPrice, formatPriceMessage } from '@/helpers/ai-reels-pricing'
+import {
+  sendRenderAvatarVideoEvent,
+  createRenderAvatarPayload,
+} from '@/inngest_app/render-server-client'
+import {
+  calculateAIReelsPrice,
+  formatPriceMessage,
+} from '@/helpers/ai-reels-pricing'
 
 describe('hedraRenderWizard (Hedra Avatar Video Generation)', () => {
   const mockContext = {
@@ -81,7 +89,11 @@ describe('hedraRenderWizard (Hedra Avatar Video Generation)', () => {
       cursor: 0,
     },
     telegram: {
-      getFileLink: vi.fn(() => Promise.resolve({ href: 'https://api.telegram.org/file/hedra_test.jpg' })),
+      getFileLink: vi.fn(() =>
+        Promise.resolve({
+          href: 'https://api.telegram.org/file/hedra_test.jpg',
+        })
+      ),
     },
     botInfo: { username: 'test_bot' },
     message: null as any,
@@ -91,7 +103,6 @@ describe('hedraRenderWizard (Hedra Avatar Video Generation)', () => {
     vi.clearAllMocks()
     mockContext.session = { aiReelsRender: null }
     mockContext.message = null
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(getUserBalance as Mock).mockResolvedValue(100)
     ;(getVoiceId as Mock).mockResolvedValue('voice_id_hedra_123')
@@ -154,7 +165,10 @@ describe('hedraRenderWizard (Hedra Avatar Video Generation)', () => {
         photo: [{ file_id: 'hedra_avatar_photo_123' }],
       }
 
-      const hasPhoto = mockContext.message && 'photo' in mockContext.message && mockContext.message.photo.length > 0
+      const hasPhoto =
+        mockContext.message &&
+        'photo' in mockContext.message &&
+        mockContext.message.photo.length > 0
       expect(hasPhoto).toBe(true)
     })
 
@@ -166,12 +180,15 @@ describe('hedraRenderWizard (Hedra Avatar Video Generation)', () => {
         ],
       }
 
-      const photo = mockContext.message.photo[mockContext.message.photo.length - 1]
+      const photo =
+        mockContext.message.photo[mockContext.message.photo.length - 1]
       expect(photo.file_id).toBe('large')
     })
 
     it('должен получать file link через Telegram API', async () => {
-      const fileLink = await mockContext.telegram.getFileLink('hedra_avatar_photo_123')
+      const fileLink = await mockContext.telegram.getFileLink(
+        'hedra_avatar_photo_123'
+      )
 
       expect(mockContext.telegram.getFileLink).toHaveBeenCalled()
       expect(fileLink.href).toContain('telegram.org')
@@ -200,7 +217,9 @@ describe('hedraRenderWizard (Hedra Avatar Video Generation)', () => {
         step: 'cover',
       }
 
-      expect(mockContext.session.aiReelsRender.imageUrl).toContain('hedra-avatar')
+      expect(mockContext.session.aiReelsRender.imageUrl).toContain(
+        'hedra-avatar'
+      )
     })
 
     it('должен показывать сообщение об успешном получении аватара', () => {
@@ -216,11 +235,16 @@ describe('hedraRenderWizard (Hedra Avatar Video Generation)', () => {
       mockContext.message = { document: { file_id: 'doc_123' } }
 
       const hasPhoto = mockContext.message && 'photo' in mockContext.message
-      const hasUrl = mockContext.message && 'text' in mockContext.message &&
-        (mockContext.message.text?.startsWith('http://') || mockContext.message.text?.startsWith('https://'))
+      const hasUrl =
+        mockContext.message &&
+        'text' in mockContext.message &&
+        (mockContext.message.text?.startsWith('http://') ||
+          mockContext.message.text?.startsWith('https://'))
 
       if (!hasPhoto && !hasUrl) {
-        await mockContext.reply('❌ Некорректное изображение. Отправьте фото или URL.')
+        await mockContext.reply(
+          '❌ Некорректное изображение. Отправьте фото или URL.'
+        )
       }
 
       expect(mockContext.reply).toHaveBeenCalled()
@@ -250,7 +274,9 @@ describe('hedraRenderWizard (Hedra Avatar Video Generation)', () => {
         step: 'text',
       }
 
-      expect(mockContext.session.aiReelsRender.coverUrl).toContain('hedra-cover')
+      expect(mockContext.session.aiReelsRender.coverUrl).toContain(
+        'hedra-cover'
+      )
     })
 
     it('должен требовать фото для обложки', async () => {
@@ -382,7 +408,9 @@ describe('hedraRenderWizard (Hedra Avatar Video Generation)', () => {
 
       const hasText = mockContext.message && 'text' in mockContext.message
       if (!hasText) {
-        await mockContext.reply('❌ Пожалуйста, отправьте текст для интро (до 50 символов).')
+        await mockContext.reply(
+          '❌ Пожалуйста, отправьте текст для интро (до 50 символов).'
+        )
       }
 
       expect(mockContext.reply).toHaveBeenCalled()
@@ -487,7 +515,9 @@ describe('hedraRenderWizard (Hedra Avatar Video Generation)', () => {
     })
 
     it('должен отправлять event на render-server', async () => {
-      const result = await sendRenderAvatarVideoEvent({ telegramId: '223757230' })
+      const result = await sendRenderAvatarVideoEvent({
+        telegramId: '223757230',
+      })
 
       expect(sendRenderAvatarVideoEvent).toHaveBeenCalled()
       expect(result.eventId).toBe('event_hedra_123')
@@ -546,7 +576,9 @@ describe('hedraRenderWizard (Hedra Avatar Video Generation)', () => {
     })
 
     it('должен возвращать средства при ошибке отправки', async () => {
-      ;(sendRenderAvatarVideoEvent as Mock).mockRejectedValue(new Error('Hedra send failed'))
+      ;(sendRenderAvatarVideoEvent as Mock).mockRejectedValue(
+        new Error('Hedra send failed')
+      )
 
       try {
         await sendRenderAvatarVideoEvent({ telegramId: '223757230' })

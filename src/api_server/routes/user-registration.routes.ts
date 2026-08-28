@@ -24,7 +24,7 @@ const handleUserRegistration = async (req: any, res: any): Promise<void> => {
       first_name,
       last_name,
       language_code,
-      inviter
+      inviter,
     }: RegistrationData = req.body
 
     // Валидация обязательных полей
@@ -32,7 +32,7 @@ const handleUserRegistration = async (req: any, res: any): Promise<void> => {
       res.status(400).json({
         success: false,
         error: 'telegram_id is required',
-        message: 'Telegram ID is required for registration'
+        message: 'Telegram ID is required for registration',
       })
       return
     }
@@ -43,7 +43,7 @@ const handleUserRegistration = async (req: any, res: any): Promise<void> => {
     logger.info('API: Попытка регистрации пользователя', {
       telegramId: telegram_id,
       username,
-      function: 'handleUserRegistration'
+      function: 'handleUserRegistration',
     })
 
     // Создаем пользователя
@@ -61,14 +61,14 @@ const handleUserRegistration = async (req: any, res: any): Promise<void> => {
       count: 1,
       aspect_ratio: '1:1',
       inviter: inviter || null,
-      bot_name: 'neuro_blogger_bot'
+      bot_name: 'neuro_blogger_bot',
     })
 
     if (!user) {
       res.status(500).json({
         success: false,
         error: 'Failed to create user',
-        message: 'Internal server error during user creation'
+        message: 'Internal server error during user creation',
       })
       return
     }
@@ -86,38 +86,39 @@ const handleUserRegistration = async (req: any, res: any): Promise<void> => {
           first_name: user.first_name,
           last_name: user.last_name,
           created_at: user.created_at,
-          updated_at: user.updated_at
+          updated_at: user.updated_at,
         },
         userDetails: {
           isExist: userDetails.isExist,
           stars: userDetails.stars,
           subscriptionType: userDetails.subscriptionType,
           isSubscriptionActive: userDetails.isSubscriptionActive,
-          subscriptionStartDate: userDetails.subscriptionStartDate
+          subscriptionStartDate: userDetails.subscriptionStartDate,
         },
         wasCreated,
-        message: wasCreated ? 'User created successfully' : 'User already exists'
-      }
+        message: wasCreated
+          ? 'User created successfully'
+          : 'User already exists',
+      },
     })
 
     logger.info('API: Регистрация пользователя завершена успешно', {
       telegramId: telegram_id,
       userId: user.id,
       wasCreated,
-      function: 'handleUserRegistration_success'
+      function: 'handleUserRegistration_success',
     })
-
   } catch (error: any) {
     logger.error('API: Ошибка при регистрации пользователя', {
       error: error.message,
       stack: error.stack,
-      function: 'handleUserRegistration_error'
+      function: 'handleUserRegistration_error',
     })
 
     res.status(500).json({
       success: false,
       error: 'Internal server error',
-      message: error.message
+      message: error.message,
     })
   }
 }
@@ -131,14 +132,14 @@ const handleGetUser = async (req: any, res: any): Promise<void> => {
       res.status(400).json({
         success: false,
         error: 'Invalid telegram_id',
-        message: 'Telegram ID is required'
+        message: 'Telegram ID is required',
       })
       return
     }
 
     logger.info('API: Запрос информации о пользователе', {
       telegramId: telegram_id,
-      function: 'handleGetUser'
+      function: 'handleGetUser',
     })
 
     // Получаем детали пользователя
@@ -152,21 +153,20 @@ const handleGetUser = async (req: any, res: any): Promise<void> => {
         stars: userDetails.stars,
         subscriptionType: userDetails.subscriptionType,
         isSubscriptionActive: userDetails.isSubscriptionActive,
-        subscriptionStartDate: userDetails.subscriptionStartDate
-      }
+        subscriptionStartDate: userDetails.subscriptionStartDate,
+      },
     })
-
   } catch (error: any) {
     logger.error('API: Ошибка при получении информации о пользователе', {
       error: error.message,
       stack: error.stack,
-      function: 'handleGetUser_error'
+      function: 'handleGetUser_error',
     })
 
     res.status(500).json({
       success: false,
       error: 'Internal server error',
-      message: error.message
+      message: error.message,
     })
   }
 }
@@ -180,14 +180,14 @@ const handleCheckUser = async (req: any, res: any): Promise<void> => {
       res.status(400).json({
         success: false,
         error: 'telegram_id is required',
-        message: 'Telegram ID is required'
+        message: 'Telegram ID is required',
       })
       return
     }
 
     logger.info('API: Проверка существования пользователя', {
       telegramId: telegram_id,
-      function: 'handleCheckUser'
+      function: 'handleCheckUser',
     })
 
     // Получаем детали пользователя
@@ -201,21 +201,20 @@ const handleCheckUser = async (req: any, res: any): Promise<void> => {
         stars: userDetails.stars,
         subscriptionType: userDetails.subscriptionType,
         isSubscriptionActive: userDetails.isSubscriptionActive,
-        subscriptionStartDate: userDetails.subscriptionStartDate
-      }
+        subscriptionStartDate: userDetails.subscriptionStartDate,
+      },
     })
-
   } catch (error: any) {
     logger.error('API: Ошибка при проверке пользователя', {
       error: error.message,
       stack: error.stack,
-      function: 'handleCheckUser_error'
+      function: 'handleCheckUser_error',
     })
 
     res.status(500).json({
       success: false,
       error: 'Internal server error',
-      message: error.message
+      message: error.message,
     })
   }
 }

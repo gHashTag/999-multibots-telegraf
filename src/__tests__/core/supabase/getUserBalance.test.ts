@@ -22,7 +22,10 @@ vi.mock('@/core/supabase', () => ({
   },
 }))
 
-import { getUserBalance, invalidateBalanceCache } from '@/core/supabase/getUserBalance'
+import {
+  getUserBalance,
+  invalidateBalanceCache,
+} from '@/core/supabase/getUserBalance'
 import { supabase } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 

@@ -190,8 +190,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   modelSelectionShown?: boolean
   cancelHandled?: boolean
   language_code?: string
-  wizardData?: any  // ✅ Данные для wizard'а (шаги, фото и т.д.)
-  availableModels?: any[]  // ✅ Список доступных моделей для выбора
+  wizardData?: any // ✅ Данные для wizard'а (шаги, фото и т.д.)
+  availableModels?: any[] // ✅ Список доступных моделей для выбора
   images: BufferType
   morphingImages?: {
     buffer: Buffer
@@ -235,7 +235,12 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 
   aiReels?: {
     // Данные для AI Reels wizard (lip-sync + WAN v2.2-5b + merging)
-    step?: 'image' | 'text' | 'lipsync_generation' | 'wan_generation' | 'merging'
+    step?:
+      | 'image'
+      | 'text'
+      | 'lipsync_generation'
+      | 'wan_generation'
+      | 'merging'
     imageUrl?: string
     text?: string
     audioUrl?: string
@@ -244,17 +249,25 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     resolution?: '720p' | '1080p' // Разрешение видео
     useInngest?: boolean
     aspectRatio?: '16:9' | '9:16' | '1:1' // Соотношение сторон видео (по умолчанию 9:16 для соцсетей)
-    firstVideoUrl?: string  // URL первого видео (lip-sync)
+    firstVideoUrl?: string // URL первого видео (lip-sync)
     secondVideoUrl?: string // URL второго видео (WAN v2.2-5b)
-    finalVideoUrl?: string  // URL финального склеенного видео
-    wan25Prompt?: string    // Промпт для WAN v2.2-5b (генерируется из текста пользователя)
-    wan25TaskId?: string    // ID задачи WAN v2.2-5b для отслеживания
+    finalVideoUrl?: string // URL финального склеенного видео
+    wan25Prompt?: string // Промпт для WAN v2.2-5b (генерируется из текста пользователя)
+    wan25TaskId?: string // ID задачи WAN v2.2-5b для отслеживания
   }
   returnToAIReelsAfterVoice?: boolean // Флаг возврата в AI Reels после создания голоса
 
   aiReelsRender?: {
     // Данные для AI Reels Render wizard (генерация через render-server с Hedra/HeyGen/Fal)
-    step?: 'image' | 'text' | 'intro_text' | 'intro_text_2' | 'avatar_service' | 'avatar_set_selection' | 'processing' | 'cover'
+    step?:
+      | 'image'
+      | 'text'
+      | 'intro_text'
+      | 'intro_text_2'
+      | 'avatar_service'
+      | 'avatar_set_selection'
+      | 'processing'
+      | 'cover'
     imageUrl?: string
     text?: string
     audioUrl?: string
@@ -401,21 +414,83 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   requestId?: string
 
   // AI Photoshop scene fields
-  aiPhotoshopModel?: 'seedream' | 'nano_banana' | 'nano_banana_pro' | 'seedream_45' | 'flux_multi_kontext' | 'qwen_edit_plus' | 'flux_kontext_pro' | 'flux_kontext_max' | 'seededit_3' | 'qwen_image_edit' | 'all_models'
-  aiPhotoshopStyle?: 'portrait' | 'artistic' | 'photorealistic' | 'fantasy' | 'cyberpunk' | 'vintage' | 'custom'
+  aiPhotoshopModel?:
+    | 'seedream'
+    | 'nano_banana'
+    | 'nano_banana_pro'
+    | 'seedream_45'
+    | 'flux_multi_kontext'
+    | 'qwen_edit_plus'
+    | 'flux_kontext_pro'
+    | 'flux_kontext_max'
+    | 'seededit_3'
+    | 'qwen_image_edit'
+    | 'all_models'
+  aiPhotoshopStyle?:
+    | 'portrait'
+    | 'artistic'
+    | 'photorealistic'
+    | 'fantasy'
+    | 'cyberpunk'
+    | 'vintage'
+    | 'custom'
   aiPhotoshopImage?: string
   aiPhotoshopPrompt?: string
   aiPhotoshopSize?: '1K' | '2K' | '4K' | 'custom'
-  aiPhotoshopAspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '21:9' | '9:21'
+  aiPhotoshopAspectRatio?:
+    | '1:1'
+    | '16:9'
+    | '9:16'
+    | '4:3'
+    | '3:4'
+    | '21:9'
+    | '9:21'
   aiPhotoshopVariationsCount?: number
   awaitingAiPhotoshopImage?: boolean
   awaitingAiPhotoshopPrompt?: boolean
-  aiPhotoshopStep?: 'model_select' | 'style_select' | 'size_ratio_select' | 'image_upload' | 'custom_prompt' | 'processing' | 'quality_selection'
+  aiPhotoshopStep?:
+    | 'model_select'
+    | 'style_select'
+    | 'size_ratio_select'
+    | 'image_upload'
+    | 'custom_prompt'
+    | 'processing'
+    | 'quality_selection'
 
   // 🎬 AI Photoshop camera control fields (transferred from FLUX Kontext)
-  aiPhotoshopCameraAngle?: 'medium_shot' | 'close_up' | 'extreme_close_up' | 'wide_shot' | 'high_angle' | 'low_angle' | 'dutch_angle' | 'over_shoulder' | 'profile_shot' | 'three_quarter' | 'bird_eye' | 'macro_beauty'
-  aiPhotoshopLighting?: 'soft_natural' | 'dramatic' | 'golden_hour' | 'studio' | 'rembrandt' | 'butterfly' | 'split' | 'rim' | 'candlelight' | 'neon_noir' | 'morning' | 'sunset'
-  aiPhotoshopComposition?: 'center_weighted' | 'rule_thirds' | 'golden_ratio' | 'symmetrical' | 'negative_space' | 'leading_lines'
+  aiPhotoshopCameraAngle?:
+    | 'medium_shot'
+    | 'close_up'
+    | 'extreme_close_up'
+    | 'wide_shot'
+    | 'high_angle'
+    | 'low_angle'
+    | 'dutch_angle'
+    | 'over_shoulder'
+    | 'profile_shot'
+    | 'three_quarter'
+    | 'bird_eye'
+    | 'macro_beauty'
+  aiPhotoshopLighting?:
+    | 'soft_natural'
+    | 'dramatic'
+    | 'golden_hour'
+    | 'studio'
+    | 'rembrandt'
+    | 'butterfly'
+    | 'split'
+    | 'rim'
+    | 'candlelight'
+    | 'neon_noir'
+    | 'morning'
+    | 'sunset'
+  aiPhotoshopComposition?:
+    | 'center_weighted'
+    | 'rule_thirds'
+    | 'golden_ratio'
+    | 'symmetrical'
+    | 'negative_space'
+    | 'leading_lines'
 
   // ✅ NEW: Dialog mode support for AI Photoshop
   savedAiPhotoshopResults?: Array<{
@@ -451,7 +526,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 }
 
 export interface MyContext extends Context {
-  match?: RegExpExecArray;
+  match?: RegExpExecArray
   session: MySession
   scene: Scenes.SceneContextScene<MyContext, MyWizardSession>
   wizard: Scenes.WizardContextWizard<MyContext>

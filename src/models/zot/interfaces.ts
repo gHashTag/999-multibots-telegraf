@@ -26,7 +26,7 @@ export enum ZOTPaymentType {
   /** Bonus/promotional credits */
   BONUS = 'BONUS',
   /** Internal transfers */
-  TRANSFER = 'TRANSFER'
+  TRANSFER = 'TRANSFER',
 }
 
 /**
@@ -47,7 +47,7 @@ export enum ZOTMoneySource {
   /** Manual adjustments */
   MANUAL = 'MANUAL',
   /** Unknown or invalid source */
-  UNKNOWN = 'UNKNOWN'
+  UNKNOWN = 'UNKNOWN',
 }
 
 /**
@@ -72,7 +72,7 @@ export enum ZOTServiceCategory {
   /** Administrative operations */
   ADMIN_OPERATION = 'ADMIN_OPERATION',
   /** Unknown service */
-  UNKNOWN_SERVICE = 'UNKNOWN_SERVICE'
+  UNKNOWN_SERVICE = 'UNKNOWN_SERVICE',
 }
 
 /**
@@ -89,7 +89,7 @@ export enum ZOTConfidenceLevel {
   /** Below 60% confidence */
   VERY_LOW = 'VERY_LOW',
   /** Failed validation */
-  FAILED = 'FAILED'
+  FAILED = 'FAILED',
 }
 
 /**
@@ -98,43 +98,43 @@ export enum ZOTConfidenceLevel {
  */
 export interface ZOTBotFinancials {
   /** Bot identifier */
-  botName: string;
+  botName: string
 
   /** Total real money income (RUB) */
-  realIncome: number;
+  realIncome: number
 
   /** Total virtual income (stars) */
-  virtualIncome: number;
+  virtualIncome: number
 
   /** Total real expenses (service costs) */
-  realExpenses: number;
+  realExpenses: number
 
   /** Total virtual expenses (star consumption) */
-  virtualExpenses: number;
+  virtualExpenses: number
 
   /** Current star balance */
-  currentBalance: number;
+  currentBalance: number
 
   /** Total refunds issued */
-  totalRefunds: number;
+  totalRefunds: number
 
   /** Total bonuses granted */
-  totalBonuses: number;
+  totalBonuses: number
 
   /** Net profit (real income - real expenses) */
-  netProfit: number;
+  netProfit: number
 
   /** Virtual profit margin (virtual income - virtual expenses) */
-  virtualMargin: number;
+  virtualMargin: number
 
   /** Monthly data breakdown */
-  monthlyData: ZOTMonthlyFinancials[];
+  monthlyData: ZOTMonthlyFinancials[]
 
   /** Last validation timestamp */
-  lastValidated: Date;
+  lastValidated: Date
 
   /** Validation status */
-  validationStatus: ZOTValidationStatus;
+  validationStatus: ZOTValidationStatus
 }
 
 /**
@@ -143,36 +143,39 @@ export interface ZOTBotFinancials {
  */
 export interface ZOTMonthlyFinancials {
   /** Year-Month (YYYY-MM) */
-  month: string;
+  month: string
 
   /** Real income for the month */
-  realIncome: number;
+  realIncome: number
 
   /** Virtual income for the month */
-  virtualIncome: number;
+  virtualIncome: number
 
   /** Real expenses for the month */
-  realExpenses: number;
+  realExpenses: number
 
   /** Virtual expenses for the month */
-  virtualExpenses: number;
+  virtualExpenses: number
 
   /** Net profit for the month */
-  netProfit: number;
+  netProfit: number
 
   /** Number of transactions */
-  transactionCount: number;
+  transactionCount: number
 
   /** Average transaction value */
-  avgTransactionValue: number;
+  avgTransactionValue: number
 
   /** Service usage breakdown */
-  serviceBreakdown: Record<ZOTServiceCategory, {
-    transactions: number;
-    totalStars: number;
-    totalAmount: number;
-    avgCost: number;
-  }>;
+  serviceBreakdown: Record<
+    ZOTServiceCategory,
+    {
+      transactions: number
+      totalStars: number
+      totalAmount: number
+      avgCost: number
+    }
+  >
 }
 
 /**
@@ -181,34 +184,34 @@ export interface ZOTMonthlyFinancials {
  */
 export interface ZOTValidationResult {
   /** Overall validation success */
-  isValid: boolean;
+  isValid: boolean
 
   /** Confidence level of validation */
-  confidenceLevel: ZOTConfidenceLevel;
+  confidenceLevel: ZOTConfidenceLevel
 
   /** Confidence score (0-100) */
-  confidenceScore: number;
+  confidenceScore: number
 
   /** Detailed validation errors */
-  errors: ZOTValidationError[];
+  errors: ZOTValidationError[]
 
   /** Validation warnings */
-  warnings: ZOTValidationWarning[];
+  warnings: ZOTValidationWarning[]
 
   /** Suggestions for improvement */
-  suggestions: string[];
+  suggestions: string[]
 
   /** Validation timestamp */
-  validatedAt: Date;
+  validatedAt: Date
 
   /** Data quality metrics */
-  qualityMetrics: ZOTQualityMetrics;
+  qualityMetrics: ZOTQualityMetrics
 
   /** Missing data indicators */
-  missingData: ZOTMissingData[];
+  missingData: ZOTMissingData[]
 
   /** Classification accuracy */
-  classificationAccuracy: number;
+  classificationAccuracy: number
 }
 
 /**
@@ -216,25 +219,25 @@ export interface ZOTValidationResult {
  */
 export interface ZOTValidationError {
   /** Error code */
-  code: string;
+  code: string
 
   /** Error message */
-  message: string;
+  message: string
 
   /** Severity level */
-  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
 
   /** Field or data causing error */
-  field?: string;
+  field?: string
 
   /** Original value */
-  value?: any;
+  value?: any
 
   /** Expected value or format */
-  expected?: any;
+  expected?: any
 
   /** Suggestion to fix */
-  suggestion?: string;
+  suggestion?: string
 }
 
 /**
@@ -242,19 +245,19 @@ export interface ZOTValidationError {
  */
 export interface ZOTValidationWarning {
   /** Warning code */
-  code: string;
+  code: string
 
   /** Warning message */
-  message: string;
+  message: string
 
   /** Field or data causing warning */
-  field?: string;
+  field?: string
 
   /** Current value */
-  value?: any;
+  value?: any
 
   /** Recommended action */
-  recommendation?: string;
+  recommendation?: string
 }
 
 /**
@@ -262,28 +265,28 @@ export interface ZOTValidationWarning {
  */
 export interface ZOTQualityMetrics {
   /** Completeness score (0-100) */
-  completeness: number;
+  completeness: number
 
   /** Accuracy score (0-100) */
-  accuracy: number;
+  accuracy: number
 
   /** Consistency score (0-100) */
-  consistency: number;
+  consistency: number
 
   /** Timeliness score (0-100) */
-  timeliness: number;
+  timeliness: number
 
   /** Overall quality score (0-100) */
-  overallScore: number;
+  overallScore: number
 
   /** Number of records processed */
-  recordsProcessed: number;
+  recordsProcessed: number
 
   /** Number of records with issues */
-  recordsWithIssues: number;
+  recordsWithIssues: number
 
   /** Processing time (ms) */
-  processingTime: number;
+  processingTime: number
 }
 
 /**
@@ -291,19 +294,23 @@ export interface ZOTQualityMetrics {
  */
 export interface ZOTMissingData {
   /** Type of missing data */
-  type: 'REQUIRED_FIELD' | 'EXPECTED_TRANSACTION' | 'INCOMPLETE_RECORD' | 'ORPHANED_DATA';
+  type:
+    | 'REQUIRED_FIELD'
+    | 'EXPECTED_TRANSACTION'
+    | 'INCOMPLETE_RECORD'
+    | 'ORPHANED_DATA'
 
   /** Description of what's missing */
-  description: string;
+  description: string
 
   /** Impact level */
-  impact: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  impact: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
 
   /** Affected records count */
-  affectedRecords: number;
+  affectedRecords: number
 
   /** Suggested resolution */
-  resolution: string;
+  resolution: string
 }
 
 /**
@@ -321,7 +328,7 @@ export enum ZOTValidationStatus {
   /** Validation not performed */
   NOT_VALIDATED = 'NOT_VALIDATED',
   /** Validation in progress */
-  VALIDATING = 'VALIDATING'
+  VALIDATING = 'VALIDATING',
 }
 
 /**
@@ -330,31 +337,31 @@ export enum ZOTValidationStatus {
  */
 export interface ZOTClassificationRule {
   /** Rule identifier */
-  ruleId: string;
+  ruleId: string
 
   /** Rule name */
-  name: string;
+  name: string
 
   /** Rule description */
-  description: string;
+  description: string
 
   /** Conditions for this rule */
-  conditions: ZOTRuleCondition[];
+  conditions: ZOTRuleCondition[]
 
   /** Target classification */
-  targetClassification: ZOTPaymentType;
+  targetClassification: ZOTPaymentType
 
   /** Target service category */
-  targetServiceCategory?: ZOTServiceCategory;
+  targetServiceCategory?: ZOTServiceCategory
 
   /** Rule priority (higher = checked first) */
-  priority: number;
+  priority: number
 
   /** Rule confidence weight */
-  confidenceWeight: number;
+  confidenceWeight: number
 
   /** Rule enabled status */
-  enabled: boolean;
+  enabled: boolean
 }
 
 /**
@@ -362,16 +369,26 @@ export interface ZOTClassificationRule {
  */
 export interface ZOTRuleCondition {
   /** Field to check */
-  field: string;
+  field: string
 
   /** Operator for comparison */
-  operator: 'equals' | 'contains' | 'starts_with' | 'ends_with' | 'regex' | 'greater_than' | 'less_than' | 'in_array' | 'not_null' | 'is_null';
+  operator:
+    | 'equals'
+    | 'contains'
+    | 'starts_with'
+    | 'ends_with'
+    | 'regex'
+    | 'greater_than'
+    | 'less_than'
+    | 'in_array'
+    | 'not_null'
+    | 'is_null'
 
   /** Value to compare against */
-  value: any;
+  value: any
 
   /** Case sensitive comparison */
-  caseSensitive?: boolean;
+  caseSensitive?: boolean
 }
 
 /**
@@ -379,34 +396,34 @@ export interface ZOTRuleCondition {
  */
 export interface ZOTServiceCostConfig {
   /** Service identifier */
-  serviceId: string;
+  serviceId: string
 
   /** Service category */
-  category: ZOTServiceCategory;
+  category: ZOTServiceCategory
 
   /** Base cost in stars */
-  baseCost: number;
+  baseCost: number
 
   /** Cost multiplier for quantity */
-  multiplier?: number;
+  multiplier?: number
 
   /** Minimum cost */
-  minCost?: number;
+  minCost?: number
 
   /** Maximum cost */
-  maxCost?: number;
+  maxCost?: number
 
   /** Cost calculation formula */
-  formula?: string;
+  formula?: string
 
   /** Validation rules for this service */
-  validationRules: ZOTClassificationRule[];
+  validationRules: ZOTClassificationRule[]
 
   /** Expected metadata fields */
-  expectedMetadata: string[];
+  expectedMetadata: string[]
 
   /** Cost confidence threshold */
-  costConfidenceThreshold: number;
+  costConfidenceThreshold: number
 }
 
 /**
@@ -415,41 +432,41 @@ export interface ZOTServiceCostConfig {
  */
 export interface ZOTConfig {
   /** Validation rules */
-  classificationRules: ZOTClassificationRule[];
+  classificationRules: ZOTClassificationRule[]
 
   /** Service cost configurations */
-  serviceCosts: ZOTServiceCostConfig[];
+  serviceCosts: ZOTServiceCostConfig[]
 
   /** Quality thresholds */
   qualityThresholds: {
-    completeness: number;
-    accuracy: number;
-    consistency: number;
-    timeliness: number;
-    overall: number;
-  };
+    completeness: number
+    accuracy: number
+    consistency: number
+    timeliness: number
+    overall: number
+  }
 
   /** Confidence thresholds */
   confidenceThresholds: {
-    high: number;
-    medium: number;
-    low: number;
-  };
+    high: number
+    medium: number
+    low: number
+  }
 
   /** Validation settings */
   validationSettings: {
-    enableStrictMode: boolean;
-    enableAutoCorrection: boolean;
-    enablePredictiveValidation: boolean;
-    maxProcessingTime: number;
-  };
+    enableStrictMode: boolean
+    enableAutoCorrection: boolean
+    enablePredictiveValidation: boolean
+    maxProcessingTime: number
+  }
 
   /** Notification settings */
   notificationSettings: {
-    enableErrorNotifications: boolean;
-    enableWarningNotifications: boolean;
-    notificationThreshold: ZOTConfidenceLevel;
-  };
+    enableErrorNotifications: boolean
+    enableWarningNotifications: boolean
+    notificationThreshold: ZOTConfidenceLevel
+  }
 }
 
 /**
@@ -458,37 +475,37 @@ export interface ZOTConfig {
  */
 export interface ZOTProcessingContext {
   /** Processing session ID */
-  sessionId: string;
+  sessionId: string
 
   /** Start timestamp */
-  startTime: Date;
+  startTime: Date
 
   /** End timestamp */
-  endTime?: Date;
+  endTime?: Date
 
   /** Bot name being processed */
-  botName: string;
+  botName: string
 
   /** Date range being processed */
   dateRange: {
-    from: Date;
-    to: Date;
-  };
+    from: Date
+    to: Date
+  }
 
   /** Processing options */
   options: {
-    enableStrictValidation: boolean;
-    enableAutoCorrection: boolean;
-    includeWarnings: boolean;
-    processingMode: 'FULL' | 'INCREMENTAL' | 'VALIDATION_ONLY';
-  };
+    enableStrictValidation: boolean
+    enableAutoCorrection: boolean
+    includeWarnings: boolean
+    processingMode: 'FULL' | 'INCREMENTAL' | 'VALIDATION_ONLY'
+  }
 
   /** Processing statistics */
   statistics: {
-    recordsProcessed: number;
-    errorsFound: number;
-    warningsFound: number;
-    correctionsApplied: number;
-    processingTime: number;
-  };
+    recordsProcessed: number
+    errorsFound: number
+    warningsFound: number
+    correctionsApplied: number
+    processingTime: number
+  }
 }

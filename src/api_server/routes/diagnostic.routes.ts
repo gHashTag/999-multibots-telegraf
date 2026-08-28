@@ -28,7 +28,7 @@ router.get('/diagnostic/template2', async (_req: any, res: any) => {
     // const inngestStatus = await inngestProvider.getStatus()
     const inngestStatus = {
       RENDER: { available: false, configured: false },
-      BOT: { available: false, configured: false }
+      BOT: { available: false, configured: false },
     }
 
     // Собираем полную диагностику
@@ -44,7 +44,8 @@ router.get('/diagnostic/template2', async (_req: any, res: any) => {
       envVars: {
         ...envVars,
         // Не показываем реальные ключи, только факт наличия
-        BOT_INNGEST_EVENT_KEY_preview: process.env.BOT_INNGEST_EVENT_KEY?.substring(0, 10) + '...',
+        BOT_INNGEST_EVENT_KEY_preview:
+          process.env.BOT_INNGEST_EVENT_KEY?.substring(0, 10) + '...',
       },
       inngestProvider: {
         initialized: 'disabled',
@@ -64,10 +65,14 @@ router.get('/diagnostic/template2', async (_req: any, res: any) => {
       diagnostic.recommendations.push('❌ BOT_INNGEST_EVENT_KEY не настроен')
     }
     if (!envVars.ELEVENLABS_API_KEY) {
-      diagnostic.recommendations.push('⚠️ ELEVENLABS_API_KEY не настроен (может потребоваться)')
+      diagnostic.recommendations.push(
+        '⚠️ ELEVENLABS_API_KEY не настроен (может потребоваться)'
+      )
     }
     if (!inngestStatus.BOT?.configured) {
-      diagnostic.recommendations.push('❌ BOT Inngest инстанс не сконфигурирован')
+      diagnostic.recommendations.push(
+        '❌ BOT Inngest инстанс не сконфигурирован'
+      )
     }
     if (!inngestStatus.BOT?.available) {
       diagnostic.recommendations.push('❌ BOT Inngest инстанс недоступен')
@@ -123,7 +128,9 @@ router.get('/telegram/ai-reels-callback', async (_req: any, res: any) => {
 router.get('/models/:telegramId', async (req: any, res: any) => {
   try {
     const { telegramId } = req.params
-    logger.info('🔍 [DIAGNOSTIC] Checking user models', { telegram_id: telegramId })
+    logger.info('🔍 [DIAGNOSTIC] Checking user models', {
+      telegram_id: telegramId,
+    })
 
     // Получаем ВСЕ модели
     const { data: allModels, error: allError } = await supabase
@@ -134,8 +141,12 @@ router.get('/models/:telegramId', async (req: any, res: any) => {
       .order('created_at', { ascending: false })
 
     if (allError) {
-      logger.error('❌ [DIAGNOSTIC] Error fetching all models', { error: allError })
-      return res.status(500).json({ error: 'Error fetching all models', details: allError })
+      logger.error('❌ [DIAGNOSTIC] Error fetching all models', {
+        error: allError,
+      })
+      return res
+        .status(500)
+        .json({ error: 'Error fetching all models', details: allError })
     }
 
     // Получаем только replicate модели
@@ -148,8 +159,13 @@ router.get('/models/:telegramId', async (req: any, res: any) => {
       .order('created_at', { ascending: false })
 
     if (replicateError) {
-      logger.error('❌ [DIAGNOSTIC] Error fetching replicate models', { error: replicateError })
-      return res.status(500).json({ error: 'Error fetching replicate models', details: replicateError })
+      logger.error('❌ [DIAGNOSTIC] Error fetching replicate models', {
+        error: replicateError,
+      })
+      return res.status(500).json({
+        error: 'Error fetching replicate models',
+        details: replicateError,
+      })
     }
 
     // Получаем не-replicate модели
@@ -162,8 +178,12 @@ router.get('/models/:telegramId', async (req: any, res: any) => {
       .order('created_at', { ascending: false })
 
     if (otherError) {
-      logger.error('❌ [DIAGNOSTIC] Error fetching other models', { error: otherError })
-      return res.status(500).json({ error: 'Error fetching other models', details: otherError })
+      logger.error('❌ [DIAGNOSTIC] Error fetching other models', {
+        error: otherError,
+      })
+      return res
+        .status(500)
+        .json({ error: 'Error fetching other models', details: otherError })
     }
 
     logger.info('✅ [DIAGNOSTIC] User models fetched', {
@@ -202,7 +222,9 @@ router.get('/models/:telegramId', async (req: any, res: any) => {
 router.get('/diagnostic/trainings/:telegramId', async (req: any, res: any) => {
   try {
     const { telegramId } = req.params
-    logger.info('[DIAGNOSTIC] Checking ALL trainings for user', { telegram_id: telegramId })
+    logger.info('[DIAGNOSTIC] Checking ALL trainings for user', {
+      telegram_id: telegramId,
+    })
 
     const { data: trainings, error: dbError } = await supabase
       .from('model_trainings')
@@ -212,8 +234,15 @@ router.get('/diagnostic/trainings/:telegramId', async (req: any, res: any) => {
       .limit(20)
 
     if (dbError) {
-      logger.error('[DIAGNOSTIC] DB query failed', { error: dbError.message, code: dbError.code })
-      return res.status(500).json({ error: 'DB query failed', details: dbError.message, code: dbError.code })
+      logger.error('[DIAGNOSTIC] DB query failed', {
+        error: dbError.message,
+        code: dbError.code,
+      })
+      return res.status(500).json({
+        error: 'DB query failed',
+        details: dbError.message,
+        code: dbError.code,
+      })
     }
 
     // Проверяем BFL env vars
@@ -261,11 +290,20 @@ router.get('/diagnostic/trainings-recent', async (_req: any, res: any) => {
       .limit(10)
 
     if (dbError) {
-      logger.error('[DIAGNOSTIC] DB query failed', { error: dbError.message, code: dbError.code })
-      return res.status(500).json({ error: 'DB query failed', details: dbError.message, code: dbError.code })
+      logger.error('[DIAGNOSTIC] DB query failed', {
+        error: dbError.message,
+        code: dbError.code,
+      })
+      return res.status(500).json({
+        error: 'DB query failed',
+        details: dbError.message,
+        code: dbError.code,
+      })
     }
 
-    logger.info('[DIAGNOSTIC] Recent trainings fetched', { count: trainings?.length || 0 })
+    logger.info('[DIAGNOSTIC] Recent trainings fetched', {
+      count: trainings?.length || 0,
+    })
 
     res.json({
       total: trainings?.length || 0,
@@ -288,8 +326,13 @@ router.get('/diagnostic/trainings-recent', async (_req: any, res: any) => {
       })),
     })
   } catch (err: any) {
-    logger.error('[DIAGNOSTIC] trainings-recent failed', { error: err.message, stack: err.stack })
-    res.status(500).json({ error: err.message, stack: err.stack?.substring(0, 500) })
+    logger.error('[DIAGNOSTIC] trainings-recent failed', {
+      error: err.message,
+      stack: err.stack,
+    })
+    res
+      .status(500)
+      .json({ error: err.message, stack: err.stack?.substring(0, 500) })
   }
 })
 
@@ -302,7 +345,10 @@ router.get('/diagnostic/training-config', async (_req: any, res: any) => {
     logger.info('[DIAGNOSTIC] Checking training config (Replicate pipeline)')
 
     const baseWebhookUrl = process.env.BASE_WEBHOOK_URL || 'NOT SET'
-    const webhookUrl = baseWebhookUrl !== 'NOT SET' ? `${baseWebhookUrl}/api/webhooks/replicate` : 'NOT CONFIGURED'
+    const webhookUrl =
+      baseWebhookUrl !== 'NOT SET'
+        ? `${baseWebhookUrl}/api/webhooks/replicate`
+        : 'NOT CONFIGURED'
 
     const config = {
       timestamp: new Date().toISOString(),
@@ -316,7 +362,9 @@ router.get('/diagnostic/training-config', async (_req: any, res: any) => {
       },
       webhook: {
         BASE_WEBHOOK_URL: baseWebhookUrl,
-        BASE_WEBHOOK_URL_source: process.env.BASE_WEBHOOK_URL ? 'env' : 'default (hardcoded)',
+        BASE_WEBHOOK_URL_source: process.env.BASE_WEBHOOK_URL
+          ? 'env'
+          : 'default (hardcoded)',
         full_webhook_url: webhookUrl,
         points_to_flyio: baseWebhookUrl.includes('fly.dev'),
         points_to_vps: baseWebhookUrl.includes('three-head-dragon'),
@@ -334,32 +382,52 @@ router.get('/diagnostic/training-config', async (_req: any, res: any) => {
         SUPABASE_SERVICE_KEY_set: !!process.env.SUPABASE_SERVICE_KEY,
       },
       infisical: {
-        loaded_env_count: Object.keys(process.env).filter(k =>
-          k.startsWith('REPLICATE') || k.startsWith('BASE_WEBHOOK') || k.startsWith('INNGEST') || k.startsWith('SUPABASE')
+        loaded_env_count: Object.keys(process.env).filter(
+          k =>
+            k.startsWith('REPLICATE') ||
+            k.startsWith('BASE_WEBHOOK') ||
+            k.startsWith('INNGEST') ||
+            k.startsWith('SUPABASE')
         ).length,
-        replicate_keys: Object.keys(process.env).filter(k => k.includes('REPLICATE')),
-        webhook_keys: Object.keys(process.env).filter(k => k.includes('WEBHOOK')),
+        replicate_keys: Object.keys(process.env).filter(k =>
+          k.includes('REPLICATE')
+        ),
+        webhook_keys: Object.keys(process.env).filter(k =>
+          k.includes('WEBHOOK')
+        ),
       },
       warnings: [] as string[],
     }
 
     // Warnings
     if (!process.env.REPLICATE_API_TOKEN) {
-      config.warnings.push('CRITICAL: REPLICATE_API_TOKEN not set - training will fail at credential validation step')
+      config.warnings.push(
+        'CRITICAL: REPLICATE_API_TOKEN not set - training will fail at credential validation step'
+      )
     }
     if (!process.env.REPLICATE_USERNAME) {
-      config.warnings.push('CRITICAL: REPLICATE_USERNAME not set - cannot create models on Replicate')
+      config.warnings.push(
+        'CRITICAL: REPLICATE_USERNAME not set - cannot create models on Replicate'
+      )
     }
     if (!process.env.BASE_WEBHOOK_URL) {
-      config.warnings.push('CRITICAL: BASE_WEBHOOK_URL not set - Replicate webhooks will NOT be received! Set it in Infisical.')
+      config.warnings.push(
+        'CRITICAL: BASE_WEBHOOK_URL not set - Replicate webhooks will NOT be received! Set it in Infisical.'
+      )
     }
     // dead-domain-ok: это ДЕТЕКТОР мёртвого домена, а не ссылка на него.
     if (baseWebhookUrl.includes('three-head-dragon')) {
-      // dead-domain-ok: текст предупреждения обязан называть домен, иначе оно бесполезно.
-      config.warnings.push('CRITICAL: Webhook URL points at three-head-dragon.shop — the decommissioned VPS (188.137.250.69), not the Railway app. Replicate webhooks will be lost.')
+      config.warnings.push(
+        // dead-domain-ok: текст предупреждения обязан называть домен, иначе
+        // оно бесполезно. Пометка стоит ВНУТРИ вызова: снаружи prettier
+        // отодвигает её от строки переносом аргумента.
+        'CRITICAL: Webhook URL points at three-head-dragon.shop — the decommissioned VPS (188.137.250.69), not the Railway app. Replicate webhooks will be lost.'
+      )
     }
     if (!process.env.INNGEST_EVENT_KEY) {
-      config.warnings.push('WARNING: INNGEST_EVENT_KEY not set - Inngest events may not be delivered')
+      config.warnings.push(
+        'WARNING: INNGEST_EVENT_KEY not set - Inngest events may not be delivered'
+      )
     }
 
     if (config.warnings.length === 0) {

@@ -270,8 +270,8 @@ Send your RTL right here in this chat. Questions: admin@t27.ai`
   const url = channelId.startsWith('@')
     ? `https://t.me/${channelId.slice(1)}`
     : channelId.startsWith('http')
-    ? channelId
-    : `https://t.me/${channelId}`
+      ? channelId
+      : `https://t.me/${channelId}`
 
   await ctx.reply(text, {
     reply_markup: {

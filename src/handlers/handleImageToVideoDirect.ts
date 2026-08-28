@@ -5,7 +5,10 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { Input } from 'telegraf'
 import { VideoModelId } from '@/services/generateTextToVideo'
-import { getUnifiedModelPrice, getUnifiedModelConfig } from '@/config/unified-video-models.config'
+import {
+  getUnifiedModelPrice,
+  getUnifiedModelConfig,
+} from '@/config/unified-video-models.config'
 
 /**
  * Handler для генерации видео из изображения через прямую интеграцию с сервером
@@ -24,21 +27,22 @@ export async function handleImageToVideoDirect(
   const is_ru = isRussianFromState(ctx)
   const bot_name = ctx.botInfo?.username || 'unknown_bot'
 
-  logger.info(
-    '[handleImageToVideoDirect] Starting image to video generation',
-    {
-      telegram_id,
-      username,
-      modelId,
-      duration: duration,
-      aspectRatio: aspectRatio,
-      imageUrl: imageUrl ? imageUrl.substring(0, 100) + '...' : 'NO_URL',
-      promptLength: prompt.length,
-    }
-  )
+  logger.info('[handleImageToVideoDirect] Starting image to video generation', {
+    telegram_id,
+    username,
+    modelId,
+    duration: duration,
+    aspectRatio: aspectRatio,
+    imageUrl: imageUrl ? imageUrl.substring(0, 100) + '...' : 'NO_URL',
+    promptLength: prompt.length,
+  })
 
   // ✅ УНИФИКАЦИЯ: Используем единый источник правды для цен и названий
-  const getModelDisplayName = (modelId: string, is_ru: boolean, aspectRatio?: string): string => {
+  const getModelDisplayName = (
+    modelId: string,
+    is_ru: boolean,
+    aspectRatio?: string
+  ): string => {
     const config = getUnifiedModelConfig(modelId)
     if (!config) {
       return modelId // Fallback to modelId if config not found
@@ -47,8 +51,12 @@ export async function handleImageToVideoDirect(
     // Для Seedance добавляем разрешение к названию
     if (modelId === 'seedance-1-pro') {
       return is_ru
-        ? (aspectRatio === '9:16' ? 'Seedance Pro 480p' : 'Seedance Pro 1080p')
-        : (aspectRatio === '9:16' ? 'Seedance Pro 480p' : 'Seedance Pro 1080p')
+        ? aspectRatio === '9:16'
+          ? 'Seedance Pro 480p'
+          : 'Seedance Pro 1080p'
+        : aspectRatio === '9:16'
+          ? 'Seedance Pro 480p'
+          : 'Seedance Pro 1080p'
     }
 
     // Для остальных моделей используем name или nameRu из unified config
@@ -81,7 +89,7 @@ export async function handleImageToVideoDirect(
       logger.error('[handleImageToVideoDirect] Price calculation failed', {
         modelId,
         aspectRatio,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
       return null
     }
@@ -150,12 +158,15 @@ export async function handleImageToVideoDirect(
       ctx // ✅ FIX: Pass ctx to save videoJobId for status updates
     )
 
-    logger.info('[handleImageToVideoDirect] Image to Video generation started', {
-      telegram_id,
-      modelId,
-      price,
-      imageUrl: imageUrl.substring(0, 100) + '...',
-    })
+    logger.info(
+      '[handleImageToVideoDirect] Image to Video generation started',
+      {
+        telegram_id,
+        modelId,
+        price,
+        imageUrl: imageUrl.substring(0, 100) + '...',
+      }
+    )
 
     // ✅ СПИСЫВАЕМ БАЛАНС после успешного запуска генерации
     if (price > 0) {
@@ -171,7 +182,7 @@ export async function handleImageToVideoDirect(
         logger.error('❌ Failed to charge user for image to video generation', {
           telegram_id,
           price,
-          model: modelId
+          model: modelId,
         })
 
         if (ctx && ctx.telegram && ctx.chat) {
@@ -187,11 +198,14 @@ export async function handleImageToVideoDirect(
         return
       }
 
-      logger.info('✅ Successfully charged user for image to video generation', {
-        telegram_id,
-        price,
-        model: modelId
-      })
+      logger.info(
+        '✅ Successfully charged user for image to video generation',
+        {
+          telegram_id,
+          price,
+          model: modelId,
+        }
+      )
     }
 
     // Обновляем сообщение о успешном запуске
@@ -207,16 +221,18 @@ export async function handleImageToVideoDirect(
           reply_markup: {
             inline_keyboard: [
               [
-                { text: is_ru ? '🔄 Обновить статус' : '🔄 Update Status', callback_data: 'update_video_status' }
-              ]
-            ]
-          }
+                {
+                  text: is_ru ? '🔄 Обновить статус' : '🔄 Update Status',
+                  callback_data: 'update_video_status',
+                },
+              ],
+            ],
+          },
         }
       )
     }
 
     // Функция generateImageToVideo обрабатывает отправку видео пользователю
-    
   } catch (error) {
     logger.error('[handleImageToVideoDirect] Unexpected error:', error)
 

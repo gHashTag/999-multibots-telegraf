@@ -365,17 +365,18 @@ class VideoTranscriptionService {
       if (process.env.REPLICATE_API_TOKEN) {
         try {
           console.log(`🔄 Trying Replicate Whisper API...`)
-          
+
           // Convert file to base64 data URI for Replicate
           const audioBuffer = fs.readFileSync(finalVideoPath)
           const base64Audio = audioBuffer.toString('base64')
           const mimeType = this.getMimeType(finalVideoPath)
           const dataUri = `data:${mimeType};base64,${base64Audio}`
-          
+
           const replicateResponse = await axios.post(
             'https://api.replicate.com/v1/predictions',
             {
-              version: 'b48b0e1d11dc0c0088a0e7a74a9630e90dab64476c9e85bd88475d47f43adb11', // whisper large-v3
+              version:
+                'b48b0e1d11dc0c0088a0e7a74a9630e90dab64476c9e85bd88475d47f43adb11', // whisper large-v3
               input: {
                 audio: dataUri,
                 model: 'large-v3',
@@ -390,36 +391,39 @@ class VideoTranscriptionService {
                 compression_ratio_threshold: 2.4,
                 temperature_increment_on_fallback: 0.2,
                 initial_prompt: 'Транскрибация видео на русском языке.',
-              }
+              },
             },
             {
               headers: {
-                'Authorization': `Bearer ${process.env.REPLICATE_API_TOKEN}`,
+                Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}`,
                 'Content-Type': 'application/json',
               },
               timeout: 30000,
             }
           )
-          
+
           // Poll for result
           if (replicateResponse.data?.id) {
             const predictionId = replicateResponse.data.id
             let attempts = 0
             const maxAttempts = 60 // 5 minutes max wait
-            
+
             while (attempts < maxAttempts) {
               await new Promise(resolve => setTimeout(resolve, 5000)) // Wait 5 seconds
-              
+
               const statusResponse = await axios.get(
                 `https://api.replicate.com/v1/predictions/${predictionId}`,
                 {
                   headers: {
-                    'Authorization': `Bearer ${process.env.REPLICATE_API_TOKEN}`,
+                    Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}`,
                   },
                 }
               )
-              
-              if (statusResponse.data?.status === 'succeeded' && statusResponse.data?.output?.transcription) {
+
+              if (
+                statusResponse.data?.status === 'succeeded' &&
+                statusResponse.data?.output?.transcription
+              ) {
                 console.log(`✅ Transcription completed with Replicate`)
                 return {
                   success: true,
@@ -432,23 +436,25 @@ class VideoTranscriptionService {
               } else if (statusResponse.data?.status === 'failed') {
                 throw new Error('Replicate prediction failed')
               }
-              
+
               attempts++
             }
           }
         } catch (replicateError: any) {
-          console.log(`⚠️ Replicate failed, trying next service:`, replicateError.message)
+          console.log(
+            `⚠️ Replicate failed, trying next service:`,
+            replicateError.message
+          )
         }
       }
 
-
       // Use OpenAI client for transcription
-      const response = await openai.audio.transcriptions.create({
+      const response = (await openai.audio.transcriptions.create({
         file: createReadStream(videoPath) as any,
         model: 'whisper-1',
         language: 'ru',
-        response_format: 'verbose_json'
-      }) as any
+        response_format: 'verbose_json',
+      })) as any
 
       if (response.data && response.data.text) {
         console.log(`✅ Transcription completed successfully`)
@@ -501,7 +507,7 @@ class VideoTranscriptionService {
 
       // Don't clean up here - the file path in result.videoPath needs to be available for sending
       // The wizard will clean up after sending the video to the user
-      
+
       return result
     } catch (error) {
       return {

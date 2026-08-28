@@ -51,23 +51,31 @@ export async function fixRobokassaMissingStars(): Promise<void> {
   // Step 1: Find all COMPLETED Robokassa payments
   const { data: completedPayments, error: fetchError } = await supabaseAdmin
     .from('payments_v2')
-    .select('id, inv_id, telegram_id, amount, stars, bot_name, language, subscription_type, created_at, payment_date')
+    .select(
+      'id, inv_id, telegram_id, amount, stars, bot_name, language, subscription_type, created_at, payment_date'
+    )
     .eq('payment_method', 'Robokassa')
     .eq('status', 'COMPLETED')
     .eq('type', 'MONEY_INCOME')
     .order('created_at', { ascending: false })
 
   if (fetchError) {
-    logger.error('❌ [FIX] Failed to fetch Robokassa payments', { error: fetchError })
+    logger.error('❌ [FIX] Failed to fetch Robokassa payments', {
+      error: fetchError,
+    })
     return
   }
 
   if (!completedPayments || completedPayments.length === 0) {
-    logger.info('✅ [FIX] No COMPLETED Robokassa payments found. Nothing to fix.')
+    logger.info(
+      '✅ [FIX] No COMPLETED Robokassa payments found. Nothing to fix.'
+    )
     return
   }
 
-  logger.info(`📊 [FIX] Found ${completedPayments.length} COMPLETED Robokassa payments. Checking for missing credits...`)
+  logger.info(
+    `📊 [FIX] Found ${completedPayments.length} COMPLETED Robokassa payments. Checking for missing credits...`
+  )
 
   let fixedCount = 0
   let alreadyOkCount = 0
@@ -88,7 +96,10 @@ export async function fixRobokassaMissingStars(): Promise<void> {
       .limit(1)
 
     if (creditError) {
-      logger.error('❌ [FIX] Error checking credit record', { invId, error: creditError })
+      logger.error('❌ [FIX] Error checking credit record', {
+        invId,
+        error: creditError,
+      })
       errorCount++
       continue
     }
@@ -116,11 +127,14 @@ export async function fixRobokassaMissingStars(): Promise<void> {
     // Check if it's a subscription (those don't get balance credits)
     const isSubscription = SUBSCRIPTION_PLANS.some(p => p.ru_price === amount)
     if (isSubscription) {
-      logger.info(`ℹ️ [FIX] Skipping subscription payment (no balance credit needed)`, {
-        invId,
-        amount,
-        telegram_id: payment.telegram_id,
-      })
+      logger.info(
+        `ℹ️ [FIX] Skipping subscription payment (no balance credit needed)`,
+        {
+          invId,
+          amount,
+          telegram_id: payment.telegram_id,
+        }
+      )
       alreadyOkCount++
       continue
     }

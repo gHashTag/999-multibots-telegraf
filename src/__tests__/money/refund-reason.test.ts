@@ -107,7 +107,8 @@ describe('возврат денег называет причину', () => {
     const unknown: string[] = []
     for (const h of callSites()) {
       const m = h.text.match(/reason\s*:\s*['"]([a-z_]+)['"]/)
-      if (m && !KNOWN_REASONS.includes(m[1])) unknown.push(`${h.file}:${h.line} → ${m[1]}`)
+      if (m && !KNOWN_REASONS.includes(m[1]))
+        unknown.push(`${h.file}:${h.line} → ${m[1]}`)
     }
     expect(unknown).toEqual([])
   })

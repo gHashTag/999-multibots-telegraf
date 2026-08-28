@@ -5,13 +5,7 @@ const router = Router()
 
 router.post('/generate/voice-avatar', async (req, res) => {
   try {
-    const {
-      imageUrl,
-      prompt,
-      telegram_id,
-      is_ru = false,
-      bot_name
-    } = req.body
+    const { imageUrl, prompt, telegram_id, is_ru = false, bot_name } = req.body
 
     // ПОМЕТКА ПРОИСХОЖДЕНИЯ. Всё, что пришло сюда, должно быть отличимо в
     // данных от того, что человек сделал в боте.
@@ -47,13 +41,13 @@ router.post('/generate/voice-avatar', async (req, res) => {
 
     res.json({
       success: true,
-      data: result
+      data: result,
     })
   } catch (error) {
     console.error('Voice avatar error:', error)
     res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     })
   }
 })

@@ -23,7 +23,10 @@ export function calculateFinalPrice(
   }
 
   // ✅ ПРИОРИТЕТ 1: Фиксированная цена (БЕЗ наценки, уже финальная)
-  if (modelConfig.pricing.type === 'fixed' && modelConfig.pricing.fixedPriceStars) {
+  if (
+    modelConfig.pricing.type === 'fixed' &&
+    modelConfig.pricing.fixedPriceStars
+  ) {
     logger.info('calculateFinalPrice: Using fixed price (no markup)', {
       modelKey,
       fixedPriceStars: modelConfig.pricing.fixedPriceStars,
@@ -32,9 +35,17 @@ export function calculateFinalPrice(
   }
 
   // ✅ ПРИОРИТЕТ 2: Матрица цен (длительность + разрешение) (БЕЗ наценки)
-  if (modelConfig.pricing.type === 'per_duration_resolution' && modelConfig.pricing.priceMatrix) {
-    const duration = selectedDuration || modelConfig.pricing.defaultDuration || DEFAULT_VIDEO_DURATION_SECONDS
-    const resolution = selectedResolution || Object.keys(modelConfig.pricing.priceMatrix[duration] || {})[0]
+  if (
+    modelConfig.pricing.type === 'per_duration_resolution' &&
+    modelConfig.pricing.priceMatrix
+  ) {
+    const duration =
+      selectedDuration ||
+      modelConfig.pricing.defaultDuration ||
+      DEFAULT_VIDEO_DURATION_SECONDS
+    const resolution =
+      selectedResolution ||
+      Object.keys(modelConfig.pricing.priceMatrix[duration] || {})[0]
 
     const price = modelConfig.pricing.priceMatrix[duration]?.[resolution]
     if (price) {
@@ -49,38 +60,61 @@ export function calculateFinalPrice(
   }
 
   // ✅ ПРИОРИТЕТ 3: Цена по длительности (БЕЗ наценки)
-  if (modelConfig.pricing.type === 'per_duration' && modelConfig.pricing.priceByDuration) {
+  if (
+    modelConfig.pricing.type === 'per_duration' &&
+    modelConfig.pricing.priceByDuration
+  ) {
     // Используем выбранную длительность или первую доступную как fallback
-    const duration = selectedDuration || modelConfig.pricing.defaultDuration || Number(Object.keys(modelConfig.pricing.priceByDuration)[0])
+    const duration =
+      selectedDuration ||
+      modelConfig.pricing.defaultDuration ||
+      Number(Object.keys(modelConfig.pricing.priceByDuration)[0])
     const price = modelConfig.pricing.priceByDuration[duration]
     if (price) {
-      logger.info('calculateFinalPrice: Using duration-based price (no markup)', {
-        modelKey,
-        selectedDuration: duration,
-        priceStars: price,
-      })
+      logger.info(
+        'calculateFinalPrice: Using duration-based price (no markup)',
+        {
+          modelKey,
+          selectedDuration: duration,
+          priceStars: price,
+        }
+      )
       return price
     }
   }
 
   // ✅ ПРИОРИТЕТ 4: Цена по разрешению (БЕЗ наценки)
-  if (modelConfig.pricing.type === 'per_resolution' && modelConfig.pricing.priceByResolution) {
+  if (
+    modelConfig.pricing.type === 'per_resolution' &&
+    modelConfig.pricing.priceByResolution
+  ) {
     // Используем выбранное разрешение или первое доступное как fallback
-    const resolution = selectedResolution || Object.keys(modelConfig.pricing.priceByResolution)[0]
+    const resolution =
+      selectedResolution ||
+      Object.keys(modelConfig.pricing.priceByResolution)[0]
     const price = modelConfig.pricing.priceByResolution[resolution]
     if (price) {
-      logger.info('calculateFinalPrice: Using resolution-based price (no markup)', {
-        modelKey,
-        selectedResolution: resolution,
-        priceStars: price,
-      })
+      logger.info(
+        'calculateFinalPrice: Using resolution-based price (no markup)',
+        {
+          modelKey,
+          selectedResolution: resolution,
+          priceStars: price,
+        }
+      )
       return price
     }
   }
 
   // ✅ ПРИОРИТЕТ 5: Цена за секунду (С НАЦЕНКОЙ - устаревший метод)
-  if (modelConfig.pricing.type === 'per_second' && modelConfig.pricing.pricePerSecondUSD) {
-    const duration = selectedDuration || modelConfig.pricing.defaultDuration || DEFAULT_VIDEO_DURATION_SECONDS
+  if (
+    modelConfig.pricing.type === 'per_second' &&
+    modelConfig.pricing.pricePerSecondUSD
+  ) {
+    const duration =
+      selectedDuration ||
+      modelConfig.pricing.defaultDuration ||
+      DEFAULT_VIDEO_DURATION_SECONDS
     const totalBaseCostUSD = modelConfig.pricing.pricePerSecondUSD * duration
     const basePriceInStars = totalBaseCostUSD / SYSTEM_CONFIG.starCost
     const finalPriceWithMarkup = basePriceInStars * SYSTEM_CONFIG.interestRate
@@ -101,6 +135,8 @@ export function calculateFinalPrice(
     return finalPriceInStars
   }
 
-  logger.error('calculateFinalPrice: No valid pricing config found', { modelKey })
+  logger.error('calculateFinalPrice: No valid pricing config found', {
+    modelKey,
+  })
   return 0
 }

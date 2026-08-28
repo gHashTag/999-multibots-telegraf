@@ -23,7 +23,9 @@ import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 
 const strip = (s: string) =>
-  s.replace(/\/\*[\s\S]*?\*\//g, m => '\n'.repeat((m.match(/\n/g) || []).length))
+  s.replace(/\/\*[\s\S]*?\*\//g, m =>
+    '\n'.repeat((m.match(/\n/g) || []).length)
+  )
 
 const SAVE = 'src/core/supabase/saveVideoUrlToSupabase.ts'
 const HELPER = 'src/modules/videoGenerator/helpers/supabaseHelper.ts'
@@ -38,8 +40,12 @@ describe('запись результата видео сообщает об о�
 
   it('функция возвращает признак, а не void', () => {
     // void не оставляет вызывающему никакого способа узнать об отказе.
-    expect(save).toMatch(/saveVideoUrlToSupabase\([\s\S]{0,80}?\): Promise<boolean>/)
-    expect(save).not.toMatch(/saveVideoUrlToSupabase\([\s\S]{0,80}?\): Promise<void>/)
+    expect(save).toMatch(
+      /saveVideoUrlToSupabase\([\s\S]{0,80}?\): Promise<boolean>/
+    )
+    expect(save).not.toMatch(
+      /saveVideoUrlToSupabase\([\s\S]{0,80}?\): Promise<void>/
+    )
   })
 
   it('обе ветки отказа возвращают false', () => {

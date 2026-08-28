@@ -45,8 +45,10 @@ const SEEDEDIT3_MODEL = {
   key: SEEDEDIT3_CONFIG.modelKey,
   costPerImage: calculateFinalImageCostInStars(SEEDEDIT3_CONFIG.costUSD),
   name: 'SeedEdit 3.0',
-  description_en: 'SeedEdit 3.0 - 56.1% usability, 4K support, superior detail preservation',
-  description_ru: 'SeedEdit 3.0 - 56.1% usability, поддержка 4K, лучшая детализация'
+  description_en:
+    'SeedEdit 3.0 - 56.1% usability, 4K support, superior detail preservation',
+  description_ru:
+    'SeedEdit 3.0 - 56.1% usability, поддержка 4K, лучшая детализация',
 }
 
 /**
@@ -81,7 +83,7 @@ export const generateSeedEdit3 = async (
       size = '2K',
       editing_strength = 0.7,
       preserve_background = true,
-      seed
+      seed,
     } = params
 
     // ✅ Validate input image is provided
@@ -101,7 +103,8 @@ export const generateSeedEdit3 = async (
     }
 
     // ✅ Map size to resolution
-    const output_resolution = size === 'custom' ? '2048' : mapQualityToResolution(size)
+    const output_resolution =
+      size === 'custom' ? '2048' : mapQualityToResolution(size)
 
     // ✅ Prepare Replicate API input with Zod validation
     const replicateInput: SeedEdit3Input = validateSeedEdit3Input({
@@ -206,13 +209,17 @@ export const generateSeedEdit3 = async (
       })
 
       // ✅ Refund user on API failure (silent mode if needed)
-      await refundUser(ctx, totalCost, { silent: params.silent || false, reason: "generation_failed" })
+      await refundUser(ctx, totalCost, {
+        silent: params.silent || false,
+        reason: 'generation_failed',
+      })
 
       throw error
     }
 
     // ✅ Validate response with Zod
-    const validatedResponse: SeedEdit3Response = validateSeedEdit3Response(replicateOutput)
+    const validatedResponse: SeedEdit3Response =
+      validateSeedEdit3Response(replicateOutput)
 
     logger.info('✅ [SeedEdit3] Response validated successfully!', {
       telegram_id,
@@ -271,10 +278,7 @@ export const generateSeedEdit3 = async (
         ? `✅ Готово!\n\n🎯 Модель: ${SEEDEDIT3_MODEL.description_ru}\n💰 Потрачено: ${totalCost}⭐`
         : `✅ Done!\n\n🎯 Model: ${SEEDEDIT3_MODEL.description_en}\n💰 Cost: ${totalCost}⭐`
 
-      await ctx.replyWithPhoto(
-        { url: imageUrl },
-        { caption }
-      )
+      await ctx.replyWithPhoto({ url: imageUrl }, { caption })
 
       logger.info('📬 [SeedEdit3] Photo sent successfully!', {
         telegram_id,
@@ -298,12 +302,12 @@ export const generateSeedEdit3 = async (
         prompt: finalPrompt,
         botName: ctx.botInfo?.username || 'unknown',
         additionalInfo: {
-          'Model': SEEDEDIT3_MODEL.name,
-          'Quality': size,
+          Model: SEEDEDIT3_MODEL.name,
+          Quality: size,
           'Editing Strength': editing_strength.toString(),
-          'Cost': `${totalCost} stars`,
-          'Type': 'AI Image Editing'
-        }
+          Cost: `${totalCost} stars`,
+          Type: 'AI Image Editing',
+        },
       })
 
       logger.info('✅ [SeedEdit3] Pulse channel send SUCCESS!', {
@@ -312,7 +316,8 @@ export const generateSeedEdit3 = async (
     } catch (pulseError) {
       logger.error('⚠️ [SeedEdit3] Pulse channel send failed (non-critical):', {
         telegram_id,
-        error: pulseError instanceof Error ? pulseError.message : String(pulseError),
+        error:
+          pulseError instanceof Error ? pulseError.message : String(pulseError),
       })
     }
 
@@ -330,7 +335,10 @@ export const generateSeedEdit3 = async (
     // ✅ Refund on any outer error (if not already refunded in inner catch)
     try {
       if (totalCost > 0 && params.ctx) {
-        await refundUser(params.ctx, totalCost, { silent: params.silent || false, reason: "generation_failed" })
+        await refundUser(params.ctx, totalCost, {
+          silent: params.silent || false,
+          reason: 'generation_failed',
+        })
         logger.info('💰 Balance refunded after SeedEdit3 error', {
           telegram_id: params.telegram_id,
           refundAmount: totalCost,
@@ -339,7 +347,8 @@ export const generateSeedEdit3 = async (
     } catch (refundError) {
       logger.error('Failed to refund after SeedEdit3 error', {
         telegram_id: params.telegram_id,
-        refundError: refundError instanceof Error ? refundError.message : 'Unknown',
+        refundError:
+          refundError instanceof Error ? refundError.message : 'Unknown',
       })
     }
 

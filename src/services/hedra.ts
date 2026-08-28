@@ -25,13 +25,16 @@ export class HedraService {
     console.log('[HEDRA STUB] Service initialized (stub mode)')
   }
 
-  async createAsset(name: string, type: 'image' | 'audio'): Promise<HedraAsset> {
+  async createAsset(
+    name: string,
+    type: 'image' | 'audio'
+  ): Promise<HedraAsset> {
     console.log(`[HEDRA STUB] Creating ${type} asset: ${name}`)
     return {
       id: `hedra_asset_${Date.now()}_${Math.random().toString(36).substring(7)}`,
       type,
       status: 'ready',
-      upload_url: 'https://stub.hedra.com/upload'
+      upload_url: 'https://stub.hedra.com/upload',
     }
   }
 
@@ -52,12 +55,12 @@ export class HedraService {
       audioAssetId,
       textPrompt,
       resolution,
-      aspectRatio
+      aspectRatio,
     })
 
     return {
       id: `hedra_gen_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-      status: 'processing'
+      status: 'processing',
     }
   }
 
@@ -73,7 +76,7 @@ export class HedraService {
       id: generationId,
       status: 'completed',
       url: `https://stub.hedra.com/videos/${generationId}.mp4`,
-      progress: 100
+      progress: 100,
     }
   }
 
@@ -84,7 +87,7 @@ export class HedraService {
       id: generationId,
       status: 'completed',
       url: `https://stub.hedra.com/videos/${generationId}.mp4`,
-      progress: 100
+      progress: 100,
     }
   }
 }

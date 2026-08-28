@@ -39,13 +39,20 @@ import { supabase } from '@/core/supabase/client'
 import { logger } from '@/utils/logger'
 
 // Helper to setup supabase mocks
-const setupSupabaseMocks = (options: {
-  selectData?: any
-  selectError?: any
-  upsertError?: any
-  deleteError?: any
-} = {}) => {
-  const { selectData = null, selectError = null, upsertError = null, deleteError = null } = options
+const setupSupabaseMocks = (
+  options: {
+    selectData?: any
+    selectError?: any
+    upsertError?: any
+    deleteError?: any
+  } = {}
+) => {
+  const {
+    selectData = null,
+    selectError = null,
+    upsertError = null,
+    deleteError = null,
+  } = options
 
   const mockMaybeSingle = vi.fn().mockResolvedValue({
     data: selectData,

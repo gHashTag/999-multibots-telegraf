@@ -300,13 +300,16 @@ export function createHandleModelTrainingCompletedFunction(inngest: any) {
             const botData = getBotByNameAdapter(botName)
 
             if (!botData.bot || botData.error) {
-              logger.error('[TRAINING COMPLETED] Bot instance not found - NOTIFICATION NOT SENT!', {
-                bot_name: botName,
-                error: botData.error,
-                training_id: eventData.training_id,
-                telegram_id: telegramId,
-                availableBots: 'check getBotByNameAdapter logs',
-              })
+              logger.error(
+                '[TRAINING COMPLETED] Bot instance not found - NOTIFICATION NOT SENT!',
+                {
+                  bot_name: botName,
+                  error: botData.error,
+                  training_id: eventData.training_id,
+                  telegram_id: telegramId,
+                  availableBots: 'check getBotByNameAdapter logs',
+                }
+              )
               return {
                 sent: false,
                 reason: `Bot instance not found: ${botName}`,

@@ -24,7 +24,7 @@ import {
   getSceneByModeEnum,
   isSceneAccessible,
   isTransitionAllowed,
-  type SceneMetadata
+  type SceneMetadata,
 } from './SceneRegistry'
 
 import {
@@ -32,14 +32,14 @@ import {
   goBack as sceneGoBack,
   canGoBack,
   clearNavigationHistory,
-  getPreviousScene
+  getPreviousScene,
 } from './helpers/sceneTransition'
 
 import {
   logSceneEnter,
   logSceneLeave,
   logNavigationError as logNavError,
-  logNavigationWarning as logNavWarning
+  logNavigationWarning as logNavWarning,
 } from './helpers/navigationLogger'
 
 /**
@@ -98,7 +98,7 @@ export enum NavigationEvent {
   SCENE_LEAVE = 'scene:leave',
   SCENE_ERROR = 'scene:error',
   ACCESS_DENIED = 'access:denied',
-  TRANSITION_BLOCKED = 'transition:blocked'
+  TRANSITION_BLOCKED = 'transition:blocked',
 }
 
 /**
@@ -114,7 +114,8 @@ export type NavigationEventHandler = (
  * Центральный навигационный роутер
  */
 export class NavigationRouter {
-  private eventHandlers: Map<NavigationEvent, NavigationEventHandler[]> = new Map()
+  private eventHandlers: Map<NavigationEvent, NavigationEventHandler[]> =
+    new Map()
   private defaultAccessLevel = AccessLevel.PUBLIC
 
   /**
@@ -158,7 +159,7 @@ export class NavigationRouter {
       userAccessLevel,
       hasSubscription,
       currentScene: ctx.scene.current?.id,
-      language
+      language,
     }
   }
 
@@ -220,28 +221,54 @@ export class NavigationRouter {
 
     if (!scene) {
       const error = `Scene not found: ${sceneId}`
-      await this.emitEvent(NavigationEvent.SCENE_ERROR, { ...navContext }, new Error(error))
-      logger.error(`[Navigation] ${error}`, { userId: navContext.userId, sceneId })
+      await this.emitEvent(
+        NavigationEvent.SCENE_ERROR,
+        { ...navContext },
+        new Error(error)
+      )
+      logger.error(`[Navigation] ${error}`, {
+        userId: navContext.userId,
+        sceneId,
+      })
       return { success: false, error }
     }
 
-    if (!options.skipAccessCheck &&
-        !isSceneAccessible(scene, navContext.userAccessLevel, navContext.hasSubscription)) {
+    if (
+      !options.skipAccessCheck &&
+      !isSceneAccessible(
+        scene,
+        navContext.userAccessLevel,
+        navContext.hasSubscription
+      )
+    ) {
       const error = `Access denied to scene: ${sceneId}`
-      await this.emitEvent(NavigationEvent.ACCESS_DENIED, { ...navContext, scene }, new Error(error))
-      logger.warn(`[Navigation] ${error}`, { userId: navContext.userId, sceneId })
+      await this.emitEvent(
+        NavigationEvent.ACCESS_DENIED,
+        { ...navContext, scene },
+        new Error(error)
+      )
+      logger.warn(`[Navigation] ${error}`, {
+        userId: navContext.userId,
+        sceneId,
+      })
       return { success: false, error }
     }
 
-    if (!options.force &&
-        navContext.currentScene &&
-        !isTransitionAllowed(navContext.currentScene, sceneId)) {
+    if (
+      !options.force &&
+      navContext.currentScene &&
+      !isTransitionAllowed(navContext.currentScene, sceneId)
+    ) {
       const error = `Transition blocked: ${navContext.currentScene} -> ${sceneId}`
-      await this.emitEvent(NavigationEvent.TRANSITION_BLOCKED, { ...navContext, scene }, new Error(error))
+      await this.emitEvent(
+        NavigationEvent.TRANSITION_BLOCKED,
+        { ...navContext, scene },
+        new Error(error)
+      )
       logger.warn(`[Navigation] ${error}`, {
         userId: navContext.userId,
         from: navContext.currentScene,
-        to: sceneId
+        to: sceneId,
       })
       return { success: false, error }
     }
@@ -252,7 +279,7 @@ export class NavigationRouter {
         leaveFirst: options.leaveCurrent !== false,
         saveToHistory: options.saveToHistory !== false,
         mode: options.mode,
-        sceneState: options.sceneState
+        sceneState: options.sceneState,
       }
 
       await safeEnterScene(ctx, sceneId, transitionOptions)
@@ -263,23 +290,34 @@ export class NavigationRouter {
         from: navContext.currentScene,
         to: sceneId,
         sceneName: scene.name,
-        category: scene.category
+        category: scene.category,
       })
 
-      await this.emitEvent(NavigationEvent.SCENE_ENTER, { ...navContext, scene })
+      await this.emitEvent(NavigationEvent.SCENE_ENTER, {
+        ...navContext,
+        scene,
+      })
 
       return {
         success: true,
         sceneId,
         metadata: {
           sceneName: scene.name,
-          category: scene.category
-        }
+          category: scene.category,
+        },
       }
     } catch (error) {
       const errorMessage = `Failed to navigate to scene ${sceneId}: ${error instanceof Error ? error.message : String(error)}`
-      await this.emitEvent(NavigationEvent.SCENE_ERROR, { ...navContext, scene }, error as Error)
-      logger.error(`[Navigation] ${errorMessage}`, { userId: navContext.userId, sceneId, error })
+      await this.emitEvent(
+        NavigationEvent.SCENE_ERROR,
+        { ...navContext, scene },
+        error as Error
+      )
+      logger.error(`[Navigation] ${errorMessage}`, {
+        userId: navContext.userId,
+        sceneId,
+        error,
+      })
       return { success: false, error: errorMessage }
     }
   }
@@ -307,7 +345,7 @@ export class NavigationRouter {
   async navigateToMainMenu(ctx: MyContext): Promise<NavigationResult> {
     return this.navigateToScene(ctx, 'menuScene', {
       saveToHistory: false,
-      leaveCurrent: true
+      leaveCurrent: true,
     })
   }
 
@@ -331,21 +369,26 @@ export class NavigationRouter {
       await sceneGoBack(ctx)
       const scene = getSceneById(previousSceneId)
 
-    logger.info('[Navigation] go_back', {
+      logger.info('[Navigation] go_back', {
         userId: navContext.userId,
         from: navContext.currentScene,
-        to: previousSceneId
+        to: previousSceneId,
       })
 
-      await this.emitEvent(NavigationEvent.SCENE_ENTER, { ...navContext, scene })
+      await this.emitEvent(NavigationEvent.SCENE_ENTER, {
+        ...navContext,
+        scene,
+      })
 
       return {
         success: true,
-        sceneId: previousSceneId
+        sceneId: previousSceneId,
       }
     } catch (error) {
       const errorMessage = `Failed to go back: ${error instanceof Error ? error.message : String(error)}`
-      logger.error(`[Navigation] ${errorMessage}`, { userId: navContext.userId })
+      logger.error(`[Navigation] ${errorMessage}`, {
+        userId: navContext.userId,
+      })
       return { success: false, error: errorMessage }
     }
   }
@@ -361,7 +404,7 @@ export class NavigationRouter {
 
     logger.info('[Navigation] cancel', {
       userId: navContext.userId,
-      from: navContext.currentScene
+      from: navContext.currentScene,
     })
 
     // Возвращаемся в главное меню
@@ -389,7 +432,7 @@ export class NavigationRouter {
       currentScene,
       canGoBack: canGoBack(ctx),
       historyDepth: ctx.session.navigationHistory?.length || 0,
-      availableTransitions: []
+      availableTransitions: [],
     }
   }
 }
@@ -402,11 +445,15 @@ export const navigationRouter = new NavigationRouter()
 /**
  * Экспортируем методы для удобства использования
  */
-export const navigateToScene = navigationRouter.navigateToScene.bind(navigationRouter)
-export const navigateToMode = navigationRouter.navigateToMode.bind(navigationRouter)
-export const navigateToMainMenu = navigationRouter.navigateToMainMenu.bind(navigationRouter)
+export const navigateToScene =
+  navigationRouter.navigateToScene.bind(navigationRouter)
+export const navigateToMode =
+  navigationRouter.navigateToMode.bind(navigationRouter)
+export const navigateToMainMenu =
+  navigationRouter.navigateToMainMenu.bind(navigationRouter)
 export const goBack = navigationRouter.goBack.bind(navigationRouter)
 export const cancel = navigationRouter.cancel.bind(navigationRouter)
-export const getNavigationInfo = navigationRouter.getNavigationInfo.bind(navigationRouter)
+export const getNavigationInfo =
+  navigationRouter.getNavigationInfo.bind(navigationRouter)
 
 export default navigationRouter

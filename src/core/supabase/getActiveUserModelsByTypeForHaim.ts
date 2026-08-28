@@ -80,7 +80,9 @@ export async function getActiveUserModelsByTypeForHaim(
         console.log(`✅ Добавлена общая CocoAge модель для ${telegram_id}`)
       }
 
-      console.log(`🎯 Всего общих моделей добавлено: ${[vyacheslavModel, cocoAgeModel].filter(Boolean).length}`)
+      console.log(
+        `🎯 Всего общих моделей добавлено: ${[vyacheslavModel, cocoAgeModel].filter(Boolean).length}`
+      )
     }
 
     return allModels as ModelTraining[]

@@ -30,11 +30,12 @@ import {
 import { updateUserLanguage } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
-const createMockContext = (overrides: Partial<MyContext> = {}): MyContext => ({
-  from: { id: 123456789, language_code: 'en' },
-  state: { userLanguage: undefined },
-  ...overrides,
-} as unknown as MyContext)
+const createMockContext = (overrides: Partial<MyContext> = {}): MyContext =>
+  ({
+    from: { id: 123456789, language_code: 'en' },
+    state: { userLanguage: undefined },
+    ...overrides,
+  }) as unknown as MyContext
 
 describe('getUserLanguageFromState', () => {
   beforeEach(() => {

@@ -6,7 +6,12 @@ import { ModeEnum } from '@/interfaces/modes'
 import { handleImageToVideoDirect } from '../../handlers/handleImageToVideoDirect'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import { handleHelpCancel } from '@/navigation'
-import { generateModelButton, parseModelButton, generateModelKeyboard, getModelPriceStars } from '@/config/unified-video-models.config'
+import {
+  generateModelButton,
+  parseModelButton,
+  generateModelKeyboard,
+  getModelPriceStars,
+} from '@/config/unified-video-models.config'
 
 // ✅ ЦЕНТРАЛИЗОВАННАЯ СИСТЕМА ОТМЕНЫ
 import { createCancelOnlyKeyboard } from '@/utils/cancelKeyboard'
@@ -20,13 +25,19 @@ console.log('🎬 [I2V WIZARD] Loading imageToVideoWizard...')
 
 export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToVideo,
-  
-  async (ctx) => {
+
+  async ctx => {
     console.log('🔥🔥🔥 [I2V WIZARD] STEP 0 (FIRST STEP) ACTUALLY CALLED!')
     console.log('🔥🔥🔥 [I2V WIZARD] User:', ctx.from?.id)
-    console.log('🔥🔥🔥 [I2V WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'undefined')
+    console.log(
+      '🔥🔥🔥 [I2V WIZARD] Current cursor:',
+      ctx.wizard?.cursor ?? 'undefined'
+    )
     console.log('🔥🔥🔥 [I2V WIZARD] Scene ID:', ctx.scene?.current?.id)
-    console.log('🔥🔥🔥 [I2V WIZARD] Message type:', ctx.message ? Object.keys(ctx.message) : 'no message')
+    console.log(
+      '🔥🔥🔥 [I2V WIZARD] Message type:',
+      ctx.message ? Object.keys(ctx.message) : 'no message'
+    )
 
     try {
       const isRu = isRussianFromState(ctx)
@@ -44,7 +55,7 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Кнопки назад и отмена
       keyboardRows.push([
         isRu ? '⬅️ Назад в меню' : '⬅️ Back to Menu',
-        isRu ? 'Отмена' : 'Cancel'
+        isRu ? 'Отмена' : 'Cancel',
       ])
       const keyboard = Markup.keyboard(keyboardRows).resize()
 
@@ -61,7 +72,6 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       ctx.wizard.next()
       console.log('🎬 [I2V WIZARD] Step 0: ✅ ctx.wizard.next() CALLED')
       return
-      
     } catch (error) {
       console.error('🎬 [I2V WIZARD] 💥 STEP 1 ERROR:', error)
       await ctx.reply('❌ Ошибка в мастере генерации видео')
@@ -69,9 +79,12 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  async (ctx) => {
+  async ctx => {
     console.log('🎬 [I2V WIZARD] 🔥 STEP 1 STARTED! User:', ctx.from?.id)
-    console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'undefined')
+    console.log(
+      '🎬 [I2V WIZARD] Current cursor:',
+      ctx.wizard?.cursor ?? 'undefined'
+    )
 
     try {
       const isRu = isRussianFromState(ctx)
@@ -87,7 +100,9 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       if (!message || !('text' in message)) {
         console.log('🎬 [I2V WIZARD] Step 1: No text message')
         await ctx.reply(
-          isRu ? 'Выберите модель из кнопок выше.' : 'Select a model from the buttons above.'
+          isRu
+            ? 'Выберите модель из кнопок выше.'
+            : 'Select a model from the buttons above.'
         )
         return
       }
@@ -98,14 +113,19 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       // Назад в меню
       if (selectedText.includes('Назад') || selectedText.includes('Back')) {
         console.log('🎬 [I2V WIZARD] Step 1: Going back to menu')
-        await ctx.reply(isRu ? 'Возвращаемся в меню...' : 'Returning to menu...', Markup.removeKeyboard())
+        await ctx.reply(
+          isRu ? 'Возвращаемся в меню...' : 'Returning to menu...',
+          Markup.removeKeyboard()
+        )
         return ctx.scene.leave()
       }
 
       // Отмена
       if (selectedText.includes('Отмена') || selectedText.includes('Cancel')) {
         await ctx.reply(
-          isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+          isRu
+            ? '❌ Процесс отменён. Возвращаюсь в главное меню.'
+            : '❌ Process cancelled. Returning to main menu.',
           Markup.removeKeyboard()
         )
         return ctx.scene.leave()
@@ -128,16 +148,20 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         {
           reply_markup: {
             inline_keyboard: [
-              [{ text: isRu ? 'Отмена' : 'Cancel', callback_data: 'cancel_video_generation' }]
-            ]
-          }
+              [
+                {
+                  text: isRu ? 'Отмена' : 'Cancel',
+                  callback_data: 'cancel_video_generation',
+                },
+              ],
+            ],
+          },
         }
       )
 
       // Переходим к следующему шагу для ожидания изображения
       ctx.wizard.next()
       return
-
     } catch (error) {
       console.error('🎬 [I2V WIZARD] Step 1 ERROR:', error)
       await ctx.reply('❌ Ошибка в первом шаге wizard')
@@ -145,9 +169,12 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  async (ctx) => {
+  async ctx => {
     console.log('🎬 [I2V WIZARD] 🔥 STEP 2 STARTED! User:', ctx.from?.id)
-    console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'undefined')
+    console.log(
+      '🎬 [I2V WIZARD] Current cursor:',
+      ctx.wizard?.cursor ?? 'undefined'
+    )
 
     try {
       const isRu = isRussianFromState(ctx)
@@ -191,16 +218,22 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         {
           reply_markup: {
             inline_keyboard: [
-              [{ text: isRu ? 'Отмена' : 'Cancel', callback_data: 'cancel_video_generation' }]
-            ]
-          }
+              [
+                {
+                  text: isRu ? 'Отмена' : 'Cancel',
+                  callback_data: 'cancel_video_generation',
+                },
+              ],
+            ],
+          },
         }
       )
 
-      console.log('🎬 [I2V WIZARD] Step 2: ✅ REPLY SENT! Moving to next step...')
+      console.log(
+        '🎬 [I2V WIZARD] Step 2: ✅ REPLY SENT! Moving to next step...'
+      )
       ctx.wizard.next()
       return
-
     } catch (error) {
       console.error('🎬 [I2V WIZARD] 💥 STEP 2 ERROR:', error)
       await ctx.reply('❌ Ошибка при обработке изображения')
@@ -208,9 +241,12 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
     }
   },
 
-  async (ctx) => {
+  async ctx => {
     console.log('🎬 [I2V WIZARD] 🔥 STEP 3 STARTED! User:', ctx.from?.id)
-    console.log('🎬 [I2V WIZARD] Current cursor:', ctx.wizard?.cursor ?? 'undefined')
+    console.log(
+      '🎬 [I2V WIZARD] Current cursor:',
+      ctx.wizard?.cursor ?? 'undefined'
+    )
 
     try {
       const isRu = isRussianFromState(ctx)
@@ -231,44 +267,65 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
-      let prompt = message.text.trim()
+      const prompt = message.text.trim()
       console.log('🎬 [I2V WIZARD] Step 3: Received prompt:', prompt)
 
       // Назад в меню
       if (prompt.includes('Назад') || prompt.includes('Back')) {
         console.log('🎬 [I2V WIZARD] Step 3: Going back to menu')
-        await ctx.reply(isRu ? 'Возвращаемся в меню...' : 'Returning to menu...')
+        await ctx.reply(
+          isRu ? 'Возвращаемся в меню...' : 'Returning to menu...'
+        )
         return ctx.scene.leave()
       }
 
       if (!prompt || prompt.length < 3) {
-        await ctx.reply(isRu ? 'Описание слишком короткое.' : 'Description is too short.')
+        await ctx.reply(
+          isRu ? 'Описание слишком короткое.' : 'Description is too short.'
+        )
         return
       }
 
       // Получаем параметры из сессии
       const selectedModel = ctx.session.selectedVideoModel
       const aspectRatio = ctx.session.selectedAspectRatio || '9:16'
-      const cost = ctx.session.selectedVideoCost || getModelPriceStars(selectedModel) || 25 // ✅ УНИФИКАЦИЯ ЦЕН
+      const cost =
+        ctx.session.selectedVideoCost || getModelPriceStars(selectedModel) || 25 // ✅ УНИФИКАЦИЯ ЦЕН
       const duration = ctx.session.selectedDuration
       const imageUrl = ctx.session.imageUrl
 
       if (!selectedModel) {
-        console.log('🎬 [I2V WIZARD] Step 3: No model selected - returning to step 0')
-        await ctx.reply(isRu ? 'Модель не выбрана. Начинаем заново.' : 'No model selected. Starting over.')
+        console.log(
+          '🎬 [I2V WIZARD] Step 3: No model selected - returning to step 0'
+        )
+        await ctx.reply(
+          isRu
+            ? 'Модель не выбрана. Начинаем заново.'
+            : 'No model selected. Starting over.'
+        )
         ctx.wizard.selectStep(0)
         return
       }
 
       if (!imageUrl) {
-        console.log('🎬 [I2V WIZARD] Step 3: No image URL - returning to step 0')
-        await ctx.reply(isRu ? 'Изображение не найдено. Начинаем заново.' : 'Image not found. Starting over.')
+        console.log(
+          '🎬 [I2V WIZARD] Step 3: No image URL - returning to step 0'
+        )
+        await ctx.reply(
+          isRu
+            ? 'Изображение не найдено. Начинаем заново.'
+            : 'Image not found. Starting over.'
+        )
         ctx.wizard.selectStep(0)
         return
       }
 
       console.log('🎬 [I2V WIZARD] Step 3: Starting generation with params:', {
-        selectedModel, aspectRatio, cost, duration, imageUrl
+        selectedModel,
+        aspectRatio,
+        cost,
+        duration,
+        imageUrl,
       })
 
       // Генерируем видео - показываем ПОЛНЫЙ промпт пользователю
@@ -279,14 +336,20 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       )
 
       const videoModelId = selectedModel as VideoModelId
-      await handleImageToVideoDirect(ctx, imageUrl, prompt, videoModelId, duration, aspectRatio)
+      await handleImageToVideoDirect(
+        ctx,
+        imageUrl,
+        prompt,
+        videoModelId,
+        duration,
+        aspectRatio
+      )
       console.log('🎬 [I2V WIZARD] Video generation success!')
 
       // ✅ FIX: Сохраняем последнюю сцену для кнопки "Повторить генерацию"
       ctx.session.lastCompletedVideoScene = ModeEnum.ImageToVideo as any
 
       return ctx.scene.leave()
-
     } catch (error) {
       console.error('🎬 [I2V WIZARD] Step 3 ERROR:', error)
       await ctx.reply('❌ Ошибка в третьем шаге wizard')
@@ -296,8 +359,11 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
 )
 
 console.log('🔥 [DEBUG] imageToVideoWizard CREATED! ID:', imageToVideoWizard.id)
-console.log('🔥 [DEBUG] imageToVideoWizard steps count:', (imageToVideoWizard as any).steps?.length, '(Step 0: Models, Step 1: Model selection, Step 2: Image, Step 3: Prompt+Generation)')
-
+console.log(
+  '🔥 [DEBUG] imageToVideoWizard steps count:',
+  (imageToVideoWizard as any).steps?.length,
+  '(Step 0: Models, Step 1: Model selection, Step 2: Image, Step 3: Prompt+Generation)'
+)
 
 // Обработчик входа в wizard - НЕ ИСПОЛЬЗУЕТСЯ! Telegraf автоматически вызовет первый шаг
 // Оставляем пустым, чтобы не было двойного вызова

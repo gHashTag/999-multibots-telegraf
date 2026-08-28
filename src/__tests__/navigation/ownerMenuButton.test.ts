@@ -8,13 +8,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 // Mock supabase
 vi.mock('@/core/supabase/client', () => ({
   supabase: {
-    from: vi.fn()
-  }
+    from: vi.fn(),
+  },
 }))
 
 // Mock config
 vi.mock('@/config', () => ({
-  ADMIN_IDS_ARRAY: [144022504, 123456789]
+  ADMIN_IDS_ARRAY: [144022504, 123456789],
 }))
 
 // Mock logger
@@ -23,14 +23,14 @@ vi.mock('@/utils/logger', () => ({
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
-    debug: vi.fn()
-  }
+    debug: vi.fn(),
+  },
 }))
 
 // Mock isUserBotOwner
 vi.mock('@/core/supabase/getOwnedBots', () => ({
   isUserBotOwner: vi.fn(),
-  getOwnedBots: vi.fn()
+  getOwnedBots: vi.fn(),
 }))
 
 import {
@@ -39,7 +39,7 @@ import {
   getNavigationItemById,
   getButtonVariantsById,
   BOT_STATS_VARIANTS,
-  NavigationItem
+  NavigationItem,
 } from '@/navigation/config/categories.config'
 import { isUserBotOwner } from '@/core/supabase/getOwnedBots'
 
@@ -59,7 +59,9 @@ describe('ownerOnly Menu Button', () => {
       const profileCategory = getCategoryById('profile')
 
       expect(profileCategory).toBeDefined()
-      expect(profileCategory!.items.some(item => item.id === 'bot_stats')).toBe(true)
+      expect(profileCategory!.items.some(item => item.id === 'bot_stats')).toBe(
+        true
+      )
     })
 
     it('bot_stats item should have correct properties', () => {
@@ -97,7 +99,7 @@ describe('ownerOnly Menu Button', () => {
         en: 'Test',
         icon: '📊',
         mode: 'test_scene',
-        ownerOnly: true
+        ownerOnly: true,
       }
 
       expect(testItem.ownerOnly).toBe(true)
@@ -183,7 +185,7 @@ describe('ownerOnly Menu Button', () => {
         'support',
         'language',
         'instagram_parsing',
-        'bot_stats'
+        'bot_stats',
       ])
     })
   })

@@ -40,7 +40,7 @@ export class HeyGenService {
     console.log('[HEYGEN SERVICE STUB] Creating video', {
       video_inputs: params.video_inputs?.length,
       dimension: params.dimension,
-      title: params.title
+      title: params.title,
     })
 
     return `heygen_service_${Date.now()}_${Math.random().toString(36).substring(7)}`
@@ -58,8 +58,8 @@ export class HeyGenService {
       status: 'completed',
       data: {
         video_url: `https://stub.heygenservice.com/videos/${videoId}.mp4`,
-        duration: 30
-      }
+        duration: 30,
+      },
     }
   }
 
@@ -71,8 +71,8 @@ export class HeyGenService {
       status: 'completed',
       data: {
         video_url: `https://stub.heygenservice.com/videos/${videoId}.mp4`,
-        duration: 30
-      }
+        duration: 30,
+      },
     }
   }
 }

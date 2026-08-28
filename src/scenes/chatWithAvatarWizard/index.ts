@@ -1,8 +1,16 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussian } from '../../helpers/language'
-import { createHelpCancelKeyboard, handleHelpCancel, CancelButtonService, showMainMenu } from '@/navigation'
-import { MAIN_MENU_VARIANTS, CANCEL_VARIANTS } from '@/navigation/config/categories.config'
+import {
+  createHelpCancelKeyboard,
+  handleHelpCancel,
+  CancelButtonService,
+  showMainMenu,
+} from '@/navigation'
+import {
+  MAIN_MENU_VARIANTS,
+  CANCEL_VARIANTS,
+} from '@/navigation/config/categories.config'
 import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
@@ -14,7 +22,10 @@ import fs from 'fs'
 /**
  * 🤖 Обработка сообщения пользователя (текст или транскрибированное аудио)
  */
-async function processUserMessage(ctx: MyContext, prompt: string): Promise<void> {
+async function processUserMessage(
+  ctx: MyContext,
+  prompt: string
+): Promise<void> {
   const telegramId = ctx.from?.id?.toString()
   if (!telegramId) {
     await ctx.scene.leave()
@@ -26,7 +37,9 @@ async function processUserMessage(ctx: MyContext, prompt: string): Promise<void>
 
   const { answerAi } = await import('../../core/openai/requests')
   const { getUserData, getUserModel } = await import('../../core/supabase')
-  const { getUserLanguageFromState } = await import('@/helpers/centralizedLanguage')
+  const { getUserLanguageFromState } = await import(
+    '@/helpers/centralizedLanguage'
+  )
 
   const userData = await getUserData(telegramId)
   const userModel = await getUserModel(telegramId)
@@ -82,13 +95,21 @@ async function processUserMessage(ctx: MyContext, prompt: string): Promise<void>
         await ctx.replyWithVoice({ source: audioPath })
       }
     } catch (voiceError) {
-      logger.warn('[chatWithAvatarWizard] Voice generation failed, text already sent', {
-        telegramId,
-        error: voiceError instanceof Error ? voiceError.message : String(voiceError),
-      })
+      logger.warn(
+        '[chatWithAvatarWizard] Voice generation failed, text already sent',
+        {
+          telegramId,
+          error:
+            voiceError instanceof Error
+              ? voiceError.message
+              : String(voiceError),
+        }
+      )
     } finally {
       if (audioPath && fs.existsSync(audioPath)) {
-        try { fs.unlinkSync(audioPath) } catch {}
+        try {
+          fs.unlinkSync(audioPath)
+        } catch {}
       }
     }
   }
@@ -97,7 +118,9 @@ async function processUserMessage(ctx: MyContext, prompt: string): Promise<void>
   try {
     const userExists = await getUserByTelegramId(ctx)
     if (!userExists) {
-      logger.error(`[chatWithAvatarWizard] User with ID ${telegramId} not found after message processing.`)
+      logger.error(
+        `[chatWithAvatarWizard] User with ID ${telegramId} not found after message processing.`
+      )
     } else {
       const level = userExists.level
       if (level === 4) {
@@ -136,7 +159,9 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
 
       // ✅ FIX: Обработка кнопки "Главное меню" - выход из сцены
       if (MAIN_MENU_VARIANTS.includes(text)) {
-        logger.info('🏠 [chatWithAvatarWizard] Main menu pressed, leaving scene')
+        logger.info(
+          '🏠 [chatWithAvatarWizard] Main menu pressed, leaving scene'
+        )
         await ctx.scene.leave()
         await showMainMenu(ctx)
         return
@@ -188,10 +213,13 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
         const fileId = ctx.message.voice.file_id
         const fileLink = await ctx.telegram.getFileLink(fileId)
 
-        logger.info('🎤 [chatWithAvatarWizard] Downloading and transcribing voice', {
-          telegramId,
-          fileUrl: fileLink.href,
-        })
+        logger.info(
+          '🎤 [chatWithAvatarWizard] Downloading and transcribing voice',
+          {
+            telegramId,
+            fileUrl: fileLink.href,
+          }
+        )
 
         // Показываем статус "печатает" пока транскрибируем
         await ctx.sendChatAction('typing')
@@ -212,11 +240,14 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
           return ctx.wizard.selectStep(1)
         }
 
-        logger.info('🎤 [chatWithAvatarWizard] Voice transcribed successfully', {
-          telegramId,
-          textLength: transcription.text.length,
-          text: transcription.text.substring(0, 100) + '...',
-        })
+        logger.info(
+          '🎤 [chatWithAvatarWizard] Voice transcribed successfully',
+          {
+            telegramId,
+            textLength: transcription.text.length,
+            text: transcription.text.substring(0, 100) + '...',
+          }
+        )
 
         // Показываем пользователю распознанный текст
         await ctx.reply(
@@ -253,14 +284,14 @@ export const chatWithAvatarWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
-chatWithAvatarWizard.action('cancel', async (ctx) => {
+chatWithAvatarWizard.action('cancel', async ctx => {
   await ctx.answerCbQuery()
   logger.info('❌ [chatWithAvatarWizard] Cancel button pressed')
   await ctx.scene.leave()
   await showMainMenu(ctx)
 })
 
-chatWithAvatarWizard.action('help', async (ctx) => {
+chatWithAvatarWizard.action('help', async ctx => {
   await ctx.answerCbQuery()
   const isRu = isRussian(ctx)
   await ctx.reply(

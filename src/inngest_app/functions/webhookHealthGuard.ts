@@ -49,11 +49,14 @@ ${!result.planA.available ? `❌ Plan A (HTTPS): ${result.planA.error || 'нед
   if (adminId) {
     try {
       // TODO: Отправить через Telegram бота
-      logger.error('[CRITICAL ALARM] Webhook failure detected and reported to admin', {
-        adminId,
-        planA: result.planA,
-        planB: result.planB,
-      })
+      logger.error(
+        '[CRITICAL ALARM] Webhook failure detected and reported to admin',
+        {
+          adminId,
+          planA: result.planA,
+          planB: result.planB,
+        }
+      )
     } catch (error) {
       logger.error('[CRITICAL ALARM] Failed to send alarm', error)
     }
@@ -75,7 +78,9 @@ const webhookHealthCheck = inngest.createFunction(
     event: 'webhook/health-check-requested',
   },
   async ({ event, step }) => {
-    logger.info('[WebhookHealthGuard] Starting comprehensive webhook health check')
+    logger.info(
+      '[WebhookHealthGuard] Starting comprehensive webhook health check'
+    )
 
     const result = await step.run('test-all-webhook-urls', async () => {
       return await testAllWebhookUrls()
@@ -154,32 +159,40 @@ const validateWebhookBeforeGeneration = inngest.createFunction(
   async ({ event, step }) => {
     const { telegramId, modelId, provider } = event.data
 
-    logger.info('[WebhookHealthGuard] Validating webhook before video generation', {
-      telegramId,
-      modelId,
-      provider,
-    })
-
-    const validation = await step.run('check-webhook-availability', async () => {
-      const result = await testAllWebhookUrls()
-
-      // Если ни один webhook недоступен - БРОСАЕМ ОШИБКУ
-      if (!result.planA.available && !result.planB.available) {
-        throw new Error(
-          `FATAL: No webhook URLs accessible before generation!\n` +
-          `Plan A: ${result.planA.error || 'N/A'}\n` +
-          `Plan B: ${result.planB.error || 'N/A'}\n\n` +
-          `Video generation BLOCKED for safety.`
-        )
+    logger.info(
+      '[WebhookHealthGuard] Validating webhook before video generation',
+      {
+        telegramId,
+        modelId,
+        provider,
       }
+    )
 
-      return {
-        webhookAvailable: true,
-        preferredUrl: result.planA.available ? result.planA.url : result.planB.url,
-        planA: result.planA,
-        planB: result.planB,
+    const validation = await step.run(
+      'check-webhook-availability',
+      async () => {
+        const result = await testAllWebhookUrls()
+
+        // Если ни один webhook недоступен - БРОСАЕМ ОШИБКУ
+        if (!result.planA.available && !result.planB.available) {
+          throw new Error(
+            `FATAL: No webhook URLs accessible before generation!\n` +
+              `Plan A: ${result.planA.error || 'N/A'}\n` +
+              `Plan B: ${result.planB.error || 'N/A'}\n\n` +
+              `Video generation BLOCKED for safety.`
+          )
+        }
+
+        return {
+          webhookAvailable: true,
+          preferredUrl: result.planA.available
+            ? result.planA.url
+            : result.planB.url,
+          planA: result.planA,
+          planB: result.planB,
+        }
       }
-    })
+    )
 
     logger.info('[WebhookHealthGuard] Webhook validation passed', {
       telegramId,
@@ -205,7 +218,9 @@ const periodicWebhookHealthCheck = inngest.createFunction(
     cron: '0 * * * *', // Каждый час в начале часа
   },
   async ({ step }) => {
-    logger.info('[PeriodicWebhookHealthCheck] Starting hourly webhook health check')
+    logger.info(
+      '[PeriodicWebhookHealthCheck] Starting hourly webhook health check'
+    )
 
     const result = await step.run('periodic-check', async () => {
       return await testAllWebhookUrls()
@@ -217,7 +232,9 @@ const periodicWebhookHealthCheck = inngest.createFunction(
         await sendCriticalAlarm(result)
       })
 
-      logger.error('[PeriodicWebhookHealthCheck] CRITICAL: All webhooks down! Alarm sent to admin')
+      logger.error(
+        '[PeriodicWebhookHealthCheck] CRITICAL: All webhooks down! Alarm sent to admin'
+      )
     } else {
       logger.info('[PeriodicWebhookHealthCheck] Webhooks are healthy', {
         planA: result.planA.available,
@@ -229,5 +246,13 @@ const periodicWebhookHealthCheck = inngest.createFunction(
   }
 )
 
-export { webhookHealthCheck, validateWebhookBeforeGeneration, periodicWebhookHealthCheck }
-export default [webhookHealthCheck, validateWebhookBeforeGeneration, periodicWebhookHealthCheck]
+export {
+  webhookHealthCheck,
+  validateWebhookBeforeGeneration,
+  periodicWebhookHealthCheck,
+}
+export default [
+  webhookHealthCheck,
+  validateWebhookBeforeGeneration,
+  periodicWebhookHealthCheck,
+]

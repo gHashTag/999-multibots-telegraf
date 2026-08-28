@@ -20,9 +20,23 @@ import Replicate from 'replicate'
 // Input validation schema
 export const Seedream45InputSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required').max(4000, 'Prompt too long'),
-  image_input: z.array(z.string().url()).max(14, 'Maximum 14 images allowed').optional(),
+  image_input: z
+    .array(z.string().url())
+    .max(14, 'Maximum 14 images allowed')
+    .optional(),
   size: z.enum(['2K', '4K', 'custom']).default('2K'),
-  aspect_ratio: z.enum(['1:1', '3:4', '4:3', '9:16', '16:9', '9:21', '21:9', 'match_input_image']).default('match_input_image'),
+  aspect_ratio: z
+    .enum([
+      '1:1',
+      '3:4',
+      '4:3',
+      '9:16',
+      '16:9',
+      '9:21',
+      '21:9',
+      'match_input_image',
+    ])
+    .default('match_input_image'),
   width: z.number().min(1024).max(4096).optional(),
   height: z.number().min(1024).max(4096).optional(),
   sequential_image_generation: z.enum(['disabled', 'auto']).default('disabled'),
@@ -40,7 +54,15 @@ export interface Seedream45ServiceParams {
   username?: string
   is_ru?: boolean
   size?: '2K' | '4K' | 'custom'
-  aspectRatio?: '1:1' | '3:4' | '4:3' | '9:16' | '16:9' | '9:21' | '21:9' | 'match_input_image'
+  aspectRatio?:
+    | '1:1'
+    | '3:4'
+    | '4:3'
+    | '9:16'
+    | '16:9'
+    | '9:21'
+    | '21:9'
+    | 'match_input_image'
   width?: number
   height?: number
   silent?: boolean
@@ -53,8 +75,10 @@ const SEEDREAM_45_MODEL = {
   key: 'bytedance/seedream-4.5',
   costPerImage: 10, // Cost in stars (~$0.06 with markup)
   name: 'ByteDance Seedream 4.5',
-  description_en: 'Seedream 4.5 - Superior aesthetics, stronger spatial understanding, up to 4K',
-  description_ru: 'Seedream 4.5 - Превосходная эстетика, понимание пространства, до 4K',
+  description_en:
+    'Seedream 4.5 - Superior aesthetics, stronger spatial understanding, up to 4K',
+  description_ru:
+    'Seedream 4.5 - Превосходная эстетика, понимание пространства, до 4K',
   maxImages: 14,
 }
 
@@ -73,7 +97,9 @@ function extractImageUrls(output: unknown): string[] {
 
     if (typeof output === 'object' && output !== null) {
       if ('output' in output && Array.isArray((output as any).output)) {
-        return (output as any).output.filter((item: any) => typeof item === 'string')
+        return (output as any).output.filter(
+          (item: any) => typeof item === 'string'
+        )
       }
     }
 
@@ -125,14 +151,18 @@ export async function generateSeedream45Replicate(
 
     // Prepare input images array (optional for this model)
     const imageInputArray = inputImageUrl
-      ? (Array.isArray(inputImageUrl) ? inputImageUrl : [inputImageUrl])
+      ? Array.isArray(inputImageUrl)
+        ? inputImageUrl
+        : [inputImageUrl]
       : []
 
     // Truncate prompt to 4000 chars
     const MAX_PROMPT_LENGTH = 4000
     let truncatedPrompt = promptText
     if (promptText.length > MAX_PROMPT_LENGTH) {
-      console.log(`⚠️ [Seedream45] Prompt too long (${promptText.length} chars), truncating to ${MAX_PROMPT_LENGTH}`)
+      console.log(
+        `⚠️ [Seedream45] Prompt too long (${promptText.length} chars), truncating to ${MAX_PROMPT_LENGTH}`
+      )
       truncatedPrompt = promptText.substring(0, 3997) + '...'
     }
 
@@ -158,9 +188,14 @@ export async function generateSeedream45Replicate(
     } catch (validationError) {
       console.error('🚨 [Seedream45] Input validation failed:', {
         telegram_id,
-        error: validationError instanceof Error ? validationError.message : 'Unknown validation error',
+        error:
+          validationError instanceof Error
+            ? validationError.message
+            : 'Unknown validation error',
       })
-      throw new Error(`Input validation failed: ${validationError instanceof Error ? validationError.message : 'Invalid input format'}`)
+      throw new Error(
+        `Input validation failed: ${validationError instanceof Error ? validationError.message : 'Invalid input format'}`
+      )
     }
 
     console.log('🌱 [Seedream45] Input validated successfully:', {
@@ -194,7 +229,9 @@ export async function generateSeedream45Replicate(
     // Validate image count
     const imageCount = validatedInput.image_input?.length || 0
     if (imageCount > SEEDREAM_45_MODEL.maxImages) {
-      throw new Error(`Seedream 4.5 supports maximum ${SEEDREAM_45_MODEL.maxImages} images, but ${imageCount} were provided`)
+      throw new Error(
+        `Seedream 4.5 supports maximum ${SEEDREAM_45_MODEL.maxImages} images, but ${imageCount} were provided`
+      )
     }
 
     // Check balance
@@ -205,7 +242,8 @@ export async function generateSeedream45Replicate(
       })
 
       const balanceCheck = await processBalanceOperation({
-        telegram_id: typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
+        telegram_id:
+          typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
         paymentAmount: totalCost,
         is_ru,
         bot_name: ctx.botInfo?.username,
@@ -231,7 +269,9 @@ export async function generateSeedream45Replicate(
         return null
       }
     } else {
-      console.log('⏭️ [Seedream45] Skipping balance check (already verified)', { telegram_id })
+      console.log('⏭️ [Seedream45] Skipping balance check (already verified)', {
+        telegram_id,
+      })
     }
 
     // Send status message
@@ -276,35 +316,43 @@ export async function generateSeedream45Replicate(
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`🔄 [Seedream45] Attempt ${attempt}/${maxRetries}`, { telegram_id })
+        console.log(`🔄 [Seedream45] Attempt ${attempt}/${maxRetries}`, {
+          telegram_id,
+        })
 
         const input: Record<string, any> = {
           prompt: validatedInput.prompt,
           size: validatedInput.size,
           aspect_ratio: validatedInput.aspect_ratio,
-          sequential_image_generation: validatedInput.sequential_image_generation,
+          sequential_image_generation:
+            validatedInput.sequential_image_generation,
           max_images: validatedInput.max_images,
         }
 
         // Add image_input only if provided
-        if (validatedInput.image_input && validatedInput.image_input.length > 0) {
+        if (
+          validatedInput.image_input &&
+          validatedInput.image_input.length > 0
+        ) {
           input.image_input = validatedInput.image_input
         }
 
         // Add custom dimensions if specified
-        if (validatedInput.size === 'custom' && validatedInput.width && validatedInput.height) {
+        if (
+          validatedInput.size === 'custom' &&
+          validatedInput.width &&
+          validatedInput.height
+        ) {
           input.width = validatedInput.width
           input.height = validatedInput.height
         }
 
-        output = await replicate.run(
-          SEEDREAM_45_MODEL.key as any,
-          { input }
-        )
+        output = await replicate.run(SEEDREAM_45_MODEL.key as any, { input })
 
-        console.log(`✅ [Seedream45] Success on attempt ${attempt}`, { telegram_id })
+        console.log(`✅ [Seedream45] Success on attempt ${attempt}`, {
+          telegram_id,
+        })
         break
-
       } catch (error) {
         lastError = error instanceof Error ? error : new Error('Unknown error')
         console.warn(`⚠️ [Seedream45] Attempt ${attempt} failed:`, {
@@ -314,7 +362,9 @@ export async function generateSeedream45Replicate(
         })
 
         if (attempt === maxRetries) {
-          console.error(`❌ [Seedream45] All ${maxRetries} attempts failed`, { telegram_id })
+          console.error(`❌ [Seedream45] All ${maxRetries} attempts failed`, {
+            telegram_id,
+          })
           break
         }
 
@@ -401,7 +451,9 @@ export async function generateSeedream45Replicate(
 
       console.log('📬 [Seedream45] Photo sent successfully!', { telegram_id })
     } else {
-      console.log('🔇 [Seedream45] Silent mode - skipping photo send', { telegram_id })
+      console.log('🔇 [Seedream45] Silent mode - skipping photo send', {
+        telegram_id,
+      })
     }
 
     // Send to pulse channel
@@ -417,14 +469,16 @@ export async function generateSeedream45Replicate(
         prompt: validatedInput.prompt,
         botName: ctx.botInfo?.username || 'unknown',
         additionalInfo: {
-          'Model': SEEDREAM_45_MODEL.name,
-          'Resolution': size,
+          Model: SEEDREAM_45_MODEL.name,
+          Resolution: size,
           'Aspect Ratio': validatedInput.aspect_ratio,
-          'Price': `${totalCost} stars`,
+          Price: `${totalCost} stars`,
         },
       })
 
-      console.log('✅ [Seedream45] Pulse channel send SUCCESS!', { telegram_id })
+      console.log('✅ [Seedream45] Pulse channel send SUCCESS!', {
+        telegram_id,
+      })
     } catch (pulseError) {
       console.error('❌ [Seedream45] Pulse channel ERROR:', {
         telegram_id,
@@ -433,7 +487,6 @@ export async function generateSeedream45Replicate(
     }
 
     return imageUrl
-
   } catch (error) {
     console.error('🔴 [Seedream45] CRITICAL ERROR:', {
       telegram_id: params.telegram_id,
@@ -455,7 +508,7 @@ export async function generateSeedream45Replicate(
     }
 
     // Refund user
-    await refundUser(params.ctx, totalCost, { reason: "generation_failed" })
+    await refundUser(params.ctx, totalCost, { reason: 'generation_failed' })
 
     // Send notification to admins
     try {
@@ -469,13 +522,15 @@ export async function generateSeedream45Replicate(
 Проверьте логи для деталей.`
 
       for (const adminId of adminIds) {
-        await params.ctx.telegram.sendMessage(adminId, adminMessage, {
-          parse_mode: undefined,
-        }).catch(err => {
-          if (!err.message?.includes('chat not found')) {
-            console.error('Failed to notify admin:', err)
-          }
-        })
+        await params.ctx.telegram
+          .sendMessage(adminId, adminMessage, {
+            parse_mode: undefined,
+          })
+          .catch(err => {
+            if (!err.message?.includes('chat not found')) {
+              console.error('Failed to notify admin:', err)
+            }
+          })
       }
     } catch (notifyError) {
       console.error('Failed to send admin notification:', notifyError)

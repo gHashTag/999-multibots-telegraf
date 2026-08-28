@@ -9,43 +9,45 @@ export interface BotSpecificFix {
 }
 
 export class BotSpecificFixesEngine {
-  
   private readonly fixes: BotSpecificFix[] = [
     // === ASYNC/AWAIT FIXES ===
     {
-      pattern: /(bot\.(action|command|on|hears)\([^,]+,\s*)([a-zA-Z_$][a-zA-Z0-9_$]*\s*=>)/g,
+      pattern:
+        /(bot\.(action|command|on|hears)\([^,]+,\s*)([a-zA-Z_$][a-zA-Z0-9_$]*\s*=>)/g,
       replacement: '$1async $3',
       description: 'Add async keyword to bot handler',
       type: 'async',
-      severity: 'error'
+      severity: 'error',
     },
     {
-      pattern: /(scene\.(enter|action|command|on|hears)\([^,]+,\s*)([a-zA-Z_$][a-zA-Z0-9_$]*\s*=>)/g,
+      pattern:
+        /(scene\.(enter|action|command|on|hears)\([^,]+,\s*)([a-zA-Z_$][a-zA-Z0-9_$]*\s*=>)/g,
       replacement: '$1async $3',
       description: 'Add async keyword to scene handler',
       type: 'async',
-      severity: 'error'
+      severity: 'error',
     },
     {
-      pattern: /(?<!await\s+)(ctx\.(?:reply|replyWithPhoto|replyWithVideo|replyWithDocument|replyWithAnimation|editMessageText)\([^)]+\))/g,
+      pattern:
+        /(?<!await\s+)(ctx\.(?:reply|replyWithPhoto|replyWithVideo|replyWithDocument|replyWithAnimation|editMessageText)\([^)]+\))/g,
       replacement: 'await $1',
       description: 'Add await to ctx.reply methods',
       type: 'async',
-      severity: 'error'
+      severity: 'error',
     },
     {
       pattern: /(?<!await\s+)(ctx\.scene\.(?:enter|leave|reenter)\([^)]+\))/g,
       replacement: 'await $1',
       description: 'Add await to scene transitions',
       type: 'async',
-      severity: 'error'
+      severity: 'error',
     },
     {
       pattern: /(?<!await\s+)(ctx\.telegram\.[a-zA-Z]+\([^)]+\))/g,
       replacement: 'await $1',
       description: 'Add await to Telegram API calls',
       type: 'async',
-      severity: 'error'
+      severity: 'error',
     },
 
     // === SCENE FIXES ===
@@ -54,21 +56,21 @@ export class BotSpecificFixesEngine {
       replacement: "new Scenes.BaseScene<MyContext>('$1')",
       description: 'Add MyContext type to BaseScene',
       type: 'scene',
-      severity: 'error'
+      severity: 'error',
     },
     {
       pattern: /new Scenes\.WizardScene\('([^']+)'/g,
       replacement: "new Scenes.WizardScene<MyContext>('$1'",
       description: 'Add MyContext type to WizardScene',
       type: 'scene',
-      severity: 'error'
+      severity: 'error',
     },
     {
       pattern: /(wizard\.step\(\s*)([^,]+,\s*)(\([^)]*\)\s*=>\s*\{)/g,
       replacement: '$1$2async $3',
       description: 'Add async to wizard steps',
       type: 'scene',
-      severity: 'error'
+      severity: 'error',
     },
 
     // === TELEGRAF FIXES ===
@@ -77,28 +79,28 @@ export class BotSpecificFixesEngine {
       replacement: '$1, async$2',
       description: 'Add async to middleware',
       type: 'telegraf',
-      severity: 'warning'
+      severity: 'warning',
     },
     {
       pattern: /(\([^)]*ctx[^)]*,\s*next[^)]*\)\s*=>\s*\{[^}]*?)(\bnext\(\))/g,
       replacement: '$1await $2',
       description: 'Add await to next() in middleware',
       type: 'telegraf',
-      severity: 'warning'
+      severity: 'warning',
     },
     {
       pattern: /ctx\.answerInlineQuery\(/g,
       replacement: 'await ctx.answerInlineQuery(',
       description: 'Add await to answerInlineQuery',
       type: 'telegraf',
-      severity: 'error'
+      severity: 'error',
     },
     {
       pattern: /ctx\.answerCbQuery\(/g,
       replacement: 'await ctx.answerCbQuery(',
       description: 'Add await to answerCbQuery',
       type: 'telegraf',
-      severity: 'error'
+      severity: 'error',
     },
 
     // === TYPESCRIPT FIXES ===
@@ -107,14 +109,14 @@ export class BotSpecificFixesEngine {
       replacement: '$1: MyContext',
       description: 'Replace Context with MyContext',
       type: 'typescript',
-      severity: 'warning'
+      severity: 'warning',
     },
     {
       pattern: /Telegraf\(/g,
       replacement: 'Telegraf<MyContext>(',
       description: 'Add MyContext type to Telegraf',
       type: 'typescript',
-      severity: 'warning'
+      severity: 'warning',
     },
 
     // === ERROR HANDLING FIXES ===
@@ -126,8 +128,8 @@ export class BotSpecificFixesEngine {
       },
       description: 'Add error handling to async handlers',
       type: 'telegraf',
-      severity: 'warning'
-    }
+      severity: 'warning',
+    },
   ]
 
   private readonly importFixes: Array<{
@@ -136,44 +138,55 @@ export class BotSpecificFixesEngine {
     description: string
   }> = [
     {
-      condition: (content) => content.includes('MyContext') && !content.includes("import { MyContext }"),
+      condition: content =>
+        content.includes('MyContext') &&
+        !content.includes('import { MyContext }'),
       fix: "import { MyContext } from '../interfaces'",
-      description: 'Add missing MyContext import'
+      description: 'Add missing MyContext import',
     },
     {
-      condition: (content) => content.includes('Scenes.') && !content.includes("import { Scenes }"),
+      condition: content =>
+        content.includes('Scenes.') && !content.includes('import { Scenes }'),
       fix: "import { Scenes } from 'telegraf'",
-      description: 'Add missing Scenes import'
+      description: 'Add missing Scenes import',
     },
     {
-      condition: (content) => content.includes('Composer') && !content.includes("import { Composer }"),
+      condition: content =>
+        content.includes('Composer') &&
+        !content.includes('import { Composer }'),
       fix: "import { Composer } from 'telegraf'",
-      description: 'Add missing Composer import'
+      description: 'Add missing Composer import',
     },
     {
-      condition: (content) => content.includes('session') && !content.includes("import { session }"),
+      condition: content =>
+        content.includes('session') && !content.includes('import { session }'),
       fix: "import { session } from 'telegraf'",
-      description: 'Add missing session import'
-    }
+      description: 'Add missing session import',
+    },
   ]
 
-  applyFixes(content: string, filePath: string): { fixedContent: string, fixes: FixResult[] } {
+  applyFixes(
+    content: string,
+    filePath: string
+  ): { fixedContent: string; fixes: FixResult[] } {
     let fixedContent = content
     const appliedFixes: FixResult[] = []
 
     // 1. Применяем импорты в начало файла
     const importFixes = this.applyImportFixes(fixedContent)
     fixedContent = importFixes.content
-    appliedFixes.push(...importFixes.fixes.map(fix => ({
-      type: 'typescript' as const,
-      description: fix.description,
-      filePath
-    })))
+    appliedFixes.push(
+      ...importFixes.fixes.map(fix => ({
+        type: 'typescript' as const,
+        description: fix.description,
+        filePath,
+      }))
+    )
 
     // 2. Применяем основные исправления
     for (const fix of this.fixes) {
       const matches = [...fixedContent.matchAll(fix.pattern)]
-      
+
       if (matches.length > 0) {
         // Определяем номера строк для каждого исправления
         const lineNumbers = matches.map(match => {
@@ -191,22 +204,30 @@ export class BotSpecificFixesEngine {
           type: fix.type,
           description: fix.description,
           filePath,
-          lineNumber: lineNumbers[0] // Берем первое совпадение для номера строки
+          lineNumber: lineNumbers[0], // Берем первое совпадение для номера строки
         })
 
-        console.log(`✅ [BotFixer] Applied ${fix.description} (${matches.length} occurrences)`)
+        console.log(
+          `✅ [BotFixer] Applied ${fix.description} (${matches.length} occurrences)`
+        )
       }
     }
 
     // 3. Применяем специфичные для файла исправления
-    const fileSpecificFixes = this.applyFileSpecificFixes(fixedContent, filePath)
+    const fileSpecificFixes = this.applyFileSpecificFixes(
+      fixedContent,
+      filePath
+    )
     fixedContent = fileSpecificFixes.content
     appliedFixes.push(...fileSpecificFixes.fixes)
 
     return { fixedContent, fixes: appliedFixes }
   }
 
-  private applyImportFixes(content: string): { content: string, fixes: Array<{ description: string }> } {
+  private applyImportFixes(content: string): {
+    content: string
+    fixes: Array<{ description: string }>
+  } {
     let fixedContent = content
     const appliedFixes: Array<{ description: string }> = []
 
@@ -238,27 +259,39 @@ export class BotSpecificFixesEngine {
     return { content: fixedContent, fixes: appliedFixes }
   }
 
-  private applyFileSpecificFixes(content: string, filePath: string): { content: string, fixes: FixResult[] } {
+  private applyFileSpecificFixes(
+    content: string,
+    filePath: string
+  ): { content: string; fixes: FixResult[] } {
     const fixes: FixResult[] = []
     let fixedContent = content
 
     // Специфичные исправления для сцен
     if (filePath.includes('/scenes/')) {
-      const sceneSpecificFixes = this.applySceneSpecificFixes(fixedContent, filePath)
+      const sceneSpecificFixes = this.applySceneSpecificFixes(
+        fixedContent,
+        filePath
+      )
       fixedContent = sceneSpecificFixes.content
       fixes.push(...sceneSpecificFixes.fixes)
     }
 
     // Специфичные исправления для команд
     if (filePath.includes('/commands/')) {
-      const commandSpecificFixes = this.applyCommandSpecificFixes(fixedContent, filePath)
+      const commandSpecificFixes = this.applyCommandSpecificFixes(
+        fixedContent,
+        filePath
+      )
       fixedContent = commandSpecificFixes.content
       fixes.push(...commandSpecificFixes.fixes)
     }
 
     // Специфичные исправления для middleware
     if (filePath.includes('/middleware')) {
-      const middlewareSpecificFixes = this.applyMiddlewareSpecificFixes(fixedContent, filePath)
+      const middlewareSpecificFixes = this.applyMiddlewareSpecificFixes(
+        fixedContent,
+        filePath
+      )
       fixedContent = middlewareSpecificFixes.content
       fixes.push(...middlewareSpecificFixes.fixes)
     }
@@ -266,7 +299,10 @@ export class BotSpecificFixesEngine {
     return { content: fixedContent, fixes }
   }
 
-  private applySceneSpecificFixes(content: string, filePath: string): { content: string, fixes: FixResult[] } {
+  private applySceneSpecificFixes(
+    content: string,
+    filePath: string
+  ): { content: string; fixes: FixResult[] } {
     const fixes: FixResult[] = []
     let fixedContent = content
 
@@ -278,7 +314,7 @@ export class BotSpecificFixesEngine {
         fixes.push({
           type: 'scene',
           description: `Export scene ${sceneName}`,
-          filePath
+          filePath,
         })
       }
     }
@@ -289,18 +325,24 @@ export class BotSpecificFixesEngine {
       'wizard.step($1, async $2'
     )
 
-    if (content.includes('wizard.step') && !content.match(/wizard\.step\([^,]+,\s*async/)) {
+    if (
+      content.includes('wizard.step') &&
+      !content.match(/wizard\.step\([^,]+,\s*async/)
+    ) {
       fixes.push({
         type: 'scene',
         description: 'Add async to wizard steps',
-        filePath
+        filePath,
       })
     }
 
     return { content: fixedContent, fixes }
   }
 
-  private applyCommandSpecificFixes(content: string, filePath: string): { content: string, fixes: FixResult[] } {
+  private applyCommandSpecificFixes(
+    content: string,
+    filePath: string
+  ): { content: string; fixes: FixResult[] } {
     const fixes: FixResult[] = []
     let fixedContent = content
 
@@ -318,11 +360,11 @@ export class BotSpecificFixesEngine {
           /(bot\.command\([^,]+,\s*async[^{]+\{)/,
           `$1\n${validationCode}`
         )
-        
+
         fixes.push({
           type: 'telegraf',
           description: 'Add command parameter validation',
-          filePath
+          filePath,
         })
       }
     }
@@ -330,7 +372,10 @@ export class BotSpecificFixesEngine {
     return { content: fixedContent, fixes }
   }
 
-  private applyMiddlewareSpecificFixes(content: string, filePath: string): { content: string, fixes: FixResult[] } {
+  private applyMiddlewareSpecificFixes(
+    content: string,
+    filePath: string
+  ): { content: string; fixes: FixResult[] } {
     const fixes: FixResult[] = []
     let fixedContent = content
 
@@ -340,7 +385,7 @@ export class BotSpecificFixesEngine {
       fixes.push({
         type: 'telegraf',
         description: 'Add await to next() calls in middleware',
-        filePath
+        filePath,
       })
     }
 
@@ -353,26 +398,32 @@ export class BotSpecificFixesEngine {
   }
 
   // Статический анализ для определения приоритета исправлений
-  static analyzePriority(content: string): { 
-    critical: number, 
-    important: number, 
-    minor: number 
+  static analyzePriority(content: string): {
+    critical: number
+    important: number
+    minor: number
   } {
     let critical = 0
     let important = 0
     let minor = 0
 
     // Критичные проблемы
-    if (content.includes('ctx.reply(') && !content.includes('await ctx.reply(')) {
+    if (
+      content.includes('ctx.reply(') &&
+      !content.includes('await ctx.reply(')
+    ) {
       critical += (content.match(/ctx\.reply\(/g) || []).length
     }
-    
+
     if (content.includes('bot.action(') && !content.includes('async')) {
       critical += (content.match(/bot\.action\(/g) || []).length
     }
 
     // Важные проблемы
-    if (content.includes('new Scenes.BaseScene(') && !content.includes('<MyContext>')) {
+    if (
+      content.includes('new Scenes.BaseScene(') &&
+      !content.includes('<MyContext>')
+    ) {
       important += (content.match(/new Scenes\.BaseScene\(/g) || []).length
     }
 

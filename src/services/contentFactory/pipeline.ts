@@ -65,7 +65,10 @@ const STAGE_ORDER: StageName[] = [
   'deliver',
 ]
 
-const reachedLimit = (until: StageName | undefined, current: StageName): boolean =>
+const reachedLimit = (
+  until: StageName | undefined,
+  current: StageName
+): boolean =>
   Boolean(until) && STAGE_ORDER.indexOf(current) > STAGE_ORDER.indexOf(until!)
 
 /** Пропсы шаблона из артефактов прогона. Здесь и только здесь живёт канон→пропсы. */
@@ -103,7 +106,11 @@ function buildProps(
     return {
       lang: ctx.order.language,
       avatarVideo: trackUrl,
-      captions: words.map(w => ({ text: w.text, startMs: w.startMs, endMs: w.endMs })),
+      captions: words.map(w => ({
+        text: w.text,
+        startMs: w.startMs,
+        endMs: w.endMs,
+      })),
       music: musicUrl || '',
       musicVolume: ctx.canon.musicVolume,
       ...(ctx.order.brand || {}),

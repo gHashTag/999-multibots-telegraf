@@ -1,7 +1,10 @@
 import { Scenes, Markup } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { getAvailableLipSyncModels, LipSyncModelConfig } from '@/config/lipsync-models.config'
+import {
+  getAvailableLipSyncModels,
+  LipSyncModelConfig,
+} from '@/config/lipsync-models.config'
 import { logger } from '@/utils/logger'
 import { showMainMenu } from '@/navigation'
 
@@ -14,12 +17,17 @@ import { showMainMenu } from '@/navigation'
  * - LatentSync (ByteDance) - video + audio
  * - Hummingbird-0 (Tavus) - video + audio (premium)
  */
-export const lipSyncModelSelectionScene = new Scenes.BaseScene<MyContext>('lip_sync_model_selection')
+export const lipSyncModelSelectionScene = new Scenes.BaseScene<MyContext>(
+  'lip_sync_model_selection'
+)
 
 /**
  * Формирует текст описания модели для пользователя
  */
-function formatModelDescription(model: LipSyncModelConfig, isRu: boolean): string {
+function formatModelDescription(
+  model: LipSyncModelConfig,
+  isRu: boolean
+): string {
   const qualityMap = {
     standard: isRu ? 'Стандартное' : 'Standard',
     high: isRu ? 'Высокое' : 'High',
@@ -27,19 +35,20 @@ function formatModelDescription(model: LipSyncModelConfig, isRu: boolean): strin
   }
 
   const quality = qualityMap[model.quality] || model.quality
-  const duration = model.maxDuration >= 60
-    ? `${Math.floor(model.maxDuration / 60)} ${isRu ? 'мин' : 'min'}`
-    : `${model.maxDuration} ${isRu ? 'сек' : 'sec'}`
+  const duration =
+    model.maxDuration >= 60
+      ? `${Math.floor(model.maxDuration / 60)} ${isRu ? 'мин' : 'min'}`
+      : `${model.maxDuration} ${isRu ? 'сек' : 'sec'}`
 
   return isRu
     ? `${model.description}\n\n` +
-      `⭐ Качество: ${quality}\n` +
-      `⏱️ Макс. длительность: ${duration}\n` +
-      `💰 ~${getStarsPerSecond(model)}⭐/сек`
+        `⭐ Качество: ${quality}\n` +
+        `⏱️ Макс. длительность: ${duration}\n` +
+        `💰 ~${getStarsPerSecond(model)}⭐/сек`
     : `${model.description}\n\n` +
-      `⭐ Quality: ${quality}\n` +
-      `⏱️ Max duration: ${duration}\n` +
-      `💰 ~${getStarsPerSecond(model)}⭐/sec`
+        `⭐ Quality: ${quality}\n` +
+        `⏱️ Max duration: ${duration}\n` +
+        `💰 ~${getStarsPerSecond(model)}⭐/sec`
 }
 
 /**
@@ -92,16 +101,13 @@ function createModelKeyboard(models: LipSyncModelConfig[], isRu: boolean) {
       Markup.button.callback(
         `${model.name} — ${priceLabel}`,
         `lip_sync_model_${model.id}`
-      )
+      ),
     ]
   })
 
   // Добавляем кнопку "Назад"
   buttons.push([
-    Markup.button.callback(
-      isRu ? '◀️ Назад' : '◀️ Back',
-      'go_back_to_menu'
-    )
+    Markup.button.callback(isRu ? '◀️ Назад' : '◀️ Back', 'go_back_to_menu'),
   ])
 
   return Markup.inlineKeyboard(buttons)
@@ -132,26 +138,34 @@ lipSyncModelSelectionScene.enter(async ctx => {
   const headerText = isRu
     ? '🎤 *Синхронизация губ*\n\n' +
       'Выберите модель для генерации:\n\n' +
-      availableModels.map((m, i) => {
-        const starsPerSec = getStarsPerSecond(m)
-        const inputType = getInputType(m, true)
-        return `*${i + 1}. ${m.name}*\n` +
-          `💰 ${starsPerSec}⭐/сек • ${inputType}\n` +
-          `${m.description}\n`
-      }).join('\n')
+      availableModels
+        .map((m, i) => {
+          const starsPerSec = getStarsPerSecond(m)
+          const inputType = getInputType(m, true)
+          return (
+            `*${i + 1}. ${m.name}*\n` +
+            `💰 ${starsPerSec}⭐/сек • ${inputType}\n` +
+            `${m.description}\n`
+          )
+        })
+        .join('\n')
     : '🎤 *Lip Sync*\n\n' +
       'Select a model for generation:\n\n' +
-      availableModels.map((m, i) => {
-        const starsPerSec = getStarsPerSecond(m)
-        const inputType = getInputType(m, false)
-        return `*${i + 1}. ${m.name}*\n` +
-          `💰 ${starsPerSec}⭐/sec • ${inputType}\n` +
-          `${m.description}\n`
-      }).join('\n')
+      availableModels
+        .map((m, i) => {
+          const starsPerSec = getStarsPerSecond(m)
+          const inputType = getInputType(m, false)
+          return (
+            `*${i + 1}. ${m.name}*\n` +
+            `💰 ${starsPerSec}⭐/sec • ${inputType}\n` +
+            `${m.description}\n`
+          )
+        })
+        .join('\n')
 
   await ctx.reply(headerText, {
     parse_mode: 'Markdown',
-    ...createModelKeyboard(availableModels, isRu)
+    ...createModelKeyboard(availableModels, isRu),
   })
 })
 
@@ -179,9 +193,12 @@ lipSyncModelSelectionScene.action('go_back_to_menu', async ctx => {
 /**
  * Текстовые команды
  */
-lipSyncModelSelectionScene.hears(['🏠 Главное меню', '🏠 Main menu', '/menu'], async ctx => {
-  await ctx.scene.leave()
-  await showMainMenu(ctx)
-})
+lipSyncModelSelectionScene.hears(
+  ['🏠 Главное меню', '🏠 Main menu', '/menu'],
+  async ctx => {
+    await ctx.scene.leave()
+    await showMainMenu(ctx)
+  }
+)
 
 export default lipSyncModelSelectionScene

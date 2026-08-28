@@ -7,7 +7,9 @@ import { logger } from '@/utils/logger'
  */
 export async function deduplicateUsers(telegramId: string): Promise<boolean> {
   try {
-    logger.info(`[deduplicateUsers] Starting deduplication for telegramId ${telegramId}`)
+    logger.info(
+      `[deduplicateUsers] Starting deduplication for telegramId ${telegramId}`
+    )
 
     // Get all users for this telegram_id
     const { data: users, error } = await supabase
@@ -22,42 +24,52 @@ export async function deduplicateUsers(telegramId: string): Promise<boolean> {
     }
 
     if (!users || users.length <= 1) {
-      logger.info(`[deduplicateUsers] No duplicates found for telegramId ${telegramId}`)
+      logger.info(
+        `[deduplicateUsers] No duplicates found for telegramId ${telegramId}`
+      )
       return true
     }
 
-    logger.warn(`[deduplicateUsers] Found ${users.length} duplicate users for telegramId ${telegramId}`)
+    logger.warn(
+      `[deduplicateUsers] Found ${users.length} duplicate users for telegramId ${telegramId}`
+    )
 
     // Keep the most recent user (index 0), delete the rest
     const userToKeep = users[0]
     const usersToDelete = users.slice(1)
 
-    logger.info(`[deduplicateUsers] Keeping user ${userToKeep.id}, deleting ${usersToDelete.length} duplicates`)
+    logger.info(
+      `[deduplicateUsers] Keeping user ${userToKeep.id}, deleting ${usersToDelete.length} duplicates`
+    )
 
     // Delete duplicate users
-    const deletePromises = usersToDelete.map(user => 
-      supabase
-        .from('users')
-        .delete()
-        .eq('id', user.id)
+    const deletePromises = usersToDelete.map(user =>
+      supabase.from('users').delete().eq('id', user.id)
     )
 
     const deleteResults = await Promise.allSettled(deletePromises)
-    
+
     let successCount = 0
     let errorCount = 0
 
     deleteResults.forEach((result, index) => {
       if (result.status === 'fulfilled') {
         successCount++
-        logger.info(`[deduplicateUsers] Successfully deleted user ${usersToDelete[index].id}`)
+        logger.info(
+          `[deduplicateUsers] Successfully deleted user ${usersToDelete[index].id}`
+        )
       } else {
         errorCount++
-        logger.error(`[deduplicateUsers] Failed to delete user ${usersToDelete[index].id}:`, result.reason)
+        logger.error(
+          `[deduplicateUsers] Failed to delete user ${usersToDelete[index].id}:`,
+          result.reason
+        )
       }
     })
 
-    logger.info(`[deduplicateUsers] Deduplication complete: ${successCount} deleted, ${errorCount} errors`)
+    logger.info(
+      `[deduplicateUsers] Deduplication complete: ${successCount} deleted, ${errorCount} errors`
+    )
 
     return errorCount === 0
   } catch (error) {
@@ -91,9 +103,11 @@ export async function findAllDuplicateUsers(): Promise<string[]> {
 
     // Return only telegram_ids with duplicates
     const duplicateIds = Object.keys(counts).filter(id => counts[id] > 1)
-    
-    logger.info(`[findAllDuplicateUsers] Found ${duplicateIds.length} telegram_ids with duplicates`)
-    
+
+    logger.info(
+      `[findAllDuplicateUsers] Found ${duplicateIds.length} telegram_ids with duplicates`
+    )
+
     return duplicateIds
   } catch (error) {
     logger.error(`[findAllDuplicateUsers] Unexpected error:`, error)

@@ -1,12 +1,12 @@
 /**
  * 🛡️ SCENE GUARD - Защита навигации в глубоких сценах
- * 
- * Проблема: При глубокой вложенности сцен (3+ уровня) кнопки 
+ *
+ * Проблема: При глубокой вложенности сцен (3+ уровня) кнопки
  * "Главное меню", "Отмена" и "Назад" могут не работать, потому что:
  * 1. Сцена перехватывает все сообщения
  * 2. Нет явного обработчика для навигационных кнопок
  * 3. ctx.scene.leave() не вызывается
- * 
+ *
  * Решение: SceneGuard добавляет глобальные обработчики в КАЖДУЮ сцену,
  * гарантируя работу навигации независимо от глубины вложенности.
  */
@@ -14,20 +14,20 @@
 import { Scenes, Middleware } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
-import { 
-  matchButton, 
-  isMainMenuButton, 
-  isCancelButton, 
-  isBackButton 
+import {
+  matchButton,
+  isMainMenuButton,
+  isCancelButton,
+  isBackButton,
 } from './buttonMatcher'
-import { 
-  logButtonPress, 
-  logMainMenuReturn, 
-  logCancel, 
+import {
+  logButtonPress,
+  logMainMenuReturn,
+  logCancel,
   logGoBack,
   logNavigationWarning,
   logNavigationError,
-  dumpNavigationState
+  dumpNavigationState,
 } from '../helpers/navigationLogger'
 import { goBack, goToMainMenu } from '../helpers/sceneTransition'
 
@@ -57,13 +57,16 @@ const DEFAULT_CONFIG: SceneGuardConfig = {
 /**
  * Проверяет глубину навигации и возвращает предупреждение если нужно
  */
-export function checkNavigationDepth(ctx: MyContext, config = DEFAULT_CONFIG): {
+export function checkNavigationDepth(
+  ctx: MyContext,
+  config = DEFAULT_CONFIG
+): {
   depth: number
   warning: string | null
   shouldForceReset: boolean
 } {
   const depth = (ctx.session?.navigationHistory || []).length
-  
+
   if (depth >= config.maxDepthForceReset) {
     return {
       depth,
@@ -71,7 +74,7 @@ export function checkNavigationDepth(ctx: MyContext, config = DEFAULT_CONFIG): {
       shouldForceReset: true,
     }
   }
-  
+
   if (depth >= config.maxDepthWarning) {
     return {
       depth,
@@ -79,7 +82,7 @@ export function checkNavigationDepth(ctx: MyContext, config = DEFAULT_CONFIG): {
       shouldForceReset: false,
     }
   }
-  
+
   return {
     depth,
     warning: null,
@@ -97,7 +100,7 @@ export async function handleMainMenuButton(ctx: MyContext): Promise<boolean> {
   if (!isMainMenuButton(text)) return false
 
   logMainMenuReturn(ctx, 'sceneGuard')
-  
+
   try {
     await goToMainMenu(ctx, true) // clearHistory = true
     return true
@@ -133,7 +136,7 @@ export async function handleCancelButton(ctx: MyContext): Promise<boolean> {
   }
 
   logCancel(ctx, true, 'sceneGuard')
-  
+
   try {
     await goToMainMenu(ctx, true)
     return true
@@ -156,7 +159,7 @@ export async function handleBackButton(ctx: MyContext): Promise<boolean> {
   const previousScene = history[history.length - 1] || null
 
   logGoBack(ctx, previousScene)
-  
+
   try {
     await goBack(ctx)
     return true
@@ -197,17 +200,22 @@ export async function handleNavigationButton(ctx: MyContext): Promise<boolean> {
  * Создаёт middleware для защиты сцены
  * Добавляет обработку навигационных кнопок в любую сцену
  */
-export function createSceneGuardMiddleware(config = DEFAULT_CONFIG): Middleware<MyContext> {
+export function createSceneGuardMiddleware(
+  config = DEFAULT_CONFIG
+): Middleware<MyContext> {
   return async (ctx, next) => {
     // 1. Проверяем глубину навигации
     const depthCheck = checkNavigationDepth(ctx, config)
-    
+
     if (depthCheck.warning) {
       logNavigationWarning(ctx, depthCheck.warning, { depth: depthCheck.depth })
     }
-    
+
     if (depthCheck.shouldForceReset) {
-      logNavigationWarning(ctx, 'Forcing navigation reset due to excessive depth')
+      logNavigationWarning(
+        ctx,
+        'Forcing navigation reset due to excessive depth'
+      )
       await goToMainMenu(ctx, true)
       return
     }
@@ -227,26 +235,25 @@ export function createSceneGuardMiddleware(config = DEFAULT_CONFIG): Middleware<
  * Добавляет защиту навигации в существующую сцену
  * @param scene - Сцена для защиты
  */
-export function addSceneGuard<T extends Scenes.WizardScene<MyContext> | Scenes.BaseScene<MyContext>>(
-  scene: T,
-  config = DEFAULT_CONFIG
-): T {
+export function addSceneGuard<
+  T extends Scenes.WizardScene<MyContext> | Scenes.BaseScene<MyContext>,
+>(scene: T, config = DEFAULT_CONFIG): T {
   // Добавляем middleware в начало цепочки
   scene.use(createSceneGuardMiddleware(config))
 
   // Добавляем явный обработчик для callback_query навигации
   if ('action' in scene) {
-    scene.action('go_main_menu', async (ctx) => {
+    scene.action('go_main_menu', async ctx => {
       await ctx.answerCbQuery()
       await goToMainMenu(ctx as unknown as MyContext, true)
     })
 
-    scene.action('go_back', async (ctx) => {
+    scene.action('go_back', async ctx => {
       await ctx.answerCbQuery()
       await goBack(ctx as unknown as MyContext)
     })
 
-    scene.action('cancel', async (ctx) => {
+    scene.action('cancel', async ctx => {
       await ctx.answerCbQuery()
       await goToMainMenu(ctx as unknown as MyContext, true)
     })
@@ -269,22 +276,22 @@ export function debugNavigation(ctx: MyContext, label = 'DEBUG'): void {
 export function isStuckNavigation(ctx: MyContext): boolean {
   const depth = (ctx.session?.navigationHistory || []).length
   const currentScene = ctx.scene?.current?.id
-  
+
   // Признаки застревания:
   // 1. Глубина > 3 и сцена не главное меню
   // 2. История содержит дубликаты подряд
-  
+
   if (depth > 3 && currentScene !== ModeEnum.MainMenu) {
     return true
   }
-  
+
   const history = ctx.session?.navigationHistory || []
   for (let i = 1; i < history.length; i++) {
     if (history[i] === history[i - 1]) {
       return true // Дубликаты - признак цикла
     }
   }
-  
+
   return false
 }
 
@@ -298,20 +305,20 @@ export async function forceNavigationReset(ctx: MyContext): Promise<void> {
     currentScene: ctx.scene?.current?.id,
     history: ctx.session?.navigationHistory,
   })
-  
+
   // Очищаем историю
   ctx.session.navigationHistory = []
-  
+
   // Сбрасываем режим
   ctx.session.mode = ModeEnum.MainMenu
-  
+
   // Выходим из всех сцен и идём в главное меню
   try {
     await ctx.scene.leave()
   } catch (e) {
     // Игнорируем ошибки выхода
   }
-  
+
   try {
     await ctx.scene.enter(ModeEnum.MainMenu)
   } catch (e) {

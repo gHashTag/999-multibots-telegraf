@@ -208,7 +208,8 @@ export const simpleTextToVideoWizard = new Scenes.WizardScene<MyContext>(
     // Получаем данные из сессии
     const selectedModel = ctx.session.selectedVideoModel || 'veo3_fast'
     const aspectRatio = ctx.session.selectedAspectRatio || '9:16'
-    const cost = ctx.session.selectedVideoCost || getModelPriceStars(selectedModel) || 25 // ✅ УНИФИКАЦИЯ ЦЕН
+    const cost =
+      ctx.session.selectedVideoCost || getModelPriceStars(selectedModel) || 25 // ✅ УНИФИКАЦИЯ ЦЕН
 
     logger.info('[SimpleTextToVideoWizard] Starting video generation', {
       telegramId: ctx.from?.id,
@@ -302,11 +303,13 @@ simpleTextToVideoWizard.enter(async ctx => {
     telegramId: ctx.from?.id,
     step: ctx.wizard?.cursor ?? 0,
   })
-  
+
   // ОКАЗЫВАЕТСЯ TELEGRAF НЕ ВЫЗЫВАЕТ ПЕРВЫЙ ШАГ АВТОМАТИЧЕСКИ!
   // НУЖНО ВЫЗЫВАТЬ ЕГО ВРУЧНУЮ, НО БЕЗ ДВОЙНОГО ВЫЗОВА
-  console.log('🎬 [SIMPLE] Manually executing first step since Telegraf doesnt do it automatically...')
-  
+  console.log(
+    '🎬 [SIMPLE] Manually executing first step since Telegraf doesnt do it automatically...'
+  )
+
   try {
     // Проверяем что это первый вход (cursor = undefined)
     if (ctx.wizard?.cursor === undefined) {
@@ -314,15 +317,27 @@ simpleTextToVideoWizard.enter(async ctx => {
       const firstStepHandler = (ctx.wizard as any).steps[0]
       if (typeof firstStepHandler === 'function') {
         await firstStepHandler(ctx)
-        console.log('🎬 [SIMPLE] ✅ First step executed successfully from .enter()')
+        console.log(
+          '🎬 [SIMPLE] ✅ First step executed successfully from .enter()'
+        )
       } else {
-        console.error('🎬 [SIMPLE] ❌ First step handler is not a function:', typeof firstStepHandler)
+        console.error(
+          '🎬 [SIMPLE] ❌ First step handler is not a function:',
+          typeof firstStepHandler
+        )
       }
     } else {
-      console.log('🎬 [SIMPLE] Wizard already has cursor:', ctx.wizard?.cursor ?? 0, '- NOT executing first step')
+      console.log(
+        '🎬 [SIMPLE] Wizard already has cursor:',
+        ctx.wizard?.cursor ?? 0,
+        '- NOT executing first step'
+      )
     }
   } catch (error) {
-    console.error('🎬 [SIMPLE] ❌ ERROR executing first step from .enter():', error)
+    console.error(
+      '🎬 [SIMPLE] ❌ ERROR executing first step from .enter():',
+      error
+    )
   }
 })
 

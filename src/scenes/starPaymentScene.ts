@@ -66,7 +66,11 @@ starPaymentScene.hears(/^🏠/, async ctx => {
   const isRu = isRussianFromState(ctx)
   const mainMenuText = getMainMenuText(isRu)
 
-  if (ctx.message && 'text' in ctx.message && ctx.message.text === mainMenuText) {
+  if (
+    ctx.message &&
+    'text' in ctx.message &&
+    ctx.message.text === mainMenuText
+  ) {
     logger.info(
       `[${ModeEnum.StarPaymentScene}] Leaving scene via Main Menu button`,
       {

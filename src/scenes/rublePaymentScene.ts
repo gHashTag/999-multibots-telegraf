@@ -144,11 +144,11 @@ rublePaymentScene.enter(async ctx => {
       try {
         invoiceURL = await getInvoiceId(
           merchantLogin,
-        amountRub,
-        invId,
-        description,
-        password1
-      )
+          amountRub,
+          invId,
+          description,
+          password1
+        )
         logger.info(
           `✅ [${ModeEnum.RublePaymentScene}] Subscription invoice URL generated successfully`,
           {
@@ -198,12 +198,15 @@ rublePaymentScene.enter(async ctx => {
           language: ctx.from?.language_code ?? 'en',
         })
       } catch (paymentRecordError) {
-        logger.error('❌ Не удалось создать запись платежа — ссылку не выдаём', {
-          error:
-            paymentRecordError instanceof Error
-              ? paymentRecordError.message
-              : String(paymentRecordError),
-        })
+        logger.error(
+          '❌ Не удалось создать запись платежа — ссылку не выдаём',
+          {
+            error:
+              paymentRecordError instanceof Error
+                ? paymentRecordError.message
+                : String(paymentRecordError),
+          }
+        )
         await ctx.reply(
           isRu
             ? '❌ Не удалось подготовить платёж. Попробуйте ещё раз через минуту — деньги не списаны.'
@@ -313,13 +316,15 @@ rublePaymentScene.enter(async ctx => {
           { columns: 1 }
         )
       )
-
     } catch (error: any) {
-      logger.error(`❌ [${ModeEnum.RublePaymentScene}] Error showing instant top-up options:`, {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        telegram_id: userId,
-      })
+      logger.error(
+        `❌ [${ModeEnum.RublePaymentScene}] Error showing instant top-up options:`,
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          telegram_id: userId,
+        }
+      )
       await ctx.reply(
         isRu
           ? '❌ Произошла ошибка при загрузке вариантов пополнения. Попробуйте позже.'
@@ -475,11 +480,11 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
     try {
       invoiceURL = await getInvoiceId(
         merchantLogin,
-      amountRub,
-      invId,
-      description,
-      password1
-    )
+        amountRub,
+        invId,
+        description,
+        password1
+      )
       logger.info(
         `✅ [${ModeEnum.RublePaymentScene}] Invoice URL generated successfully`,
         {
@@ -509,10 +514,10 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
 
     const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
-      // Ошибка здесь означает, что записи платежа НЕТ. Отправлять человека
-      // платить по ссылке в таком случае нельзя: деньги спишутся, а обратный
-      // вызов не найдёт платёж по inv_id и звёзды не начислятся.
-      try {
+    // Ошибка здесь означает, что записи платежа НЕТ. Отправлять человека
+    // платить по ссылке в таком случае нельзя: деньги спишутся, а обратный
+    // вызов не найдёт платёж по inv_id и звёзды не начислятся.
+    try {
       await setPayments({
         telegram_id: userId.toString(),
         OutSum: amountRub.toString(),
@@ -526,20 +531,20 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
         bot_name,
         language: ctx.from?.language_code ?? 'en',
       })
-      } catch (paymentRecordError) {
-        logger.error('❌ Не удалось создать запись платежа — ссылку не выдаём', {
-          error:
-            paymentRecordError instanceof Error
-              ? paymentRecordError.message
-              : String(paymentRecordError),
-        })
-        await ctx.reply(
-          isRu
-            ? '❌ Не удалось подготовить платёж. Попробуйте ещё раз через минуту — деньги не списаны.'
-            : '❌ Could not prepare the payment. Please try again in a minute — nothing was charged.'
-        )
-        return ctx.scene.leave()
-      }
+    } catch (paymentRecordError) {
+      logger.error('❌ Не удалось создать запись платежа — ссылку не выдаём', {
+        error:
+          paymentRecordError instanceof Error
+            ? paymentRecordError.message
+            : String(paymentRecordError),
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Не удалось подготовить платёж. Попробуйте ещё раз через минуту — деньги не списаны.'
+          : '❌ Could not prepare the payment. Please try again in a minute — nothing was charged.'
+      )
+      return ctx.scene.leave()
+    }
 
     logger.info(
       `[${
@@ -587,7 +592,6 @@ rublePaymentScene.action(/top_up_rub_(\d+)/, async ctx => {
         amountRub === 1 ? ' [ADMIN TEST]' : ''
       }`
     )
-
   } catch (error: any) {
     logger.error(
       `❌ [${ModeEnum.RublePaymentScene}] Error processing callback top_up_rub:`,
@@ -694,11 +698,11 @@ rublePaymentScene.action(/test_subscription_1rub:(.+):(\d+)/, async ctx => {
     try {
       invoiceURL = await getInvoiceId(
         merchantLogin,
-      testAmount,
-      invId,
-      description,
-      password1
-    )
+        testAmount,
+        invId,
+        description,
+        password1
+      )
       logger.info(
         `✅ [${ModeEnum.RublePaymentScene}] Admin test invoice URL generated successfully`,
         {
@@ -730,10 +734,10 @@ rublePaymentScene.action(/test_subscription_1rub:(.+):(\d+)/, async ctx => {
 
     const { bot_name } = getBotNameByToken(ctx.telegram.token)
 
-      // Ошибка здесь означает, что записи платежа НЕТ. Отправлять человека
-      // платить по ссылке в таком случае нельзя: деньги спишутся, а обратный
-      // вызов не найдёт платёж по inv_id и звёзды не начислятся.
-      try {
+    // Ошибка здесь означает, что записи платежа НЕТ. Отправлять человека
+    // платить по ссылке в таком случае нельзя: деньги спишутся, а обратный
+    // вызов не найдёт платёж по inv_id и звёзды не начислятся.
+    try {
       await setPayments({
         telegram_id: userId.toString(),
         OutSum: testAmount.toString(),
@@ -752,20 +756,20 @@ rublePaymentScene.action(/test_subscription_1rub:(.+):(\d+)/, async ctx => {
           test_amount: testAmount,
         },
       })
-      } catch (paymentRecordError) {
-        logger.error('❌ Не удалось создать запись платежа — ссылку не выдаём', {
-          error:
-            paymentRecordError instanceof Error
-              ? paymentRecordError.message
-              : String(paymentRecordError),
-        })
-        await ctx.reply(
-          isRu
-            ? '❌ Не удалось подготовить платёж. Попробуйте ещё раз через минуту — деньги не списаны.'
-            : '❌ Could not prepare the payment. Please try again in a minute — nothing was charged.'
-        )
-        return ctx.scene.leave()
-      }
+    } catch (paymentRecordError) {
+      logger.error('❌ Не удалось создать запись платежа — ссылку не выдаём', {
+        error:
+          paymentRecordError instanceof Error
+            ? paymentRecordError.message
+            : String(paymentRecordError),
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Не удалось подготовить платёж. Попробуйте ещё раз через минуту — деньги не списаны.'
+          : '❌ Could not prepare the payment. Please try again in a minute — nothing was charged.'
+      )
+      return ctx.scene.leave()
+    }
 
     logger.info(
       `[${ModeEnum.RublePaymentScene}] PENDING ADMIN TEST SUBSCRIPTION payment saved for InvId: ${invId}, Sub: ${subscriptionType}`,
@@ -839,7 +843,11 @@ rublePaymentScene.hears(/^🏠/, async ctx => {
   const isRu = isRussianFromState(ctx)
   const mainMenuText = getMainMenuText(isRu)
 
-  if (ctx.message && 'text' in ctx.message && ctx.message.text === mainMenuText) {
+  if (
+    ctx.message &&
+    'text' in ctx.message &&
+    ctx.message.text === mainMenuText
+  ) {
     logger.info(
       `[${ModeEnum.RublePaymentScene}] Leaving scene via Main Menu button`,
       {

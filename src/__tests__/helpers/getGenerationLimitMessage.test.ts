@@ -75,25 +75,55 @@ describe('getGenerationLimitMessage', () => {
   describe('getGenerationLimitMessage', () => {
     describe('unlimited access', () => {
       it('should return admin message in Russian', () => {
-        const result = getGenerationLimitMessage(true, true, 0, 10, undefined, true)
+        const result = getGenerationLimitMessage(
+          true,
+          true,
+          0,
+          10,
+          undefined,
+          true
+        )
         expect(result).toContain('безлимитный доступ')
         expect(result).toContain('администратор')
       })
 
       it('should return admin message in English', () => {
-        const result = getGenerationLimitMessage(false, true, 0, 10, undefined, true)
+        const result = getGenerationLimitMessage(
+          false,
+          true,
+          0,
+          10,
+          undefined,
+          true
+        )
         expect(result).toContain('unlimited access')
         expect(result).toContain('administrator')
       })
 
       it('should return NEUROTESTER message in Russian', () => {
-        const result = getGenerationLimitMessage(true, true, 0, 10, undefined, false, 'NEUROTESTER')
+        const result = getGenerationLimitMessage(
+          true,
+          true,
+          0,
+          10,
+          undefined,
+          false,
+          'NEUROTESTER'
+        )
         expect(result).toContain('безлимитный доступ')
         expect(result).toContain('NEUROTESTER')
       })
 
       it('should return NEUROTESTER message in English', () => {
-        const result = getGenerationLimitMessage(false, true, 0, 10, undefined, false, 'NEUROTESTER')
+        const result = getGenerationLimitMessage(
+          false,
+          true,
+          0,
+          10,
+          undefined,
+          false,
+          'NEUROTESTER'
+        )
         expect(result).toContain('unlimited access')
         expect(result).toContain('NEUROTESTER')
       })
@@ -121,12 +151,24 @@ describe('getGenerationLimitMessage', () => {
       })
 
       it('should include reset date info in Russian', () => {
-        const result = getGenerationLimitMessage(true, false, 10, 10, '2024-02-01')
+        const result = getGenerationLimitMessage(
+          true,
+          false,
+          10,
+          10,
+          '2024-02-01'
+        )
         expect(result).toContain('Лимит обновится')
       })
 
       it('should include reset date info in English', () => {
-        const result = getGenerationLimitMessage(false, false, 10, 10, '2024-02-01')
+        const result = getGenerationLimitMessage(
+          false,
+          false,
+          10,
+          10,
+          '2024-02-01'
+        )
         expect(result).toContain('Limit resets')
       })
 

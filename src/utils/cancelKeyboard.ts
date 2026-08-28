@@ -44,7 +44,7 @@ export function createCancelOnlyKeyboard(
   const callbackData = options.callbackData || 'cancel_operation'
 
   return Markup.inlineKeyboard([
-    [Markup.button.callback(isRu ? textRu : textEn, callbackData)]
+    [Markup.button.callback(isRu ? textRu : textEn, callbackData)],
   ])
 }
 
@@ -64,7 +64,7 @@ export function addCancelButtonToKeyboard(
 
   return [
     ...keyboard,
-    [Markup.button.callback(isRu ? textRu : textEn, callbackData)]
+    [Markup.button.callback(isRu ? textRu : textEn, callbackData)],
   ]
 }
 
@@ -78,12 +78,14 @@ export function createKeyboardWithCancel(
 ): any {
   const keyboardWithCancel = [
     ...buttons,
-    [Markup.button.callback(
-      isRussianFromState(ctx)
-        ? (options.textRu || '❌ Отмена')
-        : (options.textEn || '❌ Cancel'),
-      options.callbackData || 'cancel_operation'
-    )]
+    [
+      Markup.button.callback(
+        isRussianFromState(ctx)
+          ? options.textRu || '❌ Отмена'
+          : options.textEn || '❌ Cancel',
+        options.callbackData || 'cancel_operation'
+      ),
+    ],
   ]
 
   return Markup.inlineKeyboard(keyboardWithCancel)
@@ -98,9 +100,11 @@ export function createSingleButtonKeyboardWithCancel(
   buttonCallback: string,
   options: CancelKeyboardOptions = {}
 ): any {
-  return createKeyboardWithCancel(ctx, [
-    [Markup.button.callback(buttonText, buttonCallback)]
-  ], options)
+  return createKeyboardWithCancel(
+    ctx,
+    [[Markup.button.callback(buttonText, buttonCallback)]],
+    options
+  )
 }
 
 /**
@@ -112,10 +116,14 @@ export function createTwoButtonKeyboardWithCancel(
   button2: { text: string; callback_data: string },
   options: CancelKeyboardOptions = {}
 ): any {
-  return createKeyboardWithCancel(ctx, [
-    [Markup.button.callback(button1.text, button1.callback_data)],
-    [Markup.button.callback(button2.text, button2.callback_data)]
-  ], options)
+  return createKeyboardWithCancel(
+    ctx,
+    [
+      [Markup.button.callback(button1.text, button1.callback_data)],
+      [Markup.button.callback(button2.text, button2.callback_data)],
+    ],
+    options
+  )
 }
 
 /**
@@ -130,15 +138,12 @@ export function createBackAndCancelKeyboard(
 
   return Markup.inlineKeyboard([
     [
+      Markup.button.callback(isRu ? '⬅️ Назад' : '⬅️ Back', backCallback),
       Markup.button.callback(
-        isRu ? '⬅️ Назад' : '⬅️ Back',
-        backCallback
-      ),
-      Markup.button.callback(
-        isRu ? (options.textRu || '❌ Отмена') : (options.textEn || '❌ Cancel'),
+        isRu ? options.textRu || '❌ Отмена' : options.textEn || '❌ Cancel',
         options.callbackData || 'cancel_operation'
-      )
-    ]
+      ),
+    ],
   ])
 }
 
@@ -154,15 +159,12 @@ export function createNextAndCancelKeyboard(
 
   return Markup.inlineKeyboard([
     [
+      Markup.button.callback(isRu ? '➡️ Далее' : '➡️ Next', nextCallback),
       Markup.button.callback(
-        isRu ? '➡️ Далее' : '➡️ Next',
-        nextCallback
-      ),
-      Markup.button.callback(
-        isRu ? (options.textRu || '❌ Отмена') : (options.textEn || '❌ Cancel'),
+        isRu ? options.textRu || '❌ Отмена' : options.textEn || '❌ Cancel',
         options.callbackData || 'cancel_operation'
-      )
-    ]
+      ),
+    ],
   ])
 }
 
@@ -183,10 +185,10 @@ export function createConfirmAndCancelKeyboard(
         confirmCallback
       ),
       Markup.button.callback(
-        isRu ? (options.textRu || '❌ Отмена') : (options.textEn || '❌ Cancel'),
+        isRu ? options.textRu || '❌ Отмена' : options.textEn || '❌ Cancel',
         options.callbackData || 'cancel_operation'
-      )
-    ]
+      ),
+    ],
   ])
 }
 
@@ -198,5 +200,5 @@ export default {
   createTwoButtonKeyboardWithCancel,
   createBackAndCancelKeyboard,
   createNextAndCancelKeyboard,
-  createConfirmAndCancelKeyboard
+  createConfirmAndCancelKeyboard,
 }

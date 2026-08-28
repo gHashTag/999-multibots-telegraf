@@ -11,15 +11,17 @@ vi.mock('@/helpers/centralizedLanguage', () => ({
 }))
 
 vi.mock('@/services/imageUpscaler', () => ({
-  upscaleImage: vi.fn(() => Promise.resolve({
-    success: true,
-    imageUrl: 'https://example.com/upscaled.jpg',
-  })),
+  upscaleImage: vi.fn(() =>
+    Promise.resolve({
+      success: true,
+      imageUrl: 'https://example.com/upscaled.jpg',
+    })
+  ),
 }))
 
 vi.mock('@/navigation', () => ({
   handleHelpCancel: vi.fn(() => Promise.resolve(false)),
-  createHelpCancelKeyboard: vi.fn((isRu) => ({
+  createHelpCancelKeyboard: vi.fn(isRu => ({
     reply_markup: { keyboard: [[{ text: isRu ? 'Отмена' : 'Cancel' }]] },
   })),
 }))
@@ -64,7 +66,9 @@ describe('imageUpscalerWizard (Image Quality Enhancement)', () => {
       cursor: 0,
     },
     telegram: {
-      getFileLink: vi.fn(() => Promise.resolve({ href: 'https://example.com/photo.jpg' })),
+      getFileLink: vi.fn(() =>
+        Promise.resolve({ href: 'https://example.com/photo.jpg' })
+      ),
     },
     message: null as any,
   }
@@ -73,7 +77,6 @@ describe('imageUpscalerWizard (Image Quality Enhancement)', () => {
     vi.clearAllMocks()
     mockContext.session = { mode: null }
     mockContext.message = null
-
     ;(isRussianFromState as Mock).mockReturnValue(true)
     ;(handleHelpCancel as Mock).mockResolvedValue(false)
     ;(upscaleImage as Mock).mockResolvedValue({
@@ -163,7 +166,9 @@ describe('imageUpscalerWizard (Image Quality Enhancement)', () => {
         await mockContext.reply('Пожалуйста, отправьте изображение')
       }
 
-      expect(mockContext.reply).toHaveBeenCalledWith('Пожалуйста, отправьте изображение')
+      expect(mockContext.reply).toHaveBeenCalledWith(
+        'Пожалуйста, отправьте изображение'
+      )
     })
 
     it('должен обрабатывать фото сообщение', () => {

@@ -25,7 +25,7 @@ import {
   QwenImageEditPlusResponse,
   QWEN_IMAGE_EDIT_PLUS_CONFIG,
   validateQwenImageEditPlusInput,
-  extractImageUrlsFromQwenResponse
+  extractImageUrlsFromQwenResponse,
 } from '@/schemas/qwenImageEditPlus.schema'
 
 // Service parameters interface
@@ -48,8 +48,10 @@ const QWEN_IMAGE_EDIT_PLUS_MODEL = {
   key: 'qwen/qwen-image-edit-plus',
   costPerImage: calculateFinalImageCostInStars(0.03), // Replicate pricing: $0.03 per image
   name: 'Qwen Image Edit Plus',
-  description_en: 'Qwen Image Edit Plus - Advanced multi-image editing with improved consistency',
-  description_ru: 'Qwen Image Edit Plus - Продвинутое редактирование множественных изображений'
+  description_en:
+    'Qwen Image Edit Plus - Advanced multi-image editing with improved consistency',
+  description_ru:
+    'Qwen Image Edit Plus - Продвинутое редактирование множественных изображений',
 }
 
 /**
@@ -82,7 +84,7 @@ export const generateQwenImageEditPlus = async (
       seed,
       aspect_ratio,
       output_format = 'webp',
-      output_quality = 90
+      output_quality = 90,
     } = params
 
     // ✅ PREPARE IMAGE INPUT - SUPPORT BOTH SINGLE URL AND ARRAYS
@@ -90,12 +92,12 @@ export const generateQwenImageEditPlus = async (
       if (Array.isArray(imageUrl)) {
         logger.info('QwenEditPlus multi-image input detected', {
           telegram_id,
-          imageCount: imageUrl.length
+          imageCount: imageUrl.length,
         })
         return imageUrl.slice(0, 10) // Limit to max 10 images per schema
       } else {
         logger.info('QwenEditPlus single image input detected', {
-          telegram_id
+          telegram_id,
         })
         return [imageUrl]
       }
@@ -111,14 +113,16 @@ export const generateQwenImageEditPlus = async (
       telegram_id,
       dbAspectRatio,
       paramAspectRatio: aspect_ratio,
-      finalAspectRatio
+      finalAspectRatio,
     })
 
     // 🚨 CRITICAL: Truncate prompt to 1000 chars to avoid validation errors
     const MAX_PROMPT_LENGTH = 1000
     let truncatedPrompt = prompt
     if (prompt.length > MAX_PROMPT_LENGTH) {
-      console.log(`⚠️ [QwenEditPlus] Prompt too long (${prompt.length} chars), truncating to ${MAX_PROMPT_LENGTH}`)
+      console.log(
+        `⚠️ [QwenEditPlus] Prompt too long (${prompt.length} chars), truncating to ${MAX_PROMPT_LENGTH}`
+      )
       // Truncate to 997 chars so that adding '...' results in exactly 1000
       truncatedPrompt = prompt.substring(0, 997) + '...'
     }
@@ -130,19 +134,20 @@ export const generateQwenImageEditPlus = async (
       aspect_ratio: finalAspectRatio,
       output_format,
       output_quality,
-      ...(seed !== undefined ? { seed } : {})
+      ...(seed !== undefined ? { seed } : {}),
     }
 
     // 🛡️ СТРОГАЯ ВАЛИДАЦИЯ С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ
     const validation = validateQwenImageEditPlusInput(qwenInput)
 
     if (!validation.success) {
-      const errorMessage = (validation as { success: false; error: string }).error
+      const errorMessage = (validation as { success: false; error: string })
+        .error
       logger.error('QwenEditPlus validation failed', {
         telegram_id,
         error: errorMessage,
         hasPrompt: !!qwenInput.prompt,
-        imageCount: qwenInput.image.length
+        imageCount: qwenInput.image.length,
       })
       throw new Error(`QwenEditPlus validation failed: ${errorMessage}`)
     }
@@ -153,7 +158,7 @@ export const generateQwenImageEditPlus = async (
       telegram_id,
       aspect_ratio: validatedInput.aspect_ratio,
       output_format: validatedInput.output_format,
-      imageInputCount: validatedInput.image.length
+      imageInputCount: validatedInput.image.length,
     })
 
     // Check user existence and level
@@ -175,7 +180,7 @@ export const generateQwenImageEditPlus = async (
       telegram_id,
       costPerImage: QWEN_IMAGE_EDIT_PLUS_MODEL.costPerImage,
       imageCount,
-      totalCost
+      totalCost,
     })
 
     // Process balance operation with correct total cost
@@ -189,13 +194,13 @@ export const generateQwenImageEditPlus = async (
 
     logger.info('QwenEditPlus balance check completed', {
       success: balanceCheck.success,
-      telegram_id
+      telegram_id,
     })
 
     if (!balanceCheck.success) {
       logger.error('QwenEditPlus balance check failed', {
         telegram_id,
-        success: balanceCheck.success
+        success: balanceCheck.success,
       })
 
       const errorMessage = is_ru
@@ -227,24 +232,26 @@ export const generateQwenImageEditPlus = async (
       aspect_ratio: validatedInput.aspect_ratio,
       output_format: validatedInput.output_format,
       output_quality: validatedInput.output_quality,
-      ...(validatedInput.seed !== undefined ? { seed: validatedInput.seed } : {})
+      ...(validatedInput.seed !== undefined
+        ? { seed: validatedInput.seed }
+        : {}),
     }
 
     logger.info('QwenEditPlus calling Replicate API', {
       telegram_id,
       model: QWEN_IMAGE_EDIT_PLUS_MODEL.key,
-      inputKeys: Object.keys(replicateInput)
+      inputKeys: Object.keys(replicateInput),
     })
 
     const output = await replicate.run(QWEN_IMAGE_EDIT_PLUS_MODEL.key as any, {
-      input: replicateInput
+      input: replicateInput,
     })
 
     logger.info('QwenEditPlus response received', {
       telegram_id,
       outputType: typeof output,
       isArray: Array.isArray(output),
-      length: Array.isArray(output) ? output.length : 'N/A'
+      length: Array.isArray(output) ? output.length : 'N/A',
     })
 
     // Extract image URLs using schema utility
@@ -271,12 +278,13 @@ export const generateQwenImageEditPlus = async (
         input_images_count: validatedInput.image.length,
         aspect_ratio: validatedInput.aspect_ratio,
         output_format: validatedInput.output_format,
-        seed: validatedInput.seed
-      }
+        seed: validatedInput.seed,
+      },
     }
 
     // Validate the response with Zod schema
-    const validatedResponse = QwenImageEditPlusResponseSchema.parse(processedOutput)
+    const validatedResponse =
+      QwenImageEditPlusResponseSchema.parse(processedOutput)
 
     console.log('🎨 [QwenEditPlus] Response validated successfully:', {
       telegram_id,
@@ -297,16 +305,27 @@ export const generateQwenImageEditPlus = async (
     let savedImagePath: string
     try {
       const imageBuffer = await downloadFile(primaryImageUrl)
-      savedImagePath = await saveFileLocally(String(telegram_id), primaryImageUrl, 'ai-generation', '.webp')
+      savedImagePath = await saveFileLocally(
+        String(telegram_id),
+        primaryImageUrl,
+        'ai-generation',
+        '.webp'
+      )
 
       console.log('🎨 [QwenEditPlus] Image saved locally:', {
         telegram_id,
         savedImagePath,
-        fileSize: imageBuffer.length
+        fileSize: imageBuffer.length,
       })
     } catch (downloadError) {
-      const originalMsg = downloadError instanceof Error ? downloadError.message : String(downloadError)
-      console.error('🚨 [QwenEditPlus] Failed to download/save image:', downloadError)
+      const originalMsg =
+        downloadError instanceof Error
+          ? downloadError.message
+          : String(downloadError)
+      console.error(
+        '🚨 [QwenEditPlus] Failed to download/save image:',
+        downloadError
+      )
       throw new Error(`Failed to process generated image: ${originalMsg}`)
     }
 
@@ -322,7 +341,7 @@ export const generateQwenImageEditPlus = async (
 
       console.log('🎨 [QwenEditPlus] Prompt saved to database:', {
         telegram_id,
-        promptId
+        promptId,
       })
 
       // Send success message with image
@@ -346,49 +365,57 @@ export const generateQwenImageEditPlus = async (
           prompt: validatedInput.prompt,
           botName: ctx.botInfo?.username || 'unknown',
           additionalInfo: {
-            'Model': QWEN_IMAGE_EDIT_PLUS_MODEL.name,
-            'Images': imageCount.toString(),
-            'Format': validatedInput.output_format,
-            'Price': `${QWEN_IMAGE_EDIT_PLUS_MODEL.costPerImage} stars`,
-            'Type': 'Multi-Image Editing'
-          }
+            Model: QWEN_IMAGE_EDIT_PLUS_MODEL.name,
+            Images: imageCount.toString(),
+            Format: validatedInput.output_format,
+            Price: `${QWEN_IMAGE_EDIT_PLUS_MODEL.costPerImage} stars`,
+            Type: 'Multi-Image Editing',
+          },
         })
 
-        logger.info('[QwenEditPlus] Sent to pulse channel', { telegram_id, imageUrl: primaryImageUrl })
+        logger.info('[QwenEditPlus] Sent to pulse channel', {
+          telegram_id,
+          imageUrl: primaryImageUrl,
+        })
       } catch (pulseError) {
-        logger.error('[QwenEditPlus] Failed to send to pulse channel:', pulseError)
+        logger.error(
+          '[QwenEditPlus] Failed to send to pulse channel:',
+          pulseError
+        )
       }
 
       // Clean up local file
       try {
         fs.unlinkSync(savedImagePath)
       } catch (cleanupError) {
-        logger.warn('[QwenEditPlus] Failed to cleanup local file:', cleanupError)
+        logger.warn(
+          '[QwenEditPlus] Failed to cleanup local file:',
+          cleanupError
+        )
       }
 
       return {
         image: primaryImageUrl,
-        prompt_id: promptId
+        prompt_id: promptId,
       }
-
     } catch (saveError) {
-      const originalMsg = saveError instanceof Error ? saveError.message : String(saveError)
+      const originalMsg =
+        saveError instanceof Error ? saveError.message : String(saveError)
       console.error('🚨 [QwenEditPlus] Failed to save prompt:', saveError)
       // Refund user if database save fails
-      await refundUser(ctx, totalCost, { reason: "generation_failed" })
+      await refundUser(ctx, totalCost, { reason: 'generation_failed' })
       throw new Error(`Failed to save generation record: ${originalMsg}`)
     }
-
   } catch (error) {
     console.error('🚨 [QwenEditPlus] Generation failed:', {
       telegram_id: params.telegram_id,
       error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
+      stack: error instanceof Error ? error.stack : undefined,
     })
 
     logger.error('[QwenEditPlus] Generation failed', {
       telegram_id: params.telegram_id,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     })
 
     // Send error message to user
@@ -399,7 +426,7 @@ export const generateQwenImageEditPlus = async (
     await params.ctx.reply(errorMessage)
 
     // Refund user
-    await refundUser(params.ctx, totalCost, { reason: "generation_failed" })
+    await refundUser(params.ctx, totalCost, { reason: 'generation_failed' })
 
     throw error
   }

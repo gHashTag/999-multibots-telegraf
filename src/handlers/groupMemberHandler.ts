@@ -18,7 +18,7 @@ const NEUROTESTER_GROUP_ID = -1002643951085
  * Настроить обработчик событий chat_member
  */
 export function setupGroupMemberHandler(bot: Telegraf<MyContext>): void {
-  bot.on('chat_member', async (ctx) => {
+  bot.on('chat_member', async ctx => {
     try {
       const update = ctx.update as any
       const chatMemberUpdate = update.chat_member
@@ -29,7 +29,8 @@ export function setupGroupMemberHandler(bot: Telegraf<MyContext>): void {
 
       const chatId = chatMemberUpdate.chat?.id
       const userId = chatMemberUpdate.new_chat_member?.user?.id
-      const username = chatMemberUpdate.new_chat_member?.user?.username || userId?.toString()
+      const username =
+        chatMemberUpdate.new_chat_member?.user?.username || userId?.toString()
       const oldStatus = chatMemberUpdate.old_chat_member?.status
       const newStatus = chatMemberUpdate.new_chat_member?.status
 
@@ -86,7 +87,10 @@ export function setupGroupMemberHandler(bot: Telegraf<MyContext>): void {
 /**
  * Выдать доступ NEUROTESTER пользователю
  */
-async function grantNeurotesterAccess(telegramId: string, username: string): Promise<void> {
+async function grantNeurotesterAccess(
+  telegramId: string,
+  username: string
+): Promise<void> {
   // Проверяем, есть ли уже активный доступ
   const { data: existing } = await supabase
     .from('payments_v2')
@@ -135,7 +139,10 @@ async function grantNeurotesterAccess(telegramId: string, username: string): Pro
 /**
  * Отозвать доступ NEUROTESTER у пользователя
  */
-async function revokeNeurotesterAccess(telegramId: string, username: string): Promise<void> {
+async function revokeNeurotesterAccess(
+  telegramId: string,
+  username: string
+): Promise<void> {
   // Находим активную подписку, выданную автоматически (bot_name = 'group_auto_grant' или 'admin_script')
   const { data: subscriptions } = await supabase
     .from('payments_v2')

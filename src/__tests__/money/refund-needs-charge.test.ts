@@ -31,20 +31,28 @@ let queryError: { message: string } | null = null
 function chain() {
   const link: Record<string, unknown> = {}
   for (const m of ['select', 'eq', 'gte', 'order']) link[m] = vi.fn(() => link)
-  link.limit = vi.fn(() => Promise.resolve({ data: queryError ? null : ledger, error: queryError }))
+  link.limit = vi.fn(() =>
+    Promise.resolve({ data: queryError ? null : ledger, error: queryError })
+  )
   return link
 }
 
 vi.mock('@/core/supabase', () => ({
   supabase: { from: () => chain() },
   getUserBalance: vi.fn(async () => 0),
-  getReferalsCountAndUserData: vi.fn(async () => ({ count: 0, subscriptionType: null, level: 0 })),
+  getReferalsCountAndUserData: vi.fn(async () => ({
+    count: 0,
+    subscriptionType: null,
+    level: 0,
+  })),
 }))
 vi.mock('@/core/supabase/updateUserBalance', () => ({
   updateUserBalance: (...a: unknown[]) => updateUserBalance(...a),
 }))
 vi.mock('@/navigation', () => ({ createMainMenuKeyboard: () => ({}) }))
-vi.mock('@/helpers/centralizedLanguage', () => ({ isRussianFromState: () => true }))
+vi.mock('@/helpers/centralizedLanguage', () => ({
+  isRussianFromState: () => true,
+}))
 
 const HELPER = 'src/price/helpers/refundUser.ts'
 const strip = (s: string) =>
@@ -73,7 +81,9 @@ describe('возврат требует состоявшегося списан�
     const at = src.indexOf('if (!check.allowed)')
     const tail = src.slice(at, at + 300)
     expect(tail).toMatch(/return/)
-    expect(tail.indexOf('return')).toBeLessThan(tail.indexOf('updateUserBalance') + 1 || 300)
+    expect(tail.indexOf('return')).toBeLessThan(
+      tail.indexOf('updateUserBalance') + 1 || 300
+    )
   })
 
   it('нельзя вернуть больше, чем заплатили', () => {
@@ -128,22 +138,47 @@ describe('поведение возврата', () => {
   it('есть списание — возврат проходит', async () => {
     // Страховка от самого себя: если бы проверка запрещала всё, тест выше
     // проходил бы и при полностью сломанном возврате.
-    ledger = [{ id: 1, stars: 8, type: 'MONEY_OUTCOME', payment_date: '2026-08-20T00:00:00Z' }]
+    ledger = [
+      {
+        id: 1,
+        stars: 8,
+        type: 'MONEY_OUTCOME',
+        payment_date: '2026-08-20T00:00:00Z',
+      },
+    ]
     await call(8)
     expect(updateUserBalance).toHaveBeenCalledTimes(1)
   })
 
   it('второй возврат за то же списание не проходит', async () => {
     ledger = [
-      { id: 2, stars: 8, type: 'MONEY_INCOME', payment_date: '2026-08-20T00:00:05Z', description: 'Refund (generation_failed)' },
-      { id: 1, stars: 8, type: 'MONEY_OUTCOME', payment_date: '2026-08-20T00:00:00Z' },
+      {
+        id: 2,
+        stars: 8,
+        type: 'MONEY_INCOME',
+        payment_date: '2026-08-20T00:00:05Z',
+        description: 'Refund (generation_failed)',
+      },
+      {
+        id: 1,
+        stars: 8,
+        type: 'MONEY_OUTCOME',
+        payment_date: '2026-08-20T00:00:00Z',
+      },
     ]
     await call(8)
     expect(updateUserBalance).not.toHaveBeenCalled()
   })
 
   it('вернуть больше, чем заплатили, нельзя', async () => {
-    ledger = [{ id: 1, stars: 8, type: 'MONEY_OUTCOME', payment_date: '2026-08-20T00:00:00Z' }]
+    ledger = [
+      {
+        id: 1,
+        stars: 8,
+        type: 'MONEY_OUTCOME',
+        payment_date: '2026-08-20T00:00:00Z',
+      },
+    ]
     await call(100)
     expect(updateUserBalance).not.toHaveBeenCalled()
   })

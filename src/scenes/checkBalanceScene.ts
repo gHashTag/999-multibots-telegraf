@@ -176,11 +176,14 @@ export function calculateModeCost(
       let numericCostValue: number
       if (typeof costValue === 'function') {
         if (steps === undefined || steps === null) {
-          logger.error('❌ Не передано количество шагов для режима с функцией стоимости', {
-            description: 'Steps parameter is missing for function-based cost',
-            mode,
-            normalizedMode,
-          })
+          logger.error(
+            '❌ Не передано количество шагов для режима с функцией стоимости',
+            {
+              description: 'Steps parameter is missing for function-based cost',
+              mode,
+              normalizedMode,
+            }
+          )
           numericCostValue = 0
         } else {
           numericCostValue = costValue(steps)
@@ -323,33 +326,45 @@ checkBalanceScene.enter(async ctx => {
     const telegramIdNum = parseInt(userId, 10)
     const isAdmin = ADMIN_IDS_ARRAY.includes(telegramIdNum)
 
-    console.log(`🚨 [CheckBalanceScene] CRITICAL: Checking admin status for ${userId}: ${isAdmin}`)
+    console.log(
+      `🚨 [CheckBalanceScene] CRITICAL: Checking admin status for ${userId}: ${isAdmin}`
+    )
 
     if (isAdmin) {
-      console.log(`✅ [CheckBalanceScene] GRANTING IMMEDIATE ACCESS TO ADMIN ${userId}`)
-      logger.info(`[CheckBalanceScene] IMMEDIATE ACCESS: Admin ${userId} bypassing all checks`, {
-        telegramId: userId,
-        function: 'checkBalanceScene.enter',
-        step: 'admin_immediate_access',
-        mode,
-      })
+      console.log(
+        `✅ [CheckBalanceScene] GRANTING IMMEDIATE ACCESS TO ADMIN ${userId}`
+      )
+      logger.info(
+        `[CheckBalanceScene] IMMEDIATE ACCESS: Admin ${userId} bypassing all checks`,
+        {
+          telegramId: userId,
+          function: 'checkBalanceScene.enter',
+          step: 'admin_immediate_access',
+          mode,
+        }
+      )
       // Пропускаем ВСЕ проверки и идем прямо к целевой сцене
       await enterTargetScene(ctx, async () => {}, mode, 0)
       return
     }
 
-    console.log(`ℹ️ [CheckBalanceScene] User ${userId} is not admin, proceeding with normal checks`)
+    console.log(
+      `ℹ️ [CheckBalanceScene] User ${userId} is not admin, proceeding with normal checks`
+    )
 
     // ✅ ИСПОЛЬЗУЕМ НОВУЮ ЦЕНТРАЛИЗОВАННУЮ СИСТЕМУ (БЕЗ ЗАПРОСОВ К БД!)
     const isRu = isRussianFromState(ctx)
 
-    logger.info(`[CheckBalanceScene] Запрошен режим: ${mode} пользователем: ${userId}`, {
-      telegramId: userId,
-      mode,
-      language: isRu ? 'ru' : 'other',
-      function: 'checkBalanceScene.enter',
-      step: 'identifying_user_and_mode',
-    })
+    logger.info(
+      `[CheckBalanceScene] Запрошен режим: ${mode} пользователем: ${userId}`,
+      {
+        telegramId: userId,
+        mode,
+        language: isRu ? 'ru' : 'other',
+        function: 'checkBalanceScene.enter',
+        step: 'identifying_user_and_mode',
+      }
+    )
 
     // --- ШАГ 2: ПОЛУЧЕНИЕ ДАННЫХ ПОЛЬЗОВАТЕЛЯ ---
     console.log('🚀 [DEBUG] Step 4: Getting user details from DB...')
@@ -378,32 +393,39 @@ checkBalanceScene.enter(async ctx => {
 
     // --- ШАГ 3: ПРОВЕРКА СУЩЕСТВОВАНИЯ ---
     if (!userDetails.isExist) {
-      logger.warn(`[CheckBalanceScene] Пользователь ${telegramId} не найден в БД. Автоматическое создание профиля.`, {
-        telegramId,
-        function: 'checkBalanceScene.enter',
-        step: 'user_not_found',
-        result: 'auto_create_user',
-      })
+      logger.warn(
+        `[CheckBalanceScene] Пользователь ${telegramId} не найден в БД. Автоматическое создание профиля.`,
+        {
+          telegramId,
+          function: 'checkBalanceScene.enter',
+          step: 'user_not_found',
+          result: 'auto_create_user',
+        }
+      )
 
       await ctx.reply(
-        isRu
-          ? '🔄 Создаю ваш профиль...'
-          : '🔄 Creating your profile...'
+        isRu ? '🔄 Создаю ваш профиль...' : '🔄 Creating your profile...'
       )
 
       // Автоматически создаем пользователя
       try {
-        const { createUserByTelegramId } = await import('@/core/supabase/getUserByTelegramId')
+        const { createUserByTelegramId } = await import(
+          '@/core/supabase/getUserByTelegramId'
+        )
         await createUserByTelegramId(ctx)
 
-        logger.info(`[CheckBalanceScene] Пользователь ${telegramId} успешно создан. Повторная проверка данных.`, {
-          telegramId,
-          function: 'checkBalanceScene.enter',
-          step: 'user_created_recheck',
-        })
+        logger.info(
+          `[CheckBalanceScene] Пользователь ${telegramId} успешно создан. Повторная проверка данных.`,
+          {
+            telegramId,
+            function: 'checkBalanceScene.enter',
+            step: 'user_created_recheck',
+          }
+        )
 
         // Получаем обновленные данные пользователя
-        const userDetailsAfterCreate = await getUserDetailsSubscription(telegramId)
+        const userDetailsAfterCreate =
+          await getUserDetailsSubscription(telegramId)
 
         if (!userDetailsAfterCreate.isExist) {
           throw new Error('User still not found after creation')
@@ -412,12 +434,15 @@ checkBalanceScene.enter(async ctx => {
         // Обновляем переменную для дальнейшего использования
         userDetails = userDetailsAfterCreate
       } catch (createError) {
-        logger.error(`[CheckBalanceScene] Ошибка при автосоздании пользователя ${telegramId}. Перенаправление в StartScene.`, {
-          telegramId,
-          function: 'checkBalanceScene.enter',
-          step: 'user_auto_create_failed',
-          error: createError,
-        })
+        logger.error(
+          `[CheckBalanceScene] Ошибка при автосоздании пользователя ${telegramId}. Перенаправление в StartScene.`,
+          {
+            telegramId,
+            function: 'checkBalanceScene.enter',
+            step: 'user_auto_create_failed',
+            error: createError,
+          }
+        )
 
         await ctx.reply(
           isRu
@@ -437,27 +462,37 @@ checkBalanceScene.enter(async ctx => {
       // Можно добавить другие режимы, доступные за звезды без подписки
     ]
 
-    if (!userDetails.isSubscriptionActive && !modesWithoutSubscriptionRequired.includes(mode)) {
-      logger.warn(`[CheckBalanceScene] Пользователь ${telegramId} НЕ имеет активной подписки. Перенаправление в StartScene.`, {
-        telegramId,
-        function: 'checkBalanceScene.enter',
-        step: 'subscription_check_failed',
-        subscriptionType: userDetails.subscriptionType,
-        mode,
-        result: 'redirect_to_start',
-      })
+    if (
+      !userDetails.isSubscriptionActive &&
+      !modesWithoutSubscriptionRequired.includes(mode)
+    ) {
+      logger.warn(
+        `[CheckBalanceScene] Пользователь ${telegramId} НЕ имеет активной подписки. Перенаправление в StartScene.`,
+        {
+          telegramId,
+          function: 'checkBalanceScene.enter',
+          step: 'subscription_check_failed',
+          subscriptionType: userDetails.subscriptionType,
+          mode,
+          result: 'redirect_to_start',
+        }
+      )
       // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
       await ctx.scene.leave()
       return ctx.scene.enter(ModeEnum.StartScene)
     } else {
-      logger.info(`[CheckBalanceScene] Проверка подписки пройдена для режима ${mode}. ${userDetails.isSubscriptionActive ? `Тип подписки: ${userDetails.subscriptionType}` : 'Режим доступен без подписки'}`, {
-        telegramId,
-        function: 'checkBalanceScene.enter',
-        step: 'subscription_check_passed',
-        subscriptionType: userDetails.subscriptionType,
-        mode,
-        isSubscriptionRequired: !modesWithoutSubscriptionRequired.includes(mode),
-      })
+      logger.info(
+        `[CheckBalanceScene] Проверка подписки пройдена для режима ${mode}. ${userDetails.isSubscriptionActive ? `Тип подписки: ${userDetails.subscriptionType}` : 'Режим доступен без подписки'}`,
+        {
+          telegramId,
+          function: 'checkBalanceScene.enter',
+          step: 'subscription_check_passed',
+          subscriptionType: userDetails.subscriptionType,
+          mode,
+          isSubscriptionRequired:
+            !modesWithoutSubscriptionRequired.includes(mode),
+        }
+      )
     }
 
     // Шаг 5: ПРОВЕРКА БАЛАНСА (только для обычных пользователей без активной подписки)
@@ -478,14 +513,17 @@ checkBalanceScene.enter(async ctx => {
     // Шаг 6: Показываем баланс и стоимость, если функция платная
     // Исключение для VideoTranscription - баланс показывается после транскрипции
     if (costValue > 0 && mode !== ModeEnum.VideoTranscription) {
-      logger.info(`[CheckBalanceScene] Отображение информации о балансе для платной функции`, {
-        telegramId,
-        function: 'checkBalanceScene.enter',
-        step: 'displaying_balance_info',
-        mode,
-        cost: costValue,
-        balance: currentBalance,
-      })
+      logger.info(
+        `[CheckBalanceScene] Отображение информации о балансе для платной функции`,
+        {
+          telegramId,
+          function: 'checkBalanceScene.enter',
+          step: 'displaying_balance_info',
+          mode,
+          cost: costValue,
+          balance: currentBalance,
+        }
+      )
 
       console.log(ctx.botInfo)
 
@@ -501,38 +539,47 @@ checkBalanceScene.enter(async ctx => {
 
     // Шаг 7: Проверка достаточности баланса
     if (currentBalance < costValue) {
-      logger.warn(`[CheckBalanceScene] Недостаточно баланса для режима: ${mode}`, {
-        telegramId,
-        function: 'checkBalanceScene.enter',
-        step: 'insufficient_balance',
-        mode,
-        cost: costValue,
-        balance: currentBalance,
-        deficit: costValue - currentBalance,
-        result: 'access_denied',
-      })
+      logger.warn(
+        `[CheckBalanceScene] Недостаточно баланса для режима: ${mode}`,
+        {
+          telegramId,
+          function: 'checkBalanceScene.enter',
+          step: 'insufficient_balance',
+          mode,
+          cost: costValue,
+          balance: currentBalance,
+          deficit: costValue - currentBalance,
+          result: 'access_denied',
+        }
+      )
       // Отправляем сообщение о нехватке звезд
       await sendInsufficientStarsMessage(ctx, currentBalance, isRu)
       // Выходим из сцены, т.к. баланса не хватает
-      logger.info(`[CheckBalanceScene] Выход из сцены из-за недостатка баланса`, {
-        telegramId,
-        function: 'checkBalanceScene.enter',
-        step: 'scene_leave',
-        reason: 'insufficient_balance',
-      })
+      logger.info(
+        `[CheckBalanceScene] Выход из сцены из-за недостатка баланса`,
+        {
+          telegramId,
+          function: 'checkBalanceScene.enter',
+          step: 'scene_leave',
+          reason: 'insufficient_balance',
+        }
+      )
       return ctx.scene.leave()
     }
 
     // Если все проверки пройдены (достаточно баланса)
-    logger.info(`[CheckBalanceScene] Все проверки пройдены, доступ разрешен для режима: ${mode}`, {
-      telegramId,
-      function: 'checkBalanceScene.enter',
-      step: 'all_checks_passed',
-      mode,
-      cost: costValue,
-      balance: currentBalance,
-      result: 'access_granted',
-    })
+    logger.info(
+      `[CheckBalanceScene] Все проверки пройдены, доступ разрешен для режима: ${mode}`,
+      {
+        telegramId,
+        function: 'checkBalanceScene.enter',
+        step: 'all_checks_passed',
+        mode,
+        cost: costValue,
+        balance: currentBalance,
+        result: 'access_granted',
+      }
+    )
 
     // --- ВЫЗОВ ФУНКЦИИ ДЛЯ ВХОДА В ЦЕЛЕВУЮ СЦЕНУ ---
     console.log(
@@ -582,13 +629,16 @@ checkBalanceScene.on('text', async ctx => {
   )
   const telegramId = ctx.from?.id?.toString() || 'unknown'
 
-  logger.info('📝 [CheckBalanceScene] Получено текстовое сообщение в checkBalanceScene', {
-    telegramId,
-    text: ctx.message.text,
-    function: 'checkBalanceScene.text',
-    sessionMode: ctx.session?.mode,
-    note: 'checkBalanceScene не должна обрабатывать текст - возможно, пользователь застрял в этой сцене',
-  })
+  logger.info(
+    '📝 [CheckBalanceScene] Получено текстовое сообщение в checkBalanceScene',
+    {
+      telegramId,
+      text: ctx.message.text,
+      function: 'checkBalanceScene.text',
+      sessionMode: ctx.session?.mode,
+      note: 'checkBalanceScene не должна обрабатывать текст - возможно, пользователь застрял в этой сцене',
+    }
+  )
 
   // Показываем пользователю, что его сообщение получено, но сцена не готова его обрабатывать
   await ctx.reply('⏳ Обрабатываю ваш запрос...')
@@ -629,12 +679,15 @@ export const enterTargetScene = async (
   const telegramId = ctx.from?.id?.toString() || 'unknown'
   // Enter target scene based on user details
 
-  logger.info(`[EnterTargetSceneWrapper] 🚀 НАЧАЛО: Попытка входа в режим ${mode}`, {
-    telegramId,
-    mode,
-    cost,
-    function: 'enterTargetSceneWrapper',
-  })
+  logger.info(
+    `[EnterTargetSceneWrapper] 🚀 НАЧАЛО: Попытка входа в режим ${mode}`,
+    {
+      telegramId,
+      mode,
+      cost,
+      function: 'enterTargetSceneWrapper',
+    }
+  )
 
   try {
     console.log('🎯 [DEBUG] enterTargetScene: Step A - Getting user details...')
@@ -672,7 +725,10 @@ export const enterTargetScene = async (
       // Можно добавить другие режимы
     ]
 
-    if (!userDetails.isSubscriptionActive && !modesWithoutSubscriptionRequired.includes(mode)) {
+    if (
+      !userDetails.isSubscriptionActive &&
+      !modesWithoutSubscriptionRequired.includes(mode)
+    ) {
       console.log(
         '🎯 [DEBUG] enterTargetScene: Subscription not active, returning...'
       )
@@ -725,30 +781,39 @@ export const enterTargetScene = async (
       // await logTransaction(...)
       // const updatedBalance = await updateUserBalance(...)
       const updatedBalance = currentBalance - cost // Временное решение
-      logger.info(`[EnterTargetSceneWrapper] ✅ Звезды списаны (симуляция), баланс обновлен`, {
-        telegramId,
-        mode,
-        balanceAfter: updatedBalance,
-        function: 'enterTargetSceneWrapper',
-      })
+      logger.info(
+        `[EnterTargetSceneWrapper] ✅ Звезды списаны (симуляция), баланс обновлен`,
+        {
+          telegramId,
+          mode,
+          balanceAfter: updatedBalance,
+          function: 'enterTargetSceneWrapper',
+        }
+      )
       // Здесь можно было бы обновить баланс в ctx.session, если он там хранится
       // ctx.session.user.stars = updatedBalance; // Пример
     } else {
-      logger.info(`[EnterTargetSceneWrapper] Режим ${mode} бесплатный, звезды не списываются`, {
-        telegramId,
-        mode,
-        function: 'enterTargetSceneWrapper',
-      })
+      logger.info(
+        `[EnterTargetSceneWrapper] Режим ${mode} бесплатный, звезды не списываются`,
+        {
+          telegramId,
+          mode,
+          function: 'enterTargetSceneWrapper',
+        }
+      )
     }
 
     console.log(
       '🎯 [DEBUG] enterTargetScene: Step D - Access granted, proceeding to scene selection...'
     )
-    logger.info(`[EnterTargetSceneWrapper] ✅ Доступ разрешен, переход к обработчику`, {
-      telegramId,
-      mode,
-      function: 'enterTargetSceneWrapper',
-    })
+    logger.info(
+      `[EnterTargetSceneWrapper] ✅ Доступ разрешен, переход к обработчику`,
+      {
+        telegramId,
+        mode,
+        function: 'enterTargetSceneWrapper',
+      }
+    )
 
     // Переходим к следующему обработчику (фактическому выполнению команды/входу в сцену)
     // await next() // Вызов следующего middleware или обработчика
@@ -756,11 +821,14 @@ export const enterTargetScene = async (
     // --- ИЛИ ---
 
     // Если эта функция ДОЛЖНА переводить в сцену, то логика будет такой:
-    logger.info(`[EnterTargetSceneWrapper] ✅ Переход в целевую сцену ${mode}`, {
-      telegramId,
-      mode,
-      function: 'enterTargetSceneWrapper',
-    })
+    logger.info(
+      `[EnterTargetSceneWrapper] ✅ Переход в целевую сцену ${mode}`,
+      {
+        telegramId,
+        mode,
+        function: 'enterTargetSceneWrapper',
+      }
+    )
 
     console.log(
       '🎯 [DEBUG] enterTargetScene: Checking special mode cases for mode:',
@@ -772,11 +840,14 @@ export const enterTargetScene = async (
       console.log(
         '🎯 [DEBUG] enterTargetScene: FluxKontext mode (legacy) detected, entering ai_photoshop_scene'
       )
-      logger.info(`[EnterTargetSceneWrapper] FluxKontext режим (legacy) - переход в ai_photoshop_scene`, {
-        telegramId,
-        mode,
-        function: 'enterTargetSceneWrapper',
-      })
+      logger.info(
+        `[EnterTargetSceneWrapper] FluxKontext режим (legacy) - переход в ai_photoshop_scene`,
+        {
+          telegramId,
+          mode,
+          function: 'enterTargetSceneWrapper',
+        }
+      )
       // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
       await ctx.scene.leave()
       await ctx.scene.enter('ai_photoshop_scene')
@@ -788,11 +859,14 @@ export const enterTargetScene = async (
       console.log(
         '🎯 [DEBUG] enterTargetScene: ImageUpscaler mode detected, entering imageUpscaler scene'
       )
-      logger.info(`[EnterTargetSceneWrapper] ImageUpscaler режим - переход в imageUpscalerWizard`, {
-        telegramId,
-        mode,
-        function: 'enterTargetSceneWrapper',
-      })
+      logger.info(
+        `[EnterTargetSceneWrapper] ImageUpscaler режим - переход в imageUpscalerWizard`,
+        {
+          telegramId,
+          mode,
+          function: 'enterTargetSceneWrapper',
+        }
+      )
       // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
       await ctx.scene.leave()
       await ctx.scene.enter(ModeEnum.ImageUpscaler)
@@ -804,11 +878,14 @@ export const enterTargetScene = async (
       console.log(
         '🎯 [DEBUG] enterTargetScene: VideoTranscription mode detected, entering video_transcription scene'
       )
-      logger.info(`[EnterTargetSceneWrapper] VideoTranscription режим - переход в videoTranscriptionWizard`, {
-        telegramId,
-        mode,
-        function: 'enterTargetSceneWrapper',
-      })
+      logger.info(
+        `[EnterTargetSceneWrapper] VideoTranscription режим - переход в videoTranscriptionWizard`,
+        {
+          telegramId,
+          mode,
+          function: 'enterTargetSceneWrapper',
+        }
+      )
       // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
       await ctx.scene.leave()
       await ctx.scene.enter('video_transcription')
@@ -820,43 +897,56 @@ export const enterTargetScene = async (
       console.log(
         '🎯 [DEBUG] enterTargetScene: TextToVideo mode detected, entering text_to_video scene'
       )
-      logger.info(`[EnterTargetSceneWrapper] TextToVideo режим - переход в text_to_video`, {
-        telegramId,
-        mode,
-        function: 'enterTargetSceneWrapper',
-      })
+      logger.info(
+        `[EnterTargetSceneWrapper] TextToVideo режим - переход в text_to_video`,
+        {
+          telegramId,
+          mode,
+          function: 'enterTargetSceneWrapper',
+        }
+      )
       try {
         // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в wizard
-        console.log('🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard')
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard'
+        )
         await ctx.scene.leave()
-        console.log('🎯 [DEBUG] enterTargetScene: Left current scene, now entering text_to_video')
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Left current scene, now entering text_to_video'
+        )
         await ctx.scene.enter('text_to_video')
         console.log(
           '🎯 [DEBUG] enterTargetScene: Successfully entered text_to_video scene'
         )
-        logger.info(`✅ [EnterTargetSceneWrapper] УСПЕШНО вошли в сцену text_to_video`, {
-          telegramId,
-          mode,
-          function: 'enterTargetSceneWrapper',
-        })
+        logger.info(
+          `✅ [EnterTargetSceneWrapper] УСПЕШНО вошли в сцену text_to_video`,
+          {
+            telegramId,
+            mode,
+            function: 'enterTargetSceneWrapper',
+          }
+        )
       } catch (sceneEnterError) {
         console.error(
           '❌ [DEBUG] enterTargetScene: ERROR entering text_to_video scene:',
           sceneEnterError
         )
-        logger.error(`❌ [EnterTargetSceneWrapper] ОШИБКА входа в сцену text_to_video`, {
-          telegramId,
-          mode,
-          error:
-            sceneEnterError instanceof Error
-              ? sceneEnterError.message
-              : String(sceneEnterError),
-          stack:
-            sceneEnterError instanceof Error
-              ? sceneEnterError.stack
-              : undefined,
-          function: 'enterTargetSceneWrapper',
-        })
+        logger.error(
+          `❌ [EnterTargetSceneWrapper] ОШИБКА входа в сцену text_to_video`,
+          {
+            telegramId,
+            mode,
+            error:
+              sceneEnterError instanceof Error
+                ? sceneEnterError.message
+                : String(sceneEnterError),
+            stack:
+              sceneEnterError instanceof Error
+                ? sceneEnterError.stack
+                : undefined,
+            function: 'enterTargetSceneWrapper',
+          }
+        )
         // Попробуем fallback в основную сцену
         await ctx.reply(
           '❌ Произошла ошибка при входе в сцену генерации видео. Попробуйте еще раз.'
@@ -870,43 +960,56 @@ export const enterTargetScene = async (
       console.log(
         '🎯 [DEBUG] enterTargetScene: ImageToVideo mode detected, entering image_to_video scene'
       )
-      logger.info(`[EnterTargetSceneWrapper] ImageToVideo режим - переход в image_to_video`, {
-        telegramId,
-        mode,
-        function: 'enterTargetSceneWrapper',
-      })
+      logger.info(
+        `[EnterTargetSceneWrapper] ImageToVideo режим - переход в image_to_video`,
+        {
+          telegramId,
+          mode,
+          function: 'enterTargetSceneWrapper',
+        }
+      )
       try {
         // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в wizard
-        console.log('🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard')
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Leaving current scene before entering wizard'
+        )
         await ctx.scene.leave()
-        console.log('🎯 [DEBUG] enterTargetScene: Left current scene, now entering image_to_video')
+        console.log(
+          '🎯 [DEBUG] enterTargetScene: Left current scene, now entering image_to_video'
+        )
         await ctx.scene.enter('image_to_video')
         console.log(
           '🎯 [DEBUG] enterTargetScene: Successfully entered image_to_video scene'
         )
-        logger.info(`✅ [EnterTargetSceneWrapper] УСПЕШНО вошли в сцену image_to_video`, {
-          telegramId,
-          mode,
-          function: 'enterTargetSceneWrapper',
-        })
+        logger.info(
+          `✅ [EnterTargetSceneWrapper] УСПЕШНО вошли в сцену image_to_video`,
+          {
+            telegramId,
+            mode,
+            function: 'enterTargetSceneWrapper',
+          }
+        )
       } catch (sceneEnterError) {
         console.error(
           '❌ [DEBUG] enterTargetScene: ERROR entering image_to_video scene:',
           sceneEnterError
         )
-        logger.error(`❌ [EnterTargetSceneWrapper] ОШИБКА входа в сцену image_to_video`, {
-          telegramId,
-          mode,
-          error:
-            sceneEnterError instanceof Error
-              ? sceneEnterError.message
-              : String(sceneEnterError),
-          stack:
-            sceneEnterError instanceof Error
-              ? sceneEnterError.stack
-              : undefined,
-          function: 'enterTargetSceneWrapper',
-        })
+        logger.error(
+          `❌ [EnterTargetSceneWrapper] ОШИБКА входа в сцену image_to_video`,
+          {
+            telegramId,
+            mode,
+            error:
+              sceneEnterError instanceof Error
+                ? sceneEnterError.message
+                : String(sceneEnterError),
+            stack:
+              sceneEnterError instanceof Error
+                ? sceneEnterError.stack
+                : undefined,
+            function: 'enterTargetSceneWrapper',
+          }
+        )
         // Попробуем fallback в основную сцену
         await ctx.reply(
           '❌ Произошла ошибка при входе в сцену генерации видео. Попробуйте еще раз.'
@@ -931,13 +1034,16 @@ export const enterTargetScene = async (
       mode
     )
 
-    logger.info(`🎯 [EnterTargetSceneWrapper] ВЫЗЫВАЕМ ctx.scene.enter для режима: ${mode}`, {
-      telegramId,
-      mode,
-      currentScene: ctx.scene.current?.id || 'unknown',
-      function: 'enterTargetSceneWrapper',
-      step: 'calling_scene_enter',
-    })
+    logger.info(
+      `🎯 [EnterTargetSceneWrapper] ВЫЗЫВАЕМ ctx.scene.enter для режима: ${mode}`,
+      {
+        telegramId,
+        mode,
+        currentScene: ctx.scene.current?.id || 'unknown',
+        function: 'enterTargetSceneWrapper',
+        step: 'calling_scene_enter',
+      }
+    )
 
     try {
       // 🚨 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Выходим из текущей сцены перед входом в новую
@@ -952,48 +1058,62 @@ export const enterTargetScene = async (
         '🎯 [DEBUG] enterTargetScene: ctx.scene.enter completed successfully'
       )
 
-      logger.info(`✅ [EnterTargetSceneWrapper] ctx.scene.enter ЗАВЕРШЁН для режима: ${mode}`, {
-        telegramId,
-        mode,
-        newScene: ctx.scene.current?.id || 'unknown',
-        function: 'enterTargetSceneWrapper',
-        step: 'scene_enter_completed',
-      })
+      logger.info(
+        `✅ [EnterTargetSceneWrapper] ctx.scene.enter ЗАВЕРШЁН для режима: ${mode}`,
+        {
+          telegramId,
+          mode,
+          newScene: ctx.scene.current?.id || 'unknown',
+          function: 'enterTargetSceneWrapper',
+          step: 'scene_enter_completed',
+        }
+      )
     } catch (sceneEnterError) {
       console.error(
         '❌ [DEBUG] enterTargetScene: Error in ctx.scene.enter:',
         sceneEnterError
       )
 
-      logger.error(`❌ [EnterTargetSceneWrapper] ОШИБКА в ctx.scene.enter для режима: ${mode}`, {
-        telegramId,
-        mode,
-        error:
-          sceneEnterError instanceof Error
-            ? sceneEnterError.message
-            : String(sceneEnterError),
-        stack:
-          sceneEnterError instanceof Error ? sceneEnterError.stack : undefined,
-        function: 'enterTargetSceneWrapper',
-        step: 'scene_enter_error',
-      })
+      logger.error(
+        `❌ [EnterTargetSceneWrapper] ОШИБКА в ctx.scene.enter для режима: ${mode}`,
+        {
+          telegramId,
+          mode,
+          error:
+            sceneEnterError instanceof Error
+              ? sceneEnterError.message
+              : String(sceneEnterError),
+          stack:
+            sceneEnterError instanceof Error
+              ? sceneEnterError.stack
+              : undefined,
+          function: 'enterTargetSceneWrapper',
+          step: 'scene_enter_error',
+        }
+      )
       throw sceneEnterError
     }
 
-    logger.info(`[EnterTargetSceneWrapper] ✅ ЗАВЕРШЕНИЕ: Переход в сцену ${mode} выполнен`, {
-      telegramId,
-      mode,
-      function: 'enterTargetSceneWrapper',
-    })
+    logger.info(
+      `[EnterTargetSceneWrapper] ✅ ЗАВЕРШЕНИЕ: Переход в сцену ${mode} выполнен`,
+      {
+        telegramId,
+        mode,
+        function: 'enterTargetSceneWrapper',
+      }
+    )
   } catch (error) {
     console.error('[DEBUG EnterTargetScene] Error caught:', error) // Добавлено
-    logger.error(`[EnterTargetSceneWrapper] ❌ ОШИБКА при обработке входа в режим ${mode}`, {
-      telegramId,
-      mode,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      function: 'enterTargetSceneWrapper',
-    })
+    logger.error(
+      `[EnterTargetSceneWrapper] ❌ ОШИБКА при обработке входа в режим ${mode}`,
+      {
+        telegramId,
+        mode,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        function: 'enterTargetSceneWrapper',
+      }
+    )
     await ctx.reply(
       '❌ Произошла ошибка при проверке доступа. Пожалуйста, попробуйте еще раз или начните сначала /start.'
     )

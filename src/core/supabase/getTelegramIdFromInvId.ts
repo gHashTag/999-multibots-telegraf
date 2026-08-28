@@ -30,7 +30,10 @@ export async function getTelegramIdFromInvId(
       .single()
 
     if (paymentError || !payment) {
-      logger.error('Payment not found for InvId:', { invId, error: paymentError })
+      logger.error('Payment not found for InvId:', {
+        invId,
+        error: paymentError,
+      })
       throw new Error(`Payment not found for InvId: ${invId}`)
     }
 
@@ -71,4 +74,3 @@ export async function getTelegramIdFromInvId(
     throw error
   }
 }
-

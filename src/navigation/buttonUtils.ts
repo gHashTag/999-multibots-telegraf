@@ -24,9 +24,7 @@ export function findItemByText(text: string) {
 /**
  * Найти функцию по mode
  */
-export function findItemByMode(
-  mode: string | ModeEnum
-) {
+export function findItemByMode(mode: string | ModeEnum) {
   for (const category of CATEGORIES) {
     const item = category.items.find(item => item.mode === mode)
     if (item) return item

@@ -356,12 +356,15 @@ export const sendMediaToPulse = async (
           try {
             // Если сообщение слишком длинное - разбиваем на части
             if (textMessage.length > TELEGRAM_MESSAGE_LIMIT) {
-              logger.warn('⚠️ [pulse] Сообщение слишком длинное, разбиваем на части', {
-                description: 'Message too long, splitting into chunks',
-                telegramId: rawTelegramId,
-                messageLength: textMessage.length,
-                limit: TELEGRAM_MESSAGE_LIMIT,
-              })
+              logger.warn(
+                '⚠️ [pulse] Сообщение слишком длинное, разбиваем на части',
+                {
+                  description: 'Message too long, splitting into chunks',
+                  telegramId: rawTelegramId,
+                  messageLength: textMessage.length,
+                  limit: TELEGRAM_MESSAGE_LIMIT,
+                }
+              )
 
               // Отправляем первую часть (заголовок + начало промпта)
               const headerText =
@@ -390,11 +393,15 @@ export const sendMediaToPulse = async (
                 parse_mode: 'HTML',
                 link_preview_options: { is_disabled: true },
               })
-              logger.info('✅ [pulse] Текст с промптом успешно отправлен (HTML)', {
-                description: 'Text message with prompt sent successfully (HTML)',
-                telegramId: rawTelegramId,
-                parseMode: 'HTML',
-              })
+              logger.info(
+                '✅ [pulse] Текст с промптом успешно отправлен (HTML)',
+                {
+                  description:
+                    'Text message with prompt sent successfully (HTML)',
+                  telegramId: rawTelegramId,
+                  parseMode: 'HTML',
+                }
+              )
             }
           } catch (textError) {
             // Extract Telegram error details
@@ -402,38 +409,44 @@ export const sendMediaToPulse = async (
             const errorCode = telegramError?.response?.error_code
             const errorDesc = telegramError?.response?.description
 
-            logger.error('❌ [pulse] Ошибка при отправке ТЕКСТА с промптом (HTML)', {
-              description:
-                'Error sending TEXT message with prompt in pulse (HTML)',
-              error:
-                textError instanceof Error
-                  ? textError.message
-                  : String(textError),
-              errorDetails:
-                textError instanceof Error
-                  ? {
-                      name: textError.name,
-                      stack: textError.stack,
-                      cause: textError.cause,
-                    }
-                  : textError,
-              telegramId: rawTelegramId,
-              username: rawUsername,
-              chatId,
-              textMessageLength: textMessage.length,
-              textMessagePreview: textMessage.substring(0, 300) + '...',
-              parseMode: 'HTML',
-              promptLength: prompt?.length ?? 0,
-              // 🔍 Диагностика: Telegram API error response
-              telegramErrorCode: errorCode,
-              telegramErrorDescription: errorDesc,
-              telegramErrorPayload: telegramError?.response?.parameters,
-            })
+            logger.error(
+              '❌ [pulse] Ошибка при отправке ТЕКСТА с промптом (HTML)',
+              {
+                description:
+                  'Error sending TEXT message with prompt in pulse (HTML)',
+                error:
+                  textError instanceof Error
+                    ? textError.message
+                    : String(textError),
+                errorDetails:
+                  textError instanceof Error
+                    ? {
+                        name: textError.name,
+                        stack: textError.stack,
+                        cause: textError.cause,
+                      }
+                    : textError,
+                telegramId: rawTelegramId,
+                username: rawUsername,
+                chatId,
+                textMessageLength: textMessage.length,
+                textMessagePreview: textMessage.substring(0, 300) + '...',
+                parseMode: 'HTML',
+                promptLength: prompt?.length ?? 0,
+                // 🔍 Диагностика: Telegram API error response
+                telegramErrorCode: errorCode,
+                telegramErrorDescription: errorDesc,
+                telegramErrorPayload: telegramError?.response?.parameters,
+              }
+            )
             // ---> УПРОЩЕННЫЙ FALLBACK: Обрезаем промпт и отправляем без форматирования
             try {
-              logger.warn('⚠️ [pulse] Повторная попытка с обрезанным промптом', {
-                telegramId: rawTelegramId,
-              })
+              logger.warn(
+                '⚠️ [pulse] Повторная попытка с обрезанным промптом',
+                {
+                  telegramId: rawTelegramId,
+                }
+              )
 
               // Обрезаем промпт до безопасного размера
               const truncatedPrompt =
@@ -449,10 +462,16 @@ export const sendMediaToPulse = async (
                 telegramId: rawTelegramId,
               })
             } catch (retryError) {
-              logger.error('❌ [pulse] Ошибка при повторной отправке ТЕКСТА (без форматирования)', {
-                error: retryError instanceof Error ? retryError.message : String(retryError),
-                telegramId: rawTelegramId,
-              })
+              logger.error(
+                '❌ [pulse] Ошибка при повторной отправке ТЕКСТА (без форматирования)',
+                {
+                  error:
+                    retryError instanceof Error
+                      ? retryError.message
+                      : String(retryError),
+                  telegramId: rawTelegramId,
+                }
+              )
             }
           }
         } else {

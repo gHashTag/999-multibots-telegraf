@@ -35,7 +35,8 @@ interface AIReelsCallbackPayload {
   }
 }
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN_AI_STARS || process.env.TELEGRAM_BOT_TOKEN
+const TELEGRAM_BOT_TOKEN =
+  process.env.TELEGRAM_BOT_TOKEN_AI_STARS || process.env.TELEGRAM_BOT_TOKEN
 const TELEGRAM_API_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`
 const TELEGRAM_VIDEO_LIMIT = 50 * 1024 * 1024
 
@@ -48,7 +49,10 @@ function extractTelegramIdFromJobId(jobId: string): string | null {
   }
 }
 
-async function sendTelegramMessage(telegramId: string, text: string): Promise<void> {
+async function sendTelegramMessage(
+  telegramId: string,
+  text: string
+): Promise<void> {
   if (!TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN not configured')
 
   await axios.post(`${TELEGRAM_API_URL}/sendMessage`, {
@@ -79,11 +83,18 @@ async function sendTelegramVideo(
   })
 }
 
-async function handleCompletedRender(telegramId: string, payload: AIReelsCallbackPayload): Promise<void> {
-  const videoUrl = payload.result_url || payload.video_url || payload.download_url
+async function handleCompletedRender(
+  telegramId: string,
+  payload: AIReelsCallbackPayload
+): Promise<void> {
+  const videoUrl =
+    payload.result_url || payload.video_url || payload.download_url
 
   if (!videoUrl) {
-    await sendTelegramMessage(telegramId, '⚠️ Видео готово, но произошла ошибка при получении ссылки.')
+    await sendTelegramMessage(
+      telegramId,
+      '⚠️ Видео готово, но произошла ошибка при получении ссылки.'
+    )
     return
   }
 
@@ -114,15 +125,22 @@ async function handleCompletedRender(telegramId: string, payload: AIReelsCallbac
   )
 }
 
-async function handleFailedRender(telegramId: string, payload: AIReelsCallbackPayload): Promise<void> {
-  const errorMessage = payload.error || payload.error_message || 'Неизвестная ошибка'
+async function handleFailedRender(
+  telegramId: string,
+  payload: AIReelsCallbackPayload
+): Promise<void> {
+  const errorMessage =
+    payload.error || payload.error_message || 'Неизвестная ошибка'
   await sendTelegramMessage(
     telegramId,
     `❌ Ошибка при создании видео:\n\n${errorMessage}\n\nПопробуйте ещё раз.`
   )
 }
 
-async function handleProcessingUpdate(telegramId: string, payload: AIReelsCallbackPayload): Promise<void> {
+async function handleProcessingUpdate(
+  telegramId: string,
+  payload: AIReelsCallbackPayload
+): Promise<void> {
   logger.info('Render in progress', { telegramId, jobId: payload.job_id })
 }
 
@@ -143,7 +161,8 @@ export const aiReelsCallbackFunction = inngest.createFunction(
     })
 
     let jobId = payload.job_id
-    const videoUrl = payload.result_url || payload.video_url || payload.download_url
+    const videoUrl =
+      payload.result_url || payload.video_url || payload.download_url
     const status = payload.status || 'completed'
 
     if (!jobId && payload.download_url) {
@@ -152,7 +171,8 @@ export const aiReelsCallbackFunction = inngest.createFunction(
     }
 
     if (!jobId) throw new Error('Cannot extract job_id')
-    if (!videoUrl && status === 'completed') throw new Error('No video URL found')
+    if (!videoUrl && status === 'completed')
+      throw new Error('No video URL found')
 
     const telegramId =
       payload.metadata?.telegram_id ||
@@ -163,7 +183,11 @@ export const aiReelsCallbackFunction = inngest.createFunction(
 
     if (status === 'completed') {
       await step.run('send-completed-video', async () => {
-        return handleCompletedRender(telegramId, { ...payload, job_id: jobId!, result_url: videoUrl })
+        return handleCompletedRender(telegramId, {
+          ...payload,
+          job_id: jobId!,
+          result_url: videoUrl,
+        })
       })
     } else if (status === 'failed') {
       await step.run('send-failed-message', async () => {
@@ -171,12 +195,19 @@ export const aiReelsCallbackFunction = inngest.createFunction(
       })
     } else if (status === 'processing') {
       await step.run('send-processing-update', async () => {
-        return handleProcessingUpdate(telegramId, { ...payload, job_id: jobId! })
+        return handleProcessingUpdate(telegramId, {
+          ...payload,
+          job_id: jobId!,
+        })
       })
     }
 
     const duration = Date.now() - startTime
-    logger.info('✅ Callback processed successfully', { jobId, status, duration: `${duration}ms` })
+    logger.info('✅ Callback processed successfully', {
+      jobId,
+      status,
+      duration: `${duration}ms`,
+    })
 
     return { success: true, jobId, status, telegramId }
   }

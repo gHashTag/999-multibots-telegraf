@@ -20,7 +20,9 @@ const functionExports = exportedNames.filter(name => {
 
 functionExports.forEach((name, index) => {
   const fn = (allFunctions as any)[name]
-  console.log(`${(index + 1).toString().padStart(2, '0')}. ${name} => ${fn?.id}`)
+  console.log(
+    `${(index + 1).toString().padStart(2, '0')}. ${name} => ${fn?.id}`
+  )
 })
 
 console.log(`\nTotal functions: ${functionExports.length}`)

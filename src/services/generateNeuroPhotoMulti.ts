@@ -331,9 +331,12 @@ export async function generateNeuroPhotoMulti(
         // Process multiple input images sequentially
         const results = []
         for (let i = 0; i < imageUrls.length; i++) {
-          logger.info(`🔄 [MULTI] Processing image ${i + 1}/${imageUrls.length}`, {
-            telegram_id,
-          })
+          logger.info(
+            `🔄 [MULTI] Processing image ${i + 1}/${imageUrls.length}`,
+            {
+              telegram_id,
+            }
+          )
 
           // Update progress
           await ctx.reply(

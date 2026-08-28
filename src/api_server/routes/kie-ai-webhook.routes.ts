@@ -235,13 +235,16 @@ async function sendVideoDirectly(
         chatId,
       })
     } catch (keyboardError) {
-      logger.warn('⚠️ [SEND VIDEO DIRECTLY] Failed to send completion keyboard', {
-        telegramId,
-        error:
-          keyboardError instanceof Error
-            ? keyboardError.message
-            : String(keyboardError),
-      })
+      logger.warn(
+        '⚠️ [SEND VIDEO DIRECTLY] Failed to send completion keyboard',
+        {
+          telegramId,
+          error:
+            keyboardError instanceof Error
+              ? keyboardError.message
+              : String(keyboardError),
+        }
+      )
     }
 
     // ✅ Снимаем деньги после успешной отправки видео (direct mode)
@@ -367,7 +370,9 @@ router.post('/video-callback/:telegramId', async (req: any, res: any) => {
 
     // ✅ FIX: Игнорируем тестовые запросы от startup health check
     if (payload?.test === true && payload?.source === 'startup-health-check') {
-      logger.info('🏥 [UNIVERSAL VIDEO WEBHOOK] Health check ping received - OK')
+      logger.info(
+        '🏥 [UNIVERSAL VIDEO WEBHOOK] Health check ping received - OK'
+      )
       return
     }
 
@@ -421,13 +426,21 @@ router.post('/video-callback/:telegramId', async (req: any, res: any) => {
         logger.info(
           '🎬 [UNIVERSAL VIDEO WEBHOOK] Render Server webhook detected'
         )
-        await processGenericVideoWebhook(payload, telegramIdFromUrl, callbackToken)
+        await processGenericVideoWebhook(
+          payload,
+          telegramIdFromUrl,
+          callbackToken
+        )
         break
 
       case 'replicate':
         logger.info('🔄 [UNIVERSAL VIDEO WEBHOOK] Replicate webhook detected')
         // TODO: Implement replicate handler if needed
-        await processGenericVideoWebhook(payload, telegramIdFromUrl, callbackToken)
+        await processGenericVideoWebhook(
+          payload,
+          telegramIdFromUrl,
+          callbackToken
+        )
         break
 
       case 'unknown':
@@ -438,7 +451,11 @@ router.post('/video-callback/:telegramId', async (req: any, res: any) => {
             payload,
           }
         )
-        await processGenericVideoWebhook(payload, telegramIdFromUrl, callbackToken)
+        await processGenericVideoWebhook(
+          payload,
+          telegramIdFromUrl,
+          callbackToken
+        )
         break
     }
   } catch (error) {
@@ -468,7 +485,9 @@ router.post('/video-callback', async (req: any, res: any) => {
     // ✅ FIX: Игнорируем тестовые запросы от startup health check (не логируем как ошибку)
     const payload = req.body
     if (payload?.test === true && payload?.source === 'startup-health-check') {
-      logger.info('🏥 [UNIVERSAL VIDEO WEBHOOK] Health check ping received - OK')
+      logger.info(
+        '🏥 [UNIVERSAL VIDEO WEBHOOK] Health check ping received - OK'
+      )
       return // Не обрабатываем дальше, просто возвращаем 202
     }
 
@@ -517,14 +536,22 @@ router.post('/video-callback', async (req: any, res: any) => {
         logger.info(
           '🎬 [UNIVERSAL VIDEO WEBHOOK] Render Server webhook detected'
         )
-        await processGenericVideoWebhook(payload, telegramIdFromUrl, callbackToken)
+        await processGenericVideoWebhook(
+          payload,
+          telegramIdFromUrl,
+          callbackToken
+        )
         break
       default:
         logger.warn(
           '⚠️ [UNIVERSAL VIDEO WEBHOOK] Unknown provider, attempting generic processing',
           { payload }
         )
-        await processGenericVideoWebhook(payload, telegramIdFromUrl, callbackToken)
+        await processGenericVideoWebhook(
+          payload,
+          telegramIdFromUrl,
+          callbackToken
+        )
         break
     }
   } catch (error) {
@@ -766,10 +793,13 @@ async function processGenericVideoWebhook(
     : false
 
   if (telegramIdFromUrl && videoUrl && success && !tokenOk) {
-    logger.warn('⛔ [VIDEO WEBHOOK] Прямая отправка отклонена: метка не совпала', {
-      telegramId: telegramIdFromUrl,
-      hasToken: Boolean(callbackToken),
-    })
+    logger.warn(
+      '⛔ [VIDEO WEBHOOK] Прямая отправка отклонена: метка не совпала',
+      {
+        telegramId: telegramIdFromUrl,
+        hasToken: Boolean(callbackToken),
+      }
+    )
   }
 
   // ✅ НОВАЯ ЛОГИКА: Если есть telegramId в URL и videoUrl - отправляем напрямую!
@@ -1380,7 +1410,7 @@ router.post('/kie-ai/callback', async (req: any, res: any) => {
       payload.taskId ||
       (payload.data && payload.data.taskId) ||
       (payload as any).data?.taskId
-    
+
     // ✅ Нормализация successFlag: поддерживаем числа (1,2,3,0) и булевы значения (true/false)
     let successFlag: number
     if (payload.successFlag !== undefined) {
@@ -1632,7 +1662,9 @@ async function handleFailedGeneration(
   const { taskId, errorMessage, errorCode } = payload
 
   // ✅ FIX: Переводим ошибку на русский
-  const translatedError = translateErrorToRussian(errorMessage || 'Неизвестная ошибка')
+  const translatedError = translateErrorToRussian(
+    errorMessage || 'Неизвестная ошибка'
+  )
 
   logger.error('❌ [KIE.AI WEBHOOK] Video generation failed', {
     taskId,
@@ -1700,7 +1732,9 @@ async function handleContentPolicyError(
   const { taskId, errorMessage, errorCode } = payload
 
   // ✅ FIX: Переводим ошибку на русский
-  const translatedError = translateErrorToRussian(errorMessage || 'Некорректный контент')
+  const translatedError = translateErrorToRussian(
+    errorMessage || 'Некорректный контент'
+  )
 
   logger.error('🚫 [KIE.AI WEBHOOK] Content policy violation', {
     taskId,
@@ -1881,7 +1915,9 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
           videoTaskStore.deleteTask(taskId)
         } else {
           // ✅ FIX: Переводим ошибку на русский
-          const translatedError = translateErrorToRussian(result.message || 'Неизвестная ошибка')
+          const translatedError = translateErrorToRussian(
+            result.message || 'Неизвестная ошибка'
+          )
 
           logger.error('❌ [KIE.AI WEBHOOK] Generation failed', {
             taskId,

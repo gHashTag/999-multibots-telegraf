@@ -39,7 +39,7 @@ export async function generateNanoBananaKie({
       hasInputImage: !!inputImageUrl,
       username,
     })
-    
+
     logger.info('[generateNanoBananaKie] Starting generation via KIE.AI', {
       telegram_id,
       promptLength: promptText.length,
@@ -52,15 +52,16 @@ export async function generateNanoBananaKie({
       telegram_id,
       costPerImage,
     })
-    
+
     const balanceCheck = await processBalanceOperation({
-      telegram_id: typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
+      telegram_id:
+        typeof telegram_id === 'string' ? parseInt(telegram_id) : telegram_id,
       paymentAmount: costPerImage,
       is_ru,
       bot_name: ctx.botInfo?.username,
       ctx,
     })
-    
+
     console.log('🟢 [generateNanoBananaKie] Balance check result:', {
       telegram_id,
       balanceCheckSuccess: balanceCheck?.success,
@@ -72,7 +73,7 @@ export async function generateNanoBananaKie({
         telegram_id,
         required: costPerImage,
       })
-      
+
       await ctx.reply(
         is_ru
           ? `❌ Недостаточно звезд для генерации\n\nТребуется: ${costPerImage}⭐\nВаш баланс: ${balanceCheck.currentBalance || 0}⭐\n\nПополните баланс через /start → 💎 Пополнить баланс`
@@ -92,8 +93,8 @@ export async function generateNanoBananaKie({
         ? '🎨 Генерирую ваш образ через Google Nano Banana (KIE.AI)...\n\n⏱ Это займет 10-20 секунд\n📐 Формат: 9:16 для Instagram Stories'
         : '🎨 Generating your image via Google Nano Banana (KIE.AI)...\n\n⏱ This will take 10-20 seconds\n📐 Format: 9:16 for Instagram Stories'
     )
-    
-    console.log('✅ [generateNanoBananaKie] Status message sent!', { 
+
+    console.log('✅ [generateNanoBananaKie] Status message sent!', {
       telegram_id,
       messageId: statusMessage.message_id,
     })
@@ -101,9 +102,9 @@ export async function generateNanoBananaKie({
     // Формируем callback URL для webhook с telegram_id (для прямой отправки)
     const callbackUrl = process.env.BASE_WEBHOOK_URL
       ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback/${telegram_id}`
-      // BASE_WEBHOOK_URL в проде задана, эта ветка не берётся; мёртвый хост
-      // в ней всё равно не нужен.
-      : undefined
+      : // BASE_WEBHOOK_URL в проде задана, эта ветка не берётся; мёртвый хост
+        // в ней всё равно не нужен.
+        undefined
 
     // Готовим запрос для KIE.AI
     const requestData = {
@@ -113,8 +114,8 @@ export async function generateNanoBananaKie({
         prompt: promptText,
         image_urls: [inputImageUrl],
         output_format: 'png',
-        image_size: '9:16' // Явно указываем формат 9:16
-      }
+        image_size: '9:16', // Явно указываем формат 9:16
+      },
     }
 
     logger.info('[generateNanoBananaKie] Calling KIE.AI API', {
@@ -139,7 +140,7 @@ export async function generateNanoBananaKie({
         {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.KIE_AI_API_KEY}`,
+            Authorization: `Bearer ${process.env.KIE_AI_API_KEY}`,
           },
           timeout: 30000,
         }
@@ -164,19 +165,25 @@ export async function generateNanoBananaKie({
 
       // KIE.AI работает через callback, поэтому просто ждем немного и возвращаем заглушку
       // В реальности результат придет на callback URL
-      logger.info('[generateNanoBananaKie] Task created, waiting for callback', {
-        telegram_id,
-        taskId,
-        callbackUrl,
-      })
+      logger.info(
+        '[generateNanoBananaKie] Task created, waiting for callback',
+        {
+          telegram_id,
+          taskId,
+          callbackUrl,
+        }
+      )
 
       // Временно возвращаем null, так как результат придет через callback
       // TODO: Реализовать webhook endpoint для приема callback от KIE.AI
-      logger.warn('[generateNanoBananaKie] KIE.AI requires callback mechanism, returning null', {
-        telegram_id,
-        taskId,
-      })
-      
+      logger.warn(
+        '[generateNanoBananaKie] KIE.AI requires callback mechanism, returning null',
+        {
+          telegram_id,
+          taskId,
+        }
+      )
+
       // Удаляем сообщение о статусе, так как не будет мгновенной генерации
       try {
         await ctx.deleteMessage(statusMessage.message_id)
@@ -186,20 +193,21 @@ export async function generateNanoBananaKie({
             : '⚠️ Task sent for generation. KIE.AI works via callback, result will come later.'
         )
       } catch (err) {
-        logger.warn('[generateNanoBananaKie] Failed to delete status message', { err })
+        logger.warn('[generateNanoBananaKie] Failed to delete status message', {
+          err,
+        })
       }
 
       return null
-
     } catch (apiError) {
       console.error('🔴 [generateNanoBananaKie] API Error:', {
         telegram_id,
-        errorMessage: apiError instanceof Error ? apiError.message : 'Unknown error',
+        errorMessage:
+          apiError instanceof Error ? apiError.message : 'Unknown error',
         errorResponse: (apiError as any).response?.data,
       })
       throw apiError
     }
-
   } catch (error) {
     console.error('🔴 [generateNanoBananaKie] CRITICAL ERROR:', {
       telegram_id,
@@ -207,7 +215,7 @@ export async function generateNanoBananaKie({
       errorStack: error instanceof Error ? error.stack : undefined,
       errorDetails: error,
     })
-    
+
     logger.error('[generateNanoBananaKie] Generation failed', {
       telegram_id,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -216,7 +224,10 @@ export async function generateNanoBananaKie({
     // ✅ ВОЗВРАТ БАЛАНСА при ошибке генерации
     try {
       if (costPerImage > 0 && ctx) {
-        await refundUser(ctx, costPerImage, { silent: true, reason: "generation_failed" }) // silent refund
+        await refundUser(ctx, costPerImage, {
+          silent: true,
+          reason: 'generation_failed',
+        }) // silent refund
         logger.info('💰 Balance refunded after NanoBananaKie error', {
           telegram_id,
           refundAmount: costPerImage,
@@ -225,7 +236,8 @@ export async function generateNanoBananaKie({
     } catch (refundError) {
       logger.error('Failed to refund after NanoBananaKie error', {
         telegram_id,
-        refundError: refundError instanceof Error ? refundError.message : 'Unknown',
+        refundError:
+          refundError instanceof Error ? refundError.message : 'Unknown',
       })
     }
 
@@ -241,14 +253,16 @@ export async function generateNanoBananaKie({
 Проверьте логи для деталей.`
 
       for (const adminId of adminIds) {
-        await ctx.telegram.sendMessage(adminId, adminMessage, {
-          parse_mode: undefined // ✅ Отключаем парсинг для технических сообщений с промптами
-        }).catch(err => {
-          // Only log errors that aren't "chat not found" (invalid admin IDs)
-          if (!err.message?.includes('chat not found')) {
-            console.error('Failed to notify admin:', err)
-          }
-        })
+        await ctx.telegram
+          .sendMessage(adminId, adminMessage, {
+            parse_mode: undefined, // ✅ Отключаем парсинг для технических сообщений с промптами
+          })
+          .catch(err => {
+            // Only log errors that aren't "chat not found" (invalid admin IDs)
+            if (!err.message?.includes('chat not found')) {
+              console.error('Failed to notify admin:', err)
+            }
+          })
       }
     } catch (notifyError) {
       console.error('Failed to send admin notification:', notifyError)
@@ -257,7 +271,7 @@ export async function generateNanoBananaKie({
     await ctx.reply(
       is_ru
         ? '❌ Произошла ошибка при генерации. Попробуйте позже.'
-        : '❌ An error occurred during generation. Please try later.',
+        : '❌ An error occurred during generation. Please try later.'
     )
 
     return null

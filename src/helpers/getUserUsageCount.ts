@@ -1,6 +1,9 @@
 import { logger } from '@/utils/logger'
 import { getUserBalanceStatsOptimized } from '@/core/supabase/getUserBalanceStatsOptimized'
-import { TelegramId, normalizeTelegramId } from '@/interfaces/telegram.interface'
+import {
+  TelegramId,
+  normalizeTelegramId,
+} from '@/interfaces/telegram.interface'
 
 // In-memory cache for user experience checks to reduce database load
 interface UserExperienceCache {
@@ -43,7 +46,7 @@ export const getUserUsageCount = async (
       normalizedId,
       botName,
       1, // limitServices - we only need the count, not detailed service breakdown
-      1  // limitTransactions - we only need the count, not detailed transactions
+      1 // limitTransactions - we only need the count, not detailed transactions
     )
 
     if (!stats) {
@@ -157,7 +160,7 @@ export const shouldSkipOnboarding = async (
       normalizedId,
       botName,
       3, // Reduced from 5 - we only need basic service breakdown
-      3  // Reduced from 5 - we only need basic transaction history
+      3 // Reduced from 5 - we only need basic transaction history
     )
 
     const queryTime = Date.now() - startTime
@@ -176,15 +179,17 @@ export const shouldSkipOnboarding = async (
     // Enhanced logic: More nuanced experience detection
     // Primary indicators (strong signals)
     const hasMultipleTransactions = stats.total_transactions > 1 // Lowered threshold from 2 to 1
-    const hasSignificantIncome = (stats.total_real_income + stats.total_bonus_income) > 50 // Added threshold
+    const hasSignificantIncome =
+      stats.total_real_income + stats.total_bonus_income > 50 // Added threshold
     const hasUsedMultipleServices = stats.services_breakdown.length > 1
 
     // Secondary indicators (moderate signals)
-    const hasAnyIncome = (stats.total_real_income + stats.total_bonus_income) > 0
+    const hasAnyIncome = stats.total_real_income + stats.total_bonus_income > 0
     const hasRecentActivity = stats.total_transactions > 0
 
     // Advanced decision logic: Primary indicators OR combination of secondary
-    const primaryMatch = hasMultipleTransactions || hasSignificantIncome || hasUsedMultipleServices
+    const primaryMatch =
+      hasMultipleTransactions || hasSignificantIncome || hasUsedMultipleServices
     const secondaryMatch = hasAnyIncome && hasRecentActivity
 
     const shouldSkip = primaryMatch || secondaryMatch
@@ -214,9 +219,11 @@ export const shouldSkipOnboarding = async (
       // Final decision
       shouldSkip,
       decision: shouldSkip ? 'skip_onboarding_true' : 'skip_onboarding_false',
-      reason: shouldSkip ?
-        (primaryMatch ? 'primary_indicators' : 'secondary_indicators') :
-        'insufficient_activity',
+      reason: shouldSkip
+        ? primaryMatch
+          ? 'primary_indicators'
+          : 'secondary_indicators'
+        : 'insufficient_activity',
       function: 'shouldSkipOnboarding.analysis_complete',
     })
 
@@ -249,7 +256,10 @@ export const shouldSkipOnboarding = async (
       return fallbackResult
     } catch (fallbackError) {
       logger.error('[shouldSkipOnboarding] Fallback analysis also failed', {
-        fallbackError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+        fallbackError:
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : String(fallbackError),
         telegramId: normalizedId,
         botName,
         totalTime: Date.now() - startTime,
@@ -283,15 +293,18 @@ export const shouldSkipOnboardingCached = async (
   // Check cache first (unless forced refresh)
   if (!forceRefresh) {
     const cached = userExperienceCache.get(cacheKey)
-    if (cached && (now - cached.timestamp) < CACHE_TTL) {
-      logger.info('[shouldSkipOnboardingCached] Cache hit - returning cached result', {
-        telegramId: normalizedId,
-        botName,
-        cacheAge: now - cached.timestamp,
-        shouldSkip: cached.shouldSkip,
-        cachedStats: cached.stats,
-        function: 'shouldSkipOnboardingCached.cache_hit',
-      })
+    if (cached && now - cached.timestamp < CACHE_TTL) {
+      logger.info(
+        '[shouldSkipOnboardingCached] Cache hit - returning cached result',
+        {
+          telegramId: normalizedId,
+          botName,
+          cacheAge: now - cached.timestamp,
+          shouldSkip: cached.shouldSkip,
+          cachedStats: cached.stats,
+          function: 'shouldSkipOnboardingCached.cache_hit',
+        }
+      )
       return cached.shouldSkip
     }
   }
@@ -307,7 +320,7 @@ export const shouldSkipOnboardingCached = async (
       normalizedId,
       botName,
       1, // Minimal service breakdown
-      1  // Minimal transaction history
+      1 // Minimal transaction history
     )
 
     const cacheValue: UserExperienceCache = {
@@ -316,9 +329,9 @@ export const shouldSkipOnboardingCached = async (
       botName,
       stats: {
         transactions: stats?.total_transactions || 0,
-        income: stats ? (stats.total_real_income + stats.total_bonus_income) : 0,
+        income: stats ? stats.total_real_income + stats.total_bonus_income : 0,
         services: stats?.services_breakdown.length || 0,
-      }
+      },
     }
 
     // Update cache
@@ -352,13 +365,16 @@ export const shouldSkipOnboardingCached = async (
     // Check if we have stale cache data as ultimate fallback
     const staleCache = userExperienceCache.get(cacheKey)
     if (staleCache) {
-      logger.warn('[shouldSkipOnboardingCached] Using stale cache data due to error', {
-        telegramId: normalizedId,
-        botName,
-        staleAge: now - staleCache.timestamp,
-        shouldSkip: staleCache.shouldSkip,
-        function: 'shouldSkipOnboardingCached.stale_fallback',
-      })
+      logger.warn(
+        '[shouldSkipOnboardingCached] Using stale cache data due to error',
+        {
+          telegramId: normalizedId,
+          botName,
+          staleAge: now - staleCache.timestamp,
+          shouldSkip: staleCache.shouldSkip,
+          function: 'shouldSkipOnboardingCached.stale_fallback',
+        }
+      )
       return staleCache.shouldSkip
     }
 
@@ -373,7 +389,10 @@ export const shouldSkipOnboardingCached = async (
  * @param telegramId - Optional specific user to clear (clears all if not provided)
  * @param botName - Optional bot name for specific cache entry
  */
-export const clearUserExperienceCache = (telegramId?: TelegramId, botName?: string): void => {
+export const clearUserExperienceCache = (
+  telegramId?: TelegramId,
+  botName?: string
+): void => {
   if (telegramId) {
     const normalizedId = normalizeTelegramId(telegramId)
     const cacheKey = `${normalizedId}:${botName || 'default'}`
@@ -406,11 +425,20 @@ export const getUserExperienceCacheStats = () => {
 
   const stats = {
     totalEntries: entries.length,
-    validEntries: entries.filter(([_, cache]) => (now - cache.timestamp) < CACHE_TTL).length,
-    staleEntries: entries.filter(([_, cache]) => (now - cache.timestamp) >= CACHE_TTL).length,
+    validEntries: entries.filter(
+      ([_, cache]) => now - cache.timestamp < CACHE_TTL
+    ).length,
+    staleEntries: entries.filter(
+      ([_, cache]) => now - cache.timestamp >= CACHE_TTL
+    ).length,
     cacheHitRate: 0, // This would need to be tracked separately
-    averageAge: entries.length > 0 ?
-      entries.reduce((sum, [_, cache]) => sum + (now - cache.timestamp), 0) / entries.length : 0,
+    averageAge:
+      entries.length > 0
+        ? entries.reduce(
+            (sum, [_, cache]) => sum + (now - cache.timestamp),
+            0
+          ) / entries.length
+        : 0,
   }
 
   logger.info('[getUserExperienceCacheStats] Cache statistics retrieved', {

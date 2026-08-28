@@ -37,10 +37,20 @@ import {
   extractAudioFromHeyGenAvatar,
 } from './steps'
 import { S3Service } from './helpers/s3.service'
-import { processRiddleTemplate, extractBrollLayers, TextSettings } from './helpers/templateProcessor'
+import {
+  processRiddleTemplate,
+  extractBrollLayers,
+  TextSettings,
+} from './helpers/templateProcessor'
 import { validateRenderRiddleEventData } from './schemas'
-import { detectFacePosition, shouldUseFaceDetection } from './helpers/faceDetection'
-import { getHeyGenAvatarDetails, extractPreviewImageUrl } from './helpers/heygenAvatarDetails'
+import {
+  detectFacePosition,
+  shouldUseFaceDetection,
+} from './helpers/faceDetection'
+import {
+  getHeyGenAvatarDetails,
+  extractPreviewImageUrl,
+} from './helpers/heygenAvatarDetails'
 
 /**
  * Main Render Riddle Inngest Function
@@ -230,15 +240,18 @@ export const renderRiddleFunction = inngest.createFunction(
       logger.info(`✅ HeyGen avatar completed`)
 
       // Step 4: Extract audio from HeyGen video
-      avatarSpeechUrl = await step.run('extract-avatar-speech-url', async () => {
-        logger.info(`[Step 4/10] Extracting audio from HeyGen avatar`)
-        return extractAudioFromHeyGenAvatar(
-          data.job_id,
-          user_id,
-          avatar.object_key,
-          logger
-        )
-      })
+      avatarSpeechUrl = await step.run(
+        'extract-avatar-speech-url',
+        async () => {
+          logger.info(`[Step 4/10] Extracting audio from HeyGen avatar`)
+          return extractAudioFromHeyGenAvatar(
+            data.job_id,
+            user_id,
+            avatar.object_key,
+            logger
+          )
+        }
+      )
 
       logger.info(`✅ Audio extracted from HeyGen avatar`)
     } else {
@@ -289,7 +302,9 @@ export const renderRiddleFunction = inngest.createFunction(
     // ============================================
     // STEP 7: Generate B-roll videos (parallel)
     // ============================================
-    logger.info(`[Step 7/10] Generating ${segments.length} B-roll videos in parallel`)
+    logger.info(
+      `[Step 7/10] Generating ${segments.length} B-roll videos in parallel`
+    )
 
     const generatingBrolls = await Promise.all(
       segments.map((segment, index) =>
@@ -305,12 +320,16 @@ export const renderRiddleFunction = inngest.createFunction(
     // ============================================
     // STEP 8: Wait for B-roll results (parallel)
     // ============================================
-    logger.info(`[Step 8/10] Waiting for ${generatingBrolls.length} B-roll results`)
+    logger.info(
+      `[Step 8/10] Waiting for ${generatingBrolls.length} B-roll results`
+    )
 
     const brolls = await Promise.all(
       generatingBrolls.map((broll, index) =>
         step.run(`wait-broll-${index}`, async () => {
-          logger.info(`Waiting for B-roll ${index + 1}/${generatingBrolls.length}`)
+          logger.info(
+            `Waiting for B-roll ${index + 1}/${generatingBrolls.length}`
+          )
           return waitForBrollResult(broll, user_id, data.job_id, logger)
         })
       )
@@ -331,7 +350,7 @@ export const renderRiddleFunction = inngest.createFunction(
 
       // Prepare B-roll data with presigned URLs
       const brollData = await Promise.all(
-        brolls.map(async (broll) => ({
+        brolls.map(async broll => ({
           layer_id: broll.broll_segment.layer_id || '',
           url: await s3Service.generateGetUrl(broll.attachment.object_key),
         }))
@@ -339,17 +358,33 @@ export const renderRiddleFunction = inngest.createFunction(
       logger.info(`✅ Generated ${brollData.length} B-roll presigned URLs`)
 
       // Face detection for circle positioning (optional)
-      let facePosition: { position: [number, number, number]; anchor_point: [number, number, number]; scale: [number, number, number] } | undefined
+      let facePosition:
+        | {
+            position: [number, number, number]
+            anchor_point: [number, number, number]
+            scale: [number, number, number]
+          }
+        | undefined
 
-      if (shouldUseFaceDetection(data.circle_position as [number, number, number], data.circle_scale as [number, number, number])) {
-        logger.info(`🔍 Face detection enabled for automatic circle positioning`)
+      if (
+        shouldUseFaceDetection(
+          data.circle_position as [number, number, number],
+          data.circle_scale as [number, number, number]
+        )
+      ) {
+        logger.info(
+          `🔍 Face detection enabled for automatic circle positioning`
+        )
 
         // Get avatar photo URL based on service
         let avatarPhotoUrl: string | null = null
 
         if (data.avatar_gen_service === 'hedra') {
           avatarPhotoUrl = data.avatar_settings.avatar_photo_url || null
-        } else if (data.avatar_gen_service === 'heygen' && data.heygen_api_key) {
+        } else if (
+          data.avatar_gen_service === 'heygen' &&
+          data.heygen_api_key
+        ) {
           try {
             const avatarDetails = await getHeyGenAvatarDetails(
               data.heygen_api_key,
@@ -359,7 +394,9 @@ export const renderRiddleFunction = inngest.createFunction(
             avatarPhotoUrl = extractPreviewImageUrl(avatarDetails)
             logger.info(`✅ Retrieved HeyGen avatar preview image URL`)
           } catch (error: any) {
-            logger.error(`Failed to get HeyGen avatar details: ${error.message}`)
+            logger.error(
+              `Failed to get HeyGen avatar details: ${error.message}`
+            )
           }
         }
 
@@ -368,13 +405,24 @@ export const renderRiddleFunction = inngest.createFunction(
           try {
             const composition = {
               size: { width: 1080, height: 1920 },
-              circle: { position: [680, 1550, 0] as [number, number, number], radius: 275 },
+              circle: {
+                position: [680, 1550, 0] as [number, number, number],
+                radius: 275,
+              },
             }
 
-            facePosition = await detectFacePosition(avatarPhotoUrl, composition, logger)
-            logger.info(`✅ Face position detected: position=${facePosition.position}, anchor=${facePosition.anchor_point}, scale=${facePosition.scale}`)
+            facePosition = await detectFacePosition(
+              avatarPhotoUrl,
+              composition,
+              logger
+            )
+            logger.info(
+              `✅ Face position detected: position=${facePosition.position}, anchor=${facePosition.anchor_point}, scale=${facePosition.scale}`
+            )
           } catch (error: any) {
-            logger.error(`Face detection failed, using default position: ${error.message}`)
+            logger.error(
+              `Face detection failed, using default position: ${error.message}`
+            )
           }
         } else {
           logger.warn(`No avatar photo URL available for face detection`)
@@ -390,8 +438,16 @@ export const renderRiddleFunction = inngest.createFunction(
           coverUrl: data.cover_url,
           introText1: data.intro_text_1 as TextSettings,
           introText2: data.intro_text_2 as TextSettings,
-          circlePosition: (facePosition?.position || data.circle_position) as [number, number, number],
-          circleScale: (facePosition?.scale || data.circle_scale) as [number, number, number],
+          circlePosition: (facePosition?.position || data.circle_position) as [
+            number,
+            number,
+            number,
+          ],
+          circleScale: (facePosition?.scale || data.circle_scale) as [
+            number,
+            number,
+            number,
+          ],
           circleAnchorPoint: facePosition?.anchor_point,
           brollData,
         },

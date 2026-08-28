@@ -33,29 +33,33 @@ async function notifyAdminAboutServerIssue(
     const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
     const { getBotByName } = await import('@/core/bot')
     const botResult = getBotByName('neuro_blogger_bot')
-    
+
     if (!botResult.bot) return
-    
-    const errorMessage = `🚨 **SERVER DOWN ALERT (I2V)**\n\n` +
+
+    const errorMessage =
+      `🚨 **SERVER DOWN ALERT (I2V)**\n\n` +
       `📍 План Б активирован для Image to Video\n` +
       `👤 User: ${telegram_id}\n` +
       `🎬 Model: ${videoModel}\n` +
       `❌ Error: ${error}\n` +
       `🔄 Используется прямой внешний API\n\n` +
       `⚠️ Проверьте доступность сервера генерации`
-    
+
     for (const adminId of adminIds) {
       await botResult.bot.telegram.sendMessage(adminId, errorMessage, {
-        parse_mode: 'Markdown'
+        parse_mode: 'Markdown',
       })
     }
-    
+
     logger.warn('[I2V ADMIN NOTIFICATION] Server issue reported to admins', {
       adminIds,
-      error
+      error,
     })
   } catch (notifyError) {
-    logger.error('[I2V ADMIN NOTIFICATION] Failed to notify admins', notifyError)
+    logger.error(
+      '[I2V ADMIN NOTIFICATION] Failed to notify admins',
+      notifyError
+    )
   }
 }
 
@@ -99,25 +103,35 @@ export async function generateImageToVideo(
 
   try {
     // Проверяем, является ли это Veo моделью
-    const isVeoModel = ['veo3', 'veo3_fast', 'runway-aleph'].includes(videoModel)
-    
+    const isVeoModel = ['veo3', 'veo3_fast', 'runway-aleph'].includes(
+      videoModel
+    )
+
     if (isVeoModel) {
       // ПЛАН А: Сначала пробуем через наш сервер
       logger.info('[I2V PLAN A] Trying server first for Veo model', {
         videoModel,
-        serverUrl: PUBLIC_URL
+        serverUrl: PUBLIC_URL,
       })
-      
+
       try {
         const baseUrl = PUBLIC_URL
-        
+
         // Проверяем доступность сервера (пропускаем localhost для тестов)
-        if (baseUrl && baseUrl !== 'undefined' && !baseUrl.includes('localhost')) {
+        if (
+          baseUrl &&
+          baseUrl !== 'undefined' &&
+          !baseUrl.includes('localhost')
+        ) {
           const url = `${baseUrl}/api/v1/veo/generate/image-to-video`
-          
+
           const requestBody = {
-            model: videoModel === 'veo3_fast' ? 'veo3_fast' : 
-                   videoModel === 'veo3' ? 'veo3' : 'runway_aleph',
+            model:
+              videoModel === 'veo3_fast'
+                ? 'veo3_fast'
+                : videoModel === 'veo3'
+                  ? 'veo3'
+                  : 'runway_aleph',
             imageUrl,
             prompt,
             aspectRatio: aspectRatio || '9:16', // camelCase для Kie.ai
@@ -129,14 +143,14 @@ export async function generateImageToVideo(
             is_ru,
             bot_name,
           }
-          
+
           logger.info('[I2V PLAN A] Sending request to server:', {
             url,
             model: requestBody.model,
             aspectRatio: requestBody.aspectRatio,
             hasImage: !!imageUrl,
           })
-          
+
           const response = await axios.post(url, requestBody, {
             headers: {
               'Content-Type': 'application/json',
@@ -144,12 +158,12 @@ export async function generateImageToVideo(
             },
             timeout: 10000, // 10 секунд таймаут
           })
-          
+
           logger.info('[I2V PLAN A] Server response received', {
             status: response.status,
-            success: response.data.success
+            success: response.data.success,
           })
-          
+
           // Если сервер ответил успешно, возвращаем результат
           if (response.data.success) {
             return response.data
@@ -157,8 +171,11 @@ export async function generateImageToVideo(
         }
       } catch (serverError) {
         // Сервер недоступен, переключаемся на План Б
-        const errorMessage = serverError instanceof Error ? serverError.message : 'Server unavailable'
-        
+        const errorMessage =
+          serverError instanceof Error
+            ? serverError.message
+            : 'Server unavailable'
+
         if (isAxiosError(serverError)) {
           logger.error('[I2V PLAN A] Server error details:', {
             status: serverError.response?.status,
@@ -169,16 +186,16 @@ export async function generateImageToVideo(
             message: serverError.message,
           })
         }
-        
+
         logger.warn('[I2V PLAN A] Server failed, switching to PLAN B', {
           error: errorMessage,
-          videoModel
+          videoModel,
         })
-        
+
         // Уведомляем админа о проблеме с сервером
         await notifyAdminAboutServerIssue(errorMessage, telegram_id, videoModel)
       }
-      
+
       // ПЛАН Б: Используем прямую интеграцию с внешним API
       logger.info('[I2V PLAN B] Using direct external API', {
         videoModel,
@@ -186,21 +203,21 @@ export async function generateImageToVideo(
         duration,
         telegram_id,
       })
-      
+
       // Импортируем KieAiProvider
       const { KieAiProvider } = await import('./video-providers/KieAiProvider')
       const kieProvider = new KieAiProvider()
-      
+
       // Преобразуем aspectRatio в формат Kie.ai
       const kieAspectRatio = aspectRatio as '16:9' | '9:16' | '1:1' | undefined
-      
+
       logger.info('[I2V PLAN B] Calling external API with params:', {
         model: videoModel,
         hasImage: !!imageUrl,
         aspectRatio: kieAspectRatio || '9:16',
         duration: duration || 8,
       })
-      
+
       // Генерируем видео через Kie.ai с image-to-video
       const kieResponse = await kieProvider.generateVideo({
         model: videoModel,
@@ -210,15 +227,15 @@ export async function generateImageToVideo(
         aspectRatio: kieAspectRatio || '9:16',
         telegram_id, // ✅ Передаём telegram_id для callback URL
       })
-      
+
       logger.info('[I2V PLAN B] External API response received:', {
         success: kieResponse.success,
         hasData: !!kieResponse.data,
         hasVideoUrl: !!kieResponse.data?.videoUrl,
         hasTaskId: !!kieResponse.data?.taskId,
-        error: kieResponse.error
+        error: kieResponse.error,
       })
-      
+
       if (kieResponse.success) {
         if (kieResponse.data?.videoUrl) {
           return {
@@ -234,29 +251,29 @@ export async function generateImageToVideo(
           }
         }
       }
-      
+
       return {
         success: false,
         error: kieResponse.error || 'Failed to generate video',
       }
     }
-    
+
     // Для остальных моделей возвращаем ошибку (они должны использовать Replicate)
     return {
       success: false,
-      error: `Model ${videoModel} is not supported for Plan A/B system. Use original generateImageToVideo function.`
+      error: `Model ${videoModel} is not supported for Plan A/B system. Use original generateImageToVideo function.`,
     }
-    
   } catch (error) {
     logger.error('[I2V Service] Generation failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
       videoModel,
       telegram_id,
     })
-    
+
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to generate video',
+      error:
+        error instanceof Error ? error.message : 'Failed to generate video',
     }
   }
 }

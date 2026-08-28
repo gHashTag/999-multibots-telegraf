@@ -3,7 +3,10 @@
  * Этот файл создан для обратной совместимости с handleTextToVideoDirect.ts
  */
 
-import { generateTextToVideo as generateTextToVideoOriginal, VideoModelId } from '@/services/generateTextToVideo'
+import {
+  generateTextToVideo as generateTextToVideoOriginal,
+  VideoModelId,
+} from '@/services/generateTextToVideo'
 
 // Re-export generateImageToVideo
 export { generateImageToVideo } from './videoGenerator/generateImageToVideo'
@@ -21,7 +24,13 @@ export async function generateTextToVideo(
   selectedResolution: undefined, // Не используется
   duration?: number,
   aspectRatio?: string
-): Promise<{ success: boolean; videoUrl?: string; jobId?: string; error?: string; message?: string }> {
+): Promise<{
+  success: boolean
+  videoUrl?: string
+  jobId?: string
+  error?: string
+  message?: string
+}> {
   return generateTextToVideoOriginal({
     prompt,
     telegram_id,
@@ -30,6 +39,6 @@ export async function generateTextToVideo(
     bot_name,
     videoModel,
     duration,
-    aspectRatio
+    aspectRatio,
   })
 }

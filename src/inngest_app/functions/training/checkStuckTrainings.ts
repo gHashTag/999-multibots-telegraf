@@ -37,7 +37,9 @@ export const checkStuckTrainings = inngest.createFunction(
 
       const { data, error } = await supabase
         .from('model_trainings')
-        .select('id, telegram_id, bot_name, model_name, trigger_word, replicate_training_id, status, created_at, is_ru')
+        .select(
+          'id, telegram_id, bot_name, model_name, trigger_word, replicate_training_id, status, created_at, is_ru'
+        )
         .in('status', ['PENDING', 'starting', 'processing'])
         .lt('created_at', thresholdDate)
         .not('replicate_training_id', 'like', 'pending-%') // Skip records without real Replicate IDs
@@ -45,7 +47,9 @@ export const checkStuckTrainings = inngest.createFunction(
         .limit(20)
 
       if (error) {
-        logger.error('[CHECK STUCK] Failed to query stuck trainings', { error: error.message })
+        logger.error('[CHECK STUCK] Failed to query stuck trainings', {
+          error: error.message,
+        })
         throw new Error(`DB query failed: ${error.message}`)
       }
 
@@ -66,7 +70,9 @@ export const checkStuckTrainings = inngest.createFunction(
     const results = await step.run('check-replicate-status', async () => {
       const token = process.env.REPLICATE_API_TOKEN
       if (!token) {
-        logger.error('[CHECK STUCK] REPLICATE_API_TOKEN not set, cannot check training status')
+        logger.error(
+          '[CHECK STUCK] REPLICATE_API_TOKEN not set, cannot check training status'
+        )
         return { error: 'REPLICATE_API_TOKEN not configured', resolved: [] }
       }
 
@@ -83,7 +89,9 @@ export const checkStuckTrainings = inngest.createFunction(
 
       for (const training of stuckTrainings) {
         try {
-          const replicateTraining = await replicate.trainings.get(training.replicate_training_id)
+          const replicateTraining = await replicate.trainings.get(
+            training.replicate_training_id
+          )
 
           logger.info('[CHECK STUCK] Replicate status for training', {
             training_id: training.replicate_training_id,
@@ -101,16 +109,24 @@ export const checkStuckTrainings = inngest.createFunction(
               bot_name: training.bot_name || 'AI_STARS_bot',
               replicate_status: replicateTraining.status,
               output: replicateTraining.output,
-              error: typeof replicateTraining.error === 'string' ? replicateTraining.error : undefined,
+              error:
+                typeof replicateTraining.error === 'string'
+                  ? replicateTraining.error
+                  : undefined,
             })
           }
 
           // Check if training is very old (potential permanent stuck)
-          const ageHours = (Date.now() - new Date(training.created_at).getTime()) / (1000 * 60 * 60)
-          if (ageHours > ALERT_THRESHOLD_HOURS && !terminalStatuses.includes(replicateTraining.status)) {
+          const ageHours =
+            (Date.now() - new Date(training.created_at).getTime()) /
+            (1000 * 60 * 60)
+          if (
+            ageHours > ALERT_THRESHOLD_HOURS &&
+            !terminalStatuses.includes(replicateTraining.status)
+          ) {
             alerts.push(
               `Training ${training.replicate_training_id} for user ${training.telegram_id} ` +
-              `stuck for ${Math.round(ageHours)}h (Replicate: ${replicateTraining.status})`
+                `stuck for ${Math.round(ageHours)}h (Replicate: ${replicateTraining.status})`
             )
           }
         } catch (err) {
@@ -151,7 +167,10 @@ export const checkStuckTrainings = inngest.createFunction(
             name: 'model/training.completed',
             data: {
               training_id: resolved.training_id,
-              status: resolved.replicate_status as 'succeeded' | 'failed' | 'canceled',
+              status: resolved.replicate_status as
+                | 'succeeded'
+                | 'failed'
+                | 'canceled',
               output: resolved.output,
               error: resolved.error,
               telegram_id: resolved.telegram_id,
@@ -159,11 +178,14 @@ export const checkStuckTrainings = inngest.createFunction(
             },
           })
 
-          logger.info('[CHECK STUCK] Sent completion event for stuck training', {
-            training_id: resolved.training_id,
-            status: resolved.replicate_status,
-            telegram_id: resolved.telegram_id,
-          })
+          logger.info(
+            '[CHECK STUCK] Sent completion event for stuck training',
+            {
+              training_id: resolved.training_id,
+              status: resolved.replicate_status,
+              telegram_id: resolved.telegram_id,
+            }
+          )
 
           sent++
         } catch (err) {

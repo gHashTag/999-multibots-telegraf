@@ -29,7 +29,11 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
 
-export type MarketplaceItemType = 'prompt_pack' | 'style' | 'lora_model' | 'skill_pack'
+export type MarketplaceItemType =
+  | 'prompt_pack'
+  | 'style'
+  | 'lora_model'
+  | 'skill_pack'
 
 export interface MarketplaceItem {
   id: string
@@ -53,7 +57,7 @@ export interface MarketplacePurchase {
 /** Fetch items from marketplace_items, optionally filtered by type. */
 export async function listMarketplaceItems(
   type?: string,
-  limit = 20,
+  limit = 20
 ): Promise<MarketplaceItem[]> {
   try {
     let query = supabase
@@ -70,7 +74,9 @@ export async function listMarketplaceItems(
     if (error) throw error
     return (data as MarketplaceItem[]) ?? []
   } catch (err) {
-    logger.warn('marketplace listItems failed (table may not exist)', { error: String(err) })
+    logger.warn('marketplace listItems failed (table may not exist)', {
+      error: String(err),
+    })
     return []
   }
 }
@@ -95,7 +101,7 @@ export async function getItem(id: string): Promise<MarketplaceItem | null> {
 export async function purchaseItem(
   buyerId: string,
   itemId: string,
-  botName: string,
+  botName: string
 ): Promise<{ success: boolean; content?: string; error?: string }> {
   const item = await getItem(itemId)
   if (!item) return { success: false, error: 'item_not_found' }
@@ -110,7 +116,11 @@ export async function purchaseItem(
     item.price_stars,
     PaymentType.MONEY_OUTCOME,
     `Marketplace: ${item.title}`,
-    { bot_name: botName, service_type: 'marketplace', modePrice: item.price_stars },
+    {
+      bot_name: botName,
+      service_type: 'marketplace',
+      modePrice: item.price_stars,
+    }
   )
   if (!deducted) return { success: false, error: 'insufficient_balance' }
 
@@ -121,7 +131,7 @@ export async function purchaseItem(
     authorCredit,
     PaymentType.MONEY_INCOME,
     `Marketplace sale: ${item.title}`,
-    { bot_name: botName, stars: authorCredit },
+    { bot_name: botName, stars: authorCredit }
   )
 
   // Record purchase
@@ -131,7 +141,9 @@ export async function purchaseItem(
       item_id: itemId,
       price_stars: item.price_stars,
     })
-  } catch { /* table may not exist */ }
+  } catch {
+    /* table may not exist */
+  }
 
   return { success: true, content: item.content }
 }
@@ -143,12 +155,19 @@ export async function createItem(
   description: string,
   type: string,
   content: string,
-  priceStars: number,
+  priceStars: number
 ): Promise<MarketplaceItem | null> {
   try {
     const { data, error } = await supabase
       .from('marketplace_items')
-      .insert({ author_id: authorId, title, description, type, content, price_stars: priceStars })
+      .insert({
+        author_id: authorId,
+        title,
+        description,
+        type,
+        content,
+        price_stars: priceStars,
+      })
       .select()
       .single()
     if (error) throw error
@@ -175,7 +194,9 @@ export async function getMyItems(authorId: string): Promise<MarketplaceItem[]> {
 }
 
 /** Sales history for an author. */
-export async function getMySales(authorId: string): Promise<MarketplacePurchase[]> {
+export async function getMySales(
+  authorId: string
+): Promise<MarketplacePurchase[]> {
   try {
     const { data, error } = await supabase
       .from('marketplace_purchases')

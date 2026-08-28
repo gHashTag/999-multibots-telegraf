@@ -10,7 +10,7 @@ import {
   getCategoryButtonTexts,
   getAllButtonTexts,
   // ❌ getSpecialButtonTexts - УДАЛЕНО, используйте NAVIGATION_BUTTONS из buttons.config.ts
-  getCategoryItems
+  getCategoryItems,
 } from '@/navigation/buttonUtils'
 import {
   NAVIGATION_BUTTONS,
@@ -18,7 +18,7 @@ import {
   getMainMenuText,
   getBackText,
   getCancelText,
-  getHelpText
+  getHelpText,
 } from '@/navigation/config/buttons.config'
 import { CATEGORIES } from '@/navigation/config/categories.config'
 import { ModeEnum } from '@/interfaces/modes'
@@ -29,8 +29,8 @@ vi.mock('@/utils/logger', () => ({
     info: vi.fn(),
     debug: vi.fn(),
     error: vi.fn(),
-    warn: vi.fn()
-  }
+    warn: vi.fn(),
+  },
 }))
 
 // Helper: find first category with items
@@ -302,8 +302,12 @@ describe('buttonUtils', () => {
     })
 
     it('getButtonText работает с любой ButtonConfig', () => {
-      expect(getButtonText(NAVIGATION_BUTTONS.mainMenu, true)).toBe('🏠 Главное меню')
-      expect(getButtonText(NAVIGATION_BUTTONS.mainMenu, false)).toBe('🏠 Main menu')
+      expect(getButtonText(NAVIGATION_BUTTONS.mainMenu, true)).toBe(
+        '🏠 Главное меню'
+      )
+      expect(getButtonText(NAVIGATION_BUTTONS.mainMenu, false)).toBe(
+        '🏠 Main menu'
+      )
       expect(getButtonText(NAVIGATION_BUTTONS.cancel, true)).toBe('Отмена')
       expect(getButtonText(NAVIGATION_BUTTONS.cancel, false)).toBe('Cancel')
     })

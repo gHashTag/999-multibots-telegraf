@@ -5,7 +5,10 @@
  */
 
 import { Telegraf } from 'telegraf'
-import { setupWebhookWithRetry, autoConfigureProductionWebhooks } from './webhook-manager'
+import {
+  setupWebhookWithRetry,
+  autoConfigureProductionWebhooks,
+} from './webhook-manager'
 import { botLogger } from './logger'
 
 interface BotConfig {
@@ -21,7 +24,7 @@ async function setupWebhooksFromEnv(): Promise<void> {
   // Get configuration from environment
   const webhookDomain = process.env.WEBHOOK_DOMAIN || process.env.ORIGIN || ''
   const webhookPath = process.env.WEBHOOK_PATH || '/webhook'
-  
+
   console.log(`📍 Domain: ${webhookDomain || '(not set)'}`)
   console.log(`📍 Path: ${webhookPath}`)
   console.log('')
@@ -30,11 +33,11 @@ async function setupWebhooksFromEnv(): Promise<void> {
   const botConfigs: BotConfig[] = []
   const botNames = [
     'neuro_blogger_bot',
-    'MetaMuse_Manifest_bot', 
+    'MetaMuse_Manifest_bot',
     'ZavaraBot',
     'Gaia_Kamskaia_bot',
     'Kaya_easy_art_bot',
-    'HaimGroupMedia_bot'
+    'HaimGroupMedia_bot',
   ]
 
   for (let i = 1; i <= 10; i++) {
@@ -47,7 +50,9 @@ async function setupWebhooksFromEnv(): Promise<void> {
   }
 
   if (!webhookDomain) {
-    console.error('❌ WEBHOOK_DOMAIN/ORIGIN не задан. Укажите домен через переменные окружения.')
+    console.error(
+      '❌ WEBHOOK_DOMAIN/ORIGIN не задан. Укажите домен через переменные окружения.'
+    )
     process.exit(1)
   }
 
@@ -63,7 +68,7 @@ async function setupWebhooksFromEnv(): Promise<void> {
   const bots = botConfigs.map(config => ({
     bot: new Telegraf(config.token),
     name: config.name,
-    port: config.port
+    port: config.port,
   }))
 
   const webhookConfig = {
@@ -71,7 +76,7 @@ async function setupWebhooksFromEnv(): Promise<void> {
     path: webhookPath,
     port: 3000, // Default port for webhooks
     retryAttempts: 3,
-    retryDelay: 2000
+    retryDelay: 2000,
   }
 
   const results = await autoConfigureProductionWebhooks(bots, webhookConfig)
@@ -79,7 +84,7 @@ async function setupWebhooksFromEnv(): Promise<void> {
   // Report results
   console.log('\n📊 Webhook Setup Results:')
   console.log('=========================')
-  
+
   results.forEach((result, index) => {
     const config = botConfigs[index]
     if (result.success) {
@@ -94,7 +99,7 @@ async function setupWebhooksFromEnv(): Promise<void> {
 
   console.log('')
   console.log(`📈 Summary: ${successCount} successful, ${failureCount} failed`)
-  
+
   if (failureCount > 0) {
     process.exit(1)
   }
@@ -112,7 +117,7 @@ switch (command) {
       process.exit(1)
     })
     break
-    
+
   case 'help':
   case '--help':
   case '-h':
@@ -136,7 +141,7 @@ Examples:
   bun run src/utils/webhook-setup-cli.ts setup
 `)
     break
-    
+
   default:
     console.error(`❌ Unknown command: ${command}`)
     console.log('Use "help" for usage information')

@@ -54,13 +54,16 @@ export async function getUserByTelegramId(
           telegramId,
           duplicateCount: users.length,
           userIds: users.map(u => u.id),
-          createdDates: users.map(u => u.created_at)
+          createdDates: users.map(u => u.created_at),
         }
       )
-      
+
       // 🧹 BEST PRACTICE: Auto-cleanup duplicates in background
       deduplicateUsers(telegramId).catch(error => {
-        logger.error(`[getUserByTelegramId] Failed to deduplicate users for ${telegramId}:`, error)
+        logger.error(
+          `[getUserByTelegramId] Failed to deduplicate users for ${telegramId}:`,
+          error
+        )
       })
     }
 
@@ -70,7 +73,7 @@ export async function getUserByTelegramId(
       {
         telegramId,
         userId: user.id,
-        duplicatesFound: users.length > 1
+        duplicatesFound: users.length > 1,
       }
     )
 
@@ -110,7 +113,7 @@ export const createUserByTelegramId = async (ctx: Context) => {
           {
             telegramId,
             duplicateCount: existingUsers.length,
-            userIds: existingUsers.map(u => u.id)
+            userIds: existingUsers.map(u => u.id),
           }
         )
       }

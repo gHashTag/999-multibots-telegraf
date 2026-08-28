@@ -1,15 +1,17 @@
 import { BotCodeIssue } from '../services/claude-integration.service'
 
 export class BotCodeAnalyzer {
-  
   analyzeFile(filePath: string, content: string): BotCodeIssue[] {
     const issues: BotCodeIssue[] = []
     const lines = content.split('\\n')
 
     // Определяем тип файла для специфичных проверок
-    const isSceneFile = filePath.includes('/scenes/') || filePath.includes('Scene')
-    const isCommandFile = filePath.includes('/commands/') || filePath.includes('Command')
-    const isMiddlewareFile = filePath.includes('/middleware') || filePath.includes('Middleware')
+    const isSceneFile =
+      filePath.includes('/scenes/') || filePath.includes('Scene')
+    const isCommandFile =
+      filePath.includes('/commands/') || filePath.includes('Command')
+    const isMiddlewareFile =
+      filePath.includes('/middleware') || filePath.includes('Middleware')
 
     lines.forEach((line, index) => {
       const lineNumber = index + 1
@@ -21,7 +23,7 @@ export class BotCodeAnalyzer {
           type: 'missing_async',
           line: lineNumber,
           description: 'Telegraf handler should be async',
-          severity: 'error'
+          severity: 'error',
         })
       }
 
@@ -31,17 +33,21 @@ export class BotCodeAnalyzer {
           type: 'missing_await',
           line: lineNumber,
           description: 'ctx.reply() calls should use await',
-          severity: 'error'
+          severity: 'error',
         })
       }
 
       // 3. Проверяем scene transitions
-      if (isSceneFile && this.hasSceneTransition(trimmedLine) && !this.hasAwait(trimmedLine)) {
+      if (
+        isSceneFile &&
+        this.hasSceneTransition(trimmedLine) &&
+        !this.hasAwait(trimmedLine)
+      ) {
         issues.push({
           type: 'scene_transition',
           line: lineNumber,
           description: 'Scene transitions should use await',
-          severity: 'error'
+          severity: 'error',
         })
       }
 
@@ -51,17 +57,21 @@ export class BotCodeAnalyzer {
           type: 'context_type',
           line: lineNumber,
           description: 'Handler should use MyContext type',
-          severity: 'warning'
+          severity: 'warning',
         })
       }
 
       // 5. Проверяем error handling
-      if ((isSceneFile || isCommandFile) && this.hasApiCall(trimmedLine) && !this.hasErrorHandling(lines, index)) {
+      if (
+        (isSceneFile || isCommandFile) &&
+        this.hasApiCall(trimmedLine) &&
+        !this.hasErrorHandling(lines, index)
+      ) {
         issues.push({
           type: 'error_handling',
           line: lineNumber,
           description: 'Bot API calls should have error handling',
-          severity: 'warning'
+          severity: 'warning',
         })
       }
     })
@@ -77,7 +87,7 @@ export class BotCodeAnalyzer {
     const patterns = [
       /\.(?:action|command|on|hears|use)\(/,
       /scene\.(?:enter|leave|action|command|on|hears)/,
-      /wizard\.(?:action|command|on|hears)/
+      /wizard\.(?:action|command|on|hears)/,
     ]
     return patterns.some(pattern => pattern.test(line))
   }
@@ -91,7 +101,9 @@ export class BotCodeAnalyzer {
   }
 
   private hasContextReply(line: string): boolean {
-    return /ctx\.(?:reply|replyWithPhoto|replyWithVideo|replyWithDocument|editMessageText)/.test(line)
+    return /ctx\.(?:reply|replyWithPhoto|replyWithVideo|replyWithDocument|editMessageText)/.test(
+      line
+    )
   }
 
   private hasSceneTransition(line: string): boolean {
@@ -112,7 +124,7 @@ export class BotCodeAnalyzer {
       'ctx.telegram',
       'bot.telegram',
       'scene.enter',
-      'ctx.scene.enter'
+      'ctx.scene.enter',
     ]
     return apiCalls.some(call => line.includes(call))
   }
@@ -132,9 +144,13 @@ export class BotCodeAnalyzer {
     return false
   }
 
-  private addFileSpecificIssues(filePath: string, content: string, issues: BotCodeIssue[]): void {
+  private addFileSpecificIssues(
+    filePath: string,
+    content: string,
+    issues: BotCodeIssue[]
+  ): void {
     // Специфичные проверки для разных типов файлов
-    
+
     if (filePath.includes('/scenes/')) {
       this.analyzeSceneFile(content, issues)
     }
@@ -150,12 +166,15 @@ export class BotCodeAnalyzer {
 
   private analyzeSceneFile(content: string, issues: BotCodeIssue[]): void {
     // Проверяем правильность создания сцен
-    if (content.includes('new Scenes.BaseScene') && !content.includes('<MyContext>')) {
+    if (
+      content.includes('new Scenes.BaseScene') &&
+      !content.includes('<MyContext>')
+    ) {
       issues.push({
         type: 'context_type',
         line: 0,
         description: 'Scene should use BaseScene<MyContext>',
-        severity: 'error'
+        severity: 'error',
       })
     }
 
@@ -165,7 +184,7 @@ export class BotCodeAnalyzer {
         type: 'scene_transition',
         line: 0,
         description: 'Scene file should export the scene',
-        severity: 'warning'
+        severity: 'warning',
       })
     }
   }
@@ -177,7 +196,7 @@ export class BotCodeAnalyzer {
         type: 'missing_async',
         line: 0,
         description: 'Command handlers should be async',
-        severity: 'error'
+        severity: 'error',
       })
     }
   }
@@ -189,7 +208,7 @@ export class BotCodeAnalyzer {
         type: 'missing_await',
         line: 0,
         description: 'Middleware should await next()',
-        severity: 'warning'
+        severity: 'warning',
       })
     }
   }
@@ -204,7 +223,7 @@ export class BotCodeAnalyzer {
       'Scene',
       'Command',
       'Wizard',
-      'Handler'
+      'Handler',
     ]
     return botPatterns.some(pattern => filePath.includes(pattern))
   }
@@ -214,10 +233,13 @@ export class BotCodeAnalyzer {
       content.match(/scene\\.(?:enter|leave|action)/g)?.length || 0,
       content.match(/ctx\\.(?:reply|telegram)/g)?.length || 0,
       content.match(/bot\\.(?:action|command|on|hears)/g)?.length || 0,
-      content.match(/wizard\\./g)?.length || 0
+      content.match(/wizard\\./g)?.length || 0,
     ]
 
-    const totalComplexity = complexityMarkers.reduce((sum, count) => sum + count, 0)
+    const totalComplexity = complexityMarkers.reduce(
+      (sum, count) => sum + count,
+      0
+    )
 
     if (totalComplexity < 3) return 'low'
     if (totalComplexity < 10) return 'medium'

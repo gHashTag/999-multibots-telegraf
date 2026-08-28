@@ -26,7 +26,10 @@ const getKlingModelConfig = (modelId: string) => {
     id: config.apiModel, // API model ID for Replicate (e.g., 'kwaivgi/kling-v2.1')
     configId: config.id, // ID from unified config (e.g., 'kling-v2.1-pro')
     name: config.name,
-    variant: config.apiSettings?.baseInput?.model_variant || config.apiSettings?.baseInput?.mode || 'pro',
+    variant:
+      config.apiSettings?.baseInput?.model_variant ||
+      config.apiSettings?.baseInput?.mode ||
+      'pro',
     baseInput: config.apiSettings?.baseInput || {},
   }
 }
@@ -176,8 +179,7 @@ export async function createKlingMorphingVideo(
       error: `All Kling models failed. Last error: ${lastError || 'Unknown error'}`,
     }
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
 
     logger.error('❌ Kling morphing video generation failed', {
       telegramId,
@@ -191,11 +193,3 @@ export async function createKlingMorphingVideo(
     }
   }
 }
-
-
-
-
-
-
-
-

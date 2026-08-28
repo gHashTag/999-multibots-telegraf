@@ -36,7 +36,9 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
 
       if (text === '/menu' || text === '/cancel') {
         await ctx.reply(
-          isRu ? '❌ Процесс отменён. Возвращаюсь в главное меню.' : '❌ Process cancelled. Returning to main menu.',
+          isRu
+            ? '❌ Процесс отменён. Возвращаюсь в главное меню.'
+            : '❌ Process cancelled. Returning to main menu.',
           { reply_markup: { remove_keyboard: true } }
         )
         await ctx.scene.leave()
@@ -69,8 +71,8 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         'voice' in message
           ? message.voice.file_id
           : 'audio' in message
-          ? message.audio.file_id
-          : undefined
+            ? message.audio.file_id
+            : undefined
       if (!fileId) {
         await ctx.reply(
           isRu
@@ -108,7 +110,10 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         )
 
         // ✅ УЛУЧШЕНО: Проверяем флаг возврата в Veed Fabric
-        if (ctx.session.returnToVeedFabricAfterVoice && ctx.session.veedFabric) {
+        if (
+          ctx.session.returnToVeedFabricAfterVoice &&
+          ctx.session.veedFabric
+        ) {
           // Очищаем флаг
           delete ctx.session.returnToVeedFabricAfterVoice
 
@@ -133,7 +138,9 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         await showMainMenu(ctx)
         return
       } catch (error) {
-        logger.error('Error in handleVoiceMessage (Plan B):', { error: error.message || String(error) })
+        logger.error('Error in handleVoiceMessage (Plan B):', {
+          error: error.message || String(error),
+        })
         await ctx.reply(
           isRu
             ? '❌ Произошла ошибка при создании голосового аватара. Пожалуйста, попробуйте позже.'

@@ -19,7 +19,7 @@ import {
   tryCatch,
   tryCatchAsync,
   fromPromise,
-  type Either
+  type Either,
 } from '../../../src/core/functional/utils/result'
 import { pipe, flow } from '../../../src/core/functional/utils/composition'
 
@@ -159,7 +159,9 @@ describe('Either Type', () => {
     it('should tap Right values', () => {
       const result = right(5)
       let tapped = false
-      const tappedResult = tap(() => { tapped = true })(result)
+      const tappedResult = tap(() => {
+        tapped = true
+      })(result)
       expect(tapped).toBe(true)
       expect(isRight(tappedResult)).toBe(true)
       if (isRight(tappedResult)) {
@@ -170,7 +172,9 @@ describe('Either Type', () => {
     it('should not tap Left values', () => {
       const result = left('error')
       let tapped = false
-      const tappedResult = tap(() => { tapped = true })(result)
+      const tappedResult = tap(() => {
+        tapped = true
+      })(result)
       expect(tapped).toBe(false)
       expect(isLeft(tappedResult)).toBe(true)
     })
@@ -178,7 +182,9 @@ describe('Either Type', () => {
     it('should tapLeft Left values', () => {
       const result = left('error')
       let tapped = false
-      const tappedResult = tapLeft((msg: string) => { tapped = true })(result)
+      const tappedResult = tapLeft((msg: string) => {
+        tapped = true
+      })(result)
       expect(tapped).toBe(true)
       expect(isLeft(tappedResult)).toBe(true)
     })
@@ -186,7 +192,9 @@ describe('Either Type', () => {
     it('should not tapLeft Right values', () => {
       const result = right(5)
       let tapped = false
-      const tappedResult = tapLeft((msg: string) => { tapped = true })(result)
+      const tappedResult = tapLeft((msg: string) => {
+        tapped = true
+      })(result)
       expect(tapped).toBe(false)
       expect(isRight(tappedResult)).toBe(true)
     })
@@ -194,7 +202,10 @@ describe('Either Type', () => {
 
   describe('Try Catch', () => {
     it('should catch successful sync operation', () => {
-      const result = tryCatch(() => 42, () => new Error('Should not be called'))
+      const result = tryCatch(
+        () => 42,
+        () => new Error('Should not be called')
+      )
       expect(isRight(result)).toBe(true)
       if (isRight(result)) {
         expect(result.right).toBe(42)
@@ -202,9 +213,12 @@ describe('Either Type', () => {
     })
 
     it('should catch failed sync operation', () => {
-      const result = tryCatch(() => {
-        throw new Error('test error')
-      }, (error) => error instanceof Error ? error : new Error(String(error)))
+      const result = tryCatch(
+        () => {
+          throw new Error('test error')
+        },
+        error => (error instanceof Error ? error : new Error(String(error)))
+      )
       expect(isLeft(result)).toBe(true)
       if (isLeft(result)) {
         expect(result.left).toBeInstanceOf(Error)
@@ -213,7 +227,10 @@ describe('Either Type', () => {
     })
 
     it('should catch successful async operation', async () => {
-      const result = await tryCatchAsync(() => Promise.resolve(42), () => new Error('Should not be called'))()
+      const result = await tryCatchAsync(
+        () => Promise.resolve(42),
+        () => new Error('Should not be called')
+      )()
       expect(isRight(result)).toBe(true)
       if (isRight(result)) {
         expect(result.right).toBe(42)
@@ -221,9 +238,10 @@ describe('Either Type', () => {
     })
 
     it('should catch failed async operation', async () => {
-      const result = await tryCatchAsync(() =>
-        Promise.reject(new Error('async error'))
-      , (error) => error instanceof Error ? error : new Error(String(error)))()
+      const result = await tryCatchAsync(
+        () => Promise.reject(new Error('async error')),
+        error => (error instanceof Error ? error : new Error(String(error)))
+      )()
       expect(isLeft(result)).toBe(true)
       if (isLeft(result)) {
         expect(result.left).toBeInstanceOf(Error)
@@ -234,7 +252,10 @@ describe('Either Type', () => {
 
   describe('From Promise', () => {
     it('should convert successful promise', async () => {
-      const task = fromPromise(Promise.resolve(42), () => new Error('Should not be called'))
+      const task = fromPromise(
+        Promise.resolve(42),
+        () => new Error('Should not be called')
+      )
       const result = await task()
       expect(isRight(result)).toBe(true)
       if (isRight(result)) {
@@ -243,7 +264,10 @@ describe('Either Type', () => {
     })
 
     it('should convert failed promise', async () => {
-      const task = fromPromise(Promise.reject(new Error('promise error')), (error) => error instanceof Error ? error : new Error(String(error)))
+      const task = fromPromise(
+        Promise.reject(new Error('promise error')),
+        error => (error instanceof Error ? error : new Error(String(error)))
+      )
       const result = await task()
       expect(isLeft(result)).toBe(true)
       if (isLeft(result)) {
@@ -335,9 +359,7 @@ describe('Either Type', () => {
       const result = right(5)
 
       const mapped = map((x: number) => x.toString())(
-        map((x: number) => x + 10)(
-          map((x: number) => x * 2)(result)
-        )
+        map((x: number) => x + 10)(map((x: number) => x * 2)(result))
       )
 
       expect(isRight(mapped)).toBe(true)
@@ -350,7 +372,9 @@ describe('Either Type', () => {
       let tapped = false
       const result = right(5)
 
-      const tappedResult = tap(() => { tapped = true })(result)
+      const tappedResult = tap(() => {
+        tapped = true
+      })(result)
       const chained = map((x: number) => x * 2)(tappedResult as any)
 
       expect(tapped).toBe(true)

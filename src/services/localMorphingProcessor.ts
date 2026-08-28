@@ -120,7 +120,10 @@ const FALLBACK_KLING_MODELS = FALLBACK_KLING_MODEL_IDS.map(modelId => {
     id: config.apiModel, // Используем apiModel для Replicate (например 'kwaivgi/kling-v2.1')
     configId: config.id, // ID из unified config (например 'kling-v2.1-pro')
     name: config.name,
-    variant: config.apiSettings?.baseInput?.model_variant || config.apiSettings?.baseInput?.mode || 'pro',
+    variant:
+      config.apiSettings?.baseInput?.model_variant ||
+      config.apiSettings?.baseInput?.mode ||
+      'pro',
     baseInput: config.apiSettings?.baseInput || {},
     cost: 0.9, // Примерная стоимость за клип (для логирования)
     description: config.description,
@@ -607,7 +610,8 @@ async function generateSingleClipWithRetry(
   let currentModelIndex = 0 // Начинаем с первой модели
 
   // ✅ УЛУЧШЕННЫЙ ДЕФОЛТНЫЙ ПРОМПТ: Кинематографичный smooth transition (на основе исследования best practices 2025)
-  const defaultPrompt = 'smooth cinematic transition, elegant morphing between frames, constant camera movement, soft cinematic lighting, professional cinematography, motion blur, 4k quality'
+  const defaultPrompt =
+    'smooth cinematic transition, elegant morphing between frames, constant camera movement, soft cinematic lighting, professional cinematography, motion blur, 4k quality'
 
   const baseInput: {
     start_image: any
@@ -633,13 +637,19 @@ async function generateSingleClipWithRetry(
 
       // ✅ УНИВЕРСАЛЬНАЯ ЛОГИКА: используем model_variant из unified config
       if (currentModelInfo.variant) {
-        input.model_variant = currentModelInfo.variant === 'standard' ? 'std' : currentModelInfo.variant
+        input.model_variant =
+          currentModelInfo.variant === 'standard'
+            ? 'std'
+            : currentModelInfo.variant
         // Для обратной совместимости также передаем mode (если API ожидает его)
         input.mode = input.model_variant
-        logger.info(`🆕 Using ${currentModelInfo.name} with model_variant: ${input.model_variant}`, {
-          modelId: currentModelInfo.configId,
-          apiModel: currentModel
-        })
+        logger.info(
+          `🆕 Using ${currentModelInfo.name} with model_variant: ${input.model_variant}`,
+          {
+            modelId: currentModelInfo.configId,
+            apiModel: currentModel,
+          }
+        )
       }
 
       logger.info(

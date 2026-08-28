@@ -16,28 +16,33 @@ let rateCache: RateCache | null = null
  */
 async function fetchFromBinance(): Promise<number | null> {
   try {
-    const response = await fetch('https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        fiat: 'RUB',
-        page: 1,
-        rows: 10,
-        tradeType: 'SELL',
-        asset: 'USDT',
-        countries: [],
-        proMerchantAds: false,
-        publisherType: null,
-        payTypes: [],
-      }),
-    })
+    const response = await fetch(
+      'https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fiat: 'RUB',
+          page: 1,
+          rows: 10,
+          tradeType: 'SELL',
+          asset: 'USDT',
+          countries: [],
+          proMerchantAds: false,
+          publisherType: null,
+          payTypes: [],
+        }),
+      }
+    )
 
     if (!response.ok) return null
 
     const data = await response.json()
-    const prices = data?.data?.map((item: any) => parseFloat(item.adv?.price)).filter((p: number) => !isNaN(p))
+    const prices = data?.data
+      ?.map((item: any) => parseFloat(item.adv?.price))
+      .filter((p: number) => !isNaN(p))
 
     if (prices && prices.length > 0) {
       return Math.round(Math.min(...prices))
@@ -172,9 +177,12 @@ export async function getCurrentRate(
     }
 
     // Если ни один источник не вернул курс, используем fallback
-    logger.warn('⚠️ Не удалось получить курс ни из одного источника, используется fallback', {
-      fallback,
-    })
+    logger.warn(
+      '⚠️ Не удалось получить курс ни из одного источника, используется fallback',
+      {
+        fallback,
+      }
+    )
     return fallback
   } catch (error) {
     logger.error('❌ Ошибка получения курса USDT/RUB', {

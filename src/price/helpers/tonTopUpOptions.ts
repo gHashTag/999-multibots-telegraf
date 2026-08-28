@@ -21,14 +21,19 @@ export const tonUsdtTopUpOptions: TonTopUpOption[] = [
   { usdt: 10, stars: 434, labelRu: '$10 → 434⭐', labelEn: '$10 → 434⭐' },
   { usdt: 25, stars: 1085, labelRu: '$25 → 1085⭐', labelEn: '$25 → 1085⭐' },
   { usdt: 50, stars: 2170, labelRu: '$50 → 2170⭐', labelEn: '$50 → 2170⭐' },
-  { usdt: 100, stars: 4340, labelRu: '$100 → 4340⭐', labelEn: '$100 → 4340⭐' },
+  {
+    usdt: 100,
+    stars: 4340,
+    labelRu: '$100 → 4340⭐',
+    labelEn: '$100 → 4340⭐',
+  },
 ]
 
 /**
  * Получить вариант по сумме USDT
  */
 export function getTonTopUpOption(usdt: number): TonTopUpOption | undefined {
-  return tonUsdtTopUpOptions.find((opt) => opt.usdt === usdt)
+  return tonUsdtTopUpOptions.find(opt => opt.usdt === usdt)
 }
 
 /**
@@ -116,7 +121,7 @@ export const tonNativeTopUpOptions: TonNativeTopUpOption[] = [
 export function getTonNativeTopUpOption(
   ton: number
 ): TonNativeTopUpOption | undefined {
-  return tonNativeTopUpOptions.find((opt) => opt.ton === ton)
+  return tonNativeTopUpOptions.find(opt => opt.ton === ton)
 }
 
 /**

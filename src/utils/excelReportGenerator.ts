@@ -374,8 +374,8 @@ function createHistorySheet(data: UserReportData) {
       payment.category === 'real'
         ? '💎 Реальные'
         : payment.category === 'bonus'
-        ? '🎁 Бонусы'
-        : '💸 Траты',
+          ? '🎁 Бонусы'
+          : '💸 Траты',
     ]),
   ]
 

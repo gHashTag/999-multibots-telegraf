@@ -18,8 +18,8 @@ function validateWebhookUrl(url: string): boolean {
     const hostname = parsed.hostname
 
     // Check against whitelist
-    const isAllowed = ALLOWED_WEBHOOK_DOMAINS.some(domain =>
-      hostname === domain || hostname.endsWith(`.${domain}`)
+    const isAllowed = ALLOWED_WEBHOOK_DOMAINS.some(
+      domain => hostname === domain || hostname.endsWith(`.${domain}`)
     )
 
     if (!isAllowed) {
@@ -266,9 +266,12 @@ export async function verifyWebhooksOnStartup(): Promise<{
 
   // Проверяем конфигурацию
   if (!baseWebhookUrl) {
-    logger.warn('⚠️ [WEBHOOK STARTUP] BASE_WEBHOOK_URL not configured, using fallback', {
-      fallback: directWebhookUrl,
-    })
+    logger.warn(
+      '⚠️ [WEBHOOK STARTUP] BASE_WEBHOOK_URL not configured, using fallback',
+      {
+        fallback: directWebhookUrl,
+      }
+    )
   } else {
     logger.info('✅ [WEBHOOK STARTUP] BASE_WEBHOOK_URL configured', {
       url: baseWebhookUrl.substring(0, 50),
@@ -278,7 +281,8 @@ export async function verifyWebhooksOnStartup(): Promise<{
   // Тестируем все URL'ы
   const testResults = await testAllWebhookUrls()
 
-  const httpsAvailable = testResults.planA?.available || testResults.planB?.available
+  const httpsAvailable =
+    testResults.planA?.available || testResults.planB?.available
   const directAvailable = testResults.planB?.available || false
 
   if (httpsAvailable) {

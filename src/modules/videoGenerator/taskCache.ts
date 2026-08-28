@@ -5,13 +5,16 @@ import { logger } from '@/utils/logger'
  * Структура: Map<userId_modelId, { taskId: string, timestamp: number, prompt: string }>
  */
 class VideoTaskCache {
-  private cache = new Map<string, {
-    taskId: string
-    timestamp: number
-    prompt: string
-    modelId: string
-    imageUrl?: string
-  }>()
+  private cache = new Map<
+    string,
+    {
+      taskId: string
+      timestamp: number
+      prompt: string
+      modelId: string
+      imageUrl?: string
+    }
+  >()
 
   // Время жизни записи в кеше (15 минут)
   private readonly TTL = 15 * 60 * 1000
@@ -21,9 +24,12 @@ class VideoTaskCache {
 
   constructor() {
     // Автоматическая очистка кеша каждые 5 минут
-    this.cleanupInterval = setInterval(() => {
-      this.cleanup()
-    }, 5 * 60 * 1000)
+    this.cleanupInterval = setInterval(
+      () => {
+        this.cleanup()
+      },
+      5 * 60 * 1000
+    )
 
     logger.info('[VideoTaskCache] Initialized with automatic cleanup')
   }
@@ -45,7 +51,7 @@ class VideoTaskCache {
         userId,
         modelId,
         taskId: task.taskId,
-        ageMinutes: Math.floor(age / 60000)
+        ageMinutes: Math.floor(age / 60000),
       })
       return false
     }
@@ -73,7 +79,9 @@ class VideoTaskCache {
         modelId,
         newTaskId: taskId,
         existingTaskId: existing?.taskId,
-        existingAge: existing ? Math.floor((Date.now() - existing.timestamp) / 60000) : 0
+        existingAge: existing
+          ? Math.floor((Date.now() - existing.timestamp) / 60000)
+          : 0,
       })
       return
     }
@@ -83,14 +91,14 @@ class VideoTaskCache {
       timestamp: Date.now(),
       prompt: prompt.substring(0, 100), // Сохраняем только начало промпта
       modelId,
-      imageUrl: imageUrl?.substring(0, 100)
+      imageUrl: imageUrl?.substring(0, 100),
     })
 
     logger.info('[VideoTaskCache] Task added', {
       userId,
       modelId,
       taskId,
-      cacheSize: this.cache.size
+      cacheSize: this.cache.size,
     })
   }
 
@@ -110,7 +118,7 @@ class VideoTaskCache {
         modelId,
         taskId: task.taskId,
         ageMinutes,
-        remainingTasks: this.cache.size
+        remainingTasks: this.cache.size,
       })
     }
   }
@@ -142,7 +150,7 @@ class VideoTaskCache {
       logger.info('[VideoTaskCache] Cleanup completed', {
         before,
         after: this.cache.size,
-        removed
+        removed,
       })
     }
   }
@@ -174,12 +182,12 @@ class VideoTaskCache {
       key,
       taskId: task.taskId,
       modelId: task.modelId,
-      ageMinutes: Math.floor((Date.now() - task.timestamp) / 60000)
+      ageMinutes: Math.floor((Date.now() - task.timestamp) / 60000),
     }))
 
     return {
       totalTasks: this.cache.size,
-      tasks
+      tasks,
     }
   }
 }

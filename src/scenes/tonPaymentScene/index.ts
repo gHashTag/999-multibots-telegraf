@@ -55,7 +55,7 @@ const tonPaymentScene = new Scenes.WizardScene<MyContext>(
   TON_PAYMENT_SCENE_ID,
 
   // Step 1: Показать варианты пополнения
-  async (ctx) => {
+  async ctx => {
     const isRu = isRussianFromState(ctx)
     const telegramId = ctx.from?.id
 
@@ -67,7 +67,7 @@ const tonPaymentScene = new Scenes.WizardScene<MyContext>(
     } as TonPaymentWizardData
 
     // Создаём кнопки для каждого варианта
-    const buttons = tonUsdtTopUpOptions.map((opt) => [
+    const buttons = tonUsdtTopUpOptions.map(opt => [
       Markup.button.callback(
         isRu ? opt.labelRu : opt.labelEn,
         `ton_select_${opt.usdt}`
@@ -100,14 +100,14 @@ const tonPaymentScene = new Scenes.WizardScene<MyContext>(
   },
 
   // Step 2: Показать инструкцию оплаты
-  async (ctx) => {
+  async ctx => {
     // Этот шаг обрабатывается через action handlers
     return
   }
 )
 
 // Action: Выбор суммы
-tonPaymentScene.action(/^ton_select_(\d+)$/, async (ctx) => {
+tonPaymentScene.action(/^ton_select_(\d+)$/, async ctx => {
   await ctx.answerCbQuery()
 
   const isRu = isRussianFromState(ctx)
@@ -115,7 +115,7 @@ tonPaymentScene.action(/^ton_select_(\d+)$/, async (ctx) => {
   const match = ctx.match
   const usdt = parseInt(match[1])
 
-  const option = tonUsdtTopUpOptions.find((opt) => opt.usdt === usdt)
+  const option = tonUsdtTopUpOptions.find(opt => opt.usdt === usdt)
   if (!option) {
     await ctx.reply(isRu ? '❌ Неверная сумма' : '❌ Invalid amount')
     return
@@ -215,7 +215,12 @@ tonPaymentScene.action(/^ton_select_(\d+)$/, async (ctx) => {
 
     // Кнопки
     const buttons = [
-      [Markup.button.url(isRu ? '📱 Открыть Tonkeeper' : '📱 Open Tonkeeper', paymentLink)],
+      [
+        Markup.button.url(
+          isRu ? '📱 Открыть Tonkeeper' : '📱 Open Tonkeeper',
+          paymentLink
+        ),
+      ],
       [
         Markup.button.callback(
           isRu ? '🔍 Проверить оплату' : '🔍 Check payment',
@@ -247,13 +252,15 @@ tonPaymentScene.action(/^ton_select_(\d+)$/, async (ctx) => {
       error: error instanceof Error ? error.message : String(error),
     })
     await ctx.reply(
-      isRu ? '❌ Произошла ошибка. Попробуйте позже.' : '❌ Error occurred. Try again later.'
+      isRu
+        ? '❌ Произошла ошибка. Попробуйте позже.'
+        : '❌ Error occurred. Try again later.'
     )
   }
 })
 
 // Action: Проверить оплату
-tonPaymentScene.action(/^ton_check_(.+)$/, async (ctx) => {
+tonPaymentScene.action(/^ton_check_(.+)$/, async ctx => {
   await ctx.answerCbQuery()
 
   const isRu = isRussianFromState(ctx)
@@ -298,17 +305,17 @@ tonPaymentScene.action(/^ton_check_(.+)$/, async (ctx) => {
       await ctx.reply(
         isRu
           ? `⏳ Платёж пока не найден.\n\n` +
-            `Убедитесь, что:\n` +
-            `• Вы отправили *${payment.amount} USDT*\n` +
-            `• В комментарии указано: \`${invId}\`\n` +
-            `• Транзакция подтверждена в сети\n\n` +
-            `Попробуйте проверить через 1-2 минуты.`
+              `Убедитесь, что:\n` +
+              `• Вы отправили *${payment.amount} USDT*\n` +
+              `• В комментарии указано: \`${invId}\`\n` +
+              `• Транзакция подтверждена в сети\n\n` +
+              `Попробуйте проверить через 1-2 минуты.`
           : `⏳ Payment not found yet.\n\n` +
-            `Make sure:\n` +
-            `• You sent *${payment.amount} USDT*\n` +
-            `• Comment contains: \`${invId}\`\n` +
-            `• Transaction is confirmed on network\n\n` +
-            `Try checking in 1-2 minutes.`,
+              `Make sure:\n` +
+              `• You sent *${payment.amount} USDT*\n` +
+              `• Comment contains: \`${invId}\`\n` +
+              `• Transaction is confirmed on network\n\n` +
+              `Try checking in 1-2 minutes.`,
         {
           parse_mode: 'Markdown',
           ...Markup.inlineKeyboard([
@@ -379,13 +386,13 @@ tonPaymentScene.action(/^ton_check_(.+)$/, async (ctx) => {
       await ctx.reply(
         isRu
           ? `✅ *Оплата успешно получена!*\n\n` +
-            `💰 Зачислено: *${payment.stars} звёзд*\n` +
-            `📝 TX: \`${transaction.hash.substring(0, 16)}...\`\n\n` +
-            `Спасибо за пополнение!`
+              `💰 Зачислено: *${payment.stars} звёзд*\n` +
+              `📝 TX: \`${transaction.hash.substring(0, 16)}...\`\n\n` +
+              `Спасибо за пополнение!`
           : `✅ *Payment received successfully!*\n\n` +
-            `💰 Credited: *${payment.stars} stars*\n` +
-            `📝 TX: \`${transaction.hash.substring(0, 16)}...\`\n\n` +
-            `Thank you for your top-up!`,
+              `💰 Credited: *${payment.stars} stars*\n` +
+              `📝 TX: \`${transaction.hash.substring(0, 16)}...\`\n\n` +
+              `Thank you for your top-up!`,
         { parse_mode: 'Markdown' }
       )
 
@@ -397,7 +404,7 @@ tonPaymentScene.action(/^ton_check_(.+)$/, async (ctx) => {
           telegram_id: String(telegramId),
           amount: payment.amount,
           stars: payment.stars,
-        }).catch((err) => {
+        }).catch(err => {
           logger.error('[TON PAYMENT] Error notifying bot owners', {
             error: err instanceof Error ? err.message : String(err),
           })
@@ -425,7 +432,7 @@ tonPaymentScene.action(/^ton_check_(.+)$/, async (ctx) => {
 })
 
 // Action: Отмена
-tonPaymentScene.action('ton_cancel', async (ctx) => {
+tonPaymentScene.action('ton_cancel', async ctx => {
   await ctx.answerCbQuery()
 
   const isRu = isRussianFromState(ctx)
@@ -451,18 +458,16 @@ tonPaymentScene.action('ton_cancel', async (ctx) => {
 })
 
 // Action: Назад
-tonPaymentScene.action('ton_back', async (ctx) => {
+tonPaymentScene.action('ton_back', async ctx => {
   await ctx.answerCbQuery()
   return ctx.scene.enter('paymentScene')
 })
 
 // Handle text in scene (ignore)
-tonPaymentScene.on('text', async (ctx) => {
+tonPaymentScene.on('text', async ctx => {
   const isRu = isRussianFromState(ctx)
   await ctx.reply(
-    isRu
-      ? 'Используйте кнопки для навигации'
-      : 'Use buttons for navigation'
+    isRu ? 'Используйте кнопки для навигации' : 'Use buttons for navigation'
   )
 })
 

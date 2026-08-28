@@ -45,7 +45,8 @@ describe('обратные вызовы закрыты меткой', () => {
         continue
       }
       const src = strip(fs.readFileSync(file, 'utf8'))
-      if (!/verifyCallbackToken\s*\(/.test(src)) missing.push(`${file} — ${why}`)
+      if (!/verifyCallbackToken\s*\(/.test(src))
+        missing.push(`${file} — ${why}`)
     }
     expect(missing).toEqual([])
   })
