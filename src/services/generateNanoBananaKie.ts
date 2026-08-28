@@ -5,6 +5,7 @@ import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { MyContext } from '@/interfaces'
 import { KieAiProvider } from './video-providers/KieAiProvider'
 import axios from 'axios'
+import { buildCallbackToken } from '@/utils/callbackToken'
 
 interface NanoBananaKieParams {
   telegram_id: string | number
@@ -99,9 +100,16 @@ export async function generateNanoBananaKie({
       messageId: statusMessage.message_id,
     })
 
-    // Формируем callback URL для webhook с telegram_id (для прямой отправки)
+    // Callback URL for the webhook, carrying telegram_id for the direct-send
+    // path. The cb signature is REQUIRED: without it the
+    // /api/video-callback/:telegramId handler now refuses a direct send (a
+    // forged callback would otherwise deliver someone else's video to another
+    // user). This was the one builder that signed nothing;
+    // getAvailableCallbackUrl already signs its URL.
+    const cbSig = buildCallbackToken(telegram_id)
     const callbackUrl = process.env.BASE_WEBHOOK_URL
-      ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback/${telegram_id}`
+      ? `${process.env.BASE_WEBHOOK_URL}/api/video-callback/${telegram_id}` +
+        (cbSig ? `?cb=${cbSig}` : '')
       : // BASE_WEBHOOK_URL в проде задана, эта ветка не берётся; мёртвый хост
         // в ней всё равно не нужен.
         undefined
