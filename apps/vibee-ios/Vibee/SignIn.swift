@@ -48,7 +48,7 @@ struct SignInView: View {
            + "Он покажет код из шести цифр — введите его здесь.")
         .font(.callout)
         // #a39d8d — первая ступень приглушения в профиле, Profile.css:1667.
-        .foregroundStyle(Тема.Профиль.текстПриглушённый)
+        .foregroundStyle(Тема.Профиль.текстВторичный)
         .fixedSize(horizontal: false, vertical: true)
 
       /**
@@ -92,13 +92,13 @@ struct SignInView: View {
          * заплаткой.
          */
         .background(
-          Тема.Профиль.страница,
+          Тема.Профиль.фон,
           in: RoundedRectangle(cornerRadius: Тема.Профиль.радиусПоля)
         )
         .overlay(
           RoundedRectangle(cornerRadius: Тема.Профиль.радиусПоля)
             .strokeBorder(
-              Тема.Профиль.границаЯркая, lineWidth: Тема.Профиль.толщинаГраницы
+              Тема.Профиль.границаЗаметная, lineWidth: Тема.Профиль.толщинаГраницы
             )
         )
         .onChange(of: код) { _, новое in
@@ -153,7 +153,7 @@ struct SignInView: View {
       .buttonStyle(
         Тема.ПилюляПрофиля(
           цвет: Тема.Профиль.акцент,
-          подложка: Тема.Профиль.акцентПодложка,
+          заливка: Тема.Профиль.заливкаСильная,
           воВсюШирину: true
         )
       )
