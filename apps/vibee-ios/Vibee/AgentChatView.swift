@@ -36,7 +36,7 @@ struct AgentChatView: View {
                     // человек видит, что ответ не выдуман.
                     HStack(spacing: Тема.Отступ.вкладка) {
                       ForEach(m.инструменты, id: \.self) { и in
-                        Text(и).font(.caption2.monospaced())
+                        Text(и).font(Тема.Шрифт.моно(.caption2))
                           .padding(.horizontal, 7).padding(.vertical, 3)
                           .background(Тема.Цвет.акцент.opacity(0.15), in: Capsule())
                           .foregroundStyle(Тема.Цвет.акцент)
@@ -68,7 +68,7 @@ struct AgentChatView: View {
             Task { await отправить() }
           } label: {
             Image(systemName: идёт ? "stop.circle.fill" : "arrow.up.circle.fill")
-              .font(.title)
+              .font(Тема.Шрифт.значок(.title))
           }
           .disabled(ввод.isEmpty || идёт)
           // Явные 44: иконка `.title` сама по себе даёт цель около 28.

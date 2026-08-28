@@ -24,6 +24,13 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Outfit-Regular.ttf</string>
+		<string>Outfit-Medium.ttf</string>
+		<string>Outfit-SemiBold.ttf</string>
+		<string>Outfit-Bold.ttf</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

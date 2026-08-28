@@ -163,7 +163,7 @@ struct PreviewView: View {
         переключить()
       } label: {
         Image(systemName: играем ? "pause.fill" : "play.fill")
-          .font(.title3)
+          .font(Тема.Шрифт.значок(.title3))
           /**
            * 44, А НЕ 28.
            *
@@ -184,7 +184,7 @@ struct PreviewView: View {
       .disabled(!естьМедиа)
 
       Text(таймкод(currentFrame))
-        .font(.system(.caption, design: .monospaced))
+        .font(Тема.Шрифт.моно(.caption))
         // Моноширинные цифры: иначе таймкод дёргается на каждом кадре.
         .monospacedDigit()
         .foregroundStyle(Тема.Цвет.текст)
@@ -195,12 +195,12 @@ struct PreviewView: View {
         // Отказ показываем словами. Пустой экран вместо объяснения — ровно
         // та ошибка, которую в вебе чинили отдельно.
         Text(ошибкаМедиа)
-          .font(.caption2)
+          .font(Тема.Шрифт.стиль(.caption2))
           .lineLimit(1)
           .foregroundStyle(Тема.Цвет.предупреждение)
       } else if !естьМедиа {
         Text("без медиа — только слои")
-          .font(.caption2)
+          .font(Тема.Шрифт.стиль(.caption2))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
       }
     }
