@@ -31,4 +31,35 @@ enum API {
     let (data, _) = try await URLSession.shared.data(from: c.url!)
     return try JSONDecoder().decode(FeedResponse.self, from: data).templates
   }
+  /**
+   * Засчитать просмотр.
+   *
+   * ЗАЧЕМ. Веб делает это на каждом показанном ролике; нативная лента —
+   * не делала, и всё, что смотрели в приложении, не попадало в счётчик.
+   * Автор видел меньше просмотров, чем было на самом деле, и не мог понять,
+   * почему цифры не растут.
+   *
+   * Это ровно тот класс потери, что и молчащий агент: разметку перенесли,
+   * поведение — нет. Разница лишь в том, что здесь никто не жалуется —
+   * недосчитанные просмотры не выглядят поломкой.
+   *
+   * Ошибку глотаем НАМЕРЕННО и молча: просмотр — не то, ради чего стоит
+   * показывать человеку алерт или прерывать пролистывание. Но пишем в лог,
+   * чтобы «счётчик не растёт» можно было объяснить, а не гадать.
+   */
+  static func trackView(templateId: String) async {
+    var r = URLRequest(url: base.appendingPathComponent("api/feed/\(templateId)/view"))
+    r.httpMethod = "POST"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+    do {
+      let (_, resp) = try await URLSession.shared.data(for: r)
+      if let http = resp as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+        NSLog("[Feed] просмотр не засчитан: HTTP \(http.statusCode)")
+      }
+    } catch {
+      NSLog("[Feed] просмотр не засчитан: \(error.localizedDescription)")
+    }
+  }
+
 }

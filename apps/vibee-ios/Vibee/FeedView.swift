@@ -92,7 +92,13 @@ struct ReelView: View {
       if let player {
         PlayerLayerView(player: player)
           .ignoresSafeArea()
-          .onAppear { player.play() }
+          .onAppear {
+            player.play()
+            // Просмотр засчитывается при ПОКАЗЕ, как в вебе, а не при
+            // досмотре до конца: иначе цифры двух клиентов означали бы
+            // разное и сравнивать их было бы нельзя.
+            Task { await API.trackView(templateId: template.id) }
+          }
           .onDisappear { player.pause() }
       } else {
         Color.black
