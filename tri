@@ -70,7 +70,14 @@ tri — оснастка цикла. Опыт, ставший командами
 
   tri цвета [каталог]
         Литеральные цвета и размеры шрифта в Swift мимо Theme.swift.
+        Ловит ЛИТЕРАЛ, не упоминание: .system(size: 14) — да,
+        .system(size: Тема.Кегль.xs) — нет, это использование токена.
         Дизайн расползается по одному литералу за правку, а не разом.
+
+  tri цвета проверка
+        Прогнать шаблон на встроенном образце: 10 литералов обязан найти,
+        9 токенов — пропустить. Тишина на дереве НЕ доказывает исправность:
+        молчать умеет и мёртвый шаблон, что здесь уже случилось.
 
 ОСНАСТКА ЦИКЛА
   tri лок | tri раслок    занять или освободить блокировку итерации
@@ -331,7 +338,7 @@ cmd_diverged() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────
-# ЛИТЕРАЛЬНЫЕ ЦВЕТА В SWIFT.
+# ЛИТЕРАЛЬНЫЕ ЦВЕТА И РАЗМЕРЫ В SWIFT.
 #
 # Дизайн расползается не разом, а по одному литералу за правку: где-то
 # .green вместо акцента, где-то Color.black вместо фона. Каждый по
@@ -340,28 +347,116 @@ cmd_diverged() {
 # Веб держит значения в :root и потому не расползается. У Swift такого
 # места не было; после приведения оно есть — Theme.swift. Эта команда
 # показывает, что мимо него всё ещё пишут.
+#
+# ПОЧЕМУ ШАБЛОН ПЕРЕПИСАН. Первая версия была сломана в ОБЕ стороны, и обе
+# поломки измерены, а не предположены.
+#
+#   Ложь первая — лишнее. Она ловила «.system(size:» целиком и показывала
+#   нарушением строку
+#       .font(.system(size: Тема.Кегль.xs, weight: .semibold))
+#   то есть ровно ИСПОЛЬЗОВАНИЕ токена, ради которого всё затевалось.
+#
+#   Ложь вторая, хуже — недостающее. В ветку про имена цветов затесался
+#   байт 0x08 (настоящий backspace вместо двух знаков «\» и «b»), и вся
+#   ветка не совпадала НИ С ЧЕМ. Файл с «Color.black» и «.green» команда
+#   объявляла чистым. Проверка «на дереве ноль» этого не видит: молчать
+#   умеет и мёртвый шаблон — потому ниже появилась самопроверка.
+#
+# Теперь ловится ЛИТЕРАЛ, а не упоминание:
+#     .system(size: 14)             да — сразу после «size:» стоит цифра
+#     .system(size: Тема.Кегль.xs)  нет — там имя токена
+#     .green / Color.black          да — системный цвет по имени
+#     Тема.Цвет.акцент              нет
+#
+# «\b» на хвосте имени обязателен: без него «.red» ловит «.reduce(». «\b»
+# в голове «Color\(» отсекает «CGColor(red: 0, green: 0, …)» из конвейера
+# экспорта — CGColor и UIColor намеренно вне охвата, Тема держит SwiftUI-Color,
+# и кадру видео её значение не присвоить. Вернуть охват — убрать «\b» в
+# COLORS_INIT, но вместе с ним вернётся и шум.
 # ─────────────────────────────────────────────────────────────────────────
+
+# Шаблоны вынесены в переменные, потому что «tri цвета проверка» гоняет
+# ИМЕННО ИХ на встроенном образце. Копия разошлась бы с оригиналом на первой
+# же правке, и самопроверка стала бы проверять не то, что работает.
+COLORS_SIZE='\.system\(size:[[:space:]]*(CGFloat\()?[0-9]'
+COLORS_NAME='\.(green|blue|red|orange|yellow|purple|pink|gray|black|white)\b'
+COLORS_INIT='\bColor\([^)]*(red|white|hue):[[:space:]]*[0-9]'
+COLORS_HEX='\bColor\([^)]*[Hh]ex:[[:space:]]*("#|0x)'
+
+colors_scan() {
+  # Theme.swift исключён: он и есть то место, где литералам положено быть.
+  # Второй фильтр выбрасывает строки-комментарии. Прежний «grep -v '^\s*//'»
+  # не выбрасывал ничего никогда: в выводе grep -n строка начинается с
+  # «путь:номер:», и «^» до «//» попросту не доходит.
+  grep -rn --include='*.swift' \
+      -E "$COLORS_SIZE|$COLORS_NAME|$COLORS_INIT|$COLORS_HEX" "$1" 2>/dev/null \
+    | grep -v '/Theme.swift:' \
+    | grep -v -E ':[0-9]+:[[:space:]]*(//|\*|/\*)' \
+    || true
+}
+
+# САМОПРОВЕРКА. Детектор обязан доказывать себя в обе стороны: находить
+# литерал и молчать на токене. Прогон «на живом дереве ноль» доказывает
+# только вторую половину — и именно поэтому мёртвая ветка с байтом 0x08
+# прожила незамеченной.
+colors_selftest() {
+  local sandbox; sandbox=$(mktemp -d)
+  cat > "$sandbox/Cases.swift" <<'ОБРАЗЕЦ'
+let a = Text("x").font(.system(size: 14))                       // EXPECT-HIT
+let b = Text("x").font(.system(size: 12, weight: .semibold))    // EXPECT-HIT
+let c = Text("x").font(.system(size:9))                         // EXPECT-HIT
+let d = Text("x").foregroundColor(.green)                       // EXPECT-HIT
+let e = Rectangle().fill(Color.black)                           // EXPECT-HIT
+let f = Rectangle().fill(.white.opacity(0.08))                  // EXPECT-HIT
+let g = Color(red: 0.29, green: 0.87, blue: 0.50)               // EXPECT-HIT
+let h = Color(вебHex: 0x00FF88)                                 // EXPECT-HIT
+let i = Color(white: 0.2)                                       // EXPECT-HIT
+let j = Font.system(size: CGFloat(18))                          // EXPECT-HIT
+let k = Text("x").font(.system(size: Тема.Кегль.xs))            // EXPECT-MISS
+let l = Text("x").font(.system(size: Тема.БезИсточника.кегль))  // EXPECT-MISS
+let m = Rectangle().fill(Тема.Цвет.акцент)                      // EXPECT-MISS
+let n = Тема.Цвет.границаВидимая                                // EXPECT-MISS
+let o = items.reduce(0, +)                                      // EXPECT-MISS
+let p = слой.backgroundColor = CGColor(red: 0, green: 0, blue: 0, alpha: 1) // EXPECT-MISS
+let q = Color(Тема.Цвет.фон)                                    // EXPECT-MISS
+let r = вид.grayscale(1.0)                                      // EXPECT-MISS
+let s = Text("x").redacted(reason: .placeholder)                // EXPECT-MISS
+ОБРАЗЕЦ
+
+  local want found leaked out
+  want=$(grep -c 'EXPECT-HIT' "$sandbox/Cases.swift" | tr -d ' ')
+  out=$(colors_scan "$sandbox")
+  found=$(printf '%s\n' "$out" | grep -c 'EXPECT-HIT')
+  leaked=$(printf '%s\n' "$out" | grep -c 'EXPECT-MISS')
+  rm -rf "$sandbox"
+
+  printf '  литералов в образце: %s | поймано: %s | ложных срабатываний: %s\n' \
+    "$want" "$found" "$leaked"
+  if [ "$found" = "$want" ] && [ "$leaked" = "0" ]; then
+    good 'шаблон доказан в обе стороны: ловит литералы, молчит на токенах'
+    return 0
+  fi
+  bad 'шаблон НЕ доказан — сломан сам детектор, его выводу верить нельзя'
+  return 1
+}
+
 cmd_colors() {
+  if [ "${1:-}" = "проверка" ]; then colors_selftest; return $?; fi
+
   local dir="${1:-$ROOT/apps/vibee-ios/Vibee}"
   [ -d "$dir" ] || { bad "нет каталога $dir"; return 1; }
 
-  # Системные цвета и литеральные размеры шрифта. Theme.swift исключён: он и
-  # есть то место, где им положено быть.
-  local hits
-  hits=$(grep -rn --include='*.swift'     -E '\.(green|blue|red|orange|yellow|purple|pink|gray|black|white)|Color\(red:|\.system\(size:'     "$dir" 2>/dev/null | grep -v '/Theme.swift:' | grep -v '^\s*//' || true)
+  local hits; hits=$(colors_scan "$dir")
 
   if [ -z "$hits" ]; then
     good 'литеральных цветов и размеров вне Theme.swift не найдено'
     return 0
   fi
 
-  local n; n=$(printf '%s
-' "$hits" | wc -l | tr -d ' ')
+  local n; n=$(printf '%s\n' "$hits" | wc -l | tr -d ' ')
   warn "мимо Theme.swift написано $n мест:"
-  printf '%s
-' "$hits" | head -25 | sed 's/^/       /'
-  [ "$n" -gt 25 ] && printf '       … и ещё %s
-' "$((n - 25))"
+  printf '%s\n' "$hits" | head -25 | sed 's/^/       /'
+  [ "$n" -gt 25 ] && printf '       … и ещё %s\n' "$((n - 25))"
   return 1
 }
 
