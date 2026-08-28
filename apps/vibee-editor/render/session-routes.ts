@@ -34,7 +34,62 @@ import {
   revokeNow,
   SESSION_TUNING,
 } from './session'
-import { ensureAuthTables, refreshStore } from './session-store'
+import {
+  ensureAuthTables,
+  refreshStore,
+  issuePairingCode,
+  claimPairingCode,
+  PAIRING,
+} from './session-store'
+
+/**
+ * Six digits from `randomInt`, not from `Math.random`.
+ *
+ * `Math.random` is seeded predictably enough that a stream of its output can
+ * be extrapolated; that is fine for shuffling a playlist and disqualifying for
+ * anything someone would want to guess. `randomInt` draws from the same source
+ * as key material and has no modulo bias.
+ */
+function mintPairingCode(): string {
+  return String(crypto.randomInt(0, 1_000_000)).padStart(PAIRING.DIGITS, '0')
+}
+
+/**
+ * Both ways in produce the SAME session — one function, called twice.
+ *
+ * Written as a helper rather than copied because the two paths differ only in
+ * how identity was proved, and everything after that must not drift. A second
+ * copy is where the refresh row quietly stops being written, and the symptom
+ * lands weeks later as "the app logs itself out".
+ */
+async function mintSession(
+  pool: Pool,
+  telegramId: string,
+  body: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const sessionId = crypto.randomUUID()
+  const familyId = crypto.randomUUID()
+  const dkt = deviceThumbprint(body)
+  const refresh = issueRefreshToken()
+
+  await pool.query(
+    `INSERT INTO app_sessions (id, telegram_id, device_pubkey, device_name, family_id)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [sessionId, telegramId, dkt, String(body.device_name ?? ''), familyId]
+  )
+  await pool.query(
+    `INSERT INTO app_refresh_tokens (token_hash, family_id, session_id, expires_at)
+     VALUES ($1, $2, $3, $4)`,
+    [refresh.hash, familyId, sessionId, refresh.expiresAt.toISOString()]
+  )
+
+  return {
+    access_token: signAccessToken({ telegramId, sessionId, deviceKeyThumbprint: dkt }),
+    refresh_token: refresh.token,
+    expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
+    telegram_id: telegramId,
+  }
+}
 
 
 /**
@@ -145,32 +200,77 @@ export async function handleAuthRoute(
       return true
     }
 
-    const sessionId = crypto.randomUUID()
-    const familyId = crypto.randomUUID()
-    const dkt = deviceThumbprint(body)
-    const refresh = issueRefreshToken()
+    json(res, 200, await mintSession(pool, telegramId, body))
+    return true
+  }
 
-    await pool.query(
-      `INSERT INTO app_sessions (id, telegram_id, device_pubkey, device_name, family_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [sessionId, telegramId, dkt, String(body.device_name ?? ''), familyId]
-    )
-    await pool.query(
-      `INSERT INTO app_refresh_tokens (token_hash, family_id, session_id, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [refresh.hash, familyId, sessionId, refresh.expiresAt.toISOString()]
-    )
+  // ─── Pairing: start (needs a Telegram signature) ───────────────────────
+  if (path === '/api/auth/pair/start' && req.method === 'POST') {
+    let body: Record<string, unknown>
+    try {
+      body = JSON.parse((await readBody(req)) || '{}')
+    } catch {
+      json(res, 400, { error: 'тело запроса не разобрано как JSON' })
+      return true
+    }
 
+    const initData = String(body.init_data ?? '')
+    const v = verifyTelegramInitData(initData)
+    const telegramId = verifiedTelegramIdFrom(initData)
+    if (!v.ok || !telegramId) {
+      json(res, 401, {
+        error: 'подпись Telegram не принята',
+        detail: v.reason ?? 'в подписанной строке нет поля user.id',
+        hint: 'код выдаётся только внутри Telegram — там есть подпись',
+      })
+      return true
+    }
+
+    const { code, expiresAt } = await issuePairingCode(pool, telegramId, mintPairingCode)
     json(res, 200, {
-      access_token: signAccessToken({
-        telegramId: telegramId,
-        sessionId,
-        deviceKeyThumbprint: dkt,
-      }),
-      refresh_token: refresh.token,
-      expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
-      telegram_id: telegramId,
+      code,
+      expires_in: PAIRING.TTL_SECONDS,
+      expires_at: expiresAt.toISOString(),
     })
+    return true
+  }
+
+  // ─── Pairing: claim (the native app, holding no signature at all) ──────
+  if (path === '/api/auth/pair/claim' && req.method === 'POST') {
+    let body: Record<string, unknown>
+    try {
+      body = JSON.parse((await readBody(req)) || '{}')
+    } catch {
+      json(res, 400, { error: 'тело запроса не разобрано как JSON' })
+      return true
+    }
+
+    // Strip what a person types: spaces, and the dash they add themselves
+    // when the screen shows the code grouped as 123-456.
+    const code = String(body.code ?? '').replace(/[\s-]/g, '')
+    if (!/^\d{6}$/.test(code)) {
+      json(res, 400, { error: 'код должен быть из шести цифр' })
+      return true
+    }
+
+    const outcome = await claimPairingCode(pool, code)
+    if (!outcome.ok) {
+      /**
+       * Одно и то же 400 на «нет такого» и «истёк» было бы честнее по объёму
+       * выдаваемого, но человек, набравший код на десять секунд позже, должен
+       * узнать ИМЕННО это — иначе он будет перенабирать верный код. Разница в
+       * утечке нулевая: у того, кто угадывает, всё равно нет живого кода.
+       */
+      const detail = {
+        unknown: 'код не найден — проверьте цифры и запросите новый',
+        expired: 'код уже использован или истёк — запросите новый',
+        exhausted: 'слишком много попыток — запросите новый код',
+      }[outcome.reason]
+      json(res, 401, { error: 'pairing_failed', reason: outcome.reason, detail })
+      return true
+    }
+
+    json(res, 200, await mintSession(pool, outcome.telegramId, body))
     return true
   }
 
