@@ -6351,7 +6351,21 @@ const server = createServer(async (req, res) => {
       let photoUrl: string | null = null
 
       const initRaw = (req.headers['x-telegram-init-data'] as string) || ''
-      if (initRaw) {
+      // The signature is CHECKED before anything in initData is believed.
+      //
+      // This route is on the public list in auth.ts, so the global guard does
+      // not look at it — the handler is the only thing standing here. It used
+      // to parse this header straight into `tgId` and then run
+      // `UPDATE users ... WHERE telegram_id = $1`, so a forged
+      // x-telegram-init-data naming someone else's id was enough to rewrite
+      // their username, first name and profile. No key, no session, no
+      // signature.
+      //
+      // verifiedTelegramId() reads this very header and verifies it
+      // (auth.ts:413); the check was simply not used here. An unverified
+      // header is now treated as no header at all, which drops through to the
+      // key-owner branch below rather than trusting the caller's word.
+      if (initRaw && verifyTelegramInitData(initRaw).ok) {
         const params = new URLSearchParams(initRaw)
         try {
           const u = JSON.parse(params.get('user') || '{}')
