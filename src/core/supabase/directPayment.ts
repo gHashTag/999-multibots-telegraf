@@ -18,6 +18,7 @@ import {
 import { sendTransactionNotificationTest } from '@/helpers/sendTransactionNotification'
 import { supabaseAdmin } from '@/core/supabase/'
 import { getUserById } from '@/core/supabase/'
+import { withUserBalanceLock } from './balanceLock'
 
 // --- ИСПРАВЛЕННЫЙ ИНТЕРФЕЙС ВХОДНЫХ ПАРАМЕТРОВ ---
 export interface DirectPaymentParams {
@@ -86,7 +87,11 @@ export interface DirectPaymentResult {
  * @param {Record<string, any>} [params.metadata={}] - Дополнительные метаданные
  * @returns {Promise<DirectPaymentResult>} Результат операции.
  */
-export async function directPaymentProcessor(
+// Serialized per user by withUserBalanceLock below (same lock as
+// updateUserBalance, so a user's two spend paths cannot race each other). The
+// body is unchanged — it read-checks-inserts non-atomically (#999). Do NOT call
+// this directly; use directPaymentProcessor.
+async function directPaymentProcessorUnlocked(
   params: DirectPaymentParams
 ): Promise<DirectPaymentResult> {
   const {
@@ -280,6 +285,20 @@ export async function directPaymentProcessor(
  * @deprecated Используйте updateUserBalance или функции модуля ProcessServiceBalance
  * Прямое внесение платежей
  */
+/**
+ * Public entry: serialize this user's balance write against every other, then
+ * run the unchanged implementation. Interim double-spend guard, single-process
+ * only — see balanceLock.ts and #999. This is the neuro-photo / HTTP-route path
+ * (finding 2 in the money audit).
+ */
+export function directPaymentProcessor(
+  params: DirectPaymentParams
+): Promise<DirectPaymentResult> {
+  return withUserBalanceLock(String(params.telegram_id), () =>
+    directPaymentProcessorUnlocked(params)
+  )
+}
+
 export async function directPayment(
   params: PaymentCreateParams
 ): Promise<PaymentProcessResult> {
