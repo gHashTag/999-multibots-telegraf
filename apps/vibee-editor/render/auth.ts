@@ -86,6 +86,21 @@ const PUBLIC_EXACT = new Set([
   '/api/auth/telegram',
   '/api/auth/refresh',
   '/api/auth/logout',
+  /**
+   * Pairing MUST be public, and that is the entire point of it.
+   *
+   * `claim` is called by a client that has no credentials whatsoever — if it
+   * had any, it would not need to pair. `start` carries its proof in the BODY
+   * (initData), which the guard does not read; the route verifies it itself.
+   *
+   * Both were added to session-routes.ts and NOT here, so the guard answered
+   * 401 before the handler ever ran. The route existed, was deployed, was
+   * tested, and could not be reached by anything. See the reachability test in
+   * auth-public.test.ts, which now fails when a new /api/auth/* route is
+   * added without a line here.
+   */
+  '/api/auth/pair/start',
+  '/api/auth/pair/claim',
   // POST /api/users/sync-from-telegram пропускается гвардом НАМЕРЕННО:
   // хендлер сам достаёт личность из подписи initData (или сверяет
   // dev-ключ с телом). Синк МОЖЕТ писать только своего владельца.

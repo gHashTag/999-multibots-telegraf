@@ -142,59 +142,59 @@ struct AgentChatView: View {
 }
 
 struct ProfileView: View {
-  @State private var ключ = Identity.agentKey ?? ""
-  @State private var сохранён = false
+  /// Меняется при входе и выходе — по нему перерисовывается вся секция.
+  @State private var версияЛичности = 0
 
   var body: some View {
     VStack(spacing: 0) {
       /**
-       * Ключ доступа — НАД вебом, а не внутри него.
+       * Доступ — НАД вебом, а не внутри него.
        *
-       * Веб-профиль на app.t27.ai живёт своей жизнью и про наш ключ ничего не
-       * знает. Прятать поле внутрь вебвью значило бы просить человека искать
-       * настройку приложения на странице сайта.
+       * Веб-профиль на app.t27.ai живёт своей жизнью и про нашу сессию ничего
+       * не знает. Прятать вход внутрь вебвью значило бы просить человека
+       * искать настройку приложения на странице сайта.
        *
-       * Секция сворачивается, когда ключ уже есть: настройка, которую делают
-       * один раз, не должна занимать экран каждый день.
+       * Секция сворачивается, когда вход уже сделан: то, что делают один раз,
+       * не должно занимать экран каждый день.
        */
       DisclosureGroup(isExpanded: .constant(!Identity.known)) {
-        VStack(alignment: .leading, spacing: 10) {
-          Text("Ключ привязан к вашему Telegram на стороне сервера и хранится "
-               + "только на этом устройстве, в Keychain.")
-            .font(.caption)
-            .foregroundStyle(.white.opacity(0.55))
+        VStack(alignment: .leading, spacing: 12) {
+          if Identity.known {
+            Text(Identity.hasSession
+                 ? "Сессия этого устройства. Хранится в Keychain и обновляется сама."
+                 : "Отладочный ключ агента. Войдите по коду — сессия надёжнее: "
+                   + "её можно отозвать, и она не живёт вечно.")
+              .font(.caption)
+              .foregroundStyle(.white.opacity(0.55))
+              .fixedSize(horizontal: false, vertical: true)
 
-          SecureField("ключ агента", text: $ключ)
-            .textFieldStyle(.roundedBorder)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-
-          HStack {
-            Button("Сохранить") {
-              let обрезанный = ключ.trimmingCharacters(in: .whitespacesAndNewlines)
-              Identity.agentKey = обрезанный.isEmpty ? nil : обрезанный
-              сохранён = true
+            if Identity.hasSession {
+              Button("Выйти", role: .destructive) {
+                Task {
+                  await Identity.logout()
+                  версияЛичности += 1
+                }
+              }
+              .buttonStyle(.bordered)
+            } else {
+              SignInView { версияЛичности += 1 }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
-            .disabled(ключ.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-            if сохранён {
-              Label("сохранён", systemImage: "checkmark.circle.fill")
-                .font(.caption)
-                .foregroundStyle(.green)
-            }
-            Spacer()
+          } else {
+            SignInView { версияЛичности += 1 }
           }
         }
         .padding(.top, 8)
+        .id(версияЛичности)
       } label: {
         Label(
-          Identity.known ? "Доступ настроен" : "Нужен ключ доступа",
-          systemImage: Identity.known ? "checkmark.shield" : "exclamationmark.shield"
+          Identity.hasSession ? "Вы вошли"
+            : (Identity.known ? "Временный доступ" : "Нужен вход"),
+          systemImage: Identity.hasSession ? "checkmark.shield"
+            : (Identity.known ? "shield.lefthalf.filled" : "exclamationmark.shield")
         )
         .font(.subheadline.weight(.medium))
-        .foregroundStyle(Identity.known ? .green : .orange)
+        .foregroundStyle(Identity.hasSession ? .green
+                         : (Identity.known ? .yellow : .orange))
       }
       .tint(.green)
       .padding(14)
