@@ -22,6 +22,7 @@
     "payment/process-ai-server",
     "reels/generate-advanced-loop",
     "render",
-    "render/avatar-video"
+    "render/avatar-video",
+    "webhook/health-check-requested"
   ]
 }
