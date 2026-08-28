@@ -104,39 +104,10 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
   // Регистрируем маршруты для Replicate webhook (уведомления о тренировке моделей)
   app.use('/api/webhooks', replicateWebhookRouter)
 
-  // Регистрируем локальные routes для изоляции от внешнего сервера
-  // ГЕНЕРАЦИЯ — ТОЛЬКО СО СЛУЖЕБНЫМ КЛЮЧОМ.
-  //
-  // Оба маршрута брали `telegram_id` ИЗ ТЕЛА ЗАПРОСА и не проверяли ничего.
-  // Проверено живым запросом к проду: POST без ключа доходит до обработчика.
-  //
-  // Что это давало постороннему:
-  //   - запустить генерацию, списав звёзды с ЛЮБОГО номера на выбор —
-  //     generateNeuroPhotoHybrid считает стоимость и проводит оплату, а при
-  //     неудаче пишет «Failed to process payment, check your balance»;
-  //   - потратить наш бюджет у поставщика: План Б зовёт replicate.run().
-  //
-  // Номер в Telegram не секрет и перебирается, так что защиты не было никакой.
-  app.use('/api', requireInternalKey, voiceAvatarRouter)
-  app.use('/api', requireInternalKey, neuroPhotoRouter)
+  // Competitor routes are intentionally public (mounted without the key).
+  // MUST stay ABOVE the requireInternalKey mounts below — see the ordering
+  // note there.
   app.use('/api', competitorRouter)
-
-  // ДИАГНОСТИКА И БИЛЛИНГ — ТОЛЬКО СО СЛУЖЕБНЫМ КЛЮЧОМ.
-  //
-  // До этой правки оба роутера отдавали внутренние данные любому, кто знает
-  // адрес. Проверено живыми запросами к проду:
-  //
-  //   GET /api/billing                     финансы по всем ботам
-  //   GET /api/billing/:botName            то же по одному
-  //   GET /api/models/:telegramId          чужие обученные модели по номеру
-  //   GET /api/diagnostic/trainings/:id    чужие обучения по номеру
-  //   GET /api/diagnostic/trainings-recent последние обучения по всем
-  //   GET /api/diagnostic/training-config  настройки, включая начала ключей
-  //
-  // Номер в Telegram не секрет и легко перебирается, поэтому «знать URL»
-  // защитой не было.
-  app.use('/api', requireInternalKey, diagnosticRouter)
-  app.use('/api', requireInternalKey, billingRouter)
 
   // White-label B2B config endpoints
   app.get('/api/whitelabel/landing', (_req: any, res: any) => {
@@ -185,11 +156,49 @@ h1{font-size:1.8rem}ul{list-style:none;padding:0}li{padding:6px 0}li::before{con
   })
 
   // ✅ Интеграция Inngest с API (актуальная сигнатура serve)
+  // The serve handler carries its OWN auth (Inngest request signatures) —
+  // unsigned calls get its 401. It must be mounted BEFORE requireInternalKey.
   const inngestHandler = serve({
     client: inngest,
     functions: allInngestFunctions,
   })
   app.use('/api/inngest', inngestHandler)
+
+  // KEYED INTERNAL ROUTES — MOUNTED LAST, ON PURPOSE.
+  //
+  // Express runs `app.use('/api', requireInternalKey, router)` for EVERY /api/*
+  // request that reaches this stack position, not only for the router's own
+  // paths. When these mounts sat above /api/inngest and the whitelabel pages,
+  // the guard 401'd them as collateral: from 2026-08-19T20:30Z to 2026-08-28
+  // every Inngest function invocation died with {"error":"unauthorized"}
+  // BEFORE the SDK ran (all crons broken), and the public whitelabel landing
+  // was dead too. Keeping the guarded mounts last preserves the protection for
+  // their routes while unkeyed public surfaces above keep working. Unmatched
+  // /api/* now gets 401 instead of 404 — same as before, acceptable.
+  //
+  // GENERATION — SERVICE KEY REQUIRED.
+  //
+  // Both routes took `telegram_id` FROM THE REQUEST BODY with no checks at
+  // all. Verified with a live request against prod: a keyless POST reached
+  // the handler. What that gave a stranger:
+  //   - start a generation charging stars to ANY telegram id of their choice
+  //     (generateNeuroPhotoHybrid prices and charges it);
+  //   - burn our provider budget: Plan B calls replicate.run().
+  // A Telegram id is not a secret and is enumerable, so there was no
+  // protection at all.
+  app.use('/api', requireInternalKey, voiceAvatarRouter)
+  app.use('/api', requireInternalKey, neuroPhotoRouter)
+
+  // DIAGNOSTICS AND BILLING — SERVICE KEY REQUIRED.
+  //
+  // Before this guard both routers served internal data to anyone who knew
+  // the URL (verified live against prod): /api/billing (finances across all
+  // bots), /api/billing/:botName, /api/models/:telegramId (other people's
+  // trained models), /api/diagnostic/trainings/:id, trainings-recent, and
+  // training-config (settings including key prefixes). A Telegram id is
+  // enumerable, so "knowing the URL" was no protection.
+  app.use('/api', requireInternalKey, diagnosticRouter)
+  app.use('/api', requireInternalKey, billingRouter)
 
   // Запуск основного сервера на всех интерфейсах (0.0.0.0) для Docker
   app.listen(PORT, '0.0.0.0', async () => {
