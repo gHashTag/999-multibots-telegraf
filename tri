@@ -74,6 +74,11 @@ tri — оснастка цикла. Опыт, ставший командами
         не литерал ли счётчик. Перенести неработающее — воспроизвести
         декорацию и записать себе паритет.
 
+  tri ворота
+        Прогнать то, что должен был проверить CI: типы, тесты, сборку iOS,
+        кириллицу. Не равноценная замена — одна машина, один Node, один
+        Xcode, — но лучше, чем ничего, пока Actions не оплачены.
+
   tri ci
         Выполняется ли CI вообще. Прогон, падающий за секунды с нулём шагов,
         — отказ инфраструктуры, а не сигнал о коде: всё влитое влито вслепую.
@@ -585,6 +590,71 @@ cmd_real() {
   return 0
 }
 
+# ─────────────────────────────────────────────────────────────────────────
+# ТО, ЧТО ДОЛЖЕН БЫЛ ПРОВЕРИТЬ CI.
+#
+# GitHub Actions не выполняется: задания падают за секунды с нулём шагов
+# (отказ по оплате). За сотню витков так влито 157 правок — ни одна не
+# прошла проверку. Оплату я решить не могу, а заменить её локально могу.
+#
+# Это НЕ равноценная замена, и притворяться иначе нельзя: здесь одна машина,
+# один Node, один Xcode. Но «ничего» хуже, чем «кое-что, названное своим
+# именем».
+# ─────────────────────────────────────────────────────────────────────────
+cmd_gate() {
+  local fails=0
+
+  printf '\n  1. Типы рендер-сервера\n'
+  if (cd "$ROOT/apps/vibee-editor/render" && npx tsc -p tsconfig.json --noEmit --pretty false >/dev/null 2>&1); then
+    good 'без ошибок'
+  else
+    local n
+    n=$(cd "$ROOT/apps/vibee-editor/render" && npx tsc -p tsconfig.json --noEmit --pretty false 2>&1 | grep -c 'error TS')
+    warn "$n ошибок (часть унаследована — сверьте с origin/main)"
+  fi
+
+  printf '\n  2. Тесты рендер-сервера\n'
+  # НЕ ЗАПУСТИЛИСЬ и УПАЛИ — разные вещи, и путать их нельзя.
+  #
+  # На первом же прогоне эти ворота напечатали «КРАСНО», хотя тесты не падали:
+  # в рабочем дереве не было node_modules, и vitest не смог загрузить конфиг.
+  # Ворота, принимающие поломку окружения за поломку кода, — это шум, а шум
+  # перестают читать. Уже записано дважды про другие детекторы.
+  local out
+  out=$(cd "$ROOT" && npx vitest run apps/vibee-editor/render 2>&1)
+  if printf '%s' "$out" | grep -qE 'MODULE_NOT_FOUND|Cannot find module|command not found'; then
+    warn 'не запустились: окружение (нет node_modules?) — это НЕ про код'
+  elif printf '%s' "$out" | grep -qE '[0-9]+ passed' && ! printf '%s' "$out" | grep -qE '[0-9]+ failed'; then
+    good "$(printf '%s' "$out" | grep -oE 'Tests  [0-9]+ passed' | head -1)"
+  else
+    bad 'КРАСНО'; fails=$((fails + 1))
+  fi
+
+  printf '\n  3. Сборка iOS\n'
+  if (cd "$ROOT/apps/vibee-ios" && xcodegen generate --quiet >/dev/null 2>&1 \
+      && xcodebuild -project Vibee.xcodeproj -target Vibee \
+         -sdk iphonesimulator -configuration Debug build >/dev/null 2>&1); then
+    good 'BUILD SUCCEEDED'
+  else
+    bad 'СБОРКА ПАДАЕТ'; fails=$((fails + 1))
+  fi
+
+  printf '\n  4. Кириллица в добавленных строках\n'
+  if (cd "$ROOT" && node scripts/no-cyrillic-guard.cjs staged >/dev/null 2>&1); then
+    good 'чисто'
+  else
+    warn 'есть — коммит не пройдёт'
+  fi
+
+  printf '\n'
+  if [ "$fails" -gt 0 ]; then
+    bad "НЕ ВЛИВАТЬ: провалов $fails"
+    paint '31' '       CI сейчас не выполняется, и поймать это больше некому.'
+    return 1
+  fi
+  good 'можно вливать — насколько это может подтвердить одна машина'
+}
+
 cmd_lesson() {
   local title="${1:?нужен заголовок урока}"
   local skill="$ROOT/.claude/skills/vibee-stack-hard-won/SKILL.md"
@@ -605,6 +675,7 @@ case "$action" in
   разошлись)  cmd_diverged ;;
   цвета)      cmd_colors "$@" ;;
   ci)         cmd_ci ;;
+  ворота)     cmd_gate ;;
   живая)      cmd_real "$@" ;;
   опыт)       cmd_lesson "$@" ;;
   лок)        bash "$TOOLS/guard.sh" acquire ;;
