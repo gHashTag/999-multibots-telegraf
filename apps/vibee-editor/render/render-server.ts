@@ -253,12 +253,59 @@ import {
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { transcribeVideo } from './src/lib/transcribe'
-import {
-  detectFaceInVideo,
-  detectFaceInImage,
-  calculateCropSettings,
-  loadModels,
-} from './src/lib/faceDetection'
+/**
+ * РАСПОЗНАВАНИЕ ЛИЦА ГРУЗИТСЯ ЛЕНИВО, и это не оптимизация.
+ *
+ * Здесь стоял обычный импорт, и он тянул `@vladmandic/face-api`, а тот —
+ * `@tensorflow/tfjs-node`, которого в зависимостях нет. Сервер не поднимался
+ * ВООБЩЕ: продакшн стоял больше часа, каждая сборка падала на старте, и всё
+ * влитое за это время не существовало для людей.
+ *
+ * Настоящий дефект — не пропавший модуль, а то, что ОДНА функция оказалась
+ * условием запуска всего сервиса. Лента, чат агента, оплата и рендер к
+ * распознаванию лица отношения не имеют и обязаны работать без него.
+ *
+ * Ленивый импорт делает отказ ЛОКАЛЬНЫМ: не работает распознавание — падает
+ * только оно, и говорит почему. Остальное живёт.
+ */
+type FaceApi = typeof import('./src/lib/faceDetection')
+let faceApiPromise: Promise<FaceApi> | null = null
+let faceApiReady: FaceApi | null = null
+
+/**
+ * Модуль грузится ОДИН раз и переиспользуется: `import()` кэшируется, но
+ * промис держим сами, чтобы два одновременных запроса не начали загрузку
+ * дважды и не удвоили ожидание на холодном старте.
+ */
+function faceApi(): Promise<FaceApi> {
+  faceApiPromise ??= import('./src/lib/faceDetection').then(m => {
+    faceApiReady = m
+    return m
+  })
+  return faceApiPromise
+}
+
+const detectFaceInVideo: FaceApi['detectFaceInVideo'] = async (...a) =>
+  (await faceApi()).detectFaceInVideo(...a)
+const detectFaceInImage: FaceApi['detectFaceInImage'] = async (...a) =>
+  (await faceApi()).detectFaceInImage(...a)
+/**
+ * Загруженный модуль, когда он уже есть.
+ *
+ * `calculateCropSettings` синхронна и чиста — она считает по найденной рамке.
+ * Делать её async значило бы менять все места вызова ради ничего.
+ *
+ * Первая версия лезла в `promise.value` — поля, которого у Promise нет: она
+ * бросала бы ВСЕГДА. Держим ссылку явно, заполняя её в момент загрузки.
+ */
+const calculateCropSettings: FaceApi['calculateCropSettings'] = (...a) => {
+  if (!faceApiReady) {
+    // Сюда попадают только после detectFace, который модуль и грузит. Если
+    // всё же попали — говорим прямо, а не считаем по пустому месту.
+    throw new Error('calculateCropSettings вызван до detectFaceIn* — модуль не загружен')
+  }
+  return faceApiReady.calculateCropSettings(...a)
+}
 import { Pool } from 'pg'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
@@ -1080,7 +1127,13 @@ async function initBundle() {
   // Preload face detection models
   console.log('👤 Loading face detection models...')
   try {
-    await loadModels()
+    // Прогрев моделей — не повод ронять запуск: если распознавание не
+    // собралось, всё остальное обязано работать.
+    try {
+      await (await faceApi()).loadModels()
+    } catch (e) {
+      console.warn('[face] распознавание лица недоступно:', String(e).slice(0, 200))
+    }
     console.log('✅ Face detection models ready')
   } catch (error) {
     console.warn('⚠️ Face detection models failed to load:', error)
