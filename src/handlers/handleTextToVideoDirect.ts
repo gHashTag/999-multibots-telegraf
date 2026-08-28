@@ -100,13 +100,16 @@ export async function handleTextToVideoDirect(
       aspectRatio
     )
 
-    // Модуль generateTextToVideo возвращает string | null, а НЕ объект.
-    // Строка — это либо URL готового видео (синхронные Replicate-модели), либо
-    // taskId async-джобы (Kie.ai). Раньше здесь ждали объект {success,...}, и на
-    // успехе (строке) response.success был undefined → условие !response.success
-    // истинно → пользователь ВСЕГДА получал «❌ Ошибка генерации: undefined», а
-    // видео не доходило вообще. Нормализуем к контракту хендлера:
-    //   URL  → videoUrl (доставить сразу), иначе taskId → jobId (вебхук/поллинг).
+    // CONTRACT (verified via esbuild metafile): '@/modules/videoGenerator'
+    // resolves to the FILE src/modules/videoGenerator.ts (file beats the
+    // sibling directory), whose adapter returns an OBJECT
+    // {success, videoUrl?, jobId?, error?, message?} from
+    // @/services/generateTextToVideo. The string|null contract belongs to the
+    // DIRECTORY module (videoGenerator/generateTextToVideo.ts), which this
+    // handler does NOT import. A previous "fix" (#932) normalized against that
+    // wrong contract: `typeof result === 'string'` was always false, so every
+    // request — including successes — showed "Video generation failed".
+    // Consume the object the adapter actually returns.
     const response: {
       success: boolean
       videoUrl?: string
@@ -114,10 +117,8 @@ export async function handleTextToVideoDirect(
       error?: string
       message?: string
     } =
-      typeof result === 'string' && result
-        ? /^https?:\/\//.test(result)
-          ? { success: true, videoUrl: result }
-          : { success: true, jobId: result }
+      result && typeof result === 'object'
+        ? result
         : { success: false, error: 'Video generation failed' }
 
     if (!response.success) {

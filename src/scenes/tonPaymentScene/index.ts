@@ -460,7 +460,9 @@ tonPaymentScene.action('ton_cancel', async ctx => {
 // Action: Назад
 tonPaymentScene.action('ton_back', async ctx => {
   await ctx.answerCbQuery()
-  return ctx.scene.enter('paymentScene')
+  // The scene is registered as ModeEnum.PaymentScene ('payment_scene');
+  // the literal 'paymentScene' does not exist -> "Can't find scene" throw.
+  return ctx.scene.enter(ModeEnum.PaymentScene)
 })
 
 // Handle text in scene (ignore)

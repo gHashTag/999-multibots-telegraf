@@ -17,9 +17,7 @@ import {
   saveVideoUrlHelper,
   updateUserLevelHelper,
 } from './helpers'
-import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { calculateFinalPrice } from '@/price/helpers'
-import { PaymentType } from '@/interfaces/payments.interface'
 import { Markup } from 'telegraf'
 import axios from 'axios'
 import { isAxiosError } from 'axios'
@@ -716,22 +714,11 @@ export const generateImageToVideo = async (
               : `❌ Error: Image is required for image-to-video generation!`
           )
 
-          // Возвращаем деньги пользователю
-          const refundResult = await updateUserBalance(
-            telegramId,
-            balanceResult.paymentAmount || 0,
-            PaymentType.MONEY_INCOME,
-            `Refund for failed ${modelConfig.name} generation - no image provided`,
-            {
-              bot_name: botName,
-              service_type: 'image-to-video-refund',
-              model_name: modelConfig.id,
-              original_error:
-                'No image URL provided for image-to-video generation',
-              refund_amount: balanceResult.paymentAmount || 0,
-            }
-          )
-
+          // NO refund here: nothing has been deducted at this point.
+          // checkBalanceVideoOperationHelper is check-only, and billing is
+          // centralized on the delivered-success branches. The MONEY_INCOME
+          // "refund" that used to live here credited stars that were never
+          // charged (free money).
           return
         }
 
@@ -815,6 +802,17 @@ export const generateImageToVideo = async (
               chatId,
               { source: localVideoPath },
               { caption }
+            )
+
+            // Billing is centralized in this module: charge only after the
+            // video is actually delivered (mirrors the veo3 polling branch).
+            // The caller no longer charges unconditionally.
+            await deductBalanceAfterSuccess(
+              telegramId,
+              modelId,
+              botName,
+              balanceResult.paymentAmount || 0,
+              'image_to_video'
             )
 
             // Отправляем видео в pulse канал (Plan B - direct)
@@ -1653,6 +1651,17 @@ export const generateImageToVideo = async (
       chatId,
       { source: localVideoPath },
       { caption }
+    )
+
+    // Billing is centralized in this module: the standard-Replicate branch
+    // previously relied on the caller's unconditional charge (which also fired
+    // on failures). Charge here, only after the video is delivered.
+    await deductBalanceAfterSuccess(
+      telegramId,
+      modelId,
+      botName,
+      balanceResult.paymentAmount || 0,
+      'image_to_video'
     )
 
     // Отправляем видео в pulse канал (Standard Replicate)
