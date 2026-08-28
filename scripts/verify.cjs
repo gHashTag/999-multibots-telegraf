@@ -1,22 +1,26 @@
 #!/usr/bin/env node
 /**
- * Один прогон всего, что должно быть зелёным перед релизом.
+ * One run of everything that has to be green before a release.
  *
- * ЗАЧЕМ. GitHub Actions в этом репозитории не запускается: задания падают за
- * секунды с «The job was not started because recent account payments have
- * failed or your spending limit needs to be increased». Последний успешный
- * прогон — 2026-06-02. Пока это так, «зелёный CI» проверить нечем, а сломанные
- * шаги копятся незамеченными: голый `bun test` давал 548 падений, а
- * `prettier --check` падал на 456 файлах — и никто этого не видел месяцами.
+ * WHY. GitHub Actions does not run in this repository: jobs fail within
+ * seconds with "The job was not started because recent account payments have
+ * failed or your spending limit needs to be increased", and the last
+ * successful run was 2026-06-02. While that holds there is nothing to check a
+ * "green CI" claim against, and broken steps pile up unseen: bare `bun test`
+ * was exiting 1 on 548 failures and `prettier --check` was failing on 456
+ * files, both for months.
  *
- * Этот скрипт повторяет набор проверок локально и судит ТОЛЬКО по кодам
- * возврата. Не по выводу: grep по тексту уже дважды давал ложный зелёный
- * (шаблон ловил не то, а код возврата брался у последней команды конвейера).
+ * This script reproduces the set locally and judges by EXIT CODE only, never
+ * by grepping output — that had already produced two false greens in this
+ * work (a pattern that matched the wrong thing, and an exit code taken from
+ * the last command of a pipeline).
  *
- * Провалившиеся шаги НЕ прерывают прогон — иначе после первой же ошибки
- * остальное остаётся неизмеренным, и вторая правка вскрывает третью проблему.
- * Выходной код ненулевой, если провалился хоть один.
+ * A failing step does NOT abort the run. Otherwise the first error hides
+ * everything after it, and each fix reveals one more problem instead of the
+ * whole list. The exit code is non-zero if any step failed.
  */
+'use strict'
+
 const { spawnSync } = require('child_process')
 
 const STEPS = [
@@ -37,27 +41,27 @@ const STEPS = [
 
 const results = []
 for (const [name, cmd, args] of STEPS) {
-  process.stdout.write(`… ${name}`)
+  process.stdout.write(`... ${name}`)
   const started = Date.now()
   const r = spawnSync(cmd, args, { stdio: 'pipe', encoding: 'utf8' })
-  // Команда, которую не удалось запустить, — это НЕ успех. spawnSync в таком
-  // случае отдаёт status === null; без этой ветки отсутствующий bun выглядел
-  // бы как пройденная проверка.
+  // A command that could not start is NOT a pass. spawnSync reports
+  // status === null in that case; without this branch a missing bun would
+  // read as a green step.
   const code = r.error ? -1 : r.status === null ? -1 : r.status
   const secs = ((Date.now() - started) / 1000).toFixed(1)
   results.push({ name, code, secs, out: (r.stdout || '') + (r.stderr || '') })
-  process.stdout.write(`\r${code === 0 ? '✅' : '❌'} ${name} (${secs}s)\n`)
+  process.stdout.write(`\r${code === 0 ? 'OK  ' : 'FAIL'} ${name} (${secs}s)\n`)
 }
 
 const failed = results.filter(r => r.code !== 0)
 if (failed.length) {
-  console.error(`\n❌ провалено шагов: ${failed.length} из ${results.length}\n`)
+  console.error(`\nFAILED: ${failed.length} of ${results.length} steps\n`)
   for (const f of failed) {
-    console.error(`--- ${f.name} (код ${f.code}) ---`)
+    console.error(`--- ${f.name} (exit ${f.code}) ---`)
     console.error(f.out.split('\n').filter(Boolean).slice(-12).join('\n'))
     console.error('')
   }
   process.exit(1)
 }
 
-console.log(`\n✅ все ${results.length} шагов зелёные`)
+console.log(`\nAll ${results.length} steps green`)

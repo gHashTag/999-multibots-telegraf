@@ -92,9 +92,9 @@ describe('текст сцены приглашения обещает тольк
   it('обещание звёзд стоит под условием включённой награды', () => {
     // Безусловное обещание — это то, с чего всё началось.
     expect(scene).toMatch(/REFERRAL_BONUS_STARS/)
-    // \s* вместо пробела: prettier переносит длинный тернарник, и
-    // `bonus > 0 ?` становится `bonus > 0\n  ? …`. Проверяется условие,
-    // а не то, как форматтер расставил переводы строк.
+    // \s* instead of a literal space: prettier wraps the long ternary, so
+    // `bonus > 0 ?` becomes `bonus > 0\n  ? ...`. What is checked is the
+    // condition, not how the formatter placed the line breaks.
     expect(scene).toMatch(/bonus > 0\s*\?/)
   })
 

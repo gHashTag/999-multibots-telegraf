@@ -3,14 +3,14 @@ import { generateSeeDream4 } from '@/services/generateSeeDream4'
 import { generateFluxKontextMax } from '@/services/generateFluxKontextMax'
 import { generateNanoBanana } from '@/services/generateNanoBanana'
 
-// Тринадцать тестов ниже — настоящие интеграционные: они зовут сервисы
-// generateSeeDream4/FluxKontextMax/NanoBanana, а те идут в Supabase за
-// пользователем и дальше в API моделей. Без живого окружения они падают на
-// «Invalid URL» и «User with ID 123456789 does not exist» — то есть сообщают
-// об отсутствии сети, а не о коде. Пять тестов валидации в этом же файле
-// сети не требуют и идут всегда.
+// The thirteen tests below are genuinely integration tests: they call
+// generateSeeDream4/FluxKontextMax/NanoBanana, which go to Supabase for the
+// user and on to the model APIs. Without a live environment they fail with
+// "Invalid URL" and "User with ID 123456789 does not exist" — reporting the
+// absence of a network, not anything about the code. The five validation
+// tests in this same file need no network and always run.
 //
-// Запуск с настоящим окружением: `bun run test:bun:live`.
+// To run against a real environment: `bun run test:bun:live`.
 const LIVE = process.env.RUN_LIVE_AI_TESTS === '1'
 
 // Mock Replicate for Bun

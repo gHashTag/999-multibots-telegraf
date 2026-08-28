@@ -418,9 +418,9 @@ router.get('/diagnostic/training-config', async (_req: any, res: any) => {
     // dead-domain-ok: это ДЕТЕКТОР мёртвого домена, а не ссылка на него.
     if (baseWebhookUrl.includes('three-head-dragon')) {
       config.warnings.push(
-        // dead-domain-ok: текст предупреждения обязан называть домен, иначе
-        // оно бесполезно. Пометка стоит ВНУТРИ вызова: снаружи prettier
-        // отодвигает её от строки переносом аргумента.
+        // dead-domain-ok: the warning has to name the host or it is useless.
+        // The marker sits INSIDE the call: outside it, prettier pushes it
+        // away from the line by wrapping the argument.
         'CRITICAL: Webhook URL points at three-head-dragon.shop — the decommissioned VPS (188.137.250.69), not the Railway app. Replicate webhooks will be lost.'
       )
     }

@@ -1,13 +1,13 @@
 #!/usr/bin/env tsx
 /**
- * ⚠️ НЕ РАБОТАЕТ: импортирует '../src/utils/enhancedExcelGenerator', которого
- * в репозитории нет — модуль не был закоммичен. Команды report:financial /
- * report:bot / report:monthly / report:test убраны из package.json: они
- * падали с «Cannot find module» при каждом запуске, то есть предлагали
- * несуществующую возможность.
+ * DOES NOT RUN: it imports '../src/utils/enhancedExcelGenerator', which is
+ * not in the repository — that module was never committed. The commands
+ * report:financial / report:bot / report:monthly / report:test were removed
+ * from package.json: every invocation ended in "Cannot find module", so they
+ * advertised a capability that does not exist.
  *
- * Файл оставлен как есть: логика отчёта в нём настоящая, не хватает одного
- * модуля. Верните его — и верните команды.
+ * The file is left as it is: its reporting logic is real, only the one module
+ * is missing. Restore it and the commands can come back.
  */
 
 /**

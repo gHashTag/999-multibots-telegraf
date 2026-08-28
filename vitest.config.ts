@@ -4,18 +4,19 @@ import path from 'path'
 export default defineConfig({
   test: {
     globals: true,
-    // Детерминированное окружение тестов (дополняет vitest.setup.ts, где
-    // задан только FAL_KEY).
+    // Deterministic test environment (complements vitest.setup.ts, which sets
+    // FAL_KEY only).
     //
-    // ЗАЧЕМ. 46 тестов падали не из-за кода, а из-за отсутствия секретов: без
-    // MERCHANT_LOGIN визард оплаты обрывался конфиг-ошибкой, не дойдя до
-    // проверяемой логики (26 тестов), без FAL_KEY то же делал генератор
-    // изображений (20). Прогон зависел от того, лежит ли у запускающего
-    // рабочий .env, — то есть измерял окружение, а не код.
+    // WHY. 46 tests failed for want of secrets rather than because of the
+    // code: without MERCHANT_LOGIN the payment wizard aborted with a config
+    // error before reaching the logic under test (26 tests), and without
+    // FAL_KEY the image generator did the same (20). The run depended on
+    // whether the person running it had a working .env — it measured the
+    // environment, not the code.
     //
-    // Значения заведомо нерабочие: тест, который дойдёт до реального вызова
-    // с ними, должен упасть, а не молча сходить в прод. Реальное значение из
-    // окружения имеет приоритет — интеграционные прогоны не ломаются.
+    // The values are deliberately non-working: a test that reaches a real
+    // call with them must fail rather than quietly talk to production. A real
+    // value from the environment wins, so integration runs still work.
     env: {
       SUPABASE_URL: process.env.SUPABASE_URL ?? 'TEST_URL',
       SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY ?? 'TEST_KEY',
@@ -37,13 +38,13 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
-      // Ещё три файла падают на ЭТАПЕ ЗАГРУЗКИ модуля, ни один assert в них
-      // не исполняется — та же причина, что у списка ниже:
-      //   plugin-neurophoto/**/generateImage.test.ts — импортирует 'bun:test';
-      //   scripts/tests/user-data-integrity.test.ts — импортирует
-      //     '../get-all-users-data', которого нет в репозитории;
-      //   checkSuperheroGenerationUsage.test.ts — при импорте создаёт клиент
-      //     Supabase и падает с «Invalid URL» на заглушечном адресе.
+      // Three more files fail at MODULE LOAD, so not one assertion in them
+      // ever runs — the same reason as the list below:
+      //   plugin-neurophoto/**/generateImage.test.ts imports 'bun:test';
+      //   scripts/tests/user-data-integrity.test.ts imports
+      //     '../get-all-users-data', which is not in the repository;
+      //   checkSuperheroGenerationUsage.test.ts builds a Supabase client at
+      //     import time and dies with "Invalid URL" on the placeholder host.
       'packages/plugin-neurophoto/**/generateImage.test.ts',
       'scripts/tests/user-data-integrity.test.ts',
       'src/__tests__/core/supabase/checkSuperheroGenerationUsage.test.ts',
@@ -62,12 +63,13 @@ export default defineConfig({
        */
       'apps/**/*.spec.ts',
       'apps/**/e2e/**',
-      // У плеера СВОЙ раннер (apps/vibee-editor/player) с окружением jsdom и
-      // своими зависимостями. После сужения исключения выше его юнит-тесты
-      // попали в корневой прогон, где окружение node, и 34 из них упали с
-      // «localStorage is not defined». Тесты рендер-сервера, ради которых
-      // сужали, остаются включёнными. Сами тесты плеера не пропали: их
-      // гоняет `bun run test:player` (105 тестов, jsdom) — отдельным шагом CI.
+      // The player has its OWN runner (apps/vibee-editor/player) with a jsdom
+      // environment and its own dependencies. After the exclusion above was
+      // narrowed, its unit tests joined the root run, whose environment is
+      // node, and 34 of them failed on "localStorage is not defined". The
+      // render-server tests the narrowing was for stay included. The player
+      // tests are not lost: `bun run test:player` runs them (105 tests,
+      // jsdom) as its own CI step.
       'apps/vibee-editor/player/**',
       // Эти 11 файлов импортируют из 'bun:test' и под vitest НЕ ЗАПУСКАЮТСЯ
       // никогда: "Cannot find package 'bun:test'". Для них есть свой раннер —

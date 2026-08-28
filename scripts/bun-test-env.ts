@@ -1,22 +1,22 @@
 /**
- * Детерминированное окружение для `bun test`.
+ * Deterministic environment for `bun test`.
  *
- * ЗАЧЕМ. Без этих переменных тесты падали не из-за кода: визард оплаты
- * обрывался конфиг-ошибкой, не дойдя до проверяемой логики, генератор
- * изображений — тем же, а провайдер lip-sync бросал «KIE_AI_API_KEY is not
- * set» ещё на входе. Прогон измерял, лежит ли у запускающего рабочий .env,
- * а не поведение кода.
+ * WHY. Without these variables the failures were not about the code: the
+ * payment wizard aborted with a config error before reaching the logic under
+ * test, the image generator did the same, and the lip-sync provider threw
+ * "KIE_AI_API_KEY is not set" on entry. The run measured whether the person
+ * running it happened to have a working .env, not how the code behaves.
  *
- * Значения заведомо нерабочие: тест, который дойдёт с ними до реального
- * вызова, обязан упасть, а не молча сходить в прод. Реальное значение из
- * окружения имеет приоритет — интеграционные прогоны не ломаются.
+ * The values are deliberately non-working: a test that reaches a real call
+ * with them must fail rather than quietly talk to production. A real value
+ * from the environment wins, so integration runs are unaffected.
  *
- * Раньше это же лежало одной строкой в скрипте test:bun; в package.json
- * нельзя поставить комментарий, поэтому пояснение и пометка для гварда
- * секретов жили негде.
+ * This used to live as one long line inside the test:bun script. package.json
+ * cannot carry a comment, so neither this explanation nor the marker the
+ * secret guard requires had anywhere to live.
  *
- * secret-guard-ok: заглушки для тестов, не секреты — ни одно значение не
- * даёт доступа ни к чему.
+ * secret-guard-ok: test placeholders, not secrets — none of these grants
+ * access to anything.
  */
 const defaults: Record<string, string> = {
   SUPABASE_URL: 'TEST_URL',

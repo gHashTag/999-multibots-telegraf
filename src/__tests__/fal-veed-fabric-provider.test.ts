@@ -20,10 +20,10 @@ mock.module('@/core/supabase/saveVideoUrlToSupabase', () => ({
   saveVideoUrlToSupabase: mock(() => Promise.resolve(undefined)),
 }))
 
-// Провайдер ходит в Fal через `fal.subscribe` из '@fal-ai/client'
-// (fal-veed-fabric-provider.ts:120), а не через axios. Подмена axios ни на
-// что не влияла: запросы уходили в живой fal.run и возвращались как
-// «Unauthorized» на тестовом ключе — тесты проверяли наличие сети, а не код.
+// The provider reaches Fal through `fal.subscribe` from '@fal-ai/client'
+// (fal-veed-fabric-provider.ts:120), not through axios. Mocking axios changed
+// nothing: the requests went to the live fal.run and came back "Unauthorized"
+// on a test key — the tests were checking for a network, not for the code.
 const falSubscribe = mock(() =>
   Promise.resolve({ data: {}, requestId: 'test-request-id' })
 )
@@ -51,7 +51,7 @@ describe('FalVeedFabricProvider', () => {
       // поэтому его имя стало общим. Имя КОНКРЕТНОЙ модели по-прежнему
       // 'Fal.ai Veed Fabric 1.0 Fast' — оно проверяется через modelUsed.
       expect(provider.providerName).toBe('Fal.ai Lip-Sync')
-      // Список расширен вместе с провайдером (см. fal-veed-fabric-provider.ts:23).
+      // The list grew with the provider (see fal-veed-fabric-provider.ts:23).
       expect(provider.supportedModels).toEqual([
         'fal-veed-fabric-1.0-fast',
         'fal-ai/latentsync',
@@ -99,11 +99,12 @@ describe('FalVeedFabricProvider', () => {
       // Выполняем генерацию
       const result = await provider.generate(input)
 
-      // Успех у провайдера обозначен не полем success (его в ответе нет —
-      // см. return в fal-veed-fabric-provider.ts:175), а статусом и ссылкой.
+      // Success is not marked by a `success` field — the response has none
+      // (see the return at fal-veed-fabric-provider.ts:175) — but by the
+      // status and the URL.
       expect(result.status).toBe('succeeded')
       expect(result.output).toBe('https://fal.media/files/test-video.mp4')
-      // Поля лежат верхним уровнем, обёртки data у ответа нет.
+      // The fields sit at the top level; the response has no `data` wrapper.
       expect(result).toMatchObject({
         status: 'succeeded',
         modelUsed: 'Fal.ai Veed Fabric 1.0 Fast',
@@ -115,8 +116,8 @@ describe('FalVeedFabricProvider', () => {
         },
       })
 
-      // Проверяем вызов API. Адрес, заголовки и timeout теперь внутри
-      // клиента Fal — проверяем то, что задаёт провайдер: эндпоинт и вход.
+      // Check the API call. URL, headers and timeout now live inside the Fal
+      // client, so assert what the provider decides: endpoint and input.
       expect(falSubscribe).toHaveBeenCalledTimes(1)
       const [endpoint, options] = falSubscribe.mock.calls[0] as any[]
       expect(endpoint).toBe('veed/fabric-1.0/fast')
@@ -206,10 +207,10 @@ describe('FalVeedFabricProvider', () => {
   describe('Расчет стоимости', () => {
     it('должен правильно рассчитывать стоимость для 480p', () => {
       // Тестируем приватный метод через рефлексию
-      // Цену по РАЗРЕШЕНИЮ считает calculateCostByResolution; публичный
-      // calculateCost принимает (durationSeconds, modelId) и на строке
-      // возвращал NaN. Прайс тоже сменился: $0.10/$0.20 за секунду + 50%
-      // наценки (fal-veed-fabric-provider.ts:444).
+      // calculateCostByResolution prices BY RESOLUTION; the public
+      // calculateCost takes (durationSeconds, modelId) and returned NaN when
+      // handed a string. The price changed too: $0.10/$0.20 per second plus a
+      // 50% markup (fal-veed-fabric-provider.ts:444).
       const calculateCost = (provider as any).calculateCostByResolution.bind(
         provider
       )
@@ -248,8 +249,8 @@ describe('FalVeedFabricProvider', () => {
 
       const result = await provider.generateLipSync(input)
 
-      // generateLipSync — тонкая обёртка над generate: тот же ответ без
-      // поля success.
+      // generateLipSync is a thin wrapper over generate: the same response,
+      // still without a `success` field.
       expect(result.status).toBe('succeeded')
       expect(result.output).toBe('https://fal.media/files/test-video.mp4')
     })

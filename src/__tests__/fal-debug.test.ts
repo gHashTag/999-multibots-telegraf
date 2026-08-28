@@ -18,8 +18,8 @@ mock.module('@fal-ai/client', () => ({
   fal: { subscribe: falSubscribe, config: mock(() => {}) },
 }))
 
-// Успешная ветка генерации сохраняет ссылку в Supabase; без подмены это
-// живой запрос, он падает и уводит результат в ветку ошибки.
+// The success path saves the URL to Supabase; unmocked that is a live
+// request, it fails, and the result is diverted into the error branch.
 mock.module('@/core/supabase/saveVideoUrlToSupabase', () => ({
   saveVideoUrlToSupabase: mock(() => Promise.resolve(undefined)),
 }))
@@ -39,7 +39,7 @@ describe('Fal.ai Veed Fabric - Отладка', () => {
       // поэтому его имя стало общим. Имя КОНКРЕТНОЙ модели по-прежнему
       // 'Fal.ai Veed Fabric 1.0 Fast' — оно проверяется через modelUsed.
       expect(provider.providerName).toBe('Fal.ai Lip-Sync')
-      // Список расширен вместе с провайдером (см. fal-veed-fabric-provider.ts:23).
+      // The list grew with the provider (see fal-veed-fabric-provider.ts:23).
       expect(provider.supportedModels).toEqual([
         'fal-veed-fabric-1.0-fast',
         'fal-ai/latentsync',
@@ -134,16 +134,16 @@ describe('Fal.ai Veed Fabric - Отладка', () => {
 
       const result = await provider.generate(input)
 
-      // Адрес, заголовки и timeout ушли внутрь клиента Fal — проверяем то,
-      // что задаёт провайдер: эндпоинт модели и тело запроса.
+      // URL, headers and timeout moved inside the Fal client — assert what the
+      // provider decides: the model endpoint and the request body.
       const [endpoint, options] = falSubscribe.mock.calls.at(-1) as any[]
       expect(endpoint).toBe('veed/fabric-1.0/fast')
       expect(options.input.image_url).toBe('https://example.com/image.jpg')
       expect(options.input.audio_url).toBe('https://example.com/audio.mp3')
       expect(options.input.resolution).toBe('720p')
 
-      // Поля ответа лежат верхним уровнем, обёртки data нет
-      // (см. return в fal-veed-fabric-provider.ts:175).
+      // The response fields sit at the top level; there is no `data` wrapper
+      // (see the return at fal-veed-fabric-provider.ts:175).
       expect(result.output).toBe('https://example.com/generated-video.mp4')
       expect(result.modelUsed).toBe('Fal.ai Veed Fabric 1.0 Fast')
     })
@@ -163,7 +163,8 @@ describe('Fal.ai Veed Fabric - Отладка', () => {
 
       const result = await provider.generate(input)
 
-      // Провайдер ведёт три модели, поэтому в сообщении общее имя.
+      // The provider drives three models, so the message carries the generic
+      // name.
       expect(result).toHaveProperty(
         'message',
         'Failed to generate video with Fal.ai Lip-Sync'

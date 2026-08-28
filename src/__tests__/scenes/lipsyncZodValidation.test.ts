@@ -13,8 +13,8 @@ import {
 } from '../../interfaces/zod/lipsync.zod'
 import { z } from 'zod'
 
-// Заглушка для фикстур: настоящим токеном не является и доступа никуда не
-// даёт. Вынесена в одну константу, чтобы пометка стояла в одном месте.
+// A fixture placeholder: not a real token and it grants access to nothing.
+// Pulled into one constant so the marker lives in a single place.
 const MOCK_BOT_TOKEN = 'test_token_mock_123456789' // secret-guard-ok: заглушка
 
 describe('LipSync Zod Validation', () => {

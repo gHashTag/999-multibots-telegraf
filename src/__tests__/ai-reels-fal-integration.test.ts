@@ -6,9 +6,9 @@ describe('AI Reels Fal.ai Integration Tests', () => {
   let falProvider: FalVeedFabricProvider
 
   beforeEach(async () => {
-    // Здесь лежал РАБОЧИЙ ключ Fal.ai (UUID:hex32), попавший в репозиторий
-    // с ad20784. Тестам он не нужен: ни один из них не ходит в сеть.
-    // Значение-заглушка приходит из scripts/bun-test-env.ts.
+    // A WORKING Fal.ai key (UUID:hex32) used to sit here; it entered the
+    // repository with ad20784. The tests do not need it — none of them reach
+    // the network. The placeholder comes from scripts/bun-test-env.ts.
     process.env.FAL_KEY = process.env.FAL_KEY || 'test_fal_key'
 
     falProvider = new FalVeedFabricProvider()
@@ -108,9 +108,9 @@ describe('AI Reels Fal.ai Integration Tests', () => {
     const provider = new FalVeedFabricProvider()
 
     expect(provider.providerId).toBe('fal')
-    // Провайдер ведёт три модели (veed fabric, latentsync, hummingbird),
-    // поэтому его имя стало общим. Имя КОНКРЕТНОЙ модели по-прежнему
-    // 'Fal.ai Veed Fabric 1.0 Fast' — оно проверяется через modelUsed.
+    // The provider drives three models (veed fabric, latentsync,
+    // hummingbird), so its name became generic. The name of the SPECIFIC
+    // model is still 'Fal.ai Veed Fabric 1.0 Fast' — checked via modelUsed.
     expect(provider.providerName).toBe('Fal.ai Lip-Sync')
     expect(provider.supportedModels).toContain('fal-veed-fabric-1.0-fast')
   })

@@ -76,15 +76,15 @@ function scan(dir) {
         code.startsWith('/*')
       )
         return
-      // Явный маркер исключения для НАМЕРЕННЫХ упоминаний — например в
-      // детекторе, который предупреждает, что webhook указывает на мёртвый
-      // хост. Ставится комментарием над строкой.
+      // Explicit opt-out marker for DELIBERATE mentions — for instance in a
+      // detector that warns the webhook points at a dead host. Written as a
+      // comment above the line.
       //
-      // Смотрим ВЕСЬ примыкающий блок комментария, а не одну предыдущую
-      // строку. Прежняя проверка ломалась от форматирования: prettier
-      // переносил длинный аргумент на свою строку или разбивал пояснение на
-      // две — и законная пометка молча переставала работать, а гейт падал
-      // на коде, который никто не менял. Проверено на этом файле.
+      // The WHOLE contiguous comment block above is inspected, not just the
+      // single preceding line. The old check broke on formatting: prettier
+      // moved a long argument onto its own line, or split an explanation in
+      // two, and a legitimate marker silently stopped working while the gate
+      // failed on code nobody had changed. Verified on this very file.
       let hasMarker = false
       for (let j = i - 1; j >= 0; j--) {
         const above = (arr[j] || '').trim()

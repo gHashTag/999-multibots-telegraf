@@ -78,11 +78,11 @@ describe('Fal.ai Veed Fabric 1.0 Fast - Проверка наценки', () => 
     it('должен применять наценку в calculateCost', () => {
       const provider = new FalVeedFabricProvider()
 
-      // Метод, считающий цену ПО РАЗРЕШЕНИЮ, называется
-      // calculateCostByResolution. Публичный calculateCost принимает
-      // (durationSeconds, modelId) — вызов calculateCost('480p') умножал
-      // цену на строку и возвращал NaN, поэтому проверка цен молча не
-      // работала. См. fal-veed-fabric-provider.ts:429 и :444.
+      // The method that prices BY RESOLUTION is calculateCostByResolution.
+      // The public calculateCost takes (durationSeconds, modelId), so
+      // calculateCost('480p') multiplied the price by a string and returned
+      // NaN — the price check had silently stopped working. See
+      // fal-veed-fabric-provider.ts:429 and :444.
       const cost480p = (provider as any).calculateCostByResolution('480p')
       const cost720p = (provider as any).calculateCostByResolution('720p')
 

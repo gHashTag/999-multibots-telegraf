@@ -8,12 +8,12 @@ import { FalVeedFabricProvider } from '@/core/lipsync/providers/fal-veed-fabric-
 import { lipSyncOrchestrator } from '@/core/lipsync/lipsync-orchestrator'
 import { LipSyncInputBuilder } from '@/core/lipsync/schemas/lipsync-schemas'
 
-// Провайдер зовёт `fal.subscribe` из '@fal-ai/client'. Пока подмены не было,
-// эти тесты «проходили» из-за живого запроса: с тестовым ключом Fal отвечал
-// 401, оркестратор возвращал ошибку — её и ждали как «поведение в тестовой
-// среде». Теперь транспорт подменён здесь же, и проверяется настоящий
-// контракт: успех проходит, отказ превращается в объект ошибки, а не в
-// исключение.
+// The provider calls `fal.subscribe` from '@fal-ai/client'. With no mock in
+// place these tests "passed" because of a live request: on a test key Fal
+// answered 401, the orchestrator returned an error, and that error was what
+// they asserted as "behaviour in a test environment". The transport is now
+// mocked here, and the real contract is checked: success goes through, and a
+// failure becomes an error object rather than a thrown exception.
 const falSubscribe = mock(() =>
   Promise.resolve({
     data: {
@@ -91,7 +91,7 @@ describe('AI Reels с fal провайдером - Тесты', () => {
 
       const result = await lipSyncOrchestrator.generate(input)
 
-      // Оркестратор пробрасывает ответ провайдера как есть
+      // The orchestrator passes the provider's response through unchanged
       // (lipsync-orchestrator.ts:82).
       expect(result).toHaveProperty('status', 'succeeded')
       expect(result).toHaveProperty('output', 'https://fal.media/x.mp4')
@@ -112,7 +112,7 @@ describe('AI Reels с fal провайдером - Тесты', () => {
 
       const result = await lipSyncOrchestrator.generate(input)
 
-      // Отказ провайдера не должен превращаться в исключение.
+      // A provider failure must not turn into a thrown exception.
       expect(result).toHaveProperty('error', 'Fal is down')
       expect(result).toHaveProperty('code', 'GENERATION_ERROR')
     })

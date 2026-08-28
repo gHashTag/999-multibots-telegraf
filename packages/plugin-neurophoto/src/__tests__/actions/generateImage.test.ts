@@ -36,10 +36,10 @@ describe('Generate Image Action', () => {
         return null
       }),
       getSetting: mock((key: string) => {
-        // Умолчание провайдера в коде сменилось на 'fal' (generateImage.ts:136),
-        // а этот набор проверяет ветку Replicate и её модель flux-schnell.
-        // Без явного значения обработчик уходил в Fal и падал на
-        // «Fal.ai service not found».
+        // The default provider changed to 'fal' (generateImage.ts:136), while
+        // this suite exercises the Replicate branch and its flux-schnell
+        // model. Without an explicit value the handler went to Fal and failed
+        // with "Fal.ai service not found".
         if (key === 'IMAGE_PROVIDER') return 'replicate'
         if (key === 'REPLICATE_API_KEY') return 'test-key'
         if (key === 'DEFAULT_MODEL') return 'black-forest-labs/flux-schnell'

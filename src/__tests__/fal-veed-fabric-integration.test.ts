@@ -22,9 +22,9 @@ mock.module('@/core/supabase/saveVideoUrlToSupabase', () => ({
   saveVideoUrlToSupabase: mock(() => Promise.resolve(undefined)),
 }))
 
-// Провайдер ходит в Fal через `fal.subscribe` из '@fal-ai/client'
-// (fal-veed-fabric-provider.ts:120). Подмена axios не действовала — запросы
-// уходили в живой fal.run и возвращались как «Unauthorized».
+// The provider reaches Fal through `fal.subscribe` from '@fal-ai/client'
+// (fal-veed-fabric-provider.ts:120). Mocking axios had no effect — the
+// requests went to the live fal.run and came back "Unauthorized".
 const falSubscribe = mock(() =>
   Promise.resolve({ data: {}, requestId: 'test-request-id' })
 )
@@ -103,8 +103,8 @@ describe('Fal.ai Veed Fabric Integration', () => {
       // Выполняем генерацию через оркестратор
       const result = await orchestrator.generate(input)
 
-      // Оркестратор возвращает ответ провайдера БЕЗ обёртки
-      // (lipsync-orchestrator.ts:82 — `return result`): ни success, ни data.
+      // The orchestrator returns the provider's response UNWRAPPED
+      // (lipsync-orchestrator.ts:82 — `return result`): no success, no data.
       expect(result).toMatchObject({
         status: 'succeeded',
         modelUsed: 'Fal.ai Veed Fabric 1.0 Fast',
