@@ -24,12 +24,12 @@ struct ProfileScreen: View {
 
   var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 20) {
+      VStack(alignment: .leading, spacing: Тема.Отступ.lg) {
         доступ
 
         if Identity.telegramId != nil {
           if грузим {
-            ProgressView().frame(maxWidth: .infinity).padding(.vertical, 40)
+            ProgressView().frame(maxWidth: .infinity).padding(.vertical, Тема.Отступ.xl)
           } else if let ошибка {
             подпись(ошибка)
           } else if let профиль {
@@ -38,9 +38,9 @@ struct ProfileScreen: View {
           }
         }
       }
-      .padding(16)
+      .padding(Тема.Отступ.md)
     }
-    .background(Color.black)
+    .background(Тема.Цвет.фон)
     .task(id: версия) { await загрузить() }
   }
 
@@ -58,53 +58,59 @@ struct ProfileScreen: View {
       HStack {
         Label("Вы вошли", systemImage: "checkmark.shield")
           .font(.subheadline.weight(.medium))
-          .foregroundStyle(.green)
+          .foregroundStyle(Тема.Цвет.акцент)
         Spacer()
-        Button("Выйти", role: .destructive) {
+        Button(role: .destructive) {
           Task {
             await Identity.logout()
             профиль = nil
             ролики = []
             версия += 1
           }
+        } label: {
+          // Высота ВНУТРИ label: снаружи `.frame` не растягивает подложку,
+          // которую рисует `.bordered` — замерено 34.3 pt вместо 44.
+          Text("Выйти")
+            .frame(minHeight: Тема.Кнопка.высота)
         }
         .buttonStyle(.bordered)
+        .tint(Тема.Цвет.ошибка)
       }
     } else {
-      VStack(alignment: .leading, spacing: 10) {
+      VStack(alignment: .leading, spacing: Тема.Отступ.карточкаЛенты) {
         Label("Нужен вход", systemImage: "exclamationmark.shield")
           .font(.subheadline.weight(.medium))
-          .foregroundStyle(.orange)
+          .foregroundStyle(Тема.Цвет.предупреждение)
         SignInView { версия += 1 }
       }
     }
   }
 
   private func шапка(_ p: API.Profile) -> some View {
-    HStack(alignment: .top, spacing: 14) {
+    HStack(alignment: .top, spacing: Тема.Отступ.пузырьЧата) {
       // AsyncImage, а не своя загрузка: система сама кеширует, отменяет при
       // уходе с экрана и не держит картинку в памяти дольше нужного.
       AsyncImage(url: p.avatar_url.flatMap(URL.init(string:))) { фаза in
         if let img = фаза.image {
           img.resizable().scaledToFill()
         } else {
-          Color.white.opacity(0.08)
+          Тема.Цвет.поверхность
         }
       }
       .frame(width: 72, height: 72)
       .clipShape(Circle())
 
-      VStack(alignment: .leading, spacing: 4) {
+      VStack(alignment: .leading, spacing: Тема.Отступ.xs) {
         Text(p.display_name ?? p.username)
           .font(.title3.weight(.semibold))
-          .foregroundStyle(.white)
+          .foregroundStyle(Тема.Цвет.текст)
         Text("@\(p.username)")
           .font(.subheadline)
-          .foregroundStyle(.green)
+          .foregroundStyle(Тема.Цвет.акцент)
         if let bio = p.bio, !bio.isEmpty {
           Text(bio)
             .font(.footnote)
-            .foregroundStyle(.white.opacity(0.6))
+            .foregroundStyle(Тема.Цвет.текстПриглушённый)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -118,24 +124,24 @@ struct ProfileScreen: View {
     } else {
       Text("Ролики · \(ролики.count)")
         .font(.subheadline.weight(.medium))
-        .foregroundStyle(.white.opacity(0.75))
+        .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
       LazyVGrid(
-        columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3),
-        spacing: 8
+        columns: Array(repeating: GridItem(.flexible(), spacing: Тема.Отступ.sm), count: 3),
+        spacing: Тема.Отступ.sm
       ) {
         ForEach(ролики) { р in
           ZStack(alignment: .bottomLeading) {
-            Color.white.opacity(0.06)
+            Тема.Цвет.поверхность
             // Счётчик просмотров поверх плитки: в вебе он там же, и это
             // единственное число, ради которого автор сюда заходит.
             Label("\(р.viewsCount)", systemImage: "eye")
               .font(.caption2)
-              .foregroundStyle(.white.opacity(0.85))
-              .padding(6)
+              .foregroundStyle(Тема.Цвет.текст)
+              .padding(Тема.Отступ.вкладка)
           }
           .aspectRatio(9.0 / 16.0, contentMode: .fit)
-          .clipShape(RoundedRectangle(cornerRadius: 8))
+          .clipShape(RoundedRectangle(cornerRadius: Тема.Радиус.lg))
           .accessibilityLabel("\(р.name), просмотров \(р.viewsCount)")
         }
       }
@@ -145,7 +151,7 @@ struct ProfileScreen: View {
   private func подпись(_ т: String) -> some View {
     Text(т)
       .font(.footnote)
-      .foregroundStyle(.white.opacity(0.5))
+      .foregroundStyle(Тема.Цвет.текстПриглушённый)
       .frame(maxWidth: .infinity, alignment: .leading)
   }
 

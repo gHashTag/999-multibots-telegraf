@@ -29,7 +29,7 @@ struct PropertiesView: View {
         подсказкаПустоты
       }
     }
-    .background(Color.black)
+    .background(Тема.Цвет.фон)
   }
 
   /**
@@ -50,13 +50,13 @@ struct PropertiesView: View {
   }
 
   private var подсказкаПустоты: some View {
-    VStack(spacing: 8) {
+    VStack(spacing: Тема.Отступ.sm) {
       Image(systemName: "hand.tap")
         .font(.title2)
-        .foregroundStyle(.white.opacity(0.35))
+        .foregroundStyle(Тема.Цвет.текстПриглушённый)
       Text("Выберите клип на таймлайне")
         .font(.footnote)
-        .foregroundStyle(.white.opacity(0.5))
+        .foregroundStyle(Тема.Цвет.текстПриглушённый)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
@@ -66,7 +66,7 @@ struct PropertiesView: View {
       VStack(alignment: .leading, spacing: 18) {
         Text(clip.wrappedValue.name ?? "Клип")
           .font(.headline)
-          .foregroundStyle(.white)
+          .foregroundStyle(Тема.Цвет.текст)
 
         группа("Положение") {
           крутилка("X", value: clip.x, шаг: 1, диапазон: -4000...4000, единица: "px")
@@ -88,16 +88,16 @@ struct PropertiesView: View {
           целое("Длительность", value: clip.durationInFrames, диапазон: 1...100_000)
         }
       }
-      .padding(16)
+      .padding(Тема.Отступ.md)
     }
   }
 
   private func группа<C: View>(_ title: String, @ViewBuilder _ c: () -> C) -> some View {
-    VStack(alignment: .leading, spacing: 10) {
+    VStack(alignment: .leading, spacing: Тема.Отступ.карточкаЛенты) {
       Text(title.uppercased())
-        .font(.system(size: 10, weight: .semibold))
+        .font(.system(size: Тема.Кегль.xs, weight: .semibold))
         .tracking(0.8)
-        .foregroundStyle(.white.opacity(0.4))
+        .foregroundStyle(Тема.Цвет.текстПриглушённый)
       c()
     }
   }
@@ -119,7 +119,7 @@ struct PropertiesView: View {
     HStack {
       Text(label)
         .font(.footnote)
-        .foregroundStyle(.white.opacity(0.7))
+        .foregroundStyle(Тема.Цвет.текстПриглушённый)
         .frame(width: 84, alignment: .leading)
 
       Spacer()
@@ -127,13 +127,13 @@ struct PropertiesView: View {
       HStack(spacing: 2) {
         Text(value.wrappedValue.formatted(.number.precision(.fractionLength(0...1))))
           .monospacedDigit()
-        Text(единица).foregroundStyle(.white.opacity(0.4))
+        Text(единица).foregroundStyle(Тема.Цвет.текстПриглушённый)
       }
       .font(.system(.footnote, design: .monospaced))
-      .foregroundStyle(.white)
-      .padding(.horizontal, 10)
+      .foregroundStyle(Тема.Цвет.текст)
+      .padding(.horizontal, Тема.Отступ.карточкаЛенты)
       .padding(.vertical, 7)
-      .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
+      .background(Тема.Цвет.поверхность, in: RoundedRectangle(cornerRadius: Тема.Радиус.md))
       .contentShape(Rectangle())
       .gesture(
         DragGesture(minimumDistance: 2)
@@ -147,19 +147,19 @@ struct PropertiesView: View {
   }
 
   private func ползунок(_ label: String, value: Binding<Double>) -> some View {
-    VStack(alignment: .leading, spacing: 4) {
+    VStack(alignment: .leading, spacing: Тема.Отступ.xs) {
       HStack {
         Text(label)
           .font(.footnote)
-          .foregroundStyle(.white.opacity(0.7))
+          .foregroundStyle(Тема.Цвет.текстПриглушённый)
         Spacer()
         Text("\(Int(value.wrappedValue * 100))%")
           .font(.system(.caption, design: .monospaced))
           .monospacedDigit()
-          .foregroundStyle(.white)
+          .foregroundStyle(Тема.Цвет.текст)
       }
       Slider(value: value, in: 0...1)
-        .tint(.green)
+        .tint(Тема.Цвет.акцент)
     }
   }
 
@@ -167,7 +167,7 @@ struct PropertiesView: View {
     HStack {
       Text(label)
         .font(.footnote)
-        .foregroundStyle(.white.opacity(0.7))
+        .foregroundStyle(Тема.Цвет.текстПриглушённый)
         .frame(width: 84, alignment: .leading)
       Spacer()
       Stepper(
@@ -180,14 +180,14 @@ struct PropertiesView: View {
         Text("\(value.wrappedValue)")
           .font(.system(.footnote, design: .monospaced))
           .monospacedDigit()
-          .foregroundStyle(.white)
+          .foregroundStyle(Тема.Цвет.текст)
       }
       .labelsHidden()
       .overlay(alignment: .leading) {
         Text("\(value.wrappedValue) кадр")
           .font(.system(.footnote, design: .monospaced))
           .monospacedDigit()
-          .foregroundStyle(.white)
+          .foregroundStyle(Тема.Цвет.текст)
           .offset(x: -78)
       }
     }

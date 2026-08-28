@@ -167,7 +167,7 @@ struct GenerateScreen: View {
           if !Identity.known {
             плашка(
               значок: "exclamationmark.shield",
-              цвет: .orange,
+              цвет: Тема.Цвет.предупреждение,
               текст: "Нечем представиться серверу — он ответит отказом. "
                 + "Зайдите в Профиль и войдите по коду из бота."
             )
@@ -187,7 +187,7 @@ struct GenerateScreen: View {
              */
             плашка(
               значок: "key.slash",
-              цвет: .orange,
+              цвет: Тема.Цвет.предупреждение,
               текст: "Ключ агента открывает чат, но не генерацию: она стоит "
                 + "за общим гвардом, который знает только сессию. "
                 + "Войдите по коду в Профиле."
@@ -201,15 +201,15 @@ struct GenerateScreen: View {
           }
 
           if let ошибка {
-            плашка(значок: "xmark.octagon", цвет: .red, текст: ошибка)
+            плашка(значок: "xmark.octagon", цвет: Тема.Цвет.ошибка, текст: ошибка)
           }
           if let результат {
             показ(результат)
           }
         }
-        .padding(16)
+        .padding(Тема.Отступ.md)
       }
-      .background(Color.black)
+      .background(Тема.Цвет.фон)
       .navigationTitle("ИИ")
       .navigationBarTitleDisplayMode(.inline)
     }
@@ -219,7 +219,7 @@ struct GenerateScreen: View {
 
   private var выборВида: some View {
     ScrollView(.horizontal, showsIndicators: false) {
-      HStack(spacing: 8) {
+      HStack(spacing: Тема.Отступ.sm) {
         ForEach(Вид.allCases) { в in
           Button {
             вид = в
@@ -232,17 +232,27 @@ struct GenerateScreen: View {
               // Точка у видов, которые сегодня не работают. Человек видит это
               // ДО того, как набрал промпт, а не после.
               if в.неготовность != nil {
-                Circle().fill(.orange).frame(width: 5, height: 5)
+                Circle().fill(Тема.Цвет.предупреждение).frame(width: 5, height: 5)
               }
             }
             .font(.subheadline.weight(.medium))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
+            .padding(.horizontal, Тема.Отступ.пузырьЧата)
+            /**
+             * Высота ЯВНАЯ, а не «сколько выйдет из padding».
+             *
+             * Здесь стоял `.padding(.vertical, 9)` и больше ничего — то есть
+             * высота собиралась из кегля подписи плюс два отступа и выходила
+             * около 33 pt. Это ровно тот дефект, который в вебе описан на
+             * index.css:224-236 для `.form-chip`: «замерено на живом деплое,
+             * 375px — 28px». Отступ — не размер.
+             */
+            .frame(minHeight: Тема.Касание.минимум)
             .background(
-              вид == в ? .green.opacity(0.22) : .white.opacity(0.07),
+              вид == в ? Тема.Цвет.акцент.opacity(0.22) : Тема.Цвет.поверхность,
               in: Capsule()
             )
-            .foregroundStyle(вид == в ? .green : .white.opacity(0.75))
+            .foregroundStyle(вид == в ? Тема.Цвет.акцент : Тема.Цвет.текстПриглушённый)
+            .contentShape(Capsule())
           }
           .buttonStyle(.plain)
         }
@@ -254,7 +264,7 @@ struct GenerateScreen: View {
     VStack(alignment: .leading, spacing: 14) {
       Text("Что сгенерировать")
         .font(.subheadline.weight(.medium))
-        .foregroundStyle(.white.opacity(0.6))
+        .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
       TextField(
         вид == .видео ? "Кот прыгает через лужу в неоне…" : "Красный куб на белом столе…",
@@ -263,7 +273,7 @@ struct GenerateScreen: View {
       .textFieldStyle(.plain)
       .lineLimit(3...6)
       .padding(12)
-      .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+      .background(Тема.Цвет.поверхность, in: RoundedRectangle(cornerRadius: Тема.Радиус.xl))
 
       if вид == .видео {
         строкаВыбора("Длительность", ["5s", "10s"], $длительность)
@@ -287,9 +297,9 @@ struct GenerateScreen: View {
       Button {
         Task { await сгенерировать() }
       } label: {
-        HStack(spacing: 8) {
+        HStack(spacing: Тема.Отступ.sm) {
           if идёт {
-            ProgressView().tint(.black)
+            ProgressView().tint(Тема.Кнопка.основнаяТекст)
             Text("Идёт \(прошло) с")
           } else {
             Image(systemName: "sparkles")
@@ -297,10 +307,10 @@ struct GenerateScreen: View {
           }
         }
         .font(.headline)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-        .background(.green, in: RoundedRectangle(cornerRadius: 14))
-        .foregroundStyle(.black)
+        // Высота явная: 44 — минимум касания (index.css:47).
+        .frame(maxWidth: .infinity, minHeight: Тема.Кнопка.высота)
+        .background(Тема.Кнопка.основнаяФон, in: RoundedRectangle(cornerRadius: Тема.Радиус.md))
+        .foregroundStyle(Тема.Кнопка.основнаяТекст)
         .opacity(промпт.isEmpty || идёт ? 0.45 : 1)
       }
       .buttonStyle(.plain)
@@ -318,7 +328,7 @@ struct GenerateScreen: View {
         Text("Сервер отвечает одним ответом, без очереди: обычно 50–70 секунд. "
              + "Не закрывайте вкладку.")
           .font(.caption)
-          .foregroundStyle(.white.opacity(0.5))
+          .foregroundStyle(Тема.Цвет.текстПриглушённый)
       }
     }
   }
@@ -327,7 +337,7 @@ struct GenerateScreen: View {
     _ имя: String, _ варианты: [String], _ выбор: Binding<String>
   ) -> some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text(имя).font(.caption).foregroundStyle(.white.opacity(0.5))
+      Text(имя).font(.caption).foregroundStyle(Тема.Цвет.текстПриглушённый)
       Picker(имя, selection: выбор) {
         ForEach(варианты, id: \.self) { Text($0).tag($0) }
       }
@@ -339,41 +349,40 @@ struct GenerateScreen: View {
     VStack(alignment: .leading, spacing: 12) {
       Label("\(вид.подпись) сейчас не работает", systemImage: "wrench.and.screwdriver")
         .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.orange)
+        .foregroundStyle(Тема.Цвет.предупреждение)
       Text(причина)
         .font(.footnote)
-        .foregroundStyle(.white.opacity(0.72))
+        .foregroundStyle(Тема.Цвет.текстПриглушённый)
       Text("Проверено живым запросом 28.08.2026.")
         .font(.caption2)
-        .foregroundStyle(.white.opacity(0.4))
+        .foregroundStyle(Тема.Цвет.текстПриглушённый)
       Button {
         Task { await перепроверить() }
       } label: {
-        HStack(spacing: 8) {
-          if идёт { ProgressView().tint(.white) }
+        HStack(spacing: Тема.Отступ.sm) {
+          if идёт { ProgressView().tint(Тема.Цвет.текст) }
           Text(идёт ? "Спрашиваем сервер…" : "Спросить сервер сейчас")
         }
         .font(.subheadline.weight(.medium))
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
+        .frame(maxWidth: .infinity, minHeight: Тема.Кнопка.высота)
+        .background(Тема.Цвет.поверхность, in: RoundedRectangle(cornerRadius: Тема.Радиус.md))
       }
       .buttonStyle(.plain)
       .disabled(идёт)
     }
-    .padding(14)
+    .padding(Тема.Отступ.пузырьЧата)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 16))
+    .background(Тема.Цвет.предупреждение.opacity(0.10), in: RoundedRectangle(cornerRadius: Тема.Радиус.lg))
   }
 
   private func плашка(значок: String, цвет: Color, текст: String) -> some View {
     HStack(alignment: .top, spacing: 10) {
       Image(systemName: значок).foregroundStyle(цвет)
-      Text(текст).font(.footnote).foregroundStyle(.white.opacity(0.8))
+      Text(текст).font(.footnote).foregroundStyle(Тема.Цвет.текстПриглушённый)
     }
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(цвет.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+    .background(цвет.opacity(0.12), in: RoundedRectangle(cornerRadius: Тема.Радиус.xl))
   }
 
   @ViewBuilder private func показ(_ р: Результат) -> some View {
@@ -381,7 +390,7 @@ struct GenerateScreen: View {
       if р.видео {
         VideoPlayer(player: AVPlayer(url: р.ссылка))
           .frame(height: 380)
-          .clipShape(RoundedRectangle(cornerRadius: 16))
+          .clipShape(RoundedRectangle(cornerRadius: Тема.Радиус.lg))
       } else {
         AsyncImage(url: р.ссылка) { фаза in
           switch фаза {
@@ -391,12 +400,12 @@ struct GenerateScreen: View {
             // Ссылка на картинку подписанная и живёт сутки. Молчать о том,
             // что она протухла, значит показать пустой прямоугольник.
             Text("Картинка не загрузилась: ссылка сервера уже недействительна.")
-              .font(.footnote).foregroundStyle(.white.opacity(0.6)).padding()
+              .font(.footnote).foregroundStyle(Тема.Цвет.текстПриглушённый).padding()
           default:
             ProgressView().frame(height: 200).frame(maxWidth: .infinity)
           }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: Тема.Радиус.lg))
       }
 
       if let п = р.провайдер {
@@ -404,13 +413,13 @@ struct GenerateScreen: View {
         // картинка сегодня уходят в запасной Replicate.
         Text("Сделал: \(п)")
           .font(.caption.monospaced())
-          .foregroundStyle(.white.opacity(0.5))
+          .foregroundStyle(Тема.Цвет.текстПриглушённый)
       }
       ShareLink(item: р.ссылка) {
         Label("Поделиться ссылкой", systemImage: "square.and.arrow.up")
           .font(.subheadline.weight(.medium))
       }
-      .tint(.green)
+      .tint(Тема.Цвет.акцент)
     }
   }
 

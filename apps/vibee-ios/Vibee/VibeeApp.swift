@@ -20,6 +20,50 @@ struct VibeeApp: App {
 }
 
 struct RootView: View {
+  /**
+   * Полоса вкладок настраивается ОДИН раз при создании экрана.
+   *
+   * `UITabBarAppearance`, а не модификаторы SwiftUI: `.tint()` красит только
+   * активную вкладку, а веб задаёт ЧЕТЫРЕ вещи — цвет активной, цвет
+   * неактивной, фон полосы и кегль подписи. Три из них через SwiftUI не
+   * выражаются вовсе, поэтому берём слой ниже.
+   *
+   * `scrollEdgeAppearance` заполняется ТЕМ ЖЕ объектом, что и
+   * `standardAppearance`. Без этого полоса меняет фон, когда содержимое
+   * дорастает до её края: iOS переключает облик, и панель уезжает с #1a1a1a
+   * на системный полупрозрачный. Один объект на оба поля — один облик всегда.
+   */
+  init() {
+    let облик = UITabBarAppearance()
+    облик.configureWithOpaqueBackground()
+    // Фон полосы: TelegramTabBar.css:22 → index.css:109 → :90 = #1a1a1a.
+    облик.backgroundColor = UIColor(Тема.ТабБар.фон)
+    // Граница сверху того же цвета, что фон — как в вебе (index.css:110).
+    // Невидима там, невидима и здесь: задача — совпасть, а не улучшить.
+    облик.shadowColor = UIColor(Тема.ТабБар.граница)
+
+    // Кегль подписи 10 — TelegramTabBar.css:77.
+    let шрифтПодписи = UIFont.systemFont(ofSize: Тема.ТабБар.кегльПодписи)
+
+    /// Тип указан явно: без него Swift выводит словарь как
+    /// `[NSAttributedString.Key: UIFont]` и отказывается принять цвет.
+    func подпись(_ цвет: Color) -> [NSAttributedString.Key: Any] {
+      [.font: шрифтПодписи, .foregroundColor: UIColor(цвет)]
+    }
+
+    for вид in [облик.stackedLayoutAppearance,
+                облик.inlineLayoutAppearance,
+                облик.compactInlineLayoutAppearance] {
+      вид.normal.iconColor = UIColor(Тема.ТабБар.неактивная)
+      вид.normal.titleTextAttributes = подпись(Тема.ТабБар.неактивная)
+      вид.selected.iconColor = UIColor(Тема.ТабБар.активная)
+      вид.selected.titleTextAttributes = подпись(Тема.ТабБар.активная)
+    }
+
+    UITabBar.appearance().standardAppearance = облик
+    UITabBar.appearance().scrollEdgeAppearance = облик
+  }
+
   var body: some View {
     /**
      * ПЯТЬ вкладок — ровно те же, что в вебе, и в том же порядке.
@@ -62,7 +106,9 @@ struct RootView: View {
       ProfileView()
         .tabItem { Label("Профиль", systemImage: "person") }
     }
-    .tint(.green)
+    // #00ff88 — TelegramTabBar.css:66 через Тема.ТабБар.активная.
+    // Системный `.green` (≈#34C759) не совпадал с вебом ни одним каналом.
+    .tint(Тема.ТабБар.активная)
     .preferredColorScheme(.dark)
   }
 }
@@ -166,7 +212,7 @@ struct EditorScreen: View {
       PropertiesView(composition: $composition, выбран: $выбран)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(.black)
+        .presentationBackground(Тема.Цвет.фон)
     }
     .onChange(of: выбран) { _, новый in
       показатьСвойства = новый != nil
@@ -181,14 +227,14 @@ struct EditorScreen: View {
    * дорожкам. Но строка обязательная — без неё демо неотличимо от проекта.
    */
   private var шапка: some View {
-    HStack(spacing: 8) {
+    HStack(spacing: Тема.Отступ.sm) {
       Image(systemName: источник.демо ? "exclamationmark.triangle.fill" : "square.stack.3d.up.fill")
         .font(.caption)
-        .foregroundStyle(источник.демо ? .orange : .green)
+        .foregroundStyle(источник.демо ? Тема.Цвет.предупреждение : Тема.Цвет.акцент)
 
       Text(сообщение ?? источник.подпись)
         .font(.caption)
-        .foregroundStyle(источник.демо ? .orange : .secondary)
+        .foregroundStyle(источник.демо ? Тема.Цвет.предупреждение : Тема.Цвет.текстПриглушённый)
         .lineLimit(2)
         .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -196,21 +242,28 @@ struct EditorScreen: View {
         Button {
           Task { await сохранить() }
         } label: {
-          if сохраняется {
-            ProgressView().controlSize(.mini)
-          } else {
-            Text(идПроекта == nil ? "Создать" : "Сохранить").font(.caption.bold())
+          Group {
+            if сохраняется {
+              ProgressView().controlSize(.mini)
+            } else {
+              Text(идПроекта == nil ? "Создать" : "Сохранить").font(.caption.bold())
+            }
           }
+          // Высота ЯВНО и ВНУТРИ label. `.controlSize(.small)` давал около
+          // 28 — тот самый размер, из-за которого в вебе поштучно чинили
+          // восемь селекторов (index.css:224-281). Снаружи `.frame` не помог
+          // бы: подложку рисует стиль кнопки по своему содержимому.
+          .frame(minHeight: Тема.Кнопка.высота)
         }
         .disabled(сохраняется)
         .buttonStyle(.borderedProminent)
-        .controlSize(.small)
-        .tint(.green)
+        .tint(Тема.Кнопка.основнаяФон)
+        .foregroundStyle(Тема.Кнопка.основнаяТекст)
       }
     }
-    .padding(.horizontal, 12)
-    .padding(.vertical, 8)
-    .background(.black)
+    .padding(.horizontal, Тема.Отступ.списокЛенты)
+    .padding(.vertical, Тема.Отступ.sm)
+    .background(Тема.Цвет.фон)
   }
 
   /**

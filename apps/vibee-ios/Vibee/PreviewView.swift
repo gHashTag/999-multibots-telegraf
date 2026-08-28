@@ -128,7 +128,7 @@ struct PreviewView: View {
       // Чёрный фон — не декорация: композиция сохраняет свои пропорции, и
       // поля вокруг неё должны быть именно чёрными, иначе на глаз
       // невозможно отличить край холста от края экрана.
-      Color.black
+      Тема.Цвет.фон
 
       PreviewCanvas(
         composition: composition,
@@ -158,23 +158,36 @@ struct PreviewView: View {
   // MARK: - Транспорт
 
   private var панельВоспроизведения: some View {
-    HStack(spacing: 12) {
+    HStack(spacing: Тема.Отступ.списокЛенты) {
       Button {
         переключить()
       } label: {
         Image(systemName: играем ? "pause.fill" : "play.fill")
           .font(.title3)
-          .frame(width: 28, height: 28)
+          /**
+           * 44, А НЕ 28.
+           *
+           * Здесь стояло ровно `frame(width: 28, height: 28)` — ниже минимума
+           * Apple в 44 pt, и это при том, что соседний FeedView.swift держит
+           * комментарий с правилом «отступ — не размер, frame — размер» и
+           * ставит 52. То есть дефект был описан в одном файле и воспроизведён
+           * в другом.
+           *
+           * Цель касания расширена до 44; сам глиф остался прежнего размера —
+           * растёт область нажатия, а не рисунок.
+           */
+          .frame(width: Тема.Касание.минимум, height: Тема.Касание.минимум)
+          .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
-      .foregroundStyle(естьМедиа ? .white : Color.white.opacity(0.3))
+      .foregroundStyle(естьМедиа ? Тема.Цвет.текст : Тема.Цвет.текстПриглушённый)
       .disabled(!естьМедиа)
 
       Text(таймкод(currentFrame))
         .font(.system(.caption, design: .monospaced))
         // Моноширинные цифры: иначе таймкод дёргается на каждом кадре.
         .monospacedDigit()
-        .foregroundStyle(.white)
+        .foregroundStyle(Тема.Цвет.текст)
 
       Spacer()
 
@@ -184,16 +197,19 @@ struct PreviewView: View {
         Text(ошибкаМедиа)
           .font(.caption2)
           .lineLimit(1)
-          .foregroundStyle(.orange)
+          .foregroundStyle(Тема.Цвет.предупреждение)
       } else if !естьМедиа {
         Text("без медиа — только слои")
           .font(.caption2)
-          .foregroundStyle(.white.opacity(0.5))
+          .foregroundStyle(Тема.Цвет.текстПриглушённый)
       }
     }
-    .padding(.horizontal, 14)
-    .padding(.vertical, 8)
-    .background(.ultraThinMaterial)
+    .padding(.horizontal, Тема.Отступ.пузырьЧата)
+    .padding(.vertical, Тема.Отступ.sm)
+    // Сплошной #1a1a1a вместо материала: в вебе панель задана
+    // `--panel-bg: var(--bg-elevated)` (design-system.css:130) — непрозрачным
+    // цветом, а не размытием.
+    .background(Тема.Цвет.поверхность)
   }
 
   private func переключить() {
@@ -251,7 +267,7 @@ final class PreviewCanvasView: UIView {
 
   override init(frame: CGRect) {
     super.init(frame: frame)
-    backgroundColor = .black
+    backgroundColor = UIColor(Тема.Цвет.фон)
     isUserInteractionEnabled = false
 
     слойВидео.videoGravity = .resizeAspect
