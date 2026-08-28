@@ -68,6 +68,10 @@ tri — оснастка цикла. Опыт, ставший командами
         Насколько текущая ветка разошлась с origin/main. Правку ведут ОТ
         origin/main, а не от локального HEAD.
 
+  tri цвета [каталог]
+        Литеральные цвета и размеры шрифта в Swift мимо Theme.swift.
+        Дизайн расползается по одному литералу за правку, а не разом.
+
 ОСНАСТКА ЦИКЛА
   tri лок | tri раслок    занять или освободить блокировку итерации
   tri скан                аномалии и что ждёт владельца
@@ -326,6 +330,41 @@ cmd_diverged() {
   fi
 }
 
+# ─────────────────────────────────────────────────────────────────────────
+# ЛИТЕРАЛЬНЫЕ ЦВЕТА В SWIFT.
+#
+# Дизайн расползается не разом, а по одному литералу за правку: где-то
+# .green вместо акцента, где-то Color.black вместо фона. Каждый по
+# отдельности безобиден, вместе — экран, не похожий на веб.
+#
+# Веб держит значения в :root и потому не расползается. У Swift такого
+# места не было; после приведения оно есть — Theme.swift. Эта команда
+# показывает, что мимо него всё ещё пишут.
+# ─────────────────────────────────────────────────────────────────────────
+cmd_colors() {
+  local dir="${1:-$ROOT/apps/vibee-ios/Vibee}"
+  [ -d "$dir" ] || { bad "нет каталога $dir"; return 1; }
+
+  # Системные цвета и литеральные размеры шрифта. Theme.swift исключён: он и
+  # есть то место, где им положено быть.
+  local hits
+  hits=$(grep -rn --include='*.swift'     -E '\.(green|blue|red|orange|yellow|purple|pink|gray|black|white)|Color\(red:|\.system\(size:'     "$dir" 2>/dev/null | grep -v '/Theme.swift:' | grep -v '^\s*//' || true)
+
+  if [ -z "$hits" ]; then
+    good 'литеральных цветов и размеров вне Theme.swift не найдено'
+    return 0
+  fi
+
+  local n; n=$(printf '%s
+' "$hits" | wc -l | tr -d ' ')
+  warn "мимо Theme.swift написано $n мест:"
+  printf '%s
+' "$hits" | head -25 | sed 's/^/       /'
+  [ "$n" -gt 25 ] && printf '       … и ещё %s
+' "$((n - 25))"
+  return 1
+}
+
 cmd_lesson() {
   local title="${1:?нужен заголовок урока}"
   local skill="$ROOT/.claude/skills/vibee-stack-hard-won/SKILL.md"
@@ -344,6 +383,7 @@ case "$action" in
   мутация)    cmd_mutate "$@" ;;
   выложен)    cmd_deployed ;;
   разошлись)  cmd_diverged ;;
+  цвета)      cmd_colors "$@" ;;
   опыт)       cmd_lesson "$@" ;;
   лок)        bash "$TOOLS/guard.sh" acquire ;;
   раслок)     bash "$TOOLS/guard.sh" release ;;
