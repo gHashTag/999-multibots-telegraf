@@ -1,0 +1,532 @@
+import AVKit
+import SwiftUI
+
+/**
+ * Вкладка «ИИ» целиком нативная. Это был ПОСЛЕДНИЙ `WebScreen` в приложении.
+ *
+ * ПОЧЕМУ ВЕБ ЗДЕСЬ НЕ РАБОТАЛ В ПРИНЦИПЕ, а не «работал хуже». Веб-клиент
+ * подписывает запросы к маршрутам генерации заголовком `X-Telegram-Init-Data`, и
+ * берёт он его из `window.Telegram.WebApp.initData`. Внутри нашего WKWebView
+ * этого объекта нет и быть не может: подпись выдаёт Telegram своему WebView, а
+ * не чужому. То есть страница открывалась, форма рисовалась, кнопка нажималась
+ * — и каждый запрос уходил без личности и получал 401. Ровно тот молчаливый
+ * отказ, который в этом приложении уже вычищали в ленте и в агенте.
+ *
+ * Нативный экран берёт личность из `Identity.headers()` — тем же способом, что
+ * AgentChatView. Сервер понимает её третьей веткой в `authenticate()`
+ * (`Authorization: Bearer`), и никакой правки на сервере для этого не нужно.
+ *
+ * ЧТО ЗДЕСЬ ИЗМЕРЕНО, А НЕ ВЫВЕДЕНО ИЗ КОДА. Все пять видов генерации
+ * простуканы живыми запросами к проду 28.08.2026 с серверным ключом:
+ *
+ *   POST /api/generate/video   → 200, ссылка на .mp4, 60 с     РАБОТАЕТ
+ *   POST /api/generate/image   → 200, ссылка на картинку, 66 с РАБОТАЕТ
+ *   POST /api/generate/audio   → 500, испорченный ключ ElevenLabs
+ *   POST /api/generate/lipsync → 500, исчерпан баланс fal.ai
+ *   POST /api/ai/generate-script → 500, ключа xAI нет в переменных сервиса
+ *
+ * Поэтому форма есть ровно у двух видов. У остальных трёх — заглушка с
+ * НАЗВАННОЙ причиной и кнопкой перепроверки, а не кнопка, которая молча
+ * не работает.
+ */
+struct GenerateScreen: View {
+  @State private var вид: Вид = .видео
+  @State private var промпт = ""
+  @State private var длительность = "5s"
+  @State private var соотношение = "9:16"
+  @State private var идёт = false
+  @State private var прошло = 0
+  @State private var результат: Результат?
+  @State private var ошибка: String?
+
+  /**
+   * Вид генерации.
+   *
+   * Пять, а не четыре: `/generate/script` — такая же страница вкладки «ИИ» в
+   * вебе, как остальные, просто сломанная. Спрятать её значило бы починить
+   * список, а не продукт: человек, искавший сценарии, решил бы, что их
+   * выпилили.
+   */
+  enum Вид: String, CaseIterable, Identifiable {
+    case видео, картинка, звук, аватар, сценарий
+
+    var id: String { rawValue }
+
+    var подпись: String {
+      switch self {
+      case .видео: return "Видео"
+      case .картинка: return "Картинка"
+      case .звук: return "Звук"
+      case .аватар: return "Аватар"
+      case .сценарий: return "Сценарий"
+      }
+    }
+
+    var значок: String {
+      switch self {
+      case .видео: return "film"
+      case .картинка: return "photo"
+      case .звук: return "waveform"
+      case .аватар: return "person.crop.square.badge.video"
+      case .сценарий: return "text.alignleft"
+      }
+    }
+
+    var путь: String {
+      switch self {
+      case .видео: return "api/generate/video"
+      case .картинка: return "api/generate/image"
+      case .звук: return "api/generate/audio"
+      case .аватар: return "api/generate/lipsync"
+      case .сценарий: return "api/ai/generate-script"
+      }
+    }
+
+    /**
+     * Почему вид не работает СЕГОДНЯ. `nil` — работает.
+     *
+     * Текст пересказывает ответ сервера, а не догадку. Дата стоит намеренно:
+     * причина может отпасть без единой правки в приложении (доложили баланс,
+     * заменили ключ), и тогда фраза «проверено тогда-то» честнее, чем вечное
+     * «не работает». Для этого же рядом стоит кнопка перепроверки: она
+     * спрашивает сервер прямо сейчас и показывает его собственный ответ.
+     */
+    var неготовность: String? {
+      switch self {
+      case .видео, .картинка:
+        return nil
+      case .звук:
+        return """
+          Сервер отвечает 500 и сам называет причину: в переменной \
+          ELEVENLABS_API_KEY лежит не ключ, а его идентификатор — настоящий \
+          начинается с «sk_». ElevenLabs на такой отвечает 400. Чинится \
+          заменой переменной на сервере, а не в приложении.
+          """
+      case .аватар:
+        return """
+          Сервер отвечает 500 словами fal.ai: «User is locked. Reason: \
+          Exhausted balance». Аккаунт заблокирован из-за нулевого баланса — \
+          липсинк идёт через очередь fal.ai. Чинится пополнением, а не кодом.
+          """
+      case .сценарий:
+        return """
+          Сервер отвечает 500: «xAI API key not configured». Переменной с \
+          ключом xAI у сервиса рендера нет вовсе — проверено по списку \
+          переменных, а не по коду. Чинится добавлением ключа.
+          """
+      }
+    }
+
+    /// Минимальное тело для перепроверки: только чтобы услышать сервер.
+    var телоПроверки: [String: Any] {
+      switch self {
+      case .звук:
+        return ["text": "проверка", "voice_id": "sarah", "speed": 1]
+      case .аватар:
+        return [
+          "audio_url": "https://example.com/a.mp3",
+          "image_url": "https://example.com/i.jpg",
+          "resolution": "480p", "aspect_ratio": "9:16",
+        ]
+      case .сценарий:
+        return [
+          "topic": "проверка", "niche": "lifestyle",
+          "style": "dynamic", "duration": 15, "language": "ru",
+        ]
+      case .видео, .картинка:
+        return [:]
+      }
+    }
+  }
+
+  struct Результат {
+    var ссылка: URL
+    var провайдер: String?
+    var видео: Bool
+  }
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 18) {
+          выборВида
+
+          if !Identity.known {
+            плашка(
+              значок: "exclamationmark.shield",
+              цвет: .orange,
+              текст: "Нечем представиться серверу — он ответит отказом. "
+                + "Зайдите в Профиль и войдите по коду из бота."
+            )
+          } else if Identity.accessToken == nil {
+            /**
+             * Ключ агента ЗДЕСЬ НЕ ГОДИТСЯ, и это надо сказать заранее.
+             *
+             * Измерено: `POST /api/generate/image` с заголовком `X-Agent-Key`
+             * даёт 401 «no X-Api-Key and no Telegram initData». Общий гвард
+             * рендера знает три способа — серверный ключ, подпись мини-аппа и
+             * сессию приложения; ключа агента среди них нет. Он открывает
+             * `/mcp` и `/api/agent/chat`, потому что ТЕ обработчики проверяют
+             * личность сами, а генерация — за общим гвардом.
+             *
+             * Без этой плашки человек с ключом агента (чат работает!) нажал
+             * бы «Сгенерировать» и получил невнятный отказ.
+             */
+            плашка(
+              значок: "key.slash",
+              цвет: .orange,
+              текст: "Ключ агента открывает чат, но не генерацию: она стоит "
+                + "за общим гвардом, который знает только сессию. "
+                + "Войдите по коду в Профиле."
+            )
+          }
+
+          if let причина = вид.неготовность {
+            заглушка(причина)
+          } else {
+            форма
+          }
+
+          if let ошибка {
+            плашка(значок: "xmark.octagon", цвет: .red, текст: ошибка)
+          }
+          if let результат {
+            показ(результат)
+          }
+        }
+        .padding(16)
+      }
+      .background(Color.black)
+      .navigationTitle("ИИ")
+      .navigationBarTitleDisplayMode(.inline)
+    }
+  }
+
+  // MARK: - Куски
+
+  private var выборВида: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 8) {
+        ForEach(Вид.allCases) { в in
+          Button {
+            вид = в
+            ошибка = nil
+            результат = nil
+          } label: {
+            HStack(spacing: 6) {
+              Image(systemName: в.значок)
+              Text(в.подпись)
+              // Точка у видов, которые сегодня не работают. Человек видит это
+              // ДО того, как набрал промпт, а не после.
+              if в.неготовность != nil {
+                Circle().fill(.orange).frame(width: 5, height: 5)
+              }
+            }
+            .font(.subheadline.weight(.medium))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(
+              вид == в ? .green.opacity(0.22) : .white.opacity(0.07),
+              in: Capsule()
+            )
+            .foregroundStyle(вид == в ? .green : .white.opacity(0.75))
+          }
+          .buttonStyle(.plain)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder private var форма: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      Text("Что сгенерировать")
+        .font(.subheadline.weight(.medium))
+        .foregroundStyle(.white.opacity(0.6))
+
+      TextField(
+        вид == .видео ? "Кот прыгает через лужу в неоне…" : "Красный куб на белом столе…",
+        text: $промпт, axis: .vertical
+      )
+      .textFieldStyle(.plain)
+      .lineLimit(3...6)
+      .padding(12)
+      .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+
+      if вид == .видео {
+        строкаВыбора("Длительность", ["5s", "10s"], $длительность)
+      }
+      строкаВыбора("Кадр", ["9:16", "16:9", "1:1"], $соотношение)
+
+      /**
+       * Модель НЕ предлагается, и это не упрощение.
+       *
+       * Измерено: у видео путь через MCP падает всегда и запрос уходит в
+       * запасной Replicate/seedance независимо от выбранной модели (пустое
+       * тело без поля `model` тоже вернуло 200 и ролик). У картинок FAL
+       * отвечает «баланс исчерпан», и запрос так же уходит в
+       * Replicate/flux-schnell — какую бы из семи моделей ни выбрали.
+       *
+       * Выпадающий список из семи имён, ни одно из которых сегодня ни на что
+       * не влияет, — это и есть мёртвая кнопка, только выглядящая богато.
+       * Вместо неё показываем ФАКТИЧЕСКОГО исполнителя: сервер называет его
+       * в поле `provider` ответа, и он попадает под результат.
+       */
+      Button {
+        Task { await сгенерировать() }
+      } label: {
+        HStack(spacing: 8) {
+          if идёт {
+            ProgressView().tint(.black)
+            Text("Идёт \(прошло) с")
+          } else {
+            Image(systemName: "sparkles")
+            Text("Сгенерировать")
+          }
+        }
+        .font(.headline)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .background(.green, in: RoundedRectangle(cornerRadius: 14))
+        .foregroundStyle(.black)
+        .opacity(промпт.isEmpty || идёт ? 0.45 : 1)
+      }
+      .buttonStyle(.plain)
+      .disabled(промпт.isEmpty || идёт)
+
+      if идёт {
+        /**
+         * Ожидание НАЗВАНО, потому что оно ненормально длинное.
+         *
+         * Сервер отвечает одним синхронным ответом: ни очереди, ни опроса
+         * статуса. Замерено — 60 с у видео и 66 с у картинки. Молчащий
+         * спиннер на минуту неотличим от зависшего приложения, поэтому здесь
+         * стоит счётчик секунд и обещание порядка ожидания.
+         */
+        Text("Сервер отвечает одним ответом, без очереди: обычно 50–70 секунд. "
+             + "Не закрывайте вкладку.")
+          .font(.caption)
+          .foregroundStyle(.white.opacity(0.5))
+      }
+    }
+  }
+
+  private func строкаВыбора(
+    _ имя: String, _ варианты: [String], _ выбор: Binding<String>
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text(имя).font(.caption).foregroundStyle(.white.opacity(0.5))
+      Picker(имя, selection: выбор) {
+        ForEach(варианты, id: \.self) { Text($0).tag($0) }
+      }
+      .pickerStyle(.segmented)
+    }
+  }
+
+  private func заглушка(_ причина: String) -> some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Label("\(вид.подпись) сейчас не работает", systemImage: "wrench.and.screwdriver")
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.orange)
+      Text(причина)
+        .font(.footnote)
+        .foregroundStyle(.white.opacity(0.72))
+      Text("Проверено живым запросом 28.08.2026.")
+        .font(.caption2)
+        .foregroundStyle(.white.opacity(0.4))
+      Button {
+        Task { await перепроверить() }
+      } label: {
+        HStack(spacing: 8) {
+          if идёт { ProgressView().tint(.white) }
+          Text(идёт ? "Спрашиваем сервер…" : "Спросить сервер сейчас")
+        }
+        .font(.subheadline.weight(.medium))
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
+      }
+      .buttonStyle(.plain)
+      .disabled(идёт)
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 16))
+  }
+
+  private func плашка(значок: String, цвет: Color, текст: String) -> some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: значок).foregroundStyle(цвет)
+      Text(текст).font(.footnote).foregroundStyle(.white.opacity(0.8))
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(цвет.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+  }
+
+  @ViewBuilder private func показ(_ р: Результат) -> some View {
+    VStack(alignment: .leading, spacing: 10) {
+      if р.видео {
+        VideoPlayer(player: AVPlayer(url: р.ссылка))
+          .frame(height: 380)
+          .clipShape(RoundedRectangle(cornerRadius: 16))
+      } else {
+        AsyncImage(url: р.ссылка) { фаза in
+          switch фаза {
+          case .success(let картинка):
+            картинка.resizable().scaledToFit()
+          case .failure:
+            // Ссылка на картинку подписанная и живёт сутки. Молчать о том,
+            // что она протухла, значит показать пустой прямоугольник.
+            Text("Картинка не загрузилась: ссылка сервера уже недействительна.")
+              .font(.footnote).foregroundStyle(.white.opacity(0.6)).padding()
+          default:
+            ProgressView().frame(height: 200).frame(maxWidth: .infinity)
+          }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+      }
+
+      if let п = р.провайдер {
+        // Кто РЕАЛЬНО сделал. Не то же самое, что было заказано: и видео, и
+        // картинка сегодня уходят в запасной Replicate.
+        Text("Сделал: \(п)")
+          .font(.caption.monospaced())
+          .foregroundStyle(.white.opacity(0.5))
+      }
+      ShareLink(item: р.ссылка) {
+        Label("Поделиться ссылкой", systemImage: "square.and.arrow.up")
+          .font(.subheadline.weight(.medium))
+      }
+      .tint(.green)
+    }
+  }
+
+  // MARK: - Сеть
+
+  /**
+   * Отдельная сессия с ДЛИННЫМ таймаутом.
+   *
+   * `URLSession.shared` ждёт ответа 60 секунд. Замеренное время генерации —
+   * 60 с у видео и 66 с у картинки, то есть на общей сессии картинка падала
+   * бы по таймауту ВСЕГДА, а видео — через раз, и выглядело бы это как
+   * «сервер не отвечает» при полностью исправном сервере.
+   */
+  private static let долгая: URLSession = {
+    let c = URLSessionConfiguration.default
+    c.timeoutIntervalForRequest = 300
+    c.timeoutIntervalForResource = 600
+    return URLSession(configuration: c)
+  }()
+
+  /// Ответ сервера, приведённый к трём исходам: ссылка, отказ, обрыв.
+  private struct Ответ {
+    var ссылка: String?
+    var провайдер: String?
+    var отказ: String?
+  }
+
+  private func позвать(_ путь: String, _ тело: [String: Any]) async -> Ответ {
+    var r = URLRequest(url: API.base.appendingPathComponent(путь))
+    r.httpMethod = "POST"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    // Личность — тем же способом, что в AgentChatView. Без неё сервер
+    // отвечает 401, и до генерации дело не доходит вовсе.
+    for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+    r.httpBody = try? JSONSerialization.data(withJSONObject: тело)
+
+    do {
+      let (data, resp) = try await Self.долгая.data(for: r)
+      let o = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+      let код = (resp as? HTTPURLResponse)?.statusCode ?? 0
+
+      /**
+       * Показываем СЛОВА СЕРВЕРА, а не «ошибка генерации».
+       *
+       * Сервер здесь необычно разговорчив: он сам объясняет, что ключ
+       * ElevenLabs — это идентификатор, а не ключ, и что баланс fal.ai
+       * исчерпан. Заменить это на своё общее сообщение значит выбросить
+       * готовую диагностику и заставить человека гадать.
+       */
+      if let e = o["error"] as? String {
+        let деталь = o["detail"] as? String
+        return Ответ(отказ: деталь.map { "\(e): \($0)" } ?? e)
+      }
+      guard (200...299).contains(код) else {
+        return Ответ(отказ: "Сервер ответил \(код) без объяснения")
+      }
+      guard let url = o["url"] as? String else {
+        return Ответ(отказ: "Сервер ответил \(код), но ссылки в ответе нет")
+      }
+      return Ответ(ссылка: url, провайдер: o["provider"] as? String)
+    } catch {
+      return Ответ(отказ: "Не дошло до сервера: \(error.localizedDescription)")
+    }
+  }
+
+  private func сгенерировать() async {
+    ошибка = nil
+    результат = nil
+    идёт = true
+    прошло = 0
+    let часы = Task {
+      while !Task.isCancelled {
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        if Task.isCancelled { return }
+        прошло += 1
+      }
+    }
+    defer { часы.cancel(); идёт = false }
+
+    let тело: [String: Any]
+    if вид == .видео {
+      тело = [
+        // Поле есть, хотя сервер его сегодня игнорирует (MCP-путь мёртв):
+        // когда MCP оживёт, запрос не придётся переписывать.
+        "model": "veo3-fast",
+        "prompt": промпт,
+        "duration": длительность,
+        "aspect_ratio": соотношение,
+      ]
+    } else {
+      let (ш, в) = размер(соотношение)
+      тело = ["model": "fal-ai/flux/dev", "prompt": промпт, "width": ш, "height": в]
+    }
+
+    let о = await позвать(вид.путь, тело)
+    if let отказ = о.отказ {
+      ошибка = отказ
+    } else if let s = о.ссылка, let u = URL(string: s) {
+      результат = Результат(ссылка: u, провайдер: о.провайдер, видео: вид == .видео)
+    } else {
+      ошибка = "Сервер вернул ссылку, которую не удалось разобрать"
+    }
+  }
+
+  /// Спросить сервер про неработающий вид и показать его собственный ответ.
+  private func перепроверить() async {
+    ошибка = nil
+    результат = nil
+    идёт = true
+    defer { идёт = false }
+
+    let о = await позвать(вид.путь, вид.телоПроверки)
+    if let отказ = о.отказ {
+      ошибка = "Сервер сейчас отвечает так — \(отказ)"
+    } else {
+      // Причина отпала: сервер ответил успехом. Говорим об этом прямо, иначе
+      // человек так и будет верить заглушке.
+      ошибка = "Сервер только что ответил успехом — причина отпала. "
+        + "Форму для этого вида ещё не включили в приложении."
+    }
+  }
+
+  /// Сервер сам выводит соотношение из ширины и высоты (h/w ≥ 1.7 → 9:16),
+  /// поэтому шлём размеры, а не строку: иначе он округлит не туда.
+  private func размер(_ соотношение: String) -> (Int, Int) {
+    switch соотношение {
+    case "16:9": return (1792, 1024)
+    case "1:1": return (1024, 1024)
+    default: return (1024, 1792)
+    }
+  }
+}
