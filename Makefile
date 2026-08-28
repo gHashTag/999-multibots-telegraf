@@ -24,6 +24,7 @@ ifneq (,$(wildcard .env.local))
 endif
 
 A2A_PORT   ?= 3334
+MOCK_PORT  ?= 3336
 PLAYER_PORT ?= 5173
 
 .PHONY: help setup env install install-root install-render install-player \
@@ -62,6 +63,9 @@ dev up: stop ## поднять ВСЁ сразу (агент/A2A + мини-ап
 
 a2a: ## только агент/A2A-харнесс (render без Remotion/face-api) на :$(A2A_PORT)
 	@cd $(RENDER_DIR) && A2A_PORT=$(A2A_PORT) SELF_URL=http://localhost:$(A2A_PORT) npx tsx a2a-local.ts
+
+mock: ## MOCK-сервер: эмуляция ВСЕХ функций (генерация/MCP/A2A/лента) на :$(MOCK_PORT)
+	@cd $(RENDER_DIR) && MOCK_PORT=$(MOCK_PORT) npx tsx mock-server.ts
 
 render: ## полный рендер-сервер (нужен face-api: сперва make render-deps)
 	@cd $(RENDER_DIR) && npm run start
