@@ -29,8 +29,20 @@ import { refundAndTell } from '@/price/helpers/refundAndTell'
 
 const MAX_FILE_SIZE = LIPSYNC_CONSTANTS.MAX_FILE_SIZE
 
-// Fal.ai провайдер для LatentSync и Hummingbird
-const falProvider = new FalVeedFabricProvider()
+// Fal.ai провайдер для LatentSync и Hummingbird.
+//
+// Создаётся ЛЕНИВО, а не на уровне модуля. Раньше здесь стоял
+// `const falProvider = new FalVeedFabricProvider()`, и при некоторых порядках
+// загрузки (проверено прогоном `bun run test:bun`) класс оказывался ещё не
+// инициализирован: «ReferenceError: Cannot access 'FalVeedFabricProvider'
+// before initialization» — падение при вычислении модуля сцены, ещё до
+// единого запроса пользователя. Тот же класс дефектов, что и у сцен,
+// регистрировавших handleHelpCancel напрямую.
+let falProviderInstance: FalVeedFabricProvider | null = null
+const getFalProvider = (): FalVeedFabricProvider => {
+  if (!falProviderInstance) falProviderInstance = new FalVeedFabricProvider()
+  return falProviderInstance
+}
 
 /**
  * Получает выбранную модель из сессии или использует default
@@ -443,7 +455,7 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
         })
 
         // Используем Fal.ai провайдер для LatentSync/Hummingbird
-        const result = await falProvider.generate({
+        const result = await getFalProvider().generate({
           provider: 'fal',
           modelId: falModelId,
           telegramId,

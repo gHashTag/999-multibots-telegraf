@@ -43,7 +43,7 @@
     "start:all": "chmod +x scripts/deploy/start-all.sh && ./scripts/deploy/start-all.sh",
     "test": "cross-env SUPABASE_URL=TEST_URL SUPABASE_SERVICE_KEY=TEST_KEY bun run vitest",
     "test:baseline": "vitest run --reporter=json --outputFile=/tmp/vitest-baseline.json && node scripts/update-tests-baseline.cjs",
-    "test:bun": "bun test",
+    "test:bun": "SUPABASE_URL=${SUPABASE_URL:-TEST_URL} SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:-TEST_KEY} MERCHANT_LOGIN=${MERCHANT_LOGIN:-test_merchant} ROBOKASSA_PASSWORD_1=${ROBOKASSA_PASSWORD_1:-test_pass_1} ROBOKASSA_PASSWORD_2=${ROBOKASSA_PASSWORD_2:-test_pass_2} FAL_KEY=${FAL_KEY:-test_fal_key} bun test $(grep -rl 'bun:test' src packages --include='*.ts')",
     "test:gate": "node scripts/test-gate.cjs",
     "test:gate:save": "node scripts/test-gate.cjs --save",
     "test:glm": "npx tsx scripts/test-glm-provider.ts",
