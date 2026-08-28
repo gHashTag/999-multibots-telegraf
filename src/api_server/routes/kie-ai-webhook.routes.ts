@@ -115,6 +115,91 @@ interface KieAiWebhookPayload {
  */
 
 /**
+ * Charge for a video this webhook just delivered.
+ *
+ * For Kie.ai models the bot deliberately skips polling and waits for this
+ * webhook (handleTextToVideoDirect.ts:216, monitorVideoGeneration returns early
+ * for Sora), and PR #977 moved image-to-video billing here too. That makes this
+ * webhook the ONLY place the money can be taken — so a skip here means the
+ * video was delivered for free.
+ *
+ * It used to skip silently whenever the model id was missing or unpriced, which
+ * is exactly what happened: the direct-send path passed the literal
+ * 'sora-2-image-to-video', which is not a key of UNIFIED_VIDEO_MODELS, so
+ * checkBalanceVideoOperationHelper failed and the guard swallowed it. Now every
+ * non-charge is logged as an error with the ids needed to find the case.
+ */
+async function chargeForDeliveredVideo(params: {
+  telegramId: string
+  modelId?: string
+  jobId?: string
+  where: string
+}): Promise<void> {
+  const { telegramId, modelId, jobId, where } = params
+  const notCharged = (reason: string, extra: Record<string, unknown> = {}) => {
+    logger.error(`❌ [${where}] VIDEO DELIVERED BUT NOT CHARGED`, {
+      alert: 'video delivered for free',
+      reason,
+      telegramId,
+      jobId,
+      modelId,
+      ...extra,
+    })
+  }
+
+  if (!modelId) {
+    notCharged('no modelId in task context or callback metadata')
+    return
+  }
+
+  try {
+    const { checkBalanceVideoOperationHelper, deductBalanceAfterSuccess } =
+      await import('@/modules/videoGenerator/helpers')
+
+    const balanceResult = await checkBalanceVideoOperationHelper(
+      telegramId,
+      modelId,
+      true, // isRu
+      'image_to_video'
+    )
+
+    if (!balanceResult.success || balanceResult.paymentAmount === undefined) {
+      notCharged('balance check failed (unknown model or insufficient funds)', {
+        error: balanceResult.error,
+      })
+      return
+    }
+
+    const deductSuccess = await deductBalanceAfterSuccess(
+      telegramId,
+      modelId,
+      'default',
+      balanceResult.paymentAmount,
+      'image_to_video'
+    )
+
+    if (deductSuccess) {
+      logger.info(`✅ [${where}] Payment deducted`, {
+        telegramId,
+        modelId,
+        paymentAmount: balanceResult.paymentAmount,
+      })
+    } else {
+      notCharged('deductBalanceAfterSuccess returned false', {
+        paymentAmount: balanceResult.paymentAmount,
+      })
+    }
+  } catch (paymentError) {
+    notCharged('exception while charging', {
+      error:
+        paymentError instanceof Error
+          ? paymentError.message
+          : String(paymentError),
+    })
+  }
+}
+
+/**
  * 📤 Отправка видео напрямую пользователю по telegramId (без videoTaskStore)
  * Используется когда telegramId передан в callback URL
  */
@@ -248,48 +333,12 @@ async function sendVideoDirectly(
     }
 
     // ✅ Снимаем деньги после успешной отправки видео (direct mode)
-    try {
-      if (metadata.modelId) {
-        const { checkBalanceVideoOperationHelper, deductBalanceAfterSuccess } =
-          await import('@/modules/videoGenerator/helpers')
-        const balanceResult = await checkBalanceVideoOperationHelper(
-          telegramId,
-          metadata.modelId,
-          true, // isRu
-          'image_to_video'
-        )
-
-        if (
-          balanceResult.success &&
-          balanceResult.paymentAmount !== undefined
-        ) {
-          const deductSuccess = await deductBalanceAfterSuccess(
-            telegramId,
-            metadata.modelId,
-            'default',
-            balanceResult.paymentAmount,
-            'image_to_video'
-          )
-
-          if (deductSuccess) {
-            logger.info('✅ [SEND VIDEO DIRECTLY] Payment deducted', {
-              telegramId,
-              modelId: metadata.modelId,
-              paymentAmount: balanceResult.paymentAmount,
-            })
-          }
-        }
-      }
-    } catch (paymentError) {
-      logger.error('❌ [SEND VIDEO DIRECTLY] Error deducting payment', {
-        telegramId,
-        jobId: metadata.jobId,
-        error:
-          paymentError instanceof Error
-            ? paymentError.message
-            : String(paymentError),
-      })
-    }
+    await chargeForDeliveredVideo({
+      telegramId,
+      modelId: metadata.modelId,
+      jobId: metadata.jobId,
+      where: 'SEND VIDEO DIRECTLY',
+    })
 
     logger.info('✅ [SEND VIDEO DIRECTLY] Video sent successfully', {
       telegramId,
@@ -1130,6 +1179,17 @@ async function handleSoraSuccess(
         telegramId: taskContext.telegramId,
       })
 
+      // Charge for the delivered video. This branch never charged: for Kie
+      // models the bot skips polling (handleTextToVideoDirect.ts:216), so
+      // handleVideoReady -- the only other charge site -- never runs, and the
+      // user got the video announced with a price for free.
+      await chargeForDeliveredVideo({
+        telegramId: String(taskContext.telegramId),
+        modelId: taskContext.modelId,
+        jobId: taskId,
+        where: 'SORA WEBHOOK',
+      })
+
       // Удаляем задачу из хранилища
       videoTaskStore.deleteTask(taskId)
     } catch (error) {
@@ -1164,7 +1224,12 @@ async function handleSoraSuccess(
       await sendVideoDirectly(telegramId, videoUrl, {
         jobId: taskId,
         duration: 10,
-        modelId: 'sora-2-image-to-video', // По умолчанию для Sora I2V
+        // No modelId: without task context we do not know which model the user
+        // actually picked ('sora-2' and 'sora-2-pro' cost differently), and
+        // guessing would charge the wrong price. The literal that used to sit
+        // here ('sora-2-image-to-video') is not a price key at all, so it
+        // charged NOTHING while looking deliberate. chargeForDeliveredVideo now
+        // logs this as "delivered but not charged" instead of skipping quietly.
       })
       logger.info('✅ [SORA WEBHOOK] Direct video send successful', {
         telegramId,
