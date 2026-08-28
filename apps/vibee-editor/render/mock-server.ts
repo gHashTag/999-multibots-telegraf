@@ -477,6 +477,108 @@ const srv = createServer(async (req, res) => {
     })
   }
 
+  // ── ВСЕ ПРОВАЙДЕРЫ сразу (эмуляция, без денег) ─────────────────────────────
+  const ok = (extra: any) => send(res, 200, { success: true, ...extra })
+  // Kling (видео)
+  if (u === '/api/kling/video' || u === '/api/kling/i2v')
+    return ok({ task_id: 'mock-kling-' + Date.now(), status: 'processing' })
+  if (u.startsWith('/api/kling/task/'))
+    return ok({
+      status: 'succeeded',
+      url: S.reelPip,
+      task_id: u.split('/').pop(),
+    })
+  if (u === '/api/kling/tasks')
+    return ok({
+      tasks: [{ task_id: 'mock-kling', status: 'succeeded', url: S.reelPip }],
+    })
+  // HeyGen (аватар-видео)
+  if (u === '/api/heygen/video')
+    return ok({ video_id: 'mock-hg-' + Date.now(), status: 'processing' })
+  if (u === '/api/heygen/avatars')
+    return ok({
+      avatars: [
+        {
+          avatar_id: 'trinity_persona',
+          name: 'Trinity Persona',
+          preview: S.scene,
+        },
+      ],
+    })
+  if (u === '/api/heygen/voices')
+    return ok({ voices: [{ voice_id: 'ru_male', name: 'Русский мужской' }] })
+  if (u.startsWith('/api/heygen/status/'))
+    return ok({ status: 'completed', url: S.reel })
+  // FAL (картинки/нейрофото)
+  if (
+    u === '/api/fal/neuro-photo' ||
+    u === '/api/fal/flux-kontext' ||
+    u === '/api/fal/nano-banana'
+  )
+    return ok({ url: S.scene, provider: 'mock/fal' })
+  if (u.startsWith('/api/fal/status/')) return ok({ status: 'COMPLETED' })
+  if (u.startsWith('/api/fal/result/')) return ok({ url: S.scene })
+  // Replicate (операции)
+  if (u === '/api/replicate/lipsync') return ok({ url: S.reel })
+  if (u === '/api/replicate/morphing') return ok({ url: S.reelPip })
+  if (u === '/api/replicate/faceswap') return ok({ url: S.scene })
+  if (u === '/api/replicate/upscale') return ok({ url: S.scene })
+  if (u === '/api/replicate/train-lora')
+    return ok({ model: 'mock/user-lora', status: 'training' })
+  if (u === '/api/replicate/predictions')
+    return send(res, 200, {
+      id: 'mock-pred',
+      status: 'succeeded',
+      output: [S.scene],
+      urls: { get: `http://localhost:${PORT}/api/replicate/poll` },
+    })
+  if (u.startsWith('/api/replicate/poll'))
+    return send(res, 200, { status: 'succeeded', output: [S.scene] })
+  // OpenAI (расшифровка/зрение/промпт)
+  if (u === '/api/openai/transcribe')
+    return ok({ text: 'Это тестовая расшифровка аудио.' })
+  if (u === '/api/openai/vision')
+    return ok({
+      description:
+        'На фото — лысый бородатый мужчина в смокинге и тёмных очках.',
+    })
+  if (u === '/api/openai/improve-prompt')
+    return ok({
+      prompt:
+        'cinematic baroque engraving, cream on matte black, golden ratio, dramatic light',
+    })
+  // Видео-редактирование (ffmpeg)
+  if (u.startsWith('/api/video/'))
+    return ok({ url: S.reel, operation: u.split('/').pop() })
+  // B-roll
+  if (u === '/api/broll/generate') return ok({ url: S.reelPip })
+  if (u === '/api/broll/templates')
+    return ok({
+      templates: [
+        { name: 'neon', category: 'abstract' },
+        { name: 'clouds', category: 'nature' },
+      ],
+    })
+  // Клон голоса
+  if (u === '/api/voices/clone')
+    return ok({ voice_id: 'mock-cloned-voice', name: 'Мой голос' })
+  if (u === '/api/voices' && req.method === 'GET')
+    return send(res, 200, {
+      voices: [
+        { voice_id: 'ru_male', name: 'Русский мужской', category: 'premade' },
+      ],
+    })
+  if (u.startsWith('/api/voices/') && req.method === 'DELETE')
+    return ok({ deleted: true })
+  // Hedra (липсинк-статус)
+  if (u.startsWith('/api/hedra/status/'))
+    return ok({ status: 'completed', url: S.reel })
+  if (u === '/api/hedra/jobs')
+    return ok({ jobs: [{ job_id: 'mock', status: 'completed', url: S.reel }] })
+  // BFL (FLUX статус)
+  if (u.startsWith('/api/bfl/result/'))
+    return send(res, 200, { status: 'Ready', result: { sample: S.scene } })
+
   if (u === '/health' || u === '/healthz')
     return send(res, 200, { ok: true, mock: true })
   send(res, 404, {
