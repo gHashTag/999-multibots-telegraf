@@ -28,7 +28,44 @@ import type { IncomingMessage } from 'node:http'
 // непроверяемым (ESM поднимает import выше любого присваивания process.env в
 // тесте) и, что важнее в проде, требовало рестарта процесса для смены токена
 // или режима.
-const mode = () => (process.env.RENDER_AUTH_MODE || 'warn').toLowerCase()
+/**
+ * Is this a deployed instance rather than someone's laptop?
+ *
+ * Railway sets RAILWAY_GIT_COMMIT_SHA, and this codebase already trusts it —
+ * /health reports `version` from it, and production currently answers with a
+ * real sha rather than 'unknown', so the marker is measured, not assumed.
+ * Detecting the deployment this way rather than through NODE_ENV matters: if
+ * NODE_ENV happened not to be 'production' there, a NODE_ENV check would make
+ * the whole guard below a decoration that never fires.
+ */
+const deployed = () =>
+  !!process.env.RAILWAY_GIT_COMMIT_SHA || !!process.env.RAILWAY_ENVIRONMENT
+
+/**
+ * The enforcement mode, fail-closed wherever this is deployed.
+ *
+ * WHY. This used to be `(RENDER_AUTH_MODE || 'warn').toLowerCase()`, and the
+ * call sites read `allowed: mode() !== 'enforce'`. So the guard opened for
+ * ANYTHING that was not the exact string 'enforce': an unset variable, a typo,
+ * a stray space. A configuration slip did not weaken production, it opened it,
+ * and nothing said so — the mode reached one line in the startup log (#902).
+ *
+ * On a deployed instance the requested value no longer decides: enforce wins.
+ * That is deliberate rather than aborting startup, because turning a weak
+ * configuration into an outage is the worse failure, and because #902 asks for
+ * exactly this — a protected request must stay rejected even with
+ * RENDER_AUTH_MODE=warn set at runtime in production.
+ *
+ * Locally the variable still decides, so the warn-first rollout the original
+ * author described (auth.ts:20) keeps working on a laptop. Unknown values
+ * normalise to 'warn' there instead of being passed through as themselves.
+ */
+const KNOWN_MODES = new Set(['enforce', 'warn'])
+const mode = () => {
+  const requested = (process.env.RENDER_AUTH_MODE || '').trim().toLowerCase()
+  if (deployed()) return 'enforce'
+  return KNOWN_MODES.has(requested) ? requested : 'warn'
+}
 const apiKey = () => process.env.RENDER_API_KEY || ''
 
 /**
