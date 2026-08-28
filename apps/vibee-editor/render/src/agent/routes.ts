@@ -21,10 +21,28 @@
  *    одной существующей композиции.
  */
 import type { IncomingMessage, ServerResponse } from 'http'
+import { createHash, timingSafeEqual } from 'node:crypto'
 import { TOOLS_BY_NAME, toMcpTools } from './tools'
 import { runAgent, type ChatMessage } from './chat'
 import { resolveProvider } from './provider'
 import { verifiedTelegramId } from '../../auth'
+
+/**
+ * Сравнение ключей за КОНСТАНТНОЕ время.
+ *
+ * Обычное `a === b` завершается на первом несовпавшем символе, и по времени
+ * ответа можно подбирать ключ префикс за префиксом. initData и X-Api-Key в
+ * auth.ts уже сравниваются через timingSafeEqual — ключ агента отставал.
+ *
+ * timingSafeEqual требует равной длины буферов, а ключи бывают разной длины;
+ * поэтому сравниваем не сами строки, а их SHA-256 (всегда 32 байта). Это
+ * заодно не даёт утечь длине ключа через длину буфера.
+ */
+function sameKey(a: string, b: string): boolean {
+  const ha = createHash('sha256').update(a).digest()
+  const hb = createHash('sha256').update(b).digest()
+  return timingSafeEqual(ha, hb)
+}
 
 /**
  * Ключи внешних агентов: AGENT_KEYS="ключ1:telegramId,ключ2:telegramId".
@@ -35,11 +53,16 @@ import { verifiedTelegramId } from '../../auth'
  */
 export function agentKeyOwner(key: string): string | null {
   const raw = process.env.AGENT_KEYS || ''
+  if (!key) return null
+  let owner: string | null = null
   for (const pair of raw.split(',')) {
     const [k, id] = pair.split(':').map(s => s.trim())
-    if (k && id && k === key) return id
+    // Проходим ВСЕ ключи, а не выходим на первом совпадении: ранний return
+    // выдал бы по числу итераций, какой ключ совпал. Набор ключей мал и
+    // серверный, но привычка держать сравнение постоянным — дешёвая.
+    if (k && id && sameKey(k, key)) owner = id
   }
-  return null
+  return owner
 }
 
 export function readBody(req: IncomingMessage): Promise<string> {
