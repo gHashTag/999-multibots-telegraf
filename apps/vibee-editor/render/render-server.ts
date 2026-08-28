@@ -2181,6 +2181,22 @@ const server = createServer(async (req, res) => {
          * между «отстали» и «нечем сверить».
          */
         version: (process.env.RAILWAY_GIT_COMMIT_SHA || 'unknown').slice(0, 7),
+        /**
+         * Which enforcement mode the guard is actually in.
+         *
+         * WHY. `mode()` defaults to 'warn' when RENDER_AUTH_MODE is unset
+         * (auth.ts:31), so a missing variable makes the global guard permissive
+         * — and until now that fact appeared in exactly one place: a line
+         * printed to the server log at startup. From outside the process there
+         * was no way to tell an enforcing deployment from a fail-open one, so
+         * #902 could not even be measured, let alone fixed with evidence.
+         *
+         * No secret is exposed: this is the mode name, never the key. The value
+         * does become uninteresting once production is fail-closed by
+         * construction — which is what #902 asks for, and what this field makes
+         * checkable from the outside.
+         */
+        authMode: authMode(),
         startedAt: startedAtIso,
       })
     )
