@@ -1,4 +1,14 @@
 #!/usr/bin/env tsx
+/**
+ * ⚠️ НЕ РАБОТАЕТ: импортирует '../src/utils/enhancedExcelGenerator', которого
+ * в репозитории нет — модуль не был закоммичен. Команды report:financial /
+ * report:bot / report:monthly / report:test убраны из package.json: они
+ * падали с «Cannot find module» при каждом запуске, то есть предлагали
+ * несуществующую возможность.
+ *
+ * Файл оставлен как есть: логика отчёта в нём настоящая, не хватает одного
+ * модуля. Верните его — и верните команды.
+ */
 
 /**
  * Test Script for Enhanced Excel Generator
@@ -7,8 +17,14 @@
  * and validates the financial logic correctness
  */
 
-import { generateEnhancedFinancialExcel, ExcelGenerationOptions } from '../src/utils/enhancedExcelGenerator'
-import { calculateCurrentStarToRubleRate, getAllBotsFinancialSummary } from '../src/utils/financialAnalysis'
+import {
+  generateEnhancedFinancialExcel,
+  ExcelGenerationOptions,
+} from '../src/utils/enhancedExcelGenerator'
+import {
+  calculateCurrentStarToRubleRate,
+  getAllBotsFinancialSummary,
+} from '../src/utils/financialAnalysis'
 import { supabase } from '../src/core/supabase'
 import { logger } from '../src/utils/logger'
 import * as fs from 'fs'
@@ -39,8 +55,8 @@ async function runFinancialLogicTests(): Promise<TestResults> {
       totalExpenses: 0,
       totalProfit: 0,
       exchangeRate: 0,
-      reportSizeKB: 0
-    }
+      reportSizeKB: 0,
+    },
   }
 
   try {
@@ -73,19 +89,32 @@ async function runFinancialLogicTests(): Promise<TestResults> {
       logger.info(`📊 Found ${botSummaries.length} bots with financial data`)
 
       // Calculate platform totals
-      results.metrics.totalRevenue = botSummaries.reduce((sum, bot) => sum + bot.total_revenue_stars, 0)
-      results.metrics.totalExpenses = botSummaries.reduce((sum, bot) => sum + bot.total_expenses_stars, 0)
-      results.metrics.totalProfit = botSummaries.reduce((sum, bot) => sum + bot.net_profit_stars, 0)
+      results.metrics.totalRevenue = botSummaries.reduce(
+        (sum, bot) => sum + bot.total_revenue_stars,
+        0
+      )
+      results.metrics.totalExpenses = botSummaries.reduce(
+        (sum, bot) => sum + bot.total_expenses_stars,
+        0
+      )
+      results.metrics.totalProfit = botSummaries.reduce(
+        (sum, bot) => sum + bot.net_profit_stars,
+        0
+      )
 
       logger.info(`💰 Platform Revenue: ${results.metrics.totalRevenue} stars`)
-      logger.info(`💸 Platform Expenses: ${results.metrics.totalExpenses} stars`)
+      logger.info(
+        `💸 Platform Expenses: ${results.metrics.totalExpenses} stars`
+      )
       logger.info(`📈 Platform Profit: ${results.metrics.totalProfit} stars`)
     }
 
     // Test 3: Exchange Rate Calculation
     logger.info('⭐ Testing exchange rate calculation...')
     results.metrics.exchangeRate = await calculateCurrentStarToRubleRate()
-    logger.info(`💱 Current exchange rate: ${results.metrics.exchangeRate.toFixed(6)} RUB/star`)
+    logger.info(
+      `💱 Current exchange rate: ${results.metrics.exchangeRate.toFixed(6)} RUB/star`
+    )
 
     // Test 4: Real vs Virtual Revenue Logic
     logger.info('🔍 Testing revenue categorization...')
@@ -103,9 +132,12 @@ async function runFinancialLogicTests(): Promise<TestResults> {
       let virtualMoney = 0
 
       revenueData.forEach(tx => {
-        const isRealMoney = ['Robokassa', 'Telegram', 'CryptoBot'].includes(tx.payment_method || '') &&
-                           !tx.description?.includes('bonus') &&
-                           !tx.description?.includes('admin')
+        const isRealMoney =
+          ['Robokassa', 'Telegram', 'CryptoBot'].includes(
+            tx.payment_method || ''
+          ) &&
+          !tx.description?.includes('bonus') &&
+          !tx.description?.includes('admin')
 
         if (isRealMoney) {
           realMoney += tx.stars || 0
@@ -129,21 +161,27 @@ async function runFinancialLogicTests(): Promise<TestResults> {
       startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
       endDate: new Date(),
       includeVirtualTransactions: true,
-      includeDailyBreakdown: true
+      includeDailyBreakdown: true,
     }
 
     const buffer = await generateEnhancedFinancialExcel(testOptions)
     results.metrics.reportSizeKB = buffer.length / 1024
 
     // Save test report
-    const testReportPath = path.join(process.cwd(), 'reports', 'test-financial-report.xlsx')
+    const testReportPath = path.join(
+      process.cwd(),
+      'reports',
+      'test-financial-report.xlsx'
+    )
     const reportsDir = path.dirname(testReportPath)
     if (!fs.existsSync(reportsDir)) {
       fs.mkdirSync(reportsDir, { recursive: true })
     }
 
     fs.writeFileSync(testReportPath, buffer)
-    logger.info(`✅ Test report saved: ${testReportPath} (${results.metrics.reportSizeKB.toFixed(2)} KB)`)
+    logger.info(
+      `✅ Test report saved: ${testReportPath} (${results.metrics.reportSizeKB.toFixed(2)} KB)`
+    )
 
     // Test 6: Validate Excel Structure
     logger.info('🔍 Validating Excel structure...')
@@ -156,7 +194,7 @@ async function runFinancialLogicTests(): Promise<TestResults> {
       '📅 Тренды',
       '🤖 Расчеты',
       '⭐ Курс валют',
-      '📈 Прибыльность'
+      '📈 Прибыльность',
     ]
 
     expectedSheets.forEach(sheetName => {
@@ -166,34 +204,50 @@ async function runFinancialLogicTests(): Promise<TestResults> {
     })
 
     if (workbook.SheetNames.length !== expectedSheets.length) {
-      results.warnings.push(`Expected ${expectedSheets.length} sheets, got ${workbook.SheetNames.length}`)
+      results.warnings.push(
+        `Expected ${expectedSheets.length} sheets, got ${workbook.SheetNames.length}`
+      )
     }
 
-    logger.info(`📋 Excel contains ${workbook.SheetNames.length} sheets: ${workbook.SheetNames.join(', ')}`)
+    logger.info(
+      `📋 Excel contains ${workbook.SheetNames.length} sheets: ${workbook.SheetNames.join(', ')}`
+    )
 
     // Test 7: Mathematical Accuracy
     logger.info('🧮 Testing mathematical accuracy...')
 
-    for (const bot of botSummaries.slice(0, 3)) { // Test first 3 bots
-      const expectedGrossProfit = bot.total_revenue_stars - bot.total_expenses_stars
-      const expectedPlatformCommission = bot.total_revenue_stars * 0.20
-      const expectedNetProfit = bot.total_revenue_stars - bot.total_expenses_stars - expectedPlatformCommission
+    for (const bot of botSummaries.slice(0, 3)) {
+      // Test first 3 bots
+      const expectedGrossProfit =
+        bot.total_revenue_stars - bot.total_expenses_stars
+      const expectedPlatformCommission = bot.total_revenue_stars * 0.2
+      const expectedNetProfit =
+        bot.total_revenue_stars -
+        bot.total_expenses_stars -
+        expectedPlatformCommission
 
       if (Math.abs(bot.gross_profit_stars - expectedGrossProfit) > 0.01) {
-        results.errors.push(`Gross profit calculation error for ${bot.bot_name}`)
+        results.errors.push(
+          `Gross profit calculation error for ${bot.bot_name}`
+        )
       }
 
-      if (Math.abs(bot.platform_commission - expectedPlatformCommission) > 0.01) {
-        results.errors.push(`Platform commission calculation error for ${bot.bot_name}`)
+      if (
+        Math.abs(bot.platform_commission - expectedPlatformCommission) > 0.01
+      ) {
+        results.errors.push(
+          `Platform commission calculation error for ${bot.bot_name}`
+        )
       }
 
       if (Math.abs(bot.net_profit_stars - expectedNetProfit) > 0.01) {
-        results.warnings.push(`Net profit calculation might be incorrect for ${bot.bot_name}`)
+        results.warnings.push(
+          `Net profit calculation might be incorrect for ${bot.bot_name}`
+        )
       }
     }
 
     logger.info('✅ All tests completed!')
-
   } catch (error: any) {
     results.errors.push(`Unexpected error: ${error.message}`)
     results.success = false
@@ -205,7 +259,7 @@ async function runFinancialLogicTests(): Promise<TestResults> {
 
 async function printTestReport(results: TestResults) {
   console.log('\n🧪 ENHANCED EXCEL GENERATOR TEST REPORT')
-  console.log('=' .repeat(70))
+  console.log('='.repeat(70))
 
   if (results.success && results.errors.length === 0) {
     console.log('🎉 ALL TESTS PASSED! ✅')
@@ -215,11 +269,21 @@ async function printTestReport(results: TestResults) {
 
   console.log('\n📊 METRICS:')
   console.log(`   🤖 Total Bots Analyzed: ${results.metrics.totalBots}`)
-  console.log(`   💰 Total Revenue: ${results.metrics.totalRevenue.toFixed(2)} stars`)
-  console.log(`   💸 Total Expenses: ${results.metrics.totalExpenses.toFixed(2)} stars`)
-  console.log(`   📈 Total Profit: ${results.metrics.totalProfit.toFixed(2)} stars`)
-  console.log(`   💱 Exchange Rate: ${results.metrics.exchangeRate.toFixed(6)} RUB/star`)
-  console.log(`   📄 Report Size: ${results.metrics.reportSizeKB.toFixed(2)} KB`)
+  console.log(
+    `   💰 Total Revenue: ${results.metrics.totalRevenue.toFixed(2)} stars`
+  )
+  console.log(
+    `   💸 Total Expenses: ${results.metrics.totalExpenses.toFixed(2)} stars`
+  )
+  console.log(
+    `   📈 Total Profit: ${results.metrics.totalProfit.toFixed(2)} stars`
+  )
+  console.log(
+    `   💱 Exchange Rate: ${results.metrics.exchangeRate.toFixed(6)} RUB/star`
+  )
+  console.log(
+    `   📄 Report Size: ${results.metrics.reportSizeKB.toFixed(2)} KB`
+  )
 
   if (results.errors.length > 0) {
     console.log('\n❌ ERRORS:')
@@ -247,11 +311,15 @@ async function printTestReport(results: TestResults) {
   }
 
   console.log('\n💡 NEXT STEPS:')
-  console.log('   📄 Review generated test report: reports/test-financial-report.xlsx')
-  console.log('   🚀 Generate production report: npx tsx scripts/generateFinancialReport.ts')
+  console.log(
+    '   📄 Review generated test report: reports/test-financial-report.xlsx'
+  )
+  console.log(
+    '   🚀 Generate production report: npx tsx scripts/generateFinancialReport.ts'
+  )
   console.log('   📊 Customize options for specific needs')
 
-  console.log('=' .repeat(70))
+  console.log('='.repeat(70))
 }
 
 async function main() {
@@ -267,7 +335,7 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch((error) => {
+  main().catch(error => {
     console.error('💥 Test suite failed:', error)
     process.exit(1)
   })
