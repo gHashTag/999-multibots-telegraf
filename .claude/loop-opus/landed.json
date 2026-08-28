@@ -436,5 +436,23 @@
     "file": "apps/vibee-editor/render/render-server.ts",
     "needle": "Number(t.date) * 1000",
     "note": "tokens/verify числовое сравнение дат"
+  },
+  {
+    "pr": 877,
+    "file": ".claude/loop-opus/anomalies.mjs",
+    "needle": "ЖЁСТКИЕ_ЗАВИСИМОСТИ",
+    "note": "детектор больше не глушит стойку через FAL/ElevenLabs"
+  },
+  {
+    "pr": 878,
+    "file": "apps/vibee-editor/render/src/agent/routes.ts",
+    "needle": "timingSafeEqual",
+    "note": "ключ агента сравнивается за константное время"
+  },
+  {
+    "pr": 879,
+    "file": "apps/vibee-editor/render/src/agent/chat.ts",
+    "needle": "AbortController",
+    "note": "таймаут стриминга + детект ошибки в потоке"
   }
 ]
