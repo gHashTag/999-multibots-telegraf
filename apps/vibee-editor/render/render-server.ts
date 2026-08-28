@@ -303,7 +303,9 @@ const calculateCropSettings: FaceApi['calculateCropSettings'] = (...a) => {
   if (!faceApiReady) {
     // Сюда попадают только после detectFace, который модуль и грузит. Если
     // всё же попали — говорим прямо, а не считаем по пустому месту.
-    throw new Error('calculateCropSettings вызван до detectFaceIn* — модуль не загружен')
+    throw new Error(
+      'calculateCropSettings вызван до detectFaceIn* — модуль не загружен'
+    )
   }
   return faceApiReady.calculateCropSettings(...a)
 }
@@ -352,10 +354,13 @@ import { Pool } from 'pg'
 const CANONICAL_SITE = process.env.CANONICAL_SITE || 't27.ai'
 
 const SERVICE_ENDPOINTS = {
-  remotion: process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app',
-  mcp: process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app',
+  remotion:
+    process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app',
+  mcp:
+    process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app',
   // dead-domain-ok: замены нет, отказ теперь виден в ответе публикации
-  bridge: process.env.TELEGRAM_BRIDGE_URL || 'https://vibee-telegram-bridge.fly.dev',
+  bridge:
+    process.env.TELEGRAM_BRIDGE_URL || 'https://vibee-telegram-bridge.fly.dev',
   /**
    * Собственный домен, а не служебный адрес Railway: этот URL уходит ЛЮДЯМ —
    * в подпись поста в канале. Замер 2026-08-26: app.t27.ai отдаёт 200 и тот
@@ -406,7 +411,10 @@ async function postReelToChannel(input: {
     return { posted: false, error: `канал не настроен: не задано ${missing}` }
   }
   if (!input.videoUrl) {
-    return { posted: false, error: 'нечего публиковать: у ролика нет video_url' }
+    return {
+      posted: false,
+      error: 'нечего публиковать: у ролика нет video_url',
+    }
   }
 
   // Telegram режет подпись на 1024 символах и отвечает отказом, если длиннее.
@@ -435,7 +443,9 @@ async function postReelToChannel(input: {
     return { posted: false, error: `Telegram отказал: ${why}` }
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e)
-    console.error(`[Feed] Публикация в канал ${chatId} НЕ состоялась: ${reason}`)
+    console.error(
+      `[Feed] Публикация в канал ${chatId} НЕ состоялась: ${reason}`
+    )
     return { posted: false, error: `Telegram недоступен: ${reason}` }
   }
 }
@@ -1110,7 +1120,9 @@ function computeCompositionsFingerprint(): string | null {
 
 async function initBundle() {
   compositionsFingerprint = computeCompositionsFingerprint()
-  console.log(`🔖 Отпечаток композиций: ${compositionsFingerprint ?? 'НЕ ПОСЧИТАН'}`)
+  console.log(
+    `🔖 Отпечаток композиций: ${compositionsFingerprint ?? 'НЕ ПОСЧИТАН'}`
+  )
   console.log('📦 Creating Remotion bundle...')
   bundleLocation = await bundle({
     entryPoint: path.resolve('./src/index.ts'),
@@ -1133,7 +1145,10 @@ async function initBundle() {
     try {
       await (await faceApi()).loadModels()
     } catch (e) {
-      console.warn('[face] распознавание лица недоступно:', String(e).slice(0, 200))
+      console.warn(
+        '[face] распознавание лица недоступно:',
+        String(e).slice(0, 200)
+      )
     }
     console.log('✅ Face detection models ready')
   } catch (error) {
@@ -2049,7 +2064,10 @@ const server = createServer(async (req, res) => {
       const r = await fetch(url, { headers })
       // Тело — вместе с кодом: именно в нём чужой сервис объясняет причину.
       const body = r.ok ? '' : (await r.text().catch(() => '')).slice(0, 200)
-      return { ok: r.ok, детали: r.ok ? `HTTP ${r.status}` : `HTTP ${r.status} ${body}` }
+      return {
+        ok: r.ok,
+        детали: r.ok ? `HTTP ${r.status}` : `HTTP ${r.status} ${body}`,
+      }
     }
     const key = (n: string) => process.env[n] || ''
     const результаты = await Promise.all([
@@ -2263,6 +2281,64 @@ const server = createServer(async (req, res) => {
       throw new Error('Replicate did not return an image URL')
     }
     return url
+  }
+
+  /**
+   * TTS via Replicate when ElevenLabs is unavailable (the key stored in the env
+   * var is an identifier, not an sk_ key). minimax/speech-02-turbo is
+   * multilingual (Russian included) and Replicate is paid. Returns an audio
+   * URL; the caller downloads it and puts it in S3 like the ElevenLabs path, so
+   * the link does not expire.
+   */
+  async function generateAudioViaReplicate(text: string): Promise<string> {
+    const REPLICATE_TOKEN =
+      process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
+    if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
+    const response = await fetch(
+      'https://api.replicate.com/v1/models/minimax/speech-02-turbo/predictions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${REPLICATE_TOKEN}`,
+        },
+        body: JSON.stringify({ input: { text } }),
+      }
+    )
+    if (!response.ok) {
+      throw new Error(
+        `Replicate TTS failed: ${response.status} - ${await response.text()}`
+      )
+    }
+    let data = await response.json()
+    const predictionUrl: string | null = data?.urls?.get ?? null
+    const deadline = Date.now() + 120_000
+    while (
+      predictionUrl &&
+      data.output == null &&
+      !data.error &&
+      Date.now() < deadline
+    ) {
+      await new Promise(r => setTimeout(r, 2000))
+      const poll = await fetch(predictionUrl, {
+        headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` },
+      })
+      if (!poll.ok) break
+      data = await poll.json()
+    }
+    if (data.error) {
+      throw new Error(
+        `Replicate TTS error: ${String(data.error).slice(0, 120)}`
+      )
+    }
+    let out = Array.isArray(data.output) ? data.output[0] : data.output
+    if (out && typeof out === 'object') {
+      out = out.audio || out.audio_url || out.url
+    }
+    if (typeof out !== 'string') {
+      throw new Error('Replicate did not return an audio URL')
+    }
+    return out
   }
 
   // Supported fal.ai image models
@@ -2677,44 +2753,56 @@ const server = createServer(async (req, res) => {
     })
     req.on('end', async () => {
       try {
-        const { text, voice_id, speed } = JSON.parse(body)
-        const ELEVENLABS_API_KEY = elevenLabsKey()
+        const { text, voice_id } = JSON.parse(body)
 
         console.log(
           `🎤 [Generate] Audio: voice=${voice_id}, text="${text.substring(0, 50)}..."`
         )
 
-        // Call ElevenLabs TTS API directly
-        const ttsResponse = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`,
-          {
-            method: 'POST',
-            headers: {
-              'xi-api-key': ELEVENLABS_API_KEY,
-              'Content-Type': 'application/json',
-              Accept: 'audio/mpeg',
-            },
-            body: JSON.stringify({
-              text,
-              model_id: 'eleven_multilingual_v2',
-              voice_settings: {
-                stability: 0.5,
-                similarity_boost: 0.75,
+        // ElevenLabs is the primary path; if it is unavailable (the key stored
+        // is an identifier, not an sk_ key, OR the API errors) fall back to
+        // Replicate TTS. Symmetric with images (FAL dead -> Replicate).
+        let audioBuffer: Buffer
+        let audioProvider = 'elevenlabs'
+        try {
+          const ELEVENLABS_API_KEY = elevenLabsKey() // throws if not an sk_ key
+          const ttsResponse = await fetch(
+            `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`,
+            {
+              method: 'POST',
+              headers: {
+                'xi-api-key': ELEVENLABS_API_KEY,
+                'Content-Type': 'application/json',
+                Accept: 'audio/mpeg',
               },
-            }),
-          }
-        )
-
-        if (!ttsResponse.ok) {
-          const errorText = await ttsResponse.text()
-          throw new Error(
-            `ElevenLabs TTS error: ${ttsResponse.status} - ${errorText}`
+              body: JSON.stringify({
+                text,
+                model_id: 'eleven_multilingual_v2',
+                voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+              }),
+            }
           )
+          if (!ttsResponse.ok) {
+            throw new Error(
+              `ElevenLabs TTS error: ${ttsResponse.status} - ${await ttsResponse.text()}`
+            )
+          }
+          audioBuffer = Buffer.from(await ttsResponse.arrayBuffer())
+        } catch (elevenErr) {
+          console.warn(
+            `🎤 [Generate] ElevenLabs unavailable (${String(elevenErr).slice(0, 120)}), switching to Replicate TTS`
+          )
+          const audioUrl = await generateAudioViaReplicate(text)
+          const dl = await fetch(audioUrl)
+          if (!dl.ok) {
+            throw new Error(`Replicate audio download failed: ${dl.status}`)
+          }
+          audioBuffer = Buffer.from(await dl.arrayBuffer())
+          audioProvider = 'replicate/minimax-speech-02-turbo'
         }
-
-        // Get audio buffer
-        const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer())
-        console.log(`✅ [Generate] Audio received: ${audioBuffer.length} bytes`)
+        console.log(
+          `✅ [Generate] Audio received: ${audioBuffer.length} bytes (${audioProvider})`
+        )
 
         // Upload to S3
         const filename = `tts-${Date.now()}.mp3`
@@ -2733,6 +2821,7 @@ const server = createServer(async (req, res) => {
           JSON.stringify({
             success: true,
             url: uploadResult.url,
+            provider: audioProvider,
             id: Date.now().toString(),
           })
         )
@@ -4917,7 +5006,10 @@ const server = createServer(async (req, res) => {
     // setWebhook на них конфликтует. Владелец даёт токен — фея проснётся.
     // ============================================================
     {
-      const PACKS: Record<string, { tokens: number; stars: number; title: string }> = {
+      const PACKS: Record<
+        string,
+        { tokens: number; stars: number; title: string }
+      > = {
         '10': { tokens: 10, stars: 15, title: '10 токенов Trinity' },
         '50': { tokens: 50, stars: 65, title: '50 токенов Trinity' },
         '150': { tokens: 150, stars: 175, title: '150 токенов Trinity' },
@@ -4947,7 +5039,12 @@ const server = createServer(async (req, res) => {
         const who = chatIdentity(req, verifiedTelegramId(req))
         if (!who) {
           res.writeHead(401, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: false, error: 'нужна подпись или ключ агента' }))
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: 'нужна подпись или ключ агента',
+            })
+          )
           return
         }
         if (!PAY_BOT) {
@@ -4964,8 +5061,9 @@ const server = createServer(async (req, res) => {
           const body = JSON.parse((await readBody(req)) || '{}')
           const pack = PACKS[String(body.pack)]
           if (!pack) throw new Error('неизвестный пакет')
-          const tg =
-            await fetch(`https://api.telegram.org/bot${PAY_BOT}/createInvoiceLink`, {
+          const tg = await fetch(
+            `https://api.telegram.org/bot${PAY_BOT}/createInvoiceLink`,
+            {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -4975,9 +5073,11 @@ const server = createServer(async (req, res) => {
                 currency: 'XTR',
                 prices: [{ label: pack.title, amount: pack.stars }],
               }),
-            })
+            }
+          )
           const tgd = await tg.json()
-          if (!tgd.ok) throw new Error('Bot API: ' + JSON.stringify(tgd).slice(0, 200))
+          if (!tgd.ok)
+            throw new Error('Bot API: ' + JSON.stringify(tgd).slice(0, 200))
           // Pending-чек: verify потом ищет звёзд-транзакцию от этого
           // человека на эту сумму после этого момента (вебхук-независимо).
           try {
@@ -4998,7 +5098,10 @@ const server = createServer(async (req, res) => {
               [who, pack.tokens, pack.stars]
             )
           } catch (e) {
-            console.warn('[STARS] pending-чек не записался:', String(e).slice(0, 120))
+            console.warn(
+              '[STARS] pending-чек не записался:',
+              String(e).slice(0, 120)
+            )
           }
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ ok: true, link: tgd.result }))
@@ -5020,7 +5123,9 @@ const server = createServer(async (req, res) => {
         const who = chatIdentity(req, verifiedTelegramId(req))
         if (!who) {
           res.writeHead(401, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: false, error: 'нужна подпись или ключ' }))
+          res.end(
+            JSON.stringify({ ok: false, error: 'нужна подпись или ключ' })
+          )
           return
         }
         try {
@@ -5043,7 +5148,12 @@ const server = createServer(async (req, res) => {
           )
           if (!pend.rows.length) {
             res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ ok: false, причина: 'неоплаченных инвойсов нет' }))
+            res.end(
+              JSON.stringify({
+                ok: false,
+                причина: 'неоплаченных инвойсов нет',
+              })
+            )
             return
           }
           const st = await fetch(
@@ -5098,7 +5208,12 @@ const server = createServer(async (req, res) => {
             }
           }
           res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: false, причина: 'оплаты пока не видно — попробуй через минуту' }))
+          res.end(
+            JSON.stringify({
+              ok: false,
+              причина: 'оплаты пока не видно — попробуй через минуту',
+            })
+          )
         } catch (e) {
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ ok: false, error: String(e).slice(0, 300) }))
@@ -5109,7 +5224,9 @@ const server = createServer(async (req, res) => {
       // Вебхук бота-кассира: секрет в пути, чтобы гвард и злоумышленники
       // мимо не прошли. Telegram шлёт сюда pre_checkout и successful_payment.
       const WH_SECRET = process.env.STARS_WEBHOOK_SECRET || ''
-      const whMatch = req.url?.match(/^\/api\/telegram\/stars-wh\/([a-zA-Z0-9_-]+)$/)
+      const whMatch = req.url?.match(
+        /^\/api\/telegram\/stars-wh\/([a-zA-Z0-9_-]+)$/
+      )
       if (whMatch && req.method === 'POST') {
         if (!WH_SECRET || whMatch[1] !== WH_SECRET || !PAY_BOT) {
           res.writeHead(404, { 'Content-Type': 'application/json' })
@@ -5132,9 +5249,9 @@ const server = createServer(async (req, res) => {
             )
           } else if (upd.successful_payment) {
             // tokens:<amount>:<telegram_id> — единственный источник правды.
-            const m = String(upd.successful_payment.invoice_payload || '').match(
-              /^tokens:(\d+):(.+)$/
-            )
+            const m = String(
+              upd.successful_payment.invoice_payload || ''
+            ).match(/^tokens:(\d+):(.+)$/)
             const amount = m ? Number(m[1]) : 0
             const tid = m ? m[2] : ''
             if (amount > 0 && tid) {
@@ -5602,7 +5719,10 @@ const server = createServer(async (req, res) => {
     {
       const seg = (req.url || '').split('?')[0].split('/').filter(Boolean)
       const tail = seg[2]
-      if (seg.length > 3 || (tail !== undefined && tail !== 'stats' && !/^\d+$/.test(tail))) {
+      if (
+        seg.length > 3 ||
+        (tail !== undefined && tail !== 'stats' && !/^\d+$/.test(tail))
+      ) {
         sendJson(res, 404, {
           error: 'Not found',
           detail:
@@ -5906,7 +6026,8 @@ const server = createServer(async (req, res) => {
      */
     const внутренний = new URL(req.url || '/', 'http://localhost').searchParams
     const who =
-      chatIdentity(req, verifiedTelegramId(req)) || внутренний.get('telegram_id')
+      chatIdentity(req, verifiedTelegramId(req)) ||
+      внутренний.get('telegram_id')
     if (!who) {
       res.writeHead(401, { 'Content-Type': 'application/json' })
       res.end(
@@ -5949,21 +6070,31 @@ const server = createServer(async (req, res) => {
       )
       if (!было.rows.length) {
         res.writeHead(404, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ снято: false, error: 'такой записи в ленте нет' }))
+        res.end(
+          JSON.stringify({ снято: false, error: 'такой записи в ленте нет' })
+        )
       } else if (String(было.rows[0].telegram_id) !== String(who)) {
         res.writeHead(403, { 'Content-Type': 'application/json' })
         res.end(
-          JSON.stringify({ снято: false, error: 'это чужая публикация — снять нельзя' })
+          JSON.stringify({
+            снято: false,
+            error: 'это чужая публикация — снять нельзя',
+          })
         )
       } else {
         res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ снято: false, error: 'эта публикация уже снята' }))
+        res.end(
+          JSON.stringify({ снято: false, error: 'эта публикация уже снята' })
+        )
       }
     } catch (e) {
       // getPool() бросает СИНХРОННО — вне try это уронило бы процесс целиком.
       res.writeHead(500, { 'Content-Type': 'application/json' })
       res.end(
-        JSON.stringify({ снято: false, error: `не удалось снять: ${String(e).slice(0, 160)}` })
+        JSON.stringify({
+          снято: false,
+          error: `не удалось снять: ${String(e).slice(0, 160)}`,
+        })
       )
     }
     return
@@ -6107,7 +6238,10 @@ const server = createServer(async (req, res) => {
   // автологин заполнял только userAtom в памяти клиента. Теперь подпись
   // initData (или dev-ключ владельца) даёт серверу verified id + user,
   // и профиль upsert'ится по-настоящему: users + profiles.
-  if (req.url?.split('?')[0] === '/api/users/sync-from-telegram' && req.method === 'POST') {
+  if (
+    req.url?.split('?')[0] === '/api/users/sync-from-telegram' &&
+    req.method === 'POST'
+  ) {
     try {
       const pool = await getPool()
       let tgId = ''
@@ -6150,7 +6284,9 @@ const server = createServer(async (req, res) => {
       if (!tgId) {
         res.writeHead(401, { 'Content-Type': 'application/json' })
         res.end(
-          JSON.stringify({ error: 'нужна подпись Telegram (initData) или ключ владельца' })
+          JSON.stringify({
+            error: 'нужна подпись Telegram (initData) или ключ владельца',
+          })
         )
         return
       }
@@ -6173,7 +6309,9 @@ const server = createServer(async (req, res) => {
          )`
       )
       await pool
-        .query(`CREATE UNIQUE INDEX IF NOT EXISTS profiles_tg_uniq ON profiles (telegram_id)`)
+        .query(
+          `CREATE UNIQUE INDEX IF NOT EXISTS profiles_tg_uniq ON profiles (telegram_id)`
+        )
         .catch(async () => {
           await pool.query(
             `DELETE FROM profiles p USING profiles q
@@ -6199,20 +6337,25 @@ const server = createServer(async (req, res) => {
           )
         }
       }
-      await pool.query(
-        `INSERT INTO profiles (telegram_id, username, display_name, avatar_url)
+      await pool
+        .query(
+          `INSERT INTO profiles (telegram_id, username, display_name, avatar_url)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (telegram_id)
          DO UPDATE SET username = EXCLUDED.username,
                        display_name = EXCLUDED.display_name,
                        avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url)`,
-        [tgId, username || null, display, photoUrl]
-      ).catch(async e => {
-        // profiles может не иметь telegram_id-конфликта/колонок — чиним схему
-        // один раз и повторяем upsert.
-        if (String(e).includes('does not exist') || String(e).includes('constraint')) {
-          await pool.query(
-            `CREATE TABLE IF NOT EXISTS profiles (
+          [tgId, username || null, display, photoUrl]
+        )
+        .catch(async e => {
+          // profiles может не иметь telegram_id-конфликта/колонок — чиним схему
+          // один раз и повторяем upsert.
+          if (
+            String(e).includes('does not exist') ||
+            String(e).includes('constraint')
+          ) {
+            await pool.query(
+              `CREATE TABLE IF NOT EXISTS profiles (
                id serial PRIMARY KEY,
                telegram_id text UNIQUE,
                username text,
@@ -6225,20 +6368,20 @@ const server = createServer(async (req, res) => {
                is_verified boolean DEFAULT FALSE,
                created_at timestamptz DEFAULT now()
              )`
-          )
-          await pool.query(
-            `INSERT INTO profiles (telegram_id, username, display_name, avatar_url)
+            )
+            await pool.query(
+              `INSERT INTO profiles (telegram_id, username, display_name, avatar_url)
              VALUES ($1, $2, $3, $4)
              ON CONFLICT (telegram_id)
              DO UPDATE SET username = EXCLUDED.username,
                            display_name = EXCLUDED.display_name,
                            avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url)`,
-            [tgId, username || null, display, photoUrl]
-          )
-        } else {
-          throw e
-        }
-      })
+              [tgId, username || null, display, photoUrl]
+            )
+          } else {
+            throw e
+          }
+        })
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(
         JSON.stringify({
@@ -6340,7 +6483,10 @@ const server = createServer(async (req, res) => {
   ) {
     const url = new URL(req.url || '', `http://${req.headers.host}`)
     const username = decodeURIComponent(url.pathname.split('/')[3] || '')
-    const page = Math.max(0, parseInt(url.searchParams.get('page') || '0', 10) || 0)
+    const page = Math.max(
+      0,
+      parseInt(url.searchParams.get('page') || '0', 10) || 0
+    )
     const limit = Math.min(
       50,
       Math.max(1, parseInt(url.searchParams.get('limit') || '20', 10) || 20)
@@ -7008,17 +7154,14 @@ async function main() {
     const selfUrl = process.env.SELF_URL || ''
     if (payBot && whSecret && selfUrl) {
       const rehook = () =>
-        fetch(
-          `https://api.telegram.org/bot${payBot}/setWebhook`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              url: `${selfUrl}/api/telegram/stars-wh/${whSecret}`,
-              allowed_updates: ['pre_checkout_query', 'successful_payment'],
-            }),
-          }
-        )
+        fetch(`https://api.telegram.org/bot${payBot}/setWebhook`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: `${selfUrl}/api/telegram/stars-wh/${whSecret}`,
+            allowed_updates: ['pre_checkout_query', 'successful_payment'],
+          }),
+        })
           .then(r => r.json())
           .then(d =>
             console.log(
