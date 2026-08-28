@@ -176,6 +176,25 @@ except Exception as e: print("iterations.jsonl не читается:", e)'
     w=$(ls "$T/.trinity"/wave-loop-*.md 2>/dev/null | sort | tail -1)
     echo "$w:"; sed -n '/[Oo]ptions for the next wave/,$p' "$w" 2>/dev/null || echo "нет волн"
     ;;
+  deploy-wait|live-wait)
+    # «Зелёная сборка не доказывает» — ждём, пока правка ДОЕДЕТ до живого
+    # render после merge. Опрашиваем путь, пока в ответе не появится маркер.
+    # Ключ (для закрытых маршрутов) тянем из Railway сам; для публичных путей
+    # (/health, /mcp) он не нужен.
+    #   tri deploy-wait <путь> <маркер> [попыток]
+    RENDER="https://vibee-render-production.up.railway.app"
+    PATHQ="${2:-/health}"; MARK="${3:-}"; TRIES="${4:-40}"
+    K=$(railway variables list -s vibee-render -e production --kv 2>/dev/null | grep '^RENDER_API_KEY=' | cut -d= -f2-)
+    for i in $(seq 1 "$TRIES"); do
+      body=$(curl -s -m 15 -H "X-Api-Key: $K" "$RENDER$PATHQ" 2>/dev/null)
+      if [ -z "$MARK" ] || printf '%s' "$body" | grep -qF "$MARK"; then
+        echo "✅ живой [$i]: $PATHQ → $(printf '%s' "$body" | head -c 140)"; exit 0
+      fi
+      echo "⏳ [$i/$TRIES] $PATHQ ещё без «$MARK»: $(printf '%s' "$body" | head -c 80)"
+      sleep 30
+    done
+    echo "❌ ТАЙМАУТ: «$MARK» не появился на $PATHQ за $TRIES попыток"; exit 1
+    ;;
   help|-h|--help)
     cat <<'USAGE'
 tri — Trinity S³AI ops CLI
@@ -196,6 +215,7 @@ tri — Trinity S³AI ops CLI
   tri wave         — каркас следующей волны wave-loop-NNN.md
   tri locks        — кто держит локи кассет/e2e триоса сейчас
   tri next         — три варианта из последней волны trios
+  tri deploy-wait <путь> <маркер> [N] — ждать, пока правка доедет до живого render
   tri live-verify [issue] [crit] — живой отпечаток цепочкой за один запуск
   tri regression [issue] [crit] — доска + локи + live-verify одной командой
   tri spec-diag [log] — класс ошибки каждой несобирающейся спеки
