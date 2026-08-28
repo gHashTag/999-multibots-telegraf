@@ -18,6 +18,7 @@ import {
   updateUserLevelHelper,
 } from './helpers'
 import { calculateFinalPrice } from '@/price/helpers'
+import { videoTaskStore } from '@/services/video-task-store'
 import { Markup } from 'telegraf'
 import axios from 'axios'
 import { isAxiosError } from 'axios'
@@ -1551,6 +1552,24 @@ export const generateImageToVideo = async (
             }
           )
         }
+
+        // Give the webhook the task context it needs to CHARGE.
+        //
+        // The comment below is right that billing waits for the webhook — but
+        // nothing saved the task, so the webhook always fell into direct mode
+        // and charged with a literal model id that is not in the price table:
+        // the video was delivered for free. Mirrors handleTextToVideoDirect.ts
+        // (which saves the task for exactly this reason).
+        videoTaskStore.saveTask(taskId, {
+          telegramId: Number(telegramId) || 0,
+          chatId: ctx?.chat?.id || Number(telegramId) || 0,
+          messageId: ctx?.session?.videoMessageId || 0,
+          prompt: processedPrompt || prompt || '',
+          modelId,
+          duration: 0, // not tracked on this path; the price comes from modelId
+          createdAt: Date.now(),
+          botName: ctx?.botInfo?.username,
+        })
 
         // ✅ Снимаем деньги ТОЛЬКО после успешного получения видео через webhook
         // НЕ снимаем здесь! Ждем webhook!
