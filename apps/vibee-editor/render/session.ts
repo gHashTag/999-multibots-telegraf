@@ -1,0 +1,305 @@
+/**
+ * App sessions for the native client.
+ *
+ * WHY THIS EXISTS. The server proves who you are from `X-Telegram-Init-Data`,
+ * a signature that only exists inside a Telegram WebView. A native iOS app
+ * cannot produce it, so it needs its own way to say "I am telegram_id N" —
+ * one that is at least as hard to forge.
+ *
+ * The shape: a short-lived access token this module verifies SYNCHRONOUSLY on
+ * every request, plus a long-lived opaque refresh token that rotates. The
+ * split exists because the access path runs on every single API call and
+ * cannot afford a database round trip, while revocation must still take
+ * effect in seconds rather than at the token's natural expiry.
+ *
+ * WHAT THIS MODULE DOES NOT DO. It does not talk to Telegram. Establishing
+ * WHO the person is happens elsewhere (OIDC exchange); this module only
+ * turns an already-proven telegram_id into a session and back. Keeping that
+ * boundary means the identity proof can change without touching session
+ * handling.
+ */
+
+import crypto from 'node:crypto'
+
+/** Access token lifetime. Short on purpose — see `revoke`. */
+const ACCESS_TTL_SECONDS = 600
+
+/** Refresh lifetime. Long, because rotation makes age far less interesting. */
+const REFRESH_TTL_SECONDS = 60 * 24 * 3600
+
+/**
+ * Clock skew allowance when checking `exp`/`iat`.
+ *
+ * Device clocks drift, and a person whose phone is 40 seconds fast should not
+ * be locked out. Sixty seconds is the usual allowance; larger windows start
+ * to matter for replay.
+ */
+const CLOCK_SKEW_SECONDS = 60
+
+export interface SessionClaims {
+  /** telegram_id — the only identity claim that means anything downstream. */
+  sub: string
+  /** Session id. Revocation works on this, not on the token itself. */
+  sid: string
+  /** Fingerprint of the device public key. Binds the token to one device. */
+  dkt: string
+  /** Unique per token, so a leaked token can be named in a log. */
+  jti: string
+  iat: number
+  exp: number
+  /** Claim-set version, so a future change can be rejected rather than guessed. */
+  v: 1
+}
+
+export class SessionError extends Error {
+  constructor(
+    message: string,
+    readonly code:
+      | 'malformed'
+      | 'bad_algorithm'
+      | 'bad_signature'
+      | 'expired'
+      | 'not_yet_valid'
+      | 'revoked'
+      | 'wrong_version'
+  ) {
+    super(message)
+  }
+}
+
+const b64url = (b: Buffer) => b.toString('base64url')
+const unb64url = (s: string) => Buffer.from(s, 'base64url')
+
+function signingKey(): Buffer {
+  const raw = process.env.SESSION_SIGNING_KEY
+  if (!raw || raw.length < 32) {
+    // Loud failure, not a silent weak default. A signing key that quietly
+    // falls back to something guessable is worse than no sessions at all:
+    // everything keeps working and nothing is actually protected.
+    throw new Error(
+      'SESSION_SIGNING_KEY is missing or shorter than 32 chars. ' +
+        'Generate one with: openssl rand -base64 48'
+    )
+  }
+  return Buffer.from(raw, 'utf8')
+}
+
+/** sha256 as base64url — used for refresh tokens and device keys alike. */
+export function digest(value: string): string {
+  return b64url(crypto.createHash('sha256').update(value, 'utf8').digest())
+}
+
+// ─── Access token ────────────────────────────────────────────────────────
+
+/**
+ * Sign an access token.
+ *
+ * Deliberately hand-rolled rather than a JWT library. Not because libraries
+ * are bad, but because the generic `verify` of most of them accepts an
+ * algorithm list from the token header — and that is the root of the whole
+ * `alg: none` / RS256→HS256 confusion family. Here the algorithm is a
+ * literal in the code and cannot be negotiated by the caller.
+ */
+export function signAccessToken(params: {
+  telegramId: string
+  sessionId: string
+  deviceKeyThumbprint: string
+  now?: number
+}): string {
+  const now = params.now ?? Math.floor(Date.now() / 1000)
+  const header = { alg: 'HS256', typ: 'JWT' }
+  const claims: SessionClaims = {
+    sub: params.telegramId,
+    sid: params.sessionId,
+    dkt: params.deviceKeyThumbprint,
+    jti: b64url(crypto.randomBytes(12)),
+    iat: now,
+    exp: now + ACCESS_TTL_SECONDS,
+    v: 1,
+  }
+  const head = b64url(Buffer.from(JSON.stringify(header), 'utf8'))
+  const body = b64url(Buffer.from(JSON.stringify(claims), 'utf8'))
+  const mac = crypto
+    .createHmac('sha256', signingKey())
+    .update(`${head}.${body}`, 'utf8')
+    .digest()
+  return `${head}.${body}.${b64url(mac)}`
+}
+
+/**
+ * Verify an access token. SYNCHRONOUS and self-contained by design.
+ *
+ * This runs on every request, so it must not touch the database. Revocation
+ * therefore relies on an in-memory set refreshed in the background — see
+ * `setRevokedSessions`. That trade is the reason `ACCESS_TTL_SECONDS` is ten
+ * minutes and not ten hours: a revoked session stops working within the
+ * refresh window in the worst case, and within seconds in the normal one.
+ */
+export function verifyAppSession(token: string, now?: number): SessionClaims {
+  const parts = token.split('.')
+  if (parts.length !== 3) throw new SessionError('token is not three parts', 'malformed')
+  const [head, body, sig] = parts
+
+  let header: Record<string, unknown>
+  try {
+    header = JSON.parse(unb64url(head).toString('utf8'))
+  } catch {
+    throw new SessionError('header is not JSON', 'malformed')
+  }
+
+  /**
+   * Algorithm checked by string equality BEFORE any crypto runs, and key-
+   * resolution hints are rejected outright.
+   *
+   * `kid`, `jku` and `x5u` all tell a verifier where to find a key. We have
+   * exactly one key and it is not negotiable, so their presence means either
+   * a bug or an attempt — both worth refusing rather than ignoring.
+   */
+  if (header.alg !== 'HS256') {
+    throw new SessionError(`algorithm ${String(header.alg)} refused`, 'bad_algorithm')
+  }
+  if ('kid' in header || 'jku' in header || 'x5u' in header) {
+    throw new SessionError('key-resolution header refused', 'bad_algorithm')
+  }
+
+  const expected = crypto
+    .createHmac('sha256', signingKey())
+    .update(`${head}.${body}`, 'utf8')
+    .digest()
+  const given = unb64url(sig)
+  // Constant-time, and length-checked first: timingSafeEqual throws on a
+  // length mismatch, and that throw would itself be a signal.
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+    throw new SessionError('signature mismatch', 'bad_signature')
+  }
+
+  let claims: SessionClaims
+  try {
+    claims = JSON.parse(unb64url(body).toString('utf8'))
+  } catch {
+    throw new SessionError('claims are not JSON', 'malformed')
+  }
+
+  if (claims.v !== 1) throw new SessionError('unknown claim version', 'wrong_version')
+  if (!claims.sub || !claims.sid) throw new SessionError('sub/sid missing', 'malformed')
+
+  const t = now ?? Math.floor(Date.now() / 1000)
+  if (typeof claims.exp !== 'number' || t > claims.exp + CLOCK_SKEW_SECONDS) {
+    throw new SessionError('token expired', 'expired')
+  }
+  if (typeof claims.iat !== 'number' || claims.iat > t + CLOCK_SKEW_SECONDS) {
+    throw new SessionError('token issued in the future', 'not_yet_valid')
+  }
+  if (revoked.has(claims.sid)) {
+    throw new SessionError('session revoked', 'revoked')
+  }
+  return claims
+}
+
+// ─── Revocation ──────────────────────────────────────────────────────────
+
+let revoked = new Set<string>()
+
+/**
+ * Replace the revoked-session set.
+ *
+ * Called by a background poller, never on the request path. Replacing the
+ * whole set rather than mutating it means a request that reads it mid-update
+ * sees either the old set or the new one, never a half-built one.
+ */
+export function setRevokedSessions(ids: Iterable<string>): void {
+  revoked = new Set(ids)
+}
+
+/** Mark a session revoked immediately, without waiting for the next poll. */
+export function revokeNow(sessionId: string): void {
+  revoked.add(sessionId)
+}
+
+// ─── Refresh tokens ──────────────────────────────────────────────────────
+
+export interface RefreshIssue {
+  /** Given to the client once. Never stored anywhere in this form. */
+  token: string
+  /** What goes in the database. */
+  hash: string
+  expiresAt: Date
+}
+
+/**
+ * Mint a refresh token.
+ *
+ * 32 bytes of CSPRNG. Only the sha256 is stored, for the same reason
+ * passwords are hashed: a database dump should not hand over live sessions.
+ */
+export function issueRefreshToken(now?: Date): RefreshIssue {
+  const token = b64url(crypto.randomBytes(32))
+  const base = now ?? new Date()
+  return {
+    token,
+    hash: digest(token),
+    expiresAt: new Date(base.getTime() + REFRESH_TTL_SECONDS * 1000),
+  }
+}
+
+export type RotateOutcome =
+  | { ok: true; next: RefreshIssue }
+  | { ok: false; reason: 'unknown' | 'expired' | 'revoked'; }
+  | { ok: false; reason: 'reused'; familyId: string }
+
+/**
+ * Rotate a refresh token, detecting reuse.
+ *
+ * A refresh token is single-use. Presenting one that has already been
+ * exchanged means one of two things: the network dropped the reply and the
+ * client is retrying honestly, or the token was stolen and both parties are
+ * now using it. There is no way to tell them apart from the outside, so the
+ * safe reading is theft — and the whole family is revoked, forcing a fresh
+ * login on every device that descended from it.
+ *
+ * That is deliberately harsher than the alternative. The failure mode of
+ * being wrong is one re-login; the failure mode of guessing "just a retry"
+ * is an attacker keeping access indefinitely.
+ *
+ * The caller supplies storage: this module holds no database handle, which
+ * is what makes it testable without one.
+ */
+export async function rotateRefreshToken(
+  presented: string,
+  store: {
+    find(hash: string): Promise<{
+      familyId: string
+      usedAt: Date | null
+      revokedAt: Date | null
+      expiresAt: Date
+    } | null>
+    markUsed(hash: string, replacedByHash: string): Promise<void>
+    revokeFamily(familyId: string): Promise<string[]>
+    insert(hash: string, familyId: string, expiresAt: Date): Promise<void>
+  },
+  now?: Date
+): Promise<RotateOutcome> {
+  const t = now ?? new Date()
+  const hash = digest(presented)
+  const row = await store.find(hash)
+  if (!row) return { ok: false, reason: 'unknown' }
+  if (row.revokedAt) return { ok: false, reason: 'revoked' }
+  if (row.expiresAt.getTime() <= t.getTime()) return { ok: false, reason: 'expired' }
+
+  if (row.usedAt) {
+    const sessionIds = await store.revokeFamily(row.familyId)
+    for (const sid of sessionIds) revokeNow(sid)
+    return { ok: false, reason: 'reused', familyId: row.familyId }
+  }
+
+  const next = issueRefreshToken(t)
+  await store.insert(next.hash, row.familyId, next.expiresAt)
+  await store.markUsed(hash, next.hash)
+  return { ok: true, next }
+}
+
+export const SESSION_TUNING = {
+  ACCESS_TTL_SECONDS,
+  REFRESH_TTL_SECONDS,
+  CLOCK_SKEW_SECONDS,
+} as const
