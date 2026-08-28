@@ -1,8 +1,9 @@
 name: Deploy to Servers
 
+# Auto-deploy on main disabled: this SSHes to three-head-dev.shop, the retired
+# old server (offline — resolves to a host that no longer answers), so every
+# push to main failed here for nothing. Kept as a manual-only workflow_dispatch.
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
     inputs:
       environment:

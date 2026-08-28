@@ -1,19 +1,12 @@
 name: Deploy to Railway
 
+# Auto-deploy disabled: Railway deploys this repo NATIVELY on push to main
+# (verified — the bot service redeploys within seconds of a merge). This
+# Actions-based path is redundant, depends on a RAILWAY_TOKEN secret that is not
+# set (so it has never deployed successfully), and only added a red X to every
+# main push while consuming Actions minutes. Kept as a manual-only fallback.
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'src/**'
-      - 'Dockerfile'
-      - 'Dockerfile.rust'
-      - 'railway.toml'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig*.json'
-      - 'deploy.sh'
-      - 'scripts/**'
+  workflow_dispatch:
 
 jobs:
   deploy:
