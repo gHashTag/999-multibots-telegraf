@@ -84,14 +84,14 @@ struct AgentChatView: View {
       // `h1 { font-size: 16px; font-weight: 600; letter-spacing: .01em }`
       // — Chat.css:48-50.
       Text("Агент")
-        .font(.system(size: Тема.Чат.кегльЗаголовка, weight: Тема.Чат.весЗаголовка))
+        .font(Тема.Шрифт.кегль(Тема.Чат.кегльЗаголовка, Тема.Чат.весЗаголовка, относительно: .headline))
         .tracking(Тема.Чат.трекингЗаголовка)
         .foregroundStyle(Тема.Чат.текст)
 
       // `p { margin: 2px 0 0; font-size: 12px; color: --t27-muted }`
       // — Chat.css:53-55.
       Text("Смотрит в приложение своими инструментами и делает, а не советует")
-        .font(.system(size: Тема.Чат.кегльПодзаголовка))
+        .font(Тема.Шрифт.кегль(Тема.Чат.кегльПодзаголовка, относительно: .footnote))
         .foregroundStyle(Тема.Чат.текстПриглушённый)
         .padding(.top, 2)
         .fixedSize(horizontal: false, vertical: true)
@@ -117,7 +117,7 @@ struct AgentChatView: View {
           Тема.Пилюля(
             цвет: Тема.Чат.текстТаблетки,
             заливка: .clear,
-            кегль: .system(size: Тема.Чат.кегльТаблетки),
+            кегль: Тема.Шрифт.кегль(Тема.Чат.кегльТаблетки, относительно: .footnote),
             // Рамка ТЕМНЕЕ подписи: #2a2820 против #8a8578, Chat.css:282
             // и :285. У профильных кнопок эти два цвета совпадают, у этой —
             // нет, и совпадением она бы кричала громче, чем задумано:
@@ -149,7 +149,7 @@ struct AgentChatView: View {
           ForEach(m.инструменты, id: \.self) { и in
             Text(и)
               // `font-size: 11px`, моноширинный — Chat.css:137-138.
-              .font(.system(size: Тема.Чат.кегльЧипа).monospaced())
+              .font(Тема.Шрифт.моно(Тема.Чат.кегльЧипа))
               .foregroundStyle(Тема.Чат.акцент)
               // `padding: 2px 8px` — Chat.css:143. Было 3/7 на глаз.
               .padding(.horizontal, Тема.Чат.отступЧипаПоГоризонтали)
@@ -173,7 +173,7 @@ struct AgentChatView: View {
       Text(m.текст)
         // `font-size: 14px; line-height: 1.55` — Chat.css:87-88. Было
         // системное `.body` (17 pt) без заданного межстрочного.
-        .font(.system(size: Тема.Чат.кегльТела))
+        .font(Тема.Шрифт.кегль(Тема.Чат.кегльТела, относительно: .callout))
         .lineSpacing(Тема.Чат.зазорСтрок)
         .foregroundStyle(Тема.Чат.текст)
         // `padding: 11px 14px` — Chat.css:89. Было 12 по кругу.
@@ -203,7 +203,7 @@ struct AgentChatView: View {
     HStack(spacing: Тема.Отступ.sm) {
       TextField("Спроси агента…", text: $ввод, axis: .vertical)
         .textFieldStyle(.plain)
-        .font(.system(size: Тема.Чат.кегльПоля))
+        .font(Тема.Шрифт.кегль(Тема.Чат.кегльПоля, относительно: .callout))
         // `padding: 11px 13px`, `min-height: 44px` — Chat.css:219, :224.
         .padding(.horizontal, Тема.Чат.отступПоляПоГоризонтали)
         .padding(.vertical, Тема.Чат.отступПоляПоВертикали)
@@ -234,7 +234,7 @@ struct AgentChatView: View {
         Task { await отправить() }
       } label: {
         Text(идёт ? "Идёт…" : "Отправить")
-          .font(.system(size: Тема.Чат.кегльПоля, weight: .semibold))
+          .font(Тема.Шрифт.кегль(Тема.Чат.кегльПоля, .semibold, относительно: .callout))
           .foregroundStyle(Тема.Чат.наАкценте)
           .frame(minWidth: Тема.Чат.минШиринаОтправки, minHeight: Тема.Чат.высотаПоля)
           .background(

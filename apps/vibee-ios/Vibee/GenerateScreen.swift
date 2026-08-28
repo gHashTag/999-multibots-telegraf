@@ -235,7 +235,7 @@ struct GenerateScreen: View {
                 Circle().fill(Тема.Цвет.предупреждение).frame(width: 5, height: 5)
               }
             }
-            .font(.subheadline.weight(.medium))
+            .font(Тема.Шрифт.стиль(.subheadline, .medium))
             .padding(.horizontal, Тема.Отступ.пузырьЧата)
             /**
              * Высота ЯВНАЯ, а не «сколько выйдет из padding».
@@ -263,7 +263,7 @@ struct GenerateScreen: View {
   @ViewBuilder private var форма: some View {
     VStack(alignment: .leading, spacing: 14) {
       Text("Что сгенерировать")
-        .font(.subheadline.weight(.medium))
+        .font(Тема.Шрифт.стиль(.subheadline, .medium))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
       TextField(
@@ -306,7 +306,7 @@ struct GenerateScreen: View {
             Text("Сгенерировать")
           }
         }
-        .font(.headline)
+        .font(Тема.Шрифт.стиль(.headline, .semibold))
         // Высота явная: 44 — минимум касания (index.css:47).
         .frame(maxWidth: .infinity, minHeight: Тема.Кнопка.высота)
         .background(Тема.Кнопка.основнаяФон, in: RoundedRectangle(cornerRadius: Тема.Радиус.md))
@@ -327,7 +327,7 @@ struct GenerateScreen: View {
          */
         Text("Сервер отвечает одним ответом, без очереди: обычно 50–70 секунд. "
              + "Не закрывайте вкладку.")
-          .font(.caption)
+          .font(Тема.Шрифт.стиль(.caption))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
       }
     }
@@ -337,7 +337,7 @@ struct GenerateScreen: View {
     _ имя: String, _ варианты: [String], _ выбор: Binding<String>
   ) -> some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text(имя).font(.caption).foregroundStyle(Тема.Цвет.текстПриглушённый)
+      Text(имя).font(Тема.Шрифт.стиль(.caption)).foregroundStyle(Тема.Цвет.текстПриглушённый)
       Picker(имя, selection: выбор) {
         ForEach(варианты, id: \.self) { Text($0).tag($0) }
       }
@@ -348,13 +348,13 @@ struct GenerateScreen: View {
   private func заглушка(_ причина: String) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       Label("\(вид.подпись) сейчас не работает", systemImage: "wrench.and.screwdriver")
-        .font(.subheadline.weight(.semibold))
+        .font(Тема.Шрифт.стиль(.subheadline, .semibold))
         .foregroundStyle(Тема.Цвет.предупреждение)
       Text(причина)
-        .font(.footnote)
+        .font(Тема.Шрифт.стиль(.footnote))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
       Text("Проверено живым запросом 28.08.2026.")
-        .font(.caption2)
+        .font(Тема.Шрифт.стиль(.caption2))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
       Button {
         Task { await перепроверить() }
@@ -363,7 +363,7 @@ struct GenerateScreen: View {
           if идёт { ProgressView().tint(Тема.Цвет.текст) }
           Text(идёт ? "Спрашиваем сервер…" : "Спросить сервер сейчас")
         }
-        .font(.subheadline.weight(.medium))
+        .font(Тема.Шрифт.стиль(.subheadline, .medium))
         .frame(maxWidth: .infinity, minHeight: Тема.Кнопка.высота)
         .background(Тема.Цвет.поверхность, in: RoundedRectangle(cornerRadius: Тема.Радиус.md))
       }
@@ -378,7 +378,7 @@ struct GenerateScreen: View {
   private func плашка(значок: String, цвет: Color, текст: String) -> some View {
     HStack(alignment: .top, spacing: 10) {
       Image(systemName: значок).foregroundStyle(цвет)
-      Text(текст).font(.footnote).foregroundStyle(Тема.Цвет.текстПриглушённый)
+      Text(текст).font(Тема.Шрифт.стиль(.footnote)).foregroundStyle(Тема.Цвет.текстПриглушённый)
     }
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -400,7 +400,7 @@ struct GenerateScreen: View {
             // Ссылка на картинку подписанная и живёт сутки. Молчать о том,
             // что она протухла, значит показать пустой прямоугольник.
             Text("Картинка не загрузилась: ссылка сервера уже недействительна.")
-              .font(.footnote).foregroundStyle(Тема.Цвет.текстПриглушённый).padding()
+              .font(Тема.Шрифт.стиль(.footnote)).foregroundStyle(Тема.Цвет.текстПриглушённый).padding()
           default:
             ProgressView().frame(height: 200).frame(maxWidth: .infinity)
           }
@@ -412,12 +412,12 @@ struct GenerateScreen: View {
         // Кто РЕАЛЬНО сделал. Не то же самое, что было заказано: и видео, и
         // картинка сегодня уходят в запасной Replicate.
         Text("Сделал: \(п)")
-          .font(.caption.monospaced())
+          .font(Тема.Шрифт.моно(.caption))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
       }
       ShareLink(item: р.ссылка) {
         Label("Поделиться ссылкой", systemImage: "square.and.arrow.up")
-          .font(.subheadline.weight(.medium))
+          .font(Тема.Шрифт.стиль(.subheadline, .medium))
       }
       .tint(Тема.Цвет.акцент)
     }

@@ -87,7 +87,7 @@ struct ProfileScreen: View {
     if Identity.hasSession {
       HStack {
         Label("Вы вошли", systemImage: "checkmark.shield")
-          .font(.subheadline.weight(.medium))
+          .font(Тема.Шрифт.стиль(.subheadline, .medium))
           // Золото вместо зелёного: акцент нового профиля — Profile.css:555.
           .foregroundStyle(Тема.Профиль.акцент)
         Spacer()
@@ -115,7 +115,7 @@ struct ProfileScreen: View {
     } else {
       VStack(alignment: .leading, spacing: Тема.Отступ.карточкаЛенты) {
         Label("Нужен вход", systemImage: "exclamationmark.shield")
-          .font(.subheadline.weight(.medium))
+          .font(Тема.Шрифт.стиль(.subheadline, .medium))
           /**
            * ЗОЛОТО, А НЕ `Цвет.предупреждение` #eab308.
            *
@@ -170,15 +170,15 @@ struct ProfileScreen: View {
            * веб даёт на 402 pt (Profile.css:1323). Число совпало, а
            * масштабирование под Dynamic Type сохранилось.
            */
-          .font(.title3.weight(.bold))
+          .font(Тема.Шрифт.стиль(.title3, .bold))
           // Кремовый #e6e0d2, а не белый: Profile.css:1640, :1702, :1908.
           .foregroundStyle(Тема.Профиль.текст)
         Text("@\(p.username)")
-          .font(.subheadline)
+          .font(Тема.Шрифт.стиль(.subheadline))
           .foregroundStyle(Тема.Профиль.акцент)
         if let bio = p.bio, !bio.isEmpty {
           Text(bio)
-            .font(.footnote)
+            .font(Тема.Шрифт.стиль(.footnote))
             .foregroundStyle(Тема.Профиль.текстВторичный)
             .fixedSize(horizontal: false, vertical: true)
         }
@@ -192,7 +192,7 @@ struct ProfileScreen: View {
       подпись("Пока ни одного ролика")
     } else {
       Text("Ролики · \(ролики.count)")
-        .font(.subheadline.weight(.medium))
+        .font(Тема.Шрифт.стиль(.subheadline, .medium))
         .foregroundStyle(Тема.Профиль.текстПриглушённый)
 
       LazyVGrid(
@@ -210,7 +210,7 @@ struct ProfileScreen: View {
             // Счётчик просмотров поверх плитки: в вебе он там же, и это
             // единственное число, ради которого автор сюда заходит.
             Label("\(р.viewsCount)", systemImage: "eye")
-              .font(.caption2)
+              .font(Тема.Шрифт.стиль(.caption2))
               .foregroundStyle(Тема.Профиль.текст)
               .padding(Тема.Отступ.вкладка)
           }
@@ -233,7 +233,7 @@ struct ProfileScreen: View {
 
   private func подпись(_ т: String) -> some View {
     Text(т)
-      .font(.footnote)
+      .font(Тема.Шрифт.стиль(.footnote))
       // `.profile-files__empty { color: #8a8578 }` — Profile.css:1556.
       .foregroundStyle(Тема.Профиль.текстПриглушённый)
       .frame(maxWidth: .infinity, alignment: .leading)

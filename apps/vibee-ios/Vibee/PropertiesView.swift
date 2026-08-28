@@ -52,10 +52,10 @@ struct PropertiesView: View {
   private var подсказкаПустоты: some View {
     VStack(spacing: Тема.Отступ.sm) {
       Image(systemName: "hand.tap")
-        .font(.title2)
+        .font(Тема.Шрифт.значок(.title2))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
       Text("Выберите клип на таймлайне")
-        .font(.footnote)
+        .font(Тема.Шрифт.стиль(.footnote))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -65,7 +65,7 @@ struct PropertiesView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 18) {
         Text(clip.wrappedValue.name ?? "Клип")
-          .font(.headline)
+          .font(Тема.Шрифт.стиль(.headline, .semibold))
           .foregroundStyle(Тема.Цвет.текст)
 
         группа("Положение") {
@@ -95,7 +95,7 @@ struct PropertiesView: View {
   private func группа<C: View>(_ title: String, @ViewBuilder _ c: () -> C) -> some View {
     VStack(alignment: .leading, spacing: Тема.Отступ.карточкаЛенты) {
       Text(title.uppercased())
-        .font(.system(size: Тема.Кегль.xs, weight: .semibold))
+        .font(Тема.Шрифт.кегль(Тема.Кегль.xs, .semibold, относительно: .caption2))
         .tracking(0.8)
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
       c()
@@ -118,7 +118,7 @@ struct PropertiesView: View {
   ) -> some View {
     HStack {
       Text(label)
-        .font(.footnote)
+        .font(Тема.Шрифт.стиль(.footnote))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
         .frame(width: 84, alignment: .leading)
 
@@ -129,7 +129,7 @@ struct PropertiesView: View {
           .monospacedDigit()
         Text(единица).foregroundStyle(Тема.Цвет.текстПриглушённый)
       }
-      .font(.system(.footnote, design: .monospaced))
+      .font(Тема.Шрифт.моно(.footnote))
       .foregroundStyle(Тема.Цвет.текст)
       .padding(.horizontal, Тема.Отступ.карточкаЛенты)
       .padding(.vertical, 7)
@@ -150,11 +150,11 @@ struct PropertiesView: View {
     VStack(alignment: .leading, spacing: Тема.Отступ.xs) {
       HStack {
         Text(label)
-          .font(.footnote)
+          .font(Тема.Шрифт.стиль(.footnote))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
         Spacer()
         Text("\(Int(value.wrappedValue * 100))%")
-          .font(.system(.caption, design: .monospaced))
+          .font(Тема.Шрифт.моно(.caption))
           .monospacedDigit()
           .foregroundStyle(Тема.Цвет.текст)
       }
@@ -166,7 +166,7 @@ struct PropertiesView: View {
   private func целое(_ label: String, value: Binding<Int>, диапазон: ClosedRange<Int>) -> some View {
     HStack {
       Text(label)
-        .font(.footnote)
+        .font(Тема.Шрифт.стиль(.footnote))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
         .frame(width: 84, alignment: .leading)
       Spacer()
@@ -178,14 +178,14 @@ struct PropertiesView: View {
         in: диапазон
       ) {
         Text("\(value.wrappedValue)")
-          .font(.system(.footnote, design: .monospaced))
+          .font(Тема.Шрифт.моно(.footnote))
           .monospacedDigit()
           .foregroundStyle(Тема.Цвет.текст)
       }
       .labelsHidden()
       .overlay(alignment: .leading) {
         Text("\(value.wrappedValue) кадр")
-          .font(.system(.footnote, design: .monospaced))
+          .font(Тема.Шрифт.моно(.footnote))
           .monospacedDigit()
           .foregroundStyle(Тема.Цвет.текст)
           .offset(x: -78)

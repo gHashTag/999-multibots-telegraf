@@ -53,7 +53,7 @@ struct TimelineView: View {
   private var панельИнструментов: some View {
     HStack(spacing: Тема.Отступ.пузырьЧата) {
       Text(таймкод(currentFrame))
-        .font(.system(.footnote, design: .monospaced))
+        .font(Тема.Шрифт.моно(.footnote))
         // Моноширинные цифры: без них таймкод дёргается на каждом кадре,
         // потому что «1» уже «8», и глазу кажется, что прыгает вся панель.
         .monospacedDigit()
@@ -62,7 +62,7 @@ struct TimelineView: View {
       Spacer()
 
       Text("\(composition.tracks.count) дорожек · \(composition.durationInFrames) кадров")
-        .font(.caption2)
+        .font(Тема.Шрифт.стиль(.caption2))
         .foregroundStyle(Тема.Цвет.текстПриглушённый)
     }
     .padding(.horizontal, Тема.Отступ.пузырьЧата)
@@ -106,10 +106,10 @@ struct TimelineView: View {
   private func заголовок(_ track: Track) -> some View {
     HStack(spacing: Тема.Отступ.вкладка) {
       Image(systemName: значок(track.type))
-        .font(.caption)
+        .font(Тема.Шрифт.стиль(.caption))
         .foregroundStyle(цвет(track.type))
       Text(track.name)
-        .font(.caption2)
+        .font(Тема.Шрифт.стиль(.caption2))
         .lineLimit(1)
         .foregroundStyle(track.visible ? Тема.Цвет.текст : Тема.Цвет.текстПриглушённый)
     }
@@ -151,7 +151,7 @@ struct TimelineView: View {
              height: высотаДорожки - Тема.Отступ.sm)
       .overlay(alignment: .leading) {
         Text(c.name ?? тип)
-          .font(.system(size: Тема.Кегль.xs, weight: .semibold))
+          .font(Тема.Шрифт.кегль(Тема.Кегль.xs, .semibold, относительно: .caption2))
           /**
            * Подпись ТЁМНАЯ. Заливка дорожек светлая и насыщенная — белый
            * текст на ней даёт около 1.8:1 при минимуме 4.5:1 по WCAG. Ровно

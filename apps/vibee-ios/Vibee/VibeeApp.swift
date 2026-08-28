@@ -42,8 +42,11 @@ struct RootView: View {
     // Невидима там, невидима и здесь: задача — совпасть, а не улучшить.
     облик.shadowColor = UIColor(Тема.ТабБар.граница)
 
-    // Кегль подписи 10 — TelegramTabBar.css:77.
-    let шрифтПодписи = UIFont.systemFont(ofSize: Тема.ТабБар.кегльПодписи)
+    // Кегль подписи 10 — TelegramTabBar.css:77. Гарнитура — общая, из
+    // `Тема.Шрифт`; у самой полосы эффект нулевой (все пять подписей
+    // кириллицей, а в Outfit её нет), но источник шрифта в приложении
+    // остаётся один — почему так, расписано у `Тема.Шрифт.uiKit`.
+    let шрифтПодписи = Тема.Шрифт.uiKit(Тема.ТабБар.кегльПодписи)
 
     /// Тип указан явно: без него Swift выводит словарь как
     /// `[NSAttributedString.Key: UIFont]` и отказывается принять цвет.
@@ -229,11 +232,11 @@ struct EditorScreen: View {
   private var шапка: some View {
     HStack(spacing: Тема.Отступ.sm) {
       Image(systemName: источник.демо ? "exclamationmark.triangle.fill" : "square.stack.3d.up.fill")
-        .font(.caption)
+        .font(Тема.Шрифт.стиль(.caption))
         .foregroundStyle(источник.демо ? Тема.Цвет.предупреждение : Тема.Цвет.акцент)
 
       Text(сообщение ?? источник.подпись)
-        .font(.caption)
+        .font(Тема.Шрифт.стиль(.caption))
         .foregroundStyle(источник.демо ? Тема.Цвет.предупреждение : Тема.Цвет.текстПриглушённый)
         .lineLimit(2)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -246,7 +249,7 @@ struct EditorScreen: View {
             if сохраняется {
               ProgressView().controlSize(.mini)
             } else {
-              Text(идПроекта == nil ? "Создать" : "Сохранить").font(.caption.bold())
+              Text(идПроекта == nil ? "Создать" : "Сохранить").font(Тема.Шрифт.стиль(.caption, .bold))
             }
           }
           // Высота ЯВНО и ВНУТРИ label. `.controlSize(.small)` давал около

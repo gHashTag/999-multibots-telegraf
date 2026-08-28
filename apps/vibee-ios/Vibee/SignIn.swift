@@ -46,7 +46,7 @@ struct SignInView: View {
     VStack(alignment: .leading, spacing: Тема.Отступ.пузырьЧата) {
       Text("Откройте бота в Telegram и нажмите «Войти в приложение». "
            + "Он покажет код из шести цифр — введите его здесь.")
-        .font(.callout)
+        .font(Тема.Шрифт.стиль(.callout))
         // #a39d8d — первая ступень приглушения в профиле, Profile.css:1667.
         .foregroundStyle(Тема.Профиль.текстВторичный)
         .fixedSize(horizontal: false, vertical: true)
@@ -62,7 +62,7 @@ struct SignInView: View {
       TextField("000000", text: $код)
         .keyboardType(.numberPad)
         .textContentType(.oneTimeCode)
-        .font(.system(size: Тема.БезИсточника.кегльКодаВхода, weight: .semibold, design: .monospaced))
+        .font(Тема.Шрифт.моно(Тема.БезИсточника.кегльКодаВхода, .semibold))
         .kerning(8)
         .multilineTextAlignment(.center)
         .focused($вФокусе)
@@ -112,7 +112,7 @@ struct SignInView: View {
 
       if let ошибка {
         Label(ошибка, systemImage: "exclamationmark.triangle.fill")
-          .font(.footnote)
+          .font(Тема.Шрифт.стиль(.footnote))
           // Тёплый #ff6b6b нового блока профиля — Profile.css:1733.
           .foregroundStyle(Тема.Профиль.красный)
           .fixedSize(horizontal: false, vertical: true)

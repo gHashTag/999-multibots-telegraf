@@ -56,9 +56,9 @@ struct FeedView: View {
         // Отказ показываем словами. Пустой экран вместо объяснения —
         // ровно та ошибка, которую весь вчерашний день чинил в вебе.
         VStack(spacing: 10) {
-          Image(systemName: "wifi.exclamationmark").font(.largeTitle)
-          Text("Лента не загрузилась").font(.headline)
-          Text(ошибка).font(.footnote).foregroundStyle(Тема.Цвет.текстПриглушённый)
+          Image(systemName: "wifi.exclamationmark").font(Тема.Шрифт.значок(.largeTitle))
+          Text("Лента не загрузилась").font(Тема.Шрифт.стиль(.headline, .semibold))
+          Text(ошибка).font(Тема.Шрифт.стиль(.footnote)).foregroundStyle(Тема.Цвет.текстПриглушённый)
             .multilineTextAlignment(.center)
           Button { Task { await загрузить() } } label: {
             // Высота ВНУТРИ label. Снаружи `.frame` растягивает только
@@ -122,7 +122,7 @@ struct FeedView: View {
 
       if let подсказка {
         Text(подсказка)
-          .font(.footnote.weight(.medium))
+          .font(Тема.Шрифт.стиль(.footnote, .medium))
           .foregroundStyle(Тема.Цвет.текст)
           .multilineTextAlignment(.center)
           .padding(.horizontal, Тема.Отступ.md).padding(.vertical, Тема.Отступ.карточкаЛенты)
@@ -284,17 +284,17 @@ struct ReelView: View {
   private var подписьРолика: some View {
     VStack(alignment: .leading, spacing: 6) {
       Text(template.name)
-        .font(.title3.weight(.semibold))
+        .font(Тема.Шрифт.стиль(.title3, .semibold))
       Text("@\(template.creatorUsername)")
-        .font(.subheadline).foregroundStyle(Тема.Цвет.акцент)
+        .font(Тема.Шрифт.стиль(.subheadline)).foregroundStyle(Тема.Цвет.акцент)
       Text(template.description)
-        .font(.footnote).foregroundStyle(Тема.Цвет.текстПриглушённый)
+        .font(Тема.Шрифт.стиль(.footnote)).foregroundStyle(Тема.Цвет.текстПриглушённый)
         .lineLimit(2)
       HStack(spacing: 16) {
         Label("\(template.viewsCount)", systemImage: "eye")
         Label("\(template.starsCount)", systemImage: "star")
       }
-      .font(.caption).foregroundStyle(Тема.Цвет.текстПриглушённый)
+      .font(Тема.Шрифт.стиль(.caption)).foregroundStyle(Тема.Цвет.текстПриглушённый)
     }
     .foregroundStyle(Тема.Цвет.текст)
   }
@@ -446,14 +446,14 @@ private struct СодержимоеКнопки: View {
   var body: some View {
     VStack(spacing: Тема.ТабБар.просветИконкаПодпись) {
       Image(systemName: значок)
-        .font(.system(size: Тема.БезИсточника.кегльИконокЛенты, weight: .semibold))
+        .font(Тема.Шрифт.значок(Тема.БезИсточника.кегльИконокЛенты, .semibold))
         .foregroundStyle(активна ? цветАктивной : Тема.Цвет.текст)
         // Тень — не украшение: белая иконка на светлом кадре иначе исчезает.
         .shadow(color: Тема.Цвет.фон.opacity(0.5), radius: 3, y: 1)
         .frame(width: 52, height: 52)
       if let подпись {
         Text(подпись)
-          .font(.caption2.weight(.semibold))
+          .font(Тема.Шрифт.стиль(.caption2, .semibold))
           .foregroundStyle(Тема.Цвет.текст)
           .shadow(color: Тема.Цвет.фон.opacity(0.5), radius: 3, y: 1)
       }
