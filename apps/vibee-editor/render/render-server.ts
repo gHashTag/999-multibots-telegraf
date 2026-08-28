@@ -5020,16 +5020,36 @@ const server = createServer(async (req, res) => {
             `https://api.telegram.org/bot${PAY_BOT}/getStarTransactions?limit=100`
           ).then(r => r.json())
           const txs = st?.result?.transactions || []
+          // Транзакции, уже привязанные к погашенным инвойсам этого
+          // пользователя, — исключаем: иначе одна оплата звёздами могла бы
+          // погасить несколько инвойсов с одинаковой суммой в разных вызовах.
+          const usedTxIds = new Set(
+            (
+              await pool.query(
+                `SELECT star_tx_id FROM token_invoices
+                 WHERE telegram_id = $1 AND star_tx_id IS NOT NULL`,
+                [who]
+              )
+            ).rows.map((r: any) => String(r.star_tx_id))
+          )
           // Гасим самый свежий подходящий pending: сумма совпала,
           // транзакция новее инвойса, от этого пользователя.
           for (const row of pend.rows) {
-            const match = txs.find(
-              (t: any) =>
+            const invoiceMs = new Date(row.created_at).getTime()
+            const match = txs.find((t: any) => {
+              // t.date — Unix-СЕКУНДЫ (Bot API StarTransaction.date). Сравнение
+              // ЧИСЛАМИ: раньше стояло Date.parse(t.date*1000), но Date.parse
+              // ждёт строку, а получал число миллисекунд → NaN, и `NaN > X`
+              // всегда false. Из-за этого резервная проверка не начисляла
+              // НИКОГДА с момента написания.
+              const txMs = Number(t.date) * 1000
+              return (
+                !usedTxIds.has(String(t.id)) &&
                 Number(t.amount) === row.stars &&
                 t.source?.user?.id === Number(who) &&
-                Date.parse(t.date * 1000 || t.date) >
-                  Date.parse(row.created_at) - 60_000
-            )
+                txMs > invoiceMs - 60_000
+              )
+            })
             if (match) {
               const upd = await pool.query(
                 `UPDATE token_invoices SET redeemed = TRUE, star_tx_id = $2
