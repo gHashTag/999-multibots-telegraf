@@ -82,6 +82,13 @@ const setupSupabaseMocks = (
     error: insertError,
   })
   const mockUpdate = vi.fn().mockReturnThis()
+  // The existence check uses .limit(1), not .single(): telegram_id is not
+  // unique in `users` (19 people have 2-3 rows in production), and single()
+  // errors on more than one row. Returns an ARRAY, hence the [] / [row] shape.
+  const mockLimit = vi.fn().mockResolvedValue({
+    data: userExists ? [{ id: 1, telegram_id: '123456789' }] : [],
+    error: null,
+  })
 
   ;(supabase.from as Mock).mockReturnValue({
     select: mockSelect,
@@ -89,13 +96,14 @@ const setupSupabaseMocks = (
     update: mockUpdate,
     eq: mockEq,
     single: mockSingle,
+    limit: mockLimit,
   })
   ;(supabase.rpc as Mock).mockResolvedValue({
     data: rpcError ? null : balance,
     error: rpcError,
   })
 
-  return { mockSelect, mockEq, mockSingle, mockInsert, mockUpdate }
+  return { mockSelect, mockEq, mockSingle, mockInsert, mockUpdate, mockLimit }
 }
 
 describe('updateUserBalance', () => {

@@ -28,6 +28,11 @@ vi.mock('@/core/supabase', () => ({
       single: vi
         .fn()
         .mockResolvedValue({ data: { telegram_id: '1' }, error: null }),
+      // The users existence check uses .limit(1) (telegram_id is not unique),
+      // so it resolves an ARRAY, not a single row.
+      limit: vi
+        .fn()
+        .mockResolvedValue({ data: [{ telegram_id: '1' }], error: null }),
       update: vi.fn(() => ({
         eq: vi.fn().mockResolvedValue({ error: null }),
       })),
