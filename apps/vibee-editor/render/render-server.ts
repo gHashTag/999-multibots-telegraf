@@ -28,6 +28,7 @@ import {
   verifyTelegramInitData,
   verifiedTelegramId,
 } from './auth'
+import { spendByTid, refundByTid } from './src/agent/billing-shared'
 import { TEMPLATE_CARDS } from './src/templates/registry'
 import fs from 'node:fs'
 import { randomUUID, createHmac, createHash } from 'node:crypto'
@@ -2225,6 +2226,8 @@ const server = createServer(async (req, res) => {
       body += chunk
     })
     req.on('end', async () => {
+      // Объявлено ДО try, чтобы возврат токена в catch видел, списывали ли.
+      let billedTid: string | null = null
       try {
         if (!FAL_KEY) throw new Error('FAL_KEY not configured')
 
@@ -2232,6 +2235,32 @@ const server = createServer(async (req, res) => {
         console.log(
           `📷 [Generate] Photo: ${model}, prompt: "${prompt.substring(0, 50)}..."`
         )
+
+        // Тарификация на РЕСУРСНОМ слое (закрывает бесплатный обход через
+        // прямой вызов /api/generate/image из мини-аппа). Серверный путь
+        // (X-Api-Key, автопилот/агент) пропускаем: он уже оплачен на слое
+        // инструментов. Пользовательский (initData) списываем здесь; возврат —
+        // в catch ниже, если генерация не удалась.
+        if (auth.via !== 'api-key') {
+          const tid = verifiedTelegramId(req)
+          if (!tid) {
+            res.writeHead(401, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                success: false,
+                error: 'нужна подпись мини-аппа или серверный ключ',
+              })
+            )
+            return
+          }
+          const spend = await spendByTid(await getPool(), tid, 'image_generate')
+          if (!spend.ok) {
+            res.writeHead(402, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ success: false, error: spend.причина }))
+            return
+          }
+          billedTid = tid
+        }
 
         // FAL — основной путь, но падение по чужому балансу не должно
         // останавливать производство: ниже уходим на Replicate.
@@ -2365,6 +2394,10 @@ const server = createServer(async (req, res) => {
         throw new Error('Image generation timeout')
       } catch (error) {
         console.error('❌ [Generate] Image error:', error)
+        // Списали токен, но картинки нет — возвращаем. Иначе сбой провайдера
+        // стоил бы пользователю токен ни за что.
+        if (billedTid)
+          await refundByTid(await getPool(), billedTid, 'image_generate')
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
@@ -2479,9 +2512,36 @@ const server = createServer(async (req, res) => {
       body += chunk
     })
     req.on('end', async () => {
+      // Объявлено ДО try: возврат в финальном catch должен знать, списывали ли.
+      let billedTid: string | null = null
       try {
         const { model, prompt, duration, aspect_ratio } = JSON.parse(body)
         console.log(`🎬 [Generate] Video: ${model}, duration: ${duration}`)
+
+        // Тарификация ресурсного слоя (video = 20 токенов). Серверный путь
+        // (X-Api-Key) уже оплачен на слое инструментов — пропускаем.
+        // Пользовательский списываем; возврат — только если ОБА пути (MCP и
+        // Replicate-фолбэк) не удались, в финальном catch ниже.
+        if (auth.via !== 'api-key') {
+          const tid = verifiedTelegramId(req)
+          if (!tid) {
+            res.writeHead(401, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                success: false,
+                error: 'нужна подпись мини-аппа или серверный ключ',
+              })
+            )
+            return
+          }
+          const spend = await spendByTid(await getPool(), tid, 'video_generate')
+          if (!spend.ok) {
+            res.writeHead(402, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ success: false, error: spend.причина }))
+            return
+          }
+          billedTid = tid
+        }
 
         // Determine which API to use based on model
         const isKling = model.startsWith('kling')
@@ -2598,6 +2658,9 @@ const server = createServer(async (req, res) => {
           )
         } catch (fallbackError) {
           console.error('❌ [Generate] Video error:', fallbackError)
+          // Оба пути (MCP и Replicate) не удались — видео нет. Возвращаем токен.
+          if (billedTid)
+            await refundByTid(await getPool(), billedTid, 'video_generate')
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(
             JSON.stringify({
@@ -2621,6 +2684,8 @@ const server = createServer(async (req, res) => {
       body += chunk
     })
     req.on('end', async () => {
+      // Объявлено ДО try: возврат в catch должен знать, списывали ли.
+      let billedTid: string | null = null
       try {
         const { text, voice_id, speed } = JSON.parse(body)
         const ELEVENLABS_API_KEY = elevenLabsKey()
@@ -2628,6 +2693,30 @@ const server = createServer(async (req, res) => {
         console.log(
           `🎤 [Generate] Audio: voice=${voice_id}, text="${text.substring(0, 50)}..."`
         )
+
+        // Тарификация ресурсного слоя (audio = 6 токенов). Серверный путь
+        // (X-Api-Key) уже оплачен на слое инструментов; пользовательский
+        // списываем здесь, возврат — в catch при сбое.
+        if (auth.via !== 'api-key') {
+          const tid = verifiedTelegramId(req)
+          if (!tid) {
+            res.writeHead(401, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                success: false,
+                error: 'нужна подпись мини-аппа или серверный ключ',
+              })
+            )
+            return
+          }
+          const spend = await spendByTid(await getPool(), tid, 'audio_generate')
+          if (!spend.ok) {
+            res.writeHead(402, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ success: false, error: spend.причина }))
+            return
+          }
+          billedTid = tid
+        }
 
         // Call ElevenLabs TTS API directly
         const ttsResponse = await fetch(
@@ -2683,6 +2772,9 @@ const server = createServer(async (req, res) => {
         )
       } catch (error) {
         console.error('❌ [Generate] Audio error:', error)
+        // Списали, но озвучки нет — возвращаем токен.
+        if (billedTid)
+          await refundByTid(await getPool(), billedTid, 'audio_generate')
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
