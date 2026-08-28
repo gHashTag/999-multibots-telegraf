@@ -3,7 +3,12 @@ import {
   checkVideoGenerationStatus,
   VideoModelId,
 } from '@/services/generateTextToVideo'
-import { getUnifiedModelConfig, getUnifiedModelPrice, VIDEO_MODELS_CONFIG, getValidDuration } from '@/config/unified-video-models.config'
+import {
+  getUnifiedModelConfig,
+  getUnifiedModelPrice,
+  VIDEO_MODELS_CONFIG,
+  getValidDuration,
+} from '@/config/unified-video-models.config'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
@@ -78,7 +83,9 @@ export async function handleTextToVideoDirect(
 
   try {
     // ✅ Импортируем новый модуль videoGenerator
-    const { generateTextToVideo: generateTextToVideoNew } = await import('@/modules/videoGenerator')
+    const { generateTextToVideo: generateTextToVideoNew } = await import(
+      '@/modules/videoGenerator'
+    )
 
     // Запускаем генерацию видео через новый модуль
     const result = await generateTextToVideoNew(
@@ -93,13 +100,30 @@ export async function handleTextToVideoDirect(
       aspectRatio
     )
 
-    // result уже в правильном формате { success, videoUrl?, jobId?, error?, message? }
-    const response: { success: boolean; videoUrl?: string; jobId?: string; error?: string; message?: string } =
-      result || { success: false, error: 'Video generation failed' }
+    // Модуль generateTextToVideo возвращает string | null, а НЕ объект.
+    // Строка — это либо URL готового видео (синхронные Replicate-модели), либо
+    // taskId async-джобы (Kie.ai). Раньше здесь ждали объект {success,...}, и на
+    // успехе (строке) response.success был undefined → условие !response.success
+    // истинно → пользователь ВСЕГДА получал «❌ Ошибка генерации: undefined», а
+    // видео не доходило вообще. Нормализуем к контракту хендлера:
+    //   URL  → videoUrl (доставить сразу), иначе taskId → jobId (вебхук/поллинг).
+    const response: {
+      success: boolean
+      videoUrl?: string
+      jobId?: string
+      error?: string
+      message?: string
+    } =
+      typeof result === 'string' && result
+        ? /^https?:\/\//.test(result)
+          ? { success: true, videoUrl: result }
+          : { success: true, jobId: result }
+        : { success: false, error: 'Video generation failed' }
 
     if (!response.success) {
       // ✅ Проверяем, является ли это ошибкой недостатка кредитов (402)
-      const isInsufficientCredits = (response as any).isInsufficientCredits === true
+      const isInsufficientCredits =
+        (response as any).isInsufficientCredits === true
 
       if (isInsufficientCredits) {
         // 🚨 КРИТИЧЕСКАЯ ОШИБКА: Уведомляем админа о недостатке кредитов
@@ -117,10 +141,18 @@ export async function handleTextToVideoDirect(
         // Отправляем уведомление всем админам
         for (const adminId of ADMIN_IDS_ARRAY) {
           try {
-            await ctx.telegram.sendMessage(adminId, adminMessage, { parse_mode: 'HTML' })
-            logger.info('[handleTextToVideoDirect] Admin notified about insufficient credits', { adminId })
+            await ctx.telegram.sendMessage(adminId, adminMessage, {
+              parse_mode: 'HTML',
+            })
+            logger.info(
+              '[handleTextToVideoDirect] Admin notified about insufficient credits',
+              { adminId }
+            )
           } catch (error) {
-            logger.error('[handleTextToVideoDirect] Failed to notify admin', { adminId, error })
+            logger.error('[handleTextToVideoDirect] Failed to notify admin', {
+              adminId,
+              error,
+            })
           }
         }
 
@@ -189,7 +221,7 @@ export async function handleTextToVideoDirect(
           modelId,
           duration: validDuration,
           createdAt: Date.now(),
-          botName: ctx.botInfo?.username // ✅ FIX: Сохраняем имя бота для multi-bot режима
+          botName: ctx.botInfo?.username, // ✅ FIX: Сохраняем имя бота для multi-bot режима
         })
 
         if (ctx && ctx.telegram && ctx.chat) {
@@ -203,15 +235,22 @@ export async function handleTextToVideoDirect(
           )
         }
 
-        logger.info('[handleTextToVideoDirect] Async task saved for webhook (Kie.ai provider)', {
-          taskId: response.jobId,
-          telegram_id,
-          modelId,
-          provider: 'kie'
-        })
+        logger.info(
+          '[handleTextToVideoDirect] Async task saved for webhook (Kie.ai provider)',
+          {
+            taskId: response.jobId,
+            telegram_id,
+            modelId,
+            provider: 'kie',
+          }
+        )
       } else {
         // Для НЕ-Kie.ai моделей: используем polling как раньше
-        monitorVideoGeneration(ctx, response.jobId, processingMessage.message_id)
+        monitorVideoGeneration(
+          ctx,
+          response.jobId,
+          processingMessage.message_id
+        )
         if (ctx && ctx.telegram && ctx.chat) {
           await ctx.telegram.editMessageText(
             ctx.chat.id,
@@ -277,11 +316,14 @@ async function monitorVideoGeneration(
 
   // ✅ ИСПРАВЛЕНИЕ: Для Sora моделей НЕ используем polling - только webhook!
   if (isSoraModel) {
-    logger.info('[monitorVideoGeneration] Sora model detected - skipping polling, waiting for webhook', {
-      jobId,
-      telegram_id: ctx.from?.id,
-      modelId
-    })
+    logger.info(
+      '[monitorVideoGeneration] Sora model detected - skipping polling, waiting for webhook',
+      {
+        jobId,
+        telegram_id: ctx.from?.id,
+        modelId,
+      }
+    )
     return // Выходим сразу, webhook обработает результат
   }
 
@@ -291,7 +333,7 @@ async function monitorVideoGeneration(
 
     try {
       const statusResponse = await checkVideoGenerationStatus(jobId, is_ru)
-      
+
       // Детальное логирование ответа от сервера
       logger.info('[monitorVideoGeneration] Status check response:', {
         jobId,
@@ -299,17 +341,20 @@ async function monitorVideoGeneration(
         hasVideoUrl: !!statusResponse.videoUrl,
         videoUrl: statusResponse.videoUrl || 'NO_URL',
         error: statusResponse.error,
-        attempts
+        attempts,
       })
 
       if (statusResponse.success && statusResponse.videoUrl) {
         // Видео готово
         clearInterval(checkInterval)
-        logger.info('[monitorVideoGeneration] Video ready, calling handleVideoReady:', {
-          videoUrl: statusResponse.videoUrl,
-          jobId
-        })
-        
+        logger.info(
+          '[monitorVideoGeneration] Video ready, calling handleVideoReady:',
+          {
+            videoUrl: statusResponse.videoUrl,
+            jobId,
+          }
+        )
+
         await handleVideoReady(
           ctx,
           statusResponse.videoUrl,
@@ -327,11 +372,14 @@ async function monitorVideoGeneration(
         delete ctx.session.videoMessageId
       } else if (statusResponse.success && !statusResponse.videoUrl) {
         // Видео еще генерируется, продолжаем ждать
-        logger.info('[monitorVideoGeneration] Video still generating, continue polling', {
-          jobId,
-          attempts,
-          message: statusResponse.message
-        })
+        logger.info(
+          '[monitorVideoGeneration] Video still generating, continue polling',
+          {
+            jobId,
+            attempts,
+            message: statusResponse.message,
+          }
+        )
         // Ничего не делаем, просто продолжаем цикл проверки
       } else if (!statusResponse.success && statusResponse.error) {
         // Реальная ошибка генерации
@@ -347,7 +395,7 @@ async function monitorVideoGeneration(
           )
         }
       }
-      
+
       // Проверка таймаута после всех других проверок
       if (attempts >= maxAttempts) {
         // Таймаут
@@ -410,7 +458,7 @@ async function handleVideoReady(
     modelId,
     duration,
     messageId,
-    telegram_id
+    telegram_id,
   })
 
   // Проверка на undefined или пустой URL
@@ -418,9 +466,9 @@ async function handleVideoReady(
     logger.error('[handleVideoReady] Invalid videoUrl received:', {
       videoUrl,
       videoUrlType: typeof videoUrl,
-      telegram_id
+      telegram_id,
     })
-    
+
     if (ctx && ctx.telegram && ctx.chat) {
       await ctx.telegram.editMessageText(
         ctx.chat.id,
@@ -458,7 +506,7 @@ async function handleVideoReady(
     logger.info('[handleVideoReady] Attempting to send video:', {
       uploadedUrl,
       finalUrl: uploadedUrl || videoUrl,
-      telegram_id
+      telegram_id,
     })
 
     // Отправляем видео с минимальной подписью
@@ -479,13 +527,13 @@ async function handleVideoReady(
     const MAX_MESSAGE_LENGTH = 4000 // Оставляем запас для форматирования
     const promptHeader = is_ru ? '📝 Ваш запрос:\n\n' : '📝 Your prompt:\n\n'
     const fullPromptMessage = promptHeader + prompt
-    
+
     if (fullPromptMessage.length > MAX_MESSAGE_LENGTH) {
       // Разбиваем на несколько сообщений, если очень длинный
       const chunks = []
       let currentChunk = promptHeader
       const words = prompt.split(' ')
-      
+
       for (const word of words) {
         if ((currentChunk + ' ' + word).length > MAX_MESSAGE_LENGTH) {
           chunks.push(currentChunk)
@@ -497,7 +545,7 @@ async function handleVideoReady(
       if (currentChunk.length > 0) {
         chunks.push(currentChunk)
       }
-      
+
       // Отправляем каждый чанк
       for (const chunk of chunks) {
         await ctx.reply(chunk)
@@ -561,19 +609,22 @@ async function handleVideoReady(
         prompt: prompt,
         botName: 'HaimGroupMedia_bot',
         additionalInfo: {
-          'Model': modelName,
-          'Duration': duration ? `${duration} sec` : 'N/A',
-          'Price': `${price} stars`
-        }
+          Model: modelName,
+          Duration: duration ? `${duration} sec` : 'N/A',
+          Price: `${price} stars`,
+        },
       })
-      
+
       logger.info('[handleVideoReady] Video sent to pulse channel', {
         telegram_id,
         modelId,
-        uploadedUrl
+        uploadedUrl,
       })
     } catch (pulseError) {
-      logger.error('[handleVideoReady] Error sending to pulse channel:', pulseError)
+      logger.error(
+        '[handleVideoReady] Error sending to pulse channel:',
+        pulseError
+      )
       // Не прерываем выполнение, если pulse не сработал
     }
   } catch (error) {
@@ -602,7 +653,7 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
   logger.info('[handleVideoStatusUpdate] Checking video generation status', {
     telegram_id,
     hasSessionJobId: !!ctx.session.videoJobId,
-    sessionJobId: ctx.session.videoJobId
+    sessionJobId: ctx.session.videoJobId,
   })
 
   // ✅ Для Kie.ai моделей (сохранено в videoTaskStore) - webhook доставит результат
@@ -610,8 +661,8 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
   if (!ctx.session.videoJobId) {
     // Проверяем, возможно это Kie.ai модель (webhook delivery)
     const tasks = videoTaskStore.getAllTasks()
-    const userTask = Object.entries(tasks).find(([_, task]) =>
-      task.telegramId === parseInt(telegram_id)
+    const userTask = Object.entries(tasks).find(
+      ([_, task]) => task.telegramId === parseInt(telegram_id)
     )
 
     if (userTask) {
@@ -622,15 +673,18 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
       )
       logger.info('[handleVideoStatusUpdate] Found Kie.ai task in store', {
         telegram_id,
-        taskId: userTask[0]
+        taskId: userTask[0],
       })
     } else {
       await ctx.answerCbQuery(
         is_ru ? 'Нет активной генерации видео' : 'No active video generation'
       )
-      logger.info('[handleVideoStatusUpdate] No active video generation found', {
-        telegram_id
-      })
+      logger.info(
+        '[handleVideoStatusUpdate] No active video generation found',
+        {
+          telegram_id,
+        }
+      )
     }
     return
   }
@@ -646,7 +700,7 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
       jobId: ctx.session.videoJobId,
       success: statusResponse.success,
       hasVideoUrl: !!statusResponse.videoUrl,
-      error: statusResponse.error
+      error: statusResponse.error,
     })
 
     if (statusResponse.success && statusResponse.videoUrl) {
