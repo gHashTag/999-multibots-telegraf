@@ -115,8 +115,30 @@ export const undoAtom = atom(
     const future = get(futureSnapshotsAtom);
     set(futureSnapshotsAtom, [currentSnapshot, ...future]);
 
-    // Pop from past and apply
+    /**
+     * Если верхний снимок — это то, где мы стоим, шагаем ГЛУБЖЕ.
+     *
+     * Снимок делается ПОСЛЕ изменения, поэтому возможны два состояния:
+     *
+     *   изменение записано   верх past === текущее. Применить его значит
+     *                        никуда не сдвинуться — ровно это и было:
+     *                        первое нажатие отмены молча не работало;
+     *   изменение в полёте   дебаунс ещё не сработал, верх past — прошлое
+     *                        состояние, и применить его правильно.
+     *
+     * Оба случая живут в тестах рядом, и различать их обязан код: человек не
+     * знает и не должен знать, успел ли сработать дебаунс.
+     *
+     * Сравнение по СОДЕРЖИМОМУ, а не по метке времени: одно и то же
+     * состояние, записанное дважды, — это одно состояние.
+     */
     const newPast = [...past];
+    if (
+      newPast.length > 1 &&
+      areSnapshotsEqual(newPast[newPast.length - 1], currentSnapshot)
+    ) {
+      newPast.pop();
+    }
     const snapshot = newPast.pop()!;
     set(pastSnapshotsAtom, newPast);
 
