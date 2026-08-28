@@ -94,11 +94,18 @@ export const getUserDetailsSubscription = async (
     // --- ШАГ 2: Существование пользователя (оставляем как есть) ---
     let userExists = false
     try {
-      const { data: userData, error: userError } = await supabase
+      // limit(1), NOT maybeSingle(): telegram_id is NOT unique in `users`.
+      // Measured on production 2026-08-28: 2371 rows for 2336 distinct
+      // telegram_ids -- 19 people have 2-3 rows each. maybeSingle() errors on
+      // more than one row, the error is swallowed below, and userExists stays
+      // false -- so those people were reported as non-existent and locked out
+      // of every paid feature. Existence is all this step needs.
+      const { data: userRows, error: userError } = await supabase
         .from('users')
         .select('id') // Выбираем id (или любое другое не-null поле)
         .eq('telegram_id', telegramIdStr)
-        .maybeSingle() // Ожидаем одну запись или null
+        .limit(1)
+      const userData = userRows?.[0] ?? null
 
       if (userError) {
         if (
