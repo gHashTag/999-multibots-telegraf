@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const REPO = path.resolve(here, '..', '..')
 const PLAYER = path.join(REPO, 'apps/vibee-editor/player/src')
+const IOS = path.join(REPO, 'apps/vibee-ios/Vibee')
 const SERVER = path.join(REPO, 'apps/vibee-editor/render/render-server.ts')
 
 /** Все .ts/.tsx под каталогом. */
@@ -53,6 +54,35 @@ for (const f of файлы(PLAYER)) {
       .split('?')[0]
     const метод = /method:\s*['"](\w+)['"]/.exec(m[2])?.[1] || 'GET'
     вызовы.push({ путь, метод, файл: path.relative(REPO, f), сырой: m[0] })
+  }
+}
+
+/**
+ * ВЫЗОВЫ НАТИВНОГО ПРИЛОЖЕНИЯ — та же сверка, другой язык.
+ *
+ * Приложение ходит на тот же сервер, и обрыв там стоит того же. Проверено
+ * дорого: чат агента слал запрос вообще без заголовка личности, сервер
+ * отвечал 401, а на экране оставался пустой пузырь. Сверка адресов такого не
+ * поймала бы — адрес существует, — но она поймает следующий случай, когда
+ * приложение позовёт то, чего на сервере нет.
+ *
+ * Swift не даёт единой формы вызова: путь может лежать в
+ * `appendingPathComponent("api/…")` или в литерале URL. Берём оба.
+ */
+if (fs.existsSync(IOS)) {
+  for (const f of fs.readdirSync(IOS).filter(n => n.endsWith('.swift'))) {
+    const текст = fs.readFileSync(path.join(IOS, f), 'utf8')
+    for (const m of текст.matchAll(/["'](\/?api\/[a-zA-Z0-9_/-]+)["']/g)) {
+      const путь = m[1].startsWith('/') ? m[1] : `/${m[1]}`
+      // Метод в Swift задаётся отдельной строкой; для поиска обрывов он не
+      // нужен — важно лишь, обслуживается ли адрес вообще.
+      вызовы.push({
+        путь,
+        метод: /httpMethod\s*=\s*"(\w+)"/.test(текст) ? 'ANY' : 'GET',
+        файл: path.relative(REPO, path.join(IOS, f)),
+        сырой: m[0],
+      })
+    }
   }
 }
 
@@ -109,6 +139,9 @@ for (const в of вызовы) {
 const исходники = файлы(PLAYER).map(f => [f, fs.readFileSync(f, 'utf8')])
 
 function живой(в) {
+  // Swift не знает мёртвых экспортов в смысле этой проверки: если файл
+  // собран в приложение, вызов живой. Проверять нечего.
+  if (в.файл.endsWith('.swift')) return true
   const свой = path.join(REPO, в.файл)
   const s = fs.readFileSync(свой, 'utf8')
   const до = s.slice(0, s.indexOf(в.сырой))
