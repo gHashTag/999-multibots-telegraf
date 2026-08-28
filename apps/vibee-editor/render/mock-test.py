@@ -1,6 +1,6 @@
-import json, urllib.request
+import json, urllib.request, os
 
-B = "http://localhost:3336"
+B = os.environ.get("MOCK_BASE", "http://localhost:3336")
 passed = []; failed = []
 
 def req(method, path, body=None):
