@@ -248,8 +248,15 @@ export const healthCheck = inngest.createFunction(
     // Проверка основного API
     const apiHealth = await step.run('check-api-health', async () => {
       try {
+        // BASE_WEBHOOK_URL is the var actually set in Railway; WEBHOOK_URL was
+        // never set, so this probed a dead localhost:4000 (the API listens on
+        // PORT=3000) and every run reported "Main API down" while the real
+        // /health returned 200 — a standing false alarm to the admin.
         const response = await fetch(
-          `${process.env.WEBHOOK_URL || 'http://localhost:4000'}/health`
+          `${
+            process.env.BASE_WEBHOOK_URL ||
+            `http://localhost:${process.env.PORT || 3000}`
+          }/health`
         )
         return {
           service: 'Main API',
@@ -269,7 +276,11 @@ export const healthCheck = inngest.createFunction(
     // Проверка Inngest
     const inngestHealth = await step.run('check-inngest-health', async () => {
       try {
-        const response = await fetch('http://localhost:8288/health')
+        // Inngest is a separate Railway service, not localhost: use the
+        // configured INNGEST_BASE_URL (its /health returns 200 OK).
+        const response = await fetch(
+          `${process.env.INNGEST_BASE_URL || 'http://localhost:8288'}/health`
+        )
         return {
           service: 'Inngest',
           status: response.ok ? 'healthy' : 'unhealthy',
