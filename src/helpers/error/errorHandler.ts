@@ -141,3 +141,42 @@ export const setupErrorHandler = (bot: Telegraf<MyContext>): void => {
     return Promise.resolve()
   })
 }
+
+/**
+ * Register process-level handlers for rejections and exceptions that escape the
+ * bot's update loop — fire-and-forget promises, interval callbacks, the
+ * monitors, the API server. setupErrorHandler only wires bot.catch, and on Node
+ * the default for an unhandled rejection is to terminate the process. In one
+ * process that serves many bots, a single stray rejection would drop them all.
+ *
+ * These handlers exist in core/foundation/Foundation.ts, but Foundation is
+ * never initialised in production (nothing imports it outside examples), so the
+ * safety net was never armed. This wires up the minimal version.
+ *
+ * A rejected promise leaves synchronous state intact, so it is logged and the
+ * process keeps serving. An uncaught exception can leave state undefined, so it
+ * is logged and the process exits for a clean restart instead of continuing.
+ *
+ * Idempotent: index.ts starts once, but the guard keeps a second call — a test,
+ * a re-import — from stacking listeners.
+ */
+let globalHandlersRegistered = false
+export const setupGlobalErrorHandlers = (): void => {
+  if (globalHandlersRegistered) return
+  globalHandlersRegistered = true
+
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled promise rejection', {
+      reason: reason instanceof Error ? reason.stack : String(reason),
+      promise: String(promise),
+    })
+  })
+
+  process.on('uncaughtException', error => {
+    logger.error('Uncaught exception — exiting for a clean restart', {
+      error: error.message,
+      stack: error.stack,
+    })
+    process.exit(1)
+  })
+}
