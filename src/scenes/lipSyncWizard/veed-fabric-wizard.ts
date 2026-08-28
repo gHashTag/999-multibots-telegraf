@@ -153,7 +153,9 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         // ✅ ИСПРАВЛЕНО: Скачиваем и загружаем в Supabase (как голосовое сообщение)
         try {
           const fileLink = await ctx.telegram.getFileLink(photo.file_id)
-          const response = await fetch(fileLink.href)
+          const response = await fetch(fileLink.href, {
+            signal: AbortSignal.timeout(60_000),
+          })
 
           if (!response.ok) {
             throw new Error(`Failed to download photo: ${response.statusText}`)
@@ -333,7 +335,9 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           // Скачиваем голосовое сообщение
           try {
             const fileLink = await ctx.telegram.getFileLink(voice.file_id)
-            const response = await fetch(fileLink.href)
+            const response = await fetch(fileLink.href, {
+              signal: AbortSignal.timeout(60_000),
+            })
 
             if (!response.ok) {
               throw new Error(

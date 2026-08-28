@@ -98,7 +98,9 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
       if (message && 'photo' in message && message.photo.length > 0) {
         const photo = message.photo[message.photo.length - 1]
         const fileLink = await ctx.telegram.getFileLink(photo.file_id)
-        const response = await fetch(fileLink.href)
+        const response = await fetch(fileLink.href, {
+          signal: AbortSignal.timeout(60_000),
+        })
 
         if (!response.ok) {
           throw new Error(`Failed to download photo: ${response.statusText}`)
@@ -206,7 +208,9 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
       if (message && 'photo' in message && message.photo.length > 0) {
         const photo = message.photo[message.photo.length - 1]
         const fileLink = await ctx.telegram.getFileLink(photo.file_id)
-        const response = await fetch(fileLink.href)
+        const response = await fetch(fileLink.href, {
+          signal: AbortSignal.timeout(60_000),
+        })
 
         if (!response.ok) {
           throw new Error(`Failed to download cover: ${response.statusText}`)
@@ -319,7 +323,9 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
 
         // Скачиваем и загружаем голос
         const fileLink = await ctx.telegram.getFileLink(voice.file_id)
-        const response = await fetch(fileLink.href)
+        const response = await fetch(fileLink.href, {
+          signal: AbortSignal.timeout(60_000),
+        })
         const audioBuffer = Buffer.from(await response.arrayBuffer())
 
         const { createClient } = await import('@supabase/supabase-js')
