@@ -5521,19 +5521,24 @@ const server = createServer(async (req, res) => {
     if (action && req.method === 'POST') {
       const templateId = action[1]
       const kind = action[2]
-      let body = ''
-      req.on('data', (c: Buffer) => {
-        body += c.toString()
-      })
+      // The body is drained but not read: identity comes from the signature
+      // and the reel id from the URL. Draining lets the stream reach 'end'.
+      req.on('data', () => {})
       req.on('end', async () => {
         try {
-          const payload = body ? JSON.parse(body) : {}
-          // Читаем ОБА написания. Клиент исторически слал user_id, сервер
-          // ждал telegram_id — ровно то расхождение, из-за которого карточка
-          // ленты уже выходила пустой. Принимаем оба, пока старый клиент не
-          // обновится у всех.
-          const rawId = payload.telegram_id ?? payload.user_id ?? null
-          const telegramId = rawId != null ? String(rawId) : null
+          // The liker is the VERIFIED caller, never the body.
+          //
+          // like writes a per-user row (template_likes keyed by telegram_id).
+          // The body used to decide it, so any signed-in user could set
+          // telegram_id to someone else's id and forge a like on their behalf
+          // or remove theirs. The mini-app already signs this request (apiFetch
+          // attaches X-Telegram-Init-Data, and the route is not public, so the
+          // guard rejects an unsigned caller before here), so the body's
+          // telegram_id was redundant for legit callers and unsafe otherwise.
+          // view/use are anonymous counters and take no identity — the body is
+          // drained and ignored.
+          const who = chatIdentity(req, verifiedTelegramId(req))
+          const telegramId = who ? String(who) : null
           const pool = await getPool()
 
           if (kind === 'view') {
