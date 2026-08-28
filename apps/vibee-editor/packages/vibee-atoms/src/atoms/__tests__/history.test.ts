@@ -532,8 +532,15 @@ describe('historyAtom', () => {
     })
 
     it('should set canUndo and canRedo to false', () => {
+      // ДВА изменения, а не одно. Предмет этого теста — clearHistory, а
+      // первые два ожидания лишь готовят непустую историю. С одним
+      // изменением отмена возвращает к исходному состоянию, и canUndo
+      // становится false ЗАКОННО: до исходного шагать некуда. Раньше он
+      // оставался true только потому, что отмена никуда не двигалась.
       store.set(recordSnapshotAtom)
       store.set(tracksAtom, [createTestTrack('track-2', 'Changed')])
+      store.set(recordSnapshotAtom)
+      store.set(tracksAtom, [createTestTrack('track-3', 'Changed again')])
       store.set(recordSnapshotAtom)
       store.set(undoAtom)
       vi.advanceTimersByTime(150)
@@ -563,8 +570,19 @@ describe('historyAtom', () => {
       store.set(undoAtom)
       vi.advanceTimersByTime(150)
 
+      /**
+       * past === 1, а не 2.
+       *
+       * История: [initial, Second, Third], стоим на Third. Отмена уводит на
+       * Second, и позади остаётся ровно initial — один шаг, который ещё
+       * можно отменить.
+       *
+       * Прежнее ожидание 2 описывало ПОВЕДЕНИЕ СО СБОЕМ: отмена снимала
+       * Third и применяла его же, то есть не двигалась, и в прошлом
+       * оставалось на снимок больше.
+       */
       const length = store.get(historyLengthAtom)
-      expect(length.past).toBe(2)
+      expect(length.past).toBe(1)
       expect(length.future).toBe(1)
     })
 
