@@ -1,8 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { PaymentType } from '@/interfaces/payments.interface'
 import { Input } from 'telegraf'
 import { VideoModelId } from '@/services/generateTextToVideo'
 import {
@@ -168,45 +166,14 @@ export async function handleImageToVideoDirect(
       }
     )
 
-    // ✅ СПИСЫВАЕМ БАЛАНС после успешного запуска генерации
-    if (price > 0) {
-      const charged = await updateUserBalance(
-        telegram_id,
-        price,
-        PaymentType.MONEY_OUTCOME,
-        `Image to Video generation: ${modelId}${duration ? ` (${duration}s)` : ''}`,
-        { service_type: 'IMAGE_TO_VIDEO' }
-      )
-
-      if (!charged) {
-        logger.error('❌ Failed to charge user for image to video generation', {
-          telegram_id,
-          price,
-          model: modelId,
-        })
-
-        if (ctx && ctx.telegram && ctx.chat) {
-          await ctx.telegram.editMessageText(
-            ctx.chat.id,
-            processingMessage.message_id,
-            undefined,
-            is_ru
-              ? '❌ Недостаточно средств для генерации видео.'
-              : '❌ Insufficient funds for video generation.'
-          )
-        }
-        return
-      }
-
-      logger.info(
-        '✅ Successfully charged user for image to video generation',
-        {
-          telegram_id,
-          price,
-          model: modelId,
-        }
-      )
-    }
+    // BILLING LIVES IN generateImageToVideo, NOT HERE. That module returns
+    // Promise<void> and swallows every failure (early returns + an outer
+    // catch), so an unconditional charge here fired even when generation
+    // failed — while the module told the user "no money was charged". It also
+    // DOUBLE-charged the paths that already bill internally (veo3 polling via
+    // deductBalanceAfterSuccess; Sora via the kie webhook). The module now
+    // charges exactly once, only after a video is actually delivered; this
+    // handler only pre-checks the balance (checkUserBalance above).
 
     // Обновляем сообщение о успешном запуске
     if (ctx && ctx.telegram && ctx.chat) {

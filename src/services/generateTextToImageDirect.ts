@@ -316,6 +316,16 @@ export const generateTextToImageDirect = async (
 
         // Если это была первая/единственная картинка - прокидываем ошибку дальше
         if (num_images === 1 || i === 0) {
+          // The full batch (costPerImage * num_images) was deducted up front.
+          // Aborting at the FIRST image means images 2..N are never attempted:
+          // refund them too, or the user pays for images that never existed.
+          // (The single failed image was already refunded just above.)
+          if (i === 0 && num_images > 1) {
+            await refundUser(ctx, modelConfig.costPerImage * (num_images - 1), {
+              silent: true,
+              reason: 'generation_failed',
+            })
+          }
           throw error
         }
         // Иначе просто продолжаем со следующей картинкой
