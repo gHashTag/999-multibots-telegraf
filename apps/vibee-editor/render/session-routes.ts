@@ -389,6 +389,38 @@ export async function handleAuthRoute(
     return true
   }
 
+  /**
+   * A known path reached with the wrong verb answers 405, not 404.
+   *
+   * Every route above matches on path AND method together, so POSTing to a
+   * real path with GET fell through to this catch-all and came back as "no
+   * such auth route" -- indistinguishable from a typo in the path. A client
+   * looking at that has no way to learn which verb is correct, and the
+   * obvious next move is to change the path, which is the wrong repair.
+   *
+   * The Allow header is what carries the answer, and RFC 9110 makes it
+   * mandatory on a 405 rather than optional. Sending the status without it
+   * would name the category of mistake while withholding the fix.
+   */
+  const known: Record<string, string> = {
+    '/api/auth/telegram': 'POST',
+    '/api/auth/refresh': 'POST',
+    '/api/auth/logout': 'POST',
+    '/api/auth/pair/start': 'POST',
+    '/api/auth/pair/claim': 'POST',
+  }
+  const allowed = known[path]
+  if (allowed) {
+    res.writeHead(405, { 'Content-Type': 'application/json', Allow: allowed })
+    res.end(
+      JSON.stringify({
+        error: 'метод не подходит',
+        detail: `${req.method ?? '?'} сюда нельзя, нужен ${allowed}`,
+      })
+    )
+    return true
+  }
+
   json(res, 404, { error: 'нет такого маршрута аутентификации' })
   return true
 }
