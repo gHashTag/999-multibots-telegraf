@@ -2215,6 +2215,63 @@ const server = createServer(async (req, res) => {
     return url
   }
 
+  /**
+   * Озвучка через Replicate, когда ElevenLabs недоступен (ключ в переменной —
+   * идентификатор, а не sk_). minimax/speech-02-turbo многоязычный (русский
+   * есть), Replicate оплачен. Возвращает URL аудио; вызывающий скачивает и
+   * кладёт в S3, как и на пути ElevenLabs — чтобы ссылка не протухла.
+   */
+  async function generateAudioViaReplicate(text: string): Promise<string> {
+    const REPLICATE_TOKEN =
+      process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
+    if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
+    const response = await fetch(
+      'https://api.replicate.com/v1/models/minimax/speech-02-turbo/predictions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${REPLICATE_TOKEN}`,
+        },
+        body: JSON.stringify({ input: { text } }),
+      }
+    )
+    if (!response.ok) {
+      throw new Error(
+        `Replicate TTS failed: ${response.status} - ${await response.text()}`
+      )
+    }
+    let data = await response.json()
+    let predictionUrl: string | null = data?.urls?.get ?? null
+    const deadline = Date.now() + 120_000
+    while (
+      predictionUrl &&
+      data.output == null &&
+      !data.error &&
+      Date.now() < deadline
+    ) {
+      await new Promise(r => setTimeout(r, 2000))
+      const poll = await fetch(predictionUrl, {
+        headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` },
+      })
+      if (!poll.ok) break
+      data = await poll.json()
+    }
+    if (data.error) {
+      throw new Error(
+        `Replicate TTS error: ${String(data.error).slice(0, 120)}`
+      )
+    }
+    let out = Array.isArray(data.output) ? data.output[0] : data.output
+    if (out && typeof out === 'object') {
+      out = out.audio || out.audio_url || out.url
+    }
+    if (typeof out !== 'string') {
+      throw new Error('Replicate did not return an audio URL')
+    }
+    return out
+  }
+
   // Supported fal.ai image models
   const FAL_IMAGE_MODELS: Record<string, string> = {
     'fal-ai/flux-pro/v1.1-ultra': 'fal-ai/flux-pro/v1.1-ultra',
@@ -2691,8 +2748,7 @@ const server = createServer(async (req, res) => {
       // Объявлено ДО try: возврат в catch должен знать, списывали ли.
       let billedTid: string | null = null
       try {
-        const { text, voice_id, speed } = JSON.parse(body)
-        const ELEVENLABS_API_KEY = elevenLabsKey()
+        const { text, voice_id } = JSON.parse(body)
 
         console.log(
           `🎤 [Generate] Audio: voice=${voice_id}, text="${text.substring(0, 50)}..."`
@@ -2722,37 +2778,50 @@ const server = createServer(async (req, res) => {
           billedTid = tid
         }
 
-        // Call ElevenLabs TTS API directly
-        const ttsResponse = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`,
-          {
-            method: 'POST',
-            headers: {
-              'xi-api-key': ELEVENLABS_API_KEY,
-              'Content-Type': 'application/json',
-              Accept: 'audio/mpeg',
-            },
-            body: JSON.stringify({
-              text,
-              model_id: 'eleven_multilingual_v2',
-              voice_settings: {
-                stability: 0.5,
-                similarity_boost: 0.75,
+        // ElevenLabs — основной путь; при недоступности (ключ в переменной —
+        // идентификатор, а не sk_, ИЛИ ошибка API) уходим на Replicate TTS.
+        // Симметрично картинкам: FAL мёртв → Replicate. Replicate оплачен.
+        let audioBuffer: Buffer
+        let провайдерОзвучки = 'elevenlabs'
+        try {
+          const ELEVENLABS_API_KEY = elevenLabsKey() // бросает, если не sk_
+          const ttsResponse = await fetch(
+            `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`,
+            {
+              method: 'POST',
+              headers: {
+                'xi-api-key': ELEVENLABS_API_KEY,
+                'Content-Type': 'application/json',
+                Accept: 'audio/mpeg',
               },
-            }),
-          }
-        )
-
-        if (!ttsResponse.ok) {
-          const errorText = await ttsResponse.text()
-          throw new Error(
-            `ElevenLabs TTS error: ${ttsResponse.status} - ${errorText}`
+              body: JSON.stringify({
+                text,
+                model_id: 'eleven_multilingual_v2',
+                voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+              }),
+            }
           )
+          if (!ttsResponse.ok) {
+            throw new Error(
+              `ElevenLabs TTS error: ${ttsResponse.status} - ${await ttsResponse.text()}`
+            )
+          }
+          audioBuffer = Buffer.from(await ttsResponse.arrayBuffer())
+        } catch (elevenErr) {
+          console.warn(
+            `🎤 [Generate] ElevenLabs недоступен (${String(elevenErr).slice(0, 120)}), включаю Replicate TTS`
+          )
+          const audioUrl = await generateAudioViaReplicate(text)
+          const dl = await fetch(audioUrl)
+          if (!dl.ok) {
+            throw new Error(`Replicate audio download failed: ${dl.status}`)
+          }
+          audioBuffer = Buffer.from(await dl.arrayBuffer())
+          провайдерОзвучки = 'replicate/minimax-speech-02-turbo'
         }
-
-        // Get audio buffer
-        const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer())
-        console.log(`✅ [Generate] Audio received: ${audioBuffer.length} bytes`)
+        console.log(
+          `✅ [Generate] Audio received: ${audioBuffer.length} bytes (${провайдерОзвучки})`
+        )
 
         // Upload to S3
         const filename = `tts-${Date.now()}.mp3`
@@ -2771,6 +2840,7 @@ const server = createServer(async (req, res) => {
           JSON.stringify({
             success: true,
             url: uploadResult.url,
+            provider: провайдерОзвучки,
             id: Date.now().toString(),
           })
         )
