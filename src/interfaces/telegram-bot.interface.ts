@@ -396,6 +396,10 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   morphingType?: 'loop' | 'linear' // Тип морфинга
   morphingCustomPrompt?: string // Кастомный промпт для переходов морфинга
   morphingAwaitingCustomPrompt?: boolean // Флаг ожидания ввода кастомного промпта
+  // In-flight guard: set while a morphing generation is being charged/started.
+  // Six buttons reach startMorphingGeneration and the charge happens inside it,
+  // so without this a fast double-tap charged twice and started two jobs.
+  morphingGenerationInProgress?: boolean
 
   // Text-to-video direct generation fields
   videoJobId?: string // ID задачи генерации видео для отслеживания статуса

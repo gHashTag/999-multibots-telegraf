@@ -1059,6 +1059,22 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     return
   }
 
+  // IN-FLIGHT GUARD. The balance charge lives inside this function and six
+  // different buttons call it (confirm loop/linear, four prompt presets). A
+  // fast double-tap ran it twice concurrently: two charges, two generations.
+  // answerCbQuery alone does not prevent this — Telegram happily delivers both
+  // callbacks. Checked and set BEFORE the charge; cleared in finally so a
+  // failure (which refunds) does not wedge the user out of retrying.
+  if (ctx.session?.morphingGenerationInProgress) {
+    logger.warn('[startMorphingGeneration] Duplicate tap ignored', {
+      telegramId: ctx.from?.id,
+    })
+    return
+  }
+  if (ctx.session) {
+    ctx.session.morphingGenerationInProgress = true
+  }
+
   // Объявляем paymentAmount до try для доступности в catch
   let paymentAmount = 0
 
@@ -1260,6 +1276,12 @@ Please try again or contact support.`
     await ctx.reply(errorMessage)
 
     await ctx.scene.leave()
+  } finally {
+    // Always release the guard: on failure the charge is refunded above, so the
+    // user must be able to retry.
+    if (ctx.session) {
+      ctx.session.morphingGenerationInProgress = false
+    }
   }
 }
 
