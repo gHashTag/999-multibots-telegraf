@@ -509,11 +509,11 @@ extension LayerBuilder {
    * и обрубает пружину, а одна пружина в этом проекте трижды кормит СРАЗУ ДВА
    * свойства через разные `interpolate` — одной анимацией это не выражается.
    *
-   * `beginFrame` — кадр ОТ НАЧАЛА КЛИПА (локальное время листа), а не от
+   * `beginLocalFrame` — кадр ОТ НАЧАЛА КЛИПА (локальное время листа), а не от
    * начала ролика.
    */
   static func bakedAnimation(
-    keyPath: String, values: [Double], fps: Int, beginFrame: Int = 0
+    keyPath: String, values: [Double], fps: Int, beginLocalFrame: Int = 0
   ) -> CAKeyframeAnimation {
     precondition(!values.isEmpty, "запекать нечего: пустой массив значений")
     let анимация = CAKeyframeAnimation(keyPath: keyPath)
@@ -538,7 +538,8 @@ extension LayerBuilder {
       анимация.duration = 1.0 / Double(fps)
     }
 
-    анимация.beginTime = AVCoreAnimationBeginTimeAtZero + Double(beginFrame) / Double(fps)
+    анимация.beginTime =
+      AVCoreAnimationBeginTimeAtZero + Double(beginLocalFrame) / Double(fps)
     анимация.fillMode = .both
     анимация.isRemovedOnCompletion = false
     // Дефолт CABasicAnimation/CAKeyframeAnimation — .easeInEaseOut. На уже
@@ -552,14 +553,24 @@ extension LayerBuilder {
   /// композициях, все линейные. `.linear` обязателен по той же причине, что и
   /// выше. `extrapolateRight: 'clamp'` выражается парой fillMode + запрет на
   /// снятие анимации.
+  ///
+  /// КАДРЫ ЛОКАЛЬНЫЕ, как и у `bakedAnimation`. Раньше параметры звались
+  /// `fromLocalFrame`/`toLocalFrame` и молчали о происхождении, а соседняя фабрика
+  /// прямо писала «от начала клипа» — три сестринских функции считали
+  /// одинаково и объясняли по-разному.
+  ///
+  /// Цена расхождения конкретна: `interpolate(frame, [90, 102], …)`,
+  /// переписанный из TSX БЕЗ `<Sequence>`, содержит кадры композиции.
+  /// Подставить их сюда как локальные — сдвиг ровно на `clip.startFrame`.
   static func linearAnimation(
-    keyPath: String, from: Double, to: Double, fromFrame: Int, toFrame: Int, fps: Int
+    keyPath: String, from: Double, to: Double,
+    fromLocalFrame: Int, toLocalFrame: Int, fps: Int
   ) -> CABasicAnimation {
     let анимация = CABasicAnimation(keyPath: keyPath)
     анимация.fromValue = NSNumber(value: from)
     анимация.toValue = NSNumber(value: to)
-    анимация.beginTime = AVCoreAnimationBeginTimeAtZero + Double(fromFrame) / Double(fps)
-    анимация.duration = max(Double(toFrame - fromFrame), 1) / Double(fps)
+    анимация.beginTime = AVCoreAnimationBeginTimeAtZero + Double(fromLocalFrame) / Double(fps)
+    анимация.duration = max(Double(toLocalFrame - fromLocalFrame), 1) / Double(fps)
     анимация.timingFunction = CAMediaTimingFunction(name: .linear)
     анимация.fillMode = .both
     анимация.isRemovedOnCompletion = false
@@ -570,18 +581,20 @@ extension LayerBuilder {
   /// `keyTimes` нормируются по ВСЕМУ входному диапазону, а не по длине
   /// композиции: ошибка здесь даёт правильную форму кривой в неправильном
   /// темпе — на статичном кадре не видно, только на видео.
+  ///
+  /// КАДРЫ ЛОКАЛЬНЫЕ — см. `linearAnimation`.
   static func keyframeAnimation(
-    keyPath: String, inputFrames: [Int], outputValues: [Double], fps: Int
+    keyPath: String, inputLocalFrames: [Int], outputValues: [Double], fps: Int
   ) -> CAKeyframeAnimation {
     precondition(
-      inputFrames.count == outputValues.count && inputFrames.count > 1,
+      inputLocalFrames.count == outputValues.count && inputLocalFrames.count > 1,
       "диапазоны interpolate обязаны совпадать по длине и содержать ≥2 точки")
     let анимация = CAKeyframeAnimation(keyPath: keyPath)
     анимация.values = outputValues.map { NSNumber(value: $0) }
     анимация.calculationMode = .linear
-    let первый = Double(inputFrames[0])
-    let диапазон = Double(inputFrames[inputFrames.count - 1]) - первый
-    анимация.keyTimes = inputFrames.map {
+    let первый = Double(inputLocalFrames[0])
+    let диапазон = Double(inputLocalFrames[inputLocalFrames.count - 1]) - первый
+    анимация.keyTimes = inputLocalFrames.map {
       NSNumber(value: диапазон > 0 ? (Double($0) - первый) / диапазон : 0)
     }
     анимация.beginTime = AVCoreAnimationBeginTimeAtZero + первый / Double(fps)
