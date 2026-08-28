@@ -51,6 +51,9 @@ interface State {
   lastPostAt?: string
 }
 
+/** Обработчик снятия лока вешается один раз на весь процесс (см. main). */
+let lockReleaseRegistered = false
+
 function log(line: string) {
   const stamp = new Date().toISOString()
   fs.appendFileSync(LOG_FILE, `- ${stamp} ${line}\n`)
@@ -106,7 +109,9 @@ async function call(name: string, args: Record<string, unknown> = {}) {
  */
 async function blogTopics(published: string[]): Promise<Topic[]> {
   try {
-    const r = await fetch(`${BASE}/api/blog`, { signal: AbortSignal.timeout(20_000) })
+    const r = await fetch(`${BASE}/api/blog`, {
+      signal: AbortSignal.timeout(20_000),
+    })
     if (!r.ok) return []
     const d = (await r.json()) as {
       items?: { title: string; description: string; pubDate: string }[]
@@ -180,7 +185,12 @@ async function main() {
   const LOCK_FILE = path.join(LOOP_DIR, '.autopilot.lock')
   try {
     const prev = Number(fs.readFileSync(LOCK_FILE, 'utf8').trim())
-    if (prev && process.kill(prev, 0)) {
+    // prev !== process.pid обязателен для режима демона: там main() вызывается
+    // повторно в ОДНОМ процессе, lock-файл между витками держит наш же PID, и
+    // без этой проверки второй виток увидел бы «уже работаю» и вышел — демон
+    // отработал бы раз и замолчал навсегда. Наложение витков внутри процесса
+    // отсекается отдельно, в once() ниже.
+    if (prev && prev !== process.pid && process.kill(prev, 0)) {
       log(`уже работает автопилот (PID ${prev}) — выхожу без спора`)
       return
     }
@@ -188,14 +198,20 @@ async function main() {
     /* файла нет или PID мёртв — берём лок сами */
   }
   fs.writeFileSync(LOCK_FILE, String(process.pid))
-  const releaseLock = () => {
-    try {
-      fs.unlinkSync(LOCK_FILE)
-    } catch {
-      /* уже убран */
-    }
+  // Снимаем лок на выходе процесса — но регистрируем обработчик ОДИН раз.
+  // В режиме демона main() вызывается многократно; без этого флага на каждый
+  // виток вешался бы новый слушатель 'exit', и после десятка витков Node
+  // ругался бы MaxListenersExceededWarning.
+  if (!lockReleaseRegistered) {
+    lockReleaseRegistered = true
+    process.on('exit', () => {
+      try {
+        fs.unlinkSync(path.join(LOOP_DIR, '.autopilot.lock'))
+      } catch {
+        /* уже убран */
+      }
+    })
   }
-  process.on('exit', releaseLock)
 
   const withImage = process.argv.includes('--with-image')
   // Последний пост дня автоматически с b-roll: один видео-слой в день —
@@ -314,7 +330,8 @@ async function main() {
     // пользователи платят токенами, конвейер — из кассы канала.
     try {
       const BASE2 =
-        process.env.SELF_URL || 'http://127.0.0.1:' + (process.env.PORT || '3333')
+        process.env.SELF_URL ||
+        'http://127.0.0.1:' + (process.env.PORT || '3333')
       // Две попытки: первый запуск витка №121 упал на транзиенте сети
       // («fetch failed» внутри Replicate-путья) — видео-слой слишком ценен,
       // чтобы терять его на одном миге соединения.
@@ -370,7 +387,9 @@ async function main() {
   })
   if (!reel?.готово || typeof reel.url !== 'string') {
     log(`рендер не удался: ${JSON.stringify(reel).slice(0, 200)}`)
-    process.exit(1)
+    // return, а не process.exit: в режиме демона (--loop) один неудачный
+    // рендер не должен убивать планировщик — следующий виток попробует снова.
+    return
   }
 
   // 5. Публикация: текст СРАЗУ готов к переносу в Instagram — первая строка
@@ -405,7 +424,8 @@ async function main() {
   })
   if (!pub?.опубликовано) {
     log(`публикация отклонена: ${JSON.stringify(pub).slice(0, 200)}`)
-    process.exit(1)
+    // return, а не process.exit — см. пояснение у рендера выше.
+    return
   }
 
   writeState({
@@ -433,7 +453,58 @@ async function main() {
   }
 }
 
-main().catch(e => {
-  log(`падение: ${String(e).slice(0, 300)}`)
-  process.exit(1)
-})
+/**
+ * РЕЖИМ ДЕМОНА (--loop или AUTOPILOT_LOOP=1).
+ *
+ * До сих пор автопилот был one-shot: кто-то (крон человека) должен был звать
+ * его руками. Крон не шёл — и конвейер стоял 32 часа при полной очереди тем,
+ * а причину монитор списывал на провайдеров. Демон закрывает эту дыру: он
+ * запускает виток сам по интервалу.
+ *
+ * Почему это безопасно повторять по таймеру: main() уже соблюдает суточный
+ * лимит (MAX_POSTS_PER_DAY) и пустую очередь — лишний виток при исчерпанном
+ * лимите просто отдохнёт, ничего не потратив. Один упавший виток больше не
+ * убивает процесс (внутренние process.exit заменены на return выше), поэтому
+ * планировщик переживает сбой рендера/публикации и пробует снова.
+ *
+ * Развёртывание: как Railway-сервис/крон с этим модулем в качестве команды и
+ * AUTOPILOT_LOOP=1. Однопроцессность (не два демона разом) — забота
+ * развёртывания; guard из ветки fix/autopilot-singleton решает это на уровне
+ * файлового лока, если демонов запустят несколько.
+ */
+const LOOP =
+  process.argv.includes('--loop') || process.env.AUTOPILOT_LOOP === '1'
+const INTERVAL_MS = Math.max(
+  60_000,
+  Number(process.env.AUTOPILOT_INTERVAL_MS) || 30 * 60_000
+)
+
+let виток_идёт = false
+async function once() {
+  // Наложение витков в одном процессе: setInterval выстрелит по расписанию,
+  // даже если прошлый виток ещё рендерит (рендер живёт до ~80с). Второй виток
+  // поверх первого — двойная публикация и спор за lock. Пропускаем.
+  if (виток_идёт) {
+    log('прошлый виток ещё идёт — пропускаю тик')
+    return
+  }
+  виток_идёт = true
+  try {
+    await main()
+  } catch (e) {
+    log(`падение витка: ${String(e).slice(0, 300)}`)
+  } finally {
+    виток_идёт = false
+  }
+}
+
+if (LOOP) {
+  log(`автопилот-демон: интервал ${(INTERVAL_MS / 60_000).toFixed(0)} мин`)
+  await once() // первый виток сразу, не ждём интервал
+  setInterval(once, INTERVAL_MS)
+} else {
+  main().catch(e => {
+    log(`падение: ${String(e).slice(0, 300)}`)
+    process.exit(1)
+  })
+}

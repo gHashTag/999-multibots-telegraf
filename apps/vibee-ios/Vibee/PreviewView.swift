@@ -1,0 +1,742 @@
+import AVFoundation
+import SwiftUI
+import UIKit
+
+/**
+ * ЭТАП Б: нативный предпросмотр вместо `WKWebView` в редакторе.
+ *
+ * ПОЧЕМУ ЭТОТ ЭКРАН ВООБЩЕ МОЖНО ЗАМЕНИТЬ БЕЗ РИСКА РАСХОЖДЕНИЯ.
+ * Веб-предпросмотр был безопасен ровно тем, что рисовал ТЕМ ЖЕ движком,
+ * которым потом считался рендер. Как только предпросмотр становится
+ * нативным, появляется второй движок — и вместе с ним классическая беда
+ * редакторов: человек видит одно, а получает другое, причём узнаёт об этом
+ * после того, как заплатил за рендер.
+ *
+ * Здесь второго движка НЕТ. Дерево слоёв строит `LayerBuilder` — тот самый
+ * тип, который использует нативный рендер. Предпросмотр и экспорт совпадают
+ * НЕ потому, что кто-то их сверил, а ПО ПОСТРОЕНИЮ: это буквально один
+ * объект `CALayer`, собранный одним кодом из одной `Composition`. Различие
+ * между путями ровно одно и оно обозримо — ИСТОЧНИК ВРЕМЕНИ:
+ *
+ *   экспорт → `AVVideoCompositionCoreAnimationTool` подставляет дереву своё
+ *             время и рисует кадры офлайн, быстрее или медленнее реального;
+ *   здесь   → время дереву задаём мы вручную, привязав его к `AVPlayer`.
+ *
+ * ПОЧЕМУ СИНХРОНИЗИРУЕМ ВРУЧНУЮ, А НЕ ЧЕРЕЗ animationTool.
+ * `AVVideoCompositionCoreAnimationTool` не показывает — он рендерит. Он
+ * живёт внутри `AVVideoComposition` у экспортной сессии, отдаёт кадры в
+ * файл, а не на экран, и явно требует, чтобы переданное ему дерево слоёв НЕ
+ * находилось ни в какой видимой иерархии (SDK об этом предупреждает прямо:
+ * слой, добавленный в дерево окна, animationTool использовать нельзя). То
+ * есть путь «показать через animationTool» не медленный — его физически
+ * нет.
+ *
+ * ПОЧЕМУ НЕ `AVSynchronizedLayer` — он ведь ровно для этого.
+ * Три причины, каждая проверяемая:
+ *   1. Он требует, чтобы дерево лежало ВНУТРИ него. Значит у предпросмотра
+ *      и у экспорта появляются два разных корня и два разных способа
+ *      подвешивания одного и того же поддерева — то самое место, где
+ *      расхождение заводится и живёт незаметно. Ручные часы оставляют
+ *      дерево тождественным: меняется только слой-носитель времени.
+ *   2. Он тянет время из таймбейса `AVPlayerItem`, а таймбейс при перемотке
+ *      обновляется ПОСЛЕ завершения seek. При таскании указателя по
+ *      таймлайну это видно пальцем: слои отстают от пальца на длительность
+ *      seek. Наш `timeOffset` двигается на том же проходе runloop, что и
+ *      жест, а видео догоняет отдельно.
+ *   3. Композиция может вообще не иметь медиа (титры на цвете). Тогда нет
+ *      ни `AVPlayerItem`, ни таймбейса, ни к чему синхронизироваться, — а
+ *      предпросмотр всё равно обязан двигаться по указателю кадра.
+ *
+ * ЧЕМ ОПЛАЧЕНО. Ручные часы означают, что за совпадение времени отвечаем мы,
+ * а не система: при воспроизведении слои и звук могут разъезжаться, поэтому
+ * мы сверяем часы на каждом тике наблюдателя времени (полкадра) и правим
+ * только при расхождении больше полукадра. Дрейф ограничен одним тиком и не
+ * накапливается, но сэмпл-точной привязки к звуку, какую даёт
+ * `AVSynchronizedLayer`, здесь нет и быть не может.
+ *
+ * ЧЕГО ЭТОТ КОД НЕ ДАЁТ (честная граница, а не недоделка):
+ *   • Видео-плоскость показывает `avComposition()` — а он, как сказано в
+ *     `Composition.swift`, режет и укладывает, но не трансформирует. Значит
+ *     x/y/поворот/масштаб ВИДЕО-клипов в предпросмотре не применяются: они
+ *     появляются в экспорте, где их накладывает `AVVideoComposition`.
+ *     Совпадение по построению относится к дереву слоёв (титры, картинки,
+ *     оверлеи) и к ТАЙМИНГУ видео — не к геометрии видео.
+ *   • Аудио-сессию мы не трогаем. Категорию `AVAudioSession` во всём
+ *     приложении сейчас не выставляет никто, поэтому при включённом
+ *     беззвучном режиме предпросмотр будет немым. Менять глобальную
+ *     настройку звука из вьюхи предпросмотра — худший вариант, чем
+ *     немой предпросмотр: это состояние всего процесса, и оно ударит по
+ *     ленте.
+ *   • Ориентация осей. Дерево строится в координатах Remotion (начало
+ *     сверху слева, y вниз) — это родная система CALayer на iOS, поэтому
+ *     здесь мы не делаем ничего. Переворот (`isGeometryFlipped`) нужен
+ *     ТОЛЬКО на экспортном пути, где Core Animation рисует в кадр с началом
+ *     снизу, и делать его обязан рендер. Если `LayerBuilder` однажды начнёт
+ *     переворачивать сам — предпросмотр встанет вверх ногами, и это видно
+ *     на первом же кадре.
+ */
+struct PreviewView: View {
+  @Binding var composition: Composition
+  /// Текущий кадр — общий с таймлайном. Оба направления живые: таскание
+  /// указателя двигает предпросмотр, воспроизведение двигает указатель.
+  @Binding var currentFrame: Int
+
+  /**
+   * ЕДИНСТВЕННОЕ место во всём файле, которое знает имя сборщика слоёв.
+   *
+   * Вынесено в параметр не ради «гибкости» (лишних реализаций не будет), а
+   * ради ремонта: если рендер переименует тип или метод, чинить придётся
+   * одну строку, а не искать вызовы по файлу. Значение по умолчанию —
+   * тот же `LayerBuilder`, что собирает дерево для экспорта.
+   */
+  /**
+   * SIGNATURE MATCHES `LayerBuilder`, not a convenient guess.
+   *
+   * This used to call `buildOverlay()`, a method that never existed: preview
+   * and renderer were written against a contract nobody agreed on, and the
+   * mismatch survived per-file review because each file was correct alone.
+   *
+   * The real API is `build() async throws -> RenderTree` — async because
+   * images and video tracks are loaded before the tree can be assembled.
+   * The overlay we need is the parent layer with the video layer removed:
+   * during preview the frame comes from `AVPlayerLayer` underneath, and a
+   * second video layer on top would cover it with black.
+   */
+  var makeOverlay: (Composition) async throws -> CALayer = { composition in
+    let tree = try await LayerBuilder(composition: composition).build()
+    tree.videoLayer.removeFromSuperlayer()
+    // Снимаем переворот и фон.
+    //
+    // `LayerBuilder` ставит `isGeometryFlipped` на корне, потому что при
+    // ЭКСПОРТЕ дерево живёт в мире Core Animation, где ось Y идёт снизу
+    // вверх. В предпросмотре тот же корень попадает внутрь иерархии UIView,
+    // где Y уже сверху вниз, — и переворот становится вторым по счёту.
+    // Метка с y=0 оказывалась внизу в превью и вверху в экспорте.
+    tree.parentLayer.isGeometryFlipped = false
+    // Фон корня непрозрачно-чёрный: в экспорте это подложка кадра, а здесь
+    // роль подложки играет сам AVPlayerLayer, и чёрный корень закрыл бы его.
+    tree.parentLayer.backgroundColor = nil
+    return tree.parentLayer
+  }
+
+  @State private var играем = false
+  @State private var естьМедиа = false
+  @State private var ошибкаМедиа: String?
+
+  var body: some View {
+    ZStack(alignment: .bottom) {
+      // Чёрный фон — не декорация: композиция сохраняет свои пропорции, и
+      // поля вокруг неё должны быть именно чёрными, иначе на глаз
+      // невозможно отличить край холста от края экрана.
+      Color.black
+
+      PreviewCanvas(
+        composition: composition,
+        currentFrame: currentFrame,
+        играем: играем,
+        makeOverlay: makeOverlay,
+        кадрОтПлеера: { кадр in
+          // Приходит из наблюдателя времени, то есть ВНЕ цикла обновления
+          // вьюхи — писать в Binding отсюда безопасно.
+          if кадр != currentFrame { currentFrame = кадр }
+        },
+        воспроизведениеОстановлено: { играем = false },
+        состояниеМедиа: { есть, ошибка in
+          естьМедиа = есть
+          ошибкаМедиа = ошибка
+        }
+      )
+
+      панельВоспроизведения
+    }
+    .onChange(of: composition.durationInFrames) { _, длина in
+      // Клип укоротили — указатель мог остаться за пределами композиции.
+      if currentFrame > max(длина - 1, 0) { currentFrame = max(длина - 1, 0) }
+    }
+  }
+
+  // MARK: - Транспорт
+
+  private var панельВоспроизведения: some View {
+    HStack(spacing: 12) {
+      Button {
+        переключить()
+      } label: {
+        Image(systemName: играем ? "pause.fill" : "play.fill")
+          .font(.title3)
+          .frame(width: 28, height: 28)
+      }
+      .buttonStyle(.plain)
+      .foregroundStyle(естьМедиа ? .white : Color.white.opacity(0.3))
+      .disabled(!естьМедиа)
+
+      Text(таймкод(currentFrame))
+        .font(.system(.caption, design: .monospaced))
+        // Моноширинные цифры: иначе таймкод дёргается на каждом кадре.
+        .monospacedDigit()
+        .foregroundStyle(.white)
+
+      Spacer()
+
+      if let ошибкаМедиа {
+        // Отказ показываем словами. Пустой экран вместо объяснения — ровно
+        // та ошибка, которую в вебе чинили отдельно.
+        Text(ошибкаМедиа)
+          .font(.caption2)
+          .lineLimit(1)
+          .foregroundStyle(.orange)
+      } else if !естьМедиа {
+        Text("без медиа — только слои")
+          .font(.caption2)
+          .foregroundStyle(.white.opacity(0.5))
+      }
+    }
+    .padding(.horizontal, 14)
+    .padding(.vertical, 8)
+    .background(.ultraThinMaterial)
+  }
+
+  private func переключить() {
+    // Повторный запуск с конца: жать «играть», стоя на последнем кадре, и
+    // не получать ничего — поведение, которое читается как поломка.
+    if !играем && currentFrame >= max(composition.durationInFrames - 1, 0) {
+      currentFrame = 0
+    }
+    играем.toggle()
+  }
+
+  private func таймкод(_ frame: Int) -> String {
+    let fps = max(composition.fps, 1)
+    let всего = Double(frame) / Double(fps)
+    let м = Int(всего) / 60
+    let с = Int(всего) % 60
+    let к = frame % fps
+    return String(format: "%02d:%02d.%02d", м, с, к)
+  }
+}
+
+// MARK: - Холст: AVPlayerLayer + дерево слоёв над ним
+
+/**
+ * Слоёная раскладка холста.
+ *
+ * ```
+ * view.layer            чёрный фон; поля вокруг холста
+ * ├── слойВидео         AVPlayerLayer, кадр = прямоугольник холста
+ * └── хостСлоёв         НОСИТЕЛЬ ВРЕМЕНИ: speed/timeOffset ставим здесь
+ *     └── масштаб       холст в пикселях композиции (1080×1920), сжат в вид
+ *         └── корень    дерево от LayerBuilder, нетронутое
+ * ```
+ *
+ * Почему часы на отдельном слое, а не на корне дерева. Дерево пересобирается
+ * при каждом изменении композиции; если бы время жило на корне, каждая
+ * пересборка сбрасывала бы его в ноль, и предпросмотр прыгал бы на первый
+ * кадр при любой правке. Часы на хосте переживают пересборку — время
+ * наследуется вниз само.
+ *
+ * Почему масштабирование отдельным слоем, а не правкой геометрии корня.
+ * Корень приходит из `LayerBuilder` в пикселях композиции. Трогать его
+ * `bounds`/`anchorPoint`/`transform` значило бы редактировать то самое
+ * дерево, тождественность которого экспорту — весь смысл этого экрана.
+ * Поэтому сжимаем СВОИМ слоем, а корень не трогаем вовсе.
+ */
+final class PreviewCanvasView: UIView {
+  let слойВидео = AVPlayerLayer()
+  let хостСлоёв = CALayer()
+  let масштаб = CALayer()
+
+  var размерХолста = CGSize(width: 1080, height: 1920) {
+    didSet { if размерХолста != oldValue { setNeedsLayout() } }
+  }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    backgroundColor = .black
+    isUserInteractionEnabled = false
+
+    слойВидео.videoGravity = .resizeAspect
+    layer.addSublayer(слойВидео)
+
+    // Обрезаем по холсту: в Remotion всё за краем канвы не видно, и поля
+    // вокруг должны оставаться чистыми, иначе вылезший титр читается как
+    // «баг рендера», хотя это баг предпросмотра.
+    хостСлоёв.masksToBounds = true
+
+    масштаб.anchorPoint = .zero
+    масштаб.position = .zero
+    хостСлоёв.addSublayer(масштаб)
+    layer.addSublayer(хостСлоёв)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError("PreviewCanvasView не грузится из nib") }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    guard bounds.width > 0, bounds.height > 0,
+          размерХолста.width > 0, размерХолста.height > 0 else { return }
+
+    // Пропорции берём из МОДЕЛИ (width/height композиции), а не из
+    // natural size медиа: холст задаёт композиция, а медиа в него ложится.
+    let холст = AVMakeRect(aspectRatio: размерХолста, insideRect: bounds)
+
+    /**
+     * Явная транзакция без действий.
+     *
+     * Ловушка: неявные анимации CoreAnimation действуют на слои, лежащие ВНЕ
+     * дерева вьюхи, — а `слойВидео`, `хостСлоёв` и `масштаб` именно такие.
+     * Без этой обёртки каждый поворот экрана и каждая смена размера холста
+     * давали бы четвертьсекундное «переползание» кадра, которое выглядит как
+     * дрожание рендера.
+     */
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    слойВидео.frame = холст
+    хостСлоёв.frame = холст
+    масштаб.bounds = CGRect(origin: .zero, size: размерХолста)
+    масштаб.position = .zero
+    let коэффициент = холст.width / размерХолста.width
+    // Масштаб вокруг anchorPoint = (0,0), то есть вокруг левого верхнего
+    // угла: при anchorPoint по умолчанию (0.5,0.5) сжатое дерево уехало бы
+    // на четверть холста, и это заметно только на непустом кадре.
+    масштаб.transform = CATransform3DMakeScale(коэффициент, коэффициент, 1)
+    CATransaction.commit()
+
+    /**
+     * `contentsScale` НЕ трогаем намеренно.
+     *
+     * Соблазн поднять его до масштаба экрана велик: текст станет резче. Но
+     * экспорт рисует дерево при contentsScale = 1 в буфер 1080×1920, и
+     * предпросмотр, который резче экспорта, — это лесть, а не предпросмотр.
+     * Пусть лучше видно настоящее качество титров.
+     */
+  }
+}
+
+// MARK: - Мост в SwiftUI
+
+private struct PreviewCanvas: UIViewRepresentable {
+  let composition: Composition
+  let currentFrame: Int
+  let играем: Bool
+  let makeOverlay: (Composition) async throws -> CALayer
+  let кадрОтПлеера: (Int) -> Void
+  let воспроизведениеОстановлено: () -> Void
+  let состояниеМедиа: (Bool, String?) -> Void
+
+  func makeCoordinator() -> PreviewCoordinator { PreviewCoordinator() }
+
+  func makeUIView(context: Context) -> PreviewCanvasView {
+    PreviewCanvasView()
+  }
+
+  func updateUIView(_ uiView: PreviewCanvasView, context: Context) {
+    let координатор = context.coordinator
+    // Замыкания переустанавливаем КАЖДЫЙ раз: они захватывают Binding из
+    // текущего значения структуры вьюхи, и сохранённое при создании быстро
+    // становится замыканием на устаревшее состояние.
+    координатор.кадрОтПлеера = кадрОтПлеера
+    координатор.воспроизведениеОстановлено = воспроизведениеОстановлено
+    координатор.состояниеМедиа = состояниеМедиа
+    // Пересборка дерева слоёв асинхронна (грузятся картинки и дорожки), а
+    // updateUIView синхронен. Ошибку печатаем: пустой предпросмотр без
+    // объяснения — тот самый молчаливый отказ, от которого избавлялись.
+    Task { @MainActor in
+      do {
+        try await координатор.применить(
+          composition: composition,
+          currentFrame: currentFrame,
+          играем: играем,
+          makeOverlay: makeOverlay,
+          холст: uiView
+        )
+      } catch {
+        NSLog("[Preview] не собрал слои: \(error)")
+      }
+    }
+  }
+
+  static func dismantleUIView(_ uiView: PreviewCanvasView, coordinator: PreviewCoordinator) {
+    // Наблюдателя времени обязательно снимать ДО того, как плеер умрёт:
+    // AVPlayer падает с «deallocated while periodic time observer was still
+    // registered», и падение приходит не там, где ошибка.
+    coordinator.отключить()
+  }
+}
+
+// MARK: - Координатор: плеер, часы слоёв, перемотка
+
+/**
+ * Весь код координатора работает на главной очереди.
+ *
+ * Класс намеренно НЕ помечен `@MainActor`: у него есть `deinit`, который
+ * обязан снять наблюдателя времени, а `deinit` изолированного класса не
+ * может звать изолированные методы. Вместо аннотации — дисциплина: все
+ * входы (методы `UIViewRepresentable`, наблюдатель с `queue: .main`, ручной
+ * `DispatchQueue.main.async` в обработчиках KVO и seek) уже на главной.
+ */
+final class PreviewCoordinator: NSObject {
+  var кадрОтПлеера: (Int) -> Void = { _ in }
+  var воспроизведениеОстановлено: () -> Void = {}
+  var состояниеМедиа: (Bool, String?) -> Void = { _, _ in }
+
+  private weak var холст: PreviewCanvasView?
+  private var плеер: AVPlayer?
+  private var наблюдательВремени: Any?
+  private var наблюдениеСтатуса: NSKeyValueObservation?
+  private var задачаСборки: Task<Void, Never>?
+
+  private var fps = 30
+  private var последнийКадр = 0
+  private var медиаКлюч = ""
+  private var слепок: Composition?
+
+  /// Кадр, про который мы уже знаем: либо пришёл снаружи, либо мы его сами
+  /// опубликовали. Нужен, чтобы Binding не гонял событие по кругу.
+  private var известныйКадр = -1
+  private var хотимИграть = false
+  private var идётПеремотка = false
+  private var отложенныйКадр: Int?
+
+  // MARK: Вход из SwiftUI
+
+  func применить(
+    composition: Composition,
+    currentFrame: Int,
+    играем: Bool,
+    makeOverlay: @escaping (Composition) async throws -> CALayer,
+    холст: PreviewCanvasView
+  ) async throws {
+    self.холст = холст
+    fps = max(composition.fps, 1)
+    последнийКадр = max(composition.durationInFrames - 1, 0)
+    холст.размерХолста = CGSize(
+      width: CGFloat(max(composition.width, 1)),
+      height: CGFloat(max(composition.height, 1))
+    )
+
+    if слепок != composition {
+      /**
+       * Дерево пересобираем ЦЕЛИКОМ на любое изменение композиции.
+       *
+       * Дешевле было бы точечно править существующие слои — но именно там
+       * предпросмотр и начинает отличаться от экспорта: экспорт-то строит
+       * дерево с нуля. Полная пересборка стоит миллисекунд на десятках
+       * слоёв и стоит того: одно дерево, один код, ноль путей расхождения.
+       */
+      // Сборка дерева слоёв асинхронна: изображения и дорожки грузятся до
+      // того, как дерево можно собрать. Ошибку глушить нельзя — пустой
+      // предпросмотр без объяснения это ровно тот молчаливый отказ, от
+      // которого мы избавлялись во всём остальном приложении.
+      Task { @MainActor in
+        do { try await пересобратьСлои(composition, makeOverlay: makeOverlay, холст: холст) }
+        catch { NSLog("[Preview] не собрал слои: \(error)") }
+      }
+
+      // А вот плеер пересобираем только когда изменилось МЕДИА: правка
+      // прозрачности или координат клипа не должна ронять буфер декодера и
+      // дёргать картинку на каждом движении ползунка в свойствах.
+      let ключ = Self.ключМедиа(composition)
+      if ключ != медиаКлюч {
+        медиаКлюч = ключ
+        пересобратьПлеер(composition, холст: холст)
+      }
+      слепок = composition
+    }
+
+    if играем != хотимИграть {
+      хотимИграть = играем
+      if играем {
+        if плеер == nil {
+          // Играть нечем: возвращаем кнопку в исходное состояние. Асинхронно
+          // — потому что мы сейчас внутри цикла обновления вьюхи, и запись в
+          // @State отсюда даёт «Modifying state during view update».
+          хотимИграть = false
+          DispatchQueue.main.async { [weak self] in self?.воспроизведениеОстановлено() }
+        } else {
+          плеер?.play()
+        }
+      } else {
+        плеер?.pause()
+      }
+    }
+
+    if currentFrame != известныйКадр {
+      известныйКадр = currentFrame
+      перемотать(к: currentFrame)
+    }
+  }
+
+  func отключить() {
+    задачаСборки?.cancel()
+    задачаСборки = nil
+    снятьНаблюдение()
+    плеер?.pause()
+    плеер = nil
+    холст?.слойВидео.player = nil
+  }
+
+  deinit {
+    // Порядок важен: наблюдатель снимается, пока плеер ещё жив.
+    if let наблюдательВремени { плеер?.removeTimeObserver(наблюдательВремени) }
+    наблюдениеСтатуса?.invalidate()
+    задачаСборки?.cancel()
+  }
+
+  // MARK: Часы слоёв
+
+  /**
+   * Заморозить дерево на конкретной секунде.
+   *
+   * Арифметика CoreAnimation: `local = (parent − beginTime) · speed + offset`.
+   * При `speed = 0` глобальное время выпадает целиком, и локальное время
+   * слоя равно `timeOffset` — то есть дерево показывает ровно тот кадр,
+   * который мы назвали, и стоит на нём сколько угодно.
+   *
+   * Это работает только потому, что `LayerBuilder` ставит анимациям
+   * `beginTime = AVCoreAnimationBeginTimeAtZero` (1e-100), а не 0: ноль для
+   * CAAnimation — особое значение, оно подменяется на «сейчас» в момент
+   * добавления, и вместо абсолютной шкалы получилась бы шкала от момента
+   * сборки дерева. Одна и та же причина обслуживает и экспорт, и этот экран.
+   */
+  private func заморозитьЧасы(на секунды: Double) {
+    guard let хост = холст?.хостСлоёв else { return }
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)  // timeOffset тоже анимируемый
+    хост.speed = 0
+    хост.beginTime = 0
+    хост.timeOffset = max(0, секунды)
+    CATransaction.commit()
+  }
+
+  /// Пустить дерево в реальном времени так, чтобы прямо сейчас оно
+  /// показывало указанную секунду.
+  private func запуститьЧасы(от секунды: Double) {
+    guard let хост = холст?.хостСлоёв, let родитель = хост.superlayer else { return }
+    // beginTime задаётся в шкале РОДИТЕЛЯ, поэтому переводим глобальное
+    // медиавремя в его пространство, а не берём CACurrentMediaTime() как
+    // есть: у родителя может быть своё смещение, и тогда ошибка будет
+    // постоянной и незаметной на статике.
+    let сейчас = родитель.convertTime(CACurrentMediaTime(), from: nil)
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    хост.speed = 1
+    хост.timeOffset = 0
+    хост.beginTime = сейчас - max(0, секунды)
+    CATransaction.commit()
+  }
+
+  // MARK: Дерево слоёв
+
+  private func пересобратьСлои(
+    _ composition: Composition,
+    makeOverlay: @escaping (Composition) async throws -> CALayer,
+    холст: PreviewCanvasView
+  ) async throws {
+    /**
+     * Транзакция охватывает и САМУ сборку, а не только подвешивание.
+     *
+     * Неявные анимации навешиваются в момент присваивания свойств — то есть
+     * внутри `LayerBuilder`, ещё до того, как слой попал в дерево. Если
+     * сборщик где-то забыл про `setDisableActions`, без этой обёртки каждая
+     * пересборка давала бы четвертьсекундные наплывы поверх кадра, которых
+     * в экспорте нет.
+     */
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    холст.масштаб.sublayers?.forEach { $0.removeFromSuperlayer() }
+    холст.масштаб.addSublayer(try await makeOverlay(composition))
+    CATransaction.commit()
+    // Время НЕ восстанавливаем: оно живёт на хосте, который мы не трогали.
+  }
+
+  // MARK: Плеер
+
+  private func пересобратьПлеер(_ composition: Composition, холст: PreviewCanvasView) {
+    задачаСборки?.cancel()
+    снятьНаблюдение()
+    плеер?.pause()
+    плеер = nil
+    холст.слойВидео.player = nil
+
+    задачаСборки = Task { @MainActor [weak self, weak холст] in
+      do {
+        // `avComposition()` не изолирован, поэтому загрузка дорожек уходит с
+        // главного потока сама: тянуть их синхронно нельзя — на удалённых
+        // источниках это секунды заморозки интерфейса.
+        let сборка = try await composition.avComposition()
+        guard let self, let холст, !Task.isCancelled else { return }
+
+        let плеер = AVPlayer(playerItem: AVPlayerItem(asset: сборка))
+        // Зацикливания в редакторе быть не должно: пауза на последнем кадре —
+        // это состояние, из которого видно, чем кончился ролик.
+        плеер.actionAtItemEnd = .pause
+        self.плеер = плеер
+        холст.слойВидео.player = плеер
+        self.поставитьНаблюдение(плеер)
+        self.состояниеМедиа(true, nil)
+        self.перемотать(к: self.известныйКадр)
+        if self.хотимИграть { плеер.play() }
+      } catch CompositionBuildError.нетДорожек {
+        // НЕ ошибка: композиция из одних титров легальна. Плеера нет, часы
+        // слоёв работают от указателя кадра.
+        self?.состояниеМедиа(false, nil)
+        self?.заморозитьЧасы(на: Double(self?.известныйКадр ?? 0) / Double(self?.fps ?? 30))
+      } catch {
+        self?.состояниеМедиа(false, error.localizedDescription)
+      }
+    }
+  }
+
+  private func поставитьНаблюдение(_ плеер: AVPlayer) {
+    /**
+     * Полкадра — не «почаще на всякий случай», а требование Найквиста к
+     * указателю: при интервале в кадр наблюдатель систематически пропускал
+     * бы кадры, и таймлайн шёл бы рывками по два.
+     */
+    наблюдательВремени = плеер.addPeriodicTimeObserver(
+      forInterval: CMTime(value: 1, timescale: CMTimeScale(fps * 2)),
+      queue: .main
+    ) { [weak self] время in
+      self?.тик(время)
+    }
+
+    /**
+     * Часы слоёв переключает СТАТУС плеера, а не наши намерения.
+     *
+     * Между `play()` и настоящим стартом стоит буферизация
+     * (`waitingToPlayAtSpecifiedRate`). Если пускать часы по нажатию кнопки,
+     * дерево уедет вперёд на время ожидания, и титры будут появляться
+     * раньше картинки — ровно та рассинхронизация, из-за которой
+     * предпросмотру перестают верить.
+     */
+    наблюдениеСтатуса = плеер.observe(\.timeControlStatus, options: [.new]) { [weak self] p, _ in
+      // KVO не обещает главный поток, а мы трогаем слои.
+      DispatchQueue.main.async { self?.статусИзменился(p) }
+    }
+  }
+
+  private func снятьНаблюдение() {
+    if let наблюдательВремени { плеер?.removeTimeObserver(наблюдательВремени) }
+    наблюдательВремени = nil
+    наблюдениеСтатуса?.invalidate()
+    наблюдениеСтатуса = nil
+  }
+
+  private func статусИзменился(_ плеер: AVPlayer) {
+    let время = плеер.currentTime()
+    let секунды = время.isNumeric ? время.seconds : 0
+
+    if плеер.timeControlStatus == .playing {
+      запуститьЧасы(от: секунды)
+      return
+    }
+
+    заморозитьЧасы(на: секунды)
+
+    // Плеер встал сам: конец ролика или прерывание звонком. Кнопка обязана
+    // это отразить, иначе она врёт про состояние.
+    if хотимИграть, плеер.timeControlStatus == .paused, !идётПеремотка {
+      хотимИграть = false
+      воспроизведениеОстановлено()
+    }
+  }
+
+  private func тик(_ время: CMTime) {
+    guard время.isNumeric else { return }
+    let секунды = время.seconds
+
+    if плеер?.timeControlStatus == .playing, let хост = холст?.хостСлоёв {
+      // Сверка ручных часов с часами плеера. Правим ТОЛЬКО при расхождении
+      // больше полукадра: безусловный пересчёт beginTime на каждом тике сам
+      // становится источником дрожания на пару миллисекунд.
+      let местное = хост.convertTime(CACurrentMediaTime(), from: nil)
+      if abs(местное - секунды) > 0.5 / Double(fps) {
+        запуститьЧасы(от: секунды)
+      }
+    }
+
+    let кадр = кадрИз(секунды)
+    if кадр != известныйКадр {
+      известныйКадр = кадр
+      кадрОтПлеера(кадр)
+    }
+  }
+
+  // MARK: Перемотка
+
+  /**
+   * Перемотка с догоном.
+   *
+   * Слои переставляем СРАЗУ и не ждём плеер: при таскании указателя seek с
+   * нулевым допуском занимает десятки миллисекунд, и если ждать его, титры
+   * будут тащиться за пальцем. Видео догоняет отдельно.
+   *
+   * Допуск именно нулевой: с допуском по умолчанию плеер встаёт на ближайший
+   * ключевой кадр, и предпросмотр показывает не тот кадр, который написан в
+   * таймкоде, — расхождение до секунды на длинных GOP.
+   *
+   * Пока seek в работе, новые запросы копятся в ОДНОЙ ячейке, а не в
+   * очереди: при таскании важен последний кадр, а не все промежуточные;
+   * очередь превратила бы жест в многосекундную отработку истории.
+   */
+  private func перемотать(к кадр: Int) {
+    let цель = min(max(кадр, 0), последнийКадр)
+    let время = CMTime(value: CMTimeValue(цель), timescale: CMTimeScale(fps))
+
+    if плеер?.timeControlStatus == .playing {
+      запуститьЧасы(от: время.seconds)
+    } else {
+      заморозитьЧасы(на: время.seconds)
+    }
+
+    guard let плеер else { return }
+    guard !идётПеремотка else {
+      отложенныйКадр = цель
+      return
+    }
+
+    идётПеремотка = true
+    плеер.seek(to: время, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+      // Обработчик приходит не обязательно на главной очереди, а дальше по
+      // цепочке мы трогаем слои.
+      DispatchQueue.main.async {
+        guard let self else { return }
+        self.идётПеремотка = false
+        if let следующий = self.отложенныйКадр {
+          self.отложенныйКадр = nil
+          if следующий != цель { self.перемотать(к: следующий) }
+        }
+      }
+    }
+  }
+
+  // MARK: Мелочи
+
+  private func кадрИз(_ секунды: Double) -> Int {
+    // Округление ВНИЗ: кадр N занимает [N/fps, (N+1)/fps). Эпсилон гасит
+    // накопленную ошибку деления, из-за которой ровное время кадра иногда
+    // приходит как N−0.0000001 и указатель отскакивает назад.
+    let сырой = Int(floor(секунды * Double(fps) + 1e-6))
+    return min(max(сырой, 0), последнийКадр)
+  }
+
+  /**
+   * Отпечаток МЕДИА-части композиции.
+   *
+   * Сознательно не включает x/y/opacity/rotation: их применяет дерево слоёв
+   * и (для видео) рендер, а не `AVMutableComposition`. Включать их значило бы
+   * пересобирать плеер на каждое движение ползунка в свойствах.
+   */
+  private static func ключМедиа(_ composition: Composition) -> String {
+    var части: [String] = ["\(composition.fps)"]
+    for дорожка in composition.tracks where дорожка.visible {
+      for клип in дорожка.items {
+        части.append(
+          "\(клип.url ?? "-")|\(клип.startFrame)|\(клип.durationInFrames)|\(дорожка.muted)"
+        )
+      }
+    }
+    return части.joined(separator: ";")
+  }
+}

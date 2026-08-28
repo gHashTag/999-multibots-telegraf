@@ -406,5 +406,71 @@
     "file": "apps/vibee-editor/render/src/agent/tools.ts",
     "needle": "name: 'my_renders'",
     "note": "агент видит свои рендеры"
+  },
+  {
+    "pr": 868,
+    "file": ".claude/loop-opus/verify-landed.mjs",
+    "needle": "fileURLToPath",
+    "note": "verify-landed выводит REPO из пути скрипта, не хардкод playom"
+  },
+  {
+    "pr": 871,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "verifiedTelegramId(req)",
+    "note": "публикация от чужого имени закрыта: владелец из подписи"
+  },
+  {
+    "pr": 872,
+    "file": "apps/vibee-editor/render/src/agent/tools.ts",
+    "needle": "balance >= $2 RETURNING balance",
+    "note": "атомарное списание токенов"
+  },
+  {
+    "pr": 873,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "star_payments",
+    "note": "идемпотентность вебхука покупки"
+  },
+  {
+    "pr": 874,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "Number(t.date) * 1000",
+    "note": "tokens/verify числовое сравнение дат"
+  },
+  {
+    "pr": 877,
+    "file": ".claude/loop-opus/anomalies.mjs",
+    "needle": "ЖЁСТКИЕ_ЗАВИСИМОСТИ",
+    "note": "детектор больше не глушит стойку через FAL/ElevenLabs"
+  },
+  {
+    "pr": 878,
+    "file": "apps/vibee-editor/render/src/agent/routes.ts",
+    "needle": "timingSafeEqual",
+    "note": "ключ агента сравнивается за константное время"
+  },
+  {
+    "pr": 879,
+    "file": "apps/vibee-editor/render/src/agent/chat.ts",
+    "needle": "AbortController",
+    "note": "таймаут стриминга + детект ошибки в потоке"
+  },
+  {
+    "pr": 882,
+    "file": "apps/vibee-editor/render/scripts/agent-autopilot.ts",
+    "needle": "виток_идёт",
+    "note": "демон-автопилот: lock держал свой же PID → отрабатывал раз и молчал; +overlap-guard виток_идёт"
+  },
+  {
+    "pr": 883,
+    "file": "apps/vibee-editor/render/src/agent/billing-shared.ts",
+    "needle": "spendByTid",
+    "note": "деньги B: /api/generate/* не списывал токены; единый billing-shared, атомарное WHERE balance>=price"
+  },
+  {
+    "pr": 884,
+    "file": "apps/vibee-editor/render/src/agent/routes.ts",
+    "needle": "resolveIdentity",
+    "note": "ров C: самообслуживание MCP-ключей; chatIdentity оставлен sync, DB-резолвинг в resolveIdentity на входе /mcp"
   }
 ]
