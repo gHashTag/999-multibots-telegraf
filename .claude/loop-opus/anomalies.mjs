@@ -169,8 +169,29 @@ try {
     console.log('  ↳    /health не отдаёт версию — сверить выкладку нечем')
   } else {
     const { execFileSync } = await import('node:child_process')
+    const где = path.dirname(fileURLToPath(import.meta.url))
+    /**
+     * ОБНОВИТЬ ССЫЛКУ ПЕРЕД СРАВНЕНИЕМ.
+     *
+     * Первая версия читала `origin/main` как есть — то есть каким он был на
+     * момент последнего fetch в этом клоне. Ворота тут же дали ЛОЖНУЮ
+     * тревогу: прод стоял на голове main, а локальная ссылка отставала на
+     * коммит, и разница читалась как невыложенная правка.
+     *
+     * Ложная тревога в детекторе хуже отсутствия детектора: её один раз
+     * объясняют, второй раз пролистывают, а третий — уже не читают вовсе.
+     */
+    try {
+      execFileSync('git', ['fetch', 'origin', 'main', '--quiet'], {
+        cwd: где, encoding: 'utf8', timeout: 20000,
+      })
+    } catch {
+      // Сеть могла не ответить. Сравнение всё равно проведём, но скажем, что
+      // ссылка может быть несвежей — молчать об этом значит врать числом.
+      console.log('  ↳    origin/main не обновлён, сравнение может отставать')
+    }
     const наMain = execFileSync('git', ['rev-parse', '--short', 'origin/main'], {
-      cwd: path.dirname(fileURLToPath(import.meta.url)), encoding: 'utf8',
+      cwd: где, encoding: 'utf8',
     }).trim()
     if (!String(версия).startsWith(наMain.slice(0, 7))) {
       bad(`выкладка отстала: на проде ${версия}, на main ${наMain}`)
