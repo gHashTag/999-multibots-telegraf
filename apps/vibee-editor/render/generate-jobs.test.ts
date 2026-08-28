@@ -236,3 +236,86 @@ describe('durability: read path only, write-through NOT yet proven', () => {
     expect(list[0].state).toBe('done')
   })
 })
+
+describe('write-through, proved at the write and not at the read', () => {
+  /**
+   * WHY THIS EXISTS SEPARATELY.
+   *
+   * The block above round-trips: write, forget memory, read back. It passes
+   * with the finishing write REMOVED -- verified directly -- so it proves the
+   * read path and nothing about the write. Round-tripping hid the failure
+   * because the row from startJob is enough to make a read succeed.
+   *
+   * So this asserts on what the pool actually RECEIVED. There is no way for
+   * the finished state to appear in the store without the statement that puts
+   * it there, which is exactly the property the other block failed to pin.
+   */
+  const settle = () => new Promise(r => setTimeout(r, 0))
+
+  function recordingPool() {
+    const writes: any[][] = []
+    return {
+      writes,
+      async query(sql: string, params: any[] = []) {
+        const s = sql.replace(/\s+/g, ' ').trim()
+        if (s.startsWith('CREATE')) return { rows: [] }
+        if (s.startsWith('INSERT INTO generate_jobs')) {
+          writes.push(params)
+          return { rows: [] }
+        }
+        if (s.startsWith('SELECT')) return { rows: [] }
+        throw new Error(`pool does not know: ${s.slice(0, 80)}`)
+      },
+    }
+  }
+
+  beforeEach(() => {
+    _resetJobs()
+    attachStore(null)
+  })
+
+  it('finishing a job writes the done state through to the store', async () => {
+    const pool = recordingPool()
+    attachStore(pool as any)
+
+    const job = startJob('video', '4242', 'a cat')
+    await settle()
+    const afterStart = pool.writes.length
+
+    finishJob(job.id, 'https://storage/a.mp4', 'replicate')
+    await settle()
+
+    // A second statement must have been issued, carrying the finished state.
+    expect(pool.writes.length).toBeGreaterThan(afterStart)
+    const last = pool.writes[pool.writes.length - 1]
+    // Column order in the INSERT: id, kind, owner, state, started, finished, url...
+    expect(last[3]).toBe('done')
+    expect(last[6]).toBe('https://storage/a.mp4')
+  })
+
+  it('failing a job writes the failure through too', async () => {
+    const pool = recordingPool()
+    attachStore(pool as any)
+
+    const job = startJob('audio', '4242')
+    await settle()
+    const afterStart = pool.writes.length
+
+    failJob(job.id, 'balance exhausted')
+    await settle()
+
+    expect(pool.writes.length).toBeGreaterThan(afterStart)
+    expect(pool.writes[pool.writes.length - 1][3]).toBe('failed')
+  })
+
+  it('starting a job writes it before the provider is ever called', async () => {
+    const pool = recordingPool()
+    attachStore(pool as any)
+
+    startJob('image', '4242', 'a cube')
+    await settle()
+
+    expect(pool.writes.length).toBe(1)
+    expect(pool.writes[0][3]).toBe('running')
+  })
+})
