@@ -7,6 +7,7 @@ import {
   logWebhookRequest,
   enableRawBody,
 } from '../../webhooks/github-autofixer.middleware'
+import { requireInternalKey } from '../middleware/requireInternalKey'
 
 const router: Router = express.Router()
 const controller = new GitHubAutoFixerController()
@@ -25,8 +26,14 @@ router.post(
 )
 
 // Endpoint для ручного исправления PR
+// Unlike the pr-issues webhook (verified by GitHub signature), this is a manual
+// admin trigger with no signature to check — and it performs privileged GitHub
+// writes and paid Claude calls from client-supplied repoOwner/repoName. Gate it
+// with the internal key (fail-closed), the same guard the other privileged
+// routers use. The router stays mounted open so the signed webhook still works.
 router.post(
   '/webhooks/github/manual-fix/:prNumber',
+  requireInternalKey,
   async (req: any, res: any) => {
     await controller.handleManualFix(req, res)
   }

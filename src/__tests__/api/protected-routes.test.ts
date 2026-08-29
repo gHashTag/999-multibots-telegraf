@@ -47,7 +47,10 @@ const MUST_STAY_OPEN: Record<string, string> = {
   kieAiWebhookRouter: 'обратные вызовы поставщика генерации',
   aiReelsCallbackRouter: 'обратные вызовы рендера',
   replicateWebhookRouter: 'обратные вызовы Replicate',
-  githubAutoFixerRouter: 'обратные вызовы GitHub, подпись проверяется внутри',
+  githubAutoFixerRouter:
+    'вебхук pr-issues проверяет подпись GitHub; привилегированный manual-fix ' +
+    'закрыт requireInternalKey НА САМОМ РОУТЕ (см. отдельный тест ниже и ' +
+    'github-autofixer.routes.ts) — роутер остаётся открытым ради подписанного вебхука',
   competitorRouter: 'отвечает 501, данных не отдаёт',
 }
 
@@ -103,5 +106,25 @@ describe('внутренние маршруты закрыты', () => {
       list.some(m => m.varName === name && m.guarded)
     )
     expect(stale).toEqual([])
+  })
+
+  // The router-level scan above cannot see a privileged route hiding inside an
+  // otherwise-open router. githubAutoFixerRouter stays open for the signed
+  // pr-issues webhook, but its manual-fix route does real GitHub writes and paid
+  // Claude calls from client input with no signature — so it must carry the
+  // internal key on the route itself.
+  it('manual-fix route inside the open autofixer router is gated by the key', () => {
+    const routes = fs.readFileSync(
+      'src/api_server/routes/github-autofixer.routes.ts',
+      'utf8'
+    )
+    const idx = routes.indexOf('/webhooks/github/manual-fix/')
+    expect(idx, 'manual-fix route not found').toBeGreaterThan(-1)
+    const block = routes.slice(idx, idx + 300)
+    expect(
+      block.includes('requireInternalKey'),
+      'manual-fix does privileged writes from client input and must carry ' +
+        'requireInternalKey on the route (the router stays open for the signed webhook)'
+    ).toBe(true)
   })
 })
