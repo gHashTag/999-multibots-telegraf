@@ -4777,3 +4777,61 @@ SELF-CRITICISM. While mutation-testing the gate I ran `git reset --hard HEAD~1`
 and destroyed two unrelated uncommitted fixes in the working tree. A mutation
 probe must use `git stash` or a scratch copy: reset --hard is not a local undo,
 it wipes everything uncommitted.
+
+## Dependencies vanished because node_modules was a committed symlink
+
+Root dependencies disappeared twice in one session and it looked like flaky
+tooling. It was not. node_modules -- and the player's -- were TRACKED IN GIT as
+symlinks (mode 120000) pointing at /Users/ssdm4/..., a path belonging to a
+different user and absent on this machine.
+
+The cycle: npm install replaces the symlink with a real directory and everything
+works; then any git checkout, reset or stash pop restores the tracked symlink
+over it and every dependency is gone again. Root typecheck died with "Cannot
+find type definition file for node", tri mutate could not run a single test, and
+both read as environment noise.
+
+.gitignore already had node_modules/ -- which does NOTHING for files that are
+already tracked. An ignore rule only affects untracked paths; untracking is what
+makes it apply.
+
+RULE. When a tool breaks, comes back after a reinstall, and breaks again after a
+git operation, suspect the index, not the tool. `git ls-files -s | awk
+'$1=="120000"'` lists every tracked symlink in seconds.
+
+RULE (third time this week). A path from someone else's machine in shared
+configuration fails SILENTLY: the tri PATH pinned /Users/playom (a typo), the
+render service pinned a dead host, and node_modules pointed at /Users/ssdm4.
+None of them errored -- they just quietly did nothing.
+
+CONSEQUENCE WORTH KEEPING. Fixing this made two gates real for the first time:
+root typecheck now runs, and `tri mutate` immediately proved yesterday's fix by
+correctly reporting "the test passed on broken code" for a mutation its chosen
+test does not cover. A gate that cannot run is indistinguishable from a gate
+that passes.
+
+## Money code that can only be tested by spending money never gets tested
+
+The Stars -> tokens path is the only one where a mistake takes money and returns
+nothing, and it had no behavioural test. Both fixes it ever needed -- webhook
+idempotency and a numeric date comparison -- shipped on reasoning alone, and
+both were later silently reverted by an unrelated merge with nothing going red.
+
+The reason was structural: the logic lived inline inside a webhook handler, so
+the only way to exercise it was to make a real purchase. Extracting it (same SQL,
+same order) into a function taking a pool made eight cases testable in
+milliseconds, including the two that matter most: a redelivery must not credit
+again, and the ledger row must be written BEFORE the balance so a crash between
+them cannot double-credit.
+
+RULE. If proving a behaviour requires spending money, sending a message or
+publishing a post, extract the decision from the side effect. The decision is
+what has bugs; the side effect is what makes it expensive to check.
+
+RULE. Verify the guarantee by removing it. Deleting the idempotency check turned
+two tests red -- that, not the green run, is what says the tests are about
+idempotency at all.
+
+NOTE ON SCOPE. A live purchase stays with the owner. Proving the logic a
+purchase triggers is not the same as proving the purchase, and the report must
+say which one was done.
