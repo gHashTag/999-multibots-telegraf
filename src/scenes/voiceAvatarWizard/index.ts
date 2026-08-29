@@ -3,7 +3,7 @@ import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { createVoiceAvatar } from '@/services/plan_b/createVoiceAvatar'
 import { isRussian } from '@/helpers/language'
-import { getUserBalance } from '@/core/supabase'
+import { getUserBalance, updateUserBalance } from '@/core/supabase'
 import {
   sendInsufficientStarsMessage,
   sendBalanceMessage,
@@ -12,6 +12,8 @@ import {
 import { createHelpCancelKeyboard } from '@/navigation'
 import { handleHelpCancel } from '@/navigation'
 import { logger } from '@/utils/logger'
+import { calculateModeCost } from '@/price/helpers/modelsCost'
+import { PaymentType } from '@/interfaces/payments.interface'
 
 export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
   'voice',
@@ -118,13 +120,53 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
           return
         }
 
-        await createVoiceAvatar(
+        // Gate the paid ElevenLabs voice clone on balance BEFORE calling it,
+        // mirroring textToSpeechWizard (same Voice family, same subscriber tier).
+        // This wizard previously ran a persistent, credit-burning clone with no
+        // balance check and no star deduction; the sibling gates AND charges.
+        const cost = calculateModeCost({ mode: ModeEnum.Voice }).stars
+        const { checkUserBalance } = await import('@/helpers/checkUserBalance')
+        const hasBalance = await checkUserBalance(ctx, cost)
+        if (!hasBalance) {
+          await ctx.scene.leave()
+          const { showMainMenu } = await import('@/navigation')
+          await showMainMenu(ctx)
+          return
+        }
+
+        const voiceResult = await createVoiceAvatar(
           fileUrl,
           ctx.from.id.toString(),
           ctx.from?.username || '',
           isRu,
           ctx
         )
+
+        // Charge only when a voice was actually created. createVoiceAvatar
+        // resolves with undefined on the ElevenLabs voice-limit path (it messages
+        // the user and does NOT throw), so charging unconditionally would bill for
+        // a voice that was never made. Charging AFTER the await also means an
+        // ElevenLabs throw short-circuits before any deduction (no charge-on-fail).
+        if (voiceResult?.voiceId && cost > 0) {
+          const charged = await updateUserBalance(
+            ctx.from.id.toString(),
+            cost,
+            PaymentType.MONEY_OUTCOME,
+            'Voice avatar creation',
+            { service_type: 'VOICE_AVATAR' }
+          )
+          if (!charged) {
+            logger.error('❌ Failed to charge user for voice avatar', {
+              telegram_id: ctx.from.id,
+              cost,
+            })
+            await ctx.reply(
+              isRu
+                ? '⚠️ Аватар создан, но произошла ошибка при списании средств. Обратитесь в поддержку.'
+                : '⚠️ Avatar created, but there was an error charging your balance. Please contact support.'
+            )
+          }
+        }
 
         // ✅ УЛУЧШЕНО: Проверяем флаг возврата в Veed Fabric
         if (
