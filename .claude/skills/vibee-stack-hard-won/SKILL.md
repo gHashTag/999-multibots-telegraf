@@ -4879,3 +4879,87 @@ with a word-boundary regex, I twice rewrote the SAME WORD inside Russian prose
 comments -- turning "was" into a variable name mid-sentence. A rename regex
 does not know code from comment. After any bulk rename, grep the comments for
 the new name: a hit inside prose is a corrupted sentence, not a rename.
+
+## A comment cannot enforce anything, only a check can
+
+Yesterday I changed one option from 'inherit' to 'pipe' so the trace check could
+capture the names of fixes that vanished from main, and wrote six lines above it
+explaining why capture is mandatory. A later edit flipped it back to 'inherit'
+AND LEFT THE COMMENT IN PLACE. The comment then argued against the code
+underneath it, and the check went back to printing "did not run: checked 79 of
+79" instead of naming anything.
+
+Nothing noticed for a day. What noticed was a self-test written for an unrelated
+reason, on its very first run, before it had ever been merged.
+
+RULE. A rule that lives only in a comment is a request. If it matters, write the
+check that fails when it is broken -- and put the reason IN the check, not
+beside the line it is about. The comment is documentation of the check, not a
+substitute for it.
+
+COROLLARY WORTH THE SAME WEIGHT. Verify a detector by breaking what it watches,
+not by reading it. Three sabotages in three different sections of the alarm --
+providers stop alarming, a page without its mount point counts as the app, an
+extra path segment answering 200 is accepted -- all three went red. That, not a
+green production run, is what says the alarm still works. "0 anomalies" and "the
+detector died" print the same line.
+
+## The exit code is the verdict; the output is a story about it
+
+Two false greens in my own merge gate, both from reading text instead of status.
+
+SECTION 1 counted type errors with a grep for "error TS". A tsc SETUP failure
+prints one such line, so a run that type-checked NOTHING scored "1 error" --
+under the debt baseline of 8 -- and the gate answered "not over baseline" and
+then "safe to merge". Measured by moving the tsconfig aside for ten seconds. The
+discriminator is the prefix: a code error is "file(line,col): error TSxxxx", a
+setup error is "error TSxxxx" at the start of the line with no file at all.
+
+SECTION 2 threw the vitest exit code away entirely and grepped for "N passed"
+with no "N failed". A test that PASSES while leaving an unhandled rejection
+makes vitest print "197 passed" and exit 1. The gate called it green.
+
+Both are the same mistake I had already recorded once, when a grep for "error
+TS" returned 0 because tsc colours its output. Recording it did not stop me
+repeating it in a file I wrote afterwards -- which is the actual lesson.
+
+RULE. If a tool sets an exit code, that is the answer. Parse its output only to
+say WHICH thing failed, never WHETHER. And when a count comes from a grep, ask
+what else could produce that line: the number is only as honest as the pattern.
+
+RULE. Three outcomes, and the exit code must carry all three. `tri deployed`
+warned "production did not name a version" and fell off the end of the function
+-- which returns 0. It reported success having compared nothing.
+
+## Half a guard is no guard, and it reads as a whole one
+
+The autopilot's durable cursor had `next_topic = GREATEST(old, new)` in its
+upsert, with a comment explaining that a rolling deploy runs two containers and
+a late write must not lower the counter. Correct, and useless: the very next
+line was `last_topic = EXCLUDED.last_topic`, an unconditional overwrite, and the
+resolver reads the TITLE FIRST and only falls back to the index.
+
+So the dying container's stale title beat the survivor's protected index and the
+queue walked backwards onto topics already published. Reproduced against real
+Postgres: writer A leaves {8,'t7'}, late writer B leaves {5,'t4'}, the row ends
+up next_topic=8 with last_topic='t4', and the cursor resolves to 5.
+
+Removing the GREATEST entirely changed NOTHING observable and left the suite
+green -- the cleanest possible proof that the guard was buying nothing.
+
+RULE. A guard protects a DECISION, not a column. Trace the value the decision
+actually reads. Here two fields encoded one fact, one was defended and the other
+was not, and the undefended one was the one being read.
+
+RULE. Test a guard by deleting it. If nothing goes red, either the guard or the
+test is decorative -- and you cannot tell which without looking.
+
+WHERE THE TESTS WERE BLIND. The fake pool substring-matches SQL and answers from
+a Map, so it never validates a column name. Renaming next_topic to nxt_topic --
+invalid against any real database -- left the whole suite green while Postgres
+answered "column does not exist" and the loader fell back to a fresh state
+forever, restoring the exact outage the change was fixing. The fix is not a real
+database in CI (there is none); it is a test that compares the QUERIES against
+the TABLE DEFINITION, both read from the module, so drift in either direction is
+visible. It does not prove the SQL executes. It proves the two halves agree,
+which is the failure that actually happened.
