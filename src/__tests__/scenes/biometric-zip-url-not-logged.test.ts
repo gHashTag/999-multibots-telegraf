@@ -48,7 +48,9 @@ describe('training ZIP upload does not log the public URL', () => {
   })
 
   it('zipUrl is still available for the training event', () => {
-    expect(SRC).toMatch(/const zipUrl = publicUrlData\.publicUrl/)
+    // Root fix #1137 moved the ZIP to a private bucket, so zipUrl is now the
+    // signed URL rather than a public one — still available for the event.
+    expect(SRC).toMatch(/const zipUrl = signedData\.signedUrl/)
     expect(SRC).toMatch(/zipUrl, \/\/ HTTP URL from Supabase/)
   })
 })

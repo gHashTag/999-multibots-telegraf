@@ -99,8 +99,25 @@ uploadTrainFluxModelScene.enter(async ctx => {
     const zipFileName = `train/${ctx.session.targetUserId}/${Date.now()}_${path.basename(zipPath)}`
     const zipBuffer = await fs.promises.readFile(zipPath)
 
+    // The ZIP holds 10+ personal FACE photos — biometric PII. It used to go to
+    // the PUBLIC `images` bucket and be handed out via getPublicUrl, so anyone
+    // with (or guessing) the URL could download a user's face set. Put it in a
+    // PRIVATE bucket and give the training provider a short-lived SIGNED URL
+    // instead: the object is never publicly listable and the link expires.
+    const TRAINING_BUCKET = 'training-private'
+    // Generous margin so a queued training still starts; the object stays
+    // private regardless of the link's lifetime.
+    const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 7 // 7 days
+
+    // Idempotent: create the private bucket if it does not exist yet. An
+    // "already exists" error (or a transient one) is ignored here — the upload
+    // below is the real gate and throws on a genuine failure.
+    await serviceClient.storage
+      .createBucket(TRAINING_BUCKET, { public: false })
+      .catch(() => ({}))
+
     const { data: uploadData, error: uploadError } = await serviceClient.storage
-      .from('images')
+      .from(TRAINING_BUCKET)
       .upload(zipFileName, zipBuffer, {
         contentType: 'application/zip',
         upsert: true,
@@ -112,20 +129,23 @@ uploadTrainFluxModelScene.enter(async ctx => {
       )
     }
 
-    const { data: publicUrlData } = serviceClient.storage
-      .from('images')
-      .getPublicUrl(zipFileName)
+    // Fail closed — NO public fallback. If a signed URL cannot be minted the
+    // training does not start rather than leaking the faces publicly.
+    const { data: signedData, error: signedError } = await serviceClient.storage
+      .from(TRAINING_BUCKET)
+      .createSignedUrl(zipFileName, SIGNED_URL_TTL_SECONDS)
 
-    const zipUrl = publicUrlData.publicUrl
-    // Log the object path, not the public URL. This ZIP holds the user's face
-    // photos, and getPublicUrl on a public bucket is a permanent, unauthenticated
-    // link — it must not sit in aggregated logs (same class as #1105). The bucket
-    // being public at all is the larger exposure and is owner-side: a private
-    // bucket + signed URLs.
-    console.log(
-      '[uploadTrainFluxModelScene] ZIP uploaded to Supabase:',
-      zipFileName
-    )
+    if (signedError || !signedData?.signedUrl) {
+      throw new Error(
+        `Failed to sign training ZIP URL: ${
+          signedError?.message || 'no signed URL returned'
+        }`
+      )
+    }
+
+    const zipUrl = signedData.signedUrl
+    // Do NOT log the URL — the signed token grants access to the face photos.
+    console.log('[uploadTrainFluxModelScene] ZIP uploaded to private bucket')
 
     // Delete local ZIP file after upload
     try {
