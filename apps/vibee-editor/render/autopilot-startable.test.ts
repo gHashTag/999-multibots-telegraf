@@ -96,13 +96,30 @@ describe('the autopilot script can start', () => {
     })
     await spoke
     child.kill('SIGKILL')
+    // SIGKILL is asynchronous: the daemon can write one more log file into `dir`
+    // after kill() returns but before it is reaped, and that file racing the
+    // cleanup below made fs.rmSync fail with ENOTEMPTY (force only swallows
+    // ENOENT, not a directory repopulated mid-removal). Wait for the process to
+    // actually exit — a dead process cannot write — before removing its dir.
+    if (child.exitCode === null && child.signalCode === null) {
+      await new Promise<void>(resolve => {
+        child.on('exit', () => resolve())
+        setTimeout(resolve, 2_000)
+      })
+    }
     try {
       expect(out).not.toContain('Top-level await')
       expect(out).not.toContain('ENOENT')
       expect(out).toContain('[autopilot]')
       expect(fs.existsSync(dir), 'the log directory was not created').toBe(true)
     } finally {
-      fs.rmSync(dir, { recursive: true, force: true })
+      // maxRetries covers the residual window between exit and the last flush.
+      fs.rmSync(dir, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 100,
+      })
     }
   }, 40_000)
 
