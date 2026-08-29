@@ -79,16 +79,8 @@ describe('video delivery is idempotent per job (no double charge)', () => {
       'guard must not key idempotency on the mutable ctx.session.videoJobId'
     ).toBe(false)
     expect(
-      /function claimVideoJobDelivery/.test(s),
-      'no claimVideoJobDelivery helper'
-    ).toBe(true)
-    expect(
-      /deliveredVideoJobs\.has\(jobId\)/.test(s),
-      'helper does not check the delivered-set'
-    ).toBe(true)
-    expect(
-      /deliveredVideoJobs\.add\(jobId\)/.test(s),
-      'helper does not record the delivered job'
+      /const claimVideoJobDelivery = createVideoDeliveryClaimer\(\)/.test(s),
+      'does not instantiate the shared delivery claimer'
     ).toBe(true)
 
     // the claim must run before the money charge and before the delivery
@@ -100,16 +92,11 @@ describe('video delivery is idempotent per job (no double charge)', () => {
     expect(guard, 'claim runs after the delivery').toBeLessThan(deliver)
   })
 
-  it('bounds the delivered-set so it cannot grow without limit', () => {
+  it('sources the bounded claimer from the shared util (bound tested there)', () => {
     const s = code()
-    const m = s.match(/const DELIVERED_VIDEO_JOBS_MAX = (\d+)/)
-    expect(m, 'delivered-set is not bounded').not.toBeNull()
-    expect(Number(m![1])).toBeGreaterThan(0)
     expect(
-      /deliveredVideoJobs\.size > DELIVERED_VIDEO_JOBS_MAX[\s\S]{0,160}deliveredVideoJobs\.delete/.test(
-        s
-      ),
-      'no FIFO eviction when the delivered-set exceeds its cap'
+      /from '@\/helpers\/videoDeliveryIdempotency'/.test(s),
+      'does not import the shared delivery-idempotency util'
     ).toBe(true)
   })
 

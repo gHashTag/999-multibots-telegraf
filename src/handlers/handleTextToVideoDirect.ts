@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { createVideoDeliveryClaimer } from '@/helpers/videoDeliveryIdempotency'
 import {
   checkVideoGenerationStatus,
   VideoModelId,
@@ -25,20 +26,7 @@ import { videoTaskStore } from '@/services/video-task-store'
 // second concurrent generation overwrites — that would skip the older job's real
 // delivery). Mirrors the webhook's chargedVideoJobs Set, but bounded so a
 // long-lived multi-bot process cannot grow it without limit.
-const DELIVERED_VIDEO_JOBS_MAX = 1000
-const deliveredVideoJobs = new Set<string>()
-function claimVideoJobDelivery(jobId: string): boolean {
-  // Returns false if this job was already delivered (caller must skip). The
-  // has()+add() pair is synchronous, so it is atomic w.r.t. the event loop:
-  // the first entry for a job wins, a racing re-entry gets false.
-  if (deliveredVideoJobs.has(jobId)) return false
-  deliveredVideoJobs.add(jobId)
-  if (deliveredVideoJobs.size > DELIVERED_VIDEO_JOBS_MAX) {
-    const oldest = deliveredVideoJobs.values().next().value
-    if (oldest !== undefined) deliveredVideoJobs.delete(oldest)
-  }
-  return true
-}
+const claimVideoJobDelivery = createVideoDeliveryClaimer()
 
 /**
  * Handler для генерации видео из текста через прямую интеграцию с сервером
