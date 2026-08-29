@@ -87,6 +87,10 @@ export const generateSeeDream45 = async (
   // Set once the user has actually been charged, so the outer catch can refund
   // them if delivery (or anything after the charge) then throws.
   let refundOnFailure = false
+  // The downloaded temp PNG is unlinked on the success path; track it here so
+  // the outer catch can remove it too when delivery fails, instead of orphaning
+  // it on disk (#1029 class).
+  let tempFileToCleanup: string | null = null
 
   try {
     const {
@@ -346,6 +350,7 @@ export const generateSeeDream45 = async (
         'ai-generation',
         '.png'
       )
+      tempFileToCleanup = savedImagePath
 
       console.log('🎭 [SeeDream4.5] Image saved locally:', {
         telegram_id,
@@ -467,6 +472,16 @@ export const generateSeeDream45 = async (
       throw new Error(`Failed to save generation record: ${originalMsg}`)
     }
   } catch (error) {
+    // Remove the downloaded temp PNG if we failed before the success-path
+    // cleanup ran, so a failed delivery does not orphan it on disk (#1029).
+    if (tempFileToCleanup) {
+      try {
+        fs.unlinkSync(tempFileToCleanup)
+      } catch {
+        /* already gone or never created */
+      }
+    }
+
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error'
     const errorMsgLower = errorMessage.toLowerCase()

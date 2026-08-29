@@ -72,6 +72,10 @@ export const generateQwenImageEditPlus = async (
   // Declare variables for wider scope
   let imageCount = 1
   let totalCost = QWEN_IMAGE_EDIT_PLUS_MODEL.costPerImage
+  // The downloaded temp file is unlinked on the success path; track it here so
+  // the outer catch can remove it too when delivery fails, instead of orphaning
+  // it on disk (#1029 class).
+  let tempFileToCleanup: string | null = null
 
   try {
     const {
@@ -311,6 +315,7 @@ export const generateQwenImageEditPlus = async (
         'ai-generation',
         '.webp'
       )
+      tempFileToCleanup = savedImagePath
 
       console.log('🎨 [QwenEditPlus] Image saved locally:', {
         telegram_id,
@@ -407,6 +412,16 @@ export const generateQwenImageEditPlus = async (
       throw new Error(`Failed to save generation record: ${originalMsg}`)
     }
   } catch (error) {
+    // Remove the downloaded temp file if we failed before the success-path
+    // cleanup ran, so a failed delivery does not orphan it on disk (#1029).
+    if (tempFileToCleanup) {
+      try {
+        fs.unlinkSync(tempFileToCleanup)
+      } catch {
+        /* already gone or never created */
+      }
+    }
+
     console.error('🚨 [QwenEditPlus] Generation failed:', {
       telegram_id: params.telegram_id,
       error: error instanceof Error ? error.message : 'Unknown error',
