@@ -217,10 +217,20 @@ export const welcomeAvatarGeneration = inngest.createFunction(
           // Create a minimal context for generation
           const mockCtx = {
             reply: async (text: string) => {
-              await bot.telegram.sendMessage(telegram_id, text)
-              return { message_id: 0 }
+              // Return the REAL message_id so the generator can delete its own
+              // "generating…" status message. With the old fake id (0) plus the
+              // no-op deleteMessage below, that status line was never removed and
+              // stayed stuck above every gift portrait.
+              const sent = await bot.telegram.sendMessage(telegram_id, text)
+              return { message_id: sent.message_id }
             },
-            deleteMessage: async () => {},
+            deleteMessage: async (messageId?: number) => {
+              if (!messageId) return
+              // Cosmetic cleanup — never let a failed delete break the gift.
+              await bot.telegram
+                .deleteMessage(telegram_id, messageId)
+                .catch(() => {})
+            },
             replyWithPhoto: async (photo: any, options?: any) => {
               if (typeof photo === 'object' && 'source' in photo) {
                 await bot.telegram.sendPhoto(
