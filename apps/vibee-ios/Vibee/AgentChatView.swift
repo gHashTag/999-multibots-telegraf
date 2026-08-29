@@ -472,7 +472,7 @@ struct ОкноПодтверждения: View {
         .foregroundStyle(Тема.Цвет.текст)
 
       HStack(spacing: 6) {
-        Text("Кому").foregroundStyle(Тема.Цвет.текстПриглуш)
+        Text("Кому").foregroundStyle(Тема.Цвет.текстПриглушённый)
         Text(предложение.куда)
           .foregroundStyle(Тема.Цвет.акцент)
           .textSelection(.enabled)
@@ -493,7 +493,7 @@ struct ОкноПодтверждения: View {
 
       Text(предложение.пояснение)
         .font(.caption)
-        .foregroundStyle(Тема.Цвет.текстПриглуш)
+        .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
       HStack(spacing: 10) {
         Button("Не отправлять") { ответить(false) }
