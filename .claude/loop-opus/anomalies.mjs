@@ -148,8 +148,8 @@ try {
         ok(s)
       } else if (blockingProduction.length) {
         // Mute ONLY when a provider the reel cannot be made without is down.
-        console.log(
-          `  ↳    конвейер стоит ОЖИДАЕМО: без ${blockingProduction.join(', ')} ролик не написать. ${s}`
+        note(
+          `конвейер стоит ОЖИДАЕМО: без ${blockingProduction.join(', ')} ролик не написать. ${s}`
         )
       } else {
         // The providers this reel type needs are alive and the pipeline is
@@ -177,16 +177,16 @@ try {
 console.log('\nДеплой')
 try {
   const r = await get(`${RENDER}/health`, 20000)
-  const версия = r.json?.version || r.json?.commit || null
+  const prodVersion = r.json?.version || r.json?.commit || null
   if (!r.ok) {
     bad(`здоровье сервиса не ответило: HTTP ${r.status}`)
-  } else if (!версия) {
+  } else if (!prodVersion) {
     // Не ошибка: /health может не отдавать версию. Но и проверить нечего —
     // говорим об этом прямо, а не молчим с видом успеха.
-    console.log('  ↳    /health не отдаёт версию — сверить выкладку нечем')
+    note('/health не отдаёт версию — сверить выкладку нечем')
   } else {
     const { execFileSync } = await import('node:child_process')
-    const где = path.dirname(fileURLToPath(import.meta.url))
+    const repoDir = path.dirname(fileURLToPath(import.meta.url))
     /**
      * ОБНОВИТЬ ССЫЛКУ ПЕРЕД СРАВНЕНИЕМ.
      *
@@ -200,27 +200,71 @@ try {
      */
     try {
       execFileSync('git', ['fetch', 'origin', 'main', '--quiet'], {
-        cwd: где,
+        cwd: repoDir,
         encoding: 'utf8',
         timeout: 20000,
       })
     } catch {
       // Сеть могла не ответить. Сравнение всё равно проведём, но скажем, что
       // ссылка может быть несвежей — молчать об этом значит врать числом.
-      console.log('  ↳    origin/main не обновлён, сравнение может отставать')
+      note('origin/main не обновлён, сравнение может отставать')
     }
-    const наMain = execFileSync(
+    /**
+     * COMPARE AGAINST THE LAST COMMIT THIS SERVICE ACTUALLY BUILDS.
+     *
+     * The head of main is the wrong reference point. Railway rebuilds the
+     * render service only when a push touched its paths, so a docs commit on
+     * top rebuilds nothing -- correctly. The previous version compared against
+     * the head, so every report commit of mine raised "deploy behind" while the
+     * service had not one unshipped line. Measured 2026-08-29: prod b48d1e2,
+     * head eac7e396, and the diff between them under apps/vibee-editor/render
+     * is empty.
+     *
+     * Exactly the failure class that already cost 51 hours: an alarm that cries
+     * over the harmless teaches you not to read it. Count as behind only a gap
+     * in the paths the service builds from -- then the "render fix, docs-only on
+     * top, deploy skipped" trap stays visible and the noise goes away.
+     */
+    // The `:/` prefix is required: git pathspecs resolve against the CURRENT
+    // directory, and this script runs from its own (.claude/loop-opus). Without
+    // it the filter matches nothing, `git log` returns empty, and the check
+    // silently falls back to the head of main -- looking healthy while doing
+    // nothing. Caught by mutation: swapping the paths for unrelated ones did
+    // not change the output.
+    const BUILD_PATHS = [':/apps/vibee-editor/render']
+    const mainHead = execFileSync(
       'git',
       ['rev-parse', '--short', 'origin/main'],
       {
-        cwd: где,
+        cwd: repoDir,
         encoding: 'utf8',
       }
     ).trim()
-    if (!String(версия).startsWith(наMain.slice(0, 7))) {
-      bad(`выкладка отстала: на проде ${версия}, на main ${наMain}`)
+    let expected = mainHead
+    try {
+      const own = execFileSync(
+        'git',
+        ['log', '-1', '--format=%h', 'origin/main', '--', ...BUILD_PATHS],
+        { cwd: repoDir, encoding: 'utf8' }
+      ).trim()
+      if (own) expected = own
+    } catch {
+      // History unreadable -- compare against the head as before. Worse, but
+      // it errs on the cautious side: a spare alarm, not a missed one.
+    }
+    if (!String(prodVersion).startsWith(expected.slice(0, 7))) {
+      bad(
+        `выкладка отстала: на проде ${prodVersion}, а рендер собирается из ${expected}` +
+          (expected === mainHead
+            ? ''
+            : ` (голова main ${mainHead} рендера не трогает)`)
+      )
+    } else if (expected === mainHead) {
+      ok(`прод на ${prodVersion} — совпадает с main`)
     } else {
-      ok(`прод на ${версия} — совпадает с main`)
+      ok(
+        `прод на ${prodVersion} — это последняя правка рендера (main ушёл дальше, но мимо него)`
+      )
     }
   }
 } catch (e) {
@@ -300,14 +344,25 @@ try {
   const out = execFileSync(
     process.execPath,
     [path.join(HERE, 'verify-landed.mjs')],
-    { encoding: 'utf8', cwd: path.resolve(HERE, '..', '..') }
+    // stderr MUST be captured, not inherited: the script prints the names of
+    // the vanished fixes through console.error, and when inherited they go
+    // straight to the screen, past this branch. The parser below then finds no
+    // miss line in stdout and, instead of the precise "overwritten: routes.ts
+    // has no resolveIdentity", prints the nonsense "check did not run: checked
+    // 79 of 79" -- losing exactly what the check exists for. Measured
+    // 2026-08-29.
+    {
+      encoding: 'utf8',
+      cwd: path.resolve(HERE, '..', '..'),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }
   )
   const m = out.match(/проверено следов: (\d+) из (\d+)/)
   ok(`ни одна правка не перезаписана${m ? ` (следов ${m[1]})` : ''}`)
 } catch (e) {
   // Ненулевой код возврата — значит след пропал. Печатаем строки с пропажами:
   // они уже названы поимённо, повторять разбор незачем.
-  const out = String(e.stdout || e.message)
+  const out = `${e.stdout || ''}\n${e.stderr || ''}`.trim() || String(e.message)
   const пропали = out
     .split('\n')
     .filter(l => l.includes('нет «'))
@@ -361,10 +416,10 @@ const key = s =>
  * остаётся на экране вместе с датой, когда это случилось.
  */
 const HISTORY_LIMIT = 8
-let история = []
+let history = []
 try {
   const raw = JSON.parse(fs.readFileSync(MEMORY, 'utf8'))
-  история = Array.isArray(raw.history)
+  history = Array.isArray(raw.history)
     ? raw.history
     : raw.anomalies // старый формат — одно состояние
       ? [{ at: raw.at, anomalies: raw.anomalies }]
@@ -372,76 +427,77 @@ try {
 } catch {
   /* первый запуск — сравнивать не с чем */
 }
-// Последнее состояние, ОТЛИЧАЮЩЕЕСЯ от текущего: с ним и сравниваем.
-const текущийКлюч = JSON.stringify(anomalies.map(x => String(x)).sort())
-const предыдущее = история
+// The most recent state that DIFFERS from the current one -- compare to it.
+const currentKey = JSON.stringify(anomalies.map(x => String(x)).sort())
+const previous = history
   .slice()
   .reverse()
   .find(
     h =>
       JSON.stringify((h.anomalies || []).map(x => String(x)).sort()) !==
-      текущийКлюч
+      currentKey
   )
 /**
- * ТРИ РАЗНЫХ СЛУЧАЯ, а не два.
+ * THREE DIFFERENT CASES, not two.
  *
- * Здесь стояло `предыдущее ? ... : []`, и это была ошибка ровно в том месте,
- * ради которого инструмент писался. `find` возвращает undefined в ДВУХ
- * несовместимых случаях:
+ * This used to read `previous ? ... : []`, and that was a defect in exactly the
+ * place the tool was written for. `find` returns undefined in TWO incompatible
+ * situations:
  *
- *   1. истории нет вообще — сравнивать действительно не с чем;
- *   2. ни одно прошлое состояние НЕ ОТЛИЧАЕТСЯ от текущего, то есть набор
- *      аномалий держится неизменным.
+ *   1. there is no history at all -- genuinely nothing to compare against;
+ *   2. no past state DIFFERS from the current one, i.e. the anomaly set has
+ *      been holding steady.
  *
- * Второй случай — самый тихий из возможных: ничего не менялось. Код же
- * считал прошлое пустым и объявлял НОВЫМИ все текущие аномалии. Восемь
- * одинаковых записей подряд — и «🔴 НОВОЕ: FAL, ElevenLabs» поверх них.
+ * The second case is the quietest possible: nothing changed. The code treated
+ * the past as empty and declared every current anomaly NEW. Eight identical
+ * records in a row, with "NEW: FAL, ElevenLabs" printed over them.
  *
- * Коварство в том, что ошибка просыпается ТОЛЬКО когда всё устоялось: пока
- * состояние менялось, отличающееся прошлое находилось и дифф был верен.
- * Инструмент врал именно тогда, когда врать дороже всего — в спокойный день,
- * приучая не верить красному.
+ * The trap is that the bug wakes up ONLY once things settle: while the state
+ * kept changing, a differing past was found and the diff was right. The tool
+ * lied precisely when lying costs most -- on a calm day, teaching you not to
+ * trust red.
  */
-const историяЕсть = история.length > 0
-const неменялось = историяЕсть && !предыдущее
-// Первый запуск — сравнивать не с чем, и красить всё красным нечестно:
-// «новое» значит «появилось, пока меня не было», а не «я вижу это впервые».
-const молчим = неменялось || !историяЕсть
-const было = предыдущее ? предыдущее.anomalies || [] : []
-const стало = anomalies.map(key)
-const прежние = было.map(key)
-const новые = молчим ? [] : стало.filter(k => !прежние.includes(k))
-const ушедшие = молчим ? [] : прежние.filter(k => !стало.includes(k))
+const hasHistory = history.length > 0
+const unchanged = hasHistory && !previous
+// On a first run there is nothing to compare against, and painting everything
+// red is dishonest: "new" means "appeared while I was away", not "I am seeing
+// this for the first time".
+const quiet = unchanged || !hasHistory
+const prevList = previous ? previous.anomalies || [] : []
+const current = anomalies.map(key)
+const before = prevList.map(key)
+const fresh = quiet ? [] : current.filter(k => !before.includes(k))
+const gone = quiet ? [] : before.filter(k => !current.includes(k))
 
 console.log('')
-if (новые.length) {
+if (fresh.length) {
   console.log('🔴 НОВОЕ с прошлого запуска:')
-  for (const k of новые) console.log(`     ${k}`)
+  for (const k of fresh) console.log(`     ${k}`)
 }
-if (ушедшие.length) {
+if (gone.length) {
   console.log('🟢 УШЛО с прошлого запуска:')
-  for (const k of ушедшие) console.log(`     ${k}`)
+  for (const k of gone) console.log(`     ${k}`)
 }
-if (предыдущее && (новые.length || ушедшие.length)) {
+if (previous && (fresh.length || gone.length)) {
   console.log(
-    `   (изменилось с ${String(предыдущее.at).slice(0, 16).replace('T', ' ')})`
+    `   (изменилось с ${String(previous.at).slice(0, 16).replace('T', ' ')})`
   )
 }
-if (!новые.length && !ушедшие.length) {
+if (!fresh.length && !gone.length) {
   console.log(
-    неменялось
-      ? `   набор аномалий не менялся (${история.length} прогон(ов) подряд)`
-      : историяЕсть
+    unchanged
+      ? `   набор аномалий не менялся (${history.length} прогон(ов) подряд)`
+      : hasHistory
         ? '   набор аномалий не менялся'
         : '   первый запуск, сравнивать не с чем'
   )
 }
 
 try {
-  история.push({ at: new Date().toISOString(), anomalies })
+  history.push({ at: new Date().toISOString(), anomalies })
   fs.writeFileSync(
     MEMORY,
-    JSON.stringify({ history: история.slice(-HISTORY_LIMIT) }, null, 2) + '\n'
+    JSON.stringify({ history: history.slice(-HISTORY_LIMIT) }, null, 2) + '\n'
   )
 } catch (e) {
   console.log(`   (не удалось запомнить результат: ${e.message})`)
@@ -449,10 +505,14 @@ try {
 
 console.log('')
 if (anomalies.length) {
-  const хвост = новые.length
+  const tailLine = fresh.length
     ? 'Начинать надо с НОВОГО — остальное ждёт владельца.'
     : 'Всё это держится с прошлого раза и ждёт владельца, а не меня.'
-  console.log(`⚠️  АНОМАЛИЙ: ${anomalies.length}. ${хвост}\n`)
+  // Notes are printed here too. They are the third outcome -- "could not
+  // measure" -- and it is lost precisely when there are real failures: those
+  // are visible, while the unmeasured slips quietly into the green background.
+  const unmeasured = notes.length ? `, не измерено: ${notes.length}` : ''
+  console.log(`⚠️  АНОМАЛИЙ: ${anomalies.length}${unmeasured}. ${tailLine}\n`)
   process.exit(1)
 }
 console.log(
