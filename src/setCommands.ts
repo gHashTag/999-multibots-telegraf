@@ -101,10 +101,10 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
           },
           {
             command: 'app',
-        description: '🔑 Войти в приложение / Sign in to the app',
-      },
-      {
-        command: 'support',
+            description: '🔑 Войти в приложение / Sign in to the app',
+          },
+          {
+            command: 'support',
             description: '🛠 Tech Support / Техподдержка',
           },
           {
