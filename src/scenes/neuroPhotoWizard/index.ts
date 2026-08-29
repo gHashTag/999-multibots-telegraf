@@ -265,6 +265,23 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     console.log('🚀 [DEBUG] Начинаем вызов generateNeuroPhotoHybrid')
     const isRu = isRussianFromState(ctx)
 
+    // In-flight guard (same shape as the sibling wizards). This step stays put
+    // until the await below resolves, so a second prompt sent during the
+    // ~10-30s generation re-entered it and started a second PAID generation —
+    // a double charge and two images from one intended request. Reject before
+    // set, set synchronously (no await between the check and the set), release
+    // in finally. neuroPhotoInProgress was already declared on the session
+    // interface but never wired here.
+    if (ctx.session.neuroPhotoInProgress) {
+      await ctx.reply(
+        isRu
+          ? '⏳ Уже генерирую нейрофото, подождите немного...'
+          : '⏳ Already generating a neurophoto, please wait a moment...'
+      )
+      return
+    }
+    ctx.session.neuroPhotoInProgress = true
+
     try {
       // ГЕНЕРИРУЕМ СРАЗУ 1 ИЗОБРАЖЕНИЕ КАК БЫЛО РАНЬШЕ!
       // ✅ ВОССТАНОВЛЕНО: Получаем aspect ratio пользователя (как в рабочей версии 63eaeb6fc)
@@ -347,6 +364,8 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
           : '❌ Error occurred during image generation. Please try again later.'
       )
       return ctx.scene.leave()
+    } finally {
+      ctx.session.neuroPhotoInProgress = false
     }
   }
 }
@@ -578,7 +597,23 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     }
 
     // ✅ numImages уже проверен выше, просто вызываем генерацию
-    await generate(numImages)
+    // In-flight guard (same shape as the sibling wizards): this step stays put
+    // for repeat taps, so a second number tap during a generation charged
+    // twice. Reject before set, set synchronously, release in finally.
+    if (ctx.session.neuroPhotoInProgress) {
+      await ctx.reply(
+        isRu
+          ? '⏳ Уже генерирую нейрофото, подождите немного...'
+          : '⏳ Already generating a neurophoto, please wait a moment...'
+      )
+      return
+    }
+    ctx.session.neuroPhotoInProgress = true
+    try {
+      await generate(numImages)
+    } finally {
+      ctx.session.neuroPhotoInProgress = false
+    }
     // ✅ НЕ ВЫХОДИМ ИЗ СЦЕНЫ - остаемся для дополнительной генерации
     return
   } else {
