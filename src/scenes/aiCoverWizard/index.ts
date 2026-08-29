@@ -309,6 +309,9 @@ aiCoverWizard.action('confirm_cover', async ctx => {
   ctx.session.aiCoverGenerationInProgress = true
 
   const cost = getAICoverCost()
+  // Declared before the try so the catch can gate the refund on it: a REFUND
+  // must never run unless a charge actually happened. See fix below.
+  let charged = false
 
   try {
     // 1. Проверка баланса
@@ -323,12 +326,30 @@ aiCoverWizard.action('confirm_cover', async ctx => {
     }
 
     // 2. Списание баланса
-    await updateUserBalance(
+    // updateUserBalance returns false without charging when a concurrent spend
+    // wins the balance recheck, or on a transient insert/validation failure. The
+    // old code discarded this boolean and generated anyway; then a generation
+    // error hit the unconditional REFUND below and MINTED the cost from nothing.
+    // Bail here so paid work and the refund only run once a charge is real.
+    charged = await updateUserBalance(
       telegramId,
       cost,
       PaymentType.MONEY_OUTCOME,
       'AI Cover generation'
     )
+
+    if (!charged) {
+      logger.error('[AI_COVER] Charge failed — cover not generated', {
+        telegramId,
+        cost,
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Не удалось списать средства. Попробуйте ещё раз.'
+          : '❌ Failed to deduct the stars. Please try again.'
+      )
+      return ctx.scene.leave()
+    }
 
     logger.info('[AI_COVER] Balance deducted', {
       telegramId,
@@ -397,32 +418,39 @@ aiCoverWizard.action('confirm_cover', async ctx => {
       error: error instanceof Error ? error.message : String(error),
     })
 
-    // Попытка возврата средств
-    try {
-      await updateUserBalance(
-        telegramId,
-        cost,
-        PaymentType.REFUND,
-        'AI Cover refund - error'
-      )
-      logger.info('[AI_COVER] Refund processed', {
-        telegramId,
-        amount: cost,
-      })
-    } catch (refundError) {
-      logger.error('[AI_COVER] Refund failed', {
-        telegramId,
-        error:
-          refundError instanceof Error
-            ? refundError.message
-            : String(refundError),
-      })
+    // Refund ONLY a charge that actually happened. Without this guard a run that
+    // errored before/at the charge would credit stars that were never debited.
+    if (charged) {
+      try {
+        await updateUserBalance(
+          telegramId,
+          cost,
+          PaymentType.REFUND,
+          'AI Cover refund - error'
+        )
+        logger.info('[AI_COVER] Refund processed', {
+          telegramId,
+          amount: cost,
+        })
+      } catch (refundError) {
+        logger.error('[AI_COVER] Refund failed', {
+          telegramId,
+          error:
+            refundError instanceof Error
+              ? refundError.message
+              : String(refundError),
+        })
+      }
     }
 
     await ctx.reply(
       isRu
-        ? '❌ Произошла ошибка при генерации. Средства возвращены.'
-        : '❌ Error during generation. Funds refunded.'
+        ? charged
+          ? '❌ Произошла ошибка при генерации. Средства возвращены.'
+          : '❌ Произошла ошибка. Средства не списаны.'
+        : charged
+          ? '❌ Error during generation. Funds refunded.'
+          : '❌ An error occurred. No funds were taken.'
     )
     return ctx.scene.leave()
   } finally {
