@@ -30,20 +30,25 @@ check() { # имя, ожидание, факт
 }
 
 say "— Стек —"
-for p in "3333/health" "5173" "2999/health"; do
+# 5174 — порт player из vite.config.ts (server.port), не дефолтный 5173.
+for p in "3333/health" "5174"; do
   code=$(curl -s -m 5 -o /dev/null -w '%{http_code}' "http://localhost:$p")
   check "порт :${p%%/*}" 200 "$code"
 done
+# Локальный бот (2999) — опционален: прод живёт на Railway, локальный подъём
+# без нужды гоняет второго бота. Вниз = предупреждение, не провал (29.08).
+botc=$(curl -s -m 5 -o /dev/null -w '%{http_code}' "http://localhost:2999/health")
+if [ "$botc" = "200" ]; then say "  ✅ порт :2999"; else say "  ⚠️ порт :2999 (локальный бот не поднят — ок для дежурства, прод на Railway)"; fi
 
 say "— Реестр инструментов —"
 printf '%s' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' > /tmp/rc-req.json
 n=$(curl -s -m 10 http://127.0.0.1:3333/mcp -H "X-Agent-Key: $KEY" -H 'Content-Type: application/json' --data @/tmp/rc-req.json | python3 -c "import json,sys; print(len(json.load(sys.stdin)['result']['tools']))" 2>/dev/null)
-# 32 = производство + my_balance + skills CRUD (4) + skills market (3)
+# 35 = производство + my_balance + skills CRUD (4) + skills market (3)
 #      + 6 инструментов z.ai-фолбэка (PR #716 продуктового лупа)
-#      + 3 планера plan_* (подгрузились рестартом №218 со старым билдом
-#      от №174 — реестр эволюционировал, порог поднят с 29).
+#      + 3 планера plan_* (рестарт №218) + 3 монетизационных
+#      club/pricing/provider_setup (money-ветка владельца, 29.08, PR #1043-45).
 # Добавляешь инструмент — подними ожидание здесь ОДНОЙ правкой.
-check "инструментов в реестре" 32 "$n"
+check "инструментов в реестре" 35 "$n"
 
 say "— Дешёвые живые вызовы —"
 for tool in whoami feed_stats templates_list feed_analytics my_assets soul_get skills_list; do
