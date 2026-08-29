@@ -2,11 +2,7 @@ import { inngest } from '@/inngest_app/client'
 import { replicate } from '@/core/replicate'
 import { getAspectRatio } from '@/core/supabase/ai'
 import { savePrompt } from '@/core/supabase/savePrompt'
-import {
-  getUserByTelegramId,
-  updateUserLevelPlusOne,
-  updateUserBalance,
-} from '@/core/supabase'
+import { getUserByTelegramId, updateUserLevelPlusOne } from '@/core/supabase'
 import { processApiResponse } from '@/helpers/error/processApiResponse'
 
 import { saveFileLocally } from '@/helpers'
@@ -23,7 +19,6 @@ import fs from 'fs'
 const API_URL = isDev ? 'http://localhost:2999' : 'https://api.999.md'
 import { logger } from '@/utils/logger'
 import { getBotByName } from '@/core/bot'
-import { PaymentType } from '@/interfaces/payments.interface'
 import { slugify } from 'inngest'
 import { createInngestFailureHandler } from '@/inngest_app/client'
 
@@ -328,39 +323,13 @@ export const neuroImageGeneration = inngest.createFunction(
         generatedImages.push(generationResult.url)
       }
 
-      const finalBalance = await step.run('deduct-balance-final', async () => {
-        logger.info('💸 Deducting balance after successful image generation', {
-          telegramId: telegram_id,
-          paymentAmount: totalCost,
-          currentBalance: initialBalance,
-          step: 'deduct-balance-final',
-        })
-
-        const newBalance = initialBalance - totalCost
-
-        await updateUserBalance(
-          telegram_id,
-          totalCost, // ← ИСПРАВЛЕНО: передаем сумму операции, а не новый баланс
-          PaymentType.MONEY_OUTCOME,
-          `NeuroPhoto generation (${num_images} images)`,
-          {
-            stars: totalCost,
-            payment_method: 'Internal',
-            bot_name: bot_name,
-            language: is_ru ? 'ru' : 'en',
-            service_type: ModeEnum.NeuroPhoto, // ← ДОБАВЛЕНО: указываем тип сервиса
-            category: 'REAL',
-            cost: totalCost / 1.5, // ← ДОБАВЛЕНО: себестоимость (цена ÷ наценка 50%)
-          }
-        )
-
-        logger.info('✅ Balance updated successfully', {
-          telegramId: telegram_id,
-          newBalance: newBalance,
-          step: 'deduct-balance-final',
-        })
-        return newBalance
-      })
+      // The user was ALREADY charged once in the 'process-payment' step above:
+      // processBalanceOperation performs the MONEY_OUTCOME deduction (the sibling
+      // generators morphImages / modelTrainingV2 charge exactly once the same
+      // way, with no second deduction). This step used to call updateUserBalance
+      // a SECOND time, double-charging every neuro-image generation. Drop the
+      // duplicate charge; keep the post-charge balance for the completion message.
+      const finalBalance = initialBalance - totalCost
 
       await step.run('final-notification', async () => {
         const { bot, error } = getBotByName(bot_name)
@@ -438,13 +407,15 @@ export const neuroImageGeneration = inngest.createFunction(
           if (bot && telegram_id) {
             await bot.telegram.sendMessage(
               telegram_id.toString(),
-              // Про списание сказано «не списаны», а не «будут возвращены»:
-              // единственное updateUserBalance в этом файле стоит в шаге
-              // 'deduct-balance-final', ПОСЛЕ успешной генерации. При сбое
-              // деньги не снимались, и обещать возврат было бы неправдой.
+              // The 'process-payment' step charges via processBalanceOperation
+              // BEFORE the generate loop, so on a mid-generation failure the
+              // user HAS been charged and onFailure issues no refund. The
+              // previous 'you were not charged' text was therefore untrue (and
+              // cited a now-removed 'deduct-balance-final' step); refunding on
+              // failure is tracked as a separate follow-up.
               is_ru
-                ? '❌ Не удалось сгенерировать изображение. Средства за эту попытку не списаны. Попробуйте ещё раз чуть позже.'
-                : '❌ Image generation failed. You were not charged for this attempt. Please try again a little later.'
+                ? '❌ Не удалось сгенерировать изображение. Попробуйте ещё раз чуть позже.'
+                : '❌ Image generation failed. Please try again a little later.'
             )
           }
         } catch (notifyError) {
