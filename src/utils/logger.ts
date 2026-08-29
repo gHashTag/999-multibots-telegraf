@@ -4,6 +4,8 @@ import Transport from 'winston-transport'
 import path from 'path'
 import fs from 'fs'
 
+import { redactBotToken } from './redactBotToken'
+
 /**
  * Custom Winston Transport для отправки ошибок в Telegram группу НейроМентор
  */
@@ -110,9 +112,14 @@ const commonFormat = format.combine(
     const restString = Object.keys(rest).length
       ? ` ${JSON.stringify(rest)}`
       : ''
-    return `${timestamp} [${level.toUpperCase()}]: ${message}${
+    const line = `${timestamp} [${level.toUpperCase()}]: ${message}${
       stack ? `\n${stack}` : ''
     }${restString}`
+    // Systemic guard: strip any Telegram bot token embedded in a file URL from
+    // the rendered line, wherever it sits (message, meta, or stack). This makes
+    // the whole logger.* surface safe by construction; the two console.log sites
+    // that bypass the logger call redactBotToken directly.
+    return redactBotToken(line)
   })
 )
 

@@ -1,6 +1,7 @@
 import { Scenes } from 'telegraf'
 import { MyContext } from '../../interfaces'
 import { uploadVideoToServer } from '../../services/uploadVideoToServer'
+import { redactBotToken } from '../../utils/redactBotToken'
 import { randomUUID } from 'node:crypto'
 import { Markup } from 'telegraf'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -38,7 +39,7 @@ export const uploadVideoScene = new Scenes.WizardScene<MyContext>(
 
       const videoFile = await ctx.telegram.getFile(message.video.file_id)
       const videoUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${videoFile.file_path}`
-      console.log('CASE: videoUrl', videoUrl)
+      console.log('CASE: videoUrl', redactBotToken(videoUrl))
       ctx.session.videoUrl = videoUrl
       ctx.wizard.next()
       return

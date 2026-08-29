@@ -4,6 +4,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getMainMenuText } from '@/navigation'
 import { getUserPhotoUrl } from '@/middlewares/getUserPhotoUrl'
 import { logger } from '@/utils/logger'
+import { redactBotToken } from '@/utils/redactBotToken'
 import { ModeEnum } from '@/interfaces/modes'
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { checkAvatarTransformUsage } from '@/core/supabase/checkAvatarTransformUsage'
@@ -2461,9 +2462,7 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           selectedModel,
           promptLength: prompt?.length,
           hasImageUrl: !!userPhotoUrl,
-          userPhotoUrl: userPhotoUrl
-            ? userPhotoUrl.substring(0, 100) + '...'
-            : 'NO_URL',
+          userPhotoUrl: userPhotoUrl ? redactBotToken(userPhotoUrl) : 'NO_URL',
           selectedHero,
         }
       )
