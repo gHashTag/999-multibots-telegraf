@@ -435,8 +435,17 @@ voiceTrainingWizard.action('confirm_training', async ctx => {
     const audioBuffer = await response.arrayBuffer()
     const fileName = `voice_training/${telegramId}/${Date.now()}.ogg`
 
+    // Voice recording is biometric PII, same class as the face-training ZIP
+    // (#1137). It used to land in the PUBLIC `images` bucket and be handed out
+    // via getPublicUrl — a permanent, unauthenticated link to the user's voice.
+    // Use a PRIVATE bucket + a short-lived signed URL instead.
+    const TRAINING_BUCKET = 'training-private'
+    await supabase.storage
+      .createBucket(TRAINING_BUCKET, { public: false })
+      .catch(() => ({})) // idempotent — the upload below is the real gate
+
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('images')
+      .from(TRAINING_BUCKET)
       .upload(fileName, audioBuffer, {
         contentType: 'audio/ogg',
         upsert: true,
@@ -461,12 +470,34 @@ voiceTrainingWizard.action('confirm_training', async ctx => {
       return ctx.scene.leave()
     }
 
-    // Получение публичной ссылки
-    const { data: publicUrlData } = supabase.storage
-      .from('images')
-      .getPublicUrl(fileName)
+    // Short-lived SIGNED URL (7 days) instead of a permanent public one. The
+    // training provider fetches it at start (well within the window); the DB
+    // audio_url column is write-only (only model_url is read back for covers),
+    // so an eventual expiry is harmless. Fail closed — no public fallback.
+    const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 7
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from(TRAINING_BUCKET)
+      .createSignedUrl(fileName, SIGNED_URL_TTL_SECONDS)
 
-    const storedAudioUrl = publicUrlData.publicUrl
+    if (signedError || !signedData?.signedUrl) {
+      logger.error('[VOICE_TRAINING] Failed to sign audio URL', {
+        telegramId,
+        error: signedError?.message || 'no signed URL returned',
+      })
+      refundHandled = true
+      await refundAndTell({
+        ctx,
+        telegramId,
+        amount: cost,
+        description: 'Voice training refund - sign error',
+        reason: { ru: 'Ошибка загрузки аудио', en: 'Audio upload error' },
+        isRu,
+        type: PaymentType.REFUND,
+      })
+      return ctx.scene.leave()
+    }
+
+    const storedAudioUrl = signedData.signedUrl
 
     // 4. Создание записи в БД
     const modelName = `voice_${telegramId}_${Date.now()}`
