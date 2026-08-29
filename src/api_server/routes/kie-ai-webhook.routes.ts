@@ -1,4 +1,5 @@
 import express from 'express'
+import { createVideoDeliveryClaimer } from '@/helpers/videoDeliveryIdempotency'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
 import { videoTaskStore } from '@/services/video-task-store'
@@ -145,20 +146,7 @@ const chargedVideoJobs = new Set<string>()
 // per job, alongside the existing chargedVideoJobs charge guard. Bounded so a
 // long-lived multi-bot process cannot grow the set without limit (copied from
 // the sibling poller handleTextToVideoDirect.ts). Reset on restart.
-const DELIVERED_VIDEO_JOBS_MAX = 1000
-const deliveredVideoJobs = new Set<string>()
-function claimVideoJobDelivery(jobId: string): boolean {
-  // Returns false if this job was already delivered (caller must skip). The
-  // has()+add() pair is synchronous, so it is atomic w.r.t. the event loop:
-  // the first entry for a job wins, a racing re-entry gets false.
-  if (deliveredVideoJobs.has(jobId)) return false
-  deliveredVideoJobs.add(jobId)
-  if (deliveredVideoJobs.size > DELIVERED_VIDEO_JOBS_MAX) {
-    const oldest = deliveredVideoJobs.values().next().value
-    if (oldest !== undefined) deliveredVideoJobs.delete(oldest)
-  }
-  return true
-}
+const claimVideoJobDelivery = createVideoDeliveryClaimer()
 
 async function chargeForDeliveredVideo(params: {
   telegramId: string

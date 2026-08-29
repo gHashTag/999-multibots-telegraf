@@ -51,36 +51,15 @@ function fnBody(s: string, decl: string): string {
 }
 
 describe('kie/sora webhook video delivery is idempotent per job', () => {
-  it('declares a bounded module-scope delivered-set + a synchronous claim helper', () => {
+  it('sources the shared delivery claimer from the util (bound tested there)', () => {
     const s = code()
     expect(
-      /const deliveredVideoJobs = new Set<string>\(\)/.test(s),
-      'no module-scope delivered-set'
+      /from '@\/helpers\/videoDeliveryIdempotency'/.test(s),
+      'does not import the shared delivery-idempotency util'
     ).toBe(true)
     expect(
-      /function claimVideoJobDelivery/.test(s),
-      'no claimVideoJobDelivery helper'
-    ).toBe(true)
-    expect(
-      /deliveredVideoJobs\.has\(jobId\)/.test(s),
-      'helper does not check the delivered-set'
-    ).toBe(true)
-    expect(
-      /deliveredVideoJobs\.add\(jobId\)/.test(s),
-      'helper does not record the delivered job'
-    ).toBe(true)
-  })
-
-  it('bounds the delivered-set with FIFO eviction (no unbounded growth)', () => {
-    const s = code()
-    const m = s.match(/const DELIVERED_VIDEO_JOBS_MAX = (\d+)/)
-    expect(m, 'delivered-set is not bounded').not.toBeNull()
-    expect(Number(m![1])).toBeGreaterThan(0)
-    expect(
-      /deliveredVideoJobs\.size > DELIVERED_VIDEO_JOBS_MAX[\s\S]{0,180}deliveredVideoJobs\.delete/.test(
-        s
-      ),
-      'no FIFO eviction when the delivered-set exceeds its cap'
+      /const claimVideoJobDelivery = createVideoDeliveryClaimer\(\)/.test(s),
+      'does not instantiate the shared delivery claimer'
     ).toBe(true)
   })
 

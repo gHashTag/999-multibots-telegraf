@@ -1,4 +1,5 @@
 import express from 'express'
+import { createVideoDeliveryClaimer } from '@/helpers/videoDeliveryIdempotency'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
 import { defaultBot, getBotByName } from '@/core/bot'
@@ -202,19 +203,7 @@ function extractTelegramIdFromJobId(jobId: string): string | null {
 // long-lived multi-bot process cannot grow the set without limit — same pattern
 // as the kie/sora webhook and the sibling poller handleTextToVideoDirect.ts.
 // Reset on restart (a durable guard would be a per-job marker on payments_v2).
-const DELIVERED_VIDEO_JOBS_MAX = 1000
-const deliveredVideoJobs = new Set<string>()
-function claimVideoJobDelivery(jobId: string): boolean {
-  // Returns false if this job was already delivered (caller must skip). The
-  // has()+add() pair is synchronous, so it is atomic w.r.t. the event loop.
-  if (deliveredVideoJobs.has(jobId)) return false
-  deliveredVideoJobs.add(jobId)
-  if (deliveredVideoJobs.size > DELIVERED_VIDEO_JOBS_MAX) {
-    const oldest = deliveredVideoJobs.values().next().value
-    if (oldest !== undefined) deliveredVideoJobs.delete(oldest)
-  }
-  return true
-}
+const claimVideoJobDelivery = createVideoDeliveryClaimer()
 
 async function handleCompletedRender(
   telegramId: string,
