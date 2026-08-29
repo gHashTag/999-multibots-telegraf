@@ -48,7 +48,13 @@ const STEPS = [
 // next reader chasing a phantom regression. This hides nothing: a real break
 // reproduces on the re-run and the exit code below still fails. Judged by exit
 // code, like every other step — never by grepping output.
-const FLAKY_RETRY = new Set(['test:bun'])
+//
+// `audit` is flaky for a different reason: `bun audit` queries the registry over
+// the network, and a slow or unreachable registry makes it hang (~30s) and exit
+// non-zero — observed once mid-session, then passing in 0.4s with 0 critical on
+// the immediate re-run. Same treatment: retry once. A real critical advisory is
+// persistent and still fails the re-run, so nothing is masked.
+const FLAKY_RETRY = new Set(['test:bun', 'audit'])
 
 // Preflight: a node_modules that has become a symlink to itself makes every
 // step below fail to spawn (exit -1 in 0.0s) — thirteen false failures for one
