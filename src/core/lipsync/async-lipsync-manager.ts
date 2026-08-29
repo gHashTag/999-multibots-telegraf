@@ -3,6 +3,7 @@ import { lipSyncOrchestrator } from './lipsync-orchestrator'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import axios from 'axios'
+import { getBotByNameAdapter } from '@/inngest_app/services/bot-adapter'
 import type {
   UniversalLipSyncInput,
   LipSyncOutput,
@@ -45,6 +46,26 @@ export class AsyncLipSyncManager {
    */
   setBotInstance(bot: any) {
     this.bot = bot
+  }
+
+  /**
+   * Resolves the bot that OWNS this job. The manager is a process-wide
+   * singleton, so this.bot is only the LAST bot that called setBotInstance;
+   * delivering a completed job through it would send a user's result via the
+   * wrong bot (cross-bot misdelivery). Resolve the per-job bot by its name and
+   * fall back to this.bot only when the job carries no bot identity.
+   */
+  private getBotForJob(job: AsyncLipSyncJob): any {
+    const botName = job.botInfo?.username
+    if (botName) {
+      const resolved = getBotByNameAdapter(botName)
+      if (resolved.bot) return resolved.bot
+      logger.error(
+        '❌ [ASYNC LIPSYNC] Failed to resolve per-job bot, falling back',
+        { botName, jobId: job.id, error: resolved.error }
+      )
+    }
+    return this.bot
   }
 
   /**
@@ -289,7 +310,8 @@ export class AsyncLipSyncManager {
     job: AsyncLipSyncJob,
     result: LipSyncOutput
   ): Promise<void> {
-    if (!this.bot) {
+    const bot = this.getBotForJob(job)
+    if (!bot) {
       logger.error('❌ [ASYNC LIPSYNC] Bot instance не установлен')
       return
     }
@@ -298,7 +320,7 @@ export class AsyncLipSyncManager {
       const processingTime = Math.round((Date.now() - job.startTime) / 1000)
 
       // Send completion notification with sound first
-      await this.bot.telegram.sendMessage(job.chatId, '✅ Готово!', {
+      await bot.telegram.sendMessage(job.chatId, '✅ Готово!', {
         disable_notification: false, // Enable sound notification
       })
 
@@ -318,7 +340,7 @@ export class AsyncLipSyncManager {
       // Если размер < 50 МБ - отправляем файлом
       if (fileSize > 0 && fileSizeMB < maxSizeMB) {
         try {
-          await this.bot.telegram.sendVideo(
+          await bot.telegram.sendVideo(
             job.chatId,
             { url: result.output },
             {
@@ -349,7 +371,7 @@ export class AsyncLipSyncManager {
             }
           )
 
-          await this.bot.telegram.sendMessage(
+          await bot.telegram.sendMessage(
             job.chatId,
             `🎬 Видео готово!\n\n` +
               `📥 Скачать: ${result.output}\n` +
@@ -363,7 +385,7 @@ export class AsyncLipSyncManager {
         }
       } else {
         // Если размер >= 50 МБ или не удалось определить - отправляем ссылку
-        await this.bot.telegram.sendMessage(
+        await bot.telegram.sendMessage(
           job.chatId,
           `🎬 Видео готово!\n\n` +
             `📥 Скачать: ${result.output}\n` +
@@ -420,7 +442,8 @@ export class AsyncLipSyncManager {
       fullResult: result,
     })
 
-    if (!this.bot) {
+    const bot = this.getBotForJob(job)
+    if (!bot) {
       logger.error('❌ [ASYNC LIPSYNC] Bot instance не установлен')
       return
     }
@@ -433,7 +456,7 @@ export class AsyncLipSyncManager {
         { error_code: result.code }
       )
 
-      await this.bot.telegram.sendMessage(
+      await bot.telegram.sendMessage(
         job.chatId,
         `❌ Ошибка генерации: ${result.message}\n\n` +
           `${moneyLine}\n` +
@@ -509,7 +532,8 @@ export class AsyncLipSyncManager {
     job: AsyncLipSyncJob,
     error: any
   ): Promise<void> {
-    if (!this.bot) {
+    const bot = this.getBotForJob(job)
+    if (!bot) {
       logger.error('❌ [ASYNC LIPSYNC] Bot instance не установлен')
       return
     }
@@ -521,7 +545,7 @@ export class AsyncLipSyncManager {
         'LipSync refund - critical error'
       )
 
-      await this.bot.telegram.sendMessage(
+      await bot.telegram.sendMessage(
         job.chatId,
         `❌ Произошла критическая ошибка при генерации.\n\n` +
           `${moneyLine}\n` +
