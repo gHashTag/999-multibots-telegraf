@@ -172,6 +172,22 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
           `📊 Image ${ctx.session.images.length + 1}/10: ${(buffer.length / 1024).toFixed(2)} KB`
         )
 
+        // Cap the collected-image count. Each push holds a full Buffer (up to
+        // 10MB) in ctx.session.images, which lives in the shared in-memory
+        // MemorySessionStore of the whole multi-bot process. The /done check
+        // only enforces a MINIMUM of 10 images; nothing stopped a user from
+        // sending photos past that, so RSS climbed until the container
+        // OOM-killed every bot. Training needs >= 10; 30 is generous headroom.
+        const MAX_TRAINING_IMAGES = 30
+        if (ctx.session.images.length >= MAX_TRAINING_IMAGES) {
+          await ctx.reply(
+            isRu
+              ? '❌ Достигнут лимит изображений (максимум 30). Отправьте /done для завершения.'
+              : '❌ Image limit reached (max 30). Send /done to finish.'
+          )
+          return
+        }
+
         ctx.session.images.push({
           buffer: buffer,
           filename: `a_photo_of_${ctx.session.username}x${
