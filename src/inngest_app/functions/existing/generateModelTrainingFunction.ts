@@ -92,10 +92,16 @@ export const generateModelTrainingFunction = inngest.createFunction(
 
     // ✅ STEP 2: Check for existing active training (prevent duplicates)
     const existingTraining = await step.run('check-duplicates', async () => {
+      // Query the SAME user column this handler inserts (save-pending-record
+      // below writes `telegram_id`), and that neuroPhoto/Haim read. It used to
+      // filter `.eq('user_id', eventData.telegram_id)` — a column this handler
+      // never populates — so the dedup check never matched its own PENDING /
+      // starting / processing rows and the duplicate-prevention guard silently
+      // did nothing.
       const { data } = await supabase
         .from('model_trainings')
         .select('id, replicate_training_id, status')
-        .eq('user_id', eventData.telegram_id)
+        .eq('telegram_id', eventData.telegram_id)
         .eq('model_name', eventData.modelName)
         .in('status', ['starting', 'processing'])
         .order('created_at', { ascending: false })
