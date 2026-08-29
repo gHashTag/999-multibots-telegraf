@@ -11,6 +11,7 @@ import {
   getVideoCompletionMessage,
 } from '@/helpers/videoCompletionKeyboard'
 import { verifyCallbackToken } from '@/utils/callbackToken'
+import { getUserLanguageFromDB } from '@/core/supabase'
 // ✅ EMERGENCY DISABLE: asyncLipSyncManager import causing TypeScript errors
 // import { asyncLipSyncManager } from '@/core/lipsync/async-lipsync-manager'
 
@@ -316,7 +317,7 @@ async function sendVideoDirectly(
       )
 
       // ✅ Отправляем клавиатуру с кнопками продолжения (для больших файлов)
-      const isRuLargeFile = true
+      const isRuLargeFile = (await getUserLanguageFromDB(telegramId)) !== 'en'
       await botInstance.telegram.sendMessage(
         chatId,
         getVideoCompletionMessage(isRuLargeFile),
@@ -331,7 +332,7 @@ async function sendVideoDirectly(
 
     // ✅ Отправляем клавиатуру с кнопками продолжения
     try {
-      const isRu = true // По умолчанию русский
+      const isRu = (await getUserLanguageFromDB(telegramId)) !== 'en'
       await botInstance.telegram.sendMessage(
         chatId,
         getVideoCompletionMessage(isRu),
@@ -1177,10 +1178,11 @@ async function handleSoraSuccess(
       )
 
       // ✅ Отправляем клавиатуру для продолжения работы
+      const isRu = (await getUserLanguageFromDB(taskContext.chatId)) !== 'en'
       await botInstance.telegram.sendMessage(
         taskContext.chatId,
-        getVideoCompletionMessage(true),
-        createVideoCompletionKeyboard(true)
+        getVideoCompletionMessage(isRu),
+        createVideoCompletionKeyboard(isRu)
       )
 
       // Удаляем сообщение о процессе генерации
@@ -1995,10 +1997,12 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
           })
 
           // ✅ Отправляем клавиатуру для продолжения работы
+          const isRu =
+            (await getUserLanguageFromDB(taskContext.chatId)) !== 'en'
           await botInstance.telegram.sendMessage(
             taskContext.chatId,
-            getVideoCompletionMessage(true),
-            createVideoCompletionKeyboard(true)
+            getVideoCompletionMessage(isRu),
+            createVideoCompletionKeyboard(isRu)
           )
 
           // Удаляем status message

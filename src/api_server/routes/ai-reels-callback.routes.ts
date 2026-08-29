@@ -2,7 +2,7 @@ import express from 'express'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
 import { defaultBot, getBotByName } from '@/core/bot'
-import { supabase } from '@/core/supabase'
+import { supabase, getUserLanguageFromDB } from '@/core/supabase'
 import axios from 'axios'
 import { Input } from 'telegraf'
 import {
@@ -343,7 +343,7 @@ async function handleCompletedRender(
       )
 
       // ✅ Отправляем клавиатуру с кнопками продолжения (для больших файлов)
-      const isRuLargeFile = true
+      const isRuLargeFile = (await getUserLanguageFromDB(telegramId)) !== 'en'
       await botToUse.telegram.sendMessage(
         telegramId,
         getVideoCompletionMessage(isRuLargeFile),
@@ -368,7 +368,7 @@ async function handleCompletedRender(
     )
 
     // ✅ Отправляем клавиатуру с кнопками продолжения
-    const isRu = true
+    const isRu = (await getUserLanguageFromDB(telegramId)) !== 'en'
     await botToUse.telegram.sendMessage(
       telegramId,
       getVideoCompletionMessage(isRu),
