@@ -40,7 +40,7 @@ import {
 import { TEMPLATE_CARDS } from './src/templates/registry'
 import fs from 'node:fs'
 import { randomUUID, createHmac, createHash } from 'node:crypto'
-import { execSync, execFileSync } from 'node:child_process'
+import { execSync, execFileSync, spawn } from 'node:child_process'
 
 /**
  * Валидация URL для серверного fetch. Правило: только http/https; для
@@ -7458,6 +7458,49 @@ export { broadcastWS }
 // Start server
 async function main() {
   await initBundle()
+
+  /**
+   * The content autopilot, supervised, when AUTOPILOT_LOOP=1.
+   *
+   * The factory stood still for 51 hours and the reason was not one bug but
+   * three: it billed itself, its stall alarm could not fire, and -- found last
+   * -- the script could not even start. The last gap is that nothing SCHEDULES
+   * it: no crontab, no launchd, no service. A laptop that sleeps is not a
+   * scheduler, so it runs here, where the render it needs already lives.
+   *
+   * A CHILD PROCESS, not a setInterval: the script is a side-effecting module
+   * that starts its own daemon at import time, and a crash inside it must not
+   * take the web server down. If it dies we respawn after a minute instead of
+   * hot-looping.
+   *
+   * Off by default -- publishing is a deliberate act, not a side effect of
+   * booting a render service.
+   */
+  if (process.env.AUTOPILOT_LOOP === '1') {
+    const startAutopilot = () => {
+      const child = spawn(
+        path.join(__dirname, 'node_modules/.bin/tsx'),
+        ['scripts/agent-autopilot.ts'],
+        {
+          cwd: __dirname,
+          stdio: 'inherit',
+          env: {
+            ...process.env,
+            // Talk to ourselves over loopback: no DNS, no TLS, no egress.
+            SELF_URL:
+              process.env.AUTOPILOT_SELF_URL || `http://127.0.0.1:${PORT}`,
+            LOOP_DIR: process.env.LOOP_DIR || path.join(__dirname, 'loop'),
+          },
+        }
+      )
+      child.on('exit', code => {
+        console.log(`[autopilot] child exited (${code}) — respawn in 60s`)
+        setTimeout(startAutopilot, 60_000)
+      })
+    }
+    console.log('🤖 Autopilot: supervised child starting (AUTOPILOT_LOOP=1)')
+    startAutopilot()
+  }
 
   server.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`🚀 Remotion render server running on 0.0.0.0:${PORT}`)

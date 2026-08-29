@@ -1,0 +1,66 @@
+[
+  {
+    "title": "The auditor made the mistake it audits",
+    "subtitle": "A mutation tool took a gate suite from four gates with no negative control to none, and from twenty surviving",
+    "lesson": "Весь разбор с числами и единицами — на t27.ai",
+    "tags": ["блог", "t27"],
+    "plates": [
+      {
+        "label": "полный разбор",
+        "value": "t27.ai/#/blog"
+      },
+      {
+        "label": "формат",
+        "value": "измерение, не обещание"
+      }
+    ]
+  },
+  {
+    "title": "Nobody's example",
+    "subtitle": "A gate's negative control is written by someone who plants the fault it is meant to catch. That one sentence e",
+    "lesson": "Весь разбор с числами и единицами — на t27.ai",
+    "tags": ["блог", "t27"],
+    "plates": [
+      {
+        "label": "полный разбор",
+        "value": "t27.ai/#/blog"
+      },
+      {
+        "label": "формат",
+        "value": "измерение, не обещание"
+      }
+    ]
+  },
+  {
+    "title": "Physical width changed the question",
+    "subtitle": "A committed-oracle comparison exposed a nominal-width error: TNF16 labelled as 16 bits occupies 19 physical bi",
+    "lesson": "Весь разбор с числами и единицами — на t27.ai",
+    "tags": ["блог", "t27"],
+    "plates": [
+      {
+        "label": "полный разбор",
+        "value": "t27.ai/#/blog"
+      },
+      {
+        "label": "формат",
+        "value": "измерение, не обещание"
+      }
+    ]
+  },
+  {
+    "title": "Four hundred and twelve tests that were sentences",
+    "subtitle": "Thirty-four conformance vector files, 512 cases, zero ever executed — and when counted, 412 of those cases car",
+    "lesson": "Весь разбор с числами и единицами — на t27.ai",
+    "tags": ["блог", "t27"],
+    "plates": [
+      {
+        "label": "полный разбор",
+        "value": "t27.ai/#/blog"
+      },
+      {
+        "label": "формат",
+        "value": "измерение, не обещание"
+      }
+    ]
+  }
+]
