@@ -1074,6 +1074,35 @@ Generated: ${new Date().toLocaleString('en-US')}
                 imageUrl: imageUrl.substring(0, 50) + '...',
               }
             )
+
+            // The user was charged up front (MONEY_OUTCOME above). Delivery just
+            // failed, and this catch swallows the error, so it never reaches the
+            // generation-failure refund below — without this the user paid for an
+            // image they never received. Refund this one image, like the sibling
+            // generators do by rethrowing. A refund only ever returns money.
+            try {
+              await directPaymentProcessor({
+                telegram_id,
+                amount: costPerImage,
+                type: PaymentType.REFUND,
+                description: is_ru
+                  ? 'Возврат за недоставленное изображение (ошибка отправки)'
+                  : 'Refund for an image that could not be delivered',
+                bot_name: botName,
+                service_type: ModeEnum.NeuroPhoto,
+              })
+            } catch (refundError) {
+              logger.error(
+                '❌ [DIRECT] Ошибка возврата за недоставленное изображение',
+                {
+                  telegram_id,
+                  error:
+                    refundError instanceof Error
+                      ? refundError.message
+                      : 'Unknown error',
+                }
+              )
+            }
           }
 
           // Сохраняем промпт в базу данных для аналитики и истории
