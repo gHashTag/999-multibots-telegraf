@@ -39,6 +39,17 @@ const STEPS = [
   ['test-gate', 'node', ['scripts/test-gate.cjs']],
 ]
 
+// One step is a known flake, not a code signal: test:bun runs its files under a
+// single concurrent bun process that share the lazy supabase Proxy singleton and
+// process.env, and a rare race makes an ai-models `.rejects.toThrow()` assertion
+// mis-fire — the gate then prints "FAILED: 1 of 13" though nothing is broken
+// (measured ~1 flake in 10 runs; isolation and a re-run are always green). Re-run
+// it ONCE on failure so the flake does not false-red the whole gate and send the
+// next reader chasing a phantom regression. This hides nothing: a real break
+// reproduces on the re-run and the exit code below still fails. Judged by exit
+// code, like every other step — never by grepping output.
+const FLAKY_RETRY = new Set(['test:bun'])
+
 // Preflight: a node_modules that has become a symlink to itself makes every
 // step below fail to spawn (exit -1 in 0.0s) — thirteen false failures for one
 // broken link. Name it here instead of letting the gate blame the code. This
@@ -60,17 +71,32 @@ if (selfLoops.length) {
 }
 
 const results = []
-for (const [name, cmd, args] of STEPS) {
-  process.stdout.write(`... ${name}`)
-  const started = Date.now()
+const runStep = (cmd, args) => {
   const r = spawnSync(cmd, args, { stdio: 'pipe', encoding: 'utf8' })
   // A command that could not start is NOT a pass. spawnSync reports
   // status === null in that case; without this branch a missing bun would
   // read as a green step.
   const code = r.error ? -1 : r.status === null ? -1 : r.status
+  return { code, out: (r.stdout || '') + (r.stderr || '') }
+}
+for (const [name, cmd, args] of STEPS) {
+  process.stdout.write(`... ${name}`)
+  const started = Date.now()
+  let { code, out } = runStep(cmd, args)
+  let retried = false
+  if (code !== 0 && FLAKY_RETRY.has(name)) {
+    retried = true
+    ;({ code, out } = runStep(cmd, args))
+  }
   const secs = ((Date.now() - started) / 1000).toFixed(1)
-  results.push({ name, code, secs, out: (r.stdout || '') + (r.stderr || '') })
-  process.stdout.write(`\r${code === 0 ? 'OK  ' : 'FAIL'} ${name} (${secs}s)\n`)
+  results.push({ name, code, secs, out })
+  const mark = code === 0 ? 'OK  ' : 'FAIL'
+  const note = retried
+    ? code === 0
+      ? ' (flaked, green on re-run)'
+      : ' (failed on re-run too)'
+    : ''
+  process.stdout.write(`\r${mark} ${name} (${secs}s)${note}\n`)
 }
 
 const failed = results.filter(r => r.code !== 0)
