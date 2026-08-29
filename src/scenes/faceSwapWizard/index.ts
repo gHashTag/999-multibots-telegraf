@@ -12,6 +12,7 @@ import { logger } from '@/utils/logger'
 import { generateFaceSwap } from '@/services/generateFaceSwap'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
+import { refundAndTell } from '@/price/helpers/refundAndTell'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { createCancelButton, handleCancelButton } from '@/utils/cancelButton'
 
@@ -236,15 +237,51 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
       )
 
       if (!charged) {
-        logger.error('[FACE SWAP] Failed to charge user', { telegramId })
+        // The paid generation already ran, but the charge did not go through
+        // (a race after the earlier balance check, or a DB error). Do NOT
+        // deliver the swap for free with a caption that falsely claims a charge.
+        logger.error(
+          '[FACE SWAP] Charge failed after generation; not delivering',
+          { telegramId }
+        )
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось списать звёзды за замену лица. Попробуйте позже.'
+            : '❌ Could not charge stars for the face swap. Please try again later.'
+        )
+        return ctx.scene.leave()
       }
 
-      // Send result
-      await ctx.replyWithPhoto(result.resultUrl, {
-        caption: isRu
-          ? `✅ Готово! Лицо успешно заменено.\n\n⏱️ Время обработки: ${Math.round((result.processingTime || 0) / 1000)} сек\n💰 Списано: ${requiredStars} ⭐`
-          : `✅ Done! Face swap completed.\n\n⏱️ Processing time: ${Math.round((result.processingTime || 0) / 1000)} sec\n💰 Charged: ${requiredStars} ⭐`,
-      })
+      // Send result. If delivery throws (oversized / unreachable URL, fetch
+      // timeout), the charge above already committed — refund so the user is
+      // not billed for a photo they never received.
+      try {
+        await ctx.replyWithPhoto(result.resultUrl, {
+          caption: isRu
+            ? `✅ Готово! Лицо успешно заменено.\n\n⏱️ Время обработки: ${Math.round((result.processingTime || 0) / 1000)} сек\n💰 Списано: ${requiredStars} ⭐`
+            : `✅ Done! Face swap completed.\n\n⏱️ Processing time: ${Math.round((result.processingTime || 0) / 1000)} sec\n💰 Charged: ${requiredStars} ⭐`,
+        })
+      } catch (deliveryError) {
+        logger.error('[FACE SWAP] Delivery failed after charge; refunding', {
+          telegramId,
+          error:
+            deliveryError instanceof Error
+              ? deliveryError.message
+              : String(deliveryError),
+        })
+        await refundAndTell({
+          ctx,
+          telegramId: telegramId!,
+          amount: requiredStars,
+          description: 'Face Swap refund - delivery error',
+          reason: {
+            ru: 'Замена выполнена, но не удалось отправить фото',
+            en: 'The swap was completed but the photo could not be sent',
+          },
+          isRu,
+        })
+        return ctx.scene.leave()
+      }
 
       logger.info('✅ [FACE SWAP] Wizard completed successfully', {
         telegramId,
