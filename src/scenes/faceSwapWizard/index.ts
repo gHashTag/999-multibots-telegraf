@@ -164,70 +164,90 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
-    // Send processing message
-    const processingMsg = await ctx.reply(
-      isRu
-        ? '⏳ Обрабатываем замену лица... Это может занять 10-30 секунд.'
-        : '⏳ Processing face swap... This may take 10-30 seconds.'
-    )
-
-    // Call generateFaceSwap service
-    const result = await generateFaceSwap({
-      targetImageUrl,
-      swapImageUrl,
-    })
-
-    // Delete processing message
-    try {
-      await ctx.telegram.deleteMessage(ctx.chat!.id, processingMsg.message_id)
-    } catch (e) {
-      // Ignore if message can't be deleted
-    }
-
-    if (!result.success || !result.resultUrl) {
+    // In-flight guard (same shape as the sibling wizards). This step never
+    // advances the cursor — it only leaves at the end — so while the ~10-30s
+    // generateFaceSwap await is in flight a second photo re-entered the step and
+    // started a second PAID face swap (a double 10⭐ charge and two swaps).
+    // Reject before set, set synchronously, release in finally.
+    if (ctx.session.faceSwapInProgress) {
       await ctx.reply(
         isRu
-          ? `❌ Ошибка при замене лица: ${result.error || 'Неизвестная ошибка'}\n\nПопробуйте другие фотографии.`
-          : `❌ Face swap error: ${result.error || 'Unknown error'}\n\nTry different photos.`
+          ? '⏳ Уже обрабатываю замену лица, подождите немного...'
+          : '⏳ Already processing a face swap, please wait a moment...'
       )
-      return ctx.scene.leave()
+      return
     }
+    ctx.session.faceSwapInProgress = true
 
-    // Charge user
-    const charged = await updateUserBalance(
-      telegramId!,
-      // Минус убран: направление задаёт `type`. Отрицательный MONEY_OUTCOME
-      // начисляет деньги вместо списания. Спасала подмена суммы на
-      // metadata.stars внутри updateUserBalance — случайность, не замысел.
-      requiredStars,
-      PaymentType.MONEY_OUTCOME,
-      'Face Swap - Replicate',
-      {
-        service_type: 'face_swap',
-        model_name: 'codeplugtech/face-swap',
-        stars: requiredStars,
-        processing_time: result.processingTime,
+    try {
+      // Send processing message
+      const processingMsg = await ctx.reply(
+        isRu
+          ? '⏳ Обрабатываем замену лица... Это может занять 10-30 секунд.'
+          : '⏳ Processing face swap... This may take 10-30 seconds.'
+      )
+
+      // Call generateFaceSwap service
+      const result = await generateFaceSwap({
+        targetImageUrl,
+        swapImageUrl,
+      })
+
+      // Delete processing message
+      try {
+        await ctx.telegram.deleteMessage(ctx.chat!.id, processingMsg.message_id)
+      } catch (e) {
+        // Ignore if message can't be deleted
       }
-    )
 
-    if (!charged) {
-      logger.error('[FACE SWAP] Failed to charge user', { telegramId })
+      if (!result.success || !result.resultUrl) {
+        await ctx.reply(
+          isRu
+            ? `❌ Ошибка при замене лица: ${result.error || 'Неизвестная ошибка'}\n\nПопробуйте другие фотографии.`
+            : `❌ Face swap error: ${result.error || 'Unknown error'}\n\nTry different photos.`
+        )
+        return ctx.scene.leave()
+      }
+
+      // Charge user
+      const charged = await updateUserBalance(
+        telegramId!,
+        // No minus here: the sign is set by `type`. A negative MONEY_OUTCOME
+        // would credit money instead of charging. The amount override to
+        // metadata.stars inside updateUserBalance was covering for that — an
+        // accident, not intent.
+        requiredStars,
+        PaymentType.MONEY_OUTCOME,
+        'Face Swap - Replicate',
+        {
+          service_type: 'face_swap',
+          model_name: 'codeplugtech/face-swap',
+          stars: requiredStars,
+          processing_time: result.processingTime,
+        }
+      )
+
+      if (!charged) {
+        logger.error('[FACE SWAP] Failed to charge user', { telegramId })
+      }
+
+      // Send result
+      await ctx.replyWithPhoto(result.resultUrl, {
+        caption: isRu
+          ? `✅ Готово! Лицо успешно заменено.\n\n⏱️ Время обработки: ${Math.round((result.processingTime || 0) / 1000)} сек\n💰 Списано: ${requiredStars} ⭐`
+          : `✅ Done! Face swap completed.\n\n⏱️ Processing time: ${Math.round((result.processingTime || 0) / 1000)} sec\n💰 Charged: ${requiredStars} ⭐`,
+      })
+
+      logger.info('✅ [FACE SWAP] Wizard completed successfully', {
+        telegramId,
+        processingTime: result.processingTime,
+        charged,
+      })
+
+      return ctx.scene.leave()
+    } finally {
+      ctx.session.faceSwapInProgress = false
     }
-
-    // Send result
-    await ctx.replyWithPhoto(result.resultUrl, {
-      caption: isRu
-        ? `✅ Готово! Лицо успешно заменено.\n\n⏱️ Время обработки: ${Math.round((result.processingTime || 0) / 1000)} сек\n💰 Списано: ${requiredStars} ⭐`
-        : `✅ Done! Face swap completed.\n\n⏱️ Processing time: ${Math.round((result.processingTime || 0) / 1000)} sec\n💰 Charged: ${requiredStars} ⭐`,
-    })
-
-    logger.info('✅ [FACE SWAP] Wizard completed successfully', {
-      telegramId,
-      processingTime: result.processingTime,
-      charged,
-    })
-
-    return ctx.scene.leave()
   }
 )
 

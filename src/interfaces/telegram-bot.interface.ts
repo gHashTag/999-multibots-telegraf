@@ -323,6 +323,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   aspect_ratio?: string // <-- Добавлено соотношение сторон
   translationCache?: Record<string, TranslationEntry[]> | null
   neuroPhotoInProgress?: boolean
+  faceSwapInProgress?: boolean
   userModel: UserModel
   videoModel?: string
   translations?: Translation[]
