@@ -44,9 +44,31 @@ export const answerAi = async (
   telegramId?: string,
   isRu?: boolean
 ): Promise<string | { type: 'image'; imageUrl: string; cost?: number }> => {
-  const initialPrompt = `Respond in the language: ${languageCode} You communicate with: ${JSON.stringify(
-    userData
-  )}`
+  // Untrusted Telegram profile fields (first_name / last_name / username, and
+  // the free-typed company / position / designation) must NOT sit in a
+  // role:'system' message: a crafted first_name there is prompt injection, the
+  // same class as the businessBot #1129 fix. JSON.stringify escapes for JSON
+  // validity, not for instruction. Keep only the trusted language directive in
+  // the system prompt, and carry the sanitized user context in the user turn,
+  // where the model does not treat it as an authoritative instruction.
+  const sanitizeField = (v: string | undefined): string =>
+    (v ?? '')
+      .replace(/\p{C}/gu, ' ') // control chars incl. newlines / tabs
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 64)
+  const safeUserData = {
+    username: sanitizeField(userData.username),
+    first_name: sanitizeField(userData.first_name),
+    last_name: sanitizeField(userData.last_name),
+    company: sanitizeField(userData.company),
+    position: sanitizeField(userData.position),
+    designation: sanitizeField(userData.designation),
+  }
+  const initialPrompt = `Respond in the language: ${languageCode}`
+  const userMessage = `You communicate with: ${JSON.stringify(
+    safeUserData
+  )}\n\n${prompt}`
 
   const grokApiKey = process.env.GROK_API_KEY
 
@@ -243,7 +265,7 @@ export const answerAi = async (
             },
             {
               role: 'user',
-              content: prompt,
+              content: userMessage,
             },
           ],
         }),
@@ -301,7 +323,7 @@ export const answerAi = async (
         },
         {
           role: 'user',
-          content: prompt,
+          content: userMessage,
         },
       ])
 
@@ -332,7 +354,7 @@ export const answerAi = async (
         },
         {
           role: 'user',
-          content: prompt,
+          content: userMessage,
         },
       ],
     })
@@ -379,7 +401,7 @@ export const answerAi = async (
               },
               {
                 role: 'user',
-                content: prompt,
+                content: userMessage,
               },
             ],
           }),
