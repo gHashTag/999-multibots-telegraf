@@ -106,6 +106,7 @@ import {
   handleAddBalanceCommand,
   handleCheckBalanceCommand,
 } from '@/handlers/adminCommands'
+import appLoginCommand from '@/commands/appLoginCommand'
 import expenseAnalysisCommand from '@/commands/expenseAnalysisCommand'
 import { setupAutoFixerCommands } from '@/commands/autofixer/autofixer.command'
 import { autoFixerConfigScene } from '@/commands/autofixer/autofixer-config.scene'
@@ -364,6 +365,16 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
 
     // 📊 КОМАНДА АНАЛИЗА РАСХОДОВ
     bot.use(expenseAnalysisCommand)
+
+    /**
+     * /app — the sign-in button the iOS app points people at.
+     *
+     * Registered here beside the other composers rather than in a setup nobody
+     * calls: this file is what actually runs. An exported handler that no one
+     * imports is valid TypeScript and dead code, and this repository has been
+     * bitten by exactly that more than once.
+     */
+    bot.use(appLoginCommand)
 
     // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ СООБЩЕНИЯ ПОСЛЕ ОПЛАТЫ (ТОЛЬКО ДЛЯ АДМИНОВ)
     bot.command('test_payment_message', requireAdmin(), async ctx => {
