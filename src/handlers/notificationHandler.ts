@@ -142,7 +142,7 @@ export class NotificationHandler {
         `❌ Ошибка при отправке уведомления пользователю ${message.telegram_id}:`,
         error
       )
-      await this.markMessageAsFailed(message.id, error)
+      await this.markMessageAsFailed(message, error)
     }
   }
 
@@ -198,16 +198,22 @@ export class NotificationHandler {
    * Помечает сообщение как неудачное
    */
   private async markMessageAsFailed(
-    messageId: string,
+    message: PendingMessage,
     error: any
   ): Promise<void> {
+    const messageId = message.id
     try {
+      // attempts must be a concrete number. The old code assigned it the result
+      // of supabase.rpc('increment_attempts', ...) — a query builder that was
+      // never awaited (so the RPC never ran; the RPC is not even defined) and was
+      // JSON-serialised into this PATCH body as an object for an integer column,
+      // making the whole update fail. attempts then never incremented, the
+      // `.lt('attempts', 3)` cap never engaged, and a message that could not be
+      // delivered (e.g. a user who blocked the bot) was retried every 60s forever.
       const { error: updateError } = await supabase
         .from('pending_messages')
         .update({
-          attempts: supabase.rpc('increment_attempts', {
-            message_id: messageId,
-          }),
+          attempts: message.attempts + 1,
           last_attempt: new Date().toISOString(),
           error: error instanceof Error ? error.message : String(error),
         })
