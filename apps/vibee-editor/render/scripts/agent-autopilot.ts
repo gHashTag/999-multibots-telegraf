@@ -399,10 +399,37 @@ async function main() {
       log(`b-roll упал (${String(e).slice(0, 120)}) — рендерю без него`)
     }
   }
-  const reel = await call('reel_render', {
+  /**
+   * TWO ATTEMPTS, because the first one after a deploy reliably loses.
+   *
+   * This was the only risky call in the cycle without a retry, and the first
+   * daemon tick in production proved why: at container boot the Remotion bundle
+   * is still warming, the render exceeded the 240s timeout, and the whole cycle
+   * was lost with "падение витка: TimeoutError". Nothing was broken -- the work
+   * simply had to wait, and the cycle had no way to wait.
+   *
+   * A second attempt after a pause costs 30 seconds; losing the cycle costs 30
+   * minutes and a post. The neighbouring b-roll call already retries for
+   * exactly this reason.
+   */
+  let reel = await call('reel_render', {
     compositionId: 'TrinityBlogReel',
     props,
+  }).catch((e: unknown) => {
+    log(`рендер, попытка 1 не удалась: ${String(e).slice(0, 140)}`)
+    return null
   })
+  const rendered = reel?.готово // cyrillic-ok: tool response field
+  if (!rendered) {
+    await new Promise(r => setTimeout(r, 30_000))
+    reel = await call('reel_render', {
+      compositionId: 'TrinityBlogReel',
+      props,
+    }).catch((e: unknown) => {
+      log(`рендер, попытка 2 не удалась: ${String(e).slice(0, 140)}`)
+      return null
+    })
+  }
   if (!reel?.готово || typeof reel.url !== 'string') {
     log(`рендер не удался: ${JSON.stringify(reel).slice(0, 200)}`)
     // return, а не process.exit: в режиме демона (--loop) один неудачный
