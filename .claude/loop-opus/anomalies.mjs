@@ -26,10 +26,36 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-const MEMORY = path.join(HERE, 'anomalies-last.json')
 
-const RENDER = 'https://vibee-render-production.up.railway.app'
-const APP = 'https://app.t27.ai'
+/**
+ * FOUR SEAMS, SO THIS CHECKER CAN BE PROVEN ABLE TO FAIL.
+ *
+ * Each is `env || <the exact expression that was here>`, so with nothing set
+ * the behaviour is byte-for-byte what it was. They exist for one caller —
+ * anomalies-selftest.mjs — which points this script at a local server serving
+ * deliberately broken payloads and asserts the ⚠️ lines appear.
+ *
+ * WHY THIS WAS WORTH THE FOUR LINES. Nothing here could tell a working detector
+ * from a dead one. This script prints OK per section, and OK is exactly what a
+ * check that no longer checks anything prints too. Both defects found in this
+ * file on 2026-08-29 -- stderr inherited past the section-6 parser, and a
+ * head-of-main comparison that cried over docs commits -- were caught by eye,
+ * late, and only because someone happened to look. An alarm nobody can make
+ * ring is not an alarm.
+ *
+ * ANOMALIES_MEMORY IS NOT COSMETIC. Without it a self-test run pushes its two
+ * dozen invented states into the eight-slot history in anomalies-last.json --
+ * the very baseline the NEW / GONE diff is computed from. That file is
+ * gitignored, so the damage would never appear in a diff: the self-test would
+ * silently destroy the one signal this script exists to produce.
+ */
+const MEMORY =
+  process.env.ANOMALIES_MEMORY || path.join(HERE, 'anomalies-last.json')
+
+const RENDER =
+  process.env.ANOMALIES_RENDER_URL ||
+  'https://vibee-render-production.up.railway.app'
+const APP = process.env.ANOMALIES_APP_URL || 'https://app.t27.ai'
 
 /** Сколько часов без нового ролика считаем остановкой конвейера. */
 const FEED_STALE_HOURS = 6
@@ -102,6 +128,27 @@ try {
         bad(`${p['провайдер']} — ${String(p['детали']).slice(0, 120)}`)
         провайдерыСломаны.push(String(p['провайдер']).split(' — ')[0])
       }
+    } else if (!(Number(d['всего']) > 0)) {
+      /**
+       * AN EMPTY LIST OF DEAD PROVIDERS IS NOT HEALTH IF NOTHING WAS READ.
+       *
+       * Found by the fake on 2026-08-29: feed this section a payload with LATIN
+       * keys ({providers, working, total}) and it printed a success line whose
+       * denominator was the literal word `undefined`, then exited green -- over
+       * a payload that declared a provider DEAD.
+       * `(d['провайдеры'] || [])` turns a renamed field into an empty list, and
+       * an empty list of dead providers reads exactly like everything working.
+       * The success line even printed the word `undefined` as its denominator
+       * and still counted as success.
+       *
+       * Its own sibling states the rule this broke: verify-landed.mjs refuses to
+       * report a clean run at zero files checked, because an empty violation
+       * list at zero checked is indistinguishable from a check that never ran.
+       * Same trap, same file family. Require the denominator before the green.
+       */
+      bad(
+        `ответ провайдеров не разобран: нет счётчика «всего» — ключи ${Object.keys(d).slice(0, 6).join(', ') || 'отсутствуют'}`
+      )
     } else {
       ok(`все обязательные отвечают (${d['работает']} из ${d['всего']})`)
     }
@@ -144,7 +191,26 @@ try {
       const blockingProduction = broken.filter(p =>
         HARD_DEPS.some(dep => p.includes(dep))
       )
-      if (hours <= FEED_STALE_HOURS) {
+      if (hours < -0.1) {
+        /**
+         * THERE WAS AN UPPER BOUND ON THE AGE AND NO LOWER ONE.
+         *
+         * A future-dated createdAt gives a NEGATIVE age, which sails through
+         * `hours <= FEED_STALE_HOURS` and prints as success. Measured with the
+         * fake on 2026-08-29: a row dated 2027 produced a success line stating
+         * an age of MINUS 2992 hours.
+         * One such row -- clock skew, a bad backfill, a timezone bug in the
+         * writer -- mutes the stall alarm PERMANENTLY, and the line it prints
+         * reads healthy. That is the same shape as the 51-hour stall: not a
+         * wrong number, a wrong number that looks right.
+         *
+         * The tolerance is 0.1 h rather than 0, because the writer's clock and
+         * this one are not the same clock and a few seconds of skew is normal.
+         */
+        bad(
+          `дата последнего ролика в БУДУЩЕМ (${hours.toFixed(1)} ч) — часы разъехались или запись битая: ${s}`
+        )
+      } else if (hours <= FEED_STALE_HOURS) {
         ok(s)
       } else if (blockingProduction.length) {
         // Mute ONLY when a provider the reel cannot be made without is down.
@@ -343,7 +409,15 @@ try {
   const { execFileSync } = await import('node:child_process')
   const out = execFileSync(
     process.execPath,
-    [path.join(HERE, 'verify-landed.mjs')],
+    // The fourth seam. §6 reads a CHILD PROCESS's exit code and streams, so no
+    // HTTP fake can reach it — the two branches below are only testable by
+    // swapping the child. anomalies-selftest.mjs points this at the real
+    // verify-landed.mjs with a manifest fixture, which is what keeps the
+    // stderr-capture rule below honest.
+    [
+      process.env.ANOMALIES_VERIFY_SCRIPT ||
+        path.join(HERE, 'verify-landed.mjs'),
+    ],
     // stderr MUST be captured, not inherited: the script prints the names of
     // the vanished fixes through console.error, and when inherited they go
     // straight to the screen, past this branch. The parser below then finds no
@@ -354,6 +428,10 @@ try {
     {
       encoding: 'utf8',
       cwd: path.resolve(HERE, '..', '..'),
+      // 'pipe', not 'inherit' -- and this line has now been flipped back to
+      // 'inherit' once, by an edit that kept the comment above demanding the
+      // opposite. The self-test's L01 case is what caught it; a comment cannot
+      // enforce anything, only a check can.
       stdio: ['ignore', 'pipe', 'pipe'],
     }
   )

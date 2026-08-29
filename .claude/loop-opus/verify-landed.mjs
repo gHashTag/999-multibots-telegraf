@@ -38,7 +38,16 @@ import path from 'node:path'
 // Скрипт лежит в <REPO>/.claude/loop-opus/, поэтому REPO — на три уровня выше.
 // Так путь верен на любой машине и не зависит от имени пользователя.
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
-const MANIFEST = new URL('./landed.json', import.meta.url)
+// The manifest is swappable by env, because otherwise this check cannot be made
+// to FIRE -- and it never has fired: it either stayed quiet or, for six weeks,
+// died with ENOENT on the typo'd path fixed above. A check with no observed
+// failure is a claim, not a measurement. With no env set it is the same
+// landed.json as before, byte for byte. The one caller is
+// anomalies-selftest.mjs, whose fixtures/landed-lost.json carries a needle that
+// cannot be on origin/main.
+const MANIFEST = process.env.ANOMALIES_LANDED_MANIFEST
+  ? new URL(`file://${path.resolve(process.env.ANOMALIES_LANDED_MANIFEST)}`)
+  : new URL('./landed.json', import.meta.url)
 
 /**
  * Что проверяем — «след» правки: путь к файлу и строка, которая обязана в нём
