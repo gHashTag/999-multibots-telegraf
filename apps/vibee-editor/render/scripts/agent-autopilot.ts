@@ -232,10 +232,45 @@ async function main() {
   const withVideo = forceVideo || state0.postsToday === MAX_POSTS_PER_DAY - 1
   const state = state0
 
+  /**
+   * THE DAILY CAP IS COUNTED FROM THE FEED, NOT FROM A LOCAL FILE.
+   *
+   * state.json lives in the container filesystem and this project has NO
+   * volumes (checked: 0 in the Railway project), so every redeploy wipes it and
+   * postsToday resets to 0. With the daemon now running in the render service,
+   * which redeploys on every merge, the cap would reset several times a day and
+   * the factory could publish far more than four posts -- into a public feed.
+   *
+   * The feed is the durable record of what was actually published, so it is the
+   * honest source for "how many went out today". The local counter is kept as a
+   * floor: it is still correct within one container lifetime, and if the feed
+   * read fails we do not silently lose the cap.
+   */
+  let postedToday = state.postsToday
+  let feedRecords: { name?: string; created_at?: string }[] = []
+  try {
+    const seen = await call('feed_list', { mine: true, limit: 50 })
+    feedRecords = seen?.записи || [] // cyrillic-ok: tool response field
+    const today = new Date().toISOString().slice(0, 10)
+    const fromFeed = feedRecords.filter(r =>
+      // created_at arrives as "2026-08-29 04:28:41.205461+00": a space instead
+      // of T. Comparing the date prefix needs no parsing and cannot NaN.
+      String(r.created_at || '').startsWith(today)
+    ).length
+    if (fromFeed > postedToday) {
+      log(
+        `лента знает больше: сегодня уже ${fromFeed} постов (локально ${postedToday})`
+      )
+      postedToday = fromFeed
+    }
+  } catch (e) {
+    log(`не смог прочитать ленту для лимита: ${String(e).slice(0, 100)}`)
+  }
+
   // 1. Лимит постов на сегодня — главный предохранитель автономности.
-  if (state.postsToday >= MAX_POSTS_PER_DAY) {
+  if (postedToday >= MAX_POSTS_PER_DAY) {
     log(
-      `пост-лимит на сегодня исчерпан (${state.postsToday}/${MAX_POSTS_PER_DAY}) — молчу`
+      `пост-лимит на сегодня исчерпан (${postedToday}/${MAX_POSTS_PER_DAY}) — молчу`
     )
     return
   }
@@ -243,8 +278,24 @@ async function main() {
   // 1a. Разнос по времени: 4 поста в первый час ночи — это спам, а не
   // конвейер. Минимум MIN_HOURS_BETWEEN_POSTS между публикациями.
   const MIN_HOURS_BETWEEN_POSTS = 3
-  if (state.lastPostAt) {
-    const elapsedH = (Date.now() - Date.parse(state.lastPostAt)) / 3_600_000
+  // The newest feed entry is a floor for "when did we last post": like the
+  // daily count, lastPostAt lives in an ephemeral file and a redeploy would
+  // otherwise let the spacing rule be skipped.
+  const newestFeedAt = feedRecords
+    .map(r =>
+      String(r.created_at || '')
+        .replace(' ', 'T')
+        .replace(/([+-]\d\d)$/, '$1:00')
+    )
+    .filter(v => !Number.isNaN(Date.parse(v)))
+    .sort()
+    .pop()
+  const lastPostAt =
+    newestFeedAt && (!state.lastPostAt || newestFeedAt > state.lastPostAt)
+      ? newestFeedAt
+      : state.lastPostAt
+  if (lastPostAt) {
+    const elapsedH = (Date.now() - Date.parse(lastPostAt)) / 3_600_000
     if (elapsedH < MIN_HOURS_BETWEEN_POSTS) {
       log(
         `пост был ${elapsedH.toFixed(1)} ч назад — разнос по дню, следующий не раньше ` +
@@ -272,7 +323,7 @@ async function main() {
 
   // 2a. Доподливка из блога: рукотворных тем осталось меньше двух — тянем
   // свежие посты t27.ai. Это то же живое производство, а не выдумка.
-  const mine = await call('feed_list', { mine: true, limit: 50 })
+  const mine = { записи: feedRecords } // cyrillic-ok: response field
   const names: string[] = (mine?.записи || []).map((x: any) => String(x.name))
   if (topics.length - state.nextTopic < 2) {
     const fromBlog = await blogTopics([...names, ...topics.map(t => t.title)])
