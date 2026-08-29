@@ -4644,3 +4644,35 @@ broken, and nothing caught it because no test runs the script.
 SELF-CRITIQUE. My own measurement lied: `ps aux | grep autopilot` reported two
 running processes -- they were the zsh wrapper of my own grep. A measurement
 must be able to tell itself apart from what it observes.
+
+## A container needs its own copy of everything the script reads
+
+Making the factory run without a laptop took four separate fixes, and only one
+of them was "add a scheduler". The other three were things that only break
+INSIDE a container, and none of them showed up when running the script by hand.
+
+1. TOP-LEVEL AWAIT IN A CJS PACKAGE. Daemon mode added `await` at module top
+   level; esbuild refuses it at TRANSFORM time, so both modes died before a
+   single line ran. Fixed with an async IIFE.
+
+2. THE LOG DIRECTORY DID NOT EXIST. log() appended without mkdir, and daemon
+   mode logs before the first cycle. In the image LOOP_DIR resolves to a path
+   that is not there, so the process died on ENOENT -- under restart-always,
+   an invisible crash loop. Reproduced with LOOP_DIR=/tmp/nope.
+
+3. THE INPUT FILE WAS OUTSIDE THE BUILD CONTEXT. The topic queue lives at the
+   repo root; the render image is built from apps/vibee-editor with COPY
+   render/ ./ -- so the file is simply absent. The code returned early on a
+   missing file and never reached the blog top-up two lines below, which means
+   an empty container was not "self-healing", it was permanently silent.
+
+RULE. Before deploying a script, ask what it READS and WRITES, and check each
+path exists in the image, not on the laptop. cwd differs, the filesystem differs,
+and a path that resolves locally can resolve to nothing there.
+
+RULE. An early `return` on a missing input disables every fallback written below
+it. If a later step can bootstrap the missing thing, start empty and let it.
+
+RULE. The first run after a deploy is the slowest one. A cold container warms
+caches and bundles; a timeout tuned to steady state will lose that cycle. Give
+the risky call a second attempt.
