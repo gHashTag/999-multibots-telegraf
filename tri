@@ -157,6 +157,13 @@ CHECKS THAT EACH COST A CYCLE
         on env-gaps. Prints the path on the last line:
           wt="$(tri worktree fix/my-thing | tail -1)"; cd "$wt"
 
+  tri price <ModeName>
+        Print the STATIC base cost of a mode from BASE_COSTS before you treat an
+        "unbilled paid path" as a defect. A mode absent from BASE_COSTS (AiChat)
+        or set to 0 (ChatWithAvatar) is free-by-design -- charging it is not a
+        fix, it writes 0-value payment rows. Dynamic costs (steps, answerAi
+        response.cost) are NOT shown -- read those paths directly.
+
   tri real <name>
         Does the feature work on the WEB before carrying it into the app.
         Looks at: does the server route exist, does the button have its own
@@ -1107,6 +1114,43 @@ cmd_worktree() {
   printf '%s\n' "$wt"
 }
 
+cmd_price() {
+  # Before treating an "unbilled paid path" as a defect, check whether the mode
+  # even HAS a price. Direct text chat here is free-by-design: ModeEnum.AiChat is
+  # absent from BASE_COSTS (calculateModeCost returns 0), ChatWithAvatar is 0.
+  # Charging a cost-0 mode is not a fix -- it writes 0-value payment rows and the
+  # balance gate (balance < 0) always passes. This prints the STATIC base cost
+  # from BASE_COSTS; dynamic costs (steps-based avatars, answerAi response.cost)
+  # are NOT reflected -- read those paths directly.
+  local mode="${1:-}"
+  if [ -z "$mode" ]; then
+    bad 'нужно имя режима: tri price <ModeName>   (напр. tri price Voice)'
+    return 1
+  fi
+  local file="$ROOT/src/price/helpers/modelsCost.ts"
+  if [ ! -f "$file" ]; then
+    bad "нет файла $file"
+    return 1
+  fi
+  # Only look inside the BASE_COSTS object literal.
+  local block line
+  block="$(awk '/export const BASE_COSTS/{f=1} f{print} f&&/^\}/{exit}' "$file")"
+  line="$(printf '%s\n' "$block" | grep -E "\[ModeEnum\.${mode}\]:" | head -1)"
+  if [ -z "$line" ]; then
+    warn "ModeEnum.${mode} НЕ в BASE_COSTS → calculateModeCost вернёт 0 (free-by-design / цена не задана)"
+    printf '  charge за 0 ВРЕДЕН: 0-value payment-row, gate (balance < 0) всегда проходит\n'
+    return 0
+  fi
+  local val
+  val="$(printf '%s\n' "$line" | sed -E 's/.*\]:[[:space:]]*//; s/,.*$//; s/[[:space:]]*$//')"
+  if [ "$val" = "0" ]; then
+    warn "ModeEnum.${mode} base cost = 0 (free-by-design) — статическая цена нулевая"
+    printf '  (динамическая цена, если есть — через steps/answerAi response.cost — здесь НЕ видна)\n'
+  else
+    good "ModeEnum.${mode} base cost = ${val}\$ (статическая; steps/answerAi не учтены)"
+  fi
+}
+
 action="${1:-помощь}"
 shift 2>/dev/null || true
 
@@ -1122,6 +1166,7 @@ case "$action" in
   deployed|выложен)    cmd_deployed ;;
   diverged|разошлись)  cmd_diverged ;;
   worktree|дерево)    cmd_worktree "$@" ;;
+  price|цена)         cmd_price "$@" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
