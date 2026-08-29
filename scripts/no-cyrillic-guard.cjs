@@ -39,6 +39,41 @@ function stripStrings(line) {
     .replace(/"(?:[^"\\]|\\.)*"/g, '')
 }
 
+// Where a // line comment begins, ignoring a // that sits inside a string
+// literal (the // in "http://…" is not a comment). Returns the index, or -1.
+// This scan is why the comment is separated from the code BEFORE strings are
+// stripped: stripStrings would erase a quoted Russian word inside a comment such
+// as  // see '<ru>'  and let the comment through. A quoted word in a comment is
+// still a comment, not a UI string.
+function lineCommentStart(line) {
+  let quote = null
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]
+    if (quote) {
+      if (c === '\\') {
+        i++
+        continue
+      }
+      if (c === quote) quote = null
+    } else if (c === '"' || c === "'" || c === '`') {
+      quote = c
+    } else if (c === '/' && line[i + 1] === '/') {
+      return i
+    }
+  }
+  return -1
+}
+
+// Cyrillic is allowed only inside string literals (bilingual UI text). It is a
+// violation in a // comment — even wrapped in quotes — or in a code identifier.
+function cyrillicOutsideStrings(line) {
+  const at = lineCommentStart(line)
+  const code = at === -1 ? line : line.slice(0, at)
+  const comment = at === -1 ? '' : line.slice(at)
+  if (CYRILLIC.test(comment)) return true
+  return CYRILLIC.test(stripStrings(code))
+}
+
 // A merge commit stages every line the merged branch brings in, so the ratchet
 // would fire on other people's already-reviewed code: merging main into a
 // branch flagged 610 lines, none of them written by the merging author. That
@@ -100,7 +135,7 @@ function checkStaged() {
     if (raw.startsWith('+') && !raw.startsWith('+++')) {
       const line = raw.slice(1)
       if (line.includes(MARKER)) continue
-      if (CYRILLIC.test(stripStrings(line))) {
+      if (cyrillicOutsideStrings(line)) {
         violations.push({ file, text: line.trim() })
       }
     }
@@ -156,12 +191,16 @@ function checkMessage(pathArg) {
   }
 }
 
-const mode = process.argv[2]
-if (mode === 'staged') {
-  checkStaged()
-} else if (mode === 'msg') {
-  checkMessage(process.argv[3])
-} else {
-  console.error('usage: no-cyrillic-guard.cjs staged | msg <file>')
-  process.exit(2)
+if (require.main === module) {
+  const mode = process.argv[2]
+  if (mode === 'staged') {
+    checkStaged()
+  } else if (mode === 'msg') {
+    checkMessage(process.argv[3])
+  } else {
+    console.error('usage: no-cyrillic-guard.cjs staged | msg <file>')
+    process.exit(2)
+  }
 }
+
+module.exports = { stripStrings, lineCommentStart, cyrillicOutsideStrings }
