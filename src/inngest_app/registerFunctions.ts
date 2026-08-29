@@ -36,6 +36,7 @@ import {
 // Training Functions
 import { modelTrainingV2 } from './functions/training/modelTrainingV2'
 import { morphImages } from './functions/training/morphImages'
+import { checkStuckTrainings } from './functions/training/checkStuckTrainings'
 // Обработчик завершения обучения. Живой путь v1 (generateModelTrainingFunction)
 // регистрирует webhook Replicate, тот шлёт model/training.completed — но
 // подписчика не было, и обещанное «получите уведомление когда завершится»
@@ -102,10 +103,17 @@ const allFunctionsRaw = [
   logMonitor,
   triggerLogMonitor,
 
-  // Training (3)
+  // Training (4)
   modelTrainingV2,
   morphImages,
   handleModelTrainingCompleted,
+  // Stuck-training watchdog: a 30-min cron that re-fires the lost
+  // model/training.completed for trainings Replicate finished but whose webhook
+  // was dropped. handleModelTrainingCompleted above flips the DB status to a
+  // terminal value, so the next run no longer selects the row — the cron is
+  // self-terminating and there is no refund path, so it cannot loop or
+  // double-pay. See docs/audit/feature-inventory.md.
+  checkStuckTrainings,
 
   // Webhook guard (1)
   validateWebhookBeforeGeneration,
