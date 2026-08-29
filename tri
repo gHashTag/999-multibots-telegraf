@@ -623,11 +623,29 @@ cmd_gate() {
   local fails=0
 
   printf '\n  1. Типы рендер-сервера\n'
-  if (cd "$ROOT/apps/vibee-editor/render" && npx tsc -p tsconfig.json --noEmit --pretty false >/dev/null 2>&1); then
+  local tsout
+  tsout=$(cd "$ROOT/apps/vibee-editor/render" \
+    && npx tsc -p tsconfig.json --noEmit --pretty false 2>&1)
+  local n miss
+  n=$(printf '%s' "$tsout" | grep -c 'error TS')
+  miss=$(printf '%s' "$tsout" | grep -c 'TS2307')
+
+  if [ "${n:-0}" -eq 0 ]; then
     good 'без ошибок'
+  elif [ "${miss:-0}" -gt 0 ]; then
+    # ТРЕТИЙ ИСХОД, и он здесь стоил отдельного разбора.
+    #
+    # Один пропущенный `npm install` в соседнем пакете дал 390 ошибок: без
+    # `jotai` каждый атом терял типы, и все его параметры становились неявным
+    # any. Числа выглядели как обвал кода, а имена файлов указывали не туда.
+    # Настоящих ошибок было 7 — ровно столько же, сколько до правок.
+    #
+    # Признак: хотя бы один TS2307 «Cannot find module». Тогда цифра
+    # рядом ничего не говорит о коде.
+    warn "$n ошибок, но среди них $miss «модуль не найден»"
+    paint '33' '       Это НЕ про код: где-то не поставлены зависимости.'
+    paint '33' '       Проверьте npm install в apps/vibee-editor/packages/*.'
   else
-    local n
-    n=$(cd "$ROOT/apps/vibee-editor/render" && npx tsc -p tsconfig.json --noEmit --pretty false 2>&1 | grep -c 'error TS')
     warn "$n ошибок (часть унаследована — сверьте с origin/main)"
   fi
 
