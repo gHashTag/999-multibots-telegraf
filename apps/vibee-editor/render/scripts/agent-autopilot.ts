@@ -19,6 +19,14 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import {
+  cursorFor,
+  loadState,
+  ownerFromEnv,
+  saveState,
+  withDb,
+  type AutopilotState,
+} from '../src/autopilot-state'
 
 const BASE =
   process.env.SELF_URL || 'http://127.0.0.1:' + (process.env.PORT || '3333')
@@ -42,14 +50,15 @@ interface Topic {
   tags: string[]
   plates: { label: string; value: string }[]
 }
-interface State {
-  date: string
-  postsToday: number
-  nextTopic: number
-  /** ISO-момент последней публикации: посты разносятся по дню, а не
-   *  выстреливаются четырьмя подряд в первый час новой ночи. */
-  lastPostAt?: string
-}
+/**
+ * The shape moved to src/autopilot-state.ts together with its persistence.
+ * lastPostAt is the ISO moment of the last publication: posts are spread over
+ * the day instead of firing four in a row in the first hour of a new night.
+ */
+type State = AutopilotState
+
+/** Whose row in autopilot_state this process owns. */
+const OWNER = ownerFromEnv()
 
 /** Обработчик снятия лока вешается один раз на весь процесс (см. main). */
 let lockReleaseRegistered = false
@@ -71,26 +80,26 @@ function log(line: string) {
   console.log(`[autopilot] ${line}`)
 }
 
-function readState(): State {
+/**
+ * STATE LIVES IN POSTGRES NOW; THE FILE IS THE FLOOR, NOT THE RECORD.
+ *
+ * loop/state.json is inside the container and this project has no volumes, so
+ * every deploy wiped the queue cursor back to 0 and the autopilot then burned
+ * one 30-minute tick per already-published topic to walk it forward again. The
+ * day-reset rule, the merge and the fallbacks all live in src/autopilot-state.ts
+ * -- the only place `npm run typecheck` can see them, since nothing under
+ * scripts/ is in any tsconfig include.
+ */
+async function readState(): Promise<State> {
   const today = new Date().toISOString().slice(0, 10)
-  let s: State = { date: today, postsToday: 0, nextTopic: 0 }
-  try {
-    const raw = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
-    if (raw.date === today) s = raw
-    // Новый день обнуляет СЧЁТЧИК, но не очередь и не интервал: иначе
-    // автопилот начинал бы день с прокрутки уже опубликованных тем.
-    else {
-      if (Number.isInteger(raw.nextTopic)) s.nextTopic = raw.nextTopic
-      if (raw.lastPostAt) s.lastPostAt = raw.lastPostAt
-    }
-  } catch {
-    /* первый запуск — состояние ещё не создано */
-  }
-  return s
+  return withDb(db =>
+    loadState({ db, owner: OWNER, stateFile: STATE_FILE, today, log })
+  )
 }
-function writeState(s: State) {
-  fs.mkdirSync(LOOP_DIR, { recursive: true })
-  fs.writeFileSync(STATE_FILE, JSON.stringify(s, null, 2))
+async function writeState(s: State): Promise<void> {
+  await withDb(db =>
+    saveState({ db, owner: OWNER, stateFile: STATE_FILE, state: s, log })
+  )
 }
 
 async function call(name: string, args: Record<string, unknown> = {}) {
@@ -228,7 +237,7 @@ async function main() {
   // Последний пост дня автоматически с b-roll: один видео-слой в день —
   // визуальный апгрейд канала при стабильном расходе (1 генерация/день).
   const forceVideo = process.argv.includes('--with-video')
-  const state0 = readState()
+  const state0 = await readState()
   const withVideo = forceVideo || state0.postsToday === MAX_POSTS_PER_DAY - 1
   const state = state0
 
@@ -325,7 +334,16 @@ async function main() {
   // свежие посты t27.ai. Это то же живое производство, а не выдумка.
   const mine = { записи: feedRecords } // cyrillic-ok: response field
   const names: string[] = (mine?.записи || []).map((x: any) => String(x.name))
-  if (topics.length - state.nextTopic < 2) {
+  // The same title-resolved cursor the pick below uses: asking "how much queue
+  // is left" against a stale raw index would top up at the wrong moment.
+  if (
+    topics.length -
+      cursorFor(
+        state,
+        topics.map(t => t.title)
+      ) <
+    2
+  ) {
     const fromBlog = await blogTopics([...names, ...topics.map(t => t.title)])
     if (fromBlog.length) {
       topics.push(...fromBlog)
@@ -339,12 +357,37 @@ async function main() {
     log('очередь тем пуста')
     return
   }
-  const topicIndex = pickTopic(topics, state.nextTopic, mine?.записи || [])
+  /**
+   * The cursor is resolved by TITLE, not by the bare index it was saved as.
+   *
+   * loop/topics.json is git-tracked and the Dockerfile re-seeds it on every
+   * deploy, so a durable index can point past the end of a freshly re-seeded
+   * array. Before this was persisted the same deploy also reset the index to 0
+   * and hid the problem; pickTopic returns `from` unchanged when its window is
+   * empty, and the next line would have dereferenced undefined -- a TypeError
+   * every cycle, i.e. a 60-second respawn loop in one-shot mode.
+   */
+  const topicIndex = pickTopic(
+    topics,
+    cursorFor(
+      state,
+      topics.map(t => t.title)
+    ),
+    mine?.записи || [] // cyrillic-ok: tool response field
+  )
   const topic = topics[topicIndex]
+  if (!topic) {
+    log('очередь тем исчерпана — жду пополнения')
+    return
+  }
   // 3. Дубль-защита: название не должно встречаться в моих последних постах.
   if (names.some(n => n === topic.title)) {
     log(`тема «${topic.title}» уже опубликована — двигаю очередь дальше`)
-    writeState({ ...state, nextTopic: topicIndex + 1 })
+    await writeState({
+      ...state,
+      nextTopic: topicIndex + 1,
+      lastTopic: topic.title,
+    })
     return
   }
 
@@ -524,10 +567,13 @@ async function main() {
     return
   }
 
-  writeState({
+  await writeState({
     ...state,
     postsToday: state.postsToday + 1,
     nextTopic: topicIndex + 1,
+    // The title, not just the index: topics.json is re-seeded on every deploy,
+    // so the index alone cannot say where the queue really stands.
+    lastTopic: topic.title,
     lastPostAt: new Date().toISOString(),
   })
   log(

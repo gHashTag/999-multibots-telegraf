@@ -24,9 +24,10 @@ const TSX = path.join(HERE, 'node_modules/.bin/tsx')
 const SCRIPT = 'scripts/agent-autopilot.ts'
 
 /** Run the script with a throwaway state dir and no reachable server. */
-function run(env: Record<string, string>) {
+function run(env: Record<string, string>, seed?: (dir: string) => void) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'autopilot-test-'))
   try {
+    seed?.(dir)
     const r = spawnSync(TSX, [SCRIPT], {
       cwd: HERE,
       encoding: 'utf8',
@@ -38,6 +39,11 @@ function run(env: Record<string, string>) {
         // Point at a closed port: the script must still LOAD and log before it
         // discovers it cannot reach anything.
         SELF_URL: 'http://127.0.0.1:9',
+        // A developer machine has a REAL DATABASE_URL, and process.env is
+        // spread in above. Without this the run would create autopilot_state in
+        // the developer's own Postgres and would exercise the database path --
+        // the exact opposite of the fallback this file exists to protect.
+        DATABASE_URL: '',
         ...env,
       },
     })
@@ -62,7 +68,12 @@ describe('the autopilot script can start', () => {
     expect(r.out).not.toContain('ERR_REQUIRE_ASYNC_MODULE')
     // It got far enough to speak for itself.
     expect(r.out).toContain('[autopilot]')
-  })
+    // Explicit budget, because vitest's default is 5 s and this case is a COLD
+    // tsx compile of the script and everything it imports. Measured warm at
+    // ~0.5 s and cold at ~11 s on this machine while other suites competed for
+    // the CPU; the default turned that into a red test that had nothing to say
+    // about the autopilot.
+  }, 20_000)
 
   it('loads and runs in daemon mode, and creates its log directory', async () => {
     // Daemon mode logs BEFORE the first cycle, into a directory that does not
@@ -80,6 +91,7 @@ describe('the autopilot script can start', () => {
         AGENT_KEYS: 'test-key:1',
         LOOP_DIR: dir,
         SELF_URL: 'http://127.0.0.1:9',
+        DATABASE_URL: '', // see the note in run(): never touch a real database
         AUTOPILOT_LOOP: '1',
       },
     })
@@ -122,6 +134,52 @@ describe('the autopilot script can start', () => {
       })
     }
   }, 40_000)
+
+  it('still starts, says so, and EXITS when the database is unreachable', () => {
+    // The state moved to Postgres. Two ways that could have broken one-shot
+    // mode: an escaped connection error (exit 1 into the render server's
+    // 60-second respawn loop), or a pool left open holding a socket and an idle
+    // timer so the process never exits at all. Both are checked by the status
+    // code below, which spawnSync only produces if the process ends by itself.
+    const r = run({ DATABASE_URL: 'postgresql://u:p@127.0.0.1:1/nowhere' })
+    expect(r.out).toContain('[autopilot]')
+    expect(r.out).toContain('база недоступна')
+    expect(r.status).toBe(0)
+  }, 20_000)
+
+  it('a saved cursor past the end of a re-seeded queue is a pause, not a crash', () => {
+    // Now that the cursor is durable it can outlive the array it indexes:
+    // loop/topics.json is git-tracked and the Dockerfile re-seeds it on every
+    // deploy, so a stored 9 meets an array of 4. pickTopic returns `from`
+    // unchanged when its window is empty, and the old code dereferenced
+    // topics[4].title -- a TypeError on every cycle. Until the state was
+    // durable, the same deploy also reset the cursor to 0 and hid it.
+    const topics = ['a', 'b', 'c', 'd'].map(t => ({
+      title: t,
+      subtitle: '',
+      lesson: '',
+      tags: [],
+      plates: [],
+    }))
+    const r = run({}, dir => {
+      fs.writeFileSync(path.join(dir, 'topics.json'), JSON.stringify(topics))
+      fs.writeFileSync(
+        path.join(dir, 'state.json'),
+        JSON.stringify({
+          date: new Date().toISOString().slice(0, 10),
+          postsToday: 0,
+          nextTopic: 9,
+        })
+      )
+    })
+    // Not a bare "TypeError": the unreachable feed legitimately logs one of
+    // its own ("TypeError: fetch failed"). This is the shape of the crash the
+    // guard prevents, and the line the one-shot handler prints when it escapes.
+    expect(r.out).not.toContain('Cannot read properties of undefined')
+    expect(r.out).not.toContain('падение')
+    expect(r.out).toContain('очередь тем исчерпана')
+    expect(r.status).toBe(0)
+  }, 20_000)
 
   it('refuses clearly when no agent key is configured', () => {
     // A missing key must be a stated refusal, not a stack trace.
