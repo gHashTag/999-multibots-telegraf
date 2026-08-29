@@ -515,6 +515,26 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
+      // A 0 or negative cost degenerates the balance gate below into
+      // `currentBalance < 0`, which always passes -> free paid generation.
+      // estimatedDurationSeconds can be 0: a voice message reporting duration 0
+      // (only the >30 upper bound is checked, no lower bound) becomes
+      // 'voice_message_0' -> parseInt 0, and an empty text yields
+      // Math.ceil(0 / 15) = 0. Reject a non-positive cost before the gate.
+      if (!(cost > 0)) {
+        logger.warn('[VEED FABRIC] Rejecting non-positive cost', {
+          telegramId,
+          estimatedDurationSeconds,
+          cost,
+        })
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось определить длительность (нулевая стоимость). Отправьте корректное голосовое сообщение или текст.'
+            : '❌ Could not determine duration (zero cost). Please send a valid voice message or text.'
+        )
+        return ctx.scene.leave()
+      }
+
       if (currentBalance < cost) {
         await ctx.reply(
           isRu
