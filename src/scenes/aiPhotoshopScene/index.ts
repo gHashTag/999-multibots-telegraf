@@ -2609,6 +2609,28 @@ const createAiPhotoshopProgressKeyboard = (images: any[], isRu: boolean) => {
 /**
  * AI Photoshop multi-photo detection - collects multiple photos using buffer logic like Infinity Morphing
  */
+// Cap the number of collected images. Each is a full Buffer kept in the
+// in-memory Telegraf session (bot.ts session(), no TTL/eviction) shared by the
+// one process that runs every bot; without a cap a subscriber can climb RSS
+// until the container OOM-kills the whole multi-bot process. Same guard as
+// morphingWizard (#1145); morphing needs >= 2, 20 is a generous ceiling.
+const MAX_AI_PHOTOSHOP_IMAGES = 20
+async function aiPhotoshopImageCapReached(
+  ctx: MyContext,
+  isRu: boolean
+): Promise<boolean> {
+  const count = ctx.session.morphingImages?.length ?? 0
+  if (count >= MAX_AI_PHOTOSHOP_IMAGES) {
+    await ctx.reply(
+      isRu
+        ? '❌ Достигнут лимит изображений (максимум 20). Запустите обработку.'
+        : '❌ Image limit reached (max 20). Start processing.'
+    )
+    return true
+  }
+  return false
+}
+
 async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
   if (!ctx.message || !('photo' in ctx.message)) return false
 
@@ -2651,6 +2673,8 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
       const buffer = await downloadTelegramFileBuffer(telegramUrl)
 
       // Add image with timestamp and order like Infinity Morphing
+      if (await aiPhotoshopImageCapReached(ctx, isRu)) return false
+
       const imageIndex = ctx.session.morphingImages.length + 1
       const currentTimestamp = Date.now() + imageIndex
 
@@ -2754,6 +2778,8 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
       const buffer = await downloadTelegramFileBuffer(telegramUrl)
 
       // Add image with timestamp and order
+      if (await aiPhotoshopImageCapReached(ctx, isRu)) return false
+
       const imageIndex = ctx.session.morphingImages.length + 1
       const currentTimestamp = Date.now() + imageIndex
 
