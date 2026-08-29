@@ -18,6 +18,7 @@ import {
   handleMcp,
   handleMcpCard,
   handleAgentChat,
+  handleAgentKeys,
   chatIdentity,
   readBody,
 } from './src/agent/routes'
@@ -328,9 +329,9 @@ function faceApi(): Promise<FaceApi> {
       throw e
     })
     .then(m => {
-    faceApiReady = m
-    return m
-  })
+      faceApiReady = m
+      return m
+    })
   return faceApiPromise
 }
 
@@ -4031,7 +4032,8 @@ const server = createServer(async (req, res) => {
                     // модуля уже объявлена один раз и должна уехать в задание,
                     // а разовый сбой распознавания — просто в лог.
                     if (faceCroppingUnavailable()) {
-                      inputProps.faceCroppingUnavailable = faceCroppingUnavailable()
+                      inputProps.faceCroppingUnavailable =
+                        faceCroppingUnavailable()
                     } else {
                       console.warn('⚠️ Face detection failed:', e)
                     }
@@ -5278,6 +5280,38 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleAgentChat(req, res, String(who), getPool)
+    return
+  }
+
+  /**
+   * Self-service agent keys -- the route its own handler documents.
+   *
+   * handleAgentKeys has been sitting in routes.ts exported and CALLED BY
+   * NOBODY: the endpoints in its JSDoc did not exist on this server, while
+   * a2a.ts tells a caller in an error message to "get a key in the mini app
+   * (POST /api/agent/keys)". People were being sent to an address that
+   * returned 404. An exported function nobody imports is valid TypeScript, so
+   * nothing complained.
+   *
+   * IDENTITY FROM THE SIGNATURE ONLY, deliberately not chatIdentity: that
+   * accepts an agent key too, and minting keys with a key lets one leaked key
+   * breed more. Issuing a credential requires the human's own Telegram
+   * signature.
+   */
+  if (req.url?.split('?')[0].startsWith('/api/agent/keys')) {
+    const owner = verifiedTelegramId(req)
+    if (!owner) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: 'не удалось определить пользователя',
+          detail:
+            'ключи выдаются только по подписи мини-аппа (X-Telegram-Init-Data)',
+        })
+      )
+      return
+    }
+    await handleAgentKeys(req, res, String(owner), getPool)
     return
   }
 

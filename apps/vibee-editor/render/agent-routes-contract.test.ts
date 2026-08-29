@@ -37,10 +37,11 @@ const SERVER = path.join(RENDER, 'render-server.ts')
  * counted rather than disappearing into a green report.
  */
 const KNOWN_UNWIRED: Record<string, string> = {
-  // Self-service MCP keys from #884. The implementation is back in routes.ts,
-  // the wiring is not. Tracked in #898 (P0), whose scope covers the identity
-  // and revocation work this endpoint needs before it is exposed again.
-  handleAgentKeys: '#898',
+  // Empty on purpose. handleAgentKeys was the last entry: the implementation
+  // came back in routes.ts while the wiring did not, so the endpoints its own
+  // JSDoc documents returned 404 and a2a.ts kept telling callers to POST to
+  // them. Wired 2026-08-29, identity taken from the mini-app signature only --
+  // minting keys with a key would let one leaked key breed more.
 }
 
 function exportedHandlers(): string[] {
