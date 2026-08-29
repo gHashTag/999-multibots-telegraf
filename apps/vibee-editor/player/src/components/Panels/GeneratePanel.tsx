@@ -106,23 +106,19 @@ const IMAGE_MODELS: ImageModel[] = [
     name: 'Reve',
     description: 'Художественный стиль',
   },
-  // Replicate models (direct API with version hashes)
-  // Note: Version hashes retrieved from Replicate API on 2026-02-20
-  {
-    id: 'replicate:stability-ai/sdxl:7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc',
-    name: 'SDXL',
-    description: 'Replicate • обычное',
-  },
-  {
-    id: 'replicate:bytedance/sdxl-lightning-4step:6f7a773af6fc3e8de9d5a3c00be77c17308914bf67772726aff83496ba1e3bbe',
-    name: 'SDXL Lightning',
-    description: 'Replicate • быстро, 4 шага',
-  },
-  {
-    id: 'replicate:fofr/sdxl-emoji:dee76b5afde21b0f01ed7925f0665b7e879c50ee718c5f78a9d38e04d523cc5e',
-    name: 'SDXL Emoji',
-    description: 'Replicate • как стикер',
-  },
+  // The three replicate:* models (SDXL, SDXL Lightning, SDXL Emoji) were
+  // REMOVED because they could not work in production: they route through
+  // generateImageViaReplicate, which posts to the RELATIVE path
+  // /api/replicate/predictions. That path exists only as Vite dev-server
+  // middleware (player/vite.config.ts). The deployed player is static files
+  // behind nginx (nginx/default.conf.template) with no /api location and no
+  // proxy_pass at all, so the request fell into the SPA fallback and every
+  // selection failed. The mock server implements /api/replicate/* which is why
+  // the mock suite stayed green while production was broken.
+  //
+  // To bring them back, the render server needs a real route. That is a new
+  // capability, not a bug fix: running an arbitrary Replicate version on our
+  // token is an abuse surface that needs its own auth/cost decision.
 ]
 
 const VIDEO_MODELS: VideoModel[] = [

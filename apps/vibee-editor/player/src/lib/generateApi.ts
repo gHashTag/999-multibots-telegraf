@@ -200,8 +200,14 @@ export async function generateImageViaReplicate(params: {
     ? params.model.split(':')[1]
     : params.model
 
-  // Call our Vite proxy which forwards to Replicate
-  const createResponse = await mfetch('/api/replicate/predictions', {
+  // NOT REACHABLE FROM THE UI RIGHT NOW. The replicate:* image models were
+  // removed from GeneratePanel because this path has no production backend:
+  // /api/replicate/predictions exists only as Vite dev middleware, and the
+  // deployed player is static files behind nginx with no /api proxy. Kept, with
+  // an absolute URL like every other replicate call in this file, so that IF a
+  // render-server route is ever added the request goes to the right host and
+  // fails visibly instead of silently receiving the SPA's index.html.
+  const createResponse = await mfetch(`${API_URL}/api/replicate/predictions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -243,7 +249,7 @@ export async function generateImageViaReplicate(params: {
       await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2s
 
       const pollResponse = await mfetch(
-        `/api/replicate/poll?url=${encodeURIComponent(getUrl)}`
+        `${API_URL}/api/replicate/poll?url=${encodeURIComponent(getUrl)}`
       )
 
       if (!pollResponse.ok) continue
