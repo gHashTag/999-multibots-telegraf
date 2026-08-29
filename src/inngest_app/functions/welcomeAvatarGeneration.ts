@@ -7,6 +7,7 @@ import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import { logger } from '@/utils/logger'
 import { getBotByNameAdapter } from '@/inngest_app/services/bot-adapter'
 import { generateSeeDream45 } from '@/services/generateSeeDream45'
+import { reserveWelcomeGiftSlot } from '@/inngest_app/functions/welcomeGiftBudget'
 
 // Top heroes for each gender (safe, recognizable prompts)
 const MALE_HEROES = [
@@ -168,77 +169,99 @@ export const welcomeAvatarGeneration = inngest.createFunction(
       return hero
     })
 
+    // Step 2.5: Reserve a slot from the per-process burst breaker before we
+    // spend the owner's provider money. Done in a step so an Inngest retry
+    // returns the cached decision instead of consuming a second slot. See
+    // welcomeGiftBudget.ts for what this bounds (a burst) and does NOT (a
+    // shared daily budget — that needs an owner DB counter).
+    const giftSlot = await step.run('reserve-gift-slot', async () => {
+      return reserveWelcomeGiftSlot(new Date())
+    })
+
+    if (!giftSlot.granted) {
+      logger.warn(
+        '🎁 [Welcome Avatar] Gift slot denied by burst breaker — skipping generation',
+        { telegram_id, used: giftSlot.used, limit: giftSlot.limit }
+      )
+    }
+
     // Step 3: Generate image using SeeDream-4 (cheapest option)
     // ⚠️ IMPORTANT: Get bot INSIDE step to avoid Inngest serialization issues
     // Telegraf instances have methods that cannot be serialized between steps
-    const generationResult = await step.run('generate-image', async () => {
-      // Get fresh bot instance inside step (avoids serialization issues)
-      const botData = getBotByNameAdapter(bot_name)
-      if (!botData.bot) {
-        logger.error('🎁 [Welcome Avatar] Bot not available in generate step', {
-          bot_name,
-        })
-        return { success: false, error: 'Bot not available' }
-      }
-      const bot = botData.bot
-
-      const heroGender = gender === 'unknown' ? 'male' : gender
-      const prompt = getHeroPrompt(selectedHero, heroGender)
-
-      logger.info('🎁 [Welcome Avatar] Generating image', {
-        telegram_id,
-        hero: selectedHero,
-        promptLength: prompt.length,
-      })
-
-      // Create a minimal context for generation
-      const mockCtx = {
-        reply: async (text: string) => {
-          await bot.telegram.sendMessage(telegram_id, text)
-          return { message_id: 0 }
-        },
-        deleteMessage: async () => {},
-        replyWithPhoto: async (photo: any, options?: any) => {
-          if (typeof photo === 'object' && 'source' in photo) {
-            await bot.telegram.sendPhoto(
-              telegram_id,
-              { source: photo.source },
-              options
+    // The branch is deterministic across retries (giftSlot came from a step).
+    const generationResult = !giftSlot.granted
+      ? { success: false as const, error: 'welcome gift burst breaker reached' }
+      : await step.run('generate-image', async () => {
+          // Get fresh bot instance inside step (avoids serialization issues)
+          const botData = getBotByNameAdapter(bot_name)
+          if (!botData.bot) {
+            logger.error(
+              '🎁 [Welcome Avatar] Bot not available in generate step',
+              {
+                bot_name,
+              }
             )
-          } else {
-            await bot.telegram.sendPhoto(telegram_id, photo, options)
+            return { success: false, error: 'Bot not available' }
           }
-          return { message_id: 0 }
-        },
-        botInfo: { username: bot_name },
-        telegram: bot.telegram,
-      } as any
+          const bot = botData.bot
 
-      try {
-        const result = await generateSeeDream45({
-          prompt,
-          inputImageUrl: avatarUrl,
-          telegram_id,
-          username,
-          is_ru,
-          ctx: mockCtx,
-          size: '2K', // SeeDream 4.5 supports 2K/4K (no 1K!)
-          is_welcome_gift: true, // Skip payment!
-          suppressUserErrors: true,
-        })
+          const heroGender = gender === 'unknown' ? 'male' : gender
+          const prompt = getHeroPrompt(selectedHero, heroGender)
 
-        return { success: true, result }
-      } catch (error) {
-        logger.error('🎁 [Welcome Avatar] Generation failed', {
-          telegram_id,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          logger.info('🎁 [Welcome Avatar] Generating image', {
+            telegram_id,
+            hero: selectedHero,
+            promptLength: prompt.length,
+          })
+
+          // Create a minimal context for generation
+          const mockCtx = {
+            reply: async (text: string) => {
+              await bot.telegram.sendMessage(telegram_id, text)
+              return { message_id: 0 }
+            },
+            deleteMessage: async () => {},
+            replyWithPhoto: async (photo: any, options?: any) => {
+              if (typeof photo === 'object' && 'source' in photo) {
+                await bot.telegram.sendPhoto(
+                  telegram_id,
+                  { source: photo.source },
+                  options
+                )
+              } else {
+                await bot.telegram.sendPhoto(telegram_id, photo, options)
+              }
+              return { message_id: 0 }
+            },
+            botInfo: { username: bot_name },
+            telegram: bot.telegram,
+          } as any
+
+          try {
+            const result = await generateSeeDream45({
+              prompt,
+              inputImageUrl: avatarUrl,
+              telegram_id,
+              username,
+              is_ru,
+              ctx: mockCtx,
+              size: '2K', // SeeDream 4.5 supports 2K/4K (no 1K!)
+              is_welcome_gift: true, // Skip payment!
+              suppressUserErrors: true,
+            })
+
+            return { success: true, result }
+          } catch (error) {
+            logger.error('🎁 [Welcome Avatar] Generation failed', {
+              telegram_id,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            })
+            return {
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            }
+          }
         })
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        }
-      }
-    })
 
     // Step 4: Send welcome message
     // ⚠️ IMPORTANT: Get bot INSIDE step to avoid Inngest serialization issues
