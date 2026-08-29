@@ -1,4 +1,5 @@
 import { Markup, Scenes } from 'telegraf'
+import { downloadTelegramFileBuffer } from '@/helpers/downloadTelegramFile'
 import { MyContext } from '../../interfaces'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { handleHelpCancel } from '@/navigation'
@@ -356,10 +357,12 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
 
       try {
         const botToken = getBotToken(ctx)
-        const response = await fetch(
+        // Reject a failed download (throws on non-OK) and cap it with a timeout;
+        // a bare fetch had neither, so an expired file_path only failed later at
+        // isValidImage, and a hung download wedged this step indefinitely.
+        const buffer = await downloadTelegramFileBuffer(
           `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
         )
-        const buffer = Buffer.from(await response.arrayBuffer())
 
         // Валидация изображения
         const isValid = await isValidImage(buffer)
