@@ -317,6 +317,7 @@ const calculateCropSettings: FaceApi['calculateCropSettings'] = (...a) => {
   return faceApiReady.calculateCropSettings(...a)
 }
 import { Pool } from 'pg'
+import { spendByTid, refundByTid } from './src/agent/billing-shared'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -1614,6 +1615,74 @@ function attachStoreOnce(): void {
   attachStore(getPool() as never)
 }
 
+/**
+ * Charge the Mini App user for a generation, or refuse it.
+ *
+ * The two callers of /api/generate/* are not equal:
+ *   - the AGENT (tools.ts) arrives with X-Api-Key and has ALREADY paid at the
+ *     tool layer, so charging here would double-charge it;
+ *   - the MINI APP arrives with a Telegram signature and, until this, paid
+ *     NOTHING -- every user generated for free, past the price and past the
+ *     limit.
+ *
+ * Prices come from src/agent/billing-shared.ts, the same table the agent tools
+ * use, so the two paths cannot drift apart. Nothing is invented here.
+ *
+ * FAILS CLOSED. If the pool is unreachable the generation is refused rather
+ * than given away, matching requireInternalKey's rule in the bot ("a route that
+ * cannot check does not open"). DATABASE_URL is set on this service, so this is
+ * an outage path, not the normal one.
+ *
+ * getPool() throws SYNCHRONOUSLY, hence the try around it: unguarded it escapes
+ * the async handler and Node kills the process -- a one-request DoS.
+ */
+async function chargeMiniAppUser(
+  req: IncomingMessage,
+  op: string
+): Promise<
+  { ok: true; tid?: string } | { ok: false; status: number; reason: string }
+> {
+  // Server-to-server: already paid at the tool layer.
+  if (req.headers['x-api-key']) return { ok: true }
+
+  const tid = verifiedTelegramId(req)
+  if (!tid) {
+    // Auth is enforced upstream; an unsigned caller should never reach here.
+    return { ok: false, status: 401, reason: 'no verified telegram id' }
+  }
+
+  try {
+    const pool = getPool()
+    const spent = await spendByTid(pool as never, tid, op)
+    if (!spent.ok) {
+      return {
+        ok: false,
+        status: 402,
+        // A field name of billing-shared.ts's public return type; renaming that
+        // shared API to satisfy this gate would touch the agent tools too.
+        reason: spent.причина || 'not enough tokens', // cyrillic-ok: shared API field
+      }
+    }
+    return { ok: true, tid }
+  } catch (e) {
+    console.error('[токены] списание невозможно, генерация отклонена:', e)
+    return { ok: false, status: 503, reason: 'billing unavailable' }
+  }
+}
+
+/** Give the tokens back when the provider did not deliver. */
+async function refundMiniAppUser(
+  tid: string | undefined,
+  op: string
+): Promise<void> {
+  if (!tid) return
+  try {
+    await refundByTid(getPool() as never, tid, op)
+  } catch (e) {
+    console.error('[токены] возврат не прошёл:', e)
+  }
+}
+
 /** Кэш RSS-блога t27.ai для GET /api/blog (см. обработчик ниже). */
 let blogCache: { at: number; data: unknown } | null = null
 
@@ -2393,6 +2462,9 @@ const server = createServer(async (req, res) => {
       body += chunk
     })
     req.on('end', async () => {
+      // Declared BEFORE the try: the refund in catch must know whether we
+      // charged, and a const inside the try is not visible there.
+      let billedTid: string | undefined
       try {
         if (!FAL_KEY) throw new Error('FAL_KEY not configured')
 
@@ -2400,6 +2472,15 @@ const server = createServer(async (req, res) => {
         console.log(
           `📷 [Generate] Photo: ${model}, prompt: "${prompt.substring(0, 50)}..."`
         )
+
+        // Charge BEFORE spending the provider's money.
+        const billed = await chargeMiniAppUser(req, 'image_generate')
+        if (!billed.ok) {
+          res.writeHead(billed.status, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: billed.reason }))
+          return
+        }
+        billedTid = billed.tid
 
         // FAL — основной путь, но падение по чужому балансу не должно
         // останавливать производство: ниже уходим на Replicate.
@@ -2533,6 +2614,8 @@ const server = createServer(async (req, res) => {
         throw new Error('Image generation timeout')
       } catch (error) {
         console.error('❌ [Generate] Image error:', error)
+        // Nothing was delivered, so the tokens go back.
+        await refundMiniAppUser(billedTid, 'image_generate')
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
@@ -2647,9 +2730,20 @@ const server = createServer(async (req, res) => {
       body += chunk
     })
     req.on('end', async () => {
+      // Before the try: the refund path in catch must see it.
+      let billedTid: string | undefined
       try {
         const { model, prompt, duration, aspect_ratio } = JSON.parse(body)
         console.log(`🎬 [Generate] Video: ${model}, duration: ${duration}`)
+
+        // Charge BEFORE spending the provider's money.
+        const billed = await chargeMiniAppUser(req, 'video_generate')
+        if (!billed.ok) {
+          res.writeHead(billed.status, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: billed.reason }))
+          return
+        }
+        billedTid = billed.tid
 
         /**
          * Record the job BEFORE the provider is called.
@@ -2781,6 +2875,9 @@ const server = createServer(async (req, res) => {
           )
         } catch (fallbackError) {
           console.error('❌ [Generate] Video error:', fallbackError)
+          // Both the primary path and the Replicate fallback failed: nothing
+          // was delivered, so the tokens go back.
+          await refundMiniAppUser(billedTid, 'video_generate')
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(
             JSON.stringify({
@@ -2804,12 +2901,23 @@ const server = createServer(async (req, res) => {
       body += chunk
     })
     req.on('end', async () => {
+      // Before the try: the refund path in catch must see it.
+      let billedTid: string | undefined
       try {
         const { text, voice_id } = JSON.parse(body)
 
         console.log(
           `🎤 [Generate] Audio: voice=${voice_id}, text="${text.substring(0, 50)}..."`
         )
+
+        // Charge BEFORE spending the provider's money.
+        const billed = await chargeMiniAppUser(req, 'audio_generate')
+        if (!billed.ok) {
+          res.writeHead(billed.status, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: billed.reason }))
+          return
+        }
+        billedTid = billed.tid
 
         // ElevenLabs is the primary path; if it is unavailable (the key stored
         // is an identifier, not an sk_ key, OR the API errors) fall back to
@@ -2879,6 +2987,8 @@ const server = createServer(async (req, res) => {
         )
       } catch (error) {
         console.error('❌ [Generate] Audio error:', error)
+        // Nothing was delivered, so the tokens go back.
+        await refundMiniAppUser(billedTid, 'audio_generate')
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
