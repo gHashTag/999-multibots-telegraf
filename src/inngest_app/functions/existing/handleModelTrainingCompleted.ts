@@ -188,16 +188,37 @@ export function createHandleModelTrainingCompletedFunction(inngest: any) {
               )
               versionHash = modelUrl.split(':').pop() || null
 
-              updateData.model_url = modelUrl
-              updateData.weights = eventData.output.weights
-              updateData.result = 'SUCCESS'
-              updateData.api = 'replicate'
+              if (versionHash) {
+                updateData.model_url = modelUrl
+                updateData.weights = eventData.output.weights
+                updateData.result = 'SUCCESS'
+                updateData.api = 'replicate'
 
-              logger.info('[TRAINING COMPLETED] Formatted model URL', {
-                training_id: eventData.training_id,
-                version_hash: versionHash.substring(0, 20) + '...',
-                model_url: modelUrl,
-              })
+                logger.info('[TRAINING COMPLETED] Formatted model URL', {
+                  training_id: eventData.training_id,
+                  version_hash: versionHash.substring(0, 20) + '...',
+                  model_url: modelUrl,
+                })
+              } else {
+                // Replicate reported success but the output carried no usable
+                // version (legacy / odd output shape — exactly the old rows the
+                // stuck-training watchdog sweeps). Building the URL yields
+                // owner/slug: with an empty hash, and versionHash.substring on
+                // null used to THROW here, inside step.run, BEFORE the row was
+                // flipped out of PENDING/starting/processing — so the cron
+                // re-selected it every 30 minutes forever. Still flip the status
+                // to terminal (updateData.status is already SUCCESS above) so the
+                // watchdog stops, but skip the broken model_url rather than write
+                // it. result stays unset so the record is visibly incomplete.
+                updateData.result = 'SUCCESS'
+                logger.warn(
+                  '[TRAINING COMPLETED] Succeeded with no usable model version — status flipped, model_url skipped',
+                  {
+                    training_id: eventData.training_id,
+                    raw_version: rawVersion,
+                  }
+                )
+              }
             }
 
             if (eventData.status === 'failed' && eventData.error) {
