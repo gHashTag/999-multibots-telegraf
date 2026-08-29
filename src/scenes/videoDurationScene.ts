@@ -34,6 +34,21 @@ videoDurationScene.enter(async ctx => {
 
   const model = VIDEO_MODELS[modelId]
 
+  // selectedVideoModel is a session string; it survives deploys, so it can name
+  // a model that no longer exists in VIDEO_MODELS. Without this guard the next
+  // line reads model.apiSettings on undefined and the whole step throws.
+  if (!model) {
+    logger.warn('[videoDurationScene] Unknown video model in session', {
+      modelId,
+    })
+    await ctx.reply(
+      is_ru
+        ? '❌ Ошибка: выбранная модель недоступна. Пожалуйста, начните заново.'
+        : '❌ Error: the selected model is unavailable. Please start again.'
+    )
+    return ctx.scene.leave()
+  }
+
   // Проверяем, поддерживает ли модель выбор длительности
   const durations = model.apiSettings?.durations || []
   if (!durations || durations.length === 0) {
