@@ -129,6 +129,14 @@ interface KieAiWebhookPayload {
  * checkBalanceVideoOperationHelper failed and the guard swallowed it. Now every
  * non-charge is logged as an error with the ids needed to find the case.
  */
+// Job ids already charged in this process. A provider webhook is delivered
+// at-least-once, and two concurrent deliveries of the same completed job both
+// reach chargeForDeliveredVideo; the ledger row it inserts is keyed on a
+// per-call timestamp, not the job, so it does not dedupe. This makes the charge
+// idempotent per job. Reset on restart — a durable guard would be a unique
+// inv_id per job on payments_v2 (owner migration).
+const chargedVideoJobs = new Set<string>()
+
 async function chargeForDeliveredVideo(params: {
   telegramId: string
   modelId?: string
@@ -136,6 +144,20 @@ async function chargeForDeliveredVideo(params: {
   where: string
 }): Promise<void> {
   const { telegramId, modelId, jobId, where } = params
+  // Idempotency (in-process): a synchronous check-and-add on jobId makes the
+  // charge fire at most once per job, so a duplicate/concurrent webhook delivery
+  // no longer double-debits. It only ever SKIPS a charge, never adds one.
+  if (jobId) {
+    if (chargedVideoJobs.has(jobId)) {
+      logger.warn(
+        `⏭️ [${where}] duplicate delivery — charge already applied for this job`,
+        { jobId, telegramId }
+      )
+      return
+    }
+    chargedVideoJobs.add(jobId)
+  }
+
   const notCharged = (reason: string, extra: Record<string, unknown> = {}) => {
     logger.error(`❌ [${where}] VIDEO DELIVERED BUT NOT CHARGED`, {
       alert: 'video delivered for free',
