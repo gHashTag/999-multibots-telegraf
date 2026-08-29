@@ -60,7 +60,6 @@ const DEBT: Record<string, number> = {
   'src/api_server/routes/x402.routes.ts': 2,
   'src/core/supabase/updateUserBalance.ts': 1,
   'src/handlers/handleTextToVideoDirect.ts': 1,
-  'src/inngest_app/functions/generation/neuroImageGeneration.ts': 1,
   'src/scenes/aiCoverWizard/index.ts': 2,
   'src/scenes/instagramParserScene/index.ts': 1,
   'src/scenes/instagramParserWizard/index.ts': 1,
