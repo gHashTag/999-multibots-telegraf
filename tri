@@ -389,7 +389,17 @@ PY
     paint '31' '       Это окружение, а не код. Поставьте зависимости и повторите.'
     return 3
   fi
-  if ! printf '%s' "$runout" | grep -qE '[0-9]+ (passed|failed)'; then
+  # MATCH FAILURE ONLY.
+  #
+  # This read `[0-9]+ (passed|failed)`, which vitest prints in BOTH outcomes:
+  # "Tests  4 passed" when green and "Tests  1 failed | 3 passed" when red. The
+  # negation was therefore true only when there was no summary line at all --
+  # a case the previous branch already handles -- so the "mutant survived"
+  # verdict was dead code and this command reported success unconditionally.
+  # The one command whose entire purpose is catching a surviving mutant could
+  # not catch one. Proven 2026-08-29 by mutating a file the chosen test never
+  # imports: it still said the test went red.
+  if ! printf '%s' "$runout" | grep -qE '[0-9]+ failed'; then
     bad 'тест ПРОШЁЛ на сломанном коде — он проверяет не то, что вы думали'
     paint '31' '       это находка, а не облегчение: покрытия здесь нет'
     return 1
@@ -697,6 +707,9 @@ cmd_real() {
 # ─────────────────────────────────────────────────────────────────────────
 cmd_gate() {
   local fails=0
+  # Known type-error debt of the render server. Lower it when the debt drops;
+  # never raise it to make a red gate green.
+  local GATE_TS_BASELINE=8
 
   printf '\n  1. Типы рендер-сервера\n'
   local tsout
@@ -721,8 +734,19 @@ cmd_gate() {
     warn "$n ошибок, но среди них $miss «модуль не найден»"
     paint '33' '       Это НЕ про код: где-то не поставлены зависимости.'
     paint '33' '       Проверьте npm install в apps/vibee-editor/packages/*.'
+  elif [ "${n:-0}" -gt "$GATE_TS_BASELINE" ]; then
+    # RATCHET, not a hard zero. The render server carries a known debt; the
+    # question that matters is whether THIS change added to it.
+    #
+    # Both branches above only warned, and `fails` was never touched here -- so
+    # eight type errors contributed nothing to the verdict and the advice
+    # "compare with origin/main" was addressed to a human, while the thing
+    # running this is an agent. Measured 2026-08-29: the gate printed 8 errors
+    # and still ended with a tally that ignored them.
+    bad "$n ошибок типов — БОЛЬШЕ базы ($GATE_TS_BASELINE). Это добавили здесь."
+    fails=$((fails + 1))
   else
-    warn "$n ошибок (часть унаследована — сверьте с origin/main)"
+    good "$n ошибок — не больше базы ($GATE_TS_BASELINE)"
   fi
 
   printf '\n  2. Тесты рендер-сервера\n'
@@ -743,7 +767,16 @@ cmd_gate() {
   fi
 
   printf '\n  3. Сборка iOS\n'
-  if (cd "$ROOT/apps/vibee-ios" && xcodegen generate --quiet >/dev/null 2>&1 \
+  # A MISSING TOOL IS NOT A BROKEN BUILD -- the same third-outcome rule this
+  # file already applies to types and tests.
+  #
+  # xcodegen is not installed on this machine, so the `&&` chain could never
+  # succeed and this step reported a failure on EVERY run. The verdict was
+  # therefore a constant "do not merge", which is read exactly as often as a
+  # constant "all clear" -- and it made fixing the other checks pointless.
+  if ! command -v xcodegen >/dev/null 2>&1; then
+    warn 'xcodegen не установлен — сборку iOS НЕ мерили (это не про код)'
+  elif (cd "$ROOT/apps/vibee-ios" && xcodegen generate --quiet >/dev/null 2>&1 \
       && xcodebuild -project Vibee.xcodeproj -target Vibee \
          -sdk iphonesimulator -configuration Debug build >/dev/null 2>&1); then
     good 'BUILD SUCCEEDED'
@@ -752,10 +785,18 @@ cmd_gate() {
   fi
 
   printf '\n  4. Кириллица в добавленных строках\n'
-  if (cd "$ROOT" && node scripts/no-cyrillic-guard.cjs staged >/dev/null 2>&1); then
-    good 'чисто'
+  # RANGE, not the index -- and a real failure.
+  #
+  # This ran the guard in `staged` mode, which reads `git diff --cached`. Outside
+  # a commit that index is EMPTY, so the check passed by construction: measured
+  # 2026-08-29, zero staged files and a green line while the branch carried
+  # Russian comments. And even a genuine hit only warned, never touching
+  # `fails`. Both halves made it unable to fail.
+  if (cd "$ROOT" && node scripts/no-cyrillic-guard.cjs range >/dev/null 2>&1); then
+    good 'чисто в диапазоне ветки'
   else
-    warn 'есть — коммит не пройдёт'
+    bad 'кириллица в добавленных строках ветки'
+    fails=$((fails + 1))
   fi
 
   printf '\n'
