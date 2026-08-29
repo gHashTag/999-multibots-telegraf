@@ -413,6 +413,12 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   // full caption pipeline, and only leaves after it resolves. A second photo
   // sent during that window ran it again — a double charge and two results.
   imageToPromptInProgress?: boolean
+  // In-flight guard for the text-to-image wizard. Both the prompt step and the
+  // repeat-generation button step call generateTextToImageDirect, which charges
+  // the user (processBalanceOperation). The button step deliberately stays put
+  // for repeat taps, so a second tap during a generation charged twice and
+  // produced two batches. Same shape as the sibling guards.
+  textToImageInProgress?: boolean
 
   // Text-to-video direct generation fields
   videoJobId?: string // ID задачи генерации видео для отслеживания статуса
