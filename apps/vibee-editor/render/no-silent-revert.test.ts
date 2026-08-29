@@ -21,12 +21,20 @@ const read = (rel: string) => fs.readFileSync(path.join(__dirname, rel), 'utf8')
 
 const SERVER = read('render-server.ts')
 const AGENT_ROUTES = read('src/agent/routes.ts')
+// The crediting logic was extracted here so it could be tested without
+// spending money (stars-credit.test.ts). The marker follows the code: this
+// guard checks that the fix still EXISTS, not that it sits in one file.
+const STARS_CREDIT = read('src/stars-credit.ts')
 
 describe('merged money fixes are still in main', () => {
   it('#873: the token-purchase webhook is idempotent', () => {
     // A redelivered Telegram payment used to credit twice; the ledger table is
-    // what makes the second delivery a no-op.
-    expect(SERVER).toContain('star_payments')
+    // what makes the second delivery a no-op. Now proven behaviourally too --
+    // stars-credit.test.ts mutation-fails when the dedup is removed.
+    expect(STARS_CREDIT).toContain('star_payments')
+    expect(STARS_CREDIT).toContain('ON CONFLICT (charge_id) DO NOTHING')
+    // And the server must actually call it, or the guarantee is theoretical.
+    expect(SERVER).toContain('creditStarsPayment')
   })
 
   it('#874: /api/tokens/verify compares dates numerically', () => {
