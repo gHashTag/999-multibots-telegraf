@@ -84,6 +84,9 @@ export const generateSeeDream45 = async (
 
   let imageCount = 1
   let totalCost = SEEDREAM45_MODEL.costPerImage
+  // Set once the user has actually been charged, so the outer catch can refund
+  // them if delivery (or anything after the charge) then throws.
+  let refundOnFailure = false
 
   try {
     const {
@@ -385,6 +388,12 @@ export const generateSeeDream45 = async (
       })
     }
 
+    // From here on the user has paid; if delivery throws we must refund.
+    // (welcome gifts are never charged, so they must not be refunded.)
+    if (balanceDeduction.success && !params.is_welcome_gift) {
+      refundOnFailure = true
+    }
+
     // Save prompt to database
     try {
       const promptId = await savePrompt(
@@ -559,6 +568,29 @@ export const generateSeeDream45 = async (
       isRetriable,
       error: errorMessage,
     })
+
+    // The charge happens after a successful generation, but delivery (saving
+    // the record, sending the photo) can still throw afterwards. When it does,
+    // the user has paid for an image they never received — refund them.
+    // refundUser checks the ledger, so it only returns real, already-charged
+    // stars (never a welcome gift, never more than was paid).
+    if (refundOnFailure) {
+      try {
+        await refundUser(params.ctx, totalCost, {
+          reason: 'generation_failed',
+          service: 'SeeDream-4.5',
+        })
+      } catch (refundError) {
+        logger.error(
+          '[SeeDream4.5] Failed to refund after post-charge failure',
+          {
+            telegram_id: params.telegram_id,
+            totalCost,
+            refundError,
+          }
+        )
+      }
+    }
 
     // Only notify user if not in fallback mode
     if (!params.suppressUserErrors) {
