@@ -32,103 +32,122 @@ async function processUserMessage(
     return
   }
 
-  // Показываем индикатор "печатает..." пока готовим ответ
-  await ctx.sendChatAction('typing')
-
-  const { answerAi } = await import('../../core/openai/requests')
-  const { getUserData, getUserModel } = await import('../../core/supabase')
-  const { getUserLanguageFromState } = await import(
-    '@/helpers/centralizedLanguage'
-  )
-
-  const userData = await getUserData(telegramId)
-  const userModel = await getUserModel(telegramId)
-  const languageCode = getUserLanguageFromState(ctx)
-
-  const model = userModel || 'deepseek-chat'
-
-  // Отправляем еще один индикатор перед вызовом AI (для долгих запросов)
-  await ctx.sendChatAction('typing')
-
-  const response = await answerAi(
-    model,
-    userData,
-    prompt,
-    languageCode,
-    undefined,
-    ctx,
-    telegramId,
-    isRussian(ctx)
-  )
-
-  // ✅ Проверяем, является ли ответ изображением (от Nano Banana Pro)
-  if (typeof response === 'object' && response.type === 'image') {
-    logger.info('🖼️ [chatWithAvatarWizard] Image response received', {
-      telegramId,
-      imageUrl: response.imageUrl,
-      cost: response.cost,
-    })
-    const isRu = isRussian(ctx)
-
-    // ✅ Формируем подпись с информацией о стоимости
-    const caption = isRu
-      ? `✨ Изображение сгенерировано с помощью Nano Banana Pro\n\n💫 Стоимость: ${response.cost || 'N/A'}⭐`
-      : `✨ Image generated using Nano Banana Pro\n\n💫 Cost: ${response.cost || 'N/A'}⭐`
-
-    await ctx.replyWithPhoto(response.imageUrl, { caption })
-  } else {
-    const textResponse = response as string
-    // Send text first so user sees the response immediately
-    await ctx.reply(textResponse)
-
-    // Generate and send voice response
-    let audioPath: string | null = null
-    try {
-      await ctx.sendChatAction('record_voice')
-      const voiceId = await getVoiceId(telegramId)
-      audioPath = await createAudioFileFromText({
-        text: textResponse,
-        voice_id: voiceId,
-        telegram_id: telegramId,
-      })
-      if (audioPath) {
-        await ctx.replyWithVoice({ source: audioPath })
-      }
-    } catch (voiceError) {
-      logger.warn(
-        '[chatWithAvatarWizard] Voice generation failed, text already sent',
-        {
-          telegramId,
-          error:
-            voiceError instanceof Error
-              ? voiceError.message
-              : String(voiceError),
-        }
-      )
-    } finally {
-      if (audioPath && fs.existsSync(audioPath)) {
-        try {
-          fs.unlinkSync(audioPath)
-        } catch {}
-      }
-    }
+  // In-flight guard: processUserMessage calls answerAi (which charges via
+  // processBalanceOperation on the Nano Banana image path) and paid voice
+  // generation; step 2 stays active until it resolves, so a second message
+  // during that window double-charged the image path. Reject the re-entry;
+  // set synchronously so there is no await between the check and the set.
+  if (ctx.session.chatWithAvatarInProgress) {
+    await ctx.reply(
+      isRussian(ctx)
+        ? '⏳ Уже обрабатываю ваше сообщение, подождите немного...'
+        : '⏳ Already processing your message, please wait a moment...'
+    )
+    return
   }
+  ctx.session.chatWithAvatarInProgress = true
 
-  // Пост-обработка пользователя (достижимый код)
   try {
-    const userExists = await getUserByTelegramId(ctx)
-    if (!userExists) {
-      logger.error(
-        `[chatWithAvatarWizard] User with ID ${telegramId} not found after message processing.`
-      )
+    // Show the "typing" indicator while preparing the answer
+    await ctx.sendChatAction('typing')
+
+    const { answerAi } = await import('../../core/openai/requests')
+    const { getUserData, getUserModel } = await import('../../core/supabase')
+    const { getUserLanguageFromState } = await import(
+      '@/helpers/centralizedLanguage'
+    )
+
+    const userData = await getUserData(telegramId)
+    const userModel = await getUserModel(telegramId)
+    const languageCode = getUserLanguageFromState(ctx)
+
+    const model = userModel || 'deepseek-chat'
+
+    // Send another indicator before the AI call (for long requests)
+    await ctx.sendChatAction('typing')
+
+    const response = await answerAi(
+      model,
+      userData,
+      prompt,
+      languageCode,
+      undefined,
+      ctx,
+      telegramId,
+      isRussian(ctx)
+    )
+
+    // Check whether the response is an image (from Nano Banana Pro)
+    if (typeof response === 'object' && response.type === 'image') {
+      logger.info('🖼️ [chatWithAvatarWizard] Image response received', {
+        telegramId,
+        imageUrl: response.imageUrl,
+        cost: response.cost,
+      })
+      const isRu = isRussian(ctx)
+
+      // Build the caption with cost information
+      const caption = isRu
+        ? `✨ Изображение сгенерировано с помощью Nano Banana Pro\n\n💫 Стоимость: ${response.cost || 'N/A'}⭐`
+        : `✨ Image generated using Nano Banana Pro\n\n💫 Cost: ${response.cost || 'N/A'}⭐`
+
+      await ctx.replyWithPhoto(response.imageUrl, { caption })
     } else {
-      const level = userExists.level
-      if (level === 4) {
-        await updateUserLevelPlusOne(telegramId, level)
+      const textResponse = response as string
+      // Send text first so user sees the response immediately
+      await ctx.reply(textResponse)
+
+      // Generate and send voice response
+      let audioPath: string | null = null
+      try {
+        await ctx.sendChatAction('record_voice')
+        const voiceId = await getVoiceId(telegramId)
+        audioPath = await createAudioFileFromText({
+          text: textResponse,
+          voice_id: voiceId,
+          telegram_id: telegramId,
+        })
+        if (audioPath) {
+          await ctx.replyWithVoice({ source: audioPath })
+        }
+      } catch (voiceError) {
+        logger.warn(
+          '[chatWithAvatarWizard] Voice generation failed, text already sent',
+          {
+            telegramId,
+            error:
+              voiceError instanceof Error
+                ? voiceError.message
+                : String(voiceError),
+          }
+        )
+      } finally {
+        if (audioPath && fs.existsSync(audioPath)) {
+          try {
+            fs.unlinkSync(audioPath)
+          } catch {}
+        }
       }
     }
-  } catch (e) {
-    logger.error('[chatWithAvatarWizard] post-processing error:', e)
+
+    // User post-processing (reachable code)
+    try {
+      const userExists = await getUserByTelegramId(ctx)
+      if (!userExists) {
+        logger.error(
+          `[chatWithAvatarWizard] User with ID ${telegramId} not found after message processing.`
+        )
+      } else {
+        const level = userExists.level
+        if (level === 4) {
+          await updateUserLevelPlusOne(telegramId, level)
+        }
+      }
+    } catch (e) {
+      logger.error('[chatWithAvatarWizard] post-processing error:', e)
+    }
+  } finally {
+    ctx.session.chatWithAvatarInProgress = false
   }
 }
 

@@ -414,6 +414,12 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   // serialization, so a user sending several messages in quick succession
   // fired several concurrent paid predictions on the platform token.
   aiChatInProgress?: boolean
+  // In-flight guard for the chat-with-avatar wizard: processUserMessage calls
+  // answerAi (which charges the user via processBalanceOperation on the Nano
+  // Banana image path) plus paid voice generation, and step 2 stays active
+  // until it resolves, so a second message during that window double-charged
+  // the image path and ran a second paid voice.
+  chatWithAvatarInProgress?: boolean
   // In-flight guard for the image-to-prompt wizard: step 2 runs
   // generateImageToPrompt, which charges the user (MONEY_OUTCOME) and runs the
   // full caption pipeline, and only leaves after it resolves. A second photo
