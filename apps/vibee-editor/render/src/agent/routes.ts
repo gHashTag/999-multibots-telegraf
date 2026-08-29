@@ -21,12 +21,30 @@
  *    одной существующей композиции.
  */
 import type { IncomingMessage, ServerResponse } from 'http'
-import { randomBytes, createHash } from 'node:crypto'
+import { randomBytes, createHash, timingSafeEqual } from 'node:crypto'
 import { verifyAppSession } from '../../session'
 import { TOOLS_BY_NAME, toMcpTools } from './tools'
 import { runAgent, type ChatMessage } from './chat'
 import { resolveProvider } from './provider'
 import { verifiedTelegramId } from '../../auth'
+
+/**
+ * CONSTANT-TIME key comparison.
+ *
+ * A plain `a === b` returns at the first differing character, so response time
+ * leaks the key prefix by prefix and it can be guessed piece by piece. initData
+ * and X-Api-Key in auth.ts already use timingSafeEqual; the agent key lagged
+ * behind.
+ *
+ * timingSafeEqual needs buffers of equal length and keys differ in length, so
+ * the comparison runs over SHA-256 of each (always 32 bytes). That also stops
+ * the key's length leaking through the buffer's length.
+ */
+function sameKey(a: string, b: string): boolean {
+  const ha = createHash('sha256').update(a).digest()
+  const hb = createHash('sha256').update(b).digest()
+  return timingSafeEqual(ha, hb)
+}
 
 /**
  * Ключи внешних агентов: AGENT_KEYS="ключ1:telegramId,ключ2:telegramId".
@@ -37,11 +55,16 @@ import { verifiedTelegramId } from '../../auth'
  */
 export function agentKeyOwner(key: string): string | null {
   const raw = process.env.AGENT_KEYS || ''
+  if (!key) return null
+  let owner: string | null = null
   for (const pair of raw.split(',')) {
     const [k, id] = pair.split(':').map(s => s.trim())
-    if (k && id && k === key) return id
+    // Walk EVERY key instead of returning at the first hit: an early return
+    // would reveal which key matched through the iteration count. The key set
+    // is small and server-side, but keeping the comparison constant is cheap.
+    if (k && id && sameKey(k, key)) owner = id
   }
-  return null
+  return owner
 }
 
 /**
