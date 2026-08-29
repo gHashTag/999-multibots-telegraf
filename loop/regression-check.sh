@@ -154,14 +154,29 @@ try:
     # ВОЗРАСТ, а не наличие. Печаталось `lastPostAt=True` — булево, которое
     # остаётся истинным и через сутки простоя. Именно поэтому регресс говорил
     # ЧИСТО, пока фабрика стояла 51 час (29.08).
+    # Источник правды — ЖИВАЯ ЛЕНТА (первый пост /api/feed, поле createdAt):
+    # state.json осиротел после включения демона автопилота (#1073/#1074 —
+    # тот же принцип: считать из ленты, а не из эфемерного файла). Файл —
+    # только fallback, если лента недоступна.
     from datetime import datetime, timezone
-    lp = s.get('lastPostAt')
+    import urllib.request
+    lp = None; src = 'state.json'
+    try:
+        with urllib.request.urlopen('http://127.0.0.1:3333/api/feed?limit=1', timeout=8) as r:
+            feed = json.load(r)
+        items = feed.get('templates') or []
+        if items and items[0].get('createdAt'):
+            lp = items[0]['createdAt']; src = 'лента'
+    except Exception:
+        pass
+    if not lp:
+        lp = s.get('lastPostAt')
     if lp:
         age = (datetime.now(timezone.utc) - datetime.fromisoformat(str(lp).replace('Z','+00:00'))).total_seconds()/3600
         if age > 8 and s.get('postsToday', 0) < 4:
             print(f'  ❌ последний пост {age:.1f} ч назад, а лимит НЕ исчерпан ({s.get("postsToday")}/4) — фабрика стоит'); ok = False
         else:
-            print(f'  ✅ последний пост {age:.1f} ч назад')
+            print(f'  ✅ последний пост {age:.1f} ч назад ({src})')
     else:
         print('  ⚠️ lastPostAt пуст — фабрика ещё не постила');
     if ok:
