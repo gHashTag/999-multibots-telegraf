@@ -63,7 +63,6 @@ const DEBT: Record<string, number> = {
   'src/scenes/lipSyncWizard/ai-reels-render-wizard.ts': 1,
   'src/scenes/lipSyncWizard/ai-reels-wizard.ts': 1,
   'src/scenes/lipSyncWizard/fal-render-wizard.ts': 2,
-  'src/scenes/lipSyncWizard/heygen-render-wizard.ts': 1,
   'src/scenes/lipSyncWizard/index.ts': 1,
   'src/services/marketplaceService.ts': 1,
 }
@@ -111,9 +110,11 @@ describe('результат денежной операции не выбрас
     // Safety against the detection pattern silently breaking (which would
     // make every commit pass). The floor tracks cleanup progress: as
     // discarded-result sites are fixed the count legitimately drops, so the
-    // floor is loosened (10 -> 8 after handleTextToVideoDirect was cleaned,
-    // #1190). A broken pattern would return ~0, still far below 8.
-    expect(Object.keys(countByFile()).length).toBeGreaterThan(8)
+    // floor is loosened as the discarded-result campaign cleans siblings
+    // (10 -> 8 -> 2 across #1190/#1194/#1196...). The latent/dead/phantom
+    // files (x402, marketplace, a dead fal branch, a commented call) keep the
+    // count above 2, so a truly broken pattern (~0) is still caught. A broken pattern would return ~0, still far below 8.
+    expect(Object.keys(countByFile()).length).toBeGreaterThan(2)
   })
 
   it('разбор не считает присвоение выброшенным результатом', () => {
