@@ -258,7 +258,16 @@ cmd_alive() {
   local built="${2:?нужен каталог сборки, например apps/vibee-editor/player/dist}"
 
   require_fresh || return 3
-  [ -d "$built" ] || { bad "нет каталога $built — сначала соберите"; return 1; }
+  # Каталог сборки может существовать и быть пустым — тогда «строки нет»
+  # означает «нечего искать», а не «код мёртв».
+  if [ ! -d "$built" ]; then
+    warn "нет каталога $built — померить нечего, соберите сначала"
+    return 3
+  fi
+  if [ -z "$(ls -A "$built" 2>/dev/null)" ]; then
+    warn "каталог $built пуст — сборки нет, вывод ничего не докажет"
+    return 3
+  fi
 
   local hits
   hits=$(grep -rl -- "$needle" "$built" 2>/dev/null)
@@ -313,7 +322,21 @@ io.open(path, 'w', encoding='utf-8').write(src.replace(a, b, 1))
 PY
 
   printf '  сломано, гоняю тест…\n'
-  if (cd "$ROOT" && npx vitest run "$spec" >/dev/null 2>&1); then
+  # ТРЕТИЙ ИСХОД, и здесь он опаснее всех.
+  #
+  # `npx vitest` возвращает ненулевой код и когда тест упал, и когда он НЕ
+  # ЗАПУСТИЛСЯ — нет node_modules, не читается конфиг, нет самого файла.
+  # Без разбора вывода команда объявила бы «покраснел, как должен» и выдала
+  # непроведённую проверку за пройденную. Это ложь в сторону уверенности,
+  # то есть худшая из возможных здесь.
+  local runout
+  runout=$(cd "$ROOT" && npx vitest run "$spec" 2>&1)
+  if printf '%s' "$runout" | grep -qE 'MODULE_NOT_FOUND|Cannot find module|No test files found'; then
+    bad 'тест НЕ ЗАПУСТИЛСЯ — мутация ничего не проверила'
+    paint '31' '       Это окружение, а не код. Поставьте зависимости и повторите.'
+    return 3
+  fi
+  if ! printf '%s' "$runout" | grep -qE '[0-9]+ (passed|failed)'; then
     bad 'тест ПРОШЁЛ на сломанном коде — он проверяет не то, что вы думали'
     paint '31' '       это находка, а не облегчение: покрытия здесь нет'
     return 1
