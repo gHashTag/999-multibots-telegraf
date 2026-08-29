@@ -63,7 +63,6 @@ const DEBT: Record<string, number> = {
   'src/scenes/lipSyncWizard/ai-reels-render-wizard.ts': 1,
   'src/scenes/lipSyncWizard/ai-reels-wizard.ts': 1,
   'src/scenes/lipSyncWizard/fal-render-wizard.ts': 2,
-  'src/scenes/lipSyncWizard/hedra-render-wizard.ts': 1,
   'src/scenes/lipSyncWizard/heygen-render-wizard.ts': 1,
   'src/scenes/lipSyncWizard/index.ts': 1,
   'src/services/marketplaceService.ts': 1,
