@@ -298,6 +298,13 @@ class VideoTranscriptionService {
 
     // OpenAI client is initialized lazily via @/core/openai
 
+    // Tracked at method scope so every failure path below can delete the
+    // downloaded (and possibly renamed) temp file. On success it is returned as
+    // videoPath for the caller to send and then clean; a failed result carries
+    // no path, so without this the download is orphaned on disk and each failed
+    // transcription leaks a video file.
+    let finalVideoPath = videoPath
+
     try {
       // Verify file exists and has content
       const stats = fs.statSync(videoPath)
@@ -330,7 +337,7 @@ class VideoTranscriptionService {
       }
 
       // Ensure file has a proper extension for OpenAI
-      let finalVideoPath = videoPath
+      finalVideoPath = videoPath
       const currentExt = path.extname(videoPath).toLowerCase()
       const supportedExts = [
         '.flac',
@@ -468,6 +475,12 @@ class VideoTranscriptionService {
           },
         }
       } else {
+        // Failure without a caller-visible videoPath — clean up the download.
+        try {
+          fs.unlinkSync(finalVideoPath)
+        } catch {
+          /* best effort */
+        }
         return {
           success: false,
           error: 'No transcription text received from OpenAI',
@@ -475,6 +488,13 @@ class VideoTranscriptionService {
       }
     } catch (error) {
       console.error('❌ Transcription failed:', error)
+      // The caller cleans up only files it receives via videoPath, and this
+      // failed result carries none — remove the orphaned temp file here.
+      try {
+        fs.unlinkSync(finalVideoPath)
+      } catch {
+        /* best effort: it may not exist, or the caller may have taken it */
+      }
 
       if (axios.isAxiosError(error)) {
         const errorMessage =
@@ -520,7 +540,7 @@ class VideoTranscriptionService {
 }
 
 // Export singleton instance
-const videoTranscriptionService = new VideoTranscriptionService()
+export const videoTranscriptionService = new VideoTranscriptionService()
 
 /**
  * Main function to transcribe Instagram Reels
