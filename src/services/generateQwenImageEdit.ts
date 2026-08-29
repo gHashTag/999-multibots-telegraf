@@ -78,6 +78,7 @@ export const generateQwenImageEdit = async (
       is_ru,
       ctx,
       editing_mode,
+      size,
       preserve_quality = true,
     } = params
 
@@ -128,11 +129,13 @@ export const generateQwenImageEdit = async (
 
     // ✅ Calculate cost (cheapest model!)
     const costPerImage = QWEN_IMAGE_EDIT_MODEL.costPerImage
-    totalCost = costPerImage
+    const qualityMultiplier = size === '4K' ? 6 : size === '2K' ? 4 : 1
+    totalCost = costPerImage * qualityMultiplier
 
     logger.info('💰 [QwenImageEdit] Cost calculation:', {
       telegram_id,
       costPerImage,
+      qualityMultiplier,
       totalCost,
       note: 'Cheapest model at $0.025 per image!',
     })
