@@ -359,6 +359,7 @@ const calculateCropSettings: FaceApi['calculateCropSettings'] = (...a) => {
   return faceApiReady.calculateCropSettings(...a)
 }
 import { Pool } from 'pg'
+import { creditStarsPayment } from './src/stars-credit'
 import { spendByTid, refundByTid } from './src/agent/billing-shared'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
@@ -5622,54 +5623,22 @@ const server = createServer(async (req, res) => {
               upd.successful_payment.telegram_payment_charge_id || ''
             )
             if (amount > 0 && tid) {
+              // Logic extracted to src/stars-credit.ts so it can be tested
+              // without spending money -- see stars-credit.test.ts. The two
+              // fixes this path has needed (idempotency, numeric dates) both
+              // shipped on reasoning alone and were both silently reverted
+              // later without a single test going red.
               const pool = await getPool()
-              await pool.query(
-                `CREATE TABLE IF NOT EXISTS user_tokens (
-                   telegram_id text PRIMARY KEY,
-                   balance int NOT NULL,
-                   updated_at timestamptz NOT NULL DEFAULT now()
-                 )`
+              const outcome = await creditStarsPayment(pool, {
+                chargeId,
+                telegramId: tid,
+                amount,
+              })
+              console.log(
+                outcome.credited
+                  ? `[STARS] +${amount} to ${tid} (${outcome.reason})`
+                  : `[STARS] not credited for ${tid}: ${outcome.reason}`
               )
-              await pool.query(
-                `CREATE TABLE IF NOT EXISTS star_payments (
-                   charge_id text PRIMARY KEY,
-                   telegram_id text NOT NULL,
-                   amount int NOT NULL,
-                   created_at timestamptz NOT NULL DEFAULT now()
-                 )`
-              )
-              // Credit ONLY when the payment is recorded for the FIRST time.
-              // Inserting charge_id is the lock: a redelivery conflicts on the
-              // primary key, DO NOTHING yields 0 rows, so nothing is credited.
-              let firstTime = true
-              if (chargeId) {
-                const ins = await pool.query(
-                  `INSERT INTO star_payments (charge_id, telegram_id, amount)
-                   VALUES ($1, $2, $3) ON CONFLICT (charge_id) DO NOTHING`,
-                  [chargeId, tid, amount]
-                )
-                firstTime = (ins.rowCount ?? 0) > 0
-              } else {
-                // No charge_id arrived (should not happen on successful_payment).
-                // Credit anyway, but warn loudly: this payment has no dedup key.
-                console.warn(
-                  '[STARS] successful_payment без telegram_payment_charge_id — начисляю без дедупа'
-                )
-              }
-              if (!firstTime) {
-                console.log(
-                  `[STARS] повтор доставки платежа ${chargeId} — уже зачтено, пропускаю`
-                )
-              } else {
-                await pool.query(
-                  `INSERT INTO user_tokens (telegram_id, balance)
-                   VALUES ($1, $2)
-                   ON CONFLICT (telegram_id)
-                   DO UPDATE SET balance = user_tokens.balance + $2, updated_at = now()`,
-                  [tid, amount]
-                )
-                console.log(`💰 [STARS] +${amount} токенов пользователю ${tid}`)
-              }
             }
           }
           res.writeHead(200)
