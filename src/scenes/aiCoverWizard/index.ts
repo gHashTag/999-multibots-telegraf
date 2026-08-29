@@ -418,20 +418,28 @@ aiCoverWizard.action('confirm_cover', async ctx => {
       error: error instanceof Error ? error.message : String(error),
     })
 
+    let refunded = false
     // Refund ONLY a charge that actually happened. Without this guard a run that
     // errored before/at the charge would credit stars that were never debited.
     if (charged) {
       try {
-        await updateUserBalance(
+        refunded = await updateUserBalance(
           telegramId,
           cost,
           PaymentType.REFUND,
           'AI Cover refund - error'
         )
-        logger.info('[AI_COVER] Refund processed', {
-          telegramId,
-          amount: cost,
-        })
+        if (refunded) {
+          logger.info('[AI_COVER] Refund processed', {
+            telegramId,
+            amount: cost,
+          })
+        } else {
+          logger.error(
+            '[AI_COVER] Refund FAILED — user NOT refunded after a real charge (ghost-payer / DB)',
+            { telegramId, amount: cost }
+          )
+        }
       } catch (refundError) {
         logger.error('[AI_COVER] Refund failed', {
           telegramId,
@@ -446,10 +454,14 @@ aiCoverWizard.action('confirm_cover', async ctx => {
     await ctx.reply(
       isRu
         ? charged
-          ? '❌ Произошла ошибка при генерации. Средства возвращены.'
+          ? refunded
+            ? '❌ Произошла ошибка при генерации. Средства возвращены.'
+            : '❌ Произошла ошибка при генерации. Автоматически вернуть средства не удалось — напишите в поддержку.'
           : '❌ Произошла ошибка. Средства не списаны.'
         : charged
-          ? '❌ Error during generation. Funds refunded.'
+          ? refunded
+            ? '❌ Error during generation. Funds refunded.'
+            : '❌ Error during generation. Automatic refund failed — please contact support.'
           : '❌ An error occurred. No funds were taken.'
     )
     return ctx.scene.leave()
