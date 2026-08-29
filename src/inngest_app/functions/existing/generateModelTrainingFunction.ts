@@ -51,6 +51,20 @@ export const generateModelTrainingFunction = inngest.createFunction(
     const eventData = event.data as ModelTrainingEvent['data']
     const startTime = Date.now()
 
+    // Defense-in-depth: steps must be a positive integer. The training wizards
+    // now reject a zero-cost (steps=0) training at the cost gate, but this served
+    // handler is the execution choke point — any emitter of model/training.start
+    // with steps<=0 (or NaN/undefined) would otherwise run a training the user
+    // paid nothing for, at the owner's provider cost, with no downstream check.
+    // retries:0 means this throw is terminal (no retry loop).
+    if (!Number.isInteger(eventData.steps) || eventData.steps <= 0) {
+      logger.error('[INNGEST TRAINING] ❌ Invalid steps — refusing training', {
+        telegram_id: eventData.telegram_id,
+        steps: eventData.steps,
+      })
+      throw new Error(`Invalid training steps: ${eventData.steps}`)
+    }
+
     logger.info('[INNGEST TRAINING] 🚀 Starting model training', {
       telegram_id: eventData.telegram_id,
       modelName: eventData.modelName,
