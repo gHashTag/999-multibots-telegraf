@@ -164,6 +164,13 @@ CHECKS THAT EACH COST A CYCLE
         fix, it writes 0-value payment rows. Dynamic costs (steps, answerAi
         response.cost) are NOT shown -- read those paths directly.
 
+  tri wired <SymbolName>
+        Is a handler wired or dead? Lists every src reference and flags the ones
+        on commented-out lines (the shape of dead wiring, e.g. a handler whose
+        only bot.on() registration is commented). Reports facts to READ, not a
+        verdict: it sees `//` comments only, NOT block comments, if(false),
+        feature flags, or examples-only modules.
+
   tri real <name>
         Does the feature work on the WEB before carrying it into the app.
         Looks at: does the server route exist, does the button have its own
@@ -1151,6 +1158,40 @@ cmd_price() {
   fi
 }
 
+cmd_wired() {
+  # Reachability aid: before fixing a call-site, confirm something reaches it.
+  # This does NOT decide reachable-vs-dead — grep cannot (registration hides in
+  # Stage arrays, scene lists, dynamic registries; wiring is disabled by /* */,
+  # if(false), feature flags, examples-only modules — none visible to grep). It
+  # does ONE reliable thing: list every reference and FLAG the ones on
+  # commented-out lines, because a handler whose bot.on() registration is
+  # commented (handleTextMessage) is the classic dead-code trap. READ the flagged
+  # lines and find the actual registration yourself — the tool only points.
+  local sym="${1:-}"
+  if [ -z "$sym" ]; then
+    bad 'нужен символ: tri wired <SymbolName>   (напр. tri wired handleTextMessage)'
+    return 1
+  fi
+  local hits commented
+  hits="$(cd "$ROOT" && grep -rnE "\\b${sym}\\b" src --include='*.ts' 2>/dev/null | grep -v '__tests__')"
+  if [ -z "$hits" ]; then
+    warn "нет ссылок на ${sym} в src (кроме тестов) — символ не используется?"
+    return 0
+  fi
+  commented="$(printf '%s\n' "$hits" | grep -E ':[0-9]+:[[:space:]]*//')"
+  local nt nc
+  nt="$(printf '%s' "$hits" | grep -c .)"
+  nc="$(printf '%s' "$commented" | grep -c .)"
+  printf '  ссылок всего: %s | из них закомментированных: %s\n' "$nt" "$nc"
+  if [ "$nc" -gt 0 ]; then
+    warn 'ЗАКОММЕНТИРОВАННЫЕ ссылки (частый признак мёртвой проводки — ЧИТАЙ):'
+    printf '%s\n' "$commented" | sed 's/^/    /'
+  fi
+  printf '  НЕ вывод, а указатель: сам найди РЕГИСТРАЦИЮ (bot.on/.hears/.use/.action/.command/\n'
+  printf '  Stage/scene-массив) среди живых ссылок. Если она только в закомментированных — мёртвый код.\n'
+  printf '  grep не видит /* */, if(false), feature-flag, examples-only, динамические реестры.\n'
+}
+
 action="${1:-помощь}"
 shift 2>/dev/null || true
 
@@ -1167,6 +1208,7 @@ case "$action" in
   diverged|разошлись)  cmd_diverged ;;
   worktree|дерево)    cmd_worktree "$@" ;;
   price|цена)         cmd_price "$@" ;;
+  wired|подключён)    cmd_wired "$@" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
