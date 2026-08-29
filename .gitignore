@@ -452,3 +452,8 @@ MetaMuse_*.xlsx
 apps/vibee-editor/render/node_modules
 !.env.local.example
 .dev/
+
+# Local agent tooling state (session ledgers, reports) — never commit.
+# git add -A swept these in once and the secret guard stopped the commit.
+.mimosa/
+.runtime/

@@ -5405,16 +5405,36 @@ const server = createServer(async (req, res) => {
             `https://api.telegram.org/bot${PAY_BOT}/getStarTransactions?limit=100`
           ).then(r => r.json())
           const txs = st?.result?.transactions || []
+          // Exclude transactions already tied to this user's redeemed invoices:
+          // otherwise one Stars payment could settle several invoices of the
+          // same amount across separate calls.
+          const usedTxIds = new Set(
+            (
+              await pool.query(
+                `SELECT star_tx_id FROM token_invoices
+                 WHERE telegram_id = $1 AND star_tx_id IS NOT NULL`,
+                [who]
+              )
+            ).rows.map((r: any) => String(r.star_tx_id))
+          )
           // Гасим самый свежий подходящий pending: сумма совпала,
           // транзакция новее инвойса, от этого пользователя.
           for (const row of pend.rows) {
-            const match = txs.find(
-              (t: any) =>
+            const invoiceMs = new Date(row.created_at).getTime()
+            const match = txs.find((t: any) => {
+              // t.date is Unix SECONDS (Bot API StarTransaction.date). Compared as
+              // NUMBERS: it used to be Date.parse(t.date*1000), but Date.parse
+              // expects a string and got milliseconds, so it returned NaN, and
+              // `NaN > X` is always false. That is why the fallback verification
+              // never credited anything, ever.
+              const txMs = Number(t.date) * 1000
+              return (
+                !usedTxIds.has(String(t.id)) &&
                 Number(t.amount) === row.stars &&
                 t.source?.user?.id === Number(who) &&
-                Date.parse(t.date * 1000 || t.date) >
-                  Date.parse(row.created_at) - 60_000
-            )
+                txMs > invoiceMs - 60_000
+              )
+            })
             if (match) {
               const upd = await pool.query(
                 `UPDATE token_invoices SET redeemed = TRUE, star_tx_id = $2
@@ -5499,6 +5519,13 @@ const server = createServer(async (req, res) => {
             ).match(/^tokens:(\d+):(.+)$/)
             const amount = m ? Number(m[1]) : 0
             const tid = m ? m[2] : ''
+            // Idempotency key taken from the event itself. Telegram retries
+            // webhook delivery on any non-200 and on network trouble; without a
+            // key each redelivery of one payment credited the tokens again.
+            // telegram_payment_charge_id is unique per payment.
+            const chargeId = String(
+              upd.successful_payment.telegram_payment_charge_id || ''
+            )
             if (amount > 0 && tid) {
               const pool = await getPool()
               await pool.query(
@@ -5509,13 +5536,45 @@ const server = createServer(async (req, res) => {
                  )`
               )
               await pool.query(
-                `INSERT INTO user_tokens (telegram_id, balance)
-                 VALUES ($1, $2)
-                 ON CONFLICT (telegram_id)
-                 DO UPDATE SET balance = user_tokens.balance + $2, updated_at = now()`,
-                [tid, amount]
+                `CREATE TABLE IF NOT EXISTS star_payments (
+                   charge_id text PRIMARY KEY,
+                   telegram_id text NOT NULL,
+                   amount int NOT NULL,
+                   created_at timestamptz NOT NULL DEFAULT now()
+                 )`
               )
-              console.log(`💰 [STARS] +${amount} токенов пользователю ${tid}`)
+              // Credit ONLY when the payment is recorded for the FIRST time.
+              // Inserting charge_id is the lock: a redelivery conflicts on the
+              // primary key, DO NOTHING yields 0 rows, so nothing is credited.
+              let firstTime = true
+              if (chargeId) {
+                const ins = await pool.query(
+                  `INSERT INTO star_payments (charge_id, telegram_id, amount)
+                   VALUES ($1, $2, $3) ON CONFLICT (charge_id) DO NOTHING`,
+                  [chargeId, tid, amount]
+                )
+                firstTime = (ins.rowCount ?? 0) > 0
+              } else {
+                // No charge_id arrived (should not happen on successful_payment).
+                // Credit anyway, but warn loudly: this payment has no dedup key.
+                console.warn(
+                  '[STARS] successful_payment без telegram_payment_charge_id — начисляю без дедупа'
+                )
+              }
+              if (!firstTime) {
+                console.log(
+                  `[STARS] повтор доставки платежа ${chargeId} — уже зачтено, пропускаю`
+                )
+              } else {
+                await pool.query(
+                  `INSERT INTO user_tokens (telegram_id, balance)
+                   VALUES ($1, $2)
+                   ON CONFLICT (telegram_id)
+                   DO UPDATE SET balance = user_tokens.balance + $2, updated_at = now()`,
+                  [tid, amount]
+                )
+                console.log(`💰 [STARS] +${amount} токенов пользователю ${tid}`)
+              }
             }
           }
           res.writeHead(200)
