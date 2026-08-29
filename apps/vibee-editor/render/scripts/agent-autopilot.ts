@@ -54,6 +54,17 @@ interface State {
 /** Обработчик снятия лока вешается один раз на весь процесс (см. main). */
 let lockReleaseRegistered = false
 
+/**
+ * The log directory must exist before the FIRST line is written.
+ *
+ * log() appended to LOG_FILE without creating its directory, and daemon mode
+ * logs its startup line before the first cycle. In a container LOOP_DIR
+ * defaults to a path that does not exist, so the process died on ENOENT before
+ * doing any work -- and under a restart-always policy that is an infinite crash
+ * loop, not a visible failure. Reproduced 2026-08-29 with LOOP_DIR=/tmp/nope.
+ */
+fs.mkdirSync(LOOP_DIR, { recursive: true })
+
 function log(line: string) {
   const stamp = new Date().toISOString()
   fs.appendFileSync(LOG_FILE, `- ${stamp} ${line}\n`)
@@ -248,8 +259,15 @@ async function main() {
   try {
     topics = JSON.parse(fs.readFileSync(TOPICS_FILE, 'utf8'))
   } catch {
-    log(`нет ${TOPICS_FILE} — нечего производить, добавь темы`)
-    return
+    // A MISSING FILE IS NOT A REASON TO GO SILENT FOREVER.
+    //
+    // This used to `return` here, which meant a fresh container -- where the
+    // queue file does not exist yet -- never reached the blog top-up below and
+    // produced nothing, ever. The daemon would wake every 30 minutes only to
+    // log the same line. Start from an empty queue instead and let the top-up
+    // fill it: the blog is a live source, so the factory can bootstrap itself.
+    log(`нет ${TOPICS_FILE} — начинаю с пустой очереди, пополню из блога`)
+    topics = []
   }
 
   // 2a. Доподливка из блога: рукотворных тем осталось меньше двух — тянем
