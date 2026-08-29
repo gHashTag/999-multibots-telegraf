@@ -1,6 +1,24 @@
 import type { Request, Response, NextFunction } from 'express'
+import { createHash, timingSafeEqual } from 'node:crypto'
 import { SECRET_API_KEY } from '@/config'
 import { logger } from '@/utils/logger'
+
+/**
+ * Constant-time key comparison. A plain `provided !== SECRET_API_KEY` short-
+ * circuits on the first differing byte and leaks, through timing, how much of a
+ * guess was right — the sibling auth verifyCallbackToken is already timing-safe,
+ * and this money-gated route should hold the same line. Hashing both sides to a
+ * fixed 32 bytes first means timingSafeEqual never sees unequal lengths (it
+ * throws on those) and the length of a guess is not itself a signal.
+ */
+export function internalKeyMatches(
+  provided: string,
+  expected: string
+): boolean {
+  const a = createHash('sha256').update(provided).digest()
+  const b = createHash('sha256').update(expected).digest()
+  return timingSafeEqual(a, b)
+}
 
 /**
  * Пропускает только запросы со служебным ключом в заголовке `x-secret-key`.
@@ -48,7 +66,7 @@ export function requireInternalKey(
   }
 
   const provided = req.get('x-secret-key')
-  if (provided !== SECRET_API_KEY) {
+  if (!provided || !internalKeyMatches(provided, SECRET_API_KEY)) {
     logger.warn('[requireInternalKey] Отклонён запрос без служебного ключа', {
       path: req.path,
       hasHeader: Boolean(provided),
