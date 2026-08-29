@@ -32,6 +32,19 @@ export const handleTrainingCost = async (
   const cost = calculateCost(steps, version)
   const trainingCostInStars = cost.stars
 
+  // A training must cost something. Both training wizards parse `steps` from
+  // free-typed text with no allowlist; steps=0 makes trainingCostInStars 0, and
+  // the balance gate below degenerates to `currentBalance < 0` (always false),
+  // letting a FREE paid training through at the owner's expense. Reject any
+  // non-positive price up front (0/negative/NaN). Class: 0-cost pricing bypass.
+  if (!(trainingCostInStars > 0)) {
+    const message = isRu
+      ? '❌ Выберите количество шагов кнопкой ниже.'
+      : '❌ Please choose the number of steps below.'
+    await ctx.reply(message, Markup.removeKeyboard())
+    return { leaveScene: true, trainingCostInStars, currentBalance }
+  }
+
   let leaveScene = false
   if (currentBalance < trainingCostInStars) {
     const message = isRu
