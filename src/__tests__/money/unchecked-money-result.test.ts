@@ -62,7 +62,6 @@ const DEBT: Record<string, number> = {
   'src/handlers/handleTextToVideoDirect.ts': 1,
   'src/scenes/aiCoverWizard/index.ts': 2,
   'src/scenes/instagramParserScene/index.ts': 1,
-  'src/scenes/instagramParserWizard/index.ts': 1,
   'src/scenes/lipSyncWizard/ai-reels-inngest-wizard.ts': 1,
   'src/scenes/lipSyncWizard/ai-reels-render-wizard.ts': 1,
   'src/scenes/lipSyncWizard/ai-reels-wizard.ts': 1,

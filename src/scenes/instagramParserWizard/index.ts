@@ -402,7 +402,7 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
 
         if (result && result.success) {
           // Списываем только после подтверждённого запуска.
-          await updateUserBalance(
+          charged = await updateUserBalance(
             userId.toString(),
             sessionData.cost,
             PaymentType.MONEY_OUTCOME,
@@ -416,7 +416,19 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
               stars: sessionData.cost,
             }
           )
-          charged = true
+          // `charged` now reflects the REAL result: updateUserBalance returns
+          // false (never throws) on a schema/insert failure or a ghost-payer
+          // with no users row. Setting it unconditionally true used to (a)
+          // discard the result — a silent free parse on a charge failure — and
+          // (b) let the error path below refund (MONEY_INCOME) stars that were
+          // never actually deducted (a mint). Both are closed by keying on the
+          // return.
+          if (!charged) {
+            logger.error(
+              '[instagramParser] charge failed after a successful parse — user got the result unbilled',
+              { userId, cost: sessionData.cost, target: sessionData.target }
+            )
+          }
 
           await ctx.reply(
             isRu
