@@ -390,10 +390,27 @@ musicGenerationWizard.action('music_vocal', async ctx => {
 
 // Выбор длительности
 musicGenerationWizard.action(/^duration_(\d+)$/, async ctx => {
-  await ctx.answerCbQuery()
-
   const isRu = isRussian(ctx)
   const duration = parseInt(ctx.match[1])
+
+  // The duration comes from callback data, which is untrusted. Bind it to the
+  // server-side allowlist BEFORE pricing: a forged `duration_0` gives
+  // calculateSunoMusicCost(0) = 0, and the generation step's `balance < cost`
+  // gate then degenerates to `balance < 0` (always false), handing out a full
+  // paid Suno track for 0 stars at the owner's expense. Reject anything not in
+  // SUNO_DURATION_OPTIONS and re-show the buttons; never advance with cost 0.
+  const isAllowed = SUNO_DURATION_OPTIONS.some(opt => opt.seconds === duration)
+  if (!isAllowed) {
+    await ctx.answerCbQuery(
+      isRu
+        ? 'Выберите длительность кнопкой ниже.'
+        : 'Please choose a duration below.'
+    )
+    return
+  }
+
+  await ctx.answerCbQuery()
+
   const wizardData = ctx.session.wizardData as MusicWizardData
 
   wizardData.duration = duration
