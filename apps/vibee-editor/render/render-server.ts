@@ -6963,16 +6963,30 @@ const server = createServer(async (req, res) => {
       return
     }
 
-    // Check if user is admin (owner)
-    const isAdmin = telegram_id === TELEGRAM_OWNER_ID
+    // Admin is decided by the VERIFIED caller, never by the query parameter.
+    // The client syncs user.is_admin from this response, so trusting ?telegram_id
+    // let anyone claim the owner's id and be shown the admin UI.
+    const verifiedId = verifiedTelegramId(req)
+    const isAdmin = (verifiedId || telegram_id) === TELEGRAM_OWNER_ID
 
+    // Field names must match the shared RenderQuota type the client reads
+    // (packages/vibee-atoms/src/types.ts): total_renders / free_remaining /
+    // subscription. It used to answer quota_used/quota_limit/quota_remaining,
+    // which no reader knows: canRenderAtom evaluated `undefined > 0` and DENIED
+    // every non-admin user, logRenderAtom computed NaN, and the header rendered
+    // "undefined renders used".
+    //
+    // The numbers themselves are still the previous stub (no server-side quota
+    // accounting exists); turning this into a real freemium gate is a product
+    // decision and is deliberately NOT invented here.
+    const freeRemaining = isAdmin ? 999999 : 1000
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(
       JSON.stringify({
-        telegram_id: parseInt(telegram_id),
-        quota_used: 0,
-        quota_limit: isAdmin ? 999999 : 1000, // Unlimited for admin
-        quota_remaining: isAdmin ? 999999 : 1000,
+        telegram_id: parseInt(verifiedId || telegram_id),
+        total_renders: 0,
+        free_remaining: freeRemaining,
+        subscription: null,
         reset_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         is_admin: isAdmin, // IMPORTANT: Frontend needs this!
       })
