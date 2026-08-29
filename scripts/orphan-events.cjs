@@ -32,6 +32,29 @@ const SUB = /\{\s*event:\s*['"]([^'"]+)['"]/g
 // Отправка через провайдер: sendEvent('INSTANCE', 'event-name', ...)
 const SEND_EVENT = /sendEvent\(\s*['"][^'"]+['"]\s*,\s*['"]([^'"]+)['"]/g
 
+// Some senders name the event through a constant, e.g.
+//   inngest.send({ name: INNGEST_EVENTS.WELCOME_AVATAR_GENERATE, ... })
+// The literal-only match above misses those, so the event looked like it had a
+// registered subscriber but no sender ("unreachable") when in fact it is sent.
+// Resolve INNGEST_EVENTS.X to its string from client.ts so a constant-named send
+// counts the same as a literal one.
+const EVENT_CONSTS = (() => {
+  const map = {}
+  try {
+    const clientSrc = fs.readFileSync(
+      path.resolve(__dirname, '..', 'src', 'inngest_app', 'client.ts'),
+      'utf8'
+    )
+    const block = clientSrc.match(/INNGEST_EVENTS\s*=\s*\{([\s\S]*?)\n\}/)
+    if (block) {
+      for (const m of block[1].matchAll(/(\w+):\s*['"]([^'"]+)['"]/g)) {
+        map[m[1]] = m[2]
+      }
+    }
+  } catch {}
+  return map
+})()
+
 for (const f of files) {
   const src = fs.readFileSync(f, 'utf8')
   const rel = path.relative(path.resolve(__dirname, '..'), f)
@@ -41,9 +64,11 @@ for (const f of files) {
   while ((m = SEND.exec(src))) {
     const win = src.slice(m.index, m.index + 600)
     const nm = win.match(/name:\s*['"]([^'"]+)['"]/)
-    if (nm) {
-      if (!sent.has(nm[1])) sent.set(nm[1], [])
-      sent.get(nm[1]).push(`${rel}:${lineOf(m.index)}`)
+    const nmConst = nm ? null : win.match(/name:\s*INNGEST_EVENTS\.(\w+)/)
+    const eventName = nm ? nm[1] : nmConst ? EVENT_CONSTS[nmConst[1]] : null
+    if (eventName) {
+      if (!sent.has(eventName)) sent.set(eventName, [])
+      sent.get(eventName).push(`${rel}:${lineOf(m.index)}`)
     }
   }
   while ((m = SEND_EVENT.exec(src))) {

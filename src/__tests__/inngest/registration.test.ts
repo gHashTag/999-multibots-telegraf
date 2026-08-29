@@ -62,9 +62,6 @@ const DELIBERATELY_UNREGISTERED: Record<string, string> = {
   // on purpose, but this test works at FILE granularity, so there is no separate
   // line to track them.
   'functions/kieAiWebhookMonitor': 'монитор вебхуков KieAI не подключён',
-  'functions/welcomeAvatarGeneration':
-    'НЕ ПОДКЛЮЧЕНА, при том что createUserScene:188 шлёт ей событие ' +
-    'user/welcome.avatar.generate — приветственные аватары не генерируются',
   // functions/existing/handleModelTrainingCompleted — ПОДКЛЮЧЕН (registerFunctions),
   // webhook Replicate → model/training.completed теперь имеет подписчика.
 }

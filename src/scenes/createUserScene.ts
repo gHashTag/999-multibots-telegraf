@@ -158,9 +158,12 @@ const createUserStep = async (ctx: MyTextMessageContext) => {
     // 🎁 WELCOME AVATAR GENERATION: Analyze avatar and generate free portrait
     // Only use actual Telegram avatar (not Supabase fallback) for face detection
     try {
-      // 🚫 ВРЕМЕННО ОТКЛЮЧЕНО: Лид-магнит (Welcome Avatar) - нет бюджета
-      // TODO: Включить обратно когда пополним баланс AI провайдеров
-      const LEAD_MAGNET_ENABLED = false
+      // Lead magnet (Welcome Avatar): a free SeeDream-4.5 hero portrait from the
+      // new user's Telegram photo, enabled by owner request. It skips the user's
+      // balance (is_welcome_gift) but the provider call costs the owner; when the
+      // AI provider budget is exhausted the generation fails and the subscriber
+      // sends a friendly fallback message, so this degrades gracefully.
+      const LEAD_MAGNET_ENABLED = true
 
       if (LEAD_MAGNET_ENABLED && telegramAvatarUrl) {
         logger.info(
