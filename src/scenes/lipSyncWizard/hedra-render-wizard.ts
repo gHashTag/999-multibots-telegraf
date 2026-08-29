@@ -608,7 +608,7 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
             : '❌ You dont have avatar voice configured.'
         )
         // Возвращаем средства
-        await updateUserBalance(
+        const refunded = await updateUserBalance(
           telegramId,
           estimatedCost,
           PaymentType.MONEY_INCOME,
@@ -618,6 +618,17 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
             service_type: 'refund',
           }
         )
+        if (!refunded) {
+          // updateUserBalance returns false (never throws) on a schema/insert
+          // failure or a ghost-payer with no users row. Discarding the result
+          // meant a failed refund left the user charged, silently. Log it for
+          // reconciliation (the reply above makes no refund claim, so nothing
+          // to correct there).
+          logger.error(
+            '[hedra-render] refund failed — user NOT refunded on the no-voice-ID path',
+            { telegramId, estimatedCost }
+          )
+        }
         return ctx.scene.leave()
       }
 
