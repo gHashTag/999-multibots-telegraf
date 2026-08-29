@@ -1,4 +1,5 @@
 import { supabase } from '@/core/supabase'
+import { escapeMarkdownV2 } from '@/helpers/escapeMarkdown'
 import { getBotByName } from '@/core/bot'
 import { logger } from '@/utils/logger'
 import { avatarService } from './avatar.service'
@@ -419,7 +420,7 @@ export const broadcastService = {
                 user.telegram_id.toString(),
                 videoFileId,
                 {
-                  caption: messageText,
+                  caption: escapeMarkdownV2(messageText),
                   parse_mode: 'MarkdownV2',
                 }
               )
@@ -442,7 +443,7 @@ export const broadcastService = {
                 user.telegram_id.toString(),
                 imageUrl,
                 {
-                  caption: messageText,
+                  caption: escapeMarkdownV2(messageText),
                   parse_mode: 'MarkdownV2',
                 }
               )
