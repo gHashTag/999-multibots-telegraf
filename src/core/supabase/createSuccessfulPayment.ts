@@ -9,6 +9,7 @@ import { getUserByTelegramIdString } from '@/core/supabase'
 import { normalizeTransactionType } from '@/utils/service.utils'
 import {
   CreatePaymentV2Schema,
+  OperationTypeEnum,
   type PaymentV2,
   type CreatePaymentV2,
   PaymentV2Schema as ZodPaymentV2Schema,
@@ -164,14 +165,41 @@ export async function createSuccessfulPayment({
         ? getSubscriptionTypeByAmount(numericAmount)
         : null
 
+    // The insert must match CreatePaymentV2Schema, which requires
+    // telegram_id: z.number() and type: OperationTypeEnum (UPPERCASE).
+    // It used to be handed String(telegram_id) and a lowercased type, so
+    // parse() threw on EVERY call and the function could never succeed -- its
+    // only live caller, `/admin_sub override`, always replied with an error and
+    // no override row was ever created.
+    //
+    // Type mapping: uppercase what the caller passed; if it is not a member of
+    // the enum (e.g. the caller's 'subscription_override'), fall back to
+    // MONEY_INCOME. That is not a guess: every real subscription row in
+    // production is type MONEY_INCOME with subscription_type set, while
+    // SUBSCRIPTION_PURCHASE and SYSTEM have ZERO rows (measured 2026-08-28), and
+    // getUserDetailsSubscription matches on status + subscription_type without
+    // looking at `type` at all. A zero-amount row adds nothing to the balance.
+    const upperType = String(type).toUpperCase()
+    const parsedOperationType = OperationTypeEnum.safeParse(upperType)
+    const operationType = parsedOperationType.success
+      ? parsedOperationType.data
+      : 'MONEY_INCOME'
+    if (!parsedOperationType.success) {
+      logger.warn('[createSuccessfulPayment] type is not an operation enum', {
+        received: type,
+        used: operationType,
+        inv_id,
+      })
+    }
+
     // Данные для вставки
     const rawInsertData = {
-      telegram_id: telegramIdStr,
+      telegram_id: numericTelegramId,
       amount: numericAmount,
       stars: numericStars,
       payment_method,
       description,
-      type: normalizedType,
+      type: operationType,
       service_type,
       model_name,
       bot_name,
