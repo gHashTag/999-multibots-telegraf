@@ -232,6 +232,18 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       return ctx.scene.leave()
     }
 
+    // In-flight guard (same shape as the sibling wizards). Reject a re-entry
+    // without touching the winner's flag; set synchronously, release in finally.
+    if (ctx.session.textToImageInProgress) {
+      await ctx.reply(
+        isRu
+          ? '⏳ Уже генерирую изображение, подождите немного...'
+          : '⏳ Already generating an image, please wait a moment...'
+      )
+      return
+    }
+    ctx.session.textToImageInProgress = true
+
     try {
       // Используем новую сигнатуру generateTextToImageDirect
       const generationResult = await generateTextToImageDirect(
@@ -282,6 +294,8 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
       })
       await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
+    } finally {
+      ctx.session.textToImageInProgress = false
     }
   },
   // ШАГ 4: Обработка кнопок дополнительной генерации
@@ -354,6 +368,18 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
+      // In-flight guard: this step stays put for repeat taps, so a second tap
+      // during a generation charged twice. Reject-before-set, sync set, finally.
+      if (ctx.session.textToImageInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже генерирую, подождите немного...'
+            : '⏳ Already generating, please wait a moment...'
+        )
+        return
+      }
+      ctx.session.textToImageInProgress = true
+
       try {
         await ctx.reply(
           isRu
@@ -401,6 +427,8 @@ export const textToImageWizard = new Scenes.WizardScene<MyContext>(
         })
         await sendGenericErrorMessage(ctx, isRu)
         return
+      } finally {
+        ctx.session.textToImageInProgress = false
       }
     }
 
