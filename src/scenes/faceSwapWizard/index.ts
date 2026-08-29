@@ -201,10 +201,18 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
       }
 
       if (!result.success || !result.resultUrl) {
+        // result.error is the raw provider message. It can carry internal host /
+        // request-id / validation detail, and — because the input URLs embed the
+        // bot token — a Replicate download failure can echo that token. Log it
+        // for admins; show the user a curated message instead (same as #1030).
+        logger.warn('🎭 [FACE SWAP] Generation failed', {
+          telegramId,
+          error: result.error,
+        })
         await ctx.reply(
           isRu
-            ? `❌ Ошибка при замене лица: ${result.error || 'Неизвестная ошибка'}\n\nПопробуйте другие фотографии.`
-            : `❌ Face swap error: ${result.error || 'Unknown error'}\n\nTry different photos.`
+            ? '❌ Не удалось выполнить замену лица. Попробуйте другие фотографии.'
+            : '❌ Face swap failed. Please try different photos.'
         )
         return ctx.scene.leave()
       }
