@@ -285,8 +285,49 @@ let faceApiReady: FaceApi | null = null
  * промис держим сами, чтобы два одновременных запроса не начали загрузку
  * дважды и не удвоили ожидание на холодном старте.
  */
+/**
+ * ОТСУТСТВИЕ МОДУЛЯ — СОСТОЯНИЕ СЕРВИСА, А НЕ СОБЫТИЕ КАДРА.
+ *
+ * Ленивый импорт (eb4e1a0) убрал верный дефект: одна необязательная функция
+ * была условием запуска всего сервиса, и падал он целиком. Но отказ при этом
+ * переехал со старта на КАЖДЫЙ вызов и стал молчаливым — issue #960.
+ *
+ * Разница, которую здесь и вводим:
+ *
+ *   модуля нет в образе  → отказывает каждый вызов одинаково. Это состояние,
+ *                          и объявлять его надо ОДИН РАЗ и громко, а не
+ *                          ловить заново на каждом ролике.
+ *   лицо не найдено      → нормальный исход для конкретного кадра, ему
+ *                          и место в тихом умолчании.
+ *
+ * До этой правки оба схлопывались в один catch, и различить их по логу было
+ * нельзя. Флаг ниже читает ответ рендера, чтобы человек, получивший ролик без
+ * кадрирования, узнал об этом от нас, а не по виду результата.
+ */
+let faceApiНедоступен: string | null = null
+
+/** Почему кадрирование по лицу недоступно, или null если доступно. */
+export function faceCroppingUnavailable(): string | null {
+  return faceApiНедоступен
+}
+
 function faceApi(): Promise<FaceApi> {
-  faceApiPromise ??= import('./src/lib/faceDetection').then(m => {
+  faceApiPromise ??= import('./src/lib/faceDetection')
+    .catch((e: unknown) => {
+      // Один раз на процесс: повторять на каждый ролик значит утопить лог и
+      // всё равно не сказать ничего нового.
+      if (!faceApiНедоступен) {
+        faceApiНедоступен = String(e).slice(0, 200)
+        console.error(
+          '❌ [face] Кадрирование по лицу НЕДОСТУПНО во всём процессе: ' +
+            faceApiНедоступен +
+            '\n   Каждый рендер пойдёт без кадрирования. Это состояние сервиса,' +
+            ' а не сбой конкретного ролика.'
+        )
+      }
+      throw e
+    })
+    .then(m => {
     faceApiReady = m
     return m
   })
@@ -1834,7 +1875,20 @@ function startRenderAsync(req: RenderRequest): string {
                 inputProps.faceScale = 1
               }
             } catch (faceError) {
-              console.warn(`⚠️ Face detection failed:`, faceError)
+              /**
+               * Тихо ТОЛЬКО когда причина разовая.
+               *
+               * Если модуль недоступен во всём процессе, это уже объявлено
+               * громко и один раз при первом импорте — повторять на каждом
+               * ролике незачем. Но само задание обязано унести признак с
+               * собой: человек получает ролик и должен узнать, что кадр
+               * собран без лица, ОТ НАС, а не по виду результата.
+               */
+              if (faceCroppingUnavailable()) {
+                inputProps.faceCroppingUnavailable = faceCroppingUnavailable()
+              } else {
+                console.warn(`⚠️ Face detection failed:`, faceError)
+              }
               inputProps.faceOffsetX = 0
               inputProps.faceOffsetY = 0
               inputProps.faceScale = 1
@@ -3973,7 +4027,14 @@ const server = createServer(async (req, res) => {
                       )
                     }
                   } catch (e) {
-                    console.warn('⚠️ Face detection failed:', e)
+                    // Та же развилка, что и у первого обработчика: недоступность
+                    // модуля уже объявлена один раз и должна уехать в задание,
+                    // а разовый сбой распознавания — просто в лог.
+                    if (faceCroppingUnavailable()) {
+                      inputProps.faceCroppingUnavailable = faceCroppingUnavailable()
+                    } else {
+                      console.warn('⚠️ Face detection failed:', e)
+                    }
                   }
                 }
               }
