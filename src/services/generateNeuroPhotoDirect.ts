@@ -1081,7 +1081,7 @@ Generated: ${new Date().toLocaleString('en-US')}
             // image they never received. Refund this one image, like the sibling
             // generators do by rethrowing. A refund only ever returns money.
             try {
-              await directPaymentProcessor({
+              const refundResult = await directPaymentProcessor({
                 telegram_id,
                 amount: costPerImage,
                 type: PaymentType.REFUND,
@@ -1091,6 +1091,12 @@ Generated: ${new Date().toLocaleString('en-US')}
                 bot_name: botName,
                 service_type: ModeEnum.NeuroPhoto,
               })
+              if (!refundResult?.success) {
+                logger.error(
+                  '❌ [DIRECT] Возврат за недоставленное изображение не прошёл',
+                  { telegram_id, refundResult }
+                )
+              }
             } catch (refundError) {
               logger.error(
                 '❌ [DIRECT] Ошибка возврата за недоставленное изображение',
