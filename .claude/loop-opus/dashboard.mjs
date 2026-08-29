@@ -12,7 +12,13 @@
  *   node .claude/loop-opus/dashboard.mjs
  *
  * Читает: STATE.json, anomalies-last.json (если есть).
- * Пишет:  dashboard.html — его и публикуем артефактом.
+ * Writes:  dashboard-opus.html — that is what gets published.
+ *
+ * ITS OWN NAME, NOT A SHARED ONE. Publishing failed twice with a conflict:
+ * another session writes to the same artifact address. Overwriting would
+ * erase their snapshot; leaving it alone means the page shows someone else's
+ * state half the time. A separate file settles it without negotiation, and
+ * the shared address stays with the neighbour.
  */
 
 import fs from 'node:fs'
@@ -390,7 +396,7 @@ const html = `<title>Цикл ${э(S.iteration)} — ${э(состояние.т)
 </div>
 `
 
-fs.writeFileSync(path.join(here, 'dashboard.html'), html)
+fs.writeFileSync(path.join(here, 'dashboard-opus.html'), html)
 console.log(
   `✅ дашборд собран: цикл ${S.iteration}, ${состояние.т}, ` +
     `${(S.shipped || []).length} правок, ${аномалии.length} аномалий`
