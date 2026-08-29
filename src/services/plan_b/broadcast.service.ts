@@ -481,7 +481,20 @@ export const broadcastService = {
 
             if (err.response) {
               const errorCode = err.response.error_code
-              if (errorCode === 403 || errorCode === 400) {
+              const description = String(err.response.description || '')
+              // Remove a user ONLY when the error genuinely means the chat is
+              // gone/unreachable — never on a bare 400. A broadcast sends the
+              // SAME caption to everyone with parse_mode 'MarkdownV2'; a single
+              // unescaped special char yields "Bad Request: can't parse
+              // entities" (a 400) for EVERY recipient, so deleting on a bare 400
+              // would wipe the whole audience on one formatting mistake.
+              const chatGone =
+                errorCode === 403 ||
+                (errorCode === 400 &&
+                  /chat not found|user is deactivated|bot was blocked|bot was kicked|PEER_ID_INVALID|chat_id is empty|group chat was (deleted|migrated)/i.test(
+                    description
+                  ))
+              if (chatGone) {
                 logger.error(
                   `❌ Удаляем пользователя ${user.telegram_id} из-за ошибки: ${err.response.description}`,
                   {
@@ -489,10 +502,15 @@ export const broadcastService = {
                     error: err,
                   }
                 )
+                // Scope by bot_name too: one bot's send failure must never
+                // delete this user's rows for OTHER bots on the multi-bot
+                // platform (fetchUsers selects per-bot, so this removes exactly
+                // the row being broadcast to).
                 await supabase
                   .from('users')
                   .delete()
                   .eq('telegram_id', user.telegram_id)
+                  .eq('bot_name', user.bot_name)
               } else {
                 logger.error(
                   `❌ Не удалось отправить сообщение пользователю: ${user.telegram_id}`,
