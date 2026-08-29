@@ -17,6 +17,29 @@ import { Input } from 'telegraf'
 import { uploadTelegramFileLocal } from '@/helpers/uploadTelegramFileLocal'
 import { videoTaskStore } from '@/services/video-task-store'
 
+// Idempotency for video delivery+charge. The poller (monitorVideoGeneration) and
+// the persistent "update_video_status" button (handleVideoStatusUpdate) both
+// deliver AND charge the same async job through handleVideoReady; a button tap
+// racing the poller used to charge (MONEY_OUTCOME) the job twice. We key on the
+// IMMUTABLE provider jobId (not the single-slot ctx.session.videoJobId, which a
+// second concurrent generation overwrites — that would skip the older job's real
+// delivery). Mirrors the webhook's chargedVideoJobs Set, but bounded so a
+// long-lived multi-bot process cannot grow it without limit.
+const DELIVERED_VIDEO_JOBS_MAX = 1000
+const deliveredVideoJobs = new Set<string>()
+function claimVideoJobDelivery(jobId: string): boolean {
+  // Returns false if this job was already delivered (caller must skip). The
+  // has()+add() pair is synchronous, so it is atomic w.r.t. the event loop:
+  // the first entry for a job wins, a racing re-entry gets false.
+  if (deliveredVideoJobs.has(jobId)) return false
+  deliveredVideoJobs.add(jobId)
+  if (deliveredVideoJobs.size > DELIVERED_VIDEO_JOBS_MAX) {
+    const oldest = deliveredVideoJobs.values().next().value
+    if (oldest !== undefined) deliveredVideoJobs.delete(oldest)
+  }
+  return true
+}
+
 /**
  * Handler для генерации видео из текста через прямую интеграцию с сервером
  * Поддерживает все модели согласно документации
@@ -369,7 +392,8 @@ async function monitorVideoGeneration(
           ctx.session.videoPrompt || '',
           (ctx.session.videoModelId as VideoModelId) || 'veo3_fast',
           ctx.session.videoDuration,
-          messageId
+          messageId,
+          jobId
         )
 
         // Очищаем сессию
@@ -454,7 +478,8 @@ async function handleVideoReady(
   prompt: string,
   modelId: VideoModelId,
   duration: number | undefined,
-  messageId: number
+  messageId: number,
+  jobId?: string
 ): Promise<void> {
   const is_ru = isRussianFromState(ctx)
   const telegram_id = ctx.from?.id.toString() || ''
@@ -489,6 +514,19 @@ async function handleVideoReady(
           : '❌ Error: received invalid video URL. Please try again.'
       )
     }
+    return
+  }
+
+  // Idempotency claim: for an async delivery (jobId present), proceed only if
+  // this job has not already been delivered. Keying on the immutable jobId (not
+  // ctx.session.videoJobId) means a second concurrent generation overwriting the
+  // session slot no longer skips the older job's real delivery. The synchronous
+  // immediate-result path passes no jobId and always proceeds (single-entry).
+  if (jobId !== undefined && !claimVideoJobDelivery(jobId)) {
+    logger.warn(
+      '[handleVideoReady] duplicate delivery skipped for already-delivered job',
+      { jobId, telegram_id }
+    )
     return
   }
 
@@ -700,10 +738,11 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
   }
 
   try {
-    const statusResponse = await checkVideoGenerationStatus(
-      ctx.session.videoJobId,
-      is_ru
-    )
+    // Capture the job id up front: the poller may clear the session
+    // during the status-check await, and this id is the idempotency
+    // key handleVideoReady claims to prevent a double charge.
+    const jobId = ctx.session.videoJobId
+    const statusResponse = await checkVideoGenerationStatus(jobId, is_ru)
 
     logger.info('[handleVideoStatusUpdate] Status check result', {
       telegram_id,
@@ -722,7 +761,8 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
         ctx.session.videoPrompt || '',
         (ctx.session.videoModelId as VideoModelId) || 'veo3_fast',
         ctx.session.videoDuration,
-        ctx.session.videoMessageId || 0
+        ctx.session.videoMessageId || 0,
+        jobId
       )
 
       // Очищаем сессию
