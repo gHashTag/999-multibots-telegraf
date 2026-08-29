@@ -30,6 +30,7 @@ const GUARDED_PAID_WIZARDS: Record<string, string> = {
   'src/scenes/morphingWizard/index.ts': 'morphingGenerationInProgress',
   'src/scenes/aiCoverWizard/index.ts': 'aiCoverGenerationInProgress',
   'src/scenes/imageToPromptWizard/index.ts': 'imageToPromptInProgress',
+  'src/scenes/aiChatWizard/index.ts': 'aiChatInProgress',
 }
 
 describe('paid wizards keep their in-flight guard', () => {

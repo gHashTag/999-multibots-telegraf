@@ -409,6 +409,11 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   // not advance until it resolves, so a second voice message during that window
   // ran it again — double level-up and a second, orphaned ElevenLabs voice.
   voiceAvatarInProgress?: boolean
+  // In-flight guard for the AI chat wizard: conversationStep calls the paid
+  // chatWithAI (a Replicate prediction, ~30s) once per message with no
+  // serialization, so a user sending several messages in quick succession
+  // fired several concurrent paid predictions on the platform token.
+  aiChatInProgress?: boolean
   // In-flight guard for the image-to-prompt wizard: step 2 runs
   // generateImageToPrompt, which charges the user (MONEY_OUTCOME) and runs the
   // full caption pipeline, and only leaves after it resolves. A second photo

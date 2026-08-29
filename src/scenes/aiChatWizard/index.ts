@@ -105,6 +105,22 @@ const conversationStep = async (ctx: MyContext) => {
   const model: string = wizardData.selectedModel || AI_CHAT_MODELS.gpt4.id
   const tid = String(ctx.from?.id ?? '')
 
+  // In-flight guard: conversationStep calls the paid chatWithAI (a Replicate
+  // prediction, ~30s) once per message with no serialization, so a user
+  // sending several messages in quick succession fired several concurrent
+  // paid predictions on the platform token. Reject the re-entry while a reply
+  // is still being generated; set synchronously so there is no await between
+  // the check and the set (same shape as the voice-avatar guard).
+  if (ctx.session.aiChatInProgress) {
+    await ctx.reply(
+      isRu
+        ? '⏳ Уже обрабатываю ваше сообщение, подождите немного...'
+        : '⏳ Already processing your message, please wait a moment...'
+    )
+    return
+  }
+  ctx.session.aiChatInProgress = true
+
   // Add user message to session history
   history.push({ role: 'user', content: userText })
 
@@ -145,6 +161,8 @@ const conversationStep = async (ctx: MyContext) => {
       telegramId: ctx.from?.id,
     })
     await sendGenericErrorMessage(ctx, isRu, error as Error)
+  } finally {
+    ctx.session.aiChatInProgress = false
   }
 }
 
