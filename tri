@@ -51,13 +51,14 @@ good() { paint '32' "  OK   $1"; }
 bad()  { paint '31' "  ✗    $1"; }
 warn() { paint '33' "  ⚠    $1"; }
 
-# ЖИВА ЛИ ФАБРИКА — ответ ВОЗРАСТОМ, а не наличием поля.
+# IS THE FACTORY ALIVE -- answered by AGE, not by the presence of a field.
 #
-# 29.08 конвейер простоял 51 час, и всё это время регресс печатал ЧИСТО:
-# он проверял `lastPostAt` на существование (булево остаётся истинным вечно),
-# а баланс токенов, из-за которого фабрика и встала, выбрасывал. Отдельная
-# команда нужна, чтобы ответ был одной строкой и до правок, а не после.
-факт_фабрики() {
+# On 2026-08-29 the pipeline stood still for 51 hours while the regression check
+# kept printing a clean run: it tested `lastPostAt` for existence (a boolean
+# stays true forever) and threw away the token balance that had actually stopped
+# it. This is a separate command so the answer is one line, available BEFORE the
+# work rather than after.
+factory_fact() {
   python3 - "$ROOT" <<'PYEOF'
 import json, sys, os
 from datetime import datetime, timezone
@@ -65,91 +66,98 @@ root = sys.argv[1]
 try:
     s = json.load(open(os.path.join(root, 'loop/state.json')))
 except Exception as e:
-    print(f'  ✗    состояние не читается: {e}'); sys.exit(1)
+    print(f'  x    cannot read loop state: {e}'); sys.exit(1)
 lp, today = s.get('lastPostAt'), s.get('postsToday', 0)
 if not lp:
-    print('  ⚠    постов ещё не было'); sys.exit(0)
+    print('  ~    no posts yet'); sys.exit(0)
 age = (datetime.now(timezone.utc) - datetime.fromisoformat(str(lp).replace('Z','+00:00'))).total_seconds()/3600
 limit_hit = today >= 4
 if age <= 8 or limit_hit:
-    print(f'  OK   последний пост {age:.1f} ч назад, сегодня {today}/4')
+    print(f'  OK   last post {age:.1f}h ago, today {today}/4')
     sys.exit(0)
-print(f'  ✗    ФАБРИКА СТОИТ: {age:.1f} ч без поста, лимит НЕ исчерпан ({today}/4)')
-print('       смотри: токены (нужен запас >= 4), крон автопилота, очередь тем')
+print(f'  x    FACTORY STALLED: {age:.1f}h with no post, daily limit NOT spent ({today}/4)')
+print('       check: tokens (need >= 4 of runway), autopilot schedule, topic queue')
 sys.exit(1)
 PYEOF
 }
 
 usage() {
   cat <<'СПРАВКА'
-tri — оснастка цикла. Опыт, ставший командами.
+tri — loop tooling. Lessons that became commands.
 
-ПРОВЕРКИ, КОТОРЫЕ СТОИЛИ ЦИКЛОВ
-  tri кто <путь> [метод] [тело]
-        Дёрнуть маршрут и сказать, КТО ответил: общий гвард или сам маршрут.
-        Статус 401 не значит ничего — значит только словарь в теле ответа.
-        Пример: tri кто /api/auth/pair/claim POST '{"code":"123456"}'
+Command names are ENGLISH. The former Russian names still work as aliases, so
+scripts, skills and journal entries written earlier keep running: renaming
+without an alias would break work that already exists.
 
-  tri в-tsc <файл> [tsconfig]
-        Входит ли файл в программу tsc. Ноль ошибок в файле, которого в
-        программе нет, означает «не проверялось», а не «верно».
+CHECKS THAT EACH COST A CYCLE
+  tri who <path> [method] [body]
+        Hit a route and say WHO answered: the global guard or the route itself.
+        A 401 means nothing on its own -- only the vocabulary in the body does.
+        Example: tri who /api/auth/pair/claim POST '{"code":"123456"}'
 
-  tri жив <строка> <каталог сборки>
-        Есть ли строка в СОБРАННЫХ чанках. Ищет во всех, а не в индексном:
-        компонент обычно уезжает в ленивый чанк, и поиск по index врёт.
+  tri in-tsc <file> [tsconfig]
+        Is the file part of the tsc program. Zero errors in a file that is not
+        in the program means "not checked", not "correct".
 
-  tri мутация <файл> <было> <стало> <тест>
-        Сломать, прогнать тест, ждать красноты, откатить, ждать зелени.
-        Тест, который не краснеет от поломки, не проверяет ничего.
+  tri alive <string> <build dir>
+        Is the string in the BUILT chunks. Searches all of them, not just the
+        index: a component usually lands in a lazy chunk, so searching index
+        lies.
 
-  tri выложен
-        Совпадает ли версия на проде с origin/main.
+  tri mutate <file> <from> <to> <test>
+        Break it, run the test, expect red, revert, expect green. A test that
+        does not go red when you break the code checks nothing.
 
-  tri разошлись
-        Насколько текущая ветка разошлась с origin/main. Правку ведут ОТ
-        origin/main, а не от локального HEAD.
+  tri deployed
+        Does the version in production match origin/main.
 
-  tri живая <имя>
-        Работает ли функция в ВЕБЕ, прежде чем нести её в приложение.
-        Смотрит: есть ли маршрут на сервере, свой ли обработчик у кнопки,
-        не литерал ли счётчик. Перенести неработающее — воспроизвести
-        декорацию и записать себе паритет.
+  tri diverged
+        How far the current branch has diverged from origin/main. Work is based
+        on origin/main, not on the local HEAD.
 
-  tri ворота
-        Прогнать то, что должен был проверить CI: типы, тесты, сборку iOS,
-        кириллицу. Не равноценная замена — одна машина, один Node, один
-        Xcode, — но лучше, чем ничего, пока Actions не оплачены.
+  tri real <name>
+        Does the feature work on the WEB before carrying it into the app.
+        Looks at: does the server route exist, does the button have its own
+        handler, is the counter a literal. Porting something broken reproduces
+        the decoration and records parity with it.
+
+  tri gate
+        Run what CI should have run: types, tests, the iOS build, Cyrillic.
+        Not an equal substitute -- one machine, one Node, one Xcode -- but
+        better than nothing while Actions are unpaid.
 
   tri ci
-        Выполняется ли CI вообще. Прогон, падающий за секунды с нулём шагов,
-        — отказ инфраструктуры, а не сигнал о коде: всё влитое влито вслепую.
+        Is CI running at all. A run that fails in seconds with zero steps is an
+        infrastructure refusal, not a signal about the code: everything merged
+        was merged blind.
 
-  tri цвета [каталог]
-        Литеральные цвета и размеры шрифта в Swift мимо Theme.swift.
-        Ловит ЛИТЕРАЛ, не упоминание: .system(size: 14) — да,
-        .system(size: Тема.Кегль.xs) — нет, это использование токена.
-        Дизайн расползается по одному литералу за правку, а не разом.
+  tri colors [dir]
+        Literal colours and font sizes in Swift that bypass Theme.swift.
+        Catches the LITERAL, not the mention: .system(size: 14) yes,
+        .system(size: Theme.Size.xs) no -- that is a token in use.
+        A design system leaks one literal per edit, not all at once.
 
-  tri цвета проверка
-        Прогнать шаблон на встроенном образце: 10 литералов обязан найти,
-        9 токенов — пропустить. Тишина на дереве НЕ доказывает исправность:
-        молчать умеет и мёртвый шаблон, что здесь уже случилось.
+  tri colors check
+        Run the pattern against a built-in sample: it must find 10 literals and
+        skip 9 tokens. Silence over the tree does NOT prove health -- a dead
+        pattern is silent too, which has already happened here.
 
-ОСНАСТКА ЦИКЛА
-  tri лок | tri раслок    занять или освободить блокировку итерации
-  tri скан                аномалии и что ждёт владельца
-  tri панель              пересобрать дашборд
-  tri тесты               весь прогон
-  tri маршруты            сверка адресов клиента и сервера
-  tri здоровье            /health рендера одной строкой
-  tri фабрика             жива ли фабрика контента — ВОЗРАСТОМ последнего
-                          поста, а не наличием поля. 29.08 регресс печатал
-                          ЧИСТО, пока конвейер стоял 51 час: проверялось
-                          `lastPostAt` на существование, а не на давность.
+LOOP TOOLING
+  tri lock | tri unlock   take or release the iteration lock
+  tri scan                anomalies, and what is waiting on the owner
+  tri panel               rebuild the dashboard
+  tri tests               the full run
+  tri routes              client and server addresses, compared
+  tri health              the render service /health in one line
+  tri factory             Is the content factory alive, answered by the AGE of
+                          the last post rather than the presence of a field.
+                          On 2026-08-29 the regression check reported clean while
+                          the pipeline had been stopped for 51 hours, because it
+                          tested lastPostAt for existence, not for staleness.
 
-ПРОЧЕЕ
-  tri опыт <заголовок>    дописать урок в скилл (тело читается со stdin)
-  tri помощь
+OTHER
+  tri lesson <title>      append a lesson to the skill (body read from stdin)
+  tri help
 СПРАВКА
 }
 
@@ -771,25 +779,29 @@ action="${1:-помощь}"
 shift 2>/dev/null || true
 
 case "$action" in
-  кто)        cmd_who "$@" ;;
-  в-tsc)      cmd_in_tsc "$@" ;;
-  жив)        cmd_alive "$@" ;;
-  мутация)    cmd_mutate "$@" ;;
-  выложен)    cmd_deployed ;;
-  разошлись)  cmd_diverged ;;
-  цвета)      cmd_colors "$@" ;;
-  ci)         cmd_ci ;;
-  ворота)     cmd_gate ;;
-  живая)      cmd_real "$@" ;;
-  опыт)       cmd_lesson "$@" ;;
-  лок)        bash "$TOOLS/guard.sh" acquire ;;
-  раслок)     bash "$TOOLS/guard.sh" release ;;
-  скан)       node "$TOOLS/anomalies.mjs" ;;
-  панель)     node "$TOOLS/dashboard.mjs" ;;
-  тесты)      bash "$TOOLS/test-all.sh" ;;
-  маршруты)   node "$TOOLS/check-routes.mjs" ;;
-  здоровье)   curl -s -m 20 "$RENDER/health" | head -c 400; echo ;;
-  фабрика)    факт_фабрики ;;
-  помощь|-h|--help) usage ;;
-  *)          bad "не знаю команды «$action»"; echo; usage; exit 1 ;;
+  # English is the primary name; the Russian one stays as an alias because loop
+  # scripts, skills and the journal already call it. Renaming without the alias
+  # would break work that already exists -- the exact thing this loop guards
+  # against.
+  who|кто)             cmd_who "$@" ;;
+  in-tsc|в-tsc)        cmd_in_tsc "$@" ;;
+  alive|жив)           cmd_alive "$@" ;;
+  mutate|мутация)      cmd_mutate "$@" ;;
+  deployed|выложен)    cmd_deployed ;;
+  diverged|разошлись)  cmd_diverged ;;
+  colors|цвета)        cmd_colors "$@" ;;
+  ci)                  cmd_ci ;;
+  gate|ворота)         cmd_gate ;;
+  real|живая)          cmd_real "$@" ;;
+  lesson|опыт)         cmd_lesson "$@" ;;
+  lock|лок)            bash "$TOOLS/guard.sh" acquire ;;
+  unlock|раслок)       bash "$TOOLS/guard.sh" release ;;
+  scan|скан)           node "$TOOLS/anomalies.mjs" ;;
+  panel|панель)        node "$TOOLS/dashboard.mjs" ;;
+  tests|тесты)         bash "$TOOLS/test-all.sh" ;;
+  routes|маршруты)     node "$TOOLS/check-routes.mjs" ;;
+  health|здоровье)     curl -s -m 20 "$RENDER/health" | head -c 400; echo ;;
+  factory|фабрика)     factory_fact ;;
+  help|помощь|-h|--help) usage ;;
+  *)          bad "unknown command: $action"; echo; usage; exit 1 ;;
 esac
