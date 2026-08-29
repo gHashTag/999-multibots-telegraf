@@ -51,10 +51,49 @@ const читать = f => {
   }
 }
 
-const S = читать('STATE.json')
+/**
+ * NO STATE -- SEED IT, DO NOT DIE.
+ *
+ * STATE.json is gitignored (it is run state), so on any clean clone and for
+ * every new cron cycle the file simply did not exist: `tri панель` printed an
+ * error and exited 1. Verified 2026-08-29 -- the file was nowhere in the
+ * repository, so the dashboard had never been built at all. A tool that cannot
+ * run by default is a decoration.
+ *
+ * The missing state is now seeded from live sources (branch from git, anomalies
+ * from the neighbouring anomalies-last.json). The panel always builds, and empty
+ * sections say so honestly instead of the whole thing going silent.
+ */
+let S = читать('STATE.json') // cyrillic-ok: existing helper name
 if (!S) {
-  console.error('❌ STATE.json не прочитан — дашборд не собран')
-  process.exit(1)
+  let branch = 'main'
+  try {
+    branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd: here,
+      encoding: 'utf8',
+    }).trim()
+  } catch {
+    /* not a repository -- keep main */
+  }
+  S = {
+    iteration: 0,
+    updatedAt: new Date().toISOString(),
+    branch,
+    measured: [],
+    shipped: [],
+    blocked: [],
+    backlog: [],
+    selfCritique: [
+      {
+        что: 'STATE.json отсутствовал — панель засеяла пустое состояние. Виток обязан его заполнить.', // cyrillic-ok: dashboard copy
+      },
+    ],
+  }
+  fs.writeFileSync(
+    path.join(here, 'STATE.json'),
+    JSON.stringify(S, null, 2) + '\n'
+  )
+  console.log('  ↳    STATE.json не было — засеян пустой, панель собирается') // cyrillic-ok: console copy
 }
 const A = читать('anomalies-last.json')
 
