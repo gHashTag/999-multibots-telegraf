@@ -427,9 +427,9 @@
   },
   {
     "pr": 873,
-    "file": "apps/vibee-editor/render/render-server.ts",
+    "file": "apps/vibee-editor/render/src/stars-credit.ts",
     "needle": "star_payments",
-    "note": "идемпотентность вебхука покупки"
+    "note": "идемпотентность вебхука покупки | перенесено в src/stars-credit.ts в цикле 226, покрыто stars-credit.test.ts"
   },
   {
     "pr": 874,
@@ -440,8 +440,8 @@
   {
     "pr": 877,
     "file": ".claude/loop-opus/anomalies.mjs",
-    "needle": "ЖЁСТКИЕ_ЗАВИСИМОСТИ",
-    "note": "детектор больше не глушит стойку через FAL/ElevenLabs"
+    "needle": "HARD_DEPS",
+    "note": "детектор больше не глушит стойку через FAL/ElevenLabs | константа переименована на английский (правило: код по-английски)"
   },
   {
     "pr": 878,

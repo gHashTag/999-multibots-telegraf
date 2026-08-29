@@ -180,16 +180,58 @@ export function handleMcpCard(res: ServerResponse) {
 }
 
 /** POST /mcp — JSON-RPC. */
+/**
+ * Identity including ISSUED keys -- the async layer above chatIdentity.
+ *
+ * WHY IT IS NEEDED. `handleAgentKeys` issues a key and, in its own response,
+ * promises: "Connect with X-Agent-Key to POST /mcp or /a2a". The only resolver
+ * was `chatIdentity`, which knows `AGENT_KEYS` from the environment and never
+ * reads `agent_keys`. An issued key therefore worked NOWHERE while the endpoint
+ * claimed otherwise. Until the issue route was wired (cycle 226) nobody could
+ * hear that promise; now they can, so the gap became real.
+ *
+ * The source order matches chatIdentity, and the database comes LAST: a
+ * signature and a session prove a person is present right now, while a key is
+ * long-lived and revocable. A revoked key resolves to nobody -- `revoked =
+ * FALSE` sits in the query, otherwise revocation would be a row change with no
+ * consequence.
+ *
+ * A database error does NOT grant access: if it cannot be read we return null
+ * and the caller answers 401. Refusing because the store is unreachable is
+ * more honest than letting someone in unchecked.
+ */
+export async function resolveIdentity(
+  req: IncomingMessage,
+  getPool: () => any
+): Promise<string | null> {
+  const sync = chatIdentity(req, verifiedTelegramId(req))
+  if (sync) return sync
+  const key = (req.headers['x-agent-key'] as string | undefined) || ''
+  if (!key) return null
+  try {
+    const pool = await getPool()
+    const r = await pool.query(
+      `SELECT telegram_id FROM agent_keys
+        WHERE key_hash = $1 AND revoked = FALSE LIMIT 1`,
+      [keyHash(key)]
+    )
+    return r.rows?.[0]?.telegram_id ? String(r.rows[0].telegram_id) : null
+  } catch {
+    // The table may not exist on a fresh database -- still no reason to admit.
+    return null
+  }
+}
+
 export async function handleMcp(
   req: IncomingMessage,
   res: ServerResponse,
   getPool: () => any
 ) {
-  // Личность ДВЕ: ключ агента (внешний клиент, привязан к человеку) ИЛИ
-  // подпись initData (сам мини-апп). Раньше был только ключ — и профиль
-  // внутри Telegram не мог вызвать собственные инструменты человека,
-  // хотя подпись доказывает то же самое и не слабее.
-  const owner = chatIdentity(req, verifiedTelegramId(req))
+  // THREE identities: the initData signature (the mini app itself), a key from
+  // the environment, and a key the person issued to themselves through
+  // /api/agent/keys. The last one resolves through the database, which is why
+  // this entry point is async.
+  const owner = await resolveIdentity(req, getPool)
   if (!owner) {
     // Сообщение константно и не отражает содержимое заголовков: любое
     // эхо чужого ввода — путь к инъекции, даже в JSON.
@@ -367,11 +409,15 @@ function keyHash(key: string): string {
  *   GET    /api/agent/keys                  → список своих (префикс+метка, не ключ)
  *   DELETE /api/agent/keys/:prefix          → отзыв по префиксу
  *
- * В БД лежит только SHA-256 ключа. Восстановлено после того, как рефактор
- * сессий (#891) удалил функцию, оставив маршрут в render-server — main не
- * компилировался. РАЗРЕШЕНИЕ выданных ключей (agent_keys) в chatIdentity пока
- * НЕ подключено: она синхронна (env-ключи + сессии + подпись), а поиск по БД
- * асинхронный — это отдельная правка. Здесь восстановлена сторона ВЫПУСКА.
+ * Only the SHA-256 of the key is stored. Restored after the session refactor
+ * (#891) deleted the function while leaving the route in render-server, which
+ * broke the build on main.
+ *
+ * The other half -- RESOLVING issued keys -- lives in `resolveIdentity`:
+ * `chatIdentity` is sync and never touches the database, so the `agent_keys`
+ * lookup was moved into an async layer wired at the entry of /mcp and the agent
+ * chat. Until it existed, this very response promised a way to connect that did
+ * not.
  */
 export async function handleAgentKeys(
   req: IncomingMessage,

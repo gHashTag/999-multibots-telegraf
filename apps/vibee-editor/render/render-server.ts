@@ -20,6 +20,7 @@ import {
   handleAgentChat,
   handleAgentKeys,
   chatIdentity,
+  resolveIdentity,
   readBody,
 } from './src/agent/routes'
 import os from 'node:os'
@@ -5265,10 +5266,13 @@ const server = createServer(async (req, res) => {
     return
   }
   if (req.url?.split('?')[0] === '/api/agent/chat' && req.method === 'POST') {
-    // Личность: подпись мини-аппа ИЛИ ключ агента (коннектор для тестов).
-    // telegram_id никогда не берётся из тела: иначе любой публиковал бы от
-    // чужого имени.
-    const who = chatIdentity(req, verifiedTelegramId(req))
+    // Identity: the mini-app signature OR an agent key (the connector used for
+    // testing). telegram_id is never taken from the body -- otherwise anyone
+    // could publish under someone else's name. resolveIdentity rather than
+    // chatIdentity: a key issued through /api/agent/keys lives in the database,
+    // and without reading it the key would not work -- while the issue response
+    // promises exactly that way to connect.
+    const who = await resolveIdentity(req, getPool)
     if (!who) {
       res.writeHead(401, { 'Content-Type': 'application/json' })
       res.end(
