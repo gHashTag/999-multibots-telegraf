@@ -403,6 +403,11 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   // In-flight guard for the AI Cover confirm button: a double-tap otherwise
   // charged twice and generated two covers (same shape as morphing above).
   aiCoverGenerationInProgress?: boolean
+  // In-flight guard for the voice-avatar wizard: step 2 runs createVoiceAvatar
+  // (levels the user up, creates an ElevenLabs voice, writes voice_id) and does
+  // not advance until it resolves, so a second voice message during that window
+  // ran it again — double level-up and a second, orphaned ElevenLabs voice.
+  voiceAvatarInProgress?: boolean
 
   // Text-to-video direct generation fields
   videoJobId?: string // ID задачи генерации видео для отслеживания статуса

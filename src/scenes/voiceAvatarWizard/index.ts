@@ -85,6 +85,23 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         return
       }
 
+      // In-flight guard (same shape as morphing/aiCover). createVoiceAvatar
+      // levels the user up, creates an ElevenLabs voice, and writes voice_id to
+      // the DB; step 2 stays active until it resolves, so a second voice message
+      // sent during that window ran it again — double level-up, a second and now
+      // orphaned ElevenLabs voice, and a duplicate success message. Reject the
+      // re-entry without touching the winner's flag; set synchronously so there
+      // is no await between the check and the set.
+      if (ctx.session.voiceAvatarInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже создаю ваш голосовой аватар, подождите немного...'
+            : '⏳ Already creating your voice avatar, please wait a moment...'
+        )
+        return
+      }
+      ctx.session.voiceAvatarInProgress = true
+
       try {
         const file = await ctx.telegram.getFile(fileId)
         if (!file.file_path) {
@@ -151,6 +168,8 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         const { showMainMenu } = await import('@/navigation')
         await showMainMenu(ctx)
         return
+      } finally {
+        ctx.session.voiceAvatarInProgress = false
       }
     }
   }
