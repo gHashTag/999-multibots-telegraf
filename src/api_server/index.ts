@@ -77,8 +77,12 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
     next()
   })
 
-  // Provider health endpoint
-  app.get('/api/providers', async (_req: any, res: any) => {
+  // Provider health endpoint. Behind requireInternalKey (like the sibling
+  // diagnostic/billing routers): the response leaks provider config/balance
+  // state ('FAL_KEY not set', 'Balance exhausted', remaining quota) and
+  // ?refresh=true forces live outbound provider probes + an admin alert, so
+  // it must not be anonymously reachable.
+  app.get('/api/providers', requireInternalKey, async (_req: any, res: any) => {
     const { getAllProviderStatuses, checkAllProviders } = await import(
       '../services/provider-health-monitor'
     )
