@@ -59,26 +59,53 @@ warn() { paint '33' "  ⚠    $1"; }
 # it. This is a separate command so the answer is one line, available BEFORE the
 # work rather than after.
 factory_fact() {
-  python3 - "$ROOT" <<'PYEOF'
-import json, sys, os
+  # THE FEED IS THE TRUTH, THE LOCAL FILE IS A HINT.
+  #
+  # This read loop/state.json only -- and that file is written by whichever
+  # LOOP_DIR the last run used. Test runs use a temp dir, and the production
+  # daemon writes inside its own container, so the repo copy goes stale and this
+  # command reported a 52.9-hour stall on a day with three published reels. It
+  # was making exactly the mistake it was built to catch: trusting a local
+  # artefact instead of the record of what actually happened.
+  local newest
+  newest=$(curl -s -m 20 "$RENDER/api/feed?page=0&limit=1&sort=recent" \
+    | python3 -c "
+import sys, json
 from datetime import datetime, timezone
-root = sys.argv[1]
 try:
-    s = json.load(open(os.path.join(root, 'loop/state.json')))
-except Exception as e:
-    print(f'  x    cannot read loop state: {e}'); sys.exit(1)
-lp, today = s.get('lastPostAt'), s.get('postsToday', 0)
-if not lp:
-    print('  ~    no posts yet'); sys.exit(0)
-age = (datetime.now(timezone.utc) - datetime.fromisoformat(str(lp).replace('Z','+00:00'))).total_seconds()/3600
-limit_hit = today >= 4
-if age <= 8 or limit_hit:
-    print(f'  OK   last post {age:.1f}h ago, today {today}/4')
-    sys.exit(0)
-print(f'  x    FACTORY STALLED: {age:.1f}h with no post, daily limit NOT spent ({today}/4)')
-print('       check: tokens (need >= 4 of runway), autopilot schedule, topic queue')
-sys.exit(1)
-PYEOF
+    t = json.load(sys.stdin).get('templates', [])
+except Exception:
+    print(''); raise SystemExit
+if not t:
+    print(''); raise SystemExit
+raw = str(t[0].get('createdAt', ''))
+# '2026-08-29 04:28:41.2+00' -> ISO: space to T, offset needs its colon.
+iso = raw.replace(' ', 'T')
+if len(iso) > 3 and (iso[-3] == '+' or iso[-3] == '-'):
+    iso += ':00'
+try:
+    age = (datetime.now(timezone.utc) - datetime.fromisoformat(iso)).total_seconds() / 3600
+except Exception:
+    print(''); raise SystemExit
+print(f\"{age:.1f}|{str(t[0].get('name',''))[:44]}\")
+" 2>/dev/null)
+
+  if [ -z "$newest" ]; then
+    warn 'лента не ответила — судить о фабрике нечем (это НЕ «всё хорошо»)'
+    return 1
+  fi
+  local age name
+  age=${newest%%|*}
+  name=${newest#*|}
+  # Compare without bc: strip the fraction.
+  local whole=${age%%.*}
+  if [ "${whole:-99}" -le 8 ]; then
+    good "last post ${age}h ago — «${name}»"
+    return 0
+  fi
+  bad "FACTORY STALLED: ${age}h with no post — «${name}»"
+  paint '31' '       check: autopilot daemon (AUTOPILOT_LOOP), tokens, topic queue'
+  return 1
 }
 
 usage() {
