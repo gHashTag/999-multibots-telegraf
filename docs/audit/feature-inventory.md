@@ -37,14 +37,22 @@ These are shipped code paths that cannot run as the tree stands. Wiring any of
 them changes production behaviour and/or the database, so each is an owner
 decision, not an autonomous fix.
 
-| Feature                      | Evidence                                                                                                                                                                    | Effect of it being off                                                                                                                                                             |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Stuck-training watchdog**  | `functions/training/checkStuckTrainings` is in the Inngest gate's unregistered list (`src/__tests__/inngest/registration.test.ts`)                                          | A 30-minute cron that would resolve stuck trainings never runs. Per `docs/audit/unregistered-functions.md`, 17 trainings have hung 250–465 days with ~3410⭐ of adjacent payments. |
-| **Welcome avatar**           | `functions/welcomeAvatarGeneration` unregistered; `createUserScene` sends `user/welcome.avatar.generate` with no subscriber                                                 | New users never get the welcome avatar the onboarding promises.                                                                                                                    |
-| **Voice training (RVC)**     | `const VOICE_TRAINING_DISCONNECTED = true` in `src/scenes/voiceTrainingWizard/index.ts:54`; `functions/training/voiceTrainingRVC` unregistered                              | The confirm button returns before charging — the feature is intentionally gated off, not broken, but it is dead to users.                                                          |
-| **Level quest / onboarding** | `step0Scene`…`step12Scene` and `completeScene` exported from `levelQuestWizard` but absent from `createStage`; entry `setupLevelHandlers` is itself an unregistered handler | The 13-step onboarding quest is dead upstream; `levelQuestWizard.enter` is a one-line stub.                                                                                        |
-| **Instagram scraping**       | `instagramScraperV2` commented out in `registerFunctions.ts:23,96`; `RAPIDAPI_INSTAGRAM_KEY` unset in prod                                                                  | Instagram content automation is off entirely.                                                                                                                                      |
-| **KieAI webhook monitor**    | `functions/kieAiWebhookMonitor` unregistered                                                                                                                                | No automated watch on the video webhook health.                                                                                                                                    |
+| Feature                      | Evidence                                                                                                                                                                    | Effect of it being off                                                                                                    |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Welcome avatar**           | `functions/welcomeAvatarGeneration` unregistered; `createUserScene` sends `user/welcome.avatar.generate` with no subscriber                                                 | New users never get the welcome avatar the onboarding promises.                                                           |
+| **Voice training (RVC)**     | `const VOICE_TRAINING_DISCONNECTED = true` in `src/scenes/voiceTrainingWizard/index.ts:54`; `functions/training/voiceTrainingRVC` unregistered                              | The confirm button returns before charging — the feature is intentionally gated off, not broken, but it is dead to users. |
+| **Level quest / onboarding** | `step0Scene`…`step12Scene` and `completeScene` exported from `levelQuestWizard` but absent from `createStage`; entry `setupLevelHandlers` is itself an unregistered handler | The 13-step onboarding quest is dead upstream; `levelQuestWizard.enter` is a one-line stub.                               |
+| **Instagram scraping**       | `instagramScraperV2` commented out in `registerFunctions.ts:23,96`; `RAPIDAPI_INSTAGRAM_KEY` unset in prod                                                                  | Instagram content automation is off entirely.                                                                             |
+| **KieAI webhook monitor**    | `functions/kieAiWebhookMonitor` unregistered                                                                                                                                | No automated watch on the video webhook health.                                                                           |
+
+**Enabled since this ledger was written.** The stuck-training watchdog
+(`checkStuckTrainings`) was turned on in #1057 — the same PR hardened its
+subscriber `handleModelTrainingCompleted` so a `succeeded` event with a
+version-less output flips the DB status instead of throwing before the update,
+which an adversarial review showed would otherwise make the cron re-fire every
+30 minutes forever. It is registered and runs on the next deploy; the first run
+against the ~17-row backlog should be watched to confirm every swept row reaches
+a terminal status and is not re-selected.
 
 ## Reliability posture
 
@@ -58,7 +66,7 @@ internal key compared in constant time.
 ## What this implies
 
 The reliability floor is in good shape. The clearest remaining product value is
-in the **dead-feature column**: two of those rows — the stuck-training watchdog
-and the welcome avatar — are lost work with direct user and revenue impact, not
-abandoned experiments. Turning them on is a scoped, owner-gated task, protected
-now by the registration gates.
+in the **dead-feature column**: the welcome avatar is lost work with direct user
+and revenue impact, not an abandoned experiment. The stuck-training watchdog —
+the other such row — was turned on in #1057. Turning the rest on is a scoped,
+owner-gated task, protected now by the registration gates.
