@@ -297,9 +297,11 @@ export const morphImages = inngest.createFunction(
       try {
         const adapterResult = getBotByNameAdapter(bot_name)
         if (adapterResult.bot) {
+          // The raw error is already logged above (🚨 Morphing job failed).
+          // Show the user a curated message, not the exception text (#1030).
           const errorMsg = is_ru
-            ? `❌ Ошибка морфинга: ${error.message}`
-            : `❌ Morphing error: ${error.message}`
+            ? '❌ Не удалось выполнить морфинг. Попробуйте ещё раз.'
+            : '❌ Morphing failed. Please try again.'
           await adapterResult.bot.telegram.sendMessage(telegram_id, errorMsg)
         }
       } catch (notifyError) {

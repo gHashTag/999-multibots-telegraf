@@ -43,10 +43,17 @@ function leakingLiterals(src: string): string[] {
   return out
 }
 
-describe('scenes do not echo a raw JS error to the user', () => {
-  const files = tsFiles(path.join('src', 'scenes'))
+describe('scenes and inngest functions do not echo a raw JS error to the user', () => {
+  // Both surfaces reply to the user directly: scenes via ctx.reply, inngest
+  // functions via bot.telegram.sendMessage. The scan covered only src/scenes,
+  // so two inngest leaks (morphImages, modelTrainingV2) went unseen — include
+  // src/inngest_app too.
+  const files = [
+    ...tsFiles(path.join('src', 'scenes')),
+    ...tsFiles(path.join('src', 'inngest_app')),
+  ]
 
-  it('finds the scene sources', () => {
+  it('finds the sources', () => {
     expect(files.length).toBeGreaterThan(0)
   })
 

@@ -474,8 +474,8 @@ export const modelTrainingV2 = inngest.createFunction(
         await bot.telegram.sendMessage(
           telegram_id,
           is_ru
-            ? `❌ Произошла ошибка при генерации модели. Попробуйте еще раз.\n\n${refundLine}\n\nОшибка: ${error.message}`
-            : `❌ An error occurred during model generation. Please try again.\n\n${refundLine}\n\nError: ${error.message}`
+            ? `❌ Произошла ошибка при генерации модели. Попробуйте еще раз.\n\n${refundLine}`
+            : `❌ An error occurred during model generation. Please try again.\n\n${refundLine}`
         )
 
         // Отправляем уведомление администратору
