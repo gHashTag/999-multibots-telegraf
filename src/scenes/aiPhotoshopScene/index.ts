@@ -1,4 +1,5 @@
 import { Scenes, Markup } from 'telegraf'
+import { downloadTelegramFileBuffer } from '@/helpers/downloadTelegramFile'
 import { MyContext } from '../../interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -2647,8 +2648,7 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
 
       const botToken = getBotToken(ctx)
       const telegramUrl = `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
-      const response = await fetch(telegramUrl)
-      const buffer = Buffer.from(await response.arrayBuffer())
+      const buffer = await downloadTelegramFileBuffer(telegramUrl)
 
       // Add image with timestamp and order like Infinity Morphing
       const imageIndex = ctx.session.morphingImages.length + 1
@@ -2751,8 +2751,7 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
 
       const botToken = getBotToken(ctx)
       const telegramUrl = `https://api.telegram.org/file/bot${botToken}/${file.file_path}`
-      const response = await fetch(telegramUrl)
-      const buffer = Buffer.from(await response.arrayBuffer())
+      const buffer = await downloadTelegramFileBuffer(telegramUrl)
 
       // Add image with timestamp and order
       const imageIndex = ctx.session.morphingImages.length + 1
