@@ -7016,6 +7016,19 @@ const server = createServer(async (req, res) => {
             is_verified: row.is_verified || false,
             created_at: row.created_at,
           }
+
+          // Enforce is_public: a profile marked private is visible only to its
+          // verified owner. The flag was computed but never enforced, so a private
+          // profile's telegram_id/bio/cover/social_links were returned to any
+          // unauthenticated caller of this public GET. Drop it so the private
+          // fields fall through to the public-only fallbacks (then a 404).
+          const verifiedViewer = verifiedTelegramId(req)
+          if (
+            row.is_public === false &&
+            String(verifiedViewer ?? '') !== String(row.telegram_id)
+          ) {
+            profile = null
+          }
         }
       } catch (_e) {
         // profiles table doesn't exist, continue to fallback
