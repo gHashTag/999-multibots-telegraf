@@ -4,3 +4,4 @@ STATE.json
 anomalies-last.json
 dashboard.html
 *.lock
+dashboard-opus.html

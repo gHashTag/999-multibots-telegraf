@@ -51,6 +51,14 @@ good() { paint '32' "  OK   $1"; }
 bad()  { paint '31' "  ✗    $1"; }
 warn() { paint '33' "  ⚠    $1"; }
 
+# THE THIRD OUTCOME NEEDS ITS OWN COLOUR, or it gets spent as one of the two.
+#
+# «Не измерено» was printed with warn() — yellow, and yellow next to green reads
+# as «green with a remark». Cyan «?» is not a shade of either, so a reader
+# cannot round it off. The counting is what actually decides the verdict (see
+# cmd_gate), but a state nobody can see is a state nobody acts on.
+skip() { paint '36' "  ?    $1"; }
+
 # IS THE FACTORY ALIVE -- answered by AGE, not by the presence of a field.
 #
 # On 2026-08-29 the pipeline stood still for 51 hours while the regression check
@@ -153,6 +161,19 @@ CHECKS THAT EACH COST A CYCLE
         Not an equal substitute -- one machine, one Node, one Xcode -- but
         better than nothing while Actions are unpaid.
 
+        THREE outcomes, and the EXIT CODE carries them:
+          0  every section ran, nothing failed
+          1  a section FAILED -- do not merge
+          2  nothing failed, but a section COULD NOT MEASURE (marked «?»)
+        2 is not a pass. A missing tool, a missing node_modules, an unreadable
+        diff: each of those used to print a yellow warning and let the run end
+        on the green line with exit 0, which is how the iOS build stayed
+        unbuilt for a hundred iterations while the gate said all clear. So
+        `tri gate && …` now stops on 2 too -- deliberately.
+
+        Section 3 needs xcodegen (brew install xcodegen). Without it the iOS
+        build is reported as not measured, never as passing.
+
   tri ci
         Is CI running at all. A run that fails in seconds with zero steps is an
         infrastructure refusal, not a signal about the code: everything merged
@@ -172,6 +193,12 @@ CHECKS THAT EACH COST A CYCLE
 LOOP TOOLING
   tri lock | tri unlock   take or release the iteration lock
   tri scan                anomalies, and what is waiting on the owner
+  tri scan-check          Can `tri scan` still fail? Stands up a local server,
+                          feeds the checker deliberately broken payloads and
+                          asserts every alarm fires. "0 anomalies" on prod does
+                          NOT prove health: a detector that stopped detecting
+                          prints exactly the same line. Both defects found in
+                          anomalies.mjs on 2026-08-29 had looked green.
   tri panel               rebuild the dashboard
   tri tests               the full run
   tri routes              client and server addresses, compared
@@ -449,20 +476,51 @@ cmd_deployed() {
   git -C "$ROOT" fetch origin main --quiet 2>/dev/null \
     || warn 'origin/main не обновлён, сравнение может отставать'
 
-  local live head
+  local live head expected
   live=$(curl -s -m 20 "$RENDER/health" \
     | python3 -c 'import sys,json;print(json.load(sys.stdin).get("version","?"))' 2>/dev/null)
   head=$(git -C "$ROOT" rev-parse --short origin/main 2>/dev/null)
 
-  printf '  прод: %s | origin/main: %s\n' "${live:-нет ответа}" "$head"
+  # COMPARE AGAINST WHAT THIS SERVICE ACTUALLY BUILDS, not the head of main.
+  #
+  # Railway rebuilds the render service only when a push touched its paths, so a
+  # docs commit on top rebuilds nothing -- correctly. Comparing with the head
+  # therefore reported "выкладка отстаёт" after every report commit, while the
+  # service carried every line that affects it. The identical defect was found
+  # and fixed in .claude/loop-opus/anomalies.mjs on 2026-08-29; it lived on here
+  # because the two checks were never read side by side.
+  expected=$(git -C "$ROOT" log -1 --format=%h origin/main \
+    -- apps/vibee-editor/render 2>/dev/null)
+  [ -z "$expected" ] && expected="$head"
+
+  printf '  прод: %s | собирается из: %s | origin/main: %s\n' \
+    "${live:-нет ответа}" "$expected" "$head"
   if [ -z "$live" ] || [ "$live" = "?" ]; then
-    warn 'прод не назвал версию — сверить нечем'
-  elif [ "$live" = "$head" ]; then
-    good 'выложено то же, что в main'
+    # NOT MEASURED, and the exit code has to say so.
+    #
+    # This used to warn and fall off the end of the function, which returns 0 --
+    # so `tri deployed` reported success having compared NOTHING, the same
+    # false green the gate was just cleared of. Found 2026-08-29 by a verifier
+    # reading this file while checking a different fix.
+    skip 'прод не назвал версию — сверить нечем (НЕ ИЗМЕРЕНО)'
+    return 2
+  elif [ "${expected#"$live"}" != "$expected" ]; then
+    # PREFIX match, not equality: /health reports 7 characters and
+    # `git rev-parse --short` gives 8 on this repository, so `=` was false for
+    # an up-to-date deploy and this command declared a lag on its very first
+    # honest run. anomalies.mjs already compares by prefix for the same reason.
+    if [ "$expected" = "$head" ]; then
+      good 'выложено то же, что в main'
+    else
+      good "выложена последняя правка рендера ($expected); main ушёл дальше мимо него"
+    fi
+    return 0
   elif git -C "$ROOT" merge-base --is-ancestor "$live" origin/main 2>/dev/null; then
-    warn "выкладка отстаёт: на проде $live, в main $head"
+    bad "выкладка отстаёт: на проде $live, а рендер собирается из $expected"
+    return 1
   else
     bad "на проде $live — этого коммита в main нет"
+    return 1
   fi
 }
 
@@ -734,19 +792,71 @@ cmd_real() {
 # ─────────────────────────────────────────────────────────────────────────
 cmd_gate() {
   local fails=0
+  # A SECTION THAT DID NOT MEASURE IS NOT A SECTION THAT PASSED.
+  #
+  # Three of the four checks below could already say «я это не мерил», and all
+  # three said it with warn(): a yellow line that touches no counter and that
+  # nothing downstream reads. Measured 2026-08-29 on this machine — xcodegen was
+  # absent, section 3 measured NOTHING, and the run still ended on the green
+  # «можно вливать» with exit 0. A warning that costs nothing gets spent as a
+  # pass, which is how the iOS build went unbuilt for a hundred iterations while
+  # the gate reported all clear.
+  #
+  # So the third outcome is now COUNTED, not merely coloured. Every branch that
+  # cannot measure increments this, and the green line is unreachable while it
+  # is above zero. Passes are not tallied on purpose: the only two numbers that
+  # can change the verdict are failures and non-measurements.
+  local unmeasured=0
+  local SECTIONS=4
   # Known type-error debt of the render server. Lower it when the debt drops;
   # never raise it to make a red gate green.
   local GATE_TS_BASELINE=8
 
   printf '\n  1. Типы рендер-сервера\n'
-  local tsout
+  local tsout tsrc
   tsout=$(cd "$ROOT/apps/vibee-editor/render" \
     && npx tsc -p tsconfig.json --noEmit --pretty false 2>&1)
-  local n miss
-  n=$(printf '%s' "$tsout" | grep -c 'error TS')
+  tsrc=$?
+  local n miss setup
+  # COUNT ONLY ERRORS THAT CAME FROM CODE.
+  #
+  # A tsc SETUP failure also prints a line containing «error TS», so the old
+  # `grep -c 'error TS'` counted it as ordinary debt: one such line is «1 error»,
+  # which is under the baseline of 8, and the gate answered «не больше базы» and
+  # then «можно вливать» — having type-checked NOTHING. Measured 2026-08-29 by
+  # moving the render tsconfig.json aside for ten seconds: tsc printed
+  # «error TS5058: The specified path does not exist», exited 1, and the gate
+  # went green.
+  #
+  # The discriminator is the prefix, verified the same day against both cases:
+  # a code error is «file(line,col): error TSxxxx», a setup error is «error
+  # TSxxxx» at the start of the line with no file at all. So they are counted
+  # separately and a single setup error makes the section unmeasured, whatever
+  # the other number says.
+  n=$(printf '%s' "$tsout" | grep -cE '\([0-9]+,[0-9]+\): error TS')
+  setup=$(printf '%s' "$tsout" | grep -cE '^error TS')
   miss=$(printf '%s' "$tsout" | grep -c 'TS2307')
 
-  if [ "${n:-0}" -eq 0 ]; then
+  if [ "${setup:-0}" -gt 0 ]; then
+    skip 'tsc failed to start (config/path) — types NOT MEASURED'
+    printf '%s\n' "$tsout" | grep -E '^error TS' | head -3 | while IFS= read -r l; do
+      paint '36' "       $l"
+    done
+    unmeasured=$((unmeasured + 1))
+  elif [ "${n:-0}" -eq 0 ] && [ "${tsrc:-0}" -ne 0 ]; then
+    # TSC NEVER RAN — and this was the one FALSE GREEN in the whole gate.
+    #
+    # The count came from `grep -c 'error TS'` over the output. When npx cannot
+    # find typescript at all there are no «error TS» lines either, so the count
+    # is zero and the old code answered «без ошибок»: the check shouted all
+    # clear precisely when it had done the least. tsc exits 0 clean and 1/2 with
+    # errors, so «zero matches AND non-zero exit» is exactly «did not run».
+    skip 'tsc did not run (typescript missing?) — types NOT MEASURED'
+    printf '%s\n' "$tsout" | tail -3 | while IFS= read -r l; do
+      paint '36' "       $l"
+    done
+    unmeasured=$((unmeasured + 1))
+  elif [ "${n:-0}" -eq 0 ]; then
     good 'без ошибок'
   elif [ "${miss:-0}" -gt 0 ]; then
     # ТРЕТИЙ ИСХОД, и он здесь стоил отдельного разбора.
@@ -758,9 +868,10 @@ cmd_gate() {
     #
     # Признак: хотя бы один TS2307 «Cannot find module». Тогда цифра
     # рядом ничего не говорит о коде.
-    warn "$n ошибок, но среди них $miss «модуль не найден»"
-    paint '33' '       Это НЕ про код: где-то не поставлены зависимости.'
-    paint '33' '       Проверьте npm install в apps/vibee-editor/packages/*.'
+    skip "$n errors, $miss of them «cannot find module» — types NOT MEASURED"
+    paint '36' '       Это НЕ про код: где-то не поставлены зависимости.'
+    paint '36' '       Проверьте npm install в apps/vibee-editor/packages/*.'
+    unmeasured=$((unmeasured + 1))
   elif [ "${n:-0}" -gt "$GATE_TS_BASELINE" ]; then
     # RATCHET, not a hard zero. The render server carries a known debt; the
     # question that matters is whether THIS change added to it.
@@ -783,14 +894,45 @@ cmd_gate() {
   # в рабочем дереве не было node_modules, и vitest не смог загрузить конфиг.
   # Ворота, принимающие поломку окружения за поломку кода, — это шум, а шум
   # перестают читать. Уже записано дважды про другие детекторы.
-  local out
+  local out vrc
+  # THE EXIT CODE IS THE VERDICT, not the wording of the output.
+  #
+  # This line used to be `out=$(...)` alone, which throws the status away, and
+  # the pass branch below was a grep for «N passed» with no «N failed». That is
+  # the practice this repository has already been burned by twice — «grep -c
+  # "error TS"» returned 0 while tsc had errors, because of colour codes.
+  #
+  # Measured 2026-08-29: a test file that PASSES but leaves an unhandled
+  # rejection makes vitest print «Tests 187 passed» and «Errors 1 error» and
+  # exit 1. The gate read the first line, called it green, and ended «можно
+  # вливать» on a suite its own command had just failed.
   out=$(cd "$ROOT" && npx vitest run apps/vibee-editor/render 2>&1)
+  vrc=$?
   if printf '%s' "$out" | grep -qE 'MODULE_NOT_FOUND|Cannot find module|command not found'; then
-    warn 'не запустились: окружение (нет node_modules?) — это НЕ про код'
-  elif printf '%s' "$out" | grep -qE '[0-9]+ passed' && ! printf '%s' "$out" | grep -qE '[0-9]+ failed'; then
+    skip 'did not start: environment (no node_modules?) — tests NOT MEASURED'
+    unmeasured=$((unmeasured + 1))
+  elif printf '%s' "$out" | grep -qE 'No test files found'; then
+    # NO FILES IS NEITHER PASS NOR FAIL. vitest exits non-zero here, so this
+    # landed on «КРАСНО» — a red that says nothing about the code and everything
+    # about the path argument. A renamed directory would have read as a
+    # regression, which is the fastest way to teach someone to ignore the gate.
+    skip 'no test files matched the path — tests NOT MEASURED'
+    unmeasured=$((unmeasured + 1))
+  elif [ "${vrc:-1}" -eq 0 ]; then
     good "$(printf '%s' "$out" | grep -oE 'Tests  [0-9]+ passed' | head -1)"
   else
-    bad 'КРАСНО'; fails=$((fails + 1))
+    # «КРАСНО» ALONE IS NOT ACTIONABLE. The whole vitest output was captured and
+    # then thrown away, so the only way to learn WHICH test broke was to re-run
+    # the suite by hand — paid on 2026-08-29, when this went red for exactly one
+    # run and the gate could not name a single file. Same defect as the iOS log
+    # going to /dev/null, in a section that had already been fixed once.
+    bad "КРАСНО (vitest exit $vrc)"
+    # «Errors» is listed alongside FAIL because an unhandled rejection shows up
+    # only there: the run that exposed this defect had zero failing assertions.
+    printf '%s\n' "$out" | grep -E 'FAIL|✕|×|Errors  ' | head -5 | while IFS= read -r l; do
+      paint '31' "       $l"
+    done
+    fails=$((fails + 1))
   fi
 
   printf '\n  3. Сборка iOS\n'
@@ -801,14 +943,49 @@ cmd_gate() {
   # succeed and this step reported a failure on EVERY run. The verdict was
   # therefore a constant "do not merge", which is read exactly as often as a
   # constant "all clear" -- and it made fixing the other checks pointless.
+  #
+  # THE TOOL IS HERE NOW. `brew install xcodegen` put 2.46.0 on this machine on
+  # 2026-08-29 (2 MB bottle, no password), and the build that had never once run
+  # went straight through: ** BUILD SUCCEEDED ** in ~15 s. So this section
+  # measures for real, and the branches below finally mean what they say.
+  #
+  # THE TWO STEPS ARE SPLIT because they fail for opposite reasons. A broken
+  # project.yml is about the code; an absent xcodegen is about the laptop. The
+  # old `&&` chain fused them into one «СБОРКА ПАДАЕТ».
+  #
+  # THE FLAGS ARE COPIED FROM run.sh on purpose. Without `-arch arm64` xcodebuild
+  # builds every applicable architecture — measured here: 171 MB of output and a
+  # warning about ONLY_ACTIVE_ARCH — and without SYMROOT it writes somewhere
+  # other than where run.sh looks, so the daily loop and the gate would each pay
+  # for a full build. Both build/ and build2/ are in apps/vibee-ios/.gitignore.
+  local ioslog="${TMPDIR:-/tmp}/tri-gate-ios.log"
   if ! command -v xcodegen >/dev/null 2>&1; then
-    warn 'xcodegen не установлен — сборку iOS НЕ мерили (это не про код)'
-  elif (cd "$ROOT/apps/vibee-ios" && xcodegen generate --quiet >/dev/null 2>&1 \
+    skip 'xcodegen is not installed — iOS build NOT MEASURED (brew install xcodegen)'
+    unmeasured=$((unmeasured + 1))
+  elif ! command -v xcodebuild >/dev/null 2>&1; then
+    skip 'xcodebuild not found (no Xcode?) — iOS build NOT MEASURED'
+    unmeasured=$((unmeasured + 1))
+  elif ! (cd "$ROOT/apps/vibee-ios" && xcodegen generate --quiet) >"$ioslog" 2>&1; then
+    bad 'xcodegen generate падает — сломан project.yml'
+    tail -3 "$ioslog" | while IFS= read -r l; do paint '31' "       $l"; done
+    fails=$((fails + 1))
+  elif (cd "$ROOT/apps/vibee-ios" \
       && xcodebuild -project Vibee.xcodeproj -target Vibee \
-         -sdk iphonesimulator -configuration Debug build >/dev/null 2>&1); then
+         -sdk iphonesimulator -configuration Debug -arch arm64 \
+         SYMROOT="$ROOT/apps/vibee-ios/build2" build) >"$ioslog" 2>&1; then
     good 'BUILD SUCCEEDED'
   else
-    bad 'СБОРКА ПАДАЕТ'; fails=$((fails + 1))
+    # The log went to /dev/null, so «СБОРКА ПАДАЕТ» arrived with nothing to act
+    # on and the next step was always to re-run the build by hand. Compiler
+    # lines first; the tail only when there are none, because a failure in the
+    # link or copy phase has no `error:` in it.
+    bad 'СБОРКА ПАДАЕТ'
+    local shown
+    shown=$(grep -E 'error:' "$ioslog" | head -5)
+    [ -n "$shown" ] || shown=$(tail -5 "$ioslog")
+    printf '%s\n' "$shown" | while IFS= read -r l; do paint '31' "       $l"; done
+    paint '31' "       полный лог: $ioslog"
+    fails=$((fails + 1))
   fi
 
   printf '\n  4. Кириллица в добавленных строках\n'
@@ -819,18 +996,58 @@ cmd_gate() {
   # 2026-08-29, zero staged files and a green line while the branch carried
   # Russian comments. And even a genuine hit only warned, never touching
   # `fails`. Both halves made it unable to fail.
-  if (cd "$ROOT" && node scripts/no-cyrillic-guard.cjs range >/dev/null 2>&1); then
+  #
+  # THE GUARD ALREADY DISTINGUISHES THREE OUTCOMES; this call threw two of them
+  # away. `>/dev/null 2>&1` inside an `if` keeps only "zero or not", so:
+  #   exit 1  a real hit                      -> red, correct
+  #   exit 2  «failed to read the diff»       -> was ALSO red: broken plumbing
+  #           (no-cyrillic-guard.cjs:153)        reported as dirty code
+  #   exit 0  «merge in progress, skipping»   -> was GREEN having checked
+  #           (checkStaged, early return)        nothing at all
+  # The last one is the dangerous half: a clean line for an unread diff, during
+  # exactly the operation that brings other people's lines in. It has no exit
+  # code of its own, so it is caught by the sentence the guard prints.
+  local cyrout cyrrc
+  cyrout=$(cd "$ROOT" && node scripts/no-cyrillic-guard.cjs range 2>&1)
+  cyrrc=$?
+  if [ "${cyrrc:-0}" -eq 0 ] && printf '%s' "$cyrout" | grep -q 'merge in progress'; then
+    skip 'merge in progress, the guard checked nothing — Cyrillic NOT MEASURED'
+    unmeasured=$((unmeasured + 1))
+  elif [ "${cyrrc:-0}" -eq 0 ]; then
     good 'чисто в диапазоне ветки'
-  else
+  elif [ "${cyrrc:-0}" -eq 1 ]; then
     bad 'кириллица в добавленных строках ветки'
+    printf '%s\n' "$cyrout" | grep ':  ' | head -5 | while IFS= read -r l; do
+      paint '31' "     $l"
+    done
     fails=$((fails + 1))
+  else
+    skip "the guard could not read the range (exit $cyrrc) — Cyrillic NOT MEASURED"
+    unmeasured=$((unmeasured + 1))
   fi
 
   printf '\n'
   if [ "$fails" -gt 0 ]; then
     bad "НЕ ВЛИВАТЬ: провалов $fails"
+    if [ "$unmeasured" -gt 0 ]; then
+      # Both numbers, always. «One failure» out of four sections means something
+      # different when two of the other three never ran, and the reader cannot
+      # recover that from a single count.
+      skip "and NOT MEASURED: $unmeasured of $SECTIONS"
+    fi
     paint '31' '       CI сейчас не выполняется, и поймать это больше некому.'
     return 1
+  fi
+  if [ "$unmeasured" -gt 0 ]; then
+    # NOTHING FAILED IS NOT THE SAME AS EVERYTHING PASSED. Saying «можно
+    # вливать» here would be a claim about sections that produced no evidence —
+    # the precise mistake this whole change exists to remove.
+    #
+    # Its own exit code, because a caller has to be able to tell «checked and
+    # clean» from «could not check»: `tri gate && …` now stops on 2 as well.
+    skip "NOT MEASURED: $unmeasured of $SECTIONS — this is NOT «можно вливать»"
+    paint '36' '       Reasons above, each marked «?». Fix the environment and re-run.'
+    return 2
   fi
   good 'можно вливать — насколько это может подтвердить одна машина'
 }
@@ -865,6 +1082,12 @@ case "$action" in
   lock|лок)            bash "$TOOLS/guard.sh" acquire ;;
   unlock|раслок)       bash "$TOOLS/guard.sh" release ;;
   scan|скан)           node "$TOOLS/anomalies.mjs" ;;
+  # Deliberately a TOP-LEVEL verb, not `tri scan check`. The sibling that took
+  # the subcommand road is broken in exactly the documented spot: help promises
+  # `tri colors check`, the code matches only `проверка`, and the English form
+  # falls through to the directory argument and answers "нет каталога check".
+  # A verb that cannot be mistyped into silence is worth the extra dispatch line.
+  scan-check|скан-проверка) node "$TOOLS/anomalies-selftest.mjs" ;;
   panel|панель)        node "$TOOLS/dashboard.mjs" ;;
   tests|тесты)         bash "$TOOLS/test-all.sh" ;;
   routes|маршруты)     node "$TOOLS/check-routes.mjs" ;;

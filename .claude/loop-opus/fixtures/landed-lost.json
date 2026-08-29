@@ -1,0 +1,8 @@
+[
+  {
+    "pr": 0,
+    "file": "apps/vibee-editor/render/render-server.ts",
+    "needle": "ЭТОЙ СТРОКИ НА origin/main НЕТ И БЫТЬ НЕ МОЖЕТ — ФИКСТУРА САМОПРОВЕРКИ",
+    "note": "fixture: forces verify-landed.mjs to report a lost trace"
+  }
+]
