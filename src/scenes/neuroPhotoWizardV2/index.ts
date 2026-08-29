@@ -204,6 +204,18 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
     } else {
       ctx.session.prompt = promptText
 
+      // V1 guards this; the V2 rewrite dropped the check and dereferences
+      // userModel straight away, which throws and kills the step when no trained
+      // model is in the session (#1027 class). Guard it like V1 does.
+      if (!ctx.session.userModel || !ctx.session.userModel.trigger_word) {
+        await ctx.reply(
+          isRu
+            ? '❌ Модель не выбрана. Пожалуйста, начните заново.'
+            : '❌ Model not selected. Please start over.'
+        )
+        return ctx.scene.leave()
+      }
+
       const trigger_word = ctx.session.userModel.trigger_word as string
 
       const userId = ctx.from?.id
