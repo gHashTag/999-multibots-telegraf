@@ -1259,19 +1259,11 @@ async function startMorphingGeneration(ctx: MyContext, withLoop: boolean) {
     }
 
     // Более информативное сообщение об ошибке
+    // The error is already logged above. Do not echo the raw error text to the
+    // user: it leaks internal detail and reads as a broken bot.
     const errorMessage = isRu
-      ? `❌ Произошла ошибка при создании морфинг видео:
-
-${error instanceof Error ? error.message : 'Неизвестная ошибка'}
-
-💰 Средства за неудавшуюся генерацию возвращены на баланс.
-Пожалуйста, попробуйте еще раз или свяжитесь с поддержкой.`
-      : `❌ An error occurred while creating morphing video:
-
-${error instanceof Error ? error.message : 'Unknown error'}
-
-💰 Funds for the failed generation have been refunded to your balance.
-Please try again or contact support.`
+      ? '❌ Произошла ошибка при создании морфинг видео.\n\n💰 Средства за неудавшуюся генерацию возвращены на баланс.\nПожалуйста, попробуйте еще раз или свяжитесь с поддержкой.'
+      : '❌ An error occurred while creating morphing video.\n\n💰 Funds for the failed generation have been refunded to your balance.\nPlease try again or contact support.'
 
     await ctx.reply(errorMessage)
 
