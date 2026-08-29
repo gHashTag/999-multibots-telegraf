@@ -30,7 +30,19 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOOLS="$ROOT/.claude/loop-opus"
 
 # node 20 из nvm: системный 18 ломает Vite и половину прогонов.
-export PATH="/Users/playom/.nvm/versions/node/v20.19.0/bin:/opt/homebrew/bin:$PATH"
+#
+# ПУТЬ БЫЛ МЁРТВ. Стояло /Users/playom/… — опечатка в имени пользователя
+# (playra). Каталога нет, PATH молча игнорировал запись, и tri всё это время
+# работал на том node, который подвернётся (v22 из Homebrew) — то есть
+# «закрепление версии» ничего не закрепляло. Тот же класс опечатки уже ловили
+# в verify-landed.mjs, но здесь он остался.
+#
+# Теперь: ищем нужную версию у ТЕКУЩЕГО пользователя и добавляем её, только
+# если каталог существует. Несуществующий путь в PATH — это не подстраховка,
+# а тишина вместо ошибки.
+_nvm20="$HOME/.nvm/versions/node/v20.19.0/bin"
+[ -d "$_nvm20" ] && export PATH="$_nvm20:$PATH"
+export PATH="/opt/homebrew/bin:$PATH"
 
 RENDER="${TRI_RENDER_URL:-https://vibee-render-production.up.railway.app}"
 
@@ -38,6 +50,35 @@ paint() { printf '\033[%sm%s\033[0m\n' "$1" "$2"; }
 good() { paint '32' "  OK   $1"; }
 bad()  { paint '31' "  ✗    $1"; }
 warn() { paint '33' "  ⚠    $1"; }
+
+# ЖИВА ЛИ ФАБРИКА — ответ ВОЗРАСТОМ, а не наличием поля.
+#
+# 29.08 конвейер простоял 51 час, и всё это время регресс печатал ЧИСТО:
+# он проверял `lastPostAt` на существование (булево остаётся истинным вечно),
+# а баланс токенов, из-за которого фабрика и встала, выбрасывал. Отдельная
+# команда нужна, чтобы ответ был одной строкой и до правок, а не после.
+факт_фабрики() {
+  python3 - "$ROOT" <<'PYEOF'
+import json, sys, os
+from datetime import datetime, timezone
+root = sys.argv[1]
+try:
+    s = json.load(open(os.path.join(root, 'loop/state.json')))
+except Exception as e:
+    print(f'  ✗    состояние не читается: {e}'); sys.exit(1)
+lp, today = s.get('lastPostAt'), s.get('postsToday', 0)
+if not lp:
+    print('  ⚠    постов ещё не было'); sys.exit(0)
+age = (datetime.now(timezone.utc) - datetime.fromisoformat(str(lp).replace('Z','+00:00'))).total_seconds()/3600
+limit_hit = today >= 4
+if age <= 8 or limit_hit:
+    print(f'  OK   последний пост {age:.1f} ч назад, сегодня {today}/4')
+    sys.exit(0)
+print(f'  ✗    ФАБРИКА СТОИТ: {age:.1f} ч без поста, лимит НЕ исчерпан ({today}/4)')
+print('       смотри: токены (нужен запас >= 4), крон автопилота, очередь тем')
+sys.exit(1)
+PYEOF
+}
 
 usage() {
   cat <<'СПРАВКА'
@@ -101,6 +142,10 @@ tri — оснастка цикла. Опыт, ставший командами
   tri тесты               весь прогон
   tri маршруты            сверка адресов клиента и сервера
   tri здоровье            /health рендера одной строкой
+  tri фабрика             жива ли фабрика контента — ВОЗРАСТОМ последнего
+                          поста, а не наличием поля. 29.08 регресс печатал
+                          ЧИСТО, пока конвейер стоял 51 час: проверялось
+                          `lastPostAt` на существование, а не на давность.
 
 ПРОЧЕЕ
   tri опыт <заголовок>    дописать урок в скилл (тело читается со stdin)
@@ -721,6 +766,7 @@ case "$action" in
   тесты)      bash "$TOOLS/test-all.sh" ;;
   маршруты)   node "$TOOLS/check-routes.mjs" ;;
   здоровье)   curl -s -m 20 "$RENDER/health" | head -c 400; echo ;;
+  фабрика)    факт_фабрики ;;
   помощь|-h|--help) usage ;;
   *)          bad "не знаю команды «$action»"; echo; usage; exit 1 ;;
 esac

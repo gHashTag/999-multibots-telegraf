@@ -151,12 +151,42 @@ try:
         print(f'  ❌ битых тем: {len(bad)}'); ok = False
     if left < 3 and s.get('postsToday', 0) < 4:
         print(f'  ⚠️ тем в запасе {left} (<3) и лимит не исчерпан — витку пополнить'); ok = True
+    # ВОЗРАСТ, а не наличие. Печаталось `lastPostAt=True` — булево, которое
+    # остаётся истинным и через сутки простоя. Именно поэтому регресс говорил
+    # ЧИСТО, пока фабрика стояла 51 час (29.08).
+    from datetime import datetime, timezone
+    lp = s.get('lastPostAt')
+    if lp:
+        age = (datetime.now(timezone.utc) - datetime.fromisoformat(str(lp).replace('Z','+00:00'))).total_seconds()/3600
+        if age > 8 and s.get('postsToday', 0) < 4:
+            print(f'  ❌ последний пост {age:.1f} ч назад, а лимит НЕ исчерпан ({s.get("postsToday")}/4) — фабрика стоит'); ok = False
+        else:
+            print(f'  ✅ последний пост {age:.1f} ч назад')
+    else:
+        print('  ⚠️ lastPostAt пуст — фабрика ещё не постила');
     if ok:
-        print(f'  ✅ тем {len(t)}, в запасе {left}, постов сегодня {s.get("postsToday")}/{4}, lastPostAt={bool(s.get("lastPostAt"))}')
+        print(f'  ✅ тем {len(t)}, в запасе {left}, постов сегодня {s.get("postsToday")}/{4}')
+    else:
+        sys.exit(1)
+except SystemExit:
+    raise
 except Exception as e:
     print(f'  ❌ state/topics не читаются: {e}'); sys.exit(1)
 PYEOF
 [ $? -ne 0 ] && fail=1
+
+say "— Запас хода фабрики —"
+# Баланс приходил в том же ответе my_balance и ВЫБРАСЫВАЛСЯ: проверялся только
+# прайс. Поэтому «нужно 1, есть 0» не поднимало тревогу — фабрика встала молча.
+printf '%s' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"my_balance","arguments":{}}}' > /tmp/rc-req.json
+runway=$(curl -s -m 10 http://127.0.0.1:3333/mcp -H "X-Agent-Key: $KEY" -H 'Content-Type: application/json' --data @/tmp/rc-req.json | python3 -c "
+import json,sys
+d=json.load(sys.stdin)['result']['structuredContent']
+b=d.get('баланс_токенов'); p=d.get('прайс',{}).get('reel_render',1) or 1
+print('house' if b is None else int(b)//int(p))" 2>/dev/null)
+if [ "$runway" = "house" ]; then say "  ✅ дом не платит себе (баланс не метрируется)"
+elif [ "${runway:-0}" -ge 4 ] 2>/dev/null; then say "  ✅ запас хода $runway рилсов (>= дневной лимит 4)"
+else say "  ❌ запаса хода $runway рилсов (< 4): фабрика встанет в пределах суток"; fail=1; fi
 
 say ""
 if [ $fail -eq 0 ]; then say "РЕГРЕСС: ЧИСТО"; else say "РЕГРЕСС: ЕСТЬ ПРОВАЛЫ (см. ❌ выше)"; exit 1; fi

@@ -115,6 +115,21 @@ export const TOKEN_PRICES: Record<string, number> = {
 const TOKEN_START = 20
 
 /**
+ * Wallets that belong to the HOUSE, not to a customer: the autopilot and any
+ * other in-house automation running under an agent key. Their work costs us
+ * nothing at a provider (a TrinityBlogReel render is local Remotion), so
+ * metering them against a customer wallet only stops our own factory -- which
+ * is exactly what happened on 2026-08-27, for 51 hours.
+ *
+ * Set HOUSE_TELEGRAM_IDS="144022504,..." on the render service. Empty by
+ * default: nobody is exempt unless deployment says so.
+ */
+const HOUSE_TELEGRAM_IDS = (process.env.HOUSE_TELEGRAM_IDS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean)
+
+/**
  * ИНВАРИАНТЫ ЦЕНЫ (PRICING.md, I1–I3). Вызов при загрузке модуля:
  * нарушение — громкий лог, а не падение прода; регресс-чек ловит дублирующе.
  * Менял прайс — перечитай инварианты здесь и в loop/regression-check.sh.
@@ -211,6 +226,25 @@ async function spendTokens(
 }> {
   const price = TOKEN_PRICES[tool]
   if (!price) return { ok: true }
+
+  // THE HOUSE DOES NOT BILL ITSELF.
+  //
+  // The autopilot runs as a normal agent key, so its telegram_id is a normal
+  // wallet: it got the TOKEN_START grant of 20, spent 1 per reel, and on
+  // 2026-08-27 hit zero and refused forever. The content factory then stood
+  // still for 51 hours with the journal line about missing tokens -- the
+  // journal -- a self-inflicted stop, since a TrinityBlogReel render costs the
+  // house nothing at any provider (local Remotion). The b-roll path already
+  // sidesteps this by calling the render API server-to-server with
+  // RENDER_API_KEY (a CHANNEL expense, not a human wallet); reel_render simply
+  // never got the same treatment.
+  //
+  // Allowlist rather than making the operation free for everyone: pricing for
+  // real users is a product decision, not a bug fix.
+  if (HOUSE_TELEGRAM_IDS.includes(ctx.telegramId)) {
+    console.log(`[токены] дом не платит себе: «${tool}» для ${ctx.telegramId}`) // cyrillic-ok: log text
+    return { ok: true, потрачено: 0 } // cyrillic-ok: existing return field
+  }
 
   // Проверка баланса и списание — ОДНИМ атомарным запросом.
   //

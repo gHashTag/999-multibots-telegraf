@@ -129,15 +129,32 @@ try {
     } else {
       const hours = (Date.now() - at) / 3_600_000
       const s = `последний ролик ${hours.toFixed(1)} ч назад — «${String(t.name).slice(0, 44)}»`
+      // Which providers the produced reel ACTUALLY needs.
+      //
+      // Any broken provider used to mute the stall alarm. But the autopilot
+      // makes TrinityBlogReel -- a text engraving from the t27.ai RSS. It needs
+      // only the text model (GLM): the image is optional with a FAL->Replicate
+      // fallback, and it uses no voice at all. FAL and ElevenLabs are broken
+      // indefinitely, so they muted the stall ALWAYS and hid the real cause
+      // behind "providers are down". This was fixed once in #877 and silently
+      // reverted by #914; restored 2026-08-29 after a 51-hour stall passed
+      // unreported.
+      const HARD_DEPS = ['GLM']
+      const broken = провайдерыСломаны // cyrillic-ok: existing identifier
+      const blockingProduction = broken.filter(p =>
+        HARD_DEPS.some(dep => p.includes(dep))
+      )
       if (hours <= FEED_STALE_HOURS) {
         ok(s)
-      } else if (провайдерыСломаны.length) {
-        // Причина уже названа выше — не поднимаем вторую тревогу о том же.
+      } else if (blockingProduction.length) {
+        // Mute ONLY when a provider the reel cannot be made without is down.
         console.log(
-          `  ↳    конвейер стоит, и это ОЖИДАЕМО: ${провайдерыСломаны.join(', ')} не работает. ${s}`
+          `  ↳    конвейер стоит ОЖИДАЕМО: без ${blockingProduction.join(', ')} ролик не написать. ${s}`
         )
       } else {
-        // А вот стойка при живых провайдерах — настоящая загадка.
+        // The providers this reel type needs are alive and the pipeline is
+        // still stopped -- a real anomaly. Do not look at FAL/ElevenLabs: look
+        // at whether the autopilot ran (schedule, topic queue, crash, tokens).
         bad(`конвейер стоит ПРИ ЖИВЫХ провайдерах: ${s}`)
       }
     }
