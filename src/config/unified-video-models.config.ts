@@ -879,7 +879,7 @@ export function generateModelButton(
  * @returns Распарсенные данные модели (НЕ null - всегда fallback к veo3_fast)
  * @throws {z.ZodError} Если результат не соответствует схеме
  */
-export function parseModelButton(buttonText: string): ParsedModelButton {
+export function parseModelButton(buttonText: string): ParsedModelButton | null {
   console.log('[parseModelButton] Parsing button text:', buttonText)
 
   // Определяем соотношение сторон по иконке
@@ -932,19 +932,16 @@ export function parseModelButton(buttonText: string): ParsedModelButton {
       resolution,
     }
   } else {
+    // NO FALLBACK. This used to return veo3_fast for ANY unmatched text, which
+    // meant a user who typed their video description (or a typo) at the model
+    // step was told "model selected: <their text>" and then billed for veo3_fast
+    // -- a model and a price they never chose. It also made the wizards'
+    // "please pick a model from the buttons" branch unreachable dead code.
     console.warn(
       '[parseModelButton] No match found for button text:',
-      buttonText,
-      '- using fallback'
+      buttonText
     )
-    // ✅ ВСЕГДА возвращаем валидный fallback вместо null
-    result = {
-      modelId: 'veo3_fast',
-      aspectRatio,
-      duration: 8,
-      cost: 37,
-      resolution: aspectRatio === '9:16' ? '480p' : '1080p',
-    }
+    return null
   }
 
   // ✅ УНИФИКАЦИЯ ЦЕН: Используем реальную цену из конфигурации модели

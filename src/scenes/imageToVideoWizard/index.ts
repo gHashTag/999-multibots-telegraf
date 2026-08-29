@@ -135,6 +135,18 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
       const parsedModel = parseModelButton(selectedText)
       console.log('🎬 [I2V WIZARD] Step 1: Model selected:', parsedModel)
 
+      // Unmatched text is NOT a model. parseModelButton used to fall back to
+      // veo3_fast for anything, so typing a description here silently selected
+      // (and later billed) a model the user never chose. Re-prompt instead.
+      if (!parsedModel) {
+        await ctx.reply(
+          isRu
+            ? '❌ Пожалуйста, выберите модель из кнопок выше.'
+            : '❌ Please select a model from the buttons above.'
+        )
+        return
+      }
+
       // Сохраняем выбранную модель
       ctx.session.selectedVideoModel = parsedModel.modelId
       ctx.session.selectedAspectRatio = parsedModel.aspectRatio
