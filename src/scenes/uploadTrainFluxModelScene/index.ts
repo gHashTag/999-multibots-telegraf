@@ -117,7 +117,15 @@ uploadTrainFluxModelScene.enter(async ctx => {
       .getPublicUrl(zipFileName)
 
     const zipUrl = publicUrlData.publicUrl
-    console.log('[uploadTrainFluxModelScene] ZIP uploaded to Supabase:', zipUrl)
+    // Log the object path, not the public URL. This ZIP holds the user's face
+    // photos, and getPublicUrl on a public bucket is a permanent, unauthenticated
+    // link — it must not sit in aggregated logs (same class as #1105). The bucket
+    // being public at all is the larger exposure and is owner-side: a private
+    // bucket + signed URLs.
+    console.log(
+      '[uploadTrainFluxModelScene] ZIP uploaded to Supabase:',
+      zipFileName
+    )
 
     // Delete local ZIP file after upload
     try {
@@ -134,7 +142,8 @@ uploadTrainFluxModelScene.enter(async ctx => {
       modelName: ctx.session.modelName,
       triggerWord,
       steps: ctx.session.steps,
-      zipUrl,
+      // path, not the public URL — see the upload log above (biometric ZIP)
+      zipFileName,
       bot_name,
     })
 
