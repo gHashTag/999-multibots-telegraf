@@ -4739,3 +4739,41 @@ the risky call a second attempt.
 запустившийся тест, ненайденный lefthook. Проверка, которая не смогла
 выполниться, должна кричать громче, чем проверка, которая нашла проблему —
 потому что вторую увидят, а первую примут за тишину.
+
+## Five gates could not fail, and I quoted two of them as proof
+
+An audit of the only working gates found five that were incapable of failing.
+Two I had cited as evidence in my own reports the same week.
+
+- mock-test.py printed failures and exited ZERO (no exit call). The lefthook
+  hook judges by exit code, so "mock 87/87" only ever proved the mock server
+  booted. I quoted that number in five PR descriptions.
+- `tri mutate` matched `[0-9]+ (passed|failed)` -- vitest prints that in BOTH
+  outcomes, so its "mutant survived" branch was unreachable. The one command
+  whose purpose is catching a surviving mutant could not catch one.
+- the type check only warned and never touched the failure counter.
+- the Cyrillic check ran in `staged` mode outside a commit hook, where the index
+  is empty: it passed by construction, inspecting nothing.
+- the iOS step failed on every run because xcodegen is not installed, so the
+  verdict was a constant "do not merge" -- which is read as often as a constant
+  "all clear", and made fixing the others pointless.
+
+RULE. A gate must be tested in BOTH directions before it is trusted: break
+something and require red, restore it and require green. Every one of these
+passed a "does it run" check and none had ever been shown to fail.
+
+RULE. Distinguish three outcomes, not two: passed, failed, and COULD NOT
+MEASURE. A missing tool reported as a failure poisons the verdict; reported as a
+pass, it hides a hole. Say "not measured" out loud.
+
+RULE. When a check warns instead of counting, it is documentation, not a gate.
+`warn` that never touches the failure counter is a comment with colour.
+
+SELF-CRITICISM. I used "mock 87/87" as proof of correctness repeatedly without
+ever asking whether that number could be anything else. A metric that has never
+been seen to move is not evidence.
+
+SELF-CRITICISM. While mutation-testing the gate I ran `git reset --hard HEAD~1`
+and destroyed two unrelated uncommitted fixes in the working tree. A mutation
+probe must use `git stash` or a scratch copy: reset --hard is not a local undo,
+it wipes everything uncommitted.
