@@ -505,6 +505,10 @@ export async function checkVideoGenerationStatus(
       headers: {
         'x-secret-key': SECRET_API_KEY,
       },
+      // Bound the request so a stalled status server cannot hang this call
+      // forever -- the caller polls it on a setInterval, and a hung call there
+      // piles up requests that never resolve.
+      timeout: 60_000,
     })
 
     // Детальное логирование ответа сервера
