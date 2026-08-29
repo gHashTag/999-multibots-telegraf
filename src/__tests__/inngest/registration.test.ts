@@ -92,11 +92,44 @@ function definitionFiles(): string[] {
     .map(f => f.replace(`${ROOT}/`, '').replace(/\.ts$/, ''))
 }
 
+/**
+ * A module counts as registered only if at least one symbol imported FROM it is
+ * actually REFERENCED in the file body — the allFunctionsRaw array, or a factory
+ * call whose result is in that array — not merely because an import line exists.
+ *
+ * Being imported is not being served. A symbol can be imported and then left out
+ * of the array; eslint's no-unused-vars is only a warning here, so nothing else
+ * catches it, and the earlier "an import line matches" check counted such a
+ * function as registered. That is the same "looks wired != is wired" gap this
+ * whole test guards against, one level up — so the ruler has to look at use, not
+ * at the presence of an import.
+ */
+export function registeredFromSource(source: string): Set<string> {
+  const body = strip(source)
+  const importRe =
+    /import\s*(?:\{([^}]*)\}|(\w+))\s*from\s*['"]\.\/(functions\/[^'"]+)['"]/g
+  const bodyWithoutImports = body.replace(importRe, '')
+  const registered = new Set<string>()
+  for (const m of body.matchAll(importRe)) {
+    const mod = m[3]
+    const idents = (m[1] ? m[1].split(',') : [m[2]])
+      .map(x =>
+        x
+          .trim()
+          .split(/\s+as\s+/)[0]
+          .trim()
+      )
+      .filter(Boolean)
+    const used = idents.some(id =>
+      new RegExp(`\\b${id}\\b`).test(bodyWithoutImports)
+    )
+    if (used) registered.add(mod)
+  }
+  return registered
+}
+
 function registeredModules(): Set<string> {
-  const src = strip(fs.readFileSync(REGISTRY, 'utf8'))
-  return new Set(
-    [...src.matchAll(/from\s+['"]\.\/(functions\/[^'"]+)['"]/g)].map(m => m[1])
-  )
+  return registeredFromSource(fs.readFileSync(REGISTRY, 'utf8'))
 }
 
 describe('регистрация функций Inngest', () => {
@@ -128,5 +161,31 @@ describe('регистрация функций Inngest', () => {
       f => !defined.includes(f)
     )
     expect(gone).toEqual([])
+  })
+
+  // The ruler must key off USE, not the presence of an import line. These two
+  // synthetic sources pin that down so the check cannot quietly regress to
+  // "an import exists" — the weaker form that would pass a function which was
+  // imported but never added to allFunctionsRaw.
+  it('импортирована, но не в массиве — считается НЕ зарегистрированной', () => {
+    const source = [
+      "import { realFn } from './functions/real'",
+      "import { forgottenFn } from './functions/forgotten'",
+      'const allFunctionsRaw = [realFn]',
+    ].join('\n')
+    const reg = registeredFromSource(source)
+    expect(reg.has('functions/real')).toBe(true)
+    expect(reg.has('functions/forgotten')).toBe(false)
+  })
+
+  it('фабрикой собранная функция считается зарегистрированной', () => {
+    const source = [
+      "import { createFooFunction } from './functions/existing/foo'",
+      'const foo = createFooFunction(inngest)',
+      'const allFunctionsRaw = [foo]',
+    ].join('\n')
+    expect(registeredFromSource(source).has('functions/existing/foo')).toBe(
+      true
+    )
   })
 })
