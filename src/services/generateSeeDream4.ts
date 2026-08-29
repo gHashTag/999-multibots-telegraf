@@ -76,6 +76,9 @@ export const generateSeeDream4 = async (
   // Declare variables for wider scope
   let imageCount = 1
   let totalCost = SEEDREAM4_MODEL.costPerImage
+  // Set once the user has actually been charged, so the outer catch can refund
+  // them if delivery (or anything after the charge) then throws.
+  let refundOnFailure = false
 
   try {
     const {
@@ -368,6 +371,12 @@ export const generateSeeDream4 = async (
       // Не бросаем ошибку - изображение уже сгенерировано
     }
 
+    // From here on the user has paid; if delivery throws we must refund.
+    // (welcome gifts are never charged, so they must not be refunded.)
+    if (balanceDeduction.success && !params.is_welcome_gift) {
+      refundOnFailure = true
+    }
+
     // Save prompt to database
     try {
       const promptId = await savePrompt(
@@ -534,6 +543,28 @@ export const generateSeeDream4 = async (
       error: errorMessage,
     })
 
+    // The charge happens after a successful generation, but delivery (saving
+    // the record, sending the photo) can still throw afterwards — the image was
+    // generated but never reached the user, and they paid for it. The old note
+    // here ("we don't refund; if it failed after the charge the image is already
+    // generated") missed that generated != delivered. Refund when we charged.
+    // refundUser checks the ledger, so it only returns real, already-charged
+    // stars (never a welcome gift, never more than was paid).
+    if (refundOnFailure) {
+      try {
+        await refundUser(params.ctx, totalCost, {
+          reason: 'generation_failed',
+          service: 'SeeDream-4',
+        })
+      } catch (refundError) {
+        logger.error('[SeeDream4] Failed to refund after post-charge failure', {
+          telegram_id: params.telegram_id,
+          totalCost,
+          refundError,
+        })
+      }
+    }
+
     // ✅ Only notify user if not in fallback mode
     if (!params.suppressUserErrors) {
       const errorMessage = params.is_ru
@@ -542,10 +573,6 @@ export const generateSeeDream4 = async (
 
       await params.ctx.reply(errorMessage)
     }
-
-    // ❌ НЕ ВОЗВРАЩАЕМ ЗВЕЗДЫ - списание происходит только после успешной генерации
-    // Если ошибка случилась ДО списания - звезды не были списаны
-    // Если ошибка после списания - изображение уже сгенерировано
 
     throw error
   }
