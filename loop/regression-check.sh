@@ -161,26 +161,31 @@ try:
     from datetime import datetime, timezone
     import urllib.request
     lp = None; src = 'state.json'
+    today = None  # посты за текущие UTC-сутки, посчитанные по ленте
     try:
-        with urllib.request.urlopen('http://127.0.0.1:3333/api/feed?limit=1', timeout=8) as r:
+        with urllib.request.urlopen('http://127.0.0.1:3333/api/feed?limit=12', timeout=8) as r:
             feed = json.load(r)
         items = feed.get('templates') or []
         if items and items[0].get('createdAt'):
             lp = items[0]['createdAt']; src = 'лента'
+            now = datetime.now(timezone.utc)
+            today = sum(1 for it in items if it.get('createdAt')
+                        and datetime.fromisoformat(str(it['createdAt']).replace('Z','+00:00')).date() == now.date())
     except Exception:
         pass
     if not lp:
         lp = s.get('lastPostAt')
+    posts_today = today if today is not None else s.get('postsToday', 0)
     if lp:
         age = (datetime.now(timezone.utc) - datetime.fromisoformat(str(lp).replace('Z','+00:00'))).total_seconds()/3600
-        if age > 8 and s.get('postsToday', 0) < 4:
-            print(f'  ❌ последний пост {age:.1f} ч назад, а лимит НЕ исчерпан ({s.get("postsToday")}/4) — фабрика стоит'); ok = False
+        if age > 8 and posts_today < 4:
+            print(f'  ❌ последний пост {age:.1f} ч назад, а лимит НЕ исчерпан ({posts_today}/4) — фабрика стоит'); ok = False
         else:
             print(f'  ✅ последний пост {age:.1f} ч назад ({src})')
     else:
         print('  ⚠️ lastPostAt пуст — фабрика ещё не постила');
     if ok:
-        print(f'  ✅ тем {len(t)}, в запасе {left}, постов сегодня {s.get("postsToday")}/{4}')
+        print(f'  ✅ тем {len(t)}, в запасе {left}, постов сегодня {posts_today}/{4}' + ('' if today is None else ' (по ленте)'))
     else:
         sys.exit(1)
 except SystemExit:
