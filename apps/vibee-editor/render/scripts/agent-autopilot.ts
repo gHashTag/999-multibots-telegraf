@@ -500,8 +500,23 @@ async function once() {
 
 if (LOOP) {
   log(`автопилот-демон: интервал ${(INTERVAL_MS / 60_000).toFixed(0)} мин`)
-  await once() // первый виток сразу, не ждём интервал
-  setInterval(once, INTERVAL_MS)
+  // NO TOP-LEVEL AWAIT HERE.
+  //
+  // This package is CommonJS (no "type": "module"), so tsx/esbuild refuses to
+  // transform a top-level await and fails BEFORE running a single line:
+  //   ERROR: Top-level await is currently not supported with the "cjs" output
+  // The daemon-mode change (#881) introduced it and thereby broke BOTH modes --
+  // including the one-shot path that had been working, since the transform
+  // fails whatever LOOP is set to. The script was simply unrunnable from that
+  // commit until 2026-08-29, which is the real reason the factory produced
+  // nothing even when it had tokens.
+  //
+  // An async IIFE keeps the "run once immediately, then on an interval"
+  // behaviour without asking the module system for anything.
+  void (async () => {
+    await once() // run the first cycle immediately, do not wait out the interval
+    setInterval(once, INTERVAL_MS)
+  })()
 } else {
   main().catch(e => {
     log(`падение: ${String(e).slice(0, 300)}`)
