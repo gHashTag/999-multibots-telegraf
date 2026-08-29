@@ -5190,7 +5190,7 @@ const server = createServer(async (req, res) => {
       } catch (error) {
         console.error('[Feed] Publish error:', error)
         res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ success: false, error: String(error) }))
+        res.end(JSON.stringify({ success: false, error: 'Failed to publish' }))
       }
     })
     return
@@ -5746,7 +5746,9 @@ const server = createServer(async (req, res) => {
           return
         }
         res.writeHead(502, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: String(error) }))
+        res.end(
+          JSON.stringify({ ok: false, error: 'Failed to load blog feed' })
+        )
       }
       return
     }
@@ -5769,7 +5771,7 @@ const server = createServer(async (req, res) => {
       } catch (error) {
         console.error('[Feed] stats error:', error)
         res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: String(error) }))
+        res.end(JSON.stringify({ error: 'Failed to load feed stats' }))
       }
       return
     }
@@ -5889,7 +5891,7 @@ const server = createServer(async (req, res) => {
         } catch (error) {
           console.error(`[Feed] ${kind} error:`, error)
           res.writeHead(500, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: String(error) }))
+          res.end(JSON.stringify({ error: 'Action failed' }))
         }
       })
       return
@@ -6806,7 +6808,7 @@ const server = createServer(async (req, res) => {
     } catch (error) {
       console.error('[sync-from-telegram] error:', error)
       res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: String(error).slice(0, 300) }))
+      res.end(JSON.stringify({ error: 'Sync failed' }))
     }
     return
   }
