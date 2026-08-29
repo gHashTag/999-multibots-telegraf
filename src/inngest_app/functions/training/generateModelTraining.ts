@@ -186,10 +186,13 @@ const TRAINING_MESSAGES = {
     ru: `🎉 Модель ${modelName} готова!`,
     en: `🎉 Model ${modelName} ready!`,
   }),
-  error: (error: string) => ({
-    ru: `❌ Ошибка: ${error}`,
-    en: `❌ Error: ${error}`,
-  }),
+  // Static, not an interpolated "Error: ${x}" line: the sole caller passed
+  // error.message, leaking raw JS/SDK/provider text (and possibly a config
+  // name) to the user. The full error is logged and sent to the admin. #1028.
+  error: {
+    ru: '❌ Произошла ошибка при обучении модели. Попробуйте ещё раз.',
+    en: '❌ An error occurred during model training. Please try again.',
+  },
   duplicateRequest: {
     ru: '⚠️ Запрос на обучение этой модели уже обрабатывается. Пожалуйста, подождите...',
     en: '⚠️ Your training request is already processing. Please wait...',
@@ -930,7 +933,7 @@ export const generateModelTraining = inngest.createFunction(
       const isRussian = eventData.is_ru === true || eventData.is_ru === 'true'
 
       await helpers.sendMessage(
-        TRAINING_MESSAGES.error(error.message)[isRussian ? 'ru' : 'en']
+        TRAINING_MESSAGES.error[isRussian ? 'ru' : 'en']
       )
 
       if (activeTrainings.has(eventData.telegram_id)) {
