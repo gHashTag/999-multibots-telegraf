@@ -606,12 +606,23 @@ async function handleVideoReady(
     // Списываем баланс
     const price = getUnifiedModelPrice(modelId, { duration })
 
-    await updateUserBalance(
+    const charged = await updateUserBalance(
       telegram_id,
       price,
       PaymentType.MONEY_OUTCOME,
       `Video generation: ${modelId}${duration ? ` (${duration}s)` : ''}`
     )
+    if (!charged) {
+      // The charge runs AFTER the video was delivered (above), so on a failure
+      // — updateUserBalance returns false, never throws, on a ghost-payer with
+      // no users row or a DB error — the user already has the video and cannot
+      // be un-delivered. Log the unbilled delivery instead of discarding the
+      // result silently (there is no refund to make here).
+      logger.error(
+        '[handleVideoReady] charge failed after video delivery — user got the video unbilled',
+        { telegram_id, price, modelId }
+      )
+    }
 
     // Показываем кнопки после успешной отправки видео
     const keyboard = {
