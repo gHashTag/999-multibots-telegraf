@@ -47,6 +47,12 @@ interface ConnectionInfo {
 
 const connections = new Map<string, ConnectionInfo>()
 
+// Per-sender single-flight: while a reply is being generated for a chat,
+// drop further messages from it so one sender cannot spawn many concurrent
+// (paid, ~30s) LLM predictions. Added on entry, removed in finally — bounded
+// to the set of chats with a reply currently in flight.
+const businessReplyInFlight = new Set<string>()
+
 interface DailyStats {
   date: string
   messagesHandled: number
@@ -180,6 +186,16 @@ export async function handleBusinessMessage(
     textLength: text.length,
   })
 
+  const flightKey = String(chatId)
+  if (businessReplyInFlight.has(flightKey)) {
+    logger.info('[Business] Reply already in flight — dropping duplicate', {
+      connId,
+      chatId,
+    })
+    return
+  }
+  businessReplyInFlight.add(flightKey)
+
   try {
     const messages = buildBusinessMessages(text, senderName, botUsername)
 
@@ -203,6 +219,8 @@ export async function handleBusinessMessage(
       connId,
       chatId,
     })
+  } finally {
+    businessReplyInFlight.delete(flightKey)
   }
 }
 
