@@ -392,10 +392,13 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
         hasPhoto: message && 'photo' in message,
         telegramId,
       })
+      // The error is already logged above with its message and stack. Do not
+      // echo the raw error text to the user: it leaks internal detail and reads
+      // as a broken bot rather than a handled failure.
       await ctx.reply(
         isRu
-          ? `❌ Произошла ошибка при обработке обложки.\n\nОшибка: ${error instanceof Error ? error.message : String(error)}`
-          : `❌ Error processing cover.\n\nError: ${error instanceof Error ? error.message : String(error)}`
+          ? '❌ Произошла ошибка при обработке обложки. Пожалуйста, попробуйте снова.'
+          : '❌ Error processing cover. Please try again.'
       )
       return ctx.scene.leave()
     }
