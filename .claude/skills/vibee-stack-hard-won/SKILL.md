@@ -4835,3 +4835,47 @@ idempotency at all.
 NOTE ON SCOPE. A live purchase stays with the owner. Proving the logic a
 purchase triggers is not the same as proving the purchase, and the report must
 say which one was done.
+
+## An endpoint that promises a way to connect must be the thing that provides it
+
+The key-issuing endpoint printed, in its own success response, "Connect with
+X-Agent-Key to POST /mcp or /a2a". Nothing on the server resolved those keys:
+identity came from a synchronous function that reads keys from the environment
+and never touches the table the endpoint writes to. The key authenticated
+nowhere, and the only place that said so was a comment in the same file calling
+the gap "a separate change".
+
+It survived three cycles for a structural reason worth naming: the route was
+not wired, so nobody could hear the promise. Wiring the route -- a fix -- turned
+a dormant lie into a live one. Finishing half a feature can be worse than
+starting none, because the unfinished half now has users.
+
+RULE. When a response tells a person how to use what it just gave them, that
+sentence is a claim about the system. Grep for the mechanism it names before
+shipping. Text in a success payload is not documentation; it is behaviour the
+system owes.
+
+RULE. A comment that says "this part is a separate change" is a defect report
+filed against yourself with no due date. Either do it or put it where the tools
+look -- the marker file, an issue, a failing test. Three cycles of my own
+reading passed over that comment without acting on it.
+
+## A fake that enforces the rule proves nothing about the code
+
+My fake Postgres pool filtered out revoked keys itself. The test "a revoked key
+yields nobody" therefore passed because of the FAKE, not the code -- deleting
+`revoked = FALSE` from the SQL left it green. Only a second test, asserting the
+shape of the query string, caught the mutation.
+
+The fake now applies the filter only when the query asks for it, and the same
+mutation turns both tests red.
+
+RULE. A test double must be as dumb as the real thing. If the double knows the
+invariant, it will satisfy the invariant no matter what the code does. Ask of
+every fake: which of these lines is the code's job, and am I doing it for it?
+
+SAME SHAPE, DIFFERENT TOOL, TWICE THIS SESSION. Renaming Cyrillic identifiers
+with a word-boundary regex, I twice rewrote the SAME WORD inside Russian prose
+comments -- turning "was" into a variable name mid-sentence. A rename regex
+does not know code from comment. After any bulk rename, grep the comments for
+the new name: a hit inside prose is a corrupted sentence, not a rename.
