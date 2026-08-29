@@ -412,12 +412,16 @@ export async function generateTextToVideo(
         }
       }
 
-      // Общая ошибка API
+      // General API error. The raw errorMessage (the provider response body
+      // or the axios exception text) already goes to logger.error above; we do
+      // not show it to the user — it can carry an internal host or identifier
+      // and reads as a broken bot. Return a clean line, like the other branches
+      // of this catch (429/402/NSFW).
       return {
         success: false,
         error: is_ru
-          ? `Ошибка API: ${errorMessage}`
-          : `API Error: ${errorMessage}`,
+          ? 'Не удалось сгенерировать видео. Мы уже разбираемся, попробуйте позже.'
+          : 'Video generation failed. We are looking into it, please try again later.',
       }
     }
 
