@@ -138,6 +138,28 @@ interface KieAiWebhookPayload {
 // inv_id per job on payments_v2 (owner migration).
 const chargedVideoJobs = new Set<string>()
 
+// Job ids already DELIVERED in this process. A provider webhook is delivered
+// at-least-once; two concurrent deliveries of the same completed job both pass
+// getTask before either deleteTask, so both reach sendVideo — the user gets the
+// video (and the public Pulse repost) twice. This makes the DELIVERY idempotent
+// per job, alongside the existing chargedVideoJobs charge guard. Bounded so a
+// long-lived multi-bot process cannot grow the set without limit (copied from
+// the sibling poller handleTextToVideoDirect.ts). Reset on restart.
+const DELIVERED_VIDEO_JOBS_MAX = 1000
+const deliveredVideoJobs = new Set<string>()
+function claimVideoJobDelivery(jobId: string): boolean {
+  // Returns false if this job was already delivered (caller must skip). The
+  // has()+add() pair is synchronous, so it is atomic w.r.t. the event loop:
+  // the first entry for a job wins, a racing re-entry gets false.
+  if (deliveredVideoJobs.has(jobId)) return false
+  deliveredVideoJobs.add(jobId)
+  if (deliveredVideoJobs.size > DELIVERED_VIDEO_JOBS_MAX) {
+    const oldest = deliveredVideoJobs.values().next().value
+    if (oldest !== undefined) deliveredVideoJobs.delete(oldest)
+  }
+  return true
+}
+
 async function chargeForDeliveredVideo(params: {
   telegramId: string
   modelId?: string
@@ -264,6 +286,13 @@ async function sendVideoDirectly(
         `Invalid telegramId: ${telegramId}. Must be a valid positive number.`
       )
     }
+
+    // Idempotency: claim the delivery before any await so a duplicate/concurrent
+    // webhook for this job — including a SEQUENTIAL duplicate that arrives after
+    // the task was deleted and falls to this direct path — skips the re-send and
+    // the downstream charge. Keys on the immutable jobId, same key as the charge
+    // guard (chargedVideoJobs).
+    if (metadata.jobId && !claimVideoJobDelivery(metadata.jobId)) return
 
     // ✅ Проверяем размер файла через HEAD запрос
     let fileSize = 0
@@ -1152,6 +1181,11 @@ async function handleSoraSuccess(
       botName: taskContext.botName || 'default',
     })
 
+    // Idempotency: claim the delivery before any await so a duplicate/concurrent
+    // webhook for this job skips the re-send (video + status keyboard). Keys on
+    // the immutable taskId — the same key as the chargedVideoJobs charge guard.
+    if (!claimVideoJobDelivery(taskId)) return
+
     try {
       // Обновляем сообщение о статусе
       await botInstance.telegram.editMessageText(
@@ -1951,6 +1985,10 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
         }
       )
 
+      // Idempotency: claim the delivery before any await so a duplicate/concurrent
+      // webhook skips the re-send AND the public Pulse repost (sendMediaToPulse).
+      // Keys on the immutable taskId — the same key as the charge guard.
+      if (!claimVideoJobDelivery(taskId)) return
       try {
         if (result.success && result.output) {
           logger.info('🎬 [KIE.AI WEBHOOK] Sending video URL to user', {
