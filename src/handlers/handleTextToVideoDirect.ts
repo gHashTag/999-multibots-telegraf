@@ -329,7 +329,14 @@ async function monitorVideoGeneration(
   }
 
   // Для других моделей используем стандартный API polling
+  // A status check is async but the interval fires every 5s regardless, so a
+  // slow or stalled check would let a second one start on top of the first and
+  // pile up. Skip a tick while one is still in flight, and reset the flag in a
+  // finally so the interval keeps polling once a check returns.
+  let checkInFlight = false
   const checkInterval = setInterval(async () => {
+    if (checkInFlight) return
+    checkInFlight = true
     attempts++
 
     try {
@@ -432,6 +439,8 @@ async function monitorVideoGeneration(
             : '❌ Error checking generation status.'
         )
       }
+    } finally {
+      checkInFlight = false
     }
   }, 5000) // Проверяем каждые 5 секунд
 }
