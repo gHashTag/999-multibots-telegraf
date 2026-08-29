@@ -195,10 +195,36 @@ function extractTelegramIdFromJobId(jobId: string): string | null {
 /**
  * Обработка успешного рендеринга
  */
+// Delivered job ids (in-process). AI Reels callbacks are delivered
+// at-least-once (provider retry); verifyCallbackToken checks the recipient, not
+// duplicates, so a retry re-enters handleCompletedRender and re-sends the video.
+// Claim the delivery by the immutable job_id before any await. Bounded so a
+// long-lived multi-bot process cannot grow the set without limit — same pattern
+// as the kie/sora webhook and the sibling poller handleTextToVideoDirect.ts.
+// Reset on restart (a durable guard would be a per-job marker on payments_v2).
+const DELIVERED_VIDEO_JOBS_MAX = 1000
+const deliveredVideoJobs = new Set<string>()
+function claimVideoJobDelivery(jobId: string): boolean {
+  // Returns false if this job was already delivered (caller must skip). The
+  // has()+add() pair is synchronous, so it is atomic w.r.t. the event loop.
+  if (deliveredVideoJobs.has(jobId)) return false
+  deliveredVideoJobs.add(jobId)
+  if (deliveredVideoJobs.size > DELIVERED_VIDEO_JOBS_MAX) {
+    const oldest = deliveredVideoJobs.values().next().value
+    if (oldest !== undefined) deliveredVideoJobs.delete(oldest)
+  }
+  return true
+}
+
 async function handleCompletedRender(
   telegramId: string,
   payload: AIReelsCallbackPayload
 ) {
+  // Idempotency: an at-least-once webhook re-enters this delivery for the same
+  // completed job. Claim it by the immutable job_id before any await so a
+  // duplicate skips the re-send (video + completion keyboard).
+  if (payload.job_id && !claimVideoJobDelivery(payload.job_id)) return
+
   // Определяем правильного бота в начале функции
   let botName = payload.bot_name || payload.metadata?.bot_name
 
