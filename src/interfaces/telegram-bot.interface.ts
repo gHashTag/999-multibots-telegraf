@@ -408,6 +408,11 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   // not advance until it resolves, so a second voice message during that window
   // ran it again — double level-up and a second, orphaned ElevenLabs voice.
   voiceAvatarInProgress?: boolean
+  // In-flight guard for the image-to-prompt wizard: step 2 runs
+  // generateImageToPrompt, which charges the user (MONEY_OUTCOME) and runs the
+  // full caption pipeline, and only leaves after it resolves. A second photo
+  // sent during that window ran it again — a double charge and two results.
+  imageToPromptInProgress?: boolean
 
   // Text-to-video direct generation fields
   videoJobId?: string // ID задачи генерации видео для отслеживания статуса

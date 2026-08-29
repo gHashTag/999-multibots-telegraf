@@ -53,20 +53,37 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
     }
 
     if ('photo' in ctx.message) {
-      // Если отправлено фото, обрабатываем его
-      const photo = ctx.message.photo
-      const fileId = photo[photo.length - 1].file_id
-      const file = await ctx.telegram.getFileLink(fileId)
-      const imageUrl = file.href
-
-      // Отправляем сообщение о начале генерации
-      await ctx.reply(
-        isRu
-          ? 'Генерирую промпт для вашего изображения...'
-          : 'Generating prompt for your image...'
-      )
+      // In-flight guard (same shape as voiceAvatar/morphing/aiCover).
+      // generateImageToPrompt charges the user (MONEY_OUTCOME) and runs the full
+      // caption pipeline; step 2 stays active until it resolves, so a second
+      // photo sent during that window ran it again — a double charge and two
+      // prompt results. Reject the re-entry without touching the winner's flag;
+      // set synchronously (no await between the check and the set) and release
+      // it in finally, which must wrap every await after the set.
+      if (ctx.session.imageToPromptInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже обрабатываю изображение, подождите немного...'
+            : '⏳ Already processing an image, please wait a moment...'
+        )
+        return
+      }
+      ctx.session.imageToPromptInProgress = true
 
       try {
+        // A photo was sent — process it
+        const photo = ctx.message.photo
+        const fileId = photo[photo.length - 1].file_id
+        const file = await ctx.telegram.getFileLink(fileId)
+        const imageUrl = file.href
+
+        // Tell the user that generation has started
+        await ctx.reply(
+          isRu
+            ? 'Генерирую промпт для вашего изображения...'
+            : 'Generating prompt for your image...'
+        )
+
         // Получаем токен текущего бота
         const botToken = getBotToken(ctx)
         // Получаем имя бота по токену
@@ -91,6 +108,8 @@ export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
             : 'An error occurred while processing the image. Please try again later.'
         )
         return ctx.scene.leave()
+      } finally {
+        ctx.session.imageToPromptInProgress = false
       }
     } else {
       // Если отправлено не фото, просим отправить фото
