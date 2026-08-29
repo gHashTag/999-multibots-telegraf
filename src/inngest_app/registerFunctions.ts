@@ -37,6 +37,7 @@ import {
 import { modelTrainingV2 } from './functions/training/modelTrainingV2'
 import { morphImages } from './functions/training/morphImages'
 import { checkStuckTrainings } from './functions/training/checkStuckTrainings'
+import { welcomeAvatarGeneration } from './functions/welcomeAvatarGeneration'
 // Обработчик завершения обучения. Живой путь v1 (generateModelTrainingFunction)
 // регистрирует webhook Replicate, тот шлёт model/training.completed — но
 // подписчика не было, и обещанное «получите уведомление когда завершится»
@@ -120,6 +121,12 @@ const allFunctionsRaw = [
 
   // Generation (1)
   neuroImageGeneration,
+
+  // Welcome lead-magnet (1): a free SeeDream-4.5 hero portrait from the new
+  // user's Telegram photo. Fires once per new user with a detectable face
+  // (createUserScene), skips the user's balance (is_welcome_gift), and degrades
+  // to a friendly fallback message if the provider call fails.
+  welcomeAvatarGeneration,
 
   // Payment (1)
   processPayment,
