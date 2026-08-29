@@ -269,7 +269,7 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
 
           if (result?.success) {
             // Списываем баланс только после успешного запуска
-            await updateUserBalance(
+            const charged = await updateUserBalance(
               userId.toString(),
               cost as any,
               PaymentType.MONEY_OUTCOME,
@@ -283,6 +283,17 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
                 stars: cost,
               }
             )
+            // updateUserBalance returns false (never throws) on a schema/insert
+            // failure or a ghost-payer with no users row. The charge runs only
+            // after a successful parse, so on failure the user got the result
+            // for free — log it (there is no refund path in this scene) instead
+            // of discarding the result silently.
+            if (!charged) {
+              logger.error(
+                '[instagramParser] charge failed after a successful parse — user got the result unbilled',
+                { userId, cost, target: state.target }
+              )
+            }
           }
 
           if (result?.success) {
