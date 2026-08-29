@@ -1,4 +1,4 @@
-import json, urllib.request, os
+import json, urllib.request, os, sys
 
 B = os.environ.get("MOCK_BASE", "http://localhost:3336")
 passed = []; failed = []
@@ -112,3 +112,11 @@ groups={}
 for p in passed:
     g=p.split(":")[0]; groups[g]=groups.get(g,0)+1
 print("\nПо группам:", ", ".join(f"{g}={c}" for g,c in sorted(groups.items())))
+
+# EXIT WITH A FAILURE CODE. Without this the script printed its failures and
+# returned ZERO -- and the lefthook mock-functions gate judges by the exit
+# code. A gate advertised as "fails loudly" could never fail: 86 of 87 was as
+# silent as 87 of 87. Proven 2026-08-29 by breaking one check: 86/87 printed,
+# failures listed, rc=0.
+if failed:
+    sys.exit(1)

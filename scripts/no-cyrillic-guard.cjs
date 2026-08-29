@@ -95,7 +95,44 @@ function mergeInProgress() {
   }
 }
 
-function checkStaged() {
+/**
+ * WHICH RANGE THE CHECK READS.
+ *
+ * `staged` is right inside a commit hook and useless anywhere else: outside a
+ * commit the index is empty, so the check passes by construction. `tri gate`
+ * called it that way and reported a clean run while inspecting nothing --
+ * measured 2026-08-29, zero staged files and a green line on a branch that did
+ * carry Russian comments.
+ *
+ * `range` compares against the upstream, or origin/main for a branch not yet
+ * pushed -- the same window the secret guard uses.
+ */
+function rangeDiffCommand() {
+  // stderr ignored: a branch with no upstream makes git print a fatal that is
+  // not an error here, it is the reason to fall through to origin/main.
+  const sh = c =>
+    execSync(c, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+  try {
+    const upstream = sh(
+      "git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}'"
+    )
+    if (upstream) return `git diff --unified=0 --no-color ${upstream}...HEAD`
+  } catch {
+    /* no upstream yet */
+  }
+  try {
+    const base = sh('git merge-base origin/main HEAD')
+    if (base) return `git diff --unified=0 --no-color ${base}..HEAD`
+  } catch {
+    /* no origin/main either */
+  }
+  return 'git diff --cached --unified=0 --no-color'
+}
+
+function checkStaged(mode = 'staged') {
   if (mergeInProgress()) {
     console.log(
       'no-cyrillic-guard: merge in progress, skipping the staged check ' +
@@ -104,14 +141,15 @@ function checkStaged() {
     return
   }
 
+  const cmd =
+    mode === 'range'
+      ? rangeDiffCommand()
+      : 'git diff --cached --unified=0 --no-color'
   let diff = ''
   try {
-    diff = execSync('git diff --cached --unified=0 --no-color', {
-      encoding: 'utf8',
-      maxBuffer: 128 * 1024 * 1024,
-    })
+    diff = execSync(cmd, { encoding: 'utf8', maxBuffer: 128 * 1024 * 1024 })
   } catch (err) {
-    console.error('no-cyrillic-guard: failed to read the staged diff')
+    console.error(`no-cyrillic-guard: failed to read the ${mode} diff`)
     process.exit(2)
   }
 
@@ -193,12 +231,12 @@ function checkMessage(pathArg) {
 
 if (require.main === module) {
   const mode = process.argv[2]
-  if (mode === 'staged') {
-    checkStaged()
+  if (mode === 'staged' || mode === 'range') {
+    checkStaged(mode)
   } else if (mode === 'msg') {
     checkMessage(process.argv[3])
   } else {
-    console.error('usage: no-cyrillic-guard.cjs staged | msg <file>')
+    console.error('usage: no-cyrillic-guard.cjs staged | range | msg <file>')
     process.exit(2)
   }
 }
