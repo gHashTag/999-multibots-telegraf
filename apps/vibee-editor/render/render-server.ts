@@ -224,6 +224,26 @@ function sendJson(res: any, code: number, obj: unknown): void {
 }
 
 /**
+ * The verified viewer id for feed personalization (is_liked / is_starred).
+ * Reading user_id from the query string let any caller pass ?user_id=<victim>
+ * and learn which posts that victim liked or starred — an unauthenticated
+ * cross-user disclosure, since /api/feed is on the public GET list. The id must
+ * come from the signed Telegram initData instead; an anonymous or unverified
+ * caller gets null, so the LEFT JOINs match nothing and every row reads as
+ * not-liked.
+ */
+function verifiedViewerId(req: IncomingMessage): string | null {
+  const initRaw = (req.headers['x-telegram-init-data'] as string) || ''
+  if (!initRaw || !verifyTelegramInitData(initRaw).ok) return null
+  try {
+    const u = JSON.parse(new URLSearchParams(initRaw).get('user') || '{}')
+    return u.id != null ? String(u.id) : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Прокси-картинки: скачать изображение Telegram. assertFetchable отсекает
  * не-http(s) и приватные адреса; белый список оставляет только хосты
  * Telegram. Не-изображение — ошибка: прокси не является транслятором
@@ -6144,7 +6164,7 @@ const server = createServer(async (req, res) => {
       // Postgres не мог привести это к integer и маршрут падал в 500 при
       // ЛЮБОМ параметре. А user_id клиент шлёт всегда, когда человек вошёл.
       const id = url.pathname.split('/').pop()
-      const userId = url.searchParams.get('user_id')
+      const userId = verifiedViewerId(req) // was url query — see verifiedViewerId
       try {
         // getPool() внутри try: снаружи его синхронный throw при незаданном
         // DATABASE_URL уходил из async-обработчика и убивал процесс.
@@ -6215,7 +6235,7 @@ const server = createServer(async (req, res) => {
         offsetParam !== null
           ? Math.max(0, parseInt(offsetParam) || 0)
           : Math.max(0, (parseInt(pageParam || '0') || 0) * limitSafe)
-      const userId = url.searchParams.get('user_id')
+      const userId = verifiedViewerId(req) // was url query — see verifiedViewerId
       const search = url.searchParams.get('search') || ''
       // Значение search раньше вклеивалось в SQL строкой:
       //   AND (pt.name ILIKE '%${search}%' ...)
