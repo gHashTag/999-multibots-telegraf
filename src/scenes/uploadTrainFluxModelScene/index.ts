@@ -162,7 +162,8 @@ uploadTrainFluxModelScene.enter(async ctx => {
       modelName: ctx.session.modelName,
       triggerWord,
       steps: ctx.session.steps,
-      zipUrl,
+      // path, not the public URL — see the upload log above (biometric ZIP)
+      zipFileName,
       bot_name,
     })
 
