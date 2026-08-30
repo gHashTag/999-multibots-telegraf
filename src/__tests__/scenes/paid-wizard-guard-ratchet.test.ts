@@ -24,6 +24,7 @@ import path from 'path'
 // wizard file -> its in-flight guard flag
 const GUARDED_PAID_WIZARDS: Record<string, string> = {
   'src/scenes/neuroPhotoWizard/index.ts': 'neuroPhotoInProgress',
+  'src/scenes/neuroPhotoWizardV2/index.ts': 'neuroPhotoInProgress',
   'src/scenes/faceSwapWizard/index.ts': 'faceSwapInProgress',
   'src/scenes/textToImageWizard/index.ts': 'textToImageInProgress',
   'src/scenes/imageToVideoWizard/index.ts': 'imageToVideoInProgress',
