@@ -25,6 +25,7 @@ import path from 'path'
 const GUARDED_PAID_WIZARDS: Record<string, string> = {
   'src/scenes/neuroPhotoWizard/index.ts': 'neuroPhotoInProgress',
   'src/scenes/textToSpeechWizard/index.ts': 'textToSpeechInProgress',
+  'src/scenes/musicGenerationWizard/index.ts': 'musicGenerationInProgress',
   'src/scenes/neuroPhotoWizardV2/index.ts': 'neuroPhotoInProgress',
   'src/scenes/faceSwapWizard/index.ts': 'faceSwapInProgress',
   'src/scenes/textToImageWizard/index.ts': 'textToImageInProgress',

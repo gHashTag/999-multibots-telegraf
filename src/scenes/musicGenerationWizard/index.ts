@@ -172,6 +172,19 @@ export const musicGenerationWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Списываем баланс
+    // In-flight guard: the charge + music generation below are awaited before
+    // scene.leave(), so a second text during the ~generation would re-enter and
+    // double-charge. Reject-before-set (sync); released in the .leave() handler
+    // below (covers every scene.leave path without re-indenting the step). #1357
+    if (ctx.session.musicGenerationInProgress) {
+      await ctx.reply(
+        isRu
+          ? '⏳ Уже генерирую, подождите...'
+          : '⏳ Already generating, please wait...'
+      )
+      return
+    }
+    ctx.session.musicGenerationInProgress = true
     const paymentSuccess = await updateUserBalance(
       ctx.from.id.toString(),
       cost,
@@ -359,6 +372,14 @@ export const musicGenerationWizard = new Scenes.WizardScene<MyContext>(
     return ctx.scene.leave()
   }
 )
+
+// Release the in-flight guard on ANY scene exit (all step-3 paths call
+// scene.leave). Reject-before-set is in step 3; this is the release. #1357
+musicGenerationWizard.leave(async ctx => {
+  if (ctx.session) {
+    ctx.session.musicGenerationInProgress = false
+  }
+})
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🎯 ACTION HANDLERS

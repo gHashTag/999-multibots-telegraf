@@ -324,6 +324,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   translationCache?: Record<string, TranslationEntry[]> | null
   neuroPhotoInProgress?: boolean
   textToSpeechInProgress?: boolean
+  musicGenerationInProgress?: boolean
   faceSwapInProgress?: boolean
   userModel: UserModel
   videoModel?: string
