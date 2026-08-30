@@ -1415,7 +1415,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
       console.log('🔴 [STEP 6] Balance sufficient! Charging user...')
       // Списание средств
-      await updateUserBalance(
+      const charged = await updateUserBalance(
         telegramId,
         estimatedCost,
         PaymentType.MONEY_OUTCOME,
@@ -1426,6 +1426,19 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           avatar_service: avatarService,
         }
       )
+      // updateUserBalance returns false on a failed debit (it does NOT throw).
+      // Without capturing it, a charge that fails -- e.g. a concurrent spend
+      // depletes the balance between the pre-check and here, or a DB error --
+      // still fell through to the render-server dispatch below: a FREE video.
+      if (!charged) {
+        console.log('🔴 [STEP 6] CHARGE FAILED -- aborting render')
+        await ctx.reply(
+          isRu
+            ? '💰 Ошибка списания средств. Попробуйте позже.'
+            : '💰 Error charging payment. Try again later.'
+        )
+        return ctx.scene.leave()
+      }
       console.log('🔴 [STEP 6] User charged successfully!')
 
       console.log('🔴 [STEP 6] Sending event to render-server...')
