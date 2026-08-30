@@ -11,6 +11,7 @@ import {
   getVideoCompletionMessage,
 } from '@/helpers/videoCompletionKeyboard'
 import { verifyCallbackToken } from '@/utils/callbackToken'
+import { redactSensitiveHeaders } from '@/utils/redactHeaders'
 
 const router: Router = express.Router()
 
@@ -49,7 +50,7 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
   // ✅ Логируем сразу при получении callback
   logger.info('🔔 [AI REELS CALLBACK] Webhook received', {
     timestamp: new Date().toISOString(),
-    headers: req.headers,
+    headers: redactSensitiveHeaders(req.headers),
     bodyKeys: Object.keys(req.body || {}),
     bodyPreview: JSON.stringify(req.body).substring(0, 200),
   })
