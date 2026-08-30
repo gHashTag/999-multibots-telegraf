@@ -1236,16 +1236,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           }
         )
 
-        // Возврат средств
-        await updateUserBalance(
-          telegramId,
-          totalCost,
-          PaymentType.MONEY_INCOME,
-          'AI Reels refund - critical lip-sync error',
-          { bot_name: ctx.botInfo?.username || 'unknown_bot' }
-        )
-
-        // Специальное сообщение для timeout ошибок
+        // Refund via refundAndTell: it checks the credit result and tells the
+        // user by fact. The raw updateUserBalance call here ignored its result,
+        // so "Funds refunded" was said even when the credit returned false.
         const isTimeout =
           genError instanceof Error && genError.message.includes('timeout')
         const isElevenLabsError =
@@ -1253,25 +1246,34 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         const isFalApiError =
           genError instanceof Error && genError.message.includes('Fal.ai')
 
-        let errorMessage = isRu
-          ? `❌ Критическая ошибка генерации lip-sync видео через fal провайдер. Средства возвращены.`
-          : `❌ Critical lip-sync generation error via fal provider. Funds refunded.`
+        const refundReason = isTimeout
+          ? {
+              ru: '⏰ Таймаут генерации lip-sync видео через fal провайдер. Серверы перегружены, попробуйте позже.',
+              en: '⏰ Lip-sync generation timeout via fal provider. Servers are overloaded, try again later.',
+            }
+          : isElevenLabsError
+            ? {
+                ru: '🎤 Ошибка генерации голоса. Проблема с ElevenLabs API.',
+                en: '🎤 Voice generation error. ElevenLabs API issue.',
+              }
+            : isFalApiError
+              ? {
+                  ru: '🎭 Ошибка fal провайдера. Проблема с Fal.ai API.',
+                  en: '🎭 Fal provider error. Fal.ai API issue.',
+                }
+              : {
+                  ru: 'Критическая ошибка генерации lip-sync видео через fal провайдер.',
+                  en: 'Critical lip-sync generation error via fal provider.',
+                }
 
-        if (isTimeout) {
-          errorMessage = isRu
-            ? `⏰ Таймаут генерации lip-sync видео через fal провайдер. Серверы перегружены, попробуйте позже. Средства возвращены.`
-            : `⏰ Lip-sync generation timeout via fal provider. Servers are overloaded, try again later. Funds refunded.`
-        } else if (isElevenLabsError) {
-          errorMessage = isRu
-            ? `🎤 Ошибка генерации голоса. Проблема с ElevenLabs API. Средства возвращены.`
-            : `🎤 Voice generation error. ElevenLabs API issue. Funds refunded.`
-        } else if (isFalApiError) {
-          errorMessage = isRu
-            ? `🎭 Ошибка fal провайдера. Проблема с Fal.ai API. Средства возвращены.`
-            : `🎭 Fal provider error. Fal.ai API issue. Funds refunded.`
-        }
-
-        await ctx.reply(errorMessage)
+        await refundAndTell({
+          ctx,
+          telegramId,
+          amount: totalCost,
+          description: 'AI Reels refund - critical lip-sync error',
+          reason: refundReason,
+          isRu,
+        })
         return ctx.scene.leave()
       }
     } catch (error) {
