@@ -66,10 +66,25 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
 
   // Улучшенный middleware для логгирования запросов с использованием logger
   app.use((req: any, res: any, next: any) => {
+    // Never log secret-bearing headers verbatim. x-secret-key is the internal
+    // SECRET_API_KEY (gates billing/models/diagnostic and is the HMAC key for
+    // callback tokens); authorization/cookie/x-telegram-bot-api-secret-token are
+    // equally sensitive. The winston format only redacts bot-tokens-in-URLs, not
+    // header values, so mask them here before logging (CWE-532).
+    const SENSITIVE_HEADERS = new Set([
+      'x-secret-key',
+      'authorization',
+      'cookie',
+      'x-telegram-bot-api-secret-token',
+    ])
+    const safeHeaders: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(req.headers)) {
+      safeHeaders[k] = SENSITIVE_HEADERS.has(k.toLowerCase()) ? '<redacted>' : v
+    }
     logger.info(`[API] Request received`, {
       method: req.method,
       url: req.url,
-      headers: req.headers,
+      headers: safeHeaders,
       body: req.body
         ? JSON.stringify(req.body).substring(0, 200) + '...'
         : '{}',
