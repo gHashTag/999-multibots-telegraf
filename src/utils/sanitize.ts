@@ -70,20 +70,32 @@ export function sanitizeUrl(
       )
     }
 
-    // Защита от localhost/private IPs в production
-    if (process.env.NODE_ENV === 'production') {
-      const hostname = parsed.hostname.toLowerCase()
+    // SSRF guard: block localhost, private/link-local IPv4, and loopback/
+    // private IPv6 (incl. 169.254.169.254 cloud metadata, and IPv4-mapped IPv6
+    // which Node renders in hex). Applied ALWAYS, not just production: a dev bot
+    // can be tunnel-exposed (cloudflared), and the only caller passes a
+    // user-typed URL where a private host is never legitimate.
+    {
+      const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '')
       const privatePatterns = [
         /^localhost$/,
+        /\.localhost$/,
         /^127\./,
         /^10\./,
         /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
         /^192\.168\./,
+        /^169\.254\./,
         /^0\.0\.0\.0$/,
+        /^::1$/,
+        /^::$/,
+        /^::ffff:7f[0-9a-f]{2}:/,
+        /^::ffff:a9fe:/,
+        /^fe80:/,
+        /^f[cd][0-9a-f]{2}:/,
       ]
 
       if (privatePatterns.some(pattern => pattern.test(hostname))) {
-        throw new Error('Private/local URLs not allowed in production')
+        throw new Error('Private/local URLs not allowed')
       }
     }
 
