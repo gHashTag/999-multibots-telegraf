@@ -577,6 +577,16 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
       //
       // Знак задаёт `type`, а не минус у суммы: балансовая функция считает
       // income − outcome, поэтому отрицательный outcome НАЧИСЛЯЕТ деньги.
+      if (ctx.session.hedraRenderInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже обрабатываю, подождите...'
+            : '⏳ Already processing, please wait...'
+        )
+        return
+      }
+      ctx.session.hedraRenderInProgress = true
+
       const charged = await updateUserBalance(
         telegramId,
         estimatedCost,
@@ -727,6 +737,10 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
 )
 
 // Обработчик кнопки отмены
+hedraRenderWizard.leave(async ctx => {
+  if (ctx.session) ctx.session.hedraRenderInProgress = false
+})
+
 hedraRenderWizard.action('hedra_cancel', async ctx => {
   try {
     await ctx.answerCbQuery()
