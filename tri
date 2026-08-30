@@ -170,6 +170,9 @@ CHECKS THAT EACH COST A CYCLE
         calculateFinalPriceInStars = floor(usd/starCost*markup). Constants read from
         src/price/constants. A refund and its charge can use DIFFERENT helpers whose
         bases diverge by rounding -- match the CHARGE's helper (learned via #1263).
+        NOTE: serviceBase is the THEORETICAL calculateFinalImageCostInStars(usd);
+        a service may hardcode a different costPerImage (nano_banana=5) -- a false
+        DIVERGE. Verify the real source costPerImage, not the formula (#1271).
 
   tri batch-refunds
         Audit which aiPhotoshop ALL_MODELS batch services forward the exact charge
@@ -1188,7 +1191,7 @@ cmd_money_base() {
   star="$(grep -E 'STAR_COST_USD[[:space:]]*=' "$cfile" 2>/dev/null | head -1 | grep -oE '[0-9.]+' | head -1)"
   ir="$(grep -E 'MARKUP_MULTIPLIER[[:space:]]*=' "$cfile" 2>/dev/null | head -1 | grep -oE '[0-9.]+' | head -1)"
   star="${star:-0.016}"; ir="${ir:-1.5}"; markup="${markup:-$ir}"
-  node -e "const usd=$usd,star=$star,ir=$ir,mk=$markup;const img=Math.ceil(usd*ir/star),price=Math.floor(usd/star*mk);console.log('  constants (from source): starCost='+star+'  interestRate='+ir+'  markup(arg)='+mk);console.log('  calculateFinalImageCostInStars = ceil('+usd+'*'+ir+'/'+star+') = '+img+' stars');console.log('  calculateFinalPriceInStars     = floor('+usd+'/'+star+'*'+mk+') = '+price+' stars');console.log(img===price?'  AGREE: базы совпадают — refund любой из них ок':'  DIVERGE: refund ОБЯЗАН брать базу того же helper, что и charge!')"
+  node -e "const usd=$usd,star=$star,ir=$ir,mk=$markup;const img=Math.ceil(usd*ir/star),price=Math.floor(usd/star*mk);console.log('  constants (from source): starCost='+star+'  interestRate='+ir+'  markup(arg)='+mk);console.log('  calculateFinalImageCostInStars = ceil('+usd+'*'+ir+'/'+star+') = '+img+' stars');console.log('  calculateFinalPriceInStars     = floor('+usd+'/'+star+'*'+mk+') = '+price+' stars');console.log(img===price?'  AGREE: базы совпадают — refund любой из них ок':'  DIVERGE: refund ОБЯЗАН брать базу того же helper, что и charge!');console.log('  ВНИМАНИЕ: serviceBase = calculateFinalImageCostInStars(usd) ТЕОРЕТИЧЕСКИ; сервис может ХАРДКОДИТЬ costPerImage (nano_banana=5) -- сверь реальный источник, не формулу')"
 }
 
 cmd_batch_refunds() {
