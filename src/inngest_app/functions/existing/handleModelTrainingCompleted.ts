@@ -255,6 +255,10 @@ export function createHandleModelTrainingCompletedFunction(inngest: any) {
               updated: true,
               status: updateData.status,
               modelUrl,
+              // whether a USABLE model_url was actually persisted (false on the
+              // version-less success path, where the local modelUrl is a broken
+              // owner/slug: but updateData.model_url was intentionally skipped). #1349
+              modelUrlWritten: !!updateData.model_url,
               versionHash: versionHash
                 ? versionHash.substring(0, 20) + '...'
                 : null,
@@ -355,11 +359,24 @@ export function createHandleModelTrainingCompletedFunction(inngest: any) {
             let message: string
             const triggerWord = trainingRecord.trigger_word || 'TRIGGER_WORD'
 
-            if (eventData.status === 'succeeded') {
+            if (
+              eventData.status === 'succeeded' &&
+              dbUpdateResult?.modelUrlWritten
+            ) {
               if (isRu) {
                 message = `✅ Тренировка модели завершена!\n\n📦 Модель: ${modelName}\n🎯 Trigger word: <b>${triggerWord}</b>\n🆔 Training ID: ${eventData.training_id}\n\n🎨 Теперь вы можете использовать эту модель в разделе "Модели" в Нейрофото.\n\n💡 <b>Как использовать:</b>\nЧтобы активировать модель, укажите trigger word <b>${triggerWord}</b> в промпте при генерации изображений.\n\nПример промпта: "<b>${triggerWord}</b> person, cinematic lighting, high quality"`
               } else {
                 message = `✅ Model training completed!\n\n📦 Model: ${modelName}\n🎯 Trigger word: <b>${triggerWord}</b>\n🆔 Training ID: ${eventData.training_id}\n\n🎨 You can now use this model in the "Models" section of Neurophoto.\n\n💡 <b>How to use:</b>\nTo activate the model, include the trigger word <b>${triggerWord}</b> in your prompt when generating images.\n\nExample prompt: "<b>${triggerWord}</b> person, cinematic lighting, high quality"`
+              }
+            } else if (eventData.status === 'succeeded') {
+              // Succeeded but model_url was NOT written (version-less output: the
+              // legacy/odd shape the watchdog sweeps). The row is flipped terminal
+              // but the model cannot be selected/used, so do NOT claim it is ready.
+              // Mirror the failed-branch tone. #1349
+              if (isRu) {
+                message = `⏳ Тренировка модели почти завершена\n\n📦 Модель: ${modelName}\n🆔 Training ID: ${eventData.training_id}\n\nМы финализируем вашу модель. Если она не появится в разделе "Модели" в течение часа — обратитесь в поддержку.`
+              } else {
+                message = `⏳ Model training is almost done\n\n📦 Model: ${modelName}\n🆔 Training ID: ${eventData.training_id}\n\nWe are finalizing your model. If it does not appear in the "Models" section within an hour, please contact support.`
               }
             } else {
               if (isRu) {
