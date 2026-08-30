@@ -4004,7 +4004,8 @@ const processSingleAiPhotoshopModel = async (
           ctx,
           promptStyle: 'artistic',
           silent: true, // ✅ ИСПРАВЛЕНО: Don't send photo in ALL_MODELS mode
-          skipBalanceCheck: true, // ✅ ИСПРАВЛЕНО: Balance already checked before loop
+          // #1274: NO skipBalanceCheck -- nothing charges this branch in all_models,
+          // so the service must charge its own price (was falsely marked already-charged)
         })
 
         // ✅ Save result to session for later sending
