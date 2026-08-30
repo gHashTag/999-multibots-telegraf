@@ -452,6 +452,20 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
       `🔍 [DEBUG] Парсинг кнопки: text="${text}", numImages=${numImages}`
     )
 
+    // Validate at the boundary: the buttons offer 1-4, so a TYPED value outside
+    // that (0, negative, NaN from non-numeric text, or huge) is invalid. This
+    // mirrors the sibling neuroCoderScene check; downstream generateNeuroPhotoHybrid
+    // also rejects <= 0, but the wizard should not pass a bad count that far.
+    const allowedNumImages = [1, 2, 3, 4]
+    if (isNaN(numImages) || !allowedNumImages.includes(numImages)) {
+      await ctx.reply(
+        isRu
+          ? '❌ Пожалуйста, выберите число изображений: 1, 2, 3 или 4.'
+          : '❌ Please choose the number of images: 1, 2, 3, or 4.'
+      )
+      return
+    }
+
     const prompt = ctx.session.prompt
     const userId = ctx.from?.id
 
