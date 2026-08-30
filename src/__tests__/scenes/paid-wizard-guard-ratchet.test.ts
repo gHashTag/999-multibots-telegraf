@@ -26,6 +26,8 @@ const GUARDED_PAID_WIZARDS: Record<string, string> = {
   'src/scenes/neuroPhotoWizard/index.ts': 'neuroPhotoInProgress',
   'src/scenes/faceSwapWizard/index.ts': 'faceSwapInProgress',
   'src/scenes/textToImageWizard/index.ts': 'textToImageInProgress',
+  'src/scenes/imageToVideoWizard/index.ts': 'imageToVideoInProgress',
+  'src/scenes/textToVideoWizard/index.ts': 'textToVideoInProgress',
   'src/scenes/voiceAvatarWizard/index.ts': 'voiceAvatarInProgress',
   'src/scenes/morphingWizard/index.ts': 'morphingGenerationInProgress',
   'src/scenes/aiCoverWizard/index.ts': 'aiCoverGenerationInProgress',

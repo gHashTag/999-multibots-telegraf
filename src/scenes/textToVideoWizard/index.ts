@@ -240,27 +240,44 @@ export const textToVideoWizard = new Scenes.WizardScene<MyContext>(
         duration,
       })
 
-      // Генерируем видео - показываем ПОЛНЫЙ промпт пользователю
-      await ctx.reply(
-        isRu
-          ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt}`
-          : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt}`
-      )
+      // In-flight guard (mirror textToImageWizard): a second tap at this step
+      // re-enters handleTextToVideoDirect (which charges) and generates a second
+      // video off one balance. Reject-before-set, set synchronously, release in
+      // finally.
+      if (ctx.session.textToVideoInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже генерирую видео, подождите немного...'
+            : '⏳ Already generating a video, please wait a moment...'
+        )
+        return
+      }
+      ctx.session.textToVideoInProgress = true
+      try {
+        // Generate the video -- show the user the full prompt
+        await ctx.reply(
+          isRu
+            ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt}`
+            : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt}`
+        )
 
-      const videoModelId = selectedModel as VideoModelId
-      await handleTextToVideoDirect(
-        ctx,
-        prompt,
-        videoModelId,
-        duration,
-        aspectRatio
-      )
-      console.log('🎬 [WIZARD] Video generation success!')
+        const videoModelId = selectedModel as VideoModelId
+        await handleTextToVideoDirect(
+          ctx,
+          prompt,
+          videoModelId,
+          duration,
+          aspectRatio
+        )
+        console.log('🎬 [WIZARD] Video generation success!')
 
-      // ✅ FIX: Сохраняем последнюю сцену для кнопки "Повторить генерацию"
-      ctx.session.lastCompletedVideoScene = 'text_to_video' as any
+        // Save the last scene for the "Repeat generation" button
+        ctx.session.lastCompletedVideoScene = 'text_to_video' as any
 
-      return ctx.scene.leave()
+        return ctx.scene.leave()
+      } finally {
+        ctx.session.textToVideoInProgress = false
+      }
     } catch (error) {
       console.error('🎬 [WIZARD] Step 3 ERROR:', error)
 
