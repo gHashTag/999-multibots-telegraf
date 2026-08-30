@@ -640,6 +640,14 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
+      // charged: was the balance actually debited? refundHandled: has an
+      // inner refund already run? (refundAndTell does the DB refund THEN a reply;
+      // a reply-throw after a successful refund propagates to the outer catch,
+      // which must NOT refund a second time.) chargedCost hoists the amount --
+      // `cost` is destructured inside the try and is not in scope in the catch.
+      let charged = false
+      let refundHandled = false
+      let chargedCost = 0
       try {
         // Получаем сохраненные данные из сессии
         const { imageUrl, text, audioUrl, cost, duration } =
@@ -681,6 +689,9 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           )
           return ctx.scene.leave()
         }
+
+        charged = true
+        chargedCost = cost
 
         const currentBalance = await getUserBalance(telegramId)
         const newBalance = currentBalance ? currentBalance : 0
@@ -790,6 +801,7 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
 
             // Возврат средств. Говорим человеку то, что произошло на самом
             // деле: начисление может не пройти.
+            refundHandled = true
             await refundAndTell({
               ctx,
               telegramId,
@@ -888,6 +900,7 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           })
 
           // Возврат средств. Сообщение зависит от того, прошло ли начисление.
+          refundHandled = true
           await refundAndTell({
             ctx,
             telegramId,
@@ -904,6 +917,23 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       } catch (error) {
         logger.error('❌ Ошибка в Veed Fabric wizard Step 3', { error })
+        // The outer catch only fires on a pre-dispatch setup throw (the async
+        // job start is inside the genError try, and the only path past it is a
+        // non-throwing leave()), so no video was started -- refund is correct.
+        if (charged && !refundHandled) {
+          refundHandled = true
+          await refundAndTell({
+            ctx,
+            telegramId,
+            amount: chargedCost,
+            description: 'Lip-sync refund - outer error',
+            reason: {
+              ru: 'Произошла ошибка',
+              en: 'An error occurred',
+            },
+            isRu,
+          })
+        }
         await ctx.reply(
           isRu
             ? '❌ Произошла ошибка. Попробуйте позже.'
