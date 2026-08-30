@@ -147,6 +147,10 @@ const chargedVideoJobs = new Set<string>()
 // long-lived multi-bot process cannot grow the set without limit (copied from
 // the sibling poller handleTextToVideoDirect.ts). Reset on restart.
 const claimVideoJobDelivery = createVideoDeliveryClaimer()
+// Separate claimer for FAILURE/content-policy notifications: at-least-once
+// provider retries must not re-send the same error text. Its own set so it
+// never collides with the success-delivery claim (see #1352).
+const claimVideoFailureNotify = createVideoDeliveryClaimer()
 
 async function chargeForDeliveredVideo(params: {
   telegramId: string
@@ -1372,6 +1376,9 @@ async function handleSoraFailure(
         return
       }
 
+      // Idempotent: an at-least-once retry must not re-send this error. #1352
+      // Idempotent: an at-least-once retry must not re-send this error. #1352
+      if (taskId && !claimVideoFailureNotify(taskId)) return
       await botInstance.telegram.sendMessage(
         chatId,
         `❌ Ошибка генерации видео.\n\nПричина: ${translatedError}\n\nПопробуйте другой запрос или обратитесь в поддержку.`
@@ -1475,6 +1482,8 @@ async function handleSoraContentPolicy(
         return
       }
 
+      // Idempotent: an at-least-once retry must not re-send this error. #1352
+      if (taskId && !claimVideoFailureNotify(taskId)) return
       await botInstance.telegram.sendMessage(
         chatId,
         `🚫 Контент отклонен политикой безопасности.\n\nПричина: ${translatedError}\n\nПопробуйте другой запрос.`,
@@ -1831,6 +1840,8 @@ async function handleFailedGeneration(
           return
         }
 
+        // Idempotent: an at-least-once retry must not re-send this error. #1352
+        if (taskId && !claimVideoFailureNotify(taskId)) return
         await botInstance.telegram.sendMessage(
           chatId,
           `❌ Ошибка генерации видео.\n\nПричина: ${translatedError}\n\nПопробуйте другой запрос или обратитесь в поддержку.`
@@ -1901,6 +1912,8 @@ async function handleContentPolicyError(
           return
         }
 
+        // Idempotent: an at-least-once retry must not re-send this error. #1352
+        if (taskId && !claimVideoFailureNotify(taskId)) return
         await botInstance.telegram.sendMessage(
           chatId,
           `🚫 Контент отклонен политикой безопасности.\n\nПричина: ${translatedError}\n\nПопробуйте другой запрос.`,
