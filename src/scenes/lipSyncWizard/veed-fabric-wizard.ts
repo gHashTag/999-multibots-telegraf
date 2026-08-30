@@ -648,6 +648,11 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
       let charged = false
       let refundHandled = false
       let chargedCost = 0
+      // dispatched: did startAsyncGeneration return a jobId? Once it has,
+      // the async manager OWNS the job's money outcome (it refunds job.cost on
+      // failure and does not re-charge on success), so a post-dispatch reply-throw
+      // must NOT refund here -- that would mint (video delivered + refunded).
+      let dispatched = false
       try {
         // Получаем сохраненные данные из сессии
         const { imageUrl, text, audioUrl, cost, duration } =
@@ -863,6 +868,7 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             ctx.chat!.id,
             ctx.botInfo
           )
+          dispatched = true
 
           await ctx.reply(
             isRu
@@ -899,19 +905,29 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             textLength: text?.length || 0,
           })
 
-          // Возврат средств. Сообщение зависит от того, прошло ли начисление.
-          refundHandled = true
-          await refundAndTell({
-            ctx,
-            telegramId,
-            amount: cost,
-            description: 'Lip-sync refund - startup error',
-            reason: {
-              ru: 'Ошибка запуска генерации',
-              en: 'Error starting generation',
-            },
-            isRu,
-          })
+          // Only a PRE-dispatch throw warrants a refund here. If the job was
+          // already dispatched (jobId returned) and only the confirmation reply
+          // threw, the async manager owns the refund-on-failure / no double-charge
+          // -- refunding here as well would mint. See #1329.
+          if (!dispatched) {
+            refundHandled = true
+            await refundAndTell({
+              ctx,
+              telegramId,
+              amount: cost,
+              description: 'Lip-sync refund - startup error',
+              reason: {
+                ru: 'Ошибка запуска генерации',
+                en: 'Error starting generation',
+              },
+              isRu,
+            })
+          } else {
+            logger.warn(
+              '[VEED FABRIC] Post-dispatch reply threw; NOT refunding (async manager owns the job money lifecycle)',
+              { telegramId }
+            )
+          }
         }
 
         return ctx.scene.leave()
