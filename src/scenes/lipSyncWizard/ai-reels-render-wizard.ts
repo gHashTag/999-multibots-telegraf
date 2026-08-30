@@ -1414,6 +1414,15 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       }
 
       console.log('🔴 [STEP 6] Balance sufficient! Charging user...')
+      if (ctx.session.aiReelsRenderInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже обрабатываю, подождите...'
+            : '⏳ Already processing, please wait...'
+        )
+        return
+      }
+      ctx.session.aiReelsRenderInProgress = true
       // Списание средств
       const charged = await updateUserBalance(
         telegramId,
@@ -1629,6 +1638,10 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 )
 
 // Обработчик кнопки отмены
+aiReelsRenderWizard.leave(async ctx => {
+  if (ctx.session) ctx.session.aiReelsRenderInProgress = false
+})
+
 aiReelsRenderWizard.action('ai_reels_cancel', async ctx => {
   try {
     await ctx.answerCbQuery()
