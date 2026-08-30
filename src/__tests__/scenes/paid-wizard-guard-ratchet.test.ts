@@ -28,6 +28,7 @@ const GUARDED_PAID_WIZARDS: Record<string, string> = {
   'src/scenes/musicGenerationWizard/index.ts': 'musicGenerationInProgress',
   'src/scenes/videoTranscriptionWizard/index.ts':
     'videoTranscriptionInProgress',
+  'src/scenes/aiPhotoshopScene/index.ts': 'aiPhotoshopInProgress',
   'src/scenes/neuroPhotoWizardV2/index.ts': 'neuroPhotoInProgress',
   'src/scenes/faceSwapWizard/index.ts': 'faceSwapInProgress',
   'src/scenes/textToImageWizard/index.ts': 'textToImageInProgress',
