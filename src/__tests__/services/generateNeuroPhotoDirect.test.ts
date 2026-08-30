@@ -411,6 +411,32 @@ describe('generateNeuroPhotoDirect', () => {
         })
       )
     })
+
+    it('НЕ пробрасывает устаревший session bypass (защита от 0-cost, #1335)', async () => {
+      const mockFalResult = {
+        data: { images: [{ url: 'https://fal.media/image.jpg' }] },
+      }
+      ;(fal.subscribe as Mock).mockResolvedValue(mockFalResult)
+
+      // A stale flag left by the AvatarTransform lead magnet (never cleared on
+      // cancel) must NOT bypass the balance check on a normal paid run.
+      ;(mockContext as any).session.bypass_payment_check = true
+
+      await generateNeuroPhotoDirect(
+        'Test prompt',
+        'https://example.com/model.safetensors',
+        1,
+        '144022504',
+        mockContext as MyContext,
+        'test_bot',
+        null,
+        { disable_telegram_sending: true, bypass_payment_check: false }
+      )
+
+      expect(directPaymentProcessor).toHaveBeenCalledWith(
+        expect.objectContaining({ bypass_payment_check: false })
+      )
+    })
   })
 
   describe('4. Валидация входных данных', () => {
