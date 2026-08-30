@@ -372,6 +372,21 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
       // безусловный возврат тогда начислил бы деньги, которых никто не брал.
       let charged = false
 
+      // In-flight guard: the parse (generateInstagramScraping) + charge below are
+      // awaited before scene.leave(), so a second Confirm during the ~parse would
+      // re-enter and double-charge. Reject-before-set (sync); released in the
+      // finally so it also fires in direct-drive tests (no session leak). #1368
+      if (ctx.session.instagramParserInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже обрабатываю, подождите...'
+            : '⏳ Already processing, please wait...'
+        )
+        return
+      }
+
+      ctx.session.instagramParserInProgress = true
+
       try {
         // Убираем клавиатуру
         await ctx.reply(
@@ -536,6 +551,8 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
                   : '💰 Automatic refund failed — please contact support and quote this message.\n') +
                 'Try again later or contact support.'
         )
+      } finally {
+        ctx.session.instagramParserInProgress = false
       }
 
       return ctx.scene.leave()
