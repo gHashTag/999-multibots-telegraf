@@ -73,6 +73,13 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
       .eq('telegram_id', telegramId)
       // ✅ ИСПРАВЛЕНО: Принимаем разные варианты успешного статуса
       .in('status', ['SUCCESS', 'completed', 'SUCCEEDED', 'succeeded'])
+      // A version-less training success is flipped to SUCCESS but leaves
+      // model_url null (see #1349); such a row is unusable, so do not offer it
+      // for selection (it would feed a null model_url into generation). #1351
+      .not('model_url', 'is', null)
+      // A version-less training success is flipped to SUCCESS but leaves
+      // model_url null (see #1349); such a row is unusable, so do not offer it
+      // for selection (it would feed a null model_url into generation). #1351
       .order('created_at', { ascending: false })
       .limit(20)
 
