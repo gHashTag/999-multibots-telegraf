@@ -186,6 +186,12 @@ CHECKS THAT EACH COST A CYCLE
         or retry can never be rejected (#1298 promo star-mint). A flag is OK only
         if the intent is unique-per-payment, not dedup (reward/bonus/refund).
 
+  tri charge | tri заряд
+        Completeness check for the double-charge class (#1358): lists every
+        scene that CHARGES money and whether it is guarded / safe / a tracked
+        gap (#1372) / UNCLASSIFIED. Non-zero exit on any unclassified scene.
+        Reads the classification from the vitest ratchet so it never drifts.
+
   tri wired <SymbolName>
         Is a handler wired or dead? Lists every src reference and flags the ones
         on commented-out lines (the shape of dead wiring, e.g. a handler whose
@@ -1286,6 +1292,15 @@ cmd_wired() {
   printf '  grep не видит /* */, if(false), feature-flag, examples-only, динамические реестры.\n'
 }
 
+cmd_charge() {
+  # Fast, human-readable face of the charging-scene completeness ratchet (#1374).
+  # Lists every scene that CHARGES money and its classification; exits non-zero
+  # if any charging scene is neither guarded nor classified (the #1358 class).
+  # Authority is the vitest ratchet; this reads the same classification sets
+  # from the test file so it cannot drift. Use it before/while fixing #1372.
+  ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
 action="${1:-помощь}"
 shift 2>/dev/null || true
 
@@ -1306,6 +1321,7 @@ case "$action" in
   batch-refunds|возвраты) cmd_batch_refunds ;;
   idempotency-keys|ключи) cmd_idempotency_keys ;;
   wired|подключён)    cmd_wired "$@" ;;
+  charge|заряд)       cmd_charge ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
