@@ -431,6 +431,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   // for repeat taps, so a second tap during a generation charged twice and
   // produced two batches. Same shape as the sibling guards.
   textToImageInProgress?: boolean
+  imageToVideoInProgress?: boolean
+  textToVideoInProgress?: boolean
 
   // Text-to-video direct generation fields
   videoJobId?: string // ID задачи генерации видео для отслеживания статуса
