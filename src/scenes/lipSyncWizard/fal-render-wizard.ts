@@ -742,9 +742,14 @@ export const falRenderWizard = new Scenes.WizardScene<MyContext>(
         }
       )
 
+      // dispatched: once sendRenderAvatarVideoEvent returns, the render job is
+      // queued and the callback owns its outcome; a throw in the confirmation
+      // reply AFTER this must NOT refund (heygen-render is the oracle). See #1331.
+      let dispatched = false
       // Отправка на render-server
       try {
         const { eventId } = await sendRenderAvatarVideoEvent(payload)
+        dispatched = true
 
         await ctx.reply(
           isRu
@@ -776,17 +781,27 @@ export const falRenderWizard = new Scenes.WizardScene<MyContext>(
         // Возврат средств при ошибке. Говорим человеку то, что
         // произошло: начисление может не пройти — updateUserBalance
         // при неудаче не бросает, а возвращает false.
-        await refundAndTell({
-          ctx,
-          telegramId,
-          amount: estimatedCost,
-          description: 'Refund: Fal Render error',
-          reason: {
-            ru: 'Произошла ошибка при отправке запроса',
-            en: 'An error occurred while sending the request',
-          },
-          isRu,
-        })
+        // Only a PRE-dispatch throw warrants a refund. If the job was already
+        // dispatched and only the confirmation reply threw, the render job keeps
+        // running and will deliver -- refunding here would mint. See #1331.
+        if (!dispatched) {
+          await refundAndTell({
+            ctx,
+            telegramId,
+            amount: estimatedCost,
+            description: 'Refund: Fal Render error',
+            reason: {
+              ru: 'Произошла ошибка при отправке запроса',
+              en: 'An error occurred while sending the request',
+            },
+            isRu,
+          })
+        } else {
+          logger.warn(
+            '[RENDER] Post-dispatch reply threw; NOT refunding (render job owns its outcome)',
+            { telegramId }
+          )
+        }
       }
 
       // Очистка сессии
