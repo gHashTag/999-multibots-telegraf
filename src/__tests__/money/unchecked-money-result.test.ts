@@ -60,7 +60,6 @@ const DEBT: Record<string, number> = {
   'src/api_server/routes/x402.routes.ts': 2,
   'src/core/supabase/updateUserBalance.ts': 1,
   'src/scenes/lipSyncWizard/ai-reels-inngest-wizard.ts': 1,
-  'src/scenes/lipSyncWizard/ai-reels-wizard.ts': 1,
   'src/scenes/lipSyncWizard/fal-render-wizard.ts': 2,
   'src/scenes/lipSyncWizard/index.ts': 1,
   'src/services/marketplaceService.ts': 1,
