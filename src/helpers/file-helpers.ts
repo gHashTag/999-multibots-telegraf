@@ -1,4 +1,5 @@
 import axios, { isAxiosError } from 'axios'
+import { assertPublicRedirect } from '@/utils/sanitize'
 import * as fs from 'fs/promises'
 import path from 'path'
 import { promisify } from 'util'
@@ -24,6 +25,8 @@ export async function downloadFile(
       responseType: 'arraybuffer',
       timeout: 60000,
       maxRedirects: 5,
+      // SSRF: re-check each redirect hop against the private/metadata blocklist
+      beforeRedirect: assertPublicRedirect,
       validateStatus: status => status === 200,
     })
 
