@@ -652,6 +652,16 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
         step: 'processing',
       }
 
+      if (ctx.session.heygenRenderInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже обрабатываю, подождите...'
+            : '⏳ Already processing, please wait...'
+        )
+        return
+      }
+      ctx.session.heygenRenderInProgress = true
+
       try {
         await ctx.reply(
           isRu
@@ -849,6 +859,8 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
             : '⚠️ Error occurred during processing. Contact support.'
         )
         return ctx.scene.leave()
+      } finally {
+        ctx.session.heygenRenderInProgress = false
       }
     } else {
       await ctx.reply(

@@ -331,6 +331,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   aiReelsInProgress?: boolean
   veedFabricInProgress?: boolean
   hedraRenderInProgress?: boolean
+  heygenRenderInProgress?: boolean
   instagramParserInProgress?: boolean
   instagramParserSceneInProgress?: boolean
   faceSwapInProgress?: boolean

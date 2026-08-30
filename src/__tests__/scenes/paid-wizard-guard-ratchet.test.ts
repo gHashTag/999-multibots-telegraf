@@ -33,6 +33,7 @@ const GUARDED_PAID_WIZARDS: Record<string, string> = {
   'src/scenes/lipSyncWizard/ai-reels-wizard.ts': 'aiReelsInProgress',
   'src/scenes/lipSyncWizard/veed-fabric-wizard.ts': 'veedFabricInProgress',
   'src/scenes/lipSyncWizard/hedra-render-wizard.ts': 'hedraRenderInProgress',
+  'src/scenes/lipSyncWizard/heygen-render-wizard.ts': 'heygenRenderInProgress',
   'src/scenes/instagramParserWizard/index.ts': 'instagramParserInProgress',
   'src/scenes/instagramParserScene/index.ts': 'instagramParserSceneInProgress',
   'src/scenes/neuroPhotoWizardV2/index.ts': 'neuroPhotoInProgress',
@@ -130,7 +131,6 @@ const SAFE_NOT_CHARGEABLE: Record<string, string> = {
 //   while the gap is machine-tracked; each must move into GUARDED_PAID_WIZARDS
 //   as it is fixed (the "not both" test below then forces its removal from here).
 const KNOWN_UNGUARDED_TRACKED: Record<string, string> = {
-  'src/scenes/lipSyncWizard/heygen-render-wizard.ts': '#1372',
   'src/scenes/lipSyncWizard/fal-render-wizard.ts': '#1372',
   'src/scenes/lipSyncWizard/ai-reels-render-wizard.ts': '#1372',
   'src/scenes/lipSyncWizard/ai-reels-inngest-wizard.ts':
