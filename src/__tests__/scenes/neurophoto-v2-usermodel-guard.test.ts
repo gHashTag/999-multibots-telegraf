@@ -23,4 +23,19 @@ describe('neuroPhotoWizardV2 guards a missing userModel', () => {
     expect(derefIdx, 'trigger_word deref not found').toBeGreaterThan(-1)
     expect(guardIdx, 'guard must come before the deref').toBeLessThan(derefIdx)
   })
+
+  it('the model-list query excludes rows with a null model_url (#1351)', () => {
+    // A version-less training success (status SUCCESS, model_url null; #1349)
+    // must not be offered for selection -- it would feed a null model_url into
+    // generation. The list query must filter it out at the DB level.
+    const q = src.indexOf(".from('model_trainings')")
+    const limit = src.indexOf('.limit(20)', q)
+    expect(q, 'model_trainings list query not found').toBeGreaterThan(-1)
+    expect(limit, 'list query .limit(20) not found').toBeGreaterThan(q)
+    const listQuery = src.slice(q, limit)
+    expect(
+      listQuery.includes(".not('model_url', 'is', null)"),
+      'model-list query must filter out null model_url'
+    ).toBe(true)
+  })
 })
