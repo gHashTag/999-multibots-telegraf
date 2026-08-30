@@ -110,6 +110,19 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
     }
 
     // Списываем баланс ДО выполнения услуги
+    // In-flight guard: the charge + transcription below are awaited before
+    // scene.leave(), so a second message during the ~transcription would
+    // re-enter this step and double-charge. Reject-before-set (sync); released
+    // in the .leave() handler below. #1360
+    if (ctx.session.videoTranscriptionInProgress) {
+      await ctx.reply(
+        isRu
+          ? '⏳ Уже обрабатываю, подождите...'
+          : '⏳ Already processing, please wait...'
+      )
+      return
+    }
+    ctx.session.videoTranscriptionInProgress = true
     const paymentSuccess = await updateUserBalance(
       ctx.from.id.toString(),
       costInStars,
@@ -459,6 +472,14 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
     return ctx.scene.leave()
   }
 )
+
+// Release the in-flight guard on ANY scene exit (all paid-step paths call
+// scene.leave). Reject-before-set is in step 1; this is the release. #1360
+videoTranscriptionWizard.leave(async ctx => {
+  if (ctx.session) {
+    ctx.session.videoTranscriptionInProgress = false
+  }
+})
 
 // Обработчик для кнопки "Еще одно видео"
 videoTranscriptionWizard.hears(
