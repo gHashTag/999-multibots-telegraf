@@ -22,8 +22,6 @@ import { supabase } from '@/core/supabase'
 import { Markup } from 'telegraf'
 import { fal } from '@fal-ai/client'
 
-// --- Локальный кэш для идемпотентности ---
-const idemCache = new Map<string, { result: any; expiresAt: number }>()
 const IDEMPOTENCY_TTL_MS = 20 * 1000 // 20 секунд
 
 /**
@@ -264,17 +262,6 @@ export async function generateNeuroPhotoDirect(
     .createHash('sha256')
     .update(`${telegram_id}:${prompt}:${model_url}:${numImages}`)
     .digest('hex')
-  const now = Date.now()
-  const cacheEntry = idemCache.get(idempotencyKey)
-  if (cacheEntry && cacheEntry.expiresAt > now) {
-    logger.info('[IDEMPOTENCY] Найден локальный результат', {
-      idempotencyKey,
-    })
-    // ❌ ПРОБЛЕМА: Возвращаем закэшированный результат, но изображение НЕ отправляется!
-    // ✅ РЕШЕНИЕ: Для повторных генераций нужно генерировать новое изображение
-    // Временно отключаем кэш для повторных генераций
-    // return cacheEntry.result
-  }
   // --- Проверка идемпотентности ---
   // Псевдокод: ищем в Supabase (таблица payments_v2 или idempotency_keys) запись с этим ключом и created_at > now() - TTL
   const { data: idemRows, error: idemError } = await supabase
@@ -297,10 +284,6 @@ export async function generateNeuroPhotoDirect(
     if (row.result) {
       logger.info('[IDEMPOTENCY] Найден результат, возвращаю сохранённый', {
         idempotencyKey,
-      })
-      idemCache.set(idempotencyKey, {
-        result: row.result,
-        expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
       })
       // ❌ ПРОБЛЕМА: Возвращаем закэшированный результат, но изображение НЕ отправляется!
       // ✅ РЕШЕНИЕ: Для повторных генераций нужно генерировать новое изображение
@@ -1370,15 +1353,6 @@ Generated: ${new Date().toLocaleString('en-US')}
         },
       })
       .eq('idempotency_key', idempotencyKey)
-
-    idemCache.set(idempotencyKey, {
-      result: {
-        data: 'Processing completed',
-        success: true,
-        urls: generatedUrls,
-      },
-      expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
-    })
 
     return {
       data: 'Processing completed',
