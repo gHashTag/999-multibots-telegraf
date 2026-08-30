@@ -393,13 +393,21 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
 
       if (!ctx.session.videoUrl || !ctx.session.audioUrl) {
         logger.error('❌ Video URL или Audio URL не найден', { telegramId })
-        await updateUserBalance(
+        // refundAndTell checks the credit result (updateUserBalance returns
+        // false on failure, it does not throw) and tells the user by fact. The
+        // raw call here ignored the result AND sent no message -- a silent
+        // charge-then-drop when the refund failed.
+        await refundAndTell({
+          ctx,
           telegramId,
-          lipSyncCost,
-          PaymentType.MONEY_INCOME,
-          'LipSync refund - missing URLs',
-          { bot_name: ctx.botInfo?.username || 'unknown_bot' }
-        )
+          amount: lipSyncCost,
+          description: 'LipSync refund - missing URLs',
+          reason: {
+            ru: 'Не удалось получить видео или аудио для генерации.',
+            en: 'Could not obtain video or audio for generation.',
+          },
+          isRu,
+        })
         return ctx.scene.leave()
       }
 
