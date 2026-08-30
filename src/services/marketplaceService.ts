@@ -136,15 +136,28 @@ export async function purchaseItem(
   )
   if (!deducted) return { success: false, error: 'insufficient_balance' }
 
-  // Credit 95% to author
+  // Credit 95% to author. updateUserBalance returns false on a failed credit
+  // (it does not throw); the buyer has already been charged and will receive the
+  // content, so complete the sale but log a CRITICAL alert -- a failed author
+  // payout must be reconciled manually, not vanish silently.
   const authorCredit = Math.floor(item.price_stars * 0.95)
-  await updateUserBalance(
+  const authorCredited = await updateUserBalance(
     item.author_id,
     authorCredit,
     PaymentType.MONEY_INCOME,
     `Marketplace sale: ${item.title}`,
     { bot_name: botName, stars: authorCredit }
   )
+  if (!authorCredited) {
+    logger.error('💸❌ Marketplace author NOT credited -- reconcile manually', {
+      alert: 'AUTHOR PAYOUT FAILED',
+      author_id: item.author_id,
+      buyer_id: buyerId,
+      item_id: itemId,
+      author_credit: authorCredit,
+      price_stars: item.price_stars,
+    })
+  }
 
   // Record purchase
   try {
