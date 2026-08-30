@@ -362,6 +362,19 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
       }
 
       // Списание средств
+      // In-flight guard: the charge + lip-sync processing below are awaited
+      // before scene.leave(), so a second message during the ~generation would
+      // re-enter this step and double-charge. Reject-before-set (sync); released
+      // in the .leave() handler below. #1364
+      if (ctx.session.lipSyncInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже обрабатываю, подождите...'
+            : '⏳ Already processing, please wait...'
+        )
+        return
+      }
+      ctx.session.lipSyncInProgress = true
       const paymentSuccess = await updateUserBalance(
         telegramId,
         lipSyncCost,
@@ -542,6 +555,14 @@ export const lipSyncWizard = new Scenes.WizardScene<MyContext>(
     return ctx.scene.leave()
   }
 )
+
+// Release the in-flight guard on ANY scene exit (all paid-step paths call
+// scene.leave). Reject-before-set is in the step; this is the release. #1364
+lipSyncWizard.leave(async ctx => {
+  if (ctx.session) {
+    ctx.session.lipSyncInProgress = false
+  }
+})
 
 // Глобальный обработчик отмены для всех команд отмены
 lipSyncWizard.action(/^cancel_/, async ctx => {
