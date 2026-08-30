@@ -124,6 +124,8 @@ describe('paid wizards keep their in-flight guard', () => {
 const SAFE_NOT_CHARGEABLE: Record<string, string> = {
   'src/scenes/voiceTrainingWizard/index.ts':
     'DISABLED: const VOICE_TRAINING_DISCONNECTED=true makes the confirm action leave before the charge -> the charge is unreachable',
+  'src/scenes/lipSyncWizard/fal-render-wizard.ts':
+    'DEAD CHARGE: an unconditional scene.leave() precedes the MONEY_OUTCOME charge (fal avatar service is rejected by RenderRiddleEventDataSchema, so the scene stops before charging); the charge is unreachable dead stub marked eslint no-unreachable. Reachability is asserted below (#1372).',
 }
 
 //   KNOWN_UNGUARDED_TRACKED — a REAL unguarded double-tap gap, tracked by an
@@ -131,7 +133,6 @@ const SAFE_NOT_CHARGEABLE: Record<string, string> = {
 //   while the gap is machine-tracked; each must move into GUARDED_PAID_WIZARDS
 //   as it is fixed (the "not both" test below then forces its removal from here).
 const KNOWN_UNGUARDED_TRACKED: Record<string, string> = {
-  'src/scenes/lipSyncWizard/fal-render-wizard.ts': '#1372',
   'src/scenes/lipSyncWizard/ai-reels-render-wizard.ts': '#1372',
   'src/scenes/lipSyncWizard/ai-reels-inngest-wizard.ts':
     '#1372 (dead: not wired)',
@@ -207,5 +208,32 @@ describe('every charging scene is guarded or explicitly classified (#1373)', () 
       'listed as guarded AND allowlisted — once guarded, remove from the allowlist:\n' +
         both.join('\n')
     ).toEqual([])
+  })
+
+  // fal-render is allowlisted SAFE only because its MONEY_OUTCOME charge is
+  // unreachable dead code (an unconditional scene.leave() precedes it). That
+  // safety is fragile: reviving the fal handler would make the charge live and
+  // unguarded while the allowlist still says safe. Assert the unreachable
+  // marker still precedes the charge, so a revival fails here and forces a
+  // real in-flight guard (#1372).
+  it('fal-render stays safe only while its charge is marked unreachable', () => {
+    const src = fs.readFileSync(
+      'src/scenes/lipSyncWizard/fal-render-wizard.ts',
+      'utf8'
+    )
+    const chargeIdx = src.indexOf('PaymentType.MONEY_OUTCOME')
+    const markerIdx = src.indexOf('eslint-disable-next-line no-unreachable')
+    expect(
+      chargeIdx,
+      'fal-render no longer charges MONEY_OUTCOME -- reclassify it'
+    ).toBeGreaterThan(-1)
+    expect(
+      markerIdx,
+      'fal-render charge is no longer marked no-unreachable -- it may be REACHABLE now; add a real in-flight guard and register it'
+    ).toBeGreaterThan(-1)
+    expect(
+      markerIdx,
+      'the no-unreachable marker must PRECEDE the charge (proof the charge is dead)'
+    ).toBeLessThan(chargeIdx)
   })
 })
