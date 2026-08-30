@@ -57,8 +57,16 @@ const CHECKABLE = [
  * со счётчиком 21.08; сверяйте после каждой чистки.
  */
 const DEBT: Record<string, number> = {
+  // All remaining entries are DEAD/unreachable code (verified #1347), not live
+  // money bugs -- there is no live unchecked-money site left. Do not 're-inspect'
+  // these each loop; fix means DELETING the dead code, tracked separately.
+  //   x402.routes.ts: router imported + setX402BotInstance called but NEVER
+  //     app.use'd (unmounted); settle endpoint returns 'not implemented'.
+  //   ai-reels-inngest-wizard.ts: aiReelsInngestWizard exported but not in
+  //     scenesToRegister -> never entered.
+  //   fal-render-wizard.ts: dead branch (long-standing).
+  // (updateUserBalance.ts removed: it was a // comment, false positive #1347.)
   'src/api_server/routes/x402.routes.ts': 2,
-  'src/core/supabase/updateUserBalance.ts': 1,
   'src/scenes/lipSyncWizard/ai-reels-inngest-wizard.ts': 1,
   'src/scenes/lipSyncWizard/fal-render-wizard.ts': 2,
 }
@@ -93,6 +101,10 @@ function countByFile(): Record<string, number> {
   const out: Record<string, number> = {}
   for (const f of collect()) {
     for (const line of strip(fs.readFileSync(f, 'utf8')).split('\n')) {
+      // strip() removes /* */ but not // line comments; a full-line // that
+      // mentions a money fn is not a call. Skip it (was a false positive:
+      // updateUserBalance.ts:248). #1347
+      if (line.trim().startsWith('//')) continue
       if (CHECKABLE.some(fn => isDiscarded(line, fn)))
         out[f] = (out[f] || 0) + 1
     }
