@@ -629,9 +629,20 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
 
     // Обработка подтверждения
     if (callbackData === 'veed_fabric_confirm') {
+      if (ctx.session.veedFabricInProgress) {
+        await ctx.answerCbQuery(
+          isRu
+            ? '⏳ Уже обрабатываю, подождите...'
+            : '⏳ Already processing, please wait...'
+        )
+        return
+      }
+      ctx.session.veedFabricInProgress = true
+
       await ctx.answerCbQuery()
 
       if (!telegramId) {
+        ctx.session.veedFabricInProgress = false
         await ctx.reply(
           isRu
             ? '❌ Ошибка: не удалось определить ваш ID'
@@ -956,6 +967,8 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             : '❌ An error occurred. Try again later.'
         )
         return ctx.scene.leave()
+      } finally {
+        ctx.session.veedFabricInProgress = false
       }
     }
 
