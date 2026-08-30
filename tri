@@ -164,6 +164,13 @@ CHECKS THAT EACH COST A CYCLE
         fix, it writes 0-value payment rows. Dynamic costs (steps, answerAi
         response.cost) are NOT shown -- read those paths directly.
 
+  tri money-base <usdCost> [markup]
+        Evaluate BOTH star-cost helpers for a USD cost so you never hand-guess a
+        money base. calculateFinalImageCostInStars = ceil(usd*interestRate/starCost);
+        calculateFinalPriceInStars = floor(usd/starCost*markup). Constants read from
+        src/price/constants. A refund and its charge can use DIFFERENT helpers whose
+        bases diverge by rounding -- match the CHARGE's helper (learned via #1263).
+
   tri wired <SymbolName>
         Is a handler wired or dead? Lists every src reference and flags the ones
         on commented-out lines (the shape of dead wiring, e.g. a handler whose
@@ -1158,6 +1165,26 @@ cmd_price() {
   fi
 }
 
+cmd_money_base() {
+  # Two star-cost helpers in this repo can DISAGREE by rounding:
+  #   calculateFinalImageCostInStars(usd)   = ceil(usd*interestRate/starCost)  [IMAGES_MODELS.ts]
+  #   calculateFinalPriceInStars(usd,,mk)   = floor(usd/starCost*mk)           [paidServices.ts]
+  # A refund MUST use the same helper the charge used. Hand-guessing the markup or
+  # trusting a code comment nearly shipped a refund-mint (#1263). Evaluate BOTH with
+  # the REAL constants so a money base is never hand-computed again.
+  local usd="${1:-}" markup="${2:-}"
+  if [ -z "$usd" ]; then
+    bad 'нужна цена USD: tri money-base <usdCost> [markup]   (напр. tri money-base 0.025 2.4)'
+    return 1
+  fi
+  local cfile="$ROOT/src/price/constants/index.ts"
+  local star ir
+  star="$(grep -E 'STAR_COST_USD[[:space:]]*=' "$cfile" 2>/dev/null | head -1 | grep -oE '[0-9.]+' | head -1)"
+  ir="$(grep -E 'MARKUP_MULTIPLIER[[:space:]]*=' "$cfile" 2>/dev/null | head -1 | grep -oE '[0-9.]+' | head -1)"
+  star="${star:-0.016}"; ir="${ir:-1.5}"; markup="${markup:-$ir}"
+  node -e "const usd=$usd,star=$star,ir=$ir,mk=$markup;const img=Math.ceil(usd*ir/star),price=Math.floor(usd/star*mk);console.log('  constants (from source): starCost='+star+'  interestRate='+ir+'  markup(arg)='+mk);console.log('  calculateFinalImageCostInStars = ceil('+usd+'*'+ir+'/'+star+') = '+img+' stars');console.log('  calculateFinalPriceInStars     = floor('+usd+'/'+star+'*'+mk+') = '+price+' stars');console.log(img===price?'  AGREE: базы совпадают — refund любой из них ок':'  DIVERGE: refund ОБЯЗАН брать базу того же helper, что и charge!')"
+}
+
 cmd_wired() {
   # Reachability aid: before fixing a call-site, confirm something reaches it.
   # This does NOT decide reachable-vs-dead — grep cannot (registration hides in
@@ -1208,6 +1235,7 @@ case "$action" in
   diverged|разошлись)  cmd_diverged ;;
   worktree|дерево)    cmd_worktree "$@" ;;
   price|цена)         cmd_price "$@" ;;
+  money-base|база)     cmd_money_base "$@" ;;
   wired|подключён)    cmd_wired "$@" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
