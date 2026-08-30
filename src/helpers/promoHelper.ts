@@ -89,7 +89,12 @@ async function activatePromoSubscription(
       description: `🎁 Promo: ${starAmount} stars + ${subscriptionTier} subscription`,
       bot_name,
       service_type: ModeEnum.StartScene,
-      inv_id: `promo-bonus-${subscriptionTier}-${Date.now()}`,
+      // Deterministic idempotency key (per user, per promoType -- the SAME dimension
+      // hasReceivedPromo dedupes by). A concurrent double-/start passes the racy
+      // read-check twice, but the balance-lock serializes the two inserts and the
+      // second hits UNIQUE(inv_id) (23505) -> throws -> caught below -> no double
+      // credit. Date.now() here made every key unique, defeating that backstop.
+      inv_id: `promo-bonus-${promoType}-${telegram_id}`,
       metadata: bonusMetadata,
       subscription_type: subscriptionTier, // This activates the subscription
     })
