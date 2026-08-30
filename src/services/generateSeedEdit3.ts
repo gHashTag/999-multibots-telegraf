@@ -38,6 +38,7 @@ export interface SeedEdit3ServiceParams {
   seed?: number
   silent?: boolean // If true, don't send photo to user (for ALL_MODELS mode)
   skipBalanceCheck?: boolean // If true, skip balance check (already checked before loop)
+  chargedCostOverride?: number // Batch mode: exact per-image amount already charged (batchBase*mult); refund THIS on failure -- batchBase can exceed serviceBase (see #1266/#1267)
 }
 
 // SeedEdit 3.0 model configuration
@@ -209,7 +210,7 @@ export const generateSeedEdit3 = async (
       })
 
       // ✅ Refund user on API failure (silent mode if needed)
-      await refundUser(ctx, totalCost, {
+      await refundUser(ctx, params.chargedCostOverride ?? totalCost, {
         silent: params.silent || false,
         reason: 'generation_failed',
       })
@@ -335,7 +336,7 @@ export const generateSeedEdit3 = async (
     // ✅ Refund on any outer error (if not already refunded in inner catch)
     try {
       if (totalCost > 0 && params.ctx) {
-        await refundUser(params.ctx, totalCost, {
+        await refundUser(params.ctx, params.chargedCostOverride ?? totalCost, {
           silent: params.silent || false,
           reason: 'generation_failed',
         })

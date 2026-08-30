@@ -4209,6 +4209,7 @@ const processSingleAiPhotoshopModel = async (
                     '9:16',
                   silent: true, // ✅ Don't send photo in ALL_MODELS mode
                   skipBalanceCheck: true, // ✅ Balance already checked before loop
+                  chargedCostOverride: costPerImage, // exact batch charge (batchBase*mult) so a failure refunds what was charged, not the divergent service base
                 })
               } else if (modelKey === 'flux_kontext_max') {
                 result = await generateFluxKontextMax({
@@ -4251,6 +4252,7 @@ const processSingleAiPhotoshopModel = async (
                   size: seedEdit3Size,
                   silent: true, // ✅ Don't send photo in ALL_MODELS mode
                   skipBalanceCheck: true, // ✅ Balance already checked before loop
+                  chargedCostOverride: costPerImage, // exact batch charge (batchBase*mult) so a failure refunds what was charged, not the divergent service base
                 })
               } else if (modelKey === 'qwen_image_edit') {
                 const qwenImageEditSize = ctx.session?.aiPhotoshopSize || '2K'
