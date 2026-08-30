@@ -624,6 +624,19 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
       }
 
       // Списание средств
+      // In-flight guard: the charge + AI-reels generation below are awaited
+      // before scene.leave(), so a second message during the ~generation would
+      // re-enter this step and double-charge. Reject-before-set (sync); released
+      // in the .leave() handler below. #1366
+      if (ctx.session.aiReelsInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже генерирую, подождите...'
+            : '⏳ Already generating, please wait...'
+        )
+        return
+      }
+      ctx.session.aiReelsInProgress = true
       const paymentSuccess = await updateUserBalance(
         telegramId,
         totalCost,
@@ -1853,3 +1866,11 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
     }
   }
 )
+
+// Release the in-flight guard on ANY scene exit (all paid-step paths call
+// scene.leave). Reject-before-set is in the step; this is the release. #1366
+aiReelsWizard.leave(async ctx => {
+  if (ctx.session) {
+    ctx.session.aiReelsInProgress = false
+  }
+})

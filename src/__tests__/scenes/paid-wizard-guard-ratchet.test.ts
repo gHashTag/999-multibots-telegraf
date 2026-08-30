@@ -30,6 +30,7 @@ const GUARDED_PAID_WIZARDS: Record<string, string> = {
     'videoTranscriptionInProgress',
   'src/scenes/aiPhotoshopScene/index.ts': 'aiPhotoshopInProgress',
   'src/scenes/lipSyncWizard/index.ts': 'lipSyncInProgress',
+  'src/scenes/lipSyncWizard/ai-reels-wizard.ts': 'aiReelsInProgress',
   'src/scenes/neuroPhotoWizardV2/index.ts': 'neuroPhotoInProgress',
   'src/scenes/faceSwapWizard/index.ts': 'faceSwapInProgress',
   'src/scenes/textToImageWizard/index.ts': 'textToImageInProgress',
