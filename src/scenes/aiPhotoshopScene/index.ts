@@ -4226,6 +4226,7 @@ const processSingleAiPhotoshopModel = async (
                         : 'match_input_image',
                   suppressUserErrors: true, // ✅ Don't notify user of errors in ALL_MODELS mode
                   skipBalanceCheck: true, // ✅ Balance already charged before loop
+                  chargedCostOverride: costPerImage, // exact batch charge (batchBase*mult) so a failure refunds what was charged, not the flat service base
                 })
               } else if (modelKey === 'seededit_3') {
                 const seedEdit3Size = ctx.session?.aiPhotoshopSize || '2K'

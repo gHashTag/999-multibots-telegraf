@@ -42,6 +42,7 @@ export interface FluxKontextMaxServiceParams {
   suppressUserErrors?: boolean // ✅ Don't notify user of errors (for fallback chains)
   is_welcome_gift?: boolean // ✅ Skip payment for welcome generation (lead magnet)
   skipBalanceCheck?: boolean // If true, skip balance check (already charged before loop)
+  chargedCostOverride?: number // Batch mode: exact per-image amount already charged (batchBase*mult); refund THIS on failure, not the flat service base (batchBase can exceed serviceBase -- see #1263)
 }
 
 // FLUX Kontext Max model configuration
@@ -416,9 +417,13 @@ export const generateFluxKontextMax = async (
         saveError instanceof Error ? saveError.message : String(saveError)
       console.error('🚨 [FluxKontextMax] Failed to save prompt:', saveError)
       // Refund user if database save fails
-      await refundUser(ctx, FLUX_KONTEXT_MAX_MODEL.costPerImage, {
-        reason: 'generation_failed',
-      })
+      await refundUser(
+        ctx,
+        params.chargedCostOverride ?? FLUX_KONTEXT_MAX_MODEL.costPerImage,
+        {
+          reason: 'generation_failed',
+        }
+      )
       throw new Error(`Failed to save generation record: ${originalMsg}`)
     }
   } catch (error) {
@@ -541,9 +546,13 @@ export const generateFluxKontextMax = async (
 
     // Refund user - ONLY if not a welcome gift (no charge was made)
     if (!params.is_welcome_gift) {
-      await refundUser(params.ctx, FLUX_KONTEXT_MAX_MODEL.costPerImage, {
-        reason: 'generation_failed',
-      })
+      await refundUser(
+        params.ctx,
+        params.chargedCostOverride ?? FLUX_KONTEXT_MAX_MODEL.costPerImage,
+        {
+          reason: 'generation_failed',
+        }
+      )
     }
 
     throw error
