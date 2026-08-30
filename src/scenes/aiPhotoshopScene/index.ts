@@ -3297,6 +3297,21 @@ const processAiPhotoshopRequest = async (
     hasCustomPrompt: !!customPrompt,
   })
 
+  // In-flight guard: this choke point (reached from on('photo')/on('text') and
+  // several confirm/generate button actions) charges + generates below. Without
+  // this, a second photo/text OR a double-tap during the ~generation re-enters
+  // and double-charges. Reject-before-set (sync); released in the finally. #1362
+  if (ctx.session.aiPhotoshopInProgress) {
+    await ctx.reply(
+      isRu
+        ? '⏳ Уже обрабатываю, подождите...'
+        : '⏳ Already processing, please wait...'
+    )
+    return
+  }
+
+  ctx.session.aiPhotoshopInProgress = true
+
   try {
     // Build prompt
     let finalPrompt = ''
@@ -3835,6 +3850,8 @@ const processAiPhotoshopRequest = async (
         telegramId: ctx.from?.id,
       }
     )
+  } finally {
+    ctx.session.aiPhotoshopInProgress = false
   }
 }
 
