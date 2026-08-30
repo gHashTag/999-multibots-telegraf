@@ -241,6 +241,16 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           isRu ? '🚀 Запускаю парсинг...' : '🚀 Starting parsing...'
         )
 
+        if (ctx.session.instagramParserSceneInProgress) {
+          await ctx.answerCbQuery(
+            isRu
+              ? '⏳ Уже запускаю, подождите...'
+              : '⏳ Already starting, please wait...'
+          )
+          return
+        }
+        ctx.session.instagramParserSceneInProgress = true
+
         try {
           // СНАЧАЛА ЗАПУСК, ПОТОМ СПИСАНИЕ.
           //
@@ -366,6 +376,8 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           await ctx.editMessageText(
             isRu ? '❌ Ошибка парсинга' : '❌ Parsing error'
           )
+        } finally {
+          ctx.session.instagramParserSceneInProgress = false
         }
 
         ;(ctx.wizard as any).state = {}
