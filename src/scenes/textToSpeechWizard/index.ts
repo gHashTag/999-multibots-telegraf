@@ -94,6 +94,19 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
       ctx.scene.leave()
       return
     } else if (textToConvert) {
+      // In-flight guard: the paid createAudioFileFromText + charge below are
+      // awaited before scene.leave(), so a second text during the ~generation
+      // would re-enter this step and double-charge. Reject-before-set (sync),
+      // release in the finally. Same class as #1343. #1355
+      if (ctx.session.textToSpeechInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже генерирую, подождите...'
+            : '⏳ Already generating, please wait...'
+        )
+        return
+      }
+      ctx.session.textToSpeechInProgress = true
       try {
         if (!ctx.from?.id) {
           console.error('❌ Telegram ID не найден')
@@ -235,6 +248,7 @@ export const textToSpeechWizard = new Scenes.WizardScene<MyContext>(
             )
           }
         }
+        ctx.session.textToSpeechInProgress = false
         await ctx.scene.leave()
         await ctx.scene.leave()
         const { showMainMenu } = await import('@/navigation')
