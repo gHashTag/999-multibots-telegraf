@@ -507,11 +507,21 @@ export const broadcastService = {
                 // delete this user's rows for OTHER bots on the multi-bot
                 // platform (fetchUsers selects per-bot, so this removes exactly
                 // the row being broadcast to).
-                await supabase
-                  .from('users')
-                  .delete()
-                  .eq('telegram_id', user.telegram_id)
-                  .eq('bot_name', user.bot_name)
+                try {
+                  await supabase
+                    .from('users')
+                    .delete()
+                    .eq('telegram_id', user.telegram_id)
+                    .eq('bot_name', user.bot_name)
+                } catch (deleteErr: any) {
+                  logger.error(
+                    `Failed to remove unreachable user ${user.telegram_id}; continuing broadcast`,
+                    {
+                      description: `User cleanup delete failed; continuing`,
+                      error: deleteErr?.message || 'Unknown error',
+                    }
+                  )
+                }
               } else {
                 logger.error(
                   `❌ Не удалось отправить сообщение пользователю: ${user.telegram_id}`,
