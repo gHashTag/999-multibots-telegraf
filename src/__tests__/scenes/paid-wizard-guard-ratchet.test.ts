@@ -128,6 +128,8 @@ const SAFE_NOT_CHARGEABLE: Record<string, string> = {
     'DISABLED: const VOICE_TRAINING_DISCONNECTED=true makes the confirm action leave before the charge -> the charge is unreachable',
   'src/scenes/lipSyncWizard/fal-render-wizard.ts':
     'DEAD CHARGE: an unconditional scene.leave() precedes the MONEY_OUTCOME charge (fal avatar service is rejected by RenderRiddleEventDataSchema, so the scene stops before charging); the charge is unreachable dead stub marked eslint no-unreachable. Reachability is asserted below (#1372).',
+  'src/scenes/lipSyncWizard/ai-reels-inngest-wizard.ts':
+    'DEAD SCENE: aiReelsInngestWizard is not wired anywhere (no import/registration outside its own file) -- the scene is never entered, so its charge is unreachable. Unwired status is asserted below (#1372).',
 }
 
 //   KNOWN_UNGUARDED_TRACKED — a REAL unguarded double-tap gap, tracked by an
@@ -135,8 +137,9 @@ const SAFE_NOT_CHARGEABLE: Record<string, string> = {
 //   while the gap is machine-tracked; each must move into GUARDED_PAID_WIZARDS
 //   as it is fixed (the "not both" test below then forces its removal from here).
 const KNOWN_UNGUARDED_TRACKED: Record<string, string> = {
-  'src/scenes/lipSyncWizard/ai-reels-inngest-wizard.ts':
-    '#1372 (dead: not wired)',
+  // Empty: every charging scene of #1358 + the #1372 render sub-cluster is now
+  // guarded or SAFE. A genuinely unguarded charging scene goes here (with an
+  // issue ref) until it is fixed -- the mechanism stays for the next gap.
 }
 
 const stripSceneComments = (s: string) =>
@@ -236,5 +239,37 @@ describe('every charging scene is guarded or explicitly classified (#1373)', () 
       markerIdx,
       'the no-unreachable marker must PRECEDE the charge (proof the charge is dead)'
     ).toBeLessThan(chargeIdx)
+  })
+
+  // ai-reels-inngest is allowlisted SAFE only because it is unwired dead code
+  // (no import/registration references it, so the scene is never entered).
+  // Wiring it up would make its charge live and unguarded while the allowlist
+  // still says safe. Assert nothing outside its own file references the export,
+  // so wiring it fails here and forces a real in-flight guard (#1372).
+  it('ai-reels-inngest stays safe only while it is unwired', () => {
+    const EXPORT = 'aiReelsInngestWizard'
+    const SELF = 'ai-reels-inngest-wizard.ts'
+    const refs: string[] = []
+    const walkRefs = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name)
+        if (e.isDirectory()) walkRefs(p)
+        else if (
+          p.endsWith('.ts') &&
+          !p.endsWith('.test.ts') &&
+          !p.endsWith(SELF)
+        ) {
+          if (fs.readFileSync(p, 'utf8').includes(EXPORT)) {
+            refs.push(p.split(path.sep).join('/'))
+          }
+        }
+      }
+    }
+    walkRefs(path.join('src'))
+    expect(
+      refs,
+      'ai-reels-inngest is now referenced/wired somewhere -- its charge may be live; add a real in-flight guard and register it:\n' +
+        refs.join('\n')
+    ).toEqual([])
   })
 })
