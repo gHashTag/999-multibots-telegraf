@@ -490,8 +490,14 @@ export async function generateNeuroPhotoDirect(
       bot_name: botName,
       service_type: ModeEnum.NeuroPhoto,
       inv_id: paymentOperationId,
-      bypass_payment_check:
-        options?.bypass_payment_check || ctx?.session?.bypass_payment_check,
+      // Trust ONLY the explicit per-call option. ctx.session.bypass_payment_check
+      // is set by the AvatarTransform lead magnet (avatarTransformScene:1115) and
+      // never cleared on cancel; OR-ing it in here let a stale flag skip the
+      // balance check on a normal paid NeuroPhoto run (Plan B) = free generation.
+      // Every caller passes bypass explicitly via options; the legitimate
+      // AvatarTransform free path is honored (and the flag cleared) in
+      // processBalanceOperation, not on this direct-charge path. #1335
+      bypass_payment_check: options?.bypass_payment_check ?? false,
       metadata: {
         prompt: prompt.substring(0, 100),
         num_images: validNumImages,
