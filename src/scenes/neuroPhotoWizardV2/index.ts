@@ -239,43 +239,60 @@ const neuroPhotoPromptStep = async (ctx: MyContext) => {
 
         const fullPrompt = `Fashionable ${trigger_word} ${genderPromptPart}, ${promptText}, ${detailPrompt}`
 
-        // ✅ CHECK FOR MULTI-IMAGE PROCESSING
-        const multiPhotoUrls = ctx.session?.multiPhotoUrls
-        const multiPhotoCount = ctx.session?.multiPhotoCount
-
-        if (multiPhotoUrls && multiPhotoCount && multiPhotoCount > 1) {
-          console.log('🎨 Processing multi-image neurophoto series')
-          await generateNeuroPhotoMulti(
-            fullPrompt,
-            ctx.session.userModel.model_url as any,
-            multiPhotoCount,
-            userId.toString(),
-            ctx,
-            ctx.botInfo?.username,
-            undefined,
-            multiPhotoUrls // Pass multiple image URLs
+        // In-flight guard: the paid generation below is awaited BEFORE
+        // ctx.wizard.next(), so without this a second prompt during the
+        // ~10-30s generation re-enters this step and double-charges. Mirror of
+        // the V1 sibling. Reject-before-set (sync), release in finally. #1342
+        if (ctx.session.neuroPhotoInProgress) {
+          await ctx.reply(
+            isRu
+              ? '⏳ Уже генерирую, подождите...'
+              : '⏳ Already generating, please wait...'
           )
-
-          // Clear multi-photo session data
-          ctx.session.multiPhotoUrls = undefined
-          ctx.session.multiPhotoCount = undefined
-          ctx.session.awaitingMultiPhotoConfirmation = false
-        } else {
-          console.log('🎨 Processing single neurophoto')
-          await generateNeuroPhotoHybrid(
-            fullPrompt,
-            ctx.session.userModel.model_url as any,
-            1,
-            userId.toString(),
-            ctx,
-            ctx.botInfo?.username || 'neuro_blogger_bot', // ✅ Use botInfo username
-            null, // aspect ratio
-            ctx.session.userModel // ✅ Pass full model object for FAL support
-          )
+          return
         }
+        ctx.session.neuroPhotoInProgress = true
+        try {
+          // ✅ CHECK FOR MULTI-IMAGE PROCESSING
+          const multiPhotoUrls = ctx.session?.multiPhotoUrls
+          const multiPhotoCount = ctx.session?.multiPhotoCount
 
-        ctx.wizard.next()
-        return
+          if (multiPhotoUrls && multiPhotoCount && multiPhotoCount > 1) {
+            console.log('🎨 Processing multi-image neurophoto series')
+            await generateNeuroPhotoMulti(
+              fullPrompt,
+              ctx.session.userModel.model_url as any,
+              multiPhotoCount,
+              userId.toString(),
+              ctx,
+              ctx.botInfo?.username,
+              undefined,
+              multiPhotoUrls // Pass multiple image URLs
+            )
+
+            // Clear multi-photo session data
+            ctx.session.multiPhotoUrls = undefined
+            ctx.session.multiPhotoCount = undefined
+            ctx.session.awaitingMultiPhotoConfirmation = false
+          } else {
+            console.log('🎨 Processing single neurophoto')
+            await generateNeuroPhotoHybrid(
+              fullPrompt,
+              ctx.session.userModel.model_url as any,
+              1,
+              userId.toString(),
+              ctx,
+              ctx.botInfo?.username || 'neuro_blogger_bot', // ✅ Use botInfo username
+              null, // aspect ratio
+              ctx.session.userModel // ✅ Pass full model object for FAL support
+            )
+          }
+
+          ctx.wizard.next()
+          return
+        } finally {
+          ctx.session.neuroPhotoInProgress = false
+        }
       } else {
         await ctx.reply(isRu ? '❌ Некорректный промпт' : '❌ Invalid prompt')
         ctx.scene.leave()
@@ -395,8 +412,23 @@ const neuroPhotoButtonStep = async (ctx: MyContext) => {
     }
 
     if (numImages >= 1 && numImages <= 4) {
-      await generate(numImages)
-      return ctx.scene.leave()
+      // In-flight guard: mirror of the V1 sibling; prevents a second number
+      // tap during the paid generation from double-charging. #1342
+      if (ctx.session.neuroPhotoInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже генерирую, подождите...'
+            : '⏳ Already generating, please wait...'
+        )
+        return
+      }
+      ctx.session.neuroPhotoInProgress = true
+      try {
+        await generate(numImages)
+        return ctx.scene.leave()
+      } finally {
+        ctx.session.neuroPhotoInProgress = false
+      }
     } else {
       await showMainMenu(ctx)
     }
