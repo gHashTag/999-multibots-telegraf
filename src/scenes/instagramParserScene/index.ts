@@ -202,6 +202,18 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
         const count = parseInt(match[1])
         const cost = REELS_PRICING[count as keyof typeof REELS_PRICING]
 
+        // count comes from callback data, which a crafted client can set to any
+        // value. An unknown count makes cost `undefined`, and
+        // `currentBalance < undefined` is false -> the balance check below would
+        // be bypassed and the user charged `undefined` while `count` reels are
+        // scraped. Reject anything outside the price table (allowlist before price).
+        if (typeof cost !== 'number') {
+          await ctx.answerCbQuery(
+            isRu ? '❌ Некорректный выбор' : '❌ Invalid selection'
+          )
+          return
+        }
+
         state.count = count
         state.cost = cost
 
