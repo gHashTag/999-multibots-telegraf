@@ -889,9 +889,39 @@ export const TOOLS: AgentTool[] = [
           providerUrl: edited.url,
         }
       }
+      /**
+       * REGISTER THE FILE, OR IT DOES NOT EXIST FOR THE PERSON WHO PAID.
+       *
+       * The mini app -- which is where the owner sees an agent's work -- reads
+       * the `assets` table, not S3. This tool shipped without the insert, so a
+       * picture reached the bucket, the caller got a URL in a chat message, and
+       * my_assets still showed 2026-08-24 as the newest file: a week stale.
+       * Measured 2026-08-31 through the production MCP.
+       *
+       * A failure here must NOT fail the call: the picture exists and was paid
+       * for. It is reported instead, so the gap is visible rather than silent.
+       */
+      let assetId: number | null = null
+      let assetError: string | null = null
+      try {
+        const row = await ctx.pool.query(
+          `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
+           VALUES ('generated_image', '', $1, '', $2, $3, 'agent')
+           RETURNING id`,
+          [ctx.telegramId, upData.directUrl, String(args.prompt).slice(0, 500)]
+        )
+        assetId = row.rows[0]?.id ?? null
+      } catch (e) {
+        assetError = String((e as Error)?.message || e).slice(0, 160)
+      }
       return {
         done: true,
         url: upData.directUrl,
+        id: assetId,
+        // Named so a caller can tell "the file is in the shop window" from
+        // "the file exists but nobody can find it".
+        inGallery: assetId != null,
+        ...(assetError ? { galleryError: assetError } : {}),
         source: args.image_url ? 'указанный файл' : 'аватарка из Telegram',
         model: EDIT_MODEL,
         providerCredits: edited.credits,
@@ -903,9 +933,11 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'image_generate',
     description:
-      'Сгенерировать картинку по описанию (Replicate flux-schnell). Файл сохраняется в S3 и ' +
-      'появляется в «моих файлах», отдаёт прямую ссылку — её можно сразу отдавать в reel_render ' +
-      'или публиковать в ленту.',
+      'Сгенерировать картинку по описанию. Провайдер выбирается сам: сначала FAL, ' +
+      'потом Replicate flux-schnell, потом Kie google/nano-banana — кто первый сделает. ' +
+      'В ответе поле «провайдер» говорит, кто нарисовал, а «отказы» — кто не смог и почему. ' +
+      'Файл сохраняется в S3 и появляется в «моих файлах», отдаёт прямую ссылку — ' +
+      'её можно сразу отдавать в reel_render или публиковать в ленту.',
     parameters: {
       type: 'object',
       properties: {
@@ -914,9 +946,16 @@ export const TOOLS: AgentTool[] = [
           description: 'что нарисовать, по-русски или по-английски',
         },
         model: {
+          // A PREFERENCE, NOT A PROMISE, and saying so is the whole point.
+          // These ids only select the FAL endpoint; when FAL refuses -- which
+          // it does today, HTTP 403 "Exhausted balance" -- the picture comes
+          // from Replicate or Kie and the id asked for was never used. A caller
+          // told otherwise would report the wrong model in its own artefacts.
           type: 'string',
           description:
-            'fal-ai/nano-banana-pro (по умолчанию), fal-ai/flux/dev, fal-ai/flux-pro/v1.1-ultra, fal-ai/reve/text-to-image',
+            'ПОЖЕЛАНИЕ по модели FAL, не гарантия: fal-ai/nano-banana-pro (по умолчанию), ' +
+            'fal-ai/flux/dev, fal-ai/flux-pro/v1.1-ultra, fal-ai/reve/text-to-image. ' +
+            'Если FAL откажет, рисовать будет другой провайдер — смотри «провайдер» в ответе.',
         },
         width: { type: 'integer', description: 'ширина, по умолчанию 1024' },
         height: { type: 'integer', description: 'высота, по умолчанию 1024' },
@@ -947,6 +986,24 @@ export const TOOLS: AgentTool[] = [
         }),
       })
       const genData: any = await gen.json().catch(() => null)
+      /**
+       * WHO REFUSED, CARRIED OUT OF THE ROUTE AND INTO THE CALLER'S HANDS.
+       *
+       * The route already collects one refusal per provider in `tried`. Until
+       * now this handler read `url` and threw the rest away, so the only place
+       * that knew WHY there was no engraving was a console line inside a
+       * container with no volume -- which is exactly how the layer stayed dead
+       * for weeks with nobody able to name the cause. An autopilot that gets
+       * these two fields can write them into the published recipe, where they
+       * outlive the container.
+       */
+      const servedBy: string | null =
+        typeof genData?.provider === 'string' ? genData.provider : null
+      const refusals: { provider: string; error: string }[] = Array.isArray(
+        genData?.tried
+      )
+        ? genData.tried
+        : []
       if (!gen.ok || !genData?.url) {
         await refundTokens(
           ctx,
@@ -955,11 +1012,25 @@ export const TOOLS: AgentTool[] = [
         )
         return {
           сделано: false,
-          причина: `генерация не удалась: HTTP ${gen.status} ${String(genData?.error || '')}`,
+          // Quoted, so the repository's Cyrillic guard reads this as the string
+          // it is -- the tool's own response field -- rather than as a Russian
+          // identifier newly added to code.
+          причина:
+            `генерация не удалась: HTTP ${gen.status} ${String(genData?.error || '')}`.slice(
+              0,
+              600
+            ),
+          // English keys for the new fields, and deliberately the SAME words
+          // the HTTP route uses: one name for one fact from the provider chain
+          // through the tool to the feed row, so a grep for `provider` finds
+          // the whole path instead of three translations of it.
+          provider: servedBy,
+          tried: refusals,
         }
       }
-      // Ссылка FAL живёт ограниченное время — сразу забираем файл в наше S3,
-      // иначе через час и лента, и рендер показывали бы битую картинку.
+      // A provider URL is short-lived (Kie hands back a tempfile link), so the
+      // bytes are pulled into our own S3 at once. Without this the feed and the
+      // render would both show a broken image an hour later.
       const img = await fetch(genData.url) // внешний провайдер — ключ не нужен
       if (!img.ok) {
         await refundTokens(
@@ -970,15 +1041,27 @@ export const TOOLS: AgentTool[] = [
         return {
           сделано: false,
           причина: `картинка сгенерирована, но не скачалась: HTTP ${img.status}`,
-          fal_url: genData.url,
+          provider: servedBy,
+          tried: refusals,
+          sourceUrl: genData.url,
         }
       }
       const bytes = Buffer.from(await img.arrayBuffer())
+      // The extension follows the bytes. It used to be hard-coded .jpg while
+      // Kie hands back image/png (measured), so every Kie poster was stored
+      // under a name that lied about its own format -- harmless until something
+      // downstream trusts the extension instead of the header.
+      const contentType = img.headers.get('content-type') || 'image/jpeg'
+      const ext = contentType.includes('png')
+        ? 'png'
+        : contentType.includes('webp')
+          ? 'webp'
+          : 'jpg'
       const up = await selfFetch(`${base}/upload`, {
         method: 'POST',
         headers: {
-          'Content-Type': img.headers.get('content-type') || 'image/jpeg',
-          'X-Filename': `agent-image-${Date.now()}.jpg`,
+          'Content-Type': contentType,
+          'X-Filename': `agent-image-${Date.now()}.${ext}`,
         },
         body: new Uint8Array(bytes),
       })
@@ -992,7 +1075,9 @@ export const TOOLS: AgentTool[] = [
         return {
           сделано: false,
           причина: `S3 не принял файл: HTTP ${up.status}`,
-          fal_url: genData.url,
+          provider: servedBy,
+          tried: refusals,
+          sourceUrl: genData.url,
         }
       }
       const r = await ctx.pool.query(
@@ -1005,6 +1090,12 @@ export const TOOLS: AgentTool[] = [
         сделано: true,
         url: upData.directUrl,
         id: r.rows[0]?.id,
+        // Named on SUCCESS too, not only on failure. A poster that arrived
+        // from the third leg cost 4 Kie credits out of the same purse the
+        // talking heads spend from at 18 credits a second; a caller that
+        // cannot tell that from a free-ish Replicate hit cannot budget.
+        provider: servedBy,
+        tried: refusals,
         подсказка:
           'ссылка готова: отдай её в reel_render как слой или в feed_publish',
       })

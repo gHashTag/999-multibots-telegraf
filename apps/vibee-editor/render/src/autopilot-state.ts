@@ -180,6 +180,34 @@ export function cursorFor(s: AutopilotState, titles: string[]): number {
 }
 
 /**
+ * DOES THIS POST GET THE ONE PAID MEDALLION SLOT OF THE DAY?
+ *
+ * WHY IT IS A FUNCTION IN src/ AND NOT AN EXPRESSION IN THE SCRIPT. It was an
+ * expression in the script, and it read a DIFFERENT counter from the one the
+ * daily cap reads: the cap uses max(local file, live feed), the slot used the
+ * local file alone. Those two agree only until a deploy wipes state.json, which
+ * happens on every merge in a container with no volumes. After one such loss
+ * the feed count runs permanently ahead of the local one -- the cap fires at 4
+ * while the local counter is still climbing through 1 -- and an equality test
+ * against `max - 1` is stepped straight over. The paid layer then never runs
+ * again, and "never runs" is indistinguishable from "switched off".
+ *
+ * `>=`, not `===`, for the same reason: a counter that can jump must not be
+ * gated on landing exactly on a number.
+ *
+ * Nothing under scripts/ is in any tsconfig include, so an expression there is
+ * unreachable by `npm run typecheck` and by any unit test. Here it is both.
+ */
+export function paidSlotDue(
+  postedToday: number,
+  maxPerDay: number,
+  forced = false
+): boolean {
+  if (forced) return true
+  return postedToday >= maxPerDay - 1
+}
+
+/**
  * A short-lived pool, or null when there is no database to talk to.
  *
  * `await import('pg')` INSIDE the function, not at the top: this package is

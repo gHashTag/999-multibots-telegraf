@@ -20,6 +20,13 @@
  * contract and the refusal texts live in src/face-source.ts; nothing is
  * synthesised -- the speech is the audio track of the owner's own clip.
  *
+ * TALKING PORTRAIT. AUTOPILOT_PORTRAIT=off|dry|on decides who gets the oval
+ * medallion on the last post of the day: nobody (off, today's behaviour and the
+ * silent b-roll), a costed rehearsal that spends nothing (dry), or the owner's
+ * own still animated to his own voice track by veed/fabric-1 (on). The ceiling,
+ * the floor and the spend ledger are in src/talking-portrait.ts; every refusal
+ * falls back to the text engraving and is written into the published recipe.
+ *
  * Run: LOOP_DIR=... npx tsx scripts/agent-autopilot.ts [--with-image] [--face]
  * Состояние: loop/state.json, журнал: LOOP_STATE.md рядом с ним.
  */
@@ -29,12 +36,21 @@ import {
   cursorFor,
   loadState,
   ownerFromEnv,
+  paidSlotDue,
   saveState,
   withDb,
   type AutopilotState,
 } from '../src/autopilot-state'
 import { deliverToChannel } from '../src/channel-delivery'
 import { readFaceSourceFile } from '../src/face-source'
+import {
+  attemptTalkingPortrait,
+  kieProvider,
+  portraitRecord,
+  readPortraitConfig,
+  s3Mirror,
+  type PortraitResult,
+} from '../src/talking-portrait'
 
 const BASE =
   process.env.SELF_URL || 'http://127.0.0.1:' + (process.env.PORT || '3333')
@@ -71,6 +87,26 @@ const FACE_MODE =
   process.argv.includes('--face') || process.env.AUTOPILOT_FACE === '1'
 const FACE_SOURCE_FILE =
   process.env.AUTOPILOT_FACE_SOURCE || path.join(LOOP_DIR, 'face-source.json')
+
+/**
+ * THE TALKING PORTRAIT, OFF UNTIL SOMEBODY SETS THREE VARIABLES.
+ *
+ * This is the OTHER paid layer, and it competes with the b-roll for the same
+ * slot: the medallion of the engraving on the last post of the day. With the
+ * switch off, `readPortraitConfig` returns mode 'off', the branch below is not
+ * entered, no file is read, no provider is called and the b-roll path runs
+ * exactly as it did before -- which is what the tests pin.
+ *
+ * WHY IT TAKES THE SLOT INSTEAD OF ADDING TO IT. Paying for a b-roll after a
+ * refused portrait would be two provider bills for one oval. One slot, one
+ * charge, and the refusal is recorded in the published recipe.
+ *
+ * The whole contract, the ceiling and the ledger live in src/talking-portrait.ts
+ * -- in src/ because `tsc --listFilesOnly` shows ZERO files under scripts/, so
+ * logic put beside this script is invisible to `npm run typecheck`.
+ */
+const PORTRAIT = readPortraitConfig(process.env)
+const PORTRAIT_SPEND_FILE = path.join(LOOP_DIR, 'portrait-spend.json')
 
 interface Topic {
   title: string
@@ -262,12 +298,30 @@ async function main() {
     })
   }
 
-  const withImage = process.argv.includes('--with-image')
+  /**
+   * THE ENGRAVING IS ON BY DEFAULT NOW. That switch IS the outage.
+   *
+   * It was gated behind `--with-image`, and the only thing that launches this
+   * script in production -- the supervised child spawned in render-server.ts --
+   * never passed it. Nothing else launches it: no crontab, no npm script, no
+   * Dockerfile. So /api/generate/image was never called by the factory at all.
+   * Two independent witnesses agreed: posterUrl is absent from all 12 newest
+   * feed rows, and the service log holds not one `[Generate]` line, while the
+   * b-roll layer eleven lines below -- same function, same try/catch, gated on
+   * no flag -- did produce artefacts. A feature switched on nowhere is a
+   * deleted feature that still ships a comment claiming it works.
+   *
+   * Off stays reachable, because it spends money: AUTOPILOT_IMAGE=0 or
+   * --no-image. `--with-image` still means yes and overrides the env.
+   */
+  const withImage =
+    process.argv.includes('--with-image') ||
+    (!process.argv.includes('--no-image') &&
+      process.env.AUTOPILOT_IMAGE !== '0')
   // Последний пост дня автоматически с b-roll: один видео-слой в день —
   // визуальный апгрейд канала при стабильном расходе (1 генерация/день).
   const forceVideo = process.argv.includes('--with-video')
   const state0 = await readState()
-  const withVideo = forceVideo || state0.postsToday === MAX_POSTS_PER_DAY - 1
   const state = state0
 
   /**
@@ -304,6 +358,12 @@ async function main() {
   } catch (e) {
     log(`не смог прочитать ленту для лимита: ${String(e).slice(0, 100)}`)
   }
+
+  // The rule and the evidence behind it live in src/autopilot-state.ts, where
+  // typecheck and a unit test can both reach them. It reads `postedToday` --
+  // the same number the cap below uses -- and not the local-file counter it
+  // used to read, which stops agreeing with the cap after any deploy.
+  const withVideo = paidSlotDue(postedToday, MAX_POSTS_PER_DAY, forceVideo)
 
   // 1. Лимит постов на сегодня — главный предохранитель автономности.
   if (postedToday >= MAX_POSTS_PER_DAY) {
@@ -449,23 +509,162 @@ async function main() {
     url: 't27.ai',
     year: String(new Date().getFullYear()),
   }
+  /**
+   * WHAT HAPPENED TO THE ENGRAVING, WRITTEN WHERE IT SURVIVES THE CONTAINER.
+   *
+   * THE CALL ITSELF WAS ONCE DELETED WHILE ITS SWITCH SURVIVED. An edit
+   * rewrote `withImage` above to default ON, with a comment saying that a
+   * feature switched on nowhere is a deleted feature -- and removed the only
+   * statement that read it, leaving the comment describing a call that no
+   * longer existed and `posterUrl` newly declared in the schema with nothing
+   * producing it. `grep -n posterUrl` matched the comment and nothing else, and
+   * `tsc` cannot see this file to complain about the unused constant. Which is
+   * the argument for the record below: the layer must say what it did somewhere
+   * that outlives both the container and the comment.
+   *
+   * `poster` goes into the published recipe beside `talking`: state
+   * delivered/refused/off, the reason in the provider's own words, which leg
+   * served, and every leg that refused. Null only when the layer was not asked
+   * at all, so a row published with it off stays byte-identical to what this
+   * factory published before.
+   *
+   * WHY AN ARTEFACT AND NOT A LOG LINE. LOOP_STATE.md and stdout live in a
+   * container with no volume; a redeploy erases both, and there is one on every
+   * merge. That is not a hypothetical loss -- it is exactly why "why is there no
+   * engraving on any of these posts" had no answer for weeks and had to be
+   * re-derived from the outside by counting `posterUrl` in the feed. A row in
+   * public_templates is queryable over HTTP by anyone, forever.
+   */
+  let poster: Record<string, unknown> | null = null
   if (withImage) {
     try {
       const img = await call('image_generate', {
         prompt: `гравюра к посту «${topic.title}»: матовый чёрный, кремово-серебряная штриховка, золото только на заголовке`,
         height: 1536,
       })
-      if (img?.сделано && typeof img.url === 'string') props.posterUrl = img.url
+      // Bracket access, not a dotted identifier: the guard reads a Cyrillic
+      // property name in code as a Russian identifier, and inside a string it
+      // is what it actually is -- the tool's own response field.
+      if (img?.['сделано'] && typeof img.url === 'string') {
+        props.posterUrl = img.url
+        poster = {
+          state: 'delivered',
+          provider: img.provider ?? null,
+          tried: img.tried ?? [],
+        }
+      } else {
+        /**
+         * THE BRANCH THAT DID NOT EXIST, AND THAT IS THE WHOLE OUTAGE.
+         *
+         * `call()` throws only on a JSON-RPC `error`; image_generate reports
+         * every real failure -- exhausted daily cap, no tokens, provider
+         * refusal, S3 refusal -- as a NORMAL result whose done-flag is false
+         * and whose reason field carries the text.
+         * So the guard above was simply false and execution walked straight on:
+         * no log, no record, no red, nothing. The catch below never saw any of
+         * it, because nothing was ever thrown. A swallow this total is
+         * indistinguishable from a feature that was never switched on.
+         */
+        const why = String(img?.['причина'] ?? 'инструмент промолчал').slice(
+          0,
+          300
+        )
+        poster = {
+          state: 'refused',
+          reason: why,
+          provider: img?.provider ?? null,
+          tried: img?.tried ?? [],
+        }
+        log(`гравюра не вышла: ${why} — рендерю без неё`)
+      }
     } catch (e) {
+      // Transport only: the tool itself does not throw for a refusal.
+      const why = String(e).slice(0, 300)
+      poster = { state: 'refused', reason: why, provider: null, tried: [] }
+      log(`картинка не получилась (${why.slice(0, 120)}) — рендерю без неё`)
+    }
+  }
+  /**
+   * THE MEDALLION'S ONE PAID SLOT, and who gets it.
+   *
+   * `talking` is the record of the attempt that goes into the published recipe:
+   * requested / delivered / refused with the reason, plus the credits and the
+   * clip seconds. Until now the whole story lived in a log file inside a
+   * container with no volume, so "why is this one silent" had no answer a check
+   * could read. Null when the switch is off: an untouched feed row is how "off
+   * changes nothing" stays true for the artefact as well as the render.
+   */
+  let talking: Record<string, unknown> | null = null
+  /**
+   * WHAT THE PORTRAIT ATTEMPT COST, which is what decides who gets the oval
+   * next. -1 means "the portrait was never asked", i.e. the switch is off.
+   *
+   * "One slot, one charge" is right only for a refusal that already SPENT. A
+   * missing AUTOPILOT_PORTRAIT_IMAGE, a ceiling that bit, an unreadable balance
+   * -- all three refuse before a single credit moves, and all three used to
+   * leave the medallion empty anyway, because the b-roll sat in an `else if` on
+   * the switch rather than on the money. Turning the switch on then made the
+   * channel visibly WORSE than leaving it off, for free, on the day the owner
+   * mistyped a variable name.
+   */
+  let portraitCredits = -1
+  if (withVideo && PORTRAIT.mode !== 'off') {
+    const result = await withDb(db =>
+      attemptTalkingPortrait({
+        config: PORTRAIT,
+        provider: kieProvider({ apiBase: PORTRAIT.apiBase, key: PORTRAIT.key }),
+        ledger: {
+          db,
+          owner: OWNER,
+          file: PORTRAIT_SPEND_FILE,
+          log,
+        },
+        mirror: s3Mirror({
+          selfUrl: BASE,
+          apiKey: process.env.RENDER_API_KEY || '',
+        }),
+        day: today,
+        log,
+      })
+    ).catch((e: unknown): PortraitResult => {
+      // The module is written not to throw; this belt exists because an escaped
+      // error here would cost the whole cycle, and a cycle costs 30 minutes.
+      log(`портрет: сорвался неожиданно (${String(e).slice(0, 140)})`)
+      return { state: 'refused', reason: 'внутренний сбой', credits: 0 }
+    })
+    talking = portraitRecord(PORTRAIT, result)
+    portraitCredits = result.credits
+    if (result.state === 'delivered' && result.url) {
+      props.avatarVideo = result.url
+      // 1, not the schema's silent default: this clip is the one that talks.
+      props.avatarVideoVolume = 1
+      props.avatarVideoSeconds = result.seconds
+    } else {
       log(
-        `картинка не получилась (${String(e).slice(0, 120)}) — рендерю без неё`
+        `портрет: медальон не занят (${result.state}) — ` +
+          `${result.reason || 'без причины'}; ` +
+          (result.credits > 0
+            ? `${result.credits} кредитов уже потрачено, второй раз за один овал не плачу`
+            : 'кредитов не потрачено, овал отдаю прежнему b-roll')
       )
     }
   }
-  // B-roll: сгенерированное видео ложится в медальон композиции (овал,
-  // grayscale) — визуальный уровень канала растёт без смены канона.
-  // Автоматически — на последнем посте дня; вручную — флагом.
-  if (withVideo) {
+  /**
+   * WHO ACTUALLY FILLS THE OVAL, decided by money rather than by the switch.
+   *
+   * Three ways in: the portrait was never asked (switch off, portraitCredits
+   * -1, the behaviour every published reel so far has had); the portrait was
+   * asked and refused without spending (0, so the free-ish b-roll is still
+   * owed); the portrait spent (>0, the day is charged and the oval stays as it
+   * is -- empty on a refusal, the talking clip on a delivery).
+   *
+   * `!props.avatarVideo` is the belt: a delivered portrait always spent, so the
+   * clause is redundant today and would be the only thing standing between a
+   * future zero-cost delivery and a b-roll overwriting it.
+   */
+  if (withVideo && portraitCredits <= 0 && !props.avatarVideo) {
+    // THE OLD PAID LAYER, UNCHANGED: a silent generated b-roll dropped into the
+    // same oval.
     // B-roll конвейера — расход КАНАЛА, не токенов человека (PRICING.md
     // п.5: ~$0.10/день). Напрямую в рендер-сервер с серверным ключом:
     // пользователи платят токенами, конвейер — из кассы канала.
@@ -635,6 +834,14 @@ async function main() {
       compositionId,
       props: renderProps,
       ab_style: abStyle,
+      // Present only when the portrait switch is on, so a feed row published
+      // with it off is byte-identical to what this factory published before.
+      ...(talking ? { talking } : {}),
+      // Same rule for the engraving: absent when the layer was not asked,
+      // present with a reason whenever it was asked and could not deliver.
+      // This is the field the feed-level check reads, and the reason a silent
+      // image layer can never again look like a layer nobody switched on.
+      ...(poster ? { poster } : {}),
     },
   })
   if (!pub?.опубликовано) {

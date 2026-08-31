@@ -37,6 +37,43 @@ const BASE = 'https://api.kie.ai/api/v1'
 /** The model that preserves the person. See the block comment for the evidence. */
 export const EDIT_MODEL = 'google/nano-banana-edit'
 
+/**
+ * TEXT-TO-IMAGE, the leg that brings the factory's engraving back.
+ *
+ * WHICH MODEL, AND WHY NOT THE PRETTIER ONE. Measured 2026-08-31 by generating
+ * the same engraving prompt once per model and reading the credit delta:
+ *
+ *   google/nano-banana     4 credits  768x1344 PNG  - exactly 9:16, used
+ *   nano-banana-2-lite     4 credits  768x1376 JPEG - 32 px off a reel frame
+ *   nano-banana-2          8 credits
+ *   nano-banana-pro       18 credits  - prettier faces, and this poster has
+ *                                       no face in it at all
+ *   google/imagen4(-fast)  0 credits  - "Internal Error", never serves here
+ *
+ * The tie on price is broken by the only thing that matters downstream: the
+ * frame. 768x1344 drops into a 1080x1920 reel with no crop; 768x1376 does not.
+ * And the imagen pair is the reason a free id probe is not enough -- both pass
+ * "does this model exist" and fail every real generation. Exists is not works.
+ *
+ * CORRECTION, MEASURED END TO END ON 2026-08-31 THROUGH THE REAL ROUTE. The
+ * frame argument above is sound about the MODEL but does not describe what the
+ * factory actually asks for, so do not rely on it when picking the next model:
+ *
+ *   - The autopilot calls image_generate with {height: 1536} and no width, so
+ *     the route's getAspectRatio sees 1024x1536, whose ratio 1.5 fails its
+ *     `>= 1.7` test for 9:16 and yields 3:4. A real run returned 864x1184 PNG,
+ *     not 768x1344. The production path never requests 9:16 at all.
+ *   - It does not matter here, and that is the point: posterUrl feeds the oval
+ *     Medallion of TrinityBlogReel (TrinityBlogReel.tsx:812-826), which crops
+ *     to an oval, so "no crop in a 1080x1920 frame" is a property of a use this
+ *     image does not have.
+ *
+ * The choice of google/nano-banana still stands on the half that was verified:
+ * cheapest at 4 credits AND actually serves. Cost of the end-to-end proof:
+ * 6822.53 -> 6818.53, exactly 4.00 credits.
+ */
+export const T2I_MODEL = 'google/nano-banana'
+
 export type KieResult =
   | { ok: true; url: string; taskId: string; credits: number | null }
   | { ok: false; reason: string; taskId?: string }
@@ -81,17 +118,16 @@ export async function credits(): Promise<number | null> {
 }
 
 /**
- * Edit an image, wait for it, return the URL.
+ * Create a Kie job, poll it to a verdict, return the URL and what it cost.
  *
- * `aspect_ratio` defaults to 9:16 deliberately. Without it the edit models
- * return landscape -- measured: 1344x768 -- which is unusable in a reel and
- * would be discovered only after the render looked wrong.
+ * Extracted from editImage when text-to-image was added: everything below the
+ * `input` object is provider protocol, not model semantics, and the two facts
+ * that cost money to learn -- the status endpoint is recordInfo, and a timeout
+ * is not a refund -- must not exist in two copies that can drift apart.
  */
-export async function editImage(opts: {
-  prompt: string
-  imageUrl: string
-  aspectRatio?: string
-  model?: string
+async function runKieJob(opts: {
+  model: string
+  input: Record<string, unknown>
   timeoutMs?: number
 }): Promise<KieResult> {
   if (!key()) return { ok: false, reason: 'KIE_AI_API_KEY не задан в сервисе' }
@@ -99,14 +135,7 @@ export async function editImage(opts: {
   const before = await credits()
   const created = await api('/jobs/createTask', {
     method: 'POST',
-    body: JSON.stringify({
-      model: opts.model || EDIT_MODEL,
-      input: {
-        prompt: opts.prompt,
-        image_urls: [opts.imageUrl],
-        aspect_ratio: opts.aspectRatio || '9:16',
-      },
-    }),
+    body: JSON.stringify({ model: opts.model, input: opts.input }),
   })
   const taskId = created.json?.data?.taskId || created.json?.data?.task_id
   if (!taskId) {
@@ -158,4 +187,52 @@ export async function editImage(opts: {
       `кредиты уже списаны, id задачи ${taskId}`,
     taskId,
   }
+}
+
+/**
+ * Edit an image, wait for it, return the URL.
+ *
+ * `aspect_ratio` defaults to 9:16 deliberately. Without it the edit models
+ * return landscape -- measured: 1344x768 -- which is unusable in a reel and
+ * would be discovered only after the render looked wrong.
+ */
+export async function editImage(opts: {
+  prompt: string
+  imageUrl: string
+  aspectRatio?: string
+  model?: string
+  timeoutMs?: number
+}): Promise<KieResult> {
+  return runKieJob({
+    model: opts.model || EDIT_MODEL,
+    input: {
+      prompt: opts.prompt,
+      image_urls: [opts.imageUrl],
+      aspect_ratio: opts.aspectRatio || '9:16',
+    },
+    timeoutMs: opts.timeoutMs,
+  })
+}
+
+/**
+ * Draw an image from text alone: the last leg of the poster chain.
+ *
+ * Same explicit `aspect_ratio` rule as editImage, and for the same measured
+ * reason -- the default is landscape, and a landscape poster is only
+ * discovered after the reel has already been rendered around it.
+ */
+export async function generateImage(opts: {
+  prompt: string
+  aspectRatio?: string
+  model?: string
+  timeoutMs?: number
+}): Promise<KieResult> {
+  return runKieJob({
+    model: opts.model || T2I_MODEL,
+    input: {
+      prompt: opts.prompt,
+      aspect_ratio: opts.aspectRatio || '9:16',
+    },
+    timeoutMs: opts.timeoutMs,
+  })
 }

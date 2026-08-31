@@ -4963,3 +4963,228 @@ database in CI (there is none); it is a test that compares the QUERIES against
 the TABLE DEFINITION, both read from the module, so drift in either direction is
 visible. It does not prove the SQL executes. It proves the two halves agree,
 which is the failure that actually happened.
+
+## How the content factory and the feed actually work
+
+Written down because two sessions in a row re-derived it from scratch.
+
+THE FEED ENTRY IS A TEMPLATE, NOT A VIDEO. public_templates rows carry
+template_settings.props (the full prop set that produced the reel),
+compositionId, ab_style, the layer arrays assets and tracks, and the remix
+lineage parent_template_id / original_creator_id plus uses_count. That is what
+makes it a social network rather than a video dump: publishing a reel publishes
+the RECIPE, and someone else can remix it. Read one with the MCP tool feed_get,
+not by guessing.
+
+THE FACTORY PIPELINE, per post, in scripts/agent-autopilot.ts:
+
+1. a topic from LOOP_DIR/topics.json: {title, subtitle, tags, plates[{label,
+   value}], lesson}
+2. A/B on the headline: an even post of the day keeps the title (A), an odd
+   one hoists the first numeric plate to the front (B). The choice is stored
+   in template_settings.ab_style so analytics can compare later.
+3. props = title, subtitle, dateline, tags, plates, lesson, invariant, url,
+   year
+4. OPTIONAL posterUrl from image_generate -- the engraving
+5. OPTIONAL avatarVideo from /api/generate/video -- a 5 s b-roll that lands in
+   the composition's oval medallion, only on the last post of the day
+6. OPTIONAL face reel (SplitTalkingHead) behind a switch
+7. render TrinityBlogReel, then publish with the whole template_settings
+
+THE IMAGE LAYER HAS BEEN DEAD. Measured 2026-08-31 through the production MCP:
+0 of the 6 most recent feed entries carry posterUrl. Step 4 calls
+image_generate, image_generate calls FAL, and FAL answers HTTP 403 "User is
+locked. Reason: Exhausted balance". The factory has been shipping text-only
+engravings and nobody could see it from the outside, because a missing optional
+prop renders as a valid reel.
+
+THE THREE RENDERABLE COMPOSITIONS are SplitTalkingHead (1020 frames), NoirReel
+(810) and TrinityBlogReel (900), all 1080x1920 at 30 fps. templates_list reads
+them from the bundle, so that list cannot drift from reality the way the old
+hand-written /compositions did.
+
+NOIRREEL: EMPTY captions SILENTLY EATS THE WHOLE REEL. endCardStartMs defaults
+to the end of the last caption word, so with captions: [] the end card starts at
+zero and covers all 26 seconds -- the face and every cutaway render underneath
+it and are never seen. The first render came out as a black screen with a logo
+and reported success. Pass endCardStartMs explicitly, or pass captions.
+
+## Kie AI: what is real, and how my own probe lied twice
+
+The only funded provider on the account. FAL is locked (exhausted balance) and
+the ElevenLabs variable holds a key identifier rather than a key, so Kie is what
+the product actually has.
+
+MODEL IDS ARE NOT DERIVABLE. Two conventions coexist -- vendor/model
+(google/nano-banana-edit, qwen/image-edit, veed/fabric-1, wan/2-5-text-to-video)
+and a bare page slug (nano-banana-pro, nano-banana-2, nano-banana-2-lite).
+Twenty-five educated guesses produced two hits. The market page slug is NOT the
+API id in general. Get the id from the model's own API tab, or probe.
+
+PROBING IS FREE, AND THAT IS THE WHOLE TRICK. A generation costs credits; a
+REJECTED generation does not. Send deliberately invalid input and read the
+refusal: "prompt is required" means the model exists and auth works, "The model
+name you specified is not supported" means the id is wrong. scripts/kie-probe.mjs
+does this for every function in under two seconds for 0.00 credits, and it reads
+the balance before and after so the claim is measured.
+
+THE STATUS ENDPOINT IS recordInfo. /api/v1/jobs/taskStatus answers HTTP 404. The
+bot's own provider (src/core/lipsync/providers/kie-veed-fabric-provider.ts)
+polls taskStatus in three places, so every Kie lipsync job there would poll a
+dead address until it timed out.
+
+TALKING HEAD: veed/fabric-1 needs image_url AND audio_url, and the audio must be
+a real audio file -- a bare string is refused with "audio_url file type not
+supported". So a still image cannot talk on its own; the chain is
+image -> speech -> talking video, three calls, not one.
+
+FOR A STORY ABOUT A SPECIFIC PERSON, THE EXPENSIVE MODEL IS THE WRONG ONE.
+Seven generations on the owner's real avatar, one prompt, 58 credits:
+google/nano-banana-edit and qwen/image-edit KEEP his face; nano-banana-pro and
+nano-banana-2 produce a better-looking engraving and REPLACE him with a generic
+17th-century face. An editing model edits the person; a generation model treats
+the photograph as a style reference. Also: without an explicit aspect_ratio the
+edit models return landscape (1344x768), useless in a reel.
+
+MY OWN PROBE LIED TWICE, both times the mistake it exists to prevent.
+
+1. Rate limiting read as success. Twenty-two ids at once exceeded the
+   documented 20 requests per 10 seconds, and "Your call frequency is too
+   high" fell through to the generic input-rejected branch -- two models
+   reported PRESENT on the strength of a throttle message.
+2. A truncated error string broke the match. I sliced the message to 44
+   characters, which cut "not supported" down to "not supporte", so the
+   pattern missed and EIGHT non-existent models printed as present.
+   RULE: never match on a string you have just truncated, and give rate limiting
+   its own outcome. Both defects produced FALSE PRESENCE, which is the direction
+   that costs money later.
+
+## The mini app is the shop window, and agent work does not reach it by itself
+
+The owner's words: app.t27.ai is where the RESULT of an agent's work must be
+seen, because the point of the service is that agents connect to the agent and
+lay out the visual of an advertising campaign. So a file that exists only as an
+S3 link in a chat message has not been delivered.
+
+TWO THINGS ARE TRUE AND WERE BOTH MISSED.
+
+1. THE MINI APP IS A TELEGRAM WEB APP AND RENDERS NOTHING IN A PLAIN BROWSER.
+   app.t27.ai serves the HTML with its #root and loads telegram-web-app.js, but
+   without initData there is no identity and the page stays empty. Measured
+   2026-08-31: the page text is empty in a normal browser tab. That is correct
+   behaviour, not a bug -- but it means "open the link and look" is not a way to
+   verify anything. Verify through the MCP tools the app itself calls:
+   my_assets, feed_list, feed_get.
+
+2. A FILE IS INVISIBLE UNTIL IT IS A ROW IN `assets`. Uploading to S3 gives a
+   URL; the shop window reads the table. tools.ts writes
+   INSERT INTO assets (type, trigger_word, telegram_id, storage_path,
+   public_url, text, bot_name) in three places, and any new tool that produces a
+   file MUST do the same or its output cannot be seen by the person who paid for
+   it. My own image_edit shipped without that insert: the picture reached S3,
+   the person could not find it, and my_assets still showed 2026-08-24 as the
+   newest file -- a week stale, because image_generate stopped working when FAL
+   locked and nothing has registered an asset since.
+
+RULE. "The provider returned a URL" is not done. Done is: bytes in our S3, row
+in assets, and visible through the same tool the mini app calls.
+
+## A2A: the front door that answered 401 to the doorbell
+
+WHAT A2A IS HERE, and why it is separate from MCP. MCP is "give me the tool list
+and I will call the tools myself". A2A is "here is an agent, send it a TASK in
+words and it decides which functions to call". Both run on ONE engine (runAgent)
+and ONE registry (TOOLS_BY_NAME), so they cannot drift apart. src/agent/a2a.ts,
+403 lines, protocol 0.3.0: JSON-RPC methods message/send, message/stream over
+SSE, tasks/get, tasks/cancel.
+
+message/send takes two paths, and the second one matters commercially: a plain
+text task goes to the model, but message.metadata = { skill: "feed_publish",
+args: {...} } calls the named tool DIRECTLY, with no model in the loop. That is
+how an external agent reaches every function deterministically instead of
+hoping the model picks the right one.
+
+THE DEFECT, measured 2026-08-31 in production: GET /.well-known/agent-card.json
+answers 401 "no X-Api-Key and no Telegram initData".
+
+That single line disables the entire protocol. Discovery is the FIRST step of
+A2A -- an external platform reads the card before it has any credentials, to
+learn who you are and what you can do. A card behind a key is a shop with its
+name written on the inside of the door. The handler exists (a2a.ts:106) and is
+correct; the route simply sits behind the global auth guard, which is the same
+defect class as the /api/inngest mount-order bug that cost nine days of cron.
+
+RULE. Every DISCOVERY surface must be public by construction and must have a
+test that fetches it with NO credentials at all. Auth on a discovery document is
+indistinguishable from not shipping the protocol.
+
+## Which Railway services this product actually uses: three of twelve
+
+Measured 2026-08-31 from the deployed variables, not from the topology picture.
+
+USED BY THE RENDER SERVICE, which is where the product lives:
+vibee-render itself: /mcp, /a2a, /upload, /render, the feed, the money
+Bucket S3_PUBLIC_URL -> bucket-production-8259; every image, audio
+and render lands here, because provider links expire in about
+an hour
+Postgres-NFrq DATABASE_URL -> postgres-nfrq.railway.internal; tokens, the
+feed, autopilot state
+
+USED BY THE BOT, which is a different service:
+inngest/inngest INNGEST_BASE_URL is set on the bot and NOT on the render
+service
+
+NOT REFERENCED BY THE RENDER CODE AT ALL (zero occurrences): trios-agent-server,
+Console, supabase-gateway, postgrest, Redis, and the second Postgres in the
+inngest group.
+
+TWO FACTS WORTH KEEPING.
+
+The local Supabase replacement is built and unused. supabase-gateway,
+postgrest and Postgres-NFrq are all online, yet SUPABASE_URL on BOTH services
+still points at the cloud project yuukfqcsdhkyxegfwlcb.supabase.co. The
+migration is prepared and not finished, so half the contour is paid for and
+carries no load.
+
+trios-agent-server is alive and serves /mcp. Its /health answers 200 and its
+/mcp answers 403, i.e. it wants a key. Meanwhile render-server calls the MCP
+tool ai_kie_create_video against MCP_URL, MCP_URL is NOT set, so it defaults
+to the render server's own address and the tool is not in its registry --
+every video generation through that path fails. The shape strongly suggests
+MCP_URL was meant to point at trios-agent-server. NOT PROVEN: its tool list
+is behind auth and has not been read.
+
+## A2A was never mounted, and 401 hides that from the outside
+
+The owner's product idea is that an external agent connects to our agent and
+lays out the visual of an ad campaign. A2A is the protocol for exactly that, it
+is written, and IT DOES NOT EXIST IN PRODUCTION.
+
+MEASURED 2026-08-31. src/agent/a2a.ts is 403 lines implementing protocol 0.3.0 --
+message/send, message/stream over SSE, tasks/get, tasks/cancel, the agent card,
+and a metadata path that calls a named tool directly with no model in the loop.
+All three of its exports -- a2aCard, handleA2ACard, handleA2A -- are referenced
+ZERO times in render-server.ts. The only importer in the whole package is
+a2a-local.ts, whose first line reads "Локальный харнесс A2A/MCP -- НЕ
+коммитить" and which is not named in package.json, the Dockerfile or
+railway.json. So the protocol runs on a local harness that was marked
+do-not-commit, was committed anyway, and is not what production serves.
+
+THE MEASUREMENT TRAP THAT HID IT. On this server a MISSING route and a
+PROTECTED route return the identical body:
+POST /a2a -> 401 {"error":"unauthorized", ...}
+GET /deliberately-no-such-path -> 401 {"error":"unauthorized", ...}
+The global guard answers before routing, so from outside you cannot tell "needs
+a key" from "does not exist". I read the first 401 as "it wants a key" and was
+wrong. The skill already carries the rule -- a 401 means nothing on its own,
+only the vocabulary in the body does -- and here BOTH bodies are the same
+vocabulary, which is the case the rule does not cover.
+
+NEW RULE. To decide whether a route exists, do not ask the network. Ask the
+code: grep for the handler's name in the file that mounts routes. Zero callers
+is the answer, and it takes one command.
+
+WHY IT MATTERS COMMERCIALLY. Discovery is the first step of A2A: a platform
+fetches /.well-known/agent-card.json BEFORE it has credentials. Ours is not a
+route at all, so no agent platform can find this service, and the tools_list
+that MCP exposes is the only door anyone can walk through.

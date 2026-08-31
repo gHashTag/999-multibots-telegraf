@@ -43,12 +43,12 @@ if [ "$botc" = "200" ]; then say "  ✅ порт :2999"; else say "  ⚠️ по
 say "— Реестр инструментов —"
 printf '%s' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' > /tmp/rc-req.json
 n=$(curl -s -m 10 http://127.0.0.1:3333/mcp -H "X-Agent-Key: $KEY" -H 'Content-Type: application/json' --data @/tmp/rc-req.json | python3 -c "import json,sys; print(len(json.load(sys.stdin)['result']['tools']))" 2>/dev/null)
-# 35 = производство + my_balance + skills CRUD (4) + skills market (3)
-#      + 6 инструментов z.ai-фолбэка (PR #716 продуктового лупа)
-#      + 3 планера plan_* (рестарт №218) + 3 монетизационных
-#      club/pricing/provider_setup (money-ветка владельца, 29.08, PR #1043-45).
+# 43 = 35 (было: производство + my_balance + skills CRUD/market
+#      + z.ai-фолбэк #716 + планер plan_* + club/pricing/provider_setup)
+#      + 8 новых из kie/расширенной ветки соседа (среди них img2img #1437;
+#      полный список — tri providers / tools/list; билд 06aa07195beb, 31.08).
 # Добавляешь инструмент — подними ожидание здесь ОДНОЙ правкой.
-check "инструментов в реестре" 35 "$n"
+check "инструментов в реестре" 43 "$n"
 
 say "— Дешёвые живые вызовы —"
 for tool in whoami feed_stats templates_list feed_analytics my_assets soul_get skills_list; do
@@ -207,6 +207,43 @@ print('house' if b is None else int(b)//int(p))" 2>/dev/null)
 if [ "$runway" = "house" ]; then say "  ✅ дом не платит себе (баланс не метрируется)"
 elif [ "${runway:-0}" -ge 4 ] 2>/dev/null; then say "  ✅ запас хода $runway рилсов (>= дневной лимит 4)"
 else say "  ❌ запаса хода $runway рилсов (< 4): фабрика встанет в пределах суток"; fail=1; fi
+
+say "— Платный слой медальона —"
+# ПОЧЕМУ ЭТОТ БЛОК ВООБЩЕ ПОЯВИЛСЯ. Слой картинок был мёртв недели: шаг
+# image_generate звал FAL, FAL отвечал 403 «Exhausted balance», а рилс без
+# необязательного пропса рендерится в 900 валидных кадров и публикуется с
+# отчётом «готово». Ни одна проверка не заглядывала ВНУТРЬ опубликованного
+# рецепта — в этом файле до сегодня не было ни одного вхождения слов talking,
+# portrait, posterUrl, avatarVideo. Говорящий портрет — слой той же породы:
+# необязательный, платный и невидимый, когда ломается. Он приезжает вместе с
+# проверкой, которой не было у постера.
+#
+# Выключатель живёт в проде, а не в этой оболочке, поэтому режим спрашиваем у
+# самого деплоя. Три исхода: 0 — чисто или выключено, 1 — слой не производит,
+# 2 — НЕ ИЗМЕРЕНО (лента молчит). Сломать её умышленно и увидеть красное
+# можно так: PORTRAIT_WATCH_FEED=<файл-фикстура> AUTOPILOT_PORTRAIT=on
+# node loop/portrait-watch.mjs
+pvars=$(railway variables list -s vibee-render -e production --kv 2>/dev/null)
+pmode=$(printf '%s\n' "$pvars" | grep ^AUTOPILOT_PORTRAIT= | cut -d= -f2-)
+# «Переменной нет в деплое» и «Railway не ответил» — разные вещи, и путать их
+# значит либо молчать при поломке, либо звенеть впустую. Различает их наличие
+# ЛЮБОГО имени в том же ответе.
+if [ -z "$pmode" ] && printf '%s\n' "$pvars" | grep -q '^AGENT_KEYS='; then
+  pmode="off"
+fi
+if [ -z "$pmode" ]; then
+  say "  ⚠️ Railway не ответил — режим портрета НЕ измерен"
+else
+  AUTOPILOT_PORTRAIT="$pmode" \
+    PORTRAIT_WATCH_FEED="https://vibee-render-production.up.railway.app/api/feed?limit=8" \
+    node "$HOME/999-multibots-telegraf/loop/portrait-watch.mjs" 2>&1 | sed 's/^/  /'
+  prc=${pipestatus[1]}
+  case "$prc" in
+    0) : ;;
+    2) say "  ⚠️ лента не ответила — платный слой НЕ измерен" ;;
+    *) say "  ❌ платный слой медальона не производит (код $prc)"; fail=1 ;;
+  esac
+fi
 
 say "— Слепок имён переменных деплоя —"
 # ПОЧЕМУ ЭТО ЗДЕСЬ, А НЕ В ТЕСТЕ. channel-env-contract.test.ts сверяет имена,
