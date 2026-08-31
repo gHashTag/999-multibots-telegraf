@@ -44,6 +44,7 @@ const GUARDS = [
   'src/__tests__/reliability/wan25PollBackoff.test.ts', // iter200 WAN2.5 poll loop backs off on the unknown-state fall-through (no busy-loop)
   'src/__tests__/reliability/i2vAdminNotifyCooldown.test.ts', // iter201 i2v admin-alert fan-outs are cooldown-throttled (no alert storm)
   'src/__tests__/security/trainingPhotosInvalidated.test.ts', // iter201 LoRA training photos invalidated between trainings (no cross-training contamination)
+  'src/__tests__/security/startSceneBotResolution.test.ts', // iter201 startScene resolves current bot from ctx.telegram.token (no cross-tenant wrong branding)
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
