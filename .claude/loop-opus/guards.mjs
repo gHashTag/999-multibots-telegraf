@@ -1,0 +1,62 @@
+#!/usr/bin/env node
+// tri guards -- run the critical money/security/reliability RATCHETS as one fast
+// focused suite (a self-healing check), instead of the full ~3260-test run.
+//
+// WHY. Each of these tests pins an INVARIANT a money/security bug had already
+// regressed once: a paid generation must never price to 0, a deduction must hold
+// the per-user lock, a payment InvId must be deterministic, privileged commands
+// must be admin-gated, webhook routes must guard JSON.parse, debug endpoints must
+// be NODE_ENV-gated, the public/protected router split must hold, every Inngest
+// function must be served-or-explained. Other agents share this repo; running
+// this list after a sync catches a regression in seconds. This just codifies the
+// list I would otherwise retype by hand each iteration.
+//
+// Usage: node .claude/loop-opus/guards.mjs        # run + summarize
+//        node .claude/loop-opus/guards.mjs --list # print the tracked files
+
+import { execFileSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
+
+// The critical invariant ratchets. Add a file here when you ship a new one.
+const GUARDS = [
+  'src/__tests__/money/unifiedModelPriceFailClosed.test.ts', // #1458 fail-closed price
+  'src/__tests__/money/processBalanceVideoOperationNonPositive.test.ts', // #1461 non-positive price
+  'src/__tests__/money/paymentHandlerInvIdDeterministic.test.ts', // #1430 InvId determinism
+  'src/__tests__/money/unlockedDeductionLocked.test.ts', // #1432 balance-lock hatch
+  'src/__tests__/security/privilegedCommandAdminGate.test.ts', // #1441 admin gate (addbalance mints)
+  'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
+  'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
+  'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
+  'src/__tests__/inngest/functionGranularRegistration.test.ts', // #1439 Inngest liveness
+]
+
+const ROOT = process.cwd()
+
+function main() {
+  if (process.argv[2] === '--list') {
+    for (const g of GUARDS) console.log(g)
+    return
+  }
+  // A stale entry (a renamed/removed ratchet) must fail loud, not be skipped --
+  // a guard list that silently drops a guard is worse than no list.
+  const missing = GUARDS.filter(g => !fs.existsSync(path.join(ROOT, g)))
+  if (missing.length) {
+    console.error('tri guards: tracked ratchet file(s) missing:')
+    for (const m of missing) console.error('  ' + m)
+    process.exit(2)
+  }
+  const bin = path.join(ROOT, 'node_modules', '.bin', 'vitest')
+  try {
+    // vitest exits non-zero if any test fails; inherit stdio so the report shows.
+    execFileSync(bin, ['run', ...GUARDS], { stdio: 'inherit', cwd: ROOT })
+    console.log(`\ntri guards: all ${GUARDS.length} invariant ratchets GREEN.`)
+  } catch {
+    console.error(
+      `\ntri guards: a critical invariant ratchet is RED (regression). Fix before shipping.`
+    )
+    process.exit(1)
+  }
+}
+
+main()
