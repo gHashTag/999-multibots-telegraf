@@ -30,12 +30,28 @@ import { videoTaskCache } from './taskCache'
 const UPLOADS_DIR = process.env.UPLOADS_DIR || '/tmp/uploads'
 
 // Функция для отправки уведомления админу
+// Cooldown to prevent an admin-alert storm. The I2V Plan-B alerts below each fan
+// out to EVERY admin, and Plan-B events can burst (many videos fail Plan-A /
+// succeed Plan-B in one window), so without this a single degraded window floods
+// admin chats (and risks Telegram flood limits). Suppress repeat alerts of the
+// same kind within the window; returns true when the caller should skip sending.
+const ADMIN_NOTIFY_COOLDOWN_MS = 60_000
+const lastAdminNotifyAt = new Map<string, number>()
+function adminNotifyOnCooldown(key: string): boolean {
+  const now = Date.now()
+  const prev = lastAdminNotifyAt.get(key)
+  if (prev !== undefined && now - prev < ADMIN_NOTIFY_COOLDOWN_MS) return true
+  lastAdminNotifyAt.set(key, now)
+  return false
+}
+
 async function notifyAdminAboutServerIssue(
   error: string,
   telegram_id: string,
   videoModel: string
 ) {
   try {
+    if (adminNotifyOnCooldown('i2v-server-issue')) return
     const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
     const { getBotByName } = await import('@/core/bot')
     const botResult = getBotByName('neuro_blogger_bot')
@@ -83,6 +99,7 @@ async function notifyAdminAboutPlanBSuccess(
   videoUrl: string
 ) {
   try {
+    if (adminNotifyOnCooldown('i2v-plan-b-success')) return
     const adminIds = process.env.ADMIN_TELEGRAM_ID?.split(',') || ['144022504']
     const { getBotByName } = await import('@/core/bot')
     const botResult = getBotByName('neuro_blogger_bot')
