@@ -70,13 +70,19 @@ export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
             ? `Запрос с ID: ${prediction.id} успешно отменен.`
             : `Request with ID: ${prediction.id} successfully cancelled.`
         )
-
-        if (ctx.from) {
-          const paymentAmount = ctx.session.paymentAmount || 0
-          console.log('paymentAmount', paymentAmount)
-          await refundUser(ctx, paymentAmount, { reason: 'user_cancelled' })
-        }
       }
+
+      // Refund ONCE for the cancelled operation, not once per matching
+      // prediction. ctx.session.paymentAmount is a SINGLE payment; refunding it
+      // inside the loop paid it out N times when the prompt matched N predictions
+      // (the user's own re-submits, or another user's identical prompt) -- minting
+      // credit. This scene is registered but currently has no entry point, so the
+      // fix hardens it against a refund-mint for the day it is wired.
+      if (ctx.from && predictionsToCancel.length > 0) {
+        const paymentAmount = ctx.session.paymentAmount || 0
+        await refundUser(ctx, paymentAmount, { reason: 'user_cancelled' })
+      }
+
       return ctx.scene.leave()
     } catch (error) {
       console.error('Error cancelling predictions:', error)
