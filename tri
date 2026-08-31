@@ -201,6 +201,12 @@ CHECKS THAT EACH COST A CYCLE
         run -- the per-iteration regression check after syncing main. Each
         loop-fable fix pins its bug here (33 and counting). --list shows files.
 
+  tri timeouts | tri таймауты
+        List axios calls with no timeout (default is infinite), split
+        likely-LIVE vs likely-DEAD. Triage, not fix-all: bound only the ones on
+        a live CHARGED path whose refund fires solely on a throw (a silent hang
+        there is charged-not-delivered). Most others are non-charged/dead.
+
   tri charge | tri заряд
         Completeness check for the double-charge class (#1358): lists every
         scene that CHARGES money and whether it is guarded / safe / a tracked
@@ -1340,6 +1346,17 @@ cmd_guards() {
   ( cd "$ROOT" && node "$TOOLS/guards.mjs" "$@" )
 }
 
+cmd_timeouts() {
+  # List axios calls with NO timeout, split into likely-LIVE vs likely-DEAD by
+  # whether the module is referenced elsewhere. axios default timeout is 0
+  # (infinite): a call on a CHARGED path that hangs leaves the user charged with
+  # no delivery and no refund (refund fires only on a throw). The report is a
+  # triage list, NOT a fix-all -- most no-timeout calls are non-charged
+  # (getAccountBalance), dead (0 importers), or owner-render (#1333). Bound the
+  # ones that (1) sit on a live charged path and (2) refund only on throw.
+  ( cd "$ROOT" && node "$TOOLS/axios-timeout-audit.mjs" "$@" )
+}
+
 action="${1:-помощь}"
 shift 2>/dev/null || true
 
@@ -1363,6 +1380,7 @@ case "$action" in
   charge|заряд)       cmd_charge ;;
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
+  timeouts|таймауты)  cmd_timeouts "$@" ;;
   sweep|развёртка)  cmd_sweep "$@" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
