@@ -125,7 +125,7 @@ describe('paid wizards keep their in-flight guard', () => {
 //   SAFE_NOT_CHARGEABLE  — verified NOT double-tap-chargeable.
 const SAFE_NOT_CHARGEABLE: Record<string, string> = {
   'src/scenes/voiceTrainingWizard/index.ts':
-    'DISABLED: const VOICE_TRAINING_DISCONNECTED=true makes the confirm action leave before the charge -> the charge is unreachable',
+    'DISABLED: const VOICE_TRAINING_DISCONNECTED=true makes the confirm action leave before the charge -> the charge is unreachable. Disabled status is asserted below (#1372).',
   'src/scenes/lipSyncWizard/fal-render-wizard.ts':
     'DEAD CHARGE: an unconditional scene.leave() precedes the MONEY_OUTCOME charge (fal avatar service is rejected by RenderRiddleEventDataSchema, so the scene stops before charging); the charge is unreachable dead stub marked eslint no-unreachable. Reachability is asserted below (#1372).',
   'src/scenes/lipSyncWizard/ai-reels-inngest-wizard.ts':
@@ -239,6 +239,36 @@ describe('every charging scene is guarded or explicitly classified (#1373)', () 
       markerIdx,
       'the no-unreachable marker must PRECEDE the charge (proof the charge is dead)'
     ).toBeLessThan(chargeIdx)
+  })
+
+  // voiceTraining is allowlisted SAFE only because it is disabled: a module
+  // const VOICE_TRAINING_DISCONNECTED=true gates an early return before the
+  // charge. Re-enabling it (flag false / removed, or the gate moved after the
+  // charge) makes the charge live and unguarded while the allowlist still says
+  // safe. Assert the disabling gate still precedes the charge, so re-enabling
+  // fails here and forces a real in-flight guard (#1372).
+  it('voiceTraining stays safe only while it is disabled before the charge', () => {
+    const src = fs.readFileSync(
+      'src/scenes/voiceTrainingWizard/index.ts',
+      'utf8'
+    )
+    expect(
+      src,
+      'voiceTraining is no longer disabled (VOICE_TRAINING_DISCONNECTED=true gone) -- its charge may be live; add a real in-flight guard'
+    ).toContain('VOICE_TRAINING_DISCONNECTED = true')
+    const chargeIdx = src.indexOf('PaymentType.MONEY_OUTCOME')
+    const gateIdx = src.lastIndexOf(
+      'if (VOICE_TRAINING_DISCONNECTED)',
+      chargeIdx
+    )
+    expect(
+      chargeIdx,
+      'voiceTraining no longer charges -- reclassify'
+    ).toBeGreaterThan(-1)
+    expect(
+      gateIdx,
+      'no VOICE_TRAINING_DISCONNECTED gate precedes the charge -- the disable no longer protects it; guard it'
+    ).toBeGreaterThan(-1)
   })
 
   // ai-reels-inngest is allowlisted SAFE only because it is unwired dead code
