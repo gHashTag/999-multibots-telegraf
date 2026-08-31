@@ -186,6 +186,11 @@ CHECKS THAT EACH COST A CYCLE
         or retry can never be rejected (#1298 promo star-mint). A flag is OK only
         if the intent is unique-per-payment, not dedup (reward/bonus/refund).
 
+  tri sweep <symbol>
+        Class-sweep helper: list every `await <symbol>(` call-site by layer
+        and flag the ones that DISCARD the result. Use when a point-fix lands
+        to find its siblings. A flagged site is a hypothesis -- read it.
+
   tri ratchets | tri линейки
         Run every gated safety-class ratchet in one shot, by exit code
         (double-charge / scene-id / unbilled-paid / OOM / cross-bot). Names
@@ -1313,6 +1318,13 @@ cmd_ratchets() {
   ( cd "$ROOT" && node "$TOOLS/ratchets.mjs" )
 }
 
+cmd_sweep() {
+  # First step of a class-sweep: list every `await <symbol>(` call-site grouped
+  # by layer and flag the ones that DISCARD the result (unbilled-paid smell).
+  # A flagged site is a hypothesis -- READ it. Reports, never mutates.
+  ( cd "$ROOT" && node "$TOOLS/sweep.mjs" "$@" )
+}
+
 action="${1:-помощь}"
 shift 2>/dev/null || true
 
@@ -1335,6 +1347,7 @@ case "$action" in
   wired|подключён)    cmd_wired "$@" ;;
   charge|заряд)       cmd_charge ;;
   ratchets|линейки)   cmd_ratchets ;;
+  sweep|развёртка)  cmd_sweep "$@" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
