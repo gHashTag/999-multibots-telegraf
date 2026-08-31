@@ -209,18 +209,43 @@ async function directPaymentProcessorUnlocked(
       telegram_id,
     })
 
-    // 5. Инвалидация кэша баланса
-    logger.info('🔄 [DIRECT_PAYMENT v2.0] Инвалидация кэша баланса', {
-      telegram_id,
-    })
-    await invalidateBalanceCache(String(telegram_id))
+    // The payment row is committed above (newPaymentId exists) -> the operation
+    // SUCCEEDED. Everything below is best-effort enrichment for the return value;
+    // a throw here must NOT reach the outer catch and flip a committed payment to
+    // success:false (the caller would retry into a double charge / not deliver).
+    // #1397 class. invalidateBalanceCache is a no-op today but kept switchable.
+    try {
+      await invalidateBalanceCache(String(telegram_id))
+    } catch (cacheError) {
+      logger.error(
+        '[DIRECT_PAYMENT v2.0] cache invalidation threw after a committed payment (non-fatal):',
+        {
+          telegram_id,
+          error:
+            cacheError instanceof Error
+              ? cacheError.message
+              : String(cacheError),
+        }
+      )
+    }
 
-    // 6. Получение нового баланса
-    const newBalance = await getUserBalance(telegram_id)
-    logger.info('💰 [DIRECT_PAYMENT v2.0] Новый баланс получен', {
-      telegram_id,
-      newBalance,
-    })
+    // Best-effort new-balance read for the return payload; on failure fall back
+    // to the pre-op balance so a transient read cannot flip a committed payment.
+    let newBalance = currentBalance
+    try {
+      newBalance = await getUserBalance(telegram_id)
+    } catch (balanceError) {
+      logger.error(
+        '[DIRECT_PAYMENT v2.0] getUserBalance threw after a committed payment (non-fatal, using pre-op balance for display):',
+        {
+          telegram_id,
+          error:
+            balanceError instanceof Error
+              ? balanceError.message
+              : String(balanceError),
+        }
+      )
+    }
 
     // 7. Отправка уведомления пользователю
     try {
