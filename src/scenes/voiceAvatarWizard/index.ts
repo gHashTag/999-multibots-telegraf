@@ -147,7 +147,9 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
         // the user and does NOT throw), so charging unconditionally would bill for
         // a voice that was never made. Charging AFTER the await also means an
         // ElevenLabs throw short-circuits before any deduction (no charge-on-fail).
-        if (voiceResult?.voiceId && cost > 0) {
+        // isFallback means a Cloudflare block substituted the stock Rachel voice
+        // instead of cloning the user's -- not the paid product, so do not charge.
+        if (voiceResult?.voiceId && !voiceResult.isFallback && cost > 0) {
           const charged = await updateUserBalance(
             ctx.from.id.toString(),
             cost,

@@ -21,7 +21,7 @@ export async function createVoiceAvatar(
   username: string,
   isRu: boolean,
   ctx: MyContext
-): Promise<{ voiceId: string }> {
+): Promise<{ voiceId: string; isFallback?: boolean }> {
   try {
     const userExists = await getUserByTelegramIdString(telegram_id)
     if (!userExists) {
@@ -121,7 +121,11 @@ export async function createVoiceAvatar(
           : '🎤 Voice for avatar successfully created! \n Use the 🎙️ Text to speech in the menu to check'
     )
 
-    return { voiceId }
+    // isFallback flags the Cloudflare-block substitution: voiceId is the STOCK
+    // Rachel voice, NOT the user's clone. The caller must not charge for a clone
+    // that was never made (the wizard bills "only when a voice was actually
+    // created" -- a stock substitute is not that).
+    return { voiceId, isFallback: isCloudflareBlocked }
   } catch (error) {
     console.error('Error in createVoiceAvatar:', error)
     await sendServiceErrorToAdmin(ctx, telegram_id, error as Error)
