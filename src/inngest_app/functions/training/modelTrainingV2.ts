@@ -27,7 +27,16 @@ interface TrainingResponse {
 
 // Функция для кодирования файла в base64
 async function encodeFileToBase64(url: string): Promise<string> {
-  const response = await axios.get(url, { responseType: 'arraybuffer' })
+  // Explicit timeout: this download runs AFTER the balance charge (check-balance
+  // step) and its only refund path is the outer catch, reached solely by a
+  // thrown error. axios default timeout is 0 (infinite), so a half-open/silent
+  // host would hang forever, never throw, and leave the user charged with no
+  // model and no refund. A bounded timeout converts a hang into a throw so the
+  // existing refund-balance step runs. 180s is generous for a biometric ZIP.
+  const response = await axios.get(url, {
+    responseType: 'arraybuffer',
+    timeout: 180000,
+  })
   const buffer = Buffer.from(response.data)
   return buffer.toString('base64')
 }
@@ -247,6 +256,11 @@ export const modelTrainingV2 = inngest.createFunction(
 
         const response = await fetch('https://api.us1.bfl.ai/v1/finetune', {
           method: 'POST',
+          // Bound the request: like the ZIP download above, this runs after the
+          // balance charge and its only refund is the outer catch (throw-only).
+          // A hung BFL socket must fail-fast so the refund-balance step runs
+          // instead of leaving the user charged indefinitely.
+          signal: AbortSignal.timeout(180000),
           headers: {
             'Content-Type': 'application/json',
             'X-Key': process.env.BFL_API_KEY,
