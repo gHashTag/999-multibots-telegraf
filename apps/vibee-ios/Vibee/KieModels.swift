@@ -1,88 +1,96 @@
 import SwiftUI
 
 /**
- * Модели KieAI на устройстве: что можно запустить прямо сейчас, а что нет.
+ * Каталог KieAI на устройстве — 44 модели, СГЕНЕРИРОВАН из серверного реестра.
  *
- * ЗАЧЕМ СПИСОК ЛЕЖИТ В ПРИЛОЖЕНИИ, А НЕ ТОЛЬКО НА СЕРВЕРЕ. Человек должен
- * видеть выбор ДО того, как нажмёт и получит отказ. Экран, показывающий все
- * модели одинаково, а потом отвечающий «недоступно», тратит чужое время и
- * выглядит поломкой; экран, скрывающий приостановленные, лжёт умолчанием —
- * человек решит, что Sora у нас нет вовсе.
+ * ПОЧЕМУ СГЕНЕРИРОВАН, А НЕ НАПИСАН. Два списка, которые надо помнить
+ * пополнять, расходятся всегда — этот репозиторий уже платил за такое, когда
+ * маршрут забыли внести в публичный список и он молча отвечал 401. Источник
+ * один: `apps/vibee-editor/render/src/agent/kie-models.ts`, добытый замером.
+ * Тест `kie-swift-sync.test.ts` сверяет два файла и падает при расхождении.
  *
- * Поэтому приостановленные ПОКАЗАНЫ и помечены, а нажать нельзя.
+ * ЧТО ЗНАЧАТ ПОЛЯ. `живая` и `требует` — не догадки: KieAI на неполный запрос
+ * отвечает, каких полей не хватает, и эти ответы легли в реестр дословно.
+ * Приостановленные ПОКАЗАНЫ и помечены: спрятать их значило бы сказать, что
+ * Sora у нас нет вовсе.
  *
- * КАК ПОЛУЧЕН СПИСОК — и почему это не стоило ни одного кредита. KieAI
- * проверяет запрос до создания задания, поэтому намеренно неполное тело
- * получает смысловой ответ и до списания не доходит. Три ответа различают
- * три состояния:
- *
- *     «model name ... is not supported»  — имени нет
- *     «<поле> is required»               — имя ЕСТЬ, и назван контракт
- *     «This interface is temporarily paused» — есть, выключено у провайдера
- *
- * Тот же перебор гоняется тестом на сервере и тоже ничего не тратит.
+ * ПРО `опасная`. Одна модель — grok-imagine/image-to-video — не проверяет вход
+ * и СОЗДАЁТ задание даже на пустой запрос. Разведка по ней стоила денег
+ * дважды. Здесь она помечена, чтобы никакой будущий автопробник её не тронул.
  */
-enum МодельKie: String, CaseIterable, Identifiable {
-  case липсинк = "veed/fabric-1"
-  case картинка = "google/nano-banana"
-  case правкаКартинки = "google/nano-banana-edit"
-  case imagen4 = "google/imagen4"
-  case правкаQwen = "qwen/image-edit"
-  case sora = "sora-2-text-to-video"
-  case soraPro = "sora-2-pro-text-to-video"
-  case soraИзКартинки = "sora-2-image-to-video"
+struct Модель: Identifiable, Hashable {
+  let id: String
+  let название: String
+  let вид: Вид
+  let живая: Bool
+  /// Что нужно на вход — словами самого API, переведёнными для человека.
+  let требует: String
+  /// Принимает пустой вход и берёт деньги. Не пробовать автоматически.
+  let опасная: Bool
 
-  var id: String { rawValue }
+  enum Вид: String, CaseIterable { case картинка, видео, звук, липсинк }
 
-  /// Состояние, установленное замером, а не предположением.
-  enum Состояние { case живая, приостановлена }
-
-  var состояние: Состояние {
-    switch self {
-    case .sora, .soraPro, .soraИзКартинки: return .приостановлена
-    default: return .живая
-    }
-  }
-
-  var название: String {
-    switch self {
-    case .липсинк: return "Липсинк по фото"
-    case .картинка: return "Картинка по описанию"
-    case .правкаКартинки: return "Правка картинки"
-    case .imagen4: return "Imagen 4"
-    case .правкаQwen: return "Правка (Qwen)"
-    case .sora: return "Sora 2 — видео"
-    case .soraPro: return "Sora 2 Pro — видео"
-    case .soraИзКартинки: return "Sora 2 — из картинки"
-    }
-  }
-
-  /// Что модель требует на вход — словами самого API.
-  var требует: String {
-    switch self {
-    case .липсинк: return "фото"
-    case .правкаКартинки, .правкаQwen: return "картинку и описание"
-    case .картинка, .imagen4: return "описание"
-    case .sora, .soraPro, .soraИзКартинки: return "—"
-    }
-  }
-
-  /**
-   * Почему нельзя нажать. `nil` — можно.
-   *
-   * Причина названа ЧУЖОЙ стороной намеренно: «приостановлена у провайдера»
-   * говорит человеку, что ждать, а не чинить, и что дело не в его аккаунте.
-   */
   var почемуНельзя: String? {
-    состояние == .приостановлена
-      ? "Приостановлена у провайдера — не в вашем аккаунте. Появится сама."
-      : nil
+    живая ? nil : "Приостановлена у провайдера — не в вашем аккаунте. Появится сама."
   }
 }
 
-/// Строка выбора модели: живые нажимаются, приостановленные видны и объяснены.
+enum КаталогKie {
+  static let все: [Модель] = [
+    Модель(id: "seedream/5-lite-text-to-image", название: "5 lite text to image", вид: .картинка, живая: true, требует: "—", опасная: false),
+    Модель(id: "seedream/5-pro-text-to-image", название: "5 pro text to image", вид: .картинка, живая: true, требует: "—", опасная: false),
+    Модель(id: "seedream/5-pro-image-to-image", название: "5 pro image to image", вид: .картинка, живая: true, требует: "—", опасная: false),
+    Модель(id: "google/imagen4-fast", название: "Imagen4 fast", вид: .картинка, живая: true, требует: "описание", опасная: false),
+    Модель(id: "google/imagen4-ultra", название: "Imagen4 ultra", вид: .картинка, живая: true, требует: "—", опасная: false),
+    Модель(id: "google/imagen4", название: "Imagen4", вид: .картинка, живая: true, требует: "—", опасная: false),
+    Модель(id: "google/nano-banana-edit", название: "Nano banana edit", вид: .картинка, живая: true, требует: "описание", опасная: false),
+    Модель(id: "google/nano-banana", название: "Nano banana", вид: .картинка, живая: true, требует: "описание", опасная: false),
+    Модель(id: "grok-imagine/text-to-image", название: "Text to image", вид: .картинка, живая: true, требует: "—", опасная: false),
+    Модель(id: "grok-imagine/image-to-image", название: "Image to image", вид: .картинка, живая: true, требует: "—", опасная: false),
+    Модель(id: "topaz/image-upscale", название: "Image upscale", вид: .картинка, живая: true, требует: "фото", опасная: false),
+    Модель(id: "recraft/remove-background", название: "Remove background", вид: .картинка, живая: true, требует: "картинку", опасная: false),
+    Модель(id: "recraft/crisp-upscale", название: "Crisp upscale", вид: .картинка, живая: true, требует: "картинку", опасная: false),
+    Модель(id: "ideogram/v3-text-to-image", название: "V3 text to image", вид: .картинка, живая: true, требует: "—", опасная: false),
+    Модель(id: "ideogram/character", название: "Character", вид: .картинка, живая: true, требует: "описание", опасная: false),
+    Модель(id: "qwen/text-to-image", название: "Text to image", вид: .картинка, живая: true, требует: "описание", опасная: false),
+    Модель(id: "qwen/image-edit", название: "Image edit", вид: .картинка, живая: true, требует: "описание", опасная: false),
+    Модель(id: "qwen3/text-to-image", название: "Text to image", вид: .картинка, живая: true, требует: "—", опасная: false),
+    Модель(id: "wan/2-7-image", название: "2 7 image", вид: .картинка, живая: true, требует: "—", опасная: false),
+    Модель(id: "grok-imagine/text-to-video", название: "Text to video", вид: .видео, живая: true, требует: "описание", опасная: false),
+    Модель(id: "grok-imagine/image-to-video", название: "Image to video", вид: .видео, живая: true, требует: "—", опасная: true),
+    Модель(id: "kling/ai-avatar-standard", название: "Ai avatar standard", вид: .липсинк, живая: true, требует: "фото", опасная: false),
+    Модель(id: "kling/v2-1-pro", название: "V2 1 pro", вид: .картинка, живая: true, требует: "—", опасная: false),
+    Модель(id: "kling/v3-turbo-text-to-video", название: "V3 turbo text to video", вид: .видео, живая: true, требует: "—", опасная: false),
+    Модель(id: "bytedance/seedance-2", название: "Seedance 2", вид: .картинка, живая: true, требует: "описание", опасная: false),
+    Модель(id: "bytedance/seedance-2-fast", название: "Seedance 2 fast", вид: .картинка, живая: true, требует: "описание", опасная: false),
+    Модель(id: "bytedance/v1-pro-text-to-video", название: "V1 pro text to video", вид: .видео, живая: true, требует: "—", опасная: false),
+    Модель(id: "hailuo/02-text-to-video-pro", название: "02 text to video pro", вид: .видео, живая: true, требует: "описание", опасная: false),
+    Модель(id: "wan/2-5-text-to-video", название: "2 5 text to video", вид: .видео, живая: true, требует: "описание", опасная: false),
+    Модель(id: "wan/2-6-text-to-video", название: "2 6 text to video", вид: .видео, живая: true, требует: "—", опасная: false),
+    Модель(id: "wan/3-0-video", название: "3 0 video", вид: .видео, живая: true, требует: "описание", опасная: false),
+    Модель(id: "topaz/video-upscale", название: "Video upscale", вид: .видео, живая: true, требует: "видео", опасная: false),
+    Модель(id: "infinitalk/from-audio", название: "From audio", вид: .звук, живая: true, требует: "фото", опасная: false),
+    Модель(id: "minimax-h3/text-to-video", название: "Text to video", вид: .видео, живая: true, требует: "—", опасная: false),
+    Модель(id: "omnihuman-1-5", название: "Omnihuman 1 5", вид: .липсинк, живая: true, требует: "—", опасная: false),
+    Модель(id: "volcengine/video-to-video-lip-sync", название: "Video to video lip sync", вид: .липсинк, живая: true, требует: "—", опасная: false),
+    Модель(id: "elevenlabs/audio-isolation", название: "Audio isolation", вид: .звук, живая: true, требует: "аудио", опасная: false),
+    Модель(id: "elevenlabs/text-to-speech-multilingual-v2", название: "Text to speech multilingual v2", вид: .звук, живая: true, требует: "текст", опасная: false),
+    Модель(id: "elevenlabs/text-to-speech-turbo-2-5", название: "Text to speech turbo 2 5", вид: .звук, живая: true, требует: "текст", опасная: false),
+    Модель(id: "google/gemini-3-1-flash-tts", название: "Gemini 3 1 flash tts", вид: .звук, живая: true, требует: "—", опасная: false),
+    Модель(id: "sora-2-text-to-video", название: "Sora 2 text to video", вид: .видео, живая: false, требует: "—", опасная: false),
+    Модель(id: "sora-2-pro-text-to-video", название: "Sora 2 pro text to video", вид: .видео, живая: false, требует: "—", опасная: false),
+    Модель(id: "sora-2-image-to-video", название: "Sora 2 image to video", вид: .видео, живая: false, требует: "—", опасная: false),
+    Модель(id: "veed/fabric-1", название: "Fabric 1", вид: .липсинк, живая: true, требует: "фото", опасная: false),
+  ]
+
+  static var живые: [Модель] { все.filter(\.живая) }
+
+  static func поВиду(_ в: Модель.Вид) -> [Модель] { все.filter { $0.вид == в } }
+}
+
+/// Строка выбора: живые нажимаются, приостановленные видны и объяснены.
 struct СтрокаМоделиKie: View {
-  let модель: МодельKie
+  let модель: Модель
   let выбрана: Bool
   let нажать: () -> Void
 
@@ -92,11 +100,7 @@ struct СтрокаМоделиKie: View {
         VStack(alignment: .leading, spacing: 3) {
           Text(модель.название)
             .font(Тема.Шрифт.стиль(.subheadline))
-            .foregroundStyle(
-              модель.почемуНельзя == nil
-                ? Тема.Цвет.текст
-                : Тема.Цвет.текстПриглушённый
-            )
+            .foregroundStyle(модель.живая ? Тема.Цвет.текст : Тема.Цвет.текстПриглушённый)
 
           if let причина = модель.почемуНельзя {
             Text(причина)
@@ -109,28 +113,22 @@ struct СтрокаМоделиKie: View {
               .foregroundStyle(Тема.Цвет.текстПриглушённый)
           }
         }
-
         Spacer(minLength: 8)
-
-        if выбрана && модель.почемуНельзя == nil {
-          Image(systemName: "checkmark")
-            .foregroundStyle(Тема.Цвет.акцент)
+        if выбрана && модель.живая {
+          Image(systemName: "checkmark").foregroundStyle(Тема.Цвет.акцент)
         }
       }
       .padding(.vertical, 10)
       .padding(.horizontal, 14)
-      // 44pt — минимальная цель касания в Human Interface Guidelines. Строка
-      // с двумя мелкими подписями легко выходит ниже, если не задать явно.
+      // 44pt — минимальная цель касания в HIG; две мелкие подписи дают меньше.
       .frame(minHeight: 44)
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(
-        // Акцент ЭТОГО экрана, а не profile-палитра: заливкаСлабая живёт в
-        // Тема.Профиль и тонирована золотом, которое здесь чужое.
         выбрана ? Тема.Цвет.акцент.opacity(0.08) : Color.clear,
         in: RoundedRectangle(cornerRadius: 10)
       )
     }
     .buttonStyle(.plain)
-    .disabled(модель.почемуНельзя != nil)
+    .disabled(!модель.живая)
   }
 }
