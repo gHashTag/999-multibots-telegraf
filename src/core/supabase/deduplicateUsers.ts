@@ -2,8 +2,18 @@ import { supabase } from './client'
 import { logger } from '@/utils/logger'
 
 /**
- * 🧹 BEST PRACTICE: Database cleanup utility
- * Removes duplicate users keeping the most recent one
+ * Database cleanup utility: removes duplicate user rows for one telegram_id,
+ * keeping the most recent (by updated_at) and hard-deleting the rest by id.
+ *
+ * The delete is structurally safe (guarded by length<=1, targeted by primary
+ * key, only genuine duplicates). But the keep-MOST-RECENT policy is product-
+ * sensitive: if an OLDER duplicate row carried the profile / trained model and
+ * the newer kept row is empty, this deletes the profile-bearing row -> a payer
+ * can end up profile-less. Anything referencing users by row id (a FK, not
+ * telegram_id) is also orphaned by the delete. Balance keys on telegram_id, so
+ * it is unaffected. Do NOT change the keep-policy or disable auto-dedup here
+ * without an owner/data decision. See issue #1406 (possible lead for the
+ * 'payers without profile' item in OWNER-DECISIONS.md).
  */
 export async function deduplicateUsers(telegramId: string): Promise<boolean> {
   try {
