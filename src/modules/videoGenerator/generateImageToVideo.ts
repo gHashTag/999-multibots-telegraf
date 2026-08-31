@@ -935,6 +935,10 @@ export const generateImageToVideo = async (
               }
             )
 
+            // Idempotency guard: a completed task can re-enter this poll loop
+            // if a post-charge delivery step throws (caught below by
+            // catch(pollError), which continues the loop). Charge at most once.
+            let charged = false
             while (attempts < maxPollingAttempts) {
               attempts++
 
@@ -1077,13 +1081,17 @@ export const generateImageToVideo = async (
                   )
 
                   // Снимаем деньги ТОЛЬКО после успешного получения видео
-                  const deductSuccess = await deductBalanceAfterSuccess(
-                    telegramId,
-                    modelId,
-                    botName,
-                    balanceResult.paymentAmount || 0,
-                    'image_to_video'
-                  )
+                  let deductSuccess = true
+                  if (!charged) {
+                    deductSuccess = await deductBalanceAfterSuccess(
+                      telegramId,
+                      modelId,
+                      botName,
+                      balanceResult.paymentAmount || 0,
+                      'image_to_video'
+                    )
+                    if (deductSuccess) charged = true
+                  }
 
                   if (!deductSuccess) {
                     logger.error(
@@ -1137,11 +1145,31 @@ export const generateImageToVideo = async (
                     videoUrl
                   )
 
-                  await telegramInstance.sendVideo(
-                    chatId,
-                    { source: localVideoPath },
-                    { caption }
-                  )
+                  try {
+                    await telegramInstance.sendVideo(
+                      chatId,
+                      { source: localVideoPath },
+                      { caption }
+                    )
+                  } catch (sendError) {
+                    // Delivery failed after the one-time charge. Stop polling so
+                    // the loop cannot re-enter and re-charge/re-send the same
+                    // completed task. Refunding the single charged-but-
+                    // undelivered video is an add-credit path, left for owner
+                    // review rather than done here.
+                    logger.error(
+                      '[I2V BG] sendVideo failed after charge; stopping poll',
+                      {
+                        telegramId,
+                        taskId,
+                        error:
+                          sendError instanceof Error
+                            ? sendError.message
+                            : String(sendError),
+                      }
+                    )
+                    return
+                  }
 
                   // Отправляем видео в pulse канал (Plan B - polling)
                   try {
