@@ -2278,16 +2278,31 @@ aiPhotoshopScene.on('text', async ctx => {
           }
         )
 
-        await ctx.reply(
-          isRu
-            ? `⬆️ *Увеличиваю качество последнего фото!*\n\n🎯 Применяю Clarity Upscaler для улучшения разрешения...\n\n💎 Стоимость: 3 ⭐`
-            : `⬆️ *Upscaling last photo quality!*\n\n🎯 Applying Clarity Upscaler to enhance resolution...\n\n💎 Cost: 3 ⭐`,
-          {
-            parse_mode: 'Markdown',
-          }
-        )
+        // In-flight guard (same class as the upscale button below): this text
+        // branch charges via upscaleImage directly, bypassing the
+        // aiPhotoshopInProgress choke point. A fast double-send of an upscale
+        // keyword would otherwise double-charge. Check-then-set is atomic; the
+        // "Upscaling..." reply lives inside the try; released in finally.
+        if (ctx.session.aiPhotoshopUpscaleInProgress) {
+          await ctx.reply(
+            isRu
+              ? '⏳ Уже увеличиваю качество, подождите...'
+              : '⏳ Already upscaling, please wait...'
+          )
+          return
+        }
+        ctx.session.aiPhotoshopUpscaleInProgress = true
 
         try {
+          await ctx.reply(
+            isRu
+              ? `⬆️ *Увеличиваю качество последнего фото!*\n\n🎯 Применяю Clarity Upscaler для улучшения разрешения...\n\n💎 Стоимость: 3 ⭐`
+              : `⬆️ *Upscaling last photo quality!*\n\n🎯 Applying Clarity Upscaler to enhance resolution...\n\n💎 Cost: 3 ⭐`,
+            {
+              parse_mode: 'Markdown',
+            }
+          )
+
           const imageUrl =
             typeof lastResult.imageUrl === 'string'
               ? lastResult.imageUrl
@@ -2317,6 +2332,8 @@ aiPhotoshopScene.on('text', async ctx => {
               : '❌ Error occurred during upscaling. Try another command to improve the photo.'
           )
           return
+        } finally {
+          ctx.session.aiPhotoshopUpscaleInProgress = false
         }
       }
 
@@ -5255,16 +5272,33 @@ aiPhotoshopScene.action('ai_photoshop_upscale_last', async ctx => {
         ? lastPhoto.imageUrl
         : lastPhoto.url
 
-    await ctx.editMessageText(
-      isRu
-        ? `⬆️ *Увеличиваю качество последнего фото!*\n\n🎯 Применяю Clarity Upscaler для улучшения разрешения в 2 раза...\n\n💎 Стоимость: 3 ⭐`
-        : `⬆️ *Upscaling last photo quality!*\n\n🎯 Applying Clarity Upscaler to enhance resolution 2x...\n\n💎 Cost: 3 ⭐`,
-      {
-        parse_mode: 'Markdown',
-      }
-    )
+    // In-flight guard: this button charges via upscaleImage directly, bypassing
+    // the aiPhotoshopInProgress choke point (which only covers generation). In
+    // webhook mode a double-tap dispatches two concurrent requests; without a
+    // synchronous reject-before-set both reach the non-atomic balance deduct and
+    // double-charge (+ two Replicate upscaler runs). Check-then-set is atomic (no
+    // await between); the "Upscaling..." edit lives inside the try so a stale
+    // message throw cannot leak the flag. Released in finally.
+    if (ctx.session.aiPhotoshopUpscaleInProgress) {
+      await ctx.reply(
+        isRu
+          ? '⏳ Уже увеличиваю качество, подождите...'
+          : '⏳ Already upscaling, please wait...'
+      )
+      return
+    }
+    ctx.session.aiPhotoshopUpscaleInProgress = true
 
     try {
+      await ctx.editMessageText(
+        isRu
+          ? `⬆️ *Увеличиваю качество последнего фото!*\n\n🎯 Применяю Clarity Upscaler для улучшения разрешения в 2 раза...\n\n💎 Стоимость: 3 ⭐`
+          : `⬆️ *Upscaling last photo quality!*\n\n🎯 Applying Clarity Upscaler to enhance resolution 2x...\n\n💎 Cost: 3 ⭐`,
+        {
+          parse_mode: 'Markdown',
+        }
+      )
+
       await upscaleImage({
         imageUrl,
         telegram_id: String(ctx.from?.id),
@@ -5287,6 +5321,8 @@ aiPhotoshopScene.action('ai_photoshop_upscale_last', async ctx => {
           ? '❌ Произошла ошибка при увеличении качества. Попробуйте позже.'
           : '❌ Error occurred during upscaling. Please try again later.'
       )
+    } finally {
+      ctx.session.aiPhotoshopUpscaleInProgress = false
     }
   } catch (error) {
     logger.error('Error in upscale last photo handler', { error })
