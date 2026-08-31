@@ -62,13 +62,62 @@ function balancedCall(text, fromIdx) {
 }
 
 // Every axios call in a file: { line, hasTimeout, spanLines }.
+// Blank out //... and /* ... */ comments by replacing their characters with
+// spaces (newlines preserved), so a commented-out `// await axios.post(...)` is
+// not counted as a call, WITHOUT shifting any line/column position. String
+// literals are respected so a `//` inside a string is not treated as a comment.
+function blankComments(text) {
+  const out = text.split('')
+  let str = null // ' " ` when inside a string literal
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    if (str) {
+      if (c === '\\') {
+        i++
+        continue
+      }
+      if (c === str) str = null
+      continue
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      str = c
+      continue
+    }
+    if (c === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') {
+        out[i] = ' '
+        i++
+      }
+      i--
+      continue
+    }
+    if (c === '/' && text[i + 1] === '*') {
+      out[i] = ' '
+      out[i + 1] = ' '
+      i += 2
+      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) {
+        if (text[i] !== '\n') out[i] = ' '
+        i++
+      }
+      if (i < text.length) {
+        out[i] = ' '
+        out[i + 1] = ' '
+        i++
+      }
+      continue
+    }
+  }
+  return out.join('')
+}
+
 export function axiosCalls(source) {
+  const code = blankComments(source)
   const calls = []
   const re = /\baxios(\.(get|post|put|patch|delete|request|head))?\s*\(/g
   let m
-  while ((m = re.exec(source))) {
-    const call = balancedCall(source, m.index)
-    const before = source.slice(0, m.index)
+  while ((m = re.exec(code))) {
+    const call = balancedCall(code, m.index)
+    const before = code.slice(0, m.index)
     const line = before.split('\n').length
     calls.push({
       line,
@@ -101,6 +150,7 @@ function selfCheck() {
     '  timeout: 30000,', // far below the call -- a window would miss this
     '})',
     'const b = await axios.get(statusUrl, { headers: {} })', // genuinely none
+    '// const dead = await axios.post(deadUrl, {}) -- commented out, NOT a call',
   ].join('\n')
   const calls = axiosCalls(snippet)
   const got = calls.map(c => c.hasTimeout)
