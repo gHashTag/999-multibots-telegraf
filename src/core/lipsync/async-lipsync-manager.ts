@@ -757,7 +757,6 @@ export class AsyncLipSyncManager {
       // ✅ Запускаем периодическую проверку
       const startPollingTime = Date.now()
       let checkInFlight = false
-      let pollingInterval: ReturnType<typeof setInterval> | undefined
       // Re-entrancy guard: a provider status check can hang longer than the
       // 30s interval; without this a second tick would start while the first
       // is still awaiting, and both could handle the same terminal state
@@ -912,7 +911,7 @@ export class AsyncLipSyncManager {
           }
         }
       }
-      pollingInterval = setInterval(() => {
+      const pollingInterval = setInterval(() => {
         if (checkInFlight) return
         checkInFlight = true
         void pollTick().finally(() => {
