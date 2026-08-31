@@ -27,6 +27,7 @@
 
 import { planTools } from './plan-tools'
 import { pricingSummary, providerSetup, CLUB } from './pricing'
+import { editImage, EDIT_MODEL } from '../kie-image'
 
 export interface ToolContext {
   /** Подтверждён подписью или ключом. НЕ приходит из аргументов. */
@@ -58,6 +59,65 @@ const selfBase = () =>
  * случай ловушки «новый маршрут режется гвардом»). Представляемся
  * серверным ключом, как это делает бот.
  */
+/**
+ * The caller's own Telegram avatar, as a URL a third-party model can fetch.
+ *
+ * TWO REASONS THIS IS NOT A ONE-LINER.
+ *
+ * 1. THE PROFILE URL IS NOT AN IMAGE. whoami hands back
+ *    https://t.me/i/userpic/320/<hash>.svg -- an SVG placeholder, not the
+ *    photograph. Feeding it to an image model produces a picture of nothing.
+ * 2. THE TELEGRAM FILE URL CARRIES THE BOT TOKEN. api.telegram.org/file/bot
+ *    <TOKEN>/<path> is the only way to fetch the real JPEG, and handing that
+ *    address to an external provider would publish the token to it. So the
+ *    bytes are pulled HERE and re-published to our own S3, and only that link
+ *    leaves the building.
+ *
+ * Returns '' when there is no photo or no bot token, and the caller refuses
+ * out loud rather than generating something unrelated.
+ */
+async function ownerAvatarUrl(ctx: any): Promise<string> {
+  const tid = String(ctx?.telegramId || '')
+  const token =
+    process.env.TELEGRAM_BOT_TOKEN ||
+    process.env.BOT_TOKEN_1 ||
+    process.env.TELEGRAM_CHANNEL_BOT_TOKEN ||
+    ''
+  if (!tid || !token) return ''
+  try {
+    const api = `https://api.telegram.org/bot${token}`
+    const list: any = await (
+      await fetch(`${api}/getUserProfilePhotos?user_id=${tid}&limit=1`)
+    ).json()
+    const photo = list?.result?.photos?.[0]
+    if (!photo?.length) return ''
+    // Largest size: an img2img source is only as good as its pixels.
+    const big = photo.reduce((a: any, b: any) => (b.width > a.width ? b : a))
+    const file: any = await (
+      await fetch(`${api}/getFile?file_id=${encodeURIComponent(big.file_id)}`)
+    ).json()
+    const path = file?.result?.file_path
+    if (!path) return ''
+    const bin = await fetch(`https://api.telegram.org/file/bot${token}/${path}`)
+    if (!bin.ok) return ''
+    const bytes = Buffer.from(await bin.arrayBuffer())
+    const up = await selfFetch(`${selfBase()}/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': bin.headers.get('content-type') || 'image/jpeg',
+        'X-Filename': `avatar-${tid}-${Date.now()}.jpg`,
+      },
+      body: new Uint8Array(bytes),
+    })
+    const data: any = await up.json().catch(() => null)
+    return data?.directUrl || ''
+  } catch {
+    // A missing avatar is not an error worth crashing a tool call over; the
+    // caller turns '' into a stated refusal.
+    return ''
+  }
+}
+
 function selfFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers || {})
   const key = process.env.RENDER_API_KEY
@@ -364,9 +424,9 @@ export const TOOLS: AgentTool[] = [
         аватар: аватар || undefined,
         подсказкаПроАватар: аватар
           ? 'Это лицо человека — опирайся на него, когда придумываешь историю ' +
-            'про него самого. ВНИМАНИЕ: превратить фото в картинку (img2img) ' +
-            'пока нельзя — image_generate принимает только текст. Не обещай ' +
-            'этого человеку.'
+            'про него самого. Перерисовать его инструментом image_edit МОЖНО: ' +
+            'без image_url он сам берёт эту аватарку и сохраняет лицо. ' +
+            'image_generate по-прежнему только текстовый.'
           : 'Фото профиля нет. Предложи поставить аватар — тогда истории будут ' +
             'про него самого, а не про абстракцию.',
       }
@@ -705,6 +765,136 @@ export const TOOLS: AgentTool[] = [
          FROM public_templates WHERE is_public = TRUE AND deleted_at IS NULL`
       )
       return r.rows[0]
+    },
+  },
+
+  {
+    name: 'image_edit',
+    description:
+      'ПЕРЕРИСОВАТЬ ФОТО по описанию (img2img). Без image_url берётся АВАТАРКА ' +
+      'самого человека из Telegram — то есть «сделай историю про меня» работает ' +
+      'без единого файла от него. Лицо сохраняется. Файл ложится в S3 и в «мои ' +
+      'файлы», ссылку можно сразу отдавать в reel_render или в ленту.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'во что перерисовать, по-русски или по-английски',
+        },
+        image_url: {
+          type: 'string',
+          description:
+            'что перерисовывать. Не задан — берётся аватарка вызывающего',
+        },
+        aspect_ratio: {
+          type: 'string',
+          description: '9:16 по умолчанию (вертикаль для рилса), 1:1, 16:9',
+        },
+      },
+      required: ['prompt'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      if ((await generationsLeftToday(ctx)) <= 0) {
+        return {
+          done: false,
+          reason: `суточный лимит генераций (${DAILY_GENERATION_CAP}) исчерпан — защита баланса владельца.`,
+        }
+      }
+      /**
+       * PROVIDER FIRST, CHARGE SECOND -- and this order is the point.
+       *
+       * Everywhere else in this file the charge comes first and a refund
+       * follows a failure. That is how tokens vanished into a locked FAL
+       * account: the money left, the refund path had to be trusted, and the
+       * person was told a price for a service that could not run. Here the key
+       * is checked before anything is taken.
+       */
+      if (!process.env.KIE_AI_API_KEY)
+        return {
+          done: false,
+          reason:
+            'провайдер img2img не настроен в сервисе (нет KIE_AI_API_KEY) — ' +
+            'ничего не списано',
+        }
+
+      const source = args.image_url
+        ? String(args.image_url)
+        : await ownerAvatarUrl(ctx)
+      if (!source)
+        return {
+          done: false,
+          reason:
+            'нечего перерисовывать: аватарка не читается, а image_url не задан',
+        }
+
+      const charge = await spendTokens(ctx, 'image_generate')
+      if (!charge.ok)
+        // The charge helper reports its refusal under a Russian key; this is
+        // the file's long-standing convention and not worth churning here.
+        return { done: false, reason: charge['причина'] } // cyrillic-ok
+
+      const edited = await editImage({
+        prompt: String(args.prompt),
+        imageUrl: source,
+        aspectRatio: args.aspect_ratio ? String(args.aspect_ratio) : '9:16',
+      })
+      if (!edited.ok) {
+        await refundTokens(
+          ctx,
+          'image_generate',
+          'провайдер не выполнил работу'
+        )
+        return { done: false, reason: edited.reason }
+      }
+
+      // The provider's link is temporary; pull the bytes into our own S3 before
+      // handing the URL onward, exactly as image_generate does -- otherwise the
+      // feed and the render show a broken image an hour later.
+      const got = await fetch(edited.url)
+      if (!got.ok) {
+        await refundTokens(
+          ctx,
+          'image_generate',
+          'провайдер не выполнил работу'
+        )
+        return {
+          done: false,
+          reason: `картинка готова, но не скачалась: HTTP ${got.status}`,
+          providerUrl: edited.url,
+        }
+      }
+      const bytes = Buffer.from(await got.arrayBuffer())
+      const up = await selfFetch(`${selfBase()}/upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': got.headers.get('content-type') || 'image/png',
+          'X-Filename': `agent-edit-${Date.now()}.png`,
+        },
+        body: new Uint8Array(bytes),
+      })
+      const upData: any = await up.json().catch(() => null)
+      if (!up.ok || !upData?.directUrl) {
+        await refundTokens(
+          ctx,
+          'image_generate',
+          'провайдер не выполнил работу'
+        )
+        return {
+          done: false,
+          reason: `картинка готова, но не сохранилась: HTTP ${up.status}`,
+          providerUrl: edited.url,
+        }
+      }
+      return {
+        done: true,
+        url: upData.directUrl,
+        source: args.image_url ? 'указанный файл' : 'аватарка из Telegram',
+        model: EDIT_MODEL,
+        providerCredits: edited.credits,
+        charged: TOKEN_PRICES.image_generate,
+      }
     },
   },
 
