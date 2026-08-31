@@ -207,6 +207,12 @@ CHECKS THAT EACH COST A CYCLE
         a live CHARGED path whose refund fires solely on a throw (a silent hang
         there is charged-not-delivered). Most others are non-charged/dead.
 
+  tri inflight | tri блокировка
+        List scene .action handlers that reach a charge primitive but set no
+        *InProgress guard -- a double-tap can re-enter and double-charge (the
+        iter204 aiPhotoshop-upscale class). Triage: a hit may sit behind a
+        shared guarded choke fn or not be double-tappable. Read each.
+
   tri charge | tri заряд
         Completeness check for the double-charge class (#1358): lists every
         scene that CHARGES money and whether it is guarded / safe / a tracked
@@ -1357,6 +1363,18 @@ cmd_timeouts() {
   ( cd "$ROOT" && node "$TOOLS/axios-timeout-audit.mjs" "$@" )
 }
 
+cmd_inflight() {
+  # List scene .action handlers that reach a CHARGE primitive
+  # (processBalanceOperation / updateUserBalance / directPaymentProcessor /
+  # upscaleImage) but set NO *InProgress guard flag -- a double-tap can re-enter
+  # before the first non-atomic charge settles and double-charge. iter204 shipped
+  # exactly this (aiPhotoshop 'upscale' button bypassed the scene choke point).
+  # TRIAGE, not a gate: a flagged handler is a HYPOTHESIS -- the charge may sit
+  # behind a shared guarded choke fn (grep the callee) or the action may not be
+  # double-tappable. Read each. Reports, never mutates.
+  ( cd "$ROOT" && node "$TOOLS/inflight-audit.mjs" "$@" )
+}
+
 action="${1:-помощь}"
 shift 2>/dev/null || true
 
@@ -1381,6 +1399,7 @@ case "$action" in
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
   timeouts|таймауты)  cmd_timeouts "$@" ;;
+  inflight|блокировка) cmd_inflight "$@" ;;
   sweep|развёртка)  cmd_sweep "$@" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
