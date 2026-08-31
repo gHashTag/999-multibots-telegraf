@@ -21,6 +21,7 @@ interface AsyncLipSyncJob {
   status: 'pending' | 'processing' | 'completed' | 'failed'
   result?: LipSyncOutput | LipSyncError
   taskId?: string // Kie.ai taskId для webhook correlation
+  refundIssued?: boolean // guards against a double refund (poller/webhook race)
 }
 
 /**
@@ -499,6 +500,18 @@ export class AsyncLipSyncManager {
     description: string,
     extraMetadata: Record<string, unknown> = {}
   ): Promise<string> {
+    // Idempotency: a job must be refunded at most once. Two paths can race to
+    // refund the same job -- the 30s fallback poller (below) can overlap itself
+    // when a provider status check hangs longer than the interval, and it can
+    // also race the webhook path. A second refund double-credits the user (money
+    // loss). Set the flag BEFORE the await so a concurrent caller is rejected
+    // synchronously; reset it only if the refund did not actually happen, so a
+    // genuine failure can still be retried.
+    if (job.refundIssued) {
+      return `💰 Средства возвращены: ${job.cost.toFixed(2)}⭐`
+    }
+    job.refundIssued = true
+
     const refunded = await updateUserBalance(
       job.telegramId,
       job.cost,
@@ -512,6 +525,7 @@ export class AsyncLipSyncManager {
     )
 
     if (!refunded) {
+      job.refundIssued = false
       logger.error('💸❌ REFUND FAILED — деньги НЕ возвращены', {
         alert: 'ЧЕЛОВЕКУ НЕ ВЕРНУЛИ ЗВЁЗДЫ ПОСЛЕ НЕУДАЧНОЙ ГЕНЕРАЦИИ',
         jobId: job.id,
