@@ -33,7 +33,7 @@ export const meta = {
 //   4. Ничего не редактируется. Воркфлоу только измеряет и докладывает.
 // ─────────────────────────────────────────────────────────────────────────
 
-const REPO = '/Users/playra/999-multibots-telegraf'
+const REPO = '.' // the workflow runs in the repo root; agents run commands in cwd
 const RENDER = 'https://vibee-render-production.up.railway.app'
 const PLAYER = 'https://vibee-editor-production.up.railway.app'
 
