@@ -1,4 +1,4 @@
-import { checkVoiceExists } from '@/core/elevenlabs'
+import { assertVoiceExistsAuthoritative } from '@/core/elevenlabs'
 import { supabase } from '@/core/supabase'
 
 /**
@@ -16,7 +16,21 @@ export async function validateAndCleanVoiceId(
     )
     console.log('[VoiceValidation] DEBUG: User telegram ID:', telegramId)
 
-    const voiceExists = await checkVoiceExists(voiceId)
+    let voiceExists: boolean
+    try {
+      voiceExists = await assertVoiceExistsAuthoritative(voiceId)
+    } catch (checkError) {
+      // Existence could not be determined authoritatively (no/invalid ElevenLabs
+      // key, API outage/rate-limit, or a malformed response). Do NOT clear the
+      // saved pointer -- a valid voice must survive a config gap or transient
+      // error. A bare checkVoiceExists() returns false here and would wipe every
+      // user's saved voice one row at a time during the outage.
+      console.warn(
+        '[VoiceValidation] Voice existence not authoritative; keeping saved pointer:',
+        checkError
+      )
+      return false
+    }
 
     if (!voiceExists) {
       console.error(

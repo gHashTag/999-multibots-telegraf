@@ -35,6 +35,7 @@ const GUARDS = [
   'src/__tests__/security/voiceAvatarNoTokenLog.test.ts', // iter195 createVoiceAvatar does not console.log the bot-token-bearing fileUrl
   'src/__tests__/money/emailWizardPriceAllowlist.test.ts', // iter196 emailWizard setPayments gated by paymentOptions allowlist (no price bypass)
   'src/__tests__/reliability/avatarBrainNoHtmlParse.test.ts', // iter196 avatarBrainWizard no parse_mode:HTML on raw user text (no 400)
+  'src/__tests__/helpers/voiceValidation.test.ts', // iter197 voice pointer cleared only on authoritative absence (no wipe on key-gap/outage)
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
