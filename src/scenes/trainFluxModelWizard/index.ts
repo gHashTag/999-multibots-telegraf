@@ -16,6 +16,12 @@ export const trainFluxModelWizard = new Scenes.WizardScene<MyContext>(
     const isRu = isRussian(ctx)
     console.log('Scene: IMAGE COLLECTION (direct from digitalAvatarBodyWizard)')
 
+    // Start each training from an empty photo set. images accumulates via .push
+    // across the scene; leaving a prior training's Buffers here would blend them
+    // into the next paid training (a wrong/blended avatar the user paid for) and
+    // leak memory. Reset on Step-1 entry (runs once per scene entry). iter201.
+    ctx.session.images = []
+
     // ✅ Инициализируем необходимые данные из session
     if (!ctx.session.username) {
       if (ctx.from?.username) {
