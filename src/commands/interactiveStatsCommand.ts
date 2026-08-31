@@ -111,7 +111,10 @@ export async function interactiveStatsCommand(ctx: MyContext): Promise<void> {
     }
 
     // Проверяем права доступа к конкретному боту
-    if (!isAdmin && ownedBots && !ownedBots.includes(botName)) {
+    // Fail CLOSED: getOwnedBots returns null on a transient DB/network error;
+    // the old `&& ownedBots &&` short-circuited to false on null and GRANTED
+    // access. Deny on null, matching the fail-closed checkBotAccess() helper.
+    if (!isAdmin && (!ownedBots || !ownedBots.includes(botName))) {
       await ctx.reply(`❌ У вас нет доступа к боту @${botName}`)
       return
     }
@@ -376,7 +379,10 @@ export function setupInteractiveStatsHandlers(bot: Telegraf<MyContext>): void {
     const isAdmin = isUserAdmin(userId)
     const ownedBots = await getOwnedBots(userId)
 
-    if (!isAdmin && ownedBots && !ownedBots.includes(botName)) {
+    // Fail CLOSED: getOwnedBots returns null on a transient DB/network error;
+    // the old `&& ownedBots &&` short-circuited to false on null and GRANTED
+    // access. Deny on null, matching the fail-closed checkBotAccess() helper.
+    if (!isAdmin && (!ownedBots || !ownedBots.includes(botName))) {
       await ctx.answerCbQuery(`❌ У вас нет доступа к боту @${botName}`, {
         show_alert: true,
       })
