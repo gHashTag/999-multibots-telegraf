@@ -216,7 +216,11 @@ export const avatarBrainWizard = new Scenes.WizardScene<MyContext>(
           ? `✨ Мозг аватара успешно создан!\n\n📋 Сводка:\n• Компания: ${company}\n• Должность: ${position}\n• Навыки: ${skills}\n\nПереходим в главное меню.`
           : `✨ Avatar's brain successfully created!\n\n📋 Summary:\n• Company: ${company}\n• Position: ${position}\n• Skills: ${skills}\n\nReturning to main menu.`,
         {
-          parse_mode: 'HTML',
+          // No parse_mode: this confirmation interpolates raw user free-text
+          // (company/position/skills) and the template has no HTML markup, so
+          // parse_mode:'HTML' only risked a Telegram 400 ("can't parse
+          // entities") on a '<' in the user's input -- which would falsely
+          // report the (already-saved) avatar brain as failed.
           reply_markup: Markup.keyboard([
             [Markup.button.text(getMainMenuText(isRu))],
           ]).resize(),
