@@ -217,4 +217,19 @@ export const voiceAvatarWizard = new Scenes.WizardScene<MyContext>(
   }
 )
 
+// A veed-fabric lip-sync detour into this Voice scene sets
+// returnToVeedFabricAfterVoice so a SUCCESSFUL voice creation resumes lip-sync.
+// If the user abandons the detour (cancel / invalid input / insufficient
+// balance / error), that flag must not survive into a later, unrelated voice
+// creation -- otherwise its success re-enters VeedFabricLipSync on the OLD
+// staged image+text (cross-scene session pollution -> paid wrong generation).
+// Clearing it on EVERY scene leave closes all abandon paths at once. The
+// legitimate return path already deletes the flag before ctx.scene.enter, so
+// this is a no-op there and leaves ctx.session.veedFabric intact for the resume.
+voiceAvatarWizard.leave(async ctx => {
+  if (ctx.session) {
+    delete ctx.session.returnToVeedFabricAfterVoice
+  }
+})
+
 export default voiceAvatarWizard
