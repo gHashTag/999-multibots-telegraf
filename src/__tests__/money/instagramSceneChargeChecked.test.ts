@@ -37,7 +37,7 @@ describe('instagramParserScene checks its charge result (no silent discard)', ()
   it('assigns the MONEY_OUTCOME charge result and reacts to a failure', () => {
     const s = code()
     const charge = s.match(
-      /const charged = await updateUserBalance\([\s\S]{0,220}?MONEY_OUTCOME/
+      /charged = await updateUserBalance\([\s\S]{0,220}?MONEY_OUTCOME/
     )
     expect(
       charge,
@@ -46,5 +46,16 @@ describe('instagramParserScene checks its charge result (no silent discard)', ()
     // and a failed charge is handled, not ignored
     const guard = s.search(/if \(!charged\)/)
     expect(guard, 'a failed charge is not handled').toBeGreaterThan(-1)
+  })
+
+  it('does not claim a charge that did not happen (#1393 honesty)', () => {
+    const s = code()
+    // the success message must gate its charge-claim on the real `charged` flag,
+    // never state a charge unconditionally (a failed charge after a successful
+    // parse leaves the user unbilled but told money was taken).
+    expect(
+      /charged\s*\?[\s\S]{0,60}?Charged:/.test(s),
+      'the success charge-claim is not gated on `charged` (may lie on a failed charge)'
+    ).toBe(true)
   })
 })

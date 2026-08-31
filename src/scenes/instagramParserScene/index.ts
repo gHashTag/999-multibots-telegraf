@@ -277,9 +277,10 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
             ctx.botInfo?.username || 'telegram_bot'
           )
 
+          let charged = false
           if (result?.success) {
             // Списываем баланс только после успешного запуска
-            const charged = await updateUserBalance(
+            charged = await updateUserBalance(
               userId.toString(),
               cost as any,
               PaymentType.MONEY_OUTCOME,
@@ -340,10 +341,16 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
                 userId,
               })
             }
+            const chargeLineRu = charged
+              ? '💰 Списано: ' + cost + ' ⭐'
+              : '⚠️ Средства не списаны (ошибка списания)'
+            const chargeLineEn = charged
+              ? '💰 Charged: ' + cost + ' ⭐'
+              : '⚠️ You were not charged (a technical charge error)'
             await ctx.editMessageText(
               isRu
-                ? `✅ Парсинг запущен!\n\n🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n📊 Количество: ${count} рилсов\n💰 Списано: ${cost} ⭐\n\n📬 Результаты придут автоматически через 3-10 минут`
-                : `✅ Parsing started!\n\n🎯 Target: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n📊 Count: ${count} reels\n💰 Charged: ${cost} ⭐\n\n📬 Results will arrive automatically in 3-10 minutes`,
+                ? `✅ Парсинг запущен!\n\n🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n📊 Количество: ${count} рилсов\n${chargeLineRu}\n\n📬 Результаты придут автоматически через 3-10 минут`
+                : `✅ Parsing started!\n\n🎯 Target: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n📊 Count: ${count} reels\n${chargeLineEn}\n\n📬 Results will arrive automatically in 3-10 minutes`,
               Markup.inlineKeyboard([
                 [
                   Markup.button.callback(
