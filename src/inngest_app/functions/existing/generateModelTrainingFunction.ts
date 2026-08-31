@@ -103,7 +103,12 @@ export const generateModelTrainingFunction = inngest.createFunction(
         .select('id, replicate_training_id, status')
         .eq('telegram_id', eventData.telegram_id)
         .eq('model_name', eventData.modelName)
-        .in('status', ['starting', 'processing'])
+        // Include 'PENDING': this function inserts its own row as 'PENDING'
+        // first (below) and only flips it to 'starting' at the last step, so a
+        // second model/training.start for the same user+model arriving during
+        // that multi-second window would otherwise miss the in-progress row and
+        // start a DUPLICATE (expensive) Replicate training.
+        .in('status', ['PENDING', 'starting', 'processing'])
         .order('created_at', { ascending: false })
         .limit(1)
 
