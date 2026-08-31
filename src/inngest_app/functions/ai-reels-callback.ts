@@ -55,11 +55,18 @@ async function sendTelegramMessage(
 ): Promise<void> {
   if (!TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN not configured')
 
-  await axios.post(`${TELEGRAM_API_URL}/sendMessage`, {
-    chat_id: telegramId,
-    text,
-    parse_mode: 'HTML',
-  })
+  await axios.post(
+    `${TELEGRAM_API_URL}/sendMessage`,
+    {
+      chat_id: telegramId,
+      text,
+      parse_mode: 'HTML',
+    },
+    // Raw Telegram call (bypasses telegraf). Without a timeout a stuck request
+    // hangs the Inngest step forever; on timeout axios throws and Inngest retries
+    // (delivery is deduped, #1242).
+    { timeout: 30000 }
+  )
 }
 
 async function sendTelegramVideo(
@@ -80,6 +87,10 @@ async function sendTelegramVideo(
     headers: formData.getHeaders(),
     maxContentLength: Infinity,
     maxBodyLength: Infinity,
+    // A hung upload holds the whole video buffer in memory indefinitely and the
+    // reel never delivers. 3 min is generous for a <=50MB Telegram video; on
+    // timeout axios throws and Inngest retries (delivery is deduped, #1242).
+    timeout: 180000,
   })
 }
 
