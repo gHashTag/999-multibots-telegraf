@@ -830,6 +830,31 @@ router.post(
       return
     }
 
+    // Fail closed, exactly like the GET /x402-topup handler above. There is NO
+    // settlement verification in this project: telegram_id and stars are taken
+    // from the request body, and transaction_hash is only logged, never checked
+    // on-chain or against the facilitator (settle/verify). Crediting here would
+    // let anyone who knows a pending inv_id POST { telegram_id, stars } and mint
+    // balance to any account for any amount. Refuse until settlement is
+    // implemented AND the amount is read from the payments_v2 record, not the
+    // request. The unverified body below is kept only as a reference impl.
+    logger.error(
+      '[x402] Callback crediting rejected: no payment verification exists',
+      {
+        inv_id,
+        telegram_id_from_body: telegram_id,
+        stars_from_body: stars,
+      }
+    )
+    res.status(501).json({
+      error: 'x402 settlement verification is not implemented',
+      detail:
+        'Balance crediting is disabled until the X-PAYMENT header is verified ' +
+        'against the facilitator and the amount is read from the payment record.',
+    })
+    return
+
+    // eslint-disable-next-line no-unreachable
     try {
       // Verify payment exists
       const { data: payment, error: paymentError } =
