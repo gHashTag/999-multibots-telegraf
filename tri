@@ -196,6 +196,11 @@ CHECKS THAT EACH COST A CYCLE
         (double-charge / scene-id / unbilled-paid / OOM / cross-bot). Names
         each class + its file. The loop's fast pre/post-work safety check.
 
+  tri guards | tri стражи
+        Run the loop-fable invariant ratchets (guards.mjs) as one exit-code
+        run -- the per-iteration regression check after syncing main. Each
+        loop-fable fix pins its bug here (33 and counting). --list shows files.
+
   tri charge | tri заряд
         Completeness check for the double-charge class (#1358): lists every
         scene that CHARGES money and whether it is guarded / safe / a tracked
@@ -1325,6 +1330,16 @@ cmd_sweep() {
   ( cd "$ROOT" && node "$TOOLS/sweep.mjs" "$@" )
 }
 
+cmd_guards() {
+  # The loop-fable invariant ratchets (guards.mjs) as ONE exit-code run -- the
+  # fast per-iteration regression check after syncing main. Distinct from
+  # `tri ratchets` (the older safety-class list in ratchets.mjs): this is the
+  # growing list each loop-fable fix pins its bug against (33 and counting).
+  # I typed `node .claude/loop-opus/guards.mjs` by hand every iteration; an
+  # unmemorised path is a check skipped. `tri guards --list` prints the files.
+  ( cd "$ROOT" && node "$TOOLS/guards.mjs" "$@" )
+}
+
 action="${1:-помощь}"
 shift 2>/dev/null || true
 
@@ -1347,6 +1362,7 @@ case "$action" in
   wired|подключён)    cmd_wired "$@" ;;
   charge|заряд)       cmd_charge ;;
   ratchets|линейки)   cmd_ratchets ;;
+  guards|стражи)      cmd_guards "$@" ;;
   sweep|развёртка)  cmd_sweep "$@" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
