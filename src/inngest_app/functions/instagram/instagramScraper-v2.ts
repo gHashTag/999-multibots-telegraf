@@ -1147,6 +1147,15 @@ class ReportGenerator {
         reject(err)
       })
 
+      // pipe() does not forward destination errors to the source, and
+      // archive.on('error') covers only archiver-internal faults. Without this
+      // an output write error (ENOSPC/EMFILE/EACCES) is an unhandled emitter
+      // 'error' -> uncaughtException -> process.exit(1) kills every bot.
+      output.on('error', err => {
+        log.error('❌ Ошибка записи архива:', err)
+        reject(err)
+      })
+
       archive.pipe(output)
 
       // Добавляем файлы в архив

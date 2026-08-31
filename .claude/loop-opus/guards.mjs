@@ -46,6 +46,7 @@ const GUARDS = [
   'src/__tests__/security/trainingPhotosInvalidated.test.ts', // iter201 LoRA training photos invalidated between trainings (no cross-training contamination)
   'src/__tests__/security/startSceneBotResolution.test.ts', // iter201 startScene resolves current bot from ctx.telegram.token (no cross-tenant wrong branding)
   'src/__tests__/security/getRuBillNoErrorLeak.test.ts', // iter202 getRuBillWizard does not leak caught DB error into a user reply (CWE-209)
+  'src/__tests__/reliability/writeStreamPipeErrorGuarded.test.ts', // iter202 every piped createWriteStream destination has its own error listener (no uncaughtException -> process.exit)
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
