@@ -68,7 +68,34 @@ if (!hits.length) {
   console.log(`\n  no \`await ${sym}(\` call-sites in src.\n`)
   process.exit(0)
 }
+// Money ledgers already classify some discarded charges as DEAD/unreachable
+// (verified debt, not live bugs). Cross-reference them so a sweep does not
+// re-flag a tracked-dead discard as actionable -- reading these BEFORE "fixing"
+// a discarded charge avoids editing dead code and breaking the ledger's own
+// stale-entry test. The paths listed inside are the source of truth.
+const loadDeadLedger = () => {
+  const files = [
+    'src/__tests__/scenes/charge-result-checked-ratchet.test.ts',
+    'src/__tests__/money/unchecked-money-result.test.ts',
+  ]
+  const dead = new Set()
+  for (const lf of files) {
+    let txt = ''
+    try {
+      txt = fs.readFileSync(lf, 'utf8')
+    } catch {
+      continue
+    }
+    for (const m of txt.matchAll(/['"`](src\/[^'"`]+\.ts)['"`]/g))
+      dead.add(m[1])
+  }
+  return dead
+}
+const deadLedger = loadDeadLedger()
+
 const discarded = hits.filter(h => !h.captured)
+const trackedDead = discarded.filter(h => deadLedger.has(h.file))
+const actionableDiscards = discarded.filter(h => !deadLedger.has(h.file))
 console.log(
   `\n  await ${sym}( — ${hits.length} call-sites (${discarded.length} discard the result)\n`
 )
@@ -84,13 +111,18 @@ for (const b of [
   if (!g.length) continue
   console.log(`  ${b}:`)
   for (const h of g) {
-    const mark = h.captured ? `${C.g}captured${C.z}` : `${C.r}DISCARDED${C.z}`
+    const mark = h.captured
+      ? `${C.g}captured${C.z}`
+      : deadLedger.has(h.file)
+        ? `${C.z}DISCARDED (tracked dead — see ledger)${C.z}`
+        : `${C.r}DISCARDED${C.z}`
     console.log(`    ${mark}  ${h.file}:${h.line}`)
   }
 }
 if (discarded.length) {
   console.log(
-    `\n  ${C.r}${discarded.length} discarded-result site(s)${C.z} — a HYPOTHESIS, ` +
+    `\n  ${C.r}${actionableDiscards.length} actionable discard(s)${C.z}` +
+      ` (+${trackedDead.length} tracked-dead in the money ledgers) — a HYPOTHESIS, ` +
       `not a verdict: read each (result may be checked next line / fire-and-forget).\n`
   )
 } else {
