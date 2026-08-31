@@ -202,6 +202,11 @@ uploadTrainFluxModelScene.enter(async ctx => {
     console.error('Error in uploadTrainFluxModelScene:', error)
     await sendGenericErrorMessage(ctx, isRu, error)
   } finally {
+    // Free and invalidate the consumed training photos. The dataset was zipped
+    // and submitted above; leaving the Buffers in the session leaks memory and
+    // contaminates the next training (it .push()es onto the leftover array -> a
+    // wrong/blended avatar the user paid for). iter201.
+    ctx.session.images = []
     await ctx.scene.leave()
   }
 })
