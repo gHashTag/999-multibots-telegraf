@@ -5,7 +5,10 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { escapeMarkdownV2 } from '@/helpers/escapeMarkdown'
+import {
+  escapeMarkdownV2,
+  escapeMarkdownV2CodeBlock,
+} from '@/helpers/escapeMarkdown'
 
 describe('escapeMarkdownV2', () => {
   describe('special characters', () => {
@@ -140,5 +143,25 @@ describe('escapeMarkdownV2', () => {
       const expected = '/start arg1\\=value1'
       expect(escapeMarkdownV2(input)).toBe(expected)
     })
+  })
+})
+
+// A backtick or backslash embedded raw in a MarkdownV2 code block breaks the
+// fence -> Telegram rejects the whole message. sendImprovedPrompt (improve-prompt
+// wizard) puts LLM output in a code block, so it must escape via this.
+describe('escapeMarkdownV2CodeBlock (for text inside ``` fences)', () => {
+  it('escapes backticks', () => {
+    expect(escapeMarkdownV2CodeBlock('a `code` b')).toBe('a \\`code\\` b')
+  })
+  it('escapes backslashes', () => {
+    expect(escapeMarkdownV2CodeBlock('a\\b')).toBe('a\\\\b')
+  })
+  it('leaves other MarkdownV2 specials untouched (they are literal in a code block)', () => {
+    const s = 'photo of a cat, cinematic (8k). vibrant-colors! #trending'
+    expect(escapeMarkdownV2CodeBlock(s)).toBe(s)
+  })
+  it('escapes a backslash before a backtick without producing a raw backtick', () => {
+    // \` raw would still break the fence; both chars must end up escaped
+    expect(escapeMarkdownV2CodeBlock('x\\`y')).toBe('x\\\\\\`y')
   })
 })

@@ -1,5 +1,6 @@
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
+import { escapeMarkdownV2CodeBlock } from '@/helpers/escapeMarkdown'
 
 const TELEGRAM_MESSAGE_LIMIT = 4000 // Оставляем буфер в 96 символов для форматирования
 
@@ -134,7 +135,10 @@ export async function sendImprovedPrompt(
   const codeBlockEnd = '```'
 
   // Проверяем, поместится ли весь текст
-  const fullText = `${header}\n${codeBlockStart}\n${improvedPrompt}\n${codeBlockEnd}`
+  // improvedPrompt is LLM output: a backtick or backslash would break the
+  // MarkdownV2 code fence and make Telegram reject the message, so escape it.
+  const safePrompt = escapeMarkdownV2CodeBlock(improvedPrompt)
+  const fullText = `${header}\n${codeBlockStart}\n${safePrompt}\n${codeBlockEnd}`
 
   if (fullText.length <= TELEGRAM_MESSAGE_LIMIT) {
     // Отправляем как есть
@@ -163,7 +167,7 @@ export async function sendImprovedPrompt(
   for (let i = 0; i < promptChunks.length; i++) {
     const chunk = promptChunks[i]
     const isLast = i === promptChunks.length - 1
-    const chunkText = `${codeBlockStart}\n${chunk}\n${codeBlockEnd}`
+    const chunkText = `${codeBlockStart}\n${escapeMarkdownV2CodeBlock(chunk)}\n${codeBlockEnd}`
 
     // Применяем опции только к последнему сообщению
     const chunkOptions = isLast ? options : undefined
