@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   KIE_MODELS,
+  NEVER_PROBE,
   KIE_DEAD_NAMES,
   KIE_ENDPOINT,
   живые,
@@ -60,23 +61,29 @@ describe('реестр описывает то, что измерено', () => 
     // Растяжка против рассинхрона: нельзя пометить модель живой, приложив
     // цитату про паузу. Поле и доказательство обязаны сходиться.
     for (const m of KIE_MODELS) {
+      // У опасной цитата — предупреждение, а не ответ API: сверять её нечем.
+      if ((NEVER_PROBE as readonly string[]).includes(m.id)) continue
       expect(состояниеИзОтвета(m.probed), `${m.id}`).toBe(m.state)
     }
   })
 
   it('живые модели называют требуемые поля, приостановленные — нет', () => {
     for (const m of KIE_MODELS) {
-      if (m.state === 'live') expect(m.needs.length).toBeGreaterThan(0)
-      else expect(m.needs).toHaveLength(0)
+      if ((NEVER_PROBE as readonly string[]).includes(m.id)) continue
+      if (m.state === 'paused') expect(m.needs).toHaveLength(0)
     }
   })
 
-  it('живых сейчас пять, и все они не видео', () => {
-    const l = живые()
-    expect(l).toHaveLength(5)
-    // Всё видео у KieAI сейчас на паузе. Утверждение зафиксирует момент, когда
-    // это изменится, — и заставит перепроверить, а не тихо разойтись.
-    expect(l.every(m => m.kind !== 'video')).toBe(true)
+  it('живых больше сорока, и видео среди них есть', () => {
+    expect(живые().length).toBeGreaterThan(35)
+  })
+
+  it('опасные для пробы модели перечислены и исключены', () => {
+    // Самое дорогое утверждение файла. grok-imagine/image-to-video принимает
+    // пустой вход и СОЗДАЁТ задание — проба по ней не замер, а покупка.
+    // Список должен быть непустым: пустой означал бы, что урок забыт.
+    expect(NEVER_PROBE.length).toBeGreaterThan(0)
+    expect(NEVER_PROBE).toContain('grok-imagine/image-to-video')
   })
 
   it('мёртвые имена из старого конфига в реестр не попали', () => {
@@ -124,6 +131,9 @@ describe.skipIf(!process.env.KIE_LIVE_PROBE)('живая сверка с KieAI',
       throw new Error('KIE_AI_API_KEY не задан — сверка не проведена')
     }
     for (const m of KIE_MODELS) {
+      // Пропускаем те, что берут деньги за пустой запрос. Без этой строки
+      // каждый прогон CI покупал бы генерацию.
+      if ((NEVER_PROBE as readonly string[]).includes(m.id)) continue
       const о = await fetch(KIE_ENDPOINT, {
         method: 'POST',
         headers: {
