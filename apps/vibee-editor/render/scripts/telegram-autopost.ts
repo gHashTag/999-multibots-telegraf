@@ -1,120 +1,71 @@
 /**
- * АВТОПОСТИНГ РИЛСОВ В TELEGRAM-КАНАЛ — замыкает воронку «производство →
- * канал → лента»: рилс публикуется в ленту мини-аппа автопилотом, этот
- * скрипт доносит его до канала (слой удержания и монетизации по канону
- * 2026: дискавери снаружи, Telegram — своя аудитория).
+ * AUTOPOSTING REELS INTO THE TELEGRAM CHANNEL -- a thin wrapper over the
+ * delivery module, kept for running the drain by hand.
  *
- * ВКЛЮЧЕНИЕ (только с добра владельца, наружу без этого ничего не уходит):
- *   TG_POST_BOT_TOKEN — токен бота-администратора канала
- *   TG_POST_CHANNEL_ID — числовой ID или @username канала
- * Без обоих — DRY-RUN: печатает, что отправил бы, и уходит (код 0).
+ * WHAT CHANGED HERE AND WHY. All of the delivery logic used to live in this
+ * file, and NOTHING called the file: a repo-wide grep found only its own "how
+ * to run me" comment. It also read TG_POST_*, while the deploy defines
+ * TELEGRAM_CHANNEL_* -- so even with a caller it would have been a permanent
+ * dry run, which is indistinguishable from an owner who has not switched the
+ * channel on. The logic moved to src/channel-delivery.ts (the only place
+ * `npm run typecheck` looks: the tsconfig include has not one file from
+ * scripts/), and the autopilot calls it on every tick.
  *
- * Дубль-защита: пост считается донесённым, когда в template_settings
- * стоит tg_posted_at — запись делает ТОЛЬКО успешная отправка.
+ * SETTINGS (deploy names first, the old TG_POST_* names as fallbacks):
+ *   TELEGRAM_CHANNEL_BOT_TOKEN | TG_POST_BOT_TOKEN   token of the channel admin bot
+ *   TELEGRAM_CHANNEL_ID        | TG_POST_CHANNEL_ID  @name or -100...
+ *   TG_POST_MAX_PER_RUN  ceiling for ONE run, default 1
+ *   TG_POST_MAX_PER_DAY  ceiling for a DAY, default 0 (delivery is off)
+ * Without credentials it is a dry run: it prints what it would send, exit 0.
  *
- * Запуск тем же окружением, что автопилот (нужен DATABASE_URL):
+ * Run it with the same environment as the autopilot (DATABASE_URL needed):
  *   npx tsx scripts/telegram-autopost.ts
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { deliverToChannel } from '../src/channel-delivery'
+import { withDb } from '../src/autopilot-state'
 
-if (!process.env.DATABASE_URL) {
-  console.error('[tg-post] нет DATABASE_URL')
-  process.exit(1)
-}
-const LOOP_DIR = process.env.LOOP_DIR || path.resolve(process.cwd(), '../../../loop')
+const LOOP_DIR =
+  process.env.LOOP_DIR || path.resolve(process.cwd(), '../../../loop')
 const LOG = path.join(LOOP_DIR, 'LOOP_STATE.md')
-
-const TOKEN = process.env.TG_POST_BOT_TOKEN || ''
-const CHANNEL = process.env.TG_POST_CHANNEL_ID || ''
-const DRY = !TOKEN || !CHANNEL
 
 function log(line: string) {
   console.log(`[tg-post] ${line}`)
   try {
     fs.appendFileSync(LOG, `- ${new Date().toISOString()} tg-post: ${line}\n`)
   } catch {
-    /* журнал не критичен */
+    /* the journal is not critical */
   }
 }
 
-async function main() {
-  const { Pool } = await import('pg')
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL })
-  try {
-    // Первый рилс владелька, ещё не донесённый до канала.
-    const r = await pool.query(
-      `SELECT id, name, video_url, description, created_at::text
-         FROM public_templates
-        WHERE telegram_id = $1 AND is_public = TRUE AND deleted_at IS NULL
-          AND video_url IS NOT NULL
-          AND template_settings->>'tg_posted_at' IS NULL
-        ORDER BY created_at ASC
-        LIMIT 1`,
-      [process.env.OWNER_TELEGRAM_ID || '144022504']
-    )
-    const post = r.rows[0]
-    if (!post) {
-      log('новых рилсов для канала нет (всё донесено)')
-      return
-    }
+export async function run(): Promise<number> {
+  const r = await withDb(db => deliverToChannel({ db, log }))
+  log(
+    `итог: отправлено ${r.sent}, не удалось ${r.failed}, осталось ${r.skipped}` +
+      (r.dryRun ? ' (сухой прогон)' : '')
+  )
+  /**
+   * EXIT 0 EVEN WHEN A SEND FAILED, and that is not softness.
+   *
+   * The run completed and reported; a refusal from Telegram is a recorded
+   * outcome (the attempt counter grew), not an inability to work. The previous
+   * version called process.exit(1) from inside the sending logic -- and once a
+   * daemon imports such logic, one channel refusal kills the process and drops
+   * it into the render server's 60-second respawn. A missing DATABASE_URL is
+   * configuration too, not a fault: with no database there is simply nothing to
+   * select, and the module says so.
+   */
+  return 0
+}
 
-    // Подпись канала: заголовок + первая строка описания + маяк ленты.
-    const firstLine = String(post.description || '')
-      .split('\n')
-      .find(l => l.trim()) ?? ''
-    const caption = [
-      String(post.name),
-      '',
-      firstLine.slice(0, 220),
-      '',
-      'Смотреть в ленте: https://app.t27.ai/feed',
-    ].join('\n')
-
-    if (DRY) {
-      log(
-        `DRY-RUN: отправил бы в канал рилс «${post.name}» (id ${post.id}) — ` +
-          `задай TG_POST_BOT_TOKEN и TG_POST_CHANNEL_ID для включения`
-      )
-      return
-    }
-
-    // Отправка: sendVideo с URL — Telegram сам скачивает файл ≤20 МБ.
-    const api = `https://api.telegram.org/bot${TOKEN}/sendVideo`
-    const resp = await fetch(api, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: CHANNEL,
-        video: post.video_url,
-        caption,
-        parse_mode: 'HTML',
-        supports_streaming: true,
-      }),
-      signal: AbortSignal.timeout(60_000),
+// Self-run ONLY as a program. Importing the module (tests, the daemon) must not
+// send anything: the old file called main() at import time.
+if (require.main === module) {
+  void (async () => {
+    process.exitCode = await run().catch(e => {
+      log(`падение: ${String(e).slice(0, 300)}`)
+      return 1
     })
-    const d: any = await resp.json().catch(() => ({}))
-    if (!resp.ok || !d?.ok) {
-      // Неудача НЕ помечает пост — следующий прогон попробует снова.
-      log(`отправка не удалась (id ${post.id}): ${d?.description || resp.status}`)
-      process.exit(1)
-    }
-
-    // Метка доноса — только после подтверждения Telegram.
-    await pool.query(
-      `UPDATE public_templates
-          SET template_settings = template_settings || jsonb_build_object(
-                'tg_posted_at', to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SSZ'))
-        WHERE id = $1`,
-      [post.id]
-    )
-    log(`рилс «${post.name}» (id ${post.id}) отправлен в канал ${CHANNEL}`)
-  } finally {
-    await pool.end()
-  }
+  })()
 }
-
-main().catch(e => {
-  console.error('[tg-post] падение:', String(e).slice(0, 300))
-  process.exit(1)
-})

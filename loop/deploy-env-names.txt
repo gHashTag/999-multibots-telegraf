@@ -1,0 +1,78 @@
+# ИМЕНА переменных окружения деплоя vibee-render (production). ТОЛЬКО ИМЕНА —
+# ни одного значения; значение, попавшее в отслеживаемый файл, придётся ОТЗЫВАТЬ.
+#
+# ЗАЧЕМ. `process.env.ЧТО_УГОДНО` компилируется, и любой тест с подменой
+# окружения задаёт ровно то имя, которое читает код: подделка совпадает с кодом
+# по построению. Разойтись с кодом может только ДЕПЛОЙ — а он живёт вне
+# репозитория. Это его слепок, против которого проверяется
+# channel-env-contract.test.ts. Ровно этот класс дефекта и был найден:
+# scripts/telegram-autopost.ts читал TG_POST_BOT_TOKEN / TG_POST_CHANNEL_ID,
+# а деплой определяет TELEGRAM_CHANNEL_BOT_TOKEN / TELEGRAM_CHANNEL_ID —
+# то есть скрипт был бы вечным сухим прогоном, даже если бы его кто-то звал.
+#
+# ОТКУДА И КОГДА. Снято 2026-08-31 командой (та же, которой доверяет
+# loop/regression-check.sh):
+#   railway variables list -s vibee-render -e production --kv | cut -d= -f1 | sort
+# Список ржавеет в тот момент, когда кто-то правит переменные в Railway.
+# Пересними той же командой и сравни — расхождение и есть новость.
+AGENT_KEYS
+AGENT_MODEL
+AGENT_PROVIDER
+AUTOPILOT_LOOP
+AWS_ACCESS_KEY_ID
+AWS_ENDPOINT_URL_S3
+AWS_REGION
+AWS_SECRET_ACCESS_KEY
+BOT_TOKEN_1
+BOT_TOKEN_10
+BOT_TOKEN_12
+BOT_TOKEN_2
+BOT_TOKEN_3
+BOT_TOKEN_4
+BOT_TOKEN_5
+BOT_TOKEN_6
+BOT_TOKEN_7
+BOT_TOKEN_8
+BOT_TOKEN_9
+BUCKET_NAME
+DATABASE_URL
+ELEVENLABS_API_KEY
+FAL_KEY
+GLM_API_KEY
+HOUSE_TELEGRAM_IDS
+NODE_ENV
+OPENAI_API_KEY
+OUTPUT_DIR
+PLAYER_URL
+RAILWAY_ENVIRONMENT
+RAILWAY_ENVIRONMENT_ID
+RAILWAY_ENVIRONMENT_NAME
+RAILWAY_PRIVATE_DOMAIN
+RAILWAY_PROJECT_ID
+RAILWAY_PROJECT_NAME
+RAILWAY_PUBLIC_DOMAIN
+RAILWAY_SERVICE_999_MULTIBOTS_TELEGRAF_URL
+RAILWAY_SERVICE_BUCKET_URL
+RAILWAY_SERVICE_CONSOLE_URL
+RAILWAY_SERVICE_ID
+RAILWAY_SERVICE_INNGEST_INNGEST_URL
+RAILWAY_SERVICE_NAME
+RAILWAY_SERVICE_SUPABASE_GATEWAY_URL
+RAILWAY_SERVICE_TRIOS_AGENT_SERVER_URL
+RAILWAY_SERVICE_VIBEE_EDITOR_URL
+RAILWAY_SERVICE_VIBEE_RENDER_URL
+RAILWAY_STATIC_URL
+RENDER_API_KEY
+RENDER_AUTH_MODE
+REPLICATE_API_TOKEN
+S3_PUBLIC_URL
+SELF_URL
+SESSION_SIGNING_KEY
+STARS_WEBHOOK_SECRET
+SUPABASE_SERVICE_KEY
+SUPABASE_URL
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHANNEL_BOT_TOKEN
+TELEGRAM_CHANNEL_ID
+TOKENS_PAYMENT_BOT_TOKEN
+ZAI_BASE_URL

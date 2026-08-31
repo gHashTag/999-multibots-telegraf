@@ -161,26 +161,31 @@ try:
     from datetime import datetime, timezone
     import urllib.request
     lp = None; src = 'state.json'
+    today = None  # посты за текущие UTC-сутки, посчитанные по ленте
     try:
-        with urllib.request.urlopen('http://127.0.0.1:3333/api/feed?limit=1', timeout=8) as r:
+        with urllib.request.urlopen('http://127.0.0.1:3333/api/feed?limit=12', timeout=8) as r:
             feed = json.load(r)
         items = feed.get('templates') or []
         if items and items[0].get('createdAt'):
             lp = items[0]['createdAt']; src = 'лента'
+            now = datetime.now(timezone.utc)
+            today = sum(1 for it in items if it.get('createdAt')
+                        and datetime.fromisoformat(str(it['createdAt']).replace('Z','+00:00')).date() == now.date())
     except Exception:
         pass
     if not lp:
         lp = s.get('lastPostAt')
+    posts_today = today if today is not None else s.get('postsToday', 0)
     if lp:
         age = (datetime.now(timezone.utc) - datetime.fromisoformat(str(lp).replace('Z','+00:00'))).total_seconds()/3600
-        if age > 8 and s.get('postsToday', 0) < 4:
-            print(f'  ❌ последний пост {age:.1f} ч назад, а лимит НЕ исчерпан ({s.get("postsToday")}/4) — фабрика стоит'); ok = False
+        if age > 8 and posts_today < 4:
+            print(f'  ❌ последний пост {age:.1f} ч назад, а лимит НЕ исчерпан ({posts_today}/4) — фабрика стоит'); ok = False
         else:
             print(f'  ✅ последний пост {age:.1f} ч назад ({src})')
     else:
         print('  ⚠️ lastPostAt пуст — фабрика ещё не постила');
     if ok:
-        print(f'  ✅ тем {len(t)}, в запасе {left}, постов сегодня {s.get("postsToday")}/{4}')
+        print(f'  ✅ тем {len(t)}, в запасе {left}, постов сегодня {posts_today}/{4}' + ('' if today is None else ' (по ленте)'))
     else:
         sys.exit(1)
 except SystemExit:
@@ -202,6 +207,31 @@ print('house' if b is None else int(b)//int(p))" 2>/dev/null)
 if [ "$runway" = "house" ]; then say "  ✅ дом не платит себе (баланс не метрируется)"
 elif [ "${runway:-0}" -ge 4 ] 2>/dev/null; then say "  ✅ запас хода $runway рилсов (>= дневной лимит 4)"
 else say "  ❌ запаса хода $runway рилсов (< 4): фабрика встанет в пределах суток"; fail=1; fi
+
+say "— Слепок имён переменных деплоя —"
+# ПОЧЕМУ ЭТО ЗДЕСЬ, А НЕ В ТЕСТЕ. channel-env-contract.test.ts сверяет имена,
+# которые читает код, с checked-in списком loop/deploy-env-names.txt. Список
+# ржавеет ровно в тот момент, когда кто-то правит переменные в Railway — и с
+# этой минуты контракт-тест проверяет прошлогоднюю реальность, то есть не
+# проверяет ничего. Увидеть расхождение может только тот, кто спросит сам
+# деплой; из теста (без сети, без логина) — нельзя. Отсюда и разделение.
+manifest="$HOME/999-multibots-telegraf/loop/deploy-env-names.txt"
+live=$(railway variables list -s vibee-render -e production --kv 2>/dev/null | cut -d= -f1 | grep -E '^[A-Z][A-Z0-9_]*$' | sort)
+if [ -z "$live" ]; then
+  # Три исхода, а не два: «не смог измерить» — это НЕ «чисто».
+  say "  ⚠️ Railway не ответил — свежесть слепка НЕ измерена"
+elif [ ! -f "$manifest" ]; then
+  say "  ❌ нет $manifest — контракт-тест сверяется с пустотой"; fail=1
+else
+  drift=$(diff <(grep -v '^#' "$manifest" | grep -v '^[[:space:]]*$') <(printf '%s\n' "$live"))
+  if [ -z "$drift" ]; then
+    say "  ✅ слепок совпадает с деплоем ($(printf '%s\n' "$live" | wc -l | tr -d ' ') имён)"
+  else
+    say "  ❌ слепок разошёлся с деплоем — пересними и разберись, что изменилось:"
+    printf '%s\n' "$drift" | head -12 | sed 's/^/     /'
+    fail=1
+  fi
+fi
 
 say ""
 if [ $fail -eq 0 ]; then say "РЕГРЕСС: ЧИСТО"; else say "РЕГРЕСС: ЕСТЬ ПРОВАЛЫ (см. ❌ выше)"; exit 1; fi

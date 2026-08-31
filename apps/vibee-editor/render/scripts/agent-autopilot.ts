@@ -14,7 +14,13 @@
  * ЗАЩИТА ОТ ЗАЦИКЛИВАНИЯ. Не более MAX_POSTS_PER_DAY постов в сутки и
  * никогда не публикуем тему, чьё название уже есть в последних постах.
  *
- * Запуск: LOOP_DIR=… npx tsx scripts/agent-autopilot.ts [--with-image]
+ * FACE AND VOICE. The --face flag (or AUTOPILOT_FACE=1) switches the cycle to
+ * SplitTalkingHead using the owner's own clip named in loop/face-source.json.
+ * OFF by default, and with the flag off the file is not even read. The input
+ * contract and the refusal texts live in src/face-source.ts; nothing is
+ * synthesised -- the speech is the audio track of the owner's own clip.
+ *
+ * Run: LOOP_DIR=... npx tsx scripts/agent-autopilot.ts [--with-image] [--face]
  * Состояние: loop/state.json, журнал: LOOP_STATE.md рядом с ним.
  */
 import fs from 'node:fs'
@@ -27,6 +33,8 @@ import {
   withDb,
   type AutopilotState,
 } from '../src/autopilot-state'
+import { deliverToChannel } from '../src/channel-delivery'
+import { readFaceSourceFile } from '../src/face-source'
 
 const BASE =
   process.env.SELF_URL || 'http://127.0.0.1:' + (process.env.PORT || '3333')
@@ -42,6 +50,27 @@ const LOOP_DIR =
 const STATE_FILE = path.join(LOOP_DIR, 'state.json')
 const TOPICS_FILE = path.join(LOOP_DIR, 'topics.json')
 const LOG_FILE = path.join(LOOP_DIR, 'LOOP_STATE.md')
+
+/**
+ * THE FACE REEL IS OFF UNTIL SOMEBODY TURNS IT ON, AND IT NEEDS OWNER MEDIA.
+ *
+ * SplitTalkingHead has no voiceover input: the reel's speech IS the soundtrack
+ * of the clip handed to it (SplitTalkingHead.tsx:992). So a face reel is not
+ * something the factory can generate -- it is something the owner supplies,
+ * once, as a file. Everything about it is refused rather than guessed; see
+ * src/face-source.ts for the contract and the refusal texts.
+ *
+ * WHY A SWITCH RATHER THAN A HEURISTIC. The clip's script is fixed, so this
+ * path produces the SAME video every time it runs. It must not become the
+ * default rhythm of a channel, and the title requirement plus the existing
+ * name dedupe below cap it at one publication per source. Nothing changes for
+ * anyone who does not pass the flag: with FACE_MODE false the branch is not
+ * entered and no file is read.
+ */
+const FACE_MODE =
+  process.argv.includes('--face') || process.env.AUTOPILOT_FACE === '1'
+const FACE_SOURCE_FILE =
+  process.env.AUTOPILOT_FACE_SOURCE || path.join(LOOP_DIR, 'face-source.json')
 
 interface Topic {
   title: string
@@ -494,6 +523,50 @@ async function main() {
     }
   }
   /**
+   * FACE REEL: the owner's own clip instead of the text engraving, if and only
+   * if the switch is on AND the file validates AND it has not gone out before.
+   *
+   * Three separate ways to say no, and each one falls back to the engraving
+   * rather than stopping the cycle -- a factory that goes silent because an
+   * optional file is missing is worse than one that keeps making what it can.
+   * Every refusal is logged in full: the whole point of the contract is that a
+   * person can read WHY and fix it, instead of getting a reel with a missing
+   * layer and a success line.
+   */
+  let compositionId = 'TrinityBlogReel'
+  let renderProps: Record<string, unknown> = props
+  let faceDescription = ''
+  if (FACE_MODE) {
+    const face = readFaceSourceFile(FACE_SOURCE_FILE, p =>
+      fs.readFileSync(p, 'utf8')
+    )
+    if (!face.ok) {
+      log(`--face: источник отклонён (${face.refusals.length} причин)`)
+      for (const why of face.refusals) log(`--face отказ: ${why}`)
+      log('--face: рендерю обычную текстовую гравюру')
+    } else if (names.some(n => n === face.title)) {
+      // The cap. One source is one fixed 26-second artefact; re-posting it
+      // under a new topic title would be the same video pretending to be new.
+      log(
+        `--face: «${face.title}» уже опубликован — второй раз тот же клип не шлю`
+      )
+    } else {
+      compositionId = 'SplitTalkingHead'
+      renderProps = face.props
+      title = face.title
+      faceDescription = face.description
+      for (const note of face.notes) log(`--face: ${note}`)
+      log(
+        `--face: рендерю SplitTalkingHead из ${FACE_SOURCE_FILE} — ` +
+          `${face.durationSeconds.toFixed(2)} с, ` +
+          `${(face.props.segments as unknown[]).length} сегментов, ` +
+          `${(face.props.captions as unknown[]).length} субтитров. ` +
+          'Голос — это дорожка самого клипа, синтеза здесь нет'
+      )
+    }
+  }
+
+  /**
    * TWO ATTEMPTS, because the first one after a deploy reliably loses.
    *
    * This was the only risky call in the cycle without a retry, and the first
@@ -507,8 +580,8 @@ async function main() {
    * exactly this reason.
    */
   let reel = await call('reel_render', {
-    compositionId: 'TrinityBlogReel',
-    props,
+    compositionId,
+    props: renderProps,
   }).catch((e: unknown) => {
     log(`рендер, попытка 1 не удалась: ${String(e).slice(0, 140)}`)
     return null
@@ -517,8 +590,8 @@ async function main() {
   if (!rendered) {
     await new Promise(r => setTimeout(r, 30_000))
     reel = await call('reel_render', {
-      compositionId: 'TrinityBlogReel',
-      props,
+      compositionId,
+      props: renderProps,
     }).catch((e: unknown) => {
       log(`рендер, попытка 2 не удалась: ${String(e).slice(0, 140)}`)
       return null
@@ -543,7 +616,10 @@ async function main() {
   const igText = [
     title,
     '',
-    `${topic.subtitle}. ${topic.lesson}.`,
+    // A face reel is not about the queued topic -- its words are the clip's
+    // own. Describing it with the topic's subtitle would caption one video
+    // with another video's meaning.
+    faceDescription || `${topic.subtitle}. ${topic.lesson}.`,
     '',
     'Понравилось? Тапни ⭐ под роликом — звезда падает автору на баланс.',
     '',
@@ -556,8 +632,8 @@ async function main() {
     description: igText,
     video_url: reel.url,
     template_settings: {
-      compositionId: 'TrinityBlogReel',
-      props,
+      compositionId,
+      props: renderProps,
       ab_style: abStyle,
     },
   })
@@ -621,6 +697,27 @@ const INTERVAL_MS = Math.max(
   Number(process.env.AUTOPILOT_INTERVAL_MS) || 30 * 60_000
 )
 
+/**
+ * CHANNEL DELIVERY ON EVERY TICK, not at the end of a successful cycle.
+ *
+ * main() returns before publishing in six places: the daily cap, the 3-hour
+ * spacing rule, an empty queue, an exhausted cursor, a duplicate title and a
+ * failed render. Those quiet ticks are exactly when the backlog has to move --
+ * a step placed after feed_publish would run only at the moment the live path
+ * has already delivered.
+ *
+ * Its own try/catch: a channel refusal has no right to stop production. The
+ * delivery module does not throw outward either (see src/channel-delivery.ts);
+ * this is the second belt, not the first.
+ */
+async function channelTick() {
+  try {
+    await withDb(db => deliverToChannel({ db, log }))
+  } catch (e) {
+    log(`канал: доставка сорвалась (${String(e).slice(0, 200)})`)
+  }
+}
+
 let виток_идёт = false
 async function once() {
   // Наложение витков в одном процессе: setInterval выстрелит по расписанию,
@@ -632,9 +729,12 @@ async function once() {
   }
   виток_идёт = true
   try {
-    await main()
-  } catch (e) {
-    log(`падение витка: ${String(e).slice(0, 300)}`)
+    try {
+      await main()
+    } catch (e) {
+      log(`падение витка: ${String(e).slice(0, 300)}`)
+    }
+    await channelTick()
   } finally {
     виток_идёт = false
   }
