@@ -18,6 +18,12 @@ interface CacheEntry {
 
 const projectsCache = new Map<string, CacheEntry>()
 const CACHE_TTL = 5 * 60 * 1000 // 5 минут
+// Bound the cache. It is keyed by telegram_id (an unbounded space) and only
+// evicts lazily when the SAME user reads again after the TTL, so a one-time
+// caller leaves an entry resident for the whole life of the multi-bot process.
+// This cap makes setCachedProjects sweep-then-FIFO-evict so it cannot grow
+// without limit (OOM class, cf. the session-array caps).
+const MAX_CACHE_ENTRIES = 5000
 
 function getCachedProjects(telegramId: string): UserProject[] | null {
   const entry = projectsCache.get(telegramId)
@@ -34,6 +40,24 @@ function getCachedProjects(telegramId: string): UserProject[] | null {
 }
 
 function setCachedProjects(telegramId: string, data: UserProject[]): void {
+  // Evict before inserting so the cache stays bounded: first drop entries past
+  // their TTL, then, if still at the cap, drop oldest-inserted keys (Map keeps
+  // insertion order) until under it. Refreshing an existing user re-sets the
+  // same key (size unchanged), so this only trims genuine growth.
+  if (
+    projectsCache.size >= MAX_CACHE_ENTRIES &&
+    !projectsCache.has(telegramId)
+  ) {
+    const now = Date.now()
+    for (const [key, entry] of projectsCache) {
+      if (now - entry.timestamp > CACHE_TTL) projectsCache.delete(key)
+    }
+    while (projectsCache.size >= MAX_CACHE_ENTRIES) {
+      const oldest = projectsCache.keys().next().value
+      if (oldest === undefined) break
+      projectsCache.delete(oldest)
+    }
+  }
   projectsCache.set(telegramId, {
     data,
     timestamp: Date.now(),
