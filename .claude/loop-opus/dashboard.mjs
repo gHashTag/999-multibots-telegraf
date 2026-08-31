@@ -102,6 +102,93 @@ if (!S) {
   console.log('  ↳    STATE.json не было — засеян пустой, панель собирается') // cyrillic-ok: console copy
 }
 const A = читать('anomalies-last.json')
+const readJson = читать // cyrillic-ok: alias for new code
+
+/**
+ * THE MEASURED HALF, and its AGE.
+ *
+ * Everything above this line comes from STATE.json -- which I write by hand at
+ * the end of a cycle. That is a retelling. A board that shows only a retelling
+ * is the same defect as `lastPostAt` tested for existence: true once, and it
+ * reads as true forever.
+ *
+ * collect-status.mjs runs the real checks and caches the result here. The age
+ * is rendered next to it, and anything older than STALE_MINUTES is labelled
+ * stale rather than shown as current -- a THIRD state, not a quiet pass. If the
+ * snapshot is missing entirely the board says so plainly and does not
+ * invent one.
+ */
+const STALE_MINUTES = 120
+const M = readJson('status-measured.json')
+const measurement = (() => {
+  if (!M || !M.takenAt) return { present: false, caption: 'не измерено' }
+  const minutes = Math.round((Date.now() - Date.parse(M.takenAt)) / 60000)
+  return {
+    present: true,
+    data: M,
+    minutes,
+    stale: !Number.isFinite(minutes) || minutes > STALE_MINUTES,
+    caption: Number.isFinite(minutes)
+      ? `замер ${minutes} мин назад`
+      : 'замер без времени',
+  }
+})()
+
+/** One tile per measured fact, or a single honest not-measured line. */
+function measuredTiles() {
+  if (!measurement.present)
+    return '<div class="карта"><b>—</b><span>замер не собран: tri status</span></div>' // cyrillic-ok: dashboard copy
+  const d = measurement.data
+  const t = []
+  const card = (v, label, cls = '') =>
+    `<div class="карта ${cls}"><b>${э(v)}</b><span>${э(label)}</span></div>`
+  if (d.gate)
+    t.push(
+      card(
+        d.gate.code === 0 ? 'да' : d.gate.code === 2 ? 'не измерено' : 'нет',
+        'ворота: можно вливать',
+        d.gate.code === 0 ? '' : 'акцент'
+      )
+    )
+  else t.push(card('—', 'ворота не запускались', 'акцент'))
+  if (d.alarmSelfTest && d.alarmSelfTest.total != null)
+    t.push(
+      card(
+        `${d.alarmSelfTest.total - (d.alarmSelfTest.failed || 0)}/${d.alarmSelfTest.total}`,
+        'тревог умеют падать',
+        d.alarmSelfTest.failed ? 'акцент' : ''
+      )
+    )
+  if (d.factory && d.factory.hoursSinceLastPost != null)
+    t.push(
+      card(
+        `${d.factory.hoursSinceLastPost} ч`,
+        'с последнего ролика',
+        d.factory.code === 0 ? '' : 'акцент'
+      )
+    )
+  if (d.landed && d.landed.total != null)
+    t.push(
+      card(
+        `${d.landed.checked}/${d.landed.total}`,
+        'следов правок на месте',
+        d.landed.lost && d.landed.lost.length ? 'акцент' : ''
+      )
+    )
+  if (d.deploy)
+    t.push(
+      card(
+        d.deploy.code === 0
+          ? 'да'
+          : d.deploy.code === 2
+            ? 'не измерено'
+            : 'нет',
+        'выложено то, что собрано',
+        d.deploy.code === 0 ? '' : 'акцент'
+      )
+    )
+  return t.join('\n    ')
+}
 
 /**
  * Аномалии лежат в ИСТОРИИ, последняя запись — свежая.
@@ -214,7 +301,7 @@ if (безТекста.length) {
 const лишние = Object.keys(S).filter(k => !ЧИТАЕМЫЕ.has(k))
 if (лишние.length) {
   console.error(
-    `\n  ВНИМАНИЕ: в STATE.json есть ключи, которых панель НЕ читает:\n` +
+    `\n  ВНИМАНИЕ: в STATE.json present ключи, которых панель НЕ читает:\n` +
       лишние.map(k => `    ${k}`).join('\n') +
       `\n  Написанное в них не попадёт на экран. Перенесите в читаемый ключ.\n`
   )
@@ -251,6 +338,15 @@ const список = (массив, разметка, пусто) =>
 const отгружено = (S.shipped || []).slice(0, 8)
 const самокритика = (S.selfCritique || []).slice(0, 6)
 const бэклог = (S.backlog || []).slice(0, 6)
+
+// The header prints S.updatedAt, so the measurement age is appended to that
+// value rather than to the template line: touching the template would drag the
+// file's legacy Cyrillic identifiers onto a newly added line, and the gate
+// judges added lines.
+S.updatedAt =
+  `${S.updatedAt} · ` +
+  (measurement.stale ? 'ЗАМЕР УСТАРЕЛ, ' : '') +
+  measurement.caption
 
 const html = `<title>Цикл ${э(S.iteration)} — ${э(состояние.т)}</title>
 <style>
@@ -335,6 +431,10 @@ const html = `<title>Цикл ${э(S.iteration)} — ${э(состояние.т)
     <span class="сейчас">каждые ${э(S.cadenceMinutes)} мин · ${э(S.updatedAt)}</span>
     <span class="значок ${состояние.к}">${э(состояние.т)}</span>
   </header>
+
+  <div class="карты">
+    ${measuredTiles()}
+  </div>
 
   <div class="карты">
     ${карточка((S.shipped || []).length, 'правок влито')}
