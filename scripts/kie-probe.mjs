@@ -30,9 +30,68 @@
  * outcome, never folded into a pass.
  */
 
-const KEY = process.env.KIE_AI_API_KEY || ''
+import fs from 'node:fs'
+import { execSync } from 'node:child_process'
+
 const BASE = 'https://api.kie.ai/api/v1'
 const JSON_OUT = process.argv.includes('--json')
+
+/**
+ * FIND THE KEY, DO NOT DEMAND IT.
+ *
+ * The first version read only process.env and told anyone who ran it without
+ * exporting the variable first that the key was not set. I had been
+ * exporting it by hand in every run, so the tool looked like it worked while
+ * being unrunnable for its actual user -- the same defect this repository
+ * already recorded when the dashboard died on a missing STATE.json: a tool that
+ * cannot run by default is a decoration.
+ *
+ * Sources in order of trust, and the run SAYS which one answered, because a key
+ * from a stale .env and a key from the deployment are different facts.
+ */
+function resolveKey() {
+  if (process.env.KIE_AI_API_KEY)
+    return { key: process.env.KIE_AI_API_KEY, from: 'окружение' }
+
+  const sh = cmd => {
+    try {
+      return execSync(cmd, {
+        encoding: 'utf8',
+        timeout: 60_000,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim()
+    } catch {
+      return ''
+    }
+  }
+
+  try {
+    const env = fs.readFileSync(new URL('../.env', import.meta.url), 'utf8')
+    const m = env.match(/^KIE_AI_API_KEY=(.+)$/m)
+    if (m && m[1].trim()) return { key: m[1].trim(), from: '.env' }
+  } catch {
+    /* no .env is normal here: the project keeps 5 variables locally */
+  }
+
+  // The deployment is the most trustworthy source: it is what production uses.
+  // Slow (a network round trip), so it comes after the cheap ones.
+  const rail = sh(
+    "railway variables -s vibee-render --kv 2>/dev/null | grep '^KIE_AI_API_KEY=' | cut -d= -f2-"
+  )
+  if (rail) return { key: rail, from: 'railway vibee-render' }
+
+  const bot = sh(
+    "railway variables -s 999-multibots-telegraf --kv 2>/dev/null | grep '^KIE_AI_API_KEY=' | cut -d= -f2-"
+  )
+  if (bot) return { key: bot, from: 'railway 999-multibots-telegraf' }
+
+  const inf = sh('infisical secrets get KIE_AI_API_KEY --plain 2>/dev/null')
+  if (inf) return { key: inf, from: 'infisical' }
+
+  return { key: '', from: null }
+}
+
+const { key: KEY, from: KEY_FROM } = resolveKey()
 
 /**
  * The function map, taken from kie.ai/market on 2026-08-31: fifteen categories.
@@ -131,6 +190,27 @@ async function call(path, init = {}, ms = 20000) {
   }
 }
 
+/**
+ * THE BALANCE NUMBER IS A DELTA YARDSTICK, NOT A BUDGET.
+ *
+ * Measured 2026-08-31 within the same minute, on the SAME account (the key is
+ * "tim", prefix c98141e4, listed on kie.ai/api-key):
+ *   GET /api/v1/chat/credit  -> 7003.5, stable across every read for two hours
+ *   kie.ai/billing headline   -> 7003 at 17:44, 663 at 17:45, 2042 at 19:21
+ * The page figure moved by thousands while the transaction list's newest entry
+ * is from 2025-11-25, and a balance cannot RISE without a purchase. So the two
+ * are not the same quantity, and neither can be certified here as "the money
+ * you may spend".
+ *
+ * What this function is still good for is the DIFFERENCE across one run: the
+ * same metric read twice. That is what proves the probe cost nothing, and it is
+ * corroborated independently by kie.ai/logs being empty -- zero tasks created,
+ * therefore zero spend, whichever pool is authoritative.
+ *
+ * Do NOT size a content plan from this number. The hard protection is the
+ * per-key Safe-Spend Limit on kie.ai/api-key, which the provider enforces and
+ * our own bugs cannot bypass.
+ */
 async function credits() {
   const r = await call('/chat/credit', { method: 'GET' })
   const v = r.json && r.json.data
@@ -192,7 +272,9 @@ function classify(r) {
 
 const before = await credits()
 if (before === null) {
-  const m = KEY ? 'баланс не прочитан' : 'KIE_AI_API_KEY не задан'
+  const m = KEY
+    ? `баланс не прочитан (ключ из: ${KEY_FROM})`
+    : 'ключ не найден: ни в окружении, ни в .env, ни в railway, ни в infisical'
   if (JSON_OUT) console.log(JSON.stringify({ error: m }))
   else console.error(`\n  ?    НЕ ИЗМЕРЕНО: ${m}\n`)
   process.exit(2)
@@ -226,7 +308,10 @@ if (JSON_OUT) {
   console.log(JSON.stringify({ before, after, spent, rows }, null, 2))
 } else {
   const paint = (c, s) => `[${c}m${s}[0m`
-  console.log(`\nКРЕДИТЫ ДО: ${before}\n`)
+  console.log(`\nКРЕДИТЫ ДО: ${before}   (ключ из: ${KEY_FROM})`)
+  console.log(
+    '  ↳ это счётчик /chat/credit; на kie.ai/billing в ту же минуту стояло другое число — как БЮДЖЕТ не использовать\n'
+  )
   for (const r of rows) {
     const colour =
       r.state === 'модель ЕСТЬ' ? '32' : r.state === 'BILLABLE' ? '31' : '33'
