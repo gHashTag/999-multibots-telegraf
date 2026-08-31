@@ -12,6 +12,7 @@ import { refundUser } from '@/price/helpers/refundUser'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import path from 'path'
+import fs from 'fs'
 import {
   FluxKontextProInputSchema,
   FluxKontextProResponseSchema,
@@ -64,6 +65,14 @@ export const generateFluxKontextPro = async (
     username: params.username,
     is_ru: params.is_ru,
   })
+
+  // saveFileLocally writes the generated image to disk, but delivery uses the
+  // REMOTE imageUrl (ctx.replyWithPhoto({ url })), so the local copy is only
+  // logged and never used -- and was never removed on either the success or the
+  // error path, orphaning one PNG per call and slowly filling the uploads dir of
+  // the long-running process. The Max sibling already tracks + unlinks it; mirror
+  // that here with a finally so cleanup is guaranteed on every path.
+  let tempFileToCleanup: string | null = null
 
   try {
     const {
@@ -233,6 +242,8 @@ export const generateFluxKontextPro = async (
       '.png'
     )
 
+    tempFileToCleanup = savedImagePath
+
     logger.info('⚡ [FluxKontextPro] Image saved locally:', {
       telegram_id,
       savedImagePath,
@@ -323,5 +334,15 @@ export const generateFluxKontextPro = async (
     })
 
     throw error
+  } finally {
+    // Remove the orphaned local copy on every path (success and error). The file
+    // is never used for delivery, so unlinking it is balance-neutral.
+    if (tempFileToCleanup) {
+      try {
+        fs.unlinkSync(tempFileToCleanup)
+      } catch {
+        /* already gone or never created */
+      }
+    }
   }
 }
