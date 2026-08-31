@@ -78,6 +78,15 @@ function actionHandlers(code) {
   return out
 }
 
+// A handler gated by an ALL-CAPS feature-flag early-return (…DISCONNECTED /
+// …DISABLED) reaches its charge only if the flag is flipped, so a double-tap is
+// not currently reachable. voiceTrainingWizard confirm_training is exactly this
+// (VOICE_TRAINING_DISCONNECTED = true) and is already pinned by
+// paid-wizard-guard-ratchet.test.ts to demand a guard IF re-enabled. Skip these
+// so the report stays signal, not a standing false positive.
+const FEATURE_GATE_RE =
+  /if\s*\(\s*[A-Z][A-Z0-9_]*(DISCONNECTED|DISABLED)[A-Z0-9_]*\s*\)/
+
 const flagged = []
 for (const file of walk(SCENES)) {
   const code = stripComments(fs.readFileSync(file, 'utf8'))
@@ -85,6 +94,7 @@ for (const file of walk(SCENES)) {
     const charges = CHARGE.filter(c => h.body.includes(c + '('))
     if (charges.length === 0) continue
     if (GUARD_RE.test(h.body)) continue // has an in-flight guard
+    if (FEATURE_GATE_RE.test(h.body)) continue // charge behind a disabled flag
     flagged.push({
       file: path.relative(ROOT, file),
       selector: h.selector,
