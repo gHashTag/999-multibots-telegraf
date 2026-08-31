@@ -53,6 +53,7 @@ const GUARDS = [
   'src/__tests__/scenes/aiPhotoshopUpscaleInflightGuard.test.ts', // iter204 aiPhotoshop direct upscaleImage sites hold an in-flight lock (no double-tap double-charge)
   'src/__tests__/reliability/videoDeliveryEditGuarded.test.ts', // iter204 the Sending-status editMessageText is isolated from replyWithVideo (a stale-message 400 cannot drop a delivered video after the idempotency claim is spent)
   'src/__tests__/reliability/getUserProjectsCacheBounded.test.ts', // iter204 getUserProjects projectsCache is size-capped + evicts (no unbounded-Map leak)
+  'src/__tests__/money/voiceAvatarFallbackNotCharged.test.ts', // iter205 voice-avatar Cloudflare fallback (stock Rachel) is not charged as a clone (isFallback gate)
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
