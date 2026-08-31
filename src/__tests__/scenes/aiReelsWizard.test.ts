@@ -38,6 +38,7 @@ vi.mock('@/core/supabase', () => ({
 
 vi.mock('@/core/elevenlabs', () => ({
   checkVoiceExists: vi.fn(() => Promise.resolve(true)),
+  assertVoiceExistsAuthoritative: vi.fn(() => Promise.resolve(true)),
 }))
 
 vi.mock('@/core/elevenlabs/createAudioFileFromText', () => ({
@@ -178,7 +179,10 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { supabase } from '@/core/supabase'
-import { checkVoiceExists } from '@/core/elevenlabs'
+import {
+  checkVoiceExists,
+  assertVoiceExistsAuthoritative,
+} from '@/core/elevenlabs'
 import { createAudioFileFromText } from '@/core/elevenlabs/createAudioFileFromText'
 import { getVoiceId } from '@/core/supabase/getVoiceId'
 import { lipSyncOrchestrator } from '@/core/lipsync/lipsync-orchestrator'
@@ -228,6 +232,7 @@ describe('aiReelsWizard (AI Reels Creation)', () => {
     ;(getUserBalance as Mock).mockResolvedValue(500)
     ;(updateUserBalance as Mock).mockResolvedValue(true)
     ;(checkVoiceExists as Mock).mockResolvedValue(true)
+    ;(assertVoiceExistsAuthoritative as Mock).mockResolvedValue(true)
     ;(createAudioFileFromText as Mock).mockResolvedValue('/tmp/audio.mp3')
     ;(getVoiceId as Mock).mockResolvedValue('test-voice-id')
     ;(lipSyncOrchestrator.generate as Mock).mockResolvedValue({
@@ -442,7 +447,9 @@ describe('aiReelsWizard (AI Reels Creation)', () => {
       await step2(mockContext)
 
       expect(getVoiceId).toHaveBeenCalledWith('223757230')
-      expect(checkVoiceExists).toHaveBeenCalledWith('test-voice-id')
+      expect(assertVoiceExistsAuthoritative).toHaveBeenCalledWith(
+        'test-voice-id'
+      )
       expect(getUserBalance).toHaveBeenCalledWith('223757230')
       expect(updateUserBalance).toHaveBeenCalledWith(
         '223757230',
@@ -558,7 +565,7 @@ describe('aiReelsWizard (AI Reels Creation)', () => {
       mockContext.message = {
         text: 'Test text',
       }
-      ;(checkVoiceExists as Mock).mockResolvedValueOnce(false)
+      ;(assertVoiceExistsAuthoritative as Mock).mockResolvedValueOnce(false)
 
       const { aiReelsWizard } = await import(
         '@/scenes/lipSyncWizard/ai-reels-wizard'

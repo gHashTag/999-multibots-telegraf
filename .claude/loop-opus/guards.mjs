@@ -37,6 +37,7 @@ const GUARDS = [
   'src/__tests__/reliability/avatarBrainNoHtmlParse.test.ts', // iter196 avatarBrainWizard no parse_mode:HTML on raw user text (no 400)
   'src/__tests__/helpers/voiceValidation.test.ts', // iter197 voice pointer cleared only on authoritative absence (no wipe on key-gap/outage)
   'src/__tests__/security/statsBotAccessFailClosed.test.ts', // iter197 interactiveStats bot-access guards fail closed on null ownedBots
+  'src/__tests__/reliability/aiReelsVoiceCheckGraceful.test.ts', // iter198 ai-reels pre-charge voice check proceeds on non-authoritative (no false recreate)
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
