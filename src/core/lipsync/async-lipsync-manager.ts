@@ -756,7 +756,13 @@ export class AsyncLipSyncManager {
 
       // ✅ Запускаем периодическую проверку
       const startPollingTime = Date.now()
-      const pollingInterval = setInterval(async () => {
+      let checkInFlight = false
+      // Re-entrancy guard: a provider status check can hang longer than the
+      // 30s interval; without this a second tick would start while the first
+      // is still awaiting, and both could handle the same terminal state
+      // (double delivery). checkInFlight makes the interval skip a tick until
+      // the previous one returns.
+      const pollTick = async () => {
         const currentJob = this.jobs.get(jobId)
         if (!currentJob) {
           logger.warn(
@@ -904,6 +910,13 @@ export class AsyncLipSyncManager {
             return
           }
         }
+      }
+      const pollingInterval = setInterval(() => {
+        if (checkInFlight) return
+        checkInFlight = true
+        void pollTick().finally(() => {
+          checkInFlight = false
+        })
       }, POLLING_INTERVAL)
     }, INITIAL_DELAY)
   }
