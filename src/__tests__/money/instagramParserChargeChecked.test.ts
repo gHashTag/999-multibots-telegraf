@@ -67,4 +67,16 @@ describe('instagramParser charge result is checked (no discard, no mint)', () =>
       'no gated MONEY_INCOME refund'
     ).toBe(true)
   })
+
+  it('does not claim a charge that did not happen (#1183 honesty)', () => {
+    const s = code()
+    // the success reply must gate its charge-claim on the real `charged` flag,
+    // never state a charge unconditionally (a failed charge -> the user got the
+    // result unbilled but was told money was taken). The ru/en claims are gated
+    // symmetrically; asserting the en `Charged:` claim proves the gate pattern.
+    expect(
+      /\(charged[\s\S]{0,60}?Charged:/.test(s),
+      'the success charge-claim is not gated on `charged` (may lie on a failed charge)'
+    ).toBe(true)
+  })
 })
