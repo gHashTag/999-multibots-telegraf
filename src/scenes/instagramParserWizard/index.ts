@@ -450,7 +450,9 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
               ? `✅ Запрос принят сервером!\n\n` +
                   `🎯 Цель: ${sessionData.type === 'competitor' ? '@' : '#'}${sessionData.target}\n` +
                   `📊 Количество: ${sessionData.count} рилсов\n` +
-                  `💰 Списано: ${sessionData.cost} ⭐\n` +
+                  (charged
+                    ? `💰 Списано: ${sessionData.cost} ⭐\n`
+                    : `⚠️ Средства не списаны (техническая ошибка списания)\n`) +
                   `🔄 Event ID: ${result.eventId || 'N/A'}\n\n` +
                   `${result.message}\n\n` +
                   `📬 Результаты будут отправлены автоматически когда парсинг завершится.\n` +
@@ -459,7 +461,9 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
               : `✅ Request accepted by server!\n\n` +
                   `🎯 Target: ${sessionData.type === 'competitor' ? '@' : '#'}${sessionData.target}\n` +
                   `📊 Count: ${sessionData.count} reels\n` +
-                  `💰 Charged: ${sessionData.cost} ⭐\n` +
+                  (charged
+                    ? `💰 Charged: ${sessionData.cost} ⭐\n`
+                    : `⚠️ You were not charged (a technical charge error)\n`) +
                   `🔄 Event ID: ${result.eventId || 'N/A'}\n\n` +
                   `${result.message}\n\n` +
                   `📬 Results will be sent automatically when parsing is complete.\n` +
