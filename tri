@@ -1088,7 +1088,12 @@ case "$action" in
   # falls through to the directory argument and answers "нет каталога check".
   # A verb that cannot be mistyped into silence is worth the extra dispatch line.
   scan-check|скан-проверка) node "$TOOLS/anomalies-selftest.mjs" ;;
-  panel|панель)        node "$TOOLS/dashboard.mjs" ;;
+  # MEASURE FIRST, THEN DRAW. Building the board without a fresh snapshot is
+  # how it came to show only my end-of-cycle prose. --quick skips the merge gate
+  # (a full tsc, vitest and an Xcode build); `tri status` runs the slow one.
+  panel|панель)        node "$TOOLS/collect-status.mjs" --quick >/dev/null 2>&1
+                       node "$TOOLS/dashboard.mjs" ;;
+  status|замер)        node "$TOOLS/collect-status.mjs" ;;
   tests|тесты)         bash "$TOOLS/test-all.sh" ;;
   routes|маршруты)     node "$TOOLS/check-routes.mjs" ;;
   health|здоровье)     curl -s -m 20 "$RENDER/health" | head -c 400; echo ;;
