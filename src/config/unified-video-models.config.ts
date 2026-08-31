@@ -612,12 +612,28 @@ export function getUnifiedModelPrice(
         options?.resolution ||
         model.apiSettings.resolutions?.[0] || // Use first supported resolution as default
         '720p'
-      return model.pricing.priceByResolution![resolution] || 0
+      // Fail CLOSED, not to 0. `|| 0` invented a FREE price for an unpriced
+      // resolution -- the same 'price is not invented' rule the callers enforce
+      // (handleImageToVideoDirect: no `return 40` fallback) and the same
+      // fail-closed shape as the unknown-model throw above. A 0 here would pass
+      // every `balance >= price` gate and hand out a paid generation for free.
+      const resPrice = model.pricing.priceByResolution?.[resolution]
+      if (typeof resPrice !== 'number' || resPrice <= 0) {
+        throw new Error(
+          `No price for model ${modelId} at resolution ${resolution}`
+        )
+      }
+      return resPrice
     }
 
     case 'per_duration': {
       const dur = options?.duration || model.pricing.defaultDuration || 5
-      return model.pricing.priceByDuration![dur] || 0
+      // Fail CLOSED, not to 0 (see the per_resolution case above).
+      const durPrice = model.pricing.priceByDuration?.[dur]
+      if (typeof durPrice !== 'number' || durPrice <= 0) {
+        throw new Error(`No price for model ${modelId} at duration ${dur}`)
+      }
+      return durPrice
     }
 
     case 'per_duration_resolution': {
