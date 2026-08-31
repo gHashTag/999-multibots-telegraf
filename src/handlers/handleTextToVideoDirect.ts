@@ -522,16 +522,35 @@ async function handleVideoReady(
     // Используем оригинальный URL видео с сервера
     const uploadedUrl = videoUrl
 
-    // Обновляем сообщение
+    // Cosmetic status edit -- must NOT gate delivery. The progress message can be
+    // >48h old, deleted by the user, or carry an invalid id -> Telegram 400. The
+    // idempotency claim (claimVideoJobDelivery) was already consumed above, so a
+    // throw here would jump to the outer catch, skip replyWithVideo, and leave
+    // redelivery blocked by the spent claim -- the finished video lost for good.
+    // Catch and proceed to the actual video send.
     if (ctx && ctx.telegram && ctx.chat) {
-      await ctx.telegram.editMessageText(
-        ctx.chat.id,
-        messageId,
-        undefined,
-        is_ru
-          ? '✅ Видео успешно сгенерировано! Отправляю...'
-          : '✅ Video generated successfully! Sending...'
-      )
+      try {
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          messageId,
+          undefined,
+          is_ru
+            ? '✅ Видео успешно сгенерировано! Отправляю...'
+            : '✅ Video generated successfully! Sending...'
+        )
+      } catch (editError) {
+        logger.warn(
+          '[handleVideoReady] status editMessageText failed; proceeding to delivery',
+          {
+            jobId,
+            telegram_id,
+            error:
+              editError instanceof Error
+                ? editError.message
+                : String(editError),
+          }
+        )
+      }
     }
 
     // Получаем информацию о модели для подписи из unified config
