@@ -39,7 +39,14 @@ const startScene = new Scenes.WizardScene<MyContext>(
       // Получаем информацию о боте
       let botName = 'AI Bot'
       try {
-        const result = getBotNameByToken(process.env.BOT_TOKEN || '')
+        // Resolve the CURRENT bot from the live context token, not the singular
+        // process.env.BOT_TOKEN. This is a multi-bot process: bots are keyed by
+        // per-bot tokens (BOT_TOKEN_1, ...), so process.env.BOT_TOKEN never
+        // matches the running bot and getBotNameByToken fell back to the default
+        // ('neuro_blogger_bot'), making EVERY bot show that bot's welcome
+        // branding. ctx.telegram.token is the correct source (as every other
+        // scene uses, e.g. neuroPhotoWizard / cryptoPaymentScene).
+        const result = getBotNameByToken(ctx.telegram.token)
         botName = result.bot_name
       } catch (error) {
         console.warn('⚠️ Не удалось получить имя бота:', error)
