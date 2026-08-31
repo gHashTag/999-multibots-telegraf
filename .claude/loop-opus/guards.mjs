@@ -27,6 +27,7 @@ const GUARDS = [
   'src/__tests__/money/creditNotInLoop.test.ts', // #1468/#1470 credit-in-loop mint
   'src/__tests__/security/privilegedCommandAdminGate.test.ts', // #1441 admin gate (addbalance mints)
   'src/__tests__/security/x402CreditFailClosed.test.ts', // iter189 x402 credit fail-closed (no settlement verify)
+  'src/__tests__/security/creditWebhookAuthenticated.test.ts', // iter190 repo-wide: every credit-route authed before crediting
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
