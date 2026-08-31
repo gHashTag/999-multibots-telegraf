@@ -622,10 +622,31 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
 
       const data = response.data.data || response.data
 
-      // ✅ Проверяем флаг успеха
-      if (data.successFlag === true || data.success === true) {
-        const resultUrls = data.resultUrls || []
-        const videoUrl = Array.isArray(resultUrls) ? resultUrls[0] : resultUrls
+      // Kie's /api/v1/jobs/taskStatus returns a unified shape: data.state
+      // ('waiting'|'queuing'|'generating'|'success'|'fail'), the result URLs
+      // inside the JSON string data.resultJson, and failures in data.failMsg --
+      // the same shape the sibling poller wan25-helpers.ts reads against the
+      // very same endpoint. The successFlag / resultUrls / errorMsg fields this
+      // method used to read belong to the WEBHOOK callback payload, NOT this
+      // query response, so every real terminal state fell through to the final
+      // 'processing' fallback: on a lost delivery webhook the fallback poll
+      // never delivered a completed job nor failed a failed one, running to the
+      // 10-min timeout that refunds a job Kie had actually produced.
+      const state = data.state
+
+      // ✅ Success: the URL lives inside the resultJson string.
+      if (state === 'success') {
+        let videoUrl = ''
+        try {
+          const resultJson = data.resultJson ? JSON.parse(data.resultJson) : {}
+          const urls = resultJson.resultUrls
+          videoUrl = Array.isArray(urls) ? urls[0] || '' : urls || ''
+        } catch {
+          logger.error('❌ [KIE PROVIDER] resultJson parse failed', {
+            taskId: predictionId,
+            resultJson: data.resultJson,
+          })
+        }
 
         if (videoUrl) {
           logger.info('✅ [KIE PROVIDER] Задача завершена успешно', {
@@ -643,45 +664,30 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
             message: 'Task completed successfully',
           }
         }
-      }
-
-      // ✅ Если задача еще в процессе
-      if (data.status === 'processing' || data.successFlag === false) {
-        logger.info('⏳ [KIE PROVIDER] Задача еще в процессе', {
-          taskId: predictionId,
-        })
-
-        return {
-          id: predictionId,
-          taskId: predictionId,
-          output: '',
-          modelUsed: 'Veed Fabric AI',
-          provider: 'kie',
-          status: 'processing',
-          message: 'Task is still processing',
-        }
+        // success but no parseable URL yet: fall through to 'processing' and
+        // keep polling rather than refunding a job that actually succeeded.
       }
 
       // ✅ Если произошла ошибка на стороне Kie.ai
-      if (data.errorMsg || data.error) {
+      if (state === 'fail') {
         logger.error('❌ [KIE PROVIDER] Ошибка обработки задачи', {
           taskId: predictionId,
-          error: data.errorMsg || data.error,
+          error: data.failMsg || data.failCode,
         })
 
         return {
           message: 'Task failed on Kie.ai side',
-          error: data.errorMsg || data.error || 'Unknown error',
+          error: data.failMsg || data.failCode || 'Unknown error',
           code: 'TASK_FAILED',
           provider: 'kie',
           modelId: 'veed-fabric',
         }
       }
 
-      // ✅ Неизвестный статус
-      logger.warn('⚠️ [KIE PROVIDER] Неизвестный статус задачи', {
+      // ✅ Task still in flight (waiting / queuing / generating / unknown).
+      logger.info('⏳ [KIE PROVIDER] Задача еще в процессе', {
         taskId: predictionId,
-        data,
+        state,
       })
 
       return {
@@ -691,7 +697,7 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
         modelUsed: 'Veed Fabric AI',
         provider: 'kie',
         status: 'processing',
-        message: 'Unknown status, assuming still processing',
+        message: 'Task is still processing',
       }
     } catch (error) {
       // ✅ КРИТИЧЕСКОЕ ЛОГИРОВАНИЕ: Детали ошибки API запроса
