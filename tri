@@ -1088,6 +1088,11 @@ case "$action" in
   # falls through to the directory argument and answers "нет каталога check".
   # A verb that cannot be mistyped into silence is worth the extra dispatch line.
   scan-check|скан-проверка) node "$TOOLS/anomalies-selftest.mjs" ;;
+  # EVERY KIE FUNCTION, WITHOUT SPENDING A CREDIT. A rejected generation costs
+  # nothing, so deliberately invalid input separates "the model exists" from
+  # "the id is wrong" for free. Two seconds, and the balance is read before and
+  # after so "it cost nothing" is measured rather than claimed.
+  kie)                 node "$ROOT/scripts/kie-probe.mjs" "${@:2}" ;;
   panel|панель)        node "$TOOLS/dashboard.mjs" ;;
   tests|тесты)         bash "$TOOLS/test-all.sh" ;;
   routes|маршруты)     node "$TOOLS/check-routes.mjs" ;;
