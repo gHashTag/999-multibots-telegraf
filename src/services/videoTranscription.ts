@@ -424,6 +424,12 @@ class VideoTranscriptionService {
                   headers: {
                     Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}`,
                   },
+                  // Without a timeout a single hung status request blocks the
+                  // await forever, defeating the maxAttempts (5-min) bound and
+                  // never reaching the OpenAI fallback below. Match the sibling
+                  // POST (:382). On timeout axios throws -> caught by the
+                  // Replicate catch -> falls through to OpenAI.
+                  timeout: 30000,
                 }
               )
 
