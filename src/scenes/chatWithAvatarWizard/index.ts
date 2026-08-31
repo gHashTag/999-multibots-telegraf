@@ -91,7 +91,26 @@ async function processUserMessage(
         ? `✨ Изображение сгенерировано с помощью Nano Banana Pro\n\n💫 Стоимость: ${response.cost || 'N/A'}⭐`
         : `✨ Image generated using Nano Banana Pro\n\n💫 Cost: ${response.cost || 'N/A'}⭐`
 
-      await ctx.replyWithPhoto(response.imageUrl, { caption })
+      try {
+        await ctx.replyWithPhoto(response.imageUrl, { caption })
+      } catch (deliveryError) {
+        // Photo-by-URL delivery can fail on an oversized/high-dimension image
+        // (Telegram photo limits) even with a valid URL; fall back to document
+        // delivery so the user still receives the image they were charged for.
+        // A genuinely unreachable URL fails both paths -- the missing refund for
+        // that case is a separate owner-reviewed money fix, not handled here.
+        logger.error(
+          '[chatWithAvatarWizard] Photo delivery failed; falling back to document',
+          {
+            telegramId,
+            error:
+              deliveryError instanceof Error
+                ? deliveryError.message
+                : String(deliveryError),
+          }
+        )
+        await ctx.replyWithDocument(response.imageUrl, { caption })
+      }
     } else {
       const textResponse = response as string
       // Send text first so user sees the response immediately
