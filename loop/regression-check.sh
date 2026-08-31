@@ -208,5 +208,30 @@ if [ "$runway" = "house" ]; then say "  ✅ дом не платит себе (�
 elif [ "${runway:-0}" -ge 4 ] 2>/dev/null; then say "  ✅ запас хода $runway рилсов (>= дневной лимит 4)"
 else say "  ❌ запаса хода $runway рилсов (< 4): фабрика встанет в пределах суток"; fail=1; fi
 
+say "— Слепок имён переменных деплоя —"
+# ПОЧЕМУ ЭТО ЗДЕСЬ, А НЕ В ТЕСТЕ. channel-env-contract.test.ts сверяет имена,
+# которые читает код, с checked-in списком loop/deploy-env-names.txt. Список
+# ржавеет ровно в тот момент, когда кто-то правит переменные в Railway — и с
+# этой минуты контракт-тест проверяет прошлогоднюю реальность, то есть не
+# проверяет ничего. Увидеть расхождение может только тот, кто спросит сам
+# деплой; из теста (без сети, без логина) — нельзя. Отсюда и разделение.
+manifest="$HOME/999-multibots-telegraf/loop/deploy-env-names.txt"
+live=$(railway variables list -s vibee-render -e production --kv 2>/dev/null | cut -d= -f1 | grep -E '^[A-Z][A-Z0-9_]*$' | sort)
+if [ -z "$live" ]; then
+  # Три исхода, а не два: «не смог измерить» — это НЕ «чисто».
+  say "  ⚠️ Railway не ответил — свежесть слепка НЕ измерена"
+elif [ ! -f "$manifest" ]; then
+  say "  ❌ нет $manifest — контракт-тест сверяется с пустотой"; fail=1
+else
+  drift=$(diff <(grep -v '^#' "$manifest" | grep -v '^[[:space:]]*$') <(printf '%s\n' "$live"))
+  if [ -z "$drift" ]; then
+    say "  ✅ слепок совпадает с деплоем ($(printf '%s\n' "$live" | wc -l | tr -d ' ') имён)"
+  else
+    say "  ❌ слепок разошёлся с деплоем — пересними и разберись, что изменилось:"
+    printf '%s\n' "$drift" | head -12 | sed 's/^/     /'
+    fail=1
+  fi
+fi
+
 say ""
 if [ $fail -eq 0 ]; then say "РЕГРЕСС: ЧИСТО"; else say "РЕГРЕСС: ЕСТЬ ПРОВАЛЫ (см. ❌ выше)"; exit 1; fi

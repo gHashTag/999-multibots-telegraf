@@ -1,0 +1,27 @@
+{
+  "_что_это": "ПРИМЕР входа для рилса с лицом и голосом. Скопируйте в loop/face-source.json (или укажите путь в AUTOPILOT_FACE_SOURCE) и запустите автопилот с флагом --face. Без флага файл не читается вовсе.",
+  "_откуда_речь": "У композиции SplitTalkingHead НЕТ входа для озвучки: голос ролика — это звуковая дорожка самого lipSyncVideo. Значит один такой файл = один готовый артефакт, а не конвейер. Ничего не синтезируется и не клонируется.",
+  "_честная_оговорка": "Клип по этим адресам — 26-секундный скрипт, в котором говорящий сам называет себя цифровым клоном, озвученным AI. Выдавать его за живой голос владельца нельзя. Замените адреса на своё видео, когда оно появится.",
+  "_проверено": "Все пять адресов отвечали 206 на диапазонный GET 2026-08-31. Адреса ОБЯЗАНЫ быть абсолютными http(s): в образе рендера каталога public/ нет (git ls-files render/public = 0), поэтому относительный путь превращается в 404.",
+  "_контракт_и_отказы": "apps/vibee-editor/render/src/face-source.ts. Проверки: captions только {text,startMs,endMs} (голые строки отклоняются), segments только {type,startFrame,durationFrames,bRollUrl,bRollType} в КАДРАХ (форма {url,duration} отклоняется), title обязателен — он же ключ дедупликации, который не даёт отправить один и тот же клип дважды.",
+
+  "title": "Вайби: цифровой клон",
+  "description": "Двадцать шесть секунд лица и голоса — визитка, а не пайплайн.",
+  "lipSyncVideo": "https://app.t27.ai/lipsync/lipsync.mp4",
+  "durationSeconds": 25.92,
+  "bRolls": [
+    "https://app.t27.ai/backgrounds/business/bg00.mp4",
+    "https://app.t27.ai/backgrounds/business/bg01.mp4",
+    "https://app.t27.ai/backgrounds/business/bg02.mp4"
+  ],
+  "music": "https://app.t27.ai/audio/music/bgmusic.mp3",
+  "musicVolume": 0.06,
+  "ctaText": "t27.ai",
+  "ctaHighlight": "t27",
+  "_captions": "Субтитры обязательно объектами. Готовые 75 слов к этому клипу лежат на https://app.t27.ai/lipsync/captions.json и в репозитории: apps/vibee-editor/player/public/lipsync/captions.json. Вставьте их сюда массивом — автоподхвата НЕТ: POST /transcribe объявлен в баннере рендер-сервера, но обработчика для него не существует.",
+  "captions": [
+    { "text": "Меня", "startMs": 110, "endMs": 270 },
+    { "text": "зовут", "startMs": 270, "endMs": 610 },
+    { "text": "Вайби", "startMs": 610, "endMs": 920 }
+  ]
+}

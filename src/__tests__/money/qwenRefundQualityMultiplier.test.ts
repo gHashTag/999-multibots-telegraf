@@ -3,7 +3,7 @@
  * with skipBalanceCheck: true, AFTER the scene has charged costPerImage *
  * qualityMultiplier(size) per image (2K -> x4, 4K -> x6). On a Replicate/API
  * failure the service refunds `totalCost`. Before this fix `totalCost` was the
- * FLAT base (costPerImage, no multiplier), so a failed 2K image was charged 12
+ * FLAT base (costPerImage, without the size factor), so a 2K image was charged 12
  * stars but refunded only 3 -- the user lost 9 (15 at 4K). The two sibling
  * services generateSeedEdit3 and generateFluxKontextPro already apply the same
  * qualityMultiplier to totalCost; qwen alone omitted it (copy-paste gap).

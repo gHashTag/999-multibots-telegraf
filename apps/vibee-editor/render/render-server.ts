@@ -381,7 +381,13 @@ const calculateCropSettings: FaceApi['calculateCropSettings'] = (...a) => {
 }
 import { Pool } from 'pg'
 import { creditStarsPayment } from './src/stars-credit'
+import {
+  ENV_NAMES,
+  MARK_POSTED,
+  readChannelConfig,
+} from './src/channel-delivery'
 import { spendByTid, refundByTid } from './src/agent/billing-shared'
+import { lipSyncVideoOf, templateDurationInFrames } from './src/render-duration'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
  *
@@ -507,7 +513,15 @@ async function postReelToChannel(input: {
       ok?: boolean
       description?: string
     }
-    if (r.ok && body.ok) return { posted: true }
+    // SUCCESS SPEAKS TOO. A delivered reel used to leave no trace anywhere --
+    // not in the logs, not in the database -- so "delivered", "refused" and
+    // "never attempted" looked identical, and the proof that the channel worked
+    // was the ABSENCE of an error line. That monitor cannot tell a live channel
+    // from one nobody is writing to.
+    if (r.ok && body.ok) {
+      console.log(`[Feed] Опубликовано в канал ${chatId}`)
+      return { posted: true }
+    }
     // description от Telegram информативен («chat not found», «bot was blocked»)
     // — отдаём его как есть, он полезнее нашего пересказа.
     const why = body.description || `HTTP ${r.status}`
@@ -519,6 +533,31 @@ async function postReelToChannel(input: {
       `[Feed] Публикация в канал ${chatId} НЕ состоялась: ${reason}`
     )
     return { posted: false, error: `Telegram недоступен: ${reason}` }
+  }
+}
+
+/**
+ * THE DELIVERY MARK -- ONE LEDGER FOR BOTH PATHS.
+ *
+ * NOTHING has ever written template_settings.tg_posted_at: the live path above
+ * returned {posted:true} and left no trace, and the only code that stamped the
+ * mark sat in a script with no caller. Measured against production on
+ * 2026-08-31: 37 of the owner's 37 feed rows carry no mark, including the ones
+ * already visible in the channel. Until the mark exists, any drain of the queue
+ * starts from the beginning and repeats everything subscribers have seen.
+ *
+ * Written where the outcome is known, and a failure to write it does NOT fail
+ * the publication: the feed row is useful on its own. A failed stamp is loud in
+ * the log, because its cost is a possible repeat post rather than silence.
+ */
+async function markDeliveredToChannel(id: number): Promise<void> {
+  try {
+    await getPool().query(MARK_POSTED, [id])
+  } catch (e) {
+    const why = e instanceof Error ? e.message : String(e)
+    console.error(
+      `[Feed] метка доставки НЕ записана (id ${id}): ${why} — рилс может уйти в канал повторно`
+    )
   }
 }
 
@@ -4008,10 +4047,23 @@ const server = createServer(async (req, res) => {
               ...(request.props || {}),
             }
 
-            let durationInFrames = 900 // 30 seconds default
+            /**
+             * null means "nothing was measured, keep calculateMetadata's
+             * answer". It used to be 900 and it used to be applied
+             * unconditionally, which is how a 3.2-second clip was published as
+             * a 30-second freeze-frame (feed id 20). See src/render-duration.ts.
+             */
+            let measuredDurationInFrames: number | null = null
 
-            // Handle lipSyncVideo if provided (common for talking head templates)
-            let lipSyncVideoPath = request.lipSyncVideo
+            /**
+             * Read the clip from `props` too, not only from the top level.
+             *
+             * reel_render (src/agent/tools.ts:1032) sends ONLY
+             * {compositionId, props}, so this whole block -- duration
+             * detection, face cropping, the default segment -- was dead code
+             * for every render the agent has ever started.
+             */
+            let lipSyncVideoPath = lipSyncVideoOf(request)
 
             // Pre-download S3 assets for faster rendering
             if (lipSyncVideoPath && lipSyncVideoPath.includes('/s3/')) {
@@ -4028,10 +4080,13 @@ const server = createServer(async (req, res) => {
               if (fs.existsSync(videoPath)) {
                 // Get video duration
                 const duration = getVideoDuration(videoPath)
-                if (duration > 0) {
-                  durationInFrames = Math.ceil(duration * fps)
+                measuredDurationInFrames = templateDurationInFrames({
+                  measuredSeconds: duration,
+                  fps,
+                })
+                if (measuredDurationInFrames) {
                   console.log(
-                    `📏 Video duration: ${duration.toFixed(2)}s = ${durationInFrames} frames`
+                    `📏 Video duration: ${duration.toFixed(2)}s = ${measuredDurationInFrames} frames`
                   )
                 }
 
@@ -4071,12 +4126,20 @@ const server = createServer(async (req, res) => {
                 fps
               )
             } else if (lipSyncVideoPath && !inputProps.segments) {
-              // Default fullscreen segment for lipsync videos
+              /**
+               * Default fullscreen segment. When nothing was measured this
+               * used to be exactly 900 frames; a segment longer than the
+               * composition is harmless (SplitTalkingHead falls back to
+               * fullscreen for any frame no segment covers), a segment SHORTER
+               * than it silently truncates the b-roll rhythm. So an unmeasured
+               * clip gets a deliberately generous cover rather than a guess
+               * that could cut the reel short.
+               */
               inputProps.segments = [
                 {
                   type: 'fullscreen',
                   startFrame: 0,
-                  durationFrames: durationInFrames,
+                  durationFrames: measuredDurationInFrames ?? 30 * 60 * fps,
                   caption: '',
                 },
               ]
@@ -4139,9 +4202,21 @@ const server = createServer(async (req, res) => {
               timeoutInMilliseconds: 300000, // 5 minutes for slow video loading
             })
 
-            // Override duration if we detected it
-            if (durationInFrames > 0) {
-              ;(composition as any).durationInFrames = durationInFrames
+            /**
+             * Override ONLY what was measured here. Anything else is already
+             * on the composition, put there by calculateMetadata, which reads
+             * the video's real metadata (over http as well as from disk).
+             * Overwriting it with a constant is what produced the freeze-frame.
+             */
+            if (measuredDurationInFrames) {
+              console.log(
+                `📏 Overriding composition duration: ${composition.durationInFrames} → ${measuredDurationInFrames}`
+              )
+              ;(composition as any).durationInFrames = measuredDurationInFrames
+            } else {
+              console.log(
+                `📏 Duration from calculateMetadata: ${composition.durationInFrames} frames (nothing measured locally)`
+              )
             }
 
             // Render video
@@ -5151,6 +5226,9 @@ const server = createServer(async (req, res) => {
               // на служебный адрес Railway вместо собственного домена.
               `🎬 ${data.name}\n\n👤 ${data.creator_name}\n🔗 ${CANONICAL_SITE}\n\n#рилс #нейросети #TrinityS3AI`,
           })
+          // The mark goes on ONLY after Telegram confirms: a stamp that
+          // survives a failed send drops the reel from the queue for ever.
+          if (telegram.posted) await markDeliveredToChannel(row.id)
         }
 
         res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -7610,6 +7688,21 @@ async function main() {
     console.log(
       `🔒 Auth: mode=${authMode()} apiKey=${process.env.RENDER_API_KEY ? 'set' : 'MISSING'} ` +
         `botToken=${process.env.TELEGRAM_BOT_TOKEN ? 'set' : 'MISSING'}`
+    )
+    /**
+     * A RUNTIME WITNESS for the channel.
+     *
+     * A variable NAME is the one thing neither types nor tests can check: any
+     * name compiles, and a test that mocks the environment sets whatever name
+     * the code reads. Only the DEPLOY can disagree, and this line is where that
+     * disagreement is visible at a glance in the boot log -- instead of a day
+     * later, as a channel that quietly received nothing.
+     */
+    const chCfg = readChannelConfig()
+    console.log(
+      `📣 Channel: token=${chCfg.token ? `set (${chCfg.tokenFrom})` : `MISSING (${ENV_NAMES.token.join('|')})`} ` +
+        `chat=${chCfg.chatId ? `set (${chCfg.chatIdFrom})` : `MISSING (${ENV_NAMES.chatId.join('|')})`} ` +
+        `cap=${chCfg.maxPerRun}/прогон ${chCfg.maxPerDay}/сутки`
     )
     console.log(`📍 HTTP Endpoints:`)
     console.log(`   GET  /health       - Health check`)
