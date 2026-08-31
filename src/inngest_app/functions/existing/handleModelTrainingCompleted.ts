@@ -128,6 +128,37 @@ export function createHandleModelTrainingCompletedFunction(inngest: any) {
           trigger_word: trainingRecord.trigger_word,
         })
 
+        // Replay dedup. Replicate webhooks are at-least-once: a re-POST creates a
+        // NEW Inngest event = a NEW run of this function, which would re-send the
+        // completion Telegram message. If the record is ALREADY terminal when
+        // this run reads it, a prior run finalized + notified it -> skip. The
+        // find-training-record step is memoized within a run, so a run that read
+        // a non-terminal status keeps attempting the notify across Inngest retries
+        // (no first notification is ever dropped); only a separate replay run sees
+        // the terminal status and skips.
+        const TERMINAL_STATUSES = ['SUCCESS', 'FAILED', 'CANCELED']
+        if (
+          TERMINAL_STATUSES.includes(
+            String(trainingRecord.status || '').toUpperCase()
+          )
+        ) {
+          logger.info(
+            '[TRAINING COMPLETED] Record already terminal at read time — replay, skipping re-notify',
+            {
+              training_id: eventData.training_id,
+              telegram_id: trainingRecord.telegram_id,
+              currentStatus: trainingRecord.status,
+            }
+          )
+          return {
+            success: true,
+            skipped: true,
+            reason: 'already terminal (replay dedup)',
+            training_id: eventData.training_id,
+            status: eventData.status,
+          }
+        }
+
         // ✅ STEP 2: Update training status in database
         const dbUpdateResult = await step.run(
           'update-training-status',
