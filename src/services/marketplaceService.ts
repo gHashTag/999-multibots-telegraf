@@ -41,6 +41,14 @@ import { updateUserBalance } from '@/core/supabase/updateUserBalance'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { logger } from '@/utils/logger'
 
+// In-flight guard against a double purchase: a buyer double-tapping "Buy" (or
+// racing callbacks) would run purchaseItem twice and be charged twice for one
+// item (author paid twice). Keyed by `${buyerId}:${itemId}`, claimed before the
+// charge and released on every exit -- so a failed charge does not block a retry.
+// Self-bounding (entries are deleted on completion). In-process (resets on
+// restart); the durable key is the marketplace_purchases row.
+const purchasesInFlight = new Set<string>()
+
 export type MarketplaceItemType =
   | 'prompt_pack'
   | 'style'
@@ -122,6 +130,14 @@ export async function purchaseItem(
     return { success: false, error: 'cannot_buy_own' }
   }
 
+  const purchaseKey = `${buyerId}:${itemId}`
+  if (purchasesInFlight.has(purchaseKey)) {
+    // A concurrent purchase of the same item is already charging; deliver the
+    // content without charging again.
+    return { success: true, content: item.content }
+  }
+  purchasesInFlight.add(purchaseKey)
+
   // Deduct from buyer
   const deducted = await updateUserBalance(
     buyerId,
@@ -134,7 +150,10 @@ export async function purchaseItem(
       modePrice: item.price_stars,
     }
   )
-  if (!deducted) return { success: false, error: 'insufficient_balance' }
+  if (!deducted) {
+    purchasesInFlight.delete(purchaseKey)
+    return { success: false, error: 'insufficient_balance' }
+  }
 
   // Credit 95% to author. updateUserBalance returns false on a failed credit
   // (it does not throw); the buyer has already been charged and will receive the
@@ -170,6 +189,7 @@ export async function purchaseItem(
     /* table may not exist */
   }
 
+  purchasesInFlight.delete(purchaseKey)
   return { success: true, content: item.content }
 }
 
