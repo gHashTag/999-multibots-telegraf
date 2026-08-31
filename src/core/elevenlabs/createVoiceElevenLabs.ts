@@ -27,6 +27,13 @@ async function downloadVoiceMessage(fileUrl: string, downloadPath: string) {
     url: fileUrl,
     method: 'GET',
     responseType: 'stream',
+    // Bound the connection: without a timeout a hung download blocks this await
+    // forever. voiceAvatarWizard holds an in-flight guard across createVoiceAvatar,
+    // so a permanent hang here also locks the user out of the feature until the
+    // process restarts. On timeout axios throws -> the promise rejects (handled
+    // below) -> the wizard releases the guard and does not charge (charge-on-
+    // success). A voice file is small; 60s is far above a normal download.
+    timeout: 60000,
   })
   logger.info(
     '[downloadVoiceMessage] Axios GET successful. Piping stream to writer.',
