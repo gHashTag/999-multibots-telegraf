@@ -32,6 +32,13 @@ interface TestTrainingRequest {
 }
 
 router.post('/test-training', async (req, res) => {
+  // Debug-only endpoint (currently unmounted). It writes a model_trainings row
+  // and sends Telegram messages for an ARBITRARY telegramId with no auth. Gate it
+  // out of production so wiring it up later cannot expose an unauthenticated
+  // write/notify vector; enable only in dev.
+  if (process.env.NODE_ENV !== 'development') {
+    return res.status(404).json({ error: 'Not found' })
+  }
   const startTime = Date.now()
   const requestId = `test-${Date.now()}`
 

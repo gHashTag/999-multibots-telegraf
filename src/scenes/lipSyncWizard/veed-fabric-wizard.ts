@@ -515,6 +515,26 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
+      // A 0 or negative cost degenerates the balance gate below into
+      // `currentBalance < 0`, which always passes -> free paid generation.
+      // estimatedDurationSeconds can be 0: a voice message reporting duration 0
+      // (only the >30 upper bound is checked, no lower bound) becomes
+      // 'voice_message_0' -> parseInt 0, and an empty text yields
+      // Math.ceil(0 / 15) = 0. Reject a non-positive cost before the gate.
+      if (!(cost > 0)) {
+        logger.warn('[VEED FABRIC] Rejecting non-positive cost', {
+          telegramId,
+          estimatedDurationSeconds,
+          cost,
+        })
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось определить длительность (нулевая стоимость). Отправьте корректное голосовое сообщение или текст.'
+            : '❌ Could not determine duration (zero cost). Please send a valid voice message or text.'
+        )
+        return ctx.scene.leave()
+      }
+
       if (currentBalance < cost) {
         await ctx.reply(
           isRu
@@ -609,9 +629,20 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
 
     // Обработка подтверждения
     if (callbackData === 'veed_fabric_confirm') {
+      if (ctx.session.veedFabricInProgress) {
+        await ctx.answerCbQuery(
+          isRu
+            ? '⏳ Уже обрабатываю, подождите...'
+            : '⏳ Already processing, please wait...'
+        )
+        return
+      }
+      ctx.session.veedFabricInProgress = true
+
       await ctx.answerCbQuery()
 
       if (!telegramId) {
+        ctx.session.veedFabricInProgress = false
         await ctx.reply(
           isRu
             ? '❌ Ошибка: не удалось определить ваш ID'
@@ -620,6 +651,19 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
+      // charged: was the balance actually debited? refundHandled: has an
+      // inner refund already run? (refundAndTell does the DB refund THEN a reply;
+      // a reply-throw after a successful refund propagates to the outer catch,
+      // which must NOT refund a second time.) chargedCost hoists the amount --
+      // `cost` is destructured inside the try and is not in scope in the catch.
+      let charged = false
+      let refundHandled = false
+      let chargedCost = 0
+      // dispatched: did startAsyncGeneration return a jobId? Once it has,
+      // the async manager OWNS the job's money outcome (it refunds job.cost on
+      // failure and does not re-charge on success), so a post-dispatch reply-throw
+      // must NOT refund here -- that would mint (video delivered + refunded).
+      let dispatched = false
       try {
         // Получаем сохраненные данные из сессии
         const { imageUrl, text, audioUrl, cost, duration } =
@@ -661,6 +705,9 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           )
           return ctx.scene.leave()
         }
+
+        charged = true
+        chargedCost = cost
 
         const currentBalance = await getUserBalance(telegramId)
         const newBalance = currentBalance ? currentBalance : 0
@@ -770,6 +817,7 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
 
             // Возврат средств. Говорим человеку то, что произошло на самом
             // деле: начисление может не пройти.
+            refundHandled = true
             await refundAndTell({
               ctx,
               telegramId,
@@ -831,6 +879,7 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             ctx.chat!.id,
             ctx.botInfo
           )
+          dispatched = true
 
           await ctx.reply(
             isRu
@@ -867,29 +916,59 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
             textLength: text?.length || 0,
           })
 
-          // Возврат средств. Сообщение зависит от того, прошло ли начисление.
-          await refundAndTell({
-            ctx,
-            telegramId,
-            amount: cost,
-            description: 'Lip-sync refund - startup error',
-            reason: {
-              ru: 'Ошибка запуска генерации',
-              en: 'Error starting generation',
-            },
-            isRu,
-          })
+          // Only a PRE-dispatch throw warrants a refund here. If the job was
+          // already dispatched (jobId returned) and only the confirmation reply
+          // threw, the async manager owns the refund-on-failure / no double-charge
+          // -- refunding here as well would mint. See #1329.
+          if (!dispatched) {
+            refundHandled = true
+            await refundAndTell({
+              ctx,
+              telegramId,
+              amount: cost,
+              description: 'Lip-sync refund - startup error',
+              reason: {
+                ru: 'Ошибка запуска генерации',
+                en: 'Error starting generation',
+              },
+              isRu,
+            })
+          } else {
+            logger.warn(
+              '[VEED FABRIC] Post-dispatch reply threw; NOT refunding (async manager owns the job money lifecycle)',
+              { telegramId }
+            )
+          }
         }
 
         return ctx.scene.leave()
       } catch (error) {
         logger.error('❌ Ошибка в Veed Fabric wizard Step 3', { error })
+        // The outer catch only fires on a pre-dispatch setup throw (the async
+        // job start is inside the genError try, and the only path past it is a
+        // non-throwing leave()), so no video was started -- refund is correct.
+        if (charged && !refundHandled) {
+          refundHandled = true
+          await refundAndTell({
+            ctx,
+            telegramId,
+            amount: chargedCost,
+            description: 'Lip-sync refund - outer error',
+            reason: {
+              ru: 'Произошла ошибка',
+              en: 'An error occurred',
+            },
+            isRu,
+          })
+        }
         await ctx.reply(
           isRu
             ? '❌ Произошла ошибка. Попробуйте позже.'
             : '❌ An error occurred. Try again later.'
         )
         return ctx.scene.leave()
+      } finally {
+        ctx.session.veedFabricInProgress = false
       }
     }
 

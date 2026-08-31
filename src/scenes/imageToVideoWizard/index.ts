@@ -340,28 +340,45 @@ export const imageToVideoWizard = new Scenes.WizardScene<MyContext>(
         imageUrl,
       })
 
-      // Генерируем видео - показываем ПОЛНЫЙ промпт пользователю
-      await ctx.reply(
-        isRu
-          ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt}`
-          : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt}`
-      )
+      // In-flight guard (mirror textToImageWizard): a second tap at this step
+      // re-enters handleImageToVideoDirect (which charges) and generates a second
+      // video off one balance. Reject-before-set, set synchronously, release in
+      // finally.
+      if (ctx.session.imageToVideoInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже генерирую видео, подождите немного...'
+            : '⏳ Already generating a video, please wait a moment...'
+        )
+        return
+      }
+      ctx.session.imageToVideoInProgress = true
+      try {
+        // Generate the video -- show the user the full prompt
+        await ctx.reply(
+          isRu
+            ? `🎬 Генерируем видео...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt}`
+            : `🎬 Generating video...\n📋 ${selectedModel} | ${aspectRatio} | ${cost}⭐\n💭 ${prompt}`
+        )
 
-      const videoModelId = selectedModel as VideoModelId
-      await handleImageToVideoDirect(
-        ctx,
-        imageUrl,
-        prompt,
-        videoModelId,
-        duration,
-        aspectRatio
-      )
-      console.log('🎬 [I2V WIZARD] Video generation success!')
+        const videoModelId = selectedModel as VideoModelId
+        await handleImageToVideoDirect(
+          ctx,
+          imageUrl,
+          prompt,
+          videoModelId,
+          duration,
+          aspectRatio
+        )
+        console.log('🎬 [I2V WIZARD] Video generation success!')
 
-      // ✅ FIX: Сохраняем последнюю сцену для кнопки "Повторить генерацию"
-      ctx.session.lastCompletedVideoScene = ModeEnum.ImageToVideo as any
+        // Save the last scene for the "Repeat generation" button
+        ctx.session.lastCompletedVideoScene = ModeEnum.ImageToVideo as any
 
-      return ctx.scene.leave()
+        return ctx.scene.leave()
+      } finally {
+        ctx.session.imageToVideoInProgress = false
+      }
     } catch (error) {
       console.error('🎬 [I2V WIZARD] Step 3 ERROR:', error)
       await ctx.reply('❌ Ошибка в третьем шаге wizard')

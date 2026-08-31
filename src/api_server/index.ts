@@ -23,6 +23,7 @@ import { logger } from '@/utils/logger'
 // ✅ Webhook health verification on startup
 import { verifyWebhooksOnStartup } from '@/utils/webhookHealthCheck'
 import { requireInternalKey } from './middleware/requireInternalKey'
+import { redactSensitiveHeaders } from '@/utils/redactHeaders'
 
 // Определяем порт. Railway/Fly/Docker предоставляют PORT; мы используем API_PORT как override.
 // LAST FIX: 2025-11-25 - изменен с 2999 на 3000 согласно WEBHOOK_502_BAD_GATEWAY_FIX
@@ -69,7 +70,9 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
     logger.info(`[API] Request received`, {
       method: req.method,
       url: req.url,
-      headers: req.headers,
+      // redactSensitiveHeaders masks x-secret-key/authorization/cookie/telegram
+      // secret; logging raw req.headers leaks them (CWE-532).
+      headers: redactSensitiveHeaders(req.headers),
       body: req.body
         ? JSON.stringify(req.body).substring(0, 200) + '...'
         : '{}',
@@ -77,8 +80,12 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
     next()
   })
 
-  // Provider health endpoint
-  app.get('/api/providers', async (_req: any, res: any) => {
+  // Provider health endpoint. Behind requireInternalKey (like the sibling
+  // diagnostic/billing routers): the response leaks provider config/balance
+  // state ('FAL_KEY not set', 'Balance exhausted', remaining quota) and
+  // ?refresh=true forces live outbound provider probes + an admin alert, so
+  // it must not be anonymously reachable.
+  app.get('/api/providers', requireInternalKey, async (_req: any, res: any) => {
     const { getAllProviderStatuses, checkAllProviders } = await import(
       '../services/provider-health-monitor'
     )

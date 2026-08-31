@@ -1,4 +1,5 @@
 import express from 'express'
+import { createVideoDeliveryClaimer } from '@/helpers/videoDeliveryIdempotency'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
 import { videoTaskStore } from '@/services/video-task-store'
@@ -11,6 +12,7 @@ import {
   getVideoCompletionMessage,
 } from '@/helpers/videoCompletionKeyboard'
 import { verifyCallbackToken } from '@/utils/callbackToken'
+import { getUserLanguageFromDB } from '@/core/supabase'
 // ✅ EMERGENCY DISABLE: asyncLipSyncManager import causing TypeScript errors
 // import { asyncLipSyncManager } from '@/core/lipsync/async-lipsync-manager'
 
@@ -129,6 +131,27 @@ interface KieAiWebhookPayload {
  * checkBalanceVideoOperationHelper failed and the guard swallowed it. Now every
  * non-charge is logged as an error with the ids needed to find the case.
  */
+// Job ids already charged in this process. A provider webhook is delivered
+// at-least-once, and two concurrent deliveries of the same completed job both
+// reach chargeForDeliveredVideo; the ledger row it inserts is keyed on a
+// per-call timestamp, not the job, so it does not dedupe. This makes the charge
+// idempotent per job. Reset on restart — a durable guard would be a unique
+// inv_id per job on payments_v2 (owner migration).
+const chargedVideoJobs = new Set<string>()
+
+// Job ids already DELIVERED in this process. A provider webhook is delivered
+// at-least-once; two concurrent deliveries of the same completed job both pass
+// getTask before either deleteTask, so both reach sendVideo — the user gets the
+// video (and the public Pulse repost) twice. This makes the DELIVERY idempotent
+// per job, alongside the existing chargedVideoJobs charge guard. Bounded so a
+// long-lived multi-bot process cannot grow the set without limit (copied from
+// the sibling poller handleTextToVideoDirect.ts). Reset on restart.
+const claimVideoJobDelivery = createVideoDeliveryClaimer()
+// Separate claimer for FAILURE/content-policy notifications: at-least-once
+// provider retries must not re-send the same error text. Its own set so it
+// never collides with the success-delivery claim (see #1352).
+const claimVideoFailureNotify = createVideoDeliveryClaimer()
+
 async function chargeForDeliveredVideo(params: {
   telegramId: string
   modelId?: string
@@ -136,6 +159,20 @@ async function chargeForDeliveredVideo(params: {
   where: string
 }): Promise<void> {
   const { telegramId, modelId, jobId, where } = params
+  // Idempotency (in-process): a synchronous check-and-add on jobId makes the
+  // charge fire at most once per job, so a duplicate/concurrent webhook delivery
+  // no longer double-debits. It only ever SKIPS a charge, never adds one.
+  if (jobId) {
+    if (chargedVideoJobs.has(jobId)) {
+      logger.warn(
+        `⏭️ [${where}] duplicate delivery — charge already applied for this job`,
+        { jobId, telegramId }
+      )
+      return
+    }
+    chargedVideoJobs.add(jobId)
+  }
+
   const notCharged = (reason: string, extra: Record<string, unknown> = {}) => {
     logger.error(`❌ [${where}] VIDEO DELIVERED BUT NOT CHARGED`, {
       alert: 'video delivered for free',
@@ -242,6 +279,13 @@ async function sendVideoDirectly(
       )
     }
 
+    // Idempotency: claim the delivery before any await so a duplicate/concurrent
+    // webhook for this job — including a SEQUENTIAL duplicate that arrives after
+    // the task was deleted and falls to this direct path — skips the re-send and
+    // the downstream charge. Keys on the immutable jobId, same key as the charge
+    // guard (chargedVideoJobs).
+    if (metadata.jobId && !claimVideoJobDelivery(metadata.jobId)) return
+
     // ✅ Проверяем размер файла через HEAD запрос
     let fileSize = 0
     try {
@@ -294,7 +338,7 @@ async function sendVideoDirectly(
       )
 
       // ✅ Отправляем клавиатуру с кнопками продолжения (для больших файлов)
-      const isRuLargeFile = true
+      const isRuLargeFile = (await getUserLanguageFromDB(telegramId)) !== 'en'
       await botInstance.telegram.sendMessage(
         chatId,
         getVideoCompletionMessage(isRuLargeFile),
@@ -309,7 +353,7 @@ async function sendVideoDirectly(
 
     // ✅ Отправляем клавиатуру с кнопками продолжения
     try {
-      const isRu = true // По умолчанию русский
+      const isRu = (await getUserLanguageFromDB(telegramId)) !== 'en'
       await botInstance.telegram.sendMessage(
         chatId,
         getVideoCompletionMessage(isRu),
@@ -1129,6 +1173,11 @@ async function handleSoraSuccess(
       botName: taskContext.botName || 'default',
     })
 
+    // Idempotency: claim the delivery before any await so a duplicate/concurrent
+    // webhook for this job skips the re-send (video + status keyboard). Keys on
+    // the immutable taskId — the same key as the chargedVideoJobs charge guard.
+    if (!claimVideoJobDelivery(taskId)) return
+
     try {
       // Обновляем сообщение о статусе
       await botInstance.telegram.editMessageText(
@@ -1155,10 +1204,11 @@ async function handleSoraSuccess(
       )
 
       // ✅ Отправляем клавиатуру для продолжения работы
+      const isRu = (await getUserLanguageFromDB(taskContext.chatId)) !== 'en'
       await botInstance.telegram.sendMessage(
         taskContext.chatId,
-        getVideoCompletionMessage(true),
-        createVideoCompletionKeyboard(true)
+        getVideoCompletionMessage(isRu),
+        createVideoCompletionKeyboard(isRu)
       )
 
       // Удаляем сообщение о процессе генерации
@@ -1326,6 +1376,9 @@ async function handleSoraFailure(
         return
       }
 
+      // Idempotent: an at-least-once retry must not re-send this error. #1352
+      // Idempotent: an at-least-once retry must not re-send this error. #1352
+      if (taskId && !claimVideoFailureNotify(taskId)) return
       await botInstance.telegram.sendMessage(
         chatId,
         `❌ Ошибка генерации видео.\n\nПричина: ${translatedError}\n\nПопробуйте другой запрос или обратитесь в поддержку.`
@@ -1429,6 +1482,8 @@ async function handleSoraContentPolicy(
         return
       }
 
+      // Idempotent: an at-least-once retry must not re-send this error. #1352
+      if (taskId && !claimVideoFailureNotify(taskId)) return
       await botInstance.telegram.sendMessage(
         chatId,
         `🚫 Контент отклонен политикой безопасности.\n\nПричина: ${translatedError}\n\nПопробуйте другой запрос.`,
@@ -1785,6 +1840,8 @@ async function handleFailedGeneration(
           return
         }
 
+        // Idempotent: an at-least-once retry must not re-send this error. #1352
+        if (taskId && !claimVideoFailureNotify(taskId)) return
         await botInstance.telegram.sendMessage(
           chatId,
           `❌ Ошибка генерации видео.\n\nПричина: ${translatedError}\n\nПопробуйте другой запрос или обратитесь в поддержку.`
@@ -1855,6 +1912,8 @@ async function handleContentPolicyError(
           return
         }
 
+        // Idempotent: an at-least-once retry must not re-send this error. #1352
+        if (taskId && !claimVideoFailureNotify(taskId)) return
         await botInstance.telegram.sendMessage(
           chatId,
           `🚫 Контент отклонен политикой безопасности.\n\nПричина: ${translatedError}\n\nПопробуйте другой запрос.`,
@@ -1927,6 +1986,10 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
         }
       )
 
+      // Idempotency: claim the delivery before any await so a duplicate/concurrent
+      // webhook skips the re-send AND the public Pulse repost (sendMediaToPulse).
+      // Keys on the immutable taskId — the same key as the charge guard.
+      if (!claimVideoJobDelivery(taskId)) return
       try {
         if (result.success && result.output) {
           logger.info('🎬 [KIE.AI WEBHOOK] Sending video URL to user', {
@@ -1973,10 +2036,12 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
           })
 
           // ✅ Отправляем клавиатуру для продолжения работы
+          const isRu =
+            (await getUserLanguageFromDB(taskContext.chatId)) !== 'en'
           await botInstance.telegram.sendMessage(
             taskContext.chatId,
-            getVideoCompletionMessage(true),
-            createVideoCompletionKeyboard(true)
+            getVideoCompletionMessage(isRu),
+            createVideoCompletionKeyboard(isRu)
           )
 
           // Удаляем status message
@@ -2059,6 +2124,13 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
  * Позволяет проверить всю цепочку отправки видео пользователю
  */
 router.post('/kie-ai/sora-callback-test', async (req: any, res: any) => {
+  // Debug-only endpoint. It creates a delivery task for an ARBITRARY telegramId
+  // with no token, so the companion /kie-ai/sora-callback would then deliver and
+  // charge that user. Unlike the real callbacks (verifyCallbackToken, fail-closed)
+  // it authenticates nothing. Gate it out of production; enable only in dev.
+  if (process.env.NODE_ENV !== 'development') {
+    return res.status(404).json({ error: 'Not found' })
+  }
   try {
     logger.info('🧪 [SORA DEBUG] Test webhook endpoint called')
 
@@ -2110,6 +2182,13 @@ router.post('/kie-ai/sora-callback-test', async (req: any, res: any) => {
  * - telegramId: ID пользователя (default: 144022504)
  */
 router.post('/kie-ai/sora-full-test', async (req: any, res: any) => {
+  // Debug-only endpoint. It calls processSoraWebhookAsync DIRECTLY for an
+  // ARBITRARY telegramId, bypassing verifyCallbackToken, so an unauthenticated
+  // request delivers a video to any user and charges their balance
+  // (chargeForDeliveredVideo). Gate it out of production; enable only in dev.
+  if (process.env.NODE_ENV !== 'development') {
+    return res.status(404).json({ error: 'Not found' })
+  }
   try {
     const telegramId = parseInt(
       req.query.telegramId || req.body.telegramId || '144022504'

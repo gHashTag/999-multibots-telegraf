@@ -372,6 +372,21 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
       // безусловный возврат тогда начислил бы деньги, которых никто не брал.
       let charged = false
 
+      // In-flight guard: the parse (generateInstagramScraping) + charge below are
+      // awaited before scene.leave(), so a second Confirm during the ~parse would
+      // re-enter and double-charge. Reject-before-set (sync); released in the
+      // finally so it also fires in direct-drive tests (no session leak). #1368
+      if (ctx.session.instagramParserInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже обрабатываю, подождите...'
+            : '⏳ Already processing, please wait...'
+        )
+        return
+      }
+
+      ctx.session.instagramParserInProgress = true
+
       try {
         // Убираем клавиатуру
         await ctx.reply(
@@ -402,7 +417,7 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
 
         if (result && result.success) {
           // Списываем только после подтверждённого запуска.
-          await updateUserBalance(
+          charged = await updateUserBalance(
             userId.toString(),
             sessionData.cost,
             PaymentType.MONEY_OUTCOME,
@@ -416,14 +431,28 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
               stars: sessionData.cost,
             }
           )
-          charged = true
+          // `charged` now reflects the REAL result: updateUserBalance returns
+          // false (never throws) on a schema/insert failure or a ghost-payer
+          // with no users row. Setting it unconditionally true used to (a)
+          // discard the result — a silent free parse on a charge failure — and
+          // (b) let the error path below refund (MONEY_INCOME) stars that were
+          // never actually deducted (a mint). Both are closed by keying on the
+          // return.
+          if (!charged) {
+            logger.error(
+              '[instagramParser] charge failed after a successful parse — user got the result unbilled',
+              { userId, cost: sessionData.cost, target: sessionData.target }
+            )
+          }
 
           await ctx.reply(
             isRu
               ? `✅ Запрос принят сервером!\n\n` +
                   `🎯 Цель: ${sessionData.type === 'competitor' ? '@' : '#'}${sessionData.target}\n` +
                   `📊 Количество: ${sessionData.count} рилсов\n` +
-                  `💰 Списано: ${sessionData.cost} ⭐\n` +
+                  (charged
+                    ? `💰 Списано: ${sessionData.cost} ⭐\n`
+                    : `⚠️ Средства не списаны (техническая ошибка списания)\n`) +
                   `🔄 Event ID: ${result.eventId || 'N/A'}\n\n` +
                   `${result.message}\n\n` +
                   `📬 Результаты будут отправлены автоматически когда парсинг завершится.\n` +
@@ -432,7 +461,9 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
               : `✅ Request accepted by server!\n\n` +
                   `🎯 Target: ${sessionData.type === 'competitor' ? '@' : '#'}${sessionData.target}\n` +
                   `📊 Count: ${sessionData.count} reels\n` +
-                  `💰 Charged: ${sessionData.cost} ⭐\n` +
+                  (charged
+                    ? `💰 Charged: ${sessionData.cost} ⭐\n`
+                    : `⚠️ You were not charged (a technical charge error)\n`) +
                   `🔄 Event ID: ${result.eventId || 'N/A'}\n\n` +
                   `${result.message}\n\n` +
                   `📬 Results will be sent automatically when parsing is complete.\n` +
@@ -524,6 +555,8 @@ export const instagramParserWizard = new Scenes.WizardScene<MyContext>(
                   : '💰 Automatic refund failed — please contact support and quote this message.\n') +
                 'Try again later or contact support.'
         )
+      } finally {
+        ctx.session.instagramParserInProgress = false
       }
 
       return ctx.scene.leave()

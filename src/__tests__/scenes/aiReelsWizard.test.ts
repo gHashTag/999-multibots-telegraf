@@ -221,6 +221,7 @@ describe('aiReelsWizard (AI Reels Creation)', () => {
     vi.clearAllMocks()
     mockContext.message = null
     mockContext.session.aiReels = undefined
+    mockContext.session.aiReelsInProgress = false
 
     // Reset all mocks to default values
     ;(isRussianFromState as Mock).mockReturnValue(true)

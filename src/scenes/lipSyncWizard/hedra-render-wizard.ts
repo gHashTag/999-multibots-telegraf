@@ -577,6 +577,16 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
       //
       // Знак задаёт `type`, а не минус у суммы: балансовая функция считает
       // income − outcome, поэтому отрицательный outcome НАЧИСЛЯЕТ деньги.
+      if (ctx.session.hedraRenderInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже обрабатываю, подождите...'
+            : '⏳ Already processing, please wait...'
+        )
+        return
+      }
+      ctx.session.hedraRenderInProgress = true
+
       const charged = await updateUserBalance(
         telegramId,
         estimatedCost,
@@ -608,7 +618,7 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
             : '❌ You dont have avatar voice configured.'
         )
         // Возвращаем средства
-        await updateUserBalance(
+        const refunded = await updateUserBalance(
           telegramId,
           estimatedCost,
           PaymentType.MONEY_INCOME,
@@ -618,6 +628,17 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
             service_type: 'refund',
           }
         )
+        if (!refunded) {
+          // updateUserBalance returns false (never throws) on a schema/insert
+          // failure or a ghost-payer with no users row. Discarding the result
+          // meant a failed refund left the user charged, silently. Log it for
+          // reconciliation (the reply above makes no refund claim, so nothing
+          // to correct there).
+          logger.error(
+            '[hedra-render] refund failed — user NOT refunded on the no-voice-ID path',
+            { telegramId, estimatedCost }
+          )
+        }
         return ctx.scene.leave()
       }
 
@@ -638,9 +659,14 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
         }
       )
 
+      // dispatched: once sendRenderAvatarVideoEvent returns, the render job is
+      // queued and the callback owns its outcome; a throw in the confirmation
+      // reply AFTER this must NOT refund (heygen-render is the oracle). See #1331.
+      let dispatched = false
       // Отправка на render-server
       try {
         const { eventId } = await sendRenderAvatarVideoEvent(payload)
+        dispatched = true
 
         await ctx.reply(
           isRu
@@ -672,17 +698,27 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
         // Возврат средств при ошибке. Говорим человеку то, что
         // произошло: начисление может не пройти — updateUserBalance
         // при неудаче не бросает, а возвращает false.
-        await refundAndTell({
-          ctx,
-          telegramId,
-          amount: estimatedCost,
-          description: 'Refund: Hedra Render error',
-          reason: {
-            ru: 'Произошла ошибка при отправке запроса',
-            en: 'An error occurred while sending the request',
-          },
-          isRu,
-        })
+        // Only a PRE-dispatch throw warrants a refund. If the job was already
+        // dispatched and only the confirmation reply threw, the render job keeps
+        // running and will deliver -- refunding here would mint. See #1331.
+        if (!dispatched) {
+          await refundAndTell({
+            ctx,
+            telegramId,
+            amount: estimatedCost,
+            description: 'Refund: Hedra Render error',
+            reason: {
+              ru: 'Произошла ошибка при отправке запроса',
+              en: 'An error occurred while sending the request',
+            },
+            isRu,
+          })
+        } else {
+          logger.warn(
+            '[RENDER] Post-dispatch reply threw; NOT refunding (render job owns its outcome)',
+            { telegramId }
+          )
+        }
       }
 
       // Очистка сессии
@@ -701,6 +737,10 @@ export const hedraRenderWizard = new Scenes.WizardScene<MyContext>(
 )
 
 // Обработчик кнопки отмены
+hedraRenderWizard.leave(async ctx => {
+  if (ctx.session) ctx.session.hedraRenderInProgress = false
+})
+
 hedraRenderWizard.action('hedra_cancel', async ctx => {
   try {
     await ctx.answerCbQuery()

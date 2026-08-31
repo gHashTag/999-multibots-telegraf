@@ -1,8 +1,9 @@
 import express from 'express'
+import { createVideoDeliveryClaimer } from '@/helpers/videoDeliveryIdempotency'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
 import { defaultBot, getBotByName } from '@/core/bot'
-import { supabase } from '@/core/supabase'
+import { supabase, getUserLanguageFromDB } from '@/core/supabase'
 import axios from 'axios'
 import { Input } from 'telegraf'
 import {
@@ -10,6 +11,7 @@ import {
   getVideoCompletionMessage,
 } from '@/helpers/videoCompletionKeyboard'
 import { verifyCallbackToken } from '@/utils/callbackToken'
+import { redactSensitiveHeaders } from '@/utils/redactHeaders'
 
 const router: Router = express.Router()
 
@@ -48,7 +50,7 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
   // ✅ Логируем сразу при получении callback
   logger.info('🔔 [AI REELS CALLBACK] Webhook received', {
     timestamp: new Date().toISOString(),
-    headers: req.headers,
+    headers: redactSensitiveHeaders(req.headers),
     bodyKeys: Object.keys(req.body || {}),
     bodyPreview: JSON.stringify(req.body).substring(0, 200),
   })
@@ -195,10 +197,24 @@ function extractTelegramIdFromJobId(jobId: string): string | null {
 /**
  * Обработка успешного рендеринга
  */
+// Delivered job ids (in-process). AI Reels callbacks are delivered
+// at-least-once (provider retry); verifyCallbackToken checks the recipient, not
+// duplicates, so a retry re-enters handleCompletedRender and re-sends the video.
+// Claim the delivery by the immutable job_id before any await. Bounded so a
+// long-lived multi-bot process cannot grow the set without limit — same pattern
+// as the kie/sora webhook and the sibling poller handleTextToVideoDirect.ts.
+// Reset on restart (a durable guard would be a per-job marker on payments_v2).
+const claimVideoJobDelivery = createVideoDeliveryClaimer()
+
 async function handleCompletedRender(
   telegramId: string,
   payload: AIReelsCallbackPayload
 ) {
+  // Idempotency: an at-least-once webhook re-enters this delivery for the same
+  // completed job. Claim it by the immutable job_id before any await so a
+  // duplicate skips the re-send (video + completion keyboard).
+  if (payload.job_id && !claimVideoJobDelivery(payload.job_id)) return
+
   // Определяем правильного бота в начале функции
   let botName = payload.bot_name || payload.metadata?.bot_name
 
@@ -343,7 +359,7 @@ async function handleCompletedRender(
       )
 
       // ✅ Отправляем клавиатуру с кнопками продолжения (для больших файлов)
-      const isRuLargeFile = true
+      const isRuLargeFile = (await getUserLanguageFromDB(telegramId)) !== 'en'
       await botToUse.telegram.sendMessage(
         telegramId,
         getVideoCompletionMessage(isRuLargeFile),
@@ -368,7 +384,7 @@ async function handleCompletedRender(
     )
 
     // ✅ Отправляем клавиатуру с кнопками продолжения
-    const isRu = true
+    const isRu = (await getUserLanguageFromDB(telegramId)) !== 'en'
     await botToUse.telegram.sendMessage(
       telegramId,
       getVideoCompletionMessage(isRu),

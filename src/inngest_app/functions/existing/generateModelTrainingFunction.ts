@@ -51,6 +51,20 @@ export const generateModelTrainingFunction = inngest.createFunction(
     const eventData = event.data as ModelTrainingEvent['data']
     const startTime = Date.now()
 
+    // Defense-in-depth: steps must be a positive integer. The training wizards
+    // now reject a zero-cost (steps=0) training at the cost gate, but this served
+    // handler is the execution choke point — any emitter of model/training.start
+    // with steps<=0 (or NaN/undefined) would otherwise run a training the user
+    // paid nothing for, at the owner's provider cost, with no downstream check.
+    // retries:0 means this throw is terminal (no retry loop).
+    if (!Number.isInteger(eventData.steps) || eventData.steps <= 0) {
+      logger.error('[INNGEST TRAINING] ❌ Invalid steps — refusing training', {
+        telegram_id: eventData.telegram_id,
+        steps: eventData.steps,
+      })
+      throw new Error(`Invalid training steps: ${eventData.steps}`)
+    }
+
     logger.info('[INNGEST TRAINING] 🚀 Starting model training', {
       telegram_id: eventData.telegram_id,
       modelName: eventData.modelName,
@@ -78,10 +92,16 @@ export const generateModelTrainingFunction = inngest.createFunction(
 
     // ✅ STEP 2: Check for existing active training (prevent duplicates)
     const existingTraining = await step.run('check-duplicates', async () => {
+      // Query the SAME user column this handler inserts (save-pending-record
+      // below writes `telegram_id`), and that neuroPhoto/Haim read. It used to
+      // filter `.eq('user_id', eventData.telegram_id)` — a column this handler
+      // never populates — so the dedup check never matched its own PENDING /
+      // starting / processing rows and the duplicate-prevention guard silently
+      // did nothing.
       const { data } = await supabase
         .from('model_trainings')
         .select('id, replicate_training_id, status')
-        .eq('user_id', eventData.telegram_id)
+        .eq('telegram_id', eventData.telegram_id)
         .eq('model_name', eventData.modelName)
         .in('status', ['starting', 'processing'])
         .order('created_at', { ascending: false })

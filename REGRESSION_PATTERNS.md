@@ -1,6 +1,6 @@
 # ⚠️ Regression Patterns - Анти-Паттерны и Ошибки
 
-*История неудачных подходов, паттернов приводивших к ошибкам, и способов их избежать*
+_История неудачных подходов, паттернов приводивших к ошибкам, и способов их избежать_
 
 **Цель**: Не повторять ошибки дважды. Учиться на неудачах. Автоматически предотвращать регрессии.
 
@@ -11,6 +11,7 @@
 ## [2025-01-11] Пропуск Проверки Типов в Docker Build
 
 **Симптомы**:
+
 - Production build успешен, но runtime errors
 - TypeScript ошибки обнаружены только в production
 - "Cannot read property 'text' of undefined" в логах production
@@ -19,6 +20,7 @@
 
 **Root Cause**:
 Dockerfile использовал `--skipLibCheck` и `|| true`, что маскировало реальные проблемы:
+
 ```dockerfile
 # ❌ НЕПРАВИЛЬНО (старый Dockerfile)
 RUN npm run build --skipLibCheck || true
@@ -27,12 +29,14 @@ RUN npm run build --skipLibCheck || true
 ```
 
 **Неудачный Подход**:
+
 1. Использование `--skipLibCheck` для "ускорения" сборки
 2. `|| true` для игнорирования ошибок
 3. Надежда, что "в production как-нибудь заработает"
 4. Отсутствие pre-deployment type checking
 
 **Почему Не Работает**:
+
 - TypeScript ошибки НЕ исчезают сами собой
 - Runtime errors обнаруживаются пользователями, не тестами
 - Debugging в production в 10x дороже, чем в build time
@@ -41,6 +45,7 @@ RUN npm run build --skipLibCheck || true
 - Rollback после обнаружения ошибки = downtime
 
 **Правильное Решение**:
+
 ```dockerfile
 # ✅ ПРАВИЛЬНО (Dockerfile.optimized)
 # Стадия builder - полная проверка типов
@@ -57,6 +62,7 @@ RUN npm run build
 ```
 
 **Предотвращение**:
+
 1. **НИКОГДА** не использовать `--skipLibCheck` в production builds
 2. **НИКОГДА** не использовать `|| true` для игнорирования ошибок
 3. **ВСЕГДА** блокировать build при ошибках типов (exit 1)
@@ -69,6 +75,7 @@ RUN npm run build
 6. Code reviewer проверяет наличие type check в Dockerfile
 
 **Автоматическая Проверка**:
+
 ```bash
 # В continuous-optimizer agent
 check_dockerfile_type_safety() {
@@ -98,6 +105,7 @@ check_dockerfile_type_safety() {
 ## [2025-01-10] Сборка Docker на Production Сервере
 
 **Симптомы**:
+
 - Deployment занимает 15-20 минут
 - Production сервер тормозит во время сборки
 - Users жалуются на замедление во время deploy
@@ -106,14 +114,16 @@ check_dockerfile_type_safety() {
 
 **Root Cause**:
 deploy.js копировал код на сервер и запускал `docker build` на production machine:
+
 ```javascript
 // ❌ НЕПРАВИЛЬНО (старый deploy.js)
-await ssh.exec('cd /root/project && docker build -t app .');
+await ssh.exec('cd /root/project && docker build -t app .')
 // Сборка на слабом production сервере
 // Конкурирует за ресурсы с running приложением
 ```
 
 **Неудачный Подход**:
+
 1. Сборка Docker образа на production сервере
 2. Нет использования BuildKit (no layer caching)
 3. Каждый deploy = полная пересборка (including npm install)
@@ -121,6 +131,7 @@ await ssh.exec('cd /root/project && docker build -t app .');
 5. При падении сборки - production может упасть вместе с ней
 
 **Почему Не Работает**:
+
 - **Production сервер НЕ предназначен для CI/CD**:
   - Ограниченные ресурсы (обычно < 4GB RAM)
   - Приоритет - стабильность running app, не сборка
@@ -138,6 +149,7 @@ await ssh.exec('cd /root/project && docker build -t app .');
 
 **Правильное Решение**:
 Локальная сборка + transfer готового образа:
+
 ```bash
 # ✅ ПРАВИЛЬНО (deploy-local-build.sh)
 
@@ -163,6 +175,7 @@ ssh root@188.137.250.69 "docker run ..."
 ```
 
 **Предотвращение**:
+
 1. **НИКОГДА** не собирать Docker на production сервере
 2. **ВСЕГДА** использовать локальную сборку + transfer
 3. **ОБЯЗАТЕЛЬНО** использовать BuildKit для кэширования
@@ -170,6 +183,7 @@ ssh root@188.137.250.69 "docker run ..."
 5. CI/CD build на dedicated build server, не на production
 
 **Автоматическая Проверка**:
+
 ```bash
 # В continuous-optimizer agent
 check_deploy_script() {
@@ -195,25 +209,28 @@ check_deploy_script() {
 ## [2024-XX-XX] answerCbQuery() Вызывается Не Первой Строкой
 
 **Симптомы**:
+
 - "400: Bad Request: query is too old" errors в логах
 - Inline кнопки показывают loading spinner бесконечно
 - Пользователи жалуются на "зависшие" кнопки
 - Кнопки перестают реагировать после первого нажатия
 
 **Root Cause**:
+
 ```typescript
 // ❌ НЕПРАВИЛЬНО
-myScene.action('generate_button', async (ctx) => {
+myScene.action('generate_button', async ctx => {
   // Какая-то async логика
-  await someSlowOperation();  // 5+ секунд
-  await ctx.reply('Processing...');
+  await someSlowOperation() // 5+ секунд
+  await ctx.reply('Processing...')
 
   // TOO LATE! Telegram timeout ~5 seconds
-  await ctx.answerCbQuery();
-});
+  await ctx.answerCbQuery()
+})
 ```
 
 **Неудачный Подход**:
+
 1. answerCbQuery() вызывается ПОСЛЕ async операций
 2. Telegram timeout (~5 секунд) истекает
 3. Callback query считается устаревшим (query is too old)
@@ -221,6 +238,7 @@ myScene.action('generate_button', async (ctx) => {
 5. Пользователь не получает feedback
 
 **Почему Не Работает**:
+
 - **Telegram требует НЕМЕДЛЕННЫЙ ответ** на callback query
 - Timeout ~5 секунд (cannot be extended)
 - Если долгая операция (5+ секунд) - query timeout
@@ -228,39 +246,42 @@ myScene.action('generate_button', async (ctx) => {
 - После timeout - кнопка "мертва", нужен новый message
 
 **Правильное Решение**:
+
 ```typescript
 // ✅ ПРАВИЛЬНО
-myScene.action('generate_button', async (ctx) => {
+myScene.action('generate_button', async ctx => {
   // ПЕРВАЯ СТРОКА - ответить Telegram немедленно
-  await ctx.answerCbQuery();
+  await ctx.answerCbQuery()
 
   // Теперь можно делать долгие операции
-  await ctx.reply('⏳ Starting generation...');
-  await someSlowOperation();  // 10 минут? No problem!
-  await ctx.reply('✅ Done!');
-});
+  await ctx.reply('⏳ Starting generation...')
+  await someSlowOperation() // 10 минут? No problem!
+  await ctx.reply('✅ Done!')
+})
 ```
 
 **Для ОЧЕНЬ долгих операций** (>1 минута):
+
 ```typescript
 // ✅ ПРАВИЛЬНО (с progress updates)
-myScene.action('train_model', async (ctx) => {
-  await ctx.answerCbQuery();  // Первая строка!
+myScene.action('train_model', async ctx => {
+  await ctx.answerCbQuery() // Первая строка!
 
-  const statusMsg = await ctx.reply('⏳ Training started (0%)...');
+  const statusMsg = await ctx.reply('⏳ Training started (0%)...')
 
   // Запускаем Inngest job (background)
   await inngest.send({
     name: 'model/train',
-    data: { userId: ctx.from.id, messageId: statusMsg.message_id }
-  });
+    data: { userId: ctx.from.id, messageId: statusMsg.message_id },
+  })
 
   // Job обновляет progress через bot API
   // User видит progress updates каждые 30 секунд
-});
+})
 ```
 
 **Предотвращение**:
+
 1. **ВСЕГДА** answerCbQuery() первой строкой в action handler
 2. Добавить ESLint rule для автоматической проверки
 3. Template в telegram-scene-builder агенте
@@ -268,6 +289,7 @@ myScene.action('train_model', async (ctx) => {
 5. Pre-commit hook может проверять паттерн
 
 **Автоматическая Проверка**:
+
 ```typescript
 // ESLint rule (custom)
 'telegram/answer-callback-query-first': {
@@ -299,38 +321,42 @@ myScene.action('train_model', async (ctx) => {
 ## [2024-XX-XX] Session Не Инициализирована в Wizard Step 1
 
 **Симптомы**:
+
 - "Cannot set property of undefined" errors
 - "Cannot read property 'wizardData' of undefined"
 - Wizard crashes на Step 2 при попытке доступа к session data
 - Пользователи не могут завершить wizard flow
 
 **Root Cause**:
+
 ```typescript
 // ❌ НЕПРАВИЛЬНО
 const myWizard = new Scenes.WizardScene(
   'myWizard',
 
   // Step 1: НЕ инициализирует session
-  async (ctx) => {
-    await ctx.reply('Enter your name:');
-    return ctx.wizard.next();
+  async ctx => {
+    await ctx.reply('Enter your name:')
+    return ctx.wizard.next()
   },
 
   // Step 2: Пытается использовать wizardData
-  async (ctx) => {
+  async ctx => {
     // ❌ CRASH! wizardData undefined
-    ctx.session.wizardData.name = ctx.message.text;
+    ctx.session.wizardData.name = ctx.message.text
   }
-);
+)
 ```
 
 **Неудачный Подход**:
+
 1. session.wizardData не инициализирован в Step 1
 2. Попытка доступа к undefined в Step 2
 3. Надежда, что session "как-то существует"
 4. Нет type safety (TypeScript не ловит ошибку)
 
 **Почему Не Работает**:
+
 - **session.wizardData НЕ создается автоматически**
 - Telegraf не знает, какая структура вам нужна
 - Без инициализации = undefined
@@ -338,61 +364,64 @@ const myWizard = new Scenes.WizardScene(
 - Users видят error message или silent failure
 
 **Правильное Решение**:
+
 ```typescript
 // ✅ ПРАВИЛЬНО
 const myWizard = new Scenes.WizardScene<MyContext>(
   'myWizard',
 
   // Step 1: ОБЯЗАТЕЛЬНО инициализировать session
-  async (ctx) => {
+  async ctx => {
     // Инициализация ПЕРВОЙ СТРОКОЙ
     ctx.session.wizardData = {
       step: 1,
       name: '',
       email: '',
       // ВСЕ поля, которые будут использоваться
-    };
+    }
 
-    await ctx.reply('Enter your name:');
-    return ctx.wizard.next();
+    await ctx.reply('Enter your name:')
+    return ctx.wizard.next()
   },
 
   // Step 2: Теперь безопасно использовать
-  async (ctx) => {
+  async ctx => {
     if (!ctx.message || !('text' in ctx.message)) {
-      await ctx.reply('Send text');
-      return;
+      await ctx.reply('Send text')
+      return
     }
 
     // ✅ Безопасно - wizardData инициализирован
-    ctx.session.wizardData.name = ctx.message.text;
-    ctx.session.wizardData.step = 2;
+    ctx.session.wizardData.name = ctx.message.text
+    ctx.session.wizardData.step = 2
 
-    await ctx.reply('Enter your email:');
-    return ctx.wizard.next();
+    await ctx.reply('Enter your email:')
+    return ctx.wizard.next()
   }
-);
+)
 ```
 
 **С Type Safety**:
+
 ```typescript
 // types/MyContext.ts
 interface WizardData {
-  step: number;
-  name: string;
-  email: string;
+  step: number
+  name: string
+  email: string
   // Все поля явно типизированы
 }
 
 interface MyContext extends Context {
   session: {
-    wizardData?: WizardData;  // Optional на уровне типов
+    wizardData?: WizardData // Optional на уровне типов
     // При инициализации станет required
-  };
+  }
 }
 ```
 
 **Предотвращение**:
+
 1. **ВСЕГДА** инициализировать session.wizardData в Step 1
 2. **ВСЕ** поля должны быть объявлены при инициализации
 3. TypeScript interface для wizardData (type safety)
@@ -400,6 +429,7 @@ interface MyContext extends Context {
 5. Code reviewer проверяет инициализацию
 
 **Автоматическая Проверка**:
+
 ```typescript
 // В code-reviewer agent
 check_wizard_initialization(wizardFile: string) {
@@ -425,44 +455,108 @@ check_wizard_initialization(wizardFile: string) {
 
 ---
 
+## [2026-08-31] Пять Классов Денежных/Надёжностных Багов — Закрыты Гейт-Ратчетами
+
+**Симптомы**:
+
+- Одни и те же классы багов возвращались copy-paste'ом в новые визарды: двойное
+  списание при быстром двойном тапе; молчаливо-мёртвый визард при коллизии
+  scene-id; бесплатная генерация при неудачном списании; OOM всего процесса от
+  несапнутого session-массива Buffer'ов; доставка задания не тому боту из singleton'а.
+- Поведенческий тест закрывал ОДИН починенный экземпляр, но не мешал НОВОМУ
+  визарду ввести тот же класс заново.
+
+**Root Cause**:
+Класс закрывался точечно (fix одного визарда) без СТРУКТУРНОГО гейта, ловящего
+следующего нарушителя. Хуже: часть стражей была ручными loop-скриптами, НЕ в
+`bun run verify` -> регрессия проходила на main незамеченной.
+
+**Правильное Решение** — пять gated vitest-ратчетов (все в `bun run verify`):
+
+| Класс                                        | Ратчет                                                       |
+| -------------------------------------------- | ------------------------------------------------------------ |
+| double-charge (двойной тап)                  | `src/__tests__/scenes/paid-wizard-guard-ratchet.test.ts`     |
+| scene-id shadowing (last-writer-wins)        | `src/__tests__/scenes/duplicate-scene-id-ratchet.test.ts`    |
+| unbilled-paid (выброшенный charge-результат) | `src/__tests__/scenes/charge-result-checked-ratchet.test.ts` |
+| in-memory OOM (session-массив Buffer-ов)     | `src/__tests__/scenes/session-array-cap-ratchet.test.ts`     |
+| cross-bot misdelivery (singleton this.bot)   | `src/__tests__/scenes/crossbot-delivery-ratchet.test.ts`     |
+
+Каждый ратчет: независимо-заданная популяция (не список-матчер сам себя), floor
+популяции (сломанный матчер ПАДАЕТ, а не проходит), allowlist с причиной +
+stale-allowlist проверка, mutation-verified (доказано, что краснеет).
+
+**Предотвращение**:
+
+1. ПЕРЕД добавлением нового safety-ратчета — проверь, не существует ли он уже
+   (избегай дублей, как #1391 два scene-id ратчета от разных агентов). Запусти
+   `tri ratchets` (или `node .claude/loop-opus/ratchets.mjs`) — единый exit-code
+   смотр всех пяти классов.
+2. Мета-принцип: **страж не в гейте — не страж.** Любой регресс-гвард держи
+   vitest-ратчетом в `bun run verify`, не ручным скриптом.
+3. Money-фикс только в БЕЗОПАСНУЮ сторону (аддитивный guard, что СКИПАЕТ или
+   предотвращает); refund / credit / free-path / bypass — owner-решение.
+
+**Автоматическая Проверка**:
+
+```bash
+tri ratchets          # exit-code смотр всех 5 классов
+bun run verify        # полный 13-шаговый гейт (включает ратчеты)
+```
+
+**Severity**: 🔴 CRITICAL (деньги / доступность процесса)
+**Impact**: Прямая потеря денег / доверия / всего процесса; теперь машинно закрыто.
+**Frequency**: Рекуррентно по copy-paste — потому и нужен СТРУКТУРНЫЙ гейт, не точечный fix.
+
+**Теги**: #money #double-charge #scene-id #oom #cross-bot #ratchet #gated
+
+---
+
 ## Template Entry (Copy for New Regressions)
 
-```markdown
+````markdown
 ## [YYYY-MM-DD] Title of Problem
 
 **Симптомы**:
+
 - How the error manifested
 - What users experienced
 - Error messages in logs
 
 **Root Cause**:
+
 ```language
 // ❌ НЕПРАВИЛЬНО
 code_that_caused_problem();
 ```
+````
 
 **Неудачный Подход**:
+
 1. What was done wrong
 2. Why it seemed like a good idea
 3. What was overlooked
 
 **Почему Не Работает**:
+
 - Technical reason 1
 - Technical reason 2
 - Impact on system/users
 
 **Правильное Решение**:
+
 ```language
 // ✅ ПРАВИЛЬНО
 correct_approach();
 ```
 
 **Предотвращение**:
+
 1. How to avoid in future
 2. Automated checks
 3. Review process improvements
 
 **Автоматическая Проверка**:
+
 ```bash
 # In continuous-optimizer or code-reviewer
 check_pattern() {
@@ -478,12 +572,14 @@ check_pattern() {
 **Frequency**: How often occurred
 
 **Теги**: #tag1 #tag2 #tag3
+
 ```
 
 ---
 
 **Maintained By**: memory-manager agent
-**Last Updated**: 2025-01-11
-**Total Patterns**: 4
+**Last Updated**: 2026-08-31
+**Total Patterns**: 5
 **Philosophy**: "Learn from mistakes once, prevent them forever"
 **Sanskrit Wisdom**: "विद्या विनयेन शोभते" (Vidya Vinayena Shobhate) - "Knowledge shines with humility"
+```

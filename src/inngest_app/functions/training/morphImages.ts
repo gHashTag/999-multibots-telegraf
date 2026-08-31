@@ -362,6 +362,14 @@ export const morphImages = inngest.createFunction(
             response.data.pipe(writer)
 
             await new Promise<void>((resolve, reject) => {
+              // Guard the SOURCE stream: axios responseType:'stream' does not attach an
+              // 'error' listener to response.data, so a mid-stream ECONNRESET/timeout emits
+              // an unhandled 'error' -> uncaughtException -> the global handler process.exit(1)
+              // kills the whole multi-bot process. Reject (and destroy the writer) instead.
+              response.data.on('error', (streamErr: Error) => {
+                writer.destroy()
+                reject(streamErr)
+              })
               writer.on('finish', () => resolve())
               writer.on('error', reject)
             })

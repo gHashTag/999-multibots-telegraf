@@ -450,5 +450,24 @@ describe('updateUserBalance', () => {
 
       expect(invalidateBalanceCache).toHaveBeenCalledWith('123456789')
     })
+
+    it('returns true even if cache invalidation throws after a committed transaction (#1174)', async () => {
+      setupSupabaseMocks({ userExists: true })
+      ;(invalidateBalanceCache as unknown as Mock).mockImplementationOnce(
+        () => {
+          throw new Error('cache down')
+        }
+      )
+
+      const result = await updateUserBalance(
+        '123456789',
+        50,
+        PaymentType.MONEY_INCOME
+      )
+
+      // the payments_v2 row committed -> the charge stands -> must return true,
+      // never false (a false negative makes the caller deliver-unbilled / retry)
+      expect(result).toBe(true)
+    })
   })
 })

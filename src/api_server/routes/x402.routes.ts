@@ -10,6 +10,7 @@
  */
 
 import { Router, Request, Response } from 'express'
+import { redactSensitiveHeaders } from '@/utils/redactHeaders'
 import { paymentMiddleware } from 'x402-express'
 import { logger } from '@/utils/logger'
 import {
@@ -63,7 +64,7 @@ router.get(
       telegram_id,
       amount,
       stars,
-      headers: req.headers,
+      headers: redactSensitiveHeaders(req.headers),
     })
 
     // Validate required parameters

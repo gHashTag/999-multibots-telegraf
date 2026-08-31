@@ -17,6 +17,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { Markup } from 'telegraf'
 
 import { directPaymentProcessor } from '@/core/supabase/directPayment'
+import { escapeMarkdownV2CodeBlock } from '@/helpers/escapeMarkdown'
 
 const CAPTION_SPACE = 'https://fancyfeast-joy-caption-alpha-two.hf.space'
 const CAPTION_ATTEMPTS = 3
@@ -40,9 +41,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
  * Экранирование для MarkdownV2 внутри ``` блока:
  * Telegram требует экранировать только обратный слэш и обратную кавычку.
  */
-function escapeForMarkdownV2CodeBlock(text: string): string {
-  return text.replace(/\\/g, '\\\\').replace(/`/g, '\\`')
-}
+// escapeForMarkdownV2CodeBlock moved to @/helpers/escapeMarkdown (canonical, shared)
 
 /**
  * Space не всегда может скачать файл по ссылке api.telegram.org
@@ -284,7 +283,7 @@ export async function generateImageToPrompt(
 
     await ctx.telegram.sendMessage(
       telegram_id,
-      '```\n' + escapeForMarkdownV2CodeBlock(caption) + '\n```',
+      '```\n' + escapeMarkdownV2CodeBlock(caption) + '\n```',
       {
         parse_mode: 'MarkdownV2',
         ...Markup.keyboard([

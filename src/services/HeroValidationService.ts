@@ -8,6 +8,7 @@
 import { MyContext } from '@/interfaces'
 import { ModeEnum } from '@/interfaces/modes'
 import { logger } from '@/utils/logger'
+import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import {
   HeroName,
   Gender,
@@ -100,7 +101,7 @@ export class HeroValidationService {
     validation: HeroValidationResult,
     heroName: string
   ): Promise<void> {
-    const isRu = true // Заглушка, нужно получать из контекста
+    const isRu = isRussianFromState(ctx)
 
     let errorMessage = ''
     const shouldRedirect = true

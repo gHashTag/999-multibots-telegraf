@@ -380,6 +380,8 @@ async function withTokens<T extends object>(
   return { ...result, токены: { потрачено: price, осталось: balance } }
 }
 
+import { TELEGRAM_TOOLS } from './telegram-tools'
+
 export const TOOLS: AgentTool[] = [
   {
     name: 'whoami',
@@ -1925,6 +1927,14 @@ export const TOOLS: AgentTool[] = [
 
   ...planTools,
 ]
+
+/**
+ * Telegram tools are appended, not inlined, and the separation is the point:
+ * they are the only tools that read text written by people other than the
+ * owner. Keeping them in one module keeps the boundary auditable — you can
+ * read every place foreign content enters the agent in a single file.
+ */
+TOOLS.push(...TELEGRAM_TOOLS)
 
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
 

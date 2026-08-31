@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { createVideoDeliveryClaimer } from '@/helpers/videoDeliveryIdempotency'
 import {
   checkVideoGenerationStatus,
   VideoModelId,
@@ -16,6 +17,16 @@ import { PaymentType } from '@/interfaces/payments.interface'
 import { Input } from 'telegraf'
 import { uploadTelegramFileLocal } from '@/helpers/uploadTelegramFileLocal'
 import { videoTaskStore } from '@/services/video-task-store'
+
+// Idempotency for video delivery+charge. The poller (monitorVideoGeneration) and
+// the persistent "update_video_status" button (handleVideoStatusUpdate) both
+// deliver AND charge the same async job through handleVideoReady; a button tap
+// racing the poller used to charge (MONEY_OUTCOME) the job twice. We key on the
+// IMMUTABLE provider jobId (not the single-slot ctx.session.videoJobId, which a
+// second concurrent generation overwrites — that would skip the older job's real
+// delivery). Mirrors the webhook's chargedVideoJobs Set, but bounded so a
+// long-lived multi-bot process cannot grow it without limit.
+const claimVideoJobDelivery = createVideoDeliveryClaimer()
 
 /**
  * Handler для генерации видео из текста через прямую интеграцию с сервером
@@ -329,7 +340,14 @@ async function monitorVideoGeneration(
   }
 
   // Для других моделей используем стандартный API polling
+  // A status check is async but the interval fires every 5s regardless, so a
+  // slow or stalled check would let a second one start on top of the first and
+  // pile up. Skip a tick while one is still in flight, and reset the flag in a
+  // finally so the interval keeps polling once a check returns.
+  let checkInFlight = false
   const checkInterval = setInterval(async () => {
+    if (checkInFlight) return
+    checkInFlight = true
     attempts++
 
     try {
@@ -362,7 +380,8 @@ async function monitorVideoGeneration(
           ctx.session.videoPrompt || '',
           (ctx.session.videoModelId as VideoModelId) || 'veo3_fast',
           ctx.session.videoDuration,
-          messageId
+          messageId,
+          jobId
         )
 
         // Очищаем сессию
@@ -432,6 +451,8 @@ async function monitorVideoGeneration(
             : '❌ Error checking generation status.'
         )
       }
+    } finally {
+      checkInFlight = false
     }
   }, 5000) // Проверяем каждые 5 секунд
 }
@@ -445,7 +466,8 @@ async function handleVideoReady(
   prompt: string,
   modelId: VideoModelId,
   duration: number | undefined,
-  messageId: number
+  messageId: number,
+  jobId?: string
 ): Promise<void> {
   const is_ru = isRussianFromState(ctx)
   const telegram_id = ctx.from?.id.toString() || ''
@@ -480,6 +502,19 @@ async function handleVideoReady(
           : '❌ Error: received invalid video URL. Please try again.'
       )
     }
+    return
+  }
+
+  // Idempotency claim: for an async delivery (jobId present), proceed only if
+  // this job has not already been delivered. Keying on the immutable jobId (not
+  // ctx.session.videoJobId) means a second concurrent generation overwriting the
+  // session slot no longer skips the older job's real delivery. The synchronous
+  // immediate-result path passes no jobId and always proceeds (single-entry).
+  if (jobId !== undefined && !claimVideoJobDelivery(jobId)) {
+    logger.warn(
+      '[handleVideoReady] duplicate delivery skipped for already-delivered job',
+      { jobId, telegram_id }
+    )
     return
   }
 
@@ -559,12 +594,23 @@ async function handleVideoReady(
     // Списываем баланс
     const price = getUnifiedModelPrice(modelId, { duration })
 
-    await updateUserBalance(
+    const charged = await updateUserBalance(
       telegram_id,
       price,
       PaymentType.MONEY_OUTCOME,
       `Video generation: ${modelId}${duration ? ` (${duration}s)` : ''}`
     )
+    if (!charged) {
+      // The charge runs AFTER the video was delivered (above), so on a failure
+      // — updateUserBalance returns false, never throws, on a ghost-payer with
+      // no users row or a DB error — the user already has the video and cannot
+      // be un-delivered. Log the unbilled delivery instead of discarding the
+      // result silently (there is no refund to make here).
+      logger.error(
+        '[handleVideoReady] charge failed after video delivery — user got the video unbilled',
+        { telegram_id, price, modelId }
+      )
+    }
 
     // Показываем кнопки после успешной отправки видео
     const keyboard = {
@@ -691,10 +737,11 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
   }
 
   try {
-    const statusResponse = await checkVideoGenerationStatus(
-      ctx.session.videoJobId,
-      is_ru
-    )
+    // Capture the job id up front: the poller may clear the session
+    // during the status-check await, and this id is the idempotency
+    // key handleVideoReady claims to prevent a double charge.
+    const jobId = ctx.session.videoJobId
+    const statusResponse = await checkVideoGenerationStatus(jobId, is_ru)
 
     logger.info('[handleVideoStatusUpdate] Status check result', {
       telegram_id,
@@ -713,7 +760,8 @@ export async function handleVideoStatusUpdate(ctx: MyContext): Promise<void> {
         ctx.session.videoPrompt || '',
         (ctx.session.videoModelId as VideoModelId) || 'veo3_fast',
         ctx.session.videoDuration,
-        ctx.session.videoMessageId || 0
+        ctx.session.videoMessageId || 0,
+        jobId
       )
 
       // Очищаем сессию

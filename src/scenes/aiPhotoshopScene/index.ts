@@ -2609,6 +2609,28 @@ const createAiPhotoshopProgressKeyboard = (images: any[], isRu: boolean) => {
 /**
  * AI Photoshop multi-photo detection - collects multiple photos using buffer logic like Infinity Morphing
  */
+// Cap the number of collected images. Each is a full Buffer kept in the
+// in-memory Telegraf session (bot.ts session(), no TTL/eviction) shared by the
+// one process that runs every bot; without a cap a subscriber can climb RSS
+// until the container OOM-kills the whole multi-bot process. Same guard as
+// morphingWizard (#1145); morphing needs >= 2, 20 is a generous ceiling.
+const MAX_AI_PHOTOSHOP_IMAGES = 20
+async function aiPhotoshopImageCapReached(
+  ctx: MyContext,
+  isRu: boolean
+): Promise<boolean> {
+  const count = ctx.session.morphingImages?.length ?? 0
+  if (count >= MAX_AI_PHOTOSHOP_IMAGES) {
+    await ctx.reply(
+      isRu
+        ? '❌ Достигнут лимит изображений (максимум 20). Запустите обработку.'
+        : '❌ Image limit reached (max 20). Start processing.'
+    )
+    return true
+  }
+  return false
+}
+
 async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
   if (!ctx.message || !('photo' in ctx.message)) return false
 
@@ -2651,6 +2673,8 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
       const buffer = await downloadTelegramFileBuffer(telegramUrl)
 
       // Add image with timestamp and order like Infinity Morphing
+      if (await aiPhotoshopImageCapReached(ctx, isRu)) return false
+
       const imageIndex = ctx.session.morphingImages.length + 1
       const currentTimestamp = Date.now() + imageIndex
 
@@ -2754,6 +2778,8 @@ async function detectMultiPhotoAiPhotoshop(ctx: MyContext): Promise<boolean> {
       const buffer = await downloadTelegramFileBuffer(telegramUrl)
 
       // Add image with timestamp and order
+      if (await aiPhotoshopImageCapReached(ctx, isRu)) return false
+
       const imageIndex = ctx.session.morphingImages.length + 1
       const currentTimestamp = Date.now() + imageIndex
 
@@ -3270,6 +3296,21 @@ const processAiPhotoshopRequest = async (
     hasImage: !!aiPhotoshopImage,
     hasCustomPrompt: !!customPrompt,
   })
+
+  // In-flight guard: this choke point (reached from on('photo')/on('text') and
+  // several confirm/generate button actions) charges + generates below. Without
+  // this, a second photo/text OR a double-tap during the ~generation re-enters
+  // and double-charges. Reject-before-set (sync); released in the finally. #1362
+  if (ctx.session.aiPhotoshopInProgress) {
+    await ctx.reply(
+      isRu
+        ? '⏳ Уже обрабатываю, подождите...'
+        : '⏳ Already processing, please wait...'
+    )
+    return
+  }
+
+  ctx.session.aiPhotoshopInProgress = true
 
   try {
     // Build prompt
@@ -3809,6 +3850,8 @@ const processAiPhotoshopRequest = async (
         telegramId: ctx.from?.id,
       }
     )
+  } finally {
+    ctx.session.aiPhotoshopInProgress = false
   }
 }
 
@@ -3978,7 +4021,8 @@ const processSingleAiPhotoshopModel = async (
           ctx,
           promptStyle: 'artistic',
           silent: true, // ✅ ИСПРАВЛЕНО: Don't send photo in ALL_MODELS mode
-          skipBalanceCheck: true, // ✅ ИСПРАВЛЕНО: Balance already checked before loop
+          // #1274: NO skipBalanceCheck -- nothing charges this branch in all_models,
+          // so the service must charge its own price (was falsely marked already-charged)
         })
 
         // ✅ Save result to session for later sending
@@ -4183,6 +4227,7 @@ const processSingleAiPhotoshopModel = async (
                     '9:16',
                   silent: true, // ✅ Don't send photo in ALL_MODELS mode
                   skipBalanceCheck: true, // ✅ Balance already checked before loop
+                  chargedCostOverride: costPerImage, // exact batch charge (batchBase*mult) so a failure refunds what was charged, not the divergent service base
                 })
               } else if (modelKey === 'flux_kontext_max') {
                 result = await generateFluxKontextMax({
@@ -4200,6 +4245,7 @@ const processSingleAiPhotoshopModel = async (
                         : 'match_input_image',
                   suppressUserErrors: true, // ✅ Don't notify user of errors in ALL_MODELS mode
                   skipBalanceCheck: true, // ✅ Balance already charged before loop
+                  chargedCostOverride: costPerImage, // exact batch charge (batchBase*mult) so a failure refunds what was charged, not the flat service base
                 })
               } else if (modelKey === 'seededit_3') {
                 const seedEdit3Size = ctx.session?.aiPhotoshopSize || '2K'
@@ -4224,6 +4270,7 @@ const processSingleAiPhotoshopModel = async (
                   size: seedEdit3Size,
                   silent: true, // ✅ Don't send photo in ALL_MODELS mode
                   skipBalanceCheck: true, // ✅ Balance already checked before loop
+                  chargedCostOverride: costPerImage, // exact batch charge (batchBase*mult) so a failure refunds what was charged, not the divergent service base
                 })
               } else if (modelKey === 'qwen_image_edit') {
                 const qwenImageEditSize = ctx.session?.aiPhotoshopSize || '2K'

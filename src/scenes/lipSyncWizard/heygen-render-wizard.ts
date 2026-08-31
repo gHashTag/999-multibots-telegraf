@@ -652,6 +652,16 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
         step: 'processing',
       }
 
+      if (ctx.session.heygenRenderInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже обрабатываю, подождите...'
+            : '⏳ Already processing, please wait...'
+        )
+        return
+      }
+      ctx.session.heygenRenderInProgress = true
+
       try {
         await ctx.reply(
           isRu
@@ -777,7 +787,7 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
             }
           )
 
-          await updateUserBalance(
+          const refunded = await updateUserBalance(
             telegramId,
             estimatedCost,
             PaymentType.MONEY_INCOME,
@@ -787,11 +797,25 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
               service_type: 'refund',
             }
           )
+          if (!refunded) {
+            // updateUserBalance returns false (never throws) on a ghost-payer
+            // with no users row or a DB error. The discarded result let the
+            // message below claim a successful refund when it had silently
+            // failed. Tell the user the truth instead.
+            logger.error(
+              '[HEYGEN RENDER] refund failed — user NOT refunded after a send error',
+              { telegramId, estimatedCost }
+            )
+          }
 
           await ctx.reply(
             isRu
-              ? '❌ Произошла ошибка при отправке запроса. Средства возвращены.'
-              : '❌ Error sending request. Funds refunded.'
+              ? refunded
+                ? '❌ Произошла ошибка при отправке запроса. Средства возвращены.'
+                : '❌ Произошла ошибка при отправке запроса. Автоматически вернуть средства не удалось — напишите в поддержку.'
+              : refunded
+                ? '❌ Error sending request. Funds refunded.'
+                : '❌ Error sending request. Automatic refund failed — please contact support.'
           )
           return ctx.scene.leave()
         }
@@ -835,6 +859,8 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
             : '⚠️ Error occurred during processing. Contact support.'
         )
         return ctx.scene.leave()
+      } finally {
+        ctx.session.heygenRenderInProgress = false
       }
     } else {
       await ctx.reply(

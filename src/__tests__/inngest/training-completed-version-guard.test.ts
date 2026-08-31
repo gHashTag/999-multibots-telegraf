@@ -41,9 +41,17 @@ vi.mock('@/core/supabase', () => ({
 vi.mock('@/inngest_app/client', () => ({
   createInngestFailureHandler: () => async () => {},
 }))
+const sentMessages: string[] = []
 vi.mock('@/inngest_app/services/bot-adapter', () => ({
   getBotByNameAdapter: () => ({
-    bot: { telegram: { sendMessage: async () => ({}) } },
+    bot: {
+      telegram: {
+        sendMessage: async (_chatId: any, text: string) => {
+          sentMessages.push(text)
+          return {}
+        },
+      },
+    },
     error: null,
   }),
 }))
@@ -69,6 +77,7 @@ describe('handleModelTrainingCompleted flips status even on version-less success
   it('writes a terminal SUCCESS status and does not throw when output has no version', async () => {
     createHandleModelTrainingCompletedFunction(fakeInngest as any)
     updateCalls.length = 0
+    sentMessages.length = 0
     const event = {
       data: {
         training_id: 'abc',
@@ -82,11 +91,16 @@ describe('handleModelTrainingCompleted flips status even on version-less success
     expect(updateCalls[0].status).toBe('SUCCESS')
     // a broken owner/slug: url must NOT be written
     expect(updateCalls[0].model_url).toBeUndefined()
+    // #1349: a succeeded-but-no-model_url row must NOT be announced as ready
+    const msg = sentMessages.join('\n')
+    expect(msg).toContain('финализируем')
+    expect(msg).not.toContain('использовать эту модель')
   })
 
   it('still writes model_url when the version IS present (happy path unchanged)', async () => {
     createHandleModelTrainingCompletedFunction(fakeInngest as any)
     updateCalls.length = 0
+    sentMessages.length = 0
     const event = {
       data: {
         training_id: 'abc',
@@ -97,5 +111,9 @@ describe('handleModelTrainingCompleted flips status even on version-less success
     await expect(captured.handler!({ event, step })).resolves.toBeTruthy()
     expect(updateCalls[0].status).toBe('SUCCESS')
     expect(updateCalls[0].model_url).toBe('ghashtag/my-model:deadbeef')
+    // #1349: a real model_url still gets the definitive ready message
+    const msg = sentMessages.join('\n')
+    expect(msg).toContain('использовать эту модель')
+    expect(msg).not.toContain('финализируем')
   })
 })

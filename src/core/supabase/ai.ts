@@ -169,18 +169,32 @@ export const getGeneratedImages = async (telegram_id: number) => {
 }
 
 export const getAspectRatio = async (telegram_id: number) => {
-  const { data, error } = await supabase
-    .from('users')
-    .select('aspect_ratio')
-    .eq('telegram_id', telegram_id.toString())
-    .single()
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('aspect_ratio')
+      .eq('telegram_id', telegram_id.toString())
+      .single()
 
-  if (error || !data) {
-    console.error('Ошибка при получении aspect_ratio для telegram_id:', error)
+    if (error || !data) {
+      console.error('Ошибка при получении aspect_ratio для telegram_id:', error)
+      return null
+    }
+
+    return data.aspect_ratio
+  } catch (err) {
+    // Client-level rejection (network/connection blip) must NOT propagate.
+    // Paid generators (e.g. generateNeuroPhotoDirect) read aspect_ratio AFTER
+    // the charge commits, in a region whose outer catch does not refund -- a
+    // throw here would charge the user without delivering. Honor the
+    // null-on-failure contract for ANY failure; every caller already falls back
+    // to a default aspect ratio when this returns null.
+    console.error(
+      'getAspectRatio failed (client rejection), returning null:',
+      err
+    )
     return null
   }
-
-  return data.aspect_ratio
 }
 
 export const setAspectRatio = async (
@@ -210,6 +224,14 @@ async function downloadVoiceMessage(fileUrl: string, downloadPath: string) {
   response.data.pipe(writer)
 
   return new Promise((resolve, reject) => {
+    // Guard the SOURCE stream: axios responseType:'stream' does not attach an
+    // 'error' listener to response.data, so a mid-stream ECONNRESET/timeout emits
+    // an unhandled 'error' -> uncaughtException -> the global handler process.exit(1)
+    // kills the whole multi-bot process. Reject (and destroy the writer) instead.
+    response.data.on('error', (streamErr: Error) => {
+      writer.destroy()
+      reject(streamErr)
+    })
     writer.on('error', reject)
     writer.on('finish', () => resolve(undefined))
   })

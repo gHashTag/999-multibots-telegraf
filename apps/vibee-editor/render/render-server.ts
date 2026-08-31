@@ -224,6 +224,26 @@ function sendJson(res: any, code: number, obj: unknown): void {
 }
 
 /**
+ * The verified viewer id for feed personalization (is_liked / is_starred).
+ * Reading user_id from the query string let any caller pass ?user_id=<victim>
+ * and learn which posts that victim liked or starred — an unauthenticated
+ * cross-user disclosure, since /api/feed is on the public GET list. The id must
+ * come from the signed Telegram initData instead; an anonymous or unverified
+ * caller gets null, so the LEFT JOINs match nothing and every row reads as
+ * not-liked.
+ */
+function verifiedViewerId(req: IncomingMessage): string | null {
+  const initRaw = (req.headers['x-telegram-init-data'] as string) || ''
+  if (!initRaw || !verifyTelegramInitData(initRaw).ok) return null
+  try {
+    const u = JSON.parse(new URLSearchParams(initRaw).get('user') || '{}')
+    return u.id != null ? String(u.id) : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Прокси-картинки: скачать изображение Telegram. assertFetchable отсекает
  * не-http(s) и приватные адреса; белый список оставляет только хосты
  * Telegram. Не-изображение — ошибка: прокси не является транслятором
@@ -5248,7 +5268,7 @@ const server = createServer(async (req, res) => {
       } catch (error) {
         console.error('[Feed] Publish error:', error)
         res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ success: false, error: String(error) }))
+        res.end(JSON.stringify({ success: false, error: 'Failed to publish' }))
       }
     })
     return
@@ -5804,7 +5824,9 @@ const server = createServer(async (req, res) => {
           return
         }
         res.writeHead(502, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: String(error) }))
+        res.end(
+          JSON.stringify({ ok: false, error: 'Failed to load blog feed' })
+        )
       }
       return
     }
@@ -5827,7 +5849,7 @@ const server = createServer(async (req, res) => {
       } catch (error) {
         console.error('[Feed] stats error:', error)
         res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: String(error) }))
+        res.end(JSON.stringify({ error: 'Failed to load feed stats' }))
       }
       return
     }
@@ -5947,7 +5969,7 @@ const server = createServer(async (req, res) => {
         } catch (error) {
           console.error(`[Feed] ${kind} error:`, error)
           res.writeHead(500, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: String(error) }))
+          res.end(JSON.stringify({ error: 'Action failed' }))
         }
       })
       return
@@ -6222,7 +6244,7 @@ const server = createServer(async (req, res) => {
       // Postgres не мог привести это к integer и маршрут падал в 500 при
       // ЛЮБОМ параметре. А user_id клиент шлёт всегда, когда человек вошёл.
       const id = url.pathname.split('/').pop()
-      const userId = url.searchParams.get('user_id')
+      const userId = verifiedViewerId(req) // was url query — see verifiedViewerId
       try {
         // getPool() внутри try: снаружи его синхронный throw при незаданном
         // DATABASE_URL уходил из async-обработчика и убивал процесс.
@@ -6293,7 +6315,7 @@ const server = createServer(async (req, res) => {
         offsetParam !== null
           ? Math.max(0, parseInt(offsetParam) || 0)
           : Math.max(0, (parseInt(pageParam || '0') || 0) * limitSafe)
-      const userId = url.searchParams.get('user_id')
+      const userId = verifiedViewerId(req) // was url query — see verifiedViewerId
       const search = url.searchParams.get('search') || ''
       // Значение search раньше вклеивалось в SQL строкой:
       //   AND (pt.name ILIKE '%${search}%' ...)
@@ -6864,7 +6886,7 @@ const server = createServer(async (req, res) => {
     } catch (error) {
       console.error('[sync-from-telegram] error:', error)
       res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: String(error).slice(0, 300) }))
+      res.end(JSON.stringify({ error: 'Sync failed' }))
     }
     return
   }
@@ -7073,6 +7095,19 @@ const server = createServer(async (req, res) => {
             is_public: row.is_public !== false,
             is_verified: row.is_verified || false,
             created_at: row.created_at,
+          }
+
+          // Enforce is_public: a profile marked private is visible only to its
+          // verified owner. The flag was computed but never enforced, so a private
+          // profile's telegram_id/bio/cover/social_links were returned to any
+          // unauthenticated caller of this public GET. Drop it so the private
+          // fields fall through to the public-only fallbacks (then a 404).
+          const verifiedViewer = verifiedTelegramId(req)
+          if (
+            row.is_public === false &&
+            String(verifiedViewer ?? '') !== String(row.telegram_id)
+          ) {
+            profile = null
           }
         }
       } catch (_e) {

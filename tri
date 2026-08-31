@@ -150,6 +150,65 @@ CHECKS THAT EACH COST A CYCLE
         How far the current branch has diverged from origin/main. Work is based
         on origin/main, not on the local HEAD.
 
+  tri worktree <branch>
+        Make a PRIVATE checkout off origin/main and symlink every node_modules
+        (root AND the per-app ones: render/player/vibee-atoms) from the main
+        tree, so `bun run verify` runs green immediately instead of false-failing
+        on env-gaps. Prints the path on the last line:
+          wt="$(tri worktree fix/my-thing | tail -1)"; cd "$wt"
+
+  tri price <ModeName>
+        Print the STATIC base cost of a mode from BASE_COSTS before you treat an
+        "unbilled paid path" as a defect. A mode absent from BASE_COSTS (AiChat)
+        or set to 0 (ChatWithAvatar) is free-by-design -- charging it is not a
+        fix, it writes 0-value payment rows. Dynamic costs (steps, answerAi
+        response.cost) are NOT shown -- read those paths directly.
+
+  tri money-base <usdCost> [markup]
+        Evaluate BOTH star-cost helpers for a USD cost so you never hand-guess a
+        money base. calculateFinalImageCostInStars = ceil(usd*interestRate/starCost);
+        calculateFinalPriceInStars = floor(usd/starCost*markup). Constants read from
+        src/price/constants. A refund and its charge can use DIFFERENT helpers whose
+        bases diverge by rounding -- match the CHARGE's helper (learned via #1263).
+        NOTE: serviceBase is the THEORETICAL calculateFinalImageCostInStars(usd);
+        a service may hardcode a different costPerImage (nano_banana=5) -- a false
+        DIVERGE. Verify the real source costPerImage, not the formula (#1271).
+
+  tri batch-refunds
+        Audit which aiPhotoshop ALL_MODELS batch services forward the exact charge
+        (chargedCostOverride) so a failure refunds what was charged. MISSING means
+        the service refunds its own base -- a loss when that base diverges from the
+        batch-charge base (check with tri money-base). Regression guard for #1267.
+
+  tri idempotency-keys
+        Advisory: list inv_id / idempotencyKey sites and flag non-deterministic
+        keys (Date.now/random/uuid) that defeat a UNIQUE backstop -- a duplicate
+        or retry can never be rejected (#1298 promo star-mint). A flag is OK only
+        if the intent is unique-per-payment, not dedup (reward/bonus/refund).
+
+  tri sweep <symbol>
+        Class-sweep helper: list every `await <symbol>(` call-site by layer
+        and flag the ones that DISCARD the result. Use when a point-fix lands
+        to find its siblings. A flagged site is a hypothesis -- read it.
+
+  tri ratchets | tri линейки
+        Run every gated safety-class ratchet in one shot, by exit code
+        (double-charge / scene-id / unbilled-paid / OOM / cross-bot). Names
+        each class + its file. The loop's fast pre/post-work safety check.
+
+  tri charge | tri заряд
+        Completeness check for the double-charge class (#1358): lists every
+        scene that CHARGES money and whether it is guarded / safe / a tracked
+        gap (#1372) / UNCLASSIFIED. Non-zero exit on any unclassified scene.
+        Reads the classification from the vitest ratchet so it never drifts.
+
+  tri wired <SymbolName>
+        Is a handler wired or dead? Lists every src reference and flags the ones
+        on commented-out lines (the shape of dead wiring, e.g. a handler whose
+        only bot.on() registration is commented). Reports facts to READ, not a
+        verdict: it sees `//` comments only, NOT block comments, if(false),
+        feature flags, or examples-only modules.
+
   tri real <name>
         Does the feature work on the WEB before carrying it into the app.
         Looks at: does the server route exist, does the button have its own
@@ -1060,6 +1119,212 @@ cmd_lesson() {
   good 'урок дописан в SKILL.md'
 }
 
+cmd_worktree() {
+  # Why a worktree at all: the loop shares the main tree with sibling sessions,
+  # and a plain `git checkout -b` there lets another session take the branch out
+  # from under the work. A worktree is a private checkout. Base is origin/main,
+  # never local HEAD -- work stands on what is merged.
+  local branch="${1:-}"
+  if [ -z "$branch" ]; then
+    bad 'нужно имя ветки: tri worktree <branch>'
+    return 1
+  fi
+  git -C "$ROOT" fetch origin main --quiet 2>/dev/null
+  local base wt
+  base="$(git -C "$ROOT" rev-parse origin/main)"
+  wt="${TRI_WORKTREE_DIR:-${TMPDIR:-/tmp}}/tri-wt-${branch//\//-}"
+  if [ -e "$wt" ]; then
+    bad "уже существует: $wt"
+    return 1
+  fi
+  if ! git -C "$ROOT" worktree add "$wt" -b "$branch" "$base" >/dev/null 2>&1; then
+    bad "git worktree add не удался (ветка $branch занята?)"
+    return 1
+  fi
+  # A fresh worktree has NO node_modules, and the root alone is NOT enough. The
+  # vibee-editor monorepo keeps per-app node_modules (render/player/vibee-atoms);
+  # without them `bun run verify` dies on ENOENT (render/.bin/tsx) and
+  # ERR_MODULE_NOT_FOUND (jotai) -- an env-gap that reads exactly like a
+  # regression but is one the worktree invented. Symlink the root and every app
+  # node_modules from the main tree so the gate measures the code, not the gap.
+  ln -s "$ROOT/node_modules" "$wt/node_modules"
+  local rel
+  while IFS= read -r rel; do
+    [ -z "$rel" ] && continue
+    mkdir -p "$wt/$(dirname "$rel")"
+    ln -s "$ROOT/$rel" "$wt/$rel"
+  done < <(cd "$ROOT" && find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/')
+  good "worktree готов, node_modules слинкованы (root + apps)"
+  # Print ONLY the path on the last line so a caller can:  cd "$(tri worktree x | tail -1)"
+  printf '%s\n' "$wt"
+}
+
+cmd_price() {
+  # Before treating an "unbilled paid path" as a defect, check whether the mode
+  # even HAS a price. Direct text chat here is free-by-design: ModeEnum.AiChat is
+  # absent from BASE_COSTS (calculateModeCost returns 0), ChatWithAvatar is 0.
+  # Charging a cost-0 mode is not a fix -- it writes 0-value payment rows and the
+  # balance gate (balance < 0) always passes. This prints the STATIC base cost
+  # from BASE_COSTS; dynamic costs (steps-based avatars, answerAi response.cost)
+  # are NOT reflected -- read those paths directly.
+  local mode="${1:-}"
+  if [ -z "$mode" ]; then
+    bad 'нужно имя режима: tri price <ModeName>   (напр. tri price Voice)'
+    return 1
+  fi
+  local file="$ROOT/src/price/helpers/modelsCost.ts"
+  if [ ! -f "$file" ]; then
+    bad "нет файла $file"
+    return 1
+  fi
+  # Only look inside the BASE_COSTS object literal.
+  local block line
+  block="$(awk '/export const BASE_COSTS/{f=1} f{print} f&&/^\}/{exit}' "$file")"
+  line="$(printf '%s\n' "$block" | grep -E "\[ModeEnum\.${mode}\]:" | head -1)"
+  if [ -z "$line" ]; then
+    warn "ModeEnum.${mode} НЕ в BASE_COSTS → calculateModeCost вернёт 0 (free-by-design / цена не задана)"
+    printf '  charge за 0 ВРЕДЕН: 0-value payment-row, gate (balance < 0) всегда проходит\n'
+    return 0
+  fi
+  local val
+  val="$(printf '%s\n' "$line" | sed -E 's/.*\]:[[:space:]]*//; s/,.*$//; s/[[:space:]]*$//')"
+  if [ "$val" = "0" ]; then
+    warn "ModeEnum.${mode} base cost = 0 (free-by-design) — статическая цена нулевая"
+    printf '  (динамическая цена, если есть — через steps/answerAi response.cost — здесь НЕ видна)\n'
+  else
+    good "ModeEnum.${mode} base cost = ${val}\$ (статическая; steps/answerAi не учтены)"
+  fi
+}
+
+cmd_money_base() {
+  # Two star-cost helpers in this repo can DISAGREE by rounding:
+  #   calculateFinalImageCostInStars(usd)   = ceil(usd*interestRate/starCost)  [IMAGES_MODELS.ts]
+  #   calculateFinalPriceInStars(usd,,mk)   = floor(usd/starCost*mk)           [paidServices.ts]
+  # A refund MUST use the same helper the charge used. Hand-guessing the markup or
+  # trusting a code comment nearly shipped a refund-mint (#1263). Evaluate BOTH with
+  # the REAL constants so a money base is never hand-computed again.
+  local usd="${1:-}" markup="${2:-}"
+  if [ -z "$usd" ]; then
+    bad 'нужна цена USD: tri money-base <usdCost> [markup]   (напр. tri money-base 0.025 2.4)'
+    return 1
+  fi
+  local cfile="$ROOT/src/price/constants/index.ts"
+  local star ir
+  star="$(grep -E 'STAR_COST_USD[[:space:]]*=' "$cfile" 2>/dev/null | head -1 | grep -oE '[0-9.]+' | head -1)"
+  ir="$(grep -E 'MARKUP_MULTIPLIER[[:space:]]*=' "$cfile" 2>/dev/null | head -1 | grep -oE '[0-9.]+' | head -1)"
+  star="${star:-0.016}"; ir="${ir:-1.5}"; markup="${markup:-$ir}"
+  node -e "const usd=$usd,star=$star,ir=$ir,mk=$markup;const img=Math.ceil(usd*ir/star),price=Math.floor(usd/star*mk);console.log('  constants (from source): starCost='+star+'  interestRate='+ir+'  markup(arg)='+mk);console.log('  calculateFinalImageCostInStars = ceil('+usd+'*'+ir+'/'+star+') = '+img+' stars');console.log('  calculateFinalPriceInStars     = floor('+usd+'/'+star+'*'+mk+') = '+price+' stars');console.log(img===price?'  AGREE: базы совпадают — refund любой из них ок':'  DIVERGE: refund ОБЯЗАН брать базу того же helper, что и charge!');console.log('  ВНИМАНИЕ: serviceBase = calculateFinalImageCostInStars(usd) ТЕОРЕТИЧЕСКИ; сервис может ХАРДКОДИТЬ costPerImage (nano_banana=5) -- сверь реальный источник, не формулу')"
+}
+
+cmd_batch_refunds() {
+  # Wiring audit: which services in the aiPhotoshop ALL_MODELS batch forward the
+  # EXACT per-image charge (chargedCostOverride) so a failure refunds what was
+  # charged. A service that does NOT forward refunds its own base -- which
+  # UNDER-refunds whenever the batch-charge helper (calculateFinalPriceInStars)
+  # and the service-refund helper (calculateFinalImageCostInStars) diverge.
+  # #1267 fixed flux_kontext_max; pro/seededit/nano_banana queued. Compose with
+  # tri money-base <usd> 2.4 to see whether a MISSING actually loses money.
+  local f="$ROOT/src/scenes/aiPhotoshopScene/index.ts"
+  [ -f "$f" ] || { bad "нет файла $f"; return 1; }
+  node -e '
+    const s=require("fs").readFileSync(process.argv[1],"utf8");
+    const re=/modelKey === .([a-z_0-9]+)./g; let m; const idx=[];
+    while((m=re.exec(s))) idx.push([m.index,m[1]]);
+    let any=false;
+    console.log("  batch services (skipBalanceCheck) forward exact charge (chargedCostOverride)?");
+    for(let i=0;i<idx.length;i++){
+      const start=idx[i][0], name=idx[i][1], end=i+1<idx.length?idx[i+1][0]:start+2500;
+      const b=s.slice(start,end);
+      if(/skipBalanceCheck:\s*true/.test(b)){any=true;const ok=/chargedCostOverride/.test(b);console.log("    "+(ok?"forwards OK   ":"MISSING  !!  ")+name);}
+    }
+    if(!any) console.log("    (no batch skipBalanceCheck call sites)");
+    console.log("  MISSING loses money only when bases diverge -- verify: tri money-base <usd> 2.4");
+  ' "$f"
+}
+
+cmd_idempotency_keys() {
+  # Advisory audit (NOT a pass/fail gate): list every inv_id / idempotencyKey
+  # assignment and flag the ones whose value is NON-deterministic (Date.now,
+  # Math.random, uuid). A non-deterministic idempotency key defeats a UNIQUE
+  # backstop -- a duplicate/retry can never be rejected (#1298 promo star-mint).
+  # A flagged site is only OK if the intent is unique-PER-PAYMENT (a real
+  # invoice), NOT idempotency/dedup (reward, bonus, refund) -- YOU judge.
+  node -e '
+    const fs=require("fs"), path=require("path");
+    function walk(d,acc){ for(const e of fs.readdirSync(d,{withFileTypes:true})){ if(e.name==="node_modules"||e.name===".git")continue; const p=path.join(d,e.name); if(e.isDirectory())walk(p,acc); else if(e.name.endsWith(".ts")&&!e.name.endsWith(".test.ts"))acc.push(p);} return acc; }
+    const files=walk(path.join(process.argv[1],"src"),[]);
+    const NONDET=/Date\.now\(|Math\.random\(|randomUUID|uuidv4\(/;
+    const risky=[]; let total=0;
+    for(const f of files){ const lines=fs.readFileSync(f,"utf8").split("\n");
+      for(let i=0;i<lines.length;i++){ const l=lines[i];
+        if(/\binv_id\s*:/.test(l) || /idempotencyKey\s*[:=]/.test(l)){ total++;
+          const val=l.split(/inv_id\s*:|idempotencyKey\s*[:=]/)[1]||l;
+          if(NONDET.test(val)) risky.push(f.replace(process.argv[1]+"/","")+":"+(i+1)+"  "+l.trim().slice(0,88));
+        } } }
+    console.log("NON-DETERMINISTIC idempotency keys (OK only if intent is unique-per-payment, not dedup):");
+    if(!risky.length) console.log("  (none)"); else risky.forEach(r=>console.log("  ! "+r));
+    console.log("");
+    console.log("total inv_id/idempotencyKey sites: "+total+" | flagged: "+risky.length);
+  ' "$ROOT"
+}
+
+cmd_wired() {
+  # Reachability aid: before fixing a call-site, confirm something reaches it.
+  # This does NOT decide reachable-vs-dead — grep cannot (registration hides in
+  # Stage arrays, scene lists, dynamic registries; wiring is disabled by /* */,
+  # if(false), feature flags, examples-only modules — none visible to grep). It
+  # does ONE reliable thing: list every reference and FLAG the ones on
+  # commented-out lines, because a handler whose bot.on() registration is
+  # commented (handleTextMessage) is the classic dead-code trap. READ the flagged
+  # lines and find the actual registration yourself — the tool only points.
+  local sym="${1:-}"
+  if [ -z "$sym" ]; then
+    bad 'нужен символ: tri wired <SymbolName>   (напр. tri wired handleTextMessage)'
+    return 1
+  fi
+  local hits commented
+  hits="$(cd "$ROOT" && grep -rnE "\\b${sym}\\b" src --include='*.ts' 2>/dev/null | grep -v '__tests__')"
+  if [ -z "$hits" ]; then
+    warn "нет ссылок на ${sym} в src (кроме тестов) — символ не используется?"
+    return 0
+  fi
+  commented="$(printf '%s\n' "$hits" | grep -E ':[0-9]+:[[:space:]]*//')"
+  local nt nc
+  nt="$(printf '%s' "$hits" | grep -c .)"
+  nc="$(printf '%s' "$commented" | grep -c .)"
+  printf '  ссылок всего: %s | из них закомментированных: %s\n' "$nt" "$nc"
+  if [ "$nc" -gt 0 ]; then
+    warn 'ЗАКОММЕНТИРОВАННЫЕ ссылки (частый признак мёртвой проводки — ЧИТАЙ):'
+    printf '%s\n' "$commented" | sed 's/^/    /'
+  fi
+  printf '  НЕ вывод, а указатель: сам найди РЕГИСТРАЦИЮ (bot.on/.hears/.use/.action/.command/\n'
+  printf '  Stage/scene-массив) среди живых ссылок. Если она только в закомментированных — мёртвый код.\n'
+  printf '  grep не видит /* */, if(false), feature-flag, examples-only, динамические реестры.\n'
+}
+
+cmd_charge() {
+  # Fast, human-readable face of the charging-scene completeness ratchet (#1374).
+  # Lists every scene that CHARGES money and its classification; exits non-zero
+  # if any charging scene is neither guarded nor classified (the #1358 class).
+  # Authority is the vitest ratchet; this reads the same classification sets
+  # from the test file so it cannot drift. Use it before/while fixing #1372.
+  ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
+}
+
+cmd_ratchets() {
+  # One exit-code check across every gated safety-class ratchet (double-charge,
+  # scene-id shadowing, unbilled-paid, OOM, cross-bot misdelivery). Names each
+  # class + file, runs them by exit code (not grep). The loop's fast safety check.
+  ( cd "$ROOT" && node "$TOOLS/ratchets.mjs" )
+}
+
+cmd_sweep() {
+  # First step of a class-sweep: list every `await <symbol>(` call-site grouped
+  # by layer and flag the ones that DISCARD the result (unbilled-paid smell).
+  # A flagged site is a hypothesis -- READ it. Reports, never mutates.
+  ( cd "$ROOT" && node "$TOOLS/sweep.mjs" "$@" )
+}
+
 action="${1:-помощь}"
 shift 2>/dev/null || true
 
@@ -1074,6 +1339,15 @@ case "$action" in
   mutate|мутация)      cmd_mutate "$@" ;;
   deployed|выложен)    cmd_deployed ;;
   diverged|разошлись)  cmd_diverged ;;
+  worktree|дерево)    cmd_worktree "$@" ;;
+  price|цена)         cmd_price "$@" ;;
+  money-base|база)     cmd_money_base "$@" ;;
+  batch-refunds|возвраты) cmd_batch_refunds ;;
+  idempotency-keys|ключи) cmd_idempotency_keys ;;
+  wired|подключён)    cmd_wired "$@" ;;
+  charge|заряд)       cmd_charge ;;
+  ratchets|линейки)   cmd_ratchets ;;
+  sweep|развёртка)  cmd_sweep "$@" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
@@ -1088,12 +1362,21 @@ case "$action" in
   # falls through to the directory argument and answers "нет каталога check".
   # A verb that cannot be mistyped into silence is worth the extra dispatch line.
   scan-check|скан-проверка) node "$TOOLS/anomalies-selftest.mjs" ;;
+<<<<<<< HEAD
   # EVERY KIE FUNCTION, WITHOUT SPENDING A CREDIT. A rejected generation costs
   # nothing, so deliberately invalid input separates "the model exists" from
   # "the id is wrong" for free. Two seconds, and the balance is read before and
   # after so "it cost nothing" is measured rather than claimed.
   kie)                 node "$ROOT/scripts/kie-probe.mjs" "${@:2}" ;;
   panel|панель)        node "$TOOLS/dashboard.mjs" ;;
+=======
+  # MEASURE FIRST, THEN DRAW. Building the board without a fresh snapshot is
+  # how it came to show only my end-of-cycle prose. --quick skips the merge gate
+  # (a full tsc, vitest and an Xcode build); `tri status` runs the slow one.
+  panel|панель)        node "$TOOLS/collect-status.mjs" --quick >/dev/null 2>&1
+                       node "$TOOLS/dashboard.mjs" ;;
+  status|замер)        node "$TOOLS/collect-status.mjs" ;;
+>>>>>>> origin/main
   tests|тесты)         bash "$TOOLS/test-all.sh" ;;
   routes|маршруты)     node "$TOOLS/check-routes.mjs" ;;
   health|здоровье)     curl -s -m 20 "$RENDER/health" | head -c 400; echo ;;

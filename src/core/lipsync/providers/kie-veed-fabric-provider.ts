@@ -255,6 +255,11 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
           contentType: imageResponse.headers['content-type'],
           contentLength: imageResponse.headers['content-length'],
         })
+        // Close the socket-backed stream we only read headers from: an
+        // abandoned responseType:'stream' Readable emits 'error' with no listener
+        // on a later ECONNRESET -> uncaughtException -> process.exit(1) (all bots).
+        // Same as the fallback GET branch below. #1334
+        imageResponse.data?.destroy?.()
       } catch (imageError) {
         logger.warn(
           '⚠️ [KIE PROVIDER] Image URL HEAD request failed, trying GET...',
@@ -331,6 +336,8 @@ export class KieVeedFabricProvider implements ILipSyncProvider {
           contentType: audioResponse.headers['content-type'],
           contentLength: audioResponse.headers['content-length'],
         })
+        // Close the abandoned availability-check stream (see image branch). #1334
+        audioResponse.data?.destroy?.()
       } catch (audioError) {
         logger.warn(
           '⚠️ [KIE PROVIDER] Audio URL HEAD request failed, trying GET...',

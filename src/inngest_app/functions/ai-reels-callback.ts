@@ -7,7 +7,7 @@
  * НАЗНАЧЕНИЕ: Отправка готового видео пользователю в Telegram
  */
 
-import { inngest } from '@/inngest_app/client'
+import { inngest, createInngestFailureHandler } from '@/inngest_app/client'
 import axios from 'axios'
 import { Input } from 'telegraf'
 import { logger } from '@/utils/logger'
@@ -149,6 +149,11 @@ export const aiReelsCallbackFunction = inngest.createFunction(
     id: 'ai-reels-callback',
     name: '🔔 AI Reels Callback Handler',
     retries: 3,
+    // Without onFailure, exhausted retries silently drop the user's paid AI
+    // Reels result — no admin visibility. Every sibling Inngest function
+    // (welcomeAvatarGeneration, morphImages, kieAiWebhookMonitor, ...) declares
+    // this handler; this callback was the anomaly missing it.
+    onFailure: createInngestFailureHandler('AI Reels Callback'),
   },
   { event: 'ai-reels-callback' },
   async ({ event, step, logger }) => {

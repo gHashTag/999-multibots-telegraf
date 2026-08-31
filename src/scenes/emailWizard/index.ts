@@ -66,19 +66,23 @@ function generateRobokassaUrl(
   return url
 }
 
-async function getInvoiceId(
+export async function getInvoiceId(
   merchantLogin: string,
   outSum: number,
   invId: number,
   description: string,
   password1: string
 ): Promise<string> {
+  // Do NOT log password1 (the Robokassa merchant secret): plain-string values are
+  // not redacted by setupSafeConsoleLogging, so the verbatim secret would hit
+  // stdout/Railway logs and let a log reader forge payment signatures. Log only a
+  // presence flag, matching getRuBillWizard.
   console.log('Start getInvoiceId', {
     merchantLogin,
     outSum,
     invId,
     description,
-    password1,
+    hasPassword1: !!password1,
   })
   try {
     const signatureValue = md5(

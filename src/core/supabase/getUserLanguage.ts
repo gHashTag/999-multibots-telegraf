@@ -2,8 +2,25 @@ import { supabase } from './client'
 import { logger } from '@/utils/logger'
 
 // 🔇 Throttle для ошибок - не логируем одну и ту же ошибку чаще чем раз в 60 секунд
-const errorThrottle = new Map<string, number>()
+// Exported for unit testing of the bounded-throttle behaviour.
+export const errorThrottle = new Map<string, number>()
 const ERROR_THROTTLE_MS = 60000 // 1 минута
+
+// Returns true if this key has not logged within the throttle window (and then
+// records `now`). It also prunes expired entries so `errorThrottle` cannot grow
+// unbounded for the process lifetime: it is a process-wide singleton shared by
+// the language middleware across every bot, and an entry older than the window
+// is dead weight (the next event would log regardless). The sweep runs only
+// when a log actually fires — i.e. rarely — so it stays cheap.
+export function shouldLogThrottled(key: string, now: number): boolean {
+  const last = errorThrottle.get(key) || 0
+  if (now - last <= ERROR_THROTTLE_MS) return false
+  errorThrottle.set(key, now)
+  for (const [k, ts] of errorThrottle) {
+    if (now - ts > ERROR_THROTTLE_MS) errorThrottle.delete(k)
+  }
+  return true
+}
 
 /**
  * Получает язык пользователя из базы данных
@@ -28,11 +45,7 @@ export const getUserLanguageFromDB = async (
     if (error) {
       // 🔇 Throttle: не спамим одной ошибкой
       const throttleKey = `${telegram_id}:${error.code || 'unknown'}`
-      const lastErrorTime = errorThrottle.get(throttleKey) || 0
-      const now = Date.now()
-
-      if (now - lastErrorTime > ERROR_THROTTLE_MS) {
-        errorThrottle.set(throttleKey, now)
+      if (shouldLogThrottled(throttleKey, Date.now())) {
         logger.error(
           `[getUserLanguageFromDB] Error fetching language for telegram_id ${telegram_id}: ${error.message || 'Unknown error'} (code: ${error.code || 'N/A'})`,
           {
@@ -49,11 +62,7 @@ export const getUserLanguageFromDB = async (
     if (!data) {
       // 🔇 Throttle: не спамим "user not found" для каждого запроса
       const throttleKey = `notfound:${telegram_id}`
-      const lastWarnTime = errorThrottle.get(throttleKey) || 0
-      const now = Date.now()
-
-      if (now - lastWarnTime > ERROR_THROTTLE_MS) {
-        errorThrottle.set(throttleKey, now)
+      if (shouldLogThrottled(throttleKey, Date.now())) {
         logger.warn(
           `[getUserLanguageFromDB] User not found for telegram_id: ${telegram_id}`
         )
@@ -79,11 +88,7 @@ export const getUserLanguageFromDB = async (
   } catch (err) {
     // 🔇 Throttle: не спамим unexpected errors
     const throttleKey = `exception:${telegram_id}`
-    const lastErrorTime = errorThrottle.get(throttleKey) || 0
-    const now = Date.now()
-
-    if (now - lastErrorTime > ERROR_THROTTLE_MS) {
-      errorThrottle.set(throttleKey, now)
+    if (shouldLogThrottled(throttleKey, Date.now())) {
       logger.error(
         `[getUserLanguageFromDB] Unexpected error for telegram_id ${telegram_id}: ${err instanceof Error ? err.message : String(err)}`,
         { error: err }

@@ -22,8 +22,6 @@ import { supabase } from '@/core/supabase'
 import { Markup } from 'telegraf'
 import { fal } from '@fal-ai/client'
 
-// --- Локальный кэш для идемпотентности ---
-const idemCache = new Map<string, { result: any; expiresAt: number }>()
 const IDEMPOTENCY_TTL_MS = 20 * 1000 // 20 секунд
 
 /**
@@ -264,17 +262,6 @@ export async function generateNeuroPhotoDirect(
     .createHash('sha256')
     .update(`${telegram_id}:${prompt}:${model_url}:${numImages}`)
     .digest('hex')
-  const now = Date.now()
-  const cacheEntry = idemCache.get(idempotencyKey)
-  if (cacheEntry && cacheEntry.expiresAt > now) {
-    logger.info('[IDEMPOTENCY] Найден локальный результат', {
-      idempotencyKey,
-    })
-    // ❌ ПРОБЛЕМА: Возвращаем закэшированный результат, но изображение НЕ отправляется!
-    // ✅ РЕШЕНИЕ: Для повторных генераций нужно генерировать новое изображение
-    // Временно отключаем кэш для повторных генераций
-    // return cacheEntry.result
-  }
   // --- Проверка идемпотентности ---
   // Псевдокод: ищем в Supabase (таблица payments_v2 или idempotency_keys) запись с этим ключом и created_at > now() - TTL
   const { data: idemRows, error: idemError } = await supabase
@@ -297,10 +284,6 @@ export async function generateNeuroPhotoDirect(
     if (row.result) {
       logger.info('[IDEMPOTENCY] Найден результат, возвращаю сохранённый', {
         idempotencyKey,
-      })
-      idemCache.set(idempotencyKey, {
-        result: row.result,
-        expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
       })
       // ❌ ПРОБЛЕМА: Возвращаем закэшированный результат, но изображение НЕ отправляется!
       // ✅ РЕШЕНИЕ: Для повторных генераций нужно генерировать новое изображение
@@ -507,8 +490,14 @@ export async function generateNeuroPhotoDirect(
       bot_name: botName,
       service_type: ModeEnum.NeuroPhoto,
       inv_id: paymentOperationId,
-      bypass_payment_check:
-        options?.bypass_payment_check || ctx?.session?.bypass_payment_check,
+      // Trust ONLY the explicit per-call option. ctx.session.bypass_payment_check
+      // is set by the AvatarTransform lead magnet (avatarTransformScene:1115) and
+      // never cleared on cancel; OR-ing it in here let a stale flag skip the
+      // balance check on a normal paid NeuroPhoto run (Plan B) = free generation.
+      // Every caller passes bypass explicitly via options; the legitimate
+      // AvatarTransform free path is honored (and the flag cleared) in
+      // processBalanceOperation, not on this direct-charge path. #1335
+      bypass_payment_check: options?.bypass_payment_check ?? false,
       metadata: {
         prompt: prompt.substring(0, 100),
         num_images: validNumImages,
@@ -1074,6 +1063,41 @@ Generated: ${new Date().toLocaleString('en-US')}
                 imageUrl: imageUrl.substring(0, 50) + '...',
               }
             )
+
+            // The user was charged up front (MONEY_OUTCOME above). Delivery just
+            // failed, and this catch swallows the error, so it never reaches the
+            // generation-failure refund below — without this the user paid for an
+            // image they never received. Refund this one image, like the sibling
+            // generators do by rethrowing. A refund only ever returns money.
+            try {
+              const refundResult = await directPaymentProcessor({
+                telegram_id,
+                amount: costPerImage,
+                type: PaymentType.REFUND,
+                description: is_ru
+                  ? 'Возврат за недоставленное изображение (ошибка отправки)'
+                  : 'Refund for an image that could not be delivered',
+                bot_name: botName,
+                service_type: ModeEnum.NeuroPhoto,
+              })
+              if (!refundResult?.success) {
+                logger.error(
+                  '❌ [DIRECT] Возврат за недоставленное изображение не прошёл',
+                  { telegram_id, refundResult }
+                )
+              }
+            } catch (refundError) {
+              logger.error(
+                '❌ [DIRECT] Ошибка возврата за недоставленное изображение',
+                {
+                  telegram_id,
+                  error:
+                    refundError instanceof Error
+                      ? refundError.message
+                      : 'Unknown error',
+                }
+              )
+            }
           }
 
           // Сохраняем промпт в базу данных для аналитики и истории
@@ -1335,15 +1359,6 @@ Generated: ${new Date().toLocaleString('en-US')}
         },
       })
       .eq('idempotency_key', idempotencyKey)
-
-    idemCache.set(idempotencyKey, {
-      result: {
-        data: 'Processing completed',
-        success: true,
-        urls: generatedUrls,
-      },
-      expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
-    })
 
     return {
       data: 'Processing completed',

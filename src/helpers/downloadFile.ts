@@ -1,4 +1,5 @@
 import axios, { isAxiosError } from 'axios'
+import { assertPublicRedirect } from '@/utils/sanitize'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB - максимальный размер для Telegram
 
@@ -12,6 +13,8 @@ export async function downloadFile(url: string): Promise<Buffer> {
       responseType: 'arraybuffer',
       timeout: 60000,
       maxRedirects: 5,
+      // SSRF: re-check each redirect hop against the private/metadata blocklist
+      beforeRedirect: assertPublicRedirect,
       validateStatus: status => status === 200,
     })
 

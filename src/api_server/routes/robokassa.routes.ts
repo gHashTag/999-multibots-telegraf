@@ -1,4 +1,5 @@
 import express from 'express'
+import { redactSensitiveHeaders } from '@/utils/redactHeaders'
 import { Router } from 'express'
 import { validateRobokassaSignature } from '@/core/robokassa'
 import { getPaymentByInvId } from '@/core/supabase/payments'
@@ -106,7 +107,7 @@ async function handlePaymentSuccess(req: any, res: any) {
   try {
     logger.info('🔔 Received Robokassa webhook', {
       body: req.body,
-      headers: req.headers,
+      headers: redactSensitiveHeaders(req.headers),
     })
 
     if (!req.body) {

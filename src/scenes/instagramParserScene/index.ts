@@ -202,6 +202,18 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
         const count = parseInt(match[1])
         const cost = REELS_PRICING[count as keyof typeof REELS_PRICING]
 
+        // count comes from callback data, which a crafted client can set to any
+        // value. An unknown count makes cost `undefined`, and
+        // `currentBalance < undefined` is false -> the balance check below would
+        // be bypassed and the user charged `undefined` while `count` reels are
+        // scraped. Reject anything outside the price table (allowlist before price).
+        if (typeof cost !== 'number') {
+          await ctx.answerCbQuery(
+            isRu ? '❌ Некорректный выбор' : '❌ Invalid selection'
+          )
+          return
+        }
+
         state.count = count
         state.cost = cost
 
@@ -241,6 +253,16 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           isRu ? '🚀 Запускаю парсинг...' : '🚀 Starting parsing...'
         )
 
+        if (ctx.session.instagramParserSceneInProgress) {
+          await ctx.answerCbQuery(
+            isRu
+              ? '⏳ Уже запускаю, подождите...'
+              : '⏳ Already starting, please wait...'
+          )
+          return
+        }
+        ctx.session.instagramParserSceneInProgress = true
+
         try {
           // СНАЧАЛА ЗАПУСК, ПОТОМ СПИСАНИЕ.
           //
@@ -267,9 +289,10 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
             ctx.botInfo?.username || 'telegram_bot'
           )
 
+          let charged = false
           if (result?.success) {
             // Списываем баланс только после успешного запуска
-            await updateUserBalance(
+            charged = await updateUserBalance(
               userId.toString(),
               cost as any,
               PaymentType.MONEY_OUTCOME,
@@ -283,6 +306,17 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
                 stars: cost,
               }
             )
+            // updateUserBalance returns false (never throws) on a schema/insert
+            // failure or a ghost-payer with no users row. The charge runs only
+            // after a successful parse, so on failure the user got the result
+            // for free — log it (there is no refund path in this scene) instead
+            // of discarding the result silently.
+            if (!charged) {
+              logger.error(
+                '[instagramParser] charge failed after a successful parse — user got the result unbilled',
+                { userId, cost, target: state.target }
+              )
+            }
           }
 
           if (result?.success) {
@@ -319,10 +353,16 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
                 userId,
               })
             }
+            const chargeLineRu = charged
+              ? '💰 Списано: ' + cost + ' ⭐'
+              : '⚠️ Средства не списаны (ошибка списания)'
+            const chargeLineEn = charged
+              ? '💰 Charged: ' + cost + ' ⭐'
+              : '⚠️ You were not charged (a technical charge error)'
             await ctx.editMessageText(
               isRu
-                ? `✅ Парсинг запущен!\n\n🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n📊 Количество: ${count} рилсов\n💰 Списано: ${cost} ⭐\n\n📬 Результаты придут автоматически через 3-10 минут`
-                : `✅ Parsing started!\n\n🎯 Target: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n📊 Count: ${count} reels\n💰 Charged: ${cost} ⭐\n\n📬 Results will arrive automatically in 3-10 minutes`,
+                ? `✅ Парсинг запущен!\n\n🎯 Цель: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n📊 Количество: ${count} рилсов\n${chargeLineRu}\n\n📬 Результаты придут автоматически через 3-10 минут`
+                : `✅ Parsing started!\n\n🎯 Target: ${state.type === 'competitor' ? '@' : '#'}${state.target}\n📊 Count: ${count} reels\n${chargeLineEn}\n\n📬 Results will arrive automatically in 3-10 minutes`,
               Markup.inlineKeyboard([
                 [
                   Markup.button.callback(
@@ -355,6 +395,8 @@ export const instagramParserScene = new Scenes.WizardScene<MyContext>(
           await ctx.editMessageText(
             isRu ? '❌ Ошибка парсинга' : '❌ Parsing error'
           )
+        } finally {
+          ctx.session.instagramParserSceneInProgress = false
         }
 
         ;(ctx.wizard as any).state = {}

@@ -323,6 +323,18 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   aspect_ratio?: string // <-- Добавлено соотношение сторон
   translationCache?: Record<string, TranslationEntry[]> | null
   neuroPhotoInProgress?: boolean
+  textToSpeechInProgress?: boolean
+  musicGenerationInProgress?: boolean
+  videoTranscriptionInProgress?: boolean
+  aiPhotoshopInProgress?: boolean
+  lipSyncInProgress?: boolean
+  aiReelsInProgress?: boolean
+  veedFabricInProgress?: boolean
+  hedraRenderInProgress?: boolean
+  heygenRenderInProgress?: boolean
+  aiReelsRenderInProgress?: boolean
+  instagramParserInProgress?: boolean
+  instagramParserSceneInProgress?: boolean
   faceSwapInProgress?: boolean
   userModel: UserModel
   videoModel?: string
@@ -409,6 +421,17 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   // not advance until it resolves, so a second voice message during that window
   // ran it again — double level-up and a second, orphaned ElevenLabs voice.
   voiceAvatarInProgress?: boolean
+  // In-flight guard for the AI chat wizard: conversationStep calls the paid
+  // chatWithAI (a Replicate prediction, ~30s) once per message with no
+  // serialization, so a user sending several messages in quick succession
+  // fired several concurrent paid predictions on the platform token.
+  aiChatInProgress?: boolean
+  // In-flight guard for the chat-with-avatar wizard: processUserMessage calls
+  // answerAi (which charges the user via processBalanceOperation on the Nano
+  // Banana image path) plus paid voice generation, and step 2 stays active
+  // until it resolves, so a second message during that window double-charged
+  // the image path and ran a second paid voice.
+  chatWithAvatarInProgress?: boolean
   // In-flight guard for the image-to-prompt wizard: step 2 runs
   // generateImageToPrompt, which charges the user (MONEY_OUTCOME) and runs the
   // full caption pipeline, and only leaves after it resolves. A second photo
@@ -420,6 +443,8 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   // for repeat taps, so a second tap during a generation charged twice and
   // produced two batches. Same shape as the sibling guards.
   textToImageInProgress?: boolean
+  imageToVideoInProgress?: boolean
+  textToVideoInProgress?: boolean
 
   // Text-to-video direct generation fields
   videoJobId?: string // ID задачи генерации видео для отслеживания статуса

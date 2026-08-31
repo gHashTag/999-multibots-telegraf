@@ -17,16 +17,18 @@ export async function createImagesZip(images: BufferType): Promise<string> {
     const output = createWriteStream(zipPath)
     const archive = archiver('zip', { zlib: { level: 9 } })
 
-    archive.pipe(output)
+    // Register error/close listeners BEFORE piping and finalizing, all inside
+    // one Promise. archiver emits an 'error' EVENT (separate from finalize()'s
+    // rejection) for a bad buffer/zlib failure; with no listener Node turns that
+    // into an uncaughtException that crashes the whole process (kills every bot).
+    return await new Promise<string>((resolve, reject) => {
+      archive.on('error', reject)
 
-    for (const image of images) {
-      console.log(`Добавление изображения: ${image.filename}`)
-      archive.append(image.buffer, { name: image.filename })
-    }
+      output.on('error', error => {
+        console.error('Ошибка при создании ZIP архива:', error)
+        reject(error)
+      })
 
-    await archive.finalize()
-
-    return new Promise((resolve, reject) => {
       output.on('close', async () => {
         try {
           const stats = await fs.stat(zipPath)
@@ -43,10 +45,14 @@ export async function createImagesZip(images: BufferType): Promise<string> {
         }
       })
 
-      output.on('error', error => {
-        console.error('Ошибка при создании ZIP архива:', error)
-        reject(error)
-      })
+      archive.pipe(output)
+
+      for (const image of images) {
+        console.log(`Добавление изображения: ${image.filename}`)
+        archive.append(image.buffer, { name: image.filename })
+      }
+
+      archive.finalize().catch(reject)
     })
   } catch (error) {
     console.error('Ошибка при создании ZIP архива:', error)

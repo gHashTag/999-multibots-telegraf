@@ -386,6 +386,22 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
           return
         }
 
+        // Cap the number of collected images. Each is a full Buffer kept in the
+        // in-memory Telegraf session (bot.ts:143, no TTL/eviction) shared by the
+        // one process that runs every bot. Without a cap a subscriber can keep
+        // sending photos — the branch returns to the same step and collection is
+        // free until the later Create charge — so RSS climbs until the container
+        // OOM-kills the whole multi-bot process. Morph needs >= 2; 20 is generous.
+        const MAX_MORPHING_IMAGES = 20
+        if (ctx.session.morphingImages.length >= MAX_MORPHING_IMAGES) {
+          await ctx.reply(
+            isRu
+              ? '❌ Достигнут лимит изображений (максимум 20). Нажмите «Создать инфинити морфинг».'
+              : '❌ Image limit reached (max 20). Press Create Infinity Morphing.'
+          )
+          return
+        }
+
         // ✅ ДОБАВЛЯЕМ ИЗОБРАЖЕНИЕ С TIMESTAMP ДЛЯ ПРАВИЛЬНОЙ СОРТИРОВКИ
         const imageIndex = ctx.session.morphingImages.length + 1
         const currentTimestamp = Date.now() + imageIndex // Уникальный timestamp для сортировки

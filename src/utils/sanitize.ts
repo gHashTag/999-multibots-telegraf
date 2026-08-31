@@ -48,6 +48,61 @@ export function sanitizePath(path: string): string {
 }
 
 /**
+ * SSRF host blocklist: localhost, private/link-local IPv4, and loopback/private
+ * IPv6 (incl. 169.254.169.254 cloud metadata, and IPv4-mapped IPv6 which Node
+ * renders in hex). Single source of truth, shared by sanitizeUrl (the incoming
+ * host) and assertPublicRedirect (each redirect hop).
+ */
+const PRIVATE_HOST_PATTERNS: RegExp[] = [
+  /^localhost$/,
+  /\.localhost$/,
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^0\.0\.0\.0$/,
+  /^::1$/,
+  /^::$/,
+  /^::ffff:7f[0-9a-f]{2}:/,
+  /^::ffff:a9fe:/,
+  /^fe80:/,
+  /^f[cd][0-9a-f]{2}:/,
+]
+
+/**
+ * True if hostname is a localhost/private/link-local address that must never be
+ * the target of a server-side fetch. Normalizes case and strips IPv6 brackets.
+ */
+export function isPrivateHost(hostname: string): boolean {
+  const h = (hostname || '').toLowerCase().replace(/^\[|\]$/g, '')
+  return PRIVATE_HOST_PATTERNS.some(pattern => pattern.test(h))
+}
+
+/**
+ * axios `beforeRedirect` guard: re-check EVERY redirect hop against the same
+ * blocklist. sanitizeUrl only vets the original host; a public URL can 302 to
+ * 169.254.169.254 / 127.0.0.1, so each hop must be re-validated. Throws to abort
+ * the download when the next hop is private/local.
+ */
+export function assertPublicRedirect(options: {
+  hostname?: string | null
+  host?: string | null
+}): void {
+  let host = (options?.hostname || '').toString()
+  if (!host && options?.host) {
+    const h = options.host.toString()
+    // host may carry a port: [ipv6]:port or ipv4:port
+    host = h.startsWith('[')
+      ? h.slice(1, h.indexOf(']'))
+      : h.replace(/:\d+$/, '')
+  }
+  if (host && isPrivateHost(host)) {
+    throw new Error('SSRF: redirect to private/local address blocked')
+  }
+}
+
+/**
  * Sanitize URL для защиты от SSRF
  * Проверяет что URL использует безопасный протокол
  */
@@ -70,21 +125,12 @@ export function sanitizeUrl(
       )
     }
 
-    // Защита от localhost/private IPs в production
-    if (process.env.NODE_ENV === 'production') {
-      const hostname = parsed.hostname.toLowerCase()
-      const privatePatterns = [
-        /^localhost$/,
-        /^127\./,
-        /^10\./,
-        /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
-        /^192\.168\./,
-        /^0\.0\.0\.0$/,
-      ]
-
-      if (privatePatterns.some(pattern => pattern.test(hostname))) {
-        throw new Error('Private/local URLs not allowed in production')
-      }
+    // SSRF guard: reject localhost/private/link-local hosts (incl. 169.254
+    // cloud metadata + IPv4-mapped IPv6). Applied ALWAYS: a dev bot can be
+    // tunnel-exposed and the only caller passes a user-typed URL. Shared
+    // blocklist with the redirect-hop guard (assertPublicRedirect).
+    if (isPrivateHost(parsed.hostname)) {
+      throw new Error('Private/local URLs not allowed')
     }
 
     return parsed.toString()

@@ -1,5 +1,6 @@
 import { logger } from '@/utils/logger'
 import { processBalanceOperation } from '@/price/helpers/processBalanceOperation'
+import { refundAndTell } from '@/price/helpers/refundAndTell'
 import { sendPhotoWithFallback } from '@/helpers/sendPhotoWithFallback'
 import { MyContext } from '@/interfaces'
 
@@ -24,6 +25,9 @@ export async function generateGeminiImage({
   username,
   is_ru = true,
 }: GeminiImageParams): Promise<string | null> {
+  // Tracks the amount actually deducted (0 for a free/bypass generation), so a
+  // failure below can refund exactly what was charged and never mint stars.
+  let chargedAmount = 0
   try {
     logger.info('[generateGeminiImage] Starting generation', {
       telegram_id,
@@ -59,6 +63,10 @@ export async function generateGeminiImage({
       )
       return null
     }
+
+    // A real charge (not a free/bypass generation) was made — remember how much,
+    // to refund it if generation fails below. paymentAmount is 0 on a bypass.
+    chargedAmount = balanceCheck.paymentAmount ?? 0
 
     // Отправляем статус
     const statusMessage = await ctx.reply(
@@ -156,10 +164,30 @@ export async function generateGeminiImage({
       ? `✨ *Ваш образ готов!*\\n\\n💫 Стоимость: ${costPerImage}⭐\\n\\n_Создайте еще образы через_ /start`
       : `✨ *Your image is ready!*\\n\\n💫 Cost: ${costPerImage}⭐\\n\\n_Create more images via_ /start`
 
-    await sendPhotoWithFallback(ctx, imageUrl, {
+    const delivered = await sendPhotoWithFallback(ctx, imageUrl, {
       caption,
       parse_mode: 'MarkdownV2',
     })
+
+    if (!delivered) {
+      // sendPhotoWithFallback returns false on failure — it NEVER throws, so a
+      // delivery failure would otherwise skip the catch below and leave the
+      // user charged for an image they never received. Refund the charge here.
+      if (chargedAmount > 0) {
+        await refundAndTell({
+          ctx,
+          telegramId: String(telegram_id),
+          amount: chargedAmount,
+          description: 'Gemini image refund - delivery error',
+          reason: {
+            ru: 'Не удалось отправить сгенерированное изображение',
+            en: 'Could not deliver the generated image',
+          },
+          isRu: is_ru,
+        })
+      }
+      return null
+    }
 
     return imageUrl
   } catch (error) {
@@ -168,12 +196,30 @@ export async function generateGeminiImage({
       error: error instanceof Error ? error.message : 'Unknown error',
     })
 
-    await ctx.reply(
-      is_ru
-        ? '❌ Произошла ошибка при генерации. Попробуйте позже.'
-        : '❌ An error occurred during generation. Please try later.',
-      { parse_mode: 'MarkdownV2' }
-    )
+    if (chargedAmount > 0) {
+      // The stars were charged before generation (processBalanceOperation).
+      // Generation failed after the charge, so refund the exact amount —
+      // otherwise the user pays for an image they never received (same class as
+      // faceSwap #1166). refundAndTell also tells the user the truth.
+      await refundAndTell({
+        ctx,
+        telegramId: String(telegram_id),
+        amount: chargedAmount,
+        description: 'Gemini image refund - generation error',
+        reason: {
+          ru: 'Не удалось сгенерировать изображение',
+          en: 'Image generation failed',
+        },
+        isRu: is_ru,
+      })
+    } else {
+      await ctx.reply(
+        is_ru
+          ? '❌ Произошла ошибка при генерации. Попробуйте позже.'
+          : '❌ An error occurred during generation. Please try later.',
+        { parse_mode: 'MarkdownV2' }
+      )
+    }
 
     return null
   }

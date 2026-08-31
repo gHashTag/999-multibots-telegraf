@@ -1414,8 +1414,17 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       }
 
       console.log('🔴 [STEP 6] Balance sufficient! Charging user...')
+      if (ctx.session.aiReelsRenderInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже обрабатываю, подождите...'
+            : '⏳ Already processing, please wait...'
+        )
+        return
+      }
+      ctx.session.aiReelsRenderInProgress = true
       // Списание средств
-      await updateUserBalance(
+      const charged = await updateUserBalance(
         telegramId,
         estimatedCost,
         PaymentType.MONEY_OUTCOME,
@@ -1426,9 +1435,26 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
           avatar_service: avatarService,
         }
       )
+      // updateUserBalance returns false on a failed debit (it does NOT throw).
+      // Without capturing it, a charge that fails -- e.g. a concurrent spend
+      // depletes the balance between the pre-check and here, or a DB error --
+      // still fell through to the render-server dispatch below: a FREE video.
+      if (!charged) {
+        console.log('🔴 [STEP 6] CHARGE FAILED -- aborting render')
+        await ctx.reply(
+          isRu
+            ? '💰 Ошибка списания средств. Попробуйте позже.'
+            : '💰 Error charging payment. Try again later.'
+        )
+        return ctx.scene.leave()
+      }
       console.log('🔴 [STEP 6] User charged successfully!')
 
       console.log('🔴 [STEP 6] Sending event to render-server...')
+      // dispatched: once sendRenderAvatarVideoEvent returns, the render job is
+      // queued and the callback owns its outcome; a throw in the confirmation
+      // reply AFTER this must NOT refund (heygen-render is the oracle). See #1331.
+      let dispatched = false
       // Отправка на render-server
       try {
         console.log('🔴 [STEP 6] Inside sendEvent try block')
@@ -1508,6 +1534,7 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 
         console.log('🔴 [STEP 6] About to call sendRenderAvatarVideoEvent()...')
         const { eventId } = await sendRenderAvatarVideoEvent(payload)
+        dispatched = true
         console.log('🔴 [STEP 6] Event sent! Event ID:', eventId)
 
         console.log('🔴 [STEP 6] Updating status message for user...')
@@ -1554,17 +1581,27 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         // Возврат средств при ошибке. Говорим человеку то, что
         // произошло: начисление может не пройти — updateUserBalance
         // при неудаче не бросает, а возвращает false.
-        await refundAndTell({
-          ctx,
-          telegramId,
-          amount: estimatedCost,
-          description: 'Refund: AI Reels Render error',
-          reason: {
-            ru: 'Произошла ошибка при отправке запроса',
-            en: 'An error occurred while sending the request',
-          },
-          isRu,
-        })
+        // Only a PRE-dispatch throw warrants a refund. If the job was already
+        // dispatched and only the confirmation reply threw, the render job keeps
+        // running and will deliver -- refunding here would mint. See #1331.
+        if (!dispatched) {
+          await refundAndTell({
+            ctx,
+            telegramId,
+            amount: estimatedCost,
+            description: 'Refund: AI Reels Render error',
+            reason: {
+              ru: 'Произошла ошибка при отправке запроса',
+              en: 'An error occurred while sending the request',
+            },
+            isRu,
+          })
+        } else {
+          logger.warn(
+            '[RENDER] Post-dispatch reply threw; NOT refunding (render job owns its outcome)',
+            { telegramId }
+          )
+        }
       }
 
       // Очистка сессии
@@ -1601,6 +1638,10 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
 )
 
 // Обработчик кнопки отмены
+aiReelsRenderWizard.leave(async ctx => {
+  if (ctx.session) ctx.session.aiReelsRenderInProgress = false
+})
+
 aiReelsRenderWizard.action('ai_reels_cancel', async ctx => {
   try {
     await ctx.answerCbQuery()

@@ -465,6 +465,32 @@ export const generateFluxKontext = async (
         console.log('🔥 [CRITICAL] Fallback message sent')
       }
 
+      // The image was generated but sendPhoto failed, and we deliberately do
+      // NOT rethrow (the message above is more accurate than the outer catch's
+      // generic one). Because we fall through to the success return below, the
+      // outer catch's refund never runs — so the user would keep the debit from
+      // processBalanceOperation with no image. Refund here instead. refundUser is
+      // guarded by hasChargeToRefund (a real charge within 24h, netting prior
+      // refunds, under a per-user lock), so it is additive and cannot double-credit.
+      try {
+        if (paymentAmount > 0 && ctx) {
+          await refundUser(ctx, paymentAmount, {
+            silent: true,
+            reason: 'generation_failed',
+          })
+          logger.info('💰 Balance refunded after FLUX Kontext send failure', {
+            telegram_id,
+            refundAmount: paymentAmount,
+          })
+        }
+      } catch (refundError) {
+        logger.error('Failed to refund after FLUX Kontext send failure', {
+          telegram_id,
+          refundError:
+            refundError instanceof Error ? refundError.message : 'Unknown',
+        })
+      }
+
       // НЕ выбрасываем ошибку - позволяем процессу завершиться нормально
     }
 

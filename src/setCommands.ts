@@ -65,6 +65,10 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
         description: '📟 Главное меню / Main menu',
       },
       {
+        command: 'app',
+        description: '🔑 Войти в приложение / Sign in to the app',
+      },
+      {
         command: 'support',
         description: '🛠 Tech Support / Техподдержка',
       },
@@ -94,6 +98,10 @@ export async function setBotCommands(bot: Telegraf<MyContext>) {
           {
             command: 'start',
             description: '📟 Главное меню / Main menu',
+          },
+          {
+            command: 'app',
+            description: '🔑 Войти в приложение / Sign in to the app',
           },
           {
             command: 'support',
