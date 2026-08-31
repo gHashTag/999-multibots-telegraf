@@ -186,6 +186,11 @@ CHECKS THAT EACH COST A CYCLE
         or retry can never be rejected (#1298 promo star-mint). A flag is OK only
         if the intent is unique-per-payment, not dedup (reward/bonus/refund).
 
+  tri ratchets | tri линейки
+        Run every gated safety-class ratchet in one shot, by exit code
+        (double-charge / scene-id / unbilled-paid / OOM / cross-bot). Names
+        each class + its file. The loop's fast pre/post-work safety check.
+
   tri charge | tri заряд
         Completeness check for the double-charge class (#1358): lists every
         scene that CHARGES money and whether it is guarded / safe / a tracked
@@ -1301,6 +1306,13 @@ cmd_charge() {
   ( cd "$ROOT" && node "$TOOLS/charge-audit.mjs" )
 }
 
+cmd_ratchets() {
+  # One exit-code check across every gated safety-class ratchet (double-charge,
+  # scene-id shadowing, unbilled-paid, OOM, cross-bot misdelivery). Names each
+  # class + file, runs them by exit code (not grep). The loop's fast safety check.
+  ( cd "$ROOT" && node "$TOOLS/ratchets.mjs" )
+}
+
 action="${1:-помощь}"
 shift 2>/dev/null || true
 
@@ -1322,6 +1334,7 @@ case "$action" in
   idempotency-keys|ключи) cmd_idempotency_keys ;;
   wired|подключён)    cmd_wired "$@" ;;
   charge|заряд)       cmd_charge ;;
+  ratchets|линейки)   cmd_ratchets ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
   gate|ворота)         cmd_gate ;;
