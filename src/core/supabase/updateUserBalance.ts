@@ -609,12 +609,30 @@ export const updateUserBalanceUnlocked = async (
       return false
     }
 
-    // Инвалидация кэша баланса
-    await invalidateBalanceCache(telegram_id.toString())
-    logger.info('💰 Кэш баланса инвалидирован для:', {
-      description: 'Balance cache invalidated for',
-      telegram_id,
-    })
+    // Balance cache invalidation is best-effort. The payments_v2 row is already
+    // committed above (the money has moved), so a throw here must NOT reach the
+    // outer catch and flip the return to false: a false 'charged=false' makes the
+    // caller deliver-unbilled or retry into a double charge. invalidateBalanceCache
+    // is a no-op today but is kept switchable, so the contract 'return true iff the
+    // transaction committed' must not depend on it never throwing (#1174).
+    try {
+      await invalidateBalanceCache(telegram_id.toString())
+      logger.info('💰 Кэш баланса инвалидирован для:', {
+        description: 'Balance cache invalidated for',
+        telegram_id,
+      })
+    } catch (cacheError) {
+      logger.error(
+        'Balance cache invalidation threw AFTER a committed transaction (non-fatal, charge stands):',
+        {
+          telegram_id,
+          error:
+            cacheError instanceof Error
+              ? cacheError.message
+              : String(cacheError),
+        }
+      )
+    }
 
     return true
   } catch (error) {
