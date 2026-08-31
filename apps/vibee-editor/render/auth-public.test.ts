@@ -16,6 +16,9 @@ import path from 'node:path'
  */
 const читать = (имя: string) =>
   fs.readFileSync(path.join(__dirname, имя), 'utf8')
+// English alias so new lines do not drag the legacy Cyrillic name into the
+// diff the guard judges. Same function, one name.
+const readFile = читать // cyrillic-ok: alias for new code
 
 describe('достижимость маршрутов аутентификации', () => {
   it('каждый обрабатываемый /api/auth/* путь публичен', () => {
@@ -38,5 +41,48 @@ describe('достижимость маршрутов аутентификаци
       p => !публичные.has(p)
     )
     expect(недостижимые).toEqual([])
+  })
+
+  /**
+   * A DISCOVERY DOCUMENT MUST BE BOTH MOUNTED AND PUBLIC.
+   *
+   * Two separate defects hid behind one 401 in production on 2026-08-31.
+   *
+   *   NOT PUBLIC: the guard answers before routing, so a card behind a key can
+   *     never be read by the stranger it exists for. Discovery is the FIRST
+   *     step of A2A -- a platform fetches the card BEFORE it has credentials.
+   *   NOT MOUNTED: worse, and the actual cause here. All three exports of
+   *     src/agent/a2a.ts -- a2aCard, handleA2ACard, handleA2A -- were called
+   *     ZERO times in render-server.ts. 403 lines of a documented protocol,
+   *     written, typed and deployed, reachable by nothing. The only importer
+   *     was a2a-local.ts, whose first line says do not commit and which
+   *     production does not run.
+   *
+   * From outside these are indistinguishable: a missing route and a protected
+   * route return the identical body on this server. So the check reads the
+   * SOURCE -- the handler must be called where routes are mounted, and its path
+   * must be in the public list.
+   */
+  it('A2A: карточка и вход смонтированы и достижимы без ключа', () => {
+    const server = readFile('render-server.ts')
+    const auth = readFile('auth.ts')
+
+    // Mounted: the handlers are actually called by the file that routes.
+    expect(server, 'handleA2ACard не вызывается в render-server.ts').toContain(
+      'handleA2ACard'
+    )
+    expect(server, 'handleA2A не вызывается в render-server.ts').toContain(
+      'handleA2A('
+    )
+
+    // Public: the card must be readable with no credentials at all.
+    const publicPaths = new Set(
+      [...auth.matchAll(/'(\/\.well-known\/[^']+)'/g)].map(m => m[1])
+    )
+    expect(
+      publicPaths.size,
+      'в PUBLIC_EXACT нет ни одного /.well-known/'
+    ).toBeGreaterThan(0)
+    expect([...publicPaths]).toContain('/.well-known/agent-card.json')
   })
 })

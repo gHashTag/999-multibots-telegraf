@@ -22,12 +22,26 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { ENV_NAMES } from './src/channel-delivery'
+import { PORTRAIT_ENV } from './src/talking-portrait'
 
 const RENDER = __dirname
 const MANIFEST = path.resolve(RENDER, '../../../loop/deploy-env-names.txt')
 const MODULE = path.join(RENDER, 'src', 'channel-delivery.ts')
 const CLI = path.join(RENDER, 'scripts', 'telegram-autopost.ts')
 const SERVER = path.join(RENDER, 'render-server.ts')
+/**
+ * THE SCAN REGION WAS ONE FILE AWAY FROM THE DEFECT IT WOULD HAVE CAUGHT.
+ *
+ * This test asserted that the supervisor gate is keyed on a deployed name, and
+ * yet `AUTOPILOT_FACE` and `AUTOPILOT_FACE_SOURCE` shipped in the autopilot
+ * script reading names production does not define -- because the script was not
+ * in the region below. A switch nobody can turn on looks exactly like a switch
+ * nobody has turned on. So the autopilot and the paid layer it drives are
+ * scanned here too, and every name either exists in the deploy or is declared
+ * optional with the reason it may be missing.
+ */
+const AUTOPILOT = path.join(RENDER, 'scripts', 'agent-autopilot.ts')
+const PORTRAIT = path.join(RENDER, 'src', 'talking-portrait.ts')
 
 const read = (f: string) => fs.readFileSync(f, 'utf8')
 
@@ -89,6 +103,8 @@ function namesRead(): Set<string> {
   const regions = [
     read(MODULE),
     read(CLI),
+    read(AUTOPILOT),
+    read(PORTRAIT),
     functionSource(server, 'postReelToChannel'),
     functionSource(server, 'markDeliveredToChannel'),
   ].map(codeOf)
@@ -97,15 +113,26 @@ function namesRead(): Set<string> {
   return new Set([
     ...regions.flatMap(namesIn),
     ...Object.values(ENV_NAMES).flat(),
+    // Both modules read through a table (`env[name]`), which no regex can see.
+    ...Object.values(PORTRAIT_ENV),
   ])
 }
 
-/** Names the channel path CANNOT work without. Each must exist in the deploy. */
+/** Names this path CANNOT work without. Each must exist in the deploy. */
 const REQUIRED = [
   'TELEGRAM_CHANNEL_BOT_TOKEN',
   'TELEGRAM_CHANNEL_ID',
   'DATABASE_URL',
   'AGENT_KEYS',
+  // The autopilot cannot reach its own MCP endpoint or the render server
+  // without these two, and the daemon does not start without the third.
+  'SELF_URL',
+  'RENDER_API_KEY',
+  'AUTOPILOT_LOOP',
+  // The only funded provider. With the portrait switch on and this absent the
+  // module refuses BEFORE the charge, which is the right behaviour and still
+  // not a reason to let the name rot out of the deploy.
+  'KIE_AI_API_KEY',
 ]
 
 /**
@@ -124,6 +151,31 @@ const OPTIONAL: Record<string, string> = {
   TG_POST_MAX_PER_DAY: 'unset means 0, i.e. the backlog drain stays off',
   OWNER_TELEGRAM_ID: 'unset: the owner is taken from the AGENT_KEYS pairing',
   LOOP_DIR: 'unset: the CLI falls back to the repository loop/ directory',
+  PORT: 'unset: the autopilot talks to 127.0.0.1:3333, its own render server',
+  AUTOPILOT_INTERVAL_MS: 'unset means the 30-minute daemon tick',
+  AUTOPILOT_FACE: 'the face-reel switch; unset means off and no file is read',
+  AUTOPILOT_FACE_SOURCE: 'unset: LOOP_DIR/face-source.json',
+  // The one switch in this table whose UNSET position is ON. It is not a
+  // slip: the poster layer was gated behind a --with-image flag that the only
+  // thing launching the script in production never passed, so the feature was
+  // dead while its comment claimed otherwise. Setting AUTOPILOT_IMAGE=0 turns
+  // it off again, which is the position that costs nothing.
+  AUTOPILOT_IMAGE:
+    'unset means the poster IS generated; =0 is the off switch that saves the credits',
+  // The talking portrait. Six names, of which the owner must set three to turn
+  // it on; the other three only override numbers that already have a defensible
+  // default in code, so a half-configured deploy cannot spend by accident.
+  AUTOPILOT_PORTRAIT:
+    'off|dry|on, unset means off -- the medallion keeps the silent b-roll',
+  AUTOPILOT_PORTRAIT_IMAGE:
+    'unset: no still to animate, refused before any provider call',
+  AUTOPILOT_PORTRAIT_AUDIO:
+    'unset: no voice track, refused before any provider call',
+  AUTOPILOT_PORTRAIT_SECONDS: 'unset means 6 s, i.e. 108 credits per clip',
+  AUTOPILOT_PORTRAIT_DAILY_CREDITS:
+    'unset means the 144-credit daily ceiling written in code',
+  AUTOPILOT_PORTRAIT_API:
+    'unset means api.kie.ai; a test points it at a local stub',
 }
 
 describe('the deploy manifest', () => {

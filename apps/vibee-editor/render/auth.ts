@@ -138,6 +138,30 @@ const PUBLIC_EXACT = new Set([
    */
   '/api/auth/pair/start',
   '/api/auth/pair/claim',
+  /**
+   * THE AGENT CARD MUST BE READABLE BY A STRANGER, or A2A does not exist.
+   *
+   * Discovery is the FIRST step of the protocol: an external agent platform
+   * fetches /.well-known/agent-card.json BEFORE it has any credentials, to
+   * learn who we are and which skills we expose. Ours answered 401 "no
+   * X-Api-Key and no Telegram initData" -- measured in production 2026-08-31 --
+   * so nothing could ever discover this service. The handler in
+   * src/agent/a2a.ts was written and correct; the guard simply stood in front
+   * of it, the same shape as the /api/inngest mount-order defect that cost nine
+   * days of cron and as the pairing routes two entries above.
+   *
+   * Nothing here is secret: the card lists the service name, the protocol
+   * version, the endpoint and the skill names -- the same information the
+   * public MCP card at GET /mcp already hands out. Authentication belongs on
+   * message/send, which does the work and spends money, and it is there.
+   *
+   * A card behind a key is a shop with its name written on the inside of the
+   * door.
+   */
+  '/.well-known/agent-card.json',
+  // The legacy path, kept because a platform that cached the old name would
+  // otherwise silently lose us.
+  '/.well-known/agent.json',
   // POST /api/users/sync-from-telegram пропускается гвардом НАМЕРЕННО:
   // хендлер сам достаёт личность из подписи initData (или сверяет
   // dev-ключ с телом). Синк МОЖЕТ писать только своего владельца.

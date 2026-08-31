@@ -106,6 +106,46 @@ export const TrinityBlogReelSchema = z.object({
     .optional(),
   /** Необязательный говорящий аватар в овальном медальоне (монохром). */
   avatarVideo: z.string().optional(),
+  /**
+   * THE ENGRAVING THE FACTORY GENERATES FOR THIS POST.
+   *
+   * It was published into template_settings.props for weeks and rendered
+   * NOWHERE: the prop was not declared here, and Zod strips what it does not
+   * know. The feed carried an ingredient the renderer had never heard of, and
+   * because a missing optional layer still renders 900 valid frames, nothing
+   * was ever red.
+   *
+   * PRECEDENCE IS EXPLICIT, and that is the point. The oval is one slot and
+   * two producers now aim at it: the b-roll clip (last post of the day) and
+   * this poster (every post). Video wins, because a moving medallion is the
+   * more expensive artefact and the one the day was built around. Without a
+   * written rule, whichever assignment happened to run last would win, and it
+   * would win silently.
+   */
+  posterUrl: z.string().optional(),
+  /**
+   * HOW LOUD THE MEDALLION IS. Absent or 0 = silent, which is what every reel
+   * published so far wanted: the medallion carried a Replicate b-roll loop.
+   *
+   * The prop exists because the schema comment one line above has been calling
+   * this a TALKING avatar since the day it was written, while the renderer
+   * hardcoded `muted` on the video (see Medallion). A talking portrait dropped
+   * into avatarVideo therefore rendered a face mouthing words in silence and
+   * logged success -- the same shape of defect src/face-source.ts was written to
+   * prevent. Default silent, so nothing that already renders changes.
+   */
+  avatarVideoVolume: z.number().optional(),
+  /**
+   * The clip's real length in seconds, when the caller knows it.
+   *
+   * The medallion's window is a fixed 15.6 s slice of the 900-frame composition
+   * and has never had any relationship to the clip inside it: today's 5-second
+   * b-roll freezes for the last ten seconds, and feed id 20 was measured as a
+   * 3.20 s clip published as 30.06 s of one frozen frame
+   * (src/render-duration.ts). Freezing a decorative loop is ugly; freezing a
+   * talking mouth mid-sentence is broken. Absent = the old fixed window.
+   */
+  avatarVideoSeconds: z.number().optional(),
   voiceover: z.string().optional(),
   music: z.string().optional(),
   musicVolume: z.number().default(0.05),
@@ -576,7 +616,13 @@ const SceneColophon: React.FC<Props> = ({ invariant, url, year, lang }) => {
  * Монохром здесь не украшение, а требование канона: цветное видео принесло бы
  * на экран третий цвет и сломало правило «золото только на заголовке».
  */
-const Medallion: React.FC<{ src: string }> = ({ src }) => {
+/** Exported so a test can assert the medallion and the factory agree. */
+export const MEDALLION_VIDEO = /\.(mp4|webm|mov|m4v)(\?|#|$)/i
+
+const Medallion: React.FC<{ src: string; volume?: number }> = ({
+  src,
+  volume,
+}) => {
   const frame = useCurrentFrame()
   const t = interpolate(frame, [0, 20], [0, 1], {
     extrapolateLeft: 'clamp',
@@ -601,10 +647,19 @@ const Medallion: React.FC<{ src: string }> = ({ src }) => {
           opacity: t,
         }}
       >
-        {src.match(/\.(mp4|webm|mov)$/i) ? (
+        {/*
+          The extension test tolerates a query string on purpose: a provider
+          link that ends in `?token=...` failed the old `$`-anchored test, fell
+          through to the <Img> branch and drew an empty oval while every log
+          line said success. src/face-source.ts already gets this right.
+        */}
+        {MEDALLION_VIDEO.test(src) ? (
           <OffthreadVideo
             src={src}
-            muted
+            // Silent unless the caller asks for sound. `muted` used to be
+            // hardcoded here, which is why the medallion could not talk.
+            muted={!volume}
+            volume={volume ?? 0}
             style={{
               width: '100%',
               height: '100%',
@@ -660,8 +715,53 @@ const Caption: React.FC<{ captions: Props['captions'] }> = ({ captions }) => {
   )
 }
 
+/**
+ * How long the medallion stays on screen: the clip's own length when the caller
+ * measured it, otherwise the old fixed window.
+ *
+ * Clamped to the window because the window is what the act table leaves free --
+ * a longer clip would run under the colophon. Exported so a test can pin the
+ * arithmetic without rendering 900 frames.
+ */
+export function medallionFrames(
+  seconds: number | undefined,
+  windowFrames: number,
+  fps: number
+): number {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0)
+    return windowFrames
+  return Math.max(1, Math.min(windowFrames, Math.round(seconds * fps)))
+}
+
+/**
+ * HOW LOUD THE MEDALLION IS, once the reel already has a voice.
+ *
+ * `voiceover` is a full-length <Audio> across the whole composition, and the
+ * reel plan the owner chose gives the talking face the CORRESPONDING SLICE of
+ * that same track -- so with both set the same words play twice, a third of a
+ * second apart, and Remotion renders it as a success. Nothing in the schema
+ * stopped that; both props are optional and independent.
+ *
+ * The spine wins. A voice-over is authored for the whole reel; the clip in the
+ * oval is a layer inside it, and its audio is by construction a copy of what
+ * the spine is already saying. Muting the layer loses nothing; muting the spine
+ * would leave 10.8 s of silence before the medallion opens.
+ *
+ * Exported because a rule this consequential should be pinned by a test rather
+ * than by a reading of JSX.
+ */
+export function medallionVolume(props: {
+  voiceover?: string
+  avatarVideo?: string
+  avatarVideoVolume?: number
+}): number {
+  if (!props.avatarVideo) return 0 // a still poster has no audio to play
+  if (props.voiceover) return 0
+  return props.avatarVideoVolume ?? 0
+}
+
 export const TrinityBlogReel: React.FC<Props> = props => {
-  const { durationInFrames } = useVideoConfig()
+  const { durationInFrames, fps } = useVideoConfig()
   // Пять актов. Доли подобраны под 30 секунд и масштабируются вместе с длиной.
   const d = durationInFrames
   // Клубный экран вставляется только если клуб задан — иначе доли те же,
@@ -699,12 +799,33 @@ export const TrinityBlogReel: React.FC<Props> = props => {
           <C {...props} />
         </Sequence>
       ))}
-      {props.avatarVideo ? (
+      {/*
+        One oval, two producers, written precedence -- see posterUrl in the
+        schema. Medallion already branches <Img> vs <OffthreadVideo> on the
+        extension, so a still needs no new component.
+
+        A still holds the WHOLE window: medallionFrames exists to stop a short
+        clip freezing on its last frame, and a photograph is already frozen.
+        Passing it through that shortener would have cut the poster off after
+        avatarVideoSeconds, a prop it has no business reading.
+      */}
+      {props.avatarVideo || props.posterUrl ? (
         <Sequence
           from={acts[2].at}
-          durationInFrames={acts[2].len + acts[3].len}
+          durationInFrames={
+            props.avatarVideo
+              ? medallionFrames(
+                  props.avatarVideoSeconds,
+                  acts[2].len + acts[3].len,
+                  fps
+                )
+              : acts[2].len + acts[3].len
+          }
         >
-          <Medallion src={props.avatarVideo} />
+          <Medallion
+            src={props.avatarVideo || String(props.posterUrl)}
+            volume={medallionVolume(props)}
+          />
         </Sequence>
       ) : null}
       <Caption captions={props.captions} />

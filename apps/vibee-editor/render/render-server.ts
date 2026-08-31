@@ -23,6 +23,10 @@ import {
   resolveIdentity,
   readBody,
 } from './src/agent/routes'
+// A2A: the open protocol for external agents. Imported here because this file
+// is the only place that mounts routes, and until now nothing imported it at
+// all -- see the block comment at the mount site.
+import { handleA2A, handleA2ACard } from './src/agent/a2a'
 import os from 'node:os'
 import { WebSocketServer, WebSocket } from 'ws'
 import { bundle } from '@remotion/bundler'
@@ -40,6 +44,11 @@ import {
   verifiedTelegramId,
 } from './auth'
 import { TEMPLATE_CARDS } from './src/templates/registry'
+import {
+  generateImage as kieGenerateImage,
+  T2I_MODEL as KIE_T2I_MODEL,
+} from './src/kie-image'
+import { runImageChain } from './src/image-chain'
 import fs from 'node:fs'
 import { randomUUID, createHmac, createHash } from 'node:crypto'
 import { execSync, execFileSync, spawn } from 'node:child_process'
@@ -2563,6 +2572,26 @@ const server = createServer(async (req, res) => {
     return out
   }
 
+  /**
+   * Third leg of the poster chain: Kie, the only provider with a funded
+   * balance (FAL answers 403 "Exhausted balance", measured 2026-08-31).
+   *
+   * Third and not first on purpose. Replicate flux-schnell costs about $0.003
+   * an image against Kie's 4 credits ($0.02), and those credits are the same
+   * purse that pays for talking heads at 18 credits a second -- one poster is
+   * a fifth of a second of face. Kie is here because it is the leg that is
+   * KNOWN funded when the cheaper two are not, not because it is the one to
+   * reach for first.
+   */
+  async function generateImageViaKie(
+    prompt: string,
+    aspectRatio: string
+  ): Promise<string> {
+    const r = await kieGenerateImage({ prompt, aspectRatio })
+    if (!r.ok) throw new Error(`Kie: ${r.reason}`)
+    return r.url
+  }
+
   // Supported fal.ai image models
   const FAL_IMAGE_MODELS: Record<string, string> = {
     'fal-ai/flux-pro/v1.1-ultra': 'fal-ai/flux-pro/v1.1-ultra',
@@ -2571,7 +2600,97 @@ const server = createServer(async (req, res) => {
     'fal-ai/reve/text-to-image': 'fal-ai/reve/text-to-image',
   }
 
-  // POST /api/generate/image - Generate image using FAL.ai (multiple models)
+  /**
+   * FAL, start to finish, as ONE function that either returns a URL or throws.
+   *
+   * Before this it was inlined in the route, and the shape of that inlining is
+   * what made the chain a lie: only a SUBMIT-time rejection reached the
+   * fallback. Once FAL accepted the job, a FAILED status or an exhausted poll
+   * threw straight past every other provider into the 500. A restored but
+   * flaky FAL balance would therefore have been WORSE than today's hard 403,
+   * because a 403 at least happens at submit time. As a function that throws,
+   * every one of its failures is just another entry in `tried`.
+   */
+  async function generateImageViaFal(
+    prompt: string,
+    aspectRatio: string,
+    modelEndpoint: string
+  ): Promise<string> {
+    if (!FAL_KEY) throw new Error('FAL_KEY not configured')
+
+    const submitResponse = await fetch(
+      `https://queue.fal.run/${modelEndpoint}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Key ${FAL_KEY}`,
+        },
+        body: JSON.stringify({
+          prompt,
+          aspect_ratio: aspectRatio,
+          num_images: 1,
+        }),
+      }
+    ).catch(e => {
+      throw new Error(`FAL unreachable: ${String(e)}`)
+    })
+
+    if (!submitResponse.ok) {
+      const errorText = await submitResponse.text()
+      throw new Error(
+        `FAL submit failed: ${submitResponse.status} - ${errorText.slice(0, 300)}`
+      )
+    }
+
+    const submitResult = await submitResponse.json()
+    const requestId = submitResult.request_id
+
+    if (!requestId) {
+      // Synchronous response - image is already ready
+      const imageUrl = submitResult.images?.[0]?.url || submitResult.image?.url
+      if (typeof imageUrl === 'string') return imageUrl
+      throw new Error('No image URL in response')
+    }
+
+    console.log(`📷 [Generate] FAL request submitted: ${requestId}`)
+
+    // Poll for completion (async queue mode). Max 6 minutes (120 * 3s).
+    for (let i = 0; i < 120; i++) {
+      await new Promise(r => setTimeout(r, 3000))
+
+      const statusResponse = await fetch(
+        `https://queue.fal.run/${modelEndpoint}/requests/${requestId}/status`,
+        { headers: { Authorization: `Key ${FAL_KEY}` } }
+      )
+      if (!statusResponse.ok) continue
+      const statusData = await statusResponse.json()
+      const status = statusData.status
+      console.log(`📷 [Generate] FAL status: ${status}`)
+
+      if (status === 'COMPLETED') {
+        const resultResponse = await fetch(
+          `https://queue.fal.run/${modelEndpoint}/requests/${requestId}`,
+          { headers: { Authorization: `Key ${FAL_KEY}` } }
+        )
+        if (!resultResponse.ok) {
+          throw new Error(`FAL result unreadable: ${resultResponse.status}`)
+        }
+        const resultData = await resultResponse.json()
+        const imageUrl = resultData.images?.[0]?.url || resultData.image?.url
+        if (typeof imageUrl === 'string') return imageUrl
+        throw new Error('FAL completed without an image URL')
+      }
+      if (status === 'FAILED') {
+        throw new Error(
+          'FAL generation failed: ' + (statusData.error || 'Unknown error')
+        )
+      }
+    }
+    throw new Error('Image generation timeout')
+  }
+
+  // POST /api/generate/image - ordered provider chain, see the handler body
   if (req.url === '/api/generate/image' && req.method === 'POST') {
     let body = ''
     req.on('data', chunk => {
@@ -2581,9 +2700,16 @@ const server = createServer(async (req, res) => {
       // Declared BEFORE the try: the refund in catch must know whether we
       // charged, and a const inside the try is not visible there.
       let billedTid: string | undefined
+      // Declared BEFORE the try for the same reason billedTid is: the failure
+      // body must carry every provider's refusal, and the catch cannot see a
+      // const that lives inside the try.
+      const tried: { provider: string; error: string }[] = []
       try {
-        if (!FAL_KEY) throw new Error('FAL_KEY not configured')
-
+        // No `if (!FAL_KEY) throw` here any more. That line ran BEFORE the two
+        // `!FAL_KEY` fallback guards below it, so the whole "no key -> use the
+        // other provider" path was unreachable dead code: removing the FAL key
+        // to force the fallback produced a 500 and a refund. A missing key is
+        // now just the first entry in `tried`.
         const { model, prompt, width, height } = JSON.parse(body)
         console.log(
           `📷 [Generate] Photo: ${model}, prompt: "${prompt.substring(0, 50)}..."`
@@ -2598,11 +2724,9 @@ const server = createServer(async (req, res) => {
         }
         billedTid = billed.tid
 
-        // FAL — основной путь, но падение по чужому балансу не должно
-        // останавливать производство: ниже уходим на Replicate.
-        let falSubmitError = !FAL_KEY ? 'FAL_KEY not configured' : null
-
-        // Convert width/height to aspect ratio for FAL
+        // Convert width/height to aspect ratio. Every value it can emit is in
+        // the list google/nano-banana validates against, so the Kie leg needs
+        // no mapping layer.
         const getAspectRatio = (w: number, h: number): string => {
           if (w === h) return '1:1'
           if (w > h) return w / h >= 1.7 ? '16:9' : '4:3'
@@ -2614,120 +2738,66 @@ const server = createServer(async (req, res) => {
         const modelEndpoint =
           FAL_IMAGE_MODELS[model] || 'fal-ai/nano-banana-pro'
 
-        // Submit job to FAL queue
-        const submitResponse = FAL_KEY
-          ? await fetch(`https://queue.fal.run/${modelEndpoint}`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Key ${FAL_KEY}`,
-              },
-              body: JSON.stringify({
-                prompt,
-                aspect_ratio: aspectRatio,
-                num_images: 1,
-              }),
-            }).catch(e => {
-              console.warn('📷 [Generate] FAL unreachable:', String(e))
-              return null as any
-            })
-          : null
+        /**
+         * THE CHAIN, IN ORDER, EVERY REFUSAL RECORDED.
+         *
+         * Order is by price among providers verified working on 2026-08-31:
+         * FAL first (the account the product is built on, currently 403), then
+         * Replicate flux-schnell at about $0.003, then Kie google/nano-banana
+         * at 4 credits ($0.02) -- the only purse known to be funded, and the
+         * same purse the talking heads spend from at 18 credits a second, which
+         * is why the funded one is last and not first.
+         *
+         * The ordering and the record-keeping live in src/image-chain.ts, and
+         * they live there so that image-chain.test.ts can drive them with fake
+         * legs. Inlined here they were untestable, and untested is how the
+         * fallback came to only ever fire on a submit-time refusal.
+         *
+         * `tried` ships in the HTTP response, success or failure. A caller that
+         * gets a poster has to be able to see it cost the third provider; a
+         * caller that gets nothing has to be able to see all three reasons
+         * without shell access to the container. The image layer was dead for
+         * weeks precisely because its failure existed nowhere a person looked.
+         */
+        const outcome = await runImageChain(
+          [
+            {
+              name: `fal/${modelEndpoint}`,
+              run: () =>
+                generateImageViaFal(prompt, aspectRatio, modelEndpoint),
+            },
+            {
+              name: 'replicate/flux-schnell',
+              run: () => generateImageViaReplicate(prompt, aspectRatio),
+            },
+            {
+              name: `kie/${KIE_T2I_MODEL}`,
+              run: () => generateImageViaKie(prompt, aspectRatio),
+            },
+          ],
+          { log: line => console.warn(`📷 [Generate] ${line}`) }
+        )
+        tried.push(...outcome.tried)
 
-        if (submitResponse && !submitResponse.ok) {
-          const errorText = await submitResponse.text()
-          falSubmitError = `FAL submit failed: ${submitResponse.status} - ${errorText}`
-        } else if (!submitResponse) {
-          falSubmitError = 'FAL unreachable'
-        }
-
-        if (falSubmitError) {
-          console.warn(
-            `📷 [Generate] FAL недоступен (${falSubmitError.slice(0, 140)}), включаю Replicate`
-          )
-          const replicateUrl = await generateImageViaReplicate(
-            prompt,
-            aspectRatio
-          )
+        if (outcome.ok) {
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(
             JSON.stringify({
               success: true,
-              url: replicateUrl,
-              id: `replicate-${Date.now()}`,
-              provider: 'replicate/flux-schnell',
+              url: outcome.url,
+              id: `${outcome.provider.replace(/\W+/g, '-')}-${Date.now()}`,
+              provider: outcome.provider,
+              tried,
             })
           )
           return
         }
 
-        const submitResult = await submitResponse.json()
-        const requestId = submitResult.request_id
-        console.log(`📷 [Generate] FAL request submitted: ${requestId}`)
-
-        if (!requestId) {
-          // Synchronous response - image is already ready
-          const imageUrl =
-            submitResult.images?.[0]?.url || submitResult.image?.url
-          if (imageUrl) {
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(
-              JSON.stringify({
-                success: true,
-                url: imageUrl,
-                id: Date.now().toString(),
-              })
-            )
-            return
-          }
-          throw new Error('No image URL in response')
-        }
-
-        // Poll for completion (async queue mode)
-        let imageUrl = null
-        for (let i = 0; i < 120; i++) {
-          // Max 6 minutes (120 * 3s)
-          await new Promise(r => setTimeout(r, 3000))
-
-          // Check status
-          const statusResponse = await fetch(
-            `https://queue.fal.run/${modelEndpoint}/requests/${requestId}/status`,
-            { headers: { Authorization: `Key ${FAL_KEY}` } }
-          )
-
-          if (!statusResponse.ok) continue
-          const statusData = await statusResponse.json()
-          const status = statusData.status
-
-          console.log(`📷 [Generate] FAL status: ${status}`)
-
-          if (status === 'COMPLETED') {
-            // Get result
-            const resultResponse = await fetch(
-              `https://queue.fal.run/${modelEndpoint}/requests/${requestId}`,
-              { headers: { Authorization: `Key ${FAL_KEY}` } }
-            )
-
-            if (resultResponse.ok) {
-              const resultData = await resultResponse.json()
-              imageUrl = resultData.images?.[0]?.url || resultData.image?.url
-            }
-            break
-          } else if (status === 'FAILED') {
-            throw new Error(
-              'FAL generation failed: ' + (statusData.error || 'Unknown error')
-            )
-          }
-        }
-
-        if (imageUrl) {
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(
-            JSON.stringify({ success: true, url: imageUrl, id: requestId })
-          )
-          return
-        }
-
-        throw new Error('Image generation timeout')
+        throw new Error(
+          `no image provider delivered: ${tried
+            .map(t => `${t.provider} — ${t.error}`)
+            .join(' | ')}`
+        )
       } catch (error) {
         console.error('❌ [Generate] Image error:', error)
         // Nothing was delivered, so the tokens go back.
@@ -2737,6 +2807,7 @@ const server = createServer(async (req, res) => {
           JSON.stringify({
             success: false,
             error: error instanceof Error ? error.message : 'Generation failed',
+            tried,
           })
         )
       }
@@ -5280,6 +5351,48 @@ const server = createServer(async (req, res) => {
   if (req.url?.split('?')[0] === '/mcp' && req.method === 'GET') {
     handleMcpCard(res)
     return
+  }
+
+  /**
+   * A2A — the door for EXTERNAL agents, and it was never mounted.
+   *
+   * src/agent/a2a.ts is 403 lines of protocol 0.3.0: message/send, a streaming
+   * message/stream over SSE, tasks/get, tasks/cancel, the agent card, and a
+   * metadata path that calls a named tool DIRECTLY with no model in the loop.
+   * Written, typed, deployed -- and all three of its exports were referenced
+   * ZERO times here. The only importer in the package was a2a-local.ts, whose
+   * first line says it must not be committed and which production does not run.
+   *
+   * From outside the defect was invisible, because on this server a missing
+   * route and a protected route answer identically: the global guard replies
+   * 401 before routing, so POST /a2a and GET /deliberately-no-such-path return
+   * the same body. Measured 2026-08-31. That is why the reachability test in
+   * auth-public.test.ts reads the SOURCE instead of asking the network.
+   *
+   * THE CARD IS PUBLIC BY CONSTRUCTION (see PUBLIC_EXACT in auth.ts).
+   * Discovery is the first step of A2A: a platform fetches the card BEFORE it
+   * has any credential, to learn who we are. Nothing in it is secret -- the
+   * same names the public MCP card already hands out. Authentication belongs on
+   * message/send, which does the work and spends money, and it is there:
+   * handleA2A resolves identity itself, exactly as handleMcp does.
+   */
+  {
+    const a2aPath = req.url?.split('?')[0]
+    if (
+      req.method === 'GET' &&
+      (a2aPath === '/.well-known/agent-card.json' ||
+        a2aPath === '/.well-known/agent.json')
+    ) {
+      // The card advertises where to send tasks, so the base must be the
+      // address the OUTSIDE world can reach -- the same one every other
+      // outward-facing link uses, not the container's loopback.
+      handleA2ACard(res, SERVICE_ENDPOINTS.remotion)
+      return
+    }
+    if (a2aPath === '/a2a' && req.method === 'POST') {
+      await handleA2A(req, res, getPool)
+      return
+    }
   }
   /**
    * Маршруты входа для нативного клиента.

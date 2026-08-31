@@ -28,6 +28,7 @@ import {
   cursorFor,
   loadState,
   mergeState,
+  paidSlotDue,
   openDb,
   ownerFromEnv,
   rollDay,
@@ -585,5 +586,32 @@ describe('чистые правила, из которых собрано сос
     expect(ownerFromEnv()).toBe('autopilot')
     if (prev === undefined) delete process.env.AGENT_KEYS
     else process.env.AGENT_KEYS = prev
+  })
+})
+
+/**
+ * THE PAID SLOT'S GATE, which used to read a different counter from the cap
+ * standing right next to it. The two agree until a deploy wipes state.json --
+ * every merge, in a container with no volumes -- and then the feed-derived
+ * number runs permanently ahead of the local one.
+ */
+describe('who gets the one paid medallion slot of the day', () => {
+  it('the last post of four gets it, the first three do not', () => {
+    expect(paidSlotDue(0, 4)).toBe(false)
+    expect(paidSlotDue(2, 4)).toBe(false)
+    expect(paidSlotDue(3, 4)).toBe(true)
+  })
+
+  it('a counter that JUMPED past the slot still opens it', () => {
+    // The whole defect in one line. With `=== max - 1` a feed count that went
+    // 0 -> 5 across a state loss never equals 3, the paid layer never runs
+    // again, and that is indistinguishable from a switch nobody turned on --
+    // exactly the shape of the AUTOPILOT_FACE failure.
+    expect(paidSlotDue(5, 4)).toBe(true)
+    expect(paidSlotDue(4, 4)).toBe(true)
+  })
+
+  it('the manual flag overrides the counter, because a person asked', () => {
+    expect(paidSlotDue(0, 4, true)).toBe(true)
   })
 })
