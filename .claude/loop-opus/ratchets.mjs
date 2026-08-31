@@ -35,6 +35,10 @@ const CLASSES = [
     'cross-bot misdelivery (singleton this.bot)',
     'src/__tests__/scenes/crossbot-delivery-ratchet.test.ts',
   ],
+  [
+    'cache-invalidation isolated (committed-charge false-negative)',
+    'src/__tests__/money/cache-invalidation-isolated-ratchet.test.ts',
+  ],
 ]
 
 const missing = CLASSES.filter(([, f]) => !fs.existsSync(f)).map(([, f]) => f)
