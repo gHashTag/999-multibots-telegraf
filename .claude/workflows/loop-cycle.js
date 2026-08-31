@@ -44,7 +44,8 @@ export const meta = {
 //    truncation reads as "we covered everything".
 // ─────────────────────────────────────────────────────────────────────────
 
-const REPO = '/Users/playra/999-multibots-telegraf'
+const REPO =
+  'this repo (your current working directory - run all commands here)'
 
 const HOUSE_RULES = `
 HOUSE RULES. Breaking any one of them wastes the whole run.
