@@ -185,12 +185,8 @@ export const generateInvoiceStep = async (ctx: MyContext) => {
         })
         await ctx.reply(
           isRu
-            ? `Ошибка при создании платежа в базе данных. Пожалуйста, попробуйте снова. ${
-                error instanceof Error ? error.message : error
-              }`
-            : `Error creating payment in database. Please try again. ${
-                error instanceof Error ? error.message : error
-              }`
+            ? 'Ошибка при создании платежа в базе данных. Пожалуйста, попробуйте снова.'
+            : 'Error creating payment in database. Please try again.'
         )
         return ctx.scene.leave()
       }
