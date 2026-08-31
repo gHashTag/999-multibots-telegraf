@@ -174,6 +174,13 @@ export async function waitForWAN25Task(
         state: status.data.state,
         response: status,
       })
+
+      // Back off on an unknown/unexpected state too. Only 'processing' slept
+      // above; any other non-terminal value (a queued/generating token, an
+      // undefined state, or a non-200 body) fell straight through to the loop
+      // condition and re-polled at network speed, hammering the kie API for the
+      // whole wait window. Sleep like the 'processing' and error paths do.
+      await new Promise(resolve => setTimeout(resolve, pollInterval))
     } catch (pollError) {
       logger.error('❌ [WAN 2.5 API] Ошибка при проверке статуса', {
         taskId,
