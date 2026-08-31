@@ -287,9 +287,16 @@ Your name is NeuroBlogger, and you are a assistant in the support chat who helps
         `[handleTextMessage] Preparing to reply to user ${userId} in chat ${chatId}`,
         { userId, chatId }
       )
-      await ctx.reply(responseText, {
-        parse_mode: 'MarkdownV2',
-      })
+      // answerAi returns free-form LLM text, which is not reliably valid
+      // MarkdownV2 (an unescaped ., -, *, ( etc. makes Telegram 400). Without a
+      // fallback the outer catch would swap the real answer for a generic error
+      // message. Deliver the answer as plain text instead -- same pattern the
+      // aiChatWizard sibling already uses.
+      await ctx
+        .reply(responseText, { parse_mode: 'MarkdownV2' })
+        .catch(async () => {
+          await ctx.reply(responseText)
+        })
       console.log(
         `[handleTextMessage] Reply sent successfully to user ${userId} in chat ${chatId}`,
         { userId, chatId }
