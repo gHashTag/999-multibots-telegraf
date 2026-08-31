@@ -955,6 +955,12 @@ aiPhotoshopScene.enter(async ctx => {
         ctx.session.aiPhotoshopModel = undefined
         ctx.session.aiPhotoshopStyle = undefined
         ctx.session.aiPhotoshopImage = undefined
+        // Evict the cross-scene morphingImages batch. morphingWizard populates
+        // it (buffers, no url) and never clears it on cancel/leave, so a stale
+        // batch would hijack a fresh single-photo edit: the multi-photo branch
+        // yields empty urls and the paid generation runs on the wrong/empty
+        // image. aiPhotoshop's own multi-photo flow repopulates it after enter.
+        ctx.session.morphingImages = undefined
         ctx.session.aiPhotoshopPrompt = undefined
         ctx.session.aiPhotoshopSize = undefined
         ctx.session.awaitingAiPhotoshopImage = false
@@ -3837,6 +3843,10 @@ const processAiPhotoshopRequest = async (
       ctx.session.aiPhotoshopModel = undefined
       ctx.session.aiPhotoshopStyle = undefined
       ctx.session.aiPhotoshopImage = undefined
+      // Evict the (possibly url-bearing) morphingImages batch on error too, so a
+      // failed multi-photo run does not leave a stale batch that a subsequent
+      // single-photo edit would be charged against (the within-scene variant).
+      ctx.session.morphingImages = undefined
       ctx.session.aiPhotoshopPrompt = undefined
       ctx.session.aiPhotoshopStep = undefined
       ctx.session.aiPhotoshopSize = undefined
@@ -4608,6 +4618,8 @@ aiPhotoshopScene.action('ai_photoshop_back_to_styles', async ctx => {
     if (ctx.session) {
       ctx.session.aiPhotoshopStyle = undefined
       ctx.session.aiPhotoshopImage = undefined
+      // Evict the cross-scene stale batch alongside the image-source reset.
+      ctx.session.morphingImages = undefined
       ctx.session.awaitingAiPhotoshopImage = false
       ctx.session.awaitingAiPhotoshopPrompt = false
     }
@@ -5419,6 +5431,8 @@ aiPhotoshopScene.action('ai_photoshop_add_new', async ctx => {
       ctx.session.aiPhotoshopModel = undefined
       ctx.session.aiPhotoshopStyle = undefined
       ctx.session.aiPhotoshopImage = undefined
+      // Evict the cross-scene stale batch alongside the image-source reset.
+      ctx.session.morphingImages = undefined
       ctx.session.aiPhotoshopPrompt = undefined
       ctx.session.aiPhotoshopSize = undefined
       ctx.session.awaitingAiPhotoshopImage = false
@@ -5499,6 +5513,8 @@ aiPhotoshopScene.action('ai_photoshop_restart', async ctx => {
       ctx.session.aiPhotoshopModel = undefined
       ctx.session.aiPhotoshopStyle = undefined
       ctx.session.aiPhotoshopImage = undefined
+      // Evict the cross-scene stale batch alongside the image-source reset.
+      ctx.session.morphingImages = undefined
       ctx.session.aiPhotoshopPrompt = undefined
       ctx.session.aiPhotoshopSize = undefined
       ctx.session.awaitingAiPhotoshopImage = false
@@ -5547,6 +5563,8 @@ aiPhotoshopScene.action('ai_photoshop_exit_to_menu', async ctx => {
       ctx.session.aiPhotoshopModel = undefined
       ctx.session.aiPhotoshopStyle = undefined
       ctx.session.aiPhotoshopImage = undefined
+      // Evict the cross-scene stale batch alongside the image-source reset.
+      ctx.session.morphingImages = undefined
       ctx.session.aiPhotoshopPrompt = undefined
       ctx.session.aiPhotoshopSize = undefined
       ctx.session.awaitingAiPhotoshopImage = false
