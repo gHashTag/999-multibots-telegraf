@@ -43,12 +43,12 @@ if [ "$botc" = "200" ]; then say "  ✅ порт :2999"; else say "  ⚠️ по
 say "— Реестр инструментов —"
 printf '%s' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' > /tmp/rc-req.json
 n=$(curl -s -m 10 http://127.0.0.1:3333/mcp -H "X-Agent-Key: $KEY" -H 'Content-Type: application/json' --data @/tmp/rc-req.json | python3 -c "import json,sys; print(len(json.load(sys.stdin)['result']['tools']))" 2>/dev/null)
-# 35 = производство + my_balance + skills CRUD (4) + skills market (3)
-#      + 6 инструментов z.ai-фолбэка (PR #716 продуктового лупа)
-#      + 3 планера plan_* (рестарт №218) + 3 монетизационных
-#      club/pricing/provider_setup (money-ветка владельца, 29.08, PR #1043-45).
+# 43 = 35 (было: производство + my_balance + skills CRUD/market
+#      + z.ai-фолбэк #716 + планер plan_* + club/pricing/provider_setup)
+#      + 8 новых из kie/расширенной ветки соседа (среди них img2img #1437;
+#      полный список — tri providers / tools/list; билд 06aa07195beb, 31.08).
 # Добавляешь инструмент — подними ожидание здесь ОДНОЙ правкой.
-check "инструментов в реестре" 35 "$n"
+check "инструментов в реестре" 43 "$n"
 
 say "— Дешёвые живые вызовы —"
 for tool in whoami feed_stats templates_list feed_analytics my_assets soul_get skills_list; do
