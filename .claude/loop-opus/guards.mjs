@@ -50,6 +50,7 @@ const GUARDS = [
   'src/__tests__/security/voiceAvatarClearsVeedReturnFlag.test.ts', // iter202 voiceAvatarWizard clears the veed-fabric return flag on leave (no cross-scene hijack of a later voice creation)
   'src/__tests__/reliability/kieVeedFabricStatusFields.test.ts', // iter202 kie-veed-fabric getStatus keys off data.state/resultJson (query shape), not webhook successFlag (no webhook-loss timeout-refund of a succeeded job)
   'src/__tests__/money/modelTrainingV2ProviderTimeouts.test.ts', // iter203 modelTrainingV2 bounds its post-charge ZIP download + BFL fetch with timeouts (hang -> refund, not charged-not-delivered)
+  'src/__tests__/scenes/aiPhotoshopUpscaleInflightGuard.test.ts', // iter204 aiPhotoshop direct upscaleImage sites hold an in-flight lock (no double-tap double-charge)
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
