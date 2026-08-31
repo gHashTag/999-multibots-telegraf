@@ -2124,6 +2124,13 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
  * Позволяет проверить всю цепочку отправки видео пользователю
  */
 router.post('/kie-ai/sora-callback-test', async (req: any, res: any) => {
+  // Debug-only endpoint. It creates a delivery task for an ARBITRARY telegramId
+  // with no token, so the companion /kie-ai/sora-callback would then deliver and
+  // charge that user. Unlike the real callbacks (verifyCallbackToken, fail-closed)
+  // it authenticates nothing. Gate it out of production; enable only in dev.
+  if (process.env.NODE_ENV !== 'development') {
+    return res.status(404).json({ error: 'Not found' })
+  }
   try {
     logger.info('🧪 [SORA DEBUG] Test webhook endpoint called')
 
@@ -2175,6 +2182,13 @@ router.post('/kie-ai/sora-callback-test', async (req: any, res: any) => {
  * - telegramId: ID пользователя (default: 144022504)
  */
 router.post('/kie-ai/sora-full-test', async (req: any, res: any) => {
+  // Debug-only endpoint. It calls processSoraWebhookAsync DIRECTLY for an
+  // ARBITRARY telegramId, bypassing verifyCallbackToken, so an unauthenticated
+  // request delivers a video to any user and charges their balance
+  // (chargeForDeliveredVideo). Gate it out of production; enable only in dev.
+  if (process.env.NODE_ENV !== 'development') {
+    return res.status(404).json({ error: 'Not found' })
+  }
   try {
     const telegramId = parseInt(
       req.query.telegramId || req.body.telegramId || '144022504'
