@@ -174,10 +174,17 @@ emailWizard.on('text', async ctx => {
       ? selectedOption.match(/Купить (\d+)⭐️ за (\d+) р/)
       : selectedOption.match(/Buy (\d+)⭐️ for (\d+) RUB/)
 
-    if (match) {
-      const stars = parseInt(match[1], 10) // Количество звезд
-      const amount = parseInt(match[2], 10) // Сумма в рублях
+    const stars = match ? parseInt(match[1], 10) : NaN
+    const amount = match ? parseInt(match[2], 10) : NaN
+    // stars/amount come from a user text message (on('text')); the matched pair
+    // must equal a legit paymentOption, or a crafted "buy 6250 stars for 1 RUB"
+    // would create a 1-RUB Robokassa invoice that credits 6250 stars (pricing
+    // bypass). An invalid pair falls through to the else "valid amount" reply.
+    const isValidOption = paymentOptions.some(
+      option => parseInt(option.stars, 10) === stars && option.amount === amount
+    )
 
+    if (match && isValidOption) {
       try {
         if (!ctx.from) {
           console.error('❌ Telegram ID не найден')
