@@ -31,7 +31,13 @@ export async function createVoiceAvatar(
     if (level === 6) {
       await updateUserLevelPlusOne(telegram_id, level)
     }
-    console.log('createVoiceAvatar', { fileUrl, telegram_id, username, isRu })
+    // Do NOT log fileUrl: it is https://api.telegram.org/file/bot<BOT_TOKEN>/...
+    // so it embeds the full bot token (a full-control credential) plus an
+    // unauthenticated link to the user's voice recording (biometric PII).
+    // console.log bypasses the winston redactBotToken redaction (which only runs
+    // inside the winston printf), so the token would hit stdout/Railway verbatim
+    // -- same gap emailWizard documents. Log only the non-sensitive fields.
+    console.log('createVoiceAvatar', { telegram_id, username, isRu })
 
     logger.info(
       "[createVoiceAvatar] Attempting to send '⏳ Creating...' message",

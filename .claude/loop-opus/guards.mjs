@@ -32,6 +32,7 @@ const GUARDS = [
   'src/__tests__/reliability/inngestStepIdStaticInLoop.test.ts', // iter192 no static inngest step id inside a loop (memoization collision)
   'src/__tests__/reliability/chatWithAvatarDeliveryFallback.test.ts', // iter194 image delivery has document fallback (charge-no-delivery mitigation)
   'src/__tests__/money/videoPollChargeIdempotent.test.ts', // iter195 i2v poll-loop charge is idempotency-guarded (no 120x re-charge)
+  'src/__tests__/security/voiceAvatarNoTokenLog.test.ts', // iter195 createVoiceAvatar does not console.log the bot-token-bearing fileUrl
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
