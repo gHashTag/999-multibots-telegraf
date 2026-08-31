@@ -523,7 +523,9 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
         }
 
         // ✅ ВАЛИДАЦИЯ: Проверяем существование голоса в ElevenLabs API
-        const { checkVoiceExists } = await import('@/core/elevenlabs')
+        const { assertVoiceExistsAuthoritative } = await import(
+          '@/core/elevenlabs'
+        )
 
         logger.info(
           '🔍 [AI REELS] Проверяем валидность voice_id в ElevenLabs',
@@ -533,7 +535,27 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
           }
         )
 
-        const isVoiceValid = await checkVoiceExists(userVoiceId)
+        // Only force the user to recreate their voice on a DEFINITIVE absence.
+        // A bare checkVoiceExists() returns false on any non-authoritative result
+        // too (no/invalid ElevenLabs key, outage), which would wrongly demand a
+        // recreate for a voice that still exists. Proceed on "cannot determine".
+        let isVoiceValid = true
+        try {
+          isVoiceValid = await assertVoiceExistsAuthoritative(userVoiceId)
+        } catch (voiceCheckError) {
+          logger.warn(
+            '[AI REELS] Voice existence not authoritative; proceeding with saved voice',
+            {
+              telegramId,
+              voiceId: userVoiceId,
+              error:
+                voiceCheckError instanceof Error
+                  ? voiceCheckError.message
+                  : String(voiceCheckError),
+            }
+          )
+          isVoiceValid = true
+        }
 
         if (!isVoiceValid) {
           logger.warn('❌ [AI REELS] Voice ID не найден в ElevenLabs API', {
