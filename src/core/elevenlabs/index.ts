@@ -164,3 +164,35 @@ export const checkVoiceExists = async (voiceId: string): Promise<boolean> => {
     return false
   }
 }
+
+// Authoritative existence check for DESTRUCTIVE callers (validateAndCleanVoiceId
+// clears the user's saved voice pointer on "absent"). checkVoiceExists returns
+// false on every non-authoritative outcome too -- no key (mock client), an
+// invalid key (401), a rate-limit/5xx, or a malformed response -- so using it to
+// drive a DB clear wipes valid pointers for all users during a key gap/outage.
+// This variant returns false ONLY when a successful voice list omits the id, and
+// THROWS on any non-authoritative outcome. A thrown error means "could not
+// determine -- do not clear".
+export const assertVoiceExistsAuthoritative = async (
+  voiceId: string
+): Promise<boolean> => {
+  if (!process.env.ELEVENLABS_API_KEY) {
+    throw new Error(
+      'ELEVENLABS_API_KEY not loaded; voice existence is not authoritative'
+    )
+  }
+  // The mock client (used on client-creation error) has no `voices`, so this
+  // throws; a real client with a bad key rejects getAll() with 401 -- both are
+  // correctly treated as non-authoritative by the caller.
+  const voicesResponse = await getElevenLabsClient().voices.getAll()
+  const voicesList = voicesResponse?.voices || voicesResponse || []
+  if (!Array.isArray(voicesList)) {
+    throw new Error(
+      'ElevenLabs voices response is not an array; not authoritative'
+    )
+  }
+  return voicesList.some(
+    (voice: { voice_id?: string; id?: string }) =>
+      (voice.voice_id || voice.id) === voiceId
+  )
+}
