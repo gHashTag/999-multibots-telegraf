@@ -156,6 +156,8 @@ autoFixerConfigScene.action('configure_fix_types', async ctx => {
         },
       }
     )
+
+    await ctx.answerCbQuery()
   } catch (error) {
     console.error('[AutoFixerConfig] Configure fix types error:', error)
     await ctx.answerCbQuery('❌ Ошибка настройки')
@@ -254,6 +256,8 @@ autoFixerConfigScene.action('back_to_main_config', async ctx => {
         ],
       },
     })
+
+    await ctx.answerCbQuery()
   } catch (error) {
     console.error('[AutoFixerConfig] Back to main error:', error)
     await ctx.answerCbQuery('❌ Ошибка возврата')
@@ -272,6 +276,7 @@ autoFixerConfigScene.action('save_and_exit', async ctx => {
       { parse_mode: 'HTML' }
     )
 
+    await ctx.answerCbQuery()
     await ctx.scene.leave()
   } catch (error) {
     console.error('[AutoFixerConfig] Save and exit error:', error)
