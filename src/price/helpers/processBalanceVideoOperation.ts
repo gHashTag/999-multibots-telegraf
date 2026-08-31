@@ -61,6 +61,17 @@ export const processBalanceVideoOperation = async (
     // Рассчитываем цену, передавая КЛЮЧ КОНФИГА
     paymentAmount = calculateFinalPrice(configKey)
     modePrice = paymentAmount
+    // calculateFinalPrice returns 0 for a config with no valid price for the
+    // input (fail-open on the error/unpriced path, sibling of #1458). A 0 here
+    // would slip past the `balance < paymentAmount` check below -- balance < 0
+    // is always false -- and hand out a paid generation for free. Refuse: throw
+    // so the existing catch returns the cost-calculation error, matching the
+    // 'the price is not invented' rule enforced elsewhere.
+    if (!(paymentAmount > 0)) {
+      throw new Error(
+        `Non-positive price (${paymentAmount}) for config ${configKey}`
+      )
+    }
   } catch (costError) {
     logger.error('processBalanceVideoOperation: Error calculating cost', {
       configKey,
