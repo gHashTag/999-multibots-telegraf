@@ -39,6 +39,7 @@ const GUARDS = [
   'src/__tests__/security/statsBotAccessFailClosed.test.ts', // iter197 interactiveStats bot-access guards fail closed on null ownedBots
   'src/__tests__/reliability/aiReelsVoiceCheckGraceful.test.ts', // iter198 ai-reels pre-charge voice check proceeds on non-authoritative (no false recreate)
   'src/__tests__/inngest/trainingDedupIncludesPending.test.ts', // iter198 model-training duplicate guard covers the PENDING window (no dup Replicate train)
+  'src/__tests__/security/avatarTransformQuotaGuard.test.ts', // iter199 free-superhero gen has in-flight lock + quota re-check (no concurrent quota bypass)
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary

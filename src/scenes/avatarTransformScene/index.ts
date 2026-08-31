@@ -903,6 +903,17 @@ const createMarvelPromptByGender = (
   return heroPrompt
 }
 
+// In-flight guard for the free-superhero generation. The 3/month quota is
+// checked at scene entry but the counter is incremented only AFTER generation,
+// so concurrent hero-button taps (webhook mode dispatches each as a separate
+// request) would all pass the stale entry gate and each generate a free paid
+// image. This Map serializes taps per user. It is a Map with a timestamp (not a
+// bare Set) so a missed release auto-expires and can never permanently lock a
+// user out. Keyed by telegram_id; single process, so set/has are atomic vs
+// concurrent taps before the first await.
+const superheroGenInFlight = new Map<string, number>()
+const SUPERHERO_INFLIGHT_TTL_MS = 180_000 // 3 min -- covers max generation time
+
 export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.AvatarTransform,
   // Шаг 0: Объяснение ИИ Герои + выбор пола
@@ -2392,6 +2403,35 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
     )
 
+    // In-flight + quota re-check right before the paid generation (see the
+    // superheroGenInFlight comment above). Rejects a duplicate concurrent tap,
+    // and stops a sequential tap that would exceed the now-incremented quota.
+    const superheroNowMs = Date.now()
+    const superheroInFlightSince = superheroGenInFlight.get(telegramId)
+    if (
+      superheroInFlightSince &&
+      superheroNowMs - superheroInFlightSince < SUPERHERO_INFLIGHT_TTL_MS
+    ) {
+      await ctx.reply(
+        isRu
+          ? '⏳ Уже генерирую ваше превращение, подождите немного.'
+          : '⏳ Already generating your transformation, please wait.'
+      )
+      return
+    }
+    superheroGenInFlight.set(telegramId, superheroNowMs)
+    const superheroQuotaRecheck =
+      await checkSuperheroGenerationUsage(telegramId)
+    if (!superheroQuotaRecheck.canGenerate) {
+      superheroGenInFlight.delete(telegramId)
+      await ctx.reply(
+        isRu
+          ? '❌ Достигнут лимит бесплатных генераций.'
+          : '❌ Free generation limit reached.'
+      )
+      return
+    }
+
     try {
       // Генерируем изображение с выбранным героем
       const userPhotoUrl = ctx.session.kontextImageUrl
@@ -2675,6 +2715,12 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
           }
         )
       }
+
+      // Release the per-user in-flight lock now that this generation's usage is
+      // recorded; a later tap is re-checked against the incremented quota. On a
+      // failure/early-exit path the lock is not deleted here but auto-expires
+      // via SUPERHERO_INFLIGHT_TTL_MS, so a user is never permanently locked.
+      superheroGenInFlight.delete(telegramId)
 
       // Также поддерживаем старую систему для совместимости
       await markAvatarTransformUsed(telegramId)
