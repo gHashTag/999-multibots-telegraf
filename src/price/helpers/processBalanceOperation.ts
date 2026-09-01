@@ -95,6 +95,29 @@ export const processBalanceOperation = async ({
     delete ctx.session.bypass_payment_check
   }
 
+  // Fail closed on a non-positive price. The two legitimate free paths
+  // (is_welcome_gift, AvatarTransform bypass) have already returned above; by
+  // here a paymentAmount <= 0 is an anomaly (a missing/regressed price flooring
+  // to 0 -- calculateFinalImageCostInStars returns 0 for a 0 baseCost). A 0
+  // slips past the `currentBalance < paymentAmount` check below (balance < 0 is
+  // always false) and would charge 0 for a paid image: the 0-cost-bypass class.
+  // This is the image twin of the video-helper guard (#1571). No image model is
+  // priced <= 0, so this refuses only an invalid price; !(x > 0) also catches NaN.
+  if (!(paymentAmount > 0)) {
+    console.error('processBalanceOperation: non-positive price refused', {
+      telegram_id,
+      paymentAmount,
+    })
+    return {
+      newBalance: 0,
+      success: false,
+      error: is_ru ? 'Ошибка расчета стоимости.' : 'Error calculating cost.',
+      modePrice: 0,
+      paymentAmount: 0,
+      currentBalance: 0,
+    }
+  }
+
   try {
     // Получаем текущий баланс
     console.log('Fetching current balance for:', telegram_id)
