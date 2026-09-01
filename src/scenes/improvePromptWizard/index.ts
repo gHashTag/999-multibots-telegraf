@@ -207,6 +207,16 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
           }
 
           console.log(mode, 'mode')
+          // A fast double-tap on the reply-keyboard "Yes. Generate?" button
+          // delivers two step-2 messages; without a guard both pass the checks
+          // above and both start a paid generation before scene.leave runs. The
+          // check-and-set is atomic (no await between), so exactly one proceeds;
+          // the flag is cleared in the finally below. Every sibling confirm
+          // wizard (aiCover, music, neuroPhoto, textToImage) has this guard.
+          if (ctx.session.improvePromptInProgress) {
+            return
+          }
+          ctx.session.improvePromptInProgress = true
           try {
             switch (mode) {
               case ModeEnum.NeuroPhoto: {
@@ -360,6 +370,8 @@ export const improvePromptWizard = new Scenes.WizardScene<MyContext>(
             const { showMainMenu } = await import('@/navigation')
             await showMainMenu(ctx)
             return
+          } finally {
+            ctx.session.improvePromptInProgress = false
           }
           await ctx.scene.leave()
           await ctx.scene.leave()
