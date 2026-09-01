@@ -206,6 +206,13 @@ CHECKS THAT EACH COST A CYCLE
         (detector can fire) and a floor (fails loud if the target is gutted)?
         A ratchet that can only pass is a false ruler. Behavioral tests exempt.
 
+  tri fn-liveness | tri живость-функций
+        The complement of ratchet-audit for BEHAVIORAL ratchets: is the fn each
+        one imports+calls still LIVE (referenced by >=1 production file outside
+        its def)? A 0 is a "ratchet on a dead twin" (the #1572 class) -- a
+        vacuous green. Verify, then delete fn+ratchet or move the invariant.
+        --self-check proves the predicate against known truth first.
+
   tri timeouts | tri таймауты
         List axios calls with no timeout (default is infinite), split
         likely-LIVE vs likely-DEAD. Triage, not fix-all: bound only the ones on
@@ -1393,6 +1400,21 @@ cmd_ratchet_audit() {
   ( cd "$ROOT" && node "$TOOLS/ratchet-audit.mjs" "$@" )
 }
 
+cmd_fn_liveness() {
+  # Catch a BEHAVIORAL ratchet whose fn-under-test has gone DEAD. A behavioral
+  # test imports a fn from @/ and calls it, so it self-validates -- UNLESS that
+  # fn loses all production importers (deleted/orphaned/replaced by a twin). Then
+  # the ratchet still passes but pins an invariant on code nothing runs: a
+  # vacuous green (the #1572 processBalanceVideoOperation class). ratchet-audit
+  # checks self-check+floor PRESENCE; it does NOT check the guarded fn is LIVE.
+  # Liveness = >=1 production file references the fn outside its own def file
+  # (an import counts -- that is the exact "never imported" signal that let #1572
+  # be deleted). A 0 is a CANDIDATE: verify by hand, then delete fn+ratchet
+  # (autonomous, typecheck-safe) or move the invariant to the live twin. TRIAGE.
+  # --self-check proves the predicate against known truth before trusting a run.
+  ( cd "$ROOT" && node "$TOOLS/fn-liveness-audit.mjs" "$@" )
+}
+
 cmd_timeouts() {
   # List axios calls with NO timeout, split into likely-LIVE vs likely-DEAD by
   # whether the module is referenced elsewhere. axios default timeout is 0
@@ -1485,6 +1507,7 @@ case "$action" in
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
   ratchet-audit|аудит-линеек) cmd_ratchet_audit "$@" ;;
+  fn-liveness|живость-функций) cmd_fn_liveness "$@" ;;
   timeouts|таймауты)  cmd_timeouts "$@" ;;
   inflight|блокировка) cmd_inflight "@" ;;
   leaks|утечки)        cmd_leaks "$@" ;;
