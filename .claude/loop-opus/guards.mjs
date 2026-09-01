@@ -73,6 +73,7 @@ const GUARDS = [
   'src/__tests__/reliability/veedFabricResumeStepJump.test.ts', // iter220 veed-fabric resume does not overshoot Step 2 (no selectStep+next off-by-one that broke the resume-after-voice flow); wave-20
   'src/__tests__/reliability/lipSyncModelButtonStripped.test.ts', // iter223 lip_sync_model_* global action strips its keyboard before scene.enter (stale re-tap cannot re-navigate mid-flow); wave-21
   'src/__tests__/money/processBalanceVideoHelperNonPositive.test.ts', // iter224 the LIVE video balance op (processBalanceVideoOperationHelper) refuses a non-positive price before charging (0-cost bypass); the sibling ...NonPositive guards the DEAD processBalanceVideoOperation
+  'src/__tests__/money/aiPhotoshopBatchRefundReconciled.test.ts', // iter227 every ALL_MODELS skipBalanceCheck service call reconciles its refund to the batch charge (chargedCostOverride, or qwen size-multiplier) -- dispatch-site guard against a new batch model under-refunding at 2K/4K (#1267 class)
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
