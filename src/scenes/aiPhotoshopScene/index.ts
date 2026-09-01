@@ -2359,14 +2359,30 @@ aiPhotoshopScene.on('text', async ctx => {
         }
       }
 
-      await ctx.reply(
-        isRu
-          ? `✨ *Диалоговый режим активен!*\n\n🎯 Применяю улучшения к последнему фото:\n"${messageText}"\n\n🔄 Обрабатываю с помощью модели ${AI_PHOTOSHOP_MODELS[lastResult.model as keyof typeof AI_PHOTOSHOP_MODELS]?.title_ru}...\n\n💡 *Совет:* После обработки вы сможете снова написать команду для дальнейших улучшений!`
-          : `✨ *Dialog mode is active!*\n\n🎯 Applying improvements to last photo:\n"${messageText}"\n\n🔄 Processing with ${AI_PHOTOSHOP_MODELS[lastResult.model as keyof typeof AI_PHOTOSHOP_MODELS]?.title_en} model...\n\n💡 *Tip:* After processing, you can write another command for further improvements!`,
-        {
-          parse_mode: 'Markdown',
-        }
-      )
+      // The status reply interpolates raw user text ("${messageText}") under
+      // parse_mode:'Markdown'; an unbalanced reserved char (_ * backtick [) makes
+      // Telegram 400 and reject the promise. A thrown reply here would skip
+      // processAiPhotoshopRequest below AND leave aiPhotoshopStep stuck at
+      // 'processing' -- a sticky dialog lockout the user cannot escape. Fall back
+      // to plain text and never let a cosmetic status failure abort the edit.
+      try {
+        await ctx.reply(
+          isRu
+            ? `✨ *Диалоговый режим активен!*\n\n🎯 Применяю улучшения к последнему фото:\n"${messageText}"\n\n🔄 Обрабатываю с помощью модели ${AI_PHOTOSHOP_MODELS[lastResult.model as keyof typeof AI_PHOTOSHOP_MODELS]?.title_ru}...\n\n💡 *Совет:* После обработки вы сможете снова написать команду для дальнейших улучшений!`
+            : `✨ *Dialog mode is active!*\n\n🎯 Applying improvements to last photo:\n"${messageText}"\n\n🔄 Processing with ${AI_PHOTOSHOP_MODELS[lastResult.model as keyof typeof AI_PHOTOSHOP_MODELS]?.title_en} model...\n\n💡 *Tip:* After processing, you can write another command for further improvements!`,
+          {
+            parse_mode: 'Markdown',
+          }
+        )
+      } catch {
+        await ctx
+          .reply(
+            isRu
+              ? '✨ Диалоговый режим активен! Обрабатываю ваш запрос к последнему фото...'
+              : '✨ Dialog mode active! Processing your request on the last photo...'
+          )
+          .catch(() => {})
+      }
 
       await processAiPhotoshopRequest(ctx, messageText)
       return
