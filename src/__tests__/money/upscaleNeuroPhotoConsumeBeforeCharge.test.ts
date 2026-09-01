@@ -147,4 +147,16 @@ describe('upscale_neurophoto_image consumes the image before charging (no stale-
     expect(rg.consumeBeforeCharge).toBe(true)
     expect(rg.guardPresent).toBe(true)
   })
+
+  it('mutation: removing the real consume assignment turns the check RED', () => {
+    // Revert the actual consume-before-charge line in the real handler and prove
+    // the detector fires -- the strongest false-ruler defense (couples the ratchet
+    // to the FIX, not just a synthetic input).
+    const mutated = source.replace(
+      'ctx.session.lastUpscaledImageUrl = ctx.session.lastNeuroPhotoImageUrl',
+      ''
+    )
+    expect(mutated).not.toEqual(source)
+    expect(analyze(mutated).consumeBeforeCharge).toBe(false)
+  })
 })
