@@ -28,6 +28,7 @@ import { useLanguage } from '@/hooks/useLanguage'
 import { useSwipeGesture } from '@/hooks/useSwipeGesture'
 import { UserCard } from './UserCard'
 import { ProfileTemplatesGrid } from './ProfileTemplatesGrid'
+import { profileTabCount } from './profileTabCounts'
 
 type TabId =
   | 'templates'
@@ -105,7 +106,7 @@ export function ProfileTabs() {
       id: 'templates' as const,
       icon: <Grid size={18} />,
       label: t('profile.templates'),
-      count: profile.templates_count,
+      count: profileTabCount(profile, 'templates'),
     },
     ...(isOwn
       ? [
@@ -113,19 +114,19 @@ export function ProfileTabs() {
             id: 'plan' as const,
             icon: <Target size={18} />,
             label: 'План',
-            count: undefined,
+            count: profileTabCount(profile, 'plan'),
           },
           {
             id: 'files' as const,
             icon: <FolderOpen size={18} />,
             label: 'Файлы',
-            count: undefined,
+            count: profileTabCount(profile, 'files'),
           },
           {
             id: 'skills' as const,
             icon: <Wand2 size={18} />,
             label: 'Скиллы',
-            count: undefined,
+            count: profileTabCount(profile, 'skills'),
           },
         ]
       : []),
@@ -133,19 +134,19 @@ export function ProfileTabs() {
       id: 'blog' as const,
       icon: <BookOpen size={18} />,
       label: 'Блог',
-      count: undefined,
+      count: profileTabCount(profile, 'blog'),
     },
     {
       id: 'followers' as const,
       icon: <Users size={18} />,
       label: t('profile.followers'),
-      count: profile.followers_count,
+      count: profileTabCount(profile, 'followers'),
     },
     {
       id: 'following' as const,
       icon: <Users size={18} />,
       label: t('profile.following'),
-      count: profile.following_count,
+      count: profileTabCount(profile, 'following'),
     },
   ].filter(Boolean)
 
@@ -160,7 +161,9 @@ export function ProfileTabs() {
           >
             {tab.icon}
             <span>{tab.label}</span>
-            <span className="profile-tabs__count">{tab.count ?? 0}</span>
+            {tab.count !== null && (
+              <span className="profile-tabs__count">{tab.count}</span>
+            )}
           </button>
         ))}
       </div>
