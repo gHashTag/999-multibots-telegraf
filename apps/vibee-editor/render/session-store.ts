@@ -15,8 +15,17 @@
 import crypto from 'node:crypto'
 import { digest, revokeNow, setRevokedSessions } from './session'
 
-type Pool = {
+type PoolClient = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
+  release: () => void
+}
+
+type Pool = {
+  query: PoolClient['query']
+}
+
+type PairingPool = Pool & {
+  connect: () => Promise<PoolClient>
 }
 
 let готово = false
@@ -145,6 +154,27 @@ export async function ensureAuthTables(pool: Pool): Promise<void> {
       consumed_at timestamptz,
       attempts int NOT NULL DEFAULT 0
     )`)
+  // Repair any historical race result before enforcing the invariant. The
+  // newest unconsumed code wins; older siblings become inert, never deleted.
+  await pool.query(`
+    WITH ranked AS (
+      SELECT code_hash,
+             row_number() OVER (
+               PARTITION BY telegram_id
+               ORDER BY created_at DESC, code_hash DESC
+             ) AS position
+        FROM app_pairing_codes
+       WHERE consumed_at IS NULL
+    )
+    UPDATE app_pairing_codes AS codes
+       SET consumed_at = now()
+      FROM ranked
+     WHERE codes.code_hash = ranked.code_hash
+       AND ranked.position > 1`)
+  await pool.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS app_pairing_one_live_owner
+       ON app_pairing_codes (telegram_id) WHERE consumed_at IS NULL`
+  )
 
   готово = true
 }
@@ -167,7 +197,7 @@ export const PAIRING = {
  * it — it takes an id, and an id is not proof of anything.
  */
 export async function issuePairingCode(
-  pool: Pool,
+  pool: PairingPool,
   telegramId: string,
   mint: () => string
 ): Promise<{ code: string; expiresAt: Date }> {
@@ -179,20 +209,35 @@ export async function issuePairingCode(
    * guessable for its full two minutes with its own attempt counter — every
    * press would widen the window instead of restarting it.
    */
-  await pool.query(
-    `UPDATE app_pairing_codes SET consumed_at = now()
-      WHERE telegram_id = $1 AND consumed_at IS NULL`,
-    [telegramId]
-  )
-
   const code = mint()
   const expiresAt = new Date(Date.now() + PAIRING.TTL_SECONDS * 1000)
-  await pool.query(
-    `INSERT INTO app_pairing_codes (code_hash, telegram_id, expires_at)
-     VALUES ($1, $2, $3)`,
-    [digest(code), telegramId, expiresAt.toISOString()]
-  )
-  return { code, expiresAt }
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    // Serialize starts for one owner across tabs and server instances. The
+    // partial unique index is a second, database-level invariant.
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+      [telegramId]
+    )
+    await client.query(
+      `UPDATE app_pairing_codes SET consumed_at = now()
+        WHERE telegram_id = $1 AND consumed_at IS NULL`,
+      [telegramId]
+    )
+    await client.query(
+      `INSERT INTO app_pairing_codes (code_hash, telegram_id, expires_at)
+       VALUES ($1, $2, $3)`,
+      [digest(code), telegramId, expiresAt.toISOString()]
+    )
+    await client.query('COMMIT')
+    return { code, expiresAt }
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 export type PairingOutcome =
@@ -209,18 +254,6 @@ export async function claimPairingCode(
 ): Promise<PairingOutcome> {
   const hash = digest(code)
 
-  /**
-   * COUNT THE GUESS BEFORE CHECKING IT.
-   *
-   * A million codes sounds like plenty until someone scripts it. The counter
-   * only helps if it moves on WRONG guesses, and a wrong guess by definition
-   * does not match any row — so counting per-code would count nothing at all.
-   *
-   * So the budget is per PERSON, charged to whichever live code exists: five
-   * wrong tries and every outstanding code for that account dies. An attacker
-   * guessing blindly burns the victim's codes, which is visible and annoying,
-   * rather than silently getting unlimited tries.
-   */
   const hit = await pool.query(
     `SELECT telegram_id, expires_at, consumed_at, attempts
        FROM app_pairing_codes WHERE code_hash = $1`,
@@ -228,17 +261,9 @@ export async function claimPairingCode(
   )
 
   if (!hit.rows.length) {
-    // Charge the miss to every live code. Nothing to charge means nothing
-    // was outstanding, and the guess was pure noise.
-    await pool.query(
-      `UPDATE app_pairing_codes SET attempts = attempts + 1
-        WHERE consumed_at IS NULL AND expires_at > now()`
-    )
-    await pool.query(
-      `UPDATE app_pairing_codes SET consumed_at = now()
-        WHERE consumed_at IS NULL AND attempts >= $1`,
-      [PAIRING.MAX_ATTEMPTS]
-    )
+    // A miss has no owner. Mutating every live code here lets one anonymous
+    // caller invalidate every user's login. The HTTP boundary rate-limits the
+    // request source; storage leaves unrelated rows untouched.
     return { ok: false, reason: 'unknown' }
   }
 
