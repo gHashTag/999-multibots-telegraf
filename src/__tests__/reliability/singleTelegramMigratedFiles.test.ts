@@ -31,6 +31,13 @@ const MIGRATED = [
   'core/supabase/getUserModel.ts',
 ]
 
+// Functions migrated within a file that still holds OTHER .single()-on-telegram_id
+// sites (so the whole-file check above can't apply). ADD an entry when you migrate
+// one function of a shared file (e.g. the ai.ts hub of duplicate copies).
+const MIGRATED_FUNCTIONS: Array<{ file: string; fn: string }> = [
+  { file: 'core/supabase/ai.ts', fn: 'getAspectRatio' },
+]
+
 /** Count `.single()` calls whose query chain filters by telegram_id. */
 function singleOnTelegramId(source: string): number {
   const sf = ts.createSourceFile(
@@ -58,6 +65,47 @@ function singleOnTelegramId(source: string): number {
   return n
 }
 
+/** Count `.single()`-on-telegram_id within a named function's body (-1 if absent). */
+function singleOnTelegramIdInFn(source: string, fnName: string): number {
+  const sf = ts.createSourceFile(
+    'x.ts',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  )
+  let target: ts.Node | undefined
+  const find = (node: ts.Node): void => {
+    if (
+      (ts.isFunctionDeclaration(node) && node.name?.text === fnName) ||
+      (ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.name.text === fnName)
+    ) {
+      target = node
+    }
+    if (!target) node.forEachChild(find)
+  }
+  find(sf)
+  if (!target) return -1
+  let n = 0
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'single' &&
+      /\.eq\(\s*['"]telegram_id['"]/.test(
+        node.expression.expression.getText(sf)
+      )
+    ) {
+      n++
+    }
+    node.forEachChild(visit)
+  }
+  visit(target)
+  return n
+}
+
 const abs = (rel: string) => path.resolve(__dirname, '../../', rel)
 
 describe('migrated users-readers stay off .single()-on-telegram_id', () => {
@@ -77,6 +125,31 @@ describe('migrated users-readers stay off .single()-on-telegram_id', () => {
           `Use .order('updated_at',{ascending:false}).limit(1) + take the first row.`
       ).toBe(0)
     }
+  })
+
+  it('each migrated function is present and off .single()-on-telegram_id', () => {
+    for (const { file, fn } of MIGRATED_FUNCTIONS) {
+      const src = fs.readFileSync(abs(file), 'utf8')
+      const n = singleOnTelegramIdInFn(src, fn)
+      expect(
+        n,
+        `${file}#${fn} not found (matcher stale)`
+      ).toBeGreaterThanOrEqual(0)
+      expect(n, `${file}#${fn} regressed to .single() on telegram_id`).toBe(0)
+    }
+  })
+
+  it('self-check: scoped detector isolates the target function', () => {
+    const src = `
+      export const good = async (id) => {
+        await supabase.from('users').select('x').eq('telegram_id', id).order('updated_at').limit(1)
+      }
+      export const bad = async (id) => {
+        await supabase.from('users').select('x').eq('telegram_id', id).single()
+      }`
+    expect(singleOnTelegramIdInFn(src, 'good')).toBe(0)
+    expect(singleOnTelegramIdInFn(src, 'bad')).toBe(1)
+    expect(singleOnTelegramIdInFn(src, 'missing')).toBe(-1)
   })
 
   it('self-check: detector flags .single() on telegram_id, not order+limit', () => {
