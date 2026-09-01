@@ -29,6 +29,7 @@ const MIGRATED = [
   'core/supabase/getAspectRatio.ts',
   'core/supabase/getUserLevel.ts',
   'core/supabase/getUserModel.ts',
+  'db/userSettings.ts',
 ]
 
 // Functions migrated within a file that still holds OTHER .single()-on-telegram_id
