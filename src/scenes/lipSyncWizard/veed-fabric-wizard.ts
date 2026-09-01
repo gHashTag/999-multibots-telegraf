@@ -76,9 +76,15 @@ export const veedFabricWizard = new Scenes.WizardScene<MyContext>(
           : '🎭 Continuing lip-sync video generation with your data...'
       )
 
-      // Пропускаем к Step 2 (генерация)
+      // Resume: run Step 2 (recompute cost + show the Confirm button) directly.
+      // selectStep(2) sets the cursor to 2; next() would then overshoot to 3
+      // (next = selectStep(cursor + 1)), skipping Step 2 so cost stays undefined
+      // and Step 3 bails "start over" -- the advertised resume was broken. Invoke
+      // Step 2 directly instead, mirroring ai-reels-render-wizard's resume. Step 2
+      // reads the saved session data (veedFabric.text/imageUrl), not ctx.message.
       ctx.wizard.selectStep(2)
-      return ctx.wizard.next()
+      // @ts-ignore steps is private; direct invocation is the wizard's resume pattern
+      return await (ctx.wizard as any).steps[ctx.wizard.cursor](ctx)
     }
 
     // Обычный флоу: инициализируем сессию
