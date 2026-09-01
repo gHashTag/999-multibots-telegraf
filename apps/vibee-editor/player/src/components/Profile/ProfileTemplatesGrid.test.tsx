@@ -62,6 +62,21 @@ const template = {
   likesCount: 2,
 }
 
+const secondTemplate = {
+  ...template,
+  id: 40,
+  name: 'Вторая сцена',
+  videoUrl: 'https://media.example.test/second.mp4',
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>(done => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
 describe('ProfileTemplatesGrid owner actions', () => {
   let host: HTMLDivElement
   let root: Root
@@ -111,11 +126,12 @@ describe('ProfileTemplatesGrid owner actions', () => {
     expect(testState.navigate).not.toHaveBeenCalled()
   })
 
-  it('uses a feed-style video preview with poster, overlay metadata and owner actions', async () => {
+  it('uses a cheap poster until Play, with overlay metadata and owner actions', async () => {
     await renderGrid(true)
 
     const media = host.querySelector('.profile-templates__thumbnail')
     const video = media?.querySelector<HTMLVideoElement>('video')
+    const poster = media?.querySelector<HTMLImageElement>('img')
     const actions = media?.querySelector('.profile-templates__social-actions')
     const meta = media?.querySelector('.profile-templates__meta')
 
@@ -125,12 +141,32 @@ describe('ProfileTemplatesGrid owner actions', () => {
     expect(video?.getAttribute('poster')).toBe(
       'https://media.example.test/template.jpg'
     )
+    expect(video?.preload).toBe('none')
     expect(video?.autoplay).toBe(false)
     await act(async () => video?.dispatchEvent(new Event('loadedmetadata')))
-    expect(video?.currentTime).toBe(0.8)
+    expect(video?.currentTime).toBe(0)
+    expect(poster?.getAttribute('src')).toBe(
+      'https://media.example.test/template.jpg'
+    )
     expect(actions?.querySelectorAll('button')).toHaveLength(2)
     expect(meta?.textContent).toContain('Киноплёнка')
     expect(host.querySelector('.profile-templates__info')).toBeNull()
+  })
+
+  it('seeks a posterless video to a paused preview frame without autoplay', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        templates: [{ ...template, thumbnailUrl: null }],
+      }),
+    } as Response)
+    await renderGrid(true)
+
+    const video = host.querySelector<HTMLVideoElement>('video')
+    expect(video?.preload).toBe('metadata')
+    expect(video?.autoplay).toBe(false)
+    await act(async () => video?.dispatchEvent(new Event('loadedmetadata')))
+    expect(video?.currentTime).toBe(0.8)
   })
 
   it('falls back from a broken video to its poster and then to a placeholder', async () => {
@@ -166,8 +202,79 @@ describe('ProfileTemplatesGrid owner actions', () => {
     await act(async () => preview?.click())
 
     expect(play).toHaveBeenCalledTimes(1)
+    expect(host.querySelector('[aria-label="Пауза Киноплёнка"]')).not.toBeNull()
     expect(testState.navigate).not.toHaveBeenCalled()
     play.mockRestore()
+  })
+
+  it('cancels a pending same-card play on a rapid second activation', async () => {
+    const pendingPlay = deferred<void>()
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockReturnValue(pendingPlay.promise)
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause')
+    await renderGrid(true)
+
+    const preview = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Воспроизвести Киноплёнка"]'
+    )
+    await act(async () => preview?.click())
+    expect(host.querySelector('[aria-label="Пауза Киноплёнка"]')).not.toBeNull()
+
+    await act(async () => preview?.click())
+    expect(
+      host.querySelector('[aria-label="Воспроизвести Киноплёнка"]')
+    ).not.toBeNull()
+    expect(pause).toHaveBeenCalledTimes(1)
+
+    await act(async () => pendingPlay.resolve())
+    expect(pause).toHaveBeenCalledTimes(2)
+    expect(host.querySelector('[aria-label="Пауза Киноплёнка"]')).toBeNull()
+    play.mockRestore()
+    pause.mockRestore()
+  })
+
+  it('keeps only the newest preview selected when play promises resolve out of order', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ templates: [template, secondTemplate] }),
+    } as Response)
+    const firstPlay = deferred<void>()
+    const secondPlay = deferred<void>()
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockImplementation(function (this: HTMLMediaElement) {
+        return this.getAttribute('src')?.includes('second')
+          ? secondPlay.promise
+          : firstPlay.promise
+      })
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause')
+    await renderGrid(true)
+
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Воспроизвести Киноплёнка"]'
+        )
+        ?.click()
+    )
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Воспроизвести Вторая сцена"]'
+        )
+        ?.click()
+    )
+    await act(async () => secondPlay.resolve())
+    await act(async () => firstPlay.resolve())
+
+    expect(host.querySelector('[aria-label="Пауза Киноплёнка"]')).toBeNull()
+    expect(
+      host.querySelector('[aria-label="Пауза Вторая сцена"]')
+    ).not.toBeNull()
+    expect(pause).toHaveBeenCalled()
+    play.mockRestore()
+    pause.mockRestore()
   })
 
   it('loads the original owner template and opens the editor only after success', async () => {

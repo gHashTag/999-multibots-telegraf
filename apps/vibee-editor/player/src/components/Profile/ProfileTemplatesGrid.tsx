@@ -42,6 +42,8 @@ export function ProfileTemplatesGrid({
   )
   const [playingId, setPlayingId] = useState<number | null>(null)
   const videoRefs = useRef(new Map<number, HTMLVideoElement>())
+  const playRequestRef = useRef(0)
+  const activePreviewRef = useRef<number | null>(null)
 
   const editTemplate = useSetAtom(editTemplateAtom)
   const deleteTemplate = useSetAtom(deleteTemplateAtom)
@@ -115,20 +117,37 @@ export function ProfileTemplatesGrid({
     const video = videoRefs.current.get(template.id)
     if (!video) return
 
-    if (playingId === template.id && !video.paused) {
+    const requestId = ++playRequestRef.current
+
+    if (activePreviewRef.current === template.id) {
+      activePreviewRef.current = null
       video.pause()
       setPlayingId(null)
       return
     }
 
-    if (playingId !== null && playingId !== template.id) {
-      videoRefs.current.get(playingId)?.pause()
+    for (const [templateId, candidate] of videoRefs.current) {
+      if (templateId !== template.id) candidate.pause()
     }
 
+    activePreviewRef.current = template.id
+    setPlayingId(template.id)
     try {
       await video.play()
-      setPlayingId(template.id)
+      if (
+        playRequestRef.current !== requestId ||
+        activePreviewRef.current !== template.id
+      ) {
+        video.pause()
+      }
     } catch {
+      if (
+        playRequestRef.current !== requestId ||
+        activePreviewRef.current !== template.id
+      ) {
+        return
+      }
+      activePreviewRef.current = null
       setFailedVideos(current => new Set(current).add(template.id))
       setPlayingId(null)
     }
@@ -192,26 +211,24 @@ export function ProfileTemplatesGrid({
                   <video
                     ref={node => setVideoRef(template.id, node)}
                     src={template.videoUrl}
-                    poster={template.thumbnailUrl || undefined}
+                    poster={posterAvailable ? template.thumbnailUrl : undefined}
                     muted
                     loop
                     playsInline
-                    preload="metadata"
+                    preload={posterAvailable ? 'none' : 'metadata'}
                     crossOrigin="anonymous"
                     onLoadedMetadata={event => {
+                      if (posterAvailable || isPlaying) return
                       const duration = event.currentTarget.duration
                       event.currentTarget.currentTime =
                         Number.isFinite(duration) && duration > 0
                           ? Math.min(0.8, duration / 2)
                           : 0.8
                     }}
-                    onPlay={() => setPlayingId(template.id)}
-                    onPause={() =>
-                      setPlayingId(current =>
-                        current === template.id ? null : current
-                      )
-                    }
                     onError={() => {
+                      if (activePreviewRef.current === template.id) {
+                        activePreviewRef.current = null
+                      }
                       setFailedVideos(current =>
                         new Set(current).add(template.id)
                       )
@@ -220,7 +237,9 @@ export function ProfileTemplatesGrid({
                       )
                     }}
                   />
-                ) : posterAvailable ? (
+                ) : null}
+
+                {posterAvailable && !isPlaying ? (
                   <img
                     src={template.thumbnailUrl}
                     alt={template.name}
@@ -230,11 +249,11 @@ export function ProfileTemplatesGrid({
                       )
                     }
                   />
-                ) : (
+                ) : !videoAvailable ? (
                   <div className="profile-templates__placeholder">
                     <Video size={32} />
                   </div>
-                )}
+                ) : null}
 
                 <div
                   className="profile-templates__media-gradient"
