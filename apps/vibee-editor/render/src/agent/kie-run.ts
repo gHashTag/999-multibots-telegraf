@@ -24,7 +24,11 @@ import {
  * Both checks are free. The request they prevent is not.
  */
 
-const СТАТУС = 'https://api.kie.ai/api/v1/jobs/taskStatus'
+// ПРОВЕРЕНО ЖИВЫМ ЗАПРОСОМ: адрес состояния — recordInfo. По taskStatus
+// KieAI отвечает 404, то есть опрос НИКОГДА не увидел бы готовое задание:
+// цикл крутился бы до таймаута на успешно созданной работе, за которую уже
+// заплачено. Найдено при первом же настоящем прогоне липсинка.
+const СТАТУС = 'https://api.kie.ai/api/v1/jobs/recordInfo'
 
 export interface ЗапускРезультат {
   taskId?: string
