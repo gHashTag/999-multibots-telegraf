@@ -400,14 +400,15 @@ export interface AuthResult {
   allowed: boolean
   /** true, если пропущено только из-за режима warn. */
   wouldReject: boolean
-  via: 'public' | 'api-key' | 'telegram' | 'session' | 'none'
+  via: 'public' | 'api-key' | 'agent-key' | 'telegram' | 'session' | 'none'
   reason?: string
   /**
    * telegram_id, если способ аутентификации его знает.
    *
-   * Есть только у `session`: ключ сервера безличен, а у подписи личность
-   * достаёт `verifiedTelegramId` отдельно — она разбирает ту же строку и
-   * держать два источника одного значения незачем.
+   * Есть у `session` и у `agent-key`: оба знают, ЧЕЙ запрос. Ключ сервера
+   * безличен, а у подписи личность достаёт `verifiedTelegramId` отдельно —
+   * она разбирает ту же строку и держать два источника одного значения
+   * незачем.
    */
   telegramId?: string
 }
@@ -422,6 +423,56 @@ export function authenticate(req: IncomingMessage): AuthResult {
     const b = Buffer.from(expectedKey)
     if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
       return { allowed: true, wouldReject: false, via: 'api-key' }
+    }
+  }
+
+  /**
+   * КЛЮЧ АГЕНТА — и без него приложение не могло дойти до генерации ВООБЩЕ.
+   *
+   * `Identity` в iOS хранит ровно две вещи: сессионный токен и ключ агента.
+   * Токена без входа по коду из бота нет, значит остаётся ключ — а гвард его
+   * не спрашивал. Получалось так: в Профиле есть поле для ключа, человек его
+   * заполняет, и всё равно каждая генерация отвечает «unauthorized: no
+   * X-Api-Key and no Telegram initData». Поле, которое ничего не открывает,
+   * хуже отсутствующего: оно обещает вход.
+   *
+   * Это не новая дверь и не послабление. `AGENT_KEYS` уже сопоставляет ключ
+   * КОНКРЕТНОМУ человеку («ключ:telegram_id»), и на этом же сопоставлении
+   * работают /mcp и /api/agent/chat — они проверяют его сами, каждый у себя.
+   * Здесь та же проверка встаёт в общий гвард, чтобы третьего разошедшегося
+   * места не появилось.
+   *
+   * Ветка стоит ПОСЛЕ ключа сервера и ДО сессии: клиент, приславший
+   * X-Agent-Key, уже назвал свой способ, и разбирать за него пустой Bearer
+   * незачем.
+   */
+  const агентКлюч = (req.headers['x-agent-key'] as string | undefined) || ''
+  if (агентКлюч) {
+    // Сравнение посимвольное по всей паре, а не по началу строки: ключ и
+    // идентификатор разделены двоеточием, и ключ «abc» не должен подходить
+    // к записи «abcdef:123».
+    for (const пара of (process.env.AGENT_KEYS || '').split(',')) {
+      const [к, id] = пара.split(':')
+      if (!к || !id) continue
+      const a = Buffer.from(агентКлюч)
+      const b = Buffer.from(к.trim())
+      if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
+        return {
+          allowed: true,
+          wouldReject: false,
+          via: 'agent-key',
+          telegramId: id.trim(),
+        }
+      }
+    }
+    // Предъявленный, но неверный ключ НЕ проваливается дальше — по той же
+    // причине, что и протухший Bearer: клиент назвал способ, и молчаливый
+    // переход к другому спрятал бы «ключ не тот» за общим отказом.
+    return {
+      allowed: mode() !== 'enforce',
+      wouldReject: true,
+      via: 'none',
+      reason: 'agent key rejected: unknown',
     }
   }
 
