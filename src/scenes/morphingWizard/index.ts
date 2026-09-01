@@ -478,13 +478,44 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
               ctx.session.morphingProgressMessageId = sentMessage.message_id
             }
           }
-        } else {
-          const sentMessage = await ctx.reply(progressMessage, {
-            parse_mode: 'HTML',
-            reply_markup: keyboard.reply_markup,
-          })
-          if ('message_id' in sentMessage) {
-            ctx.session.morphingProgressMessageId = sentMessage.message_id
+        } else if (!ctx.session.morphingProgressCreating) {
+          // An album (media group) arrives as several near-simultaneous photo
+          // updates for the same user, and the plain in-memory session has no
+          // per-key lock. The id below is written only AFTER the await, so
+          // without this synchronous reject-before-set guard every concurrent
+          // photo would read no id and create a DUPLICATE progress card (only
+          // the last id survives; the earlier cards are orphaned/un-editable).
+          ctx.session.morphingProgressCreating = true
+          try {
+            const sentMessage = await ctx.reply(progressMessage, {
+              parse_mode: 'HTML',
+              reply_markup: keyboard.reply_markup,
+            })
+            if ('message_id' in sentMessage) {
+              ctx.session.morphingProgressMessageId = sentMessage.message_id
+              // Sibling album photos pushed to morphingImages during the await
+              // above and skipped their own progress update; refresh the single
+              // card once with the now-current count so it is not left stale.
+              try {
+                await ctx.telegram.editMessageText(
+                  ctx.chat?.id,
+                  sentMessage.message_id,
+                  undefined,
+                  createProgressMessage(ctx.session.morphingImages, isRu),
+                  {
+                    parse_mode: 'HTML',
+                    reply_markup: createProgressKeyboard(
+                      ctx.session.morphingImages,
+                      isRu
+                    ).reply_markup,
+                  }
+                )
+              } catch {
+                // cosmetic refresh -- ignore a failed edit
+              }
+            }
+          } finally {
+            ctx.session.morphingProgressCreating = false
           }
         }
 
