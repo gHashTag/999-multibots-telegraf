@@ -86,6 +86,7 @@ const GUARDS = [
   'src/__tests__/reliability/morphingSetTimeoutGuarded.test.ts', // iter233 morphingWizard setTimeout(async) milestone callbacks have a .catch/try so a rejected ctx.reply in the detached timer cannot leak an unhandledRejection; found by wave-4 unhandled-rejection lens (crash mitigated by the global handler -> LOW hygiene)
   'src/__tests__/money/creditSiteCensus.test.ts', // iter234 census of every MONEY_INCOME credit call-site (the mint surface); a NEW/added credit site turns RED until reviewed for idempotency+authenticity and allowlisted (income-side analog of money-map/charge-audit)
   'src/__tests__/reliability/morphingProgressCreateGuarded.test.ts', // iter235 morphingWizard progress-card create is behind a reject-before-set guard (+ refresh) so an album upload makes ONE card, not a duplicate per concurrent photo; found by wave-5 session-check-then-act lens (LOW/cosmetic)
+  'src/__tests__/money/aiReelsDeliveryWebhookThrows.test.ts', // iter236 generateAIReelsFunction notify-telegram delivery handoff throws on a non-2xx so a failed delivery surfaces (Inngest retries/marks failed) instead of silently reporting success -- the user was charged before dispatch (silent charged-not-delivered); found by wave-6 inngest swallowed-delivery lens
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
