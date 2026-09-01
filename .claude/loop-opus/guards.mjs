@@ -66,6 +66,7 @@ const GUARDS = [
   'src/__tests__/money/tonCheckAtomicCreditGuard.test.ts', // iter214 TON check credits MONEY_INCOME only after an atomic status CAS (no concurrent double-credit mint); both ton scenes
   'src/__tests__/reliability/heroValidationErrorLogBounded.test.ts', // iter214 HeroValidationService.errorLog static array is ring-buffer capped (no adversarial slow-OOM); wave-16
   'src/__tests__/reliability/aiPhotoshopDialogReplyGuarded.test.ts', // iter216 aiPhotoshop dialog status reply (raw user text under parse_mode) is isolated in try/catch so a 400 cannot drop the edit or lock the dialog; wave-17
+  'src/__tests__/reliability/heygenRenderAnswerCbQuery.test.ts', // iter216 heygenRenderWizard callback steps answer the spinner at top level (no ~30s hang on else/not-found branches); wave-17
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
