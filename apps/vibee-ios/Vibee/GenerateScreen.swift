@@ -437,6 +437,71 @@ struct GenerateScreen: View {
    * таймлайне. Список вперемешку заставлял бы сверять его с редактором
    * глазами.
    */
+  /**
+   * ИСТОРИЯ ВСЕГО, ЧТО КОГДА-ЛИБО СДЕЛАНО, И КНОПКА ВЗЯТЬ ЭТО СНОВА.
+   *
+   * Каждый шаг здесь стоит денег. Без истории человек, закрывший приложение,
+   * платил за ту же озвучку второй раз — не потому что хотел, а потому что
+   * прежнюю негде было найти. Повторная оплата за уже сделанное — не
+   * неудобство, а прямой убыток, и чинится он не подсказкой, а списком.
+   *
+   * «Взять» НИЧЕГО НЕ ГЕНЕРИРУЕТ: ассет уже существует, кнопка лишь кладёт
+   * его в текущий ролик. Поэтому она и не спрашивает подтверждения — тратить
+   * нечего.
+   *
+   * Показана и на ПУСТОЙ сборке: именно там она нужнее всего — человек
+   * пришёл собирать новый ролик и должен увидеть, что у него уже есть.
+   */
+  @ViewBuilder private var историяАссетов: some View {
+    if !слои.история.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Text("История · \(слои.история.count)")
+          .font(Тема.Шрифт.стиль(.subheadline, .semibold))
+          .foregroundStyle(Тема.Цвет.текстПриглушённый)
+
+        ForEach(слои.история.prefix(20)) { а in
+          HStack(spacing: 10) {
+            Image(systemName: значокДорожки(а.дорожка))
+              .foregroundStyle(Тема.Цвет.текстПриглушённый)
+              .frame(width: 22)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(а.подпись)
+                .font(Тема.Шрифт.стиль(.callout))
+                .lineLimit(1)
+              Text(Слои.имяДорожки(а.дорожка))
+                .font(Тема.Шрифт.стиль(.caption))
+                .foregroundStyle(Тема.Цвет.текстПриглушённый)
+            }
+            Spacer(minLength: 8)
+            Button("Взять") { слои.взятьВРолик(а.id) }
+              .font(Тема.Шрифт.стиль(.footnote, .medium))
+              .buttonStyle(.plain)
+              .foregroundStyle(Тема.Цвет.акцент)
+              .frame(minWidth: 60, minHeight: 44, alignment: .trailing)
+              .contentShape(Rectangle())
+          }
+        }
+        if слои.история.count > 20 {
+          // Честно говорим, что показано не всё: молчаливое усечение
+          // читается как «больше ничего нет».
+          Text("…и ещё \(слои.история.count - 20). Показаны последние 20.")
+            .font(Тема.Шрифт.стиль(.caption))
+            .foregroundStyle(Тема.Цвет.текстПриглушённый)
+        }
+      }
+      .padding(.top, 6)
+    }
+  }
+
+  private func значокДорожки(_ т: String) -> String {
+    switch т {
+    case "video": return "film"
+    case "image": return "photo"
+    case "audio": return "waveform"
+    default: return "textformat"
+    }
+  }
+
   @ViewBuilder private var сборка: some View {
     VStack(alignment: .leading, spacing: 14) {
       if слои.пусто {
@@ -445,6 +510,7 @@ struct GenerateScreen: View {
           .font(Тема.Шрифт.стиль(.callout))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
           .fixedSize(horizontal: false, vertical: true)
+        историяАссетов
       } else {
         ForEach(Слои.дорожки, id: \.self) { тип in
           let свои = слои.слои.filter { $0.дорожка == тип }
@@ -473,6 +539,8 @@ struct GenerateScreen: View {
             }
           }
         }
+
+        историяАссетов
 
         Button {
           // Композиция кладётся в общий накопитель, и редактор берёт её
