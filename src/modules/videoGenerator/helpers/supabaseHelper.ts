@@ -17,11 +17,19 @@ export async function getUserHelper(
       `[getUserHelper] Attempting to find user with telegramId: ${telegramId}`
     )
 
-    const { data: user, error: dbError } = await supabase
+    // telegram_id is NOT unique in `users` (~19 users have 2-3 rows -- see the
+    // production measurement in updateUserBalance.ts). `.single()` returns a
+    // PGRST116 error for those rows, so this returned null and the image-to-video
+    // flow aborted with a misleading "user not found". Take the latest row,
+    // mirroring getUserByTelegramId / updateUserBalance, which were migrated off
+    // `.single()` for exactly this reason.
+    const { data: userRows, error: dbError } = await supabase
       .from('users')
       .select('level, aspect_ratio') // Select only needed fields
       .eq('telegram_id', telegramId)
-      .single()
+      .order('updated_at', { ascending: false })
+      .limit(1)
+    const user = userRows?.[0] ?? null
 
     if (dbError) {
       logger.error(
@@ -58,11 +66,15 @@ export async function updateUserLevelHelper(
   logger.info('[updateUserLevelHelper] Called for', { telegram_id })
   try {
     // Get current level first to increment
-    const { data: currentData, error: fetchError } = await supabase
+    // Non-unique telegram_id: take the latest row, not `.single()` (which errors
+    // for duplicate-row users, leaving their level un-incremented).
+    const { data: levelRows, error: fetchError } = await supabase
       .from('users')
       .select('level')
       .eq('telegram_id', telegram_id)
-      .single()
+      .order('updated_at', { ascending: false })
+      .limit(1)
+    const currentData = levelRows?.[0] ?? null
 
     if (fetchError || !currentData) {
       logger.error('Error fetching current user level for update', {
