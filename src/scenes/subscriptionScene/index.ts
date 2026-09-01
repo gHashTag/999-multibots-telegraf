@@ -318,6 +318,11 @@ Get access to all neuro-bot features!
   async (ctx: MyContext) => {
     console.log('CASE: subscriptionScene.next', ctx)
     if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
+      // Answer the callback up front so the subscription plan button's spinner
+      // does not hang ~30s on any branch (scene.enter PaymentScene / admin test /
+      // mainmenu / unknown), all of which returned without answering. .catch
+      // guards a stale/expired query id.
+      await ctx.answerCbQuery().catch(() => {})
       const text = ctx.update.callback_query.data
       console.log('Callback data text:', text)
 
