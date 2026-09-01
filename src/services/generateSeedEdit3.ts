@@ -12,6 +12,7 @@ import { refundUser } from '@/price/helpers/refundUser'
 import { MyContext } from '@/interfaces'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
 import path from 'path'
+import fs from 'fs'
 import {
   SeedEdit3InputSchema,
   SeedEdit3ResponseSchema,
@@ -72,6 +73,10 @@ export const generateSeedEdit3 = async (
 
   // Объявляем переменные до try для доступности в catch
   let totalCost = 0
+  // saveFileLocally persists a local copy that delivery never uses (it sends the
+  // REMOTE imageUrl), so unlink it on every path -- same leak as fluxKontextPro
+  // (#1537). Declared here so the finally can reach it.
+  let tempFileToCleanup: string | null = null
 
   try {
     const {
@@ -248,6 +253,8 @@ export const generateSeedEdit3 = async (
       '.png'
     )
 
+    tempFileToCleanup = savedImagePath
+
     logger.info('🎯 [SeedEdit3] Image saved locally:', {
       telegram_id,
       savedImagePath,
@@ -354,5 +361,14 @@ export const generateSeedEdit3 = async (
     }
 
     throw error
+  } finally {
+    // Remove the orphaned local copy on every path (delivery used the remote url).
+    if (tempFileToCleanup) {
+      try {
+        fs.unlinkSync(tempFileToCleanup)
+      } catch {
+        /* already gone or never created */
+      }
+    }
   }
 }
