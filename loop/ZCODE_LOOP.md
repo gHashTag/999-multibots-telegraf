@@ -4433,3 +4433,23 @@
 1. **«Выпустить понятный вход»** — player-only merge и production mobile smoke.
 2. **«Добавить QR/deep link»** — отдельно исследовать безопасную передачу без токена в URL.
 3. **«Улучшить agent onboarding»** — после входа показать live status, scopes и первый draft-план.
+
+---
+
+## Виток №247 — 2026-09-01T11:02Z — шаблоны выглядят как часть социальной ленты (PR —)
+
+**Проверено**: актуальный `origin/main`, координационные хвосты, dirty основной checkout и живые карточки Templates владельца против action-rail в Feed. Основное дерево оставлено без изменений: параллельный render/lipsync WIP не тронут, работа выполнена в чистом worktree. В production на первой странице профиля было 20 видео-карточек с отдельным тяжёлым рядом Edit/Delete; реальный edit/delete во время диагностики не вызывался.
+
+**Сделано**: карточка стала единым 9:16 social-preview: видео приоритетнее poster, на metadata ставится безопасный стоп-кадр 0,8 с, Play/Pause работает внутри карточки без навигации, а ошибка видео переходит на poster и затем на placeholder. Название и статистика перенесены поверх медиа. Owner-only Edit/Delete стали вертикальными круглыми действиями в стиле Feed; Delete по-прежнему проходит через подтверждение, public viewer действий не получает. Старый нижний info/action-row удалён, включая skeleton.
+
+**Аномалии / самокритика**: первый визуальный вариант честно показал чёрные карточки — production poster отсутствует у этих видео; autoplay сделал бы картинку живой, но вводил бы в заблуждение и тратил ресурсы. Исправлено на статический декодированный кадр без autoplay. `tri status` красный на неподнятых canonical 3333/5174, `tri regress` — на отсутствующем локальном agent key; это не использовано как релизное доказательство. Сборка сохраняет прежние chunk-size/Browserslist warnings без exit failure.
+
+**Метрики**: feed — 42 reels / 82👁 / 0⭐ / 2 автора. Profile first page — 20/20 video previews, 20 owner action rails, 0 старых action/info rows, body overflow 0. На 390×844 — две колонки, card width 161 px, обе CTA 52,8×52,8 px; desktop — четыре колонки. TDD 7/7, full player 137/137, typecheck+production build PASS, scoped ESLint 0 ошибок.
+
+**Следующий шаг**: exact-SHA independent review → PR/merge → player-only deploy → fresh production smoke без edit/delete мутаций.
+
+## Три варианта для владельца
+
+1. **«Выпустить social cards»** — player-only merge и production smoke профиля.
+2. **«Добавить быстрый remix»** — отдельной кнопкой создать новый draft по выбранному шаблону, без автопубликации.
+3. **«Усилить библиотеку»** — фильтры, поиск и сортировка Templates отдельным витком.

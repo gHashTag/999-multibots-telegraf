@@ -37,6 +37,8 @@ vi.mock('@/hooks/useLanguage', () => ({
       ({
         'profile.edit_template': 'Редактировать',
         'profile.delete_template': 'Удалить',
+        'profile.preview_template': 'Воспроизвести',
+        'profile.pause_preview': 'Пауза',
         'profile.delete_template_confirm': 'Удалить шаблон?',
         'profile.template_action_failed': 'Не удалось изменить шаблон.',
         'common.cancel': 'Отмена',
@@ -54,6 +56,7 @@ const template = {
   telegramId: 27,
   name: 'Киноплёнка',
   description: 'Шесть сцен',
+  thumbnailUrl: 'https://media.example.test/template.jpg',
   videoUrl: 'https://media.example.test/template.mp4',
   viewsCount: 8,
   likesCount: 2,
@@ -106,6 +109,65 @@ describe('ProfileTemplatesGrid owner actions', () => {
       host.querySelector<HTMLElement>('.profile-templates__item')?.click()
     })
     expect(testState.navigate).not.toHaveBeenCalled()
+  })
+
+  it('uses a feed-style video preview with poster, overlay metadata and owner actions', async () => {
+    await renderGrid(true)
+
+    const media = host.querySelector('.profile-templates__thumbnail')
+    const video = media?.querySelector<HTMLVideoElement>('video')
+    const actions = media?.querySelector('.profile-templates__social-actions')
+    const meta = media?.querySelector('.profile-templates__meta')
+
+    expect(video?.getAttribute('src')).toBe(
+      'https://media.example.test/template.mp4'
+    )
+    expect(video?.getAttribute('poster')).toBe(
+      'https://media.example.test/template.jpg'
+    )
+    expect(video?.autoplay).toBe(false)
+    await act(async () => video?.dispatchEvent(new Event('loadedmetadata')))
+    expect(video?.currentTime).toBe(0.8)
+    expect(actions?.querySelectorAll('button')).toHaveLength(2)
+    expect(meta?.textContent).toContain('Киноплёнка')
+    expect(host.querySelector('.profile-templates__info')).toBeNull()
+  })
+
+  it('falls back from a broken video to its poster and then to a placeholder', async () => {
+    await renderGrid(true)
+
+    const media = host.querySelector('.profile-templates__thumbnail')
+    const video = media?.querySelector<HTMLVideoElement>('video')
+    expect(video).not.toBeNull()
+
+    await act(async () => video?.dispatchEvent(new Event('error')))
+    const poster = media?.querySelector<HTMLImageElement>('img')
+    expect(poster?.getAttribute('src')).toBe(
+      'https://media.example.test/template.jpg'
+    )
+
+    await act(async () => poster?.dispatchEvent(new Event('error')))
+    expect(
+      media?.querySelector('.profile-templates__placeholder')
+    ).not.toBeNull()
+  })
+
+  it('plays the inline preview without navigating away from the profile', async () => {
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockResolvedValue(undefined)
+    await renderGrid(true)
+
+    const preview = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Воспроизвести Киноплёнка"]'
+    )
+    expect(preview).not.toBeNull()
+
+    await act(async () => preview?.click())
+
+    expect(play).toHaveBeenCalledTimes(1)
+    expect(testState.navigate).not.toHaveBeenCalled()
+    play.mockRestore()
   })
 
   it('loads the original owner template and opens the editor only after success', async () => {
