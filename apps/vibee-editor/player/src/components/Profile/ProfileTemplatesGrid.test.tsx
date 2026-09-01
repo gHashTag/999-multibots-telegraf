@@ -7,6 +7,8 @@ const testState = vi.hoisted(() => ({
   useTemplate: vi.fn(),
   editTemplate: vi.fn(),
   deleteTemplate: vi.fn(),
+  intersectionCallbacks: [] as IntersectionObserverCallback[],
+  observedTargets: [] as Element[],
 }))
 
 vi.mock('react-router-dom', () => ({
@@ -90,6 +92,23 @@ describe('ProfileTemplatesGrid owner actions', () => {
     testState.useTemplate.mockReset().mockResolvedValue(true)
     testState.editTemplate.mockReset().mockResolvedValue(true)
     testState.deleteTemplate.mockReset().mockResolvedValue(undefined)
+    testState.intersectionCallbacks.length = 0
+    testState.observedTargets.length = 0
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          testState.intersectionCallbacks.push(callback)
+        }
+
+        observe(target: Element) {
+          testState.observedTargets.push(target)
+        }
+
+        unobserve() {}
+        disconnect() {}
+      }
+    )
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -110,6 +129,23 @@ describe('ProfileTemplatesGrid owner actions', () => {
       root.render(<ProfileTemplatesGrid username="t27_dev" isOwn={isOwn} />)
     })
     await act(async () => Promise.resolve())
+  }
+
+  async function reveal(target: Element) {
+    const callback = testState.intersectionCallbacks.at(-1)
+    expect(callback).toBeDefined()
+    await act(async () =>
+      callback?.(
+        [
+          {
+            target,
+            isIntersecting: true,
+            intersectionRatio: 1,
+          } as IntersectionObserverEntry,
+        ],
+        {} as IntersectionObserver
+      )
+    )
   }
 
   it('shows edit/delete only to the verified profile owner and does not hijack the card click', async () => {
@@ -153,7 +189,7 @@ describe('ProfileTemplatesGrid owner actions', () => {
     expect(host.querySelector('.profile-templates__info')).toBeNull()
   })
 
-  it('seeks a posterless video to a paused preview frame without autoplay', async () => {
+  it('loads and seeks a posterless preview only when its card nears the viewport', async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -163,8 +199,14 @@ describe('ProfileTemplatesGrid owner actions', () => {
     await renderGrid(true)
 
     const video = host.querySelector<HTMLVideoElement>('video')
-    expect(video?.preload).toBe('metadata')
+    const media = host.querySelector('.profile-templates__thumbnail')
+    expect(video?.preload).toBe('none')
     expect(video?.autoplay).toBe(false)
+    await act(async () => video?.dispatchEvent(new Event('loadedmetadata')))
+    expect(video?.currentTime).toBe(0)
+
+    await reveal(media as Element)
+    expect(video?.preload).toBe('metadata')
     await act(async () => video?.dispatchEvent(new Event('loadedmetadata')))
     expect(video?.currentTime).toBe(0.8)
   })
@@ -275,6 +317,29 @@ describe('ProfileTemplatesGrid owner actions', () => {
     expect(pause).toHaveBeenCalled()
     play.mockRestore()
     pause.mockRestore()
+  })
+
+  it('returns to Play when the browser pauses the active preview', async () => {
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockResolvedValue(undefined)
+    await renderGrid(true)
+
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Воспроизвести Киноплёнка"]'
+        )
+        ?.click()
+    )
+    const video = host.querySelector<HTMLVideoElement>('video')
+    await act(async () => video?.dispatchEvent(new Event('pause')))
+
+    expect(
+      host.querySelector('[aria-label="Воспроизвести Киноплёнка"]')
+    ).not.toBeNull()
+    expect(host.querySelector('[aria-label="Пауза Киноплёнка"]')).toBeNull()
+    play.mockRestore()
   })
 
   it('loads the original owner template and opens the editor only after success', async () => {

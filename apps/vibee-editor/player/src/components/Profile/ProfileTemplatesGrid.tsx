@@ -40,8 +40,14 @@ export function ProfileTemplatesGrid({
   const [failedPosters, setFailedPosters] = useState<Set<number>>(
     () => new Set()
   )
+  const [nearViewportIds, setNearViewportIds] = useState<Set<number>>(
+    () => new Set()
+  )
   const [playingId, setPlayingId] = useState<number | null>(null)
   const videoRefs = useRef(new Map<number, HTMLVideoElement>())
+  const mediaRefs = useRef(new Map<number, HTMLDivElement>())
+  const previewObserverRef = useRef<IntersectionObserver | null>(null)
+  const fallbackScanRef = useRef<(() => void) | null>(null)
   const playRequestRef = useRef(0)
   const activePreviewRef = useRef<number | null>(null)
 
@@ -78,6 +84,82 @@ export function ProfileTemplatesGrid({
     void loadTemplates()
   }, [loadTemplates])
 
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') {
+      let frame = 0
+      const scanNearViewport = () => {
+        frame = 0
+        const nearIds: number[] = []
+        mediaRefs.current.forEach((node, id) => {
+          const bounds = node.getBoundingClientRect()
+          if (bounds.bottom >= -320 && bounds.top <= window.innerHeight + 320) {
+            nearIds.push(id)
+          }
+        })
+        if (nearIds.length > 0) {
+          setNearViewportIds(current => {
+            const next = new Set(current)
+            nearIds.forEach(id => next.add(id))
+            return next
+          })
+        }
+      }
+      const scheduleScan = () => {
+        if (frame !== 0) return
+        frame =
+          typeof window.requestAnimationFrame === 'function'
+            ? window.requestAnimationFrame(scanNearViewport)
+            : window.setTimeout(scanNearViewport, 0)
+      }
+
+      fallbackScanRef.current = scheduleScan
+      window.addEventListener('scroll', scheduleScan, { passive: true })
+      window.addEventListener('resize', scheduleScan)
+      scheduleScan()
+      return () => {
+        if (typeof window.cancelAnimationFrame === 'function') {
+          window.cancelAnimationFrame(frame)
+        } else {
+          window.clearTimeout(frame)
+        }
+        window.removeEventListener('scroll', scheduleScan)
+        window.removeEventListener('resize', scheduleScan)
+        fallbackScanRef.current = null
+      }
+    }
+
+    const observer = new IntersectionObserver(
+      entries => {
+        const visibleIds = entries
+          .filter(entry => entry.isIntersecting || entry.intersectionRatio > 0)
+          .map(entry =>
+            Number((entry.target as HTMLElement).dataset.templateId)
+          )
+          .filter(Number.isFinite)
+
+        if (visibleIds.length === 0) return
+        setNearViewportIds(current => {
+          const next = new Set(current)
+          visibleIds.forEach(id => next.add(id))
+          return next
+        })
+        entries.forEach(entry => {
+          if (entry.isIntersecting || entry.intersectionRatio > 0) {
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { rootMargin: '320px 0px' }
+    )
+
+    previewObserverRef.current = observer
+    mediaRefs.current.forEach(node => observer.observe(node))
+    return () => {
+      observer.disconnect()
+      previewObserverRef.current = null
+    }
+  }, [])
+
   const handleEditTemplate = async (template: FeedTemplate) => {
     setEditingId(template.id)
     setActionError(null)
@@ -113,6 +195,30 @@ export function ProfileTemplatesGrid({
     else videoRefs.current.delete(templateId)
   }
 
+  const setMediaRef = (templateId: number, node: HTMLDivElement | null) => {
+    const previous = mediaRefs.current.get(templateId)
+    if (previous) previewObserverRef.current?.unobserve(previous)
+    if (node) {
+      mediaRefs.current.set(templateId, node)
+      if (previewObserverRef.current) previewObserverRef.current.observe(node)
+      else {
+        fallbackScanRef.current?.()
+        window.setTimeout(() => {
+          if (mediaRefs.current.get(templateId) !== node) return
+          const bounds = node.getBoundingClientRect()
+          if (bounds.bottom < -320 || bounds.top > window.innerHeight + 320)
+            return
+          setNearViewportIds(current => {
+            if (current.has(templateId)) return current
+            return new Set(current).add(templateId)
+          })
+        }, 0)
+      }
+    } else {
+      mediaRefs.current.delete(templateId)
+    }
+  }
+
   const togglePreview = async (template: FeedTemplate) => {
     const video = videoRefs.current.get(template.id)
     if (!video) return
@@ -126,11 +232,11 @@ export function ProfileTemplatesGrid({
       return
     }
 
+    activePreviewRef.current = template.id
     for (const [templateId, candidate] of videoRefs.current) {
       if (templateId !== template.id) candidate.pause()
     }
 
-    activePreviewRef.current = template.id
     setPlayingId(template.id)
     try {
       await video.play()
@@ -203,10 +309,15 @@ export function ProfileTemplatesGrid({
           const posterAvailable =
             Boolean(template.thumbnailUrl) && !failedPosters.has(template.id)
           const isPlaying = playingId === template.id
+          const isNearViewport = nearViewportIds.has(template.id)
 
           return (
             <article key={template.id} className="profile-templates__item">
-              <div className="profile-templates__thumbnail">
+              <div
+                ref={node => setMediaRef(template.id, node)}
+                className="profile-templates__thumbnail"
+                data-template-id={template.id}
+              >
                 {videoAvailable ? (
                   <video
                     ref={node => setVideoRef(template.id, node)}
@@ -215,15 +326,25 @@ export function ProfileTemplatesGrid({
                     muted
                     loop
                     playsInline
-                    preload={posterAvailable ? 'none' : 'metadata'}
+                    preload={
+                      posterAvailable || !isNearViewport ? 'none' : 'metadata'
+                    }
                     crossOrigin="anonymous"
                     onLoadedMetadata={event => {
-                      if (posterAvailable || isPlaying) return
+                      if (posterAvailable || isPlaying || !isNearViewport)
+                        return
                       const duration = event.currentTarget.duration
                       event.currentTarget.currentTime =
                         Number.isFinite(duration) && duration > 0
                           ? Math.min(0.8, duration / 2)
                           : 0.8
+                    }}
+                    onPause={() => {
+                      if (activePreviewRef.current !== template.id) return
+                      activePreviewRef.current = null
+                      setPlayingId(current =>
+                        current === template.id ? null : current
+                      )
                     }}
                     onError={() => {
                       if (activePreviewRef.current === template.id) {
@@ -243,6 +364,8 @@ export function ProfileTemplatesGrid({
                   <img
                     src={template.thumbnailUrl}
                     alt={template.name}
+                    loading="lazy"
+                    decoding="async"
                     onError={() =>
                       setFailedPosters(current =>
                         new Set(current).add(template.id)
