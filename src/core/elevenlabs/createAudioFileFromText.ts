@@ -362,8 +362,21 @@ export const createAudioFileFromText = async ({
       }
 
       // 🚀 FALLBACK ATTEMPT: Попытка с резервным голосом
+      const fallbackVoiceId = getFallbackVoiceId()
+      // Base case: refuse to recurse when this request is ALREADY on the
+      // (constant) fallback voice. Otherwise a fallback that itself 404s
+      // re-enters this branch and recurses forever, turning one paid TTS
+      // request into an unbounded ElevenLabs call loop that never delivers
+      // (the catch below cannot stop it: the recursive call recurses, it does
+      // not throw). Bound to a single fallback attempt.
+      if (voice_id === fallbackVoiceId) {
+        logger.error(
+          '[createAudioFileFromText] Fallback voice itself returned 404; refusing to recurse',
+          { fallbackVoiceId, telegram_id }
+        )
+        throw new VoiceNotFoundError(voice_id)
+      }
       try {
-        const fallbackVoiceId = getFallbackVoiceId()
         console.log(
           `[TTS_BOT] 🔄 Attempting TTS with fallback voice: ${fallbackVoiceId}`
         )
