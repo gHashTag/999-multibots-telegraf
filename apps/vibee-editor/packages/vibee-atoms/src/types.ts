@@ -583,6 +583,7 @@ export interface RemixSource {
 
 // Data for publishing a template to feed
 export interface PublishData {
+  templateId?: number
   name: string
   description?: string
   thumbnailUrl?: string

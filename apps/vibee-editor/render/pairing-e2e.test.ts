@@ -329,7 +329,11 @@ describe('a wrong verb is not a wrong path', () => {
   })
 })
 
-function signWidget(payload: Record<string, unknown>) {
+function signWidget<T extends Record<string, unknown>>(
+  payload: T
+): T & {
+  hash: string
+} {
   const check = Object.entries(payload)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => `${key}=${String(value)}`)

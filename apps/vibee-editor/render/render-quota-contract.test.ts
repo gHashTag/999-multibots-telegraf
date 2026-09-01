@@ -28,6 +28,10 @@ const CLIENT = fs.readFileSync(
   path.join(REPO, 'apps/vibee-editor/player/src/atoms/user.ts'),
   'utf8'
 )
+const QUOTA = fs.readFileSync(
+  path.join(REPO, 'apps/vibee-editor/render/render-quota.ts'),
+  'utf8'
+)
 const TYPES = fs.readFileSync(
   path.join(REPO, 'apps/vibee-editor/packages/vibee-atoms/src/types.ts'),
   'utf8'
@@ -50,7 +54,7 @@ describe('/api/render-quota contract', () => {
   it('answers with the fields the shared RenderQuota type declares', () => {
     for (const field of ['total_renders', 'free_remaining', 'subscription']) {
       expect(TYPES, `RenderQuota lost ${field}`).toContain(field)
-      expect(handler, `handler stopped sending ${field}`).toContain(field)
+      expect(QUOTA, `quota service stopped sending ${field}`).toContain(field)
     }
   })
 
@@ -66,6 +70,13 @@ describe('/api/render-quota contract', () => {
       /const isAdmin = telegram_id === TELEGRAM_OWNER_ID/
     )
     expect(handler).not.toContain("searchParams.get('telegram_id')")
+  })
+
+  it('uses an atomic server-side reservation instead of client logging', () => {
+    expect(QUOTA).toContain('ON CONFLICT (telegram_id, period_start) DO UPDATE')
+    expect(QUOTA).toContain('WHERE app_render_quota.used_count < $3')
+    expect(SERVER).toContain('await reserveRenderQuota(')
+    expect(stripComments(CLIENT)).not.toContain('/api/render-log')
   })
 })
 

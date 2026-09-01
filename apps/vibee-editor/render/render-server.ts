@@ -4,6 +4,11 @@
 import * as dns from 'node:dns'
 import { handleAuthRoute } from './session-routes'
 import {
+  readRenderQuota,
+  reserveRenderQuota,
+  refundRenderQuota,
+} from './render-quota'
+import {
   startJob,
   recordInto,
   attachStore,
@@ -854,36 +859,55 @@ async function publishTemplateRow(data: Record<string, any>): Promise<{
    * образец, иначе получал две карточки одного шаблона и не мог убрать
    * старую.
    */
-  const existing = await pool.query(
-    `SELECT id FROM public_templates WHERE telegram_id = $1 AND name = $2 LIMIT 1`,
-    [String(data.telegram_id), data.name || 'Untitled']
-  )
+  const requestedTemplateId = Number(data.template_id)
+  const editsExistingTemplate =
+    Number.isSafeInteger(requestedTemplateId) && requestedTemplateId > 0
+  const existing = editsExistingTemplate
+    ? await pool.query(
+        `SELECT id FROM public_templates
+         WHERE id = $1 AND telegram_id = $2 LIMIT 1`,
+        [requestedTemplateId, String(data.telegram_id)]
+      )
+    : await pool.query(
+        `SELECT id FROM public_templates
+         WHERE telegram_id = $1 AND name = $2 LIMIT 1`,
+        [String(data.telegram_id), data.name || 'Untitled']
+      )
+
+  // A supplied remote id means "edit this exact template". Falling back to
+  // INSERT on a missing/not-owned id would turn an authorization failure or a
+  // stale editor into a duplicate post, so this path is deliberately strict.
+  if (editsExistingTemplate && existing.rows.length === 0) {
+    throw new Error('template not found for verified owner')
+  }
 
   if (existing.rows.length > 0) {
     const upd = await pool.query(
       `UPDATE public_templates
        SET creator_name = $2, creator_avatar = $3, creator_username = $4,
-           description = $5, thumbnail_url = $6, video_url = $7,
-           template_settings = $8::jsonb, assets = $9::jsonb, tracks = $10::jsonb,
+           name = $5, description = $6, thumbnail_url = $7, video_url = $8,
+           template_settings = $9::jsonb, assets = $10::jsonb, tracks = $11::jsonb,
            is_public = TRUE,
            -- Снятая публикация возвращается, если её публикуют заново. Без
            -- этой строки upsert по имени обновил бы скрытую запись и она
            -- осталась бы невидимой: человек нажал «опубликовать», получил
            -- «готово» и не увидел ничего.
            deleted_at = NULL
-       WHERE id = $1
+       WHERE id = $1 AND telegram_id = $12
        RETURNING id, created_at::text`,
       [
         existing.rows[0].id,
         data.creator_name || 'Anonymous',
         data.creator_avatar || null,
         creatorUsername,
+        data.name || 'Untitled',
         data.description || null,
         data.thumbnail_url || null,
         data.video_url,
         settingsJson,
         assetsJson,
         tracksJson,
+        String(data.telegram_id),
       ]
     )
     const row = upd.rows[0]
@@ -1814,7 +1838,10 @@ function resolveMediaPath(mediaPath: string): string {
 }
 
 // Start render asynchronously and return immediately
-function startRenderAsync(req: RenderRequest): string {
+function startRenderAsync(
+  req: RenderRequest,
+  onFailure?: () => Promise<void>
+): string {
   const renderId = randomUUID()
 
   // Create job entry with userInfo for notifications
@@ -2175,6 +2202,7 @@ function startRenderAsync(req: RenderRequest): string {
       console.error(`❌ Render ${renderId} failed:`, error)
       job.status = 'failed'
       job.error = error instanceof Error ? error.message : 'Unknown error'
+      await onFailure?.()
     }
   })()
 
@@ -2184,7 +2212,8 @@ function startRenderAsync(req: RenderRequest): string {
 // Simple HTTP server
 const server = createServer(async (req, res) => {
   // Log all requests
-  console.log(`📥 ${req.method} ${req.url}`)
+  const requestPath = (req.url || '/').split('?')[0]
+  console.log(`📥 ${req.method} ${requestPath}`)
 
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -2209,7 +2238,7 @@ const server = createServer(async (req, res) => {
   const auth = authenticate(req)
   if (auth.wouldReject) {
     console.warn(
-      `🔒 [auth] ${auth.allowed ? 'ПРОПУЩЕНО (режим warn)' : 'ОТКАЗ'} ${req.method} ${req.url} — ${auth.reason}`
+      `🔒 [auth] ${auth.allowed ? 'ПРОПУЩЕНО (режим warn)' : 'ОТКАЗ'} ${req.method} ${requestPath} — ${auth.reason}`
     )
   }
   if (!auth.allowed) {
@@ -3952,13 +3981,9 @@ const server = createServer(async (req, res) => {
     )
   }
 
-  // SSE endpoint for render progress streaming
-  //
-  // Матчим ПУТЬ без строки запроса: подпись для EventSource приходит именно
-  // параметром (?initData=...), потому что заголовки этот API ставить не
-  // умеет. Регулярка по сырому req.url на такой ссылке не срабатывала, запрос
-  // проваливался мимо маршрута и отвечал 404 — прогресс не приходил, а кнопка
-  // «Экспорт» отжималась.
+  // SSE endpoint retained for authenticated non-browser clients. The player
+  // uses header-authenticated polling because EventSource cannot attach auth
+  // headers and credentials are never accepted in query strings.
   const ssePath = (req.url || '').split('?')[0]
   const sseMatch = ssePath.match(/^\/render\/([^/]+)\/status$/)
   if (sseMatch && req.method === 'GET') {
@@ -4411,6 +4436,11 @@ const server = createServer(async (req, res) => {
 
   // Render endpoint - starts async render and returns immediately
   if (req.url === '/render' && req.method === 'POST') {
+    const renderOwner = chatIdentity(req, verifiedTelegramId(req))
+    if (!renderOwner && auth.via !== 'api-key') {
+      sendJson(res, 401, { error: 'verified identity required' })
+      return
+    }
     let body = ''
     req.on('data', chunk => {
       body += chunk.toString()
@@ -4453,8 +4483,37 @@ const server = createServer(async (req, res) => {
           )
         }
 
-        // Start render asynchronously and return immediately
-        const renderId = startRenderAsync(renderReq)
+        const isAdmin = renderOwner === TELEGRAM_OWNER_ID
+        if (renderOwner) {
+          let reservation: { allowed: boolean }
+          try {
+            reservation = await reserveRenderQuota(
+              getPool(),
+              renderOwner,
+              isAdmin
+            )
+          } catch {
+            sendJson(res, 503, { error: 'render quota unavailable' })
+            return
+          }
+          if (!reservation.allowed) {
+            sendJson(res, 429, {
+              error: 'render quota exhausted',
+              free_remaining: 0,
+            })
+            return
+          }
+        }
+
+        // Start render asynchronously and return immediately. Failed renders
+        // restore the reservation; successful ones were already counted at
+        // admission, so a client cannot skip accounting by omitting a log call.
+        const renderId = startRenderAsync(
+          renderReq,
+          renderOwner
+            ? () => refundRenderQuota(getPool(), renderOwner, isAdmin)
+            : undefined
+        )
         console.log(`🎬 Started async render: ${renderId}`)
 
         res.writeHead(202, { 'Content-Type': 'application/json' })
@@ -7244,15 +7303,24 @@ const server = createServer(async (req, res) => {
         return
       }
       const row = result.rows[0]
+      const statsResult = await pool.query(
+        `SELECT COUNT(*) AS templates_count,
+                COALESCE(SUM(views_count), 0) AS total_views,
+                COALESCE(SUM(likes_count), 0) AS total_likes
+           FROM public_templates
+          WHERE telegram_id = $1 AND is_public = TRUE AND deleted_at IS NULL`,
+        [ownerId]
+      )
+      const stats = statsResult.rows[0] || {}
       sendJson(res, 200, {
         profile: {
           ...row,
           social_links: row.social_links || [],
           followers_count: 0,
           following_count: 0,
-          templates_count: 0,
-          total_views: 0,
-          total_likes: 0,
+          templates_count: parseInt(stats.templates_count, 10) || 0,
+          total_views: parseInt(stats.total_views, 10) || 0,
+          total_likes: parseInt(stats.total_likes, 10) || 0,
           is_following: false,
           is_own_profile: true,
         },
@@ -7504,21 +7572,15 @@ const server = createServer(async (req, res) => {
     // every non-admin user, logRenderAtom computed NaN, and the header rendered
     // "undefined renders used".
     //
-    // The numbers themselves are still the previous stub (no server-side quota
-    // accounting exists); turning this into a real freemium gate is a product
-    // decision and is deliberately NOT invented here.
-    const freeRemaining = isAdmin ? 999999 : 1000
-    res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(
-      JSON.stringify({
-        telegram_id: parseInt(verifiedId),
-        total_renders: 0,
-        free_remaining: freeRemaining,
-        subscription: null,
-        reset_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        is_admin: isAdmin, // IMPORTANT: Frontend needs this!
-      })
-    )
+    try {
+      sendJson(
+        res,
+        200,
+        await readRenderQuota(await getPool(), verifiedId, isAdmin)
+      )
+    } catch {
+      sendJson(res, 503, { error: 'render quota unavailable' })
+    }
     return
   }
 

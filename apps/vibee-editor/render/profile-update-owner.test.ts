@@ -28,6 +28,13 @@ describe('profile update is owner-bound', () => {
     expect(route).toContain("throw new Error('invalid avatar_url')")
   })
 
+  it('returns authoritative template counters after the update', () => {
+    expect(route).toContain('COUNT(*) AS templates_count')
+    expect(route).toContain('SUM(views_count)')
+    expect(route).toContain('SUM(likes_count)')
+    expect(route).not.toContain('templates_count: 0')
+  })
+
   it('permits the browser PUT preflight', () => {
     expect(source).toContain("'GET, POST, PUT, DELETE, OPTIONS'")
   })

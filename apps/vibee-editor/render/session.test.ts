@@ -50,10 +50,22 @@ describe('access token', () => {
   it('refuses alg:none', () => {
     // The classic. A header claiming no algorithm, with an empty signature.
     const claims = Buffer.from(
-      JSON.stringify({ sub: 'x', sid: 'y', dkt: 'z', jti: 'j', iat: 1, exp: 9e9, v: 1 })
+      JSON.stringify({
+        sub: 'x',
+        sid: 'y',
+        dkt: 'z',
+        jti: 'j',
+        iat: 1,
+        exp: 9e9,
+        v: 1,
+      })
     ).toString('base64url')
-    const head = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
-    expect(() => verifyAppSession(`${head}.${claims}.`)).toThrow(/algorithm none refused/)
+    const head = Buffer.from(
+      JSON.stringify({ alg: 'none', typ: 'JWT' })
+    ).toString('base64url')
+    expect(() => verifyAppSession(`${head}.${claims}.`)).toThrow(
+      /algorithm none refused/
+    )
   })
 
   it('refuses a key-resolution header', () => {
@@ -62,7 +74,9 @@ describe('access token', () => {
       JSON.stringify({ alg: 'HS256', typ: 'JWT', kid: 'https://evil/key' })
     ).toString('base64url')
     const [, b, s] = mint().split('.')
-    expect(() => verifyAppSession(`${head}.${b}.${s}`)).toThrow(/key-resolution/)
+    expect(() => verifyAppSession(`${head}.${b}.${s}`)).toThrow(
+      /key-resolution/
+    )
   })
 
   it('rejects an expired token, and honours clock skew', () => {
@@ -107,16 +121,32 @@ describe('refresh rotation', () => {
       async find(h: string) {
         return rows.get(h) ?? null
       },
-      async markUsed(h: string) {
+      async consumeAndInsert(h: string, next: string, exp: Date) {
         const r = rows.get(h)
-        if (r) r.usedAt = new Date()
+        if (!r || r.usedAt || r.revokedAt || r.expiresAt <= new Date()) {
+          return false
+        }
+        r.usedAt = new Date()
+        rows.set(next, {
+          familyId: r.familyId,
+          usedAt: null,
+          revokedAt: null,
+          expiresAt: exp,
+        })
+        return true
       },
       async revokeFamily(f: string) {
-        for (const r of rows.values()) if (r.familyId === f) r.revokedAt = new Date()
+        for (const r of rows.values())
+          if (r.familyId === f) r.revokedAt = new Date()
         return sessionsOf.get(f) ?? []
       },
-      async insert(h: string, f: string, exp: Date) {
-        rows.set(h, { familyId: f, usedAt: null, revokedAt: null, expiresAt: exp })
+      async insertInitial(h: string, f: string, exp: Date) {
+        rows.set(h, {
+          familyId: f,
+          usedAt: null,
+          revokedAt: null,
+          expiresAt: exp,
+        })
       },
     }
   }
@@ -130,7 +160,7 @@ describe('refresh rotation', () => {
   it('rotates once and refuses the old token afterwards', async () => {
     const store = makeStore()
     const first = issueRefreshToken()
-    await store.insert(first.hash, 'fam-1', first.expiresAt)
+    await store.insertInitial(first.hash, 'fam-1', first.expiresAt)
 
     const r1 = await rotateRefreshToken(first.token, store)
     expect(r1.ok).toBe(true)
@@ -143,7 +173,7 @@ describe('refresh rotation', () => {
   it('reuse revokes the WHOLE family, not just the presented token', async () => {
     const store = makeStore()
     const first = issueRefreshToken()
-    await store.insert(first.hash, 'fam-1', first.expiresAt)
+    await store.insertInitial(first.hash, 'fam-1', first.expiresAt)
     store.sessionsOf.set('fam-1', ['sess-a', 'sess-b'])
 
     const r1 = await rotateRefreshToken(first.token, store)
@@ -159,7 +189,9 @@ describe('refresh rotation', () => {
     // And the sessions it minted are refused without waiting for a poll.
     process.env.SESSION_SIGNING_KEY = KEY
     const t = signAccessToken({
-      telegramId: '1', sessionId: 'sess-a', deviceKeyThumbprint: 'd',
+      telegramId: '1',
+      sessionId: 'sess-a',
+      deviceKeyThumbprint: 'd',
     })
     expect(() => verifyAppSession(t)).toThrow(/revoked/)
   })
@@ -167,15 +199,41 @@ describe('refresh rotation', () => {
   it('refuses an expired refresh token', async () => {
     const store = makeStore()
     const old = issueRefreshToken(new Date(Date.now() - 90 * 24 * 3600 * 1000))
-    await store.insert(old.hash, 'fam-1', old.expiresAt)
+    await store.insertInitial(old.hash, 'fam-1', old.expiresAt)
     expect(await rotateRefreshToken(old.token, store)).toMatchObject({
-      ok: false, reason: 'expired',
+      ok: false,
+      reason: 'expired',
     })
   })
 
   it('refuses a token it has never seen', async () => {
     expect(await rotateRefreshToken('made-up', makeStore())).toMatchObject({
-      ok: false, reason: 'unknown',
+      ok: false,
+      reason: 'unknown',
     })
+  })
+
+  it('allows only one child when two refreshes race', async () => {
+    const store = makeStore()
+    const first = issueRefreshToken()
+    await store.insertInitial(first.hash, 'fam-race', first.expiresAt)
+    store.sessionsOf.set('fam-race', ['sess-race'])
+
+    const outcomes = await Promise.all([
+      rotateRefreshToken(first.token, store),
+      rotateRefreshToken(first.token, store),
+    ])
+
+    expect(outcomes.filter(result => result.ok)).toHaveLength(1)
+    expect(outcomes.filter(result => !result.ok)).toEqual([
+      expect.objectContaining({ reason: 'reused', familyId: 'fam-race' }),
+    ])
+    const liveChildren = [...store.rows.values()].filter(
+      row =>
+        row.familyId === 'fam-race' &&
+        row.usedAt === null &&
+        row.revokedAt === null
+    )
+    expect(liveChildren).toHaveLength(0)
   })
 })

@@ -297,6 +297,7 @@ export {
   useTemplateAtom,
   publishToFeedAtom,
   currentRemixSourceAtom,
+  editingFeedTemplateIdAtom,
   // Stats
   feedStatsAtom,
   feedStatsLoadingAtom,

@@ -266,7 +266,11 @@ export function refreshStore(pool: Pool) {
       }
     },
 
-    async markUsed(hash: string, replacedByHash: string) {
+    async consumeAndInsert(
+      hash: string,
+      replacedByHash: string,
+      expiresAt: Date
+    ) {
       /**
        * `WHERE used_at IS NULL` is what makes rotation single-use under
        * concurrency. Two requests arriving with the same token both read
@@ -274,12 +278,23 @@ export function refreshStore(pool: Pool) {
        * would look like reuse. With it, exactly one wins and the loser is
        * seen for what it is.
        */
-      await pool.query(
-        `UPDATE app_refresh_tokens
-            SET used_at = now(), replaced_by = $2
-          WHERE token_hash = $1 AND used_at IS NULL`,
-        [hash, replacedByHash]
+      const claimed = await pool.query(
+        `WITH consumed AS (
+           UPDATE app_refresh_tokens
+              SET used_at = now(), replaced_by = $2
+            WHERE token_hash = $1
+              AND used_at IS NULL
+              AND revoked_at IS NULL
+              AND expires_at > now()
+            RETURNING family_id, session_id
+         )
+         INSERT INTO app_refresh_tokens
+           (token_hash, family_id, session_id, expires_at)
+         SELECT $2, family_id, session_id, $3 FROM consumed
+         RETURNING token_hash`,
+        [hash, replacedByHash, expiresAt.toISOString()]
       )
+      return claimed.rows.length === 1
     },
 
     async revokeFamily(familyId: string) {
@@ -295,16 +310,6 @@ export function refreshStore(pool: Pool) {
         [familyId]
       )
       return r.rows.map((x: any) => String(x.id))
-    },
-
-    async insert(hash: string, familyId: string, expiresAt: Date) {
-      // session_id comes from the family: every token in a chain belongs to
-      // the same device, and carrying it separately would let the two drift.
-      await pool.query(
-        `INSERT INTO app_refresh_tokens (token_hash, family_id, session_id, expires_at)
-         SELECT $1, $2, id, $3 FROM app_sessions WHERE family_id = $2 LIMIT 1`,
-        [hash, familyId, expiresAt.toISOString()]
-      )
     },
   }
 }

@@ -83,7 +83,8 @@ describe('browser application session', () => {
     expect(fetchMock.mock.calls[1]?.[1]?.body).toContain('first-refresh')
   })
 
-  it('revokes the server session before clearing browser storage', async () => {
+  it('clears browser storage before waiting for server revocation', async () => {
+    let resolveLogout: (() => void) | undefined
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
@@ -94,15 +95,24 @@ describe('browser application session', () => {
           expires_in: 600,
         }),
       })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            resolveLogout = () => resolve({ ok: true, json: async () => ({}) })
+          })
+      )
     vi.stubGlobal('fetch', fetchMock)
 
     await exchangeTelegramWidget({ id: 42, hash: 'widget-hash' })
-    await logoutAppSession()
+    const logout = logoutAppSession()
 
     expect(fetchMock.mock.calls[1]?.[1]?.headers).toEqual({
+      'Content-Type': 'application/json',
       Authorization: 'Bearer server-access',
     })
+    expect(fetchMock.mock.calls[1]?.[1]?.body).toContain('server-refresh')
     expect(getAppAccessToken()).toBe('')
+    resolveLogout?.()
+    await logout
   })
 })

@@ -105,15 +105,23 @@ export async function refreshAppSession(): Promise<AppSession> {
 
 export async function logoutAppSession(): Promise<void> {
   const access = getAppAccessToken()
+  const refresh = storage()?.getItem(REFRESH_KEY) || ''
+  // Local logout is synchronous and fail-closed. A stalled network request or
+  // a tab close must not leave a reusable browser credential behind.
+  clearAppSession()
+  if (!access && !refresh) return
   try {
-    if (access) {
-      await fetch(`${API_BASE}/api/auth/logout`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${access}` },
-      })
-    }
-  } finally {
-    clearAppSession()
+    await fetch(`${API_BASE}/api/auth/logout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(access ? { Authorization: `Bearer ${access}` } : {}),
+      },
+      body: JSON.stringify({ refresh_token: refresh }),
+    })
+  } catch {
+    // The short-lived access token will expire server-side. Local credentials
+    // are already gone, which is the security boundary this function owns.
   }
 }
 

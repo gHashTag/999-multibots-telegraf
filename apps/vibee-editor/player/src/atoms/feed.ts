@@ -36,6 +36,7 @@ export type {
 
 // Current remix source (set when using a template from feed)
 export const currentRemixSourceAtom = atom<RemixSource | null>(null)
+export const editingFeedTemplateIdAtom = atom<number | null>(null)
 
 // Global muted state for all feed videos (starts with audio ON for better UX)
 export const feedMutedAtom = atom(false)
@@ -290,6 +291,7 @@ async function publishTemplate(
     // Remix attribution
     parent_template_id: data.parentTemplateId ?? null,
     original_creator_id: data.originalCreatorId ?? null,
+    template_id: data.templateId ?? null,
   }
 
   console.log('[Feed] Publishing template with:', {
@@ -638,7 +640,7 @@ export const deleteTemplateAtom = atom(
        * apiFetch ставит подпись и разбирает статус, поэтому причина отказа
        * доходит до человека словами, а не кодом.
        */
-      await apiFetch(`/api/feed/${templateId}`, { method: 'DELETE' })
+      await apiFetch(`${API_BASE}/api/feed/${templateId}`, { method: 'DELETE' })
 
       // Remove from local feed list
       const templates = get(feedTemplatesAtom)
@@ -701,6 +703,7 @@ export const useTemplateAtom = atom(
         creatorName: template.creatorName || 'Anonymous',
         creatorAvatar: template.creatorAvatar,
       })
+      set(editingFeedTemplateIdAtom, null)
 
       console.log('[Feed] Template loaded for remix:', template.name)
       return true
@@ -758,6 +761,7 @@ export const editTemplateAtom = atom(
       set(tracksAtom, (template.tracks || []) as any)
       set(selectedTemplateIdAtom, localId)
       set(currentRemixSourceAtom, null)
+      set(editingFeedTemplateIdAtom, template.id)
       set(feedErrorAtom, null)
       return true
     } catch (error) {
@@ -797,6 +801,7 @@ export const publishToFeedAtom = atom(
     try {
       // Get remix source if this is a remix
       const remixSource = get(currentRemixSourceAtom)
+      const editingTemplateId = get(editingFeedTemplateIdAtom)
 
       const fullData: PublishData = {
         ...data,
@@ -809,6 +814,7 @@ export const publishToFeedAtom = atom(
         postToTelegram: data.postToTelegram ?? true, // Default to true
         postToInstagram: data.postToInstagram ?? true, // Default to true
         telegramCaption: data.telegramCaption,
+        templateId: editingTemplateId ?? undefined,
         // Remix attribution
         parentTemplateId: remixSource?.templateId,
         originalCreatorId: remixSource?.templateId, // Use parent template's telegram_id as original creator
@@ -822,6 +828,7 @@ export const publishToFeedAtom = atom(
 
       // Clear remix source after publishing
       set(currentRemixSourceAtom, null)
+      set(editingFeedTemplateIdAtom, null)
 
       console.log(
         '[Feed] Published:',

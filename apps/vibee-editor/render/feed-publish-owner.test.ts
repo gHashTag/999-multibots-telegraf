@@ -26,6 +26,7 @@ import path from 'node:path'
  */
 
 const SERVER = path.join(__dirname, 'render-server.ts')
+const source = fs.readFileSync(SERVER, 'utf8')
 const HEAD = "req.url === '/api/feed/publish'"
 
 const stripComments = (s: string) =>
@@ -83,5 +84,21 @@ describe('feed/publish takes the owner from the verified caller, not the body', 
 
   it('refuses with 401 when there is no caller at all', () => {
     expect(handlerBody()).toContain('401')
+  })
+})
+
+describe('editing a published template preserves its remote identity', () => {
+  const start = source.indexOf('async function publishTemplateRow')
+  const end = source.indexOf('// Auto-publish to community feed', start)
+  const publish = source.slice(start, end)
+
+  it('looks up an explicit template id under the verified owner', () => {
+    expect(publish).toContain('id = $1 AND telegram_id = $2')
+    expect(publish).toContain('template not found for verified owner')
+  })
+
+  it('updates the original row and permits a rename without changing owner', () => {
+    expect(publish).toContain('name = $5')
+    expect(publish).toContain('WHERE id = $1 AND telegram_id = $12')
   })
 })

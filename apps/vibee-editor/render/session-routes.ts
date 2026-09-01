@@ -405,29 +405,71 @@ export async function handleAuthRoute(
   // ─── Logout ────────────────────────────────────────────────────────────
   if (path === '/api/auth/logout' && req.method === 'POST') {
     const bearer = (req.headers['authorization'] as string | undefined) || ''
-    if (!bearer.startsWith('Bearer ')) {
-      json(res, 401, { error: 'нужен Authorization: Bearer' })
-      return true
-    }
-    let sid: string
+    let sid: string | null = null
+    let familyId: string | null = null
     try {
-      sid = verifyAppSession(bearer.slice(7).trim()).sid
+      if (bearer.startsWith('Bearer ')) {
+        sid = verifyAppSession(bearer.slice(7).trim()).sid
+      }
     } catch {
-      // An expired token is a perfectly ordinary way to arrive here, and
-      // refusing would leave the person unable to log out of a stale session.
-      json(res, 200, { logged_out: true, note: 'токен уже недействителен' })
+      // An expired access token is ordinary. The one-time refresh secret in
+      // the body is the proof that lets logout revoke the whole family rather
+      // than merely clearing the browser and leaving a 60-day token alive.
+    }
+
+    if (!sid) {
+      let body: Record<string, unknown> = {}
+      try {
+        body = JSON.parse((await readBody(req)) || '{}')
+      } catch {
+        json(res, 400, { error: 'тело запроса не разобрано как JSON' })
+        return true
+      }
+      const refreshToken = String(body.refresh_token || '')
+      if (refreshToken) {
+        const found = await pool.query(
+          `SELECT family_id, session_id FROM app_refresh_tokens
+            WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now()
+            LIMIT 1`,
+          [digest(refreshToken)]
+        )
+        if (found.rows.length) {
+          familyId = String(found.rows[0].family_id)
+          sid = String(found.rows[0].session_id)
+        }
+      }
+    }
+
+    if (!sid) {
+      json(res, 401, { error: 'нужен действующий access или refresh token' })
       return true
     }
 
-    await pool.query(
-      `UPDATE app_sessions SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL`,
-      [sid]
-    )
-    await pool.query(
-      `UPDATE app_refresh_tokens SET revoked_at = now()
-        WHERE session_id = $1 AND revoked_at IS NULL`,
-      [sid]
-    )
+    if (familyId) {
+      await pool.query(
+        `UPDATE app_sessions SET revoked_at = now()
+          WHERE family_id = $1 AND revoked_at IS NULL`,
+        [familyId]
+      )
+      const familySessions = await pool.query(
+        `UPDATE app_refresh_tokens SET revoked_at = now()
+          WHERE family_id = $1 AND revoked_at IS NULL
+          RETURNING session_id`,
+        [familyId]
+      )
+      for (const row of familySessions.rows) revokeNow(String(row.session_id))
+    } else {
+      await pool.query(
+        `UPDATE app_sessions SET revoked_at = now()
+          WHERE id = $1 AND revoked_at IS NULL`,
+        [sid]
+      )
+      await pool.query(
+        `UPDATE app_refresh_tokens SET revoked_at = now()
+          WHERE session_id = $1 AND revoked_at IS NULL`,
+        [sid]
+      )
+    }
     // Immediately, not on the next poll: a person pressing "log out" expects
     // it to have happened by the time the screen changes.
     revokeNow(sid)

@@ -4,7 +4,7 @@
 // ===============================
 
 import { atom } from 'jotai'
-import { atomWithStorage } from 'jotai/utils'
+import { atomWithStorage, createJSONStorage } from 'jotai/utils'
 import { STORAGE_KEYS } from '@vibee/atoms'
 import { userAtom } from './user'
 import type { FeedTemplate } from './feed'
@@ -75,7 +75,8 @@ export const profileErrorAtom = atom<string | null>(null)
 // User's own profile (cached in localStorage)
 export const myProfileAtom = atomWithStorage<UserProfile | null>(
   STORAGE_KEYS.myProfile,
-  null
+  null,
+  createJSONStorage(() => window.sessionStorage)
 )
 
 // Followers list for current profile
@@ -278,7 +279,17 @@ export const updateProfileAtom = atom(
       )
 
       if (data.profile) {
-        const profile = transformProfile(data.profile)
+        const updated = transformProfile(data.profile)
+        // Profile mutation responses may omit or temporarily fail to aggregate
+        // counters. Editing a bio must never erase the last verified stats.
+        const profile: UserProfile = {
+          ...updated,
+          followers_count: updated.followers_count ?? myProfile.followers_count,
+          following_count: updated.following_count ?? myProfile.following_count,
+          templates_count: updated.templates_count ?? myProfile.templates_count,
+          total_views: updated.total_views ?? myProfile.total_views,
+          total_likes: updated.total_likes ?? myProfile.total_likes,
+        }
         set(myProfileAtom, profile)
 
         // Update viewed profile if it's own profile
