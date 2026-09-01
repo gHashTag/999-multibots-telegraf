@@ -75,6 +75,12 @@ export const ИМЯ_В_ПРАЙСЕ: Record<string, string | null> = {
   'sora-2-pro-text-to-video': null,
   'sora-2-image-to-video': null,
   'veed/fabric-1': null,
+
+  // — сценарий —
+  // Прайс чат-моделей меряет токенами, а не готовым текстом.
+  'gpt-5-2': 'gpt-5-2',
+  'gemini-3-pro': 'Gemini 3 Pro',
+  'gemini-2.5-flash': 'Gemini 2.5 flash',
 }
 
 /** Адрес прайса. POST, поле страницы называется pageNum, размер ≤ 100. */
