@@ -5,14 +5,14 @@ import {
 } from '@/config/unified-video-models.config'
 
 /**
- * @deprecated Use processBalanceVideoOperation instead for comprehensive checks.
+ * @deprecated Use processBalanceVideoOperationHelper (modules/videoGenerator/helpers) instead.
  * Validates the video model and calculates its price.
  */
 export const validateAndCalculateVideoModelPrice = (
   videoModel: string // Model ID
 ): number | null => {
   logger.warn(
-    'Deprecated function called: validateAndCalculateVideoModelPrice. Use processBalanceVideoOperation instead.'
+    'Deprecated function called: validateAndCalculateVideoModelPrice. Use processBalanceVideoOperationHelper instead.'
   )
   try {
     // ✅ Проверяем существование модели через unified config

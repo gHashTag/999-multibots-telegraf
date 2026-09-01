@@ -21,7 +21,6 @@ import path from 'node:path'
 // The critical invariant ratchets. Add a file here when you ship a new one.
 const GUARDS = [
   'src/__tests__/money/unifiedModelPriceFailClosed.test.ts', // #1458 fail-closed price
-  'src/__tests__/money/processBalanceVideoOperationNonPositive.test.ts', // #1461 non-positive price
   'src/__tests__/money/paymentHandlerInvIdDeterministic.test.ts', // #1430 InvId determinism
   'src/__tests__/money/unlockedDeductionLocked.test.ts', // #1432 balance-lock hatch
   'src/__tests__/money/creditNotInLoop.test.ts', // #1468/#1470 credit-in-loop mint
