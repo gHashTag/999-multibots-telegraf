@@ -3335,6 +3335,21 @@ const processAiPhotoshopRequest = async (
       }
     )
 
+    // Consume the paid input before showing the persistent dialog buttons.
+    // The all_models branch returns here, BEFORE the single-model "Clear working
+    // session" reset below, so without this it leaves aiPhotoshopImage /
+    // morphingImages hot. The persistent "Continue with same settings" button
+    // (ai_photoshop_continue_same) does not set its own image -- it re-runs
+    // processAiPhotoshopRequest on whatever is still in the session, re-charging
+    // the full multi-model cost from stale input (the stale-button re-charge
+    // class). Consuming it here makes the button inert exactly as it already is
+    // after a single-model run. Dialog-mode text edits re-derive the image from
+    // the saved results, so this does not break them.
+    if (ctx.session) {
+      ctx.session.aiPhotoshopImage = undefined
+      ctx.session.morphingImages = undefined
+    }
+
     // Show dialog interface
     await showDialogInterface(ctx)
     return
