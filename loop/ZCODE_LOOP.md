@@ -4493,3 +4493,23 @@
 1. **«Выпустить player/render»** — exact review → PR → service-scoped deploy и production smoke.
 2. **«Оставить QR открытым»** — сделать QR сразу развёрнутым и для уже вошедшего владельца отдельным UX-витком.
 3. **«Добавить native universal link»** — после подтверждения iOS association заменить ручной ввод кода на app-link, сохранив одноразовый fallback.
+
+---
+
+## Виток №250 — 2026-09-01T17:56Z — безопасный pairing выпущен в player/render (PR #1635)
+
+**Проверено**: frozen topology `2057546d → d41ecb31 → 6b991312`, clean worktree, свежий Railway status и независимый exact-SHA review. Reviewer повторно прогнал 110/110 критических тестов и не нашёл P0/P1. Production `vibee-render` и `vibee-editor` работают на `6b991312`; deployment корневого `999-multibots-telegraf` остался прежним. `loop/state.json` и `loop/topics.json` не изменялись.
+
+**Сделано**: pairing-коды получили атомарную одноразовую выдачу, unique live-code boundary и limiter по проверенному Railway `X-Real-IP`; неизвестные попытки не мутируют записи. Затем выпущен product-слой: pairing принимает свежий Telegram `initData` или подписанную web-session, выводит owner identity только на сервере и показывает статический QR `https://t.me/t27ai_bot?startapp=profile` без кода, Bearer или session в URL/DOM. Через Railway API последовательно развёрнуты non-revertable security commit на render, затем product commit на render и player. Public smoke подтвердил `health=ok`, `authMode=enforce`, готовый bundle и единый redacted 401 без transport details. PR открыт, но не смержен: https://github.com/gHashTag/999-multibots-telegraf/pull/1635.
+
+**Аномалии / самокритика**: первые ручные snapshot-упаковки Railway были неверным путём и завершились до активации; после проверки provenance использован официальный commit-bound `serviceInstanceDeploy`, поэтому production получил точные Git SHA, а не локальный архив. Local signed-owner smoke полностью зелёный, включая QR на 390×844; production owner smoke остановлен перед кнопкой «🎬 Открыть студию», потому что это действие передаёт Telegram identity и требует подтверждения владельца. In-memory limiter допустим только при одном render replica; перед горизонтальным масштабированием нужен общий store.
+
+**Метрики**: `tri feed` — последний id 45; в пяти показанных строках 40👁 и 0⭐. Release evidence: PairWithApp 12/12, render pairing/auth/session 45/45, full player 147/147, full render 480 pass + 1 skip, BrowserOS local signed smoke 10/10; production render/player health PASS.
+
+**Следующий шаг**: после явного подтверждения владельца нажать «🎬 Открыть студию» и завершить production signed-owner pairing smoke без чтения/логирования одноразового кода; затем решить судьбу PR так, чтобы merge не запустил root.
+
+## Три варианта для владельца
+
+1. **«Подтвердить Telegram-вход»** — завершить production owner smoke через официального бота.
+2. **«Подготовить безопасный merge»** — сначала исключить root auto-deploy, затем слить PR #1635.
+3. **«Масштабировать pairing»** — перенести limiter и атомарную выдачу в общий store до второго render replica.
