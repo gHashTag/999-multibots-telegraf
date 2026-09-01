@@ -1,7 +1,7 @@
 import path from 'path'
 import os from 'os'
 import fs, { createWriteStream } from 'fs'
-import { elevenlabs } from '.'
+import { elevenlabs, assertVoiceExistsAuthoritative } from '.'
 import axios from 'axios'
 import { configManager } from '@/core/foundation/ConfigManager'
 import logger from '@/utils/logger'
@@ -302,34 +302,62 @@ export const createAudioFileFromText = async ({
         }
       )
 
-      // Clear the invalid voice ID from database if telegram_id is provided
+      // Clear the saved voice pointer ONLY if the voice is AUTHORITATIVELY gone.
+      // A bare "404 -> clear" wipes a valid, trained voice_id on any transient or
+      // edge 404 (a routing blip, a model_id issue, a 404 whose detail is not
+      // voice_not_found), forcing the user to re-train from scratch. Mirror the
+      // hardened sibling validateAndCleanVoiceId (helpers/voiceValidation.ts):
+      // clear only on a definitive negative from assertVoiceExistsAuthoritative,
+      // and KEEP the pointer when existence cannot be determined (missing/invalid
+      // key, outage, malformed response -> the assert throws). The fallback voice
+      // attempt below still runs either way, so the current request is served.
       if (telegram_id) {
+        let voiceAuthoritativelyGone = false
         try {
-          await supabase
-            .from('users')
-            .update({ voice_id_elevenlabs: null })
-            .eq('telegram_id', telegram_id)
-          console.log(
-            `[TTS_BOT] ✅ Cleared invalid voice ID ${voice_id} for user ${telegram_id}`
-          )
-          logger.info('[createAudioFileFromText] Cleared invalid voice ID', {
-            clearedVoiceId: voice_id,
-            telegram_id,
-          })
-        } catch (dbError) {
-          console.error(
-            '[TTS_BOT] ❌ Error clearing invalid voice ID from database:',
-            dbError
-          )
-          logger.error(
-            '[createAudioFileFromText] Failed to clear invalid voice ID',
+          voiceAuthoritativelyGone =
+            !(await assertVoiceExistsAuthoritative(voice_id))
+        } catch (checkError) {
+          voiceAuthoritativelyGone = false
+          logger.warn(
+            '[createAudioFileFromText] Voice existence not authoritative; keeping saved pointer',
             {
               voice_id,
               telegram_id,
-              dbError:
-                dbError instanceof Error ? dbError.message : String(dbError),
+              checkError:
+                checkError instanceof Error
+                  ? checkError.message
+                  : String(checkError),
             }
           )
+        }
+        if (voiceAuthoritativelyGone) {
+          try {
+            await supabase
+              .from('users')
+              .update({ voice_id_elevenlabs: null })
+              .eq('telegram_id', telegram_id)
+            console.log(
+              `[TTS_BOT] ✅ Cleared invalid voice ID ${voice_id} for user ${telegram_id}`
+            )
+            logger.info('[createAudioFileFromText] Cleared invalid voice ID', {
+              clearedVoiceId: voice_id,
+              telegram_id,
+            })
+          } catch (dbError) {
+            console.error(
+              '[TTS_BOT] ❌ Error clearing invalid voice ID from database:',
+              dbError
+            )
+            logger.error(
+              '[createAudioFileFromText] Failed to clear invalid voice ID',
+              {
+                voice_id,
+                telegram_id,
+                dbError:
+                  dbError instanceof Error ? dbError.message : String(dbError),
+              }
+            )
+          }
         }
       }
 
