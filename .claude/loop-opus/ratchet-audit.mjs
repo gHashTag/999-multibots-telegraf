@@ -58,6 +58,13 @@ const SELFCHECK_RE =
 // toEqual([]) with no presence check, passes vacuously on a gutted target).
 const FLOOR_RE =
   /toBeGreaterThan(OrEqual)?\s*\(|\.toBe\(true\)|matcher-not-stale|floor/i
+// A real-source MUTATION (the strongest coupling proof, INFORMATIONAL not required):
+// the test reverts the actual fix in the real file and asserts the detector fires
+// -- proving the ratchet is coupled to the FIX, not just to a synthetic input.
+// Hallmark: `expect(mutated).not.toEqual(source)`. Not all structural ratchets
+// have one (self-check + floor is the deliberate defense); this is triage info so
+// a future agent knows which guards carry the strongest proof.
+const MUTATION_RE = /not\.toEqual\(\s*(source|src|cfg|original)\s*\)/
 
 const rows = []
 for (const g of guardFiles()) {
@@ -75,6 +82,7 @@ for (const g of guardFiles()) {
     structural,
     selfcheck: SELFCHECK_RE.test(code),
     floor: FLOOR_RE.test(code),
+    mutation: MUTATION_RE.test(code),
   })
 }
 
@@ -111,6 +119,12 @@ if (noFloor.length === 0) {
   console.log('  NO FLOOR (a renamed/gutted target could pass vacuously):')
   for (const r of noFloor) console.log(`    ${r.g}`)
 }
+console.log('')
+const withMut = structural.filter(r => r.mutation).length
+console.log(
+  `  mutation (strongest coupling, informational): ${withMut}/${structural.length} structural guards revert the real fix and assert RED; ` +
+    `the rest rely on self-check + floor (the deliberate 2-property defense).`
+)
 console.log(
   `\n  summary: ${rows.length} guards, ${noSelf.length} without self-check, ${noFloor.length} without floor (triage -- read each)`
 )
