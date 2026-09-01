@@ -63,7 +63,16 @@ export async function deduplicateUsers(telegramId: string): Promise<boolean> {
     let errorCount = 0
 
     deleteResults.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
+      // Supabase query builders RESOLVE with { data, error } -- they do NOT
+      // reject on an RLS / FK / row-lock failure. So Promise.allSettled reports
+      // status: 'fulfilled' even for a delete the DB refused, and gating success
+      // on .status alone counts a refused delete as a success (a false
+      // 'Successfully deleted', errorCount stays 0, the function returns true).
+      // Treat a resolved .error as a failure too, so errorCount reflects reality.
+      const rejected = result.status === 'rejected'
+      const dbError =
+        result.status === 'fulfilled' ? result.value?.error : undefined
+      if (!rejected && !dbError) {
         successCount++
         logger.info(
           `[deduplicateUsers] Successfully deleted user ${usersToDelete[index].id}`
@@ -72,7 +81,7 @@ export async function deduplicateUsers(telegramId: string): Promise<boolean> {
         errorCount++
         logger.error(
           `[deduplicateUsers] Failed to delete user ${usersToDelete[index].id}:`,
-          result.reason
+          rejected ? result.reason : dbError
         )
       }
     })
