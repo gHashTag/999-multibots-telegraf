@@ -2,6 +2,10 @@
 // undici первым пробует IPv6, в этой сети он чёрной дырой — таймаут.
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
 import * as dns from 'node:dns'
+import {
+  запустить as запуститьKie,
+  состояниеЗадания as состояниеKie,
+} from './src/agent/kie-run'
 import { handleAuthRouteSafely } from './session-routes'
 import { ensureAuthTables, pollRevocations } from './session-store'
 import {
@@ -3376,7 +3380,65 @@ const server = createServer(async (req, res) => {
     })
     req.on('end', async () => {
       try {
-        const { audio_url, image_url, resolution } = JSON.parse(body)
+        const { audio_url, image_url, resolution, model } = JSON.parse(
+          body
+        ) as Record<string, string | undefined>
+
+        /**
+         * KieAI ПЕРВЫМ, fal.ai запасным — и это не предпочтение, а замер.
+         *
+         * Маршрут знал одного провайдера, и когда у fal.ai кончился баланс,
+         * липсинк перестал работать целиком: «User is locked. Reason:
+         * Exhausted balance». При этом приложение показывало ПЯТЬ живых
+         * липсинк-моделей KieAI с ценами — каталог знал про них, а маршрут
+         * нет, и выбор человека уходил в никуда.
+         *
+         * Та же ошибка уже была у сценария (см. ПРОВАЙДЕРЫ выше): экран
+         * считал вид рабочим по наличию моделей, а запрос до них не доходил.
+         * Здесь она чинится тем же способом.
+         *
+         * Имя модели сверяется с реестром внутри `запустить`: чужую строку
+         * туда не пропустят, а значит вызывающий не выберет, за что платить.
+         */
+        const KIE_LIPSYNC = [
+          'infinitalk/from-audio',
+          'omnihuman-1-5',
+          'kling/ai-avatar-standard',
+          'volcengine/video-to-video-lip-sync',
+        ]
+        if (process.env.KIE_AI_API_KEY) {
+          const выбор =
+            model && KIE_LIPSYNC.includes(model) ? model : KIE_LIPSYNC[0]
+          const запуск = await запуститьKie(выбор, {
+            image_url,
+            audio_url,
+            resolution: resolution || '480p',
+          })
+          if (!запуск.отказ && запуск.taskId) {
+            // Опрос, а не webhook: маршрут отвечает одним ответом, и клиент
+            // уже умеет ждать минуту. Заводить очередь ради одного вызова —
+            // сложность без выгоды.
+            for (let i = 0; i < 60; i++) {
+              await new Promise(r => setTimeout(r, 5000))
+              const с = await состояниеKie(запуск.taskId)
+              if (с.url) {
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(
+                  JSON.stringify({
+                    success: true,
+                    url: с.url,
+                    provider: `KieAI ${выбор}`,
+                  })
+                )
+                return
+              }
+              if (с.отказ) break
+            }
+          }
+          console.warn(
+            `⚠️ [Lipsync] KieAI не справился (${запуск.отказ ?? 'таймаут'}), пробуем fal.ai`
+          )
+        }
         console.log(
           `👄 [Generate] Lipsync via fal.ai VEED Fabric: resolution=${resolution || '720p'}`
         )
