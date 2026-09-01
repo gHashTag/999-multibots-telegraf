@@ -35,6 +35,9 @@ echo "Симулятор: $udid"
 
 xcodegen generate >/dev/null
 
+# Раскрытие ПУСТОГО массива: в bash 3.2 (а на macOS он и стоит) при set -u
+# «${filter[@]}» считается неопределённой переменной и роняет скрипт —
+# инструмент падал ровно на том, от чего избавляет. Форма с +"..." безопасна.
 filter=()
 if [ $# -gt 0 ]; then filter=(-only-testing:"$TARGET/$CLASS/$1"); fi
 
@@ -47,6 +50,6 @@ xcodebuild -project Vibee.xcodeproj -scheme "$SCHEME" \
 
 xcodebuild -project Vibee.xcodeproj -scheme "$SCHEME" \
   -destination "platform=iOS Simulator,id=$udid" \
-  -configuration Debug test-without-building "${filter[@]}" 2>&1 \
+  -configuration Debug test-without-building ${filter[@]+"${filter[@]}"} 2>&1 \
   | grep -E "Test Case.*(passed|failed|skipped)|Executed .* tests|error:" \
   | sed 's/-\[VibeeUITests\.ИИЭкранTests //; s/\]//'
