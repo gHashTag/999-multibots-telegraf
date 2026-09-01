@@ -25,6 +25,36 @@ import { fal } from '@fal-ai/client'
 
 const IDEMPOTENCY_TTL_MS = 20 * 1000 // 20 секунд
 
+// Bound fal.subscribe so a stuck flux-lora job cannot hang forever. The user is
+// charged before generation (directPaymentProcessor), so an infinite hang would
+// strand the payment: the fal.subscribe queue polls with no client-side max wait.
+// flux-lora finishes in seconds to ~1 min; a longer wait is a stuck job, so time
+// it out. A throw here is caught by the caller's falError handler, which falls
+// back to Replicate (itself now bounded) or refunds. Overridable via env.
+const FAL_SUBSCRIBE_TIMEOUT_MS =
+  Number(process.env.FAL_SUBSCRIBE_TIMEOUT_MS) || 4 * 60 * 1000
+async function falSubscribeWithTimeout<T>(job: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      job,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `fal.subscribe timed out after ${FAL_SUBSCRIBE_TIMEOUT_MS}ms`
+              )
+            ),
+          FAL_SUBSCRIBE_TIMEOUT_MS
+        )
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 /**
  * Генерация изображения с Fal.ai + LoRA NEURO_SAGE
  * @param prompt Промпт для генерации
@@ -72,10 +102,12 @@ async function generateImageWithFalAndLora(prompt: string): Promise<string> {
     ],
   }
 
-  const result = await fal.subscribe('fal-ai/flux-lora', {
-    input,
-    logs: false,
-  })
+  const result = await falSubscribeWithTimeout(
+    fal.subscribe('fal-ai/flux-lora', {
+      input,
+      logs: false,
+    })
+  )
 
   const output = result as any
 
@@ -174,10 +206,12 @@ async function generateImageWithUserModelLora(
     ],
   }
 
-  const result = await fal.subscribe('fal-ai/flux-lora', {
-    input,
-    logs: false,
-  })
+  const result = await falSubscribeWithTimeout(
+    fal.subscribe('fal-ai/flux-lora', {
+      input,
+      logs: false,
+    })
+  )
 
   const output = result as any
 
