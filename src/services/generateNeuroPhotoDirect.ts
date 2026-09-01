@@ -11,6 +11,7 @@ import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { directPaymentProcessor } from '@/core/supabase/directPayment'
 import { PaymentType } from '@/interfaces/payments.interface'
 import { saveFileLocally } from '@/helpers/saveFileLocally'
+import fs from 'fs'
 import { sendMediaToPulse, MediaPulseOptions } from '@/helpers/pulse'
 import { processApiResponse } from '@/helpers/error/processApiResponse'
 import { replicate } from '@/core/replicate'
@@ -851,6 +852,17 @@ export async function generateNeuroPhotoDirect(
               savedLocalPath,
               telegram_id,
             })
+
+            // The local copy is a true orphan here: the served reference and the
+            // pulse media both use the REMOTE imageUrl, and this path is never
+            // turned into a /uploads URL. Remove it per loop iteration so we do
+            // not orphan one .jpg per generated image on the long-running
+            // process. Balance-neutral (the file is not delivered).
+            try {
+              fs.unlinkSync(savedLocalPath)
+            } catch {
+              /* already gone or never created */
+            }
           }
 
           // Отправляем изображение в Pulse для аналитики
