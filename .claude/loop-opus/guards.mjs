@@ -96,6 +96,7 @@ const GUARDS = [
   'src/__tests__/reliability/dedupSettledErrorChecked.test.ts', // iter238 deduplicateUsers gates successCount on the resolved supabase { error }, not Promise status alone -- supabase deletes RESOLVE with {error} (never reject) so allSettled marked a DB-refused delete 'fulfilled' -> false 'Successfully deleted', duplicates persisted; found by wave-8 error-swallow lens
   'src/__tests__/reliability/videoHelperNonUniqueTelegramId.test.ts', // iter241 videoGenerator supabaseHelper uses no .single() on a telegram_id query -- telegram_id is non-unique (~19 dup-row users); .single() errored (PGRST116) so getUserHelper returned null and image-to-video aborted those paying users pre-charge with a false 'not found'; found by wave-10 single-row-absence lens
   'src/__tests__/reliability/ttsVoiceClearAuthoritative.test.ts', // iter241 createAudioFileFromText clears voice_id_elevenlabs only after assertVoiceExistsAuthoritative returns a definitive negative -- a bare 404->clear wiped a valid trained voice on any transient/edge 404 (forced re-train); mirrors voiceValidation.ts; found by wave-10 unintended-overwrite lens
+  'src/__tests__/reliability/singleTelegramMigratedFiles.test.ts', // iter242 migrated users-readers (getAspectRatio/getUserLevel/getUserModel) stay off .single()-on-telegram_id (non-unique key); per-file whitelist grows as readers migrate; count 32->29
 ]
 
 const ROOT = process.cwd()

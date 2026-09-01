@@ -2,11 +2,16 @@ import { supabase } from '@/core/supabase'
 
 export const getAspectRatio = async (telegram_id: number) => {
   try {
-    const { data, error } = await supabase
+    // telegram_id is NOT unique (~19 users have 2-3 rows); `.single()` errored
+    // (PGRST116) for them, so they always fell back to the default aspect ratio.
+    // Take the latest row (mirror getUserByTelegramId). Same null contract.
+    const { data: rows, error } = await supabase
       .from('users')
       .select('aspect_ratio')
       .eq('telegram_id', telegram_id.toString())
-      .single()
+      .order('updated_at', { ascending: false })
+      .limit(1)
+    const data = rows?.[0] ?? null
 
     if (error || !data) {
       console.error('Ошибка при получении aspect_ratio для telegram_id:', error)
