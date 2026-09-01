@@ -274,6 +274,10 @@ const PUBLIC_PREFIXES = [
   '/public/',
   '/s3/',
   '/proxy/image',
+  // Telegram cannot attach X-Api-Key/initData to a webhook. These routes are
+  // public only to the general guard; the shared handler verifies both its
+  // path secret and Telegram's secret_token header before reading the body.
+  '/api/telegram/stars-wh/',
   // /api/assets* пропускается общим гвардом НАМЕРЕННО: каждый хендлер
   // проверяет личность сам. POST/DELETE — через подпись или ключ агента;
   // GET /api/assets/:telegram_id — сверяет подписанта с запрошенным id

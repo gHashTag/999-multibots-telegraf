@@ -17,6 +17,11 @@ import {
   listJobsDurable,
 } from './generate-jobs'
 import { handleProjectRoute } from './project-routes'
+import {
+  telegramWebhookConfig,
+  telegramWebhookSecretMatches,
+} from './src/agent/telegram-webhook'
+import { redactedRequestPath } from './src/agent/request-log'
 ;(dns as any).setDefaultResultOrder?.('ipv4first')
 
 import { createServer, IncomingMessage } from 'node:http'
@@ -2250,7 +2255,7 @@ function startRenderAsync(
 // Simple HTTP server
 const server = createServer(async (req, res) => {
   // Log all requests
-  const requestPath = (req.url || '/').split('?')[0]
+  const requestPath = redactedRequestPath(req.url)
   console.log(`📥 ${req.method} ${requestPath}`)
 
   // CORS headers
@@ -5947,11 +5952,23 @@ const server = createServer(async (req, res) => {
       // Вебхук бота-кассира: секрет в пути, чтобы гвард и злоумышленники
       // мимо не прошли. Telegram шлёт сюда pre_checkout и successful_payment.
       const WH_SECRET = process.env.STARS_WEBHOOK_SECRET || ''
+      const WH_HEADER_SECRET = process.env.TELEGRAM_WEBHOOK_HEADER_SECRET || ''
       const whMatch = req.url?.match(
         /^\/api\/telegram\/stars-wh\/([a-zA-Z0-9_-]+)$/
       )
       if (whMatch && req.method === 'POST') {
-        if (!WH_SECRET || whMatch[1] !== WH_SECRET || !PAY_BOT) {
+        const headerSecret = String(
+          req.headers['x-telegram-bot-api-secret-token'] || ''
+        )
+        if (
+          !telegramWebhookSecretMatches(
+            WH_SECRET,
+            whMatch[1],
+            WH_HEADER_SECRET,
+            headerSecret
+          ) ||
+          !PAY_BOT
+        ) {
           res.writeHead(404, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ error: 'not found' }))
           return
@@ -7700,8 +7717,14 @@ const server = createServer(async (req, res) => {
     })
     req.on('end', async () => {
       try {
-        const { topic, niche, style, duration, language, model: запрошенная } =
-          JSON.parse(body) as Record<string, string | undefined>
+        const {
+          topic,
+          niche,
+          style,
+          duration,
+          language,
+          model: запрошенная,
+        } = JSON.parse(body) as Record<string, string | undefined>
         if (!topic || topic.trim() === '') {
           res.writeHead(400, { 'Content-Type': 'application/json' })
           res.end(
@@ -8145,22 +8168,30 @@ async function main() {
     // env — блок у него не активен и прод не трогает.
     const payBot = process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
     const whSecret = process.env.STARS_WEBHOOK_SECRET || ''
+    const whHeaderSecret = process.env.TELEGRAM_WEBHOOK_HEADER_SECRET || ''
+    const agentBot = process.env.BOT_TOKEN_12 || ''
+    const agentWebhookEnabled =
+      process.env.TELEGRAM_AGENT_WEBHOOK_ENABLED === '1'
     const selfUrl = process.env.SELF_URL || ''
-    if (payBot && whSecret && selfUrl) {
+    if (payBot && whSecret && selfUrl && whHeaderSecret) {
       const rehook = () =>
         fetch(`https://api.telegram.org/bot${payBot}/setWebhook`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: `${selfUrl}/api/telegram/stars-wh/${whSecret}`,
-            allowed_updates: ['pre_checkout_query', 'successful_payment'],
-          }),
+          body: JSON.stringify(
+            telegramWebhookConfig({
+              url: `${selfUrl}/api/telegram/stars-wh/${whSecret}`,
+              headerSecret: whHeaderSecret,
+              agentEnabled: agentWebhookEnabled,
+              sameBot: payBot === agentBot,
+            })
+          ),
         })
           .then(r => r.json())
           .then(d =>
             console.log(
               '💰 [cashier] вебхук самовосстановлен:',
-              d.ok ? 'ok' : JSON.stringify(d).slice(0, 120)
+              d.ok ? 'ok' : 'rejected (details redacted)'
             )
           )
           .catch(e =>
@@ -8170,6 +8201,7 @@ async function main() {
             )
           )
       setTimeout(rehook, 30_000)
+      void rehook()
       setInterval(rehook, 10 * 60_000)
     }
   })
