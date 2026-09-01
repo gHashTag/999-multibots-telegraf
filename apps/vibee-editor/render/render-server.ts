@@ -3157,6 +3157,29 @@ const server = createServer(async (req, res) => {
       try {
         const { text, voice_id } = JSON.parse(body)
 
+        /**
+         * ПРОВЕРКА ДО ЖУРНАЛА, А НЕ ПОСЛЕ.
+         *
+         * Строкой ниже стояло `text.substring(0, 50)` в логе — до всякой
+         * валидации. Запрос без `text` не получал внятного отказа, а ронял
+         * обработчик, и наружу уходило «Cannot read properties of undefined
+         * (reading 'substring')». Человек в приложении читал внутреннюю
+         * ошибку JavaScript вместо «не хватает текста».
+         *
+         * Обиднее всего, что падало в ЛОГЕ: строке, которая ничего не делает
+         * для ответа и существует только для чтения глазами.
+         */
+        if (typeof text !== 'string' || text.trim() === '') {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: false,
+              error: 'text is required: send the words to speak',
+            })
+          )
+          return
+        }
+
         console.log(
           `🎤 [Generate] Audio: voice=${voice_id}, text="${text.substring(0, 50)}..."`
         )
