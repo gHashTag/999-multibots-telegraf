@@ -401,6 +401,45 @@ function allowPairingClaim(req: IncomingMessage, now = Date.now()): boolean {
   return true
 }
 
+type PairingIdentity = { ok: true; telegramId: string } | { ok: false }
+
+const PAIRING_IDENTITY_FAILURE = Object.freeze({
+  error: 'identity_not_verified',
+  detail: 'подтверждённый вход не принят',
+  hint: 'откройте Mini App через @t27ai_bot и повторите',
+})
+
+/**
+ * Pairing accepts either proof the server already trusts: fresh Telegram
+ * initData inside the Mini App, or a server-signed browser session minted
+ * after Login Widget verification. The account id is derived from that proof
+ * and is never accepted from client JSON.
+ */
+function pairingIdentity(
+  req: IncomingMessage,
+  initData: string
+): PairingIdentity {
+  if (initData) {
+    const verification = verifyTelegramInitData(initData)
+    const telegramId = verifiedTelegramIdFrom(initData)
+    return verification.ok && telegramId
+      ? { ok: true, telegramId }
+      : { ok: false }
+  }
+
+  const authorization = String(req.headers.authorization ?? '')
+  if (authorization.startsWith('Bearer ')) {
+    try {
+      const claims = verifyAppSession(authorization.slice(7).trim())
+      return { ok: true, telegramId: claims.sub }
+    } catch {
+      return { ok: false }
+    }
+  }
+
+  return { ok: false }
+}
+
 type PoolClient = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
   release: () => void
@@ -562,20 +601,15 @@ export async function handleAuthRoute(
     const initData =
       (req.headers['x-telegram-init-data'] as string | undefined) ||
       String(body.init_data ?? '')
-    const v = verifyTelegramInitData(initData)
-    const telegramId = verifiedTelegramIdFrom(initData)
-    if (!v.ok || !telegramId) {
-      json(res, 401, {
-        error: 'подпись Telegram не принята',
-        detail: v.reason ?? 'в подписанной строке нет поля user.id',
-        hint: 'код выдаётся только внутри Telegram — там есть подпись',
-      })
+    const identity = pairingIdentity(req, initData)
+    if (!identity.ok) {
+      json(res, 401, PAIRING_IDENTITY_FAILURE)
       return true
     }
 
     const { code, expiresAt } = await issuePairingCode(
       pool,
-      telegramId,
+      identity.telegramId,
       mintPairingCode
     )
     json(res, 200, {

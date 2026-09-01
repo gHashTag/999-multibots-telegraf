@@ -255,6 +255,12 @@ function ответ() {
   return о
 }
 
+const IDENTITY_FAILURE = {
+  error: 'identity_not_verified',
+  detail: 'подтверждённый вход не принят',
+  hint: 'откройте Mini App через @t27ai_bot и повторите',
+}
+
 describe('вход по коду: сквозной путь', () => {
   let handleAuthRoute: typeof import('./session-routes').handleAuthRoute
 
@@ -274,6 +280,94 @@ describe('вход по коду: сквозной путь', () => {
       user: JSON.stringify({ id, first_name: 'Тест' }),
       auth_date: String(Math.floor(Date.now() / 1000)),
     })
+
+  it('verified browser session can issue a code without initData', async () => {
+    const session = await import('./session')
+    session.setRevokedSessions([])
+    const accessToken = session.signAccessToken({
+      telegramId: '4242',
+      sessionId: 'browser-session',
+      deviceKeyThumbprint: '',
+    })
+    const response = mkReply()
+
+    await handleAuthRoute(
+      mkRequest(
+        '/api/auth/pair/start',
+        { telegramId: '9999' },
+        { authorization: `Bearer ${accessToken}` }
+      ),
+      response,
+      fakePool as any
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.json.code).toMatch(/^\d{6}$/)
+
+    const claim = mkReply()
+    await handleAuthRoute(
+      mkRequest('/api/auth/pair/claim', { code: response.json.code }),
+      claim,
+      fakePool as any
+    )
+    expect(claim.status).toBe(200)
+    expect(claim.json.telegram_id).toBe('4242')
+  })
+
+  it('an invalid browser session fails closed without an initData fallback', async () => {
+    const response = mkReply()
+
+    await handleAuthRoute(
+      mkRequest(
+        '/api/auth/pair/start',
+        {},
+        { authorization: 'Bearer invalid-session' }
+      ),
+      response,
+      fakePool as any
+    )
+
+    expect(response.status).toBe(401)
+    expect(response.json).toEqual(IDENTITY_FAILURE)
+    expect(response.json.detail).not.toContain('initData')
+  })
+
+  it('missing identity has the same fail-closed response', async () => {
+    const response = mkReply()
+
+    await handleAuthRoute(
+      mkRequest('/api/auth/pair/start', {}),
+      response,
+      fakePool as any
+    )
+
+    expect(response.status).toBe(401)
+    expect(response.json).toEqual(IDENTITY_FAILURE)
+  })
+
+  it('a revoked browser session has the same fail-closed response', async () => {
+    const session = await import('./session')
+    const accessToken = session.signAccessToken({
+      telegramId: '4242',
+      sessionId: 'revoked-browser-session',
+      deviceKeyThumbprint: '',
+    })
+    session.setRevokedSessions(['revoked-browser-session'])
+    const response = mkReply()
+
+    await handleAuthRoute(
+      mkRequest(
+        '/api/auth/pair/start',
+        {},
+        { authorization: `Bearer ${accessToken}` }
+      ),
+      response,
+      fakePool as any
+    )
+
+    expect(response.status).toBe(401)
+    expect(response.json).toEqual(IDENTITY_FAILURE)
+  })
 
   it('подпись → код → сессия: код, выданный одним запросом, принимает другой', async () => {
     // 1. Мини-апп: подпись есть, просим код.
@@ -352,7 +446,7 @@ describe('вход по коду: сквозной путь', () => {
     )
 
     expect(о.код).toBe(401)
-    expect(о.тело.error).toBe('подпись Telegram не принята')
+    expect(о.тело).toEqual(IDENTITY_FAILURE) // cyrillic-ok: inherited test fixture
   })
 
   it('код второй раз не проходит: одноразовость держится на всём пути', async () => {

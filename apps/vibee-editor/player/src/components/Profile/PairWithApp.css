@@ -38,6 +38,114 @@
   opacity: 0.7;
 }
 
+.pair-with-app__auth-required {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(82, 245, 170, 0.25);
+  border-radius: 12px;
+  background: rgba(82, 245, 170, 0.06);
+}
+
+.pair-with-app__auth-required strong {
+  color: #66ffad;
+  font-size: 14px;
+}
+
+.pair-with-app__auth-required p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pair-with-app__telegram-link {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border: 1px solid rgba(95, 255, 159, 0.55);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #31db78, #52f5aa);
+  color: #031109;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+}
+
+.pair-with-app__telegram-link:focus-visible {
+  outline: 3px solid rgba(82, 245, 170, 0.4);
+  outline-offset: 3px;
+}
+
+.pair-with-app__qr {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.pair-with-app__qr summary {
+  min-height: 48px;
+  padding: 14px 16px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pair-with-app__qr summary:focus-visible {
+  outline: 3px solid rgba(82, 245, 170, 0.4);
+  outline-offset: -3px;
+}
+
+.pair-with-app__qr-content {
+  display: grid;
+  grid-template-columns: minmax(132px, 156px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 0 16px 16px;
+}
+
+.pair-with-app__qr-code {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.pair-with-app__qr-copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pair-with-app__qr-copy strong {
+  color: #66ffad;
+  font-size: 14px;
+}
+
+.pair-with-app__qr-copy span {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pair-with-app__qr-link {
+  color: #66ffad;
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.pair-with-app__qr-link:focus-visible {
+  outline: 3px solid rgba(82, 245, 170, 0.4);
+  outline-offset: 3px;
+}
+
 .pair-with-app__steps {
   display: grid;
   gap: 8px;
@@ -111,5 +219,14 @@ body[data-tabbar='visible'] .profile-tabs__content--agent {
 
   .pair-with-app__steps {
     font-size: 13px;
+  }
+
+  .pair-with-app__qr-content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pair-with-app__qr-code {
+    width: min(100%, 184px);
+    margin: 0 auto;
   }
 }
