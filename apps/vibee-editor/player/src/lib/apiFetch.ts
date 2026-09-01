@@ -1,6 +1,7 @@
 import { getInitData } from './telegram'
 import { RENDER_URL } from '../config'
 import { API_BASE } from '../config'
+import { getAppAccessToken } from './appSession'
 
 /**
  * Единственная дверь к рендер-серверу.
@@ -17,9 +18,9 @@ import { API_BASE } from '../config'
  * нельзя.
  */
 
-const SERVER_ORIGINS = [RENDER_URL, API_BASE].filter(Boolean).map(u =>
-  u.replace(/\/+$/, '')
-)
+const SERVER_ORIGINS = [RENDER_URL, API_BASE]
+  .filter(Boolean)
+  .map(u => u.replace(/\/+$/, ''))
 
 const isOurServer = (url: string): boolean => {
   if (url.startsWith('/')) return true
@@ -38,7 +39,12 @@ export function authHeaders(extra?: HeadersInit): Headers {
   const h = new Headers(extra)
   if (!h.has('Content-Type')) h.set('Content-Type', 'application/json')
   const initData = getInitData()
-  if (initData) h.set('X-Telegram-Init-Data', initData)
+  if (initData) {
+    h.set('X-Telegram-Init-Data', initData)
+  } else {
+    const accessToken = getAppAccessToken() // secret-guard-ok: runtime session value, never a literal credential
+    if (accessToken) h.set('Authorization', `Bearer ${accessToken}`)
+  }
   return h
 }
 
@@ -57,7 +63,9 @@ export async function apiFetch<T = unknown>(
   url: string,
   init: RequestInit = {}
 ): Promise<T> {
-  const headers = isOurServer(url) ? authHeaders(init.headers) : new Headers(init.headers)
+  const headers = isOurServer(url)
+    ? authHeaders(init.headers)
+    : new Headers(init.headers)
 
   const res = await fetch(url, { ...init, headers })
   const raw = await res.text()
@@ -72,7 +80,11 @@ export async function apiFetch<T = unknown>(
   }
 
   if (!res.ok) {
-    const body = (parsed || {}) as { error?: string; detail?: string; hint?: string }
+    const body = (parsed || {}) as {
+      error?: string
+      detail?: string
+      hint?: string
+    }
     const err = new Error(
       body.detail || body.error || `HTTP ${res.status}: ${raw.slice(0, 200)}`
     ) as ApiError
@@ -94,6 +106,7 @@ export function explainApiError(e: unknown): string {
       : 'Сервер не подтвердил личность. Откройте приложение через кнопку меню бота.'
   }
   if (err?.status === 413) return 'Файл больше 100 МБ — сервер его не примет.'
-  if (err?.status === 503) return 'Сервер ещё собирает бандл шаблонов. Попробуйте через минуту.'
+  if (err?.status === 503)
+    return 'Сервер ещё собирает бандл шаблонов. Попробуйте через минуту.'
   return err?.message || 'Неизвестная ошибка'
 }

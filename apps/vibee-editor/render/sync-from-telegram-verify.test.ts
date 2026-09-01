@@ -85,12 +85,12 @@ describe('sync-from-telegram verifies initData before believing it', () => {
     if (update !== -1) expect(verify).toBeLessThan(update)
   })
 
-  it('an unverified header falls through to the key-owner branch, not past it', () => {
-    // Treating a bad signature as "no header" is what keeps the dev connector
-    // working while refusing the forgery: the branch below asks for an agent
-    // key and only trusts the body when it matches that key's owner.
+  it('a browser session can only read the profile persisted at verified login', () => {
     const body = handlerBody()
     expect(body).toContain('chatIdentity(req, null)')
+    expect(body).toContain('FROM profiles WHERE telegram_id = $1')
+    expect(body).not.toContain('String(body.id)')
+    expect(body).not.toContain('body.first_name')
     expect(body).toContain('401')
   })
 })

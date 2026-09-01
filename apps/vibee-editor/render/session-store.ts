@@ -13,7 +13,7 @@
  */
 
 import crypto from 'node:crypto'
-import { digest, revokeNow } from './session'
+import { digest, revokeNow, setRevokedSessions } from './session'
 
 type Pool = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
@@ -107,6 +107,16 @@ export async function ensureAuthTables(pool: Pool): Promise<void> {
       created_at timestamptz NOT NULL DEFAULT now(),
       expires_at timestamptz NOT NULL,
       consumed_at timestamptz
+    )`)
+
+  // A signed Login Widget assertion may mint exactly one long-lived session.
+  // Only a digest is stored; replay is rejected by the primary key in the
+  // same transaction that writes the profile and refresh-token family.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_widget_assertions (
+      assertion_hash text PRIMARY KEY,
+      telegram_id text NOT NULL,
+      consumed_at timestamptz NOT NULL DEFAULT now()
     )`)
 
   /**
@@ -266,7 +276,11 @@ export function refreshStore(pool: Pool) {
       }
     },
 
-    async markUsed(hash: string, replacedByHash: string) {
+    async consumeAndInsert(
+      hash: string,
+      replacedByHash: string,
+      expiresAt: Date
+    ) {
       /**
        * `WHERE used_at IS NULL` is what makes rotation single-use under
        * concurrency. Two requests arriving with the same token both read
@@ -274,12 +288,23 @@ export function refreshStore(pool: Pool) {
        * would look like reuse. With it, exactly one wins and the loser is
        * seen for what it is.
        */
-      await pool.query(
-        `UPDATE app_refresh_tokens
-            SET used_at = now(), replaced_by = $2
-          WHERE token_hash = $1 AND used_at IS NULL`,
-        [hash, replacedByHash]
+      const claimed = await pool.query(
+        `WITH consumed AS (
+           UPDATE app_refresh_tokens
+              SET used_at = now(), replaced_by = $2
+            WHERE token_hash = $1
+              AND used_at IS NULL
+              AND revoked_at IS NULL
+              AND expires_at > now()
+            RETURNING family_id, session_id
+         )
+         INSERT INTO app_refresh_tokens
+           (token_hash, family_id, session_id, expires_at)
+         SELECT $2, family_id, session_id, $3 FROM consumed
+         RETURNING token_hash`,
+        [hash, replacedByHash, expiresAt.toISOString()]
       )
+      return claimed.rows.length === 1
     },
 
     async revokeFamily(familyId: string) {
@@ -295,16 +320,6 @@ export function refreshStore(pool: Pool) {
         [familyId]
       )
       return r.rows.map((x: any) => String(x.id))
-    },
-
-    async insert(hash: string, familyId: string, expiresAt: Date) {
-      // session_id comes from the family: every token in a chain belongs to
-      // the same device, and carrying it separately would let the two drift.
-      await pool.query(
-        `INSERT INTO app_refresh_tokens (token_hash, family_id, session_id, expires_at)
-         SELECT $1, $2, id, $3 FROM app_sessions WHERE family_id = $2 LIMIT 1`,
-        [hash, familyId, expiresAt.toISOString()]
-      )
     },
   }
 }
@@ -323,7 +338,7 @@ export async function pollRevocations(pool: Pool): Promise<number> {
       WHERE revoked_at IS NOT NULL AND revoked_at > now() - interval '90 minutes'`
   )
   const ids = r.rows.map((x: any) => String(x.id))
-  for (const id of ids) revokeNow(id)
+  setRevokedSessions(ids)
   return ids.length
 }
 

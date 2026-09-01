@@ -293,9 +293,11 @@ export {
   starTemplateAtom,
   trackViewAtom,
   deleteTemplateAtom,
+  editTemplateAtom,
   useTemplateAtom,
   publishToFeedAtom,
   currentRemixSourceAtom,
+  editingFeedTemplateIdAtom,
   // Stats
   feedStatsAtom,
   feedStatsLoadingAtom,

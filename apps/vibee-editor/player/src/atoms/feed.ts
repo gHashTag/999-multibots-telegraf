@@ -36,6 +36,7 @@ export type {
 
 // Current remix source (set when using a template from feed)
 export const currentRemixSourceAtom = atom<RemixSource | null>(null)
+export const editingFeedTemplateIdAtom = atom<number | null>(null)
 
 // Global muted state for all feed videos (starts with audio ON for better UX)
 export const feedMutedAtom = atom(false)
@@ -290,6 +291,7 @@ async function publishTemplate(
     // Remix attribution
     parent_template_id: data.parentTemplateId ?? null,
     original_creator_id: data.originalCreatorId ?? null,
+    template_id: data.templateId ?? null,
   }
 
   console.log('[Feed] Publishing template with:', {
@@ -332,6 +334,13 @@ async function useTemplate(id: number): Promise<FeedTemplate> {
   const data = await apiFetch<{ template?: unknown }>(
     `${API_BASE}/api/feed/${id}/use`,
     { method: 'POST', body: JSON.stringify({}) }
+  )
+  return transformTemplate((data as { template?: unknown }).template || data)
+}
+
+async function getTemplate(id: number): Promise<FeedTemplate> {
+  const data = await apiFetch<{ template?: unknown }>(
+    `${API_BASE}/api/feed/${id}`
   )
   return transformTemplate((data as { template?: unknown }).template || data)
 }
@@ -419,7 +428,10 @@ export const loadFeedAtom = atom(null, async (get, set, refresh?: boolean) => {
      * попадают — они приходят как Error с осмысленным текстом, и его
      * терять не надо.
      */
-    set(feedErrorAtom, getErrorMessage(error, get(languageAtom), { includeAction: false }))
+    set(
+      feedErrorAtom,
+      getErrorMessage(error, get(languageAtom), { includeAction: false })
+    )
   } finally {
     set(feedLoadingAtom, false)
     isLoadingFeed = false
@@ -628,7 +640,7 @@ export const deleteTemplateAtom = atom(
        * apiFetch ставит подпись и разбирает статус, поэтому причина отказа
        * доходит до человека словами, а не кодом.
        */
-      await apiFetch(`/api/feed/${templateId}`, { method: 'DELETE' })
+      await apiFetch(`${API_BASE}/api/feed/${templateId}`, { method: 'DELETE' })
 
       // Remove from local feed list
       const templates = get(feedTemplatesAtom)
@@ -691,14 +703,72 @@ export const useTemplateAtom = atom(
         creatorName: template.creatorName || 'Anonymous',
         creatorAvatar: template.creatorAvatar,
       })
+      set(editingFeedTemplateIdAtom, null)
 
       console.log('[Feed] Template loaded for remix:', template.name)
+      return true
     } catch (error) {
       console.error('[Feed] Failed to use template:', error)
       set(
         feedErrorAtom,
         error instanceof Error ? error.message : 'Failed to use template'
       )
+      return false
+    }
+  }
+)
+
+// Load an owner's published template into the editor without turning it into
+// a remix. Publishing it again with the same owner + name updates the existing
+// public_templates row; the server still verifies ownership on every write.
+export const editTemplateAtom = atom(
+  null,
+  async (get, set, templateId: number) => {
+    const user = get(userAtom)
+    if (!user) throw new Error('User not authenticated')
+
+    try {
+      const template = await getTemplate(templateId)
+      const isOwner = String(template.telegramId) === String(user.id)
+      if (!isOwner && user.is_admin !== true) {
+        throw new Error('Only the owner can edit this template')
+      }
+
+      const localId = `feed-template-edit-${template.id}`
+      const editableTemplate: Template = {
+        id: localId,
+        name: template.name,
+        description: template.description || '',
+        thumbnail: template.thumbnailUrl,
+        compositionId: 'SplitTalkingHead',
+        defaultProps: template.templateSettings as Record<string, unknown>,
+        assets: template.assets,
+        tracks: template.tracks,
+        createdAt: Date.now(),
+        isUserCreated: true,
+      }
+
+      const templates = get(templatesAtom)
+      set(templatesAtom, [
+        ...templates.filter(item => item.id !== localId),
+        editableTemplate,
+      ])
+      // These storage atoms accept arrays at runtime; the cast bridges the
+      // atomWithStorage setter union used by the shared package.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      set(assetsAtom, (template.assets || []) as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      set(tracksAtom, (template.tracks || []) as any)
+      set(selectedTemplateIdAtom, localId)
+      set(currentRemixSourceAtom, null)
+      set(editingFeedTemplateIdAtom, template.id)
+      set(feedErrorAtom, null)
+      return true
+    } catch (error) {
+      const message = explainApiError(error)
+      console.error('[Feed] Failed to edit template:', message)
+      set(feedErrorAtom, message)
+      throw error
     }
   }
 )
@@ -731,6 +801,7 @@ export const publishToFeedAtom = atom(
     try {
       // Get remix source if this is a remix
       const remixSource = get(currentRemixSourceAtom)
+      const editingTemplateId = get(editingFeedTemplateIdAtom)
 
       const fullData: PublishData = {
         ...data,
@@ -743,6 +814,7 @@ export const publishToFeedAtom = atom(
         postToTelegram: data.postToTelegram ?? true, // Default to true
         postToInstagram: data.postToInstagram ?? true, // Default to true
         telegramCaption: data.telegramCaption,
+        templateId: editingTemplateId ?? undefined,
         // Remix attribution
         parentTemplateId: remixSource?.templateId,
         originalCreatorId: remixSource?.templateId, // Use parent template's telegram_id as original creator
@@ -756,6 +828,7 @@ export const publishToFeedAtom = atom(
 
       // Clear remix source after publishing
       set(currentRemixSourceAtom, null)
+      set(editingFeedTemplateIdAtom, null)
 
       console.log(
         '[Feed] Published:',

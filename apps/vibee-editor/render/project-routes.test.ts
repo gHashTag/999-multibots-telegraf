@@ -194,7 +194,9 @@ describe('проекты: приватность и запись', () => {
     // module-level table flag from a previous file would be.
     vi.resetModules()
     handleProjectRoute = (await import('./project-routes')).handleProjectRoute
-    signAccessToken = (await import('./session')).signAccessToken
+    const session = await import('./session')
+    session.setRevokedSessions([])
+    signAccessToken = session.signAccessToken
   })
 
   const bearer = (telegramId: string) => ({
