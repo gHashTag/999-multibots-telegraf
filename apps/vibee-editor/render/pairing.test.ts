@@ -27,10 +27,19 @@ class FakePool {
 
   now = Date.now()
 
+  async connect() {
+    return {
+      query: this.query.bind(this),
+      release() {},
+    }
+  }
+
   async query(sql: string, params: unknown[] = []): Promise<{ rows: any[] }> {
     const s = sql.replace(/\s+/g, ' ').trim()
 
     if (s.startsWith('CREATE TABLE')) return { rows: [] }
+    if (s === 'BEGIN' || s === 'COMMIT' || s === 'ROLLBACK') return { rows: [] }
+    if (s.startsWith('SELECT pg_advisory_xact_lock')) return { rows: [] }
 
     if (
       s.includes(
@@ -156,52 +165,19 @@ describe('спаривание по коду', () => {
     })
   })
 
-  /**
-   * Главный тест этого файла. Шесть цифр — миллион вариантов, и это защита
-   * только потому, что попытки считаются. Если счётчик перестанет двигаться на
-   * НЕВЕРНЫХ догадках, перебор станет бесплатным, а все остальные тесты
-   * останутся зелёными: они проверяют верный код.
-   */
-  it('перебор гасит код после MAX_ATTEMPTS неверных догадок', async () => {
-    await выдать('4242', '123456')
-
-    for (let i = 0; i < PAIRING.MAX_ATTEMPTS; i++) {
-      const r = await claimPairingCode(pool as any, '000000')
-      expect(r.ok).toBe(false)
-    }
-
-    // Верный код после исчерпания бюджета уже мёртв.
-    const после = await claimPairingCode(pool as any, '123456')
-    expect(после.ok).toBe(false)
-  })
-
-  /**
-   * Этот тест написан ПОСЛЕ мутации, которая должна была его уронить и не
-   * уронила. Проверка выше смотрит только на отказ — а отказ даёт и ветка
-   * `attempts >= MAX` при чтении строки, поэтому гашение по порогу можно было
-   * удалить целиком, и все девять тестов остались бы зелёными.
-   *
-   * Разница между «отказано» и «погашено» не косметическая: непогашенный код
-   * остаётся в таблице живым до истечения TTL, и любая будущая правка, которая
-   * начнёт доверять `consumed_at`, воскресит его. Поэтому здесь утверждается
-   * СОСТОЯНИЕ в базе, а не ответ функции.
-   */
-  it('исчерпанный код помечается погашенным, а не просто отклоняется', async () => {
-    await выдать('4242', '123456')
-    for (let i = 0; i < PAIRING.MAX_ATTEMPTS; i++) {
-      await claimPairingCode(pool as any, '000000')
-    }
-    expect(pool.rows[0].consumed_at).not.toBeNull()
-  })
-
-  it('до исчерпания бюджета верный код ещё работает', async () => {
-    await выдать('4242', '123456')
+  it('неверные догадки не меняют живой код другого человека', async () => {
+    await issuePairingCode(pool as any, '1111', () => '123456')
+    await issuePairingCode(pool as any, '2222', () => '222222')
     for (let i = 0; i < PAIRING.MAX_ATTEMPTS - 1; i++) {
       await claimPairingCode(pool as any, '000000')
     }
     expect(await claimPairingCode(pool as any, '123456')).toEqual({
       ok: true,
-      telegramId: '4242',
+      telegramId: '1111',
+    })
+    expect(await claimPairingCode(pool as any, '222222')).toEqual({
+      ok: true,
+      telegramId: '2222',
     })
   })
 
@@ -213,4 +189,65 @@ describe('спаривание по коду', () => {
       telegramId: '2222',
     })
   })
+
+  it('два одновременных старта оставляют владельцу ровно один живой код', async () => {
+    const race = new ConcurrentIssuePool()
+    await Promise.all([
+      issuePairingCode(race as any, '4242', () => '111111'),
+      issuePairingCode(race as any, '4242', () => '222222'),
+    ])
+
+    expect(
+      race.rows.filter(row => row.telegram_id === '4242' && !row.consumed_at)
+    ).toHaveLength(1)
+  })
 })
+
+class ConcurrentIssuePool extends FakePool {
+  private updateArrivals = 0
+  private releaseUpdates: (() => void) | null = null
+  private updatesReady = new Promise<void>(resolve => {
+    this.releaseUpdates = resolve
+  })
+  private transactionTail = Promise.resolve()
+
+  override async query(sql: string, params: unknown[] = []) {
+    const normalized = sql.replace(/\s+/g, ' ').trim()
+    if (
+      normalized.includes(
+        'UPDATE app_pairing_codes SET consumed_at = now() WHERE telegram_id'
+      )
+    ) {
+      this.updateArrivals += 1
+      if (this.updateArrivals === 2) this.releaseUpdates?.()
+      await this.updatesReady
+    }
+    return super.query(sql, params)
+  }
+
+  override async connect() {
+    let unlock: (() => void) | null = null
+    return {
+      query: async (sql: string, params: unknown[] = []) => {
+        const normalized = sql.replace(/\s+/g, ' ').trim()
+        if (normalized.startsWith('SELECT pg_advisory_xact_lock')) {
+          const previous = this.transactionTail
+          this.transactionTail = new Promise<void>(resolve => {
+            unlock = resolve
+          })
+          await previous
+          return { rows: [] }
+        }
+        if (normalized === 'COMMIT' || normalized === 'ROLLBACK') {
+          const result = await FakePool.prototype.query.call(this, sql, params)
+          unlock?.()
+          return result
+        }
+        return FakePool.prototype.query.call(this, sql, params)
+      },
+      release() {
+        unlock?.()
+      },
+    }
+  }
+}

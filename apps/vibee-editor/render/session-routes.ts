@@ -24,6 +24,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import crypto from 'node:crypto'
+import { isIP } from 'node:net'
 import {
   verifyTelegramInitData,
   verifyTelegramLoginWidget,
@@ -346,6 +347,60 @@ function verifiedTelegramIdFrom(initData: string): string | null {
   }
 }
 
+const pairingClaimBuckets = new Map<
+  string,
+  { attempts: number; resetsAt: number }
+>()
+const PAIRING_CLAIM_WINDOW_MS = 60_000
+const PAIRING_CLAIM_MAX_BUCKETS = 10_000
+
+/**
+ * Railway overwrites X-Real-IP with the public client's address. XFF is not a
+ * trust boundary: its ordering depends on proxy configuration and a client
+ * can supply a prefix. Direct/local traffic falls back to the socket address.
+ * Only a validated IP digest is retained.
+ */
+function pairingClaimSource(req: IncomingMessage): string {
+  const railwayHeader = req.headers['x-real-ip']
+  const railwayIp = Array.isArray(railwayHeader)
+    ? ''
+    : String(railwayHeader ?? '').trim()
+  const socketIp = String(req.socket.remoteAddress ?? '').trim()
+  const address = isIP(railwayIp)
+    ? railwayIp
+    : isIP(socketIp)
+      ? socketIp
+      : 'unknown'
+  return digest(`pair-claim:${address}`)
+}
+
+function allowPairingClaim(req: IncomingMessage, now = Date.now()): boolean {
+  const key = pairingClaimSource(req)
+  const current = pairingClaimBuckets.get(key)
+  if (!current || current.resetsAt <= now) {
+    if (pairingClaimBuckets.size >= PAIRING_CLAIM_MAX_BUCKETS) {
+      for (const [candidate, bucket] of pairingClaimBuckets) {
+        if (bucket.resetsAt <= now) pairingClaimBuckets.delete(candidate)
+      }
+      if (pairingClaimBuckets.size >= PAIRING_CLAIM_MAX_BUCKETS) {
+        const oldest = pairingClaimBuckets.keys().next().value
+        if (oldest) pairingClaimBuckets.delete(oldest)
+      }
+    }
+    pairingClaimBuckets.set(key, {
+      attempts: 1,
+      resetsAt: now + PAIRING_CLAIM_WINDOW_MS,
+    })
+    return true
+  }
+  if (current.attempts >= PAIRING.MAX_ATTEMPTS) return false
+  current.attempts += 1
+  // Refresh insertion order so bounded eviction drops the least-recent source.
+  pairingClaimBuckets.delete(key)
+  pairingClaimBuckets.set(key, current)
+  return true
+}
+
 type PoolClient = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
   release: () => void
@@ -533,6 +588,14 @@ export async function handleAuthRoute(
 
   // ─── Pairing: claim (the native app, holding no signature at all) ──────
   if (path === '/api/auth/pair/claim' && req.method === 'POST') {
+    if (!allowPairingClaim(req)) {
+      res.setHeader('Retry-After', String(PAIRING_CLAIM_WINDOW_MS / 1000))
+      json(res, 429, {
+        error: 'pairing_rate_limited',
+        detail: 'слишком много попыток — повторите позже',
+      })
+      return true
+    }
     let body: Record<string, unknown>
     try {
       body = JSON.parse((await readBody(req)) || '{}')
