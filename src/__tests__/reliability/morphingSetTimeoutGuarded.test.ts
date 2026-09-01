@@ -109,10 +109,15 @@ describe('morphingWizard setTimeout(async) callbacks are guarded (no leaked unha
     expect(analyze(goodTry).unguarded).toBe(0)
   })
 
-  it('mutation: stripping a real .catch turns the check RED', () => {
+  it('mutation: stripping the real .catch turns the check RED', () => {
     // prettier renders it as `await ctx\n  .reply(...)\n  .catch(() => {})`, so
-    // the .catch sits on its own line -- remove one to unguard a callback.
-    const mutated = source.replace(/\n\s*\.catch\(\(\) => \{\}\)/, '')
+    // the .catch sits on its own line. Strip EVERY `.catch(() => {})` (the /g is
+    // deliberate): a single first-match strip is fragile -- any unrelated
+    // `.catch(() => {})` added elsewhere in the file (as happened in iter235,
+    // #1589's progress-refresh) would become the first match and this mutation
+    // would remove that instead, leaving the setTimeout callbacks still guarded
+    // (false green). Removing all of them unguards the callbacks regardless.
+    const mutated = source.replace(/\n\s*\.catch\(\(\) => \{\}\)/g, '')
     expect(mutated).not.toEqual(source)
     expect(analyze(mutated).unguarded).toBeGreaterThan(0)
   })
