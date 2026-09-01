@@ -7725,27 +7725,57 @@ const server = createServer(async (req, res) => {
          * Пропустить имя из запроса без проверки значило бы отдать чужой
          * строке выбор того, за что списываются деньги.
          */
-        const KIE_CHAT = ['gpt-5-2', 'gemini-3-pro', 'gemini-2.5-flash']
-        const XAI_API_KEY = process.env.XAI_API_KEY
-        const KIE_KEY = process.env.KIE_AI_API_KEY
-        const провайдер = XAI_API_KEY
+        /**
+         * Провайдеры сценария — ТАБЛИЦЕЙ, а не лестницей тернарников.
+         *
+         * Их стало трое, и вложенные `?:` тут же перестали читаться. Но дело
+         * не только в опрятности: выбор идёт ОТ МОДЕЛИ. Человек в приложении
+         * тычет в «GLM-5.3», а не в «z.ai», и маршрут обязан по имени модели
+         * найти, к кому идти. Лестница же выбирала провайдера первой и лишь
+         * потом смотрела на модель — при таком порядке выбор glm-5.3 молча
+         * уехал бы в KieAI и вернул чужую модель.
+         *
+         * ПРО ОТДЕЛЬНЫЙ АДРЕС У z.ai. Кодинг-план живёт НЕ на общей точке
+         * `/api/paas/v4`, а на своей: `/api/coding/paas/v4`. Общая на том же
+         * ключе отвечает «Insufficient balance», и по этому ответу легко
+         * заключить, что ключ пустой, хотя пуст лишь другой кошелёк. Проверено
+         * обеими точками подряд.
+         */
+        const ПРОВАЙДЕРЫ = [
+          {
+            имя: 'xAI',
+            url: 'https://api.x.ai/v1/chat/completions',
+            key: process.env.XAI_API_KEY,
+            модели: ['grok-beta'],
+          },
+          {
+            имя: 'z.ai',
+            url: 'https://api.z.ai/api/coding/paas/v4/chat/completions',
+            key: process.env.GLM_API_KEY,
+            модели: ['glm-5.3'],
+          },
+          {
+            имя: 'KieAI',
+            url: 'https://api.kie.ai/v1/chat/completions',
+            key: process.env.KIE_AI_API_KEY,
+            модели: ['gpt-5-2', 'gemini-3-pro', 'gemini-2.5-flash'],
+          },
+        ].filter((п): п is typeof п & { key: string } => Boolean(п.key))
+
+        // Имя модели из запроса сверяется со списком, а не подставляется:
+        // иначе вызывающий сам решал бы, за что списываются деньги.
+        const поПросьбе = запрошенная
+          ? ПРОВАЙДЕРЫ.find(п => п.модели.includes(запрошенная))
+          : undefined
+        const выбран = поПросьбе ?? ПРОВАЙДЕРЫ[0]
+        const провайдер = выбран
           ? {
-              url: 'https://api.x.ai/v1/chat/completions',
-              key: XAI_API_KEY,
-              model: 'grok-beta',
-              имя: 'xAI',
+              url: выбран.url,
+              key: выбран.key,
+              model: поПросьбе ? запрошенная! : выбран.модели[0],
+              имя: выбран.имя,
             }
-          : KIE_KEY
-            ? {
-                url: 'https://api.kie.ai/v1/chat/completions',
-                key: KIE_KEY,
-                model:
-                  запрошенная && KIE_CHAT.includes(запрошенная)
-                    ? запрошенная
-                    : KIE_CHAT[0],
-                имя: 'KieAI',
-              }
-            : null
+          : null
 
         if (!провайдер) {
           res.writeHead(500, { 'Content-Type': 'application/json' })
@@ -7753,7 +7783,7 @@ const server = createServer(async (req, res) => {
             JSON.stringify({
               success: false,
               error:
-                'no script provider configured: set XAI_API_KEY or KIE_AI_API_KEY',
+                'no script provider configured: set XAI_API_KEY, GLM_API_KEY or KIE_AI_API_KEY',
             })
           )
           return
