@@ -1053,14 +1053,15 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
         estimatedDuration,
       }
 
-      // 💰 Динамический расчет цены:
-      // - VEO3 Fast (4 видео): 160⭐ фиксированно
-      // - Hedra lip-sync: ~14⭐/сек (включает Hedra + ElevenLabs + накладные)
-      // - Наценка: x2
-      const veo3Cost = 160
-      const hedraPerSecond = 14
+      // Dynamic price display. MUST equal the actual Step 6 charge
+      // (veo3Cost=240, hedraPerSecond=7, estimatedCost = 240 + dur*7), otherwise
+      // the user is quoted one price and charged another. This block previously
+      // used a stale formula ceil((160 + dur*14) * 2) -- it showed ~600 stars
+      // while Step 6 deducted ~310. The x1.5 markup is already baked into 240/7.
+      const veo3Cost = 240
+      const hedraPerSecond = 7
       const baseCost = veo3Cost + estimatedDuration * hedraPerSecond
-      const finalCost = Math.ceil(baseCost * 2) // x2 наценка
+      const finalCost = baseCost // matches the Step 6 charge exactly
       const finalCostUSD = (finalCost / 100).toFixed(2)
 
       // ✅ ПРОВЕРКА: Если avatarService УЖЕ выбран (HeyGen с аватаром или Hedra с фото)
@@ -1083,16 +1084,16 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
                 `🎨 "${ctx.session.aiReelsRender.introText1}" + "${introText2}"\n\n` +
                 `📊 <b>Расчет стоимости:</b>\n` +
                 `• Длительность: ~${estimatedDuration} сек\n` +
-                `• 4 видео VEO3 Fast: 160⭐\n` +
-                `• Hedra lip-sync: ${estimatedDuration} × 14⭐/сек = ${estimatedDuration * hedraPerSecond}⭐\n` +
+                `• 4 видео VEO3 Fast: 240⭐\n` +
+                `• Hedra lip-sync: ${estimatedDuration} × 7⭐/сек = ${estimatedDuration * hedraPerSecond}⭐\n` +
                 `• <b>Итого: ${finalCost}⭐ ($${finalCostUSD})</b>\n\n` +
                 `✅ Генерация через ${serviceName}\n\n⏳ Отправляем запрос на render-server...`
             : `✅ <b>Composite title created:</b>\n` +
                 `🎨 "${ctx.session.aiReelsRender.introText1}" + "${introText2}"\n\n` +
                 `📊 <b>Cost calculation:</b>\n` +
                 `• Duration: ~${estimatedDuration} sec\n` +
-                `• 4 VEO3 Fast videos: 160⭐\n` +
-                `• Hedra lip-sync: ${estimatedDuration} × 14⭐/sec = ${estimatedDuration * hedraPerSecond}⭐\n` +
+                `• 4 VEO3 Fast videos: 240⭐\n` +
+                `• Hedra lip-sync: ${estimatedDuration} × 7⭐/sec = ${estimatedDuration * hedraPerSecond}⭐\n` +
                 `• <b>Total: ${finalCost}⭐ ($${finalCostUSD})</b>\n\n` +
                 `✅ Generating with ${serviceName}\n\n⏳ Sending request to render-server...`,
           { parse_mode: 'HTML' }
@@ -1123,8 +1124,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
               `🎨 "${ctx.session.aiReelsRender.introText1}" + "${introText2}"\n\n` +
               `📊 <b>Расчет стоимости:</b>\n` +
               `• Длительность: ~${estimatedDuration} сек\n` +
-              `• 4 видео VEO3 Fast: 160⭐\n` +
-              `• Hedra lip-sync: ${estimatedDuration} × 14⭐/сек = ${estimatedDuration * hedraPerSecond}⭐\n` +
+              `• 4 видео VEO3 Fast: 240⭐\n` +
+              `• Hedra lip-sync: ${estimatedDuration} × 7⭐/сек = ${estimatedDuration * hedraPerSecond}⭐\n` +
               `• <b>Итого: ${finalCost}⭐ ($${finalCostUSD})</b>\n\n` +
               `🎭 Выберите сервис для генерации аватара:\n\n` +
               `🎭 <b>Hedra</b> - качественная генерация\n` +
@@ -1137,8 +1138,8 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
               `🎨 "${ctx.session.aiReelsRender.introText1}" + "${introText2}"\n\n` +
               `📊 <b>Cost calculation:</b>\n` +
               `• Duration: ~${estimatedDuration} sec\n` +
-              `• 4 VEO3 Fast videos: 160⭐\n` +
-              `• Hedra lip-sync: ${estimatedDuration} × 14⭐/sec = ${estimatedDuration * hedraPerSecond}⭐\n` +
+              `• 4 VEO3 Fast videos: 240⭐\n` +
+              `• Hedra lip-sync: ${estimatedDuration} × 7⭐/sec = ${estimatedDuration * hedraPerSecond}⭐\n` +
               `• <b>Total: ${finalCost}⭐ ($${finalCostUSD})</b>\n\n` +
               `🎭 Choose avatar generation service:\n\n` +
               `🎭 <b>Hedra</b> - quality generation\n` +
