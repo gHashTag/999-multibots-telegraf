@@ -93,6 +93,7 @@ const GUARDS = [
   'src/__tests__/inngest/functionGranularRegistration.test.ts', // #1439 Inngest liveness
   'src/__tests__/reliability/aiReelsCallbackForwardsBot.test.ts', // iter237 ai-reels render-callback notifying branches (completed+failed) forward ?bot so the notice is sent from the correct tenant bot, not defaultBot -- latent defense-in-depth symmetry (failed branch currently unreachable); found by wave-7 tenant-isolation lens
   'src/__tests__/reliability/voiceAvatarLevelAfterSave.test.ts', // iter238 createVoiceAvatar advances quest level (updateUserLevelPlusOne) only AFTER the voice_id_elevenlabs save -- previously bumped first, so a voice-create/save failure left level=7 with voice_id=null (quest done, artifact missing); found by wave-8 data-consistency lens
+  'src/__tests__/reliability/dedupSettledErrorChecked.test.ts', // iter238 deduplicateUsers gates successCount on the resolved supabase { error }, not Promise status alone -- supabase deletes RESOLVE with {error} (never reject) so allSettled marked a DB-refused delete 'fulfilled' -> false 'Successfully deleted', duplicates persisted; found by wave-8 error-swallow lens
 ]
 
 const ROOT = process.cwd()
