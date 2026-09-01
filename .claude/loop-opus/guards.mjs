@@ -80,6 +80,7 @@ const GUARDS = [
   'src/__tests__/money/imageToVideoPollClearsJobId.test.ts', // iter230 the image-to-video Plan B poll clears ctx.session.videoJobId after inline delivery so the persistent update_video_status button cannot re-charge the same taskId via the unshared claimVideoJobDelivery guard (double-charge); found by the wave-2 poller lens
   'src/__tests__/money/imageUpscalerProviderTimeout.test.ts', // iter230 imageUpscaler bounds its post-charge replicate.run with a Promise.race timeout so a stuck prediction throws into the existing refund (charged-not-delivered on hang); found by wave-2 charge-then-bare-provider lens
   'src/__tests__/reliability/aiReelsTtsTempFileCleanup.test.ts', // iter230 the AI Reels TTS branch unlinks its temp mp3 in the catch(audioError) (upload-failure path) so a failed TTS upload does not leak a file in os.tmpdir; found by wave-2 tempfile-leak lens
+  'src/__tests__/money/replicateWrapperTimeout.test.ts', // iter231 the shared replicate.run wrapper bounds client.run with a Promise.race backstop timeout so no pre-charge caller hangs forever on a stuck prediction (charged-not-delivered class, ~11 callers at once); timeout-sweep generalising the wave-2 charge-then-bare-provider lens
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
