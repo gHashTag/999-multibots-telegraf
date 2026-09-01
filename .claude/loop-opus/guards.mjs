@@ -56,6 +56,7 @@ const GUARDS = [
   'src/__tests__/money/voiceAvatarFallbackNotCharged.test.ts', // iter205 voice-avatar Cloudflare fallback (stock Rachel) is not charged as a clone (isFallback gate)
   'src/__tests__/inngest/trainingCompletedReplayDedup.test.ts', // iter206 handleModelTrainingCompleted skips re-notify when the record is already terminal (webhook replay dedup)
   'src/__tests__/reliability/fluxKontextProTempFileCleanup.test.ts', // iter206 generateFluxKontextPro unlinks its saved local image in a finally (no per-call temp-file leak)
+  'src/__tests__/reliability/imageEditRemoteDeliverCleanup.test.ts', // iter207 deliver-remote image-edit services (Pro+Qwen+SeedEdit3) unlink their saved local copy (saveFileLocally leak sweep)
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
