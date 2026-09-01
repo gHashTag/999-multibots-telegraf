@@ -234,8 +234,16 @@ struct GenerateScreen: View {
     }
   }
 
+  /**
+   * Что вернулась генерация. У сценария это ТЕКСТ, а не файл.
+   *
+   * Раньше здесь была обязательная `ссылка`, и это молча закрывало путь
+   * любому виду, который возвращает слова: разбор ответа заканчивался
+   * фразой «ссылки в ответе нет», хотя сервер прислал готовый сценарий.
+   */
   struct Результат {
-    var ссылка: URL
+    var ссылка: URL?
+    var текст: String?
     var провайдер: String?
     var видео: Bool
   }
@@ -508,12 +516,21 @@ struct GenerateScreen: View {
 
   @ViewBuilder private func показ(_ р: Результат) -> some View {
     VStack(alignment: .leading, spacing: 10) {
-      if р.видео {
-        VideoPlayer(player: AVPlayer(url: р.ссылка))
+      if let текст = р.текст {
+        // Текст выделяемый: сценарий пишут, чтобы его скопировать.
+        Text(текст)
+          .font(Тема.Шрифт.стиль(.callout))
+          .textSelection(.enabled)
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(12)
+          .background(Тема.Цвет.поверхность, in: RoundedRectangle(cornerRadius: Тема.Радиус.lg))
+      } else if let ссылка = р.ссылка, р.видео {
+        VideoPlayer(player: AVPlayer(url: ссылка))
           .frame(height: 380)
           .clipShape(RoundedRectangle(cornerRadius: Тема.Радиус.lg))
-      } else {
-        AsyncImage(url: р.ссылка) { фаза in
+      } else if let ссылка = р.ссылка {
+        AsyncImage(url: ссылка) { фаза in
           switch фаза {
           case .success(let картинка):
             картинка.resizable().scaledToFit()
@@ -536,11 +553,22 @@ struct GenerateScreen: View {
           .font(Тема.Шрифт.моно(.caption))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
       }
-      ShareLink(item: р.ссылка) {
-        Label("Поделиться ссылкой", systemImage: "square.and.arrow.up")
-          .font(Тема.Шрифт.стиль(.subheadline, .medium))
+      // Делимся тем, что есть: файлом — ссылкой, сценарием — самим текстом.
+      // Ссылки у текста нет, и подпись «поделиться ссылкой» над сценарием
+      // обещала бы не то.
+      if let ссылка = р.ссылка {
+        ShareLink(item: ссылка) {
+          Label("Поделиться ссылкой", systemImage: "square.and.arrow.up")
+            .font(Тема.Шрифт.стиль(.subheadline, .medium))
+        }
+        .tint(Тема.Цвет.акцент)
+      } else if let текст = р.текст {
+        ShareLink(item: текст) {
+          Label("Поделиться сценарием", systemImage: "square.and.arrow.up")
+            .font(Тема.Шрифт.стиль(.subheadline, .medium))
+        }
+        .tint(Тема.Цвет.акцент)
       }
-      .tint(Тема.Цвет.акцент)
     }
   }
 
@@ -564,6 +592,7 @@ struct GenerateScreen: View {
   /// Ответ сервера, приведённый к трём исходам: ссылка, отказ, обрыв.
   private struct Ответ {
     var ссылка: String?
+    var текст: String?
     var провайдер: String?
     var отказ: String?
   }
@@ -596,6 +625,19 @@ struct GenerateScreen: View {
       }
       guard (200...299).contains(код) else {
         return Ответ(отказ: "Сервер ответил \(код) без объяснения")
+      }
+      // Сценарий отвечает словами: voiceover, подписи и описания кадров.
+      // Ищем их ДО ссылки, иначе успешный ответ был бы объявлен непонятным.
+      if let голос = o["voiceover"] as? String {
+        let подписи = (o["captions"] as? [String] ?? []).map { "• \($0)" }
+        let кадры = (o["broll_prompts"] as? [String] ?? []).map { "• \($0)" }
+        var части = [голос]
+        if !подписи.isEmpty { части.append("\nПодписи:\n" + подписи.joined(separator: "\n")) }
+        if !кадры.isEmpty { части.append("\nКадры:\n" + кадры.joined(separator: "\n")) }
+        if let обложка = o["cover_prompt"] as? String {
+          части.append("\nОбложка:\n\(обложка)")
+        }
+        return Ответ(текст: части.joined(separator: "\n"), провайдер: o["provider"] as? String)
       }
       guard let url = o["url"] as? String else {
         return Ответ(отказ: "Сервер ответил \(код), но ссылки в ответе нет")
@@ -638,7 +680,27 @@ struct GenerateScreen: View {
     defer { часы.cancel(); идёт = false }
 
     let тело: [String: Any]
-    if вид == .видео {
+    if вид == .сценарий {
+      /**
+       * У СЦЕНАРИЯ СВОЁ ТЕЛО, И БЕЗ ЭТОЙ ВЕТКИ КНОПКА НЕ РАБОТАЛА БЫ.
+       *
+       * Здесь было две ветки — видео и «всё остальное», — и сценарий попадал
+       * во вторую. Она шлёт `prompt`, ширину, высоту и модель `fal-ai/flux/dev`,
+       * то есть запрос на КАРТИНКУ. Маршрут `generate-script` ждёт `topic` и
+       * ответил бы «topic is required». Список моделей на экране был бы, цена
+       * была бы, а кнопка возвращала бы отказ — ровно то притворство, которое
+       * мы уже вычищали из этой вкладки.
+       *
+       * Модель шлётся выбранная, а не зашитая: на экране их четыре, у каждой
+       * своя цена и свой провайдер, и выбор человека обязан доезжать до
+       * сервера. Сервер всё равно сверяет имя со своим списком.
+       */
+      тело = [
+        "topic": промпт,
+        "language": "Russian",
+        "model": модель?.id ?? "",
+      ]
+    } else if вид == .видео {
       тело = [
         // Поле есть, хотя сервер его сегодня игнорирует (MCP-путь мёртв):
         // когда MCP оживёт, запрос не придётся переписывать.
@@ -655,6 +717,8 @@ struct GenerateScreen: View {
     let о = await позвать(вид.путь, тело)
     if let отказ = о.отказ {
       ошибка = отказ
+    } else if let t = о.текст {
+      результат = Результат(текст: t, провайдер: о.провайдер, видео: false)
     } else if let s = о.ссылка, let u = URL(string: s) {
       результат = Результат(ссылка: u, провайдер: о.провайдер, видео: вид == .видео)
     } else {

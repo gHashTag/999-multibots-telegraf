@@ -440,6 +440,15 @@ export const KIE_MODELS: KieModel[] = [
     probed:
       'Returned the exact JSON the script route expects: voiceover, cover_prompt, broll_prompts, captions. Asked in Russian, answered in Russian.',
   },
+  {
+    id: 'glm-5.3',
+    title: 'glm-5.3',
+    kind: 'script',
+    state: 'live',
+    needs: ['topic'],
+    probed:
+      'z.ai CODING plan endpoint (/api/coding/paas/v4), not the shared /api/paas/v4 which answers "Insufficient balance" on the same key. Returned the exact script JSON in Russian, with the liveliest captions of the four.',
+  },
 ]
 
 /**

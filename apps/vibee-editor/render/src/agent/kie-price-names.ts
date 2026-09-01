@@ -81,6 +81,10 @@ export const ИМЯ_В_ПРАЙСЕ: Record<string, string | null> = {
   'gpt-5-2': 'gpt-5-2',
   'gemini-3-pro': 'Gemini 3 Pro',
   'gemini-2.5-flash': 'Gemini 2.5 flash',
+
+  // GLM идёт НЕ через KieAI, а по своей подписке z.ai, и её прайса в
+  // выгрузке KieAI нет — потому null, а не выдуманная цифра.
+  'glm-5.3': null,
 }
 
 /** Адрес прайса. POST, поле страницы называется pageNum, размер ≤ 100. */
