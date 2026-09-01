@@ -1,5 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
+// NOTE (iter224 ratchet-liveness audit): this ratchet guards
+// `processBalanceVideoOperation` (src/price/helpers) -- which is DEAD: defined
+// + exported but never imported/called in live code (a @deprecated comment in
+// validateAndCalculateVideoModelPrice points to it while nothing uses it). The
+// LIVE video balance op is processBalanceVideoOperationHelper
+// (modules/videoGenerator/helpers/priceHelper), now separately pinned by
+// processBalanceVideoHelperNonPositive.test.ts (#iter224). This ratchet is
+// therefore currently VACUOUS -- kept until the dead fn is deleted (owner);
+// the invariant it pins now lives on the fn that is actually used.
+
 // Zero-cost-bypass class (#1458 sibling). processBalanceVideoOperation derives
 // the charge from calculateFinalPrice, which returns 0 on an unknown/unpriced
 // config (fail-open). A 0 charge slips past the `balance < paymentAmount` check

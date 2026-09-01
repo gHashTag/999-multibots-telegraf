@@ -277,6 +277,27 @@ export const processBalanceVideoOperationHelper = async (
     }
   }
 
+  // Fail closed on a non-positive price. A 0 paymentAmount slips past the
+  // `currentBalance < paymentAmount` check below (balance < 0 is always false)
+  // and would charge 0 for a paid video (the 0-cost-bypass class). This mirrors
+  // getUnifiedModelPrice's own "Fail CLOSED, not to 0" rule. No unified video
+  // model is priced <= 0, so this refuses only an invalid/regressed price;
+  // !(x > 0) also catches NaN.
+  if (!(paymentAmount > 0)) {
+    logger.error(
+      'processBalanceVideoOperationHelper: non-positive price refused',
+      { telegramId, modelId, paymentAmount }
+    )
+    return {
+      success: false,
+      error: isRu ? 'Ошибка расчета стоимости.' : 'Error calculating cost.',
+      newBalance: 0,
+      modePrice: 0,
+      paymentAmount: 0,
+      currentBalance: 0,
+    }
+  }
+
   try {
     currentBalanceAtStart = await getUserBalance(telegramId) // Direct call for now
 
