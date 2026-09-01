@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { API_BASE } from '@/config'
 import { apiFetch } from '@/lib/apiFetch'
+import { getAppAccessToken } from '@/lib/appSession'
+import { getInitData } from '@/lib/telegram'
+import { TelegramMiniAppQr } from './TelegramMiniAppQr'
 import './PairWithApp.css'
 
 /**
@@ -16,6 +19,9 @@ export function PairWithApp() {
   const [clockNow, setClockNow] = useState(() => Date.now())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [identityRequired, setIdentityRequired] = useState(
+    () => !getInitData() && !getAppAccessToken()
+  )
   const requestInFlight = useRef(false)
 
   useEffect(() => {
@@ -63,6 +69,11 @@ export function PairWithApp() {
       setExpiresAt(issuedAt + lifetimeSeconds * 1000)
       setCode(lifetimeSeconds > 0 ? response.code : null)
     } catch (requestError) {
+      if ((requestError as { status?: number })?.status === 401) {
+        setIdentityRequired(true)
+        setError(null)
+        return
+      }
       setError(
         requestError instanceof Error
           ? requestError.message
@@ -97,14 +108,38 @@ export function PairWithApp() {
     </button>
   )
 
+  const telegramLogin = (
+    <div
+      className="pair-with-app__auth-required"
+      role="status"
+      aria-live="polite"
+    >
+      <strong>{'Нужен подтверждённый вход Telegram'}</strong>
+      <p>
+        {
+          'Откройте Mini App @t27ai_bot и вернитесь в Профиль → Агент. Служебные данные вводить нигде не нужно.'
+        }
+      </p>
+      <a
+        className="pair-with-app__telegram-link"
+        href="https://t.me/t27ai_bot?startapp=profile"
+        target="_blank"
+        rel="noreferrer"
+      >
+        {'Открыть Mini App @t27ai_bot'}
+      </a>
+    </div>
+  )
+
   return (
     <section className="pair-with-app">
       <h3 className="pair-with-app__title">
         {'Войти в приложение на телефоне'}
       </h3>
-      {actionButton}
+      {identityRequired ? telegramLogin : actionButton}
+      <TelegramMiniAppQr expanded={identityRequired} />
 
-      {code ? (
+      {identityRequired ? null : code ? (
         <>
           <div
             className="pair-with-app__result"
