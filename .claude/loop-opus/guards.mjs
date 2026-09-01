@@ -91,6 +91,7 @@ const GUARDS = [
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
   'src/__tests__/inngest/functionGranularRegistration.test.ts', // #1439 Inngest liveness
+  'src/__tests__/reliability/aiReelsCallbackForwardsBot.test.ts', // iter237 ai-reels render-callback notifying branches (completed+failed) forward ?bot so the notice is sent from the correct tenant bot, not defaultBot -- latent defense-in-depth symmetry (failed branch currently unreachable); found by wave-7 tenant-isolation lens
 ]
 
 const ROOT = process.cwd()
