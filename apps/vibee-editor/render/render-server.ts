@@ -3468,9 +3468,7 @@ const server = createServer(async (req, res) => {
     const auth = authenticate(req)
     const initData =
       (req.headers['x-telegram-init-data'] as string | undefined) ||
-      new URL(req.url || '/', 'http://localhost').searchParams.get(
-        'initData'
-      ) ||
+      (req.headers['x-telegram-initdata'] as string | undefined) ||
       ''
     const verified = initData
       ? verifyTelegramInitData(initData)

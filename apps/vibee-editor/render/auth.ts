@@ -513,11 +513,9 @@ export function authenticate(req: IncomingMessage): AuthResult {
  * здесь была бы хуже: она молча превратилась бы в «пользователь ноль».
  */
 export function verifiedTelegramId(req: IncomingMessage): string | null {
-  const url = new URL(req.url || '/', 'http://localhost')
   const initData =
     (req.headers['x-telegram-init-data'] as string | undefined) ||
     (req.headers['x-telegram-initdata'] as string | undefined) ||
-    url.searchParams.get('initData') ||
     ''
   if (!initData) return null
   if (!verifyTelegramInitData(initData).ok) return null

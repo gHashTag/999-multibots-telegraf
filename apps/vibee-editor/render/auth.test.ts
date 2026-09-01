@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import crypto from 'node:crypto'
-import { verifyTelegramInitData, authenticate } from './auth'
+import {
+  verifyTelegramInitData,
+  authenticate,
+  verifiedTelegramId,
+} from './auth'
 
 /**
  * Подпись initData выдаёт ТОТ бот, из которого открыли мини-апп. Ботов на
@@ -88,6 +92,7 @@ describe('подпись не принимается из строки запр�
       headers: {},
     } as unknown as import('node:http').IncomingMessage
     expect(authenticate(req).allowed).toBe(false)
+    expect(verifiedTelegramId(req)).toBeNull()
   })
 
   it('подделка в query не проходит', () => {
