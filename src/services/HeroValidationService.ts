@@ -23,6 +23,8 @@ import {
 
 export class HeroValidationService {
   private static errorLog: HeroErrorDetails[] = []
+  // Ring-buffer cap for the process-lifetime error log below (slow-OOM guard).
+  private static readonly MAX_ERROR_LOG = 1000
 
   /**
    * 🔍 ВАЛИДАЦИЯ ГЕРОЯ С ПОЛНЫМ ЛОГИРОВАНИЕМ
@@ -45,6 +47,14 @@ export class HeroValidationService {
       }
 
       this.errorLog.push(errorDetails)
+      // Bound this process-lifetime static array to a fixed ring: a stream of
+      // invalid hero selections (non-offered text the defensive buttonToHeroMap
+      // resolves to a registry-absent name) would otherwise grow it without
+      // limit and slowly OOM the long-running multi-bot process. Only ever drops
+      // the oldest entries; the slice(-10) reads below are unaffected.
+      if (this.errorLog.length > this.MAX_ERROR_LOG) {
+        this.errorLog.splice(0, this.errorLog.length - this.MAX_ERROR_LOG)
+      }
 
       // Системное логирование
       console.error(`🚨 [HERO VALIDATION ERROR] Hero validation failed`, {
