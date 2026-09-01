@@ -231,6 +231,12 @@ CHECKS THAT EACH COST A CYCLE
         does NOT stop a LATER re-tap; a handler is safe if its target changes
         each tap. Read each flagged handler.
 
+  tri mint | tri минт
+        Inventory of every credit call (MONEY_INCOME balance mutation) + the
+        protection its enclosing fn carries: REFUND / TRANSFER / SIGNED / CAS /
+        ADMIN / IDEMPOTENT / SETTLEMENT. A credit with NONE is a mint suspect.
+        Triage, not a gate: the guard may live in the caller/router. Read each.
+
   tri charge | tri заряд
         Completeness check for the double-charge class (#1358): lists every
         scene that CHARGES money and whether it is guarded / safe / a tracked
@@ -1428,6 +1434,17 @@ cmd_replay() {
   ( cd "$ROOT" && node "$TOOLS/replay-audit.mjs" "$@" )
 }
 
+cmd_mint() {
+  # Inventory of every credit call (balance mutation with PaymentType.MONEY_INCOME)
+  # and the protection signal its enclosing fn carries against minting stars:
+  # REFUND / TRANSFER (a MONEY_OUTCOME charge funds it) / SIGNED / CAS / ADMIN /
+  # IDEMPOTENT / SETTLEMENT. A credit with NONE is a mint suspect. The TON CAS
+  # (#1555) was found via a sibling tri flag; this generalises it to every credit.
+  # INVENTORY, never a gate (exit 0): a "review" hint is heuristic -- the guard
+  # may live in the caller/router (a signed mount, a caller allowlist). Read each.
+  ( cd "$ROOT" && node "$TOOLS/mint-audit.mjs" "$@" )
+}
+
 action="${1:-помощь}"
 shift 2>/dev/null || true
 
@@ -1456,6 +1473,7 @@ case "$action" in
   inflight|блокировка) cmd_inflight "@" ;;
   leaks|утечки)        cmd_leaks "$@" ;;
   replay|повтор)       cmd_replay "$@" ;;
+  mint|минт)           cmd_mint "$@" ;;
   sweep|развёртка)  cmd_sweep "$@" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
