@@ -142,7 +142,19 @@ router.post('/telegram/ai-reels-callback', async (req: any, res: any) => {
         result_url: videoUrl,
       })
     } else if (status === 'failed') {
-      await handleFailedRender(telegramId, { ...payload, job_id: jobId })
+      // Forward the per-request bot (?bot=) exactly as the completed branch
+      // above does. Without it handleFailedRender's botName resolves to
+      // undefined -> defaultBot, so the failure notice would be sent from the
+      // wrong tenant's bot (a cross-tenant leak / a 403 loss). This branch is
+      // currently unreachable (the render server posts only { download_url } on
+      // success, never status:'failed'), so this is a latent defense-in-depth
+      // fix that keeps the two branches consistent for when failure callbacks
+      // are enabled.
+      await handleFailedRender(telegramId, {
+        bot_name: (req.query?.bot as string) || undefined,
+        ...payload,
+        job_id: jobId,
+      })
     } else if (status === 'processing') {
       await handleProcessingUpdate(telegramId, { ...payload, job_id: jobId })
     }
