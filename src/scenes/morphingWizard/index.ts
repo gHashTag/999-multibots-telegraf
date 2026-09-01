@@ -491,35 +491,43 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
         // Мотивационные сообщения на ключевых этапах
         if (imageIndex === 2) {
           setTimeout(async () => {
-            await ctx.reply(
-              isRu
-                ? '🎉 Отлично! Уже можно создать морфинг. Добавьте еще изображения для большего количества переходов!'
-                : '🎉 Great! You can now create morphing. Add more images for more transitions!'
-            )
+            await ctx
+              .reply(
+                isRu
+                  ? '🎉 Отлично! Уже можно создать морфинг. Добавьте еще изображения для большего количества переходов!'
+                  : '🎉 Great! You can now create morphing. Add more images for more transitions!'
+              )
+              .catch(() => {})
           }, 1000)
         } else if (imageIndex === 5) {
           setTimeout(async () => {
-            await ctx.reply(
-              isRu
-                ? '⭐ Превосходно! 5 изображений дадут потрясающий результат!'
-                : '⭐ Excellent! 5 images will give amazing results!'
-            )
+            await ctx
+              .reply(
+                isRu
+                  ? '⭐ Превосходно! 5 изображений дадут потрясающий результат!'
+                  : '⭐ Excellent! 5 images will give amazing results!'
+              )
+              .catch(() => {})
           }, 1000)
         } else if (imageIndex === 10) {
           setTimeout(async () => {
-            await ctx.reply(
-              isRu
-                ? '🚀 Невероятно! 10 изображений = эпический морфинг! Можете продолжать добавлять!'
-                : '🚀 Incredible! 10 images = epic morphing! You can keep adding more!'
-            )
+            await ctx
+              .reply(
+                isRu
+                  ? '🚀 Невероятно! 10 изображений = эпический морфинг! Можете продолжать добавлять!'
+                  : '🚀 Incredible! 10 images = epic morphing! You can keep adding more!'
+              )
+              .catch(() => {})
           }, 1000)
         } else if (imageIndex === 20) {
           setTimeout(async () => {
-            await ctx.reply(
-              isRu
-                ? '💫 ЛЕГЕНДАРНО! 20 изображений создадут кинематографический шедевр!'
-                : '💫 LEGENDARY! 20 images will create a cinematic masterpiece!'
-            )
+            await ctx
+              .reply(
+                isRu
+                  ? '💫 ЛЕГЕНДАРНО! 20 изображений создадут кинематографический шедевр!'
+                  : '💫 LEGENDARY! 20 images will create a cinematic masterpiece!'
+              )
+              .catch(() => {})
           }, 1000)
         }
       } catch (error) {
