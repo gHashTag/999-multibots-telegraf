@@ -3409,10 +3409,22 @@ const server = createServer(async (req, res) => {
         if (process.env.KIE_AI_API_KEY) {
           const выбор =
             model && KIE_LIPSYNC.includes(model) ? model : KIE_LIPSYNC[0]
+          /**
+           * `prompt` ОБЯЗАТЕЛЕН, хотя по смыслу липсинку он не нужен.
+           *
+           * Без него KieAI отвечает «prompt is required» и код 500 — а мой
+           * первый вариант это проглатывал и тихо уходил в fal.ai, из-за чего
+           * правка выглядела не подействовавшей. Проверено прямым запросом:
+           * с полем задание создаётся, без него нет.
+           *
+           * Значение нейтральное: описание тут ничего не задаёт, губы ведёт
+           * звук. Пустая строка не годится — она и есть «не передан».
+           */
           const запуск = await запуститьKie(выбор, {
             image_url,
             audio_url,
             resolution: resolution || '480p',
+            prompt: 'person speaking naturally',
           })
           if (!запуск.отказ && запуск.taskId) {
             // Опрос, а не webhook: маршрут отвечает одним ответом, и клиент
