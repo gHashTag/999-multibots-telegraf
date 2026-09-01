@@ -77,6 +77,7 @@ const GUARDS = [
   'src/__tests__/money/processBalanceOperationNonPositive.test.ts', // iter228 the shared IMAGE charge op (processBalanceOperation) refuses a non-positive price before charging (0-cost bypass) -- image twin of #1571's video-helper guard; live fn for the whole image-gen family
   'src/__tests__/reliability/aiPhotoshopPhotoCaptionFallback.test.ts', // iter229 every paid replyWithPhoto with parse_mode:Markdown in aiPhotoshopScene has a plain re-send fallback in its catch (a reserved char in the user prompt caption cannot silently lose the paid image); found by the fresh-lens wave
   'src/__tests__/money/aiPhotoshopAllModelsConsumeInput.test.ts', // iter229 the aiPhotoshop all_models branch consumes aiPhotoshopImage before returning so the persistent continue_same button cannot re-charge the full multi-model cost from stale input (stale-button re-charge class); found by the fresh-lens wave
+  'src/__tests__/money/imageToVideoPollClearsJobId.test.ts', // iter230 the image-to-video Plan B poll clears ctx.session.videoJobId after inline delivery so the persistent update_video_status button cannot re-charge the same taskId via the unshared claimVideoJobDelivery guard (double-charge); found by the wave-2 poller lens
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
