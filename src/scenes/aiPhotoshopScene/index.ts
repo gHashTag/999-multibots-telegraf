@@ -5272,6 +5272,23 @@ aiPhotoshopScene.action('ai_photoshop_upscale_last', async ctx => {
         ? lastPhoto.imageUrl
         : lastPhoto.url
 
+    // Consume-once guard. This button rides the persistent dialog keyboard that
+    // is re-shown after every op and never stripped, and upscaleImage does NOT
+    // append its result to savedAiPhotoshopResults -- so savedResults[last] is
+    // stable until the NEXT generation. Upscaling is deterministic, so re-tapping
+    // the old button later re-charges 3 stars for a byte-identical result. The
+    // in-flight flag below only blocks CONCURRENT taps, not a later replay. Refuse
+    // when this exact photo was already upscaled; a new generation appends a new
+    // saved result whose URL differs, so its first upscale still proceeds.
+    if (ctx.session.lastUpscaledPhotoUrl === imageUrl) {
+      await ctx.reply(
+        isRu
+          ? '⏳ Это фото уже улучшено. Сгенерируйте новое, чтобы улучшить его.'
+          : '⏳ This photo was already upscaled. Generate a new one to upscale.'
+      )
+      return
+    }
+
     // In-flight guard: this button charges via upscaleImage directly, bypassing
     // the aiPhotoshopInProgress choke point (which only covers generation). In
     // webhook mode a double-tap dispatches two concurrent requests; without a
@@ -5288,6 +5305,9 @@ aiPhotoshopScene.action('ai_photoshop_upscale_last', async ctx => {
       return
     }
     ctx.session.aiPhotoshopUpscaleInProgress = true
+    // Mark this photo consumed BEFORE the charge (synchronous, no await between),
+    // so a later stale re-tap of the same photo is refused above.
+    ctx.session.lastUpscaledPhotoUrl = imageUrl
 
     try {
       await ctx.editMessageText(

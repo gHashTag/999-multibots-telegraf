@@ -543,6 +543,9 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
     | 'negative_space'
     | 'leading_lines'
 
+  // URL of the saved photo already consumed by the paid "upscale last" button
+  // (replay guard: a stale re-tap must not re-charge the same deterministic op)
+  lastUpscaledPhotoUrl?: string
   // ✅ NEW: Dialog mode support for AI Photoshop
   savedAiPhotoshopResults?: Array<{
     url: string
