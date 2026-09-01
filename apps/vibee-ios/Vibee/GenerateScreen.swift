@@ -43,9 +43,22 @@ struct GenerateScreen: View {
    * называл. Пока не выбрано — кнопка не нажимается и говорит почему.
    */
   @State private var модель: Модель?
+  @ObservedObject private var слои = Слои.общие
+  @State private var открытьРедактор = false
 
   /// Берём у самого вида: одно определение вместо двух расходящихся.
   private var видКаталога: Модель.Вид? { вид.видКаталога }
+
+  /// На какую дорожку редактора ложится результат этого вида.
+  /// Аватар — тоже видео: на выходе ролик с губами, а не отдельная сущность.
+  private var дорожкаСлоя: String {
+    switch вид {
+    case .видео, .аватар: return "video"
+    case .картинка: return "image"
+    case .звук: return "audio"
+    case .сценарий, .редактор: return "text"
+    }
+  }
 
   /// Что писать в поле — своими словами для каждого вида.
   private var подсказкаПоля: String {
@@ -101,7 +114,7 @@ struct GenerateScreen: View {
      * оживление → съёмка. `CaseIterable` отдаёт их в этом же порядке, и
      * лента вкладок наверху становится картой процесса.
      */
-    case сценарий, звук, картинка, аватар, видео
+    case сценарий, звук, картинка, аватар, видео, редактор
 
     /// Как этот вид называется в заданиях на сервере. Имена намеренно
     /// перечислены, а не выведены из rawValue: сервер знает их по-английски,
@@ -109,6 +122,7 @@ struct GenerateScreen: View {
     var видЗадания: String {
       switch self {
       case .видео: return "video"
+      case .редактор: return "script"
       case .картинка: return "image"
       case .звук: return "audio"
       case .аватар: return "lipsync"
@@ -121,6 +135,7 @@ struct GenerateScreen: View {
     var подпись: String {
       switch self {
       case .видео: return "Видео"
+      case .редактор: return "Редактор"
       case .картинка: return "Картинка"
       case .звук: return "Звук"
       case .аватар: return "Аватар"
@@ -131,6 +146,7 @@ struct GenerateScreen: View {
     var значок: String {
       switch self {
       case .видео: return "film"
+      case .редактор: return "square.stack.3d.up"
       case .картинка: return "photo"
       case .звук: return "waveform"
       case .аватар: return "person.crop.square.badge.video"
@@ -141,6 +157,8 @@ struct GenerateScreen: View {
     var путь: String {
       switch self {
       case .видео: return "api/generate/video"
+      // У редактора нет своего маршрута: он ничего не генерирует.
+      case .редактор: return ""
       case .картинка: return "api/generate/image"
       case .звук: return "api/generate/audio"
       case .аватар: return "api/generate/lipsync"
@@ -175,6 +193,10 @@ struct GenerateScreen: View {
     var видКаталога: Модель.Вид? {
       switch self {
       case .видео: return .видео
+      // Редактор моделей не выбирает — он собирает уже сделанное.
+      case .редактор: return nil
+      // Редактор моделей не выбирает — он собирает уже сделанное.
+      case .редактор: return nil
       case .картинка: return .картинка
       case .звук: return .звук
       case .аватар: return .липсинк
@@ -201,7 +223,8 @@ struct GenerateScreen: View {
       if естьЖивые { return nil }
 
       switch self {
-      case .видео, .картинка:
+      // Редактор не «неготов»: он ничего не просит у провайдеров.
+      case .видео, .картинка, .редактор:
         return nil
       case .звук:
         return """
@@ -228,6 +251,9 @@ struct GenerateScreen: View {
     /// Минимальное тело для перепроверки: только чтобы услышать сервер.
     var телоПроверки: [String: Any] {
       switch self {
+      // Редактору нечего перепроверять: он не ходит на сервер.
+      case .редактор:
+        return [:]
       case .звук:
         return ["text": "проверка", "voice_id": "sarah", "speed": 1]
       case .аватар:
@@ -309,7 +335,9 @@ struct GenerateScreen: View {
             )
           }
 
-          if let причина = вид.неготовность {
+          if вид == .редактор {
+            сборка
+          } else if let причина = вид.неготовность {
             заглушка(причина)
           } else {
             форма
@@ -372,6 +400,74 @@ struct GenerateScreen: View {
           .buttonStyle(.plain)
           .accessibilityIdentifier("ии.вид.\(в.rawValue)")
         }
+      }
+    }
+  }
+
+  /**
+   * ПОСЛЕДНИЙ ШАГ: что собрано и куда это уходит.
+   *
+   * Раньше пять шагов ничем не заканчивались — каждый отдавал свой файл, и
+   * человек оставался с горстью ссылок без места, где их сложить. Здесь
+   * видно всё сделанное, разложенное по дорожкам монтажа, и отсюда один
+   * переход в редактор, где эти же дорожки уже есть.
+   *
+   * Слои показаны СГРУППИРОВАННО и в порядке дорожек — так же, как лягут в
+   * таймлайне. Список вперемешку заставлял бы сверять его с редактором
+   * глазами.
+   */
+  @ViewBuilder private var сборка: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      if слои.пусто {
+        Text("Пока нечего собирать. Пройдите шаги слева направо — "
+             + "сценарий, голос, образы — и всё сделанное появится здесь.")
+          .font(Тема.Шрифт.стиль(.callout))
+          .foregroundStyle(Тема.Цвет.текстПриглушённый)
+          .fixedSize(horizontal: false, vertical: true)
+      } else {
+        ForEach(Слои.дорожки, id: \.self) { тип in
+          let свои = слои.слои.filter { $0.дорожка == тип }
+          if !свои.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+              Text(Слои.имяДорожки(тип))
+                .font(Тема.Шрифт.стиль(.subheadline, .semibold))
+                .foregroundStyle(Тема.Цвет.текстПриглушённый)
+              ForEach(свои) { слой in
+                HStack(spacing: 10) {
+                  Text(слой.подпись)
+                    .font(Тема.Шрифт.стиль(.callout))
+                  Spacer(minLength: 8)
+                  // Убрать лишнее можно ЗДЕСЬ, а не только в редакторе:
+                  // неудачный дубль виден сразу после генерации.
+                  Button {
+                    слои.убрать(слой.id)
+                  } label: {
+                    Image(systemName: "xmark.circle.fill")
+                      .foregroundStyle(Тема.Цвет.текстПриглушённый)
+                  }
+                  .buttonStyle(.plain)
+                  .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                }
+              }
+            }
+          }
+        }
+
+        Button {
+          // Композиция кладётся в общий накопитель, и редактор берёт её
+          // оттуда при появлении. Передавать её через таб-бар напрямую
+          // нечем — вкладки не знают друг о друге.
+          Слои.общие.готоваяКомпозиция = слои.композиция()
+          открытьРедактор = true
+        } label: {
+          Label("Открыть в редакторе", systemImage: "square.stack.3d.up")
+            .font(Тема.Шрифт.стиль(.subheadline, .semibold))
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 50)
+            .background(Тема.Цвет.акцент, in: Capsule())
+            .foregroundStyle(Тема.Цвет.наАкценте)
+        }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -851,11 +947,17 @@ struct GenerateScreen: View {
     if let отказ = о.отказ {
       ошибка = отказ
     } else if let t = о.текст {
+      // Слой в общий накопитель: без этого результат жил до переключения
+      // вкладки и собрать из него ролик было не из чего.
+      Слои.общие.добавить(дорожка: "text", подпись: "Сценарий", текст: t)
       результат = Результат(
         текст: t, провайдер: о.провайдер, видео: false,
         озвучка: о.озвучка, обложка: о.обложка, кадры: о.кадры
       )
     } else if let s = о.ссылка, let u = URL(string: s) {
+      Слои.общие.добавить(
+        дорожка: дорожкаСлоя, подпись: вид.подпись, ссылка: s
+      )
       результат = Результат(ссылка: u, провайдер: о.провайдер, видео: вид == .видео)
     } else {
       ошибка = "Сервер вернул ссылку, которую не удалось разобрать"
