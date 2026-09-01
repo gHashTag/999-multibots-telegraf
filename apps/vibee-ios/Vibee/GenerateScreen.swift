@@ -303,6 +303,7 @@ struct GenerateScreen: View {
     var озвучка: String?
     var обложка: String?
     var кадры: [String] = []
+    var подписи: [String] = []
   }
 
   var body: some View {
@@ -756,11 +757,47 @@ struct GenerateScreen: View {
             .font(Тема.Шрифт.стиль(.subheadline, .semibold))
             .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
-          HStack(spacing: 8) {
+          /**
+           * КНОПКА НА КАЖДЫЙ КУСОК, А НЕ НА ПЕРВЫЙ ПОПАВШИЙСЯ.
+           *
+           * Здесь стояло `кадры.first` — предлагался один кадр, а остальные
+           * два молча выбрасывались. Ролик из трёх планов было не собрать: на
+           * таймлайне взялся бы один слой там, где сценарий описал три.
+           *
+           * Подписи добавляются СРАЗУ как текстовые слои: генерировать их не
+           * надо, они уже написаны, и им место на дорожке текста. Кнопка
+           * «сгенерировать подпись» была бы предложением заплатить за то,
+           * что уже лежит в ответе.
+           *
+           * Ряд переносится (`FlowLayout` через `LazyVGrid` с адаптивной
+           * колонкой): кнопок теперь пять-шесть, и горизонтальная лента
+           * прятала бы половину за краем — ту же ошибку мы уже разбирали
+           * с лентой видов.
+           */
+          LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 150), spacing: 8)],
+            alignment: .leading, spacing: 8
+          ) {
             if let о = r.озвучка { шагДальше("Озвучить", "waveform", .звук, о) }
             if let об = r.обложка { шагДальше("Обложка", "photo", .картинка, об) }
-            if let первый = r.кадры.first {
-              шагДальше("Снять кадр", "film", .видео, первый)
+            ForEach(Array(r.кадры.enumerated()), id: \.offset) { i, кадр in
+              шагДальше("Кадр \(i + 1)", "film", .видео, кадр)
+            }
+            if !r.подписи.isEmpty {
+              Button {
+                for п in r.подписи {
+                  Слои.общие.добавить(дорожка: "text", подпись: п, текст: п)
+                }
+              } label: {
+                Label("Подписи · \(r.подписи.count)", systemImage: "textformat")
+                  .font(Тема.Шрифт.стиль(.footnote, .medium))
+                  .padding(.vertical, 8).padding(.horizontal, 12)
+                  .frame(minHeight: 44)
+                  .background(Тема.Цвет.поверхность, in: Capsule())
+                  .contentShape(Capsule())
+              }
+              .buttonStyle(.plain)
+              .tint(Тема.Цвет.акцент)
             }
           }
         }
@@ -810,6 +847,7 @@ struct GenerateScreen: View {
     var озвучка: String?
     var обложка: String?
     var кадры: [String] = []
+    var подписи: [String] = []
     var провайдер: String?
     var отказ: String?
   }
@@ -889,6 +927,7 @@ struct GenerateScreen: View {
           озвучка: голос,
           обложка: o["cover_prompt"] as? String,
           кадры: o["broll_prompts"] as? [String] ?? [],
+          подписи: o["captions"] as? [String] ?? [],
           провайдер: o["provider"] as? String
         )
       }
@@ -1006,7 +1045,8 @@ struct GenerateScreen: View {
       Слои.общие.добавить(дорожка: "text", подпись: "Сценарий", текст: t)
       результат = Результат(
         текст: t, провайдер: о.провайдер, видео: false,
-        озвучка: о.озвучка, обложка: о.обложка, кадры: о.кадры
+        озвучка: о.озвучка, обложка: о.обложка, кадры: о.кадры,
+        подписи: о.подписи
       )
     } else if let s = о.ссылка, let u = URL(string: s) {
       Слои.общие.добавить(
