@@ -124,6 +124,19 @@ function пул() {
         строки.push({ t: 'session', id: params[0], telegram_id: params[1] })
         return { rows: [] }
       }
+      if (s.startsWith('INSERT INTO app_widget_assertions')) {
+        if (
+          fakeRows.some(r => r.t === 'widget' && r.assertion_hash === params[0])
+        ) {
+          return { rows: [] }
+        }
+        fakeRows.push({
+          t: 'widget',
+          assertion_hash: params[0],
+          telegram_id: params[1],
+        })
+        return { rows: [{ assertion_hash: params[0] }] }
+      }
       if (s.startsWith('INSERT INTO app_refresh_tokens')) {
         строки.push({ t: 'refresh', hash: params[0], session_id: params[2] })
         return { rows: [] }
@@ -492,5 +505,37 @@ describe('Login Widget exchange', () => {
     )
     expect(res.status).toBe(401)
     expect(res.json.access_token).toBeUndefined()
+  })
+
+  it('consumes one signed widget assertion only once', async () => {
+    const { handleAuthRoute } = await import('./session-routes')
+    const payload = signWidget({
+      id: 5151,
+      first_name: 'Web owner',
+      username: 't27_dev',
+      auth_date: Math.floor(Date.now() / 1000),
+    })
+    const first = mkReply()
+    await handleAuthRoute(
+      mkRequest('/api/auth/widget', payload),
+      first,
+      fakePool as any
+    )
+    expect(first.status).toBe(200)
+    const sessionsAfterFirst = fakeRows.filter(
+      row => row.t === 'session'
+    ).length
+
+    const replay = mkReply()
+    await handleAuthRoute(
+      mkRequest('/api/auth/widget', payload),
+      replay,
+      fakePool as any
+    )
+    expect(replay.status).toBe(409)
+    expect(replay.json.error).toContain('already used or stale')
+    expect(fakeRows.filter(row => row.t === 'session')).toHaveLength(
+      sessionsAfterFirst
+    )
   })
 })

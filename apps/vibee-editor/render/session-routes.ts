@@ -67,7 +67,7 @@ function mintPairingCode(): string {
  * lands weeks later as "the app logs itself out".
  */
 async function mintSession(
-  pool: Pool,
+  pool: Pick<PoolClient, 'query'>,
   telegramId: string,
   body: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
@@ -100,10 +100,11 @@ async function mintSession(
 }
 
 class StaleWidgetProfileAssertion extends Error {}
+class ReplayedWidgetAssertion extends Error {}
 
 /** Persist only identity attributes covered by Telegram's widget HMAC. */
-export async function syncVerifiedWidgetProfile(
-  pool: Pool,
+async function syncVerifiedWidgetProfileWithClient(
+  client: PoolClient,
   user: VerifiedTelegramWidgetUser
 ): Promise<void> {
   const telegramId = String(user.id)
@@ -116,10 +117,7 @@ export async function syncVerifiedWidgetProfile(
     .join(' ')
     .slice(0, 256)
   const photoUrl = user.photo_url?.slice(0, 512) || null
-  const client = await pool.connect()
-  try {
-    await client.query('BEGIN')
-    await client.query(`
+  await client.query(`
       CREATE TABLE IF NOT EXISTS profiles (
         id serial PRIMARY KEY,
         telegram_id text,
@@ -134,25 +132,25 @@ export async function syncVerifiedWidgetProfile(
         telegram_auth_date bigint NOT NULL DEFAULT 0,
         created_at timestamptz DEFAULT now()
       )`)
-    await client.query(
-      `ALTER TABLE profiles
+  await client.query(
+    `ALTER TABLE profiles
          ADD COLUMN IF NOT EXISTS telegram_auth_date bigint NOT NULL DEFAULT 0`
-    )
-    // Legacy data can contain duplicate rows for the same Telegram owner.
-    // Repairing those inside this transaction makes the idempotent index safe
-    // and prevents one old duplicate from breaking every future browser login.
-    await client.query(
-      `DELETE FROM profiles p USING profiles q
+  )
+  // Legacy data can contain duplicate rows for the same Telegram owner.
+  // Repairing those inside this transaction makes the idempotent index safe
+  // and prevents one old duplicate from breaking every future browser login.
+  await client.query(
+    `DELETE FROM profiles p USING profiles q
         WHERE p.telegram_id = q.telegram_id AND p.id < q.id`
-    )
-    await client.query(
-      `CREATE UNIQUE INDEX IF NOT EXISTS profiles_tg_uniq ON profiles (telegram_id)`
-    )
+  )
+  await client.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS profiles_tg_uniq ON profiles (telegram_id)`
+  )
 
-    // Make legacy username ownership deterministic before installing the
-    // invariant. The most recently authenticated row wins; id is only a
-    // stable tie-breaker for rows that predate telegram_auth_date.
-    await client.query(`
+  // Make legacy username ownership deterministic before installing the
+  // invariant. The most recently authenticated row wins; id is only a
+  // stable tie-breaker for rows that predate telegram_auth_date.
+  await client.query(`
       WITH ranked AS (
         SELECT id,
                ROW_NUMBER() OVER (
@@ -166,80 +164,78 @@ export async function syncVerifiedWidgetProfile(
          SET username = NULL
         FROM ranked r
        WHERE p.id = r.id AND r.position > 1`)
-    await client.query(
-      `CREATE UNIQUE INDEX IF NOT EXISTS profiles_username_uniq
+  await client.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS profiles_username_uniq
          ON profiles (LOWER(username))
       WHERE username IS NOT NULL AND username <> ''`
-    )
+  )
 
-    // Serialize both one owner's replays and claims for one normalized
-    // username. A unique index prevents duplicate committed state; these
-    // locks additionally let us compare auth_date before changing ownership.
-    // The order is fixed for every caller to avoid lock-order inversions.
-    if (username) {
-      await client.query(
-        `SELECT pg_advisory_xact_lock(hashtext('username:' || LOWER($1)))`,
-        [username]
-      )
-    }
+  // Serialize both one owner's replays and claims for one normalized
+  // username. A unique index prevents duplicate committed state; these
+  // locks additionally let us compare auth_date before changing ownership.
+  // The order is fixed for every caller to avoid lock-order inversions.
+  if (username) {
     await client.query(
-      `SELECT pg_advisory_xact_lock(hashtext('telegram:' || $1))`,
-      [telegramId]
+      `SELECT pg_advisory_xact_lock(hashtext('username:' || LOWER($1)))`,
+      [username]
     )
+  }
+  await client.query(
+    `SELECT pg_advisory_xact_lock(hashtext('telegram:' || $1))`,
+    [telegramId]
+  )
 
-    const existing = await client.query(
-      `SELECT telegram_id, username, telegram_auth_date
+  const existing = await client.query(
+    `SELECT telegram_id, username, telegram_auth_date
          FROM profiles
         WHERE telegram_id = $1
            OR ($2::text IS NOT NULL AND LOWER(username) = LOWER($2))
         FOR UPDATE`,
-      [telegramId, username]
-    )
-    const own = existing.rows.find(
-      row => String(row.telegram_id) === telegramId
-    )
-    const conflict = existing.rows.find(
-      row => String(row.telegram_id) !== telegramId
-    )
-    const incomingAuthDate = user.auth_date
-    if (
-      Number(own?.telegram_auth_date || 0) > incomingAuthDate ||
-      Number(conflict?.telegram_auth_date || 0) >= incomingAuthDate
-    ) {
-      throw new StaleWidgetProfileAssertion('stale Telegram profile assertion')
-    }
+    [telegramId, username]
+  )
+  const own = existing.rows.find(row => String(row.telegram_id) === telegramId)
+  const conflict = existing.rows.find(
+    row => String(row.telegram_id) !== telegramId
+  )
+  const incomingAuthDate = user.auth_date
+  if (
+    Number(own?.telegram_auth_date || 0) > incomingAuthDate ||
+    Number(conflict?.telegram_auth_date || 0) >= incomingAuthDate
+  ) {
+    throw new StaleWidgetProfileAssertion('stale Telegram profile assertion')
+  }
 
-    if (username) {
-      // A Telegram username has one current owner. A freshly HMAC-verified
-      // payload wins over stale local rows. All displacement and installation
-      // happens in the same transaction, so a failure cannot leave it ownerless.
-      await client.query(
-        `UPDATE profiles SET username = NULL
+  if (username) {
+    // A Telegram username has one current owner. A freshly HMAC-verified
+    // payload wins over stale local rows. All displacement and installation
+    // happens in the same transaction, so a failure cannot leave it ownerless.
+    await client.query(
+      `UPDATE profiles SET username = NULL
           WHERE LOWER(username) = LOWER($1) AND telegram_id <> $2`,
-        [username, telegramId]
-      )
-      await client.query(
-        `UPDATE users SET username = NULL
+      [username, telegramId]
+    )
+    await client.query(
+      `UPDATE users SET username = NULL
           WHERE LOWER(username) = LOWER($1) AND telegram_id::text <> $2`,
-        [username, telegramId]
-      )
-    }
+      [username, telegramId]
+    )
+  }
 
-    const updated = await client.query(
-      `UPDATE users SET username = $2, first_name = $3
+  const updated = await client.query(
+    `UPDATE users SET username = $2, first_name = $3
         WHERE telegram_id::text = $1 RETURNING id`,
+    [telegramId, username, displayName]
+  )
+  if (!updated.rows.length) {
+    await client.query(
+      `INSERT INTO users (telegram_id, username, first_name)
+         VALUES ($1, $2, $3)`,
       [telegramId, username, displayName]
     )
-    if (!updated.rows.length) {
-      await client.query(
-        `INSERT INTO users (telegram_id, username, first_name)
-         VALUES ($1, $2, $3)`,
-        [telegramId, username, displayName]
-      )
-    }
+  }
 
-    const saved = await client.query(
-      `INSERT INTO profiles (
+  const saved = await client.query(
+    `INSERT INTO profiles (
          telegram_id, username, display_name, avatar_url, telegram_auth_date
        )
        VALUES ($1, $2, $3, $4, $5)
@@ -250,11 +246,52 @@ export async function syncVerifiedWidgetProfile(
                      telegram_auth_date = EXCLUDED.telegram_auth_date
              WHERE profiles.telegram_auth_date <= EXCLUDED.telegram_auth_date
        RETURNING telegram_id`,
-      [telegramId, username, displayName, photoUrl, incomingAuthDate]
-    )
-    if (!saved.rows.length)
-      throw new StaleWidgetProfileAssertion('stale Telegram profile assertion')
+    [telegramId, username, displayName, photoUrl, incomingAuthDate]
+  )
+  if (!saved.rows.length)
+    throw new StaleWidgetProfileAssertion('stale Telegram profile assertion')
+}
+
+export async function syncVerifiedWidgetProfile(
+  pool: Pool,
+  user: VerifiedTelegramWidgetUser
+): Promise<void> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await syncVerifiedWidgetProfileWithClient(client, user)
     await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+async function mintWidgetSession(
+  pool: Pool,
+  user: VerifiedTelegramWidgetUser,
+  body: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const assertion = String(body.hash || '')
+  const assertionHash = digest(`telegram-widget:${assertion}`)
+  const telegramId = String(user.id)
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const consumed = await client.query(
+      `INSERT INTO app_widget_assertions (assertion_hash, telegram_id)
+       VALUES ($1, $2)
+       ON CONFLICT (assertion_hash) DO NOTHING
+       RETURNING assertion_hash`,
+      [assertionHash, telegramId]
+    )
+    if (!consumed.rows.length) throw new ReplayedWidgetAssertion()
+    await syncVerifiedWidgetProfileWithClient(client, user)
+    const session = await mintSession(client, telegramId, body)
+    await client.query('COMMIT')
+    return session
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined)
     throw error
@@ -430,16 +467,18 @@ export async function handleAuthRoute(
       return true
     }
     try {
-      await syncVerifiedWidgetProfile(pool, verified.user)
+      const session = await mintWidgetSession(pool, verified.user, body)
+      json(res, 200, { ...session, telegram_user: verified.user })
     } catch (error) {
-      if (error instanceof StaleWidgetProfileAssertion) {
-        json(res, 409, { error: 'stale Telegram profile assertion' })
+      if (
+        error instanceof StaleWidgetProfileAssertion ||
+        error instanceof ReplayedWidgetAssertion
+      ) {
+        json(res, 409, { error: 'Telegram assertion already used or stale' })
         return true
       }
       throw error
     }
-    const session = await mintSession(pool, verified.telegramId, body)
-    json(res, 200, { ...session, telegram_user: verified.user })
     return true
   }
 

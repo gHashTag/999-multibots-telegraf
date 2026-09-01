@@ -109,6 +109,16 @@ export async function ensureAuthTables(pool: Pool): Promise<void> {
       consumed_at timestamptz
     )`)
 
+  // A signed Login Widget assertion may mint exactly one long-lived session.
+  // Only a digest is stored; replay is rejected by the primary key in the
+  // same transaction that writes the profile and refresh-token family.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_widget_assertions (
+      assertion_hash text PRIMARY KEY,
+      telegram_id text NOT NULL,
+      consumed_at timestamptz NOT NULL DEFAULT now()
+    )`)
+
   /**
    * Pairing codes: how a client with no Telegram signature gets a session.
    *
