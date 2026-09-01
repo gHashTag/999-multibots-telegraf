@@ -1,4 +1,13 @@
 /**
+ * NOTE (iter222 ratchet-liveness audit): emailWizard is a DEAD scene as of this
+ * writing -- registered in SceneRegistry but nothing routes to it (ModeEnum.
+ * EmailWizard has 0 dispatch references, no enter('emailWizard'), only comments
+ * mention it). This ratchet is therefore currently VACUOUS: it pins a real
+ * invariant but on unreachable code. Left in place (not deleted) so the invariant
+ * survives if the scene is revived; the correct cleanup is to delete the dead
+ * scene AND this ratchet together (owner). Liveness = union of {ModeEnum dispatch,
+ * literal enter('id'), parent-scene chain} -- a single-signal grep is unsound.
+ *
  * Ratchet: emailWizard's setPayments is gated by a paymentOptions allowlist.
  *
  * emailWizard.on('text') parses (stars, amount) out of the user's message via a

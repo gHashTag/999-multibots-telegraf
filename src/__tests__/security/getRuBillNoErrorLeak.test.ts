@@ -1,4 +1,14 @@
 /**
+ * NOTE (iter222 ratchet-liveness audit): getRuBillWizard is a DEAD scene as of
+ * this writing -- registered in SceneRegistry but nothing routes to it (ModeEnum.
+ * GetRuBillWizard has 0 dispatch references, no enter('getRuBillWizard'); only a
+ * helper import (getInvoiceId) and comments mention it). This ratchet is
+ * therefore currently VACUOUS: it pins a real invariant but on unreachable code.
+ * Left in place (not deleted) so the invariant survives if the scene is revived;
+ * the correct cleanup is to delete the dead scene AND this ratchet together
+ * (owner). Liveness = union of {ModeEnum dispatch, literal enter('id'), parent
+ * chain} -- a single-signal grep is unsound.
+ *
  * Ratchet: getRuBillWizard must never leak a caught error into a user reply.
  *
  * The DB-error catch used to interpolate `error.message` straight into the
