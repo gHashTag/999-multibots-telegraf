@@ -213,6 +213,11 @@ CHECKS THAT EACH COST A CYCLE
         iter204 aiPhotoshop-upscale class). Triage: a hit may sit behind a
         shared guarded choke fn or not be double-tappable. Read each.
 
+  tri leaks | tri утечки
+        List files that saveFileLocally() but never unlink -- a per-call
+        temp-file leak (the iter206 fluxKontextPro class). Triage: a hit may
+        deliver via the file (clean up after) or via a remote url (pure waste).
+
   tri charge | tri заряд
         Completeness check for the double-charge class (#1358): lists every
         scene that CHARGES money and whether it is guarded / safe / a tracked
@@ -1375,6 +1380,17 @@ cmd_inflight() {
   ( cd "$ROOT" && node "$TOOLS/inflight-audit.mjs" "$@" )
 }
 
+cmd_leaks() {
+  # List files that saveFileLocally() (persists to <dist>/uploads/, NOT an
+  # OS-tmp dir) but never unlink -- a per-call temp-file leak that slowly fills
+  # the disk of the long-running process. iter206 shipped exactly this
+  # (generateFluxKontextPro saved a PNG and never removed it; the Max sibling
+  # did). TRIAGE, not a gate: a hit may deliver via the local file (still should
+  # clean up after) or via a remote url (the local save is pure waste). Read
+  # each, mirror the Max cleanup (unlink in a finally). Reports, never mutates.
+  ( cd "$ROOT" && node "$TOOLS/leaks-audit.mjs" "$@" )
+}
+
 action="${1:-помощь}"
 shift 2>/dev/null || true
 
@@ -1399,7 +1415,8 @@ case "$action" in
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
   timeouts|таймауты)  cmd_timeouts "$@" ;;
-  inflight|блокировка) cmd_inflight "$@" ;;
+  inflight|блокировка) cmd_inflight "@" ;;
+  leaks|утечки)        cmd_leaks "$@" ;;
   sweep|развёртка)  cmd_sweep "$@" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
