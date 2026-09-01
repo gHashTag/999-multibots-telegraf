@@ -151,4 +151,16 @@ describe('upscale_image consumes the image before charging (no stale-tap replay)
     expect(rg.consumeBeforeCharge).toBe(true)
     expect(rg.guardPresent).toBe(true)
   })
+
+  it('mutation: removing the real consume assignment turns the check RED', () => {
+    // Revert the actual fix in the real handler (the consume-before-charge line)
+    // and prove the detector fires -- the strongest false-ruler defense, coupling
+    // this ratchet to the FIX, not just to a synthetic input.
+    const mutated = source.replace(
+      'ctx.session.lastUpscaledImageUrl = ctx.session.lastGeneratedImageUrl',
+      ''
+    )
+    expect(mutated).not.toEqual(source)
+    expect(analyze(mutated).consumeBeforeCharge).toBe(false)
+  })
 })
