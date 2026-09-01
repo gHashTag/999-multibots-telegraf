@@ -874,6 +874,14 @@ If not, continue on your own and click the "I myself" button`
 
         await ctx.answerCbQuery()
 
+        // Strip the model-selection keyboard so a later stale tap on this
+        // standalone ctx.reply message cannot re-fire this GLOBAL handler. It is
+        // live from any scene, so a re-tap mid-flow would re-enter a wizard, swap
+        // ctx.session.selectedLipSyncModel, and discard the user's in-progress
+        // upload. Additive guard -- no charge here (answerCbQuery + scene.enter
+        // only). .catch covers a message already edited/deleted.
+        await ctx.editMessageReplyMarkup(undefined).catch(() => {})
+
         // 🎤 Маршрутизация на нужную сцену в зависимости от модели:
         // - veed_fabric (kie.ai) → veed_fabric_lipsync (image + text/audio)
         // - fal_veed_fabric (fal.ai) → veed_fabric_lipsync (image + audio)
