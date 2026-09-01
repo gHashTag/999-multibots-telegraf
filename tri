@@ -201,6 +201,11 @@ CHECKS THAT EACH COST A CYCLE
         run -- the per-iteration regression check after syncing main. Each
         loop-fable fix pins its bug here (33 and counting). --list shows files.
 
+  tri ratchet-audit | tri аудит-линеек
+        Meta-check the guards: does each STRUCTURAL ratchet have a self-check
+        (detector can fire) and a floor (fails loud if the target is gutted)?
+        A ratchet that can only pass is a false ruler. Behavioral tests exempt.
+
   tri timeouts | tri таймауты
         List axios calls with no timeout (default is infinite), split
         likely-LIVE vs likely-DEAD. Triage, not fix-all: bound only the ones on
@@ -1357,6 +1362,17 @@ cmd_guards() {
   ( cd "$ROOT" && node "$TOOLS/guards.mjs" "$@" )
 }
 
+cmd_ratchet_audit() {
+  # META-check the QUALITY of the tri guards themselves: does each STRUCTURAL
+  # ratchet (an AST/text source scan, which can silently break) have a SELF-CHECK
+  # (feeds the detector a synthetic bad input and asserts it fires) and a FLOOR
+  # (asserts the guarded target is still present, so a rename/gut fails loud)?
+  # A ratchet that can only pass, never fail, is a false ruler -- the loop's
+  # recurring bug (it.198/199/200/204). Behavioral tests (import + call the real
+  # fn) are inherently self-validating and exempt. TRIAGE, not a gate.
+  ( cd "$ROOT" && node "$TOOLS/ratchet-audit.mjs" "$@" )
+}
+
 cmd_timeouts() {
   # List axios calls with NO timeout, split into likely-LIVE vs likely-DEAD by
   # whether the module is referenced elsewhere. axios default timeout is 0
@@ -1414,6 +1430,7 @@ case "$action" in
   charge|заряд)       cmd_charge ;;
   ratchets|линейки)   cmd_ratchets ;;
   guards|стражи)      cmd_guards "$@" ;;
+  ratchet-audit|аудит-линеек) cmd_ratchet_audit "$@" ;;
   timeouts|таймауты)  cmd_timeouts "$@" ;;
   inflight|блокировка) cmd_inflight "@" ;;
   leaks|утечки)        cmd_leaks "$@" ;;

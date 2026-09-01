@@ -62,4 +62,15 @@ describe('avatarBrainWizard sends no parse_mode:HTML', () => {
         `Telegram 400 and falsely reports failure. Drop parse_mode or escape the fields.`
     ).toEqual([])
   })
+
+  // matcher-not-stale floor: the guard is "no parse_mode:HTML on a reply". If the
+  // wizard were renamed/gutted to have no message-sending calls at all, the
+  // absence assertion above would pass vacuously. Require the scene to still send
+  // the replies this ratchet is guarding, so a gutted target fails loud.
+  it('floor: the scene still sends replies this ratchet guards', () => {
+    const sends = (
+      source.match(/\.(reply|editMessageText|sendMessage)\s*\(/g) || []
+    ).length
+    expect(sends).toBeGreaterThan(0)
+  })
 })
