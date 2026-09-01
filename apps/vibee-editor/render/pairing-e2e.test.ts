@@ -53,10 +53,26 @@ function пул() {
       // отвечает сама база; здесь важно лишь не мешать `ensureAuthTables`.
       if (
         s.startsWith('CREATE TABLE') ||
+        s.startsWith('ALTER TABLE') ||
         s.startsWith('CREATE INDEX') ||
-        s.startsWith('CREATE UNIQUE INDEX')
+        s.startsWith('CREATE UNIQUE INDEX') ||
+        s.startsWith('WITH ranked AS')
       )
         return { rows: [] }
+
+      if (s.startsWith('SELECT pg_advisory_xact_lock')) return { rows: [] }
+      if (s.startsWith('SELECT telegram_id, username, telegram_auth_date')) {
+        return {
+          rows: fakeRows.filter(
+            r =>
+              r.t === 'profile' &&
+              (String(r.telegram_id) === String(params[0]) ||
+                (params[1] &&
+                  String(r.username || '').toLowerCase() ===
+                    String(params[1]).toLowerCase()))
+          ),
+        }
+      }
 
       if (
         s.includes(
@@ -113,6 +129,16 @@ function пул() {
         return { rows: [] }
       }
       if (s.startsWith('UPDATE profiles SET username = NULL')) {
+        for (const row of fakeRows) {
+          if (
+            row.t === 'profile' &&
+            String(row.username || '').toLowerCase() ===
+              String(params[0]).toLowerCase() &&
+            String(row.telegram_id) !== String(params[1])
+          ) {
+            row.username = null
+          }
+        }
         return { rows: [] }
       }
       if (s.startsWith('DELETE FROM profiles p USING profiles q')) {
@@ -122,7 +148,16 @@ function пул() {
         return { rows: [] }
       }
       if (s.startsWith('UPDATE users SET username = $2')) {
-        return { rows: [] }
+        const rows = fakeRows.filter(
+          r =>
+            r.t === 'user-profile' &&
+            String(r.telegram_id) === String(params[0])
+        )
+        for (const row of rows) {
+          row.username = params[1]
+          row.display_name = params[2]
+        }
+        return { rows: rows.map(row => ({ id: row.telegram_id })) }
       }
       if (s.startsWith('INSERT INTO users')) {
         fakeRows.push({
@@ -134,14 +169,23 @@ function пул() {
         return { rows: [] }
       }
       if (s.startsWith('INSERT INTO profiles')) {
-        fakeRows.push({
-          t: 'profile',
-          telegram_id: params[0],
+        const current = fakeRows.find(
+          r => r.t === 'profile' && String(r.telegram_id) === String(params[0])
+        )
+        if (
+          current &&
+          Number(current.telegram_auth_date || 0) > Number(params[4])
+        )
+          return { rows: [] }
+        const row = current || { t: 'profile', telegram_id: params[0] }
+        Object.assign(row, {
           username: params[1],
           display_name: params[2],
-          avatar_url: params[3],
+          avatar_url: params[3] || row.avatar_url,
+          telegram_auth_date: params[4],
         })
-        return { rows: [] }
+        if (!current) fakeRows.push(row)
+        return { rows: [{ telegram_id: params[0] }] }
       }
       // Молчаливый ноль строк на непонятом запросе превращает сломанный тест в
       // проходящий. Лучше упасть и назвать запрос.

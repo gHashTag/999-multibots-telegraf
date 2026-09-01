@@ -45,6 +45,10 @@ describe('cross-replica session revocation', () => {
     )
     expect(server).toContain('await pollRevocations(pool)')
     expect(server).toContain('setInterval(() =>')
+    expect(server).toContain(
+      'SESSION_SIGNING_KEY is required for deployed browser authentication'
+    )
+    expect(server.indexOf('signingKey.length < 32')).toBeGreaterThan(-1)
   })
 
   it('fails closed when the database-backed revocation view goes stale', () => {

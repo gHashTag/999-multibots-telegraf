@@ -2,7 +2,7 @@
 // undici первым пробует IPv6, в этой сети он чёрной дырой — таймаут.
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
 import * as dns from 'node:dns'
-import { handleAuthRoute } from './session-routes'
+import { handleAuthRouteSafely } from './session-routes'
 import { ensureAuthTables, pollRevocations } from './session-store'
 import {
   readRenderQuota,
@@ -719,7 +719,17 @@ const SESSION_REVOCATION_POLL_MS = 5_000
  * fails closed instead of accepting tokens with a stale/empty revocation set.
  */
 async function startSessionRevocationSync(): Promise<void> {
-  if (!process.env.SESSION_SIGNING_KEY) return
+  const signingKey = process.env.SESSION_SIGNING_KEY || ''
+  const deployed =
+    !!process.env.RAILWAY_GIT_COMMIT_SHA || !!process.env.RAILWAY_ENVIRONMENT
+  if (signingKey.length < 32) {
+    if (deployed) {
+      throw new Error(
+        'SESSION_SIGNING_KEY is required for deployed browser authentication'
+      )
+    }
+    return
+  }
 
   const pool = getPool()
   await ensureAuthTables(pool)
@@ -5588,7 +5598,7 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  if (await handleAuthRoute(req, res, getPool)) return
+  if (await handleAuthRouteSafely(req, res, getPool)) return
 
   /**
    * Projects: the person's timeline, held by the SERVER rather than by
