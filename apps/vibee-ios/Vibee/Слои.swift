@@ -21,7 +21,7 @@ import SwiftUI
 @MainActor
 final class Слои: ObservableObject {
   static let общие = Слои()
-  private init() {}
+  private init() { загрузить() }
 
   struct Слой: Identifiable, Equatable {
     let id = UUID().uuidString
@@ -35,6 +35,32 @@ final class Слои: ObservableObject {
 
   @Published private(set) var слои: [Слой] = []
 
+  /**
+   * ИСТОРИЯ ВСЕГО СГЕНЕРИРОВАННОГО — на диске, а не в памяти.
+   *
+   * До неё каждый ассет жил ровно до перезапуска приложения. Человек платил
+   * за озвучку, закрывал приложение — и платил ещё раз за ту же фразу,
+   * потому что найти прежнюю было негде. Для продукта, где каждый шаг стоит
+   * денег, это худший вид потери: не сломанная функция, а сожжённые деньги
+   * без следа.
+   *
+   * Хранится РЯДОМ С НАСТРОЙКАМИ приложения (Application Support), а не в
+   * кэше: кэш система вправе очистить когда угодно, и она это делает.
+   * Ассеты — не кэш, их нельзя пересоздать бесплатно.
+   */
+  @Published private(set) var история: [Актив] = []
+
+  struct Актив: Identifiable, Codable, Equatable {
+    var id = UUID().uuidString
+    var дорожка: String
+    var подпись: String
+    var ссылка: String?
+    var текст: String?
+    /// Когда сделано. Строкой ISO — читается глазами в файле и не зависит
+    /// от того, как Codable сегодня сериализует Date.
+    var когда: String
+  }
+
   /// Композиция, ждущая редактора. Он забирает её и обнуляет — иначе
   /// повторный заход подменял бы уже правленый проект старой сборкой.
   @Published var готоваяКомпозиция: Composition?
@@ -43,6 +69,56 @@ final class Слои: ObservableObject {
 
   func добавить(дорожка: String, подпись: String, ссылка: String? = nil, текст: String? = nil) {
     слои.append(Слой(дорожка: дорожка, подпись: подпись, ссылка: ссылка, текст: текст))
+    // В историю кладём ТО ЖЕ САМОЕ и сразу: если записывать только при
+    // выходе, потеряем всё при падении — а падение как раз тот случай,
+    // когда человек ищет, за что заплатил.
+    запомнить(дорожка: дорожка, подпись: подпись, ссылка: ссылка, текст: текст)
+  }
+
+  private func запомнить(дорожка: String, подпись: String, ссылка: String?, текст: String?) {
+    история.insert(
+      Актив(
+        дорожка: дорожка, подпись: подпись, ссылка: ссылка, текст: текст,
+        когда: ISO8601DateFormatter().string(from: Date())
+      ),
+      at: 0  // Свежее сверху: искать почти всегда будут последнее.
+    )
+    сохранить()
+  }
+
+  /// Взять готовый ассет в текущий ролик. Ничего не генерирует и не платит.
+  func взятьВРолик(_ id: String) {
+    guard let а = история.first(where: { $0.id == id }) else { return }
+    слои.append(
+      Слой(дорожка: а.дорожка, подпись: а.подпись, ссылка: а.ссылка, текст: а.текст)
+    )
+  }
+
+  func забытьИзИстории(_ id: String) {
+    история.removeAll { $0.id == id }
+    сохранить()
+  }
+
+  // MARK: - Диск
+
+  private static var файл: URL? {
+    try? FileManager.default.url(
+      for: .applicationSupportDirectory, in: .userDomainMask,
+      appropriateFor: nil, create: true
+    ).appendingPathComponent("vibee-история.json")
+  }
+
+  private func сохранить() {
+    guard let f = Self.файл, let d = try? JSONEncoder().encode(история) else { return }
+    try? d.write(to: f, options: .atomic)
+  }
+
+  /// Читается ОДИН раз при создании: см. `init`.
+  private func загрузить() {
+    guard let f = Self.файл, let d = try? Data(contentsOf: f),
+          let сп = try? JSONDecoder().decode([Актив].self, from: d)
+    else { return }
+    история = сп
   }
 
   func убрать(_ id: String) { слои.removeAll { $0.id == id } }
