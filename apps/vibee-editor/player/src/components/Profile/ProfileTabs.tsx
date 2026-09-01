@@ -5,12 +5,15 @@ import { ProfileSkills } from './ProfileSkills'
 import { ProfilePlan } from './ProfilePlan'
 import { useIsOwnProfile } from './useIsOwnProfile'
 import { ProfileBlog } from './ProfileBlog'
+import { SoulEditor } from './SoulEditor'
+import { PairWithApp } from './PairWithApp'
 import {
+  Bot,
   Grid,
   Users,
-  Video,
   UserPlus,
   FolderOpen,
+  Sparkles,
   Wand2,
   BookOpen,
   Target,
@@ -35,14 +38,25 @@ type TabId =
   | 'plan'
   | 'files'
   | 'skills'
+  | 'soul'
+  | 'agent'
   | 'blog'
   | 'followers'
   | 'following'
-const TAB_ORDER: TabId[] = [
+
+const OWNER_TAB_ORDER: TabId[] = [
   'templates',
   'plan',
   'files',
   'skills',
+  'soul',
+  'agent',
+  'blog',
+  'followers',
+  'following',
+]
+const PUBLIC_TAB_ORDER: TabId[] = [
+  'templates',
   'blog',
   'followers',
   'following',
@@ -51,23 +65,27 @@ const TAB_ORDER: TabId[] = [
 export function ProfileTabs() {
   const { t } = useLanguage()
   const isOwn = useIsOwnProfile()
+  const tabOrder = isOwn ? OWNER_TAB_ORDER : PUBLIC_TAB_ORDER
   const [activeTab, setActiveTab] = useState<TabId>('templates')
+  const visibleActiveTab = tabOrder.includes(activeTab)
+    ? activeTab
+    : 'templates'
   const contentRef = useRef<HTMLDivElement>(null)
 
   // Swipe navigation between tabs
   const goToNextTab = useCallback(() => {
-    const currentIndex = TAB_ORDER.indexOf(activeTab)
-    if (currentIndex < TAB_ORDER.length - 1) {
-      setActiveTab(TAB_ORDER[currentIndex + 1])
+    const currentIndex = tabOrder.indexOf(visibleActiveTab)
+    if (currentIndex < tabOrder.length - 1) {
+      setActiveTab(tabOrder[currentIndex + 1])
     }
-  }, [activeTab])
+  }, [tabOrder, visibleActiveTab])
 
   const goToPrevTab = useCallback(() => {
-    const currentIndex = TAB_ORDER.indexOf(activeTab)
+    const currentIndex = tabOrder.indexOf(visibleActiveTab)
     if (currentIndex > 0) {
-      setActiveTab(TAB_ORDER[currentIndex - 1])
+      setActiveTab(tabOrder[currentIndex - 1])
     }
-  }, [activeTab])
+  }, [tabOrder, visibleActiveTab])
 
   useSwipeGesture({
     containerRef: contentRef,
@@ -89,12 +107,12 @@ export function ProfileTabs() {
   useEffect(() => {
     if (!profile) return
 
-    if (activeTab === 'followers') {
+    if (visibleActiveTab === 'followers') {
       loadFollowers(profile.username)
-    } else if (activeTab === 'following') {
+    } else if (visibleActiveTab === 'following') {
       loadFollowing(profile.username)
     }
-  }, [activeTab, profile?.username])
+  }, [visibleActiveTab, profile?.username])
 
   if (!profile) return null
 
@@ -128,6 +146,18 @@ export function ProfileTabs() {
             label: 'Скиллы',
             count: profileTabCount(profile, 'skills'),
           },
+          {
+            id: 'soul' as const,
+            icon: <Sparkles size={18} />,
+            label: 'SOUL.md',
+            count: null,
+          },
+          {
+            id: 'agent' as const,
+            icon: <Bot size={18} />,
+            label: 'Агент',
+            count: null,
+          },
         ]
       : []),
     {
@@ -156,7 +186,7 @@ export function ProfileTabs() {
         {tabs.map(tab => (
           <button
             key={tab.id}
-            className={`profile-tabs__tab ${activeTab === tab.id ? 'profile-tabs__tab--active' : ''}`}
+            className={`profile-tabs__tab ${visibleActiveTab === tab.id ? 'profile-tabs__tab--active' : ''}`}
             onClick={() => setActiveTab(tab.id)}
           >
             {tab.icon}
@@ -169,19 +199,23 @@ export function ProfileTabs() {
       </div>
 
       <div className="profile-tabs__content" ref={contentRef}>
-        {activeTab === 'templates' && (
+        {visibleActiveTab === 'templates' && (
           <ProfileTemplatesGrid username={profile.username} isOwn={isOwn} />
         )}
 
-        {activeTab === 'plan' && <ProfilePlan />}
+        {visibleActiveTab === 'plan' && <ProfilePlan />}
 
-        {activeTab === 'files' && <ProfileFilesGrid />}
+        {visibleActiveTab === 'files' && <ProfileFilesGrid />}
 
-        {activeTab === 'skills' && <ProfileSkills />}
+        {visibleActiveTab === 'skills' && <ProfileSkills />}
 
-        {activeTab === 'blog' && <ProfileBlog />}
+        {visibleActiveTab === 'soul' && <SoulEditor />}
 
-        {activeTab === 'followers' && (
+        {visibleActiveTab === 'agent' && <PairWithApp />}
+
+        {visibleActiveTab === 'blog' && <ProfileBlog />}
+
+        {visibleActiveTab === 'followers' && (
           <div className="profile-tabs__users">
             {followersLoading ? (
               <div className="profile-tabs__users">
@@ -216,7 +250,7 @@ export function ProfileTabs() {
           </div>
         )}
 
-        {activeTab === 'following' && (
+        {visibleActiveTab === 'following' && (
           <div className="profile-tabs__users">
             {followingLoading ? (
               <div className="profile-tabs__users">

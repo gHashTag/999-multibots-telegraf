@@ -11,9 +11,6 @@ import {
 import { useLanguage } from '@/hooks/useLanguage'
 import { Header } from '@/components/Header'
 import { ProfileHeader, ProfileTabs, ProfileEdit } from '@/components/Profile'
-import { useIsOwnProfile } from '@/components/Profile/useIsOwnProfile'
-import { SoulEditor } from '@/components/Profile/SoulEditor'
-import { PairWithApp } from '@/components/Profile/PairWithApp'
 import '@/components/Profile/Profile.css'
 
 export function ProfilePage() {
@@ -21,7 +18,6 @@ export function ProfilePage() {
   const { username } = useParams<{ username: string }>()
 
   const profile = useAtomValue(viewedProfileAtom)
-  const isOwn = useIsOwnProfile()
   const loading = useAtomValue(profileLoadingAtom)
   const error = useAtomValue(profileErrorAtom)
   const loadProfile = useSetAtom(loadProfileAtom)
@@ -124,11 +120,6 @@ export function ProfilePage() {
           <ProfileTabs />
 
           <ProfileEdit isOpen={showEdit} onClose={() => setShowEdit(false)} />
-
-          {/* SOUL и скиллы — только на СВОЁМ профиле: чужая карточка голоса
-              и чужой список возможностей не должны быть видны постороннему. */}
-          {isOwn && <SoulEditor />}
-          {isOwn && <PairWithApp />}
         </div>
       </div>
     </>
