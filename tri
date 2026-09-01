@@ -237,6 +237,12 @@ CHECKS THAT EACH COST A CYCLE
         ADMIN / IDEMPOTENT / SETTLEMENT. A credit with NONE is a mint suspect.
         Triage, not a gate: the guard may live in the caller/router. Read each.
 
+  tri stepjump | tri шаг
+        Inventory of ctx.wizard.selectStep sites + the selectStep(N)+next()
+        off-by-one that SKIPS Step N (next = selectStep(cursor+1)). Broke the
+        veed-fabric resume (#1565); ai-reels twin is owner (charge step). Fix:
+        selectStep(N) + direct-invoke steps[cursor](ctx). Triage, not a gate.
+
   tri charge | tri заряд
         Completeness check for the double-charge class (#1358): lists every
         scene that CHARGES money and whether it is guarded / safe / a tracked
@@ -1445,6 +1451,16 @@ cmd_mint() {
   ( cd "$ROOT" && node "$TOOLS/mint-audit.mjs" "$@" )
 }
 
+cmd_stepjump() {
+  # Inventory of ctx.wizard.selectStep sites and the selectStep(N)+next()
+  # off-by-one that SKIPS Step N (next() = selectStep(cursor+1)). Broke the
+  # resume-after-voice flow in veed-fabric (#1565, fixed) and ai-reels-wizard
+  # (owner task_2602e027, its Step 2 charges). Correct pattern: selectStep(N)
+  # then direct-invoke steps[cursor](ctx). INVENTORY, never a gate (exit 0).
+  # Reports, never mutates.
+  ( cd "$ROOT" && node "$TOOLS/stepjump-audit.mjs" "$@" )
+}
+
 action="${1:-помощь}"
 shift 2>/dev/null || true
 
@@ -1474,6 +1490,7 @@ case "$action" in
   leaks|утечки)        cmd_leaks "$@" ;;
   replay|повтор)       cmd_replay "$@" ;;
   mint|минт)           cmd_mint "$@" ;;
+  stepjump|шаг)        cmd_stepjump "$@" ;;
   sweep|развёртка)  cmd_sweep "$@" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;
