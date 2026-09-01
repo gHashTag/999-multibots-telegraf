@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { showLoginModalAtom, userAtom } from '@/atoms'
 import { telegramAutoLoginAtom } from '@/atoms/telegramAuth'
@@ -43,12 +43,12 @@ export function LoginModal() {
     return () => window.removeEventListener('keydown', onKey)
   }, [show, setShow])
 
+  const close = useCallback(() => setShow(false), [setShow])
+
   if (!show) return null
 
   const inTelegram = isTelegram()
   const signed = hasVerifiableInitData()
-
-  const close = () => setShow(false)
 
   const retryFromLaunchData = () => {
     const r = autoLogin()
@@ -72,7 +72,11 @@ export function LoginModal() {
             <h2>{t('login.tgUnsignedTitle')}</h2>
             <p>{t('login.tgUnsignedBody')}</p>
             <div className="login-modal-widget">
-              <button className="telegram-login-btn" type="button" onClick={close}>
+              <button
+                className="telegram-login-btn"
+                type="button"
+                onClick={close}
+              >
                 <span>{t('common.close')}</span>
               </button>
             </div>

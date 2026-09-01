@@ -11,6 +11,7 @@ import {
   fetchQuotaAtom,
   logoutAtom,
   myProfileAtom,
+  clearProfileAtom,
   sidebarTabAtom,
   type SidebarTab,
   // Instagram connection
@@ -31,16 +32,13 @@ import {
   Unlink,
   Loader2,
 } from 'lucide-react'
-import {
-  TelegramLoginButton,
-  UserAvatar,
-  PaywallModal,
-} from '@/components/Auth'
+import { UserAvatar, PaywallModal } from '@/components/Auth'
 import { RemixBadge } from '@/components/RemixBadge'
 import './styles.css'
 import { LoginModal } from '@/components/Auth/LoginModal'
 import { brandingAtom, loadBrandingAtom } from '@/atoms/branding'
-import { isTelegram } from '@/lib/telegram'
+import { getInitData, isTelegram } from '@/lib/telegram'
+import { getAppAccessToken } from '@/lib/appSession'
 
 // Page navigation tabs - 6 main tabs
 const NAV_TABS = [
@@ -183,6 +181,18 @@ export function Header({ wsStatus, wsClientId }: HeaderProps) {
   // User actions
   const fetchQuota = useSetAtom(fetchQuotaAtom)
   const logout = useSetAtom(logoutAtom)
+  const clearProfile = useSetAtom(clearProfileAtom)
+  const handleLogout = useCallback(() => {
+    clearProfile()
+    logout()
+  }, [clearProfile, logout])
+
+  // Browser credentials and identity state have the same lifetime. If a
+  // restored UI has no Bearer session and no signed Mini App launch, it is a
+  // guest even if older storage once contained an owner profile.
+  useEffect(() => {
+    if (user && !getAppAccessToken() && !getInitData()) handleLogout()
+  }, [user, handleLogout])
 
   // White label: внутри мини-аппа шапка носит имя и аватар бота владельца,
   // а не наш логотип. Бренд подтверждается подписью на сервере.
@@ -517,11 +527,17 @@ export function Header({ wsStatus, wsClientId }: HeaderProps) {
               <UserAvatar
                 user={user}
                 avatarUrl={myProfile?.avatar_url ?? undefined}
-                onLogout={logout}
+                onLogout={handleLogout}
               />
             </div>
           ) : (
-            <TelegramLoginButton onSuccess={() => setShowLoginModal(false)} />
+            <button
+              type="button"
+              className="telegram-login-btn small"
+              onClick={() => setShowLoginModal(true)}
+            >
+              <span>{t('login.button')}</span>
+            </button>
           )}
         </div>
 
