@@ -151,4 +151,17 @@ describe('ai_photoshop_upscale_last consumes the photo before charging (no stale
     expect(rg.consumeBeforeCharge).toBe(true)
     expect(rg.guardPresent).toBe(true)
   })
+
+  it('mutation: removing the real consume assignment turns the check RED', () => {
+    // Revert the actual consume-before-charge line in aiPhotoshopScene and prove
+    // the detector fires -- the strongest false-ruler defense (couples the ratchet
+    // to the FIX, not just a synthetic input). Completes the consume-before-charge
+    // class after upscale_image (#1551) and upscale_neurophoto_image (#1553).
+    const mutated = source.replace(
+      'ctx.session.lastUpscaledPhotoUrl = imageUrl',
+      ''
+    )
+    expect(mutated).not.toEqual(source)
+    expect(analyze(mutated).consumeBeforeCharge).toBe(false)
+  })
 })
