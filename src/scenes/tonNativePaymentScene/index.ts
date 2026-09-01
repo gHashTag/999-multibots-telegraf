@@ -298,6 +298,26 @@ tonNativePaymentScene.action(/^tonn_check_(.+)$/, async ctx => {
       return ctx.scene.leave()
     }
 
+    // Ownership guard. The invId is the PUBLIC on-chain transfer memo, and
+    // callback_query data is client-forgeable, so an attacker who reads a
+    // victim's memo off the blockchain could tap tonn_check_<victimInvId> in
+    // their own scene session and be credited for the victim's confirmed top-up.
+    // The payment belongs to whoever created it (payment.telegram_id at insert),
+    // NOT the caller (ctx.from.id): refuse when they differ. Skip-only guard --
+    // it never adds credit, only prevents crediting the wrong user.
+    if (String(payment.telegram_id) !== String(telegramId)) {
+      logger.warn(
+        '[TON NATIVE PAYMENT] Caller is not the payment owner — refusing',
+        {
+          callerTelegramId: telegramId,
+          paymentOwner: payment.telegram_id,
+          invId,
+        }
+      )
+      await ctx.reply(isRu ? '❌ Платёж не найден' : '❌ Payment not found')
+      return ctx.scene.leave()
+    }
+
     // Получаем конфиг и проверяем транзакцию
     const tonConfig = getTonConfig()
     const transaction = await findNativePaymentByComment(
