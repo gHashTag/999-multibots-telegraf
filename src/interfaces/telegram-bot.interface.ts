@@ -386,6 +386,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
 
   // Upscaling fields
   lastGeneratedImageUrl?: string // URL последнего сгенерированного изображения
+  lastUpscaledImageUrl?: string // URL image already consumed by the paid upscale (replay guard)
   lastGeneratedPrompt?: string // Промпт последнего сгенерированного изображения
 
   // Neurophoto upscaling fields

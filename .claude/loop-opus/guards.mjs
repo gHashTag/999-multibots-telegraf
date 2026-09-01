@@ -60,6 +60,7 @@ const GUARDS = [
   'src/__tests__/reliability/neuroPhotoDirectTempFileCleanup.test.ts', // iter208 generateNeuroPhotoDirect unlinks its orphaned per-image local copy (leak sweep, orphan-in-loop)
   'src/__tests__/money/aiReelsRenderDisplayMatchesCharge.test.ts', // iter209 ai-reels render cost DISPLAY matches the Step 6 charge (no stale x2 formula)
   'src/__tests__/security/tonPaymentOwnershipGuard.test.ts', // iter210 TON top-up check credits only the payment owner (no cross-user top-up theft)
+  'src/__tests__/money/upscaleImageConsumeBeforeCharge.test.ts', // iter211 upscale_image consumes the image before charging (stale persistent-button re-tap cannot re-charge)
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
