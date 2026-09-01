@@ -96,28 +96,37 @@ export async function createVoiceAvatar(
       throw new Error('Ошибка при создании голоса')
     }
 
-    // 🔧 ИСПРАВЛЕНИЕ: Сохранение voiceId по telegram_id вместо username для надежности
-    const { error } = await supabase
-      .from('users')
-      .update({ voice_id_elevenlabs: voiceId })
-      .eq('telegram_id', telegram_id)
+    // Persist the voice id and advance the quest ONLY for a REAL clone. On the
+    // Cloudflare-block fallback, voiceId is the STOCK Rachel id, not the user's
+    // clone: persisting it would OVERWRITE a previously created real clone (a
+    // paid artifact), and advancing the level would mark the quest step done on
+    // a voice the user never made. getVoiceId already returns the Rachel
+    // fallback when voice_id_elevenlabs is null, so downstream TTS still works.
+    // Mirrors the caller, which charges only when !isFallback.
+    if (!isCloudflareBlocked) {
+      // Save voiceId keyed by telegram_id (not username) for reliability.
+      const { error } = await supabase
+        .from('users')
+        .update({ voice_id_elevenlabs: voiceId })
+        .eq('telegram_id', telegram_id)
 
-    if (error) {
-      console.error('Ошибка при сохранении voiceId в базу данных:', error)
-      throw new Error('Ошибка при сохранении данных')
-    }
+      if (error) {
+        console.error('Ошибка при сохранении voiceId в базу данных:', error)
+        throw new Error('Ошибка при сохранении данных')
+      }
 
-    // Advance the quest level ONLY after the voice was created AND persisted.
-    // Previously this bump ran at the top of the function -- before
-    // createVoiceElevenLabs and before the voice_id_elevenlabs save -- so a
-    // non-Cloudflare ElevenLabs failure, a missing voiceId, or a failed save
-    // unwound the function (outer catch) with level advanced 6 -> 7 but
-    // voice_id_elevenlabs still null: the quest marked the voice-avatar step
-    // done while the artifact was missing, and downstream TTS/lipsync then read
-    // a null voice_id. Running it here couples the level to a real, saved voice.
-    // Still idempotent across retries -- it only fires at level === 6.
-    if (level === 6) {
-      await updateUserLevelPlusOne(telegram_id, level)
+      // Advance the quest level ONLY after the voice was created AND persisted.
+      // Previously this bump ran at the top of the function -- before
+      // createVoiceElevenLabs and before the voice_id_elevenlabs save -- so a
+      // non-Cloudflare ElevenLabs failure, a missing voiceId, or a failed save
+      // unwound the function (outer catch) with level advanced 6 -> 7 but
+      // voice_id_elevenlabs still null: the quest marked the voice-avatar step
+      // done while the artifact was missing, and downstream TTS/lipsync then read
+      // a null voice_id. Running it here couples the level to a real, saved voice.
+      // Still idempotent across retries -- it only fires at level === 6.
+      if (level === 6) {
+        await updateUserLevelPlusOne(telegram_id, level)
+      }
     }
 
     await ctx.telegram.sendMessage(
