@@ -65,8 +65,29 @@ function git(cmd) {
   }
 }
 
+// --gate: exit 1 if ANY tracked symlink exists (the #1608 class -- a tracked
+// symlink breaks pull/checkout repo-wide; the clean baseline is 0). The
+// absolute-path check stays informational (50 existing files -> not gated).
+function gate() {
+  const symlinks = symlinkPaths(git('git ls-tree -r HEAD'))
+  if (symlinks.length) {
+    console.error(
+      'repo-hygiene GATE FAILED: tracked symlink(s) found -- a #1608-style leak ' +
+        'that breaks pull/checkout for every other machine:'
+    )
+    symlinks.forEach(p => console.error(`  120000  ${p}`))
+    console.error(
+      'Fix: `git rm <path>` + add its name (no trailing slash) to .gitignore.'
+    )
+    process.exit(1)
+  }
+  console.log('repo-hygiene: no tracked symlinks -- ok')
+  process.exit(0)
+}
+
 function main() {
   if (process.argv.includes('--self-check')) return selfCheck()
+  if (process.argv.includes('--gate')) return gate()
   const symlinks = symlinkPaths(git('git ls-tree -r HEAD'))
   const abs = absPathHits(
     git(
