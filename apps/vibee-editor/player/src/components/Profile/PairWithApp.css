@@ -33,7 +33,7 @@
   outline-offset: 3px;
 }
 
-.pair-with-app__action:disabled {
+.pair-with-app__action[aria-disabled='true'] {
   cursor: wait;
   opacity: 0.7;
 }

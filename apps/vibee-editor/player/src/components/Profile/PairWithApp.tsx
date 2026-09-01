@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { API_BASE } from '@/config'
 import { apiFetch } from '@/lib/apiFetch'
 import './PairWithApp.css'
@@ -16,6 +16,7 @@ export function PairWithApp() {
   const [clockNow, setClockNow] = useState(() => Date.now())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const requestInFlight = useRef(false)
 
   useEffect(() => {
     if (expiresAt === null) return
@@ -41,6 +42,8 @@ export function PairWithApp() {
   }, [expiresAt])
 
   async function requestCode() {
+    if (requestInFlight.current) return
+    requestInFlight.current = true
     setLoading(true)
     setError(null)
     try {
@@ -65,8 +68,10 @@ export function PairWithApp() {
           ? requestError.message
           : 'Не удалось получить код — попробуйте ещё раз'
       )
+    } finally {
+      requestInFlight.current = false
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const secondsLeft =
@@ -81,7 +86,8 @@ export function PairWithApp() {
       type="button"
       className="pair-with-app__action"
       onClick={requestCode}
-      disabled={loading}
+      aria-disabled={loading}
+      aria-busy={loading}
     >
       {loading
         ? 'Получаем…'

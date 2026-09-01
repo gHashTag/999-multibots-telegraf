@@ -89,6 +89,43 @@ describe('PairWithApp mobile pairing flow', () => {
     expect(status?.contains(timer)).toBe(false)
   })
 
+  it('keeps focus during a pending request and ignores repeat activation', async () => {
+    let resolveRequest:
+      | ((value: { code: string; expires_in: number }) => void)
+      | undefined
+    apiFetch.mockReturnValue(
+      new Promise(resolve => {
+        resolveRequest = resolve
+      })
+    )
+    await act(async () => root?.render(<PairWithApp />))
+
+    const action = host.querySelector<HTMLButtonElement>(
+      '.pair-with-app__action'
+    )
+    action?.focus()
+    await act(async () => {
+      action?.click()
+      await Promise.resolve()
+    })
+
+    expect(document.activeElement).toBe(action)
+    expect(action?.getAttribute('aria-disabled')).toBe('true')
+    expect(action?.getAttribute('aria-busy')).toBe('true')
+    await act(async () => action?.click())
+    expect(apiFetch).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveRequest?.({ code: '654321', expires_in: 120 })
+      await Promise.resolve()
+    })
+
+    expect(document.activeElement).toBe(action)
+    expect(action?.getAttribute('aria-disabled')).toBe('false')
+    expect(action?.getAttribute('aria-busy')).toBe('false')
+    expect(host.textContent).toContain('654 321')
+  })
+
   it('expires against the absolute deadline after a background clock jump', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-01T09:00:00.000Z'))
