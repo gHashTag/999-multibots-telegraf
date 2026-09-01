@@ -142,8 +142,11 @@ struct GenerateScreen: View {
       switch self {
       case .видео: return "Видео"
       case .редактор: return "Редактор"
-      case .картинка: return "Картинка"
-      case .звук: return "Звук"
+      // «Фото» и «Голос» — так они названы в вебе (app.t27.ai/generate/*).
+      // Разные слова для одного и того же в двух клиентах — это два разных
+      // продукта в глазах человека, который пользуется обоими.
+      case .картинка: return "Фото"
+      case .звук: return "Голос"
       case .аватар: return "Аватар"
       case .сценарий: return "Сценарий"
       }
@@ -154,8 +157,15 @@ struct GenerateScreen: View {
       case .видео: return "film"
       case .редактор: return "square.stack.3d.up"
       case .картинка: return "photo"
-      case .звук: return "waveform"
-      case .аватар: return "person.crop.square.badge.video"
+      // ЗНАЧКИ СНЯТЫ С app.t27.ai, а не подобраны по смыслу.
+      //
+      // У голоса там МИКРОФОН, а не звуковая волна: волна — это про то, что
+      // уже записано, микрофон — про то, что сейчас произнесут. Шаг делает
+      // второе.
+      case .звук: return "mic"
+      // У аватара там УЛЫБКА, а не человек с камерой: оживляют лицо, и
+      // значок про лицо, а не про съёмочный прибор.
+      case .аватар: return "face.smiling"
       case .сценарий: return "text.alignleft"
       }
     }
