@@ -528,11 +528,15 @@
 
 .profile-tabs__header {
   display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
   border-bottom: 1px solid var(--border-color, var(--bg-input));
 }
 
 .profile-tabs__tab {
-  flex: 1;
+  flex: 1 0 auto;
+  min-width: 118px;
   display: flex;
   align-items: center;
   justify-content: center;

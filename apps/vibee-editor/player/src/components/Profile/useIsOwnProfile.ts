@@ -1,6 +1,45 @@
 import { useAtomValue } from 'jotai'
 import { myProfileAtom, userAtom, viewedProfileAtom } from '@/atoms'
 
+interface ProfileOwnershipInput {
+  profile:
+    | {
+        telegram_id?: string | number | null
+        is_own_profile?: boolean
+      }
+    | null
+    | undefined
+  myProfileTelegramId?: string | number | null
+  userTelegramId?: string | number | null
+  hasDevOwnerKey: boolean
+}
+
+/**
+ * Merge the three independently valid ownership proofs without making one
+ * asynchronous source a prerequisite for the others.
+ *
+ * The server flag is the strongest signal: it is computed from verified
+ * request identity. The two client ids cover the short hydration race after
+ * navigation/login. A false server flag is not authoritative because the
+ * public profile request may finish before the signed session is available.
+ */
+export function resolveIsOwnProfile({
+  profile,
+  myProfileTelegramId,
+  userTelegramId,
+  hasDevOwnerKey,
+}: ProfileOwnershipInput): boolean {
+  if (hasDevOwnerKey) return true
+  if (!profile?.telegram_id) return false
+  if (profile.is_own_profile === true) return true
+
+  const viewedTelegramId = String(profile.telegram_id)
+  return (
+    viewedTelegramId === String(myProfileTelegramId ?? '') ||
+    viewedTelegramId === String(userTelegramId ?? '')
+  )
+}
+
 /**
  * «Этот профиль — мой?» — ОДИН ответ на весь экран профиля.
  *
@@ -27,16 +66,11 @@ export function useIsOwnProfile(): boolean {
   const myProfile = useAtomValue(myProfileAtom)
   const user = useAtomValue(userAtom)
 
-  if (import.meta.env.DEV && import.meta.env.VITE_AGENT_KEY) return true
-  if (!profile?.telegram_id) return false
-
-  // У launch-данных Telegram личность лежит в `id` (число), у профиля —
-  // в `telegram_id` (строка). `ProfileTabs` сравнивал их как `user.telegram_id`
-  // — поля, которого у `TelegramUser` нет вовсе: сравнение всегда давало
-  // undefined, то есть «не мой», и держалось только на DEV-ветке.
-  const mine = String(profile.telegram_id)
-  return (
-    mine === String(myProfile?.telegram_id ?? '') ||
-    mine === String(user?.id ?? '')
-  )
+  return resolveIsOwnProfile({
+    profile,
+    myProfileTelegramId: myProfile?.telegram_id,
+    userTelegramId: user?.id,
+    hasDevOwnerKey:
+      import.meta.env.DEV && Boolean(import.meta.env.VITE_AGENT_KEY),
+  })
 }
