@@ -584,6 +584,25 @@ If not, continue on your own and click the "I myself" button`
           return
         }
 
+        // Consume-once guard. The ⬆️ Upscale button lives on a persistent photo
+        // caption keyboard that is never stripped, and lastGeneratedImageUrl is
+        // never cleared -- so re-tapping the old button later (or a double-tap)
+        // would re-charge and re-run the paid upscale on the same image. Refuse
+        // when THIS image was already upscaled, and mark it consumed BEFORE the
+        // charge (check-then-set is synchronous). A newly generated image resets
+        // lastGeneratedImageUrl, so its first upscale still proceeds.
+        if (
+          ctx.session.lastUpscaledImageUrl === ctx.session.lastGeneratedImageUrl
+        ) {
+          await ctx.reply(
+            isRu
+              ? '⏳ Это изображение уже улучшено. Сгенерируйте новое, чтобы улучшить его.'
+              : '⏳ This image was already upscaled. Generate a new one to upscale.'
+          )
+          return
+        }
+        ctx.session.lastUpscaledImageUrl = ctx.session.lastGeneratedImageUrl
+
         const { upscaleFluxKontextImage } = await import(
           '@/services/generateFluxKontext'
         )
