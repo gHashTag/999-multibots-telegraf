@@ -25,10 +25,8 @@ WORKDIR /workspace
 # The local file: dependency must exist before npm install resolves it.
 COPY packages/ ./packages/
 
-COPY render/package.json ./render/
+COPY render/package.json render/package-lock.json ./render/
 WORKDIR /workspace/render
-# No lockfile ships with this package, so `npm install` rather than `npm ci`.
-#
 # --install-links COPIES the file:../packages/vibee-atoms dependency into
 # node_modules instead of symlinking it. Without it Remotion's webpack bundles
 # straight out of /workspace/packages/vibee-atoms/src and resolves 'jotai' by
