@@ -13,7 +13,7 @@
  */
 
 import crypto from 'node:crypto'
-import { digest, revokeNow } from './session'
+import { digest, revokeNow, setRevokedSessions } from './session'
 
 type Pool = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
@@ -328,7 +328,7 @@ export async function pollRevocations(pool: Pool): Promise<number> {
       WHERE revoked_at IS NOT NULL AND revoked_at > now() - interval '90 minutes'`
   )
   const ids = r.rows.map((x: any) => String(x.id))
-  for (const id of ids) revokeNow(id)
+  setRevokedSessions(ids)
   return ids.length
 }
 

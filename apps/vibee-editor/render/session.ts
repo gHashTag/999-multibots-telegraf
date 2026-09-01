@@ -61,6 +61,7 @@ export class SessionError extends Error {
       | 'expired'
       | 'not_yet_valid'
       | 'revoked'
+      | 'revocation_unavailable'
       | 'wrong_version'
   ) {
     super(message)
@@ -199,6 +200,15 @@ export function verifyAppSession(token: string, now?: number): SessionClaims {
   if (typeof claims.iat !== 'number' || claims.iat > t + CLOCK_SKEW_SECONDS) {
     throw new SessionError('token issued in the future', 'not_yet_valid')
   }
+  if (
+    !revocationsSyncedAt ||
+    Date.now() - revocationsSyncedAt > REVOCATION_SYNC_MAX_AGE_MS
+  ) {
+    throw new SessionError(
+      'revocation state is unavailable',
+      'revocation_unavailable'
+    )
+  }
   if (revoked.has(claims.sid)) {
     throw new SessionError('session revoked', 'revoked')
   }
@@ -208,6 +218,8 @@ export function verifyAppSession(token: string, now?: number): SessionClaims {
 // ─── Revocation ──────────────────────────────────────────────────────────
 
 let revoked = new Set<string>()
+let revocationsSyncedAt = 0
+const REVOCATION_SYNC_MAX_AGE_MS = 15_000
 
 /**
  * Replace the revoked-session set.
@@ -218,6 +230,7 @@ let revoked = new Set<string>()
  */
 export function setRevokedSessions(ids: Iterable<string>): void {
   revoked = new Set(ids)
+  revocationsSyncedAt = Date.now()
 }
 
 /** Mark a session revoked immediately, without waiting for the next poll. */

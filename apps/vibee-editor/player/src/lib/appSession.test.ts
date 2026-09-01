@@ -115,4 +115,43 @@ describe('browser application session', () => {
     resolveLogout?.()
     await logout
   })
+
+  it('does not let an in-flight refresh restore credentials after logout', async () => {
+    let resolveRefresh:
+      | ((value: { ok: boolean; json: () => Promise<unknown> }) => void)
+      | undefined
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: 'first-access',
+          refresh_token: 'first-refresh',
+          expires_in: 600,
+        }),
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            resolveRefresh = resolve
+          })
+      )
+      .mockRejectedValueOnce(new Error('logout network unavailable'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await exchangeTelegramWidget({ id: 42, hash: 'widget-hash' })
+    const refresh = refreshAppSession()
+    await logoutAppSession()
+    resolveRefresh?.({
+      ok: true,
+      json: async () => ({
+        access_token: 'synthetic-access', // secret-guard-ok: inert unit-test fixture
+        refresh_token: 'synthetic-refresh', // secret-guard-ok: inert unit-test fixture
+        expires_in: 600,
+      }),
+    })
+
+    await expect(refresh).rejects.toThrow(/session changed/)
+    expect(getAppAccessToken()).toBe('')
+  })
 })

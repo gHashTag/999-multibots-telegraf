@@ -78,6 +78,24 @@ describe('/api/render-quota contract', () => {
     expect(SERVER).toContain('await reserveRenderQuota(')
     expect(stripComments(CLIENT)).not.toContain('/api/render-log')
   })
+
+  it('reserves and refunds quota on both render entry points', () => {
+    const templateStart = SERVER.indexOf(
+      "if (req.url === '/render/template' && req.method === 'POST')"
+    )
+    const renderStart = SERVER.indexOf(
+      "if (req.url === '/render' && req.method === 'POST')",
+      templateStart
+    )
+    const templateRoute = SERVER.slice(templateStart, renderStart)
+    const renderRoute = SERVER.slice(renderStart, renderStart + 4500)
+
+    for (const route of [templateRoute, renderRoute]) {
+      expect(route).toContain('await reserveRenderQuota(')
+      expect(route).toContain('refundRenderQuota(')
+      expect(route).toContain("auth.via !== 'api-key'")
+    }
+  })
 })
 
 describe('the client sends the signature', () => {

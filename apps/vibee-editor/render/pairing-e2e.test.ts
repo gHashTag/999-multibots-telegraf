@@ -42,12 +42,20 @@ function подписать(поля: Record<string, string>): string {
 const строки: any[] = []
 
 function пул() {
-  return {
+  const client = {
+    release() {},
     async query(sql: string, params: unknown[] = []) {
       const s = sql.replace(/\s+/g, ' ').trim()
+      if (s === 'BEGIN' || s === 'COMMIT' || s === 'ROLLBACK') {
+        return { rows: [] }
+      }
       // Схема: таблицы и индексы. Их содержание тест не проверяет — за это
       // отвечает сама база; здесь важно лишь не мешать `ensureAuthTables`.
-      if (s.startsWith('CREATE TABLE') || s.startsWith('CREATE INDEX'))
+      if (
+        s.startsWith('CREATE TABLE') ||
+        s.startsWith('CREATE INDEX') ||
+        s.startsWith('CREATE UNIQUE INDEX')
+      )
         return { rows: [] }
 
       if (
@@ -104,10 +112,45 @@ function пул() {
         строки.push({ t: 'refresh', hash: params[0], session_id: params[2] })
         return { rows: [] }
       }
+      if (s.startsWith('UPDATE profiles SET username = NULL')) {
+        return { rows: [] }
+      }
+      if (s.startsWith('DELETE FROM profiles p USING profiles q')) {
+        return { rows: [] }
+      }
+      if (s.startsWith('UPDATE users SET username = NULL')) {
+        return { rows: [] }
+      }
+      if (s.startsWith('UPDATE users SET username = $2')) {
+        return { rows: [] }
+      }
+      if (s.startsWith('INSERT INTO users')) {
+        fakeRows.push({
+          t: 'user-profile',
+          telegram_id: params[0],
+          username: params[1],
+          display_name: params[2],
+        })
+        return { rows: [] }
+      }
+      if (s.startsWith('INSERT INTO profiles')) {
+        fakeRows.push({
+          t: 'profile',
+          telegram_id: params[0],
+          username: params[1],
+          display_name: params[2],
+          avatar_url: params[3],
+        })
+        return { rows: [] }
+      }
       // Молчаливый ноль строк на непонятом запросе превращает сломанный тест в
       // проходящий. Лучше упасть и назвать запрос.
       throw new Error(`пул не знает запроса: ${s.slice(0, 90)}`)
     },
+  }
+  return {
+    ...client,
+    connect: async () => client,
   }
 }
 
@@ -294,6 +337,7 @@ const mkReply = ответ // cyrillic-ok
 const mkRequest = запрос // cyrillic-ok
 const fakePool = пул // cyrillic-ok
 const TEST_BOT_TOKEN = TELEGRAM_TEST_TOKEN
+const fakeRows = строки // cyrillic-ok
 const resetFakeRows = () => {
   строки.length = 0 // cyrillic-ok
 }
@@ -378,6 +422,14 @@ describe('Login Widget exchange', () => {
     })
     expect(res.json.access_token).toBeTruthy()
     expect(res.json.refresh_token).toBeTruthy()
+    expect(fakeRows).toContainEqual(
+      expect.objectContaining({
+        t: 'profile',
+        telegram_id: '5151',
+        username: 't27_dev',
+        display_name: 'Web owner',
+      })
+    )
   })
 
   it('does not create a session for a forged widget identity', async () => {

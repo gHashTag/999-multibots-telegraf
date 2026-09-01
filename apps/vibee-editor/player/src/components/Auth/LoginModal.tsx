@@ -43,12 +43,12 @@ export function LoginModal() {
     return () => window.removeEventListener('keydown', onKey)
   }, [show, setShow])
 
+  const close = useCallback(() => setShow(false), [setShow])
+
   if (!show) return null
 
   const inTelegram = isTelegram()
   const signed = hasVerifiableInitData()
-
-  const close = useCallback(() => setShow(false), [setShow])
 
   const retryFromLaunchData = () => {
     const r = autoLogin()

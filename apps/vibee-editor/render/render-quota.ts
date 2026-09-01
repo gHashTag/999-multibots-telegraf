@@ -61,9 +61,10 @@ export async function reserveRenderQuota(
   telegramId: string,
   isAdmin: boolean,
   now = new Date()
-): Promise<{ allowed: boolean; used: number }> {
-  if (isAdmin) return { allowed: true, used: 0 }
+): Promise<{ allowed: boolean; used: number; periodStart: string | null }> {
+  if (isAdmin) return { allowed: true, used: 0, periodStart: null }
   await ensureRenderQuotaTable(pool)
+  const reservedPeriod = periodStart(now)
   const result = await pool.query(
     `INSERT INTO app_render_quota
        (telegram_id, period_start, used_count, updated_at)
@@ -72,11 +73,12 @@ export async function reserveRenderQuota(
        SET used_count = app_render_quota.used_count + 1, updated_at = now()
        WHERE app_render_quota.used_count < $3
      RETURNING used_count`,
-    [telegramId, periodStart(now), FREE_RENDER_LIMIT]
+    [telegramId, reservedPeriod, FREE_RENDER_LIMIT]
   )
   return {
     allowed: result.rows.length === 1,
     used: Number(result.rows[0]?.used_count || FREE_RENDER_LIMIT),
+    periodStart: result.rows.length === 1 ? reservedPeriod : null,
   }
 }
 
@@ -84,13 +86,13 @@ export async function refundRenderQuota(
   pool: Pool,
   telegramId: string,
   isAdmin: boolean,
-  now = new Date()
+  reservedPeriod: string | null
 ): Promise<void> {
-  if (isAdmin) return
+  if (isAdmin || !reservedPeriod) return
   await pool.query(
     `UPDATE app_render_quota
         SET used_count = GREATEST(0, used_count - 1), updated_at = now()
       WHERE telegram_id = $1 AND period_start = $2::date`,
-    [telegramId, periodStart(now)]
+    [telegramId, reservedPeriod]
   )
 }

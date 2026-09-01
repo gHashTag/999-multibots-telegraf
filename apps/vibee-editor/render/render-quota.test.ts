@@ -45,8 +45,8 @@ describe('authoritative render quota', () => {
 
   it('refunds a failed render and reports the server count', async () => {
     const pool = fakePool()
-    await reserveRenderQuota(pool, '42', false)
-    await refundRenderQuota(pool, '42', false)
+    const reservation = await reserveRenderQuota(pool, '42', false)
+    await refundRenderQuota(pool, '42', false, reservation.periodStart)
     expect((await readRenderQuota(pool, '42', false)).total_renders).toBe(0)
   })
 
@@ -55,7 +55,31 @@ describe('authoritative render quota', () => {
     expect(await reserveRenderQuota(pool, '42', true)).toEqual({
       allowed: true,
       used: 0,
+      periodStart: null,
     })
     expect(pool.used).toBe(0)
+  })
+
+  it('refunds the exact reserved month after a UTC rollover', async () => {
+    const calls: unknown[][] = []
+    const pool = {
+      async query(sql: string, params: unknown[] = []) {
+        calls.push(params)
+        if (sql.includes('CREATE TABLE')) return { rows: [] }
+        if (sql.includes('INSERT INTO app_render_quota')) {
+          return { rows: [{ used_count: 1 }] }
+        }
+        if (sql.includes('GREATEST')) return { rows: [] }
+        throw new Error(`unexpected SQL: ${sql}`)
+      },
+    }
+    const reservation = await reserveRenderQuota(
+      pool,
+      '42',
+      false,
+      new Date('2026-08-31T23:59:59.000Z')
+    )
+    await refundRenderQuota(pool, '42', false, reservation.periodStart)
+    expect(calls.at(-1)?.[1]).toBe('2026-08-01')
   })
 })

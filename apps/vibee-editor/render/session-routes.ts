@@ -24,7 +24,11 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import crypto from 'node:crypto'
-import { verifyTelegramInitData, verifyTelegramLoginWidget } from './auth'
+import {
+  verifyTelegramInitData,
+  verifyTelegramLoginWidget,
+  type VerifiedTelegramWidgetUser,
+} from './auth'
 import {
   signAccessToken,
   issueRefreshToken,
@@ -95,6 +99,96 @@ async function mintSession(
   }
 }
 
+/** Persist only identity attributes covered by Telegram's widget HMAC. */
+async function syncVerifiedWidgetProfile(
+  pool: Pool,
+  user: VerifiedTelegramWidgetUser
+): Promise<void> {
+  const telegramId = String(user.id)
+  const username =
+    user.username && /^[A-Za-z0-9_]{5,32}$/.test(user.username)
+      ? user.username
+      : null
+  const displayName = [user.first_name, user.last_name]
+    .filter(Boolean)
+    .join(' ')
+    .slice(0, 256)
+  const photoUrl = user.photo_url?.slice(0, 512) || null
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS profiles (
+        id serial PRIMARY KEY,
+        telegram_id text,
+        username text,
+        display_name text,
+        bio text DEFAULT '',
+        avatar_url text,
+        cover_url text,
+        social_links jsonb DEFAULT '[]',
+        is_public boolean DEFAULT TRUE,
+        is_verified boolean DEFAULT FALSE,
+        created_at timestamptz DEFAULT now()
+      )`)
+    // Legacy data can contain duplicate rows for the same Telegram owner.
+    // Repairing those inside this transaction makes the idempotent index safe
+    // and prevents one old duplicate from breaking every future browser login.
+    await client.query(
+      `DELETE FROM profiles p USING profiles q
+        WHERE p.telegram_id = q.telegram_id AND p.id < q.id`
+    )
+    await client.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS profiles_tg_uniq ON profiles (telegram_id)`
+    )
+
+    if (username) {
+      // A Telegram username has one current owner. A freshly HMAC-verified
+      // payload wins over stale local rows. All displacement and installation
+      // happens in the same transaction, so a failure cannot leave it ownerless.
+      await client.query(
+        `UPDATE profiles SET username = NULL
+          WHERE LOWER(username) = LOWER($1) AND telegram_id <> $2`,
+        [username, telegramId]
+      )
+      await client.query(
+        `UPDATE users SET username = NULL
+          WHERE LOWER(username) = LOWER($1) AND telegram_id::text <> $2`,
+        [username, telegramId]
+      )
+    }
+
+    const updated = await client.query(
+      `UPDATE users SET username = $2, first_name = $3
+        WHERE telegram_id::text = $1 RETURNING id`,
+      [telegramId, username, displayName]
+    )
+    if (!updated.rows.length) {
+      await client.query(
+        `INSERT INTO users (telegram_id, username, first_name)
+         VALUES ($1, $2, $3)`,
+        [telegramId, username, displayName]
+      )
+    }
+
+    await client.query(
+      `INSERT INTO profiles (telegram_id, username, display_name, avatar_url)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (telegram_id)
+       DO UPDATE SET username = EXCLUDED.username,
+                     display_name = EXCLUDED.display_name,
+                     avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url)`,
+      [telegramId, username, displayName, photoUrl]
+    )
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
 /**
  * telegram_id из УЖЕ ПРОВЕРЕННОЙ строки initData.
  *
@@ -115,8 +209,14 @@ function verifiedTelegramIdFrom(initData: string): string | null {
   }
 }
 
-type Pool = {
+type PoolClient = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
+  release: () => void
+}
+
+type Pool = {
+  query: PoolClient['query']
+  connect: () => Promise<PoolClient>
 }
 
 function json(res: ServerResponse, code: number, body: unknown): void {
@@ -229,6 +329,7 @@ export async function handleAuthRoute(
       })
       return true
     }
+    await syncVerifiedWidgetProfile(pool, verified.user)
     const session = await mintSession(pool, verified.telegramId, body)
     json(res, 200, { ...session, telegram_user: verified.user })
     return true

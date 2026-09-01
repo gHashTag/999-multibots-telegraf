@@ -7,6 +7,7 @@ const REFRESH_EARLY_MS = 60_000
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
 let refreshInFlight: Promise<AppSession> | null = null
+let sessionGeneration = 0
 
 export interface AppSession {
   access_token: string
@@ -42,6 +43,10 @@ export function storeAppSession(session: AppSession): void {
 }
 
 export function clearAppSession(): void {
+  // Invalidate every refresh response that started before this clear/logout.
+  // A fetch cannot be reliably cancelled once the server has rotated the
+  // token, so the response is allowed to finish but may no longer write.
+  sessionGeneration += 1
   if (refreshTimer) clearTimeout(refreshTimer)
   refreshTimer = null
   const s = storage()
@@ -73,6 +78,7 @@ export async function refreshAppSession(): Promise<AppSession> {
   if (refreshInFlight) return refreshInFlight
   const refreshToken = storage()?.getItem(REFRESH_KEY) || ''
   if (!refreshToken) throw new Error('browser session is not available')
+  const generation = sessionGeneration
   refreshInFlight = (async () => {
     const response = await fetch(`${API_BASE}/api/auth/refresh`, {
       method: 'POST',
@@ -95,6 +101,9 @@ export async function refreshAppSession(): Promise<AppSession> {
       throw new Error(body.detail || body.error || `HTTP ${response.status}`)
     }
     const session = body as AppSession
+    if (generation !== sessionGeneration) {
+      throw new Error('browser session changed during refresh')
+    }
     storeAppSession(session)
     return session
   })().finally(() => {

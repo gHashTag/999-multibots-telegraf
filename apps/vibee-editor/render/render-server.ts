@@ -3,6 +3,7 @@
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
 import * as dns from 'node:dns'
 import { handleAuthRoute } from './session-routes'
+import { ensureAuthTables, pollRevocations } from './session-store'
 import {
   readRenderQuota,
   reserveRenderQuota,
@@ -704,6 +705,32 @@ function getPool(): Pool {
     console.log('✅ PostgreSQL pool created')
   }
   return pgPool
+}
+
+const SESSION_REVOCATION_POLL_MS = 5_000
+
+/**
+ * Keep the synchronous access-token verifier consistent across replicas.
+ *
+ * A logout writes PostgreSQL immediately, but another Railway replica cannot
+ * see the in-memory revokeNow() call. The initial read happens before listen,
+ * and the short poll keeps every replica within the documented revocation
+ * window. If sessions are enabled but their database cannot be read, startup
+ * fails closed instead of accepting tokens with a stale/empty revocation set.
+ */
+async function startSessionRevocationSync(): Promise<void> {
+  if (!process.env.SESSION_SIGNING_KEY) return
+
+  const pool = getPool()
+  await ensureAuthTables(pool)
+  await pollRevocations(pool)
+
+  const timer = setInterval(() => {
+    void pollRevocations(pool).catch(() => {
+      console.error('[session] revocation sync failed')
+    })
+  }, SESSION_REVOCATION_POLL_MS)
+  timer.unref()
 }
 
 // Telegram Notification Configuration
@@ -4083,12 +4110,21 @@ const server = createServer(async (req, res) => {
 
   // Universal template render endpoint
   if (req.url === '/render/template' && req.method === 'POST') {
+    const renderOwner = chatIdentity(req, verifiedTelegramId(req))
+    if (!renderOwner && auth.via !== 'api-key') {
+      sendJson(res, 401, { error: 'verified identity required' })
+      return
+    }
+
     let body = ''
     req.on('data', chunk => {
       body += chunk.toString()
     })
 
     req.on('end', async () => {
+      const isAdmin = renderOwner === TELEGRAM_OWNER_ID
+      let quotaReserved = false
+      let quotaPeriod: string | null = null
       try {
         const request: TemplateRenderRequest = JSON.parse(body)
 
@@ -4096,6 +4132,38 @@ const server = createServer(async (req, res) => {
           res.writeHead(400, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ error: 'compositionId is required' }))
           return
+        }
+
+        if (
+          renderOwner &&
+          request.userInfo?.telegram_id != null &&
+          String(request.userInfo.telegram_id) !== renderOwner
+        ) {
+          sendJson(res, 403, { error: 'render owner mismatch' })
+          return
+        }
+
+        if (renderOwner) {
+          let reservation: Awaited<ReturnType<typeof reserveRenderQuota>>
+          try {
+            reservation = await reserveRenderQuota(
+              getPool(),
+              renderOwner,
+              isAdmin
+            )
+          } catch {
+            sendJson(res, 503, { error: 'render quota unavailable' })
+            return
+          }
+          if (!reservation.allowed) {
+            sendJson(res, 429, {
+              error: 'render quota exhausted',
+              free_remaining: 0,
+            })
+            return
+          }
+          quotaReserved = true
+          quotaPeriod = reservation.periodStart
         }
 
         const renderId = randomUUID()
@@ -4407,6 +4475,14 @@ const server = createServer(async (req, res) => {
             console.error(`❌ [Render] ${renderId} failed:`, error)
             job.status = 'failed'
             job.error = error instanceof Error ? error.message : 'Unknown error'
+            if (quotaReserved && renderOwner) {
+              await refundRenderQuota(
+                getPool(),
+                renderOwner,
+                isAdmin,
+                quotaPeriod
+              )
+            }
 
             // Send failure webhook
             if (request.webhookUrl) {
@@ -4425,6 +4501,9 @@ const server = createServer(async (req, res) => {
           }
         })()
       } catch (error) {
+        if (quotaReserved && renderOwner) {
+          await refundRenderQuota(getPool(), renderOwner, isAdmin, quotaPeriod)
+        }
         res.writeHead(400, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: 'Invalid JSON' }))
       }
@@ -4482,8 +4561,9 @@ const server = createServer(async (req, res) => {
         }
 
         const isAdmin = renderOwner === TELEGRAM_OWNER_ID
+        let quotaPeriod: string | null = null
         if (renderOwner) {
-          let reservation: { allowed: boolean }
+          let reservation: Awaited<ReturnType<typeof reserveRenderQuota>>
           try {
             reservation = await reserveRenderQuota(
               getPool(),
@@ -4501,6 +4581,7 @@ const server = createServer(async (req, res) => {
             })
             return
           }
+          quotaPeriod = reservation.periodStart
         }
 
         // Start render asynchronously and return immediately. Failed renders
@@ -4509,7 +4590,8 @@ const server = createServer(async (req, res) => {
         const renderId = startRenderAsync(
           renderReq,
           renderOwner
-            ? () => refundRenderQuota(getPool(), renderOwner, isAdmin)
+            ? () =>
+                refundRenderQuota(getPool(), renderOwner, isAdmin, quotaPeriod)
             : undefined
         )
         console.log(`🎬 Started async render: ${renderId}`)
@@ -6922,28 +7004,37 @@ const server = createServer(async (req, res) => {
           /* повреждённый user — ответим честной ошибкой ниже */
         }
       }
-      // Dev-коннектор: тело доверяем ТОЛЬКО если совпало с владельцем ключа.
+      // Browser/app sessions may read the profile that the verified Login
+      // Widget already persisted, but they may not rewrite Telegram-owned
+      // attributes from a client JSON body.
       if (!tgId) {
-        const keyOwner = chatIdentity(req, null)
-        if (keyOwner) {
-          let body: any = {}
-          try {
-            body = JSON.parse((await readBody(req)) || '{}')
-          } catch {}
-          if (String(body.id) === keyOwner) {
-            tgId = keyOwner
-            firstName = String(body.first_name ?? '')
-            lastName = String(body.last_name ?? '')
-            username = String(body.username ?? '')
-            photoUrl = body.photo_url ?? null
+        const sessionOwner = chatIdentity(req, null)
+        if (sessionOwner) {
+          const existing = await pool.query(
+            `SELECT telegram_id, username, display_name, avatar_url
+               FROM profiles WHERE telegram_id = $1 LIMIT 1`,
+            [sessionOwner]
+          )
+          if (!existing.rows.length) {
+            sendJson(res, 404, { error: 'verified profile not found' })
+            return
           }
+          const row = existing.rows[0]
+          sendJson(res, 200, {
+            ok: true,
+            telegram_id: String(row.telegram_id),
+            username: row.username || null,
+            display_name: row.display_name || 'Автор',
+            avatar_url: row.avatar_url || null,
+          })
+          return
         }
       }
       if (!tgId) {
         res.writeHead(401, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
-            error: 'нужна подпись Telegram (initData) или ключ владельца',
+            error: 'нужна проверенная подпись Telegram или сессия приложения',
           })
         )
         return
@@ -7364,6 +7455,7 @@ const server = createServer(async (req, res) => {
       const pool = await getPool()
       // Try profiles table first, fallback to public_templates
       let profile = null
+      let privateProfileHidden = false
 
       // Attempt 1: profiles table (may not exist)
       try {
@@ -7415,6 +7507,7 @@ const server = createServer(async (req, res) => {
             row.is_public === false &&
             String(viewerTelegramId ?? '') !== String(row.telegram_id)
           ) {
+            privateProfileHidden = true
             profile = null
           }
         }
@@ -7426,7 +7519,7 @@ const server = createServer(async (req, res) => {
       }
 
       // Attempt 2: Build profile from public_templates
-      if (!profile) {
+      if (!profile && !privateProfileHidden) {
         const fallbackQuery = `
           SELECT DISTINCT ON (pt.telegram_id)
             pt.telegram_id, pt.creator_name, pt.creator_avatar,
@@ -7460,7 +7553,7 @@ const server = createServer(async (req, res) => {
         }
       }
 
-      if (!profile) {
+      if (!profile && !privateProfileHidden) {
         // Attempt 3: Check users table
         try {
           const usersQuery = `SELECT telegram_id, username FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1`
@@ -7876,6 +7969,7 @@ export { broadcastWS }
 
 // Start server
 async function main() {
+  await startSessionRevocationSync()
   await initBundle()
 
   /**
