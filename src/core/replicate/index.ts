@@ -23,11 +23,43 @@ function getReplicateClient() {
   return _replicateClient
 }
 
+// A generous BACKSTOP so replicate.run can never hang forever. client.run polls
+// the prediction until it settles; a prediction stuck in starting/processing
+// polls indefinitely, and many callers charge the user BEFORE this await, so an
+// infinite hang strands the payment (the refund lives in their catch and is
+// unreachable without a throw). 15 min is far above every real replicate.run
+// here -- image models finish in seconds, the longest video models (minimax /
+// haiper / kling-lip-sync) in a few minutes -- so this is transparent to legit
+// runs and only fires on a true hang, throwing into each caller's existing
+// error/refund path. Training uses a different API (replicate.trainings), not
+// this .run, so it is unaffected. Per-service timeouts (e.g. generateFluxKontext
+// 60s) stay tighter and still win the race. Overridable via env.
+const REPLICATE_RUN_TIMEOUT_MS =
+  Number(process.env.REPLICATE_RUN_TIMEOUT_MS) || 15 * 60 * 1000
+
 // Экспортируем функцию вместо объекта для ленивой инициализации
 export const replicate = {
   run: async (...args: any[]) => {
     const client = getReplicateClient()
-    return await client.run(...args)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        client.run(...args),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `replicate.run timed out after ${REPLICATE_RUN_TIMEOUT_MS}ms (model ${args[0]})`
+                )
+              ),
+            REPLICATE_RUN_TIMEOUT_MS
+          )
+        }),
+      ])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
   },
 }
 

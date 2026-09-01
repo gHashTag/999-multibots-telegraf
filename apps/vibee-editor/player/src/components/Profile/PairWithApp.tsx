@@ -1,46 +1,53 @@
-import { useState, useEffect, useRef } from 'react'
-import { apiFetch } from '@/lib/apiFetch'
+import { useEffect, useRef, useState } from 'react'
 import { API_BASE } from '@/config'
+import { apiFetch } from '@/lib/apiFetch'
+import './PairWithApp.css'
 
 /**
- * Выдача кода для входа в нативное приложение.
- *
- * ЗАЧЕМ ЭТО ЗДЕСЬ, А НЕ В ПРИЛОЖЕНИИ. Приложение не внутри Telegram и подпись
- * `initData` получить не может — никогда. Значит личность обязана родиться
- * там, где подпись есть: на этой странице. Отсюда и направление: код
- * ВЫДАЁТСЯ здесь и ГАСИТСЯ там.
- *
- * ПОЧЕМУ ЦИФРЫ, А НЕ ССЫЛКА. Диплинк был бы на два тапа короче, но
- * refresh-токен в адресной строке оседает в логах, в истории буфера обмена и
- * у того, кто рисует ссылку. Шесть цифр, прочитанных глазами, не оставляют
- * копии нигде. Так же входят на телевизорах, и ровно по этой причине.
+ * Issues a short-lived code that pairs the signed-in Telegram identity with
+ * the native app. The app cannot obtain Telegram initData itself, so the code
+ * is created only on this verified page and consumed exactly once elsewhere.
+ * Six visible digits avoid putting a refresh token into a URL, logs, or the
+ * clipboard.
  */
 export function PairWithApp() {
-  const [код, setКод] = useState<string | null>(null)
-  const [осталось, setОсталось] = useState(0)
-  const [идёт, setИдёт] = useState(false)
-  const [ошибка, setОшибка] = useState<string | null>(null)
-  const таймер = useRef<number | null>(null)
+  const [code, setCode] = useState<string | null>(null)
+  const [expiresAt, setExpiresAt] = useState<number | null>(null)
+  const [clockNow, setClockNow] = useState(() => Date.now())
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const requestInFlight = useRef(false)
 
-  // Обратный отсчёт: код живёт две минуты, и человек должен видеть, сколько
-  // ещё. Без этого истёкший код выглядит как сломанный сервер.
   useEffect(() => {
-    if (осталось <= 0) return
-    таймер.current = window.setTimeout(() => setОсталось(с => с - 1), 1000)
-    return () => {
-      if (таймер.current) window.clearTimeout(таймер.current)
+    if (expiresAt === null) return
+
+    const syncDeadline = () => {
+      const currentTime = Date.now()
+      setClockNow(currentTime)
+      if (currentTime >= expiresAt) {
+        setCode(null)
+        setExpiresAt(null)
+      }
     }
-  }, [осталось])
 
-  useEffect(() => {
-    if (осталось === 0 && код) setКод(null)
-  }, [осталось, код])
+    const timer = window.setInterval(syncDeadline, 1000)
+    window.addEventListener('focus', syncDeadline)
+    document.addEventListener('visibilitychange', syncDeadline)
 
-  async function выдать() {
-    setИдёт(true)
-    setОшибка(null)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', syncDeadline)
+      document.removeEventListener('visibilitychange', syncDeadline)
+    }
+  }, [expiresAt])
+
+  async function requestCode() {
+    if (requestInFlight.current) return
+    requestInFlight.current = true
+    setLoading(true)
+    setError(null)
     try {
-      const r = await apiFetch<{ code: string; expires_in: number }>(
+      const response = await apiFetch<{ code: string; expires_in: number }>(
         `${API_BASE}/api/auth/pair/start`,
         {
           method: 'POST',
@@ -48,99 +55,97 @@ export function PairWithApp() {
           body: '{}',
         }
       )
-      setКод(r.code)
-      setОсталось(r.expires_in)
-    } catch (e) {
-      setОшибка(
-        e instanceof Error
-          ? e.message
+      const issuedAt = Date.now()
+      const lifetimeSeconds = Number.isFinite(response.expires_in)
+        ? Math.max(0, response.expires_in)
+        : 0
+      setClockNow(issuedAt)
+      setExpiresAt(issuedAt + lifetimeSeconds * 1000)
+      setCode(lifetimeSeconds > 0 ? response.code : null)
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
           : 'Не удалось получить код — попробуйте ещё раз'
       )
+    } finally {
+      requestInFlight.current = false
+      setLoading(false)
     }
-    setИдёт(false)
   }
 
-  const мм = String(Math.floor(осталось / 60))
-  const сс = String(осталось % 60).padStart(2, '0')
+  const secondsLeft =
+    expiresAt === null
+      ? 0
+      : Math.max(0, Math.ceil((expiresAt - clockNow) / 1000))
+  const minutes = String(Math.floor(secondsLeft / 60))
+  const seconds = String(secondsLeft % 60).padStart(2, '0')
+
+  const actionButton = (
+    <button
+      type="button"
+      className="pair-with-app__action"
+      onClick={requestCode}
+      aria-disabled={loading}
+      aria-busy={loading}
+    >
+      {loading
+        ? 'Получаем…'
+        : code
+          ? 'Получить новый код'
+          : 'Показать 6-значный код'}
+    </button>
+  )
 
   return (
-    <section
-      style={{
-        border: '1px solid rgba(255,255,255,.12)',
-        borderRadius: 12,
-        padding: 16,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-      }}
-    >
-      <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
-        Вход в приложение
+    <section className="pair-with-app">
+      <h3 className="pair-with-app__title">
+        {'Войти в приложение на телефоне'}
       </h3>
+      {actionButton}
 
-      {код ? (
+      {code ? (
         <>
           <div
-            /**
-             * Код разбит пробелом на две тройки, а не дефисом.
-             *
-             * Дефис люди набирают вслед за экраном, и приложению пришлось бы
-             * его вычищать — оно и вычищает, но лучше не создавать повод.
-             * Пробел никто не набирает.
-             */
-            style={{
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-              fontSize: 38,
-              fontWeight: 700,
-              letterSpacing: '.14em',
-              textAlign: 'center',
-              padding: '10px 0',
-              userSelect: 'all',
-            }}
-            aria-label={`Код ${код.split('').join(' ')}`}
+            className="pair-with-app__result"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
           >
-            {код.slice(0, 3)} {код.slice(3)}
+            <div
+              className="pair-with-app__code"
+              aria-label={`Код ${code.split('').join(' ')}`}
+            >
+              {code.slice(0, 3)} {code.slice(3)}
+            </div>
+            <p className="pair-with-app__instructions">
+              {
+                'Введите эти 6 цифр в Trinity S³AI на телефоне: «Войти» → «Ввести код».'
+              }
+            </p>
           </div>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 13,
-              opacity: 0.6,
-              textAlign: 'center',
-            }}
-          >
-            Введите его в приложении. Осталось {мм}:{сс}
+          <p className="pair-with-app__timer">
+            {`Одноразовый код. Осталось ${minutes}:${seconds}`}
           </p>
         </>
       ) : (
-        <p style={{ margin: 0, fontSize: 13, opacity: 0.65 }}>
-          Нажмите, чтобы получить код. Он действует две минуты и подходит только
-          для одного входа.
+        <>
+          <ol className="pair-with-app__steps">
+            <li>{'Нажмите кнопку — здесь появятся 6 цифр.'}</li>
+            <li>{'Откройте Trinity S³AI на телефоне.'}</li>
+            <li>{'Выберите «Войти» → «Ввести код» и наберите эти цифры.'}</li>
+          </ol>
+          <p className="pair-with-app__note">
+            {'Код действует 2 минуты и подходит только для одного входа.'}
+          </p>
+        </>
+      )}
+
+      {error && (
+        <p className="pair-with-app__error" role="alert">
+          {error}
         </p>
       )}
-
-      {ошибка && (
-        <p style={{ margin: 0, fontSize: 13, color: '#e8705c' }}>{ошибка}</p>
-      )}
-
-      <button
-        onClick={выдать}
-        disabled={идёт}
-        style={{
-          minHeight: 44,
-          borderRadius: 10,
-          border: 'none',
-          background: '#2f6b3f',
-          // Чёрный на зелёном: белый на этом фоне не читается — отдельная
-          // жалоба, уже оплаченная один раз.
-          color: '#000',
-          fontWeight: 600,
-          fontSize: 15,
-          cursor: идёт ? 'default' : 'pointer',
-        }}
-      >
-        {идёт ? 'Получаем…' : код ? 'Новый код' : 'Получить код'}
-      </button>
     </section>
   )
 }

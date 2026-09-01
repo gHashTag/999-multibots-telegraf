@@ -28,9 +28,6 @@ export async function createVoiceAvatar(
       throw new Error(`User with ID ${telegram_id} does not exist.`)
     }
     const level = userExists.level
-    if (level === 6) {
-      await updateUserLevelPlusOne(telegram_id, level)
-    }
     // Do NOT log fileUrl: it is https://api.telegram.org/file/bot<BOT_TOKEN>/...
     // so it embeds the full bot token (a full-control credential) plus an
     // unauthenticated link to the user's voice recording (biometric PII).
@@ -108,6 +105,19 @@ export async function createVoiceAvatar(
     if (error) {
       console.error('Ошибка при сохранении voiceId в базу данных:', error)
       throw new Error('Ошибка при сохранении данных')
+    }
+
+    // Advance the quest level ONLY after the voice was created AND persisted.
+    // Previously this bump ran at the top of the function -- before
+    // createVoiceElevenLabs and before the voice_id_elevenlabs save -- so a
+    // non-Cloudflare ElevenLabs failure, a missing voiceId, or a failed save
+    // unwound the function (outer catch) with level advanced 6 -> 7 but
+    // voice_id_elevenlabs still null: the quest marked the voice-avatar step
+    // done while the artifact was missing, and downstream TTS/lipsync then read
+    // a null voice_id. Running it here couples the level to a real, saved voice.
+    // Still idempotent across retries -- it only fires at level === 6.
+    if (level === 6) {
+      await updateUserLevelPlusOne(telegram_id, level)
     }
 
     await ctx.telegram.sendMessage(

@@ -33,6 +33,7 @@ import {
 // is the only place that mounts routes, and until now nothing imported it at
 // all -- see the block comment at the mount site.
 import { handleA2A, handleA2ACard } from './src/agent/a2a'
+import { loadVisiblePrivateProfileCounts } from './src/profile/privateCounts'
 import os from 'node:os'
 import { WebSocketServer, WebSocket } from 'ws'
 import { bundle } from '@remotion/bundler'
@@ -7624,6 +7625,11 @@ const server = createServer(async (req, res) => {
       const isOwnProfile = viewerTelegramId
         ? String(viewerTelegramId) === String(telegramId)
         : false
+      const privateCounts = await loadVisiblePrivateProfileCounts(
+        pool,
+        String(telegramId),
+        viewerTelegramId
+      )
 
       const fullProfile = {
         ...profile,
@@ -7634,6 +7640,7 @@ const server = createServer(async (req, res) => {
         total_likes: totalLikes,
         is_following: false,
         is_own_profile: isOwnProfile,
+        ...(privateCounts ?? {}),
       }
 
       res.writeHead(200, {

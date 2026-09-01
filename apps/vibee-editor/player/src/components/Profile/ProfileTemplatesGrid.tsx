@@ -1,6 +1,16 @@
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Heart, Eye, Video, Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
+import {
+  Heart,
+  Eye,
+  Video,
+  Plus,
+  Pencil,
+  Trash2,
+  Loader2,
+  Play,
+  Pause,
+} from 'lucide-react'
 import { useSetAtom } from 'jotai'
 import { deleteTemplateAtom, editTemplateAtom } from '@/atoms'
 import type { FeedTemplate } from '@/atoms'
@@ -26,6 +36,23 @@ export function ProfileTemplatesGrid({
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [pendingDelete, setPendingDelete] = useState<FeedTemplate | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [failedVideos, setFailedVideos] = useState<Set<number>>(() => new Set())
+  const [failedPosters, setFailedPosters] = useState<Set<number>>(
+    () => new Set()
+  )
+  const [nearViewportIds, setNearViewportIds] = useState<Set<number>>(
+    () => new Set()
+  )
+  const [playingId, setPlayingId] = useState<number | null>(null)
+  const videoRefs = useRef(new Map<number, HTMLVideoElement>())
+  const mediaRefs = useRef(new Map<number, HTMLDivElement>())
+  const mediaRefCallbacks = useRef(
+    new Map<number, (node: HTMLDivElement | null) => void>()
+  )
+  const previewObserverRef = useRef<IntersectionObserver | null>(null)
+  const fallbackScanRef = useRef<(() => void) | null>(null)
+  const playRequestRef = useRef(0)
+  const activePreviewRef = useRef<number | null>(null)
 
   const editTemplate = useSetAtom(editTemplateAtom)
   const deleteTemplate = useSetAtom(deleteTemplateAtom)
@@ -60,6 +87,84 @@ export function ProfileTemplatesGrid({
     void loadTemplates()
   }, [loadTemplates])
 
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') {
+      let frame = 0
+      const scanNearViewport = () => {
+        frame = 0
+        const nearIds: number[] = []
+        mediaRefs.current.forEach((node, id) => {
+          const bounds = node.getBoundingClientRect()
+          if (bounds.bottom >= -320 && bounds.top <= window.innerHeight + 320) {
+            nearIds.push(id)
+          }
+        })
+        if (nearIds.length > 0) {
+          setNearViewportIds(current => {
+            if (nearIds.every(id => current.has(id))) return current
+            const next = new Set(current)
+            nearIds.forEach(id => next.add(id))
+            return next
+          })
+        }
+      }
+      const scheduleScan = () => {
+        if (frame !== 0) return
+        frame =
+          typeof window.requestAnimationFrame === 'function'
+            ? window.requestAnimationFrame(scanNearViewport)
+            : window.setTimeout(scanNearViewport, 0)
+      }
+
+      fallbackScanRef.current = scheduleScan
+      window.addEventListener('scroll', scheduleScan, { passive: true })
+      window.addEventListener('resize', scheduleScan)
+      scheduleScan()
+      return () => {
+        if (typeof window.cancelAnimationFrame === 'function') {
+          window.cancelAnimationFrame(frame)
+        } else {
+          window.clearTimeout(frame)
+        }
+        window.removeEventListener('scroll', scheduleScan)
+        window.removeEventListener('resize', scheduleScan)
+        fallbackScanRef.current = null
+      }
+    }
+
+    const observer = new IntersectionObserver(
+      entries => {
+        const visibleIds = entries
+          .filter(entry => entry.isIntersecting || entry.intersectionRatio > 0)
+          .map(entry =>
+            Number((entry.target as HTMLElement).dataset.templateId)
+          )
+          .filter(Number.isFinite)
+
+        if (visibleIds.length === 0) return
+        setNearViewportIds(current => {
+          if (visibleIds.every(id => current.has(id))) return current
+          const next = new Set(current)
+          visibleIds.forEach(id => next.add(id))
+          return next
+        })
+        entries.forEach(entry => {
+          if (entry.isIntersecting || entry.intersectionRatio > 0) {
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { rootMargin: '320px 0px' }
+    )
+
+    previewObserverRef.current = observer
+    mediaRefs.current.forEach(node => observer.observe(node))
+    return () => {
+      observer.disconnect()
+      previewObserverRef.current = null
+    }
+  }, [])
+
   const handleEditTemplate = async (template: FeedTemplate) => {
     setEditingId(template.id)
     setActionError(null)
@@ -90,6 +195,84 @@ export function ProfileTemplatesGrid({
     }
   }
 
+  const setVideoRef = (templateId: number, node: HTMLVideoElement | null) => {
+    if (node) videoRefs.current.set(templateId, node)
+    else videoRefs.current.delete(templateId)
+  }
+
+  const setMediaRef = (templateId: number, node: HTMLDivElement | null) => {
+    const previous = mediaRefs.current.get(templateId)
+    if (previous) previewObserverRef.current?.unobserve(previous)
+    if (node) {
+      mediaRefs.current.set(templateId, node)
+      if (previewObserverRef.current) previewObserverRef.current.observe(node)
+      else {
+        fallbackScanRef.current?.()
+        window.setTimeout(() => {
+          if (mediaRefs.current.get(templateId) !== node) return
+          const bounds = node.getBoundingClientRect()
+          if (bounds.bottom < -320 || bounds.top > window.innerHeight + 320)
+            return
+          setNearViewportIds(current => {
+            if (current.has(templateId)) return current
+            return new Set(current).add(templateId)
+          })
+        }, 0)
+      }
+    } else {
+      mediaRefs.current.delete(templateId)
+    }
+  }
+
+  const mediaRefFor = (templateId: number) => {
+    const existing = mediaRefCallbacks.current.get(templateId)
+    if (existing) return existing
+    const callback = (node: HTMLDivElement | null) =>
+      setMediaRef(templateId, node)
+    mediaRefCallbacks.current.set(templateId, callback)
+    return callback
+  }
+
+  const togglePreview = async (template: FeedTemplate) => {
+    const video = videoRefs.current.get(template.id)
+    if (!video) return
+
+    const requestId = ++playRequestRef.current
+
+    if (activePreviewRef.current === template.id) {
+      activePreviewRef.current = null
+      video.pause()
+      setPlayingId(null)
+      return
+    }
+
+    activePreviewRef.current = template.id
+    for (const [templateId, candidate] of videoRefs.current) {
+      if (templateId !== template.id) candidate.pause()
+    }
+
+    setPlayingId(template.id)
+    try {
+      await video.play()
+      if (
+        playRequestRef.current !== requestId ||
+        activePreviewRef.current !== template.id
+      ) {
+        video.pause()
+      }
+    } catch {
+      if (
+        playRequestRef.current !== requestId ||
+        activePreviewRef.current !== template.id
+      ) {
+        return
+      }
+      activePreviewRef.current = null
+      setFailedVideos(current => new Set(current).add(template.id))
+      setPlayingId(null)
+    }
+  }
+
   const formatNumber = (num: number | undefined | null): string => {
     if (num == null) return '0'
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
@@ -106,13 +289,6 @@ export function ProfileTemplatesGrid({
               className="skeleton skeleton-card"
               style={{ aspectRatio: '9/16' }}
             />
-            <div className="profile-templates__info">
-              <div className="skeleton skeleton-text skeleton-text--md" />
-              <div
-                className="skeleton skeleton-text skeleton-text--sm"
-                style={{ width: '50%' }}
-              />
-            </div>
           </div>
         ))}
       </div>
@@ -141,74 +317,157 @@ export function ProfileTemplatesGrid({
   return (
     <div className="profile-templates">
       <div className="profile-templates__grid">
-        {templates.map(template => (
-          <div key={template.id} className="profile-templates__item">
-            <div className="profile-templates__thumbnail">
-              {template.thumbnailUrl ? (
-                <img src={template.thumbnailUrl} alt={template.name} />
-              ) : template.videoUrl ? (
-                <video
-                  src={template.videoUrl}
-                  muted
-                  autoPlay
-                  loop
-                  playsInline
-                  preload="metadata"
-                />
-              ) : (
-                <div className="profile-templates__placeholder">
-                  <Video size={32} />
-                </div>
-              )}
-            </div>
+        {templates.map(template => {
+          const videoAvailable =
+            Boolean(template.videoUrl) && !failedVideos.has(template.id)
+          const posterAvailable =
+            Boolean(template.thumbnailUrl) && !failedPosters.has(template.id)
+          const isPlaying = playingId === template.id
+          const isNearViewport = nearViewportIds.has(template.id)
 
-            <div className="profile-templates__info">
-              <span className="profile-templates__name">{template.name}</span>
-              <div className="profile-templates__stats">
-                <span>
-                  <Eye size={14} />
-                  {formatNumber(template.viewsCount)}
-                </span>
-                <span>
-                  <Heart size={14} />
-                  {formatNumber(template.likesCount)}
-                </span>
-              </div>
-              {isOwn && (
-                <div className="profile-templates__actions">
+          return (
+            <article key={template.id} className="profile-templates__item">
+              <div
+                ref={mediaRefFor(template.id)}
+                className="profile-templates__thumbnail"
+                data-template-id={template.id}
+              >
+                {videoAvailable ? (
+                  <video
+                    ref={node => setVideoRef(template.id, node)}
+                    src={template.videoUrl}
+                    poster={posterAvailable ? template.thumbnailUrl : undefined}
+                    muted
+                    loop
+                    playsInline
+                    preload={
+                      posterAvailable || !isNearViewport ? 'none' : 'metadata'
+                    }
+                    crossOrigin="anonymous"
+                    onLoadedMetadata={event => {
+                      if (posterAvailable || isPlaying || !isNearViewport)
+                        return
+                      const duration = event.currentTarget.duration
+                      event.currentTarget.currentTime =
+                        Number.isFinite(duration) && duration > 0
+                          ? Math.min(0.8, duration / 2)
+                          : 0.8
+                    }}
+                    onPause={() => {
+                      if (activePreviewRef.current !== template.id) return
+                      activePreviewRef.current = null
+                      setPlayingId(current =>
+                        current === template.id ? null : current
+                      )
+                    }}
+                    onError={() => {
+                      if (activePreviewRef.current === template.id) {
+                        activePreviewRef.current = null
+                      }
+                      setFailedVideos(current =>
+                        new Set(current).add(template.id)
+                      )
+                      setPlayingId(current =>
+                        current === template.id ? null : current
+                      )
+                    }}
+                  />
+                ) : null}
+
+                {posterAvailable && !isPlaying ? (
+                  <img
+                    src={template.thumbnailUrl}
+                    alt={template.name}
+                    loading="lazy"
+                    decoding="async"
+                    onError={() =>
+                      setFailedPosters(current =>
+                        new Set(current).add(template.id)
+                      )
+                    }
+                  />
+                ) : !videoAvailable ? (
+                  <div className="profile-templates__placeholder">
+                    <Video size={32} />
+                  </div>
+                ) : null}
+
+                <div
+                  className="profile-templates__media-gradient"
+                  aria-hidden="true"
+                />
+
+                {videoAvailable && (
                   <button
                     type="button"
-                    className="profile-templates__action profile-templates__action--edit"
-                    aria-label={`${t('profile.edit_template')} ${template.name}`}
-                    onClick={() => handleEditTemplate(template)}
-                    disabled={
-                      editingId === template.id || deletingId === template.id
-                    }
+                    className={`profile-templates__preview-toggle ${isPlaying ? 'is-playing' : ''}`}
+                    aria-label={`${t(
+                      isPlaying
+                        ? 'profile.pause_preview'
+                        : 'profile.preview_template'
+                    )} ${template.name}`}
+                    onClick={() => void togglePreview(template)}
                   >
-                    {editingId === template.id ? (
-                      <Loader2 className="spinning" size={16} />
+                    {isPlaying ? (
+                      <Pause size={24} fill="currentColor" />
                     ) : (
-                      <Pencil size={16} />
+                      <Play size={24} fill="currentColor" />
                     )}
-                    <span>{t('profile.edit_template')}</span>
                   </button>
-                  <button
-                    type="button"
-                    className="profile-templates__action profile-templates__action--delete"
-                    aria-label={`${t('profile.delete_template')} ${template.name}`}
-                    onClick={() => setPendingDelete(template)}
-                    disabled={
-                      editingId === template.id || deletingId === template.id
-                    }
-                  >
-                    <Trash2 size={16} />
-                    <span>{t('profile.delete_template')}</span>
-                  </button>
+                )}
+
+                <div className="profile-templates__meta">
+                  <span className="profile-templates__name">
+                    {template.name}
+                  </span>
+                  <div className="profile-templates__stats">
+                    <span>
+                      <Eye size={14} />
+                      {formatNumber(template.viewsCount)}
+                    </span>
+                    <span>
+                      <Heart size={14} />
+                      {formatNumber(template.likesCount)}
+                    </span>
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
-        ))}
+
+                {isOwn && (
+                  <div className="profile-templates__social-actions">
+                    <button
+                      type="button"
+                      className="profile-templates__social-action profile-templates__social-action--edit"
+                      aria-label={`${t('profile.edit_template')} ${template.name}`}
+                      onClick={() => handleEditTemplate(template)}
+                      disabled={
+                        editingId === template.id || deletingId === template.id
+                      }
+                    >
+                      {editingId === template.id ? (
+                        <Loader2 className="spinning" size={22} />
+                      ) : (
+                        <Pencil size={22} />
+                      )}
+                      <span>{t('profile.edit_template')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="profile-templates__social-action profile-templates__social-action--delete"
+                      aria-label={`${t('profile.delete_template')} ${template.name}`}
+                      onClick={() => setPendingDelete(template)}
+                      disabled={
+                        editingId === template.id || deletingId === template.id
+                      }
+                    >
+                      <Trash2 size={22} />
+                      <span>{t('profile.delete_template')}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </article>
+          )
+        })}
       </div>
 
       {hasMore && (

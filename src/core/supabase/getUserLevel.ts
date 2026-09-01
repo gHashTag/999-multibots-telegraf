@@ -10,11 +10,15 @@ export async function getUserLevel(
 ): Promise<number | null> {
   try {
     // Запрашиваем данные пользователя из таблицы 'users'
-    const { data, error } = await supabase
+    // telegram_id is NOT unique (~19 users have 2-3 rows); `.single()` errored
+    // for them. Take the latest row (mirror getUserByTelegramId). Same contract.
+    const { data: rows, error } = await supabase
       .from('users')
       .select('level')
       .eq('telegram_id', telegram_id)
-      .single() // Используем .single(), так как ожидаем только одну запись
+      .order('updated_at', { ascending: false })
+      .limit(1)
+    const data = rows?.[0] ?? null
 
     if (error) {
       console.error('Ошибка при получении уровня пользователя:', error)

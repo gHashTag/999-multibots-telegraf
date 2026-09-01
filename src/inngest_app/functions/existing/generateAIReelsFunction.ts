@@ -243,6 +243,17 @@ export const generateAIReelsFunction = inngest.createFunction(
               status: response.status,
               statusText: response.statusText,
             })
+            // Throw so Inngest retries this delivery handoff. This callback is
+            // the SOLE trigger that sends the finished reel to the user, and the
+            // user was charged before dispatch (ai-reels-inngest-wizard). The
+            // callback is idempotent (delivered-job-ids dedup), so a retry
+            // re-attempts delivery without duplicating; prior generation steps
+            // are memoized, so nothing is re-charged. Swallowing a non-2xx made
+            // the run report success while the paid reel was never delivered --
+            // a silent charged-not-delivered.
+            throw new Error(
+              `AI Reels delivery webhook failed: ${response.status} ${response.statusText}`
+            )
           }
         })
       }

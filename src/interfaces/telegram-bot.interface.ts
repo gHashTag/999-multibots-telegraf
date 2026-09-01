@@ -202,6 +202,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   }[] // Массив изображений для морфинга с именами файлов
   morphingButtonsMessageId?: number // ✅ ID сообщения с кнопками морфинга для обновления
   morphingProgressMessageId?: number // ✅ ID сообщения с прогрессом загрузки изображений для морфинга
+  morphingProgressCreating?: boolean // reject-before-set: only one concurrent album photo creates the progress card
   morphingRestarting?: boolean // ✅ Флаг для предотвращения спама кнопки "Начать заново"
   modelName?: string
   targetUserId: number
@@ -333,6 +334,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   veedFabricInProgress?: boolean
   hedraRenderInProgress?: boolean
   heygenRenderInProgress?: boolean
+  improvePromptInProgress?: boolean
   aiReelsRenderInProgress?: boolean
   instagramParserInProgress?: boolean
   instagramParserSceneInProgress?: boolean

@@ -7,13 +7,13 @@ import {
   followUserAtom,
   unfollowUserAtom,
   showLoginModalAtom,
-  myProfileAtom,
 } from '@/atoms';
 import { useLanguage } from '@/hooks/useLanguage';
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 import { FollowButton } from './FollowButton';
 import { SocialLinks } from './SocialLinks';
+import { useIsOwnProfile } from './useIsOwnProfile'
 
 interface ProfileHeaderProps {
   onEditClick?: () => void;
@@ -22,7 +22,7 @@ interface ProfileHeaderProps {
 export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
   const { t } = useLanguage();
   const profile = useAtomValue(viewedProfileAtom)
-  const myProfile = useAtomValue(myProfileAtom);
+  const isOwn = useIsOwnProfile()
   const user = useAtomValue(userAtom);
   const follow = useSetAtom(followUserAtom);
   const unfollow = useSetAtom(unfollowUserAtom);
@@ -33,9 +33,10 @@ export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
   const [avatarError, setAvatarError] = useState(false);
 
   // Use Telegram data as fallback when profile has no avatar/name
-  const rawAvatarUrl = profile.avatar_url || (profile.is_own_profile && user?.photo_url) || null;
+  const rawAvatarUrl = profile.avatar_url || (isOwn && user?.photo_url) || null;
   const avatarUrl = rawAvatarUrl && rawAvatarUrl !== 'null' && rawAvatarUrl !== 'undefined' ? rawAvatarUrl : null;
-  const displayName = profile.display_name || (profile.is_own_profile && user?.first_name) || profile.username;
+  const displayName =
+    profile.display_name || (isOwn && user?.first_name) || profile.username;
 
   const handleFollowClick = async () => {
     console.log('[Follow] Clicked, user:', user?.id, 'target:', profile.username);
@@ -77,7 +78,7 @@ export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
           <img src={profile.cover_url} alt="" className="profile-cover__image" />
         ) : null}
         <div className="profile-cover__gradient" />
-        {profile.is_own_profile && (
+        {isOwn && (
           <button className="profile-cover__edit" onClick={onEditClick}>
             <Camera size={16} />
             <span>{t('profile.edit_cover')}</span>
@@ -123,7 +124,7 @@ export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
           </div>
 
           <div className="profile-header__actions">
-            {profile.is_own_profile ? (
+            {isOwn ? (
               <button className="profile-header__edit-btn" onClick={onEditClick}>
                 <Settings size={18} />
                 <span>{t('profile.edit')}</span>
@@ -138,12 +139,7 @@ export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
         </div>
 
         {/* Stats Cards with Glassmorphism */}
-        <ProfileTokens
-          isOwn={
-            (!!myProfile && myProfile.telegram_id === profile.telegram_id) ||
-            (import.meta.env.DEV && !!import.meta.env.VITE_AGENT_KEY)
-          }
-        />
+        <ProfileTokens isOwn={isOwn} />
         <div className="profile-stats">
           {stats.map((stat, index) => (
             <div key={index} className="profile-stat-card">

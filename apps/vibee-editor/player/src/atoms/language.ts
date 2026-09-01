@@ -873,6 +873,8 @@ const en: Translations = {
   'profile.edit': 'Edit',
   'profile.edit_template': 'Edit',
   'profile.delete_template': 'Delete',
+  'profile.preview_template': 'Preview',
+  'profile.pause_preview': 'Pause preview',
   'profile.delete_template_confirm': 'Remove this template from your profile?',
   'profile.template_action_failed':
     'Could not update the template. Sign in and try again.',
@@ -2533,6 +2535,8 @@ const ru: Translations = {
   'profile.edit': 'Редактировать',
   'profile.edit_template': 'Редактировать',
   'profile.delete_template': 'Удалить',
+  'profile.preview_template': 'Воспроизвести',
+  'profile.pause_preview': 'Пауза',
   'profile.delete_template_confirm': 'Удалить шаблон из профиля?',
   'profile.template_action_failed':
     'Не удалось изменить шаблон. Войдите и попробуйте ещё раз.',

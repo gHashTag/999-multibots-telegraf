@@ -742,6 +742,10 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
             textLength: text.length,
           })
 
+          // Hoisted so the catch below can unlink the temp mp3 on an upload
+          // failure -- a const inside the try is invisible to the catch, which
+          // is why every failed TTS upload used to leak one file in os.tmpdir().
+          let audioPath: string | undefined
           try {
             logger.info(
               '🎤 [AI REELS] Генерируем аудио из текста через централизованную систему',
@@ -861,7 +865,7 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
               }
             )
 
-            const audioPath = await createAudioFileFromText({
+            audioPath = await createAudioFileFromText({
               text,
               voice_id: voiceId,
               telegram_id: telegramId,
@@ -993,6 +997,14 @@ export const aiReelsWizard = new Scenes.WizardScene<MyContext>(
               telegramId,
               textLength: text.length,
             })
+
+            // Unlink the temp mp3 if it was created before the failure (e.g. a
+            // Supabase upload error thrown after createAudioFileFromText wrote
+            // it). The happy-path unlink is unreachable on this branch, so
+            // without this every failed TTS upload leaks a file in os.tmpdir().
+            if (audioPath) {
+              await fs.unlink(audioPath).catch(() => {})
+            }
 
             // Деньги уже списаны выше (updateUserBalance перед началом
             // генерации), а работа не выполнена — без возврата пользователь

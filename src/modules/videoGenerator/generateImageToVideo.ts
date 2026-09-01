@@ -1253,6 +1253,22 @@ export const generateImageToVideo = async (
                     videoUrl: videoUrl.substring(0, 50) + '...',
                   })
 
+                  // Consume the "Update status" button: this poll set
+                  // ctx.session.videoJobId=taskId up front (so the button worked
+                  // while polling) and has now delivered AND charged inline. If
+                  // videoJobId stays armed, a later tap runs handleVideoReady,
+                  // whose claimVideoJobDelivery(taskId) is UNCLAIMED (this poll
+                  // charges via deductBalanceAfterSuccess, a different path that
+                  // never populates that Set) and charges a SECOND time for the
+                  // same taskId. Clearing it makes the button a no-op after
+                  // inline delivery, exactly as handleTextToVideoDirect does on
+                  // its terminal paths.
+                  if (ctx?.session) {
+                    delete ctx.session.videoJobId
+                    delete ctx.session.videoModelId
+                    delete ctx.session.videoPrompt
+                  }
+
                   return // Выходим из функции, так как видео уже отправлено
                 }
 

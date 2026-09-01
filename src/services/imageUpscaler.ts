@@ -121,12 +121,35 @@ export const upscaleImage = async (
       inputParams,
     })
 
-    const output: ApiResponse = (await replicate.run(
-      'philz1337x/clarity-upscaler:dfad41707589d68ecdccd1dfa600d55a208f9310748e44bfe35b4a6291453d5e',
-      {
-        input: inputParams,
-      }
-    )) as ApiResponse
+    // Bound the post-charge provider call. replicate.run polls the prediction
+    // until it settles; a prediction stuck in 'starting'/'processing' would poll
+    // forever, and the user has ALREADY been charged (line ~76). Without a
+    // deadline the refund in the catch below is unreachable (no throw). Clarity
+    // Upscaler finishes in seconds to ~1 min, so a longer wait is a stuck run,
+    // not progress: time it out into the existing refund path.
+    const UPSCALE_TIMEOUT_MS = 4 * 60 * 1000
+    let upscaleTimer: ReturnType<typeof setTimeout> | undefined
+    const output: ApiResponse = (await Promise.race([
+      replicate.run(
+        'philz1337x/clarity-upscaler:dfad41707589d68ecdccd1dfa600d55a208f9310748e44bfe35b4a6291453d5e',
+        {
+          input: inputParams,
+        }
+      ),
+      new Promise<never>((_, reject) => {
+        upscaleTimer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Clarity Upscaler timed out after ${UPSCALE_TIMEOUT_MS}ms`
+              )
+            ),
+          UPSCALE_TIMEOUT_MS
+        )
+      }),
+    ]).finally(() => {
+      if (upscaleTimer) clearTimeout(upscaleTimer)
+    })) as ApiResponse
 
     logger.info('Replicate API response received', {
       telegram_id,

@@ -171,8 +171,10 @@ export class HeroValidationService {
           await ctx.scene.enter(ModeEnum.MainMenu)
         } catch (error) {
           logger.error('Failed to redirect to main menu', { error })
-          // Fallback - просто отправляем команду меню
-          await ctx.reply('/menu')
+          // Fallback: send the menu command. .catch: this runs in a detached
+          // setTimeout callback, so a failed reply here would leak an
+          // unhandledRejection instead of being swallowed.
+          await ctx.reply('/menu').catch(() => {})
         }
       }, 1000)
 

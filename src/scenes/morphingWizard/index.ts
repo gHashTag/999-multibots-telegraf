@@ -478,48 +478,87 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
               ctx.session.morphingProgressMessageId = sentMessage.message_id
             }
           }
-        } else {
-          const sentMessage = await ctx.reply(progressMessage, {
-            parse_mode: 'HTML',
-            reply_markup: keyboard.reply_markup,
-          })
-          if ('message_id' in sentMessage) {
-            ctx.session.morphingProgressMessageId = sentMessage.message_id
+        } else if (!ctx.session.morphingProgressCreating) {
+          // An album (media group) arrives as several near-simultaneous photo
+          // updates for the same user, and the plain in-memory session has no
+          // per-key lock. The id below is written only AFTER the await, so
+          // without this synchronous reject-before-set guard every concurrent
+          // photo would read no id and create a DUPLICATE progress card (only
+          // the last id survives; the earlier cards are orphaned/un-editable).
+          ctx.session.morphingProgressCreating = true
+          try {
+            const sentMessage = await ctx.reply(progressMessage, {
+              parse_mode: 'HTML',
+              reply_markup: keyboard.reply_markup,
+            })
+            if ('message_id' in sentMessage) {
+              ctx.session.morphingProgressMessageId = sentMessage.message_id
+              // Sibling album photos pushed to morphingImages during the await
+              // above and skipped their own progress update; refresh the single
+              // card once with the now-current count so it is not left stale.
+              try {
+                await ctx.telegram.editMessageText(
+                  ctx.chat?.id,
+                  sentMessage.message_id,
+                  undefined,
+                  createProgressMessage(ctx.session.morphingImages, isRu),
+                  {
+                    parse_mode: 'HTML',
+                    reply_markup: createProgressKeyboard(
+                      ctx.session.morphingImages,
+                      isRu
+                    ).reply_markup,
+                  }
+                )
+              } catch {
+                // cosmetic refresh -- ignore a failed edit
+              }
+            }
+          } finally {
+            ctx.session.morphingProgressCreating = false
           }
         }
 
         // Мотивационные сообщения на ключевых этапах
         if (imageIndex === 2) {
           setTimeout(async () => {
-            await ctx.reply(
-              isRu
-                ? '🎉 Отлично! Уже можно создать морфинг. Добавьте еще изображения для большего количества переходов!'
-                : '🎉 Great! You can now create morphing. Add more images for more transitions!'
-            )
+            await ctx
+              .reply(
+                isRu
+                  ? '🎉 Отлично! Уже можно создать морфинг. Добавьте еще изображения для большего количества переходов!'
+                  : '🎉 Great! You can now create morphing. Add more images for more transitions!'
+              )
+              .catch(() => {})
           }, 1000)
         } else if (imageIndex === 5) {
           setTimeout(async () => {
-            await ctx.reply(
-              isRu
-                ? '⭐ Превосходно! 5 изображений дадут потрясающий результат!'
-                : '⭐ Excellent! 5 images will give amazing results!'
-            )
+            await ctx
+              .reply(
+                isRu
+                  ? '⭐ Превосходно! 5 изображений дадут потрясающий результат!'
+                  : '⭐ Excellent! 5 images will give amazing results!'
+              )
+              .catch(() => {})
           }, 1000)
         } else if (imageIndex === 10) {
           setTimeout(async () => {
-            await ctx.reply(
-              isRu
-                ? '🚀 Невероятно! 10 изображений = эпический морфинг! Можете продолжать добавлять!'
-                : '🚀 Incredible! 10 images = epic morphing! You can keep adding more!'
-            )
+            await ctx
+              .reply(
+                isRu
+                  ? '🚀 Невероятно! 10 изображений = эпический морфинг! Можете продолжать добавлять!'
+                  : '🚀 Incredible! 10 images = epic morphing! You can keep adding more!'
+              )
+              .catch(() => {})
           }, 1000)
         } else if (imageIndex === 20) {
           setTimeout(async () => {
-            await ctx.reply(
-              isRu
-                ? '💫 ЛЕГЕНДАРНО! 20 изображений создадут кинематографический шедевр!'
-                : '💫 LEGENDARY! 20 images will create a cinematic masterpiece!'
-            )
+            await ctx
+              .reply(
+                isRu
+                  ? '💫 ЛЕГЕНДАРНО! 20 изображений создадут кинематографический шедевр!'
+                  : '💫 LEGENDARY! 20 images will create a cinematic masterpiece!'
+              )
+              .catch(() => {})
           }, 1000)
         }
       } catch (error) {
