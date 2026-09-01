@@ -44,7 +44,7 @@ export interface KieModel {
   id: string
   /** What a person would call it. */
   title: string
-  kind: 'video' | 'image' | 'lipsync' | 'audio'
+  kind: 'video' | 'image' | 'lipsync' | 'audio' | 'script'
   state: KieState
   /** Fields the API itself demanded, verbatim from its reply. */
   needs: string[]
@@ -412,6 +412,33 @@ export const KIE_MODELS: KieModel[] = [
     state: 'live',
     needs: ['image_url'],
     probed: 'image_url is required',
+  },
+  {
+    id: 'gpt-5-2',
+    title: 'gpt-5-2',
+    kind: 'script',
+    state: 'live',
+    needs: ['topic'],
+    probed:
+      'Returned the exact JSON the script route expects: voiceover, cover_prompt, broll_prompts, captions. Asked in Russian, answered in Russian.',
+  },
+  {
+    id: 'gemini-3-pro',
+    title: 'gemini-3-pro',
+    kind: 'script',
+    state: 'live',
+    needs: ['topic'],
+    probed:
+      'Returned the exact JSON the script route expects: voiceover, cover_prompt, broll_prompts, captions. Asked in Russian, answered in Russian.',
+  },
+  {
+    id: 'gemini-2.5-flash',
+    title: 'gemini-2.5-flash',
+    kind: 'script',
+    state: 'live',
+    needs: ['topic'],
+    probed:
+      'Returned the exact JSON the script route expects: voiceover, cover_prompt, broll_prompts, captions. Asked in Russian, answered in Russian.',
   },
 ]
 

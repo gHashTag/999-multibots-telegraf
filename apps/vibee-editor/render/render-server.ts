@@ -7700,7 +7700,8 @@ const server = createServer(async (req, res) => {
     })
     req.on('end', async () => {
       try {
-        const { topic, niche, style, duration, language } = JSON.parse(body)
+        const { topic, niche, style, duration, language, model: запрошенная } =
+          JSON.parse(body) as Record<string, string | undefined>
         if (!topic || topic.trim() === '') {
           res.writeHead(400, { 'Content-Type': 'application/json' })
           res.end(
@@ -7708,13 +7709,51 @@ const server = createServer(async (req, res) => {
           )
           return
         }
+        /**
+         * Кто напишет сценарий. xAI, если его ключ есть; иначе KieAI.
+         *
+         * ПОЧЕМУ ПОЯВИЛСЯ ЗАПАСНОЙ ПУТЬ. Раньше здесь стоял безусловный отказ
+         * «xAI API key not configured», и он был правдой: переменной у сервиса
+         * нет вовсе. Но правдой перестало быть следствие — что сценарий
+         * написать нечем. Обе точки OpenAI-совместимы, ключ KieAI работает, и
+         * три его модели проверены живым запросом ИМЕННО ЭТОЙ задачей: им
+         * отправили тот же системный запрос и разобрали ответ как JSON с
+         * полями voiceover, cover_prompt, broll_prompts и captions.
+         *
+         * Список моделей закрытый намеренно. Из 32 чат-моделей прайса ключу
+         * доступны три; остальные отвечают «The model is not supported».
+         * Пропустить имя из запроса без проверки значило бы отдать чужой
+         * строке выбор того, за что списываются деньги.
+         */
+        const KIE_CHAT = ['gpt-5-2', 'gemini-3-pro', 'gemini-2.5-flash']
         const XAI_API_KEY = process.env.XAI_API_KEY
-        if (!XAI_API_KEY) {
+        const KIE_KEY = process.env.KIE_AI_API_KEY
+        const провайдер = XAI_API_KEY
+          ? {
+              url: 'https://api.x.ai/v1/chat/completions',
+              key: XAI_API_KEY,
+              model: 'grok-beta',
+              имя: 'xAI',
+            }
+          : KIE_KEY
+            ? {
+                url: 'https://api.kie.ai/v1/chat/completions',
+                key: KIE_KEY,
+                model:
+                  запрошенная && KIE_CHAT.includes(запрошенная)
+                    ? запрошенная
+                    : KIE_CHAT[0],
+                имя: 'KieAI',
+              }
+            : null
+
+        if (!провайдер) {
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(
             JSON.stringify({
               success: false,
-              error: 'xAI API key not configured',
+              error:
+                'no script provider configured: set XAI_API_KEY or KIE_AI_API_KEY',
             })
           )
           return
@@ -7750,14 +7789,14 @@ Return ONLY the JSON, no additional text.`
 
         for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
           try {
-            response = await fetch('https://api.x.ai/v1/chat/completions', {
+            response = await fetch(провайдер.url, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${XAI_API_KEY}`,
+                Authorization: `Bearer ${провайдер.key}`,
               },
               body: JSON.stringify({
-                model: 'grok-beta',
+                model: провайдер.model,
                 messages: [
                   { role: 'system', content: systemPrompt },
                   { role: 'user', content: userPrompt },
@@ -7774,7 +7813,7 @@ Return ONLY the JSON, no additional text.`
                 ? parseInt(retryAfter, 10) * 1000
                 : Math.min(1000 * Math.pow(2, attempt + 1), 30000)
               console.warn(
-                `⚠️ xAI rate limited (429), attempt ${attempt + 1}/${MAX_RETRIES + 1}, waiting ${delay}ms...`
+                `⚠️ ${провайдер.имя} rate limited (429), attempt ${attempt + 1}/${MAX_RETRIES + 1}, waiting ${delay}ms...`
               )
               if (attempt < MAX_RETRIES) {
                 await new Promise(resolve => setTimeout(resolve, delay))
@@ -7790,11 +7829,11 @@ Return ONLY the JSON, no additional text.`
                 : String(fetchError)
             if (errMsg.includes('abort') || errMsg.includes('timeout')) {
               console.error(
-                `⚠️ xAI request timed out after ${XAI_TIMEOUT_MS}ms, attempt ${attempt + 1}/${MAX_RETRIES + 1}`
+                `⚠️ ${провайдер.имя} request timed out after ${XAI_TIMEOUT_MS}ms, attempt ${attempt + 1}/${MAX_RETRIES + 1}`
               )
             } else {
               console.error(
-                `⚠️ xAI fetch error, attempt ${attempt + 1}/${MAX_RETRIES + 1}:`,
+                `⚠️ ${провайдер.имя} fetch error, attempt ${attempt + 1}/${MAX_RETRIES + 1}:`,
                 fetchError
               )
             }
