@@ -6,7 +6,6 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { JotaiProvider } from '@/atoms/Provider'
 import { myProfileAtom, userAtom } from '@/atoms'
 import { TamaguiProvider } from '@/providers/TamaguiProvider'
-import { ConditionalWeb3Provider } from '@/providers/ConditionalWeb3Provider'
 import { ToastContainer } from '@/components/Toast/Toast'
 import { PageTransition } from '@/components/PageTransition'
 import { TelegramProvider } from '@/components/Telegram/TelegramProvider'
@@ -124,7 +123,7 @@ function App() {
         <JotaiProvider>
           <LanguageProvider>
             <BrowserRouter>
-              <ConditionalWeb3Provider>
+              <>
                 <PageTransition>
                   <Suspense fallback={<PageLoader />}>
                     <Routes>
@@ -181,7 +180,7 @@ function App() {
                 <RouteMemory />
                 <TelegramTabBar />
                 <ToastContainer />
-              </ConditionalWeb3Provider>
+              </>
             </BrowserRouter>
           </LanguageProvider>
         </JotaiProvider>

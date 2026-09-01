@@ -13,6 +13,14 @@ function replicatePlugin(): Plugin {
     configureServer(server) {
       // Create prediction endpoint
       server.middlewares.use('/api/replicate/predictions', async (req, res) => {
+        if (req.method === 'OPTIONS') {
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+          res.writeHead(200)
+          res.end()
+          return
+        }
         if (req.method !== 'POST') {
           res.writeHead(405).end('Method not allowed')
           return
@@ -22,30 +30,31 @@ function replicatePlugin(): Plugin {
         res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
-        if (req.method === 'OPTIONS') {
-          res.writeHead(200)
-          res.end()
-          return
-        }
-
         try {
-          const body = await new Promise<string>((resolve) => {
+          const body = await new Promise<string>(resolve => {
             let data = ''
-            req.on('data', (chunk) => { data += chunk })
-            req.on('end', () => { resolve(data) })
+            req.on('data', chunk => {
+              data += chunk
+            })
+            req.on('end', () => {
+              resolve(data)
+            })
           })
 
           const payload = JSON.parse(body)
 
-          const replicateResponse = await fetch('https://api.replicate.com/v1/predictions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Token ${REPLICATE_API_TOKEN}`,
-              'Content-Type': 'application/json',
-              'Prefer': 'wait',
-            },
-            body: JSON.stringify(payload),
-          })
+          const replicateResponse = await fetch(
+            'https://api.replicate.com/v1/predictions',
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Token ${REPLICATE_API_TOKEN}`,
+                'Content-Type': 'application/json',
+                Prefer: 'wait',
+              },
+              body: JSON.stringify(payload),
+            }
+          )
 
           const result = await replicateResponse.text()
 
@@ -59,12 +68,16 @@ function replicatePlugin(): Plugin {
             })
           }
 
-          res.writeHead(replicateResponse.status, { 'Content-Type': 'application/json' })
+          res.writeHead(replicateResponse.status, {
+            'Content-Type': 'application/json',
+          })
           res.end(result)
         } catch (error: any) {
           console.error('Replicate proxy error:', error)
           res.writeHead(500, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: error?.message || 'Replicate proxy error' }))
+          res.end(
+            JSON.stringify({ error: error?.message || 'Replicate proxy error' })
+          )
         }
       })
 
@@ -89,17 +102,21 @@ function replicatePlugin(): Plugin {
 
           const replicateResponse = await fetch(pollUrl, {
             headers: {
-              'Authorization': `Token ${REPLICATE_API_TOKEN}`,
+              Authorization: `Token ${REPLICATE_API_TOKEN}`,
             },
           })
 
           const result = await replicateResponse.text()
-          res.writeHead(replicateResponse.status, { 'Content-Type': 'application/json' })
+          res.writeHead(replicateResponse.status, {
+            'Content-Type': 'application/json',
+          })
           res.end(result)
         } catch (error: any) {
           console.error('Replicate poll error:', error)
           res.writeHead(500, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: error?.message || 'Replicate poll error' }))
+          res.end(
+            JSON.stringify({ error: error?.message || 'Replicate poll error' })
+          )
         }
       })
     },
@@ -122,8 +139,11 @@ export default defineConfig({
       '@compositions': path.resolve(__dirname, './src/compositions'),
       '@vibee/atoms': path.resolve(__dirname, '../packages/vibee-atoms/src'),
       '@vibee/ui': path.resolve(__dirname, '../packages/ui/src'),
-      '@vibee/ui/timeline': path.resolve(__dirname, '../packages/ui/src/timeline'),
-      'react': path.resolve(__dirname, 'node_modules/react'),
+      '@vibee/ui/timeline': path.resolve(
+        __dirname,
+        '../packages/ui/src/timeline'
+      ),
+      react: path.resolve(__dirname, 'node_modules/react'),
       'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
     },
     dedupe: ['react', 'react-dom', 'jotai'],
@@ -144,13 +164,13 @@ export default defineConfig({
         target: 'http://localhost:3333',
         changeOrigin: true,
         // Don't proxy /api/replicate - handle it in middleware
-        bypass: (req) => {
+        bypass: req => {
           if (req.url?.startsWith('/api/replicate')) {
-            return '/api/replicate'  // This will be handled by middleware
+            return '/api/replicate' // This will be handled by middleware
           }
           return null
         },
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        rewrite: path => path.replace(/^\/api/, ''),
       },
       '/renders': {
         target: 'http://localhost:3333',
@@ -191,13 +211,13 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3333',
         changeOrigin: true,
-        bypass: (req) => {
+        bypass: req => {
           if (req.url?.startsWith('/api/replicate')) {
             return '/api/replicate'
           }
           return null
         },
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        rewrite: path => path.replace(/^\/api/, ''),
       },
       '/renders': {
         target: 'http://localhost:3333',

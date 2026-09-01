@@ -499,7 +499,8 @@ export interface TelegramUser {
   username?: string
   photo_url?: string
   auth_date: number
-  hash: string
+  /** Present only while Telegram's Login Widget payload is being verified. */
+  hash?: string
   is_admin?: boolean
 }
 
@@ -582,6 +583,7 @@ export interface RemixSource {
 
 // Data for publishing a template to feed
 export interface PublishData {
+  templateId?: number
   name: string
   description?: string
   thumbnailUrl?: string
