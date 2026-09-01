@@ -4453,3 +4453,63 @@
 1. **«Выпустить social cards»** — player-only merge и production smoke профиля.
 2. **«Добавить быстрый remix»** — отдельной кнопкой создать новый draft по выбранному шаблону, без автопубликации.
 3. **«Усилить библиотеку»** — фильтры, поиск и сортировка Templates отдельным витком.
+
+---
+
+## Виток №248 — 2026-09-01T15:41Z — pairing принимает подтверждённую web-сессию (PR —)
+
+**Проверено**: `git fetch`, хвосты loop/state и актуальный `origin/main@fea51ce1`; dirty основной checkout с параллельным lipsync/Kie WIP оставлен без изменений. Дефект воспроизведён TDD: `apiFetch` уже отправляет серверный `Authorization: Bearer`, но `/api/auth/pair/start` игнорировал его, пытался проверить пустой Telegram Mini App transport и возвращал человеку `empty initData`. `tri status` показывает canonical local render/player down, live feed отвечает; `tri regress` честно FAIL без agent key, `tri selftest` PASS.
+
+**Сделано**: в чистой ветке pairing start принимает ровно одно из двух уже доверенных доказательств: свежий подписанный Telegram `initData` или подписанную сервером браузерную app-session. `telegramId` всегда извлекается сервером из доказательства и не принимается из JSON. Invalid, missing и revoked session получают одинаковый redacted 401. UI до запроса обнаруживает отсутствие обоих доказательств и показывает понятный вход через `@t27ai_bot`; 401 больше не раскрывает сырое `empty initData`.
+
+**Аномалии / самокритика**: BrowserOS Neo открыл local public profile, но owner-only Agent tab без signed owner session там закономерно не монтируется; production-код и одноразовый код не трогались. Первый player build был RED только потому, что clean worktree не имел sibling `vibee-atoms/node_modules`; после проверки совпадения lockfile использованы временные ссылки на существующие dependencies без переустановки. Canonical local stack и agent-key regress остаются отдельным environment blocker, не выданы за green release gate.
+
+**Метрики**: live feed — 43 reels / 115👁 / 0⭐ / 2 автора. Expected RED: server 4 failures, UI 2 failures. GREEN: auth/pairing render 41/41, PairWithApp 10/10, render typecheck + tests typecheck PASS, player typecheck + production build PASS, scoped ESLint и `git diff --check` PASS.
+
+**Следующий шаг**: независимый exact-diff review → commit/PR только после явного разрешения → deploy player/render вместе → production smoke под подтверждённой web-сессией и Mini App, не раскрывая и не логируя одноразовый код.
+
+## Три варианта для владельца
+
+1. **«Выпустить pairing»** — после review разрешить commit/PR и player+render deploy.
+2. **«Проверить локально»** — сначала дать owner-session только в отдельном тестовом браузере и пройти UI без production writes.
+3. **«Расширить вход»** — после базового фикса отдельно добавить QR/deep link без токена в URL.
+
+---
+
+## Виток №249 — 2026-09-01T16:18Z — signed pairing и публичный QR готовы к release review (PR —)
+
+**Проверено**: после двух freshness `git fetch` candidate перебазирован без конфликтов на актуальный `origin/main@8426cd51`; шесть upstream iOS/TTS/voice-коммитов не пересеклись с pairing-путями. Content-loop был старше 10 минут, `loop/state.json` и `loop/topics.json` не изменялись. Основной dirty checkout с lipsync/Kie работой оставлен нетронутым. Railway CLI авторизован, но merge в main отдельно проверяется на риск native redeploy root-сервиса.
+
+**Сделано**: к server-owned pairing по свежему Telegram `initData` или подписанной web-session добавлен статический QR официального `@t27ai_bot` с `startapp=profile`. QR и прямая ссылка содержат ровно один публичный параметр; одноразовый код, Bearer, initData и session в DOM/URL/QR не попадают. В BrowserOS Neo поднят изолированный localhost-harness: настоящий модуль session подписал Bearer, UI отправил его, owner-профиль открыл Agent tab, сервер принял identity и выдал шестизначный код; значение кода не читалось и не логировалось. На 390×844 QR доступен, горизонтального overflow нет.
+
+**Аномалии / самокритика**: initial QR TDD дал ожидаемые 2 RED. Full render получил 479 PASS и один timeout старого `autopilot-poster-record`; отдельный повтор этого файла прошёл 5/5. Первый typecheck использовал устаревший временный dependency runtime без нового upstream-пакета `telegram`; после замены на установленный runtime, точно совпадающий с lockfile, оба render typecheck прошли. `tri status` остаётся RED на намеренно неподнятых canonical 3333/5174, `tri regress` — без agent key; `tri selftest` зелёный. Эти environment RED не выданы за release evidence.
+
+**Метрики**: feed — 43 reels / 117👁 / 0⭐ / 2 автора. QR TDD 2 RED → PairWithApp 12/12 GREEN; deterministic QR matrix 29×29 PASS. Full player 18 файлов / 147 тестов; player typecheck+production build PASS; render pairing/auth 32/32, full render 479 PASS + 1 flaky timeout, isolated retry 5/5, render typecheck+tests typecheck+bundle PASS; scoped ESLint и `git diff --check` PASS. Local signed BrowserOS smoke: 6/6 pre-code UX assertions и 4/4 post-code leak/geometry assertions PASS.
+
+**Следующий шаг**: заморозить exact commit, получить независимый P0/P1 verdict, затем push/PR и service-scoped deploy player/render; root не выпускать. После деплоя — production health, owner-session pairing и QR/mobile smoke без публикаций и платных действий.
+
+## Три варианта для владельца
+
+1. **«Выпустить player/render»** — exact review → PR → service-scoped deploy и production smoke.
+2. **«Оставить QR открытым»** — сделать QR сразу развёрнутым и для уже вошедшего владельца отдельным UX-витком.
+3. **«Добавить native universal link»** — после подтверждения iOS association заменить ручной ввод кода на app-link, сохранив одноразовый fallback.
+
+---
+
+## Виток №250 — 2026-09-01T17:56Z — безопасный pairing выпущен в player/render (PR #1635)
+
+**Проверено**: frozen topology `2057546d → d41ecb31 → 6b991312`, clean worktree, свежий Railway status и независимый exact-SHA review. Reviewer повторно прогнал 110/110 критических тестов и не нашёл P0/P1. Production `vibee-render` и `vibee-editor` работают на `6b991312`; deployment корневого `999-multibots-telegraf` остался прежним. `loop/state.json` и `loop/topics.json` не изменялись.
+
+**Сделано**: pairing-коды получили атомарную одноразовую выдачу, unique live-code boundary и limiter по проверенному Railway `X-Real-IP`; неизвестные попытки не мутируют записи. Затем выпущен product-слой: pairing принимает свежий Telegram `initData` или подписанную web-session, выводит owner identity только на сервере и показывает статический QR `https://t.me/t27ai_bot?startapp=profile` без кода, Bearer или session в URL/DOM. Через Railway API последовательно развёрнуты non-revertable security commit на render, затем product commit на render и player. Public smoke подтвердил `health=ok`, `authMode=enforce`, готовый bundle и единый redacted 401 без transport details. PR открыт, но не смержен: https://github.com/gHashTag/999-multibots-telegraf/pull/1635.
+
+**Аномалии / самокритика**: первые ручные snapshot-упаковки Railway были неверным путём и завершились до активации; после проверки provenance использован официальный commit-bound `serviceInstanceDeploy`, поэтому production получил точные Git SHA, а не локальный архив. Local signed-owner smoke полностью зелёный, включая QR на 390×844; production owner smoke остановлен перед кнопкой «🎬 Открыть студию», потому что это действие передаёт Telegram identity и требует подтверждения владельца. In-memory limiter допустим только при одном render replica; перед горизонтальным масштабированием нужен общий store.
+
+**Метрики**: `tri feed` — последний id 45; в пяти показанных строках 40👁 и 0⭐. Release evidence: PairWithApp 12/12, render pairing/auth/session 45/45, full player 147/147, full render 480 pass + 1 skip, BrowserOS local signed smoke 10/10; production render/player health PASS.
+
+**Следующий шаг**: после явного подтверждения владельца нажать «🎬 Открыть студию» и завершить production signed-owner pairing smoke без чтения/логирования одноразового кода; затем решить судьбу PR так, чтобы merge не запустил root.
+
+## Три варианта для владельца
+
+1. **«Подтвердить Telegram-вход»** — завершить production owner smoke через официального бота.
+2. **«Подготовить безопасный merge»** — сначала исключить root auto-deploy, затем слить PR #1635.
+3. **«Масштабировать pairing»** — перенести limiter и атомарную выдачу в общий store до второго render replica.

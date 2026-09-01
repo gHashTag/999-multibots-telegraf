@@ -24,6 +24,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import crypto from 'node:crypto'
+import { isIP } from 'node:net'
 import {
   verifyTelegramInitData,
   verifyTelegramLoginWidget,
@@ -346,6 +347,99 @@ function verifiedTelegramIdFrom(initData: string): string | null {
   }
 }
 
+const pairingClaimBuckets = new Map<
+  string,
+  { attempts: number; resetsAt: number }
+>()
+const PAIRING_CLAIM_WINDOW_MS = 60_000
+const PAIRING_CLAIM_MAX_BUCKETS = 10_000
+
+/**
+ * Railway overwrites X-Real-IP with the public client's address. XFF is not a
+ * trust boundary: its ordering depends on proxy configuration and a client
+ * can supply a prefix. Direct/local traffic falls back to the socket address.
+ * Only a validated IP digest is retained.
+ */
+function pairingClaimSource(req: IncomingMessage): string {
+  const railwayHeader = req.headers['x-real-ip']
+  const railwayIp = Array.isArray(railwayHeader)
+    ? ''
+    : String(railwayHeader ?? '').trim()
+  const socketIp = String(req.socket.remoteAddress ?? '').trim()
+  const address = isIP(railwayIp)
+    ? railwayIp
+    : isIP(socketIp)
+      ? socketIp
+      : 'unknown'
+  return digest(`pair-claim:${address}`)
+}
+
+function allowPairingClaim(req: IncomingMessage, now = Date.now()): boolean {
+  const key = pairingClaimSource(req)
+  const current = pairingClaimBuckets.get(key)
+  if (!current || current.resetsAt <= now) {
+    if (pairingClaimBuckets.size >= PAIRING_CLAIM_MAX_BUCKETS) {
+      for (const [candidate, bucket] of pairingClaimBuckets) {
+        if (bucket.resetsAt <= now) pairingClaimBuckets.delete(candidate)
+      }
+      if (pairingClaimBuckets.size >= PAIRING_CLAIM_MAX_BUCKETS) {
+        const oldest = pairingClaimBuckets.keys().next().value
+        if (oldest) pairingClaimBuckets.delete(oldest)
+      }
+    }
+    pairingClaimBuckets.set(key, {
+      attempts: 1,
+      resetsAt: now + PAIRING_CLAIM_WINDOW_MS,
+    })
+    return true
+  }
+  if (current.attempts >= PAIRING.MAX_ATTEMPTS) return false
+  current.attempts += 1
+  // Refresh insertion order so bounded eviction drops the least-recent source.
+  pairingClaimBuckets.delete(key)
+  pairingClaimBuckets.set(key, current)
+  return true
+}
+
+type PairingIdentity = { ok: true; telegramId: string } | { ok: false }
+
+const PAIRING_IDENTITY_FAILURE = Object.freeze({
+  error: 'identity_not_verified',
+  detail: 'подтверждённый вход не принят',
+  hint: 'откройте Mini App через @t27ai_bot и повторите',
+})
+
+/**
+ * Pairing accepts either proof the server already trusts: fresh Telegram
+ * initData inside the Mini App, or a server-signed browser session minted
+ * after Login Widget verification. The account id is derived from that proof
+ * and is never accepted from client JSON.
+ */
+function pairingIdentity(
+  req: IncomingMessage,
+  initData: string
+): PairingIdentity {
+  if (initData) {
+    const verification = verifyTelegramInitData(initData)
+    const telegramId = verifiedTelegramIdFrom(initData)
+    return verification.ok && telegramId
+      ? { ok: true, telegramId }
+      : { ok: false }
+  }
+
+  const authorization = String(req.headers.authorization ?? '')
+  if (authorization.startsWith('Bearer ')) {
+    try {
+      const claims = verifyAppSession(authorization.slice(7).trim())
+      return { ok: true, telegramId: claims.sub }
+    } catch {
+      return { ok: false }
+    }
+  }
+
+  return { ok: false }
+}
+
 type PoolClient = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
   release: () => void
@@ -507,20 +601,15 @@ export async function handleAuthRoute(
     const initData =
       (req.headers['x-telegram-init-data'] as string | undefined) ||
       String(body.init_data ?? '')
-    const v = verifyTelegramInitData(initData)
-    const telegramId = verifiedTelegramIdFrom(initData)
-    if (!v.ok || !telegramId) {
-      json(res, 401, {
-        error: 'подпись Telegram не принята',
-        detail: v.reason ?? 'в подписанной строке нет поля user.id',
-        hint: 'код выдаётся только внутри Telegram — там есть подпись',
-      })
+    const identity = pairingIdentity(req, initData)
+    if (!identity.ok) {
+      json(res, 401, PAIRING_IDENTITY_FAILURE)
       return true
     }
 
     const { code, expiresAt } = await issuePairingCode(
       pool,
-      telegramId,
+      identity.telegramId,
       mintPairingCode
     )
     json(res, 200, {
@@ -533,6 +622,14 @@ export async function handleAuthRoute(
 
   // ─── Pairing: claim (the native app, holding no signature at all) ──────
   if (path === '/api/auth/pair/claim' && req.method === 'POST') {
+    if (!allowPairingClaim(req)) {
+      res.setHeader('Retry-After', String(PAIRING_CLAIM_WINDOW_MS / 1000))
+      json(res, 429, {
+        error: 'pairing_rate_limited',
+        detail: 'слишком много попыток — повторите позже',
+      })
+      return true
+    }
     let body: Record<string, unknown>
     try {
       body = JSON.parse((await readBody(req)) || '{}')

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import crypto from 'node:crypto'
 import { Readable } from 'node:stream'
+import { PAIRING } from './session-store'
 
 /**
  * Сквозной путь входа: подпись → код → сессия.
@@ -215,12 +216,14 @@ function пул() {
 function запрос(
   url: string,
   тело: unknown,
-  заголовки: Record<string, string> = {}
+  headers: Record<string, string> = {},
+  remoteAddress = '203.0.113.10'
 ) {
   const r = Readable.from([Buffer.from(JSON.stringify(тело))]) as any
   r.url = url
   r.method = 'POST'
-  r.headers = заголовки
+  r.headers = headers
+  r.socket = { remoteAddress }
   return r
 }
 
@@ -242,11 +245,20 @@ function ответ() {
       о.head = h ?? null
       return о
     }, // cyrillic-ok
+    setHeader(name: string, value: string) {
+      о.head = { ...(о.head ?? {}), [name]: value } // cyrillic-ok
+    }, // cyrillic-ok
     end(s: string) {
       о.тело = s ? JSON.parse(s) : null
     },
   }
   return о
+}
+
+const IDENTITY_FAILURE = {
+  error: 'identity_not_verified',
+  detail: 'подтверждённый вход не принят',
+  hint: 'откройте Mini App через @t27ai_bot и повторите',
 }
 
 describe('вход по коду: сквозной путь', () => {
@@ -268,6 +280,94 @@ describe('вход по коду: сквозной путь', () => {
       user: JSON.stringify({ id, first_name: 'Тест' }),
       auth_date: String(Math.floor(Date.now() / 1000)),
     })
+
+  it('verified browser session can issue a code without initData', async () => {
+    const session = await import('./session')
+    session.setRevokedSessions([])
+    const accessToken = session.signAccessToken({
+      telegramId: '4242',
+      sessionId: 'browser-session',
+      deviceKeyThumbprint: '',
+    })
+    const response = mkReply()
+
+    await handleAuthRoute(
+      mkRequest(
+        '/api/auth/pair/start',
+        { telegramId: '9999' },
+        { authorization: `Bearer ${accessToken}` }
+      ),
+      response,
+      fakePool as any
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.json.code).toMatch(/^\d{6}$/)
+
+    const claim = mkReply()
+    await handleAuthRoute(
+      mkRequest('/api/auth/pair/claim', { code: response.json.code }),
+      claim,
+      fakePool as any
+    )
+    expect(claim.status).toBe(200)
+    expect(claim.json.telegram_id).toBe('4242')
+  })
+
+  it('an invalid browser session fails closed without an initData fallback', async () => {
+    const response = mkReply()
+
+    await handleAuthRoute(
+      mkRequest(
+        '/api/auth/pair/start',
+        {},
+        { authorization: 'Bearer invalid-session' }
+      ),
+      response,
+      fakePool as any
+    )
+
+    expect(response.status).toBe(401)
+    expect(response.json).toEqual(IDENTITY_FAILURE)
+    expect(response.json.detail).not.toContain('initData')
+  })
+
+  it('missing identity has the same fail-closed response', async () => {
+    const response = mkReply()
+
+    await handleAuthRoute(
+      mkRequest('/api/auth/pair/start', {}),
+      response,
+      fakePool as any
+    )
+
+    expect(response.status).toBe(401)
+    expect(response.json).toEqual(IDENTITY_FAILURE)
+  })
+
+  it('a revoked browser session has the same fail-closed response', async () => {
+    const session = await import('./session')
+    const accessToken = session.signAccessToken({
+      telegramId: '4242',
+      sessionId: 'revoked-browser-session',
+      deviceKeyThumbprint: '',
+    })
+    session.setRevokedSessions(['revoked-browser-session'])
+    const response = mkReply()
+
+    await handleAuthRoute(
+      mkRequest(
+        '/api/auth/pair/start',
+        {},
+        { authorization: `Bearer ${accessToken}` }
+      ),
+      response,
+      fakePool as any
+    )
+
+    expect(response.status).toBe(401)
+    expect(response.json).toEqual(IDENTITY_FAILURE)
+  })
 
   it('подпись → код → сессия: код, выданный одним запросом, принимает другой', async () => {
     // 1. Мини-апп: подпись есть, просим код.
@@ -346,7 +446,7 @@ describe('вход по коду: сквозной путь', () => {
     )
 
     expect(о.код).toBe(401)
-    expect(о.тело.error).toBe('подпись Telegram не принята')
+    expect(о.тело).toEqual(IDENTITY_FAILURE) // cyrillic-ok: inherited test fixture
   })
 
   it('код второй раз не проходит: одноразовость держится на всём пути', async () => {
@@ -379,6 +479,101 @@ describe('вход по коду: сквозной путь', () => {
     expect(о3.код).toBe(401)
     expect(о3.тело.error).toBe('pairing_failed')
   })
+
+  it('перебор ограничен по источнику и не гасит коды двух владельцев', async () => {
+    const first = mkReply()
+    const second = mkReply()
+    await handleAuthRoute(
+      mkRequest(
+        '/api/auth/pair/start',
+        {},
+        { 'x-telegram-init-data': signedInitData(1111) }
+      ),
+      first,
+      fakePool as any
+    )
+    await handleAuthRoute(
+      mkRequest(
+        '/api/auth/pair/start',
+        {},
+        { 'x-telegram-init-data': signedInitData(2222) }
+      ),
+      second,
+      fakePool as any
+    )
+
+    for (let attempt = 0; attempt < PAIRING.MAX_ATTEMPTS; attempt++) {
+      const miss = mkReply()
+      await handleAuthRoute(
+        mkRequest(
+          '/api/auth/pair/claim',
+          { code: '000000' },
+          {
+            'x-real-ip': '198.51.100.20',
+            'x-forwarded-for': `192.0.2.${attempt}, 198.51.100.20`,
+          },
+          '10.0.0.8'
+        ),
+        miss,
+        fakePool as any
+      )
+      expect(miss.status).toBe(401)
+    }
+
+    const limited = mkReply()
+    await handleAuthRoute(
+      mkRequest(
+        '/api/auth/pair/claim',
+        { code: '000000' },
+        {
+          'x-real-ip': '198.51.100.20',
+          'x-forwarded-for': '192.0.2.250, 203.0.113.250',
+        },
+        '10.0.0.8'
+      ),
+      limited,
+      fakePool as any
+    )
+    expect(limited.status).toBe(429)
+    expect(limited.json).toEqual({
+      error: 'pairing_rate_limited',
+      detail: 'слишком много попыток — повторите позже',
+    })
+
+    const firstClaim = mkReply()
+    await handleAuthRoute(
+      mkRequest(
+        '/api/auth/pair/claim',
+        { code: first.json.code },
+        {
+          'x-real-ip': '198.51.100.21',
+          'x-forwarded-for': '198.51.100.20',
+        },
+        '10.0.0.8'
+      ),
+      firstClaim,
+      fakePool as any
+    )
+    expect(firstClaim.status).toBe(200)
+    expect(firstClaim.json.telegram_id).toBe('1111')
+
+    const secondClaim = mkReply()
+    await handleAuthRoute(
+      mkRequest(
+        '/api/auth/pair/claim',
+        { code: second.json.code },
+        {
+          'x-real-ip': '198.51.100.22',
+          'x-forwarded-for': '198.51.100.20',
+        },
+        '10.0.0.8'
+      ),
+      secondClaim,
+      fakePool as any
+    )
+    expect(secondClaim.status).toBe(200)
+    expect(secondClaim.json.telegram_id).toBe('2222')
+  })
 })
 
 /**
@@ -393,6 +588,12 @@ describe('вход по коду: сквозной путь', () => {
 const mkReply = ответ // cyrillic-ok
 const mkRequest = запрос // cyrillic-ok
 const fakePool = пул // cyrillic-ok
+const signInitData = подписать // cyrillic-ok
+const signedInitData = (id: number) =>
+  signInitData({
+    user: JSON.stringify({ id, first_name: 'Test' }),
+    auth_date: String(Math.floor(Date.now() / 1000)),
+  })
 const TEST_BOT_TOKEN = TELEGRAM_TEST_TOKEN
 const fakeRows = строки // cyrillic-ok
 const resetFakeRows = () => {
