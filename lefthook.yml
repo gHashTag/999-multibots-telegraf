@@ -159,3 +159,14 @@ pre-push:
     mock-functions:
       run: bash apps/vibee-editor/render/mock-selfcheck.sh
       fail_text: "Mock-проверки функций упали — сломан контракт функции или провайдера."
+
+    # Трекнутый симлинк ломает pull/checkout ВСЕМ (git отказывается перезаписать
+    # untracked node_modules -> Aborting). PR #1608 закоммитил node_modules как
+    # симлинк на абсолютный путь чужой машины; .gitignore `node_modules/` (со
+    # слешем) его не поймал. CI мёртв, ловить больше нечему. Гейт падает на ЛЮБОМ
+    # трекнутом симлинке (mode 120000) — чистая база 0. Фикс: git rm + .gitignore
+    # имя без слеша. Абсолютные пути этот гейт НЕ трогает (их 50, только триаж:
+    # node .claude/loop-opus/repo-hygiene-audit.mjs).
+    repo-hygiene:
+      run: node .claude/loop-opus/repo-hygiene-audit.mjs --gate
+      fail_text: "Трекнутый симлинк в репозитории (класс #1608) — ломает pull/checkout всем."
