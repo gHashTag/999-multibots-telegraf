@@ -647,6 +647,27 @@ If not, continue on your own and click the "I myself" button`
           return
         }
 
+        // Consume-once guard (same class as upscale_image above, #1551). This
+        // button rides the persistent neurophoto result keyboard that is never
+        // stripped, lastNeuroPhotoImageUrl is set once at generation and never
+        // cleared, and upscaleImage does not change it -- so re-tapping the old
+        // button later re-charges for a deterministic (identical) upscale. Refuse
+        // when this image was already upscaled, and mark it consumed BEFORE the
+        // charge (synchronous check-then-set). A new neurophoto resets
+        // lastNeuroPhotoImageUrl, so its first upscale still proceeds.
+        if (
+          ctx.session.lastUpscaledImageUrl ===
+          ctx.session.lastNeuroPhotoImageUrl
+        ) {
+          await ctx.reply(
+            isRu
+              ? '⏳ Это нейрофото уже улучшено. Сгенерируйте новое, чтобы улучшить его.'
+              : '⏳ This neurophoto was already upscaled. Generate a new one to upscale.'
+          )
+          return
+        }
+        ctx.session.lastUpscaledImageUrl = ctx.session.lastNeuroPhotoImageUrl
+
         await ctx.reply(
           isRu
             ? '⌛ Увеличиваем качество нейрофото... Пожалуйста, подождите'
