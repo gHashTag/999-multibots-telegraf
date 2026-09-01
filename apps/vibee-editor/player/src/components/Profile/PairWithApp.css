@@ -48,6 +48,12 @@
   line-height: 1.45;
 }
 
+.pair-with-app__result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .pair-with-app__note,
 .pair-with-app__timer,
 .pair-with-app__instructions,

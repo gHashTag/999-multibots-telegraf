@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { API_BASE } from '@/config'
 import { apiFetch } from '@/lib/apiFetch'
 import './PairWithApp.css'
@@ -12,28 +12,33 @@ import './PairWithApp.css'
  */
 export function PairWithApp() {
   const [code, setCode] = useState<string | null>(null)
-  const [secondsLeft, setSecondsLeft] = useState(0)
+  const [expiresAt, setExpiresAt] = useState<number | null>(null)
+  const [clockNow, setClockNow] = useState(() => Date.now())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const timerRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (secondsLeft <= 0) return
-    timerRef.current = window.setTimeout(
-      () =>
-        setSecondsLeft(remaining => {
-          if (remaining <= 1) {
-            setCode(null)
-            return 0
-          }
-          return remaining - 1
-        }),
-      1000
-    )
-    return () => {
-      if (timerRef.current) window.clearTimeout(timerRef.current)
+    if (expiresAt === null) return
+
+    const syncDeadline = () => {
+      const currentTime = Date.now()
+      setClockNow(currentTime)
+      if (currentTime >= expiresAt) {
+        setCode(null)
+        setExpiresAt(null)
+      }
     }
-  }, [secondsLeft])
+
+    const timer = window.setInterval(syncDeadline, 1000)
+    window.addEventListener('focus', syncDeadline)
+    document.addEventListener('visibilitychange', syncDeadline)
+
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', syncDeadline)
+      document.removeEventListener('visibilitychange', syncDeadline)
+    }
+  }, [expiresAt])
 
   async function requestCode() {
     setLoading(true)
@@ -47,8 +52,13 @@ export function PairWithApp() {
           body: '{}',
         }
       )
-      setCode(response.code)
-      setSecondsLeft(response.expires_in)
+      const issuedAt = Date.now()
+      const lifetimeSeconds = Number.isFinite(response.expires_in)
+        ? Math.max(0, response.expires_in)
+        : 0
+      setClockNow(issuedAt)
+      setExpiresAt(issuedAt + lifetimeSeconds * 1000)
+      setCode(lifetimeSeconds > 0 ? response.code : null)
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -59,11 +69,16 @@ export function PairWithApp() {
     setLoading(false)
   }
 
+  const secondsLeft =
+    expiresAt === null
+      ? 0
+      : Math.max(0, Math.ceil((expiresAt - clockNow) / 1000))
   const minutes = String(Math.floor(secondsLeft / 60))
   const seconds = String(secondsLeft % 60).padStart(2, '0')
 
   const actionButton = (
     <button
+      type="button"
       className="pair-with-app__action"
       onClick={requestCode}
       disabled={loading}
@@ -81,28 +96,34 @@ export function PairWithApp() {
       <h3 className="pair-with-app__title">
         {'Войти в приложение на телефоне'}
       </h3>
+      {actionButton}
 
       {code ? (
         <>
           <div
-            className="pair-with-app__code"
-            aria-label={`Код ${code.split('').join(' ')}`}
+            className="pair-with-app__result"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
           >
-            {code.slice(0, 3)} {code.slice(3)}
+            <div
+              className="pair-with-app__code"
+              aria-label={`Код ${code.split('').join(' ')}`}
+            >
+              {code.slice(0, 3)} {code.slice(3)}
+            </div>
+            <p className="pair-with-app__instructions">
+              {
+                'Введите эти 6 цифр в Trinity S³AI на телефоне: «Войти» → «Ввести код».'
+              }
+            </p>
           </div>
-          <p className="pair-with-app__instructions">
-            {
-              'Введите эти 6 цифр в Trinity S³AI на телефоне: «Войти» → «Ввести код».'
-            }
-          </p>
           <p className="pair-with-app__timer">
             {`Одноразовый код. Осталось ${minutes}:${seconds}`}
           </p>
-          {actionButton}
         </>
       ) : (
         <>
-          {actionButton}
           <ol className="pair-with-app__steps">
             <li>{'Нажмите кнопку — здесь появятся 6 цифр.'}</li>
             <li>{'Откройте Trinity S³AI на телефоне.'}</li>

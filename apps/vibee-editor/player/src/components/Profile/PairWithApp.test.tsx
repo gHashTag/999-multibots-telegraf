@@ -11,7 +11,7 @@ import { PairWithApp } from './PairWithApp'
 
 describe('PairWithApp mobile pairing flow', () => {
   let host: HTMLDivElement
-  let root: Root
+  let root: Root | null
 
   beforeEach(() => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -22,12 +22,14 @@ describe('PairWithApp mobile pairing flow', () => {
   })
 
   afterEach(async () => {
-    await act(async () => root.unmount())
+    if (root) await act(async () => root?.unmount())
+    root = null
     host.remove()
+    vi.useRealTimers()
   })
 
   it('puts the phone-login action before the explanatory steps', async () => {
-    await act(async () => root.render(<PairWithApp />))
+    await act(async () => root?.render(<PairWithApp />))
 
     expect(host.querySelector('h3')?.textContent).toBe(
       'Войти в приложение на телефоне'
@@ -52,7 +54,7 @@ describe('PairWithApp mobile pairing flow', () => {
 
   it('explains where to enter the generated six digits', async () => {
     apiFetch.mockResolvedValue({ code: '123456', expires_in: 120 })
-    await act(async () => root.render(<PairWithApp />))
+    await act(async () => root?.render(<PairWithApp />))
 
     await act(async () => {
       host.querySelector<HTMLButtonElement>('.pair-with-app__action')?.click()
@@ -65,5 +67,102 @@ describe('PairWithApp mobile pairing flow', () => {
       host.querySelector('.pair-with-app__instructions')?.textContent
     ).toContain('Введите эти 6 цифр в Trinity S³AI на телефоне')
     expect(host.textContent).toContain('Осталось 2:00')
+  })
+
+  it('keeps focus on the stable action and announces the new code once', async () => {
+    apiFetch.mockResolvedValue({ code: '123456', expires_in: 120 })
+    await act(async () => root?.render(<PairWithApp />))
+
+    const action = host.querySelector<HTMLButtonElement>(
+      '.pair-with-app__action'
+    )
+    action?.focus()
+    await act(async () => action?.click())
+
+    const status = host.querySelector('[role="status"][aria-live="polite"]')
+    const timer = host.querySelector('.pair-with-app__timer')
+
+    expect(document.activeElement).toBe(action)
+    expect(action?.type).toBe('button')
+    expect(status?.textContent).toContain('123 456')
+    expect(status?.textContent).toContain('Введите эти 6 цифр')
+    expect(status?.contains(timer)).toBe(false)
+  })
+
+  it('expires against the absolute deadline after a background clock jump', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-01T09:00:00.000Z'))
+    apiFetch.mockResolvedValue({ code: '123456', expires_in: 120 })
+    await act(async () => root?.render(<PairWithApp />))
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('.pair-with-app__action')?.click()
+    })
+    expect(host.textContent).toContain('123 456')
+
+    vi.setSystemTime(new Date('2026-09-01T09:02:01.000Z'))
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+
+    expect(host.querySelector('.pair-with-app__code')).toBeNull()
+    expect(host.textContent).toContain('Показать 6-значный код')
+  })
+
+  it('expires normally when the absolute deadline is reached', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-01T09:00:00.000Z'))
+    apiFetch.mockResolvedValue({ code: '123456', expires_in: 2 })
+    await act(async () => root?.render(<PairWithApp />))
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('.pair-with-app__action')?.click()
+    })
+    expect(host.textContent).toContain('Осталось 0:02')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+
+    expect(host.querySelector('.pair-with-app__code')).toBeNull()
+    expect(host.textContent).toContain('Показать 6-значный код')
+  })
+
+  it('uses a fresh absolute deadline when replacing a code', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-01T09:00:00.000Z'))
+    apiFetch
+      .mockResolvedValueOnce({ code: '111111', expires_in: 120 })
+      .mockResolvedValueOnce({ code: '222222', expires_in: 120 })
+    await act(async () => root?.render(<PairWithApp />))
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('.pair-with-app__action')?.click()
+    })
+    vi.setSystemTime(new Date('2026-09-01T09:01:30.000Z'))
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('.pair-with-app__action')?.click()
+    })
+    vi.setSystemTime(new Date('2026-09-01T09:02:01.000Z'))
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'))
+    })
+
+    expect(host.textContent).toContain('222 222')
+    expect(host.textContent).toContain('Осталось 1:29')
+  })
+
+  it('cleans the deadline timer and listeners on unmount', async () => {
+    vi.useFakeTimers()
+    apiFetch.mockResolvedValue({ code: '123456', expires_in: 120 })
+    await act(async () => root?.render(<PairWithApp />))
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('.pair-with-app__action')?.click()
+    })
+
+    expect(vi.getTimerCount()).toBeGreaterThan(0)
+    await act(async () => root?.unmount())
+    root = null
+    expect(vi.getTimerCount()).toBe(0)
   })
 })
