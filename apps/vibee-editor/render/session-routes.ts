@@ -24,7 +24,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import crypto from 'node:crypto'
-import { verifyTelegramInitData } from './auth'
+import { verifyTelegramInitData, verifyTelegramLoginWidget } from './auth'
 import {
   signAccessToken,
   issueRefreshToken,
@@ -209,6 +209,28 @@ export async function handleAuthRoute(
     }
 
     json(res, 200, await mintSession(pool, telegramId, body))
+    return true
+  }
+
+  // ─── Browser login: verified Login Widget payload becomes a session ───
+  if (path === '/api/auth/widget' && req.method === 'POST') {
+    let body: Record<string, unknown>
+    try {
+      body = JSON.parse((await readBody(req)) || '{}')
+    } catch {
+      json(res, 400, { error: 'тело запроса не разобрано как JSON' })
+      return true
+    }
+    const verified = verifyTelegramLoginWidget(body)
+    if (!verified.ok) {
+      json(res, 401, {
+        error: 'подпись Telegram Login Widget не принята',
+        detail: verified.reason,
+      })
+      return true
+    }
+    const session = await mintSession(pool, verified.telegramId, body)
+    json(res, 200, { ...session, telegram_user: verified.user })
     return true
   }
 
@@ -429,6 +451,7 @@ export async function handleAuthRoute(
    */
   const known: Record<string, string> = {
     '/api/auth/telegram': 'POST',
+    '/api/auth/widget': 'POST',
     '/api/auth/refresh': 'POST',
     '/api/auth/logout': 'POST',
     '/api/auth/pair/start': 'POST',

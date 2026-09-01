@@ -60,11 +60,12 @@ describe('/api/render-quota contract', () => {
   })
 
   it('derives admin from the verified caller, not the query parameter', () => {
-    expect(handler).toContain('verifiedTelegramId(req)')
+    expect(handler).toContain('chatIdentity(req, verifiedTelegramId(req))')
     // The old form compared the raw query param directly.
     expect(handler).not.toMatch(
       /const isAdmin = telegram_id === TELEGRAM_OWNER_ID/
     )
+    expect(handler).not.toContain("searchParams.get('telegram_id')")
   })
 })
 
@@ -78,5 +79,11 @@ describe('the client sends the signature', () => {
 
   it('authHeaders is imported', () => {
     expect(CLIENT).toContain("from '../lib/apiFetch'")
+  })
+
+  it('does not send a client-owned telegram_id in the quota URL', () => {
+    const idx = CLIENT.indexOf('`${API_BASE}/api/render-quota')
+    const call = CLIENT.slice(idx, idx + 200)
+    expect(call).not.toContain('telegram_id=')
   })
 })

@@ -242,14 +242,7 @@ function sendJson(res: any, code: number, obj: unknown): void {
  * not-liked.
  */
 function verifiedViewerId(req: IncomingMessage): string | null {
-  const initRaw = (req.headers['x-telegram-init-data'] as string) || ''
-  if (!initRaw || !verifyTelegramInitData(initRaw).ok) return null
-  try {
-    const u = JSON.parse(new URLSearchParams(initRaw).get('user') || '{}')
-    return u.id != null ? String(u.id) : null
-  } catch {
-    return null
-  }
+  return chatIdentity(req, verifiedTelegramId(req))
 }
 
 /**
@@ -1673,6 +1666,7 @@ interface TemplateRenderRequest {
 
   // Template-specific props (passed through as-is)
   props?: Record<string, unknown>
+  inputProps?: Record<string, unknown>
 
   // Render options
   uploadToS3?: boolean // default: true
@@ -2194,10 +2188,13 @@ const server = createServer(async (req, res) => {
 
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET, POST, PUT, DELETE, OPTIONS'
+  )
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, X-Filename, X-Api-Key, X-Agent-Key, X-Telegram-Init-Data'
+    'Content-Type, Authorization, X-Filename, X-Api-Key, X-Agent-Key, X-Telegram-Init-Data'
   )
 
   if (req.method === 'OPTIONS') {
@@ -7141,6 +7138,137 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  // PUT /api/users/:username - Update only the verified owner's profile.
+  if (req.url?.startsWith('/api/users/') && req.method === 'PUT') {
+    if (rejectExtraSegments(req, res, 3)) return
+    const url = new URL(req.url || '', `http://${req.headers.host}`)
+    const username = url.pathname.split('/').filter(Boolean)[2] || ''
+    const ownerId = chatIdentity(req, verifiedTelegramId(req))
+    if (!ownerId) {
+      sendJson(res, 401, { error: 'verified identity required' })
+      return
+    }
+    let body: Record<string, unknown>
+    try {
+      body = JSON.parse((await readBody(req)) || '{}')
+    } catch {
+      sendJson(res, 400, { error: 'invalid JSON body' })
+      return
+    }
+
+    const present = (key: string) =>
+      Object.prototype.hasOwnProperty.call(body, key)
+    const nullableText = (key: string, max: number) => {
+      const value = body[key]
+      if (value === null || value === undefined) return null
+      if (typeof value !== 'string' || value.length > max)
+        throw new Error(`invalid ${key}`)
+      return value.trim()
+    }
+
+    try {
+      const displayName = nullableText('display_name', 100)
+      const bio = nullableText('bio', 500)
+      const avatarUrl = nullableText('avatar_url', 2048)
+      if (present('is_public') && typeof body.is_public !== 'boolean')
+        throw new Error('invalid is_public')
+      if (avatarUrl && !/^https?:\/\//i.test(avatarUrl))
+        throw new Error('invalid avatar_url')
+
+      let socialLinks: unknown[] | null = null
+      if (present('social_links')) {
+        const raw = body.social_links
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+        if (!Array.isArray(parsed) || parsed.length > 10)
+          throw new Error('invalid social_links')
+        const allowed = new Set([
+          'telegram',
+          'instagram',
+          'twitter',
+          'youtube',
+          'tiktok',
+          'website',
+        ])
+        socialLinks = parsed.map(item => {
+          if (!item || typeof item !== 'object')
+            throw new Error('invalid social_links')
+          const link = item as Record<string, unknown>
+          const platform = String(link.platform || '')
+          const href = String(link.url || '')
+          if (
+            !allowed.has(platform) ||
+            href.length > 2048 ||
+            !/^https?:\/\//i.test(href)
+          ) {
+            throw new Error('invalid social_links')
+          }
+          return {
+            platform,
+            url: href,
+            ...(typeof link.label === 'string' && link.label.length <= 100
+              ? { label: link.label }
+              : {}),
+          }
+        })
+      }
+
+      const pool = await getPool()
+      const result = await pool.query(
+        `UPDATE profiles
+            SET display_name = CASE WHEN $3 THEN $4 ELSE display_name END,
+                bio = CASE WHEN $5 THEN $6 ELSE bio END,
+                avatar_url = CASE WHEN $7 THEN $8 ELSE avatar_url END,
+                is_public = CASE WHEN $9 THEN $10 ELSE is_public END,
+                social_links = CASE WHEN $11 THEN $12::jsonb ELSE social_links END
+          WHERE telegram_id = $1 AND LOWER(username) = LOWER($2)
+          RETURNING id, telegram_id, username, display_name, bio, avatar_url,
+                    cover_url, social_links, is_public, is_verified,
+                    created_at::text`,
+        [
+          ownerId,
+          username,
+          present('display_name'),
+          displayName,
+          present('bio'),
+          bio,
+          present('avatar_url'),
+          avatarUrl,
+          present('is_public'),
+          present('is_public') ? body.is_public : null,
+          present('social_links'),
+          JSON.stringify(socialLinks || []),
+        ]
+      )
+      if (!result.rows.length) {
+        sendJson(res, 404, { error: 'profile not found for verified owner' })
+        return
+      }
+      const row = result.rows[0]
+      sendJson(res, 200, {
+        profile: {
+          ...row,
+          social_links: row.social_links || [],
+          followers_count: 0,
+          following_count: 0,
+          templates_count: 0,
+          total_views: 0,
+          total_likes: 0,
+          is_following: false,
+          is_own_profile: true,
+        },
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      if (message.startsWith('invalid ')) {
+        sendJson(res, 400, { error: message })
+      } else {
+        console.error('[profile-update] failed')
+        sendJson(res, 500, { error: 'profile update failed' })
+      }
+    }
+    return
+  }
+
   // GET /api/users/:username - Get user profile by username
   if (
     req.url?.startsWith('/api/users/') &&
@@ -7154,7 +7282,9 @@ const server = createServer(async (req, res) => {
     const pathParts = url.pathname.split('/').filter(Boolean)
     const usernameIndex = pathParts.indexOf('api') + 2 // /api/users/:username
     const username = pathParts[usernameIndex]
-    const viewerTelegramId = url.searchParams.get('user_id')
+    // Ownership comes only from a verified Mini App signature, app session,
+    // or owner-bound agent key. A query parameter is not an identity proof.
+    const viewerTelegramId = chatIdentity(req, verifiedTelegramId(req))
 
     if (!username) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
@@ -7215,10 +7345,9 @@ const server = createServer(async (req, res) => {
           // profile's telegram_id/bio/cover/social_links were returned to any
           // unauthenticated caller of this public GET. Drop it so the private
           // fields fall through to the public-only fallbacks (then a 404).
-          const verifiedViewer = verifiedTelegramId(req)
           if (
             row.is_public === false &&
-            String(verifiedViewer ?? '') !== String(row.telegram_id)
+            String(viewerTelegramId ?? '') !== String(row.telegram_id)
           ) {
             profile = null
           }
@@ -7291,68 +7420,6 @@ const server = createServer(async (req, res) => {
         }
       }
 
-      // Attempt 4: If user_id (telegram_id) provided, build profile from public_templates by telegram_id
-      if (!profile && viewerTelegramId) {
-        try {
-          const tidQuery = `
-            SELECT DISTINCT ON (pt.telegram_id)
-              pt.telegram_id, pt.creator_name, pt.creator_avatar,
-              COALESCE(pt.creator_username, '') as creator_username,
-              MIN(pt.created_at)::text as created_at
-            FROM public_templates pt
-            WHERE pt.telegram_id = $1
-            GROUP BY pt.telegram_id, pt.creator_name, pt.creator_avatar, pt.creator_username
-            LIMIT 1
-          `
-          const tidResult = await pool.query(tidQuery, [viewerTelegramId])
-          if (tidResult.rows.length > 0) {
-            const row = tidResult.rows[0]
-            let avatarUrl = row.creator_avatar
-            if (avatarUrl && avatarUrl.includes('t.me/')) {
-              avatarUrl = `${process.env.SELF_URL || 'https://vibee-render-production.up.railway.app'}/proxy/image?url=${encodeURIComponent(avatarUrl)}`
-            }
-            profile = {
-              id: String(row.telegram_id),
-              telegram_id: String(row.telegram_id),
-              username: row.creator_username || username,
-              display_name: row.creator_name || username,
-              bio: null,
-              avatar_url: avatarUrl,
-              cover_url: null,
-              social_links: [],
-              is_public: true,
-              is_verified: false,
-              created_at: row.created_at,
-            }
-            console.log(
-              `[Profile] Found profile by telegram_id=${viewerTelegramId} for username=${username}`
-            )
-          }
-        } catch (_e) {
-          console.log('[Profile] Attempt 4 (telegram_id lookup) failed:', _e)
-        }
-      }
-
-      // Attempt 5: If user_id provided but no templates exist, create minimal profile
-      if (!profile && viewerTelegramId) {
-        profile = {
-          id: String(viewerTelegramId),
-          telegram_id: String(viewerTelegramId),
-          username: username,
-          display_name: username,
-          bio: null,
-          avatar_url: null,
-          cover_url: null,
-          social_links: [],
-          is_public: true,
-          is_verified: false,
-          created_at: new Date().toISOString(),
-        }
-        console.log(
-          `[Profile] Created minimal profile for telegram_id=${viewerTelegramId}, username=${username}`
-        )
-      }
-
       if (!profile) {
         res.writeHead(404, {
           'Content-Type': 'application/json',
@@ -7418,19 +7485,17 @@ const server = createServer(async (req, res) => {
 
   // GET /api/render-quota
   if (req.url?.startsWith('/api/render-quota') && req.method === 'GET') {
-    const url = new URL(req.url || '', `http://${req.headers.host}`)
-    const telegram_id = url.searchParams.get('telegram_id')
-    if (!telegram_id) {
-      res.writeHead(400, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'telegram_id required' }))
+    const verifiedId = chatIdentity(req, verifiedTelegramId(req))
+    if (!verifiedId) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'verified identity required' }))
       return
     }
 
     // Admin is decided by the VERIFIED caller, never by the query parameter.
     // The client syncs user.is_admin from this response, so trusting ?telegram_id
     // let anyone claim the owner's id and be shown the admin UI.
-    const verifiedId = verifiedTelegramId(req)
-    const isAdmin = (verifiedId || telegram_id) === TELEGRAM_OWNER_ID
+    const isAdmin = verifiedId === TELEGRAM_OWNER_ID
 
     // Field names must match the shared RenderQuota type the client reads
     // (packages/vibee-atoms/src/types.ts): total_renders / free_remaining /
@@ -7446,7 +7511,7 @@ const server = createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(
       JSON.stringify({
-        telegram_id: parseInt(verifiedId || telegram_id),
+        telegram_id: parseInt(verifiedId),
         total_renders: 0,
         free_remaining: freeRemaining,
         subscription: null,

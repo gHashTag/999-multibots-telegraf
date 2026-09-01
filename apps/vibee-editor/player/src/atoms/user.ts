@@ -8,6 +8,7 @@ import { atomWithStorage } from 'jotai/utils'
 import { STORAGE_KEYS } from '@vibee/atoms'
 import { API_BASE } from '../config'
 import { authHeaders } from '../lib/apiFetch'
+import { logoutAppSession } from '../lib/appSession'
 
 // Import shared types from @vibee/atoms
 import type {
@@ -47,38 +48,22 @@ export const fetchQuotaAtom = atom(null, async (get, set) => {
     return
   }
 
-  console.log('[fetchQuota] Fetching quota for user:', {
-    id: user.id,
-    is_admin: user.is_admin,
-  })
-
   set(quotaLoadingAtom, true)
   try {
     // Signed: /api/render-quota is not on any PUBLIC list and the render
     // server runs in enforce mode on Railway, so an unsigned request 401s --
     // which is why the quota chip never appeared in production.
-    const response = await fetch(
-      `${API_BASE}/api/render-quota?telegram_id=${user.id}`,
-      { headers: authHeaders() }
-    )
+    const response = await fetch(`${API_BASE}/api/render-quota`, {
+      headers: authHeaders(),
+    })
 
     if (response.ok) {
       const data = await response.json()
-      console.log('[fetchQuota] API response:', data)
       set(renderQuotaAtom, data)
 
       // Only sync is_admin if it actually changed (prevents infinite loop!)
       if (data.is_admin !== undefined && data.is_admin !== user.is_admin) {
-        console.log('[fetchQuota] Updating is_admin:', {
-          from: user.is_admin,
-          to: data.is_admin,
-        })
         set(userAtom, { ...user, is_admin: data.is_admin })
-      } else {
-        console.log('[fetchQuota] is_admin unchanged:', {
-          current: user.is_admin,
-          api: data.is_admin,
-        })
       }
     }
   } catch (error) {
@@ -211,6 +196,7 @@ export const hasUnlimitedRendersAtom = atom(get => {
 
 // Logout action
 export const logoutAtom = atom(null, (_get, set) => {
+  void logoutAppSession()
   set(userAtom, null)
   set(renderQuotaAtom, null)
   set(showPaywallAtom, false)

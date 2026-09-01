@@ -48,23 +48,26 @@ interface FeedCardProps {
  * первая строка не заголовок, остаются как есть.
  */
 function stripRepeatedTitle(description?: string, name?: string): string {
-  const text = (description ?? '').trim();
-  const title = (name ?? '').trim();
-  if (!text || !title) return text;
-  if (text === title) return '';
-  if (!text.startsWith(title)) return text;
-  return text.slice(title.length).replace(/^[\s\n]+/, '');
+  const text = (description ?? '').trim()
+  const title = (name ?? '').trim()
+  if (!text || !title) return text
+  if (text === title) return ''
+  if (!text.startsWith(title)) return text
+  return text.slice(title.length).replace(/^[\s\n]+/, '')
 }
 
 export function FeedCard({ template }: FeedCardProps) {
   const { t } = useLanguage()
-  const descriptionBody = stripRepeatedTitle(template.description, template.name)
+  const descriptionBody = stripRepeatedTitle(
+    template.description,
+    template.name
+  )
   const navigate = useNavigate()
   const user = useAtomValue(userAtom)
   const likeTemplate = useSetAtom(likeTemplateAtom)
   const starTemplate = useSetAtom(starTemplateAtom)
   const [isStarring, setIsStarring] = useState(false)
-  const useTemplate = useSetAtom(useTemplateAtom)
+  const applyTemplate = useSetAtom(useTemplateAtom)
   const deleteTemplate = useSetAtom(deleteTemplateAtom)
   const trackView = useSetAtom(trackViewAtom)
   const [isUsing, setIsUsing] = useState(false)
@@ -216,14 +219,13 @@ export function FeedCard({ template }: FeedCardProps) {
       e.stopPropagation()
       setIsUsing(true)
       try {
-        await useTemplate(template.id)
-        // Navigate to avatar generation page to record cameo
-        navigate('/generate/avatar')
+        const loaded = await applyTemplate(template.id)
+        if (loaded) navigate('/editor')
       } finally {
         setIsUsing(false)
       }
     },
-    [useTemplate, template.id, navigate]
+    [applyTemplate, template.id, navigate]
   )
 
   const handleDeleteClick = useCallback((e: React.MouseEvent) => {

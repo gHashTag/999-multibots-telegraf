@@ -18,7 +18,7 @@ import { Readable } from 'node:stream'
  * одним запросом, принимается другим.
  */
 
-const ТОКЕН = '111111:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+const TELEGRAM_TEST_TOKEN = '111111:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
 
 /**
  * Подпись initData ровно по документации Telegram: секрет — это HMAC от
@@ -30,7 +30,7 @@ function подписать(поля: Record<string, string>): string {
   const строка = пары.map(([k, v]) => `${k}=${v}`).join('\n')
   const секрет = crypto
     .createHmac('sha256', 'WebAppData')
-    .update(ТОКЕН)
+    .update(TELEGRAM_TEST_TOKEN)
     .digest()
   const hash = crypto.createHmac('sha256', секрет).update(строка).digest('hex')
   const p = new URLSearchParams(поля)
@@ -154,7 +154,8 @@ describe('вход по коду: сквозной путь', () => {
 
   beforeEach(async () => {
     строки.length = 0
-    process.env.TELEGRAM_BOT_TOKEN = ТОКЕН
+    process.env.TELEGRAM_BOT_TOKEN = TELEGRAM_TEST_TOKEN
+    process.env.BOT_TOKEN_12 = TELEGRAM_TEST_TOKEN
     // Имя подсказал сам сервер, отказавшись работать: он называет и
     // переменную, и команду для её создания. Хорошее сообщение об ошибке.
     process.env.SESSION_SIGNING_KEY ||= 'x'.repeat(48)
@@ -292,6 +293,10 @@ describe('вход по коду: сквозной путь', () => {
 const mkReply = ответ // cyrillic-ok
 const mkRequest = запрос // cyrillic-ok
 const fakePool = пул // cyrillic-ok
+const TEST_BOT_TOKEN = TELEGRAM_TEST_TOKEN
+const resetFakeRows = () => {
+  строки.length = 0 // cyrillic-ok
+}
 
 describe('a wrong verb is not a wrong path', () => {
   /**
@@ -321,5 +326,71 @@ describe('a wrong verb is not a wrong path', () => {
       fakePool as any
     )
     expect(res.status).toBe(404)
+  })
+})
+
+function signWidget(payload: Record<string, unknown>) {
+  const check = Object.entries(payload)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join('\n')
+  const secret = crypto
+    .createHash('sha256')
+    .update(TELEGRAM_TEST_TOKEN)
+    .digest()
+  return {
+    ...payload,
+    hash: crypto.createHmac('sha256', secret).update(check).digest('hex'),
+  }
+}
+
+describe('Login Widget exchange', () => {
+  beforeEach(() => {
+    resetFakeRows()
+    process.env.BOT_TOKEN_12 = TEST_BOT_TOKEN
+    process.env.SESSION_SIGNING_KEY = 'x'.repeat(48)
+    vi.resetModules()
+  })
+  it('mints a session only after the server verifies the widget signature', async () => {
+    const { handleAuthRoute } = await import('./session-routes')
+    const payload = signWidget({
+      id: 5151,
+      first_name: 'Web owner',
+      username: 't27_dev',
+      auth_date: Math.floor(Date.now() / 1000),
+    })
+    const res = mkReply()
+    await handleAuthRoute(
+      mkRequest('/api/auth/widget', payload),
+      res,
+      fakePool as any
+    )
+
+    expect(res.status).toBe(200)
+    expect(res.json.telegram_id).toBe('5151')
+    expect(res.json.telegram_user).toMatchObject({
+      id: 5151,
+      username: 't27_dev',
+    })
+    expect(res.json.access_token).toBeTruthy()
+    expect(res.json.refresh_token).toBeTruthy()
+  })
+
+  it('does not create a session for a forged widget identity', async () => {
+    const { handleAuthRoute } = await import('./session-routes')
+    const payload = signWidget({
+      id: 5151,
+      first_name: 'Web owner',
+      auth_date: Math.floor(Date.now() / 1000),
+    })
+    payload.id = 9999
+    const res = mkReply()
+    await handleAuthRoute(
+      mkRequest('/api/auth/widget', payload),
+      res,
+      fakePool as any
+    )
+    expect(res.status).toBe(401)
+    expect(res.json.access_token).toBeUndefined()
   })
 })

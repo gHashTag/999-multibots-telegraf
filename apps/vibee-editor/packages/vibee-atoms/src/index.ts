@@ -575,7 +575,7 @@ export {
   // Types
   type SnapPoint,
   type SnapResult,
-  type SnapSettings,
+  type SnapSettings as IndexedSnapSettings,
   // Atoms
   snapPointsAtom,
   getSnappedFrameAtom,

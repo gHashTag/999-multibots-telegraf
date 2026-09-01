@@ -12,24 +12,26 @@
  * его смысл: неизвестный хост — это запасная кнопка, а не ошибка на экране.
  */
 import { describe, it, expect } from 'vitest'
-import { shouldUseFallback } from '../TelegramLoginButton'
+import { shouldUseTelegramFallback } from '@/lib/telegramWidget'
 
 describe('когда показывать запасную кнопку входа', () => {
   it('на домене, где виджет проверен, — нативный виджет', () => {
-    expect(shouldUseFallback('vibee-editor-production.up.railway.app')).toBe(false)
+    expect(
+      shouldUseTelegramFallback('vibee-editor-production.up.railway.app')
+    ).toBe(false)
   })
 
-  it('на новом домене — запасная кнопка, а не белая плашка', () => {
-    expect(shouldUseFallback('app.t27.ai')).toBe(true)
+  it('на подтверждённом брендовом домене — нативный виджет', () => {
+    expect(shouldUseTelegramFallback('app.t27.ai')).toBe(false)
   })
 
   it('на localhost и вообще на неизвестном хосте — запасная кнопка', () => {
-    expect(shouldUseFallback('localhost')).toBe(true)
-    expect(shouldUseFallback('127.0.0.1')).toBe(true)
-    expect(shouldUseFallback('preview.example.com')).toBe(true)
+    expect(shouldUseTelegramFallback('localhost')).toBe(true)
+    expect(shouldUseTelegramFallback('127.0.0.1')).toBe(true)
+    expect(shouldUseTelegramFallback('preview.example.com')).toBe(true)
   })
 
   it('без hostname — запасная кнопка: молчать безопаснее, чем показать ошибку', () => {
-    expect(shouldUseFallback('')).toBe(true)
+    expect(shouldUseTelegramFallback('')).toBe(true)
   })
 })

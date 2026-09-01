@@ -180,9 +180,9 @@ export function applySettings(set: Setter, settings: TemplateSettings): void {
     set(avatarBorderRadiusAtom, settings.avatarBorderRadius)
   // Avatar mode settings (CONSOLIDATED - 12 → 2)
   if (settings.splitAvatarSettings !== undefined)
-    set(splitAvatarSettingsAtom, settings.splitAvatarSettings)
+    set(splitAvatarSettingsAtom as any, settings.splitAvatarSettings)
   if (settings.fullscreenAvatarSettings !== undefined)
-    set(fullscreenAvatarSettingsAtom, settings.fullscreenAvatarSettings)
+    set(fullscreenAvatarSettingsAtom as any, settings.fullscreenAvatarSettings)
   // Animation
   if (settings.avatarAnimation !== undefined)
     set(avatarAnimationAtom, settings.avatarAnimation)
