@@ -90,6 +90,18 @@ export async function getUserByTelegramId(
   }
 }
 
+// In-flight create dedup. Two concurrent enters for a brand-new user (a double-tap
+// before /start) would both SELECT-miss and both INSERT, creating TWO `users` rows
+// for one telegram_id (telegram_id is NOT unique -- this is the WRITE that
+// manufactures the ~19 duplicate-row users the .single()-on-telegram_id readers
+// then trip over). This process is a single multi-bot instance, so sharing ONE
+// in-flight promise per telegram_id serialises concurrent creates: the first
+// inserts, the rest await it and return the same row -- no duplicate insert. The
+// get->set is atomic on the single-threaded event loop (no await between them).
+// This does NOT cover a cross-instance race; the definitive fix is a
+// UNIQUE(telegram_id) DB constraint + upsert onConflict (owner migration).
+const inFlightCreates = new Map<string, Promise<unknown>>()
+
 export const createUserByTelegramId = async (ctx: Context) => {
   try {
     if (!ctx.from) {
@@ -98,42 +110,54 @@ export const createUserByTelegramId = async (ctx: Context) => {
 
     const telegramId = ctx.from.id.toString()
 
-    // 🛡️ BEST PRACTICE: Check for existing user with duplicate handling
-    const { data: existingUsers } = await supabase
-      .from('users')
-      .select('*')
-      .eq('telegram_id', telegramId)
-      .order('updated_at', { ascending: false })
-      .limit(5)
+    const inflight = inFlightCreates.get(telegramId)
+    if (inflight) return inflight
 
-    if (existingUsers && existingUsers.length > 0) {
-      if (existingUsers.length > 1) {
-        logger.warn(
-          `[createUserByTelegramId] DUPLICATE WARNING: Found ${existingUsers.length} existing users for telegramId ${telegramId}`,
-          {
-            telegramId,
-            duplicateCount: existingUsers.length,
-            userIds: existingUsers.map(u => u.id),
-          }
-        )
+    const promise = (async () => {
+      // 🛡️ BEST PRACTICE: Check for existing user with duplicate handling
+      const { data: existingUsers } = await supabase
+        .from('users')
+        .select('*')
+        .eq('telegram_id', telegramId)
+        .order('updated_at', { ascending: false })
+        .limit(5)
+
+      if (existingUsers && existingUsers.length > 0) {
+        if (existingUsers.length > 1) {
+          logger.warn(
+            `[createUserByTelegramId] DUPLICATE WARNING: Found ${existingUsers.length} existing users for telegramId ${telegramId}`,
+            {
+              telegramId,
+              duplicateCount: existingUsers.length,
+              userIds: existingUsers.map(u => u.id),
+            }
+          )
+        }
+        return existingUsers[0] // Return most recent
       }
-      return existingUsers[0] // Return most recent
+
+      const { data: newUser } = await supabase
+        .from('users')
+        .insert([
+          {
+            telegram_id: telegramId,
+            first_name: ctx.from.first_name,
+            last_name: ctx.from.last_name,
+            username: ctx.from.username,
+          },
+        ])
+        .select()
+        .single()
+
+      return newUser
+    })()
+
+    inFlightCreates.set(telegramId, promise)
+    try {
+      return await promise
+    } finally {
+      inFlightCreates.delete(telegramId)
     }
-
-    const { data: newUser } = await supabase
-      .from('users')
-      .insert([
-        {
-          telegram_id: telegramId,
-          first_name: ctx.from.first_name,
-          last_name: ctx.from.last_name,
-          username: ctx.from.username,
-        },
-      ])
-      .select()
-      .single()
-
-    return newUser
   } catch (error) {
     console.error('Error creating user:', error)
     return null
