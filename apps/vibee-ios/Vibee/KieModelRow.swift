@@ -53,9 +53,12 @@ struct СтрокаМоделиKie: View {
       // 44pt — минимальная цель касания в HIG; две мелкие подписи дают меньше.
       .frame(minHeight: 44)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        выбрана ? Тема.Цвет.акцент.opacity(0.08) : Color.clear,
-        in: RoundedRectangle(cornerRadius: 10)
+      // Как в вебе: РАМКА, а не заливка, и радиус 8 вместо 10.
+      .overlay(
+        RoundedRectangle(cornerRadius: 8)
+          .strokeBorder(
+            выбрана ? Тема.Цвет.выборМодели : Color.clear, lineWidth: 1.5
+          )
       )
       /**
        * БЕЗ ЭТОЙ СТРОКИ НАЖИМАЛИСЬ ТОЛЬКО БУКВЫ.
