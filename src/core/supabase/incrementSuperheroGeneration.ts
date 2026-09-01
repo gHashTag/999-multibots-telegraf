@@ -55,40 +55,36 @@ export const incrementSuperheroGeneration = async (
       }
     )
 
-    const { data, error } = await supabase
+    // telegram_id,month,year is the composite key: read the current row and
+    // insert-or-increment. The prior upsert-then-update was BROKEN -- supabase
+    // upsert OVERWRITES the conflicting row's generation_count with the provided
+    // 1 (it does not increment), then the follow-up set it to that 1 + 1 = 2, so
+    // the monthly count was stuck at 2 forever and the 3/month free-superhero cap
+    // (checkSuperheroGenerationUsage, maxUsage=3: currentUsage < 3) NEVER
+    // triggered -> unlimited free superhero generations. Read-then-write is safe
+    // here: this is only the RPC-unavailable fallback and the superhero path holds
+    // an in-flight lock (avatarTransformQuotaGuard).
+    const { data: existing, error: readError } = await supabase
       .from('superhero_generations')
-      .upsert(
-        {
-          telegram_id: telegramIdStr,
-          month: currentMonth,
-          year: currentYear,
-          generation_count: 1, // Будет увеличено в SQL trigger или conflict resolution
-          last_generation_date: now.toISOString(),
-        },
-        {
-          onConflict: 'telegram_id,month,year',
-          // Увеличиваем счётчик при конфликте
-        }
-      )
       .select('generation_count')
-      .single()
+      .eq('telegram_id', telegramIdStr)
+      .eq('month', currentMonth)
+      .eq('year', currentYear)
+      .maybeSingle()
 
-    if (error) {
-      logger.error('[incrementSuperheroGeneration] Upsert error', {
+    if (readError) {
+      logger.error('[incrementSuperheroGeneration] Fallback read error', {
         telegram_id: telegramIdStr,
-        error: error.message,
+        error: readError.message,
       })
       return false
     }
 
-    // Если upsert вернул данные, это значит что запись была создана или обновлена
-    // Но нам нужно вручную увеличить счётчик, если это была existing запись
-    if (data) {
-      // Получаем текущий счётчик и увеличиваем на 1
+    if (existing) {
       const { error: updateError } = await supabase
         .from('superhero_generations')
         .update({
-          generation_count: data.generation_count + 1,
+          generation_count: existing.generation_count + 1,
           last_generation_date: now.toISOString(),
         })
         .eq('telegram_id', telegramIdStr)
@@ -99,6 +95,24 @@ export const incrementSuperheroGeneration = async (
         logger.error('[incrementSuperheroGeneration] Update increment error', {
           telegram_id: telegramIdStr,
           error: updateError.message,
+        })
+        return false
+      }
+    } else {
+      const { error: insertError } = await supabase
+        .from('superhero_generations')
+        .insert({
+          telegram_id: telegramIdStr,
+          month: currentMonth,
+          year: currentYear,
+          generation_count: 1,
+          last_generation_date: now.toISOString(),
+        })
+
+      if (insertError) {
+        logger.error('[incrementSuperheroGeneration] Fallback insert error', {
+          telegram_id: telegramIdStr,
+          error: insertError.message,
         })
         return false
       }
