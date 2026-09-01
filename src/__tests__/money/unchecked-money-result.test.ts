@@ -38,7 +38,6 @@ const strip = (s: string) =>
 const CHECKABLE = [
   'processBalanceOperation',
   'processBalanceVideoOperation',
-  'processServiceBalanceOperation',
   'directPaymentProcessor',
   'updateUserBalance',
 ]
