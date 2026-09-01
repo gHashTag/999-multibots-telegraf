@@ -230,7 +230,24 @@ targets:
       # Безусловное NO чинило локальную сборку и молча ломало устройство:
       # приложение собиралось, но iPhone отвергал его с
       # ApplicationVerificationFailed — профиль не вшивался вовсе.
-      "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]": NO
+      # ПОДПИСЬ ДЛЯ СИМУЛЯТОРА НЕ ОТКЛЮЧЕНА, А САМОПОДПИСАНА.
+      #
+      # Здесь стояло CODE_SIGNING_ALLOWED=NO, и это тихо отнимало у сборки
+      # ПРАВА: неподписанному приложению Keychain отвечает -34018
+      # (errSecMissingEntitlement). Симптом был далеко от причины — вход по
+      # коду проходил на сервере, код сгорал, токены не сохранялись, и
+      # человек снова видел «нужен вход».
+      #
+      # Ad-hoc подпись («-») ничего не требует от разработчика: ни команды,
+      # ни профиля, — и при этом вшивает entitlements. Замечание автора выше
+      # остаётся в силе: безусловное значение ломало устройство, поэтому
+      # ключи по-прежнему СИМУЛЯТОРНЫЕ, а устройство идёт своим путём.
+      "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]": YES
+      "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
+      "CODE_SIGN_STYLE[sdk=iphonesimulator*]": Manual
+      "DEVELOPMENT_TEAM[sdk=iphonesimulator*]": ""
+      CODE_SIGN_ENTITLEMENTS: Vibee/Vibee.entitlements
+      "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": Vibee/Vibee-Simulator.entitlements
       # Команда ЗДЕСЬ, а не только в Xcode: `xcodegen generate` затирает всё,
       # что настроено мышью в Signing & Capabilities.
       DEVELOPMENT_TEAM: 5EM4M85VSQ

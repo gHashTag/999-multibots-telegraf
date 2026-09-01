@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  ОТДЕЛЬНЫЙ ФАЙЛ ДЛЯ СИМУЛЯТОРА, И ПРИЧИНА НЕ В ОПРЯТНОСТИ.
+	  Группа без $(AppIdentifierPrefix): при ad-hoc подписи команды нет,
+	  переменная не разрешается, и Xcode выбрасывает запись — а с ней
+	  весь словарь прав. Проверено: с префиксом подписанный бинарник
+	  получал <dict/> пустым, и Keychain по-прежнему отвечал -34018.
+	  На устройстве префикс обязателен, поэтому там свой файл.
+	-->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>ai.t27.vibee</string>
+	</array>
+</dict>
+</plist>

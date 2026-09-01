@@ -86,19 +86,73 @@ enum Identity {
    * обновление ленты работало при заблокированном экране: `WhenUnlocked`
    * отдаёт `errSecInteractionNotAllowed`, и запрос падал бы без причины.
    */
-  private static func записать(_ ключ: String, _ значение: String?) {
+  /**
+   * Пишет и ВОЗВРАЩАЕТ статус. Раньше он молча выбрасывался.
+   *
+   * `SecItemAdd(add, nil)` — результат в никуда, и это ровно тот случай, где
+   * молчание дороже всего: вход по коду проходил на сервере, код сгорал,
+   * `claimPairing` рапортовал успех — а токены не сохранялись, и человек
+   * снова видел «нужен вход» без единого слова о причине. Keychain отказывает
+   * не в теории: `errSecMissingEntitlement` (-34018) прилетает от сборки без
+   * нужного entitlement, и симулятор здесь ведёт себя иначе, чем устройство.
+   *
+   * Вызывающий обязан посмотреть на ответ. Запись, которая умеет не
+   * состояться, не должна выглядеть как та, что не умеет.
+   */
+  @discardableResult
+  private static func записать(_ ключ: String, _ значение: String?) -> OSStatus {
     let base: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: сервис,
       kSecAttrAccount as String: ключ,
     ]
     SecItemDelete(base as CFDictionary)
-    guard let значение, let data = значение.data(using: .utf8) else { return }
+    guard let значение, let data = значение.data(using: .utf8) else {
+      // Стирание — законный исход, а не сбой: `nil` значит «забудь».
+      return errSecSuccess
+    }
     var add = base
     add[kSecValueData as String] = data
     add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-    SecItemAdd(add as CFDictionary, nil)
+    let статус = SecItemAdd(add as CFDictionary, nil)
+    if статус == errSecMissingEntitlement { запасное[ключ] = значение }
+    return статус
   }
+
+  /**
+   * ЗАПАСНОЕ ХРАНИЛИЩЕ ТОЛЬКО ДЛЯ СИМУЛЯТОРА. На устройстве его НЕТ.
+   *
+   * Симулятор не даёт приложению право keychain-access-groups: Xcode
+   * вырезает его при ad-hoc подписи, и это проверено — подписанный бинарник
+   * получает пустой словарь прав, а Keychain отвечает -34018. Держать из-за
+   * этого вход нерабочим значит не иметь возможности проверить НИ ОДНУ
+   * функцию, которая требует личности.
+   *
+   * Ветка закрыта `#if targetEnvironment(simulator)`, то есть на устройстве
+   * её нет в собранном коде вовсе — не «не вызывается», а отсутствует. Там
+   * -34018 остаётся жёстким отказом, как и должно: на устройстве это признак
+   * неверно собранного приложения, и прятать его нельзя.
+   */
+  #if targetEnvironment(simulator)
+    private static var запасное: [String: String?] {
+      get {
+        (UserDefaults.standard.dictionary(forKey: "identity-fallback")
+          as? [String: String])?.mapValues { Optional($0) } ?? [:]
+      }
+      set {
+        var d = UserDefaults.standard.dictionary(forKey: "identity-fallback")
+          as? [String: String] ?? [:]
+        for (k, v) in newValue { if let v { d[k] = v } else { d[k] = nil } }
+        UserDefaults.standard.set(d, forKey: "identity-fallback")
+      }
+    }
+  #else
+    /// На устройстве запасного пути нет: присваивание никуда не ведёт.
+    private static var запасное: [String: String?] {
+      get { [:] }
+      set { _ = newValue }
+    }
+  #endif
 
   private static func прочитать(_ ключ: String) -> String? {
     let q: [String: Any] = [
@@ -111,7 +165,7 @@ enum Identity {
     var out: CFTypeRef?
     guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess,
           let d = out as? Data, let s = String(data: d, encoding: .utf8), !s.isEmpty
-    else { return nil }
+    else { return запасное[ключ] ?? nil }
     return s
   }
 }
@@ -181,11 +235,34 @@ extension Identity {
     // Порядок важен: refresh пишем ПЕРВЫМ. Если приложение умрёт между двумя
     // записями, лучше остаться с обновляемым refresh без access, чем с
     // access, который через час протухнет навсегда.
-    refreshToken = тело["refresh_token"] as? String
-    accessToken = тело["access_token"] as? String
-    telegramId = тело["telegram_id"] as? String
+    let статусRefresh = записать("refresh-token", тело["refresh_token"] as? String)
+    let статусAccess = записать("access-token", тело["access_token"] as? String)
+    записать("telegram-id", тело["telegram_id"] as? String)
+
+    /**
+     * СВЕРЯЕМСЯ С ХРАНИЛИЩЕМ, А НЕ ВЕРИМ ЗАПИСИ НА СЛОВО.
+     *
+     * Код одноразовый: к этой строке он уже сгорел на сервере. Если токены не
+     * легли, а мы промолчим, человек останется без входа И без кода — и
+     * следующая попытка потребует нового кода, чтобы снова ничего не
+     * сохранить. Поэтому неудача записи обязана стать видимым отказом здесь,
+     * а не «нужен вход» через три экрана.
+     *
+     * Проверка ЧТЕНИЕМ, а не только по статусу: статус говорит, что вызов
+     * принят, а чтение — что значение действительно достаётся обратно. Между
+     * этими утверждениями и живут защита класса и доступность элемента.
+     */
+    guard accessToken != nil, refreshToken != nil else {
+      throw ВходError.отказ(
+        "Вход принят, но сохранить сессию не удалось "
+          + "(Keychain: \(статусAccess), \(статусRefresh)). "
+          + "Код уже использован — запросите новый."
+      )
+    }
+
     // Ключ агента больше не нужен и не должен пережить вход: два способа
-    // представиться — это два способа разойтись.
+    // представиться — это два способа разойтись. Стираем ПОСЛЕ проверки:
+    // иначе неудачный вход отнял бы и то, чем человек мог представиться.
     agentKey = nil
   }
 
