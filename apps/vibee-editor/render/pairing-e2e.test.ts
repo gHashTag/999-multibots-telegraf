@@ -18,7 +18,7 @@ import { Readable } from 'node:stream'
  * одним запросом, принимается другим.
  */
 
-const ТОКЕН = '111111:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+const TELEGRAM_TEST_TOKEN = '111111:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
 
 /**
  * Подпись initData ровно по документации Telegram: секрет — это HMAC от
@@ -30,7 +30,7 @@ function подписать(поля: Record<string, string>): string {
   const строка = пары.map(([k, v]) => `${k}=${v}`).join('\n')
   const секрет = crypto
     .createHmac('sha256', 'WebAppData')
-    .update(ТОКЕН)
+    .update(TELEGRAM_TEST_TOKEN)
     .digest()
   const hash = crypto.createHmac('sha256', секрет).update(строка).digest('hex')
   const p = new URLSearchParams(поля)
@@ -42,13 +42,37 @@ function подписать(поля: Record<string, string>): string {
 const строки: any[] = []
 
 function пул() {
-  return {
+  const client = {
+    release() {},
     async query(sql: string, params: unknown[] = []) {
       const s = sql.replace(/\s+/g, ' ').trim()
+      if (s === 'BEGIN' || s === 'COMMIT' || s === 'ROLLBACK') {
+        return { rows: [] }
+      }
       // Схема: таблицы и индексы. Их содержание тест не проверяет — за это
       // отвечает сама база; здесь важно лишь не мешать `ensureAuthTables`.
-      if (s.startsWith('CREATE TABLE') || s.startsWith('CREATE INDEX'))
+      if (
+        s.startsWith('CREATE TABLE') ||
+        s.startsWith('ALTER TABLE') ||
+        s.startsWith('CREATE INDEX') ||
+        s.startsWith('CREATE UNIQUE INDEX') ||
+        s.startsWith('WITH ranked AS')
+      )
         return { rows: [] }
+
+      if (s.startsWith('SELECT pg_advisory_xact_lock')) return { rows: [] }
+      if (s.startsWith('SELECT telegram_id, username, telegram_auth_date')) {
+        return {
+          rows: fakeRows.filter(
+            r =>
+              r.t === 'profile' &&
+              (String(r.telegram_id) === String(params[0]) ||
+                (params[1] &&
+                  String(r.username || '').toLowerCase() ===
+                    String(params[1]).toLowerCase()))
+          ),
+        }
+      }
 
       if (
         s.includes(
@@ -100,14 +124,90 @@ function пул() {
         строки.push({ t: 'session', id: params[0], telegram_id: params[1] })
         return { rows: [] }
       }
+      if (s.startsWith('INSERT INTO app_widget_assertions')) {
+        if (
+          fakeRows.some(r => r.t === 'widget' && r.assertion_hash === params[0])
+        ) {
+          return { rows: [] }
+        }
+        fakeRows.push({
+          t: 'widget',
+          assertion_hash: params[0],
+          telegram_id: params[1],
+        })
+        return { rows: [{ assertion_hash: params[0] }] }
+      }
       if (s.startsWith('INSERT INTO app_refresh_tokens')) {
         строки.push({ t: 'refresh', hash: params[0], session_id: params[2] })
         return { rows: [] }
+      }
+      if (s.startsWith('UPDATE profiles SET username = NULL')) {
+        for (const row of fakeRows) {
+          if (
+            row.t === 'profile' &&
+            String(row.username || '').toLowerCase() ===
+              String(params[0]).toLowerCase() &&
+            String(row.telegram_id) !== String(params[1])
+          ) {
+            row.username = null
+          }
+        }
+        return { rows: [] }
+      }
+      if (s.startsWith('DELETE FROM profiles p USING profiles q')) {
+        return { rows: [] }
+      }
+      if (s.startsWith('UPDATE users SET username = NULL')) {
+        return { rows: [] }
+      }
+      if (s.startsWith('UPDATE users SET username = $2')) {
+        const rows = fakeRows.filter(
+          r =>
+            r.t === 'user-profile' &&
+            String(r.telegram_id) === String(params[0])
+        )
+        for (const row of rows) {
+          row.username = params[1]
+          row.display_name = params[2]
+        }
+        return { rows: rows.map(row => ({ id: row.telegram_id })) }
+      }
+      if (s.startsWith('INSERT INTO users')) {
+        fakeRows.push({
+          t: 'user-profile',
+          telegram_id: params[0],
+          username: params[1],
+          display_name: params[2],
+        })
+        return { rows: [] }
+      }
+      if (s.startsWith('INSERT INTO profiles')) {
+        const current = fakeRows.find(
+          r => r.t === 'profile' && String(r.telegram_id) === String(params[0])
+        )
+        if (
+          current &&
+          Number(current.telegram_auth_date || 0) > Number(params[4])
+        )
+          return { rows: [] }
+        const row = current || { t: 'profile', telegram_id: params[0] }
+        Object.assign(row, {
+          username: params[1],
+          display_name: params[2],
+          avatar_url: params[3] || row.avatar_url,
+          telegram_auth_date: params[4],
+        })
+        if (!current) fakeRows.push(row)
+        return { rows: [{ telegram_id: params[0] }] }
       }
       // Молчаливый ноль строк на непонятом запросе превращает сломанный тест в
       // проходящий. Лучше упасть и назвать запрос.
       throw new Error(`пул не знает запроса: ${s.slice(0, 90)}`)
     },
+  }
+  return {
+    ...client,
+    connect: async () => client,
   }
 }
 
@@ -154,7 +254,8 @@ describe('вход по коду: сквозной путь', () => {
 
   beforeEach(async () => {
     строки.length = 0
-    process.env.TELEGRAM_BOT_TOKEN = ТОКЕН
+    process.env.TELEGRAM_BOT_TOKEN = TELEGRAM_TEST_TOKEN
+    process.env.BOT_TOKEN_12 = TELEGRAM_TEST_TOKEN
     // Имя подсказал сам сервер, отказавшись работать: он называет и
     // переменную, и команду для её создания. Хорошее сообщение об ошибке.
     process.env.SESSION_SIGNING_KEY ||= 'x'.repeat(48)
@@ -292,6 +393,11 @@ describe('вход по коду: сквозной путь', () => {
 const mkReply = ответ // cyrillic-ok
 const mkRequest = запрос // cyrillic-ok
 const fakePool = пул // cyrillic-ok
+const TEST_BOT_TOKEN = TELEGRAM_TEST_TOKEN
+const fakeRows = строки // cyrillic-ok
+const resetFakeRows = () => {
+  строки.length = 0 // cyrillic-ok
+}
 
 describe('a wrong verb is not a wrong path', () => {
   /**
@@ -321,5 +427,115 @@ describe('a wrong verb is not a wrong path', () => {
       fakePool as any
     )
     expect(res.status).toBe(404)
+  })
+})
+
+function signWidget<T extends Record<string, unknown>>(
+  payload: T
+): T & {
+  hash: string
+} {
+  const check = Object.entries(payload)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join('\n')
+  const secret = crypto
+    .createHash('sha256')
+    .update(TELEGRAM_TEST_TOKEN)
+    .digest()
+  return {
+    ...payload,
+    hash: crypto.createHmac('sha256', secret).update(check).digest('hex'),
+  }
+}
+
+describe('Login Widget exchange', () => {
+  beforeEach(() => {
+    resetFakeRows()
+    process.env.BOT_TOKEN_12 = TEST_BOT_TOKEN
+    process.env.SESSION_SIGNING_KEY = 'x'.repeat(48)
+    vi.resetModules()
+  })
+  it('mints a session only after the server verifies the widget signature', async () => {
+    const { handleAuthRoute } = await import('./session-routes')
+    const payload = signWidget({
+      id: 5151,
+      first_name: 'Web owner',
+      username: 't27_dev',
+      auth_date: Math.floor(Date.now() / 1000),
+    })
+    const res = mkReply()
+    await handleAuthRoute(
+      mkRequest('/api/auth/widget', payload),
+      res,
+      fakePool as any
+    )
+
+    expect(res.status).toBe(200)
+    expect(res.json.telegram_id).toBe('5151')
+    expect(res.json.telegram_user).toMatchObject({
+      id: 5151,
+      username: 't27_dev',
+    })
+    expect(res.json.access_token).toBeTruthy()
+    expect(res.json.refresh_token).toBeTruthy()
+    expect(fakeRows).toContainEqual(
+      expect.objectContaining({
+        t: 'profile',
+        telegram_id: '5151',
+        username: 't27_dev',
+        display_name: 'Web owner',
+      })
+    )
+  })
+
+  it('does not create a session for a forged widget identity', async () => {
+    const { handleAuthRoute } = await import('./session-routes')
+    const payload = signWidget({
+      id: 5151,
+      first_name: 'Web owner',
+      auth_date: Math.floor(Date.now() / 1000),
+    })
+    payload.id = 9999
+    const res = mkReply()
+    await handleAuthRoute(
+      mkRequest('/api/auth/widget', payload),
+      res,
+      fakePool as any
+    )
+    expect(res.status).toBe(401)
+    expect(res.json.access_token).toBeUndefined()
+  })
+
+  it('consumes one signed widget assertion only once', async () => {
+    const { handleAuthRoute } = await import('./session-routes')
+    const payload = signWidget({
+      id: 5151,
+      first_name: 'Web owner',
+      username: 't27_dev',
+      auth_date: Math.floor(Date.now() / 1000),
+    })
+    const first = mkReply()
+    await handleAuthRoute(
+      mkRequest('/api/auth/widget', payload),
+      first,
+      fakePool as any
+    )
+    expect(first.status).toBe(200)
+    const sessionsAfterFirst = fakeRows.filter(
+      row => row.t === 'session'
+    ).length
+
+    const replay = mkReply()
+    await handleAuthRoute(
+      mkRequest('/api/auth/widget', payload),
+      replay,
+      fakePool as any
+    )
+    expect(replay.status).toBe(409)
+    expect(replay.json.error).toContain('already used or stale')
+    expect(fakeRows.filter(row => row.t === 'session')).toHaveLength(
+      sessionsAfterFirst
+    )
   })
 })

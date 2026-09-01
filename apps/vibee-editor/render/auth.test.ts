@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import crypto from 'node:crypto'
-import { verifyTelegramInitData, authenticate } from './auth'
+import {
+  verifyTelegramInitData,
+  authenticate,
+  verifiedTelegramId,
+} from './auth'
 
 /**
  * Подпись initData выдаёт ТОТ бот, из которого открыли мини-апп. Ботов на
@@ -14,14 +18,20 @@ const sign = (token: string, params: Record<string, string>): string => {
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([k, v]) => `${k}=${v}`)
     .join('\n')
-  const secret = crypto.createHmac('sha256', 'WebAppData').update(token).digest()
+  const secret = crypto
+    .createHmac('sha256', 'WebAppData')
+    .update(token)
+    .digest()
   const hash = crypto.createHmac('sha256', secret).update(check).digest('hex')
   return new URLSearchParams({ ...params, hash }).toString()
 }
 
 const CLUB = '111111:club-token'
 const MAIN = '222222:main-token'
-const fresh = () => ({ auth_date: String(Math.floor(Date.now() / 1000)), user: '{"id":1}' })
+const fresh = () => ({
+  auth_date: String(Math.floor(Date.now() / 1000)),
+  user: '{"id":1}',
+})
 
 describe('verifyTelegramInitData', () => {
   beforeEach(() => {
@@ -50,7 +60,10 @@ describe('verifyTelegramInitData', () => {
 
   it('отвергает просроченный launch, даже с верной подписью', () => {
     process.env.BOT_TOKEN_1 = MAIN
-    const old = { auth_date: String(Math.floor(Date.now() / 1000) - 90000), user: '{}' }
+    const old = {
+      auth_date: String(Math.floor(Date.now() / 1000) - 90000),
+      user: '{}',
+    }
     expect(verifyTelegramInitData(sign(MAIN, old)).ok).toBe(false)
   })
 
@@ -59,7 +72,7 @@ describe('verifyTelegramInitData', () => {
   })
 })
 
-describe('подпись в строке запроса (SSE)', () => {
+describe('подпись не принимается из строки запроса', () => {
   // Тестируем политику безопасности, а не локальный warn-режим: подделка
   // обязана отвергаться там, где гвард реально включён — на проде (enforce).
   const prevMode = process.env.RENDER_AUTH_MODE
@@ -70,7 +83,7 @@ describe('подпись в строке запроса (SSE)', () => {
     process.env.RENDER_AUTH_MODE = prevMode
   })
 
-  it('EventSource не умеет заголовки — подпись должна приниматься из query', () => {
+  it('replayable query credential is rejected', () => {
     process.env.BOT_TOKEN_1 = MAIN
     const initData = sign(MAIN, fresh())
     const req = {
@@ -78,7 +91,8 @@ describe('подпись в строке запроса (SSE)', () => {
       method: 'GET',
       headers: {},
     } as unknown as import('node:http').IncomingMessage
-    expect(authenticate(req).allowed).toBe(true)
+    expect(authenticate(req).allowed).toBe(false)
+    expect(verifiedTelegramId(req)).toBeNull()
   })
 
   it('подделка в query не проходит', () => {

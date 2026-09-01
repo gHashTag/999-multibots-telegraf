@@ -13,9 +13,9 @@ import path from 'node:path'
  * flag was decorative.
  *
  * The fix drops the built profile when it is private and the caller is not its
- * verified owner (verifiedTelegramId), so the private fields fall through to the
- * public-only fallbacks (public_templates) and then to 404. Public profiles are
- * unaffected.
+ * verified owner (signed initData or a verified application session). The
+ * route records that this username resolved to a private profile and skips
+ * every public fallback, so a public template cannot resurrect it as 200.
  *
  * Source-level like the other seam tests here (the handler is a large branch in
  * a single request function; this checks the private-profile drop is present in
@@ -49,10 +49,7 @@ describe('GET /api/users/:username enforces is_public', () => {
   it('drops a private profile for a non-owner (verified viewer check + profile = null)', () => {
     const s = routeBody()
     // owner is established from the VERIFIED signer, never a query param
-    expect(
-      /verifiedTelegramId\(req\)/.test(s),
-      'no verified-viewer check'
-    ).toBe(true)
+    expect(s).toContain('chatIdentity(req, verifiedTelegramId(req))')
     // the private check compares is_public against the verified owner
     const privIdx = s.search(/row\.is_public === false/)
     expect(privIdx, 'no is_public === false private check').toBeGreaterThan(-1)
@@ -71,5 +68,11 @@ describe('GET /api/users/:username enforces is_public', () => {
       /!==\s*String\(row\.telegram_id\)/.test(s),
       'private check does not compare the verified viewer to the row owner'
     ).toBe(true)
+  })
+
+  it('does not resurrect a hidden profile through template/users fallbacks', () => {
+    const s = routeBody()
+    expect(s).toContain('privateProfileHidden = true')
+    expect(s.match(/if \(!profile && !privateProfileHidden\)/g)).toHaveLength(2)
   })
 })

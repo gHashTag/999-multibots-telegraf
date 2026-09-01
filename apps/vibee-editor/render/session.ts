@@ -61,6 +61,7 @@ export class SessionError extends Error {
       | 'expired'
       | 'not_yet_valid'
       | 'revoked'
+      | 'revocation_unavailable'
       | 'wrong_version'
   ) {
     super(message)
@@ -137,7 +138,8 @@ export function signAccessToken(params: {
  */
 export function verifyAppSession(token: string, now?: number): SessionClaims {
   const parts = token.split('.')
-  if (parts.length !== 3) throw new SessionError('token is not three parts', 'malformed')
+  if (parts.length !== 3)
+    throw new SessionError('token is not three parts', 'malformed')
   const [head, body, sig] = parts
 
   let header: Record<string, unknown>
@@ -156,7 +158,10 @@ export function verifyAppSession(token: string, now?: number): SessionClaims {
    * a bug or an attempt — both worth refusing rather than ignoring.
    */
   if (header.alg !== 'HS256') {
-    throw new SessionError(`algorithm ${String(header.alg)} refused`, 'bad_algorithm')
+    throw new SessionError(
+      `algorithm ${String(header.alg)} refused`,
+      'bad_algorithm'
+    )
   }
   if ('kid' in header || 'jku' in header || 'x5u' in header) {
     throw new SessionError('key-resolution header refused', 'bad_algorithm')
@@ -169,7 +174,10 @@ export function verifyAppSession(token: string, now?: number): SessionClaims {
   const given = unb64url(sig)
   // Constant-time, and length-checked first: timingSafeEqual throws on a
   // length mismatch, and that throw would itself be a signal.
-  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+  if (
+    given.length !== expected.length ||
+    !crypto.timingSafeEqual(given, expected)
+  ) {
     throw new SessionError('signature mismatch', 'bad_signature')
   }
 
@@ -180,8 +188,10 @@ export function verifyAppSession(token: string, now?: number): SessionClaims {
     throw new SessionError('claims are not JSON', 'malformed')
   }
 
-  if (claims.v !== 1) throw new SessionError('unknown claim version', 'wrong_version')
-  if (!claims.sub || !claims.sid) throw new SessionError('sub/sid missing', 'malformed')
+  if (claims.v !== 1)
+    throw new SessionError('unknown claim version', 'wrong_version')
+  if (!claims.sub || !claims.sid)
+    throw new SessionError('sub/sid missing', 'malformed')
 
   const t = now ?? Math.floor(Date.now() / 1000)
   if (typeof claims.exp !== 'number' || t > claims.exp + CLOCK_SKEW_SECONDS) {
@@ -189,6 +199,15 @@ export function verifyAppSession(token: string, now?: number): SessionClaims {
   }
   if (typeof claims.iat !== 'number' || claims.iat > t + CLOCK_SKEW_SECONDS) {
     throw new SessionError('token issued in the future', 'not_yet_valid')
+  }
+  if (
+    !revocationsSyncedAt ||
+    Date.now() - revocationsSyncedAt > REVOCATION_SYNC_MAX_AGE_MS
+  ) {
+    throw new SessionError(
+      'revocation state is unavailable',
+      'revocation_unavailable'
+    )
   }
   if (revoked.has(claims.sid)) {
     throw new SessionError('session revoked', 'revoked')
@@ -199,6 +218,8 @@ export function verifyAppSession(token: string, now?: number): SessionClaims {
 // ─── Revocation ──────────────────────────────────────────────────────────
 
 let revoked = new Set<string>()
+let revocationsSyncedAt = 0
+const REVOCATION_SYNC_MAX_AGE_MS = 15_000
 
 /**
  * Replace the revoked-session set.
@@ -209,6 +230,7 @@ let revoked = new Set<string>()
  */
 export function setRevokedSessions(ids: Iterable<string>): void {
   revoked = new Set(ids)
+  revocationsSyncedAt = Date.now()
 }
 
 /** Mark a session revoked immediately, without waiting for the next poll. */
@@ -244,7 +266,7 @@ export function issueRefreshToken(now?: Date): RefreshIssue {
 
 export type RotateOutcome =
   | { ok: true; next: RefreshIssue }
-  | { ok: false; reason: 'unknown' | 'expired' | 'revoked'; }
+  | { ok: false; reason: 'unknown' | 'expired' | 'revoked' }
   | { ok: false; reason: 'reused'; familyId: string }
 
 /**
@@ -273,9 +295,12 @@ export async function rotateRefreshToken(
       revokedAt: Date | null
       expiresAt: Date
     } | null>
-    markUsed(hash: string, replacedByHash: string): Promise<void>
+    consumeAndInsert(
+      hash: string,
+      replacedByHash: string,
+      expiresAt: Date
+    ): Promise<boolean>
     revokeFamily(familyId: string): Promise<string[]>
-    insert(hash: string, familyId: string, expiresAt: Date): Promise<void>
   },
   now?: Date
 ): Promise<RotateOutcome> {
@@ -284,7 +309,8 @@ export async function rotateRefreshToken(
   const row = await store.find(hash)
   if (!row) return { ok: false, reason: 'unknown' }
   if (row.revokedAt) return { ok: false, reason: 'revoked' }
-  if (row.expiresAt.getTime() <= t.getTime()) return { ok: false, reason: 'expired' }
+  if (row.expiresAt.getTime() <= t.getTime())
+    return { ok: false, reason: 'expired' }
 
   if (row.usedAt) {
     const sessionIds = await store.revokeFamily(row.familyId)
@@ -293,8 +319,12 @@ export async function rotateRefreshToken(
   }
 
   const next = issueRefreshToken(t)
-  await store.insert(next.hash, row.familyId, next.expiresAt)
-  await store.markUsed(hash, next.hash)
+  const consumed = await store.consumeAndInsert(hash, next.hash, next.expiresAt)
+  if (!consumed) {
+    const sessionIds = await store.revokeFamily(row.familyId)
+    for (const sid of sessionIds) revokeNow(sid)
+    return { ok: false, reason: 'reused', familyId: row.familyId }
+  }
   return { ok: true, next }
 }
 
