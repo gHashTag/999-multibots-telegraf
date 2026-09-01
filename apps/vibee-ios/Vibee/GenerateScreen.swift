@@ -355,6 +355,20 @@ struct GenerateScreen: View {
       .background(Тема.Цвет.фон)
       .navigationTitle("ИИ")
       .navigationBarTitleDisplayMode(.inline)
+      /**
+       * Редактор открывается ВНУТРИ этой вкладки, а не рядом с ней.
+       *
+       * `navigationDestination` даёт системную кнопку «назад» — то есть
+       * возврат к сборке, откуда пришли, и возможность догенерировать
+       * недостающий слой. Модальное окно тут было бы хуже: оно обрывает
+       * путь, а конвейер — это как раз про то, чтобы шаг за шагом идти
+       * туда и обратно.
+       */
+      .navigationDestination(isPresented: $открытьРедактор) {
+        EditorScreen()
+          .navigationTitle("Редактор")
+          .navigationBarTitleDisplayMode(.inline)
+      }
     }
   }
 
