@@ -31,6 +31,13 @@ const WRITE_RE = /\bsaveFileLocally\s*\(/
 // Any removal of a local file.
 const UNLINK_RE =
   /\bunlink(Sync)?\s*\(|\bfs\.promises\.unlink\s*\(|\brimraf\s*\(/
+// CRITICAL discriminator (iter208): a file that builds a `/uploads/...` URL from
+// the saved path is SERVING it (the mini-app serves /uploads, and the URL is
+// stored in the DB / sent to the user), so the local file is the delivered
+// ARTIFACT, not an orphan -- unlinking it would BREAK the served image (a live
+// regression). Only a save whose local path is never turned into a served
+// /uploads URL is a true orphan leak. This is what keeps the report correct.
+const SERVED_RE = /\/uploads\//
 
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -63,8 +70,9 @@ for (const file of walk(SRC)) {
   if (writes === 0) continue
   if (/saveFileLocally\.ts$/.test(file)) continue // the helper that defines it
   if (UNLINK_RE.test(code)) continue // has at least one cleanup
-  // pipelineAsync/stream.pipeline consumers that write to a path the CALLER
-  // deletes are common; still list them -- triage decides.
+  if (SERVED_RE.test(code)) continue // serves the file via /uploads -- NOT an orphan
+  // What remains is a saveFileLocally whose local copy is never unlinked AND
+  // never served via /uploads: a true orphan leak (the fluxKontextPro class).
   flagged.push({ file: path.relative(ROOT, file), writes })
 }
 
