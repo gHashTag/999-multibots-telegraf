@@ -23,7 +23,7 @@ const strip = (s: string) =>
   s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
 
 const CHARGE =
-  /updateUserBalance\s*\(|processBalanceOperation\s*\(|processServiceBalanceOperation\s*\(|processBalanceVideoOperation\s*\(/
+  /updateUserBalance\s*\(|processBalanceOperation\s*\(|processBalanceVideoOperation\s*\(/
 const OUTCOME = /MONEY_OUTCOME|SERVICE_PAYMENT/
 
 const RISKY: Array<[RegExp, string]> = [
