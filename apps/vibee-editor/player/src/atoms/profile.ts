@@ -44,6 +44,9 @@ export interface UserProfile {
   followers_count: number
   following_count: number
   templates_count: number
+  plan_count?: number
+  files_count?: number
+  skills_count?: number
   total_views: number
   total_likes: number
   created_at: string
@@ -122,6 +125,11 @@ function transformProfile(raw: Record<string, unknown>): UserProfile {
     followers_count: raw.followers_count as number,
     following_count: raw.following_count as number,
     templates_count: raw.templates_count as number,
+    plan_count: typeof raw.plan_count === 'number' ? raw.plan_count : undefined,
+    files_count:
+      typeof raw.files_count === 'number' ? raw.files_count : undefined,
+    skills_count:
+      typeof raw.skills_count === 'number' ? raw.skills_count : undefined,
     total_views: raw.total_views as number,
     total_likes: raw.total_likes as number,
     created_at: raw.created_at as string,
