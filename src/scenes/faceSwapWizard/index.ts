@@ -71,8 +71,24 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
     const photo = ctx.update.message.photo
     const fileId = photo[photo.length - 1].file_id
 
-    // Get Telegram file link
-    const file = await ctx.telegram.getFile(fileId)
+    // Get Telegram file link. getFile can throw (transient Telegram error, or a
+    // file above the ~20MB Bot API download limit); unguarded it would abort the
+    // step and silently drop the user's uploaded photo. Tell them to retry.
+    let file
+    try {
+      file = await ctx.telegram.getFile(fileId)
+    } catch (getFileErr) {
+      logger.error('[FaceSwap] getFile failed for target photo', {
+        error:
+          getFileErr instanceof Error ? getFileErr.message : String(getFileErr),
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Не удалось загрузить фото. Попробуйте отправить его ещё раз.'
+          : '❌ Could not load the photo. Please send it again.'
+      )
+      return
+    }
     const targetImageUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
 
     // Store in session
@@ -117,8 +133,24 @@ export const faceSwapWizard = new Scenes.WizardScene<MyContext>(
     const photo = ctx.update.message.photo
     const fileId = photo[photo.length - 1].file_id
 
-    // Get Telegram file link
-    const file = await ctx.telegram.getFile(fileId)
+    // Get Telegram file link. getFile can throw (transient Telegram error, or a
+    // file above the ~20MB Bot API download limit); unguarded it would abort the
+    // step and silently drop the user's uploaded photo. Tell them to retry.
+    let file
+    try {
+      file = await ctx.telegram.getFile(fileId)
+    } catch (getFileErr) {
+      logger.error('[FaceSwap] getFile failed for swap photo', {
+        error:
+          getFileErr instanceof Error ? getFileErr.message : String(getFileErr),
+      })
+      await ctx.reply(
+        isRu
+          ? '❌ Не удалось загрузить фото. Попробуйте отправить его ещё раз.'
+          : '❌ Could not load the photo. Please send it again.'
+      )
+      return
+    }
     const swapImageUrl = `https://api.telegram.org/file/bot${ctx.telegram.token}/${file.file_path}`
 
     const targetImageUrl = (ctx.session as any).targetImageUrl

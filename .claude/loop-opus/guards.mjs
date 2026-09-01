@@ -70,6 +70,7 @@ const GUARDS = [
   'src/__tests__/reliability/callbackAnswerBeforeBranch.test.ts', // iter217 subscription+menu callback steps answer before branching (no spinner hang on paid subscription flow); spinner-sweep of #1560
   'src/__tests__/reliability/kieWebhookVideoDeliveryEditGuarded.test.ts', // iter218 KIE video webhook status edit is isolated from sendVideo (stale-message 400 cannot drop a paid Sora video after the claim is spent); wave-18, #1528 sibling
   'src/__tests__/reliability/videoTranscriptionGetFileGuarded.test.ts', // iter218 videoTranscription getFile is try-guarded (oversized upload 400 cannot silently drop the video); wave-18
+  'src/__tests__/reliability/paidUploadGetFileGuarded.test.ts', // iter219 faceSwap+morphing getFile try-guarded (paid photo-upload getFile sweep of #1563)
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
