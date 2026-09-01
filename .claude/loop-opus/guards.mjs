@@ -75,6 +75,7 @@ const GUARDS = [
   'src/__tests__/money/processBalanceVideoHelperNonPositive.test.ts', // iter224 the LIVE video balance op (processBalanceVideoOperationHelper) refuses a non-positive price before charging (0-cost bypass); the sibling ...NonPositive guards the DEAD processBalanceVideoOperation
   'src/__tests__/money/aiPhotoshopBatchRefundReconciled.test.ts', // iter227 every ALL_MODELS skipBalanceCheck service call reconciles its refund to the batch charge (chargedCostOverride, or qwen size-multiplier) -- dispatch-site guard against a new batch model under-refunding at 2K/4K (#1267 class)
   'src/__tests__/money/processBalanceOperationNonPositive.test.ts', // iter228 the shared IMAGE charge op (processBalanceOperation) refuses a non-positive price before charging (0-cost bypass) -- image twin of #1571's video-helper guard; live fn for the whole image-gen family
+  'src/__tests__/reliability/aiPhotoshopPhotoCaptionFallback.test.ts', // iter229 every paid replyWithPhoto with parse_mode:Markdown in aiPhotoshopScene has a plain re-send fallback in its catch (a reserved char in the user prompt caption cannot silently lose the paid image); found by the fresh-lens wave
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary

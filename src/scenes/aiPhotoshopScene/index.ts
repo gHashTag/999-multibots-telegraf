@@ -3301,6 +3301,18 @@ const processAiPhotoshopRequest = async (
                 ? photoError.message
                 : String(photoError),
           })
+          // The Markdown caption interpolates the raw user prompt; a reserved
+          // char (_ * backtick [) makes Telegram 400 and rejects the whole
+          // sendPhoto, silently losing a PAID image. Re-send it WITHOUT
+          // parse_mode so the caption cannot abort delivery (the same
+          // fall-back-to-plain remedy used for the dialog status reply above).
+          await ctx
+            .replyWithPhoto(result.imageUrl, {
+              caption: isRu
+                ? `📝 Промпт: "${result.prompt}"`
+                : `📝 Prompt: "${result.prompt}"`,
+            })
+            .catch(() => {})
         }
 
         // Small delay between photos to avoid rate limiting
@@ -4518,12 +4530,37 @@ const processSingleAiPhotoshopModel = async (
               ? ` (${i + 1}/${imagesToProcess.length})`
               : ''
 
-          await ctx.replyWithPhoto(result.imageUrl, {
-            caption: isRu
-              ? `✅ *${modelTitle}${imageInfo}*\n\n📝 Промпт: "${prompt}"\n\n💎 *Стоимость: ${modelConfig.cost}⭐*`
-              : `✅ *${modelTitle}${imageInfo}*\n\n📝 Prompt: "${prompt}"\n\n💎 *Cost: ${modelConfig.cost}⭐*`,
-            parse_mode: 'Markdown',
-          })
+          try {
+            await ctx.replyWithPhoto(result.imageUrl, {
+              caption: isRu
+                ? `✅ *${modelTitle}${imageInfo}*\n\n📝 Промпт: "${prompt}"\n\n💎 *Стоимость: ${modelConfig.cost}⭐*`
+                : `✅ *${modelTitle}${imageInfo}*\n\n📝 Prompt: "${prompt}"\n\n💎 *Cost: ${modelConfig.cost}⭐*`,
+              parse_mode: 'Markdown',
+            })
+          } catch (captionError) {
+            // The Markdown caption interpolates the raw user prompt; a reserved
+            // char (_ * backtick [) makes Telegram 400 and rejects the whole
+            // sendPhoto, silently losing a PAID image. Re-send it WITHOUT
+            // parse_mode so the caption cannot abort delivery.
+            logger.error(
+              `❌ ${modelKey} photo caption failed, re-sending plain`,
+              {
+                telegramId: ctx.from?.id,
+                model: modelKey,
+                error:
+                  captionError instanceof Error
+                    ? captionError.message
+                    : String(captionError),
+              }
+            )
+            await ctx
+              .replyWithPhoto(result.imageUrl, {
+                caption: isRu
+                  ? `📝 Промпт: "${prompt}"`
+                  : `📝 Prompt: "${prompt}"`,
+              })
+              .catch(() => {})
+          }
 
           logger.info(
             `✅ ${modelKey} image ${i + 1}/${imagesToProcess.length} completed successfully`,
