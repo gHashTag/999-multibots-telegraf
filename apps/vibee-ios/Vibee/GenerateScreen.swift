@@ -604,16 +604,46 @@ struct GenerateScreen: View {
   }
 
   private func позвать(_ путь: String, _ тело: [String: Any]) async -> Ответ {
-    var r = URLRequest(url: API.base.appendingPathComponent(путь))
-    r.httpMethod = "POST"
-    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    // Личность — тем же способом, что в AgentChatView. Без неё сервер
-    // отвечает 401, и до генерации дело не доходит вовсе.
-    for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
-    r.httpBody = try? JSONSerialization.data(withJSONObject: тело)
+    /**
+     * ЗАПРОС СОБИРАЕТСЯ ЗАНОВО ПЕРЕД КАЖДОЙ ПОПЫТКОЙ.
+     *
+     * Заголовки берутся из `Identity` в момент сборки, а не один раз: после
+     * обновления сессии токен ДРУГОЙ, и повтор со старым заголовком получил
+     * бы тот же 401. Тонкость, которую легко потерять, вынеся сборку выше.
+     */
+    func собрать() -> URLRequest {
+      var r = URLRequest(url: API.base.appendingPathComponent(путь))
+      r.httpMethod = "POST"
+      r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      // Личность — тем же способом, что в AgentChatView. Без неё сервер
+      // отвечает 401, и до генерации дело не доходит вовсе.
+      for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+      r.httpBody = try? JSONSerialization.data(withJSONObject: тело)
+      return r
+    }
 
     do {
-      let (data, resp) = try await Self.долгая.data(for: r)
+      var (data, resp) = try await Self.долгая.data(for: собрать())
+
+      /**
+       * ОДНА ПОПЫТКА ОБНОВИТЬ ПРОТУХШУЮ СЕССИЮ — как в `API.отправить`.
+       *
+       * Access живёт десять минут, а экран генерации открыт дольше: набрать
+       * тему, выбрать модель, посмотреть цены — и токен уже мёртв. Без этой
+       * ветки человек получал «unauthorized: session rejected: expired»,
+       * держа на руках живой refresh, и единственным выходом выглядел
+       * повторный вход по коду из бота.
+       *
+       * Проверено на себе: вошёл, потратил десять минут на выбор модели,
+       * нажал «Сгенерировать» — и получил ровно этот отказ.
+       *
+       * Повтор РОВНО ОДИН. Если и он ответил 401, сессии действительно нет,
+       * и об этом надо сказать, а не крутить цикл на протухшем refresh.
+       */
+      if (resp as? HTTPURLResponse)?.statusCode == 401,
+         await Identity.refreshSession() {
+        (data, resp) = try await Self.долгая.data(for: собрать())
+      }
       let o = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
       let код = (resp as? HTTPURLResponse)?.statusCode ?? 0
 
