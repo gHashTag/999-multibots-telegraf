@@ -198,7 +198,12 @@ export function ProfileTabs() {
         ))}
       </div>
 
-      <div className="profile-tabs__content" ref={contentRef}>
+      <div
+        className={`profile-tabs__content ${
+          visibleActiveTab === 'agent' ? 'profile-tabs__content--agent' : ''
+        }`}
+        ref={contentRef}
+      >
         {visibleActiveTab === 'templates' && (
           <ProfileTemplatesGrid username={profile.username} isOwn={isOwn} />
         )}

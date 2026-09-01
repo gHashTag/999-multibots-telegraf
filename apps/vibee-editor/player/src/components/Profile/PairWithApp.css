@@ -1,0 +1,109 @@
+.pair-with-app {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(20, 27, 22, 0.7), #090a09);
+}
+
+.pair-with-app__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.pair-with-app__action {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 18px;
+  border: 1px solid rgba(95, 255, 159, 0.55);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #31db78, #52f5aa);
+  color: #031109;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgba(49, 219, 120, 0.18);
+}
+
+.pair-with-app__action:focus-visible {
+  outline: 3px solid rgba(82, 245, 170, 0.4);
+  outline-offset: 3px;
+}
+
+.pair-with-app__action:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.pair-with-app__steps {
+  display: grid;
+  gap: 8px;
+  margin: 2px 0 0;
+  padding-left: 24px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.pair-with-app__note,
+.pair-with-app__timer,
+.pair-with-app__instructions,
+.pair-with-app__error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pair-with-app__note,
+.pair-with-app__timer {
+  color: rgba(255, 255, 255, 0.55);
+  text-align: center;
+}
+
+.pair-with-app__instructions {
+  color: rgba(255, 255, 255, 0.82);
+  text-align: center;
+}
+
+.pair-with-app__error {
+  color: #f28d78;
+}
+
+.pair-with-app__code {
+  padding: 10px 0 4px;
+  color: #66ffad;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(36px, 10vw, 52px);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-align: center;
+  user-select: all;
+}
+
+body[data-tabbar='visible'] .profile-tabs__content--agent {
+  padding-bottom: calc(1.5rem + var(--app-tabbar-total, 56px));
+  scroll-padding-bottom: calc(1rem + var(--app-tabbar-total, 56px));
+}
+
+@media (max-width: 480px) {
+  .pair-with-app {
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .pair-with-app__title {
+    font-size: 16px;
+  }
+
+  .pair-with-app__action {
+    min-height: 50px;
+    font-size: 15px;
+  }
+
+  .pair-with-app__steps {
+    font-size: 13px;
+  }
+}
