@@ -62,7 +62,13 @@ export function sitesIn(source, fileName = 'x.ts') {
       ts.isCallExpression(n) &&
       ts.isPropertyAccessExpression(n.expression) &&
       n.expression.name.text === 'single' &&
-      /\.eq\(\s*['"]telegram_id['"]/.test(n.expression.expression.getText(sf))
+      /\.eq\(\s*['"]telegram_id['"]/.test(
+        n.expression.expression.getText(sf)
+      ) &&
+      // A preceding .limit(n) caps the result, so .single() cannot hit the >1-row
+      // PGRST116 that the duplicate-telegram_id users trigger. `.limit(1).single()`
+      // is the safe get-the-one-or-null idiom (e.g. getVoiceModel) -- not this bug.
+      !/\.limit\(/.test(n.expression.expression.getText(sf))
     ) {
       hits.push({
         line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1,
@@ -101,11 +107,13 @@ function selfCheck() {
   const bad = `supabase.from('users').select('level').eq('telegram_id', id).single()`
   const good = `supabase.from('users').select('level').eq('telegram_id', id).order('updated_at',{ascending:false}).limit(1)`
   const uniqueKey = `supabase.from('users').select('*').eq('id', uuid).single()`
+  const limitSingle = `supabase.from('voice_models').select('*').eq('telegram_id', id).order('created_at').limit(1).single()`
   const called = calledNamesIn(`foo(); a.bar()`)
   const ok =
     sitesIn(bad).length === 1 &&
     sitesIn(good).length === 0 &&
     sitesIn(uniqueKey).length === 0 &&
+    sitesIn(limitSingle).length === 0 &&
     called.has('foo') &&
     called.has('bar') &&
     !called.has('baz')
