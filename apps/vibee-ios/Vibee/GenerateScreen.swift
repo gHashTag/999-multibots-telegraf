@@ -345,6 +345,7 @@ struct GenerateScreen: View {
             .contentShape(Capsule())
           }
           .buttonStyle(.plain)
+          .accessibilityIdentifier("ии.вид.\(в.rawValue)")
         }
       }
     }
@@ -360,6 +361,10 @@ struct GenerateScreen: View {
       // это тема ролика, а не описание кадра: «красный куб на белом столе»
       // сбивал бы с толку в поле, куда просят тему.
       TextField(подсказкаПоля, text: $промпт, axis: .vertical)
+        // Опознаватели СТАБИЛЬНЫ и не зависят от языка подписи: тест,
+        // ищущий «Сгенерировать» по видимому тексту, ломается от правки
+        // копирайта, а это правка, которую делают не глядя на тесты.
+        .accessibilityIdentifier("ии.промпт")
       .textFieldStyle(.plain)
       .lineLimit(3...6)
       .padding(12)
@@ -421,6 +426,7 @@ struct GenerateScreen: View {
           } else {
             Image(systemName: "sparkles")
             Text("Сгенерировать")
+              .accessibilityIdentifier("ии.кнопка.текст")
           }
         }
         .font(Тема.Шрифт.стиль(.headline, .semibold))

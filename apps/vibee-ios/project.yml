@@ -13,10 +13,13 @@ schemes:
     build:
       targets:
         Vibee: all
+        VibeeUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
+      targets:
+        - VibeeUITests
     profile:
       config: Release
     analyze:
@@ -25,6 +28,34 @@ schemes:
       config: Release
 
 targets:
+  # ЦЕЛЬ ДЛЯ UI-ТЕСТОВ. Заведена не ради обряда, а из-за конкретной боли.
+  #
+  # Проверка вкладки «ИИ» руками через координаты тапа не работает: масштаб
+  # снимка симулятора 2,286, пересчёты мажут мимо строк, клавиатура
+  # симулятора в русской раскладке превращает латиницу в кириллицу, а
+  # pbcopy портит UTF-8. Час уходит на то, чтобы попасть по кнопке.
+  #
+  # XCUITest ищет элементы по опознавателям («ии.модель.glm-5.3»), а не по
+  # пикселям, и печатает текст через API, минуя раскладку.
+  VibeeUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - VibeeUITests
+    dependencies:
+      - target: Vibee
+    settings:
+      base:
+        TEST_TARGET_NAME: Vibee
+        # Свой Info.plist цели тестов не нужен — пусть Xcode сгенерирует.
+        GENERATE_INFOPLIST_FILE: YES
+        # Та же ad-hoc подпись, что у приложения: без неё цель не ставится
+        # на симулятор, а с чужими настройками — не совпадает с ним.
+        "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]": YES
+        "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
+        "CODE_SIGN_STYLE[sdk=iphonesimulator*]": Manual
+        "DEVELOPMENT_TEAM[sdk=iphonesimulator*]": ""
+
   Vibee:
     type: application
     platform: iOS
