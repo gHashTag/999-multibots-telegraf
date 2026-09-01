@@ -5,7 +5,11 @@
 // ===============================
 
 import { atomWithStorage, createJSONStorage } from 'jotai/utils'
-import { STORAGE_KEYS, type StorageKeyName, type StorageValueTypes } from './keys'
+import {
+  STORAGE_KEYS,
+  type StorageKeyName,
+  type StorageValueTypes,
+} from './keys'
 
 // ===============================
 // Storage Adapter Interface
@@ -41,9 +45,9 @@ export const noopStorage: StorageAdapter = {
 // ===============================
 export const browserStorage: StorageAdapter = isBrowser
   ? {
-      getItem: (key) => window.localStorage.getItem(key),
+      getItem: key => window.localStorage.getItem(key),
       setItem: (key, value) => window.localStorage.setItem(key, value),
-      removeItem: (key) => window.localStorage.removeItem(key),
+      removeItem: key => window.localStorage.removeItem(key),
     }
   : noopStorage
 
@@ -59,7 +63,9 @@ export function setAsyncStorageAdapter(adapter: StorageAdapter): void {
 
 export function getAsyncStorageAdapter(): StorageAdapter {
   if (!asyncStorageAdapter) {
-    console.warn('[vibee-atoms] AsyncStorage adapter not set. Using noopStorage.')
+    console.warn(
+      '[vibee-atoms] AsyncStorage adapter not set. Using noopStorage.'
+    )
     return noopStorage
   }
   return asyncStorageAdapter
@@ -114,22 +120,14 @@ export function getPlatformStorage(): StorageAdapter {
 export function createPlatformJotaiStorage<T = unknown>() {
   const adapter = getPlatformStorage()
 
-  return createJSONStorage<T>(() => ({
-    getItem: (key: string) => {
-      const result = adapter.getItem(key)
-      // Handle both sync (localStorage) and async (AsyncStorage)
-      if (result instanceof Promise) {
-        return result
-      }
-      return result
-    },
-    setItem: (key: string, value: string) => {
-      return adapter.setItem(key, value)
-    },
-    removeItem: (key: string) => {
-      return adapter.removeItem(key)
-    },
-  }))
+  return createJSONStorage<T>(
+    () =>
+      ({
+        getItem: (key: string) => adapter.getItem(key),
+        setItem: (key: string, value: string) => adapter.setItem(key, value),
+        removeItem: (key: string) => adapter.removeItem(key),
+      }) as any
+  )
 }
 
 /**
@@ -146,7 +144,9 @@ export function createPlatformJotaiStorage<T = unknown>() {
  */
 export function createStorageAtom<K extends StorageKeyName>(
   key: K,
-  defaultValue: K extends keyof StorageValueTypes ? StorageValueTypes[K] : unknown
+  defaultValue: K extends keyof StorageValueTypes
+    ? StorageValueTypes[K]
+    : unknown
 ) {
   const storage = createPlatformJotaiStorage<typeof defaultValue>()
   return atomWithStorage(STORAGE_KEYS[key], defaultValue, storage)
@@ -174,14 +174,14 @@ export function createStorageAtomWithAdapter<K extends StorageKeyName, T>(
   defaultValue: T,
   adapter: StorageAdapter
 ) {
-  const storage = createJSONStorage<T>(() => ({
-    getItem: (k) => {
-      const result = adapter.getItem(k)
-      return result instanceof Promise ? result : result
-    },
-    setItem: (k, v) => adapter.setItem(k, v),
-    removeItem: (k) => adapter.removeItem(k),
-  }))
+  const storage = createJSONStorage<T>(
+    () =>
+      ({
+        getItem: (key: string) => adapter.getItem(key),
+        setItem: (key: string, value: string) => adapter.setItem(key, value),
+        removeItem: (key: string) => adapter.removeItem(key),
+      }) as any
+  )
 
   return atomWithStorage(STORAGE_KEYS[key], defaultValue, storage)
 }
@@ -211,7 +211,7 @@ export async function clearStorageByPrefix(
   adapter?: StorageAdapter
 ): Promise<void> {
   const storage = adapter ?? getPlatformStorage()
-  const keys = Object.values(STORAGE_KEYS).filter((key) => key.startsWith(prefix))
+  const keys = Object.values(STORAGE_KEYS).filter(key => key.startsWith(prefix))
 
   for (const key of keys) {
     await storage.removeItem(key)
@@ -248,7 +248,11 @@ export async function importStorageData(
   const storage = adapter ?? getPlatformStorage()
 
   for (const [key, value] of Object.entries(data)) {
-    if (Object.values(STORAGE_KEYS).includes(key as (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS])) {
+    if (
+      Object.values(STORAGE_KEYS).includes(
+        key as (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]
+      )
+    ) {
       await storage.setItem(key, value)
     }
   }

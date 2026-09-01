@@ -24,7 +24,11 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import crypto from 'node:crypto'
-import { verifyTelegramInitData } from './auth'
+import {
+  verifyTelegramInitData,
+  verifyTelegramLoginWidget,
+  type VerifiedTelegramWidgetUser,
+} from './auth'
 import {
   signAccessToken,
   issueRefreshToken,
@@ -63,7 +67,7 @@ function mintPairingCode(): string {
  * lands weeks later as "the app logs itself out".
  */
 async function mintSession(
-  pool: Pool,
+  pool: Pick<PoolClient, 'query'>,
   telegramId: string,
   body: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
@@ -95,6 +99,233 @@ async function mintSession(
   }
 }
 
+class StaleWidgetProfileAssertion extends Error {}
+class ReplayedWidgetAssertion extends Error {}
+
+/** Persist only identity attributes covered by Telegram's widget HMAC. */
+async function syncVerifiedWidgetProfileWithClient(
+  client: PoolClient,
+  user: VerifiedTelegramWidgetUser
+): Promise<void> {
+  const telegramId = String(user.id)
+  const username =
+    user.username && /^[A-Za-z0-9_]{5,32}$/.test(user.username)
+      ? user.username
+      : null
+  const displayName = [user.first_name, user.last_name]
+    .filter(Boolean)
+    .join(' ')
+    .slice(0, 256)
+  const photoUrl = user.photo_url?.slice(0, 512) || null
+  await client.query(`
+      CREATE TABLE IF NOT EXISTS profiles (
+        id serial PRIMARY KEY,
+        telegram_id text,
+        username text,
+        display_name text,
+        bio text DEFAULT '',
+        avatar_url text,
+        cover_url text,
+        social_links jsonb DEFAULT '[]',
+        is_public boolean DEFAULT TRUE,
+        is_verified boolean DEFAULT FALSE,
+        telegram_auth_date bigint NOT NULL DEFAULT 0,
+        created_at timestamptz DEFAULT now()
+      )`)
+  await client.query(
+    `ALTER TABLE profiles
+         ADD COLUMN IF NOT EXISTS telegram_auth_date bigint NOT NULL DEFAULT 0`
+  )
+  // Legacy data can contain duplicate rows for the same Telegram owner.
+  // Repairing those inside this transaction makes the idempotent index safe
+  // and prevents one old duplicate from breaking every future browser login.
+  await client.query(
+    `DELETE FROM profiles p USING profiles q
+        WHERE p.telegram_id = q.telegram_id AND p.id < q.id`
+  )
+  await client.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS profiles_tg_uniq ON profiles (telegram_id)`
+  )
+
+  // Make legacy username ownership deterministic before installing the
+  // invariant. The most recently authenticated row wins; id is only a
+  // stable tie-breaker for rows that predate telegram_auth_date.
+  await client.query(`
+      WITH ranked AS (
+        SELECT id,
+               ROW_NUMBER() OVER (
+                 PARTITION BY LOWER(username)
+                 ORDER BY telegram_auth_date DESC, id DESC
+               ) AS position
+          FROM profiles
+         WHERE username IS NOT NULL AND username <> ''
+      )
+      UPDATE profiles p
+         SET username = NULL
+        FROM ranked r
+       WHERE p.id = r.id AND r.position > 1`)
+  await client.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS profiles_username_uniq
+         ON profiles (LOWER(username))
+      WHERE username IS NOT NULL AND username <> ''`
+  )
+
+  // Serialize both one owner's replays and claims for one normalized
+  // username. A unique index prevents duplicate committed state; these
+  // locks additionally let us compare auth_date before changing ownership.
+  // The order is fixed for every caller to avoid lock-order inversions.
+  if (username) {
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtext('username:' || LOWER($1)))`,
+      [username]
+    )
+  }
+  await client.query(
+    `SELECT pg_advisory_xact_lock(hashtext('telegram:' || $1))`,
+    [telegramId]
+  )
+
+  const existing = await client.query(
+    `SELECT telegram_id, username, telegram_auth_date
+         FROM profiles
+        WHERE telegram_id = $1
+           OR ($2::text IS NOT NULL AND LOWER(username) = LOWER($2))
+        FOR UPDATE`,
+    [telegramId, username]
+  )
+  const own = existing.rows.find(row => String(row.telegram_id) === telegramId)
+  const conflict = existing.rows.find(
+    row => String(row.telegram_id) !== telegramId
+  )
+  const incomingAuthDate = user.auth_date
+  if (
+    Number(own?.telegram_auth_date || 0) > incomingAuthDate ||
+    Number(conflict?.telegram_auth_date || 0) >= incomingAuthDate
+  ) {
+    throw new StaleWidgetProfileAssertion('stale Telegram profile assertion')
+  }
+
+  if (username) {
+    // A Telegram username has one current owner. A freshly HMAC-verified
+    // payload wins over stale local rows. All displacement and installation
+    // happens in the same transaction, so a failure cannot leave it ownerless.
+    await client.query(
+      `UPDATE profiles SET username = NULL
+          WHERE LOWER(username) = LOWER($1) AND telegram_id <> $2`,
+      [username, telegramId]
+    )
+    await client.query(
+      `UPDATE users SET username = NULL
+          WHERE LOWER(username) = LOWER($1) AND telegram_id::text <> $2`,
+      [username, telegramId]
+    )
+  }
+
+  const updated = await client.query(
+    `UPDATE users SET username = $2, first_name = $3
+        WHERE telegram_id::text = $1 RETURNING id`,
+    [telegramId, username, displayName]
+  )
+  if (!updated.rows.length) {
+    await client.query(
+      `INSERT INTO users (telegram_id, username, first_name)
+         VALUES ($1, $2, $3)`,
+      [telegramId, username, displayName]
+    )
+  }
+
+  const saved = await client.query(
+    `INSERT INTO profiles (
+         telegram_id, username, display_name, avatar_url, telegram_auth_date
+       )
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (telegram_id)
+       DO UPDATE SET username = EXCLUDED.username,
+                     display_name = EXCLUDED.display_name,
+                     avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url),
+                     telegram_auth_date = EXCLUDED.telegram_auth_date
+             WHERE profiles.telegram_auth_date <= EXCLUDED.telegram_auth_date
+       RETURNING telegram_id`,
+    [telegramId, username, displayName, photoUrl, incomingAuthDate]
+  )
+  if (!saved.rows.length)
+    throw new StaleWidgetProfileAssertion('stale Telegram profile assertion')
+}
+
+export async function syncVerifiedWidgetProfile(
+  pool: Pool,
+  user: VerifiedTelegramWidgetUser
+): Promise<void> {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await syncVerifiedWidgetProfileWithClient(client, user)
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+async function mintWidgetSession(
+  pool: Pool,
+  user: VerifiedTelegramWidgetUser,
+  body: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const assertion = String(body.hash || '')
+  const assertionHash = digest(`telegram-widget:${assertion}`)
+  const telegramId = String(user.id)
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const consumed = await client.query(
+      `INSERT INTO app_widget_assertions (assertion_hash, telegram_id)
+       VALUES ($1, $2)
+       ON CONFLICT (assertion_hash) DO NOTHING
+       RETURNING assertion_hash`,
+      [assertionHash, telegramId]
+    )
+    if (!consumed.rows.length) throw new ReplayedWidgetAssertion()
+    await syncVerifiedWidgetProfileWithClient(client, user)
+    const session = await mintSession(client, telegramId, body)
+    await client.query('COMMIT')
+    return session
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+/**
+ * Keep every auth failure inside the HTTP boundary.
+ *
+ * Node's HTTP server ignores the Promise returned by an async request
+ * callback. Without this wrapper a database error after the initial pool
+ * check becomes an unhandled rejection and can terminate the whole process.
+ * The response is deliberately constant and never serializes the exception.
+ */
+export async function handleAuthRouteSafely(
+  req: IncomingMessage,
+  res: ServerResponse,
+  getPool: () => Pool
+): Promise<boolean> {
+  try {
+    return await handleAuthRoute(req, res, getPool)
+  } catch {
+    console.error('[auth] request failed')
+    if (res.headersSent) {
+      res.destroy()
+      return true
+    }
+    json(res, 503, { error: 'authentication service unavailable' })
+    return true
+  }
+}
+
 /**
  * telegram_id из УЖЕ ПРОВЕРЕННОЙ строки initData.
  *
@@ -115,8 +346,14 @@ function verifiedTelegramIdFrom(initData: string): string | null {
   }
 }
 
-type Pool = {
+type PoolClient = {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
+  release: () => void
+}
+
+type Pool = {
+  query: PoolClient['query']
+  connect: () => Promise<PoolClient>
 }
 
 function json(res: ServerResponse, code: number, body: unknown): void {
@@ -166,9 +403,9 @@ export async function handleAuthRoute(
     pool = getPool()
     await ensureAuthTables(pool)
   } catch (e) {
+    console.error('[auth] database unavailable')
     json(res, 503, {
       error: 'база недоступна',
-      detail: String(e).slice(0, 160),
     })
     return true
   }
@@ -209,6 +446,39 @@ export async function handleAuthRoute(
     }
 
     json(res, 200, await mintSession(pool, telegramId, body))
+    return true
+  }
+
+  // ─── Browser login: verified Login Widget payload becomes a session ───
+  if (path === '/api/auth/widget' && req.method === 'POST') {
+    let body: Record<string, unknown>
+    try {
+      body = JSON.parse((await readBody(req)) || '{}')
+    } catch {
+      json(res, 400, { error: 'тело запроса не разобрано как JSON' })
+      return true
+    }
+    const verified = verifyTelegramLoginWidget(body)
+    if (!verified.ok) {
+      json(res, 401, {
+        error: 'подпись Telegram Login Widget не принята',
+        detail: verified.reason,
+      })
+      return true
+    }
+    try {
+      const session = await mintWidgetSession(pool, verified.user, body)
+      json(res, 200, { ...session, telegram_user: verified.user })
+    } catch (error) {
+      if (
+        error instanceof StaleWidgetProfileAssertion ||
+        error instanceof ReplayedWidgetAssertion
+      ) {
+        json(res, 409, { error: 'Telegram assertion already used or stale' })
+        return true
+      }
+      throw error
+    }
     return true
   }
 
@@ -383,29 +653,71 @@ export async function handleAuthRoute(
   // ─── Logout ────────────────────────────────────────────────────────────
   if (path === '/api/auth/logout' && req.method === 'POST') {
     const bearer = (req.headers['authorization'] as string | undefined) || ''
-    if (!bearer.startsWith('Bearer ')) {
-      json(res, 401, { error: 'нужен Authorization: Bearer' })
-      return true
-    }
-    let sid: string
+    let sid: string | null = null
+    let familyId: string | null = null
     try {
-      sid = verifyAppSession(bearer.slice(7).trim()).sid
+      if (bearer.startsWith('Bearer ')) {
+        sid = verifyAppSession(bearer.slice(7).trim()).sid
+      }
     } catch {
-      // An expired token is a perfectly ordinary way to arrive here, and
-      // refusing would leave the person unable to log out of a stale session.
-      json(res, 200, { logged_out: true, note: 'токен уже недействителен' })
+      // An expired access token is ordinary. The one-time refresh secret in
+      // the body is the proof that lets logout revoke the whole family rather
+      // than merely clearing the browser and leaving a 60-day token alive.
+    }
+
+    if (!sid) {
+      let body: Record<string, unknown> = {}
+      try {
+        body = JSON.parse((await readBody(req)) || '{}')
+      } catch {
+        json(res, 400, { error: 'тело запроса не разобрано как JSON' })
+        return true
+      }
+      const refreshToken = String(body.refresh_token || '')
+      if (refreshToken) {
+        const found = await pool.query(
+          `SELECT family_id, session_id FROM app_refresh_tokens
+            WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now()
+            LIMIT 1`,
+          [digest(refreshToken)]
+        )
+        if (found.rows.length) {
+          familyId = String(found.rows[0].family_id)
+          sid = String(found.rows[0].session_id)
+        }
+      }
+    }
+
+    if (!sid) {
+      json(res, 401, { error: 'нужен действующий access или refresh token' })
       return true
     }
 
-    await pool.query(
-      `UPDATE app_sessions SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL`,
-      [sid]
-    )
-    await pool.query(
-      `UPDATE app_refresh_tokens SET revoked_at = now()
-        WHERE session_id = $1 AND revoked_at IS NULL`,
-      [sid]
-    )
+    if (familyId) {
+      await pool.query(
+        `UPDATE app_sessions SET revoked_at = now()
+          WHERE family_id = $1 AND revoked_at IS NULL`,
+        [familyId]
+      )
+      const familySessions = await pool.query(
+        `UPDATE app_refresh_tokens SET revoked_at = now()
+          WHERE family_id = $1 AND revoked_at IS NULL
+          RETURNING session_id`,
+        [familyId]
+      )
+      for (const row of familySessions.rows) revokeNow(String(row.session_id))
+    } else {
+      await pool.query(
+        `UPDATE app_sessions SET revoked_at = now()
+          WHERE id = $1 AND revoked_at IS NULL`,
+        [sid]
+      )
+      await pool.query(
+        `UPDATE app_refresh_tokens SET revoked_at = now()
+          WHERE session_id = $1 AND revoked_at IS NULL`,
+        [sid]
+      )
+    }
     // Immediately, not on the next poll: a person pressing "log out" expects
     // it to have happened by the time the screen changes.
     revokeNow(sid)
@@ -429,6 +741,7 @@ export async function handleAuthRoute(
    */
   const known: Record<string, string> = {
     '/api/auth/telegram': 'POST',
+    '/api/auth/widget': 'POST',
     '/api/auth/refresh': 'POST',
     '/api/auth/logout': 'POST',
     '/api/auth/pair/start': 'POST',

@@ -35,7 +35,7 @@ WORKDIR /workspace/render
 # walking up from there — /workspace/packages/node_modules and
 # /workspace/node_modules do not exist, so the bundle fails at startup with
 # "Can't resolve 'jotai'" and the server never opens its port.
-RUN npm install --install-links --no-audit --no-fund
+RUN npm ci --install-links --no-audit --no-fund
 
 # Remotion downloads its own Chrome Headless Shell. Doing it at build time keeps
 # the first render from paying for the download — and makes a broken download a
