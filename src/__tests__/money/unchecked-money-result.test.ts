@@ -37,7 +37,6 @@ const strip = (s: string) =>
 /** Функции, чей возврат означает «получилось / не получилось». */
 const CHECKABLE = [
   'processBalanceOperation',
-  'processBalanceVideoOperation',
   'directPaymentProcessor',
   'updateUserBalance',
 ]

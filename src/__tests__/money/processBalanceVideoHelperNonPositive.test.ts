@@ -8,14 +8,11 @@
  * guard of its own: a 0 paymentAmount slips past `currentBalance < paymentAmount`
  * (balance < 0 is always false) and updateUserBalance charges 0 -> free video.
  *
- * IMPORTANT (iter224 ratchet-liveness audit): the sibling ratchet
- * processBalanceVideoOperationNonPositive guards `processBalanceVideoOperation`
- * (price/helpers) -- which is DEAD: defined + exported but never imported/called
- * in live code (a @deprecated comment points to it while nothing uses it). The
+ * NOTE: the dead twin `processBalanceVideoOperation` (price/helpers) and its
+ * ratchet were deleted in #1572 (it was exported but never imported/called). The
  * LIVE path (morphingWizard etc.) calls processBalanceVideoOperationHelper
- * (modules/videoGenerator/helpers/priceHelper). This ratchet pins the invariant
- * on the fn that is actually used. Structural -> self-check + floor +
- * mutation-verified.
+ * (modules/videoGenerator/helpers/priceHelper), which this ratchet pins.
+ * Structural -> self-check + floor + mutation-verified.
  */
 import { describe, it, expect } from 'vitest'
 import * as fs from 'fs'
