@@ -223,6 +223,14 @@ CHECKS THAT EACH COST A CYCLE
         temp-file leak (the iter206 fluxKontextPro class). Triage: a hit may
         deliver via the file (clean up after) or via a remote url (pure waste).
 
+  tri replay | tri повтор
+        Inventory of paid .action BUTTON handlers + the guard each has against a
+        stale-persistent-button replay (upscale_image #1551, ai_photoshop_-
+        upscale_last #1553, upscale_neurophoto_image (iter213)). Shows CONSUME- /
+        LEAVE- / INFLIGHT-ONLY / UNGUARDED. Triage, not a gate: in-flight alone
+        does NOT stop a LATER re-tap; a handler is safe if its target changes
+        each tap. Read each flagged handler.
+
   tri charge | tri заряд
         Completeness check for the double-charge class (#1358): lists every
         scene that CHARGES money and whether it is guarded / safe / a tracked
@@ -1407,6 +1415,19 @@ cmd_leaks() {
   ( cd "$ROOT" && node "$TOOLS/leaks-audit.mjs" "$@" )
 }
 
+cmd_replay() {
+  # Inventory of paid `.action` BUTTON handlers and the guard each carries
+  # against a stale-persistent-button replay: re-tapping a button on an old
+  # message re-runs a completed paid op (upscale_image #1551, ai_photoshop_-
+  # upscale_last #1553, upscale_neurophoto_image (iter213) -- all found this way).
+  # For each handler that fires a charge directly, prints CONSUME-GUARDED /
+  # LEAVE-GUARDED / INFLIGHT-ONLY / UNGUARDED. INVENTORY, never a gate (exit 0):
+  # a "review" hint is heuristic -- a handler is safe if its target changes each
+  # tap (fresh upload). Read each flagged handler; the in-flight flag alone does
+  # NOT stop a LATER replay. Reports, never mutates.
+  ( cd "$ROOT" && node "$TOOLS/replay-audit.mjs" "$@" )
+}
+
 action="${1:-помощь}"
 shift 2>/dev/null || true
 
@@ -1434,6 +1455,7 @@ case "$action" in
   timeouts|таймауты)  cmd_timeouts "$@" ;;
   inflight|блокировка) cmd_inflight "@" ;;
   leaks|утечки)        cmd_leaks "$@" ;;
+  replay|повтор)       cmd_replay "$@" ;;
   sweep|развёртка)  cmd_sweep "$@" ;;
   colors|цвета)        cmd_colors "$@" ;;
   ci)                  cmd_ci ;;

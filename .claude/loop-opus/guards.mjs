@@ -62,6 +62,7 @@ const GUARDS = [
   'src/__tests__/security/tonPaymentOwnershipGuard.test.ts', // iter210 TON top-up check credits only the payment owner (no cross-user top-up theft)
   'src/__tests__/money/upscaleImageConsumeBeforeCharge.test.ts', // iter211 upscale_image consumes the image before charging (stale persistent-button re-tap cannot re-charge)
   'src/__tests__/money/aiPhotoshopUpscaleLastConsumeBeforeCharge.test.ts', // iter212 ai_photoshop_upscale_last consumes the photo before charging (stale button re-tap cannot re-charge a deterministic upscale)
+  'src/__tests__/money/upscaleNeuroPhotoConsumeBeforeCharge.test.ts', // iter213 upscale_neurophoto_image consumes the neurophoto before charging (3rd stale-button replay instance, found by tri replay)
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary
