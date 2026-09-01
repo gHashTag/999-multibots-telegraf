@@ -9,9 +9,10 @@
  * that victim had liked or starred — a cross-user disclosure. Same class as
  * #975 / #983 / #985 / #901: identity present, taken from the caller's word.
  *
- * The id now comes from verifiedViewerId(req), which trusts only signed Telegram
- * initData (an anonymous or unverified caller gets null, so the joins match
- * nothing). Source-level seam test like the other render tests here: it pins
+ * The id now comes from verifiedViewerId(req), which accepts signed Telegram
+ * initData or a verified application session (an anonymous or unverified caller
+ * gets null, so the joins match nothing). Source-level seam test like the other
+ * render tests here: it pins
  * that the feed reads no longer trust the query, which a refactor could drop.
  */
 import { describe, it, expect } from 'vitest'
@@ -31,14 +32,17 @@ const stripComments = (s: string) =>
 const code = () => stripComments(fs.readFileSync(SRC, 'utf8'))
 
 describe('feed personalization is scoped to the verified viewer (IDOR)', () => {
-  it('defines verifiedViewerId and it trusts only signed initData', () => {
+  it('defines verifiedViewerId and delegates to verified identity sources', () => {
     const s = code()
     expect(/function verifiedViewerId\s*\(/.test(s)).toBe(true)
-    // The helper must gate on a verified signature, not just read a header.
+    // The helper must delegate to the shared identity boundary, which verifies
+    // either Telegram initData or the server-issued application session.
     const body = s.slice(s.indexOf('function verifiedViewerId'))
     expect(
-      /verifyTelegramInitData\s*\([^)]*\)\.ok/.test(body.slice(0, 400)),
-      'verifiedViewerId does not verify the initData signature'
+      /return chatIdentity\(req, verifiedTelegramId\(req\)\)/.test(
+        body.slice(0, 300)
+      ),
+      'verifiedViewerId bypasses the shared verified identity boundary'
     ).toBe(true)
   })
 

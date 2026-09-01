@@ -1180,12 +1180,28 @@ async function handleSoraSuccess(
 
     try {
       // Обновляем сообщение о статусе
-      await botInstance.telegram.editMessageText(
-        taskContext.chatId,
-        taskContext.messageId,
-        undefined,
-        '✅ Видео успешно сгенерировано! Отправляю...'
-      )
+      // Isolated try: the progress message may be stale/deleted (>48h old or the
+      // user removed it while Sora ran) -> a Telegram 400 here must NOT abort the
+      // paid video delivery below. The delivery claim is already spent (line
+      // above), so a thrown status edit would lose the finished Sora video for
+      // good -- Kie models skip polling, so this webhook is the only delivery
+      // path. Mirrors the guarded status edit in handleVideoReady (#1528).
+      try {
+        await botInstance.telegram.editMessageText(
+          taskContext.chatId,
+          taskContext.messageId,
+          undefined,
+          '✅ Видео успешно сгенерировано! Отправляю...'
+        )
+      } catch (editErr) {
+        logger.warn(
+          '[KIE WEBHOOK] status edit failed (stale message); continuing to delivery',
+          {
+            taskId,
+            error: editErr instanceof Error ? editErr.message : String(editErr),
+          }
+        )
+      }
 
       // Получаем информацию о модели
       const modelInfo = VIDEO_MODELS[taskContext.modelId as VideoModelId]

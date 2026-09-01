@@ -120,6 +120,11 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
       return
     }
 
+    // Answer the callback up front so every branch below (unknown option,
+    // missing avatar, missing id) returns without leaving the button's loading
+    // spinner hanging ~30s. .catch guards a stale/expired query id.
+    await ctx.answerCbQuery().catch(() => {})
+
     if (!telegramId) {
       await ctx.reply(
         isRu
@@ -144,8 +149,6 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
         heygenAvatarSet: setName,
         heygenApiKey: avatarSet.apiKey,
       }
-
-      await ctx.answerCbQuery()
 
       // Создаем кнопки с аватарами (по 2 в ряд)
       const avatarButtons = []
@@ -224,6 +227,11 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
       return
     }
 
+    // Answer the callback up front so every branch below (unknown option,
+    // missing avatar, missing id) returns without leaving the button's loading
+    // spinner hanging ~30s. .catch guards a stale/expired query id.
+    await ctx.answerCbQuery().catch(() => {})
+
     if (!telegramId) {
       await ctx.reply(
         isRu
@@ -257,7 +265,6 @@ export const heygenRenderWizard = new Scenes.WizardScene<MyContext>(
         step: 'cover',
       }
 
-      await ctx.answerCbQuery()
       await ctx.editMessageText(
         isRu
           ? `✅ Выбран аватар: ${avatarInfo.avatar.emoji} ${avatarInfo.avatar.name}\n\n🖼️ Теперь отправьте обложку (фото для превью видео):`

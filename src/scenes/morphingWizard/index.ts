@@ -346,7 +346,26 @@ export const morphingWizard = new Scenes.WizardScene<MyContext>(
       }
 
       const photo = message.photo[message.photo.length - 1]
-      const file = await ctx.telegram.getFile(photo.file_id)
+      // getFile can throw (transient Telegram error, or a file above the ~20MB
+      // Bot API download limit); unguarded it would abort the step and silently
+      // drop the user's uploaded photo. Tell them to retry instead.
+      let file
+      try {
+        file = await ctx.telegram.getFile(photo.file_id)
+      } catch (getFileErr) {
+        logger.error('[Morphing] getFile failed for uploaded photo', {
+          error:
+            getFileErr instanceof Error
+              ? getFileErr.message
+              : String(getFileErr),
+        })
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось загрузить фото. Попробуйте отправить его ещё раз.'
+            : '❌ Could not load the photo. Please send it again.'
+        )
+        return
+      }
 
       if (!file.file_path) {
         await ctx.reply(

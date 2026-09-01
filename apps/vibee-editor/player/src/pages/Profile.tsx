@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { UserX } from 'lucide-react'
 import {
   viewedProfileAtom,
   profileLoadingAtom,
   profileErrorAtom,
   loadProfileAtom,
-  showLoginModalAtom,
 } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Header } from '@/components/Header'
@@ -15,9 +14,7 @@ import { ProfileHeader, ProfileTabs, ProfileEdit } from '@/components/Profile'
 import { useIsOwnProfile } from '@/components/Profile/useIsOwnProfile'
 import { SoulEditor } from '@/components/Profile/SoulEditor'
 import { PairWithApp } from '@/components/Profile/PairWithApp'
-import { TelegramLoginButton } from '@/components/Auth'
 import '@/components/Profile/Profile.css'
-import { LoginModal } from '@/components/Auth/LoginModal'
 
 export function ProfilePage() {
   const { t } = useLanguage()
@@ -28,8 +25,6 @@ export function ProfilePage() {
   const loading = useAtomValue(profileLoadingAtom)
   const error = useAtomValue(profileErrorAtom)
   const loadProfile = useSetAtom(loadProfileAtom)
-  const [showLoginModal, setShowLoginModal] = useAtom(showLoginModalAtom)
-
   const [showEdit, setShowEdit] = useState(false)
 
   useEffect(() => {
@@ -135,9 +130,6 @@ export function ProfilePage() {
           {isOwn && <SoulEditor />}
           {isOwn && <PairWithApp />}
         </div>
-
-        {/* Login Modal */}
-        <LoginModal />
       </div>
     </>
   )

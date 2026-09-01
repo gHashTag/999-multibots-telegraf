@@ -66,7 +66,30 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
     if (isVideoFile) {
       // Обработка загруженного видеофайла
       const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
-      const videoFile = await ctx.telegram.getFile(message.video.file_id)
+      // getFile throws a Telegram 400 for files above the Bot API download limit
+      // (~20MB on api.telegram.org). Unguarded, that throw aborts this step and
+      // silently drops the user's uploaded video (this runs before any charge).
+      // Catch it and tell the user how to proceed instead of losing the upload.
+      let videoFile
+      try {
+        videoFile = await ctx.telegram.getFile(message.video.file_id)
+      } catch (getFileErr) {
+        logger.error(
+          '[VideoTranscription] getFile failed (file too large or unavailable)',
+          {
+            error:
+              getFileErr instanceof Error
+                ? getFileErr.message
+                : String(getFileErr),
+          }
+        )
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось загрузить видео (возможно, оно больше 20 МБ). Пришлите файл поменьше или ссылку на Instagram Reel.'
+            : '❌ Could not download the video (it may exceed 20 MB). Send a smaller file or an Instagram Reel link.'
+        )
+        return ctx.scene.leave()
+      }
 
       if (videoFile?.file_size && videoFile.file_size > MAX_FILE_SIZE) {
         await ctx.reply(

@@ -4,7 +4,7 @@
  * Runtime validation schemas for template definitions and props.
  */
 
-import { z } from 'zod';
+import { z } from 'zod'
 
 // ============================================================
 // Enum Schemas
@@ -21,7 +21,7 @@ export const AvatarPositionSchema = z.enum([
   'split-horizontal',
   'split-vertical',
   'floating-center',
-]);
+])
 
 export const HookStyleSchema = z.enum([
   'zoom-impact',
@@ -32,7 +32,7 @@ export const HookStyleSchema = z.enum([
   'question',
   'counter',
   'none',
-]);
+])
 
 export const CaptionStyleSchema = z.enum([
   'classic',
@@ -42,14 +42,14 @@ export const CaptionStyleSchema = z.enum([
   'bounce',
   'word-highlight',
   'none',
-]);
+])
 
 export const BRollPatternSchema = z.enum([
   'hook-content-cta',
   'even-distribution',
   'progressive',
   'random-weighted',
-]);
+])
 
 export const BRollAnimationSchema = z.enum([
   'zoom-in',
@@ -57,7 +57,7 @@ export const BRollAnimationSchema = z.enum([
   'pan-right',
   'pan-left',
   'rotate-zoom',
-]);
+])
 
 // ============================================================
 // Component Schemas
@@ -68,44 +68,44 @@ export const CaptionEntrySchema = z.object({
   startFrame: z.number().int().min(0),
   endFrame: z.number().int().min(1),
   highlight: z.string().optional(),
-});
+})
 
 export const DimensionsSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   fps: z.number().int().min(24).max(60),
-});
+})
 
 export const DurationConstraintsSchema = z.object({
   minSeconds: z.number().positive(),
   maxSeconds: z.number().positive(),
   recommendedSeconds: z.number().positive(),
-});
+})
 
 export const SafeZonesSchema = z.object({
   top: z.number().min(0),
   bottom: z.number().min(0),
   left: z.number().min(0),
   right: z.number().min(0),
-});
+})
 
 // ============================================================
 // Variant Axis Schemas
 // ============================================================
 
-const createAxisSchema = <T extends z.ZodTypeAny>(valueSchema: T) =>
+const createAxisSchema = <T extends z.ZodType<string>>(valueSchema: T) =>
   z.object({
     name: z.string(),
     description: z.string(),
     values: z.array(valueSchema),
     default: valueSchema,
     weight: z.record(valueSchema, z.number()).optional(),
-  });
+  })
 
-export const AvatarAxisSchema = createAxisSchema(AvatarPositionSchema);
-export const HookAxisSchema = createAxisSchema(HookStyleSchema);
-export const CaptionAxisSchema = createAxisSchema(CaptionStyleSchema);
-export const BRollAxisSchema = createAxisSchema(BRollPatternSchema);
+export const AvatarAxisSchema = createAxisSchema(AvatarPositionSchema)
+export const HookAxisSchema = createAxisSchema(HookStyleSchema)
+export const CaptionAxisSchema = createAxisSchema(CaptionStyleSchema)
+export const BRollAxisSchema = createAxisSchema(BRollPatternSchema)
 
 // ============================================================
 // Exclusion Rule Schema
@@ -117,7 +117,7 @@ export const ExclusionRuleSchema = z.object({
   captionStyle: z.array(CaptionStyleSchema).optional(),
   bRollPattern: z.array(BRollPatternSchema).optional(),
   reason: z.string(),
-});
+})
 
 // ============================================================
 // Main Props Schema
@@ -163,7 +163,7 @@ export const TalkingHeadPropsSchema = z.object({
 
   // Cover
   coverDuration: z.number().min(0).max(5),
-});
+})
 
 // ============================================================
 // Template Definition Schema
@@ -189,7 +189,7 @@ export const TemplateDefinitionSchema = z.object({
 
   excludeCombinations: z.array(ExclusionRuleSchema),
   defaultProps: TalkingHeadPropsSchema,
-});
+})
 
 // ============================================================
 // Generated Variant Schemas
@@ -200,7 +200,7 @@ export const VariantAxesSchema = z.object({
   hookStyle: HookStyleSchema,
   captionStyle: CaptionStyleSchema,
   bRollPattern: BRollPatternSchema,
-});
+})
 
 export const GeneratedVariantSchema = z.object({
   variantId: z.string().min(1),
@@ -214,7 +214,7 @@ export const GeneratedVariantSchema = z.object({
     generatedAt: z.string().datetime(),
     version: z.string(),
   }),
-});
+})
 
 export const VariantManifestSchema = z.object({
   baseTemplateId: z.string(),
@@ -228,7 +228,7 @@ export const VariantManifestSchema = z.object({
     byCaptionStyle: z.record(CaptionStyleSchema, z.number()),
     byBRollPattern: z.record(BRollPatternSchema, z.number()),
   }),
-});
+})
 
 // ============================================================
 // Asset Schemas
@@ -240,7 +240,7 @@ export const AssetCategorySchema = z.enum([
   'broll',
   'music',
   'cover',
-]);
+])
 
 export const AssetEntrySchema = z.object({
   id: z.string(),
@@ -256,7 +256,7 @@ export const AssetEntrySchema = z.object({
     .optional(),
   tags: z.array(z.string()),
   fileSize: z.number().int().positive().optional(),
-});
+})
 
 export const AssetManifestSchema = z.object({
   version: z.string(),
@@ -276,7 +276,7 @@ export const AssetManifestSchema = z.object({
     music: z.string(),
     cover: z.string(),
   }),
-});
+})
 
 // ============================================================
 // Batch Rendering Schemas
@@ -288,7 +288,7 @@ export const RenderJobStatusSchema = z.enum([
   'completed',
   'failed',
   'cancelled',
-]);
+])
 
 export const RenderJobSchema = z.object({
   jobId: z.string(),
@@ -340,7 +340,7 @@ export const RenderJobSchema = z.object({
     started: z.string().datetime().optional(),
     completed: z.string().datetime().optional(),
   }),
-});
+})
 
 export const BatchRenderConfigSchema = z.object({
   batchId: z.string(),
@@ -366,7 +366,7 @@ export const BatchRenderConfigSchema = z.object({
   }),
 
   webhookUrl: z.string().url().optional(),
-});
+})
 
 export const BatchProgressSchema = z.object({
   batchId: z.string(),
@@ -394,7 +394,7 @@ export const BatchProgressSchema = z.object({
       estimatedUSD: z.number().min(0),
     })
     .optional(),
-});
+})
 
 export const CostEstimateSchema = z.object({
   variants: z.number().int().positive(),
@@ -407,16 +407,16 @@ export const CostEstimateSchema = z.object({
     storageCost: z.number().min(0),
     transferCost: z.number().min(0),
   }),
-});
+})
 
 // ============================================================
 // Type Exports (inferred from schemas)
 // ============================================================
 
-export type TemplateDefinitionInput = z.input<typeof TemplateDefinitionSchema>;
-export type TalkingHeadPropsInput = z.input<typeof TalkingHeadPropsSchema>;
-export type GeneratedVariantInput = z.input<typeof GeneratedVariantSchema>;
-export type BatchRenderConfigInput = z.input<typeof BatchRenderConfigSchema>;
+export type TemplateDefinitionInput = z.input<typeof TemplateDefinitionSchema>
+export type TalkingHeadPropsInput = z.input<typeof TalkingHeadPropsSchema>
+export type GeneratedVariantInput = z.input<typeof GeneratedVariantSchema>
+export type BatchRenderConfigInput = z.input<typeof BatchRenderConfigSchema>
 
 // ============================================================
 // Validation Helpers
@@ -425,27 +425,27 @@ export type BatchRenderConfigInput = z.input<typeof BatchRenderConfigSchema>;
 /**
  * Validate a template definition
  */
-export function validateTemplate(data: unknown): z.SafeParseReturnType<unknown, z.infer<typeof TemplateDefinitionSchema>> {
-  return TemplateDefinitionSchema.safeParse(data);
+export function validateTemplate(data: unknown) {
+  return TemplateDefinitionSchema.safeParse(data)
 }
 
 /**
  * Validate talking head props
  */
-export function validateProps(data: unknown): z.SafeParseReturnType<unknown, z.infer<typeof TalkingHeadPropsSchema>> {
-  return TalkingHeadPropsSchema.safeParse(data);
+export function validateProps(data: unknown) {
+  return TalkingHeadPropsSchema.safeParse(data)
 }
 
 /**
  * Validate a generated variant
  */
-export function validateVariant(data: unknown): z.SafeParseReturnType<unknown, z.infer<typeof GeneratedVariantSchema>> {
-  return GeneratedVariantSchema.safeParse(data);
+export function validateVariant(data: unknown) {
+  return GeneratedVariantSchema.safeParse(data)
 }
 
 /**
  * Validate batch render config
  */
-export function validateBatchConfig(data: unknown): z.SafeParseReturnType<unknown, z.infer<typeof BatchRenderConfigSchema>> {
-  return BatchRenderConfigSchema.safeParse(data);
+export function validateBatchConfig(data: unknown) {
+  return BatchRenderConfigSchema.safeParse(data)
 }

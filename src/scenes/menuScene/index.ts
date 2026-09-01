@@ -278,6 +278,10 @@ const menuNextStep = async (ctx: MyContext) => {
   )
   logger.info(`[menuNextStep] Raw update:`, JSON.stringify(ctx.update, null, 2))
   if ('callback_query' in ctx.update && 'data' in ctx.update.callback_query) {
+    // Answer the callback up front so the button spinner does not hang ~30s on
+    // the unlock_features / else branches (only go_to_subscription_scene answered
+    // before). .catch guards a stale/expired query id.
+    await ctx.answerCbQuery().catch(() => {})
     const text = ctx.update.callback_query.data
     logger.info(`[menuNextStep] Callback Query Data: ${text}`)
     // Handle callback query buttons as before
@@ -286,7 +290,6 @@ const menuNextStep = async (ctx: MyContext) => {
       await ctx.scene.enter(ModeEnum.SubscriptionScene)
     } else if (text === 'go_to_subscription_scene') {
       logger.info('[menuNextStep] Handling callback: go_to_subscription_scene')
-      await ctx.answerCbQuery()
       await ctx.scene.leave()
       ctx.session.mode = ModeEnum.SubscriptionScene
       await ctx.scene.enter(ModeEnum.SubscriptionScene)

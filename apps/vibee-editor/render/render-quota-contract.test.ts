@@ -28,6 +28,10 @@ const CLIENT = fs.readFileSync(
   path.join(REPO, 'apps/vibee-editor/player/src/atoms/user.ts'),
   'utf8'
 )
+const QUOTA = fs.readFileSync(
+  path.join(REPO, 'apps/vibee-editor/render/render-quota.ts'),
+  'utf8'
+)
 const TYPES = fs.readFileSync(
   path.join(REPO, 'apps/vibee-editor/packages/vibee-atoms/src/types.ts'),
   'utf8'
@@ -50,7 +54,7 @@ describe('/api/render-quota contract', () => {
   it('answers with the fields the shared RenderQuota type declares', () => {
     for (const field of ['total_renders', 'free_remaining', 'subscription']) {
       expect(TYPES, `RenderQuota lost ${field}`).toContain(field)
-      expect(handler, `handler stopped sending ${field}`).toContain(field)
+      expect(QUOTA, `quota service stopped sending ${field}`).toContain(field)
     }
   })
 
@@ -60,11 +64,37 @@ describe('/api/render-quota contract', () => {
   })
 
   it('derives admin from the verified caller, not the query parameter', () => {
-    expect(handler).toContain('verifiedTelegramId(req)')
+    expect(handler).toContain('chatIdentity(req, verifiedTelegramId(req))')
     // The old form compared the raw query param directly.
     expect(handler).not.toMatch(
       /const isAdmin = telegram_id === TELEGRAM_OWNER_ID/
     )
+    expect(handler).not.toContain("searchParams.get('telegram_id')")
+  })
+
+  it('uses an atomic server-side reservation instead of client logging', () => {
+    expect(QUOTA).toContain('ON CONFLICT (telegram_id, period_start) DO UPDATE')
+    expect(QUOTA).toContain('WHERE app_render_quota.used_count < $3')
+    expect(SERVER).toContain('await reserveRenderQuota(')
+    expect(stripComments(CLIENT)).not.toContain('/api/render-log')
+  })
+
+  it('reserves and refunds quota on both render entry points', () => {
+    const templateStart = SERVER.indexOf(
+      "if (req.url === '/render/template' && req.method === 'POST')"
+    )
+    const renderStart = SERVER.indexOf(
+      "if (req.url === '/render' && req.method === 'POST')",
+      templateStart
+    )
+    const templateRoute = SERVER.slice(templateStart, renderStart)
+    const renderRoute = SERVER.slice(renderStart, renderStart + 4500)
+
+    for (const route of [templateRoute, renderRoute]) {
+      expect(route).toContain('await reserveRenderQuota(')
+      expect(route).toContain('refundRenderQuota(')
+      expect(route).toContain("auth.via !== 'api-key'")
+    }
   })
 })
 
@@ -78,5 +108,11 @@ describe('the client sends the signature', () => {
 
   it('authHeaders is imported', () => {
     expect(CLIENT).toContain("from '../lib/apiFetch'")
+  })
+
+  it('does not send a client-owned telegram_id in the quota URL', () => {
+    const idx = CLIENT.indexOf('`${API_BASE}/api/render-quota')
+    const call = CLIENT.slice(idx, idx + 200)
+    expect(call).not.toContain('telegram_id=')
   })
 })

@@ -21,7 +21,6 @@ import path from 'node:path'
 // The critical invariant ratchets. Add a file here when you ship a new one.
 const GUARDS = [
   'src/__tests__/money/unifiedModelPriceFailClosed.test.ts', // #1458 fail-closed price
-  'src/__tests__/money/processBalanceVideoOperationNonPositive.test.ts', // #1461 non-positive price
   'src/__tests__/money/paymentHandlerInvIdDeterministic.test.ts', // #1430 InvId determinism
   'src/__tests__/money/unlockedDeductionLocked.test.ts', // #1432 balance-lock hatch
   'src/__tests__/money/creditNotInLoop.test.ts', // #1468/#1470 credit-in-loop mint
@@ -65,6 +64,15 @@ const GUARDS = [
   'src/__tests__/money/upscaleNeuroPhotoConsumeBeforeCharge.test.ts', // iter213 upscale_neurophoto_image consumes the neurophoto before charging (3rd stale-button replay instance, found by tri replay)
   'src/__tests__/money/tonCheckAtomicCreditGuard.test.ts', // iter214 TON check credits MONEY_INCOME only after an atomic status CAS (no concurrent double-credit mint); both ton scenes
   'src/__tests__/reliability/heroValidationErrorLogBounded.test.ts', // iter214 HeroValidationService.errorLog static array is ring-buffer capped (no adversarial slow-OOM); wave-16
+  'src/__tests__/reliability/aiPhotoshopDialogReplyGuarded.test.ts', // iter216 aiPhotoshop dialog status reply (raw user text under parse_mode) is isolated in try/catch so a 400 cannot drop the edit or lock the dialog; wave-17
+  'src/__tests__/reliability/heygenRenderAnswerCbQuery.test.ts', // iter216 heygenRenderWizard callback steps answer the spinner at top level (no ~30s hang on else/not-found branches); wave-17
+  'src/__tests__/reliability/callbackAnswerBeforeBranch.test.ts', // iter217 subscription+menu callback steps answer before branching (no spinner hang on paid subscription flow); spinner-sweep of #1560
+  'src/__tests__/reliability/kieWebhookVideoDeliveryEditGuarded.test.ts', // iter218 KIE video webhook status edit is isolated from sendVideo (stale-message 400 cannot drop a paid Sora video after the claim is spent); wave-18, #1528 sibling
+  'src/__tests__/reliability/videoTranscriptionGetFileGuarded.test.ts', // iter218 videoTranscription getFile is try-guarded (oversized upload 400 cannot silently drop the video); wave-18
+  'src/__tests__/reliability/paidUploadGetFileGuarded.test.ts', // iter219 faceSwap+morphing getFile try-guarded (paid photo-upload getFile sweep of #1563)
+  'src/__tests__/reliability/veedFabricResumeStepJump.test.ts', // iter220 veed-fabric resume does not overshoot Step 2 (no selectStep+next off-by-one that broke the resume-after-voice flow); wave-20
+  'src/__tests__/reliability/lipSyncModelButtonStripped.test.ts', // iter223 lip_sync_model_* global action strips its keyboard before scene.enter (stale re-tap cannot re-navigate mid-flow); wave-21
+  'src/__tests__/money/processBalanceVideoHelperNonPositive.test.ts', // iter224 the LIVE video balance op (processBalanceVideoOperationHelper) refuses a non-positive price before charging (0-cost bypass); the sibling ...NonPositive guards the DEAD processBalanceVideoOperation
   'src/__tests__/reliability/routesJsonParseGuarded.test.ts', // #1431 webhook JSON.parse
   'src/__tests__/reliability/debugRoutesGated.test.ts', // #1434 debug endpoints NODE_ENV-gated
   'src/__tests__/reliability/routerMountAuthBoundary.test.ts', // #1436 requireInternalKey boundary

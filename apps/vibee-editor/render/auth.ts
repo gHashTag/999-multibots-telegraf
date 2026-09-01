@@ -97,6 +97,92 @@ const botTokens = (): string[] => {
   return out
 }
 
+export interface VerifiedTelegramWidgetUser {
+  id: number
+  first_name: string
+  last_name?: string
+  username?: string
+  photo_url?: string
+  auth_date: number
+}
+
+/**
+ * Verify the Telegram Login Widget payload for the single production login
+ * bot. Unlike Mini App initData, Login Widget data uses SHA256(bot token) as
+ * the HMAC key and arrives as a JSON object. The browser must never decide
+ * that this object is authentic: it becomes an application session only here.
+ */
+export function verifyTelegramLoginWidget(
+  raw: Record<string, unknown>,
+  nowSeconds = Math.floor(Date.now() / 1000)
+):
+  | { ok: true; telegramId: string; user: VerifiedTelegramWidgetUser }
+  | { ok: false; reason: string } {
+  const token = (process.env.BOT_TOKEN_12 || '').trim()
+  if (!token) return { ok: false, reason: 'login bot token is not configured' }
+
+  const hash = typeof raw.hash === 'string' ? raw.hash : ''
+  if (!/^[a-f0-9]{64}$/i.test(hash))
+    return { ok: false, reason: 'invalid widget hash' }
+
+  const id = Number(raw.id)
+  const authDate = Number(raw.auth_date)
+  const firstName =
+    typeof raw.first_name === 'string' ? raw.first_name.trim() : ''
+  if (!Number.isSafeInteger(id) || id <= 0)
+    return { ok: false, reason: 'invalid Telegram user id' }
+  if (!Number.isSafeInteger(authDate) || authDate <= 0)
+    return { ok: false, reason: 'invalid widget auth_date' }
+  const age = nowSeconds - authDate
+  if (age < -300 || age > 24 * 3600)
+    return { ok: false, reason: 'widget authorization is expired' }
+  if (!firstName || firstName.length > 128)
+    return { ok: false, reason: 'invalid Telegram first name' }
+
+  const allowed = [
+    'auth_date',
+    'first_name',
+    'id',
+    'last_name',
+    'photo_url',
+    'username',
+  ] as const
+  const checkString = allowed
+    .filter(key => raw[key] !== undefined && raw[key] !== null)
+    .map(key => [key, String(raw[key])] as const)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n')
+  const secret = crypto.createHash('sha256').update(token).digest()
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(checkString)
+    .digest('hex')
+  if (
+    expected.length !== hash.length ||
+    !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(hash))
+  ) {
+    return { ok: false, reason: 'widget signature mismatch' }
+  }
+
+  const optional = (key: 'last_name' | 'username' | 'photo_url') => {
+    const value = raw[key]
+    return typeof value === 'string' && value.length <= 512 ? value : undefined
+  }
+  return {
+    ok: true,
+    telegramId: String(id),
+    user: {
+      id,
+      first_name: firstName,
+      last_name: optional('last_name'),
+      username: optional('username'),
+      photo_url: optional('photo_url'),
+      auth_date: authDate,
+    },
+  }
+}
+
 /** Открыто всегда: health для Railway и отдача уже отрендеренных файлов. */
 const PUBLIC_EXACT = new Set([
   '/health',
@@ -121,6 +207,7 @@ const PUBLIC_EXACT = new Set([
   // ещё нет. Каждый из трёх проверяет личность сам: обмен — подписью
   // Telegram, refresh — самим токеном (одноразовым), выход — Bearer.
   '/api/auth/telegram',
+  '/api/auth/widget',
   '/api/auth/refresh',
   '/api/auth/logout',
   /**
@@ -385,22 +472,13 @@ export function authenticate(req: IncomingMessage): AuthResult {
     }
   }
 
-  // Подпись читается из заголовка ИЛИ из строки запроса.
-  //
-  // EventSource (SSE прогресса рендера) физически не умеет ставить заголовки —
-  // это ограничение самого браузерного API. Пока подпись принималась только
-  // заголовком, поток прогресса получал 401, срабатывал onerror, и кнопка
-  // «Экспорт» молча отжималась через пару секунд, хотя рендер на сервере шёл
-  // дальше. Человек видел «кнопка не работает».
-  //
-  // Отдавать SSE без проверки было бы проще, но статус чужого рендера — не
-  // публичные данные. Подпись в query проверяется тем же HMAC и так же
-  // протухает через сутки.
-  const url = new URL(req.url || '/', 'http://localhost')
+  // Credentials belong in headers. Query strings are copied into proxy,
+  // browser-history and application logs, so accepting Telegram initData there
+  // turns a signed identity into a replayable URL. The player uses authenticated
+  // polling instead of EventSource for this reason.
   const initData =
     (req.headers['x-telegram-init-data'] as string | undefined) ||
     (req.headers['x-telegram-initdata'] as string | undefined) ||
-    url.searchParams.get('initData') ||
     ''
   if (initData) {
     const v = verifyTelegramInitData(initData)
@@ -435,11 +513,9 @@ export function authenticate(req: IncomingMessage): AuthResult {
  * здесь была бы хуже: она молча превратилась бы в «пользователь ноль».
  */
 export function verifiedTelegramId(req: IncomingMessage): string | null {
-  const url = new URL(req.url || '/', 'http://localhost')
   const initData =
     (req.headers['x-telegram-init-data'] as string | undefined) ||
     (req.headers['x-telegram-initdata'] as string | undefined) ||
-    url.searchParams.get('initData') ||
     ''
   if (!initData) return null
   if (!verifyTelegramInitData(initData).ok) return null
