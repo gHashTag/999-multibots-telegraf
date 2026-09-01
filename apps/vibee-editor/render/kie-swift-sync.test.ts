@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { KIE_MODELS, NEVER_PROBE } from './src/agent/kie-models'
+import { ИМЯ_В_ПРАЙСЕ } from './src/agent/kie-price-names'
 
 /**
  * Два списка, которые надо помнить пополнять, расходятся всегда.
@@ -78,5 +79,45 @@ describe('каталог в приложении не разошёлся с ре
     // генерации — молча, что хуже конфликта.
     expect(swift).toMatch(/СГЕНЕРИРОВАН/)
     expect(swift).toContain('kie-models.ts')
+  })
+})
+
+describe('цены не разошлись с сопоставлением', () => {
+  it('каждая модель реестра имеет запись в списке имён прайса', () => {
+    // Забыть новую модель здесь — значит показать её без цены, а человек
+    // прочтёт пустоту как «бесплатно». Генератор на это падает; тест
+    // сообщает раньше и понятнее.
+    const нет = KIE_MODELS.filter(m => !(m.id in ИМЯ_В_ПРАЙСЕ)).map(m => m.id)
+    expect(нет, `нет в kie-price-names.ts: ${нет.join(', ')}`).toEqual([])
+  })
+
+  it('в списке имён нет моделей, которых больше нет в реестре', () => {
+    const лишние = Object.keys(ИМЯ_В_ПРАЙСЕ).filter(
+      k => !KIE_MODELS.some(m => m.id === k)
+    )
+    expect(лишние, `лишние: ${лишние.join(', ')}`).toEqual([])
+  })
+
+  it('без цены в Swift ровно те, у кого её нет в прайсе', () => {
+    // Обе стороны проверяются НАВСТРЕЧУ друг другу: «nil там, где null» и
+    // «null там, где nil». Односторонняя проверка пропустила бы цену,
+    // проставленную модели, которой её никто не называл.
+    const безЦеныSwift = new Set(
+      [...swift.matchAll(/Модель\(id: "([^"]+)"[^\n]*ценаUSD: nil/g)].map(m => m[1])
+    )
+    const безЦеныСписок = new Set(
+      Object.entries(ИМЯ_В_ПРАЙСЕ).filter(([, v]) => v === null).map(([k]) => k)
+    )
+    expect([...безЦеныSwift].sort()).toEqual([...безЦеныСписок].sort())
+  })
+
+  it('цена и единица всегда идут парой', () => {
+    // «$0.09» без единицы — не цена, а число: за секунду и за ролик
+    // различаются в разы. Пара обязана быть целой с обеих сторон.
+    for (const l of swift.split('\n').filter(l => l.includes('Модель(id:'))) {
+      const ценаNil = /ценаUSD: nil/.test(l)
+      const единицаNil = /единица: nil/.test(l)
+      expect(ценаNil, `${l.slice(0, 60)}: цена и единица разошлись`).toBe(единицаNil)
+    }
   })
 })
