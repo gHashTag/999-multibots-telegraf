@@ -46,6 +46,9 @@ export function ProfileTemplatesGrid({
   const [playingId, setPlayingId] = useState<number | null>(null)
   const videoRefs = useRef(new Map<number, HTMLVideoElement>())
   const mediaRefs = useRef(new Map<number, HTMLDivElement>())
+  const mediaRefCallbacks = useRef(
+    new Map<number, (node: HTMLDivElement | null) => void>()
+  )
   const previewObserverRef = useRef<IntersectionObserver | null>(null)
   const fallbackScanRef = useRef<(() => void) | null>(null)
   const playRequestRef = useRef(0)
@@ -98,6 +101,7 @@ export function ProfileTemplatesGrid({
         })
         if (nearIds.length > 0) {
           setNearViewportIds(current => {
+            if (nearIds.every(id => current.has(id))) return current
             const next = new Set(current)
             nearIds.forEach(id => next.add(id))
             return next
@@ -139,6 +143,7 @@ export function ProfileTemplatesGrid({
 
         if (visibleIds.length === 0) return
         setNearViewportIds(current => {
+          if (visibleIds.every(id => current.has(id))) return current
           const next = new Set(current)
           visibleIds.forEach(id => next.add(id))
           return next
@@ -217,6 +222,15 @@ export function ProfileTemplatesGrid({
     } else {
       mediaRefs.current.delete(templateId)
     }
+  }
+
+  const mediaRefFor = (templateId: number) => {
+    const existing = mediaRefCallbacks.current.get(templateId)
+    if (existing) return existing
+    const callback = (node: HTMLDivElement | null) =>
+      setMediaRef(templateId, node)
+    mediaRefCallbacks.current.set(templateId, callback)
+    return callback
   }
 
   const togglePreview = async (template: FeedTemplate) => {
@@ -314,7 +328,7 @@ export function ProfileTemplatesGrid({
           return (
             <article key={template.id} className="profile-templates__item">
               <div
-                ref={node => setMediaRef(template.id, node)}
+                ref={mediaRefFor(template.id)}
                 className="profile-templates__thumbnail"
                 data-template-id={template.id}
               >

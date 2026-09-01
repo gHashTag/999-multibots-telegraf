@@ -9,6 +9,7 @@ const testState = vi.hoisted(() => ({
   deleteTemplate: vi.fn(),
   intersectionCallbacks: [] as IntersectionObserverCallback[],
   observedTargets: [] as Element[],
+  autoIntersect: false,
 }))
 
 vi.mock('react-router-dom', () => ({
@@ -94,15 +95,33 @@ describe('ProfileTemplatesGrid owner actions', () => {
     testState.deleteTemplate.mockReset().mockResolvedValue(undefined)
     testState.intersectionCallbacks.length = 0
     testState.observedTargets.length = 0
+    testState.autoIntersect = false
     vi.stubGlobal(
       'IntersectionObserver',
       class {
+        private callback: IntersectionObserverCallback
+
         constructor(callback: IntersectionObserverCallback) {
+          this.callback = callback
           testState.intersectionCallbacks.push(callback)
         }
 
         observe(target: Element) {
           testState.observedTargets.push(target)
+          if (testState.autoIntersect) {
+            queueMicrotask(() =>
+              this.callback(
+                [
+                  {
+                    target,
+                    isIntersecting: true,
+                    intersectionRatio: 1,
+                  } as IntersectionObserverEntry,
+                ],
+                this as unknown as IntersectionObserver
+              )
+            )
+          }
         }
 
         unobserve() {}
@@ -209,6 +228,57 @@ describe('ProfileTemplatesGrid owner actions', () => {
     expect(video?.preload).toBe('metadata')
     await act(async () => video?.dispatchEvent(new Event('loadedmetadata')))
     expect(video?.currentTime).toBe(0.8)
+  })
+
+  it('does not re-observe or re-render-loop when an observer auto-reports the same card', async () => {
+    testState.autoIntersect = true
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        templates: [{ ...template, thumbnailUrl: null }],
+      }),
+    } as Response)
+
+    await renderGrid(true)
+    await act(async () => Promise.resolve())
+
+    expect(testState.observedTargets).toHaveLength(1)
+    expect(host.querySelector<HTMLVideoElement>('video')?.preload).toBe(
+      'metadata'
+    )
+  })
+
+  it('keeps the no-observer geometry fallback bounded and idempotent', async () => {
+    vi.stubGlobal('IntersectionObserver', undefined)
+    vi.stubGlobal('requestAnimationFrame', undefined)
+    const bounds = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({
+        top: 100,
+        bottom: 400,
+        left: 0,
+        right: 160,
+        width: 160,
+        height: 300,
+        x: 0,
+        y: 100,
+        toJSON: () => ({}),
+      })
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        templates: [{ ...template, thumbnailUrl: null }],
+      }),
+    } as Response)
+
+    await renderGrid(true)
+    await act(async () => new Promise(resolve => setTimeout(resolve, 10)))
+
+    expect(host.querySelector<HTMLVideoElement>('video')?.preload).toBe(
+      'metadata'
+    )
+    expect(bounds.mock.calls.length).toBeLessThan(6)
+    bounds.mockRestore()
   })
 
   it('falls back from a broken video to its poster and then to a placeholder', async () => {
