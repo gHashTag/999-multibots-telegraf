@@ -27,16 +27,21 @@ const profile = {
   is_own_profile: false,
 }
 
-vi.mock('jotai', () => ({
-  useAtomValue: (target: symbol) => {
-    if (target.description === 'viewedProfileAtom') return profile
-    if (target.description === 'myProfileAtom') return null
-    if (target.description === 'userAtom') return { id: 27, first_name: 'Dmitrii' }
-    return null
-  },
-  useSetAtom: () => vi.fn(),
-  useAtom: () => [false, vi.fn()],
-}))
+vi.mock('jotai', async importOriginal => {
+  const actual = await importOriginal<typeof import('jotai')>()
+  return {
+    ...actual,
+    useAtomValue: (target: symbol) => {
+      if (target.description === 'viewedProfileAtom') return profile
+      if (target.description === 'myProfileAtom') return null
+      if (target.description === 'userAtom')
+        return { id: 27, first_name: 'Dmitrii' }
+      return null
+    },
+    useSetAtom: () => vi.fn(),
+    useAtom: () => [false, vi.fn()],
+  }
+})
 
 vi.mock('@/atoms', () => ({
   viewedProfileAtom: Symbol('viewedProfileAtom'),
