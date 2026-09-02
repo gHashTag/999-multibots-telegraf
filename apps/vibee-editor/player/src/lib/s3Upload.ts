@@ -1,9 +1,12 @@
 // ===============================
+
+import { authHeaders } from './apiFetch'
 // S3 Upload Utility
 // ===============================
 
 // Render server URL
-const RENDER_SERVER_URL = import.meta.env.VITE_RENDER_SERVER_URL || 'http://localhost:3333';
+const RENDER_SERVER_URL =
+  import.meta.env.VITE_RENDER_SERVER_URL || 'http://localhost:3333'
 
 /**
  * Upload a file or blob to S3 via the render server
@@ -20,21 +23,21 @@ export async function uploadToS3(
   try {
     const response = await fetch(`${serverUrl}/upload`, {
       method: 'POST',
-      headers: {
+      headers: authHeaders({
         'Content-Type': file instanceof File ? file.type : 'audio/webm',
         'X-Filename': filename,
-      },
+      }),
       body: file,
-    });
+    })
 
-    const result = await response.json();
+    const result = await response.json()
     if (result.success && result.url) {
-      return result.url;
+      return result.url
     }
-    throw new Error(result.error || 'Upload failed');
+    throw new Error(result.error || 'Upload failed')
   } catch (error) {
-    console.error('[S3 Upload] Error:', error);
-    return null;
+    console.error('[S3 Upload] Error:', error)
+    return null
   }
 }
 
@@ -49,5 +52,5 @@ export async function uploadToS3WithProgress(
 ): Promise<string | null> {
   // For now, just delegate to the simple upload
   // XHR with progress can be added later if needed
-  return uploadToS3(file, filename, serverUrl);
+  return uploadToS3(file, filename, serverUrl)
 }

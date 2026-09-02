@@ -96,6 +96,7 @@ import { Playhead } from './Playhead'
 import { VolumePopup } from './VolumePopup'
 import { DragSnapLine } from './SnapIndicators'
 import { TimelineMinimap } from './TimelineMinimap'
+import { CloudProjectControls } from './CloudProjectControls'
 import {
   Play,
   Pause,
@@ -1611,6 +1612,8 @@ export function Timeline({
           >
             <Magnet size={14} />
           </button>
+
+          <CloudProjectControls />
 
           <div className="transport-divider" />
 

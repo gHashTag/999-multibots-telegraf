@@ -49,6 +49,26 @@ struct GenerateScreen: View {
   /// Берём у самого вида: одно определение вместо двух расходящихся.
   private var видКаталога: Модель.Вид? { вид.видКаталога }
 
+  /// The paid web boundary is deliberately narrow: show only models whose
+  /// request shapes are implemented and server-allowlisted end to end.
+  private var доступныеМодели: [Модель] {
+    guard let kind = видКаталога else { return [] }
+    let reviewed: Set<String>
+    switch вид {
+    case .картинка: reviewed = ["google/nano-banana"]
+    case .видео: reviewed = ["grok-imagine/text-to-video"]
+    case .звук: reviewed = ["elevenlabs/text-to-speech-multilingual-v2"]
+    case .аватар: reviewed = ["veed/fabric-1"]
+    case .сценарий, .редактор: return КаталогKie.поВиду(kind)
+    }
+    return КаталогKie.поВиду(kind).filter { reviewed.contains($0.id) }
+  }
+
+  private var модельДляСервера: String {
+    guard let id = модель?.id else { return "" }
+    return вид == .сценарий ? id : "kie/\(id)"
+  }
+
   /// На какую дорожку редактора ложится результат этого вида.
   /// Аватар — тоже видео: на выходе ролик с губами, а не отдельная сущность.
   private var дорожкаСлоя: String {
@@ -211,8 +231,6 @@ struct GenerateScreen: View {
       case .видео: return .видео
       // Редактор моделей не выбирает — он собирает уже сделанное.
       case .редактор: return nil
-      // Редактор моделей не выбирает — он собирает уже сделанное.
-      case .редактор: return nil
       case .картинка: return .картинка
       case .звук: return .звук
       case .аватар: return .липсинк
@@ -314,6 +332,7 @@ struct GenerateScreen: View {
     var обложка: String?
     var кадры: [String] = []
     var подписи: [String] = []
+    var таймированныеПодписи: [TimedCaption] = []
   }
 
   var body: some View {
@@ -591,7 +610,7 @@ struct GenerateScreen: View {
       .background(Тема.Цвет.поверхность, in: RoundedRectangle(cornerRadius: Тема.Радиус.xl))
 
       if вид == .видео {
-        строкаВыбора("Длительность", ["5s", "10s"], $длительность)
+        строкаВыбора("Длительность", ["6s", "10s"], $длительность)
       }
       // У сценария нет кадра: на выходе текст, а не картинка. Показывать
       // выбор 9:16 для сценария — предлагать настройку, которая ни на что
@@ -633,9 +652,10 @@ struct GenerateScreen: View {
           .font(Тема.Шрифт.стиль(.caption))
           .foregroundStyle(Тема.Цвет.текстПриглушённый)
 
-        ForEach(видКаталога.map(КаталогKie.поВиду) ?? []) { м in
+        ForEach(доступныеМодели) { м in
           СтрокаМоделиKie(модель: м, выбрана: модель?.id == м.id) {
             модель = м
+            if вид == .видео && длительность == "5s" { длительность = "6s" }
           }
         }
       }
@@ -926,6 +946,7 @@ struct GenerateScreen: View {
     var обложка: String?
     var кадры: [String] = []
     var подписи: [String] = []
+    var таймированныеПодписи: [TimedCaption] = []
     var провайдер: String?
     var отказ: String?
   }
@@ -1012,7 +1033,30 @@ struct GenerateScreen: View {
       guard let url = o["url"] as? String else {
         return Ответ(отказ: "Сервер ответил \(код), но ссылки в ответе нет")
       }
-      return Ответ(ссылка: url, провайдер: o["provider"] as? String)
+      let timedCaptions = (o["timed_captions"] as? [[String: Any]] ?? [])
+        .compactMap { row -> TimedCaption? in
+          guard
+            let text = row["text"] as? String,
+            !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            let start = (row["startMs"] as? NSNumber)?.intValue,
+            let end = (row["endMs"] as? NSNumber)?.intValue,
+            start >= 0,
+            end > start
+          else { return nil }
+          let timestamp = (row["timestampMs"] as? NSNumber)?.intValue ?? start
+          return TimedCaption(
+            text: text,
+            startMs: start,
+            endMs: end,
+            timestampMs: timestamp,
+            confidence: (row["confidence"] as? NSNumber)?.doubleValue
+          )
+        }
+      return Ответ(
+        ссылка: url,
+        таймированныеПодписи: timedCaptions,
+        провайдер: o["provider"] as? String
+      )
     } catch {
       /**
        * СНАЧАЛА СПРОСИТЬ, НЕ ГОТОВО ЛИ УЖЕ.
@@ -1068,7 +1112,7 @@ struct GenerateScreen: View {
       тело = [
         "topic": промпт,
         "language": "Russian",
-        "model": модель?.id ?? "",
+        "model": модельДляСервера,
       ]
     } else if вид == .звук {
       /**
@@ -1080,7 +1124,7 @@ struct GenerateScreen: View {
        */
       тело = [
         "text": промпт, "voice_id": "sarah", "speed": 1,
-        "model": модель?.id ?? "",
+        "model": модельДляСервера,
       ]
     } else if вид == .аватар {
       /**
@@ -1098,20 +1142,18 @@ struct GenerateScreen: View {
         "audio_url": Слои.общие.слои.last { $0.дорожка == "audio" }?.ссылка ?? "",
         "image_url": Слои.общие.слои.last { $0.дорожка == "image" }?.ссылка ?? "",
         "resolution": "480p", "aspect_ratio": соотношение,
-        "model": модель?.id ?? "",
+        "model": модельДляСервера,
       ]
     } else if вид == .видео {
       тело = [
-        // Поле есть, хотя сервер его сегодня игнорирует (MCP-путь мёртв):
-        // когда MCP оживёт, запрос не придётся переписывать.
-        "model": "veo3-fast",
+        "model": модельДляСервера,
         "prompt": промпт,
         "duration": длительность,
         "aspect_ratio": соотношение,
       ]
     } else {
       let (ш, в) = размер(соотношение)
-      тело = ["model": "fal-ai/flux/dev", "prompt": промпт, "width": ш, "height": в]
+      тело = ["model": модельДляСервера, "prompt": промпт, "width": ш, "height": в]
     }
 
     let о = await позвать(вид.путь, тело)
@@ -1128,7 +1170,10 @@ struct GenerateScreen: View {
       )
     } else if let s = о.ссылка, let u = URL(string: s) {
       Слои.общие.добавить(
-        дорожка: дорожкаСлоя, подпись: вид.подпись, ссылка: s
+        дорожка: дорожкаСлоя,
+        подпись: вид.подпись,
+        ссылка: s,
+        таймированныеПодписи: о.таймированныеПодписи
       )
       результат = Результат(ссылка: u, провайдер: о.провайдер, видео: вид == .видео)
     } else {

@@ -1,0 +1,78 @@
+.cloud-projects-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal, 1000);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.cloud-projects-dialog {
+  width: min(460px, 100%);
+  max-height: min(620px, calc(100dvh - 40px));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  overflow: auto;
+  border: 1px solid var(--vibee-border);
+  border-radius: 16px;
+  background: #101010;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65);
+}
+
+.cloud-projects-dialog > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cloud-projects-dialog > header div,
+.cloud-projects-list button span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cloud-projects-dialog > header span,
+.cloud-projects-list small,
+.cloud-projects-list p {
+  color: var(--vibee-text-muted);
+  font-size: 12px;
+}
+
+.cloud-projects-save,
+.cloud-projects-list button {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--vibee-border);
+  border-radius: 10px;
+  color: #fff;
+  background: #181818;
+  text-align: left;
+}
+
+.cloud-projects-save {
+  justify-content: center;
+  border-color: #8b5cf6;
+  background: #8b5cf6;
+  font-weight: 700;
+}
+
+.cloud-projects-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cloud-projects-list button:disabled,
+.cloud-projects-save:disabled {
+  opacity: 0.55;
+}

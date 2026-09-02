@@ -20,7 +20,6 @@ import {
   playerRefAtom,
   clearSelectionAtom,
   templatePropsAtom,
-  transcribingAtom,
   captionsLoadingAtom,
   avatarSettingsTabAtom,
   currentRemixSourceAtom,
@@ -34,7 +33,7 @@ import {
   type SplitTalkingHeadProps,
   type Segment,
 } from '@compositions/SplitTalkingHead'
-import { Loader2, Mic, Upload } from 'lucide-react'
+import { Loader2, Upload } from 'lucide-react'
 import { convertPropsToAbsoluteUrls, toAbsoluteUrl } from '@/lib/mediaUrl'
 import {
   convertToSplitTalkingHeadProps,
@@ -85,7 +84,6 @@ export function InteractiveCanvas() {
   const canvasZoom = useAtomValue(canvasZoomAtom)
   const tracks = useAtomValue(tracksAtom)
   const assets = useAtomValue(assetsAtom)
-  const isTranscribing = useAtomValue(transcribingAtom)
   const captionsLoading = useAtomValue(captionsLoadingAtom)
   const avatarSettingsTab = useAtomValue(avatarSettingsTabAtom)
   const remixSource = useAtomValue(currentRemixSourceAtom)
@@ -522,16 +520,11 @@ export function InteractiveCanvas() {
       )}
 
       {/* Transcribing/Loading Overlay */}
-      {(isTranscribing || captionsLoading) && (
+      {captionsLoading && (
         <div className="canvas-transcribing-overlay">
           <div className="transcribing-indicator">
-            <Mic size={24} className="transcribing-icon" />
             <Loader2 size={20} className="transcribing-spinner" />
-            <span>
-              {isTranscribing
-                ? t('canvas.transcribingAudio')
-                : t('canvas.loadingCaptions')}
-            </span>
+            <span>{t('canvas.loadingCaptions')}</span>
           </div>
         </div>
       )}

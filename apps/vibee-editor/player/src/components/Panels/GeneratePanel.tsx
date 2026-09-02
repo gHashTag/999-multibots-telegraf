@@ -13,7 +13,6 @@ import {
   Upload,
   Square,
   Trash2,
-  RefreshCw,
   GripVertical,
   Plus,
   Share,
@@ -24,12 +23,15 @@ import {
   generateVideo,
   generateAudio,
   generateLipsync,
+  isMockMode,
 } from '@/lib/generateApi'
 import { uploadToS3 } from '@/lib/s3Upload'
 import { addAssetAtom } from '@/atoms/assets'
 import type { Asset } from '@vibee/atoms'
 import { DEFAULT_WIDTH, DEFAULT_HEIGHT } from '@vibee/atoms'
 import { toAbsoluteUrl } from '@/lib/mediaUrl'
+import { optionalTimedCaptions } from '@/lib/timedCaptions'
+import { KIE_WEB_MODELS } from '@/lib/kieProvider'
 import {
   userAtom,
   canRenderAtom,
@@ -44,7 +46,6 @@ import {
   voicesErrorAtom,
   selectedVoiceAtom,
   fetchVoicesAtom,
-  type Voice,
 } from '@/atoms/voices'
 import {
   generatedResultsAtom,
@@ -67,6 +68,10 @@ import {
   deleteAvatarPhotoAtom,
 } from '@/atoms/avatarPhotos'
 import { useEditorStore } from '@/store/editorStore'
+import {
+  buildBrollPromptQueue,
+  nextBrollPromptIndex,
+} from '@/lib/brollPromptQueue'
 import './GeneratePanel.css'
 
 // Re-export GenerateTab type for use in Editor.tsx
@@ -119,15 +124,18 @@ const IMAGE_MODELS: ImageModel[] = [
   // To bring them back, the render server needs a real route. That is a new
   // capability, not a bug fix: running an arbitrary Replicate version on our
   // token is an abuse surface that needs its own auth/cost decision.
+  ...KIE_WEB_MODELS.image,
 ]
 
 const VIDEO_MODELS: VideoModel[] = [
   { id: 'veo3-fast', name: 'Veo3 Fast', description: 'Быстрая генерация' },
   { id: 'veo3-quality', name: 'Veo3 Quality', description: 'Лучшее качество' },
+  ...KIE_WEB_MODELS.video,
 ]
 
 const ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3']
 const DURATIONS = ['5s', '10s']
+const KIE_VIDEO_DURATIONS = ['6s', '10s']
 const RESOLUTIONS = ['480p', '720p', '1080p']
 
 interface GeneratePanelProps {
@@ -135,7 +143,7 @@ interface GeneratePanelProps {
 }
 
 export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [internalTab, setInternalTab] = useState<GenerateTab>('image')
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -181,6 +189,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   // Audio state
   const [audioText, setAudioText] = useState('')
   const [audioSpeed, setAudioSpeed] = useState(1.0)
+  const [audioModel, setAudioModel] = useState('direct/elevenlabs')
 
   // Voices from Jotai (persisted to localStorage)
   const voices = useAtomValue(voicesAtom)
@@ -219,23 +228,42 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   }, [avatarPrefilledText, setAvatarPrefilledText])
 
   // Prefilled video prompts from Script page (B-Roll)
-  const [videoPrefilledPrompts, setVideoPrefilledPrompts] = useAtom(
-    videoPrefilledPromptsAtom
+  const videoPrefilledPrompts = useAtomValue(videoPrefilledPromptsAtom)
+  const brollPromptQueue = useMemo(
+    () => buildBrollPromptQueue(videoPrefilledPrompts ?? []),
+    [videoPrefilledPrompts]
   )
+  const [activeBrollPromptIndex, setActiveBrollPromptIndex] = useState(0)
+  const [completedBrollPrompts, setCompletedBrollPrompts] = useState<
+    Set<number>
+  >(() => new Set())
 
-  // Apply prefilled video prompt from Script page (first B-Roll prompt)
+  // Keep every storyboard shot available for review. Selecting a shot only
+  // fills the form; it never starts a paid generation request.
   useEffect(() => {
-    if (videoPrefilledPrompts && videoPrefilledPrompts.length > 0) {
-      setVideoPrompt(videoPrefilledPrompts[0]) // Use first prompt
-      setVideoPrefilledPrompts(null) // Clear after applying
+    if (brollPromptQueue.length > 0) {
+      setActiveBrollPromptIndex(0)
+      setCompletedBrollPrompts(new Set())
+      setVideoPrompt(brollPromptQueue[0].prompt)
     }
-  }, [videoPrefilledPrompts, setVideoPrefilledPrompts])
+  }, [brollPromptQueue])
+
+  const selectBrollPrompt = useCallback(
+    (index: number) => {
+      const shot = brollPromptQueue[index]
+      if (!shot) return
+      setActiveBrollPromptIndex(index)
+      setVideoPrompt(shot.prompt)
+    },
+    [brollPromptQueue]
+  )
 
   // Lipsync state
   const [lipsyncAudioUrl, setLipsyncAudioUrl] = useState('')
   const [lipsyncImageUrl, setLipsyncImageUrl] = useState('')
   const [lipsyncResolution, setLipsyncResolution] = useState('720p')
   const [lipsyncAspect, setLipsyncAspect] = useState('9:16')
+  const [lipsyncModel, setLipsyncModel] = useState(KIE_WEB_MODELS.lipsync[0].id)
   const [isUploadingAudio, setIsUploadingAudio] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const audioInputRef = useRef<HTMLInputElement>(null)
@@ -276,7 +304,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   } = useAudioRecorder()
 
   // Blob URL for recording preview (with cleanup to prevent memory leaks)
-  const [recordingBlobUrl, setRecordingBlobUrl] = useState<string | null>(null)
+  const [, setRecordingBlobUrl] = useState<string | null>(null)
 
   // Auto-save recording when audioBlob is set
   useEffect(() => {
@@ -406,6 +434,10 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
   // Check balance before generation
   const checkBalanceAndProceed = (): boolean => {
+    // The documented browser mock is a no-network preview and spends nothing.
+    // Requiring a production identity here made ?mock=1 look enabled while
+    // every Generate button still opened the login modal.
+    if (isMockMode()) return true
     // If not logged in, show login modal
     if (!user) {
       setShowLoginModal(true)
@@ -433,7 +465,12 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
   // Add generated result to timeline
   const handleAddToTimeline = (result: GeneratedResult) => {
-    const trackId = result.type === 'audio' ? 'track-audio' : 'track-video'
+    const trackId =
+      result.type === 'audio'
+        ? 'track-audio'
+        : result.type === 'image'
+          ? 'track-image'
+          : 'track-video'
 
     addItem(trackId, {
       type: result.type as 'video' | 'image' | 'audio',
@@ -561,7 +598,26 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
         })
 
         await logRender()
-        setVideoPrompt('')
+
+        if (brollPromptQueue.length > 0) {
+          setCompletedBrollPrompts(previous => {
+            const next = new Set(previous)
+            next.add(activeBrollPromptIndex)
+            return next
+          })
+          const nextIndex = nextBrollPromptIndex(
+            activeBrollPromptIndex,
+            brollPromptQueue.length
+          )
+          if (nextIndex > activeBrollPromptIndex) {
+            setActiveBrollPromptIndex(nextIndex)
+            setVideoPrompt(brollPromptQueue[nextIndex].prompt)
+          } else {
+            setVideoPrompt('')
+          }
+        } else {
+          setVideoPrompt('')
+        }
       } else {
         setError(result.error || t('generate.error'))
       }
@@ -582,8 +638,10 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
     try {
       const result = await generateAudio({
+        model: audioModel,
         text: audioText,
         voiceId: audioVoice,
+        voiceName: voices.find(v => v.id === audioVoice)?.name,
         speed: audioSpeed,
       })
 
@@ -608,6 +666,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             url,
             name: resultName,
             timestamp: Date.now(),
+            timedCaptions: optionalTimedCaptions(result.timed_captions),
           },
         })
 
@@ -633,6 +692,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
     try {
       const result = await generateLipsync({
+        model: lipsyncModel,
         audioUrl: lipsyncAudioUrl,
         imageUrl: lipsyncImageUrl,
         resolution: lipsyncResolution,
@@ -843,7 +903,20 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                   <button
                     key={model.id}
                     className={`model-btn model-btn-video ${videoModel === model.id ? 'active' : ''}`}
-                    onClick={() => setVideoModel(model.id)}
+                    onClick={() => {
+                      setVideoModel(model.id)
+                      if (
+                        model.id.startsWith('kie/') &&
+                        videoDuration === '5s'
+                      ) {
+                        setVideoDuration('6s')
+                      } else if (
+                        !model.id.startsWith('kie/') &&
+                        videoDuration === '6s'
+                      ) {
+                        setVideoDuration('5s')
+                      }
+                    }}
                   >
                     <span className="model-name">{model.name}</span>
                     <span className="model-desc">{model.description}</span>
@@ -851,6 +924,42 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                 ))}
               </div>
             </div>
+
+            {brollPromptQueue.length > 0 && (
+              <section
+                className="broll-prompt-queue"
+                aria-label="Кадры сценария"
+              >
+                <div className="broll-prompt-queue__header">
+                  <span>
+                    {lang === 'ru' ? 'Кадры сценария' : 'Script shots'}
+                  </span>
+                  <span>{brollPromptQueue.length}</span>
+                </div>
+                <div className="broll-prompt-queue__items">
+                  {brollPromptQueue.map((shot, index) => (
+                    <button
+                      key={`${shot.index}:${shot.prompt}`}
+                      type="button"
+                      className={`broll-prompt-queue__item${index === activeBrollPromptIndex ? ' is-active' : ''}${completedBrollPrompts.has(index) ? ' is-complete' : ''}`}
+                      onClick={() => selectBrollPrompt(index)}
+                      title={shot.prompt}
+                      aria-pressed={index === activeBrollPromptIndex}
+                    >
+                      <span>{shot.label}</span>
+                      {completedBrollPrompts.has(index) && (
+                        <span aria-label="Готово">✓</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <p className="broll-prompt-queue__hint">
+                  {lang === 'ru'
+                    ? 'Выберите кадр, проверьте промпт и запускайте каждый отдельно. Следующий кадр подставится сам, но генерация не начнётся без нажатия.'
+                    : 'Choose a shot, review its prompt, and run each one separately. The next shot is prefilled, but generation never starts without a click.'}
+                </p>
+              </section>
+            )}
 
             <div className="form-group">
               <label>{t('generate.prompt')}</label>
@@ -867,7 +976,10 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
               <div className="form-group">
                 <label>{t('generate.duration')}</label>
                 <div className="form-chips">
-                  {DURATIONS.map(dur => (
+                  {(videoModel.startsWith('kie/')
+                    ? KIE_VIDEO_DURATIONS
+                    : DURATIONS
+                  ).map(dur => (
                     <button
                       key={dur}
                       className={`form-chip ${videoDuration === dur ? 'active' : ''}`}
@@ -977,6 +1089,33 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
         {/* Audio Tab */}
         {activeTab === 'audio' && (
           <div className="generate-form">
+            <div className="form-group">
+              <label>{t('generate.model')}</label>
+              <div className="model-buttons">
+                <button
+                  className={`model-btn model-btn-audio ${audioModel === 'direct/elevenlabs' ? 'active' : ''}`}
+                  onClick={() => setAudioModel('direct/elevenlabs')}
+                  type="button"
+                >
+                  <span className="model-name">ElevenLabs · Direct</span>
+                  <span className="model-desc">
+                    {'Точный тайминг титров из той же озвучки'}
+                  </span>
+                </button>
+                {KIE_WEB_MODELS.audio.map(model => (
+                  <button
+                    key={model.id}
+                    className={`model-btn model-btn-audio ${audioModel === model.id ? 'active' : ''}`}
+                    onClick={() => setAudioModel(model.id)}
+                    type="button"
+                  >
+                    <span className="model-name">{model.name}</span>
+                    <span className="model-desc">{model.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="form-group">
               <label className="voice-label">
                 {t('generate.voice')}
@@ -1327,6 +1466,23 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             </div>
 
             <div className="form-row">
+              <div className="form-group">
+                <label>{t('generate.model')}</label>
+                <div className="model-buttons">
+                  {KIE_WEB_MODELS.lipsync.map(model => (
+                    <button
+                      key={model.id}
+                      type="button"
+                      className={`model-btn ${lipsyncModel === model.id ? 'active' : ''}`}
+                      onClick={() => setLipsyncModel(model.id)}
+                    >
+                      <span className="model-name">{model.name}</span>
+                      <span className="model-desc">{model.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="form-group">
                 <label>{t('generate.resolution')}</label>
                 <div className="form-chips">

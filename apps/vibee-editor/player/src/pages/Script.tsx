@@ -1,14 +1,15 @@
 // Script Page - AI Script Generator (Scenario)
 // Generates voiceover, cover prompt, b-roll JSON, and platform captions from a single topic
 
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { Header } from '@/components/Header';
-import { ScriptPreview } from '@/components/ScriptPreview';
-import { ScriptProgress } from '@/components/ScriptProgress';
-import { useLanguage } from '@/hooks/useLanguage';
-import { RateLimiter } from '@/lib/rateLimiter';
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { Header } from '@/components/Header'
+import { AiPipelineNav } from '@/components/AI/AiPipelineNav'
+import { ScriptPreview } from '@/components/ScriptPreview'
+import { ScriptProgress } from '@/components/ScriptProgress'
+import { useLanguage } from '@/hooks/useLanguage'
+import { RateLimiter } from '@/lib/rateLimiter'
 import {
   Sparkles,
   Loader2,
@@ -32,7 +33,7 @@ import {
   Save,
   RotateCcw,
   FileText,
-} from 'lucide-react';
+} from 'lucide-react'
 import {
   scriptInputAtom,
   scriptDataAtom,
@@ -59,21 +60,31 @@ import {
   type ScriptStyle,
   type ScriptDuration,
   type Platform,
-} from '@/atoms';
-import './Script.css';
+} from '@/atoms'
+import './Script.css'
 
 // Rate limiter configuration
-const RATE_LIMIT_KEY = 'script-generation';
-const RATE_LIMIT_MAX_REQUESTS = 10;
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_KEY = 'script-generation'
+const RATE_LIMIT_MAX_REQUESTS = 10
+const RATE_LIMIT_WINDOW_MS = 60 * 1000 // 1 minute
 
 // Output tab configuration
-const OUTPUT_TABS: { id: ScriptOutputTab; labelRu: string; labelEn: string; icon: typeof Mic }[] = [
+const OUTPUT_TABS: {
+  id: ScriptOutputTab
+  labelRu: string
+  labelEn: string
+  icon: typeof Mic
+}[] = [
   { id: 'voiceover', labelRu: 'Озвучка', labelEn: 'Voiceover', icon: Mic },
   { id: 'cover', labelRu: 'Обложка', labelEn: 'Cover', icon: Image },
   { id: 'broll', labelRu: 'B-Roll', labelEn: 'B-Roll', icon: Film },
-  { id: 'captions', labelRu: 'Посты', labelEn: 'Captions', icon: MessageSquare },
-];
+  {
+    id: 'captions',
+    labelRu: 'Посты',
+    labelEn: 'Captions',
+    icon: MessageSquare,
+  },
+]
 
 // Platform configuration
 const PLATFORM_CONFIG: { id: Platform; label: string; emoji: string }[] = [
@@ -81,210 +92,241 @@ const PLATFORM_CONFIG: { id: Platform; label: string; emoji: string }[] = [
   { id: 'tiktok', label: 'TikTok', emoji: '🎵' },
   { id: 'youtube', label: 'YouTube', emoji: '📺' },
   { id: 'telegram', label: 'Telegram', emoji: '📨' },
-];
+]
 
 function ScriptContent() {
-  const { t, lang } = useLanguage();
-  const navigate = useNavigate();
+  const { lang } = useLanguage()
+  const navigate = useNavigate()
 
   // Atoms
-  const [input, setInput] = useAtom(scriptInputAtom);
-  const data = useAtomValue(scriptDataAtom);
-  const [outputTab, setOutputTab] = useAtom(scriptOutputTabAtom);
-  const isGenerating = useAtomValue(isGeneratingScriptAtom);
-  const error = useAtomValue(scriptErrorAtom);
-  const history = useAtomValue(scriptHistoryAtom);
-  const generate = useSetAtom(generateScriptAtom);
-  const useVoiceoverInAvatar = useSetAtom(useVoiceoverInAvatarAtom);
-  const useCoverInImage = useSetAtom(useCoverInImageAtom);
-  const useBrollInVideo = useSetAtom(useBrollInVideoAtom);
-  const clearScript = useSetAtom(clearScriptAtom);
-  const loadFromHistory = useSetAtom(loadScriptFromHistoryAtom);
-  const templates = useAtomValue(scriptTemplatesAtom);
-  const saveTemplate = useSetAtom(saveTemplateAtom);
-  const loadTemplate = useSetAtom(loadTemplateAtom);
-  const deleteTemplate = useSetAtom(deleteScriptTemplateAtom);
+  const [input, setInput] = useAtom(scriptInputAtom)
+  const data = useAtomValue(scriptDataAtom)
+  const [outputTab, setOutputTab] = useAtom(scriptOutputTabAtom)
+  const isGenerating = useAtomValue(isGeneratingScriptAtom)
+  const error = useAtomValue(scriptErrorAtom)
+  const history = useAtomValue(scriptHistoryAtom)
+  const generate = useSetAtom(generateScriptAtom)
+  const prefillVoiceover = useSetAtom(useVoiceoverInAvatarAtom)
+  const prefillCover = useSetAtom(useCoverInImageAtom)
+  const prefillBrollQueue = useSetAtom(useBrollInVideoAtom)
+  const clearScript = useSetAtom(clearScriptAtom)
+  const loadFromHistory = useSetAtom(loadScriptFromHistoryAtom)
+  const templates = useAtomValue(scriptTemplatesAtom)
+  const saveTemplate = useSetAtom(saveTemplateAtom)
+  const loadTemplate = useSetAtom(loadTemplateAtom)
+  const deleteTemplate = useSetAtom(deleteScriptTemplateAtom)
 
   // Local state
-  const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState<Platform>('instagram');
-  const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const [showTemplates, setShowTemplates] = useState(false);
-  const [newTemplateName, setNewTemplateName] = useState('');
-  const [isEditingVoiceover, setIsEditingVoiceover] = useState(false);
-  const [editedVoiceover, setEditedVoiceover] = useState('');
-  const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
+  const [selectedPlatform, setSelectedPlatform] =
+    useState<Platform>('instagram')
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [newTemplateName, setNewTemplateName] = useState('')
+  const [isEditingVoiceover, setIsEditingVoiceover] = useState(false)
+  const [editedVoiceover, setEditedVoiceover] = useState('')
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(false)
 
   // Calculate estimated duration from word count (average 130 words per minute)
-  const estimateDuration = useCallback((wordCount: number) => {
-    const minutes = wordCount / 130;
-    const seconds = Math.round(minutes * 60);
-    if (seconds < 60) {
-      return `~${seconds}${lang === 'ru' ? ' сек' : 's'}`;
-    }
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `~${mins}:${secs.toString().padStart(2, '0')}`;
-  }, [lang]);
+  const estimateDuration = useCallback(
+    (wordCount: number) => {
+      const minutes = wordCount / 130
+      const seconds = Math.round(minutes * 60)
+      if (seconds < 60) {
+        return `~${seconds}${lang === 'ru' ? ' сек' : 's'}`
+      }
+      const mins = Math.floor(seconds / 60)
+      const secs = seconds % 60
+      return `~${mins}:${secs.toString().padStart(2, '0')}`
+    },
+    [lang]
+  )
 
   // Copy to clipboard
   const copyToClipboard = useCallback(async (text: string, field: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
-  }, []);
+    await navigator.clipboard.writeText(text)
+    setCopiedField(field)
+    setTimeout(() => setCopiedField(null), 2000)
+  }, [])
 
   // Handle generate
   const handleGenerate = useCallback(() => {
     if (!isGenerating && input.topic.trim()) {
       // Check rate limit using static method
-      if (!RateLimiter.checkLimit(RATE_LIMIT_KEY, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS)) {
-        const timeUntil = RateLimiter.getTimeUntilNextRequest(RATE_LIMIT_KEY, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
-        const seconds = Math.ceil(timeUntil / 1000);
-        const message = lang === 'ru'
-          ? `Слишком много запросов. Подождите ${seconds} секунд.`
-          : `Too many requests. Please wait ${seconds} seconds.`;
-        alert(message);
-        return;
+      if (
+        !RateLimiter.checkLimit(
+          RATE_LIMIT_KEY,
+          RATE_LIMIT_MAX_REQUESTS,
+          RATE_LIMIT_WINDOW_MS
+        )
+      ) {
+        const timeUntil = RateLimiter.getTimeUntilNextRequest(
+          RATE_LIMIT_KEY,
+          RATE_LIMIT_MAX_REQUESTS,
+          RATE_LIMIT_WINDOW_MS
+        )
+        const seconds = Math.ceil(timeUntil / 1000)
+        const message =
+          lang === 'ru'
+            ? `Слишком много запросов. Подождите ${seconds} секунд.`
+            : `Too many requests. Please wait ${seconds} seconds.`
+        alert(message)
+        return
       }
 
-      generate();
+      generate()
     }
-  }, [generate, isGenerating, input.topic, lang]);
+  }, [generate, isGenerating, input.topic, lang])
 
   // Keyboard shortcut: Cmd/Ctrl + Enter to generate
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl/Cmd + Enter - Generate
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        e.preventDefault();
-        handleGenerate();
+        e.preventDefault()
+        handleGenerate()
       }
-      
+
       // Ctrl/Cmd + 1-4 - Switch tabs
       if ((e.metaKey || e.ctrlKey) && ['1', '2', '3', '4'].includes(e.key)) {
-        e.preventDefault();
-        const tabs: ScriptOutputTab[] = ['voiceover', 'cover', 'broll', 'captions'];
-        const index = parseInt(e.key) - 1;
+        e.preventDefault()
+        const tabs: ScriptOutputTab[] = [
+          'voiceover',
+          'cover',
+          'broll',
+          'captions',
+        ]
+        const index = parseInt(e.key) - 1
         if (tabs[index]) {
-          setOutputTab(tabs[index]);
+          setOutputTab(tabs[index])
         }
       }
-      
+
       // Ctrl/Cmd + K - Clear script
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        clearScript();
+        e.preventDefault()
+        clearScript()
       }
-      
+
       // Ctrl/Cmd + C - Copy current tab content (when focused on output)
       if ((e.metaKey || e.ctrlKey) && e.key === 'c' && data?.output) {
         // Let default copy work, but we could add custom behavior here
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleGenerate, setOutputTab, clearScript, data]);
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleGenerate, setOutputTab, clearScript, data])
 
   // Voice input using Web Speech API
   const toggleVoiceInput = useCallback(() => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert(lang === 'ru' ? 'Голосовой ввод не поддерживается в этом браузере' : 'Voice input is not supported in this browser');
-      return;
+    if (
+      !('webkitSpeechRecognition' in window) &&
+      !('SpeechRecognition' in window)
+    ) {
+      alert(
+        lang === 'ru'
+          ? 'Голосовой ввод не поддерживается в этом браузере'
+          : 'Voice input is not supported in this browser'
+      )
+      return
     }
 
     if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      return;
+      recognitionRef.current?.stop()
+      setIsListening(false)
+      return
     }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognitionRef.current = recognition;
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition
+    const recognition = new SpeechRecognition()
+    recognitionRef.current = recognition
 
-    recognition.lang = input.language === 'ru' ? 'ru-RU' : 'en-US';
-    recognition.continuous = false;
-    recognition.interimResults = true;
+    recognition.lang = input.language === 'ru' ? 'ru-RU' : 'en-US'
+    recognition.continuous = false
+    recognition.interimResults = true
 
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
-    recognition.onerror = () => setIsListening(false);
+    recognition.onstart = () => setIsListening(true)
+    recognition.onend = () => setIsListening(false)
+    recognition.onerror = () => setIsListening(false)
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       const transcript = Array.from(event.results)
-        .map((result) => result[0].transcript)
-        .join('');
+        .map(result => result[0].transcript)
+        .join('')
 
       if (event.results[0].isFinal) {
-        setInput((prev) => ({ ...prev, topic: prev.topic + (prev.topic ? ' ' : '') + transcript }));
+        setInput(prev => ({
+          ...prev,
+          topic: prev.topic + (prev.topic ? ' ' : '') + transcript,
+        }))
       }
-    };
+    }
 
-    recognition.start();
-  }, [isListening, input.language, lang, setInput]);
+    recognition.start()
+  }, [isListening, input.language, lang, setInput])
 
   // Save current settings as template
   const handleSaveTemplate = useCallback(() => {
-    if (!newTemplateName.trim()) return;
-    saveTemplate(newTemplateName.trim());
-    setNewTemplateName('');
-    setShowTemplates(false);
-  }, [newTemplateName, saveTemplate]);
+    if (!newTemplateName.trim()) return
+    saveTemplate(newTemplateName.trim())
+    setNewTemplateName('')
+    setShowTemplates(false)
+  }, [newTemplateName, saveTemplate])
 
   // Navigate to Audio with voiceover text (first step for avatar workflow)
   const handleUseInAvatar = useCallback(() => {
-    useVoiceoverInAvatar();
-    navigate('/generate/audio');
-  }, [useVoiceoverInAvatar, navigate]);
+    prefillVoiceover()
+    navigate('/generate/audio')
+  }, [prefillVoiceover, navigate])
 
   // Navigate to Image with cover prompt
   const handleUseInImage = useCallback(() => {
-    useCoverInImage();
-    navigate('/generate/image');
-  }, [useCoverInImage, navigate]);
+    prefillCover()
+    navigate('/generate/image')
+  }, [prefillCover, navigate])
 
-  // Navigate to Video with first B-Roll prompt
+  // Navigate to Video with the complete B-Roll prompt queue.
   const handleUseBrollInVideo = useCallback(() => {
-    useBrollInVideo();
-    navigate('/generate/video');
-  }, [useBrollInVideo, navigate]);
+    prefillBrollQueue()
+    navigate('/generate/video')
+  }, [prefillBrollQueue, navigate])
 
   // Start editing voiceover
   const handleStartEditVoiceover = useCallback(() => {
     if (data?.output?.voiceover) {
-      setEditedVoiceover(data.output.voiceover);
-      setIsEditingVoiceover(true);
+      setEditedVoiceover(data.output.voiceover)
+      setIsEditingVoiceover(true)
     }
-  }, [data]);
+  }, [data])
 
   // Save edited voiceover (updates the local display only)
   const handleSaveVoiceover = useCallback(() => {
-    setIsEditingVoiceover(false);
+    setIsEditingVoiceover(false)
     // Note: editedVoiceover is kept in local state for copying/using
-  }, []);
+  }, [])
 
   // Cancel editing voiceover
   const handleCancelEditVoiceover = useCallback(() => {
-    setIsEditingVoiceover(false);
-    setEditedVoiceover('');
-  }, []);
+    setIsEditingVoiceover(false)
+    setEditedVoiceover('')
+  }, [])
 
   // Get current voiceover text (edited or original)
   const getCurrentVoiceover = useCallback(() => {
     if (editedVoiceover && !isEditingVoiceover) {
-      return editedVoiceover;
+      return editedVoiceover
     }
-    return data?.output?.voiceover || '';
-  }, [editedVoiceover, isEditingVoiceover, data]);
+    return data?.output?.voiceover || ''
+  }, [editedVoiceover, isEditingVoiceover, data])
 
   // Copy all sections
   const handleCopyAll = useCallback(async () => {
-    if (!data?.output) return;
-    const output = data.output;
-    const caption = output.captions['instagram'];
+    if (!data?.output) return
+    const output = data.output
+    const caption = output.captions['instagram']
 
     const fullScript = `
 📝 VOICEOVER
@@ -299,49 +341,49 @@ ${output.broll.map((b, i) => `${i + 1}. [${b.startSec}s-${b.endSec}s] ${b.prompt
 📱 CAPTION (Instagram)
 ${caption?.text || ''}
 ${caption?.hashtags?.join(' ') || ''}
-`.trim();
+`.trim()
 
-    await copyToClipboard(fullScript, 'all');
-  }, [data, getCurrentVoiceover, copyToClipboard]);
+    await copyToClipboard(fullScript, 'all')
+  }, [data, getCurrentVoiceover, copyToClipboard])
 
   // Get label based on language
   const getLabel = (item: { labelRu: string; labelEn: string }) =>
-    lang === 'ru' ? item.labelRu : item.labelEn;
-
-  // Get niche label
-  const getNicheLabel = (value: ScriptNiche) => {
-    const opt = NICHE_OPTIONS.find((o) => o.value === value);
-    return opt ? `${opt.emoji} ${getLabel(opt)}` : value;
-  };
+    lang === 'ru' ? item.labelRu : item.labelEn
 
   // Render output content based on tab
   const renderOutputContent = () => {
     // Show progress indicator during generation
     if (isGenerating) {
-      return <ScriptProgress lang={lang} />;
+      return <ScriptProgress lang={lang} />
     }
 
     if (!data?.output) {
       return (
         <div className="script-output-empty">
           <Sparkles size={48} />
-          <p>{lang === 'ru' ? 'Введите тему и нажмите "Генерировать"' : 'Enter topic and click "Generate"'}</p>
+          <p>
+            {lang === 'ru'
+              ? 'Введите тему и нажмите "Генерировать"'
+              : 'Enter topic and click "Generate"'}
+          </p>
         </div>
-      );
+      )
     }
 
-    const { output } = data;
+    const { output } = data
 
     // Current voiceover text (may be edited)
-    const voiceoverText = getCurrentVoiceover();
-    const currentWordCount = voiceoverText.split(/\s+/).filter(Boolean).length;
+    const voiceoverText = getCurrentVoiceover()
+    const currentWordCount = voiceoverText.split(/\s+/).filter(Boolean).length
 
     switch (outputTab) {
       case 'voiceover':
         return (
           <div className="script-output-section">
             <div className="script-output-header">
-              <h3>{lang === 'ru' ? 'Текст для озвучки' : 'Voiceover Script'}</h3>
+              <h3>
+                {lang === 'ru' ? 'Текст для озвучки' : 'Voiceover Script'}
+              </h3>
               <div className="script-header-badges">
                 <span className="script-word-count">
                   {currentWordCount} {lang === 'ru' ? 'слов' : 'words'}
@@ -357,7 +399,7 @@ ${caption?.hashtags?.join(' ') || ''}
                 <textarea
                   className="script-voiceover-edit"
                   value={editedVoiceover}
-                  onChange={(e) => setEditedVoiceover(e.target.value)}
+                  onChange={e => setEditedVoiceover(e.target.value)}
                   autoFocus
                 />
               ) : (
@@ -367,18 +409,27 @@ ${caption?.hashtags?.join(' ') || ''}
             <div className="script-output-actions">
               {isEditingVoiceover ? (
                 <>
-                  <button className="script-action-btn" onClick={handleCancelEditVoiceover}>
+                  <button
+                    className="script-action-btn"
+                    onClick={handleCancelEditVoiceover}
+                  >
                     <RotateCcw size={16} />
                     {lang === 'ru' ? 'Отмена' : 'Cancel'}
                   </button>
-                  <button className="script-action-btn primary" onClick={handleSaveVoiceover}>
+                  <button
+                    className="script-action-btn primary"
+                    onClick={handleSaveVoiceover}
+                  >
                     <Save size={16} />
                     {lang === 'ru' ? 'Сохранить' : 'Save'}
                   </button>
                 </>
               ) : (
                 <>
-                  <button className="script-action-btn" onClick={handleStartEditVoiceover}>
+                  <button
+                    className="script-action-btn"
+                    onClick={handleStartEditVoiceover}
+                  >
                     <Edit3 size={16} />
                     {lang === 'ru' ? 'Редактировать' : 'Edit'}
                   </button>
@@ -386,10 +437,23 @@ ${caption?.hashtags?.join(' ') || ''}
                     className="script-action-btn"
                     onClick={() => copyToClipboard(voiceoverText, 'voiceover')}
                   >
-                    {copiedField === 'voiceover' ? <Check size={16} /> : <Copy size={16} />}
-                    {copiedField === 'voiceover' ? (lang === 'ru' ? 'Скопировано' : 'Copied') : (lang === 'ru' ? 'Копировать' : 'Copy')}
+                    {copiedField === 'voiceover' ? (
+                      <Check size={16} />
+                    ) : (
+                      <Copy size={16} />
+                    )}
+                    {copiedField === 'voiceover'
+                      ? lang === 'ru'
+                        ? 'Скопировано'
+                        : 'Copied'
+                      : lang === 'ru'
+                        ? 'Копировать'
+                        : 'Copy'}
                   </button>
-                  <button className="script-action-btn primary" onClick={handleUseInAvatar}>
+                  <button
+                    className="script-action-btn primary"
+                    onClick={handleUseInAvatar}
+                  >
                     <ChevronRight size={16} />
                     {lang === 'ru' ? 'Озвучить' : 'Generate Audio'}
                   </button>
@@ -397,7 +461,7 @@ ${caption?.hashtags?.join(' ') || ''}
               )}
             </div>
           </div>
-        );
+        )
 
       case 'cover':
         return (
@@ -413,20 +477,33 @@ ${caption?.hashtags?.join(' ') || ''}
                 className="script-action-btn"
                 onClick={() => copyToClipboard(output.coverPrompt, 'cover')}
               >
-                {copiedField === 'cover' ? <Check size={16} /> : <Copy size={16} />}
-                {copiedField === 'cover' ? (lang === 'ru' ? 'Скопировано' : 'Copied') : (lang === 'ru' ? 'Копировать' : 'Copy')}
+                {copiedField === 'cover' ? (
+                  <Check size={16} />
+                ) : (
+                  <Copy size={16} />
+                )}
+                {copiedField === 'cover'
+                  ? lang === 'ru'
+                    ? 'Скопировано'
+                    : 'Copied'
+                  : lang === 'ru'
+                    ? 'Копировать'
+                    : 'Copy'}
               </button>
-              <button className="script-action-btn primary" onClick={handleUseInImage}>
+              <button
+                className="script-action-btn primary"
+                onClick={handleUseInImage}
+              >
                 <ChevronRight size={16} />
                 {lang === 'ru' ? 'Сгенерировать' : 'Generate Image'}
               </button>
             </div>
           </div>
-        );
+        )
 
       case 'broll': {
         // Safely get broll array
-        const brollSegments = Array.isArray(output.broll) ? output.broll : [];
+        const brollSegments = Array.isArray(output.broll) ? output.broll : []
         return (
           <div className="script-output-section">
             <div className="script-output-header">
@@ -438,7 +515,11 @@ ${caption?.hashtags?.join(' ') || ''}
             {brollSegments.length === 0 ? (
               <div className="script-output-empty-section">
                 <Film size={32} />
-                <p>{lang === 'ru' ? 'B-Roll сегменты не сгенерированы' : 'No B-Roll segments generated'}</p>
+                <p>
+                  {lang === 'ru'
+                    ? 'B-Roll сегменты не сгенерированы'
+                    : 'No B-Roll segments generated'}
+                </p>
               </div>
             ) : (
               <div className="script-broll-list">
@@ -447,17 +528,27 @@ ${caption?.hashtags?.join(' ') || ''}
                     <div className="script-broll-timing">
                       {segment.startSec ?? 0}s - {segment.endSec ?? 5}s
                     </div>
-                    <div className="script-broll-prompt">{segment.prompt || ''}</div>
+                    <div className="script-broll-prompt">
+                      {segment.prompt || ''}
+                    </div>
                     <div className="script-broll-keywords">
                       {(segment.keywords || []).map((kw, i) => (
-                        <span key={i} className="script-keyword">{kw}</span>
+                        <span key={i} className="script-keyword">
+                          {kw}
+                        </span>
                       ))}
                     </div>
                     <button
                       className="script-broll-copy"
-                      onClick={() => copyToClipboard(segment.prompt || '', `broll-${index}`)}
+                      onClick={() =>
+                        copyToClipboard(segment.prompt || '', `broll-${index}`)
+                      }
                     >
-                      {copiedField === `broll-${index}` ? <Check size={14} /> : <Copy size={14} />}
+                      {copiedField === `broll-${index}` ? (
+                        <Check size={14} />
+                      ) : (
+                        <Copy size={14} />
+                      )}
                     </button>
                   </div>
                 ))}
@@ -466,10 +557,19 @@ ${caption?.hashtags?.join(' ') || ''}
             <div className="script-output-actions">
               <button
                 className="script-action-btn"
-                onClick={() => copyToClipboard(JSON.stringify(brollSegments, null, 2), 'broll-json')}
+                onClick={() =>
+                  copyToClipboard(
+                    JSON.stringify(brollSegments, null, 2),
+                    'broll-json'
+                  )
+                }
                 disabled={brollSegments.length === 0}
               >
-                {copiedField === 'broll-json' ? <Check size={16} /> : <Copy size={16} />}
+                {copiedField === 'broll-json' ? (
+                  <Check size={16} />
+                ) : (
+                  <Copy size={16} />
+                )}
                 {lang === 'ru' ? 'Копировать JSON' : 'Copy JSON'}
               </button>
               <button
@@ -482,18 +582,21 @@ ${caption?.hashtags?.join(' ') || ''}
               </button>
             </div>
           </div>
-        );
+        )
       }
 
       case 'captions': {
-        const caption = output.captions?.[selectedPlatform];
-        const captionText = caption?.text || '';
-        const captionHashtags = Array.isArray(caption?.hashtags) ? caption.hashtags : [];
-        const captionLimit = caption?.charLimit || PLATFORM_LIMITS[selectedPlatform];
+        const caption = output.captions?.[selectedPlatform]
+        const captionText = caption?.text || ''
+        const captionHashtags = Array.isArray(caption?.hashtags)
+          ? caption.hashtags
+          : []
+        const captionLimit =
+          caption?.charLimit || PLATFORM_LIMITS[selectedPlatform]
         return (
           <div className="script-output-section">
             <div className="script-platform-tabs">
-              {PLATFORM_CONFIG.map((platform) => (
+              {PLATFORM_CONFIG.map(platform => (
                 <button
                   key={platform.id}
                   className={`script-platform-tab ${selectedPlatform === platform.id ? 'active' : ''}`}
@@ -511,53 +614,72 @@ ${caption?.hashtags?.join(' ') || ''}
                   {captionHashtags.length > 0 && (
                     <div className="script-hashtags">
                       {captionHashtags.map((tag, i) => (
-                        <span key={i} className="script-hashtag">{tag}</span>
+                        <span key={i} className="script-hashtag">
+                          {tag}
+                        </span>
                       ))}
                     </div>
                   )}
                 </div>
                 <div className="script-caption-meta">
-                  <span className={captionText.length > captionLimit ? 'over-limit' : ''}>
+                  <span
+                    className={
+                      captionText.length > captionLimit ? 'over-limit' : ''
+                    }
+                  >
                     {captionText.length}/{captionLimit}
                   </span>
                 </div>
                 <div className="script-output-actions">
                   <button
                     className="script-action-btn"
-                    onClick={() => copyToClipboard(
-                      captionHashtags.length > 0
-                        ? `${captionText}\n\n${captionHashtags.join(' ')}`
-                        : captionText,
-                      `caption-${selectedPlatform}`
-                    )}
+                    onClick={() =>
+                      copyToClipboard(
+                        captionHashtags.length > 0
+                          ? `${captionText}\n\n${captionHashtags.join(' ')}`
+                          : captionText,
+                        `caption-${selectedPlatform}`
+                      )
+                    }
                   >
-                    {copiedField === `caption-${selectedPlatform}` ? <Check size={16} /> : <Copy size={16} />}
-                    {lang === 'ru' ? 'Копировать с хештегами' : 'Copy with hashtags'}
+                    {copiedField === `caption-${selectedPlatform}` ? (
+                      <Check size={16} />
+                    ) : (
+                      <Copy size={16} />
+                    )}
+                    {lang === 'ru'
+                      ? 'Копировать с хештегами'
+                      : 'Copy with hashtags'}
                   </button>
                 </div>
               </>
             ) : (
               <div className="script-output-empty-section">
                 <MessageSquare size={32} />
-                <p>{lang === 'ru' ? 'Пост не сгенерирован' : 'Caption not generated'}</p>
+                <p>
+                  {lang === 'ru'
+                    ? 'Пост не сгенерирован'
+                    : 'Caption not generated'}
+                </p>
               </div>
             )}
           </div>
-        );
+        )
       }
 
       default:
-        return null;
+        return null
     }
-  };
+  }
 
   return (
     <div className="script-page">
       <Header />
+      <AiPipelineNav />
 
       <main className="script-main">
         {/* Left: Input Panel */}
-        <aside 
+        <aside
           className={`script-sidebar ${isSidebarExpanded ? 'expanded' : ''}`}
           onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
         >
@@ -578,7 +700,7 @@ ${caption?.hashtags?.join(' ') || ''}
                 <textarea
                   className="script-textarea"
                   value={input.topic}
-                  onChange={(e) => setInput({ ...input, topic: e.target.value })}
+                  onChange={e => setInput({ ...input, topic: e.target.value })}
                   placeholder={
                     lang === 'ru'
                       ? 'Например: 5 способов заработать на крипте в 2025'
@@ -603,9 +725,11 @@ ${caption?.hashtags?.join(' ') || ''}
               <select
                 className="script-select"
                 value={input.niche}
-                onChange={(e) => setInput({ ...input, niche: e.target.value as ScriptNiche })}
+                onChange={e =>
+                  setInput({ ...input, niche: e.target.value as ScriptNiche })
+                }
               >
-                {NICHE_OPTIONS.map((opt) => (
+                {NICHE_OPTIONS.map(opt => (
                   <option key={opt.value} value={opt.value}>
                     {opt.emoji} {getLabel(opt)}
                   </option>
@@ -617,11 +741,13 @@ ${caption?.hashtags?.join(' ') || ''}
             <div className="script-field">
               <label>{lang === 'ru' ? 'Стиль' : 'Style'}</label>
               <div className="script-chips">
-                {STYLE_OPTIONS.map((opt) => (
+                {STYLE_OPTIONS.map(opt => (
                   <button
                     key={opt.value}
                     className={`script-chip ${input.style === opt.value ? 'active' : ''}`}
-                    onClick={() => setInput({ ...input, style: opt.value as ScriptStyle })}
+                    onClick={() =>
+                      setInput({ ...input, style: opt.value as ScriptStyle })
+                    }
                   >
                     {opt.emoji} {getLabel(opt)}
                   </button>
@@ -633,11 +759,16 @@ ${caption?.hashtags?.join(' ') || ''}
             <div className="script-field">
               <label>{lang === 'ru' ? 'Длительность' : 'Duration'}</label>
               <div className="script-chips">
-                {DURATION_OPTIONS.map((opt) => (
+                {DURATION_OPTIONS.map(opt => (
                   <button
                     key={opt.value}
                     className={`script-chip ${input.duration === opt.value ? 'active' : ''}`}
-                    onClick={() => setInput({ ...input, duration: opt.value as ScriptDuration })}
+                    onClick={() =>
+                      setInput({
+                        ...input,
+                        duration: opt.value as ScriptDuration,
+                      })
+                    }
                   >
                     {opt.label}
                   </button>
@@ -647,7 +778,9 @@ ${caption?.hashtags?.join(' ') || ''}
 
             {/* Language */}
             <div className="script-field">
-              <label>{lang === 'ru' ? 'Язык сценария' : 'Script Language'}</label>
+              <label>
+                {lang === 'ru' ? 'Язык сценария' : 'Script Language'}
+              </label>
               <div className="script-chips">
                 <button
                   className={`script-chip ${input.language === 'ru' ? 'active' : ''}`}
@@ -678,7 +811,9 @@ ${caption?.hashtags?.join(' ') || ''}
               onClick={handleGenerate}
               disabled={isGenerating || !input.topic.trim()}
               title={lang === 'ru' ? '⌘/Ctrl + Enter' : '⌘/Ctrl + Enter'}
-              aria-label={lang === 'ru' ? 'Сгенерировать скрипт' : 'Generate script'}
+              aria-label={
+                lang === 'ru' ? 'Сгенерировать скрипт' : 'Generate script'
+              }
               aria-busy={isGenerating}
             >
               {isGenerating ? (
@@ -702,7 +837,9 @@ ${caption?.hashtags?.join(' ') || ''}
                 onClick={() => setShowHistory(!showHistory)}
               >
                 <History size={16} />
-                {lang === 'ru' ? `История (${history.length})` : `History (${history.length})`}
+                {lang === 'ru'
+                  ? `История (${history.length})`
+                  : `History (${history.length})`}
               </button>
             )}
 
@@ -717,9 +854,18 @@ ${caption?.hashtags?.join(' ') || ''}
                 {lang === 'ru' ? 'Горячие клавиши:' : 'Shortcuts:'}
               </span>
               <div className="script-shortcuts-list">
-                <span><kbd>⌘</kbd>+<kbd>↵</kbd> {lang === 'ru' ? 'Генерировать' : 'Generate'}</span>
-                <span><kbd>⌘</kbd>+<kbd>1-4</kbd> {lang === 'ru' ? 'Переключить вкладки' : 'Switch tabs'}</span>
-                <span><kbd>⌘</kbd>+<kbd>K</kbd> {lang === 'ru' ? 'Очистить' : 'Clear'}</span>
+                <span>
+                  <kbd>⌘</kbd>+<kbd>↵</kbd>{' '}
+                  {lang === 'ru' ? 'Генерировать' : 'Generate'}
+                </span>
+                <span>
+                  <kbd>⌘</kbd>+<kbd>1-4</kbd>{' '}
+                  {lang === 'ru' ? 'Переключить вкладки' : 'Switch tabs'}
+                </span>
+                <span>
+                  <kbd>⌘</kbd>+<kbd>K</kbd>{' '}
+                  {lang === 'ru' ? 'Очистить' : 'Clear'}
+                </span>
               </div>
             </div>
 
@@ -738,10 +884,26 @@ ${caption?.hashtags?.join(' ') || ''}
                 <span>{lang === 'ru' ? 'Советы' : 'Tips'}</span>
               </div>
               <ul className="script-tips-list">
-                <li>{lang === 'ru' ? 'Hook в первые 1-3 сек' : 'Hook in first 1-3 sec'}</li>
-                <li>{lang === 'ru' ? '3 ключевых пункта + CTA' : '3 key points + CTA'}</li>
-                <li>{lang === 'ru' ? '60-120 слов для 30 сек' : '60-120 words for 30 sec'}</li>
-                <li>{lang === 'ru' ? 'Смена кадра каждые 3-5 сек' : 'Cut every 3-5 sec'}</li>
+                <li>
+                  {lang === 'ru'
+                    ? 'Hook в первые 1-3 сек'
+                    : 'Hook in first 1-3 sec'}
+                </li>
+                <li>
+                  {lang === 'ru'
+                    ? '3 ключевых пункта + CTA'
+                    : '3 key points + CTA'}
+                </li>
+                <li>
+                  {lang === 'ru'
+                    ? '60-120 слов для 30 сек'
+                    : '60-120 words for 30 sec'}
+                </li>
+                <li>
+                  {lang === 'ru'
+                    ? 'Смена кадра каждые 3-5 сек'
+                    : 'Cut every 3-5 sec'}
+                </li>
               </ul>
             </div>
 
@@ -751,7 +913,9 @@ ${caption?.hashtags?.join(' ') || ''}
               onClick={() => setShowTemplates(!showTemplates)}
             >
               <Bookmark size={16} />
-              {lang === 'ru' ? `Шаблоны (${templates.length})` : `Templates (${templates.length})`}
+              {lang === 'ru'
+                ? `Шаблоны (${templates.length})`
+                : `Templates (${templates.length})`}
             </button>
           </div>
 
@@ -760,7 +924,10 @@ ${caption?.hashtags?.join(' ') || ''}
             <div className="script-templates-panel">
               <div className="script-templates-header">
                 <h3>{lang === 'ru' ? 'Мои шаблоны' : 'My Templates'}</h3>
-                <button className="script-templates-close" onClick={() => setShowTemplates(false)}>
+                <button
+                  className="script-templates-close"
+                  onClick={() => setShowTemplates(false)}
+                >
                   <X size={16} />
                 </button>
               </div>
@@ -771,9 +938,11 @@ ${caption?.hashtags?.join(' ') || ''}
                   type="text"
                   className="script-template-input"
                   value={newTemplateName}
-                  onChange={(e) => setNewTemplateName(e.target.value)}
-                  placeholder={lang === 'ru' ? 'Название шаблона...' : 'Template name...'}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSaveTemplate()}
+                  onChange={e => setNewTemplateName(e.target.value)}
+                  placeholder={
+                    lang === 'ru' ? 'Название шаблона...' : 'Template name...'
+                  }
+                  onKeyDown={e => e.key === 'Enter' && handleSaveTemplate()}
                 />
                 <button
                   className="script-template-save-btn"
@@ -788,22 +957,32 @@ ${caption?.hashtags?.join(' ') || ''}
               <div className="script-templates-list">
                 {templates.length === 0 ? (
                   <div className="script-templates-empty">
-                    {lang === 'ru' ? 'Нет сохранённых шаблонов' : 'No saved templates'}
+                    {lang === 'ru'
+                      ? 'Нет сохранённых шаблонов'
+                      : 'No saved templates'}
                   </div>
                 ) : (
-                  templates.map((template) => (
+                  templates.map(template => (
                     <div key={template.id} className="script-template-item">
                       <button
                         className="script-template-load"
                         onClick={() => {
-                          loadTemplate(template.id);
-                          setShowTemplates(false);
+                          loadTemplate(template.id)
+                          setShowTemplates(false)
                         }}
                       >
-                        <span className="script-template-name">{template.name}</span>
+                        <span className="script-template-name">
+                          {template.name}
+                        </span>
                         <span className="script-template-meta">
-                          {NICHE_OPTIONS.find((n) => n.value === template.niche)?.emoji}{' '}
-                          {STYLE_OPTIONS.find((s) => s.value === template.style)?.emoji}{' '}
+                          {
+                            NICHE_OPTIONS.find(n => n.value === template.niche)
+                              ?.emoji
+                          }{' '}
+                          {
+                            STYLE_OPTIONS.find(s => s.value === template.style)
+                              ?.emoji
+                          }{' '}
                           {template.duration}s
                         </span>
                       </button>
@@ -824,8 +1003,13 @@ ${caption?.hashtags?.join(' ') || ''}
           {showHistory && history.length > 0 && (
             <div className="script-history-panel">
               <div className="script-history-header">
-                <h3>{lang === 'ru' ? 'История генераций' : 'Generation History'}</h3>
-                <button className="script-history-close" onClick={() => setShowHistory(false)}>
+                <h3>
+                  {lang === 'ru' ? 'История генераций' : 'Generation History'}
+                </h3>
+                <button
+                  className="script-history-close"
+                  onClick={() => setShowHistory(false)}
+                >
                   <X size={16} />
                 </button>
               </div>
@@ -835,25 +1019,35 @@ ${caption?.hashtags?.join(' ') || ''}
                     key={index}
                     className="script-history-item"
                     onClick={() => {
-                      loadFromHistory(index);
-                      setShowHistory(false);
+                      loadFromHistory(index)
+                      setShowHistory(false)
                     }}
                   >
-                    <div className="script-history-topic">{item.input.topic}</div>
+                    <div className="script-history-topic">
+                      {item.input.topic}
+                    </div>
                     <div className="script-history-meta">
                       <Clock size={12} />
                       <span>
                         {item.output?.generatedAt
-                          ? new Date(item.output.generatedAt).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
+                          ? new Date(
+                              item.output.generatedAt
+                            ).toLocaleDateString(
+                              lang === 'ru' ? 'ru-RU' : 'en-US',
+                              {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              }
+                            )
                           : '-'}
                       </span>
                       <span className="script-history-niche">
-                        {NICHE_OPTIONS.find((n) => n.value === item.input.niche)?.emoji}
+                        {
+                          NICHE_OPTIONS.find(n => n.value === item.input.niche)
+                            ?.emoji
+                        }
                       </span>
                     </div>
                   </button>
@@ -867,9 +1061,13 @@ ${caption?.hashtags?.join(' ') || ''}
         <section className="script-content">
           {/* Output Tabs */}
           <div className="script-output-tabs-wrapper">
-            <div className="script-output-tabs" role="tablist" aria-label={lang === 'ru' ? 'Разделы скрипта' : 'Script sections'}>
-              {OUTPUT_TABS.map((tab) => {
-                const Icon = tab.icon;
+            <div
+              className="script-output-tabs"
+              role="tablist"
+              aria-label={lang === 'ru' ? 'Разделы скрипта' : 'Script sections'}
+            >
+              {OUTPUT_TABS.map(tab => {
+                const Icon = tab.icon
                 return (
                   <button
                     key={tab.id}
@@ -883,23 +1081,37 @@ ${caption?.hashtags?.join(' ') || ''}
                     <Icon size={18} />
                     <span>{getLabel(tab)}</span>
                   </button>
-                );
+                )
               })}
             </div>
             {data?.output && (
               <button
                 className="script-copy-all-btn"
                 onClick={handleCopyAll}
-                title={lang === 'ru' ? 'Копировать весь сценарий' : 'Copy full script'}
+                title={
+                  lang === 'ru'
+                    ? 'Копировать весь сценарий'
+                    : 'Copy full script'
+                }
               >
-                {copiedField === 'all' ? <Check size={16} /> : <FileText size={16} />}
-                {copiedField === 'all' ? (lang === 'ru' ? 'Скопировано!' : 'Copied!') : (lang === 'ru' ? 'Копировать всё' : 'Copy All')}
+                {copiedField === 'all' ? (
+                  <Check size={16} />
+                ) : (
+                  <FileText size={16} />
+                )}
+                {copiedField === 'all'
+                  ? lang === 'ru'
+                    ? 'Скопировано!'
+                    : 'Copied!'
+                  : lang === 'ru'
+                    ? 'Копировать всё'
+                    : 'Copy All'}
               </button>
             )}
           </div>
 
           {/* Output Content */}
-          <div 
+          <div
             className="script-output-body"
             role="tabpanel"
             id={`panel-${outputTab}`}
@@ -910,9 +1122,9 @@ ${caption?.hashtags?.join(' ') || ''}
         </section>
       </main>
     </div>
-  );
+  )
 }
 
 export default function ScriptPage() {
-  return <ScriptContent />;
+  return <ScriptContent />
 }

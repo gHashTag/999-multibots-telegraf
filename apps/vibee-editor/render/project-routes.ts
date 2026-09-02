@@ -94,6 +94,10 @@ export const PROJECT_LIMITS = {
  */
 const ID_OK = /^[A-Za-z0-9_-]{1,64}$/
 
+export function projectIdIsValid(id: string): boolean {
+  return ID_OK.test(id)
+}
+
 function json(res: ServerResponse, code: number, body: unknown): void {
   res.writeHead(code, {
     'Content-Type': 'application/json',
@@ -278,7 +282,7 @@ export async function handleProjectRoute(
   // ─── Read one ──────────────────────────────────────────────────────────
   if (one && req.method === 'GET') {
     const id = decodeURIComponent(one[1])
-    if (!ID_OK.test(id)) {
+    if (!projectIdIsValid(id)) {
       json(res, 400, { error: 'идентификатор проекта недопустим' })
       return true
     }
@@ -322,7 +326,7 @@ export async function handleProjectRoute(
   // ─── Create or replace ─────────────────────────────────────────────────
   if (one && req.method === 'PUT') {
     const id = decodeURIComponent(one[1])
-    if (!ID_OK.test(id)) {
+    if (!projectIdIsValid(id)) {
       json(res, 400, { error: 'идентификатор проекта недопустим' })
       return true
     }

@@ -12,8 +12,9 @@
   color: #fff;
   overflow: hidden;
   /* Smooth layout transitions */
-  transition: grid-template-columns 0.3s ease-out,
-              grid-template-rows 0.3s ease-out;
+  transition:
+    grid-template-columns 0.3s ease-out,
+    grid-template-rows 0.3s ease-out;
 }
 
 /* ===============================
@@ -37,9 +38,10 @@
   background: var(--bg-darkest);
   border-color: var(--color-bg-elevated);
   /* Smooth layout transitions */
-  transition: width 0.3s ease-out,
-              transform 0.3s ease-out,
-              opacity 0.3s ease-out;
+  transition:
+    width 0.3s ease-out,
+    transform 0.3s ease-out,
+    opacity 0.3s ease-out;
 }
 
 .sidebar-left {
@@ -210,9 +212,10 @@
   border-right: 1px solid var(--vibee-border);
   flex-shrink: 0;
   /* Smooth layout transitions */
-  transition: flex-direction 0.3s ease-out,
-              height 0.3s ease-out,
-              padding 0.3s ease-out;
+  transition:
+    flex-direction 0.3s ease-out,
+    height 0.3s ease-out,
+    padding 0.3s ease-out;
 }
 
 /* Mobile: Bottom navigation bar */
@@ -357,7 +360,10 @@
        фолбэком на первый кадр, пока наблюдатель не отработал. */
     padding-bottom: calc(
       var(--timeline-actual-h, var(--timeline-height)) +
-      var(--app-tabbar-total, calc(var(--nav-height) + env(safe-area-inset-bottom, 0px)))
+        var(
+          --app-tabbar-total,
+          calc(var(--nav-height) + env(safe-area-inset-bottom, 0px))
+        )
     );
     /* Ensure canvas stays above fixed elements */
     position: relative;
@@ -378,10 +384,11 @@
   background: #0f0f0f;
   overflow-y: auto;
   /* Smooth layout transitions */
-  transition: height 0.3s ease-out,
-              min-height 0.3s ease-out,
-              max-height 0.3s ease-out,
-              bottom 0.3s ease-out;
+  transition:
+    height 0.3s ease-out,
+    min-height 0.3s ease-out,
+    max-height 0.3s ease-out,
+    bottom 0.3s ease-out;
 }
 
 /* Mobile: Fixed timeline above nav bar */
@@ -391,7 +398,10 @@
     /* Та же переменная, что и у резерва под превью: пока таймлайн считал
        отступ от --nav-height (64px), а панель занимала 57px, канва и таймлайн
        перекрывались на 8px. Одна величина на обе стороны — перекрытия нет. */
-    bottom: var(--app-tabbar-total, calc(var(--nav-height) + env(safe-area-inset-bottom, 0px)));
+    bottom: var(
+      --app-tabbar-total,
+      calc(var(--nav-height) + env(safe-area-inset-bottom, 0px))
+    );
     left: 0;
     right: 0;
     min-height: unset;
@@ -466,20 +476,25 @@
    =============================== */
 
 @keyframes avatar-pulse {
-  0%, 100% {
-    filter: drop-shadow(0 0 10px var(--pulse-color, #FFD700))
-            drop-shadow(0 0 20px var(--pulse-color, #FFD700));
+  0%,
+  100% {
+    filter: drop-shadow(0 0 10px var(--pulse-color, #ffd700))
+      drop-shadow(0 0 20px var(--pulse-color, #ffd700));
   }
   50% {
-    filter: drop-shadow(0 0 20px var(--pulse-color, #FFD700))
-            drop-shadow(0 0 40px var(--pulse-color, #FFD700))
-            drop-shadow(0 0 60px var(--pulse-color, #FFD700));
+    filter: drop-shadow(0 0 20px var(--pulse-color, #ffd700))
+      drop-shadow(0 0 40px var(--pulse-color, #ffd700))
+      drop-shadow(0 0 60px var(--pulse-color, #ffd700));
   }
 }
 
 @keyframes avatar-rainbow {
-  from { filter: hue-rotate(0deg); }
-  to { filter: hue-rotate(360deg); }
+  from {
+    filter: hue-rotate(0deg);
+  }
+  to {
+    filter: hue-rotate(360deg);
+  }
 }
 
 .avatar-border-pulse {
@@ -492,9 +507,15 @@
 
 /* Fire animation - warm colors shifting */
 @keyframes avatar-fire {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .avatar-border-fire {
@@ -503,9 +524,15 @@
 
 /* Ocean animation - cool blue wave */
 @keyframes avatar-ocean {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .avatar-border-ocean {
@@ -514,9 +541,15 @@
 
 /* Sunset animation - warm gradient */
 @keyframes avatar-sunset {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .avatar-border-sunset {
@@ -525,23 +558,20 @@
 
 /* Electric animation - flickering glow */
 @keyframes avatar-electric {
-  0%, 100% {
-    filter: drop-shadow(0 0 8px #00ffff)
-            drop-shadow(0 0 16px #0080ff);
+  0%,
+  100% {
+    filter: drop-shadow(0 0 8px #00ffff) drop-shadow(0 0 16px #0080ff);
   }
   25% {
-    filter: drop-shadow(0 0 12px #00ffff)
-            drop-shadow(0 0 24px #ffffff)
-            drop-shadow(0 0 36px #0080ff);
+    filter: drop-shadow(0 0 12px #00ffff) drop-shadow(0 0 24px #ffffff)
+      drop-shadow(0 0 36px #0080ff);
   }
   50% {
-    filter: drop-shadow(0 0 6px #00ffff)
-            drop-shadow(0 0 12px #0080ff);
+    filter: drop-shadow(0 0 6px #00ffff) drop-shadow(0 0 12px #0080ff);
   }
   75% {
-    filter: drop-shadow(0 0 16px #00ffff)
-            drop-shadow(0 0 32px #ffffff)
-            drop-shadow(0 0 48px #0080ff);
+    filter: drop-shadow(0 0 16px #00ffff) drop-shadow(0 0 32px #ffffff)
+      drop-shadow(0 0 48px #0080ff);
   }
 }
 
@@ -568,11 +598,18 @@
   .editor {
     display: grid;
     grid-template-columns: 40% 60%;
-    grid-template-rows: var(--header-height) 1fr var(--timeline-height-tablet, 140px);
+    grid-template-rows:
+      56px
+      auto
+      auto
+      minmax(0, 1fr)
+      var(--timeline-height-tablet, 140px);
     grid-template-areas:
-      "header header"
-      "sidebar canvas"
-      "timeline timeline";
+      'header header'
+      'pipeline pipeline'
+      'assembly assembly'
+      'main main'
+      'timeline timeline';
   }
 
   /* Header spans full width */
@@ -581,12 +618,21 @@
     grid-area: header;
   }
 
+  .editor > .ai-pipeline {
+    grid-area: pipeline;
+  }
+
+  .editor > .ai-assembly {
+    grid-area: assembly;
+  }
+
   /* Main content fills grid - use subgrid for proper layout */
   .editor-main {
     display: grid;
-    grid-column: 1 / -1;
-    grid-row: 2 / 3;
-    grid-template-columns: subgrid;
+    grid-area: main;
+    grid-template-columns: 40% 60%;
+    grid-template-areas: 'sidebar canvas';
+    position: relative;
     min-height: 0;
     overflow: hidden;
   }
@@ -628,10 +674,10 @@
   /* Right sidebar - overlay on tablet */
   .sidebar-right {
     display: flex;
-    position: fixed;
+    position: absolute;
     right: 0;
-    top: var(--header-height);
-    bottom: var(--timeline-height-tablet, 140px);
+    top: 0;
+    bottom: 0;
     width: 280px;
     z-index: var(--z-modal);
     box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
@@ -649,7 +695,16 @@
 @media (min-width: 768px) and (max-width: 1023px) and (orientation: landscape) {
   .editor {
     grid-template-columns: 35% 65%;
-    grid-template-rows: var(--header-height) 1fr 100px;
+    grid-template-rows:
+      56px
+      auto
+      auto
+      minmax(0, 1fr)
+      100px;
+  }
+
+  .editor-main {
+    grid-template-columns: 35% 65%;
   }
 
   /* Shorter timeline in landscape */
@@ -657,11 +712,6 @@
     height: 100px;
     min-height: 100px;
     max-height: 100px;
-  }
-
-  /* Right sidebar positioned for landscape */
-  .sidebar-right {
-    bottom: 100px;
   }
 }
 

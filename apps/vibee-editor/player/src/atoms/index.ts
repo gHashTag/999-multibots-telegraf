@@ -219,8 +219,6 @@ export {
   captionsLoadingAtom,
   captionsErrorAtom,
   updateDurationFromLipSyncAtom,
-  transcribeVideoAtom,
-  transcribingAtom,
 } from './captions'
 
 // ===============================

@@ -381,6 +381,7 @@ async function withTokens<T extends object>(
 }
 
 import { TELEGRAM_TOOLS } from './telegram-tools'
+import { PROJECT_TOOLS } from './project-tools'
 
 export const TOOLS: AgentTool[] = [
   {
@@ -2026,6 +2027,7 @@ export const TOOLS: AgentTool[] = [
  * read every place foreign content enters the agent in a single file.
  */
 TOOLS.push(...TELEGRAM_TOOLS)
+TOOLS.push(...PROJECT_TOOLS)
 
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
 

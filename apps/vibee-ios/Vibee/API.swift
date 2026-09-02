@@ -248,6 +248,88 @@ extension API {
     let name: String
     let updated_at: String
     let composition: Composition
+
+    private enum CodingKeys: String, CodingKey {
+      case id, name, updated_at, composition
+    }
+
+    init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      id = try c.decode(String.self, forKey: .id)
+      name = try c.decode(String.self, forKey: .name)
+      updated_at = try c.decode(String.self, forKey: .updated_at)
+      if let document = try? c.decode(SyncedProjectDocument.self, forKey: .composition) {
+        composition = document.composition
+      } else {
+        // Backward compatibility for the native shape saved before schema v1.
+        composition = try c.decode(Composition.self, forKey: .composition)
+      }
+    }
+  }
+
+  private struct ProjectMetadata: Codable {
+    let id: String
+    let name: String
+    let fps: Int
+    let width: Int
+    let height: Int
+    let durationInFrames: Int
+  }
+
+  private struct SyncedProjectDocument: Codable {
+    let schemaVersion: Int
+    let project: ProjectMetadata
+    let fps: Int
+    let width: Int
+    let height: Int
+    let tracks: [Track]
+    let assets: [SyncedAsset]
+    let captions: [TimedCaption]
+    let captionStyle: SyncedCaptionStyle?
+    let showCaptions: Bool
+
+    init(id: String, name: String, composition: Composition) {
+      schemaVersion = 1
+      project = ProjectMetadata(
+        id: id,
+        name: name,
+        fps: composition.fps,
+        width: composition.width,
+        height: composition.height,
+        durationInFrames: composition.durationInFrames
+      )
+      fps = composition.fps
+      width = composition.width
+      height = composition.height
+      tracks = composition.tracks.map { track in
+        var normalized = track
+        normalized.items = track.items.map { item in
+          var clip = item
+          if clip.type == nil {
+            clip.type = track.type == "avatar" ? "video" : track.type
+          }
+          return clip
+        }
+        return normalized
+      }
+      assets = composition.assets ?? []
+      captions = composition.captions ?? []
+      captionStyle = composition.captionStyle
+      showCaptions = composition.showCaptions ?? !(composition.captions ?? []).isEmpty
+    }
+
+    var composition: Composition {
+      Composition(
+        fps: fps,
+        width: width,
+        height: height,
+        tracks: tracks,
+        captions: captions,
+        assets: assets,
+        captionStyle: captionStyle,
+        showCaptions: showCaptions
+      )
+    }
   }
 
   private struct ProjectList: Decodable { let projects: [ProjectSummary] }
@@ -367,13 +449,14 @@ extension API {
     guard Identity.known else { throw ProjectError.нетВхода }
     struct Тело: Encodable {
       let name: String
-      let composition: Composition
+      let composition: SyncedProjectDocument
     }
 
     var r = URLRequest(url: base.appendingPathComponent("api/projects/\(id)"))
     r.httpMethod = "PUT"
     r.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    r.httpBody = try JSONEncoder().encode(Тело(name: name, composition: composition))
+    let document = SyncedProjectDocument(id: id, name: name, composition: composition)
+    r.httpBody = try JSONEncoder().encode(Тело(name: name, composition: document))
 
     let (d, http) = try await сЛичностью(r)
     guard http.statusCode == 200 else { throw причина(d, http.statusCode) }

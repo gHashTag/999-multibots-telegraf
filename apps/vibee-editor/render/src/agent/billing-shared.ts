@@ -24,6 +24,9 @@ const OPERATION_COST_USD: Record<string, number> = {
   image_generate: 0.003,
   video_generate: 0.1,
   audio_generate: 0.03,
+  // Kie veed/fabric-1 is measured at 18 provider credits per audio second.
+  // One provider credit and one app token share the same $0.005 base.
+  lipsync_generate: 0.09,
   reel_render: 0.005,
 }
 /** Цена = ceil(себестоимость / база). Источник значений — расчёт, не руки. */
@@ -35,6 +38,7 @@ export function priceFor(op: string): number {
 export const TOKEN_PRICES: Record<string, number> = {
   image_generate: priceFor('image_generate'), // 1
   audio_generate: priceFor('audio_generate'), // 6
+  lipsync_generate: priceFor('lipsync_generate'), // 18 per audio second
   reel_render: priceFor('reel_render'), // 1
   video_generate: priceFor('video_generate'), // 20
 }
@@ -60,15 +64,20 @@ async function ensureRow(pool: Pool, tid: string): Promise<void> {
 export async function spendByTid(
   pool: Pool,
   tid: string,
-  op: string
+  op: string,
+  quantity = 1
 ): Promise<{
   ok: boolean
   списано?: number
   осталось?: number
   причина?: string
 }> {
-  const price = TOKEN_PRICES[op]
-  if (!price) return { ok: true } // бесплатная операция (напр. lipsync без цены)
+  const unitPrice = TOKEN_PRICES[op]
+  if (!unitPrice) return { ok: true }
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 3600) {
+    return { ok: false, причина: 'invalid billing quantity' } // cyrillic-ok: public API field
+  }
+  const price = unitPrice * quantity
   await ensureRow(pool, tid)
   const r = await pool.query(
     `UPDATE user_tokens SET balance = balance - $2, updated_at = now()
@@ -92,9 +101,10 @@ export async function spendByTid(
 export async function refundByTid(
   pool: Pool,
   tid: string,
-  op: string
+  op: string,
+  quantity = 1
 ): Promise<void> {
-  const price = TOKEN_PRICES[op]
+  const price = TOKEN_PRICES[op] * quantity
   if (!price) return
   try {
     await pool.query(

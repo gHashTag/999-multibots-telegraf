@@ -2,12 +2,18 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { agentMessagesAtom, agentDraftAtom } from '@/atoms/agentChat'
 import { sendToAgent, agentBusyAtom } from '@/lib/agentStream'
-import type { Message } from '@/atoms/agentChat'
+import type {
+  AgentAttachment,
+  AgentAttachmentKind,
+  Message,
+} from '@/atoms/agentChat'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Header } from '@/components/Header'
 import { ChatAssets } from '@/components/Chat/ChatAssets'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
+import { uploadToS3 } from '@/lib/s3Upload'
+import { toAbsoluteUrl } from '@/lib/mediaUrl'
 import './Chat.css'
 
 /**
@@ -88,7 +94,11 @@ function ChatPage() {
   const [tokens, setTokens] = useState<number | null>(null)
   const [topUp, setTopUp] = useState(false)
   const [topUpNote, setTopUpNote] = useState<string | null>(null)
+  const [attachments, setAttachments] = useState<AgentAttachment[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Пополнение: инвойс создаёт сервер (XTR), открывает Telegram.WebApp.
   // Серверной верификацией занимается вебхук кассира — клиенту не верим.
@@ -265,10 +275,61 @@ function ChatPage() {
    * шёл посмотреть ленту и возвращался к оборванному ответу, даже когда
    * сервер честно досчитал. Теперь страница только зовёт и читает стор.
    */
-  const send = useCallback((text: string) => {
-    void sendToAgent(text)
-    setInput('')
-  }, [setInput])
+  const send = useCallback(
+    (text: string) => {
+      if ((!text.trim() && attachments.length === 0) || uploading) return
+      void sendToAgent(text, attachments)
+      setInput('')
+      setAttachments([])
+      setAttachmentError(null)
+    },
+    [attachments, setInput, uploading]
+  )
+
+  const uploadAttachments = useCallback(
+    async (files: FileList | null) => {
+      const selected = Array.from(files ?? []).slice(
+        0,
+        Math.max(0, 4 - attachments.length)
+      )
+      if (selected.length === 0) return
+      setUploading(true)
+      setAttachmentError(null)
+      const uploaded: AgentAttachment[] = []
+      try {
+        for (const file of selected) {
+          if (file.size > 100 * 1024 * 1024) {
+            throw new Error(`${file.name}: максимум 100 МБ`)
+          }
+          const url = await uploadToS3(file, file.name)
+          if (!url) throw new Error(`${file.name}: загрузка не удалась`)
+          const kind: AgentAttachmentKind = file.type.startsWith('image/')
+            ? 'image'
+            : file.type.startsWith('video/')
+              ? 'video'
+              : file.type.startsWith('audio/')
+                ? 'audio'
+                : 'file'
+          uploaded.push({
+            id: `attachment-${Date.now()}-${uploaded.length}`,
+            name: file.name,
+            url: toAbsoluteUrl(url),
+            mimeType: file.type || 'application/octet-stream',
+            kind,
+          })
+        }
+        setAttachments(current => [...current, ...uploaded].slice(0, 4))
+      } catch (error) {
+        setAttachmentError(
+          error instanceof Error ? error.message : 'Файл не загрузился'
+        )
+      } finally {
+        setUploading(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+      }
+    },
+    [attachments.length]
+  )
 
   return (
     <div className="chat-page">
@@ -290,6 +351,7 @@ function ChatPage() {
               onClick={() => {
                 setMessages([WELCOME])
                 setInput('')
+                setAttachments([])
               }}
             >
               Новый разговор
@@ -306,9 +368,15 @@ function ChatPage() {
                   на его фоне выглядит выгодным. 150: 1.17⭐/ток против 1.5
                   у десятки — честный «выгоднее всех», не маркетинговый. */}
               {[150, 50, 10].map(p => (
-                <button key={p} className="chat-topup__pack" onClick={() => buy(String(p))}>
+                <button
+                  key={p}
+                  className="chat-topup__pack"
+                  onClick={() => buy(String(p))}
+                >
                   {p} токенов{p === 150 ? ' · выгоднее всех' : ''}
-                  <span>{p === 10 ? '15 ⭐' : p === 50 ? '65 ⭐' : '175 ⭐'}</span>
+                  <span>
+                    {p === 10 ? '15 ⭐' : p === 50 ? '65 ⭐' : '175 ⭐'}
+                  </span>
                 </button>
               ))}
               {topUpNote && <p className="chat-topup__note">{topUpNote}</p>}
@@ -349,9 +417,19 @@ function ChatPage() {
               ) : null}
               {/* Ассеты — живыми превью: картинка показывается картинкой,
                   видео плеером, аудио плеером. Голые ссылки не смотрятся. */}
-              {m.text ? (
+              {m.text || (m.attachments?.length ?? 0) > 0 ? (
                 <div className="message-content">
-                  <ChatAssets text={m.text} />
+                  {m.text ? <ChatAssets text={m.text} /> : null}
+                  {m.attachments && m.attachments.length > 0 ? (
+                    <div className="message-attachments">
+                      {m.attachments.map(attachment => (
+                        <div className="message-attachment" key={attachment.id}>
+                          <ChatAssets text={attachment.url} />
+                          <span>{attachment.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
               {!m.text && m.role === 'assistant' && busy ? (
@@ -381,7 +459,57 @@ function ChatPage() {
       </div>
 
       <div className="chat-input-area">
+        {attachments.length > 0 || attachmentError ? (
+          <div className="chat-attachment-tray">
+            {attachments.map(attachment => (
+              <span className="chat-attachment-chip" key={attachment.id}>
+                {attachment.kind === 'image'
+                  ? '🖼'
+                  : attachment.kind === 'video'
+                    ? '🎬'
+                    : attachment.kind === 'audio'
+                      ? '🎧'
+                      : '📎'}{' '}
+                {attachment.name}
+                <button
+                  type="button"
+                  aria-label={`Убрать ${attachment.name}`}
+                  onClick={() =>
+                    setAttachments(current =>
+                      current.filter(item => item.id !== attachment.id)
+                    )
+                  }
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {attachmentError ? (
+              <span className="chat-attachment-error">{attachmentError}</span>
+            ) : null}
+          </div>
+        ) : null}
         <div className="chat-input-container">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*,audio/*"
+            multiple
+            className="chat-file-input"
+            aria-hidden="true"
+            tabIndex={-1}
+            onChange={event => void uploadAttachments(event.target.files)}
+          />
+          <button
+            type="button"
+            className="attach-btn"
+            aria-label="Добавить фото, видео или аудио"
+            title="Добавить фото, видео или аудио"
+            disabled={busy || uploading || attachments.length >= 4}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {uploading ? '…' : '+'}
+          </button>
           <input
             type="text"
             className="chat-input"
@@ -389,12 +517,14 @@ function ChatPage() {
             value={input}
             disabled={busy}
             onChange={e => setInput(e.target.value)}
-            onKeyPress={e => e.key === 'Enter' && send(input)}
+            onKeyDown={e => e.key === 'Enter' && send(input)}
           />
           <button
             className="send-btn"
             onClick={() => send(input)}
-            disabled={busy}
+            disabled={
+              busy || uploading || (!input.trim() && attachments.length === 0)
+            }
           >
             {busy ? '…' : t('chat.send')}
           </button>

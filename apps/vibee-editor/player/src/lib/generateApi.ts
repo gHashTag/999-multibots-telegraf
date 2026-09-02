@@ -5,8 +5,10 @@
 // ===============================
 
 import { API_BASE } from '../config'
-import { getInitData, isTelegram } from './telegram'
+import { isTelegram } from './telegram'
 import { isAdmin } from '../config/admin'
+import { toAbsoluteUrl } from './mediaUrl'
+import { authHeaders as sharedAuthHeaders } from './apiFetch'
 
 // Use Vibee MCP for AI generations (not render server)
 const API_URL = API_BASE
@@ -26,18 +28,23 @@ const API_URL = API_BASE
 const realFetch = globalThis.fetch.bind(globalThis)
 export function isMockMode(): boolean {
   try {
-    // Только для АДМИНОВ: в проде Telegram платящий юзер не должен попасть в
-    // mock (иначе получит фейковый результат вместо реальной генерации). В
-    // обычном браузере (не Telegram) — это разработка, там платящих нет, mock
-    // разрешён любому. Итог: блокируем mock только для НЕ-админа в Telegram.
-    if (isTelegram() && !isAdmin()) return false
     const p = new URLSearchParams(window.location.search)
     if (p.get('mock') === '1') localStorage.setItem('vibee_mock', '1')
     if (p.get('mock') === '0') localStorage.removeItem('vibee_mock')
-    return (
+    const requested =
       localStorage.getItem('vibee_mock') === '1' ||
       (import.meta.env.VITE_MOCK as string) === '1'
-    )
+    if (!requested) return false
+
+    // Localhost is the explicit no-network test surface even when the loaded
+    // Telegram SDK reports a non-unknown platform in a desktop browser.
+    const host = window.location.hostname
+    if (host === 'localhost' || host === '127.0.0.1') return true
+
+    // In production Telegram a paying non-admin must never receive a fake
+    // result instead of the requested generation.
+    if (isTelegram() && !isAdmin()) return false
+    return true
   } catch {
     return false
   }
@@ -93,19 +100,22 @@ function mfetch(url: string, init?: RequestInit): Promise<Response> {
 }
 
 /**
- * Подпись личности для платных генераций. На проде общий гвард режет
- * POST /api/generate/* без X-Telegram-Init-Data — без этого заголовка
- * страница Generate получала 401 из ниоткуда. В DEV (вне мини-аппа)
- * подписи нет — подставляем ключ агента из VITE_AGENT_KEY.
+ * One identity path for paid generations. The shared helper chooses Telegram
+ * initData inside the Mini App and the server-issued Bearer session in a web
+ * browser or iOS. Previously Generate only knew about the Telegram header, so
+ * an authenticated browser profile still received 401. In DEV, where neither
+ * real identity is present, a separate agent key remains available.
  */
-function authHeaders(): Record<string, string> {
-  const initData = getInitData()
-  if (initData) return { 'X-Telegram-Init-Data': initData }
+export function generationAuthHeaders(): Headers {
+  const headers = sharedAuthHeaders()
+  if (headers.has('X-Telegram-Init-Data') || headers.has('Authorization')) {
+    return headers
+  }
   const devKey = import.meta.env.DEV
     ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
     : undefined
-  if (devKey) return { 'X-Agent-Key': devKey }
-  return {}
+  if (devKey) headers.set('X-Agent-Key', devKey)
+  return headers
 }
 
 export interface GenerateImageParams {
@@ -122,12 +132,15 @@ export interface GenerateVideoParams {
 }
 
 export interface GenerateAudioParams {
+  model?: string
   text: string
   voiceId: string // 'sarah', 'rachel', 'josh', 'adam', 'bella'
+  voiceName?: string
   speed: number // 0.5 - 2.0
 }
 
 export interface GenerateLipsyncParams {
+  model?: string
   audioUrl: string
   imageUrl: string
   resolution: string // '480p', '720p', '1080p'
@@ -139,6 +152,8 @@ export interface GenerateResult {
   url?: string
   id?: string
   error?: string
+  /** Actual media alignment; absent when the provider cannot supply timing. */
+  timed_captions?: unknown
 }
 
 // Helper for aspect ratio to dimensions
@@ -165,7 +180,7 @@ export async function generateImage(
 
   const response = await mfetch(`${API_URL}/api/generate/image`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: generationAuthHeaders(),
     body: JSON.stringify({
       model: params.model,
       prompt: params.prompt,
@@ -287,7 +302,7 @@ export async function generateVideo(
 ): Promise<GenerateResult> {
   const response = await mfetch(`${API_URL}/api/generate/video`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: generationAuthHeaders(),
     body: JSON.stringify({
       model: params.model,
       prompt: params.prompt,
@@ -312,10 +327,12 @@ export async function generateAudio(
 ): Promise<GenerateResult> {
   const response = await mfetch(`${API_URL}/api/generate/audio`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: generationAuthHeaders(),
     body: JSON.stringify({
+      model: params.model,
       text: params.text,
       voice_id: params.voiceId,
+      voice_name: params.voiceName,
       speed: params.speed,
     }),
   })
@@ -336,10 +353,11 @@ export async function generateLipsync(
 ): Promise<GenerateResult> {
   const response = await mfetch(`${API_URL}/api/generate/lipsync`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: generationAuthHeaders(),
     body: JSON.stringify({
-      audio_url: params.audioUrl,
-      image_url: params.imageUrl,
+      model: params.model,
+      audio_url: toAbsoluteUrl(params.audioUrl),
+      image_url: toAbsoluteUrl(params.imageUrl),
       resolution: params.resolution,
       aspect_ratio: params.aspectRatio,
     }),

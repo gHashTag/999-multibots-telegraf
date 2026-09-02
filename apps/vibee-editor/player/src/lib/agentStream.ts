@@ -22,7 +22,7 @@
 import { atom } from 'jotai'
 import { editorStore } from '@/atoms/Provider'
 import { agentMessagesAtom } from '@/atoms/agentChat'
-import type { Message } from '@/atoms/agentChat'
+import type { AgentAttachment, Message } from '@/atoms/agentChat'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
 
@@ -42,17 +42,38 @@ export function isAgentBusy(): boolean {
   return inFlight
 }
 
+export function messageContentForAgent(message: Message): string {
+  const oneLine = (value: string, limit: number) =>
+    value
+      .replace(/[\r\n\[\]]+/g, ' ')
+      .trim()
+      .slice(0, limit)
+  const attachmentLines = (message.attachments ?? []).map(
+    attachment =>
+      `[attached ${attachment.kind}: ${oneLine(attachment.name, 160)}; mime=${oneLine(attachment.mimeType, 100)}; url=${oneLine(attachment.url, 2_048)}]`
+  )
+  return [message.text.trim(), ...attachmentLines].filter(Boolean).join('\n')
+}
+
 /**
  * Отправить сообщение агенту. Возвращает промис, но ЖДАТЬ его не обязательно:
  * весь результат попадает в стор, а страница читает стор.
  */
-export async function sendToAgent(text: string): Promise<void> {
+export async function sendToAgent(
+  text: string,
+  attachments: AgentAttachment[] = []
+): Promise<void> {
   const trimmed = text.trim()
-  if (!trimmed || inFlight) return
+  if ((!trimmed && attachments.length === 0) || inFlight) return
   inFlight = true
   editorStore.set(agentBusyAtom, true)
 
-  const userMsg: Message = { id: `u${Date.now()}`, role: 'user', text: trimmed }
+  const userMsg: Message = {
+    id: `u${Date.now()}`,
+    role: 'user',
+    text: trimmed || `Прикреплено файлов: ${attachments.length}`,
+    attachments: attachments.map(attachment => ({ ...attachment })),
+  }
   const agentId = `a${Date.now()}`
   const agentMsg: Message = {
     id: agentId,
@@ -65,7 +86,7 @@ export async function sendToAgent(text: string): Promise<void> {
   // История для сервера — из уже показанных сообщений плюс новое.
   const history = [...editorStore.get(agentMessagesAtom), userMsg]
     .filter(m => m.id !== 'welcome')
-    .map(m => ({ role: m.role, content: m.text }))
+    .map(m => ({ role: m.role, content: messageContentForAgent(m) }))
 
   editorStore.set(agentMessagesAtom, prev => [...prev, userMsg, agentMsg])
 

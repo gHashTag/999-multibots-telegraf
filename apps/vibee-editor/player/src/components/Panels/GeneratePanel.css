@@ -76,6 +76,66 @@
   gap: 14px;
 }
 
+.broll-prompt-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.broll-prompt-queue__header {
+  display: flex;
+  justify-content: space-between;
+  color: #ddd6fe;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.broll-prompt-queue__items {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.broll-prompt-queue__item {
+  min-width: 76px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.26);
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.broll-prompt-queue__item.is-active {
+  border-color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.22);
+  color: #fff;
+}
+
+.broll-prompt-queue__item.is-complete {
+  color: #86efac;
+}
+
+.broll-prompt-queue__hint {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;

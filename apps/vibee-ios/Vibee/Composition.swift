@@ -33,6 +33,13 @@ struct Composition: Codable, Equatable {
   var width: Int = 1080
   var height: Int = 1920
   var tracks: [Track] = []
+  /// Actual media alignment. Optional keeps older saved projects decodable.
+  var captions: [TimedCaption]? = nil
+  /// Browser gallery metadata is carried through native edits even though the
+  /// native timeline renders media from clip URLs.
+  var assets: [SyncedAsset]? = nil
+  var captionStyle: SyncedCaptionStyle? = nil
+  var showCaptions: Bool? = nil
 
   /// Длина в кадрах — по самому дальнему клипу.
   var durationInFrames: Int {
@@ -41,6 +48,49 @@ struct Composition: Codable, Equatable {
 
   var duration: CMTime {
     CMTime(value: CMTimeValue(durationInFrames), timescale: CMTimeScale(fps))
+  }
+}
+
+struct SyncedAsset: Codable, Equatable {
+  var id: String
+  var type: String
+  var name: String
+  var url: String
+  var thumbnail: String?
+  var duration: Int?
+  var width: Int?
+  var height: Int?
+  var fileSize: Int?
+}
+
+struct SyncedCaptionStyle: Codable, Equatable {
+  var fontSize: Double?
+  var textColor: String?
+  var highlightColor: String?
+  var backgroundColor: String?
+  var bottomPercent: Double?
+  var maxWidthPercent: Double?
+  var fontWeight: Int?
+  var showShadow: Bool?
+  var fontFamily: String?
+  var animation: String?
+}
+
+struct TimedCaption: Codable, Equatable {
+  var text: String
+  var startMs: Int
+  var endMs: Int
+  var timestampMs: Int
+  var confidence: Double?
+
+  func offset(by milliseconds: Int) -> TimedCaption {
+    TimedCaption(
+      text: text,
+      startMs: startMs + milliseconds,
+      endMs: endMs + milliseconds,
+      timestampMs: timestampMs + milliseconds,
+      confidence: confidence
+    )
   }
 }
 
@@ -60,6 +110,9 @@ struct Clip: Codable, Equatable, Identifiable {
   var trackId: String
   var assetId: String?
   var name: String?
+  var type: String?
+  var volume: Double?
+  var playbackRate: Double?
 
   var startFrame: Int
   var durationInFrames: Int

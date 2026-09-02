@@ -1,0 +1,72 @@
+.ai-assembly {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.34);
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.ai-assembly__copy {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #ddd6fe;
+}
+
+.ai-assembly__copy > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ai-assembly__copy strong {
+  font-size: 13px;
+}
+
+.ai-assembly__copy span {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.ai-assembly__button {
+  min-height: 44px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid #8b5cf6;
+  border-radius: 9px;
+  background: #8b5cf6;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ai-assembly__button:disabled {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.38);
+  cursor: default;
+}
+
+@media (max-width: 640px) {
+  .ai-assembly {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .ai-assembly__button {
+    width: 100%;
+  }
+}
