@@ -632,6 +632,7 @@
     grid-area: main;
     grid-template-columns: 40% 60%;
     grid-template-areas: 'sidebar canvas';
+    position: relative;
     min-height: 0;
     overflow: hidden;
   }
@@ -673,10 +674,10 @@
   /* Right sidebar - overlay on tablet */
   .sidebar-right {
     display: flex;
-    position: fixed;
+    position: absolute;
     right: 0;
-    top: 56px;
-    bottom: var(--timeline-height-tablet, 140px);
+    top: 0;
+    bottom: 0;
     width: 280px;
     z-index: var(--z-modal);
     box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
@@ -711,11 +712,6 @@
     height: 100px;
     min-height: 100px;
     max-height: 100px;
-  }
-
-  /* Right sidebar positioned for landscape */
-  .sidebar-right {
-    bottom: 100px;
   }
 }
 

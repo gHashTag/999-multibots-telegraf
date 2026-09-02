@@ -43,5 +43,33 @@ for (const width of [390, 720, 820, 1023, 1024]) {
     }
     expect(boxes.timeline.bottom).toBeLessThanOrEqual(901)
     expect(boxes.overflow).toBeLessThanOrEqual(0)
+
+    if (width === 820 || width === 1023) {
+      const firstClip = page.locator('.track-item').first()
+      await expect(firstClip).toBeVisible()
+      await firstClip.click()
+      const selected = await page.evaluate(() => {
+        const rect = (selector: string) => {
+          const node = document.querySelector<HTMLElement>(selector)
+          if (!node) throw new Error(`missing ${selector}`)
+          const value = node.getBoundingClientRect()
+          return { top: value.top, bottom: value.bottom }
+        }
+        return {
+          main: rect('.editor-main'),
+          assembly: rect('.editor > .ai-assembly'),
+          properties: rect('.sidebar-right'),
+        }
+      })
+      expect(selected.properties.top).toBeGreaterThanOrEqual(
+        selected.main.top - 1
+      )
+      expect(selected.properties.top).toBeGreaterThanOrEqual(
+        selected.assembly.bottom - 1
+      )
+      expect(selected.properties.bottom).toBeLessThanOrEqual(
+        selected.main.bottom + 1
+      )
+    }
   })
 }
