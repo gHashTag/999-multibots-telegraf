@@ -1,157 +1,191 @@
-import React, { useEffect, Suspense, useRef, useState } from 'react';
-import { useSetAtom, useAtomValue, useAtom } from 'jotai';
-import { useSearchParams } from 'react-router-dom';
-import { loadCaptionsAtom, updateDurationFromLipSyncAtom, lipSyncVideoAtom, transcribeVideoAtom, ensureAudioTrackAtom, ensureVoiceTrackAtom, ensureImageTrackAtom, selectedItemIdsAtom, sidebarTabAtom, clearSelectionAtom, type SidebarTab } from '@/atoms';
-import { layoutPresetAtom, LAYOUT_PRESETS, publishModalOpenAtom } from '@/atoms/ui';
-import { useAutoRecordHistory, useAutoSaveTemplateSettings } from '@/atoms/hooks';
-import { AssetsPanel } from '@/components/Panels/AssetsPanel';
-import { TemplatesPanel } from '@/components/Panels/TemplatesPanel';
-import { Header } from '@/components/Header';
-import { PropertiesPanel } from '@/components/Panels/PropertiesPanel';
-import { InteractiveCanvas } from '@/components/Canvas/InteractiveCanvas';
-import { Timeline } from '@/components/Timeline/Timeline';
-import { ShortcutsModal } from '@/components/Modals/ShortcutsModal';
-import { BottomSheet } from '@/components/BottomSheet/BottomSheet';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { PanelError } from '@/components/Panels/PanelError';
-import { useKeyboardShortcuts } from '@/hooks/useKeyboard';
-import { useIsMobile, useIsTablet } from '@/hooks/useMediaQuery';
-import { useWebSocket, setGlobalWsSend } from '@/lib/websocket';
-import { useLanguage } from '@/hooks/useLanguage';
+import React, { useEffect, Suspense, useRef, useState } from 'react'
+import { useSetAtom, useAtomValue, useAtom } from 'jotai'
+import { useSearchParams } from 'react-router-dom'
+import {
+  loadCaptionsAtom,
+  updateDurationFromLipSyncAtom,
+  lipSyncVideoAtom,
+  transcribeVideoAtom,
+  ensureAudioTrackAtom,
+  ensureVoiceTrackAtom,
+  ensureImageTrackAtom,
+  selectedItemIdsAtom,
+  sidebarTabAtom,
+  clearSelectionAtom,
+} from '@/atoms'
+import {
+  layoutPresetAtom,
+  LAYOUT_PRESETS,
+  publishModalOpenAtom,
+} from '@/atoms/ui'
+import {
+  useAutoRecordHistory,
+  useAutoSaveTemplateSettings,
+} from '@/atoms/hooks'
+import { AssetsPanel } from '@/components/Panels/AssetsPanel'
+import { TemplatesPanel } from '@/components/Panels/TemplatesPanel'
+import { Header } from '@/components/Header'
+import { AiPipelineNav } from '@/components/AI/AiPipelineNav'
+import { AiAssemblyBar } from '@/components/AI/AiAssemblyBar'
+import { PropertiesPanel } from '@/components/Panels/PropertiesPanel'
+import { InteractiveCanvas } from '@/components/Canvas/InteractiveCanvas'
+import { Timeline } from '@/components/Timeline/Timeline'
+import { ShortcutsModal } from '@/components/Modals/ShortcutsModal'
+import { BottomSheet } from '@/components/BottomSheet/BottomSheet'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { PanelError } from '@/components/Panels/PanelError'
+import { useKeyboardShortcuts } from '@/hooks/useKeyboard'
+import { useIsMobile, useIsTablet } from '@/hooks/useMediaQuery'
+import { useWebSocket, setGlobalWsSend } from '@/lib/websocket'
+import { useLanguage } from '@/hooks/useLanguage'
 
 function EditorContent() {
-  const { t } = useLanguage();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [showShortcuts, setShowShortcuts] = useState(false);
-  const [sidebarTab, setSidebarTab] = useAtom(sidebarTabAtom);
-  const setPublishModalOpen = useSetAtom(publishModalOpenAtom);
-  const isMobile = useIsMobile();
-  const isTablet = useIsTablet();
+  const { t } = useLanguage()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const [sidebarTab, setSidebarTab] = useAtom(sidebarTabAtom)
+  const setPublishModalOpen = useSetAtom(publishModalOpenAtom)
+  const isMobile = useIsMobile()
+  const isTablet = useIsTablet()
 
   // Use atoms directly instead of bridge
-  const updateDurationFromLipSync = useSetAtom(updateDurationFromLipSyncAtom);
-  const loadCaptions = useSetAtom(loadCaptionsAtom);
-  const lipSyncVideo = useAtomValue(lipSyncVideoAtom);
-  const transcribeVideo = useSetAtom(transcribeVideoAtom);
-  const ensureAudioTrack = useSetAtom(ensureAudioTrackAtom);
-  const ensureVoiceTrack = useSetAtom(ensureVoiceTrackAtom);
-  const ensureImageTrack = useSetAtom(ensureImageTrackAtom);
-  const selectedItemIds = useAtomValue(selectedItemIdsAtom);
-  const clearSelection = useSetAtom(clearSelectionAtom);
-  const layoutPreset = useAtomValue(layoutPresetAtom);
-  const prevLipSyncRef = useRef<string | null>(null);
+  const updateDurationFromLipSync = useSetAtom(updateDurationFromLipSyncAtom)
+  const loadCaptions = useSetAtom(loadCaptionsAtom)
+  const lipSyncVideo = useAtomValue(lipSyncVideoAtom)
+  const transcribeVideo = useSetAtom(transcribeVideoAtom)
+  const ensureAudioTrack = useSetAtom(ensureAudioTrackAtom)
+  const ensureVoiceTrack = useSetAtom(ensureVoiceTrackAtom)
+  const ensureImageTrack = useSetAtom(ensureImageTrackAtom)
+  const selectedItemIds = useAtomValue(selectedItemIdsAtom)
+  const clearSelection = useSetAtom(clearSelectionAtom)
+  const layoutPreset = useAtomValue(layoutPresetAtom)
+  const prevLipSyncRef = useRef<string | null>(null)
 
   // Get layout config
-  const layoutConfig = LAYOUT_PRESETS[layoutPreset] || LAYOUT_PRESETS.classic;
-  const showAssets = layoutConfig.showAssets;
+  const layoutConfig = LAYOUT_PRESETS[layoutPreset] || LAYOUT_PRESETS.classic
+  const showAssets = layoutConfig.showAssets
 
   // Enable keyboard shortcuts
-  useKeyboardShortcuts();
+  useKeyboardShortcuts()
 
   // Auto-record history on state changes (for undo/redo)
-  useAutoRecordHistory();
+  useAutoRecordHistory()
 
   // Auto-save template settings when they change (debounced)
-  useAutoSaveTemplateSettings();
+  useAutoSaveTemplateSettings()
 
   // Run migrations and load initial data on mount
   useEffect(() => {
     // Clear stale lipsync video from localStorage (was persisted by old atomWithStorage)
-    localStorage.removeItem('vibee-lipsync-video');
-    ensureAudioTrack(); // Migration: ensure audio/music track exists + rename Audio→Music
-    ensureVoiceTrack(); // Migration: ensure voice track exists for old users
-    ensureImageTrack(); // Migration: ensure image track exists for old users
-    updateDurationFromLipSync();
-    loadCaptions();
-  }, [ensureAudioTrack, ensureVoiceTrack, ensureImageTrack, updateDurationFromLipSync, loadCaptions]);
+    localStorage.removeItem('vibee-lipsync-video')
+    ensureAudioTrack() // Migration: ensure audio/music track exists + rename Audio→Music
+    ensureVoiceTrack() // Migration: ensure voice track exists for old users
+    ensureImageTrack() // Migration: ensure image track exists for old users
+    updateDurationFromLipSync()
+    loadCaptions()
+  }, [
+    ensureAudioTrack,
+    ensureVoiceTrack,
+    ensureImageTrack,
+    updateDurationFromLipSync,
+    loadCaptions,
+  ])
 
   // Set default sidebar tab to 'templates' when entering Editor (run once)
   // Valid tabs: templates, lipsync, video, image, voice, music
   useEffect(() => {
-    if (!['templates', 'lipsync', 'video', 'image', 'voice', 'music'].includes(sidebarTab)) {
-      setSidebarTab('templates');
+    if (
+      !['templates', 'lipsync', 'video', 'image', 'voice', 'music'].includes(
+        sidebarTab
+      )
+    ) {
+      setSidebarTab('templates')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [])
 
   // Handle openShare URL parameter (from Instagram callback)
   useEffect(() => {
     if (searchParams.get('openShare') === 'true') {
       // Open publish modal after short delay to let page render
       setTimeout(() => {
-        setPublishModalOpen(true);
-      }, 500);
+        setPublishModalOpen(true)
+      }, 500)
       // Remove the param from URL to prevent re-opening on refresh
-      searchParams.delete('openShare');
-      setSearchParams(searchParams, { replace: true });
+      searchParams.delete('openShare')
+      setSearchParams(searchParams, { replace: true })
     }
-  }, [searchParams, setSearchParams, setPublishModalOpen]);
+  }, [searchParams, setSearchParams, setPublishModalOpen])
 
   // Auto-transcribe when lipSyncVideo changes (not on mount)
   useEffect(() => {
     // Skip on initial mount
     if (prevLipSyncRef.current === null) {
-      prevLipSyncRef.current = lipSyncVideo;
-      return;
+      prevLipSyncRef.current = lipSyncVideo
+      return
     }
 
     // Skip if same video
     if (prevLipSyncRef.current === lipSyncVideo) {
-      return;
+      return
     }
 
-    prevLipSyncRef.current = lipSyncVideo;
+    prevLipSyncRef.current = lipSyncVideo
 
     // For default video - just load existing captions
     if (lipSyncVideo === '/lipsync/lipsync.mp4') {
-      console.log('[Editor] LipSync reset to default, loading captions');
-      loadCaptions();
-      return;
+      console.log('[Editor] LipSync reset to default, loading captions')
+      loadCaptions()
+      return
     }
 
     // Auto-transcribe new video
     if (lipSyncVideo) {
-      console.log('[Editor] LipSync video changed, starting auto-transcribe:', lipSyncVideo);
-      transcribeVideo();
+      console.log(
+        '[Editor] LipSync video changed, starting auto-transcribe:',
+        lipSyncVideo
+      )
+      transcribeVideo()
     }
-  }, [lipSyncVideo, transcribeVideo, loadCaptions]);
+  }, [lipSyncVideo, transcribeVideo, loadCaptions])
 
   // Initialize WebSocket for real-time sync (optional - works without render server)
-  const { send, isConnected, clientId } = useWebSocket({});
+  const { send } = useWebSocket({})
 
   // Set global send function for use in other components
   useEffect(() => {
-    setGlobalWsSend(send);
-  }, [send]);
+    setGlobalWsSend(send)
+  }, [send])
 
   // Handle '?' key for shortcuts modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
+      const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
-        return;
+        return
       }
       if ((e.shiftKey && e.code === 'Slash') || e.code === 'F1') {
-        e.preventDefault();
-        setShowShortcuts(true);
+        e.preventDefault()
+        setShowShortcuts(true)
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   return (
     <div
       className={`editor layout-${layoutPreset} ${showAssets ? 'has-assets' : 'no-assets'}`}
-      style={{
-        '--assets-width': `${layoutConfig.assetsWidth}px`,
-        '--timeline-height': `${layoutConfig.timelineHeight}px`,
-      } as React.CSSProperties}
+      style={
+        {
+          '--assets-width': `${layoutConfig.assetsWidth}px`,
+          '--timeline-height': `${layoutConfig.timelineHeight}px`,
+        } as React.CSSProperties
+      }
     >
-      <Header
-        wsStatus={isConnected ? 'connected' : 'disconnected'}
-        wsClientId={clientId}
-      />
+      <Header />
+      <AiPipelineNav />
+      <AiAssemblyBar />
 
       <main id="main-content" className="editor-main" role="main">
         {/* Left sidebar: Tabs for each content group */}
@@ -207,8 +241,13 @@ function EditorContent() {
               {/* Tab content */}
               <div className="sidebar-tab-content">
                 {sidebarTab === 'templates' && <TemplatesPanel />}
-                {sidebarTab === 'lipsync' && <AssetsPanel filterType="lipsync" />}
-                {(sidebarTab === 'video' || sidebarTab === 'image' || sidebarTab === 'voice' || sidebarTab === 'music') && (
+                {sidebarTab === 'lipsync' && (
+                  <AssetsPanel filterType="lipsync" />
+                )}
+                {(sidebarTab === 'video' ||
+                  sidebarTab === 'image' ||
+                  sidebarTab === 'voice' ||
+                  sidebarTab === 'music') && (
                   <AssetsPanel filterType={sidebarTab} />
                 )}
               </div>
@@ -244,7 +283,10 @@ function EditorContent() {
         </ErrorBoundary>
       </footer>
 
-      <ShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      <ShortcutsModal
+        isOpen={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+      />
 
       {/* Mobile BottomSheet for properties */}
       {isMobile && !isTablet && selectedItemIds.length > 0 && (
@@ -265,15 +307,21 @@ function EditorContent() {
         </BottomSheet>
       )}
     </div>
-  );
+  )
 }
 
 function EditorPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">Loading Editor...</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">
+          Loading Editor...
+        </div>
+      }
+    >
       <EditorContent />
     </Suspense>
-  );
+  )
 }
 
-export default EditorPage;
+export default EditorPage

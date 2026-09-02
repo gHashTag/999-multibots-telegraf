@@ -138,12 +138,16 @@ function App() {
                       {/* Блог t27.ai через RSS-прокси — тот же канон дизайна. */}
                       <Route path="/blog" element={<BlogPage />} />
                       <Route path="/search" element={<SearchPage />} />
-                      <Route path="/editor" element={<EditorPage />} />
+                      <Route
+                        path="/editor"
+                        element={<Navigate to="/generate/editor" replace />}
+                      />
                       <Route
                         path="/generate"
                         element={<Navigate to="/generate/script" replace />}
                       />
                       <Route path="/generate/script" element={<ScriptPage />} />
+                      <Route path="/generate/editor" element={<EditorPage />} />
                       <Route path="/generate/:tab" element={<GeneratePage />} />
                       <Route path="/templates" element={<TemplatesPage />} />
                       <Route path="/chat" element={<ChatPage />} />

@@ -1,7 +1,6 @@
-import { useParams, Navigate, NavLink } from 'react-router-dom'
-import { Smile, Film, Image as ImageIcon, Mic } from 'lucide-react'
-import { useLanguage } from '@/hooks/useLanguage'
+import { useParams, Navigate } from 'react-router-dom'
 import { Header } from '@/components/Header'
+import { AiPipelineNav } from '@/components/AI/AiPipelineNav'
 import {
   GeneratePanel,
   type GenerateTab,
@@ -26,45 +25,6 @@ function urlParamToTab(param: string | undefined): GenerateTab {
   return 'image'
 }
 
-/**
- * Выбор типа генерации ВНУТРИ страницы.
- *
- * Раньше четыре типа были четырьмя отдельными вкладками нижней панели —
- * аватар, видео, фото, голос. Это одна функция с разным результатом, и в
- * плоском ряду из девяти вкладок она занимала четыре места: полоса выходила
- * 476px против экрана 375px, часть уезжала вправо, и человек их не находил.
- *
- * Теперь снизу одна вкладка «ИИ», а тип выбирается здесь. Единственная другая
- * точка переключения — выпадающее меню в шапке; на телефоне оно требует двух
- * нажатий и закрывает контент, поэтому переключатель нужен и на странице.
- */
-const GEN_TYPES = [
-  { param: 'avatar', labelKey: 'tabs.avatar', icon: Smile },
-  { param: 'video', labelKey: 'generate.video', icon: Film },
-  { param: 'image', labelKey: 'generate.image', icon: ImageIcon },
-  { param: 'audio', labelKey: 'generate.voice', icon: Mic },
-] as const
-
-function GenerateTypeSwitch() {
-  const { t } = useLanguage()
-  return (
-    <nav className="gen-switch" aria-label={t('tabs.ai')}>
-      {GEN_TYPES.map(({ param, labelKey, icon: Icon }) => (
-        <NavLink
-          key={param}
-          to={`/generate/${param}`}
-          className={({ isActive }) =>
-            `gen-switch__item${isActive ? ' is-active' : ''}`
-          }
-        >
-          <Icon size={16} aria-hidden="true" />
-          <span className="gen-switch__label">{t(labelKey)}</span>
-        </NavLink>
-      ))}
-    </nav>
-  )
-}
-
 function GenerateContent() {
   const { tab: urlTab } = useParams<{ tab: string }>()
 
@@ -80,7 +40,7 @@ function GenerateContent() {
     <div className="generate-page">
       <Header />
 
-      <GenerateTypeSwitch />
+      <AiPipelineNav />
 
       <main className="generate-main">
         {/* Left panel: Generation form */}

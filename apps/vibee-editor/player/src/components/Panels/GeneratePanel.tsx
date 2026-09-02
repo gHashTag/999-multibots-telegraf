@@ -13,7 +13,6 @@ import {
   Upload,
   Square,
   Trash2,
-  RefreshCw,
   GripVertical,
   Plus,
   Share,
@@ -44,7 +43,6 @@ import {
   voicesErrorAtom,
   selectedVoiceAtom,
   fetchVoicesAtom,
-  type Voice,
 } from '@/atoms/voices'
 import {
   generatedResultsAtom,
@@ -67,6 +65,10 @@ import {
   deleteAvatarPhotoAtom,
 } from '@/atoms/avatarPhotos'
 import { useEditorStore } from '@/store/editorStore'
+import {
+  buildBrollPromptQueue,
+  nextBrollPromptIndex,
+} from '@/lib/brollPromptQueue'
 import './GeneratePanel.css'
 
 // Re-export GenerateTab type for use in Editor.tsx
@@ -135,7 +137,7 @@ interface GeneratePanelProps {
 }
 
 export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [internalTab, setInternalTab] = useState<GenerateTab>('image')
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -219,17 +221,35 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   }, [avatarPrefilledText, setAvatarPrefilledText])
 
   // Prefilled video prompts from Script page (B-Roll)
-  const [videoPrefilledPrompts, setVideoPrefilledPrompts] = useAtom(
-    videoPrefilledPromptsAtom
+  const videoPrefilledPrompts = useAtomValue(videoPrefilledPromptsAtom)
+  const brollPromptQueue = useMemo(
+    () => buildBrollPromptQueue(videoPrefilledPrompts ?? []),
+    [videoPrefilledPrompts]
   )
+  const [activeBrollPromptIndex, setActiveBrollPromptIndex] = useState(0)
+  const [completedBrollPrompts, setCompletedBrollPrompts] = useState<
+    Set<number>
+  >(() => new Set())
 
-  // Apply prefilled video prompt from Script page (first B-Roll prompt)
+  // Keep every storyboard shot available for review. Selecting a shot only
+  // fills the form; it never starts a paid generation request.
   useEffect(() => {
-    if (videoPrefilledPrompts && videoPrefilledPrompts.length > 0) {
-      setVideoPrompt(videoPrefilledPrompts[0]) // Use first prompt
-      setVideoPrefilledPrompts(null) // Clear after applying
+    if (brollPromptQueue.length > 0) {
+      setActiveBrollPromptIndex(0)
+      setCompletedBrollPrompts(new Set())
+      setVideoPrompt(brollPromptQueue[0].prompt)
     }
-  }, [videoPrefilledPrompts, setVideoPrefilledPrompts])
+  }, [brollPromptQueue])
+
+  const selectBrollPrompt = useCallback(
+    (index: number) => {
+      const shot = brollPromptQueue[index]
+      if (!shot) return
+      setActiveBrollPromptIndex(index)
+      setVideoPrompt(shot.prompt)
+    },
+    [brollPromptQueue]
+  )
 
   // Lipsync state
   const [lipsyncAudioUrl, setLipsyncAudioUrl] = useState('')
@@ -276,7 +296,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   } = useAudioRecorder()
 
   // Blob URL for recording preview (with cleanup to prevent memory leaks)
-  const [recordingBlobUrl, setRecordingBlobUrl] = useState<string | null>(null)
+  const [, setRecordingBlobUrl] = useState<string | null>(null)
 
   // Auto-save recording when audioBlob is set
   useEffect(() => {
@@ -433,7 +453,12 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
   // Add generated result to timeline
   const handleAddToTimeline = (result: GeneratedResult) => {
-    const trackId = result.type === 'audio' ? 'track-audio' : 'track-video'
+    const trackId =
+      result.type === 'audio'
+        ? 'track-audio'
+        : result.type === 'image'
+          ? 'track-image'
+          : 'track-video'
 
     addItem(trackId, {
       type: result.type as 'video' | 'image' | 'audio',
@@ -561,7 +586,26 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
         })
 
         await logRender()
-        setVideoPrompt('')
+
+        if (brollPromptQueue.length > 0) {
+          setCompletedBrollPrompts(previous => {
+            const next = new Set(previous)
+            next.add(activeBrollPromptIndex)
+            return next
+          })
+          const nextIndex = nextBrollPromptIndex(
+            activeBrollPromptIndex,
+            brollPromptQueue.length
+          )
+          if (nextIndex > activeBrollPromptIndex) {
+            setActiveBrollPromptIndex(nextIndex)
+            setVideoPrompt(brollPromptQueue[nextIndex].prompt)
+          } else {
+            setVideoPrompt('')
+          }
+        } else {
+          setVideoPrompt('')
+        }
       } else {
         setError(result.error || t('generate.error'))
       }
@@ -851,6 +895,42 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                 ))}
               </div>
             </div>
+
+            {brollPromptQueue.length > 0 && (
+              <section
+                className="broll-prompt-queue"
+                aria-label="Кадры сценария"
+              >
+                <div className="broll-prompt-queue__header">
+                  <span>
+                    {lang === 'ru' ? 'Кадры сценария' : 'Script shots'}
+                  </span>
+                  <span>{brollPromptQueue.length}</span>
+                </div>
+                <div className="broll-prompt-queue__items">
+                  {brollPromptQueue.map((shot, index) => (
+                    <button
+                      key={`${shot.index}:${shot.prompt}`}
+                      type="button"
+                      className={`broll-prompt-queue__item${index === activeBrollPromptIndex ? ' is-active' : ''}${completedBrollPrompts.has(index) ? ' is-complete' : ''}`}
+                      onClick={() => selectBrollPrompt(index)}
+                      title={shot.prompt}
+                      aria-pressed={index === activeBrollPromptIndex}
+                    >
+                      <span>{shot.label}</span>
+                      {completedBrollPrompts.has(index) && (
+                        <span aria-label="Готово">✓</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <p className="broll-prompt-queue__hint">
+                  {lang === 'ru'
+                    ? 'Выберите кадр, проверьте промпт и запускайте каждый отдельно. Следующий кадр подставится сам, но генерация не начнётся без нажатия.'
+                    : 'Choose a shot, review its prompt, and run each one separately. The next shot is prefilled, but generation never starts without a click.'}
+                </p>
+              </section>
+            )}
 
             <div className="form-group">
               <label>{t('generate.prompt')}</label>

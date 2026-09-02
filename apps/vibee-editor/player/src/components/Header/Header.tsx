@@ -12,8 +12,6 @@ import {
   logoutAtom,
   myProfileAtom,
   clearProfileAtom,
-  sidebarTabAtom,
-  type SidebarTab,
   // Instagram connection
   instagramStatusAtom,
   fetchInstagramStatusAtom,
@@ -39,13 +37,13 @@ import { LoginModal } from '@/components/Auth/LoginModal'
 import { brandingAtom, loadBrandingAtom } from '@/atoms/branding'
 import { getInitData, isTelegram } from '@/lib/telegram'
 import { getAppAccessToken } from '@/lib/appSession'
+import { AI_PIPELINE_STAGES } from '@/lib/aiPipeline'
 
-// Page navigation tabs - 6 main tabs
+// Page navigation tabs. Editor belongs to the AI creation pipeline.
 const NAV_TABS = [
   { id: 'feed', emoji: '🌐', labelKey: 'tabs.feed', route: '/feed' },
   { id: 'blog', emoji: '📜', labelKey: 'tabs.blog', route: '/blog' },
   { id: 'search', emoji: '🔍', labelKey: 'tabs.search', route: '/search' },
-  { id: 'editor', emoji: '▶️', labelKey: 'tabs.editor', route: '/editor' },
   {
     id: 'ai',
     emoji: '✨',
@@ -62,70 +60,10 @@ const NAV_TABS = [
   },
 ] as const
 
-// AI submenu items - Order: Script (first!), Templates, Avatar, Video, Photo, Voice, Music
-const AI_SUBMENU: {
-  id: string
-  emoji: string
-  labelKey: string
-  route: string
-  sidebarTab: SidebarTab
-}[] = [
-  {
-    id: 'script',
-    emoji: '📝',
-    labelKey: 'tabs.script',
-    route: '/generate/script',
-    sidebarTab: 'script',
-  },
-  {
-    id: 'templates',
-    emoji: '📋',
-    labelKey: 'tabs.templates',
-    route: '/generate/templates',
-    sidebarTab: 'templates',
-  },
-  {
-    id: 'avatar',
-    emoji: '👄',
-    labelKey: 'tabs.avatar',
-    route: '/generate/avatar',
-    sidebarTab: 'lipsync',
-  },
-  {
-    id: 'video',
-    emoji: '🎬',
-    labelKey: 'generate.video',
-    route: '/generate/video',
-    sidebarTab: 'video',
-  },
-  {
-    id: 'image',
-    emoji: '📷',
-    labelKey: 'generate.image',
-    route: '/generate/image',
-    sidebarTab: 'image',
-  },
-  {
-    id: 'voice',
-    emoji: '🎤',
-    labelKey: 'generate.voice',
-    route: '/generate/voice',
-    sidebarTab: 'voice',
-  },
-  {
-    id: 'music',
-    emoji: '🎵',
-    labelKey: 'generate.music',
-    route: '/generate/music',
-    sidebarTab: 'music',
-  },
-]
-
 // Route patterns to match for active state
 const ROUTE_PATTERNS: Record<string, RegExp> = {
   feed: /^\/feed/,
   search: /^\/search/,
-  editor: /^\/editor/,
   ai: /^\/generate/,
   profile: /^\/(?!feed|search|editor|generate|templates|chat)[^/]+$/, // matches /:username but not known routes
 }
@@ -156,12 +94,7 @@ function saveExportSettings(settings: ExportSettings) {
   localStorage.setItem('vibee-export-settings', JSON.stringify(settings))
 }
 
-interface HeaderProps {
-  wsStatus?: 'connected' | 'disconnected'
-  wsClientId?: string | null
-}
-
-export function Header({ wsStatus, wsClientId }: HeaderProps) {
+export function Header() {
   // Language hook
   const { lang, setLang, t } = useLanguage()
   const location = useLocation()
@@ -174,7 +107,6 @@ export function Header({ wsStatus, wsClientId }: HeaderProps) {
   // User & Quota state
   const user = useAtomValue(userAtom)
   const quota = useAtomValue(renderQuotaAtom)
-  const showLoginModal = useAtomValue(showLoginModalAtom)
   const isDevMode = useAtomValue(isDevModeAtom)
   const hasUnlimitedRenders = useAtomValue(hasUnlimitedRendersAtom)
 
@@ -221,7 +153,6 @@ export function Header({ wsStatus, wsClientId }: HeaderProps) {
     if (next && document.title !== next) document.title = next
   }, [branding.resolved, branding.title, t])
   const setShowLoginModal = useSetAtom(showLoginModalAtom)
-  const setSidebarTab = useSetAtom(sidebarTabAtom)
 
   // Instagram connection
   const instagramStatus = useAtomValue(instagramStatusAtom)
@@ -431,7 +362,7 @@ export function Header({ wsStatus, wsClientId }: HeaderProps) {
                       className="header-submenu"
                       onClick={e => e.stopPropagation()}
                     >
-                      {AI_SUBMENU.map(item => (
+                      {AI_PIPELINE_STAGES.map(item => (
                         <Link
                           key={item.id}
                           to={item.route}
@@ -439,12 +370,11 @@ export function Header({ wsStatus, wsClientId }: HeaderProps) {
                           onClick={() => {
                             triggerHaptic()
                             setShowAiSubmenu(false)
-                            setSidebarTab(item.sidebarTab) // Sync with Editor asset tabs
                           }}
                         >
                           <span className="submenu-emoji">{item.emoji}</span>
                           <span className="submenu-label">
-                            {t(item.labelKey)}
+                            {lang === 'ru' ? item.labelRu : item.labelEn}
                           </span>
                         </Link>
                       ))}

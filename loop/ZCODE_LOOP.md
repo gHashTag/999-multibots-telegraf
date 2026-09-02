@@ -4453,3 +4453,23 @@
 1. **«Выпустить social cards»** — player-only merge и production smoke профиля.
 2. **«Добавить быстрый remix»** — отдельной кнопкой создать новый draft по выбранному шаблону, без автопубликации.
 3. **«Усилить библиотеку»** — фильтры, поиск и сортировка Templates отдельным витком.
+
+---
+
+## Виток №248 — 2026-09-02T05:05Z — веб повторяет нативный AI-конвейер (PR —)
+
+**Проверено**: актуальный `origin/main@9df88a24`, dirty основной checkout с чужим lipsync/Kie WIP оставлен без изменений; работа выполнена в отдельном clean worktree. По истории и текущему Swift-коду восстановлен нативный порядок: сценарий → голос → фото → аватар → видео → редактор; каждый B-roll является отдельным кадром, результаты сохраняются и в финале раскладываются по дорожкам. Production read-only baseline: 44 reels / 123 просмотра / 0 likes; canonical local stack не поднимался, `tri regress` ожидаемо красный без agent key.
+
+**Сделано**: веб получил единый source-of-truth шести этапов во всех навигационных поверхностях; отдельная нижняя вкладка Editor удалена, `/editor` канонически ведёт в финальный AI-этап. Удалены несуществующие маршруты Templates/Voice/Music из AI submenu. Script больше не теряет все B-roll после первого: видна полная review-очередь, следующий промпт только подставляется после успешного результата, платная генерация без клика не запускается. Финальный Editor показывает явную «Сборку из ИИ» и по подтверждению добавляет только отсутствующие image/video/audio assets end-to-end в родные дорожки, не заменяя существующий монтаж. Ручное добавление image исправлено с ошибочной video-дорожки на `track-image`. На мобильном подписи этапов сохранены в горизонтальной ленте, активный этап прокручивается в видимую область. В iOS удалён дублированный `case .редактор`, реально ломавший Swift switch.
+
+**Аномалии / самокритика**: iOS README всё ещё утверждает, что AI/Editor — WKWebView, хотя текущий GenerateScreen нативный; это документный долг. Web social captions и iOS text layers имеют разные контракты: веб получает platform caption без таймингов, поэтому автоматом превращать его в субтитры нельзя — нужен отдельный timed-caption contract. Web generated history остаётся локальным `localStorage`, iOS — локальными файлами; межустройственная синхронизация материалов требует server-owned project manifest. Swift build зелёный, но показал прежние concurrency warnings PreviewView, которые станут ошибками в Swift 6. Production не менялся, commit/push/PR/deploy не выполнялись; independent review не заявляется.
+
+**Метрики**: strict RED→GREEN: navigation/queue/assembly 5/5; full player 21 files / 148 tests; scoped ESLint 0; player `tsc -b` + production build PASS; iOS simulator target BUILD SUCCEEDED. BrowserOS Neo на 390×844: document overflow 0; шесть подписанных этапов, четыре primary tabs, Editor assembly/CTA видимы, active Editor в viewport.
+
+**Следующий шаг**: independent exact-diff review → commit/PR → merged-result player+iOS CI; deploy отдельно и только после owner решения. Затем — server-owned project manifest и timed captions, не смешивая их с навигационным релизом.
+
+## Три варианта для владельца
+
+1. **«Выпустить parity»** — independent review, PR и отдельный player/iOS release gate.
+2. **«Синхронизировать проекты»** — server-owned manifest для истории/слоёв между iOS, web и ботом.
+3. **«Доделать титры»** — отдельный timed-caption контракт и прямой text-track handoff без повторной платной генерации.

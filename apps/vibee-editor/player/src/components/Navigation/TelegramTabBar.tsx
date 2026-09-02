@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Home, PlusSquare, User, Bot, Sparkles } from 'lucide-react'
+import { Home, User, Bot, Sparkles } from 'lucide-react'
 import { myProfileAtom } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { haptic } from '@/lib/telegram'
+import { PRIMARY_NAV_ITEMS, type PrimaryTabId } from '@/lib/primaryNavigation'
 import './TelegramTabBar.css'
 
 // ===============================
@@ -16,7 +17,7 @@ import './TelegramTabBar.css'
 // ===============================
 
 interface TabItem {
-  id: string
+  id: PrimaryTabId
   route: string
   labelKey: string
   icon: React.ReactNode
@@ -25,59 +26,25 @@ interface TabItem {
 }
 
 /**
- * ПЯТЬ вкладок, а не девять.
+ * Four product tabs instead of one tab per technical step.
  *
- * Было: feed, search, learn, editor, avatar, video, image, audio, profile.
- * Четыре из них — avatar/video/image/audio — это ОДНА функция «генерация» с
- * разным типом результата, разложенная в плоский ряд. При девяти вкладках шаг
- * полосы 476px против экрана 375px: часть уезжала вправо, и человек их не
- * находил.
- *
- * Теперь генерация живёт под одной вкладкой «ИИ», а выбор типа — внутри
- * страницы. Ровно так уже сделано в шапке (NAV_TABS + AI_SUBMENU в
- * components/Header/Header.tsx), нижняя панель просто отставала.
- *
- * Вкладка «Агент» стоит ВТОРОЙ по прямому указанию владельца: это чат с
- * агентом, у которого есть доступ ко всем функциям приложения. Она заменила
- * «Обучение» — учить проще разговором, чем текстом, который никто не читает.
+ * The previous bar flattened feed, search, learning, editor and four media
+ * generators into one row. At nine tabs it was wider than a phone and hid
+ * destinations off-screen. The whole creation pipeline now belongs to the AI
+ * tab, in the same order as native iOS, with the editor as its final stage.
+ * Agent remains the second product tab as requested by the owner.
  */
-const TABS: TabItem[] = [
-  {
-    id: 'feed',
-    route: '/feed',
-    labelKey: 'nav.feed',
-    icon: <Home size={20} />,
-    match: /^\/feed/,
-  },
-  {
-    id: 'chat',
-    route: '/chat',
-    labelKey: 'nav.agent',
-    icon: <Bot size={20} />,
-    match: /^\/chat/,
-  },
-  {
-    id: 'editor',
-    route: '/editor',
-    labelKey: 'nav.create',
-    icon: <PlusSquare size={20} />,
-    match: /^\/editor/,
-  },
-  {
-    id: 'ai',
-    route: '/generate/video',
-    labelKey: 'tabs.ai',
-    icon: <Sparkles size={20} />,
-    match: /^\/generate/,
-  },
-  {
-    id: 'profile',
-    route: '/profile',
-    labelKey: 'nav.profile',
-    icon: <User size={20} />,
-    match: /^\/profile/,
-  },
-]
+const TAB_ICONS: Record<PrimaryTabId, React.ReactNode> = {
+  feed: <Home size={20} />,
+  chat: <Bot size={20} />,
+  ai: <Sparkles size={20} />,
+  profile: <User size={20} />,
+}
+
+const TABS: TabItem[] = PRIMARY_NAV_ITEMS.map(item => ({
+  ...item,
+  icon: TAB_ICONS[item.id],
+}))
 
 /** Pages that own the full screen and must not be overlapped. */
 const HIDDEN_EXACT = new Set([
@@ -221,5 +188,3 @@ export function TelegramTabBar() {
     </nav>
   )
 }
-
-export { TABS as TAB_BAR_ITEMS }

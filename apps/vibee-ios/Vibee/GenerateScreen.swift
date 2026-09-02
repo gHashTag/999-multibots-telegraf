@@ -211,8 +211,6 @@ struct GenerateScreen: View {
       case .видео: return .видео
       // Редактор моделей не выбирает — он собирает уже сделанное.
       case .редактор: return nil
-      // Редактор моделей не выбирает — он собирает уже сделанное.
-      case .редактор: return nil
       case .картинка: return .картинка
       case .звук: return .звук
       case .аватар: return .липсинк
