@@ -75,7 +75,7 @@
   bottom: 0;
   left: 50%;
   width: 2px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   transform: translateX(-50%);
   box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
 }

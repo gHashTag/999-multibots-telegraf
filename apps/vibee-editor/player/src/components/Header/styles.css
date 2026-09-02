@@ -5,7 +5,7 @@
   left: 50%;
   transform: translateX(-50%);
   padding: 12px 24px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   color: #000;
   font-weight: 600;
   border-radius: 0 0 8px 8px;
@@ -224,7 +224,7 @@
 }
 
 .header-tab.active .header-tab-label {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 /* Mobile/Tablet: bottom nav tabs - 5 tabs */
@@ -293,8 +293,8 @@
   justify-content: center;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   border-radius: 6px;
   font-weight: 700;
@@ -363,7 +363,7 @@
 
 .project-name-input:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   background: var(--bg-elevated);
 }
 
@@ -395,8 +395,8 @@
 .export-button {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   color: #000;
   font-weight: 600;
@@ -405,8 +405,8 @@
 .export-button:hover {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber-dark),
-    var(--vibee-amber)
+    var(--vibee-green-dark),
+    var(--vibee-green)
   );
   box-shadow: 0 2px 12px rgba(0, 255, 136, 0.3);
 }
@@ -419,8 +419,8 @@
 .export-button.exporting {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   color: #000;
   cursor: wait;
@@ -523,7 +523,7 @@
 }
 
 .blob-warning-header .warning-icon {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .blob-warning-header h3 {
@@ -561,7 +561,7 @@
   padding: 10px 12px;
   background: var(--bg-darkest);
   border-radius: 6px;
-  border-left: 3px solid var(--vibee-amber);
+  border-left: 3px solid var(--vibee-green);
 }
 
 .blob-warning-actions {
@@ -593,8 +593,8 @@
 .blob-warning-btn.primary {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   color: #000;
 }
@@ -602,8 +602,8 @@
 .blob-warning-btn.primary:hover {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber-dark),
-    var(--vibee-amber)
+    var(--vibee-green-dark),
+    var(--vibee-green)
   );
 }
 
@@ -657,7 +657,7 @@
 
 .lang-btn.active {
   background: rgba(0, 255, 136, 0.2);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .lang-btn:hover:not(.active) {
@@ -735,7 +735,7 @@
   margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 600;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .settings-row {
@@ -765,7 +765,7 @@
 
 .settings-row select:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 /* Keyboard Shortcuts Grid */
@@ -791,7 +791,7 @@
   border-radius: 6px;
   font-size: 11px;
   font-family: monospace;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   white-space: nowrap;
 }
 
@@ -952,7 +952,7 @@
 }
 
 .reset-header .reset-icon {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .reset-header h3 {
@@ -1047,7 +1047,7 @@
 .quota-display.warning {
   background: rgba(0, 255, 136, 0.1);
   border-color: rgba(0, 255, 136, 0.3);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .quota-display.exhausted {
@@ -1100,7 +1100,7 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   color: white;
   display: flex;
   align-items: center;
@@ -1190,7 +1190,7 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .save-template-header h3 {
@@ -1220,7 +1220,7 @@
 
 .save-template-input:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 .save-template-input::placeholder {
@@ -1256,8 +1256,8 @@
 .save-template-btn.primary {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   color: #000;
   font-weight: 600;
@@ -1592,7 +1592,7 @@
 
 .layout-btn.active {
   background: rgba(0, 255, 136, 0.2);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .layout-icon {

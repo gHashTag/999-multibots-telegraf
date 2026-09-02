@@ -34,7 +34,7 @@
 
 .search-bar__input:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   background: #151515;
 }
 
@@ -90,8 +90,8 @@
 
 .search-bar__filter-btn.active {
   background: rgba(0, 255, 136, 0.15);
-  border-color: var(--vibee-amber);
-  color: var(--vibee-amber);
+  border-color: var(--vibee-green);
+  color: var(--vibee-green);
 }
 
 .search-bar__filter-menu {
@@ -139,7 +139,7 @@
 }
 
 .search-bar__filter-option.active {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   background: rgba(0, 255, 136, 0.1);
 }
 

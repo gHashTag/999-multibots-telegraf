@@ -21,7 +21,7 @@
   font-size: 2.5rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
-  background: linear-gradient(135deg, var(--vibee-amber), #4dffab);
+  background: linear-gradient(135deg, var(--vibee-green), #4dffab);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -40,7 +40,7 @@
 .legal-container h2 {
   font-size: 1.5rem;
   font-weight: 600;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   margin-bottom: 1rem;
   margin-top: 2rem;
 }
@@ -75,7 +75,7 @@
 }
 
 .legal-container a {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   text-decoration: none;
   transition: color 0.2s ease;
 }
@@ -95,7 +95,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   font-weight: 500;
   text-decoration: none;
   transition: color 0.2s ease;

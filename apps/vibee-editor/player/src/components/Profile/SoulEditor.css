@@ -13,7 +13,7 @@
   gap: 8px;
   margin: 0 0 6px;
   font-size: 16px;
-  color: var(--vibee-amber, #00ff88);
+  color: var(--vibee-green, #00ff88);
 }
 
 .soul-editor__hint {
@@ -48,7 +48,7 @@
 
 .soul-editor__area:focus {
   outline: none;
-  border-color: var(--vibee-amber, #00ff88);
+  border-color: var(--vibee-green, #00ff88);
 }
 
 .soul-editor__actions {
@@ -66,7 +66,7 @@
   padding: 9px 14px;
   border: 0;
   border-radius: 10px;
-  background: var(--vibee-amber, #00ff88);
+  background: var(--vibee-green, #00ff88);
   color: #000;
   font-weight: 600;
   font-size: 13px;
@@ -123,6 +123,6 @@
   padding: 1px 6px;
   border-radius: 5px;
   background: var(--bg-secondary, #2a2a2a);
-  color: var(--vibee-amber, #00ff88);
+  color: var(--vibee-green, #00ff88);
   font-size: 11px;
 }

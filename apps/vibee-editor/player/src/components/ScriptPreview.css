@@ -39,7 +39,7 @@
 }
 
 .script-preview-stat svg {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .script-preview-sections {
@@ -67,7 +67,7 @@
 }
 
 .script-preview-section-icon svg {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .script-preview-section-content {

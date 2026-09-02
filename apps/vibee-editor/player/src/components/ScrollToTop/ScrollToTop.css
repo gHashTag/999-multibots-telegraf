@@ -72,7 +72,7 @@
 
 .scroll-to-top__progress-fill {
   fill: none;
-  stroke: var(--vibee-amber);
+  stroke: var(--vibee-green);
   stroke-width: 2;
   stroke-linecap: round;
   transition: stroke-dashoffset 0.1s ease;

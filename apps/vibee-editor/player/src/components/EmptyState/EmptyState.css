@@ -92,7 +92,7 @@
 
 .empty-state__action {
   padding: 12px 24px;
-  background: var(--vibee-amber, var(--vibee-amber));
+  background: var(--vibee-green, var(--vibee-green));
   border: none;
   border-radius: 24px;
   color: #000;
@@ -103,7 +103,7 @@
 }
 
 .empty-state__action:hover {
-  background: var(--vibee-amber-light, var(--vibee-amber-light));
+  background: var(--vibee-green-light, var(--vibee-green-light));
   transform: translateY(-2px);
 }
 

@@ -21,7 +21,7 @@
   border-radius: 100px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   text-transform: uppercase;
   letter-spacing: 1px;
   margin-bottom: 16px;
@@ -34,7 +34,7 @@
     135deg,
     #fff 0%,
     #fff 60%,
-    var(--vibee-amber-light) 100%
+    var(--vibee-green-light) 100%
   );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;

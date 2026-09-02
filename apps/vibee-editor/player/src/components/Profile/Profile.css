@@ -127,7 +127,7 @@
 
 .profile-cover__edit:hover {
   background: rgba(var(--color-brand-amber-rgb, 0, 255, 136), 0.2);
-  border-color: var(--vibee-amber, var(--vibee-amber));
+  border-color: var(--vibee-green, var(--vibee-green));
 }
 
 /* ===============================
@@ -158,11 +158,11 @@
   border-radius: 50%;
   background: conic-gradient(
     from 0deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light),
-    var(--vibee-amber),
-    var(--vibee-amber-dark),
-    var(--vibee-amber)
+    var(--vibee-green),
+    var(--vibee-green-light),
+    var(--vibee-green),
+    var(--vibee-green-dark),
+    var(--vibee-green)
   );
   flex-shrink: 0;
   animation: avatar-rotate 4s linear infinite;
@@ -234,7 +234,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   flex-shrink: 0;
 }
 
@@ -278,7 +278,7 @@
 
 .profile-header__edit-btn:hover {
   background: var(--bg-tertiary, var(--color-bg-secondary));
-  border-color: var(--color-primary, var(--vibee-amber));
+  border-color: var(--color-primary, var(--vibee-green));
 }
 
 /* Stats Cards with Glassmorphism */
@@ -304,7 +304,7 @@
 
 .profile-stat-card:hover {
   transform: translateY(-2px);
-  border-color: var(--vibee-amber, var(--color-brand-amber));
+  border-color: var(--vibee-green, var(--color-brand-amber));
   box-shadow: 0 8px 24px rgba(var(--color-brand-amber-rgb, 0, 255, 136), 0.15);
   background: rgba(var(--color-brand-amber-rgb, 0, 255, 136), 0.05);
 }
@@ -314,7 +314,7 @@
   align-items: center;
   justify-content: center;
   margin-bottom: 0.5rem;
-  color: var(--vibee-amber, var(--vibee-amber));
+  color: var(--vibee-green, var(--vibee-green));
   opacity: 0.8;
 }
 
@@ -351,7 +351,7 @@
 }
 
 .profile-header__stat svg {
-  color: var(--color-primary, var(--vibee-amber));
+  color: var(--color-primary, var(--vibee-green));
 }
 
 .profile-header__stat-value {
@@ -383,7 +383,7 @@
 }
 
 .social-links__item:hover {
-  background: var(--platform-color, var(--color-primary, var(--vibee-amber)));
+  background: var(--platform-color, var(--color-primary, var(--vibee-green)));
   color: var(--text-primary);
   transform: scale(1.1);
 }
@@ -404,8 +404,8 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   background: linear-gradient(
     135deg,
-    var(--vibee-amber) 0%,
-    var(--vibee-amber-light) 100%
+    var(--vibee-green) 0%,
+    var(--vibee-green-light) 100%
   );
   color: var(--color-bg-primary);
   overflow: hidden;
@@ -417,8 +417,8 @@
   inset: 0;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber-light) 0%,
-    var(--vibee-amber) 100%
+    var(--vibee-green-light) 0%,
+    var(--vibee-green) 100%
   );
   opacity: 0;
   transition: opacity 0.3s;
@@ -611,7 +611,7 @@
   padding: 1.5rem;
   background: rgba(var(--color-brand-amber-rgb, 0, 255, 136), 0.1);
   border-radius: 50%;
-  color: var(--vibee-amber, var(--vibee-amber));
+  color: var(--vibee-green, var(--vibee-green));
   margin-bottom: 1.5rem;
 }
 
@@ -634,7 +634,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--vibee-amber, var(--color-brand-amber));
+  background: var(--vibee-green, var(--color-brand-amber));
   color: var(--color-bg-primary);
   border: none;
   padding: 0.75rem 1.5rem;
@@ -645,7 +645,7 @@
 }
 
 .empty-state__action:hover {
-  background: var(--vibee-amber-light, var(--vibee-amber-light));
+  background: var(--vibee-green-light, var(--vibee-green-light));
   transform: translateY(-1px);
 }
 
@@ -1024,7 +1024,7 @@
 
 .profile-templates__load-more:hover:not(:disabled) {
   background: var(--bg-tertiary, var(--color-bg-secondary));
-  border-color: var(--color-primary, var(--vibee-amber));
+  border-color: var(--color-primary, var(--vibee-green));
 }
 
 .profile-templates__load-more:disabled {
@@ -1116,7 +1116,7 @@
 .profile-edit__field input:focus,
 .profile-edit__field textarea:focus {
   outline: none;
-  border-color: var(--color-primary, var(--vibee-amber));
+  border-color: var(--color-primary, var(--vibee-green));
 }
 
 .profile-edit__field textarea {
@@ -1184,8 +1184,8 @@
 }
 
 .profile-edit__add-link:hover {
-  border-color: var(--color-primary, var(--vibee-amber));
-  color: var(--color-primary, var(--vibee-amber));
+  border-color: var(--color-primary, var(--vibee-green));
+  color: var(--color-primary, var(--vibee-green));
 }
 
 .profile-edit__field--checkbox label {
@@ -1198,7 +1198,7 @@
 .profile-edit__field--checkbox input[type='checkbox'] {
   width: 18px;
   height: 18px;
-  accent-color: var(--color-primary, var(--vibee-amber));
+  accent-color: var(--color-primary, var(--vibee-green));
 }
 
 .profile-edit__hint {
@@ -1248,7 +1248,7 @@
   padding: 0.75rem 1.5rem;
   border: none;
   border-radius: 0.5rem;
-  background: var(--color-primary, var(--vibee-amber));
+  background: var(--color-primary, var(--vibee-green));
   color: var(--color-bg-primary);
   font-size: 0.9rem;
   font-weight: 600;
@@ -1257,7 +1257,7 @@
 }
 
 .profile-edit__save:hover:not(:disabled) {
-  background: var(--color-primary-hover, var(--vibee-amber-light));
+  background: var(--color-primary-hover, var(--vibee-green-light));
 }
 
 .profile-edit__save:disabled {
@@ -1341,7 +1341,7 @@
   padding: 0.75rem 1.5rem;
   border: none;
   border-radius: 0.5rem;
-  background: var(--color-primary, var(--vibee-amber));
+  background: var(--color-primary, var(--vibee-green));
   color: var(--color-bg-primary);
   font-size: 0.9rem;
   font-weight: 600;

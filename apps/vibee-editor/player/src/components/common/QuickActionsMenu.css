@@ -117,12 +117,12 @@
 
 /* Primary variant - amber highlight */
 .quick-action-item.primary {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .quick-action-item.primary:hover {
   background: rgba(0, 255, 136, 0.15);
-  color: var(--vibee-amber-light);
+  color: var(--vibee-green-light);
 }
 
 /* Danger variant - red for delete */

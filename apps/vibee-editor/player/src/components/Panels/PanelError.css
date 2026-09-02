@@ -41,8 +41,8 @@
   padding: 10px 20px;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   border: none;
   border-radius: 8px;

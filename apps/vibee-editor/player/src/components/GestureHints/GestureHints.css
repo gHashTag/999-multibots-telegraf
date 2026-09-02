@@ -44,7 +44,7 @@
   height: 48px;
   background: rgba(0, 255, 136, 0.2);
   border-radius: 12px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .gesture-hint__text {
@@ -254,7 +254,7 @@
   background: rgba(0, 255, 136, 0.15);
   border-radius: 50%;
   margin-bottom: 32px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .onboarding-gestures__demo svg {
@@ -292,13 +292,13 @@
 .onboarding-gestures__dot.active {
   width: 24px;
   border-radius: 4px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
 }
 
 .onboarding-gestures__btn {
   width: 100%;
   padding: 14px 32px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   border: none;
   border-radius: 24px;
   color: #000;
@@ -309,7 +309,7 @@
 }
 
 .onboarding-gestures__btn:hover {
-  background: var(--vibee-amber-light);
+  background: var(--vibee-green-light);
 }
 
 .onboarding-gestures__skip {

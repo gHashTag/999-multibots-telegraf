@@ -65,7 +65,7 @@
 }
 
 .toast--warning .toast__icon {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .toast--info {
@@ -73,7 +73,7 @@
 }
 
 .toast--info .toast__icon {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .toast--loading {
@@ -127,7 +127,7 @@
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 6px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -137,7 +137,7 @@
 
 .toast__action:hover {
   background: rgba(0, 255, 136, 0.2);
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 .toast__action:active {

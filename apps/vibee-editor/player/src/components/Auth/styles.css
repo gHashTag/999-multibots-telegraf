@@ -115,7 +115,7 @@
 }
 
 .paywall-icon {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   margin-bottom: 16px;
 }
 
@@ -157,7 +157,7 @@
 }
 
 .paywall-plan.popular {
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   box-shadow: 0 0 30px rgba(0, 255, 136, 0.2);
 }
 
@@ -166,7 +166,7 @@
   top: -12px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   color: #000;
   font-size: 12px;
   font-weight: 600;
@@ -221,7 +221,7 @@
   background: rgba(0, 255, 136, 0.1);
   border-radius: 8px;
   margin-bottom: 16px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   font-weight: 600;
 }
 
@@ -244,7 +244,7 @@
   content: '\2713';
   position: absolute;
   left: 0;
-  color: var(--vibee-amber, #00ff88);
+  color: var(--vibee-green, #00ff88);
 }
 
 /* Payment Methods */
@@ -271,8 +271,8 @@
 }
 
 .payment-btn:hover {
-  background: var(--vibee-amber);
-  border-color: var(--vibee-amber);
+  background: var(--vibee-green);
+  border-color: var(--vibee-green);
   color: #000;
 }
 
@@ -354,7 +354,7 @@
 .quota-display.warning {
   background: rgba(0, 255, 136, 0.1);
   border-color: rgba(0, 255, 136, 0.3);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .quota-display.exhausted {

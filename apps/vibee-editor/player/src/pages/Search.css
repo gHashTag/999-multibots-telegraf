@@ -126,7 +126,7 @@
 }
 
 .leads-sidebar .content-tab.active {
-  background: var(--vibee-amber, var(--color-brand-amber));
+  background: var(--vibee-green, var(--color-brand-amber));
   color: #000;
 }
 
@@ -198,7 +198,7 @@
 }
 
 .leads-bottom-tab.active {
-  color: var(--vibee-amber, var(--color-brand-amber));
+  color: var(--vibee-green, var(--color-brand-amber));
 }
 
 /* ===============================
@@ -327,7 +327,7 @@
   justify-content: center;
   gap: 8px;
   padding: 12px;
-  background: var(--vibee-amber, var(--color-brand-amber));
+  background: var(--vibee-green, var(--color-brand-amber));
   border: none;
   border-radius: 8px;
   color: #000;

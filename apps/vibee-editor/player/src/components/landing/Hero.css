@@ -93,8 +93,8 @@
 .hero-badge-icon {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber) 0%,
-    var(--vibee-amber-light) 100%
+    var(--vibee-green) 0%,
+    var(--vibee-green-light) 100%
   );
   color: #000;
   font-size: 10px;
@@ -118,7 +118,7 @@
     135deg,
     #fff 0%,
     #fff 50%,
-    var(--vibee-amber-light) 100%
+    var(--vibee-green-light) 100%
   );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -147,8 +147,8 @@
   padding: 16px 32px;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber) 0%,
-    var(--vibee-amber-light) 100%
+    var(--vibee-green) 0%,
+    var(--vibee-green-light) 100%
   );
   color: #000;
   text-decoration: none;
@@ -211,8 +211,8 @@
   font-weight: 700;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber) 0%,
-    var(--vibee-amber-light) 100%
+    var(--vibee-green) 0%,
+    var(--vibee-green-light) 100%
   );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -259,8 +259,8 @@
   inset: -2px;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   border-radius: 26px;
   z-index: calc(var(--z-base) - 2);
@@ -406,8 +406,8 @@
 .float-emoji {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber) 0%,
-    var(--vibee-amber-light) 100%
+    var(--vibee-green) 0%,
+    var(--vibee-green-light) 100%
   );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;

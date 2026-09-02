@@ -86,19 +86,19 @@
 }
 
 .toast--warning {
-  border-left: 3px solid var(--vibee-amber);
+  border-left: 3px solid var(--vibee-green);
 }
 
 .toast--warning .toast__icon {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .toast--info {
-  border-left: 3px solid var(--vibee-amber);
+  border-left: 3px solid var(--vibee-green);
 }
 
 .toast--info .toast__icon {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .toast__icon {
@@ -121,7 +121,7 @@
   background: rgba(255, 255, 255, 0.1);
   border: none;
   border-radius: 6px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;

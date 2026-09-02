@@ -30,7 +30,7 @@
 }
 
 .account-selector--open .account-selector-button {
-  border-color: var(--vibee-amber, var(--vibee-amber));
+  border-color: var(--vibee-green, var(--vibee-green));
 }
 
 /* Avatar */
@@ -262,11 +262,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .account-selector-all-selected .account-selector-name {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   font-weight: 600;
 }
 
@@ -274,7 +274,7 @@
   font-size: 11px;
   padding: 2px 6px;
   background: rgba(0, 255, 136, 0.2);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   border-radius: 4px;
   font-weight: 600;
 }
@@ -304,14 +304,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   flex-shrink: 0;
 }
 
 .account-selector-all-badge {
   font-size: 11px;
   padding: 2px 8px;
-  background: linear-gradient(135deg, var(--vibee-amber), #00cc66);
+  background: linear-gradient(135deg, var(--vibee-green), #00cc66);
   color: #000;
   border-radius: 10px;
   font-weight: 700;
@@ -359,7 +359,7 @@
 
 .account-selector-add {
   background: rgba(0, 255, 136, 0.1);
-  color: var(--vibee-amber, var(--vibee-amber));
+  color: var(--vibee-green, var(--vibee-green));
 }
 
 .account-selector-add:hover {

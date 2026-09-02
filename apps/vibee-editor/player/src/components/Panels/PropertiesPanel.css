@@ -35,7 +35,7 @@
   gap: 8px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--vibee-amber) !important;
+  color: var(--vibee-green) !important;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin: 0 0 4px 0;
@@ -121,13 +121,13 @@
   appearance: none;
   width: 12px;
   height: 12px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   border-radius: 50%;
   cursor: pointer;
 }
 
 .property-slider input[type='range']::-webkit-slider-thumb:hover {
-  background: var(--vibee-amber-light);
+  background: var(--vibee-green-light);
 }
 
 /* Textarea */
@@ -151,7 +151,7 @@
 
 .property-textarea textarea:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 /* Color Picker */
@@ -199,7 +199,7 @@
 
 .property-color-hex:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 /* Select */
@@ -222,7 +222,7 @@
 
 .property-select select:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 .property-select option {
@@ -245,7 +245,7 @@
 
 .property-file-name {
   font-size: 12px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -264,7 +264,7 @@
 
 .property-file-input:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 /* Backgrounds Info */
@@ -329,8 +329,8 @@
   padding: 10px;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   border: none;
   border-radius: 6px;
@@ -344,8 +344,8 @@
 .batch-uniform-btn:hover {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber-dark),
-    var(--vibee-amber)
+    var(--vibee-green-dark),
+    var(--vibee-green)
   );
 }
 
@@ -380,7 +380,7 @@
 .selection-count {
   font-size: 11px;
   font-weight: 600;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 /* ===============================
@@ -435,7 +435,7 @@
 }
 
 .properties-tab.active {
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
 }
 
 .properties-tab.active .tab-label {
@@ -491,8 +491,8 @@
   flex: 1;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   color: #000;
   font-weight: 600;
@@ -501,8 +501,8 @@
 .caption-action-btn.add:hover {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber-dark),
-    var(--vibee-amber)
+    var(--vibee-green-dark),
+    var(--vibee-green)
   );
 }
 
@@ -551,7 +551,7 @@
 }
 
 .caption-item-mini.current {
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   background: rgba(0, 255, 136, 0.1);
 }
 
@@ -576,7 +576,7 @@
 
 .time-input-mini:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 .caption-delete-mini {
@@ -610,7 +610,7 @@
 
 .caption-text-mini:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 @keyframes spinning {
@@ -668,8 +668,8 @@
 
 .layout-btn.active {
   background: rgba(0, 255, 136, 0.2);
-  border-color: var(--vibee-amber);
-  color: var(--vibee-amber);
+  border-color: var(--vibee-green);
+  color: var(--vibee-green);
 }
 
 .layout-btn svg {
@@ -713,7 +713,7 @@
   gap: 6px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   text-transform: uppercase;
   margin: 0 0 4px 0;
 }
@@ -753,7 +753,7 @@
 .style-row-mini input[type='number']:focus,
 .style-row-mini select:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 .style-row-mini input[type='color'] {
@@ -785,7 +785,7 @@
 }
 
 .style-row-mini.checkbox input[type='checkbox'] {
-  accent-color: var(--vibee-amber);
+  accent-color: var(--vibee-green);
 }
 
 /* Font Selector Mini */
@@ -886,7 +886,7 @@
 
 .font-list-mini button.selected {
   background: rgba(0, 255, 136, 0.2);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 /* ===============================
@@ -1182,12 +1182,12 @@
 }
 
 .layout-btn:hover:not(.active) {
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   transform: scale(1.05);
 }
 
 .layout-btn.active {
-  box-shadow: 0 0 0 2px var(--vibee-amber);
+  box-shadow: 0 0 0 2px var(--vibee-green);
 }
 
 /* Property inputs */
@@ -1196,7 +1196,7 @@
 }
 
 .property-input-wrapper:focus-within {
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.1);
 }
 
@@ -1220,7 +1220,7 @@
 }
 
 .properties-tab.active {
-  box-shadow: inset 0 -2px 0 var(--vibee-amber);
+  box-shadow: inset 0 -2px 0 var(--vibee-green);
 }
 
 /* Подписи вкладок обрезались по нижней кромке.

@@ -75,7 +75,7 @@
 }
 
 .bottomsheet-handle:hover .bottomsheet-handle-bar {
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
 }
 
 /* Header */

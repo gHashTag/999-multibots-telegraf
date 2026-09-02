@@ -18,8 +18,8 @@
   margin: 8px;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   border: none;
   border-radius: 6px;
@@ -33,8 +33,8 @@
 .add-text-btn:hover {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber-dark),
-    var(--vibee-amber)
+    var(--vibee-green-dark),
+    var(--vibee-green)
   );
   box-shadow: 0 2px 8px rgba(0, 255, 136, 0.3);
 }
@@ -139,7 +139,7 @@
 }
 
 .track-action.active {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .track-count {
@@ -175,7 +175,7 @@
 
 .layer-item.selected {
   background: rgba(0, 255, 136, 0.15);
-  border-left: 2px solid var(--vibee-amber);
+  border-left: 2px solid var(--vibee-green);
   padding-left: 26px;
 }
 
@@ -198,7 +198,7 @@
 
 .layer-item.dragging {
   background: rgba(0, 255, 136, 0.2);
-  border: 1px dashed var(--vibee-amber);
+  border: 1px dashed var(--vibee-green);
   border-radius: 4px;
   z-index: var(--z-elevated);
 }

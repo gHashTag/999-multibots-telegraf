@@ -48,7 +48,7 @@
 .resize-handle:hover .resize-handle-grip,
 .resize-handle.dragging .resize-handle-grip {
   opacity: 1;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 /* Horizontal grip rotation */

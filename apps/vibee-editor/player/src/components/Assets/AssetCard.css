@@ -7,10 +7,10 @@
   --asset-card-width-normal: 140px;
 
   /* Type colors */
-  --asset-type-video: var(--vibee-amber);
+  --asset-type-video: var(--vibee-green);
   --asset-type-audio: #10b981;
   --asset-type-image: #ec4899;
-  --asset-type-avatar: var(--vibee-amber);
+  --asset-type-avatar: var(--vibee-green);
   --asset-type-text: #8b5cf6;
   --asset-type-fx: #f97316;
 }
@@ -172,6 +172,6 @@
 
 /* Hover ring on selection (for timeline consistency) */
 .asset-card-unified:focus-visible {
-  outline: 2px solid var(--vibee-amber, var(--vibee-amber));
+  outline: 2px solid var(--vibee-green, var(--vibee-green));
   outline-offset: 2px;
 }

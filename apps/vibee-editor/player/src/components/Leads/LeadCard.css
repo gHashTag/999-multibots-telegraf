@@ -51,7 +51,7 @@
   border-radius: 50%;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber, var(--vibee-amber)) 0%,
+    var(--vibee-green, var(--vibee-green)) 0%,
     #00cc66 100%
   );
   display: flex;
@@ -208,13 +208,13 @@
 /* Trigger badge */
 .lead-card-badge--trigger {
   background: rgba(0, 255, 136, 0.2);
-  color: var(--vibee-amber, var(--vibee-amber));
+  color: var(--vibee-green, var(--vibee-green));
 }
 
 /* Status badges */
 .lead-card-badge--status-new {
   background: rgba(0, 255, 136, 0.2);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .lead-card-badge--status-contacted {
@@ -309,7 +309,7 @@
 
 .lead-card-action--reply:hover {
   background: rgba(0, 255, 136, 0.2);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .lead-card-action--mute:hover {

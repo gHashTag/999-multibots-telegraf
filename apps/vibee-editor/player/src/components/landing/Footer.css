@@ -61,15 +61,15 @@
 
 .newsletter-form input:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 .newsletter-form button {
   padding: 12px 24px;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   border: none;
   border-radius: 8px;
@@ -132,8 +132,8 @@
   height: 32px;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber) 0%,
-    var(--vibee-amber-light) 100%
+    var(--vibee-green) 0%,
+    var(--vibee-green-light) 100%
   );
   border-radius: 8px;
   display: flex;
@@ -181,7 +181,7 @@
 
 .social-link:hover {
   background: rgba(0, 255, 136, 0.2);
-  color: var(--vibee-amber-light);
+  color: var(--vibee-green-light);
 }
 
 .footer-links {

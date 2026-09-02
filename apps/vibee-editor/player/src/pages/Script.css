@@ -71,7 +71,7 @@
 
 .script-textarea:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 .script-textarea::placeholder {
@@ -139,7 +139,7 @@
 
 .script-select:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 /* Chips */
@@ -167,8 +167,8 @@
 
 .script-chip.active {
   background: rgba(0, 255, 136, 0.15);
-  border-color: var(--vibee-amber);
-  color: var(--vibee-amber);
+  border-color: var(--vibee-green);
+  color: var(--vibee-green);
 }
 
 /* Generate Button */
@@ -179,7 +179,7 @@
   justify-content: center;
   gap: 8px;
   padding: 14px;
-  background: linear-gradient(135deg, var(--vibee-amber), #4dffab);
+  background: linear-gradient(135deg, var(--vibee-green), #4dffab);
   border: none;
   border-radius: 8px;
   color: #000;
@@ -303,7 +303,7 @@
 .script-copy-all-btn:hover {
   background: var(--bg-card);
   color: #fff;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 .script-output-tab {
@@ -326,8 +326,8 @@
 }
 
 .script-output-tab.active {
-  color: var(--vibee-amber);
-  border-bottom-color: var(--vibee-amber);
+  color: var(--vibee-green);
+  border-bottom-color: var(--vibee-green);
 }
 
 /* Output Body */
@@ -403,7 +403,7 @@
 .script-word-count,
 .script-segment-count {
   font-size: 12px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   background: rgba(0, 255, 136, 0.15);
   padding: 4px 8px;
   border-radius: 4px;
@@ -444,7 +444,7 @@
   min-height: 200px;
   padding: 16px;
   background: var(--color-bg-primary);
-  border: 2px solid var(--vibee-amber);
+  border: 2px solid var(--vibee-green);
   border-radius: 8px;
   font-size: 14px;
   line-height: 1.6;
@@ -488,7 +488,7 @@
 .script-action-btn.primary {
   background: rgba(0, 255, 136, 0.15);
   border-color: rgba(0, 255, 136, 0.3);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .script-action-btn.primary:hover {
@@ -508,13 +508,13 @@
   padding: 14px;
   background: var(--color-bg-primary);
   border-radius: 8px;
-  border-left: 3px solid var(--vibee-amber);
+  border-left: 3px solid var(--vibee-green);
 }
 
 .script-broll-timing {
   font-size: 11px;
   font-weight: 600;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   margin-bottom: 6px;
 }
 
@@ -585,8 +585,8 @@
 
 .script-platform-tab.active {
   background: rgba(0, 255, 136, 0.15);
-  border-color: var(--vibee-amber);
-  color: var(--vibee-amber);
+  border-color: var(--vibee-green);
+  color: var(--vibee-green);
 }
 
 /* Hashtags */
@@ -603,7 +603,7 @@
   border: 1px solid rgba(0, 255, 136, 0.2);
   border-radius: 4px;
   font-size: 12px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 /* Caption Meta */
@@ -632,7 +632,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   font-size: 12px;
   font-weight: 600;
   margin-bottom: 8px;
@@ -734,7 +734,7 @@
 
 .script-template-input:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 .script-template-input::placeholder {
@@ -750,7 +750,7 @@
   background: rgba(0, 255, 136, 0.15);
   border: 1px solid rgba(0, 255, 136, 0.3);
   border-radius: 6px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -965,7 +965,7 @@
   justify-content: center;
   gap: 8px;
   padding: 14px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   font-size: 14px;
   border-top: 1px solid var(--bg-elevated);
 }
