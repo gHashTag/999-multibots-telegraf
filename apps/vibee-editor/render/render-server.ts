@@ -7,7 +7,11 @@ import {
   состояниеЗадания as getKieJobState, // cyrillic-ok
 } from './src/agent/kie-run'
 import { reviewedKieModel } from './src/agent/kie-web-provider'
-import { downloadBoundedMedia } from './src/lib/remoteMediaDuration'
+import {
+  downloadBoundedMediaToFile,
+  isPublicInternetAddress,
+  resolvePublicAddress,
+} from './src/lib/remoteMediaDuration'
 import { handleAuthRouteSafely } from './session-routes'
 import { ensureAuthTables, pollRevocations } from './session-store'
 import {
@@ -26,6 +30,8 @@ import { handleProjectRoute } from './project-routes'
 ;(dns as any).setDefaultResultOrder?.('ipv4first')
 
 import { createServer, IncomingMessage } from 'node:http'
+import { isIP } from 'node:net'
+import { pipeline } from 'node:stream/promises'
 import {
   handleMcp,
   handleMcpCard,
@@ -89,18 +95,11 @@ function assertFetchable(
   }
   if (!opts.allowPrivate) {
     const h = u.hostname.toLowerCase()
+    const literal = h.startsWith('[') && h.endsWith(']') ? h.slice(1, -1) : h
     const priv =
       h === 'localhost' ||
       h.endsWith('.localhost') ||
-      h === '::1' ||
-      h === '0.0.0.0' ||
-      /^127\./.test(h) ||
-      /^10\./.test(h) ||
-      /^192\.168\./.test(h) ||
-      /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
-      /^169\.254\./.test(h) ||
-      /^f[cd][0-9a-f]{2}:/.test(h) ||
-      /^fe[89ab][0-9a-f]:/.test(h)
+      (isIP(literal) !== 0 && !isPublicInternetAddress(literal))
     if (priv) {
       throw new Error('приватные и зацикленные адреса запрещены')
     }
@@ -341,7 +340,13 @@ import {
   ListObjectsV2Command,
   GetObjectCommand,
 } from '@aws-sdk/client-s3'
+import { Upload } from '@aws-sdk/lib-storage'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import {
+  boundedUploadTransform,
+  UploadConcurrencyGate,
+  UploadTooLargeError,
+} from './src/lib/boundedUpload'
 import {
   captionsFromCharacterAlignment,
   type CharacterAlignment,
@@ -653,11 +658,10 @@ const MAX_LIPSYNC_SECONDS = 10
 
 async function measuredRemoteDuration(rawUrl: string): Promise<number> {
   const safeUrl = assertFetchable(rawUrl)
-  const bytes = await downloadBoundedMedia(safeUrl)
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibee-media-probe-'))
   const file = path.join(dir, 'audio.bin')
   try {
-    fs.writeFileSync(file, bytes, { mode: 0o600 })
+    await downloadBoundedMediaToFile(safeUrl, file)
     const output = runFfprobeText([
       '-v',
       'error',
@@ -1415,18 +1419,33 @@ async function initBundle() {
 }
 
 // S3 Upload helper
-async function uploadToS3(
-  fileBuffer: Buffer,
-  filename: string,
-  contentType: string
-): Promise<{
+type UploadedAsset = {
   success: boolean
   url?: string
   key?: string
   error?: string
   signedUrl?: string
   directUrl?: string
-}> {
+}
+
+async function uploadedAssetResult(key: string): Promise<UploadedAsset> {
+  const signedUrl = await getSignedUrl(
+    s3Client,
+    new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }),
+    { expiresIn: 604800 }
+  )
+  const proxyUrl = `/s3/${key}`
+  const directUrl = `${S3_PUBLIC_URL}/${key}`
+  // Signed URLs are credentials. Log the stable object key only.
+  console.log(`✅ Uploaded to S3: ${key}`)
+  return { success: true, url: proxyUrl, key, directUrl, signedUrl }
+}
+
+async function uploadToS3(
+  fileBuffer: Buffer,
+  filename: string,
+  contentType: string
+): Promise<UploadedAsset> {
   const key = `assets/${Date.now()}-${filename}`
 
   try {
@@ -1439,26 +1458,59 @@ async function uploadToS3(
       })
     )
 
-    // Generate presigned URL for public access (7 days)
-    const signedUrl = await getSignedUrl(
-      s3Client,
-      new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }),
-      { expiresIn: 604800 } // 7 days
-    )
-
-    // Return proxy URL instead of direct S3 URL for browser compatibility (HEVC → H.264)
-    const proxyUrl = `/s3/${key}`
-    const directUrl = `${S3_PUBLIC_URL}/${key}`
-    console.log(
-      `✅ Uploaded to S3: ${directUrl} (signed: ${signedUrl.substring(0, 80)}...)`
-    )
-    return { success: true, url: proxyUrl, key, directUrl, signedUrl }
+    return await uploadedAssetResult(key)
   } catch (error) {
     console.error('❌ S3 upload failed:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Upload failed',
     }
+  }
+}
+
+const uploadConcurrency = new UploadConcurrencyGate(2)
+
+async function uploadRequestToS3(
+  req: IncomingMessage,
+  filename: string,
+  contentType: string,
+  maxBytes: number
+): Promise<UploadedAsset> {
+  const key = `assets/${Date.now()}-${filename}`
+  const { stream, receivedBytes } = boundedUploadTransform(maxBytes)
+  const tempDir = await fs.promises.mkdtemp(
+    path.join(os.tmpdir(), 'vibee-upload-')
+  )
+  const tempFile = path.join(tempDir, 'payload')
+  let uploader: Upload | undefined
+
+  try {
+    await pipeline(
+      req,
+      stream,
+      fs.createWriteStream(tempFile, { flags: 'wx', mode: 0o600 })
+    )
+    if (receivedBytes() === 0) throw new Error('empty upload')
+    uploader = new Upload({
+      client: s3Client,
+      params: {
+        Bucket: S3_BUCKET,
+        Key: key,
+        Body: fs.createReadStream(tempFile),
+        ContentLength: receivedBytes(),
+        ContentType: contentType,
+      },
+      queueSize: 1,
+      partSize: 5 * 1024 * 1024,
+      leavePartsOnError: false,
+    })
+    await uploader.done()
+    return await uploadedAssetResult(key)
+  } catch (error) {
+    await uploader?.abort().catch(() => undefined)
+    throw error
+  } finally {
+    await fs.promises.rm(tempDir, { recursive: true, force: true })
   }
 }
 
@@ -3607,7 +3659,8 @@ const server = createServer(async (req, res) => {
         // downloaded locally for a trusted duration measurement; the image is
         // fetched by the provider, but accepting a private-network URL would
         // still turn this paid route into a blind network probe.
-        assertFetchable(image_url)
+        const safeImageUrl = assertFetchable(image_url)
+        await resolvePublicAddress(safeImageUrl.hostname)
         const duration = await measuredRemoteDuration(audio_url)
         if (duration > MAX_LIPSYNC_SECONDS) {
           res.writeHead(400, { 'Content-Type': 'application/json' })
@@ -4047,60 +4100,58 @@ const server = createServer(async (req, res) => {
       req.resume()
       return
     }
-    const chunks: Buffer[] = []
-    let receivedSize = 0
-    let tooLarge = false
+    const releaseUpload = uploadConcurrency.tryAcquire()
+    if (!releaseUpload) {
+      res.writeHead(429, {
+        'Content-Type': 'application/json',
+        'Retry-After': '5',
+      })
+      res.end(JSON.stringify({ error: 'Upload capacity is busy' }))
+      req.resume()
+      return
+    }
 
-    req.on('data', (chunk: Buffer) => {
-      receivedSize += chunk.length
-      if (receivedSize > maxSize) {
-        tooLarge = true
-        chunks.length = 0
-        return
-      }
-      chunks.push(chunk)
-    })
+    const rawFilename =
+      (req.headers['x-filename'] as string) || `file-${Date.now()}`
+    const filename =
+      path
+        .basename(rawFilename)
+        .replace(/[^a-zA-Z0-9._-]+/g, '-')
+        .slice(0, 160) || `file-${Date.now()}`
+    const contentType =
+      (req.headers['content-type'] as string) || getContentType(filename)
 
-    req.on('end', async () => {
+    void (async () => {
       try {
-        if (tooLarge) {
-          res.writeHead(413, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'File too large (max 100MB)' }))
-          return
-        }
-        const fileBuffer = Buffer.concat(chunks)
-        const rawFilename =
-          (req.headers['x-filename'] as string) || `file-${Date.now()}`
-        const filename =
-          path
-            .basename(rawFilename)
-            .replace(/[^a-zA-Z0-9._-]+/g, '-')
-            .slice(0, 160) || `file-${Date.now()}`
-        const contentType =
-          (req.headers['content-type'] as string) || getContentType(filename)
-
-        if (fileBuffer.length === 0) {
-          res.writeHead(400, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'No file data received' }))
-          return
-        }
-
-        const result = await uploadToS3(fileBuffer, filename, contentType)
+        const result = await uploadRequestToS3(
+          req,
+          filename,
+          contentType,
+          maxSize
+        )
         const statusCode = result.success ? 200 : 500
         res.writeHead(statusCode, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify(result))
       } catch (error) {
+        if (error instanceof UploadTooLargeError) {
+          res.writeHead(413, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'File too large (max 100MB)' }))
+          return
+        }
+        if (error instanceof Error && error.message === 'empty upload') {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'No file data received' }))
+          return
+        }
         console.error('Upload error:', error)
-        res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ error: 'Upload failed' }))
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'Upload failed' }))
+        }
+      } finally {
+        releaseUpload()
       }
-    })
-
-    req.on('error', error => {
-      console.error('Request error:', error)
-      res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: 'Request error' }))
-    })
+    })()
 
     return
   }

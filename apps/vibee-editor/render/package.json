@@ -27,6 +27,7 @@
     "@vibee/atoms": "file:../packages/vibee-atoms",
     "@vladmandic/face-api": "^1.7.15",
     "canvas": "^3.2.0",
+    "ipaddr.js": "2.2.0",
     "jotai": "^2.6.0",
     "pg": "^8.13.1",
     "react": "^18.3.1",
@@ -34,6 +35,7 @@
     "remotion": "4.0.518",
     "telegram": "^2.26.22",
     "tsx": "^4.19.2",
+    "undici": "6.28.0",
     "ws": "^8.18.3",
     "zod": "4.4.3"
   },
