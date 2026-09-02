@@ -347,6 +347,57 @@ test.describe('Generate Page — Image via Kie.ai', () => {
   })
 })
 
+test('browser session authenticates a real Kie request with Bearer', async ({
+  page,
+}) => {
+  let authorization = ''
+  let requestedModel = ''
+  await page.addInitScript(() => {
+    sessionStorage.setItem('trinity.app.session.access', 'e2e-access')
+    sessionStorage.setItem('trinity.app.session.refresh', 'e2e-refresh')
+    sessionStorage.setItem(
+      'trinity.app.session.expires-at',
+      String(Date.now() + 600_000)
+    )
+    sessionStorage.setItem(
+      'vibee-user',
+      JSON.stringify({
+        id: 999,
+        first_name: 'Browser owner',
+        username: 'browser_owner',
+        is_admin: true,
+      })
+    )
+    localStorage.removeItem('vibee_mock')
+  })
+  await page.route('**/api/generate/image', async route => {
+    authorization = route.request().headers()['authorization'] ?? ''
+    requestedModel = String(route.request().postDataJSON()?.model ?? '')
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        url: '/s3/vibee-assets/assets/kie-result.png',
+        provider: 'kie/google/nano-banana',
+      }),
+    })
+  })
+  await page.route('**/s3/vibee-assets/assets/kie-result.png', route =>
+    route.fulfill({ status: 200, contentType: 'image/png', body: '' })
+  )
+
+  await page.goto('/generate/image', { waitUntil: 'domcontentloaded' })
+  await page
+    .locator('.model-btn-image', { hasText: 'Kie · Nano Banana' })
+    .click()
+  await page.locator('.form-textarea').fill('A safe authenticated request')
+  await page.locator('.generate-btn').click()
+
+  await expect.poll(() => authorization).toBe('Bearer e2e-access')
+  expect(requestedModel).toBe('kie/google/nano-banana')
+})
+
 // ============================================================
 // 3. Video Tab
 // ============================================================

@@ -5,8 +5,10 @@
 // ===============================
 
 import { API_BASE } from '../config'
-import { getInitData, isTelegram } from './telegram'
+import { isTelegram } from './telegram'
 import { isAdmin } from '../config/admin'
+import { toAbsoluteUrl } from './mediaUrl'
+import { authHeaders as sharedAuthHeaders } from './apiFetch'
 
 // Use Vibee MCP for AI generations (not render server)
 const API_URL = API_BASE
@@ -98,19 +100,22 @@ function mfetch(url: string, init?: RequestInit): Promise<Response> {
 }
 
 /**
- * Подпись личности для платных генераций. На проде общий гвард режет
- * POST /api/generate/* без X-Telegram-Init-Data — без этого заголовка
- * страница Generate получала 401 из ниоткуда. В DEV (вне мини-аппа)
- * подписи нет — подставляем ключ агента из VITE_AGENT_KEY.
+ * One identity path for paid generations. The shared helper chooses Telegram
+ * initData inside the Mini App and the server-issued Bearer session in a web
+ * browser or iOS. Previously Generate only knew about the Telegram header, so
+ * an authenticated browser profile still received 401. In DEV, where neither
+ * real identity is present, a separate agent key remains available.
  */
-function authHeaders(): Record<string, string> {
-  const initData = getInitData()
-  if (initData) return { 'X-Telegram-Init-Data': initData }
+export function generationAuthHeaders(): Headers {
+  const headers = sharedAuthHeaders()
+  if (headers.has('X-Telegram-Init-Data') || headers.has('Authorization')) {
+    return headers
+  }
   const devKey = import.meta.env.DEV
     ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
     : undefined
-  if (devKey) return { 'X-Agent-Key': devKey }
-  return {}
+  if (devKey) headers.set('X-Agent-Key', devKey)
+  return headers
 }
 
 export interface GenerateImageParams {
@@ -175,7 +180,7 @@ export async function generateImage(
 
   const response = await mfetch(`${API_URL}/api/generate/image`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: generationAuthHeaders(),
     body: JSON.stringify({
       model: params.model,
       prompt: params.prompt,
@@ -297,7 +302,7 @@ export async function generateVideo(
 ): Promise<GenerateResult> {
   const response = await mfetch(`${API_URL}/api/generate/video`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: generationAuthHeaders(),
     body: JSON.stringify({
       model: params.model,
       prompt: params.prompt,
@@ -322,7 +327,7 @@ export async function generateAudio(
 ): Promise<GenerateResult> {
   const response = await mfetch(`${API_URL}/api/generate/audio`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: generationAuthHeaders(),
     body: JSON.stringify({
       model: params.model,
       text: params.text,
@@ -348,11 +353,11 @@ export async function generateLipsync(
 ): Promise<GenerateResult> {
   const response = await mfetch(`${API_URL}/api/generate/lipsync`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: generationAuthHeaders(),
     body: JSON.stringify({
       model: params.model,
-      audio_url: params.audioUrl,
-      image_url: params.imageUrl,
+      audio_url: toAbsoluteUrl(params.audioUrl),
+      image_url: toAbsoluteUrl(params.imageUrl),
       resolution: params.resolution,
       aspect_ratio: params.aspectRatio,
     }),

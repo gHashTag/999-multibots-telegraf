@@ -19,7 +19,7 @@ import { TOKEN_PRICES, priceFor } from './src/agent/billing-shared'
 const SERVER = fs.readFileSync(path.join(__dirname, 'render-server.ts'), 'utf8')
 
 /** The body of one /api/generate/<kind> handler. */
-function handler(kind: 'image' | 'video' | 'audio'): string {
+function handler(kind: 'image' | 'video' | 'audio' | 'lipsync'): string {
   const start = SERVER.indexOf(`req.url === '/api/generate/${kind}'`)
   expect(start, `${kind} handler not found`).toBeGreaterThan(-1)
   const next = SERVER.indexOf('req.url === ', start + 40)
@@ -31,15 +31,16 @@ describe('mini-app generation is billed', () => {
     image: 'image_generate',
     video: 'video_generate',
     audio: 'audio_generate',
+    lipsync: 'lipsync_generate',
   } as const
 
-  for (const kind of ['image', 'video', 'audio'] as const) {
+  for (const kind of ['image', 'video', 'audio', 'lipsync'] as const) {
     it(`${kind}: charges with the shared price id before generating`, () => {
       const h = handler(kind)
-      expect(h, `${kind} does not charge`).toContain('chargeMiniAppUser(req')
+      expect(h, `${kind} does not charge`).toMatch(/chargeMiniAppUser\(\s*req/)
       expect(h).toContain(`'${ops[kind]}'`)
       // The charge must precede the provider work, not follow it.
-      const chargeAt = h.indexOf('chargeMiniAppUser(req')
+      const chargeAt = h.search(/chargeMiniAppUser\(\s*req/)
       const refundAt = h.indexOf('refundMiniAppUser')
       expect(chargeAt).toBeGreaterThan(-1)
       expect(refundAt, `${kind} never refunds`).toBeGreaterThan(chargeAt)
@@ -62,11 +63,20 @@ describe('mini-app generation is billed', () => {
   it('answers 402 when the balance is short', () => {
     expect(SERVER).toContain('status: 402')
   })
+
+  it('uses signed Telegram or the verified app session owner for billing', () => {
+    expect(SERVER).toContain('const tid = verifiedViewerId(req)')
+  })
 })
 
 describe('prices come from the shared table, not from render-server', () => {
   it('uses the same ids the agent tools bill', () => {
-    for (const op of ['image_generate', 'video_generate', 'audio_generate']) {
+    for (const op of [
+      'image_generate',
+      'video_generate',
+      'audio_generate',
+      'lipsync_generate',
+    ]) {
       expect(TOKEN_PRICES[op], `${op} has no price`).toBeGreaterThan(0)
     }
   })
@@ -75,6 +85,7 @@ describe('prices come from the shared table, not from render-server', () => {
     expect(TOKEN_PRICES.image_generate).toBe(priceFor('image_generate'))
     expect(TOKEN_PRICES.video_generate).toBe(priceFor('video_generate'))
     expect(TOKEN_PRICES.audio_generate).toBe(priceFor('audio_generate'))
+    expect(TOKEN_PRICES.lipsync_generate).toBe(priceFor('lipsync_generate'))
   })
 
   it('render-server does not define its own prices', () => {

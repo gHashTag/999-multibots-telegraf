@@ -7,6 +7,7 @@ import {
   состояниеЗадания as getKieJobState, // cyrillic-ok
 } from './src/agent/kie-run'
 import { reviewedKieModel } from './src/agent/kie-web-provider'
+import { downloadBoundedMedia } from './src/lib/remoteMediaDuration'
 import { handleAuthRouteSafely } from './session-routes'
 import { ensureAuthTables, pollRevocations } from './session-store'
 import {
@@ -280,6 +281,26 @@ function sendJson(res: any, code: number, obj: unknown): void {
  */
 function verifiedViewerId(req: IncomingMessage): string | null {
   return chatIdentity(req, verifiedTelegramId(req))
+}
+
+/**
+ * Stable owner for recoverable generation jobs.
+ *
+ * A native/web user is identified by the same verified session or Telegram
+ * signature used by billing. Internal tools arrive with X-Api-Key after the
+ * global auth gate has already validated it; they still need a non-empty,
+ * non-secret namespace so one service caller cannot list another caller's
+ * jobs. Only a SHA-256 digest is retained in memory/storage.
+ */
+function generationOwnerId(req: IncomingMessage): string | null {
+  const viewer = verifiedViewerId(req)
+  if (viewer) return viewer
+  const rawInternalKey = req.headers['x-api-key']
+  const internalKey = Array.isArray(rawInternalKey)
+    ? rawInternalKey[0]
+    : rawInternalKey
+  if (!internalKey?.trim()) return null
+  return `service:${createHash('sha256').update(internalKey).digest('hex')}`
 }
 
 /**
@@ -625,6 +646,34 @@ function getVideoDuration(videoPath: string): number {
   } catch (error) {
     console.warn(`⚠️ Could not get video duration for ${videoPath}:`, error)
     return 0
+  }
+}
+
+const MAX_LIPSYNC_SECONDS = 10
+
+async function measuredRemoteDuration(rawUrl: string): Promise<number> {
+  const safeUrl = assertFetchable(rawUrl)
+  const bytes = await downloadBoundedMedia(safeUrl)
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibee-media-probe-'))
+  const file = path.join(dir, 'audio.bin')
+  try {
+    fs.writeFileSync(file, bytes, { mode: 0o600 })
+    const output = runFfprobeText([
+      '-v',
+      'error',
+      '-show_entries',
+      'format=duration',
+      '-of',
+      'default=noprint_wrappers=1:nokey=1',
+      ffArg(file),
+    ]).trim()
+    const duration = Number(output)
+    if (!Number.isFinite(duration) || duration <= 0) {
+      throw new Error('audio duration is unavailable')
+    }
+    return duration
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
   }
 }
 
@@ -1840,14 +1889,15 @@ function attachStoreOnce(): void {
  */
 async function chargeMiniAppUser(
   req: IncomingMessage,
-  op: string
+  op: string,
+  quantity = 1
 ): Promise<
   { ok: true; tid?: string } | { ok: false; status: number; reason: string }
 > {
   // Server-to-server: already paid at the tool layer.
   if (req.headers['x-api-key']) return { ok: true }
 
-  const tid = verifiedTelegramId(req)
+  const tid = verifiedViewerId(req)
   if (!tid) {
     // Auth is enforced upstream; an unsigned caller should never reach here.
     return { ok: false, status: 401, reason: 'no verified telegram id' }
@@ -1855,7 +1905,7 @@ async function chargeMiniAppUser(
 
   try {
     const pool = getPool()
-    const spent = await spendByTid(pool as never, tid, op)
+    const spent = await spendByTid(pool as never, tid, op, quantity)
     if (!spent.ok) {
       return {
         ok: false,
@@ -1875,11 +1925,12 @@ async function chargeMiniAppUser(
 /** Give the tokens back when the provider did not deliver. */
 async function refundMiniAppUser(
   tid: string | undefined,
-  op: string
+  op: string,
+  quantity = 1
 ): Promise<void> {
   if (!tid) return
   try {
-    await refundByTid(getPool() as never, tid, op)
+    await refundByTid(getPool() as never, tid, op, quantity)
   } catch (e) {
     console.error('[токены] возврат не прошёл:', e)
   }
@@ -3076,7 +3127,15 @@ const server = createServer(async (req, res) => {
          * The id is minted first so the answer has somewhere to land even if
          * the caller is gone by the time it arrives.
          */
-        const job = startJob('video', verifiedTelegramId(req) ?? '', prompt)
+        const jobOwner = generationOwnerId(req)
+        if (!jobOwner) {
+          res.writeHead(401, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({ success: false, error: 'verified owner required' })
+          )
+          return
+        }
+        const job = startJob('video', jobOwner, prompt)
         recordInto(job, res)
 
         if (typeof model === 'string' && model.startsWith('kie/')) {
@@ -3523,6 +3582,8 @@ const server = createServer(async (req, res) => {
   // POST /api/generate/lipsync - Generate lipsync video using fal.ai VEED Fabric
   if (req.url === '/api/generate/lipsync' && req.method === 'POST') {
     let body = ''
+    let billedTid: string | undefined
+    let billedSeconds = 0
     req.on('data', chunk => {
       body += chunk
     })
@@ -3531,6 +3592,45 @@ const server = createServer(async (req, res) => {
         const { audio_url, image_url, resolution, model } = JSON.parse(
           body
         ) as Record<string, string | undefined>
+        if (!audio_url || !image_url) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: false,
+              error: 'audio_url and image_url are required',
+            })
+          )
+          return
+        }
+
+        // Both provider inputs must be public HTTP(S) resources. The audio is
+        // downloaded locally for a trusted duration measurement; the image is
+        // fetched by the provider, but accepting a private-network URL would
+        // still turn this paid route into a blind network probe.
+        assertFetchable(image_url)
+        const duration = await measuredRemoteDuration(audio_url)
+        if (duration > MAX_LIPSYNC_SECONDS) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: false,
+              error: `lipsync audio must be ${MAX_LIPSYNC_SECONDS} seconds or shorter`,
+            })
+          )
+          return
+        }
+        billedSeconds = Math.ceil(duration)
+        const billed = await chargeMiniAppUser(
+          req,
+          'lipsync_generate',
+          billedSeconds
+        )
+        if (!billed.ok) {
+          res.writeHead(billed.status, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: billed.reason }))
+          return
+        }
+        billedTid = billed.tid
 
         /**
          * KieAI ПЕРВЫМ, fal.ai запасным — и это не предпочтение, а замер.
@@ -3685,6 +3785,11 @@ const server = createServer(async (req, res) => {
         throw new Error('Lipsync generation timeout')
       } catch (error) {
         console.error('❌ [Generate] Lipsync error:', error)
+        await refundMiniAppUser(
+          billedTid,
+          'lipsync_generate',
+          billedSeconds || 1
+        )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
@@ -3934,31 +4039,49 @@ const server = createServer(async (req, res) => {
 
   // Upload asset to S3
   if (req.url === '/upload' && req.method === 'POST') {
+    const maxSize = 100 * 1024 * 1024
+    const declaredSize = Number(req.headers['content-length'])
+    if (Number.isFinite(declaredSize) && declaredSize > maxSize) {
+      res.writeHead(413, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'File too large (max 100MB)' }))
+      req.resume()
+      return
+    }
     const chunks: Buffer[] = []
+    let receivedSize = 0
+    let tooLarge = false
 
     req.on('data', (chunk: Buffer) => {
+      receivedSize += chunk.length
+      if (receivedSize > maxSize) {
+        tooLarge = true
+        chunks.length = 0
+        return
+      }
       chunks.push(chunk)
     })
 
     req.on('end', async () => {
       try {
+        if (tooLarge) {
+          res.writeHead(413, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'File too large (max 100MB)' }))
+          return
+        }
         const fileBuffer = Buffer.concat(chunks)
-        const filename =
+        const rawFilename =
           (req.headers['x-filename'] as string) || `file-${Date.now()}`
+        const filename =
+          path
+            .basename(rawFilename)
+            .replace(/[^a-zA-Z0-9._-]+/g, '-')
+            .slice(0, 160) || `file-${Date.now()}`
         const contentType =
           (req.headers['content-type'] as string) || getContentType(filename)
 
         if (fileBuffer.length === 0) {
           res.writeHead(400, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ error: 'No file data received' }))
-          return
-        }
-
-        // Check file size (max 100MB)
-        const maxSize = 100 * 1024 * 1024
-        if (fileBuffer.length > maxSize) {
-          res.writeHead(413, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'File too large (max 100MB)' }))
           return
         }
 
@@ -5830,7 +5953,12 @@ const server = createServer(async (req, res) => {
       .split('?')[0]
       .replace('/api/generate/jobs', '')
       .replace(/^\//, '')
-    const who = verifiedTelegramId(req) ?? ''
+    const who = generationOwnerId(req)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'verified owner required' }))
+      return
+    }
     if (id) {
       const job = await getJobDurable(id)
       // A job that is not yours answers exactly like a job that does not

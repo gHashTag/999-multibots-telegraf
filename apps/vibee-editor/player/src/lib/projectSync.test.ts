@@ -144,6 +144,43 @@ describe('project sync document', () => {
     })
   })
 
+  it('loads the schema-v1 document emitted by the native editor', () => {
+    const restored = hydrateProjectDocument({
+      schemaVersion: 1,
+      project: {
+        id: 'ios-project',
+        name: 'iPhone edit',
+        fps: 30,
+        width: 1080,
+        height: 1920,
+        durationInFrames: 90,
+      },
+      fps: 30,
+      width: 1080,
+      height: 1920,
+      tracks,
+      assets,
+      captions: [
+        {
+          text: 'Native caption',
+          startMs: 0,
+          endMs: 500,
+          timestampMs: 0,
+        },
+      ],
+      captionStyle: { fontSize: 62, textColor: '#fff' },
+      showCaptions: true,
+    })
+    expect(restored.project).toMatchObject({
+      id: 'ios-project',
+      name: 'iPhone edit',
+      durationInFrames: 90,
+    })
+    expect(restored.assets).toEqual(assets)
+    expect(restored.captions[0].text).toBe('Native caption')
+    expect(restored.showCaptions).toBe(true)
+  })
+
   it('rejects unsupported documents before atom mutation', () => {
     expect(() =>
       hydrateProjectDocument({ schemaVersion: 2, tracks: [] })

@@ -7,6 +7,7 @@ import {
   logoutAppSession,
 } from './appSession'
 import { authHeaders } from './apiFetch'
+import { generationAuthHeaders } from './generateApi'
 
 describe('browser application session', () => {
   afterEach(() => {
@@ -36,6 +37,9 @@ describe('browser application session', () => {
 
     expect(getAppAccessToken()).toBe('server-access')
     expect(authHeaders().get('Authorization')).toBe('Bearer server-access')
+    expect(generationAuthHeaders().get('Authorization')).toBe(
+      'Bearer server-access'
+    )
     expect(authHeaders().get('X-Telegram-Init-Data')).toBeNull()
   })
 
