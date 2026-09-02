@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Нативный клиент Trinity S³AI.
 ///
@@ -171,6 +172,26 @@ enum ИсточникТаймлайна: Equatable {
  * несуществующую архитектуру, читается как проверенное знание — поэтому он
  * заменён, а не оставлен рядом.
  */
+/**
+ * URL сам по себе не `Identifiable`, а `.sheet(item:)` требует именно его.
+ * Обёртка вместо `.sheet(isPresented:)` + отдельного `@State` под адрес: два
+ * состояния вместо одного — это разъезд, при котором лист успевает открыться
+ * раньше, чем в него положили файл.
+ */
+private struct ФайлНаОтдачу: Identifiable {
+  let url: URL
+  var id: String { url.path }
+}
+
+/// Системный лист «Поделиться»: сохранить в Файлы, отправить, положить в плёнку.
+private struct ЛистОтдачи: UIViewControllerRepresentable {
+  let url: URL
+  func makeUIViewController(context: Context) -> UIActivityViewController {
+    UIActivityViewController(activityItems: [url], applicationActivities: nil)
+  }
+  func updateUIViewController(_ c: UIActivityViewController, context: Context) {}
+}
+
 struct EditorScreen: View {
   @State private var composition = Composition.демо
   /**
@@ -193,6 +214,8 @@ struct EditorScreen: View {
   @State private var источник: ИсточникТаймлайна = .загрузка
   @State private var идПроекта: String?
   @State private var сохраняется = false
+  @State private var экспортируется = false
+  @State private var готовыйФайл: ФайлНаОтдачу?
   @State private var сообщение: String?
 
   var body: some View {
@@ -234,6 +257,11 @@ struct EditorScreen: View {
      * клипа, живёт на среднем упоре и убирается смахиванием — то есть
      * занимает место ровно тогда, когда в нём есть нужда.
      */
+    // Готовый файл отдаём сразу листом: экспорт, после которого надо ещё
+    // куда-то идти за результатом, человек считает несработавшим.
+    .sheet(item: $готовыйФайл) { ф in
+      ЛистОтдачи(url: ф.url)
+    }
     .sheet(isPresented: $показатьСвойства) {
       PropertiesView(composition: $composition, выбран: $выбран)
         .presentationDetents([.medium, .large])
@@ -263,6 +291,37 @@ struct EditorScreen: View {
    * Одна строка, а не панель: место на 402 pt по ширине принадлежит кадру и
    * дорожкам. Но строка обязательная — без неё демо неотличимо от проекта.
    */
+  /**
+   * Собрать файл и отдать его системному листу «Поделиться».
+   *
+   * Дерево слоёв строим ТЕМ ЖЕ `LayerBuilder`, которым рисует предпросмотр.
+   * Это не совпадение и не договорённость: предпросмотр и файл получаются из
+   * одного объекта, собранного одним кодом из одной `Composition`, поэтому
+   * разойтись им нечем. Ровно ради этой гарантии предпросмотр в своё время и
+   * увели с `WKWebView` на нативный.
+   *
+   * Дерево строится ЗАНОВО на каждый экспорт. `CALayer` не может находиться
+   * в двух иерархиях сразу, а `AVVideoCompositionCoreAnimationTool` прямо
+   * требует дерево, не привязанное ни к какому окну; переиспользование одного
+   * экземпляра дало бы пустой кадр вместо титров — молча.
+   */
+  private func экспортировать() async {
+    экспортируется = true
+    defer { экспортируется = false }
+    do {
+      let дерево = try await LayerBuilder(composition: composition).build()
+      let рендер = NativeRenderer(
+        composition: composition,
+        overlayBuilder: ClosureOverlayBuilder { _ in дерево })
+      let адрес = FileManager.default.temporaryDirectory
+        .appendingPathComponent("vibee-\(UUID().uuidString.prefix(8)).mp4")
+      try await рендер.export(to: адрес)
+      готовыйФайл = ФайлНаОтдачу(url: адрес)
+    } catch {
+      сообщение = "Экспорт не удался: \(error.localizedDescription)"
+    }
+  }
+
   private var шапка: some View {
     HStack(spacing: Тема.Отступ.sm) {
       Image(systemName: источник.демо ? "exclamationmark.triangle.fill" : "square.stack.3d.up.fill")
@@ -296,6 +355,30 @@ struct EditorScreen: View {
         .buttonStyle(.borderedProminent)
         .tint(Тема.Кнопка.основнаяФон)
         .foregroundStyle(Тема.Кнопка.основнаяТекст)
+
+        /**
+         * ЭКСПОРТ. Кнопка есть в мобильном вебе на этом же месте, а здесь её
+         * не было вовсе — при том, что движок экспорта (`NativeRenderer`)
+         * написан целиком и не вызывался НИОТКУДА. Редактор доводил человека
+         * до собранного проекта и на этом заканчивался: отдать готовый ролик
+         * было нечем.
+         */
+        Button {
+          Task { await экспортировать() }
+        } label: {
+          Group {
+            if экспортируется {
+              ProgressView().controlSize(.mini)
+            } else {
+              Label("Экспорт", systemImage: "square.and.arrow.down")
+                .font(Тема.Шрифт.стиль(.caption, .bold))
+            }
+          }
+          .frame(minHeight: Тема.Кнопка.высота)
+        }
+        .disabled(экспортируется || сохраняется)
+        .buttonStyle(.bordered)
+        .tint(Тема.Цвет.акцент)
       }
     }
     .padding(.horizontal, Тема.Отступ.списокЛенты)
