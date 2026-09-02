@@ -33,6 +33,8 @@ struct Composition: Codable, Equatable {
   var width: Int = 1080
   var height: Int = 1920
   var tracks: [Track] = []
+  /// Actual media alignment. Optional keeps older saved projects decodable.
+  var captions: [TimedCaption]? = nil
 
   /// Длина в кадрах — по самому дальнему клипу.
   var durationInFrames: Int {
@@ -41,6 +43,24 @@ struct Composition: Codable, Equatable {
 
   var duration: CMTime {
     CMTime(value: CMTimeValue(durationInFrames), timescale: CMTimeScale(fps))
+  }
+}
+
+struct TimedCaption: Codable, Equatable {
+  var text: String
+  var startMs: Int
+  var endMs: Int
+  var timestampMs: Int
+  var confidence: Double?
+
+  func offset(by milliseconds: Int) -> TimedCaption {
+    TimedCaption(
+      text: text,
+      startMs: startMs + milliseconds,
+      endMs: endMs + milliseconds,
+      timestampMs: timestampMs + milliseconds,
+      confidence: confidence
+    )
   }
 }
 

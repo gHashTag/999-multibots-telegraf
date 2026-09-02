@@ -1,5 +1,4 @@
 import React from 'react'
-import { fetchCaptions } from './lib/fetchCaptions'
 import { getVideoMetadata } from '@remotion/media-utils'
 import { Composition } from 'remotion'
 import {
@@ -136,19 +135,9 @@ export const RemotionRoot: React.FC = () => {
             )
           }
 
-          // Load captions if not provided
-          let captions = props.captions
-          if (!captions || captions.length === 0) {
-            const language = (props as any).captionLanguage || 'ru'
-            captions = await fetchCaptions(props.lipSyncVideo, language)
-          }
-
           return {
             durationInFrames,
-            props: {
-              ...props,
-              captions,
-            },
+            props,
           }
         }}
       />

@@ -31,6 +31,7 @@ final class Слои: ObservableObject {
     /// Ссылка на файл. У текста её нет — он и есть содержимое.
     let ссылка: String?
     let текст: String?
+    let таймированныеПодписи: [TimedCaption]?
   }
 
   @Published private(set) var слои: [Слой] = []
@@ -59,6 +60,7 @@ final class Слои: ObservableObject {
     /// Когда сделано. Строкой ISO — читается глазами в файле и не зависит
     /// от того, как Codable сегодня сериализует Date.
     var когда: String
+    var таймированныеПодписи: [TimedCaption]?
   }
 
   /// Композиция, ждущая редактора. Он забирает её и обнуляет — иначе
@@ -67,19 +69,46 @@ final class Слои: ObservableObject {
 
   var пусто: Bool { слои.isEmpty }
 
-  func добавить(дорожка: String, подпись: String, ссылка: String? = nil, текст: String? = nil) {
-    слои.append(Слой(дорожка: дорожка, подпись: подпись, ссылка: ссылка, текст: текст))
+  func добавить(
+    дорожка: String,
+    подпись: String,
+    ссылка: String? = nil,
+    текст: String? = nil,
+    таймированныеПодписи: [TimedCaption]? = nil
+  ) {
+    слои.append(
+      Слой(
+        дорожка: дорожка,
+        подпись: подпись,
+        ссылка: ссылка,
+        текст: текст,
+        таймированныеПодписи: таймированныеПодписи
+      )
+    )
     // В историю кладём ТО ЖЕ САМОЕ и сразу: если записывать только при
     // выходе, потеряем всё при падении — а падение как раз тот случай,
     // когда человек ищет, за что заплатил.
-    запомнить(дорожка: дорожка, подпись: подпись, ссылка: ссылка, текст: текст)
+    запомнить(
+      дорожка: дорожка,
+      подпись: подпись,
+      ссылка: ссылка,
+      текст: текст,
+      таймированныеПодписи: таймированныеПодписи
+    )
   }
 
-  private func запомнить(дорожка: String, подпись: String, ссылка: String?, текст: String?) {
+  private func запомнить(
+    дорожка: String,
+    подпись: String,
+    ссылка: String?,
+    текст: String?,
+    таймированныеПодписи: [TimedCaption]?
+  ) {
     история.insert(
       Актив(
         дорожка: дорожка, подпись: подпись, ссылка: ссылка, текст: текст,
-        когда: ISO8601DateFormatter().string(from: Date())
+        когда: ISO8601DateFormatter().string(from: Date()),
+        таймированныеПодписи: таймированныеПодписи
       ),
       at: 0  // Свежее сверху: искать почти всегда будут последнее.
     )
@@ -90,7 +119,13 @@ final class Слои: ObservableObject {
   func взятьВРолик(_ id: String) {
     guard let а = история.first(where: { $0.id == id }) else { return }
     слои.append(
-      Слой(дорожка: а.дорожка, подпись: а.подпись, ссылка: а.ссылка, текст: а.текст)
+      Слой(
+        дорожка: а.дорожка,
+        подпись: а.подпись,
+        ссылка: а.ссылка,
+        текст: а.текст,
+        таймированныеПодписи: а.таймированныеПодписи
+      )
     )
   }
 
@@ -153,6 +188,7 @@ final class Слои: ObservableObject {
   func композиция(fps: Int = 30) -> Composition {
     let наКлип = 5 * fps
     var tracks: [Track] = []
+    var timedCaptions: [TimedCaption] = []
 
     for тип in Self.дорожки {
       let свои = слои.filter { $0.дорожка == тип }
@@ -161,6 +197,10 @@ final class Слои: ObservableObject {
       var кадр = 0
       var клипы: [Clip] = []
       for с in свои {
+        if тип == "audio", let captions = с.таймированныеПодписи {
+          let offsetMs = Int((Double(кадр) / Double(fps) * 1000).rounded())
+          timedCaptions.append(contentsOf: captions.map { $0.offset(by: offsetMs) })
+        }
         клипы.append(
           Clip(
             id: с.id, trackId: tid, name: с.подпись,
@@ -172,6 +212,12 @@ final class Слои: ObservableObject {
       tracks.append(Track(id: tid, type: тип, name: Self.имяДорожки(тип), items: клипы))
     }
 
-    return Composition(fps: fps, width: 1080, height: 1920, tracks: tracks)
+    return Composition(
+      fps: fps,
+      width: 1080,
+      height: 1920,
+      tracks: tracks,
+      captions: timedCaptions.isEmpty ? nil : timedCaptions
+    )
   }
 }

@@ -61,8 +61,12 @@ export function чегоНеХватает(
   }
   const нет = m.needs.filter(п => {
     const v = input[п]
-    return v === undefined || v === null || v === '' ||
+    return (
+      v === undefined ||
+      v === null ||
+      v === '' ||
       (Array.isArray(v) && v.length === 0)
+    )
   })
   if (нет.length > 0) {
     return `Не хватает: ${нет.join(', ')}. Это требование самой модели — запрос не отправлен.`
@@ -102,7 +106,7 @@ export async function запустить(
   const мешает = чегоНеХватает(m, input)
   if (мешает) return { отказ: мешает, чейОтказ: 'наш' }
 
-  const о = await fetch(KIE_ENDPOINT, {
+  const fetchResponse = await fetch(KIE_ENDPOINT, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${ключ}`,
@@ -110,19 +114,19 @@ export async function запустить(
     },
     body: JSON.stringify({ model: m.id, input }),
   })
-  const т = (await о.json()) as {
+  const responseJson = (await fetchResponse.json()) as {
     code?: number
     msg?: string
     data?: { taskId?: string }
   }
 
-  if (т.data?.taskId) return { taskId: т.data.taskId }
+  if (responseJson.data?.taskId) return { taskId: responseJson.data.taskId }
 
   // Если KieAI отказал — передаём ЕГО слово целиком. Пересказ («ошибка
   // генерации») лишил бы читателя того единственного, что различает паузу,
   // нехватку поля и неизвестное имя: они приходят под одним кодом.
   return {
-    отказ: т.msg ?? 'KieAI ответил без сообщения',
+    ['отказ']: responseJson.msg ?? 'KieAI ответил без сообщения',
     чейОтказ: 'kie',
   }
 }
@@ -133,19 +137,47 @@ export async function состояниеЗадания(
   ключ = process.env.KIE_AI_API_KEY
 ): Promise<{ готово: boolean; url?: string; отказ?: string }> {
   if (!ключ) return { готово: false, отказ: 'KIE_AI_API_KEY не задан.' }
-  const о = await fetch(`${СТАТУС}?taskId=${encodeURIComponent(taskId)}`, {
-    headers: { Authorization: `Bearer ${ключ}` },
-  })
-  const т = (await о.json()) as {
+  const fetchResponse = await fetch(
+    `${СТАТУС}?taskId=${encodeURIComponent(taskId)}`,
+    { headers: { Authorization: `Bearer ${ключ}` } }
+  )
+  const responseJson = (await fetchResponse.json()) as {
     msg?: string
-    data?: { state?: string; resultUrls?: string[] }
+    data?: {
+      state?: string
+      resultUrls?: string[]
+      resultJson?: string
+      failMsg?: string
+    }
   }
-  const url = т.data?.resultUrls?.[0]
-  if (url) return { готово: true, url }
-  if (т.data?.state === 'fail') {
-    return { готово: false, отказ: т.msg ?? 'задание не выполнено' }
+  let resultJsonUrls: string[] = []
+  if (responseJson.data?.resultJson) {
+    try {
+      const parsed = JSON.parse(responseJson.data.resultJson) as {
+        resultUrls?: unknown
+      }
+      if (Array.isArray(parsed.resultUrls)) {
+        resultJsonUrls = parsed.resultUrls.filter(
+          (value): value is string => typeof value === 'string'
+        )
+      }
+    } catch {
+      // A malformed provider payload is not success; polling can continue.
+    }
   }
-  return { готово: false }
+  const url = responseJson.data?.resultUrls?.[0] ?? resultJsonUrls[0]
+  if (url) return { готово: true, url } // cyrillic-ok
+  if (
+    responseJson.data?.state === 'fail' ||
+    responseJson.data?.state === 'failed'
+  ) {
+    return {
+      готово: false, // cyrillic-ok
+      ['отказ']:
+        responseJson.data.failMsg ?? responseJson.msg ?? 'задание не выполнено',
+    }
+  }
+  return { готово: false } // cyrillic-ok
 }
 
 export { состояниеИзОтвета }

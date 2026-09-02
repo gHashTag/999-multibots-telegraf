@@ -310,12 +310,9 @@ describe('the route actually uses the chain', () => {
      * to explain their removal. A check that reads prose as if it were code
      * reports on its own explanation.
      */
-    const route = code(
-      SERVER.slice(SERVER.indexOf("req.url === '/api/generate/image'")).slice(
-        0,
-        4000
-      )
-    )
+    const start = SERVER.indexOf("req.url === '/api/generate/image'")
+    const end = SERVER.indexOf("req.url === '/api/generate/video'", start)
+    const route = code(SERVER.slice(start, end))
     expect(route).not.toMatch(/if \(!FAL_KEY\) throw/)
     // The denominator: the window must really hold the route, or the assertion
     // above passes on an empty string.

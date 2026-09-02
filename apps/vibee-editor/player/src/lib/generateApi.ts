@@ -26,18 +26,23 @@ const API_URL = API_BASE
 const realFetch = globalThis.fetch.bind(globalThis)
 export function isMockMode(): boolean {
   try {
-    // Только для АДМИНОВ: в проде Telegram платящий юзер не должен попасть в
-    // mock (иначе получит фейковый результат вместо реальной генерации). В
-    // обычном браузере (не Telegram) — это разработка, там платящих нет, mock
-    // разрешён любому. Итог: блокируем mock только для НЕ-админа в Telegram.
-    if (isTelegram() && !isAdmin()) return false
     const p = new URLSearchParams(window.location.search)
     if (p.get('mock') === '1') localStorage.setItem('vibee_mock', '1')
     if (p.get('mock') === '0') localStorage.removeItem('vibee_mock')
-    return (
+    const requested =
       localStorage.getItem('vibee_mock') === '1' ||
       (import.meta.env.VITE_MOCK as string) === '1'
-    )
+    if (!requested) return false
+
+    // Localhost is the explicit no-network test surface even when the loaded
+    // Telegram SDK reports a non-unknown platform in a desktop browser.
+    const host = window.location.hostname
+    if (host === 'localhost' || host === '127.0.0.1') return true
+
+    // In production Telegram a paying non-admin must never receive a fake
+    // result instead of the requested generation.
+    if (isTelegram() && !isAdmin()) return false
+    return true
   } catch {
     return false
   }
@@ -122,12 +127,15 @@ export interface GenerateVideoParams {
 }
 
 export interface GenerateAudioParams {
+  model?: string
   text: string
   voiceId: string // 'sarah', 'rachel', 'josh', 'adam', 'bella'
+  voiceName?: string
   speed: number // 0.5 - 2.0
 }
 
 export interface GenerateLipsyncParams {
+  model?: string
   audioUrl: string
   imageUrl: string
   resolution: string // '480p', '720p', '1080p'
@@ -139,6 +147,8 @@ export interface GenerateResult {
   url?: string
   id?: string
   error?: string
+  /** Actual media alignment; absent when the provider cannot supply timing. */
+  timed_captions?: unknown
 }
 
 // Helper for aspect ratio to dimensions
@@ -314,8 +324,10 @@ export async function generateAudio(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({
+      model: params.model,
       text: params.text,
       voice_id: params.voiceId,
+      voice_name: params.voiceName,
       speed: params.speed,
     }),
   })
@@ -338,6 +350,7 @@ export async function generateLipsync(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({
+      model: params.model,
       audio_url: params.audioUrl,
       image_url: params.imageUrl,
       resolution: params.resolution,

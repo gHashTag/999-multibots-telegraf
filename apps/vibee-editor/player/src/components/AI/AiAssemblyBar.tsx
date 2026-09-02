@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
-import { useAtomValue } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { Check, Layers3 } from 'lucide-react'
 
 import { generatedResultsAtom } from '@/atoms/generateResults'
+import { captionsAtom, projectAtom } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { planAiAssembly } from '@/lib/aiAssembly'
+import { mergeAssemblyTimedCaptions } from '@/lib/timedCaptions'
 import { useEditorStore } from '@/store/editorStore'
 import { DEFAULT_HEIGHT, DEFAULT_WIDTH } from '@vibee/atoms'
 import './AiAssemblyBar.css'
@@ -12,6 +14,9 @@ import './AiAssemblyBar.css'
 export function AiAssemblyBar() {
   const { lang } = useLanguage()
   const generated = useAtomValue(generatedResultsAtom)
+  const existingCaptions = useAtomValue(captionsAtom)
+  const setCaptions = useSetAtom(captionsAtom)
+  const project = useAtomValue(projectAtom)
   const tracks = useEditorStore(state => state.tracks)
   const addItem = useEditorStore(state => state.addItem)
 
@@ -27,6 +32,18 @@ export function AiAssemblyBar() {
   const plan = useMemo(() => planAiAssembly(results, tracks), [results, tracks])
 
   const assemble = () => {
+    let nextCaptions = existingCaptions
+    try {
+      nextCaptions = mergeAssemblyTimedCaptions({
+        existing: existingCaptions,
+        fps: project.fps,
+        results,
+        placements: plan,
+      })
+    } catch {
+      // The media remains useful, but untrusted timing never reaches the editor.
+      nextCaptions = existingCaptions
+    }
     for (const placement of plan) {
       addItem(placement.trackId, {
         type: placement.type,
@@ -43,6 +60,7 @@ export function AiAssemblyBar() {
         ...(placement.type === 'audio' && { volume: 1 }),
       })
     }
+    if (nextCaptions !== existingCaptions) setCaptions(nextCaptions)
   }
 
   const status =

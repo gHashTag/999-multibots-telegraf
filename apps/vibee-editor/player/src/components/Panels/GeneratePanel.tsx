@@ -23,12 +23,15 @@ import {
   generateVideo,
   generateAudio,
   generateLipsync,
+  isMockMode,
 } from '@/lib/generateApi'
 import { uploadToS3 } from '@/lib/s3Upload'
 import { addAssetAtom } from '@/atoms/assets'
 import type { Asset } from '@vibee/atoms'
 import { DEFAULT_WIDTH, DEFAULT_HEIGHT } from '@vibee/atoms'
 import { toAbsoluteUrl } from '@/lib/mediaUrl'
+import { optionalTimedCaptions } from '@/lib/timedCaptions'
+import { KIE_WEB_MODELS } from '@/lib/kieProvider'
 import {
   userAtom,
   canRenderAtom,
@@ -121,15 +124,18 @@ const IMAGE_MODELS: ImageModel[] = [
   // To bring them back, the render server needs a real route. That is a new
   // capability, not a bug fix: running an arbitrary Replicate version on our
   // token is an abuse surface that needs its own auth/cost decision.
+  ...KIE_WEB_MODELS.image,
 ]
 
 const VIDEO_MODELS: VideoModel[] = [
   { id: 'veo3-fast', name: 'Veo3 Fast', description: 'Быстрая генерация' },
   { id: 'veo3-quality', name: 'Veo3 Quality', description: 'Лучшее качество' },
+  ...KIE_WEB_MODELS.video,
 ]
 
 const ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3']
 const DURATIONS = ['5s', '10s']
+const KIE_VIDEO_DURATIONS = ['6s', '10s']
 const RESOLUTIONS = ['480p', '720p', '1080p']
 
 interface GeneratePanelProps {
@@ -183,6 +189,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   // Audio state
   const [audioText, setAudioText] = useState('')
   const [audioSpeed, setAudioSpeed] = useState(1.0)
+  const [audioModel, setAudioModel] = useState('direct/elevenlabs')
 
   // Voices from Jotai (persisted to localStorage)
   const voices = useAtomValue(voicesAtom)
@@ -256,6 +263,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   const [lipsyncImageUrl, setLipsyncImageUrl] = useState('')
   const [lipsyncResolution, setLipsyncResolution] = useState('720p')
   const [lipsyncAspect, setLipsyncAspect] = useState('9:16')
+  const [lipsyncModel, setLipsyncModel] = useState(KIE_WEB_MODELS.lipsync[0].id)
   const [isUploadingAudio, setIsUploadingAudio] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const audioInputRef = useRef<HTMLInputElement>(null)
@@ -426,6 +434,10 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
   // Check balance before generation
   const checkBalanceAndProceed = (): boolean => {
+    // The documented browser mock is a no-network preview and spends nothing.
+    // Requiring a production identity here made ?mock=1 look enabled while
+    // every Generate button still opened the login modal.
+    if (isMockMode()) return true
     // If not logged in, show login modal
     if (!user) {
       setShowLoginModal(true)
@@ -626,8 +638,10 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
     try {
       const result = await generateAudio({
+        model: audioModel,
         text: audioText,
         voiceId: audioVoice,
+        voiceName: voices.find(v => v.id === audioVoice)?.name,
         speed: audioSpeed,
       })
 
@@ -652,6 +666,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             url,
             name: resultName,
             timestamp: Date.now(),
+            timedCaptions: optionalTimedCaptions(result.timed_captions),
           },
         })
 
@@ -677,6 +692,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
     try {
       const result = await generateLipsync({
+        model: lipsyncModel,
         audioUrl: lipsyncAudioUrl,
         imageUrl: lipsyncImageUrl,
         resolution: lipsyncResolution,
@@ -887,7 +903,20 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                   <button
                     key={model.id}
                     className={`model-btn model-btn-video ${videoModel === model.id ? 'active' : ''}`}
-                    onClick={() => setVideoModel(model.id)}
+                    onClick={() => {
+                      setVideoModel(model.id)
+                      if (
+                        model.id.startsWith('kie/') &&
+                        videoDuration === '5s'
+                      ) {
+                        setVideoDuration('6s')
+                      } else if (
+                        !model.id.startsWith('kie/') &&
+                        videoDuration === '6s'
+                      ) {
+                        setVideoDuration('5s')
+                      }
+                    }}
                   >
                     <span className="model-name">{model.name}</span>
                     <span className="model-desc">{model.description}</span>
@@ -947,7 +976,10 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
               <div className="form-group">
                 <label>{t('generate.duration')}</label>
                 <div className="form-chips">
-                  {DURATIONS.map(dur => (
+                  {(videoModel.startsWith('kie/')
+                    ? KIE_VIDEO_DURATIONS
+                    : DURATIONS
+                  ).map(dur => (
                     <button
                       key={dur}
                       className={`form-chip ${videoDuration === dur ? 'active' : ''}`}
@@ -1057,6 +1089,33 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
         {/* Audio Tab */}
         {activeTab === 'audio' && (
           <div className="generate-form">
+            <div className="form-group">
+              <label>{t('generate.model')}</label>
+              <div className="model-buttons">
+                <button
+                  className={`model-btn model-btn-audio ${audioModel === 'direct/elevenlabs' ? 'active' : ''}`}
+                  onClick={() => setAudioModel('direct/elevenlabs')}
+                  type="button"
+                >
+                  <span className="model-name">ElevenLabs · Direct</span>
+                  <span className="model-desc">
+                    {'Точный тайминг титров из той же озвучки'}
+                  </span>
+                </button>
+                {KIE_WEB_MODELS.audio.map(model => (
+                  <button
+                    key={model.id}
+                    className={`model-btn model-btn-audio ${audioModel === model.id ? 'active' : ''}`}
+                    onClick={() => setAudioModel(model.id)}
+                    type="button"
+                  >
+                    <span className="model-name">{model.name}</span>
+                    <span className="model-desc">{model.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="form-group">
               <label className="voice-label">
                 {t('generate.voice')}
@@ -1407,6 +1466,23 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             </div>
 
             <div className="form-row">
+              <div className="form-group">
+                <label>{t('generate.model')}</label>
+                <div className="model-buttons">
+                  {KIE_WEB_MODELS.lipsync.map(model => (
+                    <button
+                      key={model.id}
+                      type="button"
+                      className={`model-btn ${lipsyncModel === model.id ? 'active' : ''}`}
+                      onClick={() => setLipsyncModel(model.id)}
+                    >
+                      <span className="model-name">{model.name}</span>
+                      <span className="model-desc">{model.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="form-group">
                 <label>{t('generate.resolution')}</label>
                 <div className="form-chips">

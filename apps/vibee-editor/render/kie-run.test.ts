@@ -7,6 +7,9 @@ import {
 } from './src/agent/kie-run'
 import { KIE_MODELS } from './src/agent/kie-models'
 
+const getTaskState = состояниеЗадания // cyrillic-ok
+const stubFetch = ловушка // cyrillic-ok
+
 /**
  * Every branch, and none of them spends a credit.
  *
@@ -128,8 +131,23 @@ describe('опрос состояния', () => {
   it('готово с ссылкой', async () => {
     ловушка({ data: { state: 'success', resultUrls: ['https://x/y.mp4'] } })
     expect(await состояниеЗадания('T', 'ключ')).toEqual({
-      готово: true,
+      готово: true, // cyrillic-ok
       url: 'https://x/y.mp4',
+    })
+  })
+
+  it('разбирает официальный resultJson unified status API', async () => {
+    stubFetch({
+      data: {
+        state: 'success',
+        resultJson: JSON.stringify({
+          resultUrls: ['https://x/from-result-json.mp3'],
+        }),
+      },
+    })
+    expect(await getTaskState('T', 'ключ')).toEqual({
+      готово: true, // cyrillic-ok
+      url: 'https://x/from-result-json.mp3',
     })
   })
 
@@ -138,6 +156,18 @@ describe('опрос состояния', () => {
     const r = await состояниеЗадания('T', 'ключ')
     expect(r.готово).toBe(false)
     expect(r.отказ).toBe('bad input')
+  })
+
+  it('берёт provider failMsg, когда верхнего сообщения нет', async () => {
+    stubFetch({ data: { state: 'fail', failMsg: 'provider rejected input' } })
+    const r = await getTaskState('T', 'ключ')
+    expect(r['отказ']).toBe('provider rejected input')
+  })
+
+  it('recognizes the legacy failed terminal state too', async () => {
+    stubFetch({ data: { state: 'failed', failMsg: 'legacy failure' } })
+    const r = await getTaskState('T', 'ключ')
+    expect(r['отказ']).toBe('legacy failure')
   })
 
   it('ещё считается — это НЕ провал', async () => {

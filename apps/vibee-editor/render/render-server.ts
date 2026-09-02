@@ -3,9 +3,10 @@
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
 import * as dns from 'node:dns'
 import {
-  запустить as запуститьKie,
-  состояниеЗадания as состояниеKie,
+  запустить as startKieJob, // cyrillic-ok
+  состояниеЗадания as getKieJobState, // cyrillic-ok
 } from './src/agent/kie-run'
+import { reviewedKieModel } from './src/agent/kie-web-provider'
 import { handleAuthRouteSafely } from './session-routes'
 import { ensureAuthTables, pollRevocations } from './session-store'
 import {
@@ -56,6 +57,7 @@ import {
 } from './auth'
 import { TEMPLATE_CARDS } from './src/templates/registry'
 import {
+  credits as kieCredits,
   generateImage as kieGenerateImage,
   T2I_MODEL as KIE_T2I_MODEL,
 } from './src/kie-image'
@@ -103,6 +105,30 @@ function assertFetchable(
     }
   }
   return u
+}
+
+async function runExplicitKieJob(
+  model: string,
+  input: Record<string, unknown>,
+  options: { attempts?: number; intervalMs?: number } = {}
+): Promise<{ url: string; taskId: string }> {
+  const started = await startKieJob(model, input)
+  if (!started.taskId) {
+    throw new Error(started['отказ'] || 'Kie.ai не принял задачу')
+  }
+
+  const attempts = options.attempts ?? 100
+  const intervalMs = options.intervalMs ?? 3_000
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, intervalMs))
+    const state = await getKieJobState(started.taskId)
+    if (state.url) return { url: state.url, taskId: started.taskId }
+    if (state['отказ']) throw new Error(state['отказ'])
+  }
+
+  throw new Error(
+    `Kie.ai ещё выполняет задачу ${started.taskId}; повторная генерация может списать кредиты снова`
+  )
 }
 
 /**
@@ -295,7 +321,11 @@ import {
   GetObjectCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { transcribeVideo } from './src/lib/transcribe'
+import {
+  captionsFromCharacterAlignment,
+  type CharacterAlignment,
+  type TimedCaption,
+} from './src/lib/timedCaptions'
 /**
  * РАСПОЗНАВАНИЕ ЛИЦА ГРУЗИТСЯ ЛЕНИВО, и это не оптимизация.
  *
@@ -2386,6 +2416,15 @@ const server = createServer(async (req, res) => {
             })
           : { ok: false, детали: 'REPLICATE_API_TOKEN не задан' }
       ),
+      ping('Kie.ai — media pipeline', async () => {
+        if (!key('KIE_AI_API_KEY')) {
+          return { ok: false, детали: 'KIE_AI_API_KEY не задан' } // cyrillic-ok
+        }
+        const balance = await kieCredits()
+        return balance == null
+          ? { ok: false, детали: 'credit endpoint не подтвердил доступ' } // cyrillic-ok
+          : { ok: true, детали: 'ключ принят; баланс доступен серверу' } // cyrillic-ok
+      }),
       // OpenAI НЕ обязателен: агент работает на z.ai, запасной путь — тоже
       // z.ai лёгкой моделью. Отчёт про OpenAI остаётся, но его отказ не
       // означает, что что-то сломано, — поэтому он помечен как
@@ -2802,6 +2841,29 @@ const server = createServer(async (req, res) => {
         }
         const aspectRatio = getAspectRatio(width || 1024, height || 1024)
 
+        // An explicit provider selection is a contract, not a hint. Do not
+        // silently spend money at another provider when Kie rejects it.
+        if (typeof model === 'string' && model.startsWith('kie/')) {
+          const kieModel = reviewedKieModel('image', model)!
+          const outcome = await kieGenerateImage({
+            prompt,
+            aspectRatio,
+            model: kieModel,
+          })
+          if (!outcome.ok) throw new Error(outcome.reason)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: true,
+              url: outcome.url,
+              id: outcome.taskId,
+              provider: model,
+              tried,
+            })
+          )
+          return
+        }
+
         // Get model endpoint (default to nano-banana-pro)
         const modelEndpoint =
           FAL_IMAGE_MODELS[model] || 'fal-ai/nano-banana-pro'
@@ -2987,8 +3049,10 @@ const server = createServer(async (req, res) => {
     req.on('end', async () => {
       // Before the try: the refund path in catch must see it.
       let billedTid: string | undefined
+      let requestedModel: string | undefined
       try {
         const { model, prompt, duration, aspect_ratio } = JSON.parse(body)
+        requestedModel = typeof model === 'string' ? model : undefined
         console.log(`🎬 [Generate] Video: ${model}, duration: ${duration}`)
 
         // Charge BEFORE spending the provider's money.
@@ -3014,6 +3078,28 @@ const server = createServer(async (req, res) => {
          */
         const job = startJob('video', verifiedTelegramId(req) ?? '', prompt)
         recordInto(job, res)
+
+        if (typeof model === 'string' && model.startsWith('kie/')) {
+          const kieModel = reviewedKieModel('video', model)!
+          const result = await runExplicitKieJob(kieModel, {
+            prompt,
+            aspect_ratio: aspect_ratio || '9:16',
+            mode: 'normal',
+            duration:
+              (parseInt(String(duration || '6'), 10) || 6) <= 5 ? '6' : '10',
+            resolution: '480p',
+          })
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: true,
+              url: result.url,
+              id: result.taskId,
+              provider: model,
+            })
+          )
+          return
+        }
 
         // Determine which API to use based on model
         const isKling = model.startsWith('kling')
@@ -3105,6 +3191,21 @@ const server = createServer(async (req, res) => {
 
         throw new Error('Video generation timeout')
       } catch (error) {
+        if (requestedModel?.startsWith('kie/')) {
+          console.error('❌ [Generate] Explicit Kie video error:', error)
+          await refundMiniAppUser(billedTid, 'video_generate')
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'Kie.ai generation failed',
+            })
+          )
+          return
+        }
         // MCP-путь исторически ведёт в никуда (см. комментарий у helper).
         // Прежде чем отдать ошибку, пробуем Replicate — как у картинок.
         console.warn(
@@ -3159,7 +3260,7 @@ const server = createServer(async (req, res) => {
       // Before the try: the refund path in catch must see it.
       let billedTid: string | undefined
       try {
-        const { text, voice_id } = JSON.parse(body)
+        const { text, voice_id, voice_name, speed, model } = JSON.parse(body)
 
         /**
          * ПРОВЕРКА ДО ЖУРНАЛА, А НЕ ПОСЛЕ.
@@ -3197,21 +3298,51 @@ const server = createServer(async (req, res) => {
         }
         billedTid = billed.tid
 
+        if (typeof model === 'string' && model.startsWith('kie/')) {
+          const kieModel = reviewedKieModel('audio', model)!
+          const result = await runExplicitKieJob(kieModel, {
+            text,
+            voice:
+              typeof voice_name === 'string' && voice_name.trim()
+                ? voice_name.trim()
+                : 'Rachel',
+            stability: 0.5,
+            similarity_boost: 0.75,
+            style: 0,
+            speed: Number.isFinite(Number(speed)) ? Number(speed) : 1,
+            timestamps: false,
+            previous_text: '',
+            next_text: '',
+            language_code: '',
+          })
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: true,
+              url: result.url,
+              id: result.taskId,
+              provider: model,
+            })
+          )
+          return
+        }
+
         // ElevenLabs is the primary path; if it is unavailable (the key stored
         // is an identifier, not an sk_ key, OR the API errors) fall back to
         // Replicate TTS. Symmetric with images (FAL dead -> Replicate).
         let audioBuffer: Buffer
+        let timedCaptions: TimedCaption[] | undefined
         let audioProvider = 'elevenlabs'
         try {
           const ELEVENLABS_API_KEY = elevenLabsKey() // throws if not an sk_ key
           const ttsResponse = await fetch(
-            `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`,
+            `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}/with-timestamps`,
             {
               method: 'POST',
               headers: {
                 'xi-api-key': ELEVENLABS_API_KEY,
                 'Content-Type': 'application/json',
-                Accept: 'audio/mpeg',
+                Accept: 'application/json',
               },
               body: JSON.stringify({
                 text,
@@ -3225,7 +3356,21 @@ const server = createServer(async (req, res) => {
               `ElevenLabs TTS error: ${ttsResponse.status} - ${await ttsResponse.text()}`
             )
           }
-          audioBuffer = Buffer.from(await ttsResponse.arrayBuffer())
+          const timedSpeech = (await ttsResponse.json()) as {
+            audio_base64?: unknown
+            alignment?: CharacterAlignment
+            normalized_alignment?: CharacterAlignment
+          }
+          if (
+            typeof timedSpeech.audio_base64 !== 'string' ||
+            timedSpeech.audio_base64.length === 0
+          ) {
+            throw new Error('ElevenLabs timestamp response has no audio')
+          }
+          audioBuffer = Buffer.from(timedSpeech.audio_base64, 'base64')
+          timedCaptions = captionsFromCharacterAlignment(
+            timedSpeech.normalized_alignment ?? timedSpeech.alignment!
+          )
         } catch (elevenErr) {
           console.warn(
             `🎤 [Generate] ElevenLabs unavailable (${String(elevenErr).slice(0, 120)}), switching to Replicate TTS`
@@ -3261,6 +3406,9 @@ const server = createServer(async (req, res) => {
             url: uploadResult.url,
             provider: audioProvider,
             id: Date.now().toString(),
+            ...(timedCaptions && timedCaptions.length > 0
+              ? { timed_captions: timedCaptions }
+              : {}),
           })
         )
       } catch (error) {
@@ -3405,10 +3553,17 @@ const server = createServer(async (req, res) => {
           'omnihuman-1-5',
           'kling/ai-avatar-standard',
           'volcengine/video-to-video-lip-sync',
+          'veed/fabric-1',
         ]
+        const explicitKie = model?.startsWith('kie/') ?? false
+        const requestedKieModel = explicitKie
+          ? reviewedKieModel('lipsync', model)!
+          : model
         if (process.env.KIE_AI_API_KEY) {
-          const выбор =
-            model && KIE_LIPSYNC.includes(model) ? model : KIE_LIPSYNC[0]
+          const selectedKieModel =
+            requestedKieModel && KIE_LIPSYNC.includes(requestedKieModel)
+              ? requestedKieModel
+              : KIE_LIPSYNC[0]
           /**
            * `prompt` ОБЯЗАТЕЛЕН, хотя по смыслу липсинку он не нужен.
            *
@@ -3420,36 +3575,35 @@ const server = createServer(async (req, res) => {
            * Значение нейтральное: описание тут ничего не задаёт, губы ведёт
            * звук. Пустая строка не годится — она и есть «не передан».
            */
-          const запуск = await запуститьKie(выбор, {
-            image_url,
-            audio_url,
-            resolution: resolution || '480p',
-            prompt: 'person speaking naturally',
-          })
-          if (!запуск.отказ && запуск.taskId) {
-            // Опрос, а не webhook: маршрут отвечает одним ответом, и клиент
-            // уже умеет ждать минуту. Заводить очередь ради одного вызова —
-            // сложность без выгоды.
-            for (let i = 0; i < 60; i++) {
-              await new Promise(r => setTimeout(r, 5000))
-              const с = await состояниеKie(запуск.taskId)
-              if (с.url) {
-                res.writeHead(200, { 'Content-Type': 'application/json' })
-                res.end(
-                  JSON.stringify({
-                    success: true,
-                    url: с.url,
-                    provider: `KieAI ${выбор}`,
-                  })
-                )
-                return
-              }
-              if (с.отказ) break
-            }
+          try {
+            const result = await runExplicitKieJob(
+              selectedKieModel,
+              {
+                image_url,
+                audio_url,
+                resolution: resolution || '480p',
+                prompt: 'person speaking naturally',
+              },
+              { attempts: 60, intervalMs: 5_000 }
+            )
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                success: true,
+                url: result.url,
+                id: result.taskId,
+                provider: `kie/${selectedKieModel}`,
+              })
+            )
+            return
+          } catch (kieError) {
+            if (explicitKie) throw kieError
+            console.warn(
+              `⚠️ [Lipsync] KieAI не справился (${String(kieError).slice(0, 160)}), пробуем fal.ai`
+            )
           }
-          console.warn(
-            `⚠️ [Lipsync] KieAI не справился (${запуск.отказ ?? 'таймаут'}), пробуем fal.ai`
-          )
+        } else if (explicitKie) {
+          throw new Error('KIE_AI_API_KEY не задан в сервисе')
         }
         console.log(
           `👄 [Generate] Lipsync via fal.ai VEED Fabric: resolution=${resolution || '720p'}`
@@ -7797,8 +7951,14 @@ const server = createServer(async (req, res) => {
     })
     req.on('end', async () => {
       try {
-        const { topic, niche, style, duration, language, model: запрошенная } =
-          JSON.parse(body) as Record<string, string | undefined>
+        const {
+          topic,
+          niche,
+          style,
+          duration,
+          language,
+          model: requestedModel,
+        } = JSON.parse(body) as Record<string, string | undefined>
         if (!topic || topic.trim() === '') {
           res.writeHead(400, { 'Content-Type': 'application/json' })
           res.end(
@@ -7861,15 +8021,15 @@ const server = createServer(async (req, res) => {
 
         // Имя модели из запроса сверяется со списком, а не подставляется:
         // иначе вызывающий сам решал бы, за что списываются деньги.
-        const поПросьбе = запрошенная
-          ? ПРОВАЙДЕРЫ.find(п => п.модели.includes(запрошенная))
+        const поПросьбе = requestedModel // cyrillic-ok
+          ? ПРОВАЙДЕРЫ.find(п => п.модели.includes(requestedModel)) // cyrillic-ok
           : undefined
         const выбран = поПросьбе ?? ПРОВАЙДЕРЫ[0]
         const провайдер = выбран
           ? {
               url: выбран.url,
               key: выбран.key,
-              model: поПросьбе ? запрошенная! : выбран.модели[0],
+              model: поПросьбе ? requestedModel! : выбран.модели[0], // cyrillic-ok
               имя: выбран.имя,
             }
           : null
@@ -8229,7 +8389,6 @@ async function main() {
     console.log(`   GET  /renders/:id  - Download rendered file`)
     console.log(`   POST /upload       - Upload asset to S3`)
     console.log(`   GET  /assets       - List S3 assets`)
-    console.log(`   POST /transcribe   - Transcribe audio to captions (RU/EN)`)
     console.log(`🔌 WebSocket: ws://0.0.0.0:${PORT} (real-time sync)`)
     console.log(`📦 S3 Bucket: ${S3_BUCKET}`)
 

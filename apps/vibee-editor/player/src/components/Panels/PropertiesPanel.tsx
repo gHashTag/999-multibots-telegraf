@@ -8,7 +8,6 @@ import {
   templatePropsAtom,
   updateTemplatePropAtom,
   currentFrameAtom,
-  transcribingAtom,
   setAllVideoItemsLayoutAtom,
   tracksAtom,
   // Effects & Avatar atoms
@@ -68,8 +67,6 @@ import {
   Sliders,
   Plus,
   Upload,
-  Mic,
-  Loader2,
   Trash2,
   Search,
   ChevronDown,
@@ -87,7 +84,6 @@ import {
 } from 'lucide-react'
 import { analyzeFace } from '@/lib/faceApi'
 import { POPULAR_FONTS, UNIQUE_FONTS, type CyrillicFont } from '@/shared/fonts'
-import { RENDER_URL as RENDER_SERVER_URL } from '../../config'
 import './PropertiesPanel.css'
 import './PlayerPanel.css'
 
@@ -315,8 +311,6 @@ export function PropertiesPanel() {
   const templateProps = useAtomValue(templatePropsAtom)
   const updateTemplateProp = useSetAtom(updateTemplatePropAtom)
   const currentFrame = useAtomValue(currentFrameAtom)
-  const isTranscribing = useAtomValue(transcribingAtom)
-  const setTranscribing = useSetAtom(transcribingAtom)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Caption style state
@@ -549,39 +543,6 @@ export function PropertiesPanel() {
   const handleDeleteCaption = (index: number) => {
     const newCaptions = captions.filter((_, i) => i !== index)
     updateTemplateProp({ key: 'captions', value: newCaptions })
-  }
-
-  const handleTranscribe = async () => {
-    const lipSyncVideo = templateProps.lipSyncVideo
-    if (!lipSyncVideo) {
-      toast.warning(t('captions.noVideo'))
-      return
-    }
-    setTranscribing(true)
-    try {
-      const response = await fetch(`${RENDER_SERVER_URL}/transcribe`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          videoUrl: lipSyncVideo,
-          language: 'ru',
-          fps: project.fps,
-        }),
-      })
-      const result = await response.json()
-      if (result.success && result.captions) {
-        updateTemplateProp({ key: 'captions', value: result.captions })
-      } else {
-        throw new Error(result.error || 'Transcription failed')
-      }
-    } catch (error) {
-      console.error('[Captions] Transcription error:', error)
-      toast.error(
-        `${t('captions.transcriptionFailed')} ${error instanceof Error ? error.message : ''}`
-      )
-    } finally {
-      setTranscribing(false)
-    }
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1309,17 +1270,6 @@ export function PropertiesPanel() {
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Upload size={14} />
-              </button>
-              <button
-                className="caption-action-btn transcribe"
-                onClick={handleTranscribe}
-                disabled={isTranscribing}
-              >
-                {isTranscribing ? (
-                  <Loader2 size={14} className="spinning" />
-                ) : (
-                  <Mic size={14} />
-                )}
               </button>
             </div>
 

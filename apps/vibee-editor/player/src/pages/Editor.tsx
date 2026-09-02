@@ -5,7 +5,6 @@ import {
   loadCaptionsAtom,
   updateDurationFromLipSyncAtom,
   lipSyncVideoAtom,
-  transcribeVideoAtom,
   ensureAudioTrackAtom,
   ensureVoiceTrackAtom,
   ensureImageTrackAtom,
@@ -52,7 +51,6 @@ function EditorContent() {
   const updateDurationFromLipSync = useSetAtom(updateDurationFromLipSyncAtom)
   const loadCaptions = useSetAtom(loadCaptionsAtom)
   const lipSyncVideo = useAtomValue(lipSyncVideoAtom)
-  const transcribeVideo = useSetAtom(transcribeVideoAtom)
   const ensureAudioTrack = useSetAtom(ensureAudioTrackAtom)
   const ensureVoiceTrack = useSetAtom(ensureVoiceTrackAtom)
   const ensureImageTrack = useSetAtom(ensureImageTrackAtom)
@@ -139,15 +137,10 @@ function EditorContent() {
       return
     }
 
-    // Auto-transcribe new video
-    if (lipSyncVideo) {
-      console.log(
-        '[Editor] LipSync video changed, starting auto-transcribe:',
-        lipSyncVideo
-      )
-      transcribeVideo()
-    }
-  }, [lipSyncVideo, transcribeVideo, loadCaptions])
+    // Generated voice already carries alignment from the same provider
+    // response. Never call the historical /transcribe route: it does not
+    // exist and estimating from a script would produce incorrect subtitles.
+  }, [lipSyncVideo, loadCaptions])
 
   // Initialize WebSocket for real-time sync (optional - works without render server)
   const { send } = useWebSocket({})
