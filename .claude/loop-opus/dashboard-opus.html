@@ -1,0 +1,104 @@
+<meta charset="utf-8">
+<title>Vibee · цикл улучшений</title>
+<style>
+  :root{
+    --фон:#0a0a0a; --поверхность:#111; --рамка:#1a1a1a;
+    --текст:#e8e8e8; --тихий:#8a8a8a; --акцент:#00ff88;
+    --тревога:#ff6b6b; --ждёт:#f59e0b; --фиолет:#8b5cf6;
+  }
+  @media (prefers-color-scheme: light){
+    :root{--фон:#fafafa;--поверхность:#fff;--рамка:#e4e4e4;--текст:#1a1a1a;--тихий:#6b6b6b}
+  }
+  :root[data-theme="dark"]{--фон:#0a0a0a;--поверхность:#111;--рамка:#1a1a1a;--текст:#e8e8e8;--тихий:#8a8a8a}
+  :root[data-theme="light"]{--фон:#fafafa;--поверхность:#fff;--рамка:#e4e4e4;--текст:#1a1a1a;--тихий:#6b6b6b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--фон);color:var(--текст);
+    font:15px/1.55 ui-monospace,"SF Mono",Menlo,monospace;padding:28px 20px 60px}
+  .обёртка{max-width:940px;margin:0 auto}
+  h1{font-size:19px;margin:0 0 2px;letter-spacing:.3px}
+  h1 .знак{color:var(--акцент)}
+  .подзаголовок{color:var(--тихий);font-size:13px;margin-bottom:26px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:1.1px;
+    color:var(--тихий);margin:30px 0 12px;font-weight:600}
+  .плитки{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+  .плитка{background:var(--поверхность);border:1px solid var(--рамка);
+    border-radius:8px;padding:14px 16px}
+  .плитка .число{font-size:26px;font-weight:700;line-height:1.1}
+  .плитка .имя{color:var(--тихий);font-size:12px;margin-top:3px}
+  .зел{color:var(--акцент)} .кр{color:var(--тревога)} .ж{color:var(--ждёт)} .ф{color:var(--фиолет)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  .прокрутка{overflow-x:auto;border:1px solid var(--рамка);border-radius:8px;background:var(--поверхность)}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--рамка);vertical-align:top}
+  th{color:var(--тихий);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.7px}
+  tr:last-child td{border-bottom:none}
+  .метка{display:inline-block;padding:1px 8px;border-radius:4px;font-size:11.5px;font-weight:600;white-space:nowrap}
+  .м-влито{background:rgba(0,255,136,.13);color:var(--акцент)}
+  .м-открыто{background:rgba(245,158,11,.13);color:var(--ждёт)}
+  .м-отказ{background:rgba(139,92,246,.15);color:var(--фиолет)}
+  .м-дыра{background:rgba(255,107,107,.13);color:var(--тревога)}
+  code{background:var(--рамка);padding:1px 5px;border-radius:3px;font-size:12.5px}
+  .сноска{color:var(--тихий);font-size:12.5px;margin-top:8px;line-height:1.6}
+  a{color:var(--акцент)}
+</style>
+
+<div class="обёртка">
+
+<h1><span class="знак">◤</span> Vibee · непрерывный цикл</h1>
+<div class="подзаголовок">цикл <code>e9518c56</code> · каждые 15 мин · обновлено 02.09.2026, 13:30</div>
+
+<div class="плитки">
+  <div class="плитка"><div class="число зел">3</div><div class="имя">влито за смену</div></div>
+  <div class="плитка"><div class="число ж">5</div><div class="имя">открыто</div></div>
+  <div class="плитка"><div class="число ф">2</div><div class="имя">отказано с доводом</div></div>
+  <div class="плитка"><div class="число кр">2,1 ГБ</div><div class="имя">свободно на диске</div></div>
+</div>
+
+<h2>Влито</h2>
+<div class="прокрутка"><table>
+<tr><th>PR</th><th>что</th><th>проверено</th></tr>
+<tr><td><a href="https://github.com/gHashTag/999-multibots-telegraf/pull/1637">#1637</a></td>
+    <td>значки и названия сведены с app.t27.ai: 🎤 Голос, 🖼 Фото, ☺ Аватар; выбор модели — фиолетовая рамка вместо зелёной заливки</td>
+    <td>симулятор</td></tr>
+<tr><td><a href="https://github.com/gHashTag/999-multibots-telegraf/pull/1638">#1638</a></td>
+    <td><b>экспорт подключён</b> — движок был написан целиком и не вызывался ниоткуда</td>
+    <td>отказ на тексте верен</td></tr>
+<tr><td><a href="https://github.com/gHashTag/999-multibots-telegraf/pull/1639">#1639</a></td>
+    <td>клипы <code>rgb(0,255,136)</code>, радиус 4 (снято <code>getComputedStyle</code>); «1 дорожка» вместо «1 дорожек»</td>
+    <td>симулятор</td></tr>
+</table></div>
+
+<h2>Открыто</h2>
+<div class="прокрутка"><table>
+<tr><th>пункт</th><th>вес</th><th>чем мерить</th></tr>
+<tr><td><b>Предпросмотр — чёрная пустота</b> вместо кадра 9:16</td><td><span class="метка м-дыра">дыра</span></td><td>скриншот редактора с текстовым слоем</td></tr>
+<tr><td>Транспорт: одна серая ▶ против ⏮ ▶ ⏭ и зума 23 % в вебе</td><td><span class="метка м-открыто">открыто</span></td><td>сверка с app.t27.ai на 375 px</td></tr>
+<tr><td>Экспорт не проверен на композиции с видеослоем</td><td><span class="метка м-открыто">открыто</span></td><td>прогон «Кадр 1» → Экспорт → файл</td></tr>
+<tr><td>Кнопка очистки поля темы в «ИИ»</td><td><span class="метка м-открыто">открыто</span></td><td>ввод и сброс</td></tr>
+<tr><td>Аномалия с относительной ссылкой у озвучки</td><td><span class="метка м-открыто">открыто</span></td><td>сетевой лог</td></tr>
+</table></div>
+
+<h2>Отказано — с доводом</h2>
+<div class="прокрутка"><table>
+<tr><th>чего не сделал</th><th>почему</th></tr>
+<tr><td>Белая подпись на клипе, как в вебе</td>
+    <td><span class="метка м-отказ">дефект</span> ~1.8:1 при минимуме 4.5:1 по WCAG. Разметку копировать стоит, дефект — нет.</td></tr>
+<tr><td>Пятая вкладка «Редактор», как в вебе</td>
+    <td><span class="метка м-отказ">ловушка</span> Отдельная вкладка открывалась с <b>демо-композицией</b> и на равных предлагала править выдумку и свою работу. Вернуть — вернуть ловушку.</td></tr>
+</table></div>
+
+<h2>Цена принятых решений</h2>
+<p class="сноска">
+Клипы теперь <b>одного цвета на все типы дорожек</b> — как в вебе. Тип дорожки больше
+не читается по заливке; он подписан слева в заголовке, но информации на экране стало
+меньше. Это плата за совпадение с вебом, и она обратима.
+</p>
+
+<h2>Правила цикла</h2>
+<p class="сноска">
+Каждая итерация: <code>git pull --rebase</code> → один пункт → сборка → скриншот →
+самокритика и поиск аномалии → PR → обновление этого дашборда. Новый запуск не трогает
+сделанное прошлым: список открытого ведётся здесь и в <code>pipeline-STATUS.md</code>.
+Диск проверяется до сборки; чистится только регенерируемое — файлы пользователя не трогаются.
+</p>
+
+</div>
