@@ -315,6 +315,19 @@ LOOP TOOLING
                           because they are fixed differently.
   tri in-gate-check       Can `tri in-gate` still fail? Runs it against a file
                           the gate must see AND one it must not.
+  tri why-red <file>      Is the gate red on this file because a test BROKE, or
+                          because it was RENAMED? The gate compares sets of
+                          names and cannot tell: a name that no longer exists
+                          looks exactly like a failing test, and is incurable --
+                          the gate's re-check clears a suspect only by seeing it
+                          pass. A renamed suite therefore keeps the gate red on
+                          a clean tree, and people stop reading it. The tell is
+                          the COUNT: a flake does not change how many tests a
+                          file has. Prints the vanished names and the snapshot
+                          protocol for refreshing them.
+  tri why-red-check       Can `tri why-red` still fail? Runs it against the
+                          snapshot from before PR #1496 (which must report the
+                          vanished names) AND the current one (which must not).
   tri disk [reap]         DATA-volume usage + self-heal. Reports stale worktrees
                           and DEAD-session scratch (0 open handles AND mtime>1d;
                           liveness is judged by OPEN HANDLE, not mtime -- a
@@ -1546,6 +1559,103 @@ cmd_in_gate() {
   return 1
 }
 
+cmd_why_red() {
+  # ПОЧЕМУ ГЕЙТ КРАСНЫЙ НА ЭТОМ ФАЙЛЕ: тест сломался или его ПЕРЕИМЕНОВАЛИ?
+  #
+  # Гейт сравнивает МНОЖЕСТВА имён и не умеет их различать: имя, которого
+  # больше нет, выглядит ровно как упавший тест — и хуже, оно неизлечимо.
+  # Перепроверка гейта снимает подозрение, только УВИДЕВ проход, а
+  # несуществующее имя пройти не может никогда. Гейт краснеет ПО КОНСТРУКЦИИ
+  # на чистом дереве, и его перестают читать.
+  #
+  # Так и случилось: снимок записан, через четыре дня чужой PR переписал
+  # voiceValidation.test.ts, снимок не обновили — и я двадцать витков подряд
+  # называл эти 14 имён «известным флейком», читая мимо красного гейта.
+  #
+  # ПОДПИСЬ, которую эта команда показывает за секунды: в снимке 14 имён, файл
+  # выдаёт 13. Флейк НЕ МЕНЯЕТ ЧИСЛО тестов — а переименование меняет.
+  local target="${1:-}"
+  local baseline="${2:-$ROOT/.test-baseline.txt}"
+  if [ -z "$target" ]; then
+    bad 'нужен путь к тесту: tri why-red <файл.test.ts> [снимок]'
+    return 2
+  fi
+  if [ ! -f "$baseline" ]; then
+    bad "нет снимка: $baseline"
+    return 2
+  fi
+  # Имена из снимка для этого файла.
+  local base_names now_names
+  base_names="$(grep -F "$target :: " "$baseline" | sed "s|^.* :: ||" || true)"
+  # Имена, которые файл ВЫДАЁТ сейчас. Пофайлово намеренно: полный
+  # `vitest list` обрывается на первой ошибке сборки в любом чужом файле.
+  now_names="$(cd "$ROOT" && npx vitest list "$target" 2>/dev/null \
+    | sed "s|^.*$(basename "$target") > ||" | sed "s| > | |g" || true)"
+  local nb nn
+  nb="$(printf '%s\n' "$base_names" | grep -c . || true)"
+  nn="$(printf '%s\n' "$now_names" | grep -c . || true)"
+  echo "  снимок: $nb   файл сейчас: $nn"
+  if [ "$nb" -eq 0 ]; then
+    skip "в снимке нет записей об этом файле — сравнивать нечего"
+    return 0
+  fi
+  if [ "$nn" -eq 0 ]; then
+    bad 'файл не выдал НИ ОДНОГО теста — он не собирается (см. tri in-gate)'
+    return 1
+  fi
+  # ПРОПАВШИЕ имена: есть в снимке, файл их больше не производит.
+  local gone
+  gone="$(comm -23 <(printf '%s\n' "$base_names" | sort -u) \
+                   <(printf '%s\n' "$now_names" | sort -u))"
+  local ng
+  ng="$(printf '%s\n' "$gone" | grep -c . || true)"
+  if [ "$ng" -eq 0 ]; then
+    good 'все имена снимка файл по-прежнему производит'
+    echo '  Значит краснота — про ПОВЕДЕНИЕ: тест существует и падает.'
+    return 0
+  fi
+  bad "$ng имён из снимка файл больше НЕ ПРОИЗВОДИТ — снимок устарел"
+  printf '%s\n' "$gone" | head -6 | sed 's/^/    - /'
+  [ "$ng" -gt 6 ] && echo "    ... ещё $((ng - 6))"
+  echo
+  echo '  Это ПЕРЕИМЕНОВАНИЕ, а не регрессия: такие имена не пройдут никогда,'
+  echo '  и перепроверка гейта их не снимет. Лечение по протоколу снимка:'
+  echo '   1) сверь, что замена покрывает то же или лучше (сравни имена);'
+  echo '   2) node scripts/test-gate.cjs --save;'
+  echo '   3) сверь diff снимка — удалиться должны ТОЛЬКО ожидаемые имена;'
+  echo '   4) скажи об этом в отчёте. Молча обновлять снимок нельзя.'
+  return 1
+}
+
+cmd_why_red_selfcheck() {
+  # ЛИНЕЙКУ ПРОВЕРЯЕМ НА РЕАЛЬНОМ СЛУЧАЕ, а не на выдуманном.
+  #
+  # ad207845b — снимок ДО того, как PR #1496 переписал voiceValidation, и он
+  # обязан дать 14 пропавших имён. Текущий снимок обязан дать ноль. Проверка,
+  # отвечающая одинаково на оба, ничего не проверяет.
+  local f='src/__tests__/helpers/voiceValidation.test.ts'
+  local old_snap="/tmp/tri-why-red-old-baseline.txt"
+  if ! git -C "$ROOT" show ad207845b:.test-baseline.txt > "$old_snap" 2>/dev/null; then
+    warn 'самопроверка пропущена: исторический снимок ad207845b недоступен'
+    return 0
+  fi
+  local rc=0
+  if cmd_why_red "$f" "$old_snap" >/dev/null 2>&1; then
+    bad 'СЛОМАНА: на старом снимке пропавших имён не найдено'
+    rc=1
+  else
+    good 'на снимке до PR #1496 пропавшие имена найдены'
+  fi
+  if cmd_why_red "$f" >/dev/null 2>&1; then
+    good 'на текущем снимке пропавших имён нет'
+  else
+    bad 'СЛОМАНА (или снимок снова устарел): на текущем снимке есть пропавшие'
+    rc=1
+  fi
+  rm -f "$old_snap"
+  return "$rc"
+}
+
 cmd_in_gate_selfcheck() {
   # ЛИНЕЙКУ ПРОВЕРЯЕМ В ОБЕ СТОРОНЫ, иначе она умеет только говорить «да».
   # Нужен файл, который гейт ОБЯЗАН видеть, и файл, который он обязан НЕ
@@ -1675,6 +1785,8 @@ case "$action" in
   disk|диск)           cmd_disk "$@" ;;
   in-gate|в-гейте)     cmd_in_gate "$@" ;;
   in-gate-check|в-гейте-проверка) cmd_in_gate_selfcheck ;;
+  why-red|почему-красный) cmd_why_red "$@" ;;
+  why-red-check|почему-красный-проверка) cmd_why_red_selfcheck ;;
   scan|скан)           node "$TOOLS/anomalies.mjs" ;;
   # Deliberately a TOP-LEVEL verb, not `tri scan check`. The sibling that took
   # the subcommand road is broken in exactly the documented spot: help promises
