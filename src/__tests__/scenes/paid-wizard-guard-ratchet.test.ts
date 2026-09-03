@@ -50,6 +50,7 @@ const GUARDED_PAID_WIZARDS: Record<string, string> = {
   'src/scenes/aiChatWizard/index.ts': 'aiChatInProgress',
   'src/scenes/chatWithAvatarWizard/index.ts': 'chatWithAvatarInProgress',
   'src/scenes/improvePromptWizard/index.ts': 'improvePromptInProgress',
+  'src/scenes/imageUpscalerWizard/index.ts': 'imageUpscalerInProgress',
 }
 
 // Files that carry MORE THAN ONE in-flight guard. GUARDED_PAID_WIZARDS is keyed
