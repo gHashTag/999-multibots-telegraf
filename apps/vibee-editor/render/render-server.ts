@@ -3451,32 +3451,61 @@ const server = createServer(async (req, res) => {
         billedTid = billed.tid
 
         if (typeof model === 'string' && model.startsWith('kie/')) {
-          const kieModel = reviewedKieModel('audio', model)!
-          const result = await runExplicitKieJob(kieModel, {
-            text,
-            voice:
-              typeof voice_name === 'string' && voice_name.trim()
-                ? voice_name.trim()
-                : 'Rachel',
-            stability: 0.5,
-            similarity_boost: 0.75,
-            style: 0,
-            speed: Number.isFinite(Number(speed)) ? Number(speed) : 1,
-            timestamps: false,
-            previous_text: '',
-            next_text: '',
-            language_code: '',
-          })
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(
-            JSON.stringify({
-              success: true,
-              url: result.url,
-              id: result.taskId,
-              provider: model,
+          /**
+           * ОТКАЗ KIE НЕ ЗАВЕРШАЕТ ЗАПРОС — переходим на запасной путь ниже.
+           *
+           * Раньше `runExplicitKieJob` бросал прямо наружу, и человек получал
+           * 500 «Internal Error, Please try again later» — дословный ответ
+           * KieAI. Замер: единственная разрешённая для звука модель
+           * `elevenlabs/text-to-speech-multilingual-v2` отвечает этой ошибкой
+           * стабильно, а путь ниже (ElevenLabs → Replicate) в ту же секунду
+           * отдаёт готовый mp3. То есть озвучка была технически доступна и
+           * недоступна на практике: приложение всегда шлёт `kie/…`.
+           *
+           * Правило уже сформулировано двумя строками ниже — «провайдер лёг,
+           * идём к следующему, симметрично картинкам». KIE просто в нём не
+           * участвовал.
+           *
+           * ДЕНЬГИ. Списание произошло выше. Отдать результат запасным путём
+           * ЧЕСТНЕЕ, чем вернуть отказ и возврат: человек платил за озвучку,
+           * а не за конкретного подрядчика, и получает именно её. Кто
+           * исполнил на самом деле — сказано в `provider` ответа, не выдумано.
+           */
+          try {
+            const kieModel = reviewedKieModel('audio', model)!
+            const result = await runExplicitKieJob(kieModel, {
+              text,
+              voice:
+                typeof voice_name === 'string' && voice_name.trim()
+                  ? voice_name.trim()
+                  : 'Rachel',
+              stability: 0.5,
+              similarity_boost: 0.75,
+              style: 0,
+              speed: Number.isFinite(Number(speed)) ? Number(speed) : 1,
+              timestamps: false,
+              previous_text: '',
+              next_text: '',
+              language_code: '',
             })
-          )
-          return
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                success: true,
+                url: result.url,
+                id: result.taskId,
+                provider: model,
+              })
+            )
+            return
+          } catch (kieError) {
+            // Не глушим: причина отказа KieAI должна остаться в логе, иначе
+            // «почему-то всегда Replicate» станет загадкой на месяц.
+            console.warn(
+              `⚠️ Kie.ai TTS отказал (${model}), идём запасным путём:`,
+              kieError instanceof Error ? kieError.message : kieError
+            )
+          }
         }
 
         // ElevenLabs is the primary path; if it is unavailable (the key stored
