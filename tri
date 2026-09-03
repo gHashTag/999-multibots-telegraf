@@ -1751,6 +1751,85 @@ cmd_why_red_selfcheck() {
   return "$rc"
 }
 
+cmd_skipped() {
+  # ПЕРЕПИСЬ ВЫКЛЮЧЕННЫХ ТЕСТОВ.
+  #
+  # Гейт видит только ЗЕЛЁНЫЕ имена. Тест, помеченный skip, зелёным не
+  # становится и в снимок не попадает — а если он лежит в файле, где ОСТАЛЬНЫЕ
+  # тесты зелёные, то файл в снимке есть, гейт доволен, и выключенные тесты
+  # внутри не видит НИКТО. На 04.09.2026 таких было 36 в 10 зелёных файлах.
+  #
+  # Отдельно считаем НЕЗАДОКУМЕНТИРОВАННЫЕ: skip без объяснения рядом. Skip с
+  # записанной причиной и условием снятия — это честный долг; skip молча
+  # неотличим от «замял красноту». Команда падает только на них, поэтому на
+  # чистом дереве она зелёная и её не приучаются игнорировать.
+  local files
+  if [ "$#" -gt 0 ]; then
+    files="$(printf '%s\n' "$@")"
+  else
+    files="$(git -C "$ROOT" ls-files '*.test.ts' '*.test.tsx')"
+  fi
+  printf '%s' "$files" | node -e '
+    const fs = require("fs");
+    const snapPath = process.argv[1];
+    let snap = "";
+    try { snap = fs.readFileSync(snapPath, "utf8"); } catch {}
+    let input = "";
+    process.stdin.on("data", d => input += d);
+    process.stdin.on("end", () => {
+      const files = input.split("\n").filter(Boolean);
+      const SKIP = /\b(describe|it|test)\.skip\b/;
+      let sites = 0, hidden = 0, undoc = 0;
+      const undocList = [], hiddenFiles = new Map();
+      for (const f of files) {
+        let src;
+        try { src = fs.readFileSync(f, "utf8").split("\n"); } catch { continue; }
+        const green = snap.includes(f + " :: ");
+        for (let i = 0; i < src.length; i++) {
+          if (!SKIP.test(src[i])) continue;
+          sites++;
+          if (green) { hidden++; hiddenFiles.set(f, (hiddenFiles.get(f)||0)+1); }
+          const win = src.slice(Math.max(0, i-12), i).join("\n");
+          if (!/(\/\/|\*)\s*\S/.test(win)) { undoc++; undocList.push(f + ":" + (i+1)); }
+        }
+      }
+      for (const [f, n] of [...hiddenFiles].sort((a,b) => b[1]-a[1]))
+        console.log("  " + String(n).padStart(2) + "  " + f);
+      console.log("");
+      console.log("выключенных тестов: " + sites);
+      console.log("из них СПРЯТАНЫ в зелёных файлах (гейт их не видит): " + hidden);
+      console.log("без записанной причины: " + undoc);
+      for (const u of undocList) console.log("    - " + u);
+      process.exit(undoc === 0 ? 0 : 1);
+    });
+  ' "$ROOT/.test-baseline.txt"
+}
+
+cmd_skipped_selfcheck() {
+  # ЛИНЕЙКА В ОБЕ СТОРОНЫ, на временных файлах: репозиторий не трогаем.
+  local d=/tmp/tri-skipped-probe
+  rm -rf "$d"; mkdir -p "$d"
+  printf "describe('x', () => {\n  it.skip('bare', () => {})\n})\n" > "$d/bare.test.ts"
+  printf "describe('x', () => {\n  // reason: waiting on a stand\n  it.skip('documented', () => {})\n})\n" > "$d/doc.test.ts"
+  local rc=0 out
+  out="$(cmd_skipped "$d/bare.test.ts" 2>&1 || true)"
+  if printf '%s' "$out" | grep -q 'без записанной причины: 1'; then
+    good 'skip без объяснения опознан'
+  else
+    bad 'СЛОМАНА: skip без объяснения не опознан'
+    rc=1
+  fi
+  out="$(cmd_skipped "$d/doc.test.ts" 2>&1 || true)"
+  if printf '%s' "$out" | grep -q 'без записанной причины: 0'; then
+    good 'skip с записанной причиной не считается нарушением'
+  else
+    bad 'СЛОМАНА: документированный skip засчитан как нарушение'
+    rc=1
+  fi
+  rm -rf "$d"
+  return "$rc"
+}
+
 cmd_unguarded() {
   # СЛЕПОЕ ПЯТНО ВОРОТ. Ворота сравнивают МНОЖЕСТВА имён: они кричат, когда имя
   # ПРОПАЛО из снимка. Про тест, которого в снимке НИКОГДА НЕ БЫЛО, сказать
@@ -1994,6 +2073,8 @@ case "$action" in
   in-gate-check|в-гейте-проверка) cmd_in_gate_selfcheck ;;
   why-red|почему-красный) cmd_why_red "$@" ;;
   why-red-check|почему-красный-проверка) cmd_why_red_selfcheck ;;
+  skipped|выключены)  cmd_skipped "$@" ;;
+  skipped-check|выключены-проверка) cmd_skipped_selfcheck ;;
   unguarded|без-охраны) cmd_unguarded "$@" ;;
   unguarded-check|без-охраны-проверка) cmd_unguarded_selfcheck ;;
   scan|скан)           node "$TOOLS/anomalies.mjs" ;;

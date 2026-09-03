@@ -143,6 +143,23 @@ describe('Monitoring & Test Functions', () => {
     mockLogger = createMockLogger()
   })
 
+  /**
+   * Disabled in 5644df015 (2026-08-28), the release audit that turned 208
+   * failing tests into 0 so CI could carry signal. No reason was recorded
+   * here, so it was measured before writing this down.
+   *
+   * These suites do NOT fail on an assertion. They fail at the module's key
+   * check with "OPENAI_API_KEY or DEEPSEEK_API_KEY is required" -- and
+   * supplying a dummy key does not help: the code then reaches the live API
+   * and comes back with 401 from platform.openai.com. The calls are real,
+   * not mocked.
+   *
+   * So this skip is load-bearing in a way the others are not: with a REAL
+   * key in the environment these tests would spend money against OpenAI on
+   * every run. Do not re-enable by adding a key. Re-enable only after the
+   * client is mocked, and confirm with `npm run test:network`, which exists
+   * to census exactly this.
+   */
   describe.skip('criticalErrorMonitor', () => {
     it('должен проверять здоровье системы', async () => {
       const event = {
@@ -293,6 +310,23 @@ describe('Monitoring & Test Functions', () => {
     })
   })
 
+  /**
+   * Disabled in 5644df015 (2026-08-28), the release audit that turned 208
+   * failing tests into 0 so CI could carry signal. No reason was recorded
+   * here, so it was measured before writing this down.
+   *
+   * These suites do NOT fail on an assertion. They fail at the module's key
+   * check with "OPENAI_API_KEY or DEEPSEEK_API_KEY is required" -- and
+   * supplying a dummy key does not help: the code then reaches the live API
+   * and comes back with 401 from platform.openai.com. The calls are real,
+   * not mocked.
+   *
+   * So this skip is load-bearing in a way the others are not: with a REAL
+   * key in the environment these tests would spend money against OpenAI on
+   * every run. Do not re-enable by adding a key. Re-enable only after the
+   * client is mocked, and confirm with `npm run test:network`, which exists
+   * to census exactly this.
+   */
   describe.skip('logMonitor', () => {
     it('должен мониторить логи с базовыми параметрами', async () => {
       const event = {
@@ -430,6 +464,23 @@ describe('Monitoring & Test Functions', () => {
     })
   })
 
+  /**
+   * Disabled in 5644df015 (2026-08-28), the release audit that turned 208
+   * failing tests into 0 so CI could carry signal. No reason was recorded
+   * here, so it was measured before writing this down.
+   *
+   * These suites do NOT fail on an assertion. They fail at the module's key
+   * check with "OPENAI_API_KEY or DEEPSEEK_API_KEY is required" -- and
+   * supplying a dummy key does not help: the code then reaches the live API
+   * and comes back with 401 from platform.openai.com. The calls are real,
+   * not mocked.
+   *
+   * So this skip is load-bearing in a way the others are not: with a REAL
+   * key in the environment these tests would spend money against OpenAI on
+   * every run. Do not re-enable by adding a key. Re-enable only after the
+   * client is mocked, and confirm with `npm run test:network`, which exists
+   * to census exactly this.
+   */
   describe.skip('testSimpleFunction', () => {
     it('должен выполнять простой тест', async () => {
       const event = {
@@ -501,6 +552,23 @@ describe('Monitoring & Test Functions', () => {
     })
   })
 
+  /**
+   * Disabled in 5644df015 (2026-08-28), the release audit that turned 208
+   * failing tests into 0 so CI could carry signal. No reason was recorded
+   * here, so it was measured before writing this down.
+   *
+   * These suites do NOT fail on an assertion. They fail at the module's key
+   * check with "OPENAI_API_KEY or DEEPSEEK_API_KEY is required" -- and
+   * supplying a dummy key does not help: the code then reaches the live API
+   * and comes back with 401 from platform.openai.com. The calls are real,
+   * not mocked.
+   *
+   * So this skip is load-bearing in a way the others are not: with a REAL
+   * key in the environment these tests would spend money against OpenAI on
+   * every run. Do not re-enable by adding a key. Re-enable only after the
+   * client is mocked, and confirm with `npm run test:network`, which exists
+   * to census exactly this.
+   */
   describe.skip('testSimpleMessageFunction', () => {
     it('должен отправлять простое сообщение', async () => {
       const event = {
@@ -591,6 +659,23 @@ describe('Monitoring & Test Functions', () => {
     })
   })
 
+  /**
+   * Disabled in 5644df015 (2026-08-28), the release audit that turned 208
+   * failing tests into 0 so CI could carry signal. No reason was recorded
+   * here, so it was measured before writing this down.
+   *
+   * These suites do NOT fail on an assertion. They fail at the module's key
+   * check with "OPENAI_API_KEY or DEEPSEEK_API_KEY is required" -- and
+   * supplying a dummy key does not help: the code then reaches the live API
+   * and comes back with 401 from platform.openai.com. The calls are real,
+   * not mocked.
+   *
+   * So this skip is load-bearing in a way the others are not: with a REAL
+   * key in the environment these tests would spend money against OpenAI on
+   * every run. Do not re-enable by adding a key. Re-enable only after the
+   * client is mocked, and confirm with `npm run test:network`, which exists
+   * to census exactly this.
+   */
   describe.skip('testAdvancedLoopFunction', () => {
     it('должен выполнять простой цикл', async () => {
       const event = {
