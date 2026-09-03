@@ -28,11 +28,10 @@ const SRC = path.join(ROOT, 'src')
 
 const ENTRIES = ['src/index.ts', 'src/bot.ts']
 
-const ALIASES = [
-  ['@/', 'src/'],
-]
+const ALIASES = [['@/', 'src/']]
 
-const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+const strip = s =>
+  s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
 
 function resolveSpecifier(spec, fromFile) {
   let rel = null
@@ -71,6 +70,20 @@ function importsOf(file) {
   } catch {
     return []
   }
+  return specifiersIn(src)
+}
+
+/**
+ * The specifier patterns, callable on a sample.
+ *
+ * importsOf takes a PATH, so the patterns could never be pointed at a known
+ * case -- and here that is not hypothetical. The comment below records the time
+ * they silently stopped seeing multi-line imports, which declared
+ * src/scenes/index.ts unreachable while the wizards ran fine in production. A
+ * finder that loses a pattern reports MORE dead code, which reads like a better
+ * result, so nothing about the output looks wrong.
+ */
+function specifiersIn(src) {
   const specs = new Set()
 
   // ЛОВИМ ЛЮБОЕ `from 'x'`, не привязываясь к строке.
@@ -88,11 +101,65 @@ function importsOf(file) {
   // import 'x' без привязок
   for (const m of src.matchAll(/\bimport\s+['"]([^'"]+)['"]/g)) specs.add(m[1])
   // await import('x') / import('x')
-  for (const m of src.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) specs.add(m[1])
+  for (const m of src.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g))
+    specs.add(m[1])
   // require('x')
-  for (const m of src.matchAll(/\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) specs.add(m[1])
+  for (const m of src.matchAll(/\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g))
+    specs.add(m[1])
   return [...specs]
 }
+
+/**
+ * POSITIVE CONTROL: one of each form the walk depends on, and the first is the
+ * multi-line import that the original patterns missed -- the exact regression
+ * this control exists to prevent from recurring silently.
+ *
+ * NEGATIVE CONTROL: two shapes that are not imports at all. A specifier written
+ * inside a string is not an edge, and neither is the word `from` in prose. If
+ * either counted, unreachable files would be declared alive and the probe would
+ * under-report -- the direction its own docblock calls the dangerous one.
+ */
+const C_IMPORT_POS = [
+  'import {',
+  '  somethingLong,',
+  "} from '@/services/alpha'",
+  "import '@/side-effect'",
+  "const m = await import('@/services/beta')",
+  "const r = require('@/services/gamma')",
+].join('\n')
+
+const C_IMPORT_NEG = [
+  "const label = 'imported from @/services/nowhere'",
+  'const note = `values come from the caller`',
+].join('\n')
+
+const cPos = specifiersIn(C_IMPORT_POS)
+const wanted = [
+  '@/services/alpha',
+  '@/side-effect',
+  '@/services/beta',
+  '@/services/gamma',
+]
+const missing = wanted.filter(w => !cPos.includes(w))
+if (missing.length) {
+  console.error(
+    `самопроверка не прошла: не найдены импорты ${missing.join(', ')}.\n` +
+      'потерянный образец импорта делает достижимый код «мёртвым» — ровно так\n' +
+      'многострочные импорты однажды и выпали. Список ниже читать нельзя.'
+  )
+  process.exit(2)
+}
+const cNeg = specifiersIn(C_IMPORT_NEG)
+if (cNeg.length !== 0) {
+  console.error(
+    `самопроверка не прошла: за импорт принято ${cNeg.length} строк, которые им не являются` +
+      ` (${cNeg.join(', ')}). Недостижимое будет объявлено живым.`
+  )
+  process.exit(2)
+}
+console.log(
+  'самопроверка: четыре формы импорта найдены, две похожие отвергнуты'
+)
 
 function allSourceFiles() {
   const out = []
@@ -133,7 +200,8 @@ function main() {
   }
 
   const all = allSourceFiles()
-  const isTest = f => f.includes('__tests__') || f.includes('/test/') || f.endsWith('.test.ts')
+  const isTest = f =>
+    f.includes('__tests__') || f.includes('/test/') || f.endsWith('.test.ts')
   const prod = all.filter(f => !isTest(f))
   const unreached = prod.filter(f => !reached.has(f))
 
@@ -151,7 +219,9 @@ function main() {
   }
 
   console.log('\n=== НЕДОСТИЖИМЫЕ ФАЙЛЫ ПО КАТАЛОГАМ ===')
-  for (const [d, list] of [...byDir.entries()].sort((a, b) => b[1].length - a[1].length)) {
+  for (const [d, list] of [...byDir.entries()].sort(
+    (a, b) => b[1].length - a[1].length
+  )) {
     console.log(`\n  ${d}  (${list.length})`)
     for (const f of list.slice(0, 12)) console.log(`      ${f}`)
     if (list.length > 12) console.log(`      ... ещё ${list.length - 12}`)
@@ -160,7 +230,10 @@ function main() {
   // Строки для машинной обработки следующим шагом.
   fs.writeFileSync(
     '/tmp/unreachable.txt',
-    unreached.map(f => path.relative(ROOT, f)).sort().join('\n') + '\n'
+    unreached
+      .map(f => path.relative(ROOT, f))
+      .sort()
+      .join('\n') + '\n'
   )
   console.log('\nсписок сохранён в /tmp/unreachable.txt')
 }

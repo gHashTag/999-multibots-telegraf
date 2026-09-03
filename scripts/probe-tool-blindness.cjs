@@ -24,7 +24,14 @@ const NUL = String.fromCharCode(0)
 /** Всё, что есть на диске, без служебных каталогов. */
 function onDisk(root = '.') {
   const out = []
-  const SKIP = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage'])
+  const SKIP = new Set([
+    'node_modules',
+    '.git',
+    'dist',
+    'build',
+    '.next',
+    'coverage',
+  ])
   ;(function walk(dir) {
     let entries
     try {
@@ -52,15 +59,22 @@ console.log('=== Перечисление через git ===')
 const plain = execSync('git ls-files', { encoding: 'utf8', maxBuffer: 1 << 26 })
   .split('\n')
   .filter(Boolean)
-const zero = execSync('git ls-files -z', { encoding: 'utf8', maxBuffer: 1 << 26 })
+const zero = execSync('git ls-files -z', {
+  encoding: 'utf8',
+  maxBuffer: 1 << 26,
+})
   .split('\0')
   .filter(Boolean)
 
 const plainMissing = plain.filter(f => !fs.existsSync(f))
 const zeroMissing = zero.filter(f => !fs.existsSync(f))
 
-console.log(`  git ls-files      : ${plain.length} имён, НЕ открывается ${plainMissing.length}`)
-console.log(`  git ls-files -z   : ${zero.length} имён, НЕ открывается ${zeroMissing.length}`)
+console.log(
+  `  git ls-files      : ${plain.length} имён, НЕ открывается ${plainMissing.length}`
+)
+console.log(
+  `  git ls-files -z   : ${zero.length} имён, НЕ открывается ${zeroMissing.length}`
+)
 if (plainMissing.length) {
   console.log('  примеры выпавших:')
   for (const f of plainMissing.slice(0, 3)) console.log(`    ${f.slice(0, 76)}`)
@@ -70,7 +84,9 @@ if (plainMissing.length) {
 const nonAscii = disk.filter(f => /[^\x20-\x7e]/.test(f))
 console.log(`\n  файлов с не-ASCII именами на диске: ${nonAscii.length}`)
 const nonAsciiTs = nonAscii.filter(f => f.endsWith('.ts'))
-console.log(`  из них .ts (то есть попадают в обходы src): ${nonAsciiTs.length}`)
+console.log(
+  `  из них .ts (то есть попадают в обходы src): ${nonAsciiTs.length}`
+)
 
 // --- 3. Что видят обходы каталогов -------------------------------------
 //
@@ -113,7 +129,67 @@ for (const f of srcTs) {
     unreadable++
   }
 }
-console.log(`  из ${srcTs.length} файлов .ts: не читаются ${unreadable}, двоичных ${binary}, больше 2 МБ ${big}`)
+console.log(
+  `  из ${srcTs.length} файлов .ts: не читаются ${unreadable}, двоичных ${binary}, больше 2 МБ ${big}`
+)
+
+/**
+ * The three blindness marks, callable on a sample.
+ *
+ * They were inline in the loop, so this probe -- whose whole subject is tools
+ * that go silently blind -- could not be pointed at a known case itself. If one
+ * of these patterns stopped matching, the count would fall to zero and read as
+ * "the tools got better".
+ */
+function flagsFor(text) {
+  const flags = []
+  if (/execSync\(\s*['"`]git ls-files['"`]/.test(text))
+    flags.push('git ls-files без -z')
+  if (/catch\s*(\([^)]*\))?\s*\{\s*(continue|return)\s*\}/.test(text))
+    flags.push('молчаливый пропуск при ошибке чтения')
+  if (/if\s*\(!fs\.existsSync\([^)]*\)\)\s*continue/.test(text))
+    flags.push('пропуск несуществующего без счётчика')
+  return flags
+}
+
+/**
+ * POSITIVE CONTROL: all three marks at once.
+ *
+ * NEGATIVE CONTROL: the corrected form of each, one per mark, so no single
+ * pattern going wrong can hide behind another. -z makes the enumeration safe;
+ * a catch that says something is not a silent skip; and a skip that counts what
+ * it dropped is not a silent one either.
+ */
+const C_POS = [
+  "execSync('git ls-files')",
+  'try { read() } catch { continue }',
+  'if (!fs.existsSync(p)) continue',
+].join('\n')
+
+const C_NEG = [
+  "execSync('git ls-files -z')",
+  'try { read() } catch (e) { logger.warn(e); continue }',
+  'if (!fs.existsSync(p)) { missing++; continue }',
+].join('\n')
+
+const posFlags = flagsFor(C_POS)
+if (posFlags.length !== 3) {
+  console.error(
+    `самопроверка не прошла: из трёх заведомых признаков слепоты найдено ${posFlags.length}.\n` +
+      'ноль подозреваемых ниже означал бы сломанный матчер, а не исправные инструменты.'
+  )
+  process.exit(2)
+}
+const negFlags = flagsFor(C_NEG)
+if (negFlags.length !== 0) {
+  console.error(
+    `самопроверка не прошла: матчер пометил исправные формы (${negFlags.join('; ')}).`
+  )
+  process.exit(2)
+}
+console.log(
+  'самопроверка: три признака найдены, три исправные формы отвергнуты'
+)
 
 // --- 5. Молчаливые пропуски в самих инструментах ------------------------
 console.log('\n=== Молчаливые пропуски в коде инструментов ===')
@@ -129,11 +205,11 @@ for (const t of tools) {
   } catch {
     continue
   }
-  const flags = []
-  if (/execSync\(\s*['"`]git ls-files['"`]/.test(text)) flags.push('git ls-files без -z')
-  if (/catch\s*(\([^)]*\))?\s*\{\s*(continue|return)\s*\}/.test(text)) flags.push('молчаливый пропуск при ошибке чтения')
-  if (/if\s*\(!fs\.existsSync\([^)]*\)\)\s*continue/.test(text)) flags.push('пропуск несуществующего без счётчика')
+  const flags = flagsFor(text)
   if (flags.length) suspects.push({ t, flags })
 }
-console.log(`  инструментов проверено: ${tools.length}, с признаками слепоты: ${suspects.length}`)
-for (const s of suspects) console.log(`    ${s.t}\n        ${s.flags.join('; ')}`)
+console.log(
+  `  инструментов проверено: ${tools.length}, с признаками слепоты: ${suspects.length}`
+)
+for (const s of suspects)
+  console.log(`    ${s.t}\n        ${s.flags.join('; ')}`)
