@@ -48,9 +48,11 @@ never copied wholesale.
   and implementations were resolved explicitly in favor of signed Mini App
   identity and immutable SAFE BETA locks; no loop state was transferred.
 
-No database-destructive migration is permitted in this release. Rollback is
-the exact candidate commit revert plus the recorded previous Railway
-deployment artifact for each affected service.
+No database-destructive migration is permitted in this release. A whole-commit
+revert is prohibited because it could restore credential-bearing material.
+Rollback must follow `SAFE_BETA_ROLLBACK.md`: a reviewed forward/path-scoped
+change or a previously scanned, post-rotation artifact for each affected
+service.
 
 ## Exact local candidate matrix
 

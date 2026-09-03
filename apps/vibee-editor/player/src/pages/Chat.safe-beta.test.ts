@@ -61,7 +61,7 @@ describe('Chat SAFE BETA surface', () => {
       '.editor:has(> .header-diagnostic-alert) > .editor-main'
     )
     expect(appStyles).toMatch(
-      /"diagnostic diagnostic"\s*\n\s*"sidebar canvas"/s
+      /(['"])diagnostic diagnostic\1\s*\n\s*(['"])sidebar canvas\2/s
     )
   })
 })
