@@ -49,10 +49,21 @@ const GUARDED_PAID_WIZARDS: Record<string, string> = {
   'src/scenes/imageToPromptWizard/index.ts': 'imageToPromptInProgress',
   'src/scenes/aiChatWizard/index.ts': 'aiChatInProgress',
   'src/scenes/chatWithAvatarWizard/index.ts': 'chatWithAvatarInProgress',
+  'src/scenes/improvePromptWizard/index.ts': 'improvePromptInProgress',
 }
 
+// Files that carry MORE THAN ONE in-flight guard. GUARDED_PAID_WIZARDS is keyed
+// one-flag-per-file; a second guard living in an already-listed file goes here so
+// both the per-guard assertions and the completeness census still cover it.
+const EXTRA_GUARDS: Array<[string, string]> = [
+  ['src/scenes/aiPhotoshopScene/index.ts', 'aiPhotoshopUpscaleInProgress'],
+]
+
 describe('paid wizards keep their in-flight guard', () => {
-  for (const [file, flag] of Object.entries(GUARDED_PAID_WIZARDS)) {
+  for (const [file, flag] of [
+    ...Object.entries(GUARDED_PAID_WIZARDS),
+    ...EXTRA_GUARDS,
+  ]) {
     describe(path.basename(path.dirname(file)), () => {
       const src = fs.readFileSync(file, 'utf8')
 
@@ -74,7 +85,10 @@ describe('paid wizards keep their in-flight guard', () => {
   }
 
   it('every *InProgress guard in src/scenes is registered here', () => {
-    const registered = new Set(Object.values(GUARDED_PAID_WIZARDS))
+    const registered = new Set([
+      ...Object.values(GUARDED_PAID_WIZARDS),
+      ...EXTRA_GUARDS.map(([, flag]) => flag),
+    ])
     const found = new Set<string>()
 
     const walk = (dir: string) => {
