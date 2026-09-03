@@ -1,7 +1,34 @@
 // Эталон: значения ИЗ САМОГО Remotion, а не из моей реконструкции формулы.
-const {
-  springCalculation,
-} = require('/Users/playom/999-multibots-telegraf/apps/vibee-editor/render/node_modules/remotion/dist/cjs/spring/spring-utils.js')
+/**
+ * Remotion is resolved RELATIVE TO THIS REPOSITORY, never by absolute path.
+ *
+ * This line used to name a directory inside one particular person's home
+ * folder, so the check below could not run anywhere else -- and a check that
+ * cannot run is not a check. It looked wired up: the script exists, the Swift
+ * side builds, the comparison is written. It simply died on require() for
+ * everyone except its author.
+ */
+const path = require('path')
+/**
+ * The package DIRECTORY is located relatively, then the deep file is joined on.
+ * require.resolve would honour Remotion's `exports` map, which does not expose
+ * these internals -- and reaching past `exports` is the whole point here: the
+ * reference has to be the shipping implementation, not the public surface.
+ */
+const REMOTION = path.join(
+  __dirname,
+  '..',
+  '..',
+  'vibee-editor',
+  'render',
+  'node_modules',
+  'remotion',
+  'dist',
+  'cjs'
+)
+const { springCalculation } = require(
+  path.join(REMOTION, 'spring', 'spring-utils.js')
+)
 const fps = 30
 const CFGS = [
   ['captions_pop', { damping: 12, stiffness: 180, mass: 0.4 }],
@@ -17,10 +44,7 @@ const CFGS = [
 // Easing и interpolate: те же входы, включая ВЫХОД ЗА ДИАПАЗОН.
 // Remotion клампит вход у части функций; расхождение проявляется только за
 // границами [0,1], поэтому пробуем именно их.
-const {
-  Easing,
-  interpolate,
-} = require('/Users/playom/999-multibots-telegraf/apps/vibee-editor/render/node_modules/remotion/dist/cjs/index.js')
+const { Easing, interpolate } = require(path.join(REMOTION, 'index.js'))
 const T = []
 for (let i = -30; i <= 130; i++) T.push(i / 100) // от -0.3 до 1.3
 
@@ -66,9 +90,9 @@ for (const [name, cfg] of CFGS) {
 // measureSpring: естественная длительность. От неё считается всё
 // масштабирование spring(durationInFrames:), поэтому расхождение здесь
 // сдвигает КАЖДУЮ анимацию, а не одну.
-const {
-  measureSpring,
-} = require('/Users/playom/999-multibots-telegraf/apps/vibee-editor/render/node_modules/remotion/dist/cjs/spring/measure-spring.js')
+const { measureSpring } = require(
+  path.join(REMOTION, 'spring', 'measure-spring.js')
+)
 const MEASURE = [
   ['m_captions_pop', { damping: 12, stiffness: 180, mass: 0.4 }],
   ['m_captions_bounce', { damping: 8, stiffness: 200, mass: 0.3 }],
