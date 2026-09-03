@@ -25,6 +25,12 @@ export async function downloadFileHelper(
         responseType: 'arraybuffer',
         timeout: 60000,
         maxRedirects: 5,
+        // Abort the download once the body exceeds the Telegram limit instead of
+        // buffering an unbounded response into memory: the post-download
+        // buffer.length check below only fires AFTER the whole file is in RAM,
+        // so a hostile/huge URL could OOM the shared process before it runs.
+        maxContentLength: MAX_FILE_SIZE,
+        maxBodyLength: MAX_FILE_SIZE,
         validateStatus: status => status === 200,
         headers: {
           'User-Agent': 'TelegramBot/1.0 (compatible; VideoGenerator)',
