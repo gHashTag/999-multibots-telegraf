@@ -57,7 +57,36 @@ vi.mock('@/helpers/centralizedLanguage', () => ({
   setUserLanguageInState: vi.fn(),
   toggleUserLanguageInState: vi.fn(),
 }))
-vi.mock('@/services/generateNeuroPhotoDirect')
+// generateNeuroPhotoMulti checks the balance first and returns null when the
+// user is short. Everything below is about what happens AFTER they can pay, so
+// the balance is supplied and the rest of the barrel stays real.
+vi.mock('@/core/supabase', async importOriginal => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  getUserBalance: vi.fn().mockResolvedValue(100000),
+}))
+
+// generateNeuroPhotoMulti checks the balance first and returns null when the
+// user is short, before reaching anything these tests assert. Everything below
+// is about what happens AFTER the user can pay, so the balance is supplied and
+// the rest of the barrel stays real.
+vi.mock('@/core/supabase', async importOriginal => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  getUserBalance: vi.fn().mockResolvedValue(100000),
+}))
+
+// Another bare mock, and the same trap as the language one: the local
+// fallback path checks `localResult && localResult.success`, so a stub
+// returning undefined makes every image count as a failure, the loop breaks on
+// the first one, and the series reports processedCount 0. Programmed to
+// succeed, because these tests are about processing several images, not about
+// what happens when generation fails.
+vi.mock('@/services/generateNeuroPhotoDirect', () => ({
+  generateNeuroPhotoDirect: vi.fn().mockResolvedValue({
+    success: true,
+    data: 'https://example.com/generated.jpg',
+    urls: ['https://example.com/generated.jpg'],
+  }),
+}))
 
 describe('Multi-Photo Neurophoto System', () => {
   let mockContext: Partial<MyContext>
@@ -121,6 +150,14 @@ describe('Multi-Photo Neurophoto System', () => {
         getFileLink: vi.fn().mockResolvedValue({
           href: 'https://api.telegram.org/file/test.jpg',
         }),
+        // The server path delivers each generated photo through sendPhoto. The
+        // mock had only getFileLink, so that call was `undefined(...)`, the
+        // whole server branch fell into its catch, and the service finished
+        // through local processing with nothing generated -- which looked from
+        // the outside like the server itself failing.
+        sendPhoto: vi.fn().mockResolvedValue({}),
+        sendMediaGroup: vi.fn().mockResolvedValue([]),
+        sendMessage: vi.fn().mockResolvedValue({}),
       },
       reply: vi.fn().mockResolvedValue({}),
       scene: {
@@ -274,6 +311,22 @@ describe('Multi-Photo Neurophoto System', () => {
   })
 
   describe('Enhanced Neurophoto Generation Service', () => {
+    // This block never set up the photos its own tests pass along. The
+    // beforeEach that fills multiPhotoUrls lives in the SIBLING describe above,
+    // so "should process multiple input images" was handing
+    // generateNeuroPhotoMulti `undefined` for imageUrls -- a multi-image test
+    // with no images. The service then took its single-image path and returned
+    // without replying, which read as "returns null under a partial mock".
+    beforeEach(() => {
+      mockSession.multiPhotoUrls = [
+        'https://api.telegram.org/file/photo1.jpg',
+        'https://api.telegram.org/file/photo2.jpg',
+        'https://api.telegram.org/file/photo3.jpg',
+      ]
+      mockSession.multiPhotoCount = 3
+      mockSession.prompt = 'test prompt'
+    })
+
     // The reason below is accurate but stops one step short. Measured (it.92):
     //
     // generateNeuroPhotoMulti checks the BALANCE first and, when it is short,
@@ -305,7 +358,23 @@ describe('Multi-Photo Neurophoto System', () => {
     // возвращает null и до проверяемых строк не доходит. Мок axios уже
     // добавлен (сервис ходит на внутренний сервер), очередь фото изолирована;
     // остальное — отдельная работа по стенду.
-    it.skip('should process multiple input images', async () => {
+    // REVIVED. Four things stood between this test and running, none of them
+    // the "whole pipeline stand" its comment claimed:
+    //   1. the balance guard returned null, because @/core/supabase was never
+    //      mocked and getUserBalance answered from the real client;
+    //   2. this describe never set multiPhotoUrls -- that beforeEach lives in
+    //      the SIBLING block -- so a multi-image test passed no images at all;
+    //   3. ctx.telegram carried only getFileLink, so the delivery call was
+    //      undefined(...);
+    //   4. generateNeuroPhotoDirect was bare-mocked, so the local fallback read
+    //      every image as a failure and reported processedCount 0.
+    //
+    // What it covers is the LOCAL fallback path, not the server one: the series
+    // count, and that the path returns a result at all. Verified by mutation --
+    // forcing processedCount to 0, and returning null instead of a result, each
+    // turn it red; neither server-path mutation touches it, which is why this
+    // says local rather than the name's implied server.
+    it('should process multiple input images', async () => {
       const mockAxios = {
         post: vi.fn().mockResolvedValue({
           data: {
@@ -419,6 +488,12 @@ describe('Multi-Photo Neurophoto System', () => {
     // возвращает null и до проверяемых строк не доходит. Мок axios уже
     // добавлен (сервис ходит на внутренний сервер), очередь фото изолирована;
     // остальное — отдельная работа по стенду.
+    // Passes with the stand above, but stays skipped on purpose: it asserts
+    // only toBeTruthy(), and no mutation found so far makes it fail -- forcing
+    // processedCount to 0, returning null from the local path, and breaking the
+    // server-side count all leave it green. A test that cannot be shown to
+    // guard anything is worse than a skipped one, because it reassures.
+    // Un-skip it together with an assertion that can fail.
     it.skip('should process single image uploads normally', async () => {
       // Remove multi-photo data
       mockSession.multiPhotoUrls = undefined
