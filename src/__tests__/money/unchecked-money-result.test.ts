@@ -34,11 +34,29 @@ const strip = (s: string) =>
     '\n'.repeat((m.match(/\n/g) || []).length)
   )
 
-/** Функции, чей возврат означает «получилось / не получилось». */
+/**
+ * Functions whose return value means "it worked / it did not".
+ *
+ * THIS LIST DEFINES THE POPULATION. The ratchet is blind to exactly the charge
+ * primitives that are absent from it, and a blind ratchet reads as a clean one.
+ * `deductBalanceAfterSuccess` (priceHelper.ts, `Promise<boolean>`) charges AFTER
+ * the video is delivered, so a discarded `false` means delivered-and-not-charged
+ * -- a silent free generation. PR #1663 fixed two such sites in
+ * generateImageToVideo.ts and NO gate watched them until the primitive was
+ * listed here (it.71 audit: that fix had no pinning test at all).
+ *
+ * NOT added, deliberately:
+ *   `processBalanceVideoOperation` -- zero call sites in src; a ratchet over
+ *      dead code guards nothing and manufactures a feeling of coverage;
+ *   `refundUser` -- the REFUND direction, not a charge: best-effort by design
+ *      (12+ bare `await refundUser(...)` sites) with its own ledger guard.
+ *      Including it is a separate campaign, not a widening of this invariant.
+ */
 const CHECKABLE = [
   'processBalanceOperation',
   'directPaymentProcessor',
   'updateUserBalance',
+  'deductBalanceAfterSuccess',
 ]
 
 /**
@@ -139,6 +157,26 @@ describe('результат денежной операции не выбрас
     expect(isDiscarded('  await updateUserBalance(', 'updateUserBalance')).toBe(
       true
     )
+  })
+
+  it('charge-after-delivery is in the population and is detected', () => {
+    // A self-check of the LIST, not of the code: a primitive that drops out of
+    // CHECKABLE makes the ratchet silent, and silence is indistinguishable from
+    // cleanliness. Assert both membership and that the pattern really sees a
+    // discarded call.
+    expect(CHECKABLE).toContain('deductBalanceAfterSuccess')
+    expect(
+      isDiscarded(
+        '    await deductBalanceAfterSuccess(',
+        'deductBalanceAfterSuccess'
+      )
+    ).toBe(true)
+    expect(
+      isDiscarded(
+        '    const deductSuccess = await deductBalanceAfterSuccess(',
+        'deductBalanceAfterSuccess'
+      )
+    ).toBe(false)
   })
 
   it('новых файлов с выброшенным результатом не появилось', () => {
