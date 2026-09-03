@@ -87,7 +87,7 @@ export const cancelPredictionsWizard = new Scenes.WizardScene<MyContext>(
     } catch (error) {
       console.error('Error cancelling predictions:', error)
       const isRu = isRussian(ctx)
-      await sendGenericErrorMessage(ctx, isRu, error as Error)
+      await sendGenericErrorMessage(ctx, isRu)
       return ctx.scene.leave()
     }
   }
