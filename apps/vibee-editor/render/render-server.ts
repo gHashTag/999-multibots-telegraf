@@ -8569,8 +8569,43 @@ Return ONLY the JSON, no additional text.`
 // WebSocket Server for Real-Time Sync
 // ===============================
 
-const wss = new WebSocketServer({ server })
+/**
+ * BOUNDS ON A CHANNEL NOBODY AUTHENTICATES.
+ *
+ * This socket is deliberately outside the HTTP auth guard: a browser cannot put
+ * headers on `new WebSocket(url)`, and the editor connects cross-origin, so
+ * authenticating it needs a ticket or a subprotocol -- a design decision, not a
+ * patch, and it is left to the owner. What does NOT need that decision is the
+ * cost an anonymous peer can impose while we wait for it:
+ *
+ *   maxPayload -- the ws default is 100 MB per frame. Every message this editor
+ *     actually sends is a control message (an asset record, an item update, a
+ *     frame number, a chunk of agent text): kilobytes. 4 MB is three orders of
+ *     magnitude of headroom and still 25x tighter than the default;
+ *   MAX_WS_CLIENTS -- the set only ever shrank on 'close'/'error', so anyone
+ *     could grow it without limit. A handful of editors is the real load;
+ *   the ping sweep -- a half-open TCP connection may never emit either event,
+ *     so without liveness checks dead peers accumulate forever. Browsers answer
+ *     ping frames in the protocol layer, so a live client cannot be reaped;
+ *   the bufferedAmount check in broadcastWS -- send() to a stalled peer queues
+ *     in OUR memory. Skipping a client that is already megabytes behind drops
+ *     messages it cannot read anyway instead of buying its backlog.
+ *
+ * All four refuse or bound; none of them can reject a well-behaved client.
+ */
+const WS_MAX_PAYLOAD_BYTES = 4 * 1024 * 1024
+const MAX_WS_CLIENTS = 200
+const WS_PING_INTERVAL_MS = 30_000
+/** Past this backlog a peer is not reading; queueing more only costs us. */
+const WS_MAX_BUFFERED_BYTES = 8 * 1024 * 1024
+
+const wss = new WebSocketServer({
+  server,
+  maxPayload: WS_MAX_PAYLOAD_BYTES,
+})
 const wsClients = new Set<WebSocket>()
+/** Answered the last ping? Absent means "never seen", which is not yet dead. */
+const wsAlive = new WeakMap<WebSocket, boolean>()
 
 interface WSMessage {
   type: string
@@ -8580,7 +8615,19 @@ interface WSMessage {
 
 wss.on('connection', (ws: WebSocket) => {
   const clientId = randomUUID()
+
+  if (wsClients.size >= MAX_WS_CLIENTS) {
+    // 1013 Try Again Later: an honest refusal, not a silent drop.
+    console.warn(
+      `[WS] Refused ${clientId}: at capacity (${wsClients.size}/${MAX_WS_CLIENTS})`
+    )
+    ws.close(1013, 'server at capacity')
+    return
+  }
+
   wsClients.add(ws)
+  wsAlive.set(ws, true)
+  ws.on('pong', () => wsAlive.set(ws, true))
   console.log(`[WS] Client connected: ${clientId} (total: ${wsClients.size})`)
 
   // Send welcome message with client ID
@@ -8613,12 +8660,41 @@ wss.on('connection', (ws: WebSocket) => {
   })
 })
 
+/**
+ * Reap peers that stopped answering.
+ *
+ * unref() so this timer never keeps the process alive on its own -- the same
+ * rule the other background timers here follow.
+ */
+const wsPingTimer = setInterval(() => {
+  for (const client of wsClients) {
+    if (wsAlive.get(client) === false) {
+      // Missed a whole interval: the socket is open only in our bookkeeping.
+      wsClients.delete(client)
+      client.terminate()
+      continue
+    }
+    wsAlive.set(client, false)
+    try {
+      client.ping()
+    } catch {
+      // A socket that cannot even be pinged is gone; drop it rather than
+      // carrying it until some OS timeout decides.
+      wsClients.delete(client)
+    }
+  }
+}, WS_PING_INTERVAL_MS)
+wsPingTimer.unref()
+
 function broadcastWS(message: WSMessage, exclude?: WebSocket) {
   const data = JSON.stringify(message)
   let sent = 0
 
   wsClients.forEach(client => {
     if (client !== exclude && client.readyState === WebSocket.OPEN) {
+      // A peer this far behind is not reading. Queueing more into our own
+      // memory does not help it and does hurt everyone sharing this process.
+      if (client.bufferedAmount > WS_MAX_BUFFERED_BYTES) return
       client.send(data)
       sent++
     }
