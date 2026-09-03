@@ -92,7 +92,7 @@ export const renderFunction = inngest.createFunction(
     }
 
     logger.info(`✅ Render workflow completed successfully for job ${job_id}`)
-    logger.info(`📹 Result URL: ${uploadResult.downloadUrl}`)
+    logger.info(`📹 Result URL: ${uploadResult.downloadUrl.split('?')[0]}`)
 
     return uploadResult.downloadUrl
   }

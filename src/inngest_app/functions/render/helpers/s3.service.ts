@@ -132,7 +132,9 @@ export class S3Service {
 
     if (logger) {
       logger.info('Generated presigned upload URL', {
-        url,
+        // Redact the SigV4 query (X-Amz-Signature = a 7-day bearer capability,
+        // X-Amz-Credential = the access key id) before logging.
+        url: url.split('?')[0],
         objectKey,
         contentType,
         bucket: this.bucketName,
@@ -173,7 +175,10 @@ export class S3Service {
     const url = await getSignedUrl(this.s3Client, command, { expiresIn })
 
     if (logger) {
-      logger.info('Generated presigned download URL', { objectKey, url })
+      logger.info('Generated presigned download URL', {
+        objectKey,
+        url: url.split('?')[0], // redact SigV4 query (bearer capability)
+      })
     }
 
     return url
