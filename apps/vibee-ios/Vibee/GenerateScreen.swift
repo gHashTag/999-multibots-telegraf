@@ -34,6 +34,23 @@ struct GenerateScreen: View {
   @State private var вид: Вид = .сценарий
   @State private var промпт = ""
   @State private var длительность = "5s"
+  /**
+   * Длительность СЦЕНАРИЯ — отдельная величина от `длительность` видео.
+   *
+   * У видео это ограничение конкретного клипа KieAI («6s»/«10s» — то, что
+   * умеет модель). У сценария это ЦЕЛЬ ДЛЯ ТЕКСТА: сервер вставляет число
+   * прямо в промпт LLM — `Create a {duration} {style} video script about…»
+   * (render-server.ts:8248) — и результат реально короче или длиннее.
+   * Раньше приложение это поле вообще не отправляло, и сервер молча ставил
+   * свои «30 seconds» по умолчанию — выбора не было, хотя разница между
+   * 15-секундным TikTok и полуторaминутным Reels для сценария огромна.
+   *
+   * Пресеты — не выдумка: 15 / 30 / 60 — стандартные отметки TikTok и
+   * YouTube Shorts, 90 — верхняя граница формата Reels. Кто снимает не по
+   * шаблону, вводит своё числом.
+   */
+  @State private var длительностьСценарияСек = 30
+  @State private var свояДлительность = false
   @State private var соотношение = "9:16"
   /**
    * Выбранная модель KieAI. `nil` — человек ещё не выбирал.
@@ -662,6 +679,9 @@ struct GenerateScreen: View {
       if вид == .видео {
         строкаВыбора("Длительность", ["6s", "10s"], $длительность)
       }
+      if вид == .сценарий {
+        выборДлительностиСценария
+      }
       // У сценария нет кадра: на выходе текст, а не картинка. Показывать
       // выбор 9:16 для сценария — предлагать настройку, которая ни на что
       // не влияет, и этим обещать не то.
@@ -789,6 +809,63 @@ struct GenerateScreen: View {
       }
       .pickerStyle(.segmented)
     }
+  }
+
+  private var выборДлительностиСценария: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text("Длительность")
+        .font(Тема.Шрифт.стиль(.caption))
+        .foregroundStyle(Тема.Цвет.текстПриглушённый)
+
+      HStack(spacing: Тема.Отступ.sm) {
+        ForEach([15, 30, 60, 90], id: \.self) { сек in
+          чипДлительности("\(сек)с", выбран: !свояДлительность && длительностьСценарияСек == сек) {
+            длительностьСценарияСек = сек
+            свояДлительность = false
+          }
+        }
+        чипДлительности("Своя", выбран: свояДлительность) { свояДлительность = true }
+      }
+
+      if свояДлительность {
+        TextField(
+          "секунд", text: Binding(
+            get: { длительностьСценарияСек == 0 ? "" : String(длительностьСценарияСек) },
+            // Только цифры: буквы попадали бы в промпт сервера как есть —
+            // «Create a abc seconds script» — и портили бы результат молча.
+            set: { длительностьСценарияСек = Int($0.filter(\.isNumber)) ?? 0 }
+          )
+        )
+        .keyboardType(.numberPad)
+        .textFieldStyle(.plain)
+        .font(Тема.Шрифт.стиль(.subheadline))
+        .padding(.horizontal, 12)
+        .frame(minHeight: Тема.Касание.минимум)
+        .frame(width: 96)
+        .background(Тема.Цвет.поверхность, in: RoundedRectangle(cornerRadius: Тема.Радиус.md))
+        .accessibilityIdentifier("ии.сценарий.своя_длительность")
+      }
+    }
+  }
+
+  private func чипДлительности(_ подпись: String, выбран: Bool, _ нажатие: @escaping () -> Void)
+    -> some View
+  {
+    Button(action: нажатие) {
+      Text(подпись)
+        .font(Тема.Шрифт.стиль(.subheadline, .medium))
+        .frame(minHeight: Тема.Касание.минимум)
+        .padding(.horizontal, 14)
+        .background(
+          выбран ? Тема.Цвет.акцент.opacity(0.18) : Тема.Цвет.поверхность, in: Capsule()
+        )
+        .overlay(
+          Capsule().strokeBorder(выбран ? Тема.Цвет.акцент : .clear, lineWidth: 1.5)
+        )
+        .foregroundStyle(выбран ? Тема.Цвет.акцент : Тема.Цвет.текстПриглушённый)
+        .contentShape(Capsule())
+    }
+    .buttonStyle(.plain)
   }
 
   private func заглушка(_ причина: String) -> some View {
@@ -1180,6 +1257,9 @@ struct GenerateScreen: View {
         "topic": промпт,
         "language": "Russian",
         "model": модельДляСервера,
+        // Формат совпадает с запасным значением сервера («30 seconds») —
+        // строка подставляется в промпт LLM буквально, а не парсится.
+        "duration": "\(длительностьСценарияСек) seconds",
       ]
     } else if вид == .звук {
       /**
