@@ -2169,6 +2169,11 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         '🎨 Серый Волк': 'Серый Волк',
         '🎨 Емеля': 'Емеля',
         '🎨 Гвен Стейси': 'Гвен Стейси',
+        // The second hero-button generator in this file spells her with the
+        // spider emoji, and only the fallback spelling above was a key here, so
+        // that button resolved to nothing. Additive: a new key cannot change
+        // how any existing button resolves.
+        '🕸️ Гвен Стейси': 'Гвен Стейси',
         '🎨 Шторм': 'Шторм',
         '🎨 Джин Грей': 'Джин Грей',
         '🎨 Роуг': 'Роуг',
