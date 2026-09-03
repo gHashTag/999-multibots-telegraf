@@ -1,10 +1,10 @@
-import { useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
-import { fetchMyProfileAtom } from '@/atoms';
-import { useTelegramWebApp } from '@/hooks/useTelegramWebApp';
-import { getWebApp, isTelegram } from '@/lib/telegram';
-import { telegramAutoLoginAtom } from '@/atoms/telegramAuth';
+import { fetchMyProfileAtom } from '@/atoms'
+import { useTelegramWebApp } from '@/hooks/useTelegramWebApp'
+import { getWebApp, isTelegram } from '@/lib/telegram'
+import { telegramAutoLoginAtom } from '@/atoms/telegramAuth'
 
 // ===============================
 // Mounts the Telegram runtime wiring. Must render INSIDE <BrowserRouter>
@@ -32,9 +32,30 @@ const START_PARAM_ROUTES: Record<string, string> = {
   image: '/generate/image',
   audio: '/generate/audio',
   profile: '/profile',
-};
+  /**
+   * `pair` — SIGN-IN FOR THE NATIVE APP. It was missing, and that alone made
+   * signing in impossible.
+   *
+   * The bot sends exactly this value: `appLoginCommand.ts` declares its start
+   * parameter as 'pair' and builds the button with `buildMiniAppUrl('pair')`.
+   * A value this map does not know is NOT an error -- it falls through to
+   * `TELEGRAM_HOME`, the feed. So the person pressed "Sign in to the app",
+   * landed on the feed, never saw a code, typed something anyway on the
+   * iPhone and got "код не найден".
+   *
+   * Production measurement 2026-09-03 matches that line for line: the logs
+   * carry `POST /api/auth/pair/start` and THREE `POST /api/auth/pair/claim`,
+   * while `app_pairing_codes` gained no row in 24 hours. No code existed for
+   * a single second; all three claims failed as `unknown`.
+   *
+   * Points at `/profile` because the card that shows the code
+   * (`PairWithApp`) lives there. No separate route was added: one screen with
+   * two addresses is one more pair that will eventually drift apart.
+   */
+  pair: '/profile',
+}
 
-const TELEGRAM_HOME = '/feed';
+const TELEGRAM_HOME = '/feed'
 
 /**
  * Путь, с которого приложение реально стартовало, снятый ДО монтирования React.
@@ -45,48 +66,48 @@ const TELEGRAM_HOME = '/feed';
  * и диплинк по start_param молча теряется.
  */
 const LAUNCH_PATH =
-  typeof window !== 'undefined' ? window.location.pathname : '/';
+  typeof window !== 'undefined' ? window.location.pathname : '/'
 
 export function TelegramProvider() {
-  useTelegramWebApp();
+  useTelegramWebApp()
 
-  const navigate = useNavigate();
-  const redirected = useRef(false);
-  const autoLogin = useSetAtom(telegramAutoLoginAtom);
+  const navigate = useNavigate()
+  const redirected = useRef(false)
+  const autoLogin = useSetAtom(telegramAutoLoginAtom)
 
   // Личность берётся из launch-данных сразу на монтировании. Без этого
   // userAtom внутри мини-аппа не заполнялся вообще ничем, и человек упирался
   // в модалку «Login to Export», у которой внутри Telegram нет ни одной
   // кнопки.
-  const fetchMyProfile = useSetAtom(fetchMyProfileAtom);
+  const fetchMyProfile = useSetAtom(fetchMyProfileAtom)
 
   useEffect(() => {
-    const r = autoLogin();
+    const r = autoLogin()
     if (r?.applied) {
-      console.log('[TelegramAuth] вход из launch-данных');
+      console.log('[TelegramAuth] вход из launch-данных')
       // Синк профиля из Telegram (имя, username, аватар → users+profiles):
       // автологин раньше заполнял только память клиента, и профиль
       // показывал автора последнего поста вместо человека.
-      fetchMyProfile().catch(() => {});
+      fetchMyProfile().catch(() => {})
     }
-  }, [autoLogin, fetchMyProfile]);
+  }, [autoLogin, fetchMyProfile])
 
   useEffect(() => {
-    if (redirected.current) return;
-    if (!isTelegram()) return;
+    if (redirected.current) return
+    if (!isTelegram()) return
     // Переписываем только маршрут запуска.
-    if (LAUNCH_PATH !== '/') return;
+    if (LAUNCH_PATH !== '/') return
 
-    const startParam = getWebApp()?.initDataUnsafe?.start_param;
-    const target = startParam && START_PARAM_ROUTES[startParam];
+    const startParam = getWebApp()?.initDataUnsafe?.start_param
+    const target = startParam && START_PARAM_ROUTES[startParam]
 
-    redirected.current = true;
+    redirected.current = true
 
     // Без start_param делать нечего: роутер уже увёл "/" на /feed.
-    if (!target || target === TELEGRAM_HOME) return;
+    if (!target || target === TELEGRAM_HOME) return
 
-    navigate(target, { replace: true });
-  }, [navigate]);
+    navigate(target, { replace: true })
+  }, [navigate])
 
-  return null;
+  return null
 }

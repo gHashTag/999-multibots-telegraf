@@ -510,6 +510,27 @@ export async function handleAuthRoute(
     const v = verifyTelegramInitData(initData)
     const telegramId = verifiedTelegramIdFrom(initData)
     if (!v.ok || !telegramId) {
+      /**
+       * THE LOG RECORDS THE OUTCOME, NOT THE ARRIVAL OF A REQUEST.
+       *
+       * Until this line the server printed only `📥 POST /api/auth/pair/start`
+       * -- "a request arrived". Issued and refused are indistinguishable in
+       * that line, and on 2026-09-03 it cost a whole investigation: someone
+       * reported that the code did not work, the logs showed one start and
+       * three claims, and `app_pairing_codes` held NOT ONE new row. The answer
+       * ("start is refusing, so there is nothing to type") had to be dug out
+       * of the database instead of read from the log.
+       *
+       * The reason is printed verbatim: "empty initData" and "no bot tokens
+       * configured" are two completely different repairs, and the person
+       * holding the phone needs to know which one.
+       *
+       * `initData` itself is NEVER printed: it carries the signature that
+       * would let someone present themselves as that person.
+       */
+      console.warn(
+        `🔑 [pair] start ОТКАЗ: ${v.reason ?? 'в подписанной строке нет user.id'}`
+      )
       json(res, 401, {
         error: 'подпись Telegram не принята',
         detail: v.reason ?? 'в подписанной строке нет поля user.id',
@@ -522,6 +543,12 @@ export async function handleAuthRoute(
       pool,
       telegramId,
       mintPairingCode
+    )
+    // The code is NOT logged -- it is a live credential for 120 seconds. Who
+    // it was issued to and for how long is enough to tie an issue to the
+    // claim that follows from the same telegram_id.
+    console.log(
+      `🔑 [pair] start ВЫДАН telegram_id=${telegramId}, живёт ${PAIRING.TTL_SECONDS}с`
     )
     json(res, 200, {
       code,
@@ -562,6 +589,18 @@ export async function handleAuthRoute(
         expired: 'код уже использован или истёк — запросите новый',
         exhausted: 'слишком много попыток — запросите новый код',
       }[outcome.reason]
+      /*
+       * The refusal reason goes to the log because its three values mean three
+       * different faults that look identical from outside:
+       *   unknown   -- no such code in the database. Most often this means
+       *                start refused and there was nothing to issue (see the
+       *                start line above).
+       *   expired   -- the code existed but the 120 seconds ran out: the
+       *                person did not switch apps in time.
+       *   exhausted -- guessing.
+       * The digits are never printed in any form.
+       */
+      console.warn(`🔑 [pair] claim ОТКАЗ: ${outcome.reason} — ${detail}`)
       json(res, 401, {
         error: 'pairing_failed',
         reason: outcome.reason,
@@ -570,6 +609,12 @@ export async function handleAuthRoute(
       return true
     }
 
+    // Success is logged too: without it the log shows only refusals, and
+    // "quiet" would mean both "all is well" and "nobody tried".
+    console.log(
+      `🔑 [pair] claim ПРИНЯТ telegram_id=${outcome.telegramId}, ` +
+        `устройство=${String(body.device_name ?? 'без имени').slice(0, 40)}`
+    )
     json(res, 200, await mintSession(pool, outcome.telegramId, body))
     return true
   }
