@@ -351,6 +351,7 @@ async function handleCompletedRender(
     // ✅ Telegram лимит: 50MB. Если видео больше - отправляем URL
     const TELEGRAM_VIDEO_LIMIT = 50 * 1024 * 1024 // 50MB
 
+    const isRu = (await getUserLanguageFromDB(telegramId)) !== 'en'
     if (videoBuffer.length > TELEGRAM_VIDEO_LIMIT) {
       logger.warn(
         '⚠️ [AI REELS CALLBACK] Video exceeds Telegram limit, sending URL',
@@ -364,18 +365,25 @@ async function handleCompletedRender(
       // Отправляем URL вместо файла
       await botToUse.telegram.sendMessage(
         telegramId,
-        `✅ Ваше AI Reels видео готово!\n\n` +
-          `⚠️ Видео слишком большое для Telegram (${(videoBuffer.length / (1024 * 1024)).toFixed(1)}MB > 50MB)\n\n` +
-          `📥 Скачайте видео по ссылке:\n${videoUrl}\n\n` +
-          `🎬 Создано с помощью Template 2 (Inngest + Render Server)`
+        (isRu
+          ? `✅ Ваше AI Reels видео готово!\n\n`
+          : `✅ Your AI Reels video is ready!\n\n`) +
+          (isRu
+            ? `⚠️ Видео слишком большое для Telegram (${(videoBuffer.length / (1024 * 1024)).toFixed(1)}MB > 50MB)\n\n`
+            : `⚠️ Video too large for Telegram (${(videoBuffer.length / (1024 * 1024)).toFixed(1)}MB > 50MB)\n\n`) +
+          (isRu
+            ? `📥 Скачайте видео по ссылке:\n${videoUrl}\n\n`
+            : `📥 Download the video:\n${videoUrl}\n\n`) +
+          (isRu
+            ? `🎬 Создано с помощью Template 2 (Inngest + Render Server)`
+            : `🎬 Created with Template 2 (Inngest + Render Server)`)
       )
 
       // ✅ Отправляем клавиатуру с кнопками продолжения (для больших файлов)
-      const isRuLargeFile = (await getUserLanguageFromDB(telegramId)) !== 'en'
       await botToUse.telegram.sendMessage(
         telegramId,
-        getVideoCompletionMessage(isRuLargeFile),
-        createVideoCompletionKeyboard(isRuLargeFile)
+        getVideoCompletionMessage(isRu),
+        createVideoCompletionKeyboard(isRu)
       )
 
       logger.info('✅ [AI REELS CALLBACK] URL sent successfully', {
@@ -390,13 +398,13 @@ async function handleCompletedRender(
       telegramId,
       Input.fromBuffer(videoBuffer, `ai-reels-${Date.now()}.mp4`),
       {
-        caption:
-          '✅ Ваше AI Reels видео готово!\n\n🎬 Создано с помощью Template 2 (Inngest + Render Server)',
+        caption: isRu
+          ? '✅ Ваше AI Reels видео готово!\n\n🎬 Создано с помощью Template 2 (Inngest + Render Server)'
+          : '✅ Your AI Reels video is ready!\n\n🎬 Created with Template 2 (Inngest + Render Server)',
       }
     )
 
     // ✅ Отправляем клавиатуру с кнопками продолжения
-    const isRu = (await getUserLanguageFromDB(telegramId)) !== 'en'
     await botToUse.telegram.sendMessage(
       telegramId,
       getVideoCompletionMessage(isRu),
