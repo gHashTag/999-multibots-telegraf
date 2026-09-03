@@ -1434,7 +1434,27 @@ async function uploadedAssetResult(key: string): Promise<UploadedAsset> {
     new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }),
     { expiresIn: 604800 }
   )
-  const proxyUrl = `/s3/${key}`
+  /**
+   * Proxy URL is ABSOLUTE, not root-relative.
+   *
+   * This built `/s3/${key}`, which resolves only for a client sitting on this
+   * same origin -- a browser page served by this server. The iOS app fed it
+   * straight into a URL and got nothing: /api/generate/audio answered 200 with
+   * a body nobody could fetch, so voice looked broken in the app while the
+   * endpoint itself was healthy.
+   *
+   * Video and image return absolute links by other paths, which is why only
+   * voice showed the symptom -- and why it read as "the voice provider is
+   * down" rather than "the URL has no host".
+   *
+   * The proxy itself stays: it is what transcodes HEVC to H.264 on the way out.
+   * Only the host is added, from PUBLIC_URL -- the same variable and fallback
+   * already used for the remotion and mcp URLs above.
+   */
+  const PUBLIC_BASE = (
+    process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app'
+  ).replace(/\/+$/, '')
+  const proxyUrl = `${PUBLIC_BASE}/s3/${key}`
   const directUrl = `${S3_PUBLIC_URL}/${key}`
   // Signed URLs are credentials. Log the stable object key only.
   console.log(`✅ Uploaded to S3: ${key}`)
