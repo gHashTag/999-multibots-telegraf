@@ -867,13 +867,31 @@ export async function generateNeuroPhotoDirect(
         // Сохраняем изображение локально для создания постоянной ссылки
         let localImageUrl = imageUrl
         try {
-          // Сохраняем файл локально - используем правильную сигнатуру функции
-          const savedLocalPath = await saveFileLocally(
-            telegram_id,
-            imageUrl,
-            'neuro-photo-direct',
-            '.jpg'
-          )
+          // Save the file locally, isolated in its OWN try/catch: a local-save
+          // failure (CDN 404 / disk full / timeout) must NOT skip the delivery
+          // block below and leave the user charged with no photo. The served
+          // reference is the REMOTE imageUrl anyway (localImageUrl defaults to it),
+          // so on failure we simply deliver that. Fixes the saveError-swallow gap.
+          let savedLocalPath: string | null = null
+          try {
+            savedLocalPath = await saveFileLocally(
+              telegram_id,
+              imageUrl,
+              'neuro-photo-direct',
+              '.jpg'
+            )
+          } catch (localSaveError) {
+            logger.warn(
+              '⚠️ [DIRECT] Local save failed; continuing to deliver the remote URL',
+              {
+                telegram_id,
+                error:
+                  localSaveError instanceof Error
+                    ? localSaveError.message
+                    : String(localSaveError),
+              }
+            )
+          }
 
           // Формируем URL для доступа к сохраненному файлу
           if (savedLocalPath) {
