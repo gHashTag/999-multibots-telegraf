@@ -8,6 +8,14 @@ import { Header } from '@/components/Header'
 import { ChatAssets } from '@/components/Chat/ChatAssets'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
+import { Paperclip, X } from 'lucide-react'
+import {
+  uploadChatAttachment,
+  validateAttachmentSelection,
+  type AgentAttachment,
+  type AgentAttachmentKind,
+  type AttachmentRejectionReason,
+} from '@/lib/chatAttachments'
 import './Chat.css'
 
 /**
@@ -76,6 +84,17 @@ const SUGGESTIONS = [
   'Что ты знаешь обо мне?',
 ]
 
+interface AttachmentDraft {
+  localId: string
+  kind: AgentAttachmentKind
+  name: string
+  size: number
+  previewUrl: string
+  status: 'uploading' | 'ready' | 'error'
+  attachment?: AgentAttachment
+  controller: AbortController
+}
+
 function ChatPage() {
   const { t } = useLanguage()
   // Переписка и черновик — в атомах с хранилищем, а не в useState: страница
@@ -88,7 +107,125 @@ function ChatPage() {
   const [tokens, setTokens] = useState<number | null>(null)
   const [topUp, setTopUp] = useState(false)
   const [topUpNote, setTopUpNote] = useState<string | null>(null)
+  const [attachmentDrafts, setAttachmentDrafts] = useState<AttachmentDraft[]>(
+    []
+  )
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const previewUrlsRef = useRef(new Set<string>())
+  const uploadControllersRef = useRef(new Map<string, AbortController>())
+
+  useEffect(
+    () => () => {
+      for (const url of previewUrlsRef.current) URL.revokeObjectURL(url)
+      previewUrlsRef.current.clear()
+      for (const controller of uploadControllersRef.current.values()) {
+        controller.abort()
+      }
+      uploadControllersRef.current.clear()
+    },
+    []
+  )
+
+  const rejectionText = useCallback(
+    (reason: AttachmentRejectionReason): string => {
+      if (reason === 'too-large') return t('chat.attachmentTooLarge')
+      if (reason === 'too-many') return t('chat.attachmentTooMany')
+      return t('chat.attachmentUnsupported')
+    },
+    [t]
+  )
+
+  const addFiles = useCallback(
+    (incoming: FileList | File[]) => {
+      const files = Array.from(incoming)
+      if (!files.length) return
+      const { accepted, rejected } = validateAttachmentSelection(
+        files,
+        attachmentDrafts.length
+      )
+      if (rejected.length) {
+        setAttachmentError(
+          [...new Set(rejected.map(item => rejectionText(item.reason)))].join(
+            ' '
+          )
+        )
+      } else {
+        setAttachmentError(null)
+      }
+
+      accepted.forEach(({ file, kind }, index) => {
+        const localId = `pending-${Date.now()}-${index}-${Math.random()
+          .toString(36)
+          .slice(2, 7)}`
+        const previewUrl = URL.createObjectURL(file)
+        const controller = new AbortController()
+        previewUrlsRef.current.add(previewUrl)
+        uploadControllersRef.current.set(localId, controller)
+        setAttachmentDrafts(prev => [
+          ...prev,
+          {
+            localId,
+            kind,
+            name: file.name,
+            size: file.size,
+            previewUrl,
+            status: 'uploading',
+            controller,
+          },
+        ])
+
+        void uploadChatAttachment(file, kind, controller.signal)
+          .then(attachment => {
+            uploadControllersRef.current.delete(localId)
+            setAttachmentDrafts(prev =>
+              prev.map(item =>
+                item.localId === localId
+                  ? { ...item, status: 'ready', attachment }
+                  : item
+              )
+            )
+          })
+          .catch(() => {
+            uploadControllersRef.current.delete(localId)
+            if (controller.signal.aborted) return
+            setAttachmentDrafts(prev =>
+              prev.map(item =>
+                item.localId === localId ? { ...item, status: 'error' } : item
+              )
+            )
+            setAttachmentError(t('chat.attachmentUploadFailed'))
+          })
+      })
+    },
+    [attachmentDrafts.length, rejectionText, t]
+  )
+
+  const removeAttachment = useCallback((localId: string) => {
+    setAttachmentDrafts(prev => {
+      const removed = prev.find(item => item.localId === localId)
+      if (removed) {
+        removed.controller.abort()
+        uploadControllersRef.current.delete(localId)
+        URL.revokeObjectURL(removed.previewUrl)
+        previewUrlsRef.current.delete(removed.previewUrl)
+      }
+      return prev.filter(item => item.localId !== localId)
+    })
+  }, [])
+
+  const clearAttachments = useCallback(() => {
+    for (const item of attachmentDrafts) {
+      item.controller.abort()
+      uploadControllersRef.current.delete(item.localId)
+      URL.revokeObjectURL(item.previewUrl)
+      previewUrlsRef.current.delete(item.previewUrl)
+    }
+    setAttachmentDrafts([])
+    setAttachmentError(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }, [attachmentDrafts])
 
   // Пополнение: инвойс создаёт сервер (XTR), открывает Telegram.WebApp.
   // Серверной верификацией занимается вебхук кассира — клиенту не верим.
@@ -112,7 +249,7 @@ function ChatPage() {
         setTopUpNote(String(d.error ?? 'не получилось'))
         return
       }
-      const wa = (window as any).Telegram?.WebApp
+      const wa = window.Telegram?.WebApp
       if (wa?.openInvoice) {
         wa.openInvoice(d.link, async (status: string) => {
           if (status === 'paid') {
@@ -265,10 +402,19 @@ function ChatPage() {
    * шёл посмотреть ленту и возвращался к оборванному ответу, даже когда
    * сервер честно досчитал. Теперь страница только зовёт и читает стор.
    */
-  const send = useCallback((text: string) => {
-    void sendToAgent(text)
-    setInput('')
-  }, [setInput])
+  const send = useCallback(
+    (text: string) => {
+      if (attachmentDrafts.some(item => item.status === 'uploading')) return
+      const attachments = attachmentDrafts.flatMap(item =>
+        item.status === 'ready' && item.attachment ? [item.attachment] : []
+      )
+      if (!text.trim() && !attachments.length) return
+      void sendToAgent(text, attachments)
+      setInput('')
+      clearAttachments()
+    },
+    [attachmentDrafts, clearAttachments, setInput]
+  )
 
   return (
     <div className="chat-page">
@@ -290,6 +436,7 @@ function ChatPage() {
               onClick={() => {
                 setMessages([WELCOME])
                 setInput('')
+                clearAttachments()
               }}
             >
               Новый разговор
@@ -306,9 +453,15 @@ function ChatPage() {
                   на его фоне выглядит выгодным. 150: 1.17⭐/ток против 1.5
                   у десятки — честный «выгоднее всех», не маркетинговый. */}
               {[150, 50, 10].map(p => (
-                <button key={p} className="chat-topup__pack" onClick={() => buy(String(p))}>
+                <button
+                  key={p}
+                  className="chat-topup__pack"
+                  onClick={() => buy(String(p))}
+                >
                   {p} токенов{p === 150 ? ' · выгоднее всех' : ''}
-                  <span>{p === 10 ? '15 ⭐' : p === 50 ? '65 ⭐' : '175 ⭐'}</span>
+                  <span>
+                    {p === 10 ? '15 ⭐' : p === 50 ? '65 ⭐' : '175 ⭐'}
+                  </span>
                 </button>
               ))}
               {topUpNote && <p className="chat-topup__note">{topUpNote}</p>}
@@ -351,7 +504,7 @@ function ChatPage() {
                   видео плеером, аудио плеером. Голые ссылки не смотрятся. */}
               {m.text ? (
                 <div className="message-content">
-                  <ChatAssets text={m.text} />
+                  <ChatAssets text={m.text} attachments={m.attachments} />
                 </div>
               ) : null}
               {!m.text && m.role === 'assistant' && busy ? (
@@ -381,7 +534,77 @@ function ChatPage() {
       </div>
 
       <div className="chat-input-area">
+        {attachmentDrafts.length > 0 && (
+          <div
+            className="chat-attachment-list"
+            aria-label={t('chat.attachments')}
+          >
+            {attachmentDrafts.map(item => (
+              <div
+                key={item.localId}
+                className={`chat-attachment chat-attachment--${item.status}`}
+              >
+                {item.kind === 'image' ? (
+                  <img src={item.previewUrl} alt="" />
+                ) : (
+                  <video
+                    src={item.previewUrl}
+                    muted
+                    playsInline
+                    preload="metadata"
+                  />
+                )}
+                <div className="chat-attachment__meta">
+                  <span title={item.name}>{item.name}</span>
+                  <small>
+                    {item.status === 'uploading'
+                      ? t('chat.attachmentUploading')
+                      : item.status === 'ready'
+                        ? t('chat.attachmentReady')
+                        : t('chat.attachmentFailed')}
+                  </small>
+                </div>
+                <button
+                  type="button"
+                  className="chat-attachment__remove"
+                  onClick={() => removeAttachment(item.localId)}
+                  aria-label={`${t('chat.attachmentRemove')}: ${item.name}`}
+                >
+                  <X size={16} aria-hidden="true" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {attachmentError && (
+          <p className="chat-attachment-error" role="status">
+            {attachmentError}
+          </p>
+        )}
         <div className="chat-input-container">
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="chat-file-input"
+            accept="image/*,video/*"
+            multiple
+            aria-hidden="true"
+            tabIndex={-1}
+            onChange={event => {
+              if (event.target.files) addFiles(event.target.files)
+              event.target.value = ''
+            }}
+          />
+          <button
+            type="button"
+            className="chat-attach-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={busy || attachmentDrafts.length >= 4}
+            aria-label={t('chat.addAttachment')}
+            title={t('chat.addAttachment')}
+          >
+            <Paperclip size={21} aria-hidden="true" />
+          </button>
           <input
             type="text"
             className="chat-input"
@@ -389,12 +612,23 @@ function ChatPage() {
             value={input}
             disabled={busy}
             onChange={e => setInput(e.target.value)}
-            onKeyPress={e => e.key === 'Enter' && send(input)}
+            onPaste={event => {
+              if (event.clipboardData.files.length) {
+                event.preventDefault()
+                addFiles(event.clipboardData.files)
+              }
+            }}
+            onKeyDown={e => e.key === 'Enter' && send(input)}
           />
           <button
             className="send-btn"
             onClick={() => send(input)}
-            disabled={busy}
+            disabled={
+              busy ||
+              attachmentDrafts.some(item => item.status === 'uploading') ||
+              (!input.trim() &&
+                !attachmentDrafts.some(item => item.status === 'ready'))
+            }
           >
             {busy ? '…' : t('chat.send')}
           </button>

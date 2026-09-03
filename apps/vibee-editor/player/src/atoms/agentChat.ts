@@ -2,9 +2,10 @@
 // Переписка с агентом — вкладка «Агент» (/chat)
 // ===============================
 
-import { atom } from 'jotai';
-import { atomWithStorage } from 'jotai/utils';
-import { STORAGE_KEYS } from '@vibee/atoms';
+import { atom } from 'jotai'
+import { atomWithStorage } from 'jotai/utils'
+import { STORAGE_KEYS } from '@vibee/atoms'
+import type { AgentAttachment } from '@/lib/chatAttachments'
 
 /**
  * ЗАЧЕМ ЭТОТ ФАЙЛ. И переписка, и недописанное сообщение жили в `useState`
@@ -20,18 +21,20 @@ import { STORAGE_KEYS } from '@vibee/atoms';
  */
 
 export interface ToolCall {
-  name: string;
+  name: string
   /** Сколько инструмент отработал, мс. */
-  ms?: number;
+  ms?: number
 }
 
 export interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  text: string;
+  id: string
+  role: 'user' | 'assistant'
+  text: string
   /** Поток размышления модели — сворачиваемый, показывается по желанию. */
-  thinking?: string;
-  tools?: ToolCall[];
+  thinking?: string
+  tools?: ToolCall[]
+  /** Files uploaded to the owner's server-side asset library. */
+  attachments?: AgentAttachment[]
 }
 
 /**
@@ -43,7 +46,7 @@ export interface Message {
  * сообщений хватает, чтобы вернуться к разговору, и не хватает, чтобы забить
  * квоту.
  */
-const MAX_STORED_MESSAGES = 100;
+const MAX_STORED_MESSAGES = 100
 
 /**
  * `getOnInit` — не косметика.
@@ -59,26 +62,22 @@ const storedMessagesAtom = atomWithStorage<Message[]>(
   [],
   undefined,
   { getOnInit: true }
-);
+)
 
 /** История переписки. Пишется с обрезкой хвоста — свежее важнее старого. */
 export const agentMessagesAtom = atom(
-  (get) => get(storedMessagesAtom),
-  (
-    get,
-    set,
-    update: Message[] | ((prev: Message[]) => Message[])
-  ) => {
-    const prev = get(storedMessagesAtom);
-    const next = typeof update === 'function' ? update(prev) : update;
+  get => get(storedMessagesAtom),
+  (get, set, update: Message[] | ((prev: Message[]) => Message[])) => {
+    const prev = get(storedMessagesAtom)
+    const next = typeof update === 'function' ? update(prev) : update
     set(
       storedMessagesAtom,
       next.length > MAX_STORED_MESSAGES
         ? next.slice(next.length - MAX_STORED_MESSAGES)
         : next
-    );
+    )
   }
-);
+)
 
 /**
  * Недописанное сообщение.
@@ -91,4 +90,4 @@ export const agentDraftAtom = atomWithStorage<string>(
   '',
   undefined,
   { getOnInit: true }
-);
+)

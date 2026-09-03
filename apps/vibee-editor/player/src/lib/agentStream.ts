@@ -25,6 +25,10 @@ import { agentMessagesAtom } from '@/atoms/agentChat'
 import type { Message } from '@/atoms/agentChat'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
+import {
+  buildAgentMessageContent,
+  type AgentAttachment,
+} from '@/lib/chatAttachments'
 
 /** Идёт ли ответ прямо сейчас. В атоме, а не в useState: переживает уход. */
 export const agentBusyAtom = atom(false)
@@ -46,13 +50,21 @@ export function isAgentBusy(): boolean {
  * Отправить сообщение агенту. Возвращает промис, но ЖДАТЬ его не обязательно:
  * весь результат попадает в стор, а страница читает стор.
  */
-export async function sendToAgent(text: string): Promise<void> {
+export async function sendToAgent(
+  text: string,
+  attachments: AgentAttachment[] = []
+): Promise<void> {
   const trimmed = text.trim()
-  if (!trimmed || inFlight) return
+  if ((!trimmed && !attachments.length) || inFlight) return
   inFlight = true
   editorStore.set(agentBusyAtom, true)
 
-  const userMsg: Message = { id: `u${Date.now()}`, role: 'user', text: trimmed }
+  const userMsg: Message = {
+    id: `u${Date.now()}`,
+    role: 'user',
+    text: trimmed || 'Используй прикреплённые ассеты для создания контента.',
+    attachments,
+  }
   const agentId = `a${Date.now()}`
   const agentMsg: Message = {
     id: agentId,
@@ -65,7 +77,10 @@ export async function sendToAgent(text: string): Promise<void> {
   // История для сервера — из уже показанных сообщений плюс новое.
   const history = [...editorStore.get(agentMessagesAtom), userMsg]
     .filter(m => m.id !== 'welcome')
-    .map(m => ({ role: m.role, content: m.text }))
+    .map(m => ({
+      role: m.role,
+      content: buildAgentMessageContent(m.text, m.attachments),
+    }))
 
   editorStore.set(agentMessagesAtom, prev => [...prev, userMsg, agentMsg])
 

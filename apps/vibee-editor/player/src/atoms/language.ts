@@ -426,6 +426,17 @@ const en: Translations = {
   'chat.placeholder': 'Describe what you want to create...',
   'chat.messagePlaceholder': 'Message the agent…',
   'chat.send': 'Send',
+  'chat.attachments': 'Attachments',
+  'chat.addAttachment': 'Add photos or videos',
+  'chat.attachmentUploading': 'Uploading…',
+  'chat.attachmentReady': 'Ready for the agent',
+  'chat.attachmentFailed': 'Upload failed',
+  'chat.attachmentRemove': 'Remove attachment',
+  'chat.attachmentTooLarge': 'Each file must be 100 MB or smaller.',
+  'chat.attachmentTooMany': 'You can attach up to 4 files per message.',
+  'chat.attachmentUnsupported': 'Only photos and videos are supported.',
+  'chat.attachmentUploadFailed':
+    'The file was not saved. Check your sign-in and try again.',
   'chat.welcome':
     "Hi! I'm your VIBEE AI assistant. I can help you create and edit video templates. What would you like to build today?",
   'chat.cleared': 'Chat cleared. How can I help?',
@@ -2086,6 +2097,17 @@ const ru: Translations = {
   // Короткая читается целиком, а про файлы человек узнаёт из кнопки рядом.
   'chat.messagePlaceholder': 'Сообщение агенту…',
   'chat.send': 'Отправить',
+  'chat.attachments': 'Вложения',
+  'chat.addAttachment': 'Добавить фото или видео',
+  'chat.attachmentUploading': 'Загружается…',
+  'chat.attachmentReady': 'Готово для агента',
+  'chat.attachmentFailed': 'Не загрузилось',
+  'chat.attachmentRemove': 'Убрать вложение',
+  'chat.attachmentTooLarge': 'Каждый файл должен быть не больше 100 МБ.',
+  'chat.attachmentTooMany': 'К одному сообщению можно добавить до 4 файлов.',
+  'chat.attachmentUnsupported': 'Можно прикреплять только фото и видео.',
+  'chat.attachmentUploadFailed':
+    'Файл не сохранился. Проверьте вход и попробуйте ещё раз.',
   'chat.welcome':
     'Привет! Я VIBEE AI ассистент. Могу помочь создать и отредактировать видео шаблоны. Что хотите сделать?',
   'chat.cleared': 'Чат очищен. Чем могу помочь?',

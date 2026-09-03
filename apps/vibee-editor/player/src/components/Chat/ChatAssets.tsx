@@ -14,6 +14,7 @@
  * не трогаем), потом медиа-ссылки, остальное — текст.
  */
 import type { ReactNode } from 'react'
+import type { AgentAttachment } from '@/lib/chatAttachments'
 import './ChatAssets.css'
 
 type Segment =
@@ -27,7 +28,6 @@ type Segment =
 const IMAGE_RE = /\.(jpe?g|png|webp|gif)(\?|$)/i
 const VIDEO_RE = /\.(mp4|webm|mov)(\?|$)/i
 const AUDIO_RE = /\.(mp3|wav|m4a|ogg)(\?|$)/i
-const URL_RE = /https?:\/\/[^\s<>"')\]]+/g
 /** markdown-картинка ![alt](url) — до всего остального, иначе alt останется в тексте */
 const MD_IMAGE_RE = /!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/g
 /** инлайн-код `…` — внутри него разметка не разбирается */
@@ -103,11 +103,13 @@ function splitSegments(text: string): Segment[] {
 function pushWithMedia(segments: Segment[], text: string) {
   let last = 0
   for (const m of text.matchAll(/https?:\/\/[^\s<>"')\]]+/g)) {
-    if (m.index > last) segments.push({ kind: 'text', content: text.slice(last, m.index) })
+    if (m.index > last)
+      segments.push({ kind: 'text', content: text.slice(last, m.index) })
     segments.push({ kind: 'link', url: m[0] })
     last = m.index + m[0].length
   }
-  if (last < text.length) segments.push({ kind: 'text', content: text.slice(last) })
+  if (last < text.length)
+    segments.push({ kind: 'text', content: text.slice(last) })
 }
 
 /** Короткая человекочитаемая подпись ссылки: домен + хвост. */
@@ -135,7 +137,12 @@ function TextPart({ content }: { content: string }) {
           <span key={i}>
             {chunks.map((chunk, j) =>
               j % 2 === 1 ? (
-                <a key={j} href={chunk} target="_blank" rel="noopener noreferrer">
+                <a
+                  key={j}
+                  href={chunk}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   {shortUrl(chunk)}
                 </a>
               ) : (
@@ -215,11 +222,46 @@ function TextBlock({ content }: { content: string }) {
   return <>{out}</>
 }
 
-export function ChatAssets({ text }: { text: string }) {
+export function ChatAssets({
+  text,
+  attachments = [],
+}: {
+  text: string
+  attachments?: AgentAttachment[]
+}) {
   const segments = splitSegments(text)
-  if (!segments.length) return null
+  if (!segments.length && !attachments.length) return null
   return (
     <div className="chat-assets">
+      {attachments.map(asset =>
+        asset.kind === 'image' ? (
+          <a
+            key={asset.id}
+            className="chat-assets__image-link"
+            href={asset.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={asset.name}
+          >
+            <img
+              className="chat-assets__image"
+              src={asset.url}
+              alt={asset.name}
+              loading="lazy"
+            />
+          </a>
+        ) : (
+          <video
+            key={asset.id}
+            className="chat-assets__video"
+            src={asset.url}
+            controls
+            playsInline
+            preload="metadata"
+            aria-label={asset.name}
+          />
+        )
+      )}
       {segments.map((s, i) => {
         if (s.kind === 'text') {
           const trimmed = s.content.replace(/^\s+|\s+$/g, '')
@@ -278,7 +320,13 @@ export function ChatAssets({ text }: { text: string }) {
           )
         }
         return (
-          <audio key={i} className="chat-assets__audio" src={s.url} controls preload="metadata" />
+          <audio
+            key={i}
+            className="chat-assets__audio"
+            src={s.url}
+            controls
+            preload="metadata"
+          />
         )
       })}
     </div>

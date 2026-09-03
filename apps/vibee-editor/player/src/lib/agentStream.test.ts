@@ -10,7 +10,10 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/apiFetch', () => ({ authHeaders: () => ({}) }))
-vi.mock('@/config', () => ({ API_BASE: '' }))
+vi.mock('@/config', () => ({
+  API_BASE: '',
+  RENDER_URL: 'https://render.example',
+}))
 
 import { editorStore } from '@/atoms/Provider'
 import { agentMessagesAtom } from '@/atoms/agentChat'
@@ -92,5 +95,38 @@ describe('sendToAgent: сборка текста', () => {
     await sendToAgent('сколько у меня токенов')
 
     expect(ответАгента()?.text).toBe('Баланс 0.')
+  })
+
+  it('передаёт серверные URL вложений агенту и сохраняет превью в сообщении', async () => {
+    const fetchMock = vi.fn(
+      async () => поток(['{"тип":"текст","текст":"Вижу файлы."}']) // cyrillic-ok: protocol fixture
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const attachments = [
+      {
+        id: 'asset-7',
+        kind: 'image' as const,
+        name: 'кадр.jpg',
+        url: 'https://render.example/s3/assets/frame.jpg',
+        size: 42,
+      },
+    ]
+    await sendToAgent('', attachments)
+
+    const [, init] = (
+      fetchMock.mock.calls as unknown as Array<[string, RequestInit]>
+    )[0]
+    const body = JSON.parse(String(init?.body))
+    const sent = body.messages.at(-1).content as string
+    expect(sent).toContain('<attached_assets>')
+    expect(sent).toContain('https://render.example/s3/assets/frame.jpg')
+    expect(sent).not.toContain('кадр.jpg')
+
+    const user = editorStore
+      .get(agentMessagesAtom)
+      .filter(message => message.role === 'user')
+      .at(-1)
+    expect(user?.attachments).toEqual(attachments)
   })
 })

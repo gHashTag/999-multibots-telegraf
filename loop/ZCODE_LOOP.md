@@ -4453,3 +4453,23 @@
 1. **«Выпустить social cards»** — player-only merge и production smoke профиля.
 2. **«Добавить быстрый remix»** — отдельной кнопкой создать новый draft по выбранному шаблону, без автопубликации.
 3. **«Усилить библиотеку»** — фильтры, поиск и сортировка Templates отдельным витком.
+
+---
+
+## Виток №248 — 2026-09-01T22:01+0700 — ассеты входят в разговор с агентом (PR —)
+
+**Проверено**: `git fetch`, хвосты loop/state и production `/chat` через BrowserOS Neo. Дефект воспроизведён в живом DOM: ровно 0 `input[type=file]`, только textbox и Send. Основной checkout занят незавершённым lipsync/Kie-витком, поэтому работа изолирована в новой ветке от свежего `origin/main`; чужие файлы и `loop/state.json/topics.json` не тронуты. `tri status` честно показывает локальный render down, `tri selftest` green; production upload не вызывался, чтобы не создавать тестовые файлы в профиле владельца.
+
+**Сделано**: composer получил одну доступную CTA-скрепку для фото/видео, multiple-select и paste, локальные превью, удаление, явные состояния upload/ready/error и блокировку Send до завершения загрузки. Граница совпадает с сервером: максимум 4 файла, до 100 МБ каждый, только `image/*`/`video/*`. Upload теперь отправляет session/initData headers и использует canonical production render URL вместо скрытого `localhost:3333`; относительный `/s3/...` нормализуется в абсолютный URL. После S3 файл owner-bound сохраняется в `/api/assets` как `user_image`/`user_video`, поэтому виден `my_assets`. В историю чата пишется структурированное preview-вложение, а модели передаются только kind+server URL без пользовательского filename; `blob:` fallback запрещён.
+
+**Аномалии / самокритика**: полный живой upload+agent smoke не выполнялся без отдельного тестового owner asset — production write создал бы мусор. Existing build warnings про Browserslist/chunk size и jsdom `HTMLMediaElement.pause` остаются non-failing baseline. Canonical local render не рестартовался: checkout изолирован, а запуск с production-like env без нужды расширил бы риск.
+
+**Метрики**: production feed — 43 reels / 102👁 / 0⭐ / 2 автора. New focused TDD 13/13 PASS; full player 153/153 PASS; player typecheck, scoped ESLint, production build, `tri selftest` и `git diff --check` PASS. BrowserOS Neo: desktop и 390×844 — CTA 44×44, composer не перекрыт tabbar, native chooser скрыт от accessibility tree, одна понятная кнопка `Add photos or videos`.
+
+**Следующий шаг**: независимый diff review → PR/merge → player deploy → signed-owner smoke с одним заранее разрешённым маленьким test asset, проверкой строки в `my_assets` и удалением/архивацией тестового объекта по owner-процедуре.
+
+## Три варианта для владельца
+
+1. **«Выпустить вложения»** — review/PR, затем player-only deploy и controlled owner smoke.
+2. **«Добавить drag-and-drop»** — отдельным малым UX-витком поверх уже безопасного upload-контракта.
+3. **«Собрать рилс из вложений»** — после релиза добавить явный agent recipe: выбранные ассеты → storyboard → draft render, без автопубликации.
