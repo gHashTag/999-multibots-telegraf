@@ -8714,6 +8714,30 @@ async function main() {
   await initBundle()
 
   /**
+   * Attach the job store BEFORE the first request, not on the first read.
+   *
+   * attachStoreOnce lived in exactly one place: inside GET /api/generate/jobs.
+   * The WRITE path never called it, so on a fresh process the store's pool was
+   * still null when a job was created, persist() took its `if (!pool) return`
+   * and the row was never written. The durable table only began filling once
+   * somebody happened to LIST jobs -- and a client that never lists (the iOS
+   * app polls a job by id) never triggered it at all.
+   *
+   * That inverts the module's whole purpose: it exists so a paid generation
+   * survives a restart, and a deploy mid-job is exactly when the in-memory Map
+   * dies. Charged, no durable record, nothing to recover from.
+   *
+   * Wrapped, because getPool() throws SYNCHRONOUSLY when DATABASE_URL is unset
+   * and a server without a database must keep running memory-only -- the same
+   * reason the call site at the jobs route is wrapped.
+   */
+  try {
+    attachStoreOnce()
+  } catch {
+    // Memory-only. Generation itself never depended on the store.
+  }
+
+  /**
    * The content autopilot, supervised, when AUTOPILOT_LOOP=1.
    *
    * The factory stood still for 51 hours and the reason was not one bug but
