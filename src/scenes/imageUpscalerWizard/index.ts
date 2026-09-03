@@ -52,6 +52,20 @@ export const imageUpscalerWizard = new Scenes.WizardScene<MyContext>(
     }
 
     if ('photo' in ctx.message) {
+      // In-flight guard: the wizard stays parked on this step for the whole paid
+      // upscale, so a second photo sent during generation would re-enter and charge
+      // again. Reject-before-set (set synchronously, no await between), release in
+      // finally. Mirrors the other paid wizards (#1090/#1113).
+      if (ctx.session.imageUpscalerInProgress) {
+        await ctx.reply(
+          isRu
+            ? '⏳ Уже обрабатываю ваше изображение, подождите завершения.'
+            : '⏳ Already processing your image, please wait.'
+        )
+        return
+      }
+      ctx.session.imageUpscalerInProgress = true
+
       // Если отправлено фото, обрабатываем его
       const photo = ctx.message.photo
       const fileId = photo[photo.length - 1].file_id
@@ -87,6 +101,8 @@ export const imageUpscalerWizard = new Scenes.WizardScene<MyContext>(
             : 'An error occurred while upscaling the image. Please try again later.'
         )
         return ctx.scene.leave()
+      } finally {
+        ctx.session.imageUpscalerInProgress = false
       }
     } else {
       // Если отправлено не фото, просим отправить фото

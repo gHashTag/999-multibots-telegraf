@@ -329,6 +329,7 @@ export interface MySession extends Scenes.WizardSession<MyWizardSession> {
   videoTranscriptionInProgress?: boolean
   aiPhotoshopInProgress?: boolean
   aiPhotoshopUpscaleInProgress?: boolean
+  imageUpscalerInProgress?: boolean
   lipSyncInProgress?: boolean
   aiReelsInProgress?: boolean
   veedFabricInProgress?: boolean
