@@ -3430,13 +3430,28 @@ const server = createServer(async (req, res) => {
    * баланс так не прочитать.
    */
   if (req.url?.split('?')[0] === '/api/balance' && req.method === 'GET') {
-    const tid = verifiedTelegramId(req)
+    /**
+     * ЛИЧНОСТЬ БЕРЁМ ИЗ ЛЮБОГО СПОСОБА, КОТОРЫЙ ЕЁ ЗНАЕТ.
+     *
+     * Сначала маршрут спрашивал только `verifiedTelegramId` — подпись
+     * initData. Для мини-аппа верно, для iOS-приложения бесполезно: оно шлёт
+     * `Authorization: Bearer` (сессия) или `X-Agent-Key`, а заголовка с
+     * подписью у него нет вовсе. Замер на симуляторе: в Профиле вместо числа
+     * вечно крутился индикатор — запрос не мог пройти в принципе.
+     *
+     * `authenticate()` возвращает `telegramId` и для сессии, и для ключа
+     * агента — оба знают, ЧЕЙ это запрос (auth.ts). Подпись остаётся вторым
+     * источником, для мини-аппа. Ключ сервера безличен и сюда не подходит:
+     * без личности отдавать нечего.
+     */
+    const auth = authenticate(req)
+    const tid = auth.telegramId || verifiedTelegramId(req)
     if (!tid) {
       res.writeHead(401, { 'Content-Type': 'application/json' })
       res.end(
         JSON.stringify({
           success: false,
-          error: 'no verified Telegram initData',
+          error: 'no identity: need a session, an agent key or signed initData',
         })
       )
       return
