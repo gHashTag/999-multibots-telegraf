@@ -53,9 +53,19 @@ describe('mini-app generation is billed', () => {
     expect(SERVER).toContain("status: 503, reason: 'billing unavailable'")
   })
 
-  it('does not double-charge the agent path', () => {
-    // Server-to-server callers already paid at the tool layer.
+  it('skips the agent path only on the VALIDATED key, not a spoofable header', () => {
+    // Server-to-server callers already paid at the tool layer, but the skip
+    // must key off the VALIDATED auth decision, not the raw header presence.
+    // authenticate() only returns via 'api-key' when X-Api-Key timing-safe
+    // matches RENDER_API_KEY; a present-but-WRONG X-Api-Key falls through to
+    // the Telegram/session branch (auth.ts does not reject it). So a signed
+    // Mini App user who adds a junk X-Api-Key header must still be charged.
     expect(SERVER).toContain(
+      "if (authenticate(req).via === 'api-key') return { ok: true }"
+    )
+    // The old presence check skipped billing for ANY spoofed header -> free
+    // generation past the paywall. It must not come back.
+    expect(SERVER).not.toContain(
       "if (req.headers['x-api-key']) return { ok: true }"
     )
   })
