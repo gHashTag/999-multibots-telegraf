@@ -14,6 +14,7 @@ COMPOSE ?= docker compose
 	dev-bot dev-player dev-render compose-up compose-down compose-status \
 	test test-root test-player test-render test-safe-beta test-e2e-safe-beta \
 	test-supabase-exit verify-supabase-exit-app \
+	test-root-migration-contract verify-root-migration-contract \
 	typecheck typecheck-root typecheck-player typecheck-render \
 	build build-root build-player build-render \
 	audit audit-root audit-player audit-render remotion-versions \
@@ -109,6 +110,20 @@ test-supabase-exit: ## Prove the player/render lane has no Supabase runtime or e
 
 verify-supabase-exit-app: test-supabase-exit typecheck-player typecheck-render build-player build-render security-scan diff-check ## Verify the independently releasable player/render migration lane.
 	@cd $(ROOT_DIR) && $(NODE) scripts/tests/supabase-exit-runtime.test.mjs --require-artifacts
+
+test-root-migration-contract: ## Run the additive, offline-only root migration contracts.
+	@cd $(ROOT_DIR) && $(NODE) --test \
+		scripts/tests/supabase-exit-backup-contract.test.mjs \
+		scripts/tests/root-relational-pgservice-extract.test.mjs \
+		scripts/tests/root-relational-reconciliation.test.mjs \
+		scripts/tests/storage-object-manifest.test.mjs \
+		scripts/tests/storage-object-ledger.test.mjs \
+		scripts/tests/storage-object-copy.test.mjs
+	@cd $(ROOT_DIR) && for file in \
+		scripts/migrations/root-relational/*.cjs \
+		scripts/storage-migration/*.cjs; do $(NODE) --check "$$file"; done
+
+verify-root-migration-contract: doctor test-root-migration-contract security-scan diff-check ## Verify only the non-networking root migration primitives; never copies production data.
 
 typecheck: typecheck-root typecheck-player typecheck-render ## Type-check every application.
 

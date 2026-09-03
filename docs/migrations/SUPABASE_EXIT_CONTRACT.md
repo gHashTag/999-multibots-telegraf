@@ -2,6 +2,11 @@
 
 Status: implementation contract, not a cutover record.
 
+Operational commands and owner-controlled prerequisites are documented in
+[`ROOT_SUPABASE_EXIT_RUNBOOK.md`](./ROOT_SUPABASE_EXIT_RUNBOOK.md). The root
+offline classifiers intentionally report no production readiness until their
+evidence is derived from an authenticated catalog and a restore-proven backup.
+
 This migration removes Supabase as a production runtime dependency without
 changing the server-owned Telegram identity model. It is complete only when
 the relevant service has passed its own cutover gate. A green player/render
