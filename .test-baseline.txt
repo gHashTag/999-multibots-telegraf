@@ -4167,6 +4167,7 @@ src/modules/videoGenerator/test/generateTextToVideo.test.ts :: generateTextToVid
 src/modules/videoGenerator/test/generateTextToVideo.test.ts :: generateTextToVideo (dispatch, mocked) model without text input returns null, no provider call, no refund
 src/modules/videoGenerator/test/generateTextToVideo.test.ts :: generateTextToVideo (dispatch, mocked) provider failure triggers a refund and returns null
 src/tests/multiPhotoNeurophoto.test.ts :: Integration Tests should complete full multi-photo workflow
+src/tests/multiPhotoNeurophoto.test.ts :: Multi-Photo Neurophoto System Enhanced Neurophoto Generation Service should process multiple input images
 src/tests/multiPhotoNeurophoto.test.ts :: Multi-Photo Neurophoto System Error Handling should handle file download errors
 src/tests/multiPhotoNeurophoto.test.ts :: Multi-Photo Neurophoto System Error Handling should handle missing user ID
 src/tests/multiPhotoNeurophoto.test.ts :: Multi-Photo Neurophoto System Multi-Photo Neurophoto Generation should calculate correct cost for multiple images
