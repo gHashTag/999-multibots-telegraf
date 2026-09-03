@@ -165,7 +165,7 @@
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   border-radius: 9px;
   font-size: 11px;
   font-weight: 600;
@@ -223,7 +223,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
 }
 
 .notification-item__icon {
@@ -257,7 +257,7 @@
 }
 
 .notification-icon--follow {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .notification-icon--video {
@@ -318,7 +318,7 @@
 }
 
 .notification-item__mark-read:hover {
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   color: #000;
 }
 

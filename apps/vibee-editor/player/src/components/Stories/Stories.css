@@ -81,7 +81,7 @@
 }
 
 .story-item--unviewed .story-item__avatar-wrapper {
-  background: linear-gradient(135deg, var(--vibee-amber) 0%, #ff6b35 50%, #f72585 100%);
+  background: linear-gradient(135deg, var(--vibee-green) 0%, #ff6b35 50%, #f72585 100%);
 }
 
 .story-item__avatar {
@@ -125,7 +125,7 @@
   justify-content: center;
   width: 20px;
   height: 20px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   border: 2px solid var(--vibee-bg);
   border-radius: 50%;
   color: #000;

@@ -27,7 +27,7 @@
   justify-content: center;
   width: 28px;
   height: 24px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   border: none;
   border-radius: 6px;
   color: #000;
@@ -36,7 +36,7 @@
 }
 
 .upload-btn:hover {
-  background: var(--vibee-amber-light);
+  background: var(--vibee-green-light);
 }
 
 /* Compact drop zone */
@@ -55,8 +55,8 @@
 }
 
 .upload-zone-compact:hover {
-  border-color: var(--vibee-amber);
-  color: var(--vibee-amber);
+  border-color: var(--vibee-green);
+  color: var(--vibee-green);
   background: rgba(0, 255, 136, 0.05);
 }
 
@@ -125,8 +125,8 @@
 }
 
 .view-mode-btn.active {
-  background: var(--vibee-amber);
-  border-color: var(--vibee-amber);
+  background: var(--vibee-green);
+  border-color: var(--vibee-green);
   color: #000;
 }
 
@@ -148,7 +148,7 @@
 }
 
 .upload-progress-item.uploading {
-  border-left: 2px solid var(--vibee-amber);
+  border-left: 2px solid var(--vibee-green);
 }
 
 .upload-progress-item.done {
@@ -249,7 +249,7 @@
 }
 
 .asset-card.blob-warning {
-  border: 1px solid var(--vibee-amber);
+  border: 1px solid var(--vibee-green);
 }
 
 .asset-card-thumbnail {
@@ -335,8 +335,8 @@
   border-radius: 50%;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber) 0%,
-    var(--vibee-amber-dark) 100%
+    var(--vibee-green) 0%,
+    var(--vibee-green-dark) 100%
   );
   display: flex;
   align-items: center;
@@ -526,7 +526,7 @@
 
 /* Blob URL Warning */
 .asset-item.blob-warning {
-  border: 1px solid var(--vibee-amber);
+  border: 1px solid var(--vibee-green);
   background: rgba(0, 255, 136, 0.1);
 }
 
@@ -569,7 +569,7 @@
 }
 
 .view-mode-btn.active {
-  box-shadow: 0 0 0 2px var(--vibee-amber);
+  box-shadow: 0 0 0 2px var(--vibee-green);
 }
 
 /* Upload zone */
@@ -578,7 +578,7 @@
 }
 
 .upload-zone-compact:hover {
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   background: rgba(0, 255, 136, 0.1);
   transform: scale(1.02);
 }
@@ -591,7 +591,7 @@
 .asset-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 .asset-card:active {

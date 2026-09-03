@@ -15,7 +15,7 @@
 }
 
 .script-progress-header svg {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .script-progress-header h4 {
@@ -35,7 +35,7 @@
 
 .script-progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--vibee-amber), #4dffab);
+  background: linear-gradient(90deg, var(--vibee-green), #4dffab);
   transition: width 0.5s ease;
   border-radius: 2px;
 }
@@ -86,7 +86,7 @@
 }
 
 .script-progress-stage.current .script-progress-stage-icon {
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   color: #fff;
 }
 

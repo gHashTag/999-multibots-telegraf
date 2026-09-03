@@ -252,7 +252,7 @@
 }
 
 .comments__input:focus {
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 .comments__submit {
@@ -261,7 +261,7 @@
   justify-content: center;
   width: 44px;
   height: 44px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   border: none;
   border-radius: 50%;
   color: #000;
@@ -270,7 +270,7 @@
 }
 
 .comments__submit:hover:not(:disabled) {
-  background: var(--vibee-amber-light);
+  background: var(--vibee-green-light);
   transform: scale(1.05);
 }
 

@@ -80,8 +80,8 @@
 }
 
 .sort-btn.active {
-  background: var(--primary-color, var(--vibee-amber));
-  border-color: var(--primary-color, var(--vibee-amber));
+  background: var(--primary-color, var(--vibee-green));
+  border-color: var(--primary-color, var(--vibee-green));
   color: #000;
 }
 
@@ -260,7 +260,7 @@
   top: 8px;
   left: 8px;
   padding: 2px 8px;
-  background: var(--primary-color, var(--vibee-amber));
+  background: var(--primary-color, var(--vibee-green));
   color: #000;
   font-size: 10px;
   font-weight: 600;
@@ -446,7 +446,7 @@
 }
 
 .feed-card-creator-link .feed-card-creator {
-  color: var(--primary-color, var(--vibee-amber));
+  color: var(--primary-color, var(--vibee-green));
 }
 
 .feed-card-description {
@@ -503,7 +503,7 @@
   justify-content: center;
   gap: 6px;
   padding: 8px 12px;
-  background: var(--primary-color, var(--vibee-amber));
+  background: var(--primary-color, var(--vibee-green));
   border: none;
   border-radius: 6px;
   color: #000;
@@ -514,7 +514,7 @@
 }
 
 .feed-card-use:hover {
-  background: var(--primary-hover, var(--vibee-amber-light));
+  background: var(--primary-hover, var(--vibee-green-light));
 }
 
 .feed-card-use:disabled {
@@ -754,7 +754,7 @@
 .feed-panel.fullscreen .feed-card-avatar {
   width: 40px;
   height: 40px;
-  border: 2px solid var(--primary-color, var(--vibee-amber));
+  border: 2px solid var(--primary-color, var(--vibee-green));
 }
 
 /* Stats row */
@@ -999,7 +999,7 @@
 
 /* Remix button - golden accent */
 .action-btn.remix-btn {
-  color: var(--primary-color, var(--vibee-amber));
+  color: var(--primary-color, var(--vibee-green));
 }
 
 .action-btn.remix-btn svg {
@@ -1007,7 +1007,7 @@
 }
 
 .action-btn.remix-btn:hover {
-  color: var(--primary-hover, var(--vibee-amber-light));
+  color: var(--primary-hover, var(--vibee-green-light));
 }
 
 .action-btn.remix-btn:disabled {

@@ -49,7 +49,7 @@
 }
 
 .result-card:hover {
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
@@ -109,7 +109,7 @@
 }
 
 .result-audio-icon {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   opacity: 0.6;
 }
 
@@ -182,12 +182,12 @@
 }
 
 .result-share-btn {
-  background: linear-gradient(135deg, var(--vibee-amber) 0%, var(--vibee-amber-dark) 100%);
+  background: linear-gradient(135deg, var(--vibee-green) 0%, var(--vibee-green-dark) 100%);
   color: #000;
 }
 
 .result-share-btn:hover {
-  background: linear-gradient(135deg, var(--vibee-amber-light) 0%, var(--vibee-amber) 100%);
+  background: linear-gradient(135deg, var(--vibee-green-light) 0%, var(--vibee-green) 100%);
   transform: scale(1.05);
 }
 

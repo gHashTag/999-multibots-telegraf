@@ -24,15 +24,15 @@
 
 :root {
   /* Type colors - used for both cards and items */
-  --type-video: var(--vibee-amber);
+  --type-video: var(--vibee-green);
   --type-audio: #10b981;
   --type-image: #ec4899;
-  --type-avatar: var(--vibee-amber);
+  --type-avatar: var(--vibee-green);
   --type-text: #8b5cf6;
 
   /* Shared styling */
   --item-radius: 6px;
-  --item-selected: var(--vibee-amber);
+  --item-selected: var(--vibee-green);
 }
 
 /* ===============================
@@ -70,8 +70,8 @@
   height: 20px;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   border: none;
   border-radius: 4px;
@@ -84,8 +84,8 @@
 .browser-upload-btn:hover:not(:disabled) {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber-dark),
-    var(--vibee-amber)
+    var(--vibee-green-dark),
+    var(--vibee-green)
   );
   transform: scale(1.05);
 }
@@ -122,7 +122,7 @@
 
 .browser-search-btn.active {
   background: var(--bg-secondary);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 /* Search input */
@@ -139,7 +139,7 @@
 }
 
 .browser-search-input:focus {
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   background: var(--bg-card);
 }
 
@@ -186,7 +186,7 @@
 .browser-category-chip.active {
   background: rgba(0, 255, 136, 0.15);
   border-color: rgba(0, 255, 136, 0.3);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .browser-category-chip .chip-icon {
@@ -207,7 +207,7 @@
 
 .browser-category-chip.active .chip-count {
   background: rgba(0, 255, 136, 0.3);
-  color: var(--vibee-amber-light);
+  color: var(--vibee-green-light);
 }
 
 /* Upload progress bar */
@@ -224,8 +224,8 @@
   height: 100%;
   background: linear-gradient(
     90deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   transition: width 0.2s ease;
 }
@@ -353,7 +353,7 @@
 
 .transport-left .project-name-input:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   background: var(--bg-elevated);
 }
 
@@ -508,8 +508,8 @@
   height: 40px;
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   color: #000;
 }
@@ -517,16 +517,16 @@
 .play-btn:hover {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber-dark),
-    var(--vibee-amber)
+    var(--vibee-green-dark),
+    var(--vibee-green)
   );
 }
 
 .snap-btn.active {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   color: #000;
 }
@@ -534,8 +534,8 @@
 .snap-btn.active:hover {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber-dark),
-    var(--vibee-amber)
+    var(--vibee-green-dark),
+    var(--vibee-green)
   );
 }
 
@@ -612,7 +612,7 @@
 }
 
 .speed-value.modified {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   font-weight: 600;
 }
 
@@ -766,7 +766,7 @@
 }
 
 .track-mute-btn.active {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   background: rgba(0, 255, 136, 0.1);
 }
 
@@ -844,7 +844,7 @@
 
 .track-label.drop-target {
   background: rgba(0, 255, 136, 0.2);
-  border-top: 2px solid var(--vibee-amber);
+  border-top: 2px solid var(--vibee-green);
 }
 
 .track-label.drop-target::before {
@@ -854,7 +854,7 @@
   right: 0;
   top: -2px;
   height: 2px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
 }
 
@@ -891,7 +891,7 @@
 
 .track-row.drag-over {
   background: var(--bg-elevated);
-  outline: 2px dashed var(--vibee-amber);
+  outline: 2px dashed var(--vibee-green);
   outline-offset: -2px;
 }
 
@@ -923,7 +923,7 @@
   position: absolute;
   top: 4px;
   height: 28px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.15s;
@@ -931,11 +931,11 @@
 }
 
 .track-item:hover {
-  background: var(--vibee-amber-light);
+  background: var(--vibee-green-light);
 }
 
 .track-item.selected {
-  box-shadow: 0 0 0 2px var(--vibee-amber);
+  box-shadow: 0 0 0 2px var(--vibee-green);
   z-index: calc(var(--z-base) + 1);
 }
 
@@ -951,7 +951,7 @@
 /* Visual feedback when dragging asset over an existing item (replace mode) */
 .track-item.drag-replace {
   box-shadow:
-    0 0 0 2px var(--vibee-amber),
+    0 0 0 2px var(--vibee-green),
     inset 0 0 20px rgba(0, 255, 136, 0.3);
   transform: scale(1.02);
   transition: all 0.15s ease;
@@ -994,7 +994,7 @@
 
 .ghost-item--video {
   background: rgba(59, 130, 246, 0.25);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .ghost-item--audio {
@@ -1009,7 +1009,7 @@
 
 .ghost-item--avatar {
   background: rgba(0, 255, 136, 0.25);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 @keyframes ghost-pulse {
@@ -1095,7 +1095,7 @@
 
 /* Track type colors */
 .track-item[data-type='video'] {
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
 }
 
 .track-item[data-type='video']:hover {
@@ -1105,21 +1105,21 @@
 .track-item[data-type='avatar'] {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
 }
 
 .track-item[data-type='avatar']:hover {
-  background: linear-gradient(135deg, var(--vibee-amber-light), #fcd34d);
+  background: linear-gradient(135deg, var(--vibee-green-light), #fcd34d);
 }
 
 .track-item[data-type='text'] {
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
 }
 
 .track-item[data-type='text']:hover {
-  background: var(--vibee-amber-light);
+  background: var(--vibee-green-light);
 }
 
 .track-item[data-type='audio'] {
@@ -1197,25 +1197,46 @@
   font-size: 8px;
   font-weight: 700;
   font-family: monospace;
-  background: rgba(0, 0, 0, 0.4);
+  /**
+   * Фон значка НЕПРОЗРАЧНЫЙ, и это суть правки, а не оттенок.
+   *
+   * Было `rgba(0,0,0,.4)` — то есть итоговый цвет складывался с цветом клипа,
+   * который здесь заранее неизвестен. На зелёном #00ff88 получалось
+   * rgb(0,153,82) и белый текст давал 3.70:1 при минимуме 4.5:1. Каждый
+   * вариант ниже проваливался так же, а `.volume` — вдвое хуже: зелёный
+   * значок поверх зелёного клипа, 2.21:1.
+   *
+   * Полупрозрачность и была причиной: она ставит контраст в зависимость от
+   * подложки, которую этот файл не контролирует. Непрозрачный фон делает
+   * контраст свойством самого значка — он один и тот же на любом клипе.
+   *
+   * Замерено композицией на живой странице, не на глаз: 17.0 у базового,
+   * 7.7–10.4 у цветных. Порог 4.5 (текст 8px — исключение для крупного
+   * текста здесь не применяется).
+   */
+  background: #1c1c1c;
   color: #fff;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
 }
 
 .track-badge.speed.fast {
-  background: rgba(239, 68, 68, 0.8);
+  /* белый на этом фоне: 8.31:1 (было ниже порога) */
+  background: #991b1b;
 }
 
 .track-badge.speed.slow {
-  background: rgba(59, 130, 246, 0.8);
+  /* белый на этом фоне: 10.36:1 (было ниже порога) */
+  background: #1e3a8a;
 }
 
 .track-badge.volume {
-  background: rgba(16, 185, 129, 0.8);
+  /* белый на этом фоне: 7.68:1 (было ниже порога) */
+  background: #065f46;
 }
 
 .track-badge.volume.muted {
-  background: rgba(107, 114, 128, 0.8);
+  /* белый на этом фоне: 10.31:1 (было ниже порога) */
+  background: #374151;
 }
 
 .track-badge.clickable {
@@ -1227,7 +1248,8 @@
 
 .track-badge.clickable:hover {
   transform: scale(1.1);
-  background: rgba(16, 185, 129, 1);
+  /* Наведение осветляет, но остаётся непрозрачным — по той же причине. */
+  background: #0a7d5c;
 }
 
 /* Volume Popup */
@@ -1285,7 +1307,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   cursor: pointer;
   transition: transform 0.1s ease;
 }
@@ -1298,7 +1320,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   cursor: pointer;
   border: none;
 }
@@ -1331,7 +1353,7 @@
 
 .volume-popup-presets button:hover {
   background: var(--bg-input);
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   color: #fff;
 }
 
@@ -1424,7 +1446,7 @@
 }
 
 .track-item[data-color='blue'] .track-item-color-tag {
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
 }
 
 .track-item[data-color='purple'] .track-item-color-tag {
@@ -1488,7 +1510,7 @@
 }
 
 .timeline-marker.marker-blue .marker-flag {
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
 }
 
 .timeline-marker.marker-purple {
@@ -1507,7 +1529,7 @@
 
 .lasso-rectangle {
   position: absolute;
-  border: 2px dashed var(--vibee-amber);
+  border: 2px dashed var(--vibee-green);
   background: rgba(0, 255, 136, 0.1);
   pointer-events: none;
   z-index: var(--z-dropdown);
@@ -1548,7 +1570,7 @@
   appearance: none;
   width: 12px;
   height: 12px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   border-radius: 50%;
   cursor: pointer;
   transition: transform 0.1s;
@@ -1561,7 +1583,7 @@
 .volume-slider::-moz-range-thumb {
   width: 12px;
   height: 12px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   border: none;
   border-radius: 50%;
   cursor: pointer;
@@ -1590,8 +1612,8 @@
 .export-btn {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   ) !important;
   color: #000 !important;
   min-width: 36px;
@@ -1601,8 +1623,8 @@
 .export-btn:hover {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber-dark),
-    var(--vibee-amber)
+    var(--vibee-green-dark),
+    var(--vibee-green)
   ) !important;
   box-shadow: 0 2px 12px rgba(0, 255, 136, 0.3);
 }
@@ -1637,8 +1659,8 @@
   gap: 8px;
   padding: 10px 20px;
   background: transparent;
-  color: var(--vibee-amber);
-  border: 1px solid var(--vibee-amber);
+  color: var(--vibee-green);
+  border: 1px solid var(--vibee-green);
   border-radius: 8px;
   font-weight: 600;
   font-size: 14px;
@@ -1651,7 +1673,7 @@
   /* На наведении заливка появляется — это подтверждение, что кнопка живая,
      а не заявка на первенство: в покое она остаётся контурной. */
   background: rgba(255, 215, 0, 0.12);
-  border-color: var(--vibee-amber-light);
+  border-color: var(--vibee-green-light);
   transform: translateY(-1px);
 }
 
@@ -1725,7 +1747,7 @@
 }
 
 .warning-icon {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   flex-shrink: 0;
 }
 
@@ -1745,7 +1767,7 @@
 }
 
 .blob-warning-list li {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   font-size: 13px;
   padding: 4px 0;
 }
@@ -1779,8 +1801,8 @@
 .blob-warning-btn.primary {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   color: #000;
   border: none;
@@ -1789,8 +1811,8 @@
 .blob-warning-btn.primary:hover {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber-dark),
-    var(--vibee-amber)
+    var(--vibee-green-dark),
+    var(--vibee-green)
   );
   box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
 }
@@ -1846,7 +1868,7 @@
 }
 
 .reset-icon {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   flex-shrink: 0;
 }
 
@@ -1934,7 +1956,7 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 16px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .save-template-header h3 {
@@ -1965,7 +1987,7 @@
 }
 
 .save-template-input:focus {
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 .save-template-input::placeholder {
@@ -1990,8 +2012,8 @@
 .save-template-btn.primary {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   color: #000;
   border: none;
@@ -2000,8 +2022,8 @@
 .save-template-btn.primary:hover:not(:disabled) {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber-dark),
-    var(--vibee-amber)
+    var(--vibee-green-dark),
+    var(--vibee-green)
   );
   box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
 }
@@ -2250,7 +2272,7 @@
 }
 
 .browser-category-chip.active {
-  box-shadow: 0 0 0 2px var(--vibee-amber);
+  box-shadow: 0 0 0 2px var(--vibee-green);
 }
 
 /* Track items */
@@ -2264,7 +2286,7 @@
 }
 
 .track-item.selected {
-  box-shadow: 0 0 0 2px var(--vibee-amber);
+  box-shadow: 0 0 0 2px var(--vibee-green);
 }
 
 /* Track controls */

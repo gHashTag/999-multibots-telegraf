@@ -96,10 +96,26 @@
   --bg-tertiary: #3a3a3a;
   --bg-hover: #444444;
 
-  /* VIBEE Brand Colors (matches @vibee/atoms BRAND_COLORS) */
-  --vibee-amber: #00ff88;
-  --vibee-amber-light: #4dffab;
-  --vibee-amber-dark: #00cc66;
+  /**
+   * VIBEE Brand Colors
+   *
+   * НАЗЫВАЛИСЬ `--vibee-amber*`, СОДЕРЖА ЗЕЛЁНЫЙ. Все три — оттенки #00ff88,
+   * то есть имя противоречило значению у переменной, на которой держится весь
+   * таймлайн (`.track-item`, `.minimap-playhead`) и кнопки. Такое имя — не
+   * косметика: оно приглашает «починить» переменную в настоящий янтарь и
+   * перекрасить этим бренд, причём правка будет выглядеть как исправление
+   * опечатки.
+   *
+   * Путаницу усиливало то, что рядом живёт `--c-vibeeAmber` с НАСТОЯЩИМ
+   * янтарём #f59e0b. Два почти одинаковых имени, разные цвета.
+   *
+   * В @vibee/atoms ключ всё ещё зовётся `amber` (defaults.ts) — там та же
+   * ложь, но переименование ключа задевает потребителей пакета и делается
+   * отдельно.
+   */
+  --vibee-green: #00ff88;
+  --vibee-green-light: #4dffab;
+  --vibee-green-dark: #00cc66;
   --vibee-gold: #ffd700;
   --vibee-red: #ff6b6b;
   --vibee-bright-yellow: #ffff00;
@@ -154,7 +170,7 @@ button {
 }
 
 a {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   text-decoration: none;
 }
 

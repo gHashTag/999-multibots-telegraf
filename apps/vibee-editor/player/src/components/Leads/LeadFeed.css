@@ -38,8 +38,8 @@
 }
 
 .lead-feed-search:focus-within {
-  border-color: var(--vibee-amber, var(--vibee-amber));
-  color: var(--vibee-amber, var(--vibee-amber));
+  border-color: var(--vibee-green, var(--vibee-green));
+  color: var(--vibee-green, var(--vibee-green));
 }
 
 .lead-feed-search input {
@@ -101,7 +101,7 @@
   background: rgba(0, 255, 136, 0.1);
   border: 1px solid rgba(0, 255, 136, 0.3);
   border-radius: 6px;
-  color: var(--vibee-amber, var(--vibee-amber));
+  color: var(--vibee-green, var(--vibee-green));
   font-size: 12px;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -118,7 +118,7 @@
   align-items: center;
   justify-content: center;
   padding: 0 6px;
-  background: var(--vibee-amber, var(--vibee-amber));
+  background: var(--vibee-green, var(--vibee-green));
   border-radius: 9px;
   font-size: 10px;
   font-weight: 600;

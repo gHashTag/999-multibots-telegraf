@@ -133,7 +133,7 @@
 
 .canvas-control-btn.active {
   background: rgba(0, 255, 136, 0.2);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .canvas-control-btn--zoom {
@@ -144,7 +144,7 @@
 .canvas-control-badge {
   font-size: 9px;
   font-weight: 600;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .canvas-control-divider {
@@ -203,7 +203,7 @@
 
 .canvas-control-menu-item.active {
   background: rgba(0, 255, 136, 0.15);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 /* Layout Menu - items with icon + label */

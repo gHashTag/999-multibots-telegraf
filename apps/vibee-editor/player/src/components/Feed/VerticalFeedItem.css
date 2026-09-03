@@ -99,7 +99,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--vibee-amber), var(--vibee-amber-dark));
+  background: linear-gradient(135deg, var(--vibee-green), var(--vibee-green-dark));
   color: #fff;
   font-weight: 600;
   font-size: 18px;
@@ -150,7 +150,7 @@
 }
 
 .vertical-feed-item__action--bookmarked {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 /* Sound disc animation */

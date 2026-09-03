@@ -73,7 +73,7 @@
     rgba(0, 255, 136, 0.05)
   );
   border-radius: 50%;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   animation: onboarding-icon-float 3s ease-in-out infinite;
 }
 
@@ -122,7 +122,7 @@
 .onboarding__dot.active {
   width: 24px;
   border-radius: 4px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
 }
 
 .onboarding__dot:hover:not(.active) {
@@ -152,12 +152,12 @@
 }
 
 .onboarding__btn--primary {
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   color: #000;
 }
 
 .onboarding__btn--primary:hover {
-  background: var(--vibee-amber-light);
+  background: var(--vibee-green-light);
 }
 
 .onboarding__btn--secondary {
@@ -281,7 +281,7 @@
   background: rgba(0, 255, 136, 0.2);
   border: none;
   border-radius: 8px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;

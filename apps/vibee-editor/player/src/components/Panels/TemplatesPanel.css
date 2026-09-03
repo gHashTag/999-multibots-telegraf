@@ -29,7 +29,7 @@
 }
 
 .template-card.selected {
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   background: rgba(0, 255, 136, 0.1);
 }
 
@@ -46,7 +46,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .template-card-thumbnail img {
@@ -61,7 +61,7 @@
   right: 4px;
   width: 20px;
   height: 20px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -128,7 +128,7 @@
 }
 
 .template-card-add:hover {
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   background: rgba(0, 255, 136, 0.05);
 }
 
@@ -159,7 +159,7 @@
 .templates-transfer-btn:hover {
   background: rgba(0, 255, 136, 0.1);
   border-color: rgba(0, 255, 136, 0.3);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 /* Каноны сервера — отдельная секция над личными пресетами */

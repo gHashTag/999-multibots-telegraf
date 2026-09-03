@@ -75,7 +75,7 @@
 }
 
 .analytics-tab--active {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   background: rgba(0, 255, 136, 0.1);
 }
 
@@ -114,7 +114,7 @@
 
 .analytics-stat__icon--views {
   background: rgba(0, 255, 136, 0.2);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .analytics-stat__icon--likes {
@@ -129,7 +129,7 @@
 
 .analytics-stat__icon--followers {
   background: rgba(0, 255, 136, 0.2);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .analytics-stat__content {
@@ -203,8 +203,8 @@
   max-width: 40px;
   background: linear-gradient(
     to top,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   border-radius: 4px 4px 0 0;
   position: relative;
@@ -215,8 +215,8 @@
 .analytics-chart__bar:hover {
   background: linear-gradient(
     to top,
-    var(--vibee-amber-dark),
-    var(--vibee-amber)
+    var(--vibee-green-dark),
+    var(--vibee-green)
   );
 }
 
@@ -262,7 +262,7 @@
 }
 
 .analytics-quick-stat svg {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 /* Content Tab */
@@ -291,7 +291,7 @@
 .analytics-video__rank {
   font-size: 16px;
   font-weight: 700;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   width: 28px;
 }
 
@@ -377,8 +377,8 @@
   height: 100%;
   background: linear-gradient(
     to right,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   border-radius: 4px;
   transition: width 0.3s ease;
@@ -420,7 +420,7 @@
 
 .analytics-country__fill {
   height: 100%;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   border-radius: 4px;
 }
 

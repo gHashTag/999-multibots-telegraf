@@ -88,7 +88,7 @@
 
 .event-stream-demo-btn {
   background: rgba(0, 255, 136, 0.2);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .event-stream-demo-btn:hover {
@@ -142,7 +142,7 @@
 
 .event-stream-empty svg {
   opacity: 0.5;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .event-stream-empty-hint {
@@ -154,7 +154,7 @@
 .event-stream-demo-btn-large {
   margin-top: 12px;
   padding: 10px 20px;
-  background: linear-gradient(135deg, var(--vibee-amber), #00cc66);
+  background: linear-gradient(135deg, var(--vibee-green), #00cc66);
   color: #000;
   border: none;
   border-radius: 8px;
@@ -258,7 +258,7 @@
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  color: var(--event-color, var(--vibee-amber));
+  color: var(--event-color, var(--vibee-green));
   letter-spacing: 0.5px;
 }
 

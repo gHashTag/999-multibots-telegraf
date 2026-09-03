@@ -37,7 +37,7 @@
   height: 36px;
   background: rgba(0, 255, 136, 0.15);
   border-radius: 50%;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   transition: transform 0.1s linear;
 }
 

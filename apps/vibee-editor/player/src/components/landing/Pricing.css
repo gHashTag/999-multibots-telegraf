@@ -25,7 +25,7 @@
   border-radius: 100px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   text-transform: uppercase;
   letter-spacing: 1px;
   margin-bottom: 16px;
@@ -38,7 +38,7 @@
     135deg,
     #fff 0%,
     #fff 60%,
-    var(--vibee-amber-light) 100%
+    var(--vibee-green-light) 100%
   );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -94,8 +94,8 @@
   transform: translateX(-50%);
   background: linear-gradient(
     135deg,
-    var(--vibee-amber) 0%,
-    var(--vibee-amber-light) 100%
+    var(--vibee-green) 0%,
+    var(--vibee-green-light) 100%
   );
   color: #000;
   padding: 6px 16px;
@@ -168,8 +168,8 @@
 .pricing-cta.primary {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber) 0%,
-    var(--vibee-amber-light) 100%
+    var(--vibee-green) 0%,
+    var(--vibee-green-light) 100%
   );
   color: #000;
 }

@@ -27,7 +27,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   pointer-events: none;
   z-index: calc(var(--z-base) + 1);
 }
@@ -53,5 +53,5 @@
 .minimap-viewport.dragging {
   cursor: grabbing;
   background: rgba(255, 255, 255, 0.2);
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }

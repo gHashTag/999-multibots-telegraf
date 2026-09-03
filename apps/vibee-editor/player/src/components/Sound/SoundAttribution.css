@@ -234,12 +234,12 @@
 }
 
 .sound-detail__btn--primary {
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   color: #000;
 }
 
 .sound-detail__btn--primary:hover {
-  background: var(--vibee-amber-light);
+  background: var(--vibee-green-light);
 }
 
 .sound-detail__btn:not(.sound-detail__btn--primary) {
@@ -253,7 +253,7 @@
 
 .sound-detail__btn--saved {
   background: rgba(0, 255, 136, 0.2);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .sound-detail__original {

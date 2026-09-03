@@ -39,7 +39,7 @@ input:focus,
 textarea:focus,
 select:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.1);
 }
 
@@ -168,32 +168,32 @@ select:focus {
   --btn-text-muted: var(--text-muted);
 
   /* Primary Button (Amber) */
-  --btn-primary-bg: var(--vibee-amber);
-  --btn-primary-bg-hover: var(--vibee-amber-light);
-  --btn-primary-bg-active: var(--vibee-amber-dark);
+  --btn-primary-bg: var(--vibee-green);
+  --btn-primary-bg-hover: var(--vibee-green-light);
+  --btn-primary-bg-active: var(--vibee-green-dark);
   --btn-primary-text: #000;
 
   /* Inputs */
   --input-bg: var(--bg-elevated);
   --input-bg-focus: var(--bg-secondary);
   --input-border: var(--bg-secondary);
-  --input-border-focus: var(--vibee-amber);
+  --input-border-focus: var(--vibee-green);
   --input-text: var(--text-primary);
   --input-placeholder: var(--text-muted);
 
   /* Sliders */
   --slider-track-bg: var(--bg-secondary);
-  --slider-track-fill: var(--vibee-amber);
-  --slider-thumb-bg: var(--vibee-amber);
-  --slider-thumb-border: var(--vibee-amber-light);
+  --slider-track-fill: var(--vibee-green);
+  --slider-thumb-bg: var(--vibee-green);
+  --slider-thumb-border: var(--vibee-green-light);
 
   /* Tabs */
   --tab-bg: transparent;
   --tab-bg-hover: var(--bg-elevated);
   --tab-bg-active: var(--bg-elevated);
   --tab-text: var(--text-muted);
-  --tab-text-active: var(--vibee-amber);
-  --tab-border-active: var(--vibee-amber);
+  --tab-text-active: var(--vibee-green);
+  --tab-border-active: var(--vibee-green);
 
   /* Badges */
   --badge-bg: var(--bg-secondary);
@@ -305,7 +305,7 @@ select:focus {
   color: var(--text-muted);
 }
 .text-amber {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 .font-medium {
   font-weight: var(--font-weight-medium);
@@ -471,7 +471,7 @@ button:disabled {
 }
 
 .card:hover {
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 /* Section Base */

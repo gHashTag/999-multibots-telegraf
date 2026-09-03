@@ -71,13 +71,13 @@
   background: rgba(0, 255, 136, 0.15);
   border: 1px solid rgba(0, 255, 136, 0.3);
   border-radius: 12px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   font-size: 14px;
   font-weight: 500;
 }
 
 .transcribing-icon {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   animation: pulse 1.5s ease-in-out infinite;
 }
 
@@ -134,7 +134,7 @@
 
 .canvas-template-info .template-creator {
   font-size: 12px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -247,7 +247,7 @@
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
   z-index: calc(var(--z-dropdown) + 200);
-  border: 3px dashed var(--vibee-amber);
+  border: 3px dashed var(--vibee-green);
   border-radius: 12px;
   margin: 12px;
   animation: dropzone-pulse 1.5s ease-in-out infinite;
@@ -256,11 +256,11 @@
 @keyframes dropzone-pulse {
   0%,
   100% {
-    border-color: var(--vibee-amber);
+    border-color: var(--vibee-green);
     background: rgba(0, 0, 0, 0.6);
   }
   50% {
-    border-color: var(--vibee-amber-light);
+    border-color: var(--vibee-green-light);
     background: rgba(0, 255, 136, 0.15);
   }
 }
@@ -270,7 +270,7 @@
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .canvas-drop-zone-content svg {

@@ -42,7 +42,7 @@
 }
 
 .caption-tab.active {
-  background: var(--vibee-amber);
+  background: var(--vibee-green);
   color: #000;
 }
 
@@ -66,7 +66,7 @@
 }
 
 .caption-toggle.active {
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 /* Content */
@@ -105,8 +105,8 @@
 .add-caption-btn {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber),
-    var(--vibee-amber-light)
+    var(--vibee-green),
+    var(--vibee-green-light)
   );
   color: #000;
 }
@@ -114,8 +114,8 @@
 .add-caption-btn:hover {
   background: linear-gradient(
     135deg,
-    var(--vibee-amber-dark),
-    var(--vibee-amber)
+    var(--vibee-green-dark),
+    var(--vibee-green)
   );
   box-shadow: 0 2px 8px rgba(0, 255, 136, 0.3);
 }
@@ -180,7 +180,7 @@
 }
 
 .caption-item.current {
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
   background: rgba(0, 255, 136, 0.1);
 }
 
@@ -203,7 +203,7 @@
 
 .time-input:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 .time-separator {
@@ -226,7 +226,7 @@
 
 .caption-text:focus {
   outline: none;
-  border-color: var(--vibee-amber);
+  border-color: var(--vibee-green);
 }
 
 .caption-delete {
@@ -324,7 +324,7 @@
 .style-row.checkbox input[type='checkbox'] {
   width: 16px;
   height: 16px;
-  accent-color: var(--vibee-amber);
+  accent-color: var(--vibee-green);
 }
 
 /* Caption Preview */
@@ -345,7 +345,7 @@
 
 .preview-text {
   font-size: 13px;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -473,7 +473,7 @@
   padding: 8px 12px 6px;
   font-size: 10px;
   font-weight: 600;
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   background: #151515;
@@ -503,7 +503,7 @@
 
 .font-option.selected {
   background: rgba(0, 255, 136, 0.2);
-  color: var(--vibee-amber);
+  color: var(--vibee-green);
 }
 
 .font-option-name {
