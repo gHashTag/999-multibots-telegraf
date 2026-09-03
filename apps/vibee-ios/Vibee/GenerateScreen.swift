@@ -70,15 +70,18 @@ struct GenerateScreen: View {
   /// request shapes are implemented and server-allowlisted end to end.
   private var доступныеМодели: [Модель] {
     guard let kind = видКаталога else { return [] }
-    let reviewed: Set<String>
-    switch вид {
-    case .картинка: reviewed = ["google/nano-banana"]
-    case .видео: reviewed = ["grok-imagine/text-to-video"]
-    case .звук: reviewed = ["elevenlabs/text-to-speech-multilingual-v2"]
-    case .аватар: reviewed = ["veed/fabric-1"]
-    case .сценарий, .редактор: return КаталогKie.поВиду(kind)
-    }
-    return КаталогKie.поВиду(kind).filter { reviewed.contains($0.id) }
+    /**
+     * СПИСОК ОДИН — `пропускаетСервер`, а не своя копия рядом.
+     *
+     * Здесь стоял ВТОРОЙ набор тех же четырёх имён, отдельным `switch`. Две
+     * записи одной правды в одном файле: смена разрешённой модели требовала
+     * править обе, и первая же правка развела бы их — экран предлагал бы
+     * модель, которую шлюз тут же отверг бы как «сервер не подключил».
+     * Ровно та ошибка, от которой этот шлюз и заводился.
+     */
+    if вид == .сценарий || вид == .редактор { return КаталогKie.поВиду(kind) }
+    guard let разрешена = Self.пропускаетСервер[вид] else { return [] }
+    return КаталогKie.поВиду(kind).filter { $0.id == разрешена }
   }
 
   /**
@@ -101,7 +104,7 @@ struct GenerateScreen: View {
     .картинка: "google/nano-banana",
     .видео: "grok-imagine/text-to-video",
     .звук: "elevenlabs/text-to-speech-multilingual-v2",
-    .аватар: "veed/fabric-1",
+    .аватар: "infinitalk/from-audio",
   ]
 
   /// Выполнит ли сервер эту модель. У сценария своя ветка — там KieAI не при чём.

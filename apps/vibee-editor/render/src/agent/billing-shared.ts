@@ -24,9 +24,19 @@ const OPERATION_COST_USD: Record<string, number> = {
   image_generate: 0.003,
   video_generate: 0.1,
   audio_generate: 0.03,
-  // Kie veed/fabric-1 is measured at 18 provider credits per audio second.
-  // One provider credit and one app token share the same $0.005 base.
-  lipsync_generate: 0.09,
+  /**
+   * Kie infinitalk/from-audio: $0.015 за секунду звука (прайс KieAI).
+   *
+   * БЫЛО 0.09 — себестоимость `veed/fabric-1`, 18 кредитов провайдера в
+   * секунду. Модель сменилась (она отвечала `internal error`), и цена обязана
+   * была смениться вместе с ней: 0.09 при новой себестоимости 0.015 означало
+   * бы брать вшестеро больше, чем операция стоит. Цена здесь ВЫВОДИТСЯ из
+   * себестоимости, а не назначается, — значит источник обязан быть тем же
+   * провайдером, что стоит в KIE_WEB_MODEL.lipsync.
+   *
+   * 0.015 / 0.005 = 3 токена вместо 18.
+   */
+  lipsync_generate: 0.015,
   reel_render: 0.005,
 }
 /** Цена = ceil(себестоимость / база). Источник значений — расчёт, не руки. */
@@ -38,7 +48,7 @@ export function priceFor(op: string): number {
 export const TOKEN_PRICES: Record<string, number> = {
   image_generate: priceFor('image_generate'), // 1
   audio_generate: priceFor('audio_generate'), // 6
-  lipsync_generate: priceFor('lipsync_generate'), // 18 per audio second
+  lipsync_generate: priceFor('lipsync_generate'), // 3 per audio second
   reel_render: priceFor('reel_render'), // 1
   video_generate: priceFor('video_generate'), // 20
 }
