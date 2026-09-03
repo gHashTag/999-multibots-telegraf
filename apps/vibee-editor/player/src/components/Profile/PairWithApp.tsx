@@ -51,11 +51,27 @@ export function PairWithApp() {
       setКод(r.code)
       setОсталось(r.expires_in)
     } catch (e) {
-      setОшибка(
+      /**
+       * SHOW BOTH THE REASON AND WHAT TO DO ABOUT IT.
+       *
+       * This used to be `e.message` alone, which is the server's `detail`
+       * field -- "empty initData". True, and useless to a person: it names
+       * the fault in protocol terms and says nothing about the next move.
+       *
+       * The next move lives in `hint`, which the server sends alongside ("the
+       * code is issued only inside Telegram -- that is where the signature
+       * is") and which `apiFetch` carefully attaches to the error object.
+       * This screen was throwing it away. Measured 2026-09-03: not one new
+       * row in `app_pairing_codes` in 24 hours against three claim attempts --
+       * the person pressed the button, read "empty initData", and had no way
+       * to learn that the mini app was open outside Telegram.
+       */
+      const hint = (e as { hint?: string } | null)?.hint
+      const reason =
         e instanceof Error
           ? e.message
           : 'Не удалось получить код — попробуйте ещё раз'
-      )
+      setОшибка(hint ? `${reason}. ${hint}` : reason) // cyrillic-ok: existing setter name
     }
     setИдёт(false)
   }
