@@ -1808,7 +1808,7 @@ cmd_dupes() {
             while (j < t.length) {
               if (t[j] === "\\") { j += 2; continue; }
               if (t[j] === c) break;
-              if (c !== "`" && t[j] === "\n") break;   // unterminated quote
+              if (c !== QUOTES[0] && t[j] === "\n") break;   // unterminated quote
               j++;
             }
             const end = Math.min(j + 1, t.length);
@@ -2091,10 +2091,46 @@ cmd_skipped() {
       // 46 вместо 45, и это число я успел опубликовать. Теперь требуется
       // скобка вызова, а комментарии вырезаются до поиска.
       const SKIP = /\b(describe|it|test)\.skip\s*\(/;
-      const stripComments = t =>
-        t
-          .replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, " "))
-          .replace(/(^|[^:])\/\/.*$/gm, (m, p1) => p1 + " ".repeat(m.length - p1.length));
+      // Вырезаем и комментарии, И строковые литералы. Комментарии — с #1712,
+      // где упоминание `describe.skip` в шапке посчиталось выключенным тестом.
+      // Строки — потому что ровно на них обжёгся tri dupes (#1724): восемь из
+      // десяти его находок оказались образцами кода внутри шаблонных строк.
+      // Здесь сегодня совпадений нет (42 и в сыром тексте, и в коде), то есть
+      // перепись верна ПО УДАЧЕ: ни одна фикстура пока не содержит `.skip(`.
+      // Свойство, которое держится удачей, ничем не удерживается — чиним до
+      // того, как первая такая фикстура появится.
+      // Кавычки задаются кодами намеренно: литеральный апостроф внутри
+      // node -e рвёт саму bash-строку, в которой этот скрипт живёт. Поймано
+      // дважды подряд — сперва в коде, потом в ЭТОМ комментарии.
+      const QUOTES = String.fromCharCode(96, 34, 39);
+      const stripComments = t => {
+        let o = "", i = 0;
+        const keep = x => x.replace(/[^\n]/g, " ");
+        while (i < t.length) {
+          const c = t[i];
+          if (c === "/" && t[i + 1] === "*") {
+            const j = t.indexOf("*/", i + 2); const e = j === -1 ? t.length : j + 2;
+            o += keep(t.slice(i, e)); i = e; continue;
+          }
+          if (c === "/" && t[i + 1] === "/") {
+            const j = t.indexOf("\n", i); const e = j === -1 ? t.length : j;
+            o += keep(t.slice(i, e)); i = e; continue;
+          }
+          if (QUOTES.includes(c)) {
+            let j = i + 1;
+            while (j < t.length) {
+              if (t[j] === "\\") { j += 2; continue; }
+              if (t[j] === c) break;
+              if (c !== "`" && t[j] === "\n") break;
+              j++;
+            }
+            const e = Math.min(j + 1, t.length);
+            o += c + keep(t.slice(i + 1, e)); i = e; continue;
+          }
+          o += c; i++;
+        }
+        return o;
+      };
       let sites = 0, hidden = 0, undoc = 0;
       const undocList = [], hiddenFiles = new Map();
       for (const f of files) {
@@ -2144,11 +2180,21 @@ cmd_skipped_selfcheck() {
     rc=1
   fi
   printf "// the sibling suite is describe.skip and that is fine\ndescribe('x', () => {\n  it('live', () => {})\n})\n" > "$d/mention.test.ts"
+  # Образец кода ВНУТРИ шаблонной строки — то, на чём обжёгся tri dupes.
+  printf "const sample = \`describe.skip('inside', () => {})\`\ndescribe('x', () => {\n  it('live', () => {})\n})\n" > "$d/fixture.test.ts"
   out="$(cmd_skipped "$d/mention.test.ts" 2>&1 || true)"
   if printf '%s' "$out" | grep -q 'выключенных тестов: 0'; then
     good 'упоминание skip в комментарии не считается выключенным тестом'
   else
     bad 'СЛОМАНА: комментарий со словом skip посчитан выключенным тестом'
+    rc=1
+  fi
+
+  out="$(cmd_skipped "$d/fixture.test.ts" 2>&1 || true)"
+  if printf '%s' "$out" | grep -q 'выключенных тестов: 0'; then
+    good 'skip внутри шаблонной строки не считается выключенным тестом'
+  else
+    bad 'СЛОМАНА: образец кода в строке посчитан выключенным тестом'
     rc=1
   fi
 
