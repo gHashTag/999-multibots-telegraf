@@ -1663,30 +1663,54 @@ cmd_unguarded() {
   # охраняемый: сломай его завтра, и ворота промолчат.
   #
   # Так вышло с PR #1696: пять тестов влились и остались вне снимка на целую
-  # итерацию, потому что снимок обновляют отдельным действием, а PR его не
-  # трогал. Нашлось случайно — по расхождению «+11, а добавлено 6».
+  # итерацию. Нашлось по расхождению «+11, а добавлено 6».
   #
-  # Здесь ДЕШЁВАЯ проверка: файл, у которого в снимке НОЛЬ строк. Прогона нет,
-  # только текст. Точный пофайловый разбор имён — это tri в-гейте.
+  # ПОЧЕМУ ЗДЕСЬ ДВА ЧИСЛА, А НЕ ОДНО. Первая версия печатала одно: «80 из 531
+  # не под охраной». Число оказалось завышено вдвое, и я успел опубликовать его
+  # в дашборде и в сообщении коммита. Из тех 80 тридцать девять исключены из
+  # прогона САМИМ vitest.config.ts, и там у каждого исключения записана
+  # причина: у player свой раннер (bun run test:player), файлы с bun:test
+  # гоняет npm run test:bun, ещё три умирают на загрузке модуля. Это не дыра в
+  # охране, это другой сторож. Оставшиеся — в области корневого прогона и
+  # действительно вне снимка; вот их и надо читать.
   #
-  # ЧЕСТНАЯ ОГОВОРКА: ноль строк значит «ворота его не стерегут», а не
-  # «забыли обновить снимок». Файл мог не собираться, падать целиком или быть
-  # пропущен. Причину смотреть глазами; команда отвечает на вопрос
-  # «что не под охраной», а не «почему».
+  # Прогона нет, только текст. Точное пофайловое сравнение имён — tri в-гейте.
   local snap="${1:-$ROOT/.test-baseline.txt}"
   [ -f "$snap" ] || { bad "снимок не найден: $snap"; return 2; }
 
-  local total=0 naked=0
-  while IFS= read -r f; do
-    total=$((total + 1))
-    if ! grep -qF -- "$f :: " "$snap"; then
-      naked=$((naked + 1))
-      printf '  %s\n' "$f"
-    fi
-  done < <(git -C "$ROOT" ls-files '*.test.ts' '*.test.tsx' | sort)
-
-  printf '\nфайлов с тестами: %s, вне снимка: %s\n' "$total" "$naked"
-  [ "$naked" -eq 0 ]
+  git -C "$ROOT" ls-files '*.test.ts' '*.test.tsx' | sort > /tmp/tri-unguarded-all.txt
+  node -e '
+    const fs = require("fs");
+    const root = process.argv[1], snapPath = process.argv[2];
+    const snap = fs.readFileSync(snapPath, "utf8");
+    const files = fs.readFileSync("/tmp/tri-unguarded-all.txt", "utf8").split("\n").filter(Boolean);
+    const cfg = fs.readFileSync(root + "/vitest.config.ts", "utf8");
+    const m = cfg.match(/exclude:\s*\[([\s\S]*?)\n    \],/);
+    const pats = m ? [...m[1].matchAll(/'"'"'([^'"'"']+)'"'"'/g)].map(x => x[1]) : [];
+    // ОДИН проход, а не цепочка замен: последовательные replace портят
+    // собственный вывод — "**" превращается в ".*", после чего замена "*" на
+    // "[^/]*" делает из него ".[^/]*", и шаблон перестаёт ходить вглубь.
+    // Именно так 25 файлов player'"'"'а вывалились из "исключённых" и завысили
+    // остаток с 41 до 67.
+    const rx = p => {
+      const esc = s2 => s2.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*");
+      const joined = p.split("**").map(esc).join("\u0000");
+      return new RegExp("^" + joined
+        .replace(/\u0000\//g, "(?:.*/)?")
+        .replace(/\u0000/g, ".*") + "$");
+    };
+    const excluded = [], residue = [];
+    for (const f of files) {
+      if (snap.includes(f + " :: ")) continue;
+      (pats.some(p => rx(p).test(f)) ? excluded : residue).push(f);
+    }
+    for (const f of residue) console.log("  " + f);
+    console.log("");
+    console.log("файлов с тестами: " + files.length);
+    console.log("исключены из прогона конфигом (свой раннер / мёртвые на импорте): " + excluded.length);
+    console.log("В ОБЛАСТИ ПРОГОНА, но вне снимка: " + residue.length);
+    process.exit(residue.length === 0 ? 0 : 1);
+  ' "$ROOT" "$snap"
 }
 
 cmd_unguarded_selfcheck() {
@@ -1723,6 +1747,23 @@ cmd_unguarded_selfcheck() {
   else
     good 'в текущем снимке этот файл под охраной'
   fi
+  # ТРЕТЬЯ ПРОВЕРКА ПИННИНГУЕТ РАЗДЕЛЕНИЕ, а не только сам список.
+  # Первая версия печатала одно число (80) и была завышена вдвое: перевод
+  # glob в регексп ломался на 'apps/vibee-editor/player/**', и 25 файлов
+  # с собственным раннером считались незащищёнными. Регресс в переводе снова
+  # раздует остаток молча, поэтому здесь: файл player'а обязан быть В
+  # ИСКЛЮЧЁННЫХ (то есть НЕ в выводе), а обе доли — ненулевыми.
+  local player_file
+  player_file="$(git -C "$ROOT" ls-files 'apps/vibee-editor/player/**/*.test.ts*' | head -1)"
+  if [ -z "$player_file" ]; then
+    warn 'самопроверка раздела пропущена: у player не нашлось тестов'
+  elif printf '%s' "$out_now" | grep -qF "$player_file"; then
+    bad 'СЛОМАНА: файл player-раннера попал в остаток — перевод glob сломан'
+    rc=1
+  else
+    good 'файлы своего раннера учтены как исключённые, а не как дыра'
+  fi
+
   rm -f "$old_snap"
   return "$rc"
 }
