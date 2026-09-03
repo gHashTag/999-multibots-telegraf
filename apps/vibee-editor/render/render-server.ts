@@ -2432,10 +2432,37 @@ function startRenderAsync(
   return renderId
 }
 
+/**
+ * A path safe to write into the log, which is NOT the same as the path.
+ *
+ * The cashier's webhook carries its secret in the PATH -- that secret is the
+ * whole guard: past it, the body is trusted and `invoice_payload` credits stars
+ * as the single source of truth. The request logger ran before any auth and
+ * printed the path verbatim, so every pre-checkout and every successful payment
+ * wrote STARS_WEBHOOK_SECRET into stdout. Anyone able to read the service log
+ * could then POST a forged successful_payment with any amount, any telegram_id
+ * and a charge id of their choosing -- the idempotency key comes from the same
+ * body -- and mint tokens for as long as they liked.
+ *
+ * Stripping the query is not enough, because this secret is not in the query.
+ *
+ * The mask is deliberately NARROW rather than "hide anything long": that is the
+ * only route in this file that puts a secret in the path (grep for a comparison
+ * of a path segment against a *_SECRET), and a broad redactor would quietly
+ * blind the log to real paths, which is its own kind of harm.
+ */
+export function redactedForLog(url: string | undefined): string {
+  const path = (url || '/').split('?')[0]
+  return path.replace(
+    /^(\/api\/telegram\/stars-wh\/).+$/,
+    '$1<secret-redacted>'
+  )
+}
+
 // Simple HTTP server
 const server = createServer(async (req, res) => {
   // Log all requests
-  const requestPath = (req.url || '/').split('?')[0]
+  const requestPath = redactedForLog(req.url)
   console.log(`📥 ${req.method} ${requestPath}`)
 
   // CORS headers
