@@ -73,6 +73,12 @@ export const generateSeedEdit3 = async (
 
   // Объявляем переменные до try для доступности в catch
   let totalCost = 0
+  // `refunded` blocks an inner+outer double-refund (in a batch the lump charge
+  // N*cost lets refundUser's netting pass a second per-image credit); `charged`
+  // gates refunds on a REAL charge so an uncharged failure can't mint. Mirrors
+  // generateFluxKontextPro (#1649).
+  let refunded = false
+  let charged = false
   // saveFileLocally persists a local copy that delivery never uses (it sends the
   // REMOTE imageUrl), so unlink it on every path -- same leak as fluxKontextPro
   // (#1537). Declared here so the finally can reach it.
@@ -161,12 +167,15 @@ export const generateSeedEdit3 = async (
         is_ru,
         bot_name: ctx.botInfo.username,
       })
+      charged = balanceResult.success === true
 
       logger.info('🟢 [SeedEdit3] Balance check result:', {
         telegram_id,
         balanceCheckSuccess: !!balanceResult,
       })
     } else {
+      // Batch mode: the caller already charged (chargedCostOverride) before the loop.
+      charged = true
       logger.info('⏭️ [SeedEdit3] Skipping balance check (already verified)', {
         telegram_id,
       })
@@ -214,11 +223,16 @@ export const generateSeedEdit3 = async (
         error: error instanceof Error ? error.message : String(error),
       })
 
-      // ✅ Refund user on API failure (silent mode if needed)
-      await refundUser(ctx, params.chargedCostOverride ?? totalCost, {
-        silent: params.silent || false,
-        reason: 'generation_failed',
-      })
+      // ✅ Refund on API failure — only when a real charge occurred (`charged`),
+      // so an uncharged (insufficient-funds) failure cannot mint against an
+      // unrelated prior charge. `refunded` blocks a second refund in the outer catch.
+      if (charged) {
+        await refundUser(ctx, params.chargedCostOverride ?? totalCost, {
+          silent: params.silent || false,
+          reason: 'generation_failed',
+        })
+        refunded = true
+      }
 
       throw error
     }
@@ -340,9 +354,10 @@ export const generateSeedEdit3 = async (
       stack: error instanceof Error ? error.stack : undefined,
     })
 
-    // ✅ Refund on any outer error (if not already refunded in inner catch)
+    // ✅ Refund on any post-generation error the inner catch did not handle.
+    // `!refunded` prevents an inner+outer double-refund; `charged` prevents a mint.
     try {
-      if (totalCost > 0 && params.ctx) {
+      if (!refunded && charged && params.ctx) {
         await refundUser(params.ctx, params.chargedCostOverride ?? totalCost, {
           silent: params.silent || false,
           reason: 'generation_failed',
