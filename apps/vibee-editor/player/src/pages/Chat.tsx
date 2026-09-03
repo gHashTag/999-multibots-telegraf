@@ -1,7 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { agentMessagesAtom, agentDraftAtom } from '@/atoms/agentChat'
-import { sendToAgent, agentBusyAtom } from '@/lib/agentStream'
+import {
+  sendToAgent,
+  agentBusyAtom,
+  clearAgentHistory,
+  hydrateAgentHistory,
+  switchAgentOwnerSession,
+} from '@/lib/agentStream'
+import { userAtom } from '@/atoms/user'
 import type { Message } from '@/atoms/agentChat'
 import { useLanguage } from '@/hooks/useLanguage'
 import { Header } from '@/components/Header'
@@ -78,12 +85,14 @@ const SUGGESTIONS = [
 
 function ChatPage() {
   const { t } = useLanguage()
-  // Переписка и черновик — в атомах с хранилищем, а не в useState: страница
-  // размонтируется при переключении вкладки, и разговор пропадал вместе с ней.
+  // Transcript and draft stay in memory while tabs switch. The canonical
+  // owner-scoped transcript is hydrated from the server, never localStorage.
   const [messages, setMessages] = useAtom(agentMessagesAtom)
   const [input, setInput] = useAtom(agentDraftAtom)
   // Занятость — в атоме: она принадлежит разговору, а не странице.
   const busy = useAtomValue(agentBusyAtom)
+  const verifiedOwner = useAtomValue(userAtom)
+  const ownerSessionKey = verifiedOwner ? String(verifiedOwner.id) : ''
   const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({})
   const [tokens, setTokens] = useState<number | null>(null)
   const [topUp, setTopUp] = useState(false)
@@ -231,13 +240,16 @@ function ChatPage() {
   // каждом монтировании; теперь, когда история переживает уход со страницы,
   // это стирало бы разговор при каждом возврате.
   useEffect(() => {
+    // Login/logout can happen while /chat stays mounted. A navigation remount
+    // with the same owner must preserve a stream running across app tabs.
+    const ownerChanged = switchAgentOwnerSession(ownerSessionKey)
+    void hydrateAgentHistory(ownerChanged)
+  }, [ownerSessionKey])
+
+  useEffect(() => {
     if (messages.length > 0) return
     setMessages([WELCOME])
-    // Один раз на монтировании: messages читается ради проверки «пусто ли»,
-    // в зависимостях ему делать нечего — иначе эффект пересчитается на каждое
-    // новое сообщение.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [messages.length, setMessages])
 
   /**
    * Прокрутка вниз — только когда есть за чем гнаться.
@@ -265,10 +277,13 @@ function ChatPage() {
    * шёл посмотреть ленту и возвращался к оборванному ответу, даже когда
    * сервер честно досчитал. Теперь страница только зовёт и читает стор.
    */
-  const send = useCallback((text: string) => {
-    void sendToAgent(text)
-    setInput('')
-  }, [setInput])
+  const send = useCallback(
+    (text: string) => {
+      void sendToAgent(text)
+      setInput('')
+    },
+    [setInput]
+  )
 
   return (
     <div className="chat-page">
@@ -287,9 +302,18 @@ function ChatPage() {
           {messages.length > 1 && (
             <button
               className="chat-reset"
-              onClick={() => {
-                setMessages([WELCOME])
-                setInput('')
+              onClick={async () => {
+                if (
+                  !window.confirm(
+                    'Начать новый разговор? Предыдущая история останется в архиве, но исчезнет из текущего чата.'
+                  )
+                ) {
+                  return
+                }
+                if (await clearAgentHistory()) {
+                  setMessages([WELCOME])
+                  setInput('')
+                }
               }}
             >
               Новый разговор
@@ -306,9 +330,15 @@ function ChatPage() {
                   на его фоне выглядит выгодным. 150: 1.17⭐/ток против 1.5
                   у десятки — честный «выгоднее всех», не маркетинговый. */}
               {[150, 50, 10].map(p => (
-                <button key={p} className="chat-topup__pack" onClick={() => buy(String(p))}>
+                <button
+                  key={p}
+                  className="chat-topup__pack"
+                  onClick={() => buy(String(p))}
+                >
                   {p} токенов{p === 150 ? ' · выгоднее всех' : ''}
-                  <span>{p === 10 ? '15 ⭐' : p === 50 ? '65 ⭐' : '175 ⭐'}</span>
+                  <span>
+                    {p === 10 ? '15 ⭐' : p === 50 ? '65 ⭐' : '175 ⭐'}
+                  </span>
                 </button>
               ))}
               {topUpNote && <p className="chat-topup__note">{topUpNote}</p>}
@@ -324,6 +354,11 @@ function ChatPage() {
               key={m.id}
               className={`message ${m.role === 'user' ? 'user' : 'agent'}`}
             >
+              {m.channel ? (
+                <span className={`message-source message-source--${m.channel}`}>
+                  {m.channel === 'telegram' ? 'Telegram' : 'Mini App'}
+                </span>
+              ) : null}
               {m.thinking ? (
                 <button
                   className="thinking-toggle"

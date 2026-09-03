@@ -25,18 +25,19 @@ envs() {
   done
   PAYBOT="$(echo "$KV" | grep ^TOKENS_PAYMENT_BOT_TOKEN= | cut -d= -f2-)"
   SECRET="$(echo "$KV" | grep ^STARS_WEBHOOK_SECRET= | cut -d= -f2-)"
+  HEADER_SECRET="$(echo "$KV" | grep ^TELEGRAM_WEBHOOK_HEADER_SECRET= | cut -d= -f2-)"
   SELFURL="$(echo "$KV" | grep ^SELF_URL= | cut -d= -f2-)"
 }
 
 say "страж стартовал (PID $$)"
 while true; do
   envs
-  if [ -n "$PAYBOT" ] && [ -n "$SECRET" ] && [ -n "$SELFURL" ]; then
+  if [ -n "$PAYBOT" ] && [ -n "$SECRET" ] && [ -n "$HEADER_SECRET" ] && [ -n "$SELFURL" ]; then
     url=$(curl -s -m 10 "https://api.telegram.org/bot${PAYBOT}/getWebhookInfo" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin)['result'].get('url',''))" 2>/dev/null)
     if [[ "$url" != *stars-wh* ]]; then
       curl -s -m 15 "https://api.telegram.org/bot${PAYBOT}/setWebhook" \
         -H 'Content-Type: application/json' \
-        -d "{\"url\": \"${SELFURL}/api/telegram/stars-wh/${SECRET}\", \"allowed_updates\": [\"pre_checkout_query\", \"successful_payment\"]}" > /dev/null 2>&1
+        -d "{\"url\": \"${SELFURL}/api/telegram/stars-wh/${SECRET}\", \"secret_token\": \"${HEADER_SECRET}\", \"allowed_updates\": [\"pre_checkout_query\", \"successful_payment\"]}" > /dev/null 2>&1
       say "вебхук был сбит — восстановлен"
     fi
   else

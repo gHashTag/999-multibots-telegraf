@@ -4453,3 +4453,23 @@
 1. **«Выпустить social cards»** — player-only merge и production smoke профиля.
 2. **«Добавить быстрый remix»** — отдельной кнопкой создать новый draft по выбранному шаблону, без автопубликации.
 3. **«Усилить библиотеку»** — фильтры, поиск и сортировка Templates отдельным витком.
+
+---
+
+## Виток №248 — 2026-09-01T12:20Z — один агент в Telegram и Mini App (PR —)
+
+**Проверено**: актуальный `origin/main`, dirty основной checkout с чужим lipsync WIP, production health и `/chat`, существующие Mini App agent stream, root Telegram wizard, webhook кассира и Bot API streaming contract. Подтверждён архитектурный разрыв: Mini App использовал настоящий tool-calling агент, но держал историю в localStorage; обычный текст бота обслуживал отдельный wizard с другой памятью. Redacted Bot API probe доказал, что login bot и кассир — один точный `@t27ai_bot`, webhook уже жив/без ошибок, но принимает только payment update и не принимает `message`. BrowserOS smoke production `/chat` дополнительно показал stale локальную историю и 401 без Telegram identity.
+
+**Сделано**: в чистой ветке добавлен canonical owner-scoped transcript в Railway PostgreSQL для каналов `telegram`/`mini_app`; Mini App отправляет только новый ход и idempotency id, восстанавливает общую историю и показывает источник сообщения. `@t27ai_bot` использует не второй webhook, а существующий Stars webhook: path+Telegram header обязательны, opt-in добавляет `message`, rollback сужает его обратно до payments. Оба транспорта сериализуются bounded PostgreSQL owner-lock с concurrency budget и SQL на том же locked connection. Duplicate user без assistant не перезапускает model/tools, а фиксирует interrupted reply; Telegram возобновляет только per-chunk delivery с сохранёнными message IDs. `/start`/`/help` отвечают без кнопок/model call. Reasoning, tool arguments/results, provider bodies и webhook secret не уходят в UI/log. «Новый разговор» теперь архивный epoch под тем же lock, а не destructive DELETE. Browser transcript/draft больше не живут в глобальном localStorage; logout/login меняет hydration generation и повторно загружает owner history без auto-replay модели.
+
+**Аномалии / самокритика**: первый independent review остановил выпуск шестью P1: fail-stop retry, конкурентные owner turns, слабый shared-webhook boundary, DB errors вне HTTP boundary, cross-account localStorage и destructive clear race. Повторный review нашёл shared-pool deadlock, повтор model/tool effects при incomplete retry, whole-answer resend и отсутствие rehydrate при login без remount. Третий checkpoint поймал ещё два client lifecycle race: обычный remount Chat обрывал background stream, а запоздалый clear owner A мог стереть owner B; также URL path ошибочно использовался как header secret. Они self-healed: agent turns ограничены четырьмя locked connections, duplicate generation не повторяется, delivery прогресс хранится по chunks, stable owner-session key отличает remount от login/logout, DELETE сверяет generation, header использует отдельный env и старый cashier-watch не может стереть его при rehook. Header-secret должен быть заранее выставлен и подтверждён real delivery canary; `getWebhookInfo` его намеренно не раскрывает. Migration/header hardening — non-revertable prerequisite, product rollback отдельный. Реальная production schema и webhook не менялись. Full player typecheck/build не измерены: canonical player dependencies отсутствуют, а переустанавливать их витку запрещено; borrowed deps дают missing-module baseline. `tri scan` отдельно сохраняет прежние FAL/ElevenLabs/WIDGET_DOMAINS аномалии.
+
+**Метрики**: production health 200/enforce; фабрика — последний пост 3.9 ч назад; feed first page — 20 постов / 9👁 / 0⭐. Последний focused render transport/store/error-boundary TDD 18/18 PASS; player stream/history/reconnect/lifecycle TDD 10/10 PASS; предыдущие auth-focused gates 18/18 PASS; security/no-Cyrillic/diff guards PASS.
+
+**Следующий шаг**: fresh exact-diff review после P1 self-heal → dependency/build gate → отдельный non-revertable migration/header prerequisite (`setWebhook secret_token` на старом handler + `getWebhookInfo`) → deploy render/player с flag OFF → identity/history smoke → flag ON + Telegram→Mini App→Telegram smoke без публикаций и затрат.
+
+## Три варианта для владельца
+
+1. **«Выпустить omnichannel beta»** — закончить build/review и включить один webhook у `@t27ai_bot`.
+2. **«Сначала только общая история»** — выпустить server history + Mini App, не переключая Telegram updates.
+3. **«Оставить локально»** — не менять webhook/схему, а сначала восстановить canonical deps и пройти полный build/typecheck.

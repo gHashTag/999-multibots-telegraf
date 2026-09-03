@@ -106,6 +106,8 @@ health: ## быстрая проверка A2A-карточки локально
 
 test: ## тесты рендера
 	@cd $(RENDER_DIR) && npm test
+agent-conversation-preflight: ## read-only proof that the chat migration exists
+	@node scripts/preflight-agent-conversation.mjs
 typecheck: ## типы всех частей
 	@npm run typecheck; cd $(RENDER_DIR) && npx tsc --noEmit -p tsconfig.json
 

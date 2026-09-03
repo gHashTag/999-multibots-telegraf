@@ -24,11 +24,21 @@ import {
   handleMcp,
   handleMcpCard,
   handleAgentChat,
+  handleAgentHistory,
   handleAgentKeys,
   chatIdentity,
   resolveIdentity,
   readBody,
 } from './src/agent/routes'
+import {
+  processTelegramAgentTextUpdate,
+  sendTelegramAgentWelcome,
+} from './src/agent/telegram-agent'
+import {
+  telegramWebhookConfig,
+  telegramWebhookSecretMatches,
+} from './src/agent/telegram-webhook'
+import { redactedRequestPath } from './src/agent/request-log'
 // A2A: the open protocol for external agents. Imported here because this file
 // is the only place that mounts routes, and until now nothing imported it at
 // all -- see the block comment at the mount site.
@@ -2086,12 +2096,7 @@ function startRenderAsync(
 
       // Video render
       const codec = (req.codec || 'h264') as
-        | 'h264'
-        | 'h265'
-        | 'vp8'
-        | 'vp9'
-        | 'prores'
-        | 'gif'
+        'h264' | 'h265' | 'vp8' | 'vp9' | 'prores' | 'gif'
       const ext = codec === 'gif' ? 'gif' : 'mp4'
       const outputPath = path.join(OUTPUT_DIR, `${renderId}.${ext}`)
 
@@ -2250,7 +2255,7 @@ function startRenderAsync(
 // Simple HTTP server
 const server = createServer(async (req, res) => {
   // Log all requests
-  const requestPath = (req.url || '/').split('?')[0]
+  const requestPath = redactedRequestPath(req.url)
   console.log(`📥 ${req.method} ${requestPath}`)
 
   // CORS headers
@@ -5645,6 +5650,18 @@ const server = createServer(async (req, res) => {
     await handleAgentChat(req, res, String(who), getPool)
     return
   }
+  if (
+    req.url?.split('?')[0] === '/api/agent/history' &&
+    (req.method === 'GET' || req.method === 'DELETE')
+  ) {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      sendJson(res, 401, { error: 'не удалось определить пользователя' })
+      return
+    }
+    await handleAgentHistory(req, res, String(who), getPool)
+    return
+  }
 
   /**
    * Self-service agent keys -- the route its own handler documents.
@@ -5718,6 +5735,8 @@ const server = createServer(async (req, res) => {
         '150': { tokens: 150, stars: 175, title: '150 токенов Trinity' },
       }
       const PAY_BOT = process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
+      const AGENT_BOT = process.env.BOT_TOKEN_12 || ''
+      const AGENT_ENABLED = process.env.TELEGRAM_AGENT_WEBHOOK_ENABLED === '1'
 
       if (feedPath === '/api/tokens/packs' && req.method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -5947,18 +5966,52 @@ const server = createServer(async (req, res) => {
       // Вебхук бота-кассира: секрет в пути, чтобы гвард и злоумышленники
       // мимо не прошли. Telegram шлёт сюда pre_checkout и successful_payment.
       const WH_SECRET = process.env.STARS_WEBHOOK_SECRET || ''
+      const WH_HEADER_SECRET = process.env.TELEGRAM_WEBHOOK_HEADER_SECRET || ''
       const whMatch = req.url?.match(
         /^\/api\/telegram\/stars-wh\/([a-zA-Z0-9_-]+)$/
       )
       if (whMatch && req.method === 'POST') {
-        if (!WH_SECRET || whMatch[1] !== WH_SECRET || !PAY_BOT) {
+        const headerSecret = String(
+          req.headers['x-telegram-bot-api-secret-token'] || ''
+        )
+        if (
+          !telegramWebhookSecretMatches(
+            WH_SECRET,
+            whMatch[1],
+            WH_HEADER_SECRET,
+            headerSecret
+          ) ||
+          !PAY_BOT
+        ) {
           res.writeHead(404, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ error: 'not found' }))
           return
         }
         try {
           const upd = JSON.parse((await readBody(req)) || '{}')
-          if (upd.pre_checkout_query) {
+          if (upd.message?.text && AGENT_ENABLED && PAY_BOT === AGENT_BOT) {
+            try {
+              const pool = await getPool()
+              const result = await processTelegramAgentTextUpdate(upd, {
+                pool,
+                botToken: AGENT_BOT,
+              })
+              if (result === 'ignored') {
+                await sendTelegramAgentWelcome(upd, {
+                  botToken: AGENT_BOT,
+                })
+              }
+              res.writeHead(200)
+              res.end()
+            } catch {
+              console.error(
+                '[telegram-agent] turn failed; requesting retry (details redacted)'
+              )
+              res.writeHead(503)
+              res.end()
+            }
+            return
+          } else if (upd.pre_checkout_query) {
             await fetch(
               `https://api.telegram.org/bot${PAY_BOT}/answerPreCheckoutQuery`,
               {
@@ -8076,22 +8129,30 @@ async function main() {
     // env — блок у него не активен и прод не трогает.
     const payBot = process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
     const whSecret = process.env.STARS_WEBHOOK_SECRET || ''
+    const whHeaderSecret = process.env.TELEGRAM_WEBHOOK_HEADER_SECRET || ''
+    const agentBot = process.env.BOT_TOKEN_12 || ''
+    const agentWebhookEnabled =
+      process.env.TELEGRAM_AGENT_WEBHOOK_ENABLED === '1'
     const selfUrl = process.env.SELF_URL || ''
-    if (payBot && whSecret && selfUrl) {
+    if (payBot && whSecret && selfUrl && whHeaderSecret) {
       const rehook = () =>
         fetch(`https://api.telegram.org/bot${payBot}/setWebhook`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: `${selfUrl}/api/telegram/stars-wh/${whSecret}`,
-            allowed_updates: ['pre_checkout_query', 'successful_payment'],
-          }),
+          body: JSON.stringify(
+            telegramWebhookConfig({
+              url: `${selfUrl}/api/telegram/stars-wh/${whSecret}`,
+              headerSecret: whHeaderSecret,
+              agentEnabled: agentWebhookEnabled,
+              sameBot: payBot === agentBot,
+            })
+          ),
         })
           .then(r => r.json())
           .then(d =>
             console.log(
               '💰 [cashier] вебхук самовосстановлен:',
-              d.ok ? 'ok' : JSON.stringify(d).slice(0, 120)
+              d.ok ? 'ok' : 'rejected (details redacted)'
             )
           )
           .catch(e =>
@@ -8101,6 +8162,7 @@ async function main() {
             )
           )
       setTimeout(rehook, 30_000)
+      void rehook()
       setInterval(rehook, 10 * 60_000)
     }
   })

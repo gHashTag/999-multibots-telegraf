@@ -9,12 +9,18 @@
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/apiFetch', () => ({ authHeaders: () => ({}) }))
+vi.mock('@/lib/apiFetch', () => ({ authHeaders: () => new Headers() }))
 vi.mock('@/config', () => ({ API_BASE: '' }))
 
 import { editorStore } from '@/atoms/Provider'
-import { agentMessagesAtom } from '@/atoms/agentChat'
-import { sendToAgent } from '@/lib/agentStream'
+import { agentDraftAtom, agentMessagesAtom } from '@/atoms/agentChat'
+import {
+  clearAgentHistory,
+  hydrateAgentHistory,
+  resetAgentLocalSession,
+  switchAgentOwnerSession,
+  sendToAgent,
+} from '@/lib/agentStream'
 
 /** Отдаёт готовые NDJSON-строки так, как их отдаёт сервер. */
 function поток(строки: string[]) {
@@ -40,7 +46,7 @@ const ответАгента = () => {
 
 describe('sendToAgent: сборка текста', () => {
   beforeEach(() => {
-    editorStore.set(agentMessagesAtom, [])
+    resetAgentLocalSession()
   })
 
   it('ставит абзац между репликами вокруг инструмента', async () => {
@@ -92,5 +98,188 @@ describe('sendToAgent: сборка текста', () => {
     await sendToAgent('сколько у меня токенов')
 
     expect(ответАгента()?.text).toBe('Баланс 0.')
+  })
+
+  it('посылает только новый текст и idempotency id, а не client-owned history', async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        поток(['{"тип":"текст","текст":"Ок"}']) // cyrillic-ok: existing test helper
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await sendToAgent('новый ход')
+
+    const [, options] = fetchMock.mock.calls[0]
+    const body = JSON.parse(String(options?.body))
+    expect(body.message).toBe('новый ход')
+    expect(body.client_message_id).toMatch(/^mini:/)
+    expect(body).not.toHaveProperty('messages')
+    expect(body).not.toHaveProperty('telegramId')
+  })
+
+  it('восстанавливает общую Telegram + Mini App историю с сервера', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          messages: [
+            {
+              id: '11',
+              role: 'user',
+              content: 'Сообщение из Telegram',
+              channel: 'telegram',
+              created_at: '2026-09-01T10:00:00.000Z',
+            },
+            {
+              id: '12',
+              role: 'assistant',
+              content: 'Ответ агента',
+              channel: 'telegram',
+              created_at: '2026-09-01T10:00:01.000Z',
+              metadata: { tools: ['feed_stats'] },
+            },
+          ],
+        }),
+      }))
+    )
+
+    await hydrateAgentHistory(true)
+
+    expect(editorStore.get(agentMessagesAtom)).toEqual([
+      expect.objectContaining({
+        id: 'server:11',
+        role: 'user',
+        text: 'Сообщение из Telegram',
+        channel: 'telegram',
+      }),
+      expect.objectContaining({
+        id: 'server:12',
+        role: 'assistant',
+        text: 'Ответ агента',
+        channel: 'telegram',
+        tools: [{ name: 'feed_stats' }],
+      }),
+    ])
+  })
+
+  it('при успешной пустой истории очищает stale локальную копию', async () => {
+    editorStore.set(agentMessagesAtom, [
+      { id: 'stale', role: 'user', text: 'уже удалённый разговор' },
+    ])
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, json: async () => ({ messages: [] }) }))
+    )
+
+    await hydrateAgentHistory(true)
+
+    expect(editorStore.get(agentMessagesAtom)).toEqual([])
+  })
+
+  it('does not replay an incomplete Mini App turn during hydration', async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'GET') {
+          return {
+            ok: true,
+            json: async () => ({
+              messages: [
+                {
+                  id: '20',
+                  external_id: 'mini:pending-turn',
+                  role: 'user',
+                  content: 'Continue my plan',
+                  channel: 'mini_app',
+                  created_at: '2026-09-01T10:00:00.000Z',
+                },
+              ],
+            }),
+          }
+        }
+        throw new Error('hydration must not replay the model')
+      }
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await hydrateAgentHistory(true)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(editorStore.get(agentMessagesAtom)).toEqual([
+      expect.objectContaining({
+        role: 'user',
+        text: 'Continue my plan',
+        externalId: 'mini:pending-turn',
+      }),
+    ])
+  })
+
+  it('discards owner A hydration after the local session is reset', async () => {
+    let resolveResponse: ((value: unknown) => void) | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise(resolve => {
+            resolveResponse = resolve
+          })
+      )
+    )
+    const hydration = hydrateAgentHistory(true)
+    editorStore.set(agentDraftAtom, 'private draft')
+    resetAgentLocalSession()
+    resolveResponse?.({
+      ok: true,
+      json: async () => ({
+        messages: [
+          {
+            id: 'old-owner',
+            role: 'user',
+            content: 'private history',
+            channel: 'telegram',
+            created_at: '2026-09-01T10:00:00.000Z',
+          },
+        ],
+      }),
+    })
+    await hydration
+
+    expect(editorStore.get(agentMessagesAtom)).toEqual([])
+    expect(editorStore.get(agentDraftAtom)).toBe('')
+  })
+
+  it('preserves an active same-owner session across a route remount', () => {
+    switchAgentOwnerSession('owner-remount')
+    editorStore.set(agentMessagesAtom, [
+      { id: 'live', role: 'assistant', text: 'still streaming' },
+    ])
+
+    expect(switchAgentOwnerSession('owner-remount')).toBe(false)
+    expect(editorStore.get(agentMessagesAtom)).toEqual([
+      { id: 'live', role: 'assistant', text: 'still streaming' },
+    ])
+  })
+
+  it('does not let a delayed clear from owner A erase owner B', async () => {
+    let resolveDelete: ((value: unknown) => void) | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise(resolve => {
+            resolveDelete = resolve
+          })
+      )
+    )
+    const pendingClear = clearAgentHistory()
+    resetAgentLocalSession()
+    editorStore.set(agentMessagesAtom, [
+      { id: 'owner-b', role: 'assistant', text: 'private B history' },
+    ])
+    resolveDelete?.({ ok: true })
+
+    await expect(pendingClear).resolves.toBe(true)
+    expect(editorStore.get(agentMessagesAtom)).toEqual([
+      { id: 'owner-b', role: 'assistant', text: 'private B history' },
+    ])
   })
 })

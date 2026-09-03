@@ -21,7 +21,7 @@
  */
 import { atom } from 'jotai'
 import { editorStore } from '@/atoms/Provider'
-import { agentMessagesAtom } from '@/atoms/agentChat'
+import { agentDraftAtom, agentMessagesAtom } from '@/atoms/agentChat'
 import type { Message } from '@/atoms/agentChat'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
@@ -31,8 +31,147 @@ export const agentBusyAtom = atom(false)
 
 /** Не даём запустить второй поток поверх первого. */
 let inFlight = false
+let hydrationPromise: Promise<void> | null = null
+let sessionGeneration = 0
+let hydrationGeneration = 0
+let hydrationAbort: AbortController | null = null
+let streamAbort: AbortController | null = null
+let activeStreamGeneration = 0
+let observedOwnerSessionKey: string | null = null
+
+interface ServerHistoryMessage {
+  id: string | number
+  external_id?: string
+  role: 'user' | 'assistant'
+  content: string
+  channel: 'mini_app' | 'telegram'
+  created_at: string
+  metadata?: { tools?: unknown }
+}
+
+function requestHeaders(): Headers {
+  const headers = authHeaders()
+  const devKey = import.meta.env.DEV
+    ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
+    : undefined
+  if (devKey && !headers.has('X-Telegram-Init-Data')) {
+    headers.set('X-Agent-Key', devKey)
+  }
+  return headers
+}
+
+function serverMessage(message: ServerHistoryMessage): Message | null {
+  if (
+    (message.role !== 'user' && message.role !== 'assistant') ||
+    (message.channel !== 'mini_app' && message.channel !== 'telegram') ||
+    typeof message.content !== 'string' ||
+    !message.content.trim()
+  ) {
+    return null
+  }
+  const rawTools = Array.isArray(message.metadata?.tools)
+    ? message.metadata.tools
+    : []
+  return {
+    id: `server:${String(message.id)}`,
+    role: message.role,
+    text: message.content,
+    channel: message.channel,
+    createdAt: message.created_at,
+    externalId: message.external_id,
+    tools: rawTools
+      .filter((name): name is string => typeof name === 'string')
+      .map(name => ({ name })),
+  }
+}
+
+/** Rehydrate the owner-scoped transcript shared with @t27ai_bot. */
+export async function hydrateAgentHistory(force = false): Promise<void> {
+  if (hydrationPromise && !force) return hydrationPromise
+  if (force) hydrationAbort?.abort()
+  const ownerGeneration = sessionGeneration
+  const requestGeneration = ++hydrationGeneration
+  const controller = new AbortController()
+  hydrationAbort = controller
+  const task = (async () => {
+    const res = await fetch(`${API_BASE}/api/agent/history`, {
+      method: 'GET',
+      headers: requestHeaders(),
+      signal: controller.signal,
+    })
+    if (!res.ok) return
+    const body = (await res.json().catch(() => null)) as {
+      messages?: ServerHistoryMessage[]
+    } | null
+    const messages = Array.isArray(body?.messages)
+      ? body.messages.map(serverMessage).filter((m): m is Message => !!m)
+      : []
+    // A successful server response is canonical even when it is empty, so a
+    // cleared conversation propagates to every device.
+    if (
+      ownerGeneration === sessionGeneration &&
+      requestGeneration === hydrationGeneration &&
+      (!inFlight || force)
+    ) {
+      editorStore.set(agentMessagesAtom, messages)
+    }
+  })()
+    .catch(() => undefined)
+    .finally(() => {
+      if (hydrationAbort === controller) hydrationAbort = null
+      if (hydrationPromise === task) hydrationPromise = null
+    })
+  hydrationPromise = task
+  return task
+}
+
+/** Invalidate every response that belongs to the previous browser identity. */
+export function resetAgentLocalSession(): void {
+  sessionGeneration += 1
+  hydrationGeneration += 1
+  hydrationAbort?.abort()
+  hydrationAbort = null
+  streamAbort?.abort()
+  streamAbort = null
+  hydrationPromise = null
+  inFlight = false
+  editorStore.set(agentBusyAtom, false)
+  editorStore.set(agentMessagesAtom, [])
+  editorStore.set(agentDraftAtom, '')
+}
+
+/**
+ * Returns true only when the verified browser owner actually changed.
+ * A route remount with the same owner must not abort a stream that continued
+ * while the user visited Feed/Profile.
+ */
+export function switchAgentOwnerSession(ownerSessionKey: string): boolean {
+  if (observedOwnerSessionKey === null) {
+    observedOwnerSessionKey = ownerSessionKey
+    return false
+  }
+  if (observedOwnerSessionKey === ownerSessionKey) return false
+  observedOwnerSessionKey = ownerSessionKey
+  resetAgentLocalSession()
+  return true
+}
+
+/** Clear only the verified owner's canonical transcript. */
+export async function clearAgentHistory(): Promise<boolean> {
+  if (inFlight) return false
+  const ownerGeneration = sessionGeneration
+  const res = await fetch(`${API_BASE}/api/agent/history`, {
+    method: 'DELETE',
+    headers: requestHeaders(),
+  })
+  // Logout/login may complete while this DELETE is in flight. Never let an
+  // owner-A response erase owner-B state.
+  if (res.ok && ownerGeneration === sessionGeneration) resetAgentLocalSession()
+  return res.ok
+}
 
 function patch(agentId: string, fn: (m: Message) => Message): void {
+  if (activeStreamGeneration !== sessionGeneration) return
   editorStore.set(agentMessagesAtom, prev =>
     prev.map(m => (m.id === agentId ? fn(m) : m))
   )
@@ -50,9 +189,19 @@ export async function sendToAgent(text: string): Promise<void> {
   const trimmed = text.trim()
   if (!trimmed || inFlight) return
   inFlight = true
+  const ownerGeneration = sessionGeneration
+  activeStreamGeneration = ownerGeneration
+  const controller = new AbortController()
+  streamAbort = controller
   editorStore.set(agentBusyAtom, true)
 
-  const userMsg: Message = { id: `u${Date.now()}`, role: 'user', text: trimmed }
+  const clientMessageId = `mini:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`
+  const userMsg: Message = {
+    id: clientMessageId,
+    role: 'user',
+    text: trimmed,
+    channel: 'mini_app',
+  }
   const agentId = `a${Date.now()}`
   const agentMsg: Message = {
     id: agentId,
@@ -62,11 +211,6 @@ export async function sendToAgent(text: string): Promise<void> {
     tools: [],
   }
 
-  // История для сервера — из уже показанных сообщений плюс новое.
-  const history = [...editorStore.get(agentMessagesAtom), userMsg]
-    .filter(m => m.id !== 'welcome')
-    .map(m => ({ role: m.role, content: m.text }))
-
   editorStore.set(agentMessagesAtom, prev => [...prev, userMsg, agentMsg])
 
   try {
@@ -74,25 +218,27 @@ export async function sendToAgent(text: string): Promise<void> {
     // X-Telegram-Init-Data). В DEV на localhost подписи нет — тогда, если
     // задан VITE_AGENT_KEY, идём ключом агента. Ветка ТОЛЬКО для
     // import.meta.env.DEV: ключ в прод-сборку не попадает.
-    const headers = authHeaders()
-    const devKey = import.meta.env.DEV
-      ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
-      : undefined
-    if (devKey && !headers.has('X-Telegram-Init-Data')) {
-      headers.set('X-Agent-Key', devKey)
-    }
+    const headers = requestHeaders()
     const res = await fetch(`${API_BASE}/api/agent/chat`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ messages: history }),
+      signal: controller.signal,
+      body: JSON.stringify({
+        message: trimmed,
+        client_message_id: clientMessageId,
+      }),
     })
     if (!res.ok || !res.body) {
       // Код И тело: тело — единственное место, где сервер объясняет причину.
       const body = await res.text().catch(() => '')
-      patch(agentId, m => ({
-        ...m,
-        text: `Не получилось: ${res.status}. ${body.slice(0, 200)}`,
-      }))
+      if (res.status === 409) {
+        await hydrateAgentHistory(true)
+      } else {
+        patch(agentId, m => ({
+          ...m,
+          text: `Не получилось: ${res.status}. ${body.slice(0, 200)}`,
+        }))
+      }
       return
     }
 
@@ -196,12 +342,17 @@ export async function sendToAgent(text: string): Promise<void> {
       patch(agentId, m => ({ ...m, text: `${m.text}\n\n⚠️ ${текстОбрыва}` }))
     }
   } catch (e) {
-    patch(agentId, m => ({
-      ...m,
-      text: `Сеть недоступна: ${String(e).slice(0, 160)}`,
-    }))
+    if (ownerGeneration === sessionGeneration) {
+      patch(agentId, m => ({
+        ...m,
+        text: `Сеть недоступна: ${String(e).slice(0, 160)}`,
+      }))
+    }
   } finally {
-    inFlight = false
-    editorStore.set(agentBusyAtom, false)
+    if (ownerGeneration === sessionGeneration) {
+      inFlight = false
+      editorStore.set(agentBusyAtom, false)
+    }
+    if (streamAbort === controller) streamAbort = null
   }
 }

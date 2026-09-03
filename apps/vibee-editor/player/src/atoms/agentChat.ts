@@ -2,9 +2,7 @@
 // Переписка с агентом — вкладка «Агент» (/chat)
 // ===============================
 
-import { atom } from 'jotai';
-import { atomWithStorage } from 'jotai/utils';
-import { STORAGE_KEYS } from '@vibee/atoms';
+import { atom } from 'jotai'
 
 /**
  * ЗАЧЕМ ЭТОТ ФАЙЛ. И переписка, и недописанное сообщение жили в `useState`
@@ -20,65 +18,44 @@ import { STORAGE_KEYS } from '@vibee/atoms';
  */
 
 export interface ToolCall {
-  name: string;
+  name: string
   /** Сколько инструмент отработал, мс. */
-  ms?: number;
+  ms?: number
 }
 
 export interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  text: string;
+  id: string
+  role: 'user' | 'assistant'
+  text: string
+  /** Transport that accepted the message; server history joins both channels. */
+  channel?: 'mini_app' | 'telegram'
+  /** Server timestamp of the completed message. */
+  createdAt?: string
+  /** Stable server idempotency key used only to resume an incomplete turn. */
+  externalId?: string
   /** Поток размышления модели — сворачиваемый, показывается по желанию. */
-  thinking?: string;
-  tools?: ToolCall[];
+  thinking?: string
+  tools?: ToolCall[]
 }
 
-/**
- * Сколько сообщений храним.
- *
- * localStorage даёт около 5 МБ на origin, а переписка растёт без предела.
- * Переполнение бросает QuotaExceededError на ЗАПИСИ — сломался бы не чат, а
- * всё, что пишет в хранилище после него: черновик, вкладка, настройки. Сотни
- * сообщений хватает, чтобы вернуться к разговору, и не хватает, чтобы забить
- * квоту.
- */
-const MAX_STORED_MESSAGES = 100;
+const MAX_STORED_MESSAGES = 100
 
-/**
- * `getOnInit` — не косметика.
- *
- * По умолчанию atomWithStorage отдаёт значение по умолчанию на первом рендере
- * и подтягивает сохранённое позже, из onMount. Страница чата на монтировании
- * решает, показывать ли приветствие: она бы увидела пустой список, положила
- * приветствие, и восстановленная история легла бы поверх — или наоборот.
- * С `getOnInit` первое же чтение идёт из localStorage, и гонки нет.
- */
-const storedMessagesAtom = atomWithStorage<Message[]>(
-  STORAGE_KEYS.agentChat,
-  [],
-  undefined,
-  { getOnInit: true }
-);
+const sessionMessagesAtom = atom<Message[]>([])
 
 /** История переписки. Пишется с обрезкой хвоста — свежее важнее старого. */
 export const agentMessagesAtom = atom(
-  (get) => get(storedMessagesAtom),
-  (
-    get,
-    set,
-    update: Message[] | ((prev: Message[]) => Message[])
-  ) => {
-    const prev = get(storedMessagesAtom);
-    const next = typeof update === 'function' ? update(prev) : update;
+  get => get(sessionMessagesAtom),
+  (get, set, update: Message[] | ((prev: Message[]) => Message[])) => {
+    const prev = get(sessionMessagesAtom)
+    const next = typeof update === 'function' ? update(prev) : update
     set(
-      storedMessagesAtom,
+      sessionMessagesAtom,
       next.length > MAX_STORED_MESSAGES
         ? next.slice(next.length - MAX_STORED_MESSAGES)
         : next
-    );
+    )
   }
-);
+)
 
 /**
  * Недописанное сообщение.
@@ -86,9 +63,4 @@ export const agentMessagesAtom = atom(
  * Человек описывает ролик абзацем, отвлекается на ленту, возвращается — и
  * раньше видел пустое поле.
  */
-export const agentDraftAtom = atomWithStorage<string>(
-  STORAGE_KEYS.agentChatDraft,
-  '',
-  undefined,
-  { getOnInit: true }
-);
+export const agentDraftAtom = atom('')

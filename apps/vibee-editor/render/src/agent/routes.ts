@@ -27,6 +27,13 @@ import { TOOLS_BY_NAME, toMcpTools } from './tools'
 import { runAgent, type ChatMessage } from './chat'
 import { resolveProvider } from './provider'
 import { verifiedTelegramId } from '../../auth'
+import {
+  appendConversationMessage,
+  clearConversationHistory,
+  findConversationMessage,
+  loadConversationHistory,
+  withConversationOwnerLock,
+} from './conversation'
 
 /**
  * CONSTANT-TIME key comparison.
@@ -359,15 +366,103 @@ export async function handleAgentChat(
   telegramId: string,
   getPool: () => any
 ) {
+  try {
+    const pool = await getPool()
+    return await withConversationOwnerLock(pool, telegramId, lockedPool =>
+      handleAgentChatLocked(req, res, telegramId, lockedPool)
+    )
+  } catch {
+    if (!res.headersSent) {
+      return json(res, 503, { error: 'чат временно недоступен' })
+    }
+    if (!res.writableEnded) res.end()
+  }
+}
+
+async function handleAgentChatLocked(
+  req: IncomingMessage,
+  res: ServerResponse,
+  telegramId: string,
+  pool: any
+) {
+  const interruptedReply =
+    'Предыдущий запуск агента прервался, поэтому он не повторён автоматически. ' +
+    'Отправьте задачу новым сообщением, если хотите запустить её ещё раз.'
   let body: any
   try {
     body = JSON.parse((await readBody(req)) || '{}')
   } catch {
     return json(res, 400, { error: 'тело запроса не разобрано как JSON' })
   }
-  const history: ChatMessage[] = Array.isArray(body.messages)
-    ? body.messages
-    : []
+  const message = typeof body.message === 'string' ? body.message.trim() : ''
+  const clientMessageId =
+    typeof body.client_message_id === 'string'
+      ? body.client_message_id.trim()
+      : ''
+  let history: ChatMessage[]
+  let replyExternalId: string | null = null
+
+  if (message) {
+    if (
+      !/^mini:[A-Za-z0-9._:-]{1,180}$/.test(clientMessageId) ||
+      message.length > 8_000
+    ) {
+      return json(res, 400, {
+        error: 'нужны message до 8000 символов и client_message_id вида mini:…',
+      })
+    }
+    const inserted = await appendConversationMessage(pool, {
+      telegramId,
+      channel: 'mini_app',
+      externalId: clientMessageId,
+      role: 'user',
+      content: message,
+    })
+    const wasDuplicate = !inserted.inserted
+    if (wasDuplicate) {
+      const replyId = `mini-reply:${clientMessageId.slice(5)}`
+      const existingReply = await findConversationMessage(
+        pool,
+        telegramId,
+        'mini_app',
+        replyId
+      )
+      if (!existingReply) {
+        // A retry can arrive after an effectful tool ran but before its answer
+        // was committed. Replaying the model would repeat unknown side effects.
+        await appendConversationMessage(pool, {
+          telegramId,
+          channel: 'mini_app',
+          externalId: replyId,
+          role: 'assistant',
+          content: interruptedReply,
+          metadata: { tools: [], interrupted: true },
+        })
+      }
+      return json(res, 409, {
+        error: 'сообщение уже принято; обновите общую историю',
+      })
+    }
+    const storedHistory = await loadConversationHistory(pool, telegramId, 40)
+    if (
+      wasDuplicate &&
+      !storedHistory.some(row => row.externalId === clientMessageId)
+    ) {
+      return json(res, 409, {
+        error: 'разговор уже завершён; обновите общую историю',
+      })
+    }
+    history = storedHistory.map(row => ({
+      role: row.role,
+      content: row.content,
+    }))
+    replyExternalId = `mini-reply:${clientMessageId.slice(5)}`
+  } else {
+    // Backward compatibility for a client deployed during the rolling update.
+    // This branch is intentionally not persisted: client-owned history is not
+    // allowed to become the canonical transcript.
+    history = Array.isArray(body.messages) ? body.messages : []
+  }
   if (!history.length) {
     return json(res, 400, {
       error: 'нужен непустой массив messages вида [{role:"user",content:"…"}]',
@@ -383,16 +478,108 @@ export async function handleAgentChat(
   })
 
   try {
-    const pool = await getPool()
+    let assistantText = ''
+    const tools = new Set<string>()
     for await (const ev of runAgent(history, { telegramId, pool })) {
-      res.write(JSON.stringify(ev) + '\n')
+      // Provider reasoning is not a transcript and must not be exposed or
+      // persisted. The typing indicator already communicates progress.
+      if (ev['тип'] === 'размышление') continue
+      if (ev['тип'] === 'ошибка') {
+        res.write(
+          JSON.stringify({
+            ['тип']: 'ошибка',
+            ['текст']: 'Агент временно недоступен. Повторите запрос позже.',
+          }) + '\n'
+        )
+        continue
+      }
+      if (ev['тип'] === 'текст') assistantText += String(ev['текст'] || '')
+      if (ev['тип'] === 'инструмент' && ev['имя']) {
+        tools.add(String(ev['имя']))
+      }
+      // The UI needs only a display-safe status. Full arguments and tool
+      // values can contain private fields and never cross this boundary.
+      const displayEvent =
+        ev['тип'] === 'инструмент'
+          ? { ['тип']: ev['тип'], ['имя']: ev['имя'] }
+          : ev['тип'] === 'результат'
+            ? { ['тип']: ev['тип'], ['имя']: ev['имя'], ['мс']: ev['мс'] }
+            : ev
+      res.write(JSON.stringify(displayEvent) + '\n')
     }
-  } catch (e) {
+    if (replyExternalId && assistantText.trim()) {
+      await appendConversationMessage(pool, {
+        telegramId,
+        channel: 'mini_app',
+        externalId: replyExternalId,
+        role: 'assistant',
+        content: assistantText.trim(),
+        metadata: { tools: [...tools] },
+      })
+    } else if (replyExternalId) {
+      await appendConversationMessage(pool, {
+        telegramId,
+        channel: 'mini_app',
+        externalId: replyExternalId,
+        role: 'assistant',
+        content: interruptedReply,
+        metadata: { tools: [...tools], interrupted: true },
+      })
+    }
+  } catch {
+    if (replyExternalId) {
+      await appendConversationMessage(pool, {
+        telegramId,
+        channel: 'mini_app',
+        externalId: replyExternalId,
+        role: 'assistant',
+        content: interruptedReply,
+        metadata: { tools: [], interrupted: true },
+      }).catch(() => undefined)
+    }
     res.write(
-      JSON.stringify({ тип: 'ошибка', текст: String(e).slice(0, 500) }) + '\n'
+      JSON.stringify({
+        ['тип']: 'ошибка',
+        ['текст']: 'Агент временно недоступен. Повторите запрос позже.',
+      }) + '\n'
     )
   }
   res.end()
+}
+
+/** GET/DELETE the canonical transcript for the already verified owner. */
+export async function handleAgentHistory(
+  req: IncomingMessage,
+  res: ServerResponse,
+  telegramId: string,
+  getPool: () => any
+) {
+  try {
+    const pool = await getPool()
+    if (req.method === 'GET') {
+      const messages = await loadConversationHistory(pool, telegramId, 100)
+      return json(res, 200, {
+        messages: messages.map(message => ({
+          id: message.id,
+          external_id: message.externalId,
+          role: message.role,
+          content: message.content,
+          channel: message.channel,
+          metadata: message.metadata,
+          created_at: message.createdAt,
+        })),
+      })
+    }
+    if (req.method === 'DELETE') {
+      await withConversationOwnerLock(pool, telegramId, async lockedPool => {
+        await clearConversationHistory(lockedPool, telegramId)
+      })
+      return json(res, 200, { ok: true })
+    }
+    return json(res, 405, { error: 'поддерживаются GET и DELETE' })
+  } catch {
+    return json(res, 503, { error: 'история временно недоступна' })
+  }
 }
 
 /** SHA-256 hex ключа — то, что храним в БД вместо самого ключа (как пароль). */

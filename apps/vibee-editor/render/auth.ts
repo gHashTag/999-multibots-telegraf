@@ -202,6 +202,9 @@ const PUBLIC_EXACT = new Set([
   // проверяет личность — подпись мини-аппа ИЛИ ключ агента. Общий гвард
   // умеет только первое, а коннектор для тестов требует второго.
   '/api/agent/chat',
+  // Shared Telegram/Mini App history resolves its own owner identity, just as
+  // the chat route does. The general guard cannot resolve agent keys.
+  '/api/agent/history',
   // Маршруты входа пропускаются гвардом НАМЕРЕННО: их задача — ВЫДАТЬ
   // личность. Требовать её на входе значит требовать того, чего у клиента
   // ещё нет. Каждый из трёх проверяет личность сам: обмен — подписью
@@ -274,6 +277,10 @@ const PUBLIC_PREFIXES = [
   '/public/',
   '/s3/',
   '/proxy/image',
+  // Telegram cannot attach X-Api-Key/initData to a webhook. These routes are
+  // public only to the general guard; the shared handler verifies both its
+  // path secret and Telegram's secret_token header before reading the body.
+  '/api/telegram/stars-wh/',
   // /api/assets* пропускается общим гвардом НАМЕРЕННО: каждый хендлер
   // проверяет личность сам. POST/DELETE — через подпись или ключ агента;
   // GET /api/assets/:telegram_id — сверяет подписанта с запрошенным id
