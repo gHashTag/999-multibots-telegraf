@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { API_BASE } from '@/config'
 import { apiFetch } from '@/lib/apiFetch'
+import { getAppAccessToken } from '@/lib/appSession'
+import { getInitData } from '@/lib/telegram'
 import './PairWithApp.css'
 
 /**
@@ -16,6 +18,9 @@ export function PairWithApp() {
   const [clockNow, setClockNow] = useState(() => Date.now())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [identityRequired, setIdentityRequired] = useState(
+    () => !getInitData() && !getAppAccessToken()
+  )
   const requestInFlight = useRef(false)
 
   useEffect(() => {
@@ -63,6 +68,11 @@ export function PairWithApp() {
       setExpiresAt(issuedAt + lifetimeSeconds * 1000)
       setCode(lifetimeSeconds > 0 ? response.code : null)
     } catch (requestError) {
+      if ((requestError as { status?: number })?.status === 401) {
+        setIdentityRequired(true)
+        setError(null)
+        return
+      }
       setError(
         requestError instanceof Error
           ? requestError.message
@@ -97,14 +107,47 @@ export function PairWithApp() {
     </button>
   )
 
+  const telegramLogin = (
+    <div
+      className="pair-with-app__auth-required"
+      role="status"
+      aria-live="polite"
+    >
+      <strong>{'Нужен подтверждённый вход Telegram'}</strong>
+      <p>
+        {
+          'Откройте Mini App @t27ai_bot, затем перейдите в Профиль → Агент. Технический initData вводить нигде не нужно.'
+        }
+      </p>
+      <a
+        className="pair-with-app__telegram-link"
+        href="https://t.me/t27ai_bot?startapp"
+        target="_blank"
+        rel="noreferrer"
+      >
+        {'Открыть Mini App @t27ai_bot'}
+      </a>
+    </div>
+  )
+
   return (
     <section className="pair-with-app">
-      <h3 className="pair-with-app__title">
-        {'Войти в приложение на телефоне'}
-      </h3>
-      {actionButton}
+      <h3 className="pair-with-app__title">{'Код для входа на iPhone'}</h3>
+      <div
+        className="pair-with-app__destination"
+        role="note"
+        aria-label="Куда вводить код"
+      >
+        <strong>{'Куда вводить: '}</strong>
+        <span>{'Trinity S³AI → Профиль.'}</span>
+        <span>
+          {'Введите 6 цифр в поле «Код из шести цифр», затем нажмите «Войти».'}
+        </span>
+        <small>{'Не в Telegram и не на этой веб-странице.'}</small>
+      </div>
+      {identityRequired ? telegramLogin : actionButton}
 
-      {code ? (
+      {identityRequired ? null : code ? (
         <>
           <div
             className="pair-with-app__result"
@@ -120,7 +163,7 @@ export function PairWithApp() {
             </div>
             <p className="pair-with-app__instructions">
               {
-                'Введите эти 6 цифр в Trinity S³AI на телефоне: «Войти» → «Ввести код».'
+                'Откройте Trinity S³AI → Профиль, введите эти 6 цифр в поле «Код из шести цифр», затем нажмите «Войти».'
               }
             </p>
           </div>
@@ -132,8 +175,10 @@ export function PairWithApp() {
         <>
           <ol className="pair-with-app__steps">
             <li>{'Нажмите кнопку — здесь появятся 6 цифр.'}</li>
-            <li>{'Откройте Trinity S³AI на телефоне.'}</li>
-            <li>{'Выберите «Войти» → «Ввести код» и наберите эти цифры.'}</li>
+            <li>{'На iPhone откройте Trinity S³AI и перейдите в Профиль.'}</li>
+            <li>
+              {'Введите код в поле «Код из шести цифр», затем нажмите «Войти».'}
+            </li>
           </ol>
           <p className="pair-with-app__note">
             {'Код действует 2 минуты и подходит только для одного входа.'}

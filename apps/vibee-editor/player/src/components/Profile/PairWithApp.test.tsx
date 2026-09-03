@@ -3,8 +3,12 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const apiFetch = vi.hoisted(() => vi.fn())
+const getInitData = vi.hoisted(() => vi.fn(() => 'signed-init-data'))
+const getAppAccessToken = vi.hoisted(() => vi.fn(() => ''))
 
 vi.mock('@/lib/apiFetch', () => ({ apiFetch }))
+vi.mock('@/lib/telegram', () => ({ getInitData }))
+vi.mock('@/lib/appSession', () => ({ getAppAccessToken }))
 vi.mock('@/config', () => ({ API_BASE: 'https://api.example.test' }))
 
 import { PairWithApp } from './PairWithApp'
@@ -19,6 +23,8 @@ describe('PairWithApp mobile pairing flow', () => {
     document.body.append(host)
     root = createRoot(host)
     apiFetch.mockReset()
+    getInitData.mockReturnValue('signed-init-data')
+    getAppAccessToken.mockReturnValue('')
   })
 
   afterEach(async () => {
@@ -32,7 +38,7 @@ describe('PairWithApp mobile pairing flow', () => {
     await act(async () => root?.render(<PairWithApp />))
 
     expect(host.querySelector('h3')?.textContent).toBe(
-      'Войти в приложение на телефоне'
+      'Код для входа на iPhone'
     )
 
     const action = host.querySelector<HTMLButtonElement>(
@@ -41,15 +47,62 @@ describe('PairWithApp mobile pairing flow', () => {
     const steps = host.querySelector('.pair-with-app__steps')
 
     expect(action?.textContent).toBe('Показать 6-значный код')
-    expect(steps?.textContent).toContain('Откройте Trinity S³AI на телефоне')
+    expect(steps?.textContent).toContain(
+      'На iPhone откройте Trinity S³AI и перейдите в Профиль'
+    )
     expect(
       action && steps
         ? Boolean(
             action.compareDocumentPosition(steps) &
-              Node.DOCUMENT_POSITION_FOLLOWING
+            Node.DOCUMENT_POSITION_FOLLOWING
           )
         : false
     ).toBe(true)
+  })
+
+  it('names the exact screen where the code must be entered before issuing it', async () => {
+    await act(async () => root?.render(<PairWithApp />))
+
+    const destination = host.querySelector('.pair-with-app__destination')
+
+    expect(destination?.textContent).toContain('Trinity S³AI → Профиль')
+    expect(destination?.textContent).toContain(
+      'Введите 6 цифр в поле «Код из шести цифр», затем нажмите «Войти»'
+    )
+    expect(destination?.textContent).toContain(
+      'Не в Telegram и не на этой веб-странице'
+    )
+    expect(host.textContent).toContain('Код для входа на iPhone')
+  })
+
+  it('shows the Telegram Mini App entry instead of requesting without identity', async () => {
+    getInitData.mockReturnValue('')
+    getAppAccessToken.mockReturnValue('')
+    await act(async () => root?.render(<PairWithApp />))
+
+    const link = host.querySelector<HTMLAnchorElement>(
+      '.pair-with-app__telegram-link'
+    )
+    expect(link?.href).toBe('https://t.me/t27ai_bot?startapp')
+    expect(host.textContent).toContain(
+      'Откройте Mini App @t27ai_bot, затем перейдите в Профиль → Агент'
+    )
+    expect(host.querySelector('.pair-with-app__action')).toBeNull()
+    expect(apiFetch).not.toHaveBeenCalled()
+  })
+
+  it('replaces a rejected identity with guidance and never shows empty initData', async () => {
+    apiFetch.mockRejectedValue(
+      Object.assign(new Error('empty initData'), { status: 401 })
+    )
+    await act(async () => root?.render(<PairWithApp />))
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('.pair-with-app__action')?.click()
+    })
+
+    expect(host.querySelector('.pair-with-app__telegram-link')).not.toBeNull()
+    expect(host.textContent).not.toContain('empty initData')
   })
 
   it('explains where to enter the generated six digits', async () => {
@@ -65,7 +118,10 @@ describe('PairWithApp mobile pairing flow', () => {
     )
     expect(
       host.querySelector('.pair-with-app__instructions')?.textContent
-    ).toContain('Введите эти 6 цифр в Trinity S³AI на телефоне')
+    ).toContain(
+      'Откройте Trinity S³AI → Профиль, введите эти 6 цифр в поле «Код из шести цифр», затем нажмите «Войти»'
+    )
+    expect(host.querySelector('.pair-with-app__destination')).not.toBeNull()
     expect(host.textContent).toContain('Осталось 2:00')
   })
 
@@ -85,14 +141,13 @@ describe('PairWithApp mobile pairing flow', () => {
     expect(document.activeElement).toBe(action)
     expect(action?.type).toBe('button')
     expect(status?.textContent).toContain('123 456')
-    expect(status?.textContent).toContain('Введите эти 6 цифр')
+    expect(status?.textContent).toContain('введите эти 6 цифр')
     expect(status?.contains(timer)).toBe(false)
   })
 
   it('keeps focus during a pending request and ignores repeat activation', async () => {
     let resolveRequest:
-      | ((value: { code: string; expires_in: number }) => void)
-      | undefined
+      ((value: { code: string; expires_in: number }) => void) | undefined
     apiFetch.mockReturnValue(
       new Promise(resolve => {
         resolveRequest = resolve

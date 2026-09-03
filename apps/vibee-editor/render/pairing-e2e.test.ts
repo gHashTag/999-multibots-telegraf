@@ -249,6 +249,15 @@ function ответ() {
   return о
 }
 
+const makeRequest = запрос // cyrillic-ok: legacy helper alias
+const makeResponse = ответ // cyrillic-ok: legacy helper alias
+const fakePool = пул // cyrillic-ok: legacy helper alias
+const IDENTITY_FAILURE = {
+  error: 'identity_not_verified',
+  detail: 'подтверждённый вход не принят',
+  hint: 'откройте Mini App через @t27ai_bot и повторите',
+}
+
 describe('вход по коду: сквозной путь', () => {
   let handleAuthRoute: typeof import('./session-routes').handleAuthRoute
 
@@ -268,6 +277,124 @@ describe('вход по коду: сквозной путь', () => {
       user: JSON.stringify({ id, first_name: 'Тест' }),
       auth_date: String(Math.floor(Date.now() / 1000)),
     })
+
+  it('verified browser session can issue a code without initData', async () => {
+    const session = await import('./session')
+    session.setRevokedSessions([])
+    const accessToken = session.signAccessToken({
+      telegramId: '4242',
+      sessionId: 'browser-session',
+      deviceKeyThumbprint: '',
+    })
+    const response = makeResponse()
+
+    await handleAuthRoute(
+      makeRequest(
+        '/api/auth/pair/start',
+        {},
+        { authorization: `Bearer ${accessToken}` }
+      ),
+      response,
+      fakePool as any
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.json.code).toMatch(/^\d{6}$/)
+
+    const claim = makeResponse()
+    await handleAuthRoute(
+      makeRequest('/api/auth/pair/claim', { code: response.json.code }),
+      claim,
+      fakePool as any
+    )
+    expect(claim.status).toBe(200)
+    expect(claim.json.telegram_id).toBe('4242')
+  })
+
+  it('an invalid browser session fails closed without an initData fallback', async () => {
+    const response = makeResponse()
+
+    await handleAuthRoute(
+      makeRequest(
+        '/api/auth/pair/start',
+        {},
+        { authorization: 'Bearer invalid-session' }
+      ),
+      response,
+      fakePool as any
+    )
+
+    expect(response.status).toBe(401)
+    expect(response.json).toEqual(IDENTITY_FAILURE)
+    expect(response.json.detail).not.toContain('initData')
+  })
+
+  it('missing identity has the same response as an invalid session', async () => {
+    const response = makeResponse()
+
+    await handleAuthRoute(
+      makeRequest('/api/auth/pair/start', {}),
+      response,
+      fakePool as any
+    )
+
+    expect(response.status).toBe(401)
+    expect(response.json).toEqual(IDENTITY_FAILURE)
+  })
+
+  it('a revoked browser session has the same response', async () => {
+    const session = await import('./session')
+    const accessToken = session.signAccessToken({
+      telegramId: '4242',
+      sessionId: 'revoked-browser-session',
+      deviceKeyThumbprint: '',
+    })
+    session.setRevokedSessions(['revoked-browser-session'])
+    const response = makeResponse()
+
+    await handleAuthRoute(
+      makeRequest(
+        '/api/auth/pair/start',
+        {},
+        { authorization: `Bearer ${accessToken}` }
+      ),
+      response,
+      fakePool as any
+    )
+
+    expect(response.status).toBe(401)
+    expect(response.json).toEqual(IDENTITY_FAILURE)
+  })
+
+  it('stale revocation state has the same response', async () => {
+    const session = await import('./session')
+    session.setRevokedSessions([])
+    const accessToken = session.signAccessToken({
+      telegramId: '4242',
+      sessionId: 'stale-browser-session',
+      deviceKeyThumbprint: '',
+    })
+    const realNow = Date.now()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(realNow + 16_000)
+    const response = makeResponse()
+
+    try {
+      await handleAuthRoute(
+        makeRequest(
+          '/api/auth/pair/start',
+          {},
+          { authorization: `Bearer ${accessToken}` }
+        ),
+        response,
+        fakePool as any
+      )
+    } finally {
+      now.mockRestore()
+    }
+
+    expect(response.status).toBe(401)
+    expect(response.json).toEqual(IDENTITY_FAILURE)
+  })
 
   it('подпись → код → сессия: код, выданный одним запросом, принимает другой', async () => {
     // 1. Мини-апп: подпись есть, просим код.
@@ -346,7 +473,7 @@ describe('вход по коду: сквозной путь', () => {
     )
 
     expect(о.код).toBe(401)
-    expect(о.тело.error).toBe('подпись Telegram не принята')
+    expect(о.тело).toEqual(IDENTITY_FAILURE)
   })
 
   it('код второй раз не проходит: одноразовость держится на всём пути', async () => {

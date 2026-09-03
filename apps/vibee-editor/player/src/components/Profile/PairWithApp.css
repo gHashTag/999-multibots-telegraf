@@ -14,6 +14,27 @@
   font-weight: 700;
 }
 
+.pair-with-app__destination {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid rgba(102, 255, 173, 0.28);
+  border-radius: 12px;
+  background: rgba(102, 255, 173, 0.07);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.pair-with-app__destination strong {
+  color: #66ffad;
+}
+
+.pair-with-app__destination small {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 12px;
+}
+
 .pair-with-app__action {
   width: 100%;
   min-height: 52px;
@@ -36,6 +57,48 @@
 .pair-with-app__action[aria-disabled='true'] {
   cursor: wait;
   opacity: 0.7;
+}
+
+.pair-with-app__auth-required {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(82, 245, 170, 0.25);
+  border-radius: 12px;
+  background: rgba(82, 245, 170, 0.06);
+}
+
+.pair-with-app__auth-required strong {
+  color: #66ffad;
+  font-size: 14px;
+}
+
+.pair-with-app__auth-required p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pair-with-app__telegram-link {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border: 1px solid rgba(95, 255, 159, 0.55);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #31db78, #52f5aa);
+  color: #031109;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+}
+
+.pair-with-app__telegram-link:focus-visible {
+  outline: 3px solid rgba(82, 245, 170, 0.4);
+  outline-offset: 3px;
 }
 
 .pair-with-app__steps {
@@ -102,6 +165,11 @@ body[data-tabbar='visible'] .profile-tabs__content--agent {
 
   .pair-with-app__title {
     font-size: 16px;
+  }
+
+  .pair-with-app__destination {
+    padding: 10px 12px;
+    font-size: 13px;
   }
 
   .pair-with-app__action {
