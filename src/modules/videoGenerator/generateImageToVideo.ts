@@ -825,13 +825,26 @@ export const generateImageToVideo = async (
             // Billing is centralized in this module: charge only after the
             // video is actually delivered (mirrors the veo3 polling branch).
             // The caller no longer charges unconditionally.
-            await deductBalanceAfterSuccess(
+            const deductSuccess = await deductBalanceAfterSuccess(
               telegramId,
               modelId,
               botName,
               balanceResult.paymentAmount || 0,
               'image_to_video'
             )
+            if (!deductSuccess) {
+              // The video was already delivered above, so a silent charge failure
+              // is a free generation (house loss). We can't un-deliver, but surface
+              // it instead of discarding the result (mirrors the PLAN A branch).
+              logger.error(
+                '[PLAN B] Failed to deduct payment after successful video generation',
+                {
+                  telegramId,
+                  modelId,
+                  paymentAmount: balanceResult.paymentAmount,
+                }
+              )
+            }
 
             // Отправляем видео в pulse канал (Plan B - direct)
             try {
@@ -1732,13 +1745,25 @@ export const generateImageToVideo = async (
     // Billing is centralized in this module: the standard-Replicate branch
     // previously relied on the caller's unconditional charge (which also fired
     // on failures). Charge here, only after the video is delivered.
-    await deductBalanceAfterSuccess(
+    const deductSuccess = await deductBalanceAfterSuccess(
       telegramId,
       modelId,
       botName,
       balanceResult.paymentAmount || 0,
       'image_to_video'
     )
+    if (!deductSuccess) {
+      // Video already delivered above; a silent charge failure is a free
+      // generation. Surface it instead of discarding the result (mirrors PLAN A).
+      logger.error(
+        '[Standard Replicate] Failed to deduct payment after successful video generation',
+        {
+          telegramId,
+          modelId,
+          paymentAmount: balanceResult.paymentAmount,
+        }
+      )
+    }
 
     // Отправляем видео в pulse канал (Standard Replicate)
     try {
