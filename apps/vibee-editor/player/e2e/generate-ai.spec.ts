@@ -4,35 +4,73 @@ import { test, expect } from '@playwright/test'
 // Mock helpers
 // ============================================================
 
-const FAKE_USER = { id: 999, first_name: 'Test', username: 'testuser', is_admin: true }
+const FAKE_USER = {
+  id: 999,
+  first_name: 'Test',
+  username: 'testuser',
+  is_admin: true,
+}
 
 async function setupAuth(page: import('@playwright/test').Page) {
-  await page.goto('/generate/image', { waitUntil: 'domcontentloaded', timeout: 60000 })
-  await page.evaluate((user) => {
-    localStorage.setItem('vibee-user', JSON.stringify(user))
+  await page.goto('/generate/image', {
+    waitUntil: 'domcontentloaded',
+    timeout: 60000,
+  })
+  await page.evaluate(user => {
+    sessionStorage.setItem('vibee-user', JSON.stringify(user))
+    // Production no longer trusts a profile-shaped localStorage value by
+    // itself. Keep this mock aligned with the server-issued browser-session
+    // contract so Header does not correctly fail closed into the login modal.
+    sessionStorage.setItem(
+      'trinity.app.session.access',
+      'e2e-access-placeholder'
+    )
+    sessionStorage.setItem(
+      'trinity.app.session.refresh',
+      'e2e-refresh-placeholder'
+    )
+    sessionStorage.setItem(
+      'trinity.app.session.expires-at',
+      String(Date.now() + 60 * 60 * 1000)
+    )
   }, FAKE_USER)
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 })
 }
 
 async function setupMocks(page: import('@playwright/test').Page) {
   // Mock voices
-  await page.route('**/api/voices', (route) => {
+  await page.route('**/api/voices', route => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         success: true,
         voices: [
-          { id: 'voice-sarah', name: 'Sarah', category: 'premade', labels: { gender: 'female', accent: 'American' } },
-          { id: 'voice-josh', name: 'Josh', category: 'premade', labels: { gender: 'male', accent: 'American' } },
-          { id: 'voice-custom', name: 'My Voice', category: 'cloned', labels: { gender: 'female' } },
+          {
+            id: 'voice-sarah',
+            name: 'Sarah',
+            category: 'premade',
+            labels: { gender: 'female', accent: 'American' },
+          },
+          {
+            id: 'voice-josh',
+            name: 'Josh',
+            category: 'premade',
+            labels: { gender: 'male', accent: 'American' },
+          },
+          {
+            id: 'voice-custom',
+            name: 'My Voice',
+            category: 'cloned',
+            labels: { gender: 'female' },
+          },
         ],
       }),
     })
   })
 
   // Mock render quota
-  await page.route('**/api/render-quota**', (route) => {
+  await page.route('**/api/render-quota**', route => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -45,20 +83,24 @@ async function setupMocks(page: import('@playwright/test').Page) {
   })
 
   // Mock render log
-  await page.route('**/api/render-log', (route) => {
-    route.fulfill({ status: 200, contentType: 'application/json', body: '{"success":true}' })
+  await page.route('**/api/render-log', route => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '{"success":true}',
+    })
   })
 
   // Mock Instagram
-  await page.route('**/api/instagram/**', (route) => {
+  await page.route('**/api/instagram/**', route => {
     route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
 
   // Mock WebSocket
-  await page.route('**/ws', (route) => route.abort())
+  await page.route('**/ws', route => route.abort())
 
   // Mock image generation (FAL.AI)
-  await page.route('**/api/generate/image', (route) => {
+  await page.route('**/api/generate/image', route => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -70,7 +112,7 @@ async function setupMocks(page: import('@playwright/test').Page) {
   })
 
   // Mock Replicate API (return Replicate format)
-  await page.route('**/api/replicate/**', (route) => {
+  await page.route('**/api/replicate/**', route => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -83,7 +125,7 @@ async function setupMocks(page: import('@playwright/test').Page) {
   })
 
   // Mock video generation
-  await page.route('**/api/generate/video', (route) => {
+  await page.route('**/api/generate/video', route => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -95,7 +137,7 @@ async function setupMocks(page: import('@playwright/test').Page) {
   })
 
   // Mock audio generation
-  await page.route('**/api/generate/audio', (route) => {
+  await page.route('**/api/generate/audio', route => {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -117,42 +159,65 @@ test.describe('Generate Page — Navigation & Layout', () => {
     await setupAuth(page)
   })
 
-  test('should load generate page with sidebar and results area', async ({ page }) => {
-    await page.goto('/generate/image', { waitUntil: 'domcontentloaded', timeout: 60000 })
+  test('should load generate page with sidebar and results area', async ({
+    page,
+  }) => {
+    await page.goto('/generate/image', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    })
     await page.waitForSelector('.generate-page', { timeout: 30000 })
 
     await expect(page.locator('.generate-page')).toBeVisible()
     await expect(page.locator('.generate-sidebar')).toBeVisible()
-    await expect(page.locator('section.generate-content')).toBeVisible()
+    await expect(page.locator('section.generate-page__results')).toBeVisible()
   })
 
   test('should display header', async ({ page }) => {
-    await page.goto('/generate/image', { waitUntil: 'domcontentloaded', timeout: 60000 })
+    await page.goto('/generate/image', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    })
     await page.waitForSelector('.generate-page', { timeout: 30000 })
 
     await expect(page.locator('header.header')).toBeVisible()
   })
 
   test('should navigate to all tab routes', async ({ page }) => {
-    await page.goto('/generate/image', { waitUntil: 'domcontentloaded', timeout: 60000 })
+    await page.goto('/generate/image', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    })
     await page.waitForSelector('.generate-form', { timeout: 30000 })
     await expect(page.locator('.model-btn-image').first()).toBeVisible()
 
-    await page.goto('/generate/video', { waitUntil: 'domcontentloaded', timeout: 60000 })
+    await page.goto('/generate/video', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    })
     await page.waitForSelector('.generate-form', { timeout: 30000 })
     await expect(page.locator('.model-btn-video').first()).toBeVisible()
 
-    await page.goto('/generate/audio', { waitUntil: 'domcontentloaded', timeout: 60000 })
+    await page.goto('/generate/audio', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    })
     await page.waitForSelector('.generate-form', { timeout: 30000 })
     await expect(page.locator('.model-btn-audio').first()).toBeVisible()
 
-    await page.goto('/generate/avatar', { waitUntil: 'domcontentloaded', timeout: 60000 })
+    await page.goto('/generate/avatar', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    })
     await page.waitForSelector('.generate-form', { timeout: 30000 })
     await expect(page.locator('.audio-source-btn').first()).toBeVisible()
   })
 
   test('should redirect invalid tab to /generate/image', async ({ page }) => {
-    await page.goto('/generate/nonsense', { waitUntil: 'domcontentloaded', timeout: 60000 })
+    await page.goto('/generate/nonsense', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    })
     await page.waitForSelector('.generate-form', { timeout: 30000 })
 
     await expect(page.locator('.model-btn-image').first()).toBeVisible()
@@ -172,7 +237,7 @@ test.describe('Generate Page — Image Tab', () => {
   })
 
   test('should render image form elements', async ({ page }) => {
-    await expect(page.locator('.model-btn-image')).toHaveCount(7) // 4 FAL.AI + 3 Replicate
+    await expect(page.locator('.model-btn-image')).toHaveCount(4)
     await expect(page.locator('.form-textarea')).toBeVisible()
     await expect(page.locator('.form-chip')).toHaveCount(4)
     await expect(page.locator('.generate-btn')).toBeVisible()
@@ -181,12 +246,16 @@ test.describe('Generate Page — Image Tab', () => {
   test('should have Nano Banana Pro as default model', async ({ page }) => {
     const activeModel = page.locator('.model-btn-image.active')
     await expect(activeModel).toHaveCount(1)
-    await expect(activeModel.locator('.model-name')).toContainText('Nano Banana Pro')
+    await expect(activeModel.locator('.model-name')).toContainText(
+      'Nano Banana Pro'
+    )
   })
 
   test('should switch model on click', async ({ page }) => {
     await page.locator('.model-btn-image').first().click()
-    await expect(page.locator('.model-btn-image.active').locator('.model-name')).toContainText('FLUX Ultra')
+    await expect(
+      page.locator('.model-btn-image.active').locator('.model-name')
+    ).toContainText('FLUX Ultra')
   })
 
   test('should switch aspect ratio on click', async ({ page }) => {
@@ -194,12 +263,18 @@ test.describe('Generate Page — Image Tab', () => {
     await expect(page.locator('.form-chip.active')).toContainText('9:16')
   })
 
-  test('should disable generate button when prompt is empty', async ({ page }) => {
+  test('should disable generate button when prompt is empty', async ({
+    page,
+  }) => {
     await expect(page.locator('.generate-btn')).toBeDisabled()
   })
 
-  test('should enable generate button when prompt has text', async ({ page }) => {
-    await page.locator('.form-textarea').fill('A beautiful sunset over the ocean')
+  test('should enable generate button when prompt has text', async ({
+    page,
+  }) => {
+    await page
+      .locator('.form-textarea')
+      .fill('A beautiful sunset over the ocean')
     await expect(page.locator('.generate-btn')).toBeEnabled()
   })
 
@@ -213,44 +288,35 @@ test.describe('Generate Page — Image Tab', () => {
 })
 
 // ============================================================
-// 2.5. Image Tab via Replicate - MOCKED
-// Note: Real API requires model version hash, works in production
+// 2.5. Supported Image Models
 // ============================================================
 
-test.describe('Generate Page — Image via Replicate', () => {
+test.describe('Generate Page — Supported Image Models', () => {
   test.beforeEach(async ({ page }) => {
     await setupMocks(page)
     await setupAuth(page)
-    await page.goto('/generate/image', { waitUntil: 'domcontentloaded', timeout: 60000 })
+    await page.goto('/generate/image', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    })
     await page.waitForSelector('.generate-form', { timeout: 30000 })
   })
 
-  test('should show Replicate models in image tab', async ({ page }) => {
+  test('should show the active image models', async ({ page }) => {
     const modelButtons = page.locator('.model-btn-image')
-    await expect(modelButtons).toHaveCount(7) // 4 FAL.AI + 3 Replicate
-
-    // Use more specific selectors since "SDXL" appears in multiple model names
-    await expect(page.locator('.model-btn-image', { hasText: 'SDXL Lightning' })).toBeVisible()
-    await expect(page.locator('.model-btn-image', { hasText: 'SDXL Emoji' })).toBeVisible()
-    // Check that exactly one model has just "SDXL" name (not Lightning/Emoji)
-    const sdxlButtons = page.locator('.model-btn-image').filter({ hasText: 'SDXL' })
-    await expect(sdxlButtons).toHaveCount(3)
+    await expect(modelButtons).toHaveCount(4)
+    await expect(modelButtons).toContainText([
+      'FLUX Ultra',
+      'FLUX Dev',
+      'Nano Banana Pro',
+      'Reve',
+    ])
   })
 
-  test('should select Replicate model', async ({ page }) => {
-    // Use first() since there are 3 models with "SDXL" in the name
-    await page.locator('.model-btn-image').filter({ hasText: 'SDXL' }).first().click()
-    const activeModel = page.locator('.model-btn-image.active')
-    await expect(activeModel.locator('.model-name')).toContainText('SDXL')
-  })
-
-  test('should generate image via Replicate', async ({ page }) => {
-    await page.locator('.model-btn-image').filter({ hasText: 'SDXL' }).first().click()
-    await page.locator('.form-textarea').fill('A mountain landscape at sunset')
-    await page.locator('.generate-btn').click()
-
-    await page.waitForSelector('.result-item-image', { timeout: 15000 })
-    await expect(page.locator('.result-item-image')).toBeVisible()
+  test('should not expose removed SDXL models', async ({ page }) => {
+    await expect(
+      page.locator('.model-btn-image').filter({ hasText: 'SDXL' })
+    ).toHaveCount(0)
   })
 })
 
@@ -262,7 +328,10 @@ test.describe('Generate Page — Video Tab', () => {
   test.beforeEach(async ({ page }) => {
     await setupMocks(page)
     await setupAuth(page)
-    await page.goto('/generate/video', { waitUntil: 'domcontentloaded', timeout: 60000 })
+    await page.goto('/generate/video', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    })
     await page.waitForSelector('.generate-form', { timeout: 30000 })
   })
 
@@ -282,7 +351,9 @@ test.describe('Generate Page — Video Tab', () => {
 
   test('should toggle duration chips', async ({ page }) => {
     await page.locator('.form-chip', { hasText: '10s' }).click()
-    await expect(page.locator('.form-chip.active', { hasText: '10s' })).toBeVisible()
+    await expect(
+      page.locator('.form-chip.active', { hasText: '10s' })
+    ).toBeVisible()
   })
 
   test('should disable generate button when prompt empty', async ({ page }) => {
@@ -306,7 +377,10 @@ test.describe('Generate Page — Audio Tab', () => {
   test.beforeEach(async ({ page }) => {
     await setupMocks(page)
     await setupAuth(page)
-    await page.goto('/generate/audio', { waitUntil: 'domcontentloaded', timeout: 60000 })
+    await page.goto('/generate/audio', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    })
     await page.waitForSelector('.generate-form', { timeout: 30000 })
   })
 
@@ -318,15 +392,23 @@ test.describe('Generate Page — Audio Tab', () => {
   })
 
   test('should load voices from API', async ({ page }) => {
-    await expect(page.locator('.model-btn-audio')).toHaveCount(3, { timeout: 10000 })
-    await expect(page.locator('.model-btn-audio', { hasText: 'Sarah' })).toBeVisible()
-    await expect(page.locator('.model-btn-audio', { hasText: 'Josh' })).toBeVisible()
+    await expect(page.locator('.model-btn-audio')).toHaveCount(3, {
+      timeout: 10000,
+    })
+    await expect(
+      page.locator('.model-btn-audio', { hasText: 'Sarah' })
+    ).toBeVisible()
+    await expect(
+      page.locator('.model-btn-audio', { hasText: 'Josh' })
+    ).toBeVisible()
     await expect(page.locator('.voice-badge')).toBeVisible()
   })
 
   test('should select voice on click', async ({ page }) => {
     await page.locator('.model-btn-audio', { hasText: 'Josh' }).click()
-    await expect(page.locator('.model-btn-audio.active', { hasText: 'Josh' })).toBeVisible()
+    await expect(
+      page.locator('.model-btn-audio.active', { hasText: 'Josh' })
+    ).toBeVisible()
   })
 
   test('should disable generate button when text empty', async ({ page }) => {
@@ -355,7 +437,10 @@ test.describe('Generate Page — Lipsync Tab', () => {
   test.beforeEach(async ({ page }) => {
     await setupMocks(page)
     await setupAuth(page)
-    await page.goto('/generate/avatar', { waitUntil: 'domcontentloaded', timeout: 60000 })
+    await page.goto('/generate/avatar', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    })
     await page.waitForSelector('.generate-form', { timeout: 30000 })
   })
 
@@ -366,13 +451,17 @@ test.describe('Generate Page — Lipsync Tab', () => {
     await expect(page.locator('.generate-btn')).toBeVisible()
   })
 
-  test('should disable generate button when no audio/image provided', async ({ page }) => {
+  test('should disable generate button when no audio/image provided', async ({
+    page,
+  }) => {
     await expect(page.locator('.generate-btn')).toBeDisabled()
   })
 
   test('should toggle resolution chips', async ({ page }) => {
     await page.locator('.form-chip', { hasText: '720p' }).click()
-    await expect(page.locator('.form-chip.active', { hasText: '720p' })).toBeVisible()
+    await expect(
+      page.locator('.form-chip.active', { hasText: '720p' })
+    ).toBeVisible()
   })
 })
 
@@ -389,7 +478,9 @@ test.describe('Generate Page — Results Gallery', () => {
     await expect(page.locator('.generate-panel .result-item')).toHaveCount(0)
   })
 
-  test('should make result items draggable after generation', async ({ page }) => {
+  test('should make result items draggable after generation', async ({
+    page,
+  }) => {
     await setupMocks(page)
     await setupAuth(page)
     await page.waitForSelector('.generate-form', { timeout: 30000 })
@@ -398,7 +489,10 @@ test.describe('Generate Page — Results Gallery', () => {
     await page.locator('.generate-btn').click()
     await page.waitForSelector('.result-item', { timeout: 15000 })
 
-    await expect(page.locator('.result-item').first()).toHaveAttribute('draggable', 'true')
+    await expect(page.locator('.result-item').first()).toHaveAttribute(
+      'draggable',
+      'true'
+    )
   })
 
   test('should remove result on delete button click', async ({ page }) => {
@@ -411,7 +505,7 @@ test.describe('Generate Page — Results Gallery', () => {
     await page.waitForSelector('.result-item', { timeout: 15000 })
     await expect(page.locator('.result-item')).toHaveCount(1)
 
-    await page.locator('.result-remove-btn').first().click()
+    await page.locator('.results-gallery__remove-btn').first().click()
     await expect(page.locator('.result-item')).toHaveCount(0)
   })
 })

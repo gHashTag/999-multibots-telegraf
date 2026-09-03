@@ -214,5 +214,6 @@ body[data-tabbar='visible'] .editor-main {
 
   :root {
     --app-tabbar-height: 0px;
+    --app-tabbar-total: 0px;
   }
 }

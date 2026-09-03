@@ -715,7 +715,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
       )}
 
       {/* Content */}
-      <div className="generate-content">
+      <div className="generate-panel__content">
         {/* Image Tab */}
         {activeTab === 'image' && (
           <div className="generate-form">

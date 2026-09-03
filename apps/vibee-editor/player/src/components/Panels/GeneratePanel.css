@@ -63,10 +63,13 @@
 }
 
 /* Content */
-.generate-content {
+.generate-panel__content {
   flex: 1;
   overflow-y: auto;
-  padding-right: 4px;
+  /* This inset used to arrive accidentally from the page-level
+     `.generate-content` rule. Keep the intended spacing here after the
+     namespaces are separated. */
+  padding: 16px;
 }
 
 /* Form */
@@ -88,7 +91,8 @@
    естественных 50px до 28px: при box-sizing:border-box и padding 10px под
    две строки текста оставалось 8px, вторая строка вылезала за границу и
    перекрывалась следующей карточкой.
-   Прокручиваться должен .generate-content — у него для этого overflow-y:auto. */
+   Прокручиваться должен .generate-panel__content — у него для этого
+   overflow-y:auto. */
 .generate-form > *,
 .form-group,
 .model-buttons,
@@ -399,20 +403,20 @@
 }
 
 /* Scrollbar */
-.generate-content::-webkit-scrollbar {
+.generate-panel__content::-webkit-scrollbar {
   width: 4px;
 }
 
-.generate-content::-webkit-scrollbar-track {
+.generate-panel__content::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.generate-content::-webkit-scrollbar-thumb {
+.generate-panel__content::-webkit-scrollbar-thumb {
   background: var(--bg-input);
   border-radius: 2px;
 }
 
-.generate-content::-webkit-scrollbar-thumb:hover {
+.generate-panel__content::-webkit-scrollbar-thumb:hover {
   background: var(--bg-hover);
 }
 
@@ -890,6 +894,22 @@
 /* ========================================
    RESPONSIVE STYLES
    ======================================== */
+
+/* Phones: the page owns the single vertical scroll container. */
+@media (max-width: 767px) {
+  /* На узком экране страница владеет единственной вертикальной прокруткой.
+     Панель и её содержимое должны расти по контенту, а не создавать второй
+     scroll-container внутри формы. */
+  .generate-panel {
+    height: auto;
+  }
+
+  .generate-panel__content {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow-y: visible;
+  }
+}
 
 /* Tablets */
 @media (max-width: 768px) {

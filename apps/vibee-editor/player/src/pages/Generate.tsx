@@ -91,7 +91,7 @@ function GenerateContent() {
         </aside>
 
         {/* Right panel: Results gallery */}
-        <section className="generate-content">
+        <section className="generate-page__results">
           <ErrorBoundary fallback={<PanelError />}>
             <ResultsGallery tab={resultsTab} />
           </ErrorBoundary>

@@ -27,7 +27,12 @@
   /* Height reserved for the fixed bottom tab bar, so pages can pad themselves
      out from under it. Overridden per-breakpoint in TelegramTabBar.css. */
   --app-tabbar-height: 56px;
-  --app-tabbar-total: calc(var(--app-tabbar-height) + var(--app-safe-bottom));
+  /* ResizeObserver publishes the full nav box, including safe-area padding.
+     Before that first measurement, compose the two fallback pieces once. */
+  --app-tabbar-total: var(
+    --tabbar-actual-h,
+    calc(var(--app-tabbar-height) + var(--app-safe-bottom))
+  );
 }
 
 /* Inside Telegram only. */
@@ -64,17 +69,4 @@ html[data-tg='1'] .app-content-top {
    скроллит именно #root, поэтому блокировки body одной недостаточно. */
 html.sheet-open #root {
   overflow: hidden;
-}
-
-/* Полная высота, занятая нижней навигацией: сама панель плюс безопасная зона.
-   Внутри WebView env(safe-area-inset-bottom) равен нулю, поэтому опираться на
-   него одного нельзя — на iPhone с индикатором дом нижние пиксели уезжали
-   под панель. */
-:root {
-  /* Высоту публикует сам таб-бар (ResizeObserver): константа --nav-height
-     (64px) расходится с фактическими 57px, и разница уходила в мёртвую зону
-     под превью. */
-  --app-tabbar-total: calc(
-    var(--tabbar-actual-h, var(--nav-height, 64px)) + var(--app-safe-bottom, 0px)
-  );
 }
