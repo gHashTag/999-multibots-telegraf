@@ -305,6 +305,16 @@ CHECKS THAT EACH COST A CYCLE
 
 LOOP TOOLING
   tri lock | tri unlock   take or release the iteration lock
+  tri in-gate <file>      Does the GATE actually collect this test? A suite that
+                          never ran cannot regress, so a green gate proves
+                          nothing about a file it never loaded -- that is how a
+                          new test once passed without executing once. Zero
+                          collected tests means either the config excludes it or
+                          an import failed to resolve (in a worktree: unlinked
+                          sub-app node_modules); the two are reported apart
+                          because they are fixed differently.
+  tri in-gate-check       Can `tri in-gate` still fail? Runs it against a file
+                          the gate must see AND one it must not.
   tri disk [reap]         DATA-volume usage + self-heal. Reports stale worktrees
                           and DEAD-session scratch (0 open handles AND mtime>1d;
                           liveness is judged by OPEN HANDLE, not mtime -- a
@@ -1490,6 +1500,78 @@ cmd_stepjump() {
   ( cd "$ROOT" && node "$TOOLS/stepjump-audit.mjs" "$@" )
 }
 
+cmd_in_gate() {
+  # СОБИРАЕТ ЛИ ГЕЙТ ЭТОТ ТЕСТ ВООБЩЕ.
+  #
+  # Написал тест, гейт зелёный — и это ничего не значит, если файл не попал в
+  # прогон: СЬЮТА, КОТОРАЯ НЕ ЗАПУСКАЛАСЬ, НЕ МОЖЕТ ДАТЬ РЕГРЕССИЮ. Ровно так
+  # прошёл виток it.72: в worktree не слинковались node_modules под-приложений,
+  # весь набор apps/vibee-editor/render молча не собрался, гейт напечатал
+  # чистую дельту, а новый тест не выполнился НИ РАЗУ. Заметил только по
+  # абсолютному счёту (4061 против 4295 — 234 теста исчезли), и с тех пор
+  # каждый раз считал членство руками: 4300 = +5, 4305 = +5, 4309 = +4.
+  #
+  # Здесь та же проверка за пару секунд и без полного прогона: `vitest list`
+  # применяет КОРНЕВОЙ конфиг (тот самый, которым ходит гейт) и печатает по
+  # строке на тест. Ноль строк = файла в популяции гейта нет. Две причины, и
+  # они лечатся по-разному, поэтому обе названы в выводе.
+  local target="${1:-}"
+  if [ -z "$target" ]; then
+    bad 'нужен путь к тесту: tri in-gate <файл.test.ts>'
+    return 2
+  fi
+  if [ ! -f "$ROOT/$target" ] && [ ! -f "$target" ]; then
+    bad "нет такого файла: $target"
+    return 2
+  fi
+  local base out n
+  base="$(basename "$target")"
+  out="$(cd "$ROOT" && npx vitest list "$target" 2>&1)"
+  n="$(printf '%s\n' "$out" | grep -c "$base >" || true)"
+  if [ "$n" -gt 0 ]; then
+    good "$base: гейт видит $n тест(ов)"
+    return 0
+  fi
+  bad "$base: гейт НЕ СОБИРАЕТ этот файл — ноль тестов в популяции"
+  echo
+  echo '  Две причины, лечатся по-разному:'
+  echo '   1) файл исключён в корневом vitest.config (например apps/**/player/**,'
+  echo '      *.spec.ts, e2e) — тогда гейт и не должен его видеть;'
+  echo '   2) ОШИБКА СБОРА: импорт не резолвится. В worktree это почти всегда'
+  echo '      несвязанные node_modules под-приложений — лечится `tri worktree`,'
+  echo '      который линкует root И каждый apps/*/node_modules.'
+  echo
+  echo '  Что сказал сам vitest:'
+  printf '%s\n' "$out" | grep -iE "error|cannot find|failed to load|ERR_" | head -5 | sed 's/^/    /'
+  return 1
+}
+
+cmd_in_gate_selfcheck() {
+  # ЛИНЕЙКУ ПРОВЕРЯЕМ В ОБЕ СТОРОНЫ, иначе она умеет только говорить «да».
+  # Нужен файл, который гейт ОБЯЗАН видеть, и файл, который он обязан НЕ
+  # видеть; проверка, отвечающая одинаково на оба, бесполезна.
+  local yes no rc=0
+  yes="$(cd "$ROOT" && ls src/__tests__/money/*.test.ts 2>/dev/null | head -1)"
+  no="$(cd "$ROOT" && ls apps/vibee-editor/player/src/**/*.test.ts 2>/dev/null | head -1)"
+  if [ -z "$yes" ] || [ -z "$no" ]; then
+    warn 'самопроверка пропущена: не нашёл пару образцов (да/нет)'
+    return 0
+  fi
+  if cmd_in_gate "$yes" >/dev/null 2>&1; then
+    good "положительный образец виден гейту: $(basename "$yes")"
+  else
+    bad "СЛОМАНА: гейт не видит заведомо собираемый $(basename "$yes")"
+    rc=1
+  fi
+  if cmd_in_gate "$no" >/dev/null 2>&1; then
+    bad "СЛОМАНА: отвечает «да» на исключённый $(basename "$no")"
+    rc=1
+  else
+    good "исключённый образец не виден гейту: $(basename "$no")"
+  fi
+  return "$rc"
+}
+
 cmd_disk() {
   # САМОВОССТАНОВЛЕНИЕ ДИСКА. Цикл делит DATA-том с чужими сессиями; когда том
   # заполняется под нуль, Bash падает с ENOSPC ещё ДО запуска команды — харнесс
@@ -1591,6 +1673,8 @@ case "$action" in
   lock|лок)            bash "$TOOLS/guard.sh" acquire ;;
   unlock|раслок)       bash "$TOOLS/guard.sh" release ;;
   disk|диск)           cmd_disk "$@" ;;
+  in-gate|в-гейте)     cmd_in_gate "$@" ;;
+  in-gate-check|в-гейте-проверка) cmd_in_gate_selfcheck ;;
   scan|скан)           node "$TOOLS/anomalies.mjs" ;;
   # Deliberately a TOP-LEVEL verb, not `tri scan check`. The sibling that took
   # the subcommand road is broken in exactly the documented spot: help promises
