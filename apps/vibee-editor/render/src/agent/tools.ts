@@ -356,6 +356,27 @@ async function refundTokens(
 ): Promise<void> {
   const price = TOKEN_PRICES[tool]
   if (!price) return
+
+  /**
+   * THE HOUSE IS NOT PAID BY ITSELF EITHER -- the mirror of spendTokens.
+   *
+   * spendTokens returns early for a HOUSE wallet and charges it nothing. This
+   * function did not, so a failed house operation credited the full price that
+   * was never taken: tokens minted out of nothing, and the house balance drifts
+   * upward by one price per provider failure. The exemption has to hold on BOTH
+   * sides or it is not an exemption, it is a faucet.
+   *
+   * This also has to land BEFORE any new refund is added elsewhere in this
+   * file: every refund site that exists today, and every one added tomorrow,
+   * mints for a house wallet until this branch is here.
+   */
+  if (HOUSE_TELEGRAM_IDS.includes(ctx.telegramId)) {
+    console.log(
+      `[токены] дом не возвращает себе: «${tool}» для ${ctx.telegramId}` // cyrillic-ok: log text
+    )
+    return
+  }
+
   try {
     await ctx.pool.query(
       `UPDATE user_tokens SET balance = balance + $2, updated_at = now()
