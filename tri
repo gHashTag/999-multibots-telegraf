@@ -1751,6 +1751,81 @@ cmd_why_red_selfcheck() {
   return "$rc"
 }
 
+cmd_probes() {
+  # У КАЖДОГО ЛИ ИСКАТЕЛЯ ЕСТЬ ПОЛОЖИТЕЛЬНЫЙ КОНТРОЛЬ.
+  #
+  # Скилл утверждал: «каждый scripts/probe-*.cjs начинается с проверки на
+  # заведомо-положительном и заведомо-отрицательном образце». Померил — из 38
+  # контроль есть у 7. Утверждение было неверно для 31 файла, и написал его я.
+  #
+  # Почему это важно именно для искателей: «ничего не найдено» у сломанного
+  # матчера выглядит ровно как «ничего не найдено» у чистого кода. Проверка
+  # «я запустился» (все они печатают размер популяции) на этот вопрос НЕ
+  # отвечает — нужен образец, который ОБЯЗАН найтись.
+  #
+  # Делим по тому, где контроль вообще возможен дёшево: искатель по ИСХОДНИКАМ
+  # держит образец в себе, а искатель по ЖИВЫМ данным зависит от строк в проде,
+  # и стабильного образца у него может не быть вовсе. Потолок ратчета стоит
+  # только на первых.
+  local ceiling=5   # источниковых искателей без контроля на 04.09.2026
+  local total=0 withc=0 src_no=0 live_no=0
+  local src_list="" live_list=""
+  for f in "$ROOT"/scripts/probe-*.cjs; do
+    [ -f "$f" ] || continue
+    total=$((total + 1))
+    if grep -qE "SELF_CHECK|самопроверк|POSITIVE" "$f"; then
+      withc=$((withc + 1))
+      continue
+    fi
+    if grep -qE "fetch\(|SUPABASE_URL|process\.env\.SUPABASE|axios" "$f"; then
+      live_no=$((live_no + 1)); live_list="$live_list  $(basename "$f")
+"
+    else
+      src_no=$((src_no + 1)); src_list="$src_list  $(basename "$f")
+"
+    fi
+  done
+  echo "искателей всего: $total"
+  echo "с положительным контролем: $withc"
+  echo ""
+  echo "БЕЗ контроля, по ИСХОДНИКАМ (контроль дёшев — образец лежит в самом файле): $src_no"
+  printf '%s' "$src_list"
+  echo "БЕЗ контроля, по ЖИВЫМ данным (образец зависит от строк в проде): $live_no"
+  echo ""
+  if [ "$src_no" -gt "$ceiling" ]; then
+    bad "источниковых искателей без контроля стало больше: $src_no > $ceiling"
+    echo '  Новый искатель по исходникам обязан нести образец, который ОБЯЗАН'
+    echo '  найтись, и образец, который найтись НЕ должен. Иначе его молчание'
+    echo '  ничего не означает. Пример — scripts/probe-id-concat.cjs.'
+    return 1
+  fi
+  good "потолок держится: $src_no ≤ $ceiling"
+}
+
+cmd_probes_selfcheck() {
+  # ОБЕ СТОРОНЫ на временных файлах: репозиторий не трогаем.
+  local d="$ROOT/scripts" rc=0 out
+  local tmp_src="$d/probe-zzz-selfcheck-tmp.cjs"
+  out="$(cmd_probes 2>&1 || true)"
+  if printf '%s' "$out" | grep -q 'потолок держится'; then
+    good 'на текущем дереве потолок держится'
+  else
+    bad 'СЛОМАНА (или долг вырос): потолок не держится на чистом дереве'
+    rc=1
+  fi
+  # Добавляем искателя по исходникам БЕЗ контроля — счётчик обязан вырасти.
+  printf '// probe without any control\nconst fs = require("fs")\nconsole.log(fs ? 1 : 0)\n' > "$tmp_src"
+  out="$(cmd_probes 2>&1 || true)"
+  rm -f "$tmp_src"
+  if printf '%s' "$out" | grep -q 'стало больше'; then
+    good 'новый искатель без контроля ломает потолок'
+  else
+    bad 'СЛОМАНА: новый искатель без контроля прошёл незамеченным'
+    rc=1
+  fi
+  return "$rc"
+}
+
 cmd_net() {
   # КТО ИЗ ТЕСТОВ ХОДИТ В СЕТЬ ПО-НАСТОЯЩЕМУ.
   #
@@ -2119,6 +2194,8 @@ case "$action" in
   in-gate-check|в-гейте-проверка) cmd_in_gate_selfcheck ;;
   why-red|почему-красный) cmd_why_red "$@" ;;
   why-red-check|почему-красный-проверка) cmd_why_red_selfcheck ;;
+  probes|искатели)  cmd_probes ;;
+  probes-check|искатели-проверка) cmd_probes_selfcheck ;;
   net|сеть)          cmd_net ;;
   net-check|сеть-проверка) cmd_net_selfcheck ;;
   skipped|выключены)  cmd_skipped "$@" ;;

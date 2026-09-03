@@ -20,7 +20,8 @@
 const fs = require('fs')
 const path = require('path')
 
-const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+const strip = s =>
+  s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
 
 const files = []
 ;(function walk(dir) {
@@ -37,12 +38,18 @@ const files = []
 const FOREIGN =
   /\b(response|result|output|payload|apiData|data|event|eventData|training|prediction|body|json)\b\s*[.?]/
 
-const hits = []
-
-for (const f of files) {
-  if (f.includes('__tests__') || f.includes('/test/')) continue
-  const lines = strip(fs.readFileSync(f, 'utf8')).split('\n')
-
+/**
+ * The matcher, callable on a sample.
+ *
+ * It was inline in the file loop, which meant it could not be pointed at a
+ * known case -- and a finder that cannot be pointed at a known case reports
+ * "nothing found" identically whether the code is clean or the matcher is
+ * broken. Extracted only so the control below can run it; the logic is
+ * unchanged.
+ */
+function scanText(text) {
+  const found = []
+  const lines = strip(text).split('\n')
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     // Шаблонная строка с подстановкой и разделителем.
@@ -62,7 +69,9 @@ for (const f of files) {
     const names = [...t.matchAll(/\$\{\s*([A-Za-z_$][\w$]*)/g)].map(m => m[1])
     const above = lines.slice(Math.max(0, i - 20), i).join('\n')
     const fromForeignVar = names.some(n =>
-      new RegExp(`\\b(?:const|let|var)?\\s*${n}\\s*=\\s*[^\n]*` + FOREIGN.source).test(above)
+      new RegExp(
+        `\\b(?:const|let|var)?\\s*${n}\\s*=\\s*[^\n]*` + FOREIGN.source
+      ).test(above)
     )
     if (!FOREIGN.test(t) && !fromForeignVar) continue
     // Ссылки на наш собственный сервер уже разобраны отдельно.
@@ -79,10 +88,68 @@ for (const f of files) {
       /return\s+`/.test(line)
     if (!ident) continue
     // Явные сообщения человеку — не идентификаторы.
-    if (/(reply|sendMessage|caption|logger\.|console\.|throw new Error)/.test(line)) continue
+    if (
+      /(reply|sendMessage|caption|logger\.|console\.|throw new Error)/.test(
+        line
+      )
+    )
+      continue
 
-    hits.push({ file: f, line: i + 1, text: line.trim().slice(0, 100) })
+    found.push({ line: i + 1, text: line.trim().slice(0, 100) })
   }
+  return found
+}
+
+/**
+ * POSITIVE CONTROL: the very defect this probe was built for, from its own
+ * docblock -- the model link that came out as owner/name:owner/slug:hash
+ * because the value was already a full reference. The foreign value is
+ * assigned a line earlier, so this also exercises the one-step-back lookup.
+ *
+ * NEGATIVE CONTROL: the same shape without a foreign value, plus the harmless
+ * error-message case the probe deliberately excludes. Without this half the
+ * control would pass for a matcher that simply says yes to everything.
+ */
+const POSITIVE = [
+  'const versionHash = eventData.output.version',
+  'const modelUrl = `${username}/${name}:${versionHash}`',
+].join('\n')
+
+const NEGATIVE = [
+  // No foreign value at all.
+  'const label = `${prefix}/${suffix}`',
+  // Foreign value, but a message to a human rather than an identifier.
+  'logger.info(`HTTP ${response.status}`)',
+  // Foreign value in a template with a separator, and NOT a logger line: this
+  // one is rejected ONLY by the identifier test. The first two are rejected
+  // earlier, so without this line the negative control would pass even with
+  // that test deleted -- which is exactly what mutation showed.
+  'const message = `${response.data}/${suffix}`',
+].join('\n')
+
+const pos = scanText(POSITIVE)
+const neg = scanText(NEGATIVE)
+if (pos.length === 0) {
+  console.error(
+    'самопроверка не прошла: заведомо-опасная склейка НЕ найдена.\n' +
+      '«ничего не найдено» ниже означало бы сломанный матчер, а не чистый код.'
+  )
+  process.exit(2)
+}
+if (neg.length !== 0) {
+  console.error(
+    'самопроверка не прошла: матчер сработал на заведомо-безобидном образце.\n' +
+      'он говорит «да» слишком широко, и список ниже нельзя читать как находки.'
+  )
+  process.exit(2)
+}
+console.log('самопроверка: опасный образец найден, безобидный отвергнут')
+
+const hits = []
+for (const f of files) {
+  if (f.includes('__tests__') || f.includes('/test/')) continue
+  for (const h of scanText(fs.readFileSync(f, 'utf8')))
+    hits.push({ file: f, ...h })
 }
 
 console.log(`просмотрено файлов: ${files.length}`)
@@ -97,5 +164,6 @@ for (const h of hits) {
 
 for (const [file, list] of [...byFile.entries()].sort()) {
   console.log(`  ${file}`)
-  for (const h of list) console.log(`      :${String(h.line).padStart(4)}  ${h.text}`)
+  for (const h of list)
+    console.log(`      :${String(h.line).padStart(4)}  ${h.text}`)
 }
