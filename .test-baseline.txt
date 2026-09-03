@@ -999,6 +999,9 @@ src/__tests__/core/updateUserBalance.sign.test.ts :: updateUserBalance: знак
 src/__tests__/db/table-seams.test.ts :: швы имён таблиц в списках нет имён, которые больше нигде не используются
 src/__tests__/db/table-seams.test.ts :: швы имён таблиц не появилось новых имён вне обоих известных списков
 src/__tests__/db/table-seams.test.ts :: швы имён таблиц разбор находит таблицы — иначе тест пустой
+src/__tests__/guards/prod-write-intent-ratchet.test.ts :: a test that writes to the live database must require intent every live writer is gated on ALLOW_PROD_DATA_WRITES, not just on credentials
+src/__tests__/guards/prod-write-intent-ratchet.test.ts :: a test that writes to the live database must require intent the flag means the one explicit value, so an idle variable cannot arm it
+src/__tests__/guards/prod-write-intent-ratchet.test.ts :: a test that writes to the live database must require intent the matcher still finds the files it was written for
 src/__tests__/handleMenuTopUpLogic.test.ts :: TopUp Logic Integration Test should verify that notification handler improvements are in place
 src/__tests__/handleMenuTopUpLogic.test.ts :: TopUp Logic Integration Test should verify that top-up button logic is properly implemented
 src/__tests__/handlers/getPhotoUrl.test.ts :: getPhotoUrl .png тоже не ломается
