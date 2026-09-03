@@ -35,14 +35,25 @@ const SAVE = process.argv.includes('--save')
 const REPO = path.join(__dirname, '..')
 
 function runVitest(targets = []) {
-  const args = ['vitest', 'run', '--reporter=json', `--outputFile=${TMP}`, ...targets]
+  const args = [
+    'vitest',
+    'run',
+    '--reporter=json',
+    `--outputFile=${TMP}`,
+    ...targets,
+  ]
   try {
-    execFileSync('npx', args, { cwd: REPO, stdio: 'pipe', maxBuffer: 64 * 1024 * 1024 })
+    execFileSync('npx', args, {
+      cwd: REPO,
+      stdio: 'pipe',
+      maxBuffer: 64 * 1024 * 1024,
+    })
   } catch {
     // Ненулевой код — это нормально: часть тестов красная. Отчёт всё равно
     // записан, и именно он нас интересует.
   }
-  if (!fs.existsSync(TMP)) throw new Error('vitest не записал отчёт — прогон не состоялся')
+  if (!fs.existsSync(TMP))
+    throw new Error('vitest не записал отчёт — прогон не состоялся')
   return JSON.parse(fs.readFileSync(TMP, 'utf8'))
 }
 
@@ -62,6 +73,91 @@ function fileOf(id) {
   return id.split(' :: ')[0]
 }
 
+/**
+ * The names this file PRODUCES right now, without running the tests.
+ *
+ * Listed PER FILE on purpose: a whole-suite `vitest list` aborts entirely on
+ * the first unresolvable import in anybody's file and then returns emptiness
+ * instead of an answer. null here means "could not ask" and an empty set means
+ * "the file does not collect"; those are different news and are kept apart.
+ */
+function collectedNames(file) {
+  let out
+  try {
+    out = execFileSync('npx', ['vitest', 'list', file], {
+      cwd: REPO,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      maxBuffer: 32 * 1024 * 1024,
+    })
+  } catch {
+    return null
+  }
+  const base = path.basename(file)
+  const marker = `${base} > `
+  const names = new Set()
+  for (const line of out.split('\n')) {
+    const at = line.indexOf(marker)
+    if (at === -1) continue
+    names.add(
+      line
+        .slice(at + marker.length)
+        .split(' > ')
+        .join(' ')
+        .trim()
+    )
+  }
+  return names
+}
+
+/**
+ * WHY A TEST STOPPED PASSING: did it break, or was it renamed?
+ *
+ * This script compares SETS of names and cannot tell those two apart on its
+ * own. A name nobody produces any more looks exactly like a failing test -- and
+ * the re-check cannot cure it, because the re-check clears a suspect only by
+ * SEEING IT PASS. One renamed suite therefore keeps the gate red on a clean
+ * tree until somebody refreshes the snapshot, and a gate that is red for no
+ * reason stops being read.
+ *
+ * That happened: the snapshot fell four days behind a rewritten
+ * voiceValidation.test.ts, and the same fourteen names were reported as
+ * regressions for about twenty runs until they were compared by hand (#1692).
+ *
+ * A VANISHED NAME DOES NOT TURN THE GATE GREEN. Renaming a test and DELETING
+ * one are indistinguishable from the name alone, so passing quietly would mean
+ * deleted coverage disappears unnoticed. The breakdown below only NAMES the
+ * cause and says what to do about it; the decision stays with a person.
+ */
+function explainConfirmed(confirmed) {
+  const byFile = new Map()
+  for (const id of confirmed) {
+    const f = fileOf(id)
+    if (!byFile.has(f)) byFile.set(f, [])
+    byFile.get(f).push(id)
+  }
+  const behaviour = []
+  const vanished = []
+  const unknown = []
+  for (const [file, ids] of byFile) {
+    const now = collectedNames(file)
+    if (now === null) {
+      unknown.push([file, ids, 'не смог перечислить тесты файла'])
+      continue
+    }
+    if (now.size === 0) {
+      unknown.push([file, ids, 'файл не собирается — ни одного теста'])
+      continue
+    }
+    for (const id of ids) {
+      const name = id.split(' :: ')[1]
+      if (now.has(name)) behaviour.push(id)
+      else vanished.push([id, ids.length, now.size])
+    }
+  }
+  return { behaviour, vanished, unknown }
+}
+
 function main() {
   console.log('Прогон…')
   const report = runVitest()
@@ -73,7 +169,9 @@ function main() {
       '# Зелёные тесты на момент снимка. Обновлять: npm run test:gate:save\n' +
       '# Проверять: npm run test:gate — покажет тесты, которые проходили и перестали.\n'
     fs.writeFileSync(BASELINE, header + [...now].sort().join('\n') + '\n')
-    console.log(`Запомнено в ${path.relative(REPO, BASELINE)}: ${now.size} зелёных.`)
+    console.log(
+      `Запомнено в ${path.relative(REPO, BASELINE)}: ${now.size} зелёных.`
+    )
     return
   }
 
@@ -102,7 +200,9 @@ function main() {
   // из-за правки. Гоняем только подозреваемые файлы ещё раз: то, что снова
   // зелёное, — шум, а не регрессия.
   const files = [...new Set(suspects.map(fileOf))]
-  console.log(`\nподозреваемых: ${suspects.length} в ${files.length} файлах — перепроверяю…`)
+  console.log(
+    `\nподозреваемых: ${suspects.length} в ${files.length} файлах — перепроверяю…`
+  )
   const recheck = passingSet(runVitest(files))
   const confirmed = suspects.filter(id => !recheck.has(id))
   const flaky = suspects.filter(id => recheck.has(id))
@@ -114,12 +214,59 @@ function main() {
   }
 
   if (!confirmed.length) {
-    console.log('\n✅ Подтверждённых регрессий нет — всё подозрительное оказалось нестабильным.')
+    console.log(
+      '\n✅ Подтверждённых регрессий нет — всё подозрительное оказалось нестабильным.'
+    )
     return
   }
 
-  console.log(`\n❌ РЕГРЕССИИ: ${confirmed.length}`)
-  for (const id of confirmed) console.log(`  - ${id}`)
+  const { behaviour, vanished, unknown } = explainConfirmed(confirmed)
+
+  if (behaviour.length) {
+    console.log(`\n❌ РЕГРЕССИИ: ${behaviour.length}`)
+    console.log('   Тест существует и перестал проходить — это поведение.')
+    for (const id of behaviour) console.log(`  - ${id}`)
+  }
+
+  if (vanished.length) {
+    console.log(`\n⚠️  СНИМОК УСТАРЕЛ: ${vanished.length}`)
+    console.log(
+      '   Этих имён файл больше НЕ ПРОИЗВОДИТ: тест переименован или удалён.'
+    )
+    console.log(
+      '   Пройти они не могут никогда, поэтому перепроверка их не снимет.'
+    )
+    const seen = new Set()
+    for (const [id, want, have] of vanished) {
+      const f = fileOf(id)
+      if (!seen.has(f)) {
+        seen.add(f)
+        console.log(`   ${f}: в снимке ${want}, файл выдаёт ${have}`)
+      }
+      console.log(`  ~ ${id}`)
+    }
+    console.log(
+      '\n   Число тестов меняет переименование, а не нестабильность. Что делать:'
+    )
+    console.log(
+      '    1) сверить, что замена покрывает то же или лучше (сравнить имена);'
+    )
+    console.log('    2) node scripts/test-gate.cjs --save;')
+    console.log(
+      '    3) сверить diff снимка — удалиться должны ТОЛЬКО ожидаемые имена;'
+    )
+    console.log('    4) сказать об этом в отчёте. Молча обновлять нельзя.')
+    console.log('   Гейт остаётся красным: удалённый тест выглядит так же, как')
+    console.log('   переименованный, и тихо потерять покрытие хуже.')
+  }
+
+  if (unknown.length) {
+    console.log(`\n❓ НЕ КЛАССИФИЦИРОВАНО: ${unknown.length} файл(ов)`)
+    for (const [file, ids, why] of unknown) {
+      console.log(`   ${file}: ${why} (${ids.length} имён)`)
+    }
+  }
+
   process.exit(1)
 }
 
