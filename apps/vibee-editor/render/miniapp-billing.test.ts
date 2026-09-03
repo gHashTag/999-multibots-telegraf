@@ -36,10 +36,10 @@ describe('mini-app generation is billed', () => {
   for (const kind of ['image', 'video', 'audio'] as const) {
     it(`${kind}: charges with the shared price id before generating`, () => {
       const h = handler(kind)
-      expect(h, `${kind} does not charge`).toContain('chargeMiniAppUser(req')
+      expect(h, `${kind} does not charge`).toContain('chargeMiniAppUser(')
       expect(h).toContain(`'${ops[kind]}'`)
       // The charge must precede the provider work, not follow it.
-      const chargeAt = h.indexOf('chargeMiniAppUser(req')
+      const chargeAt = h.indexOf('chargeMiniAppUser(')
       const refundAt = h.indexOf('refundMiniAppUser')
       expect(chargeAt).toBeGreaterThan(-1)
       expect(refundAt, `${kind} never refunds`).toBeGreaterThan(chargeAt)
@@ -54,7 +54,8 @@ describe('mini-app generation is billed', () => {
 
   it('does not double-charge the agent path', () => {
     // Server-to-server callers already paid at the tool layer.
-    expect(SERVER).toContain(
+    expect(SERVER).toContain('mayBypassGenerationBilling(auth)')
+    expect(SERVER).not.toContain(
       "if (req.headers['x-api-key']) return { ok: true }"
     )
   })

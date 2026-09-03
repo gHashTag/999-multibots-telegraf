@@ -24,7 +24,7 @@ import {
 import { captureScriptError, trackScriptGeneration } from '@/lib/sentry'
 import { CacheService } from '@/lib/cache'
 import { MonitoringService } from '@/lib/monitoring'
-import { API_BASE } from '../config'
+import { authHeaders } from '@/lib/apiFetch'
 
 // ===============================
 // Types - Re-exported from @vibee/atoms
@@ -141,22 +141,6 @@ function extractJsonFromMarkdown(
   }
 
   return null
-}
-
-// Извлекает строковое значение из возможного markdown
-function extractStringFromMarkdown(input: unknown): string {
-  if (typeof input !== 'string') return ''
-
-  // Если содержит markdown блок с JSON - попробуем извлечь конкретное поле
-  if (input.includes('```')) {
-    const extracted = extractJsonFromMarkdown(input)
-    if (extracted && typeof extracted === 'object') {
-      // Это был вложенный JSON, вернём пустую строку (обработаем на уровне выше)
-      return ''
-    }
-  }
-
-  return input
 }
 
 // Parse B-Roll from API response (may come as string or array)
@@ -391,7 +375,7 @@ export const generateScriptAtom = atom(null, async (get, set) => {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       response = await fetch(SCRIPT_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(sanitizedInput),
       })
 

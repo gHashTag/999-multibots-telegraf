@@ -13,7 +13,6 @@ import {
   Upload,
   Square,
   Trash2,
-  RefreshCw,
   GripVertical,
   Plus,
   Share,
@@ -44,7 +43,6 @@ import {
   voicesErrorAtom,
   selectedVoiceAtom,
   fetchVoicesAtom,
-  type Voice,
 } from '@/atoms/voices'
 import {
   generatedResultsAtom,
@@ -188,6 +186,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   const voicesError = useAtomValue(voicesErrorAtom)
   const [audioVoice, setAudioVoice] = useAtom(selectedVoiceAtom)
   const fetchVoices = useSetAtom(fetchVoicesAtom)
+  const hasValidAudioVoice = voices.some(voice => voice.id === audioVoice)
 
   // Load voices from ElevenLabs on mount
   useEffect(() => {
@@ -275,15 +274,11 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
     clearRecording,
   } = useAudioRecorder()
 
-  // Blob URL for recording preview (with cleanup to prevent memory leaks)
-  const [recordingBlobUrl, setRecordingBlobUrl] = useState<string | null>(null)
-
   // Auto-save recording when audioBlob is set
   useEffect(() => {
     if (audioBlob) {
       // Create preview URL
       const url = URL.createObjectURL(audioBlob)
-      setRecordingBlobUrl(url)
 
       // Auto-upload to S3
       ;(async () => {
@@ -317,10 +312,8 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
       return () => {
         URL.revokeObjectURL(url)
-        setRecordingBlobUrl(null)
       }
     }
-    setRecordingBlobUrl(null)
     return undefined
   }, [audioBlob, addAsset, clearRecording])
 
@@ -575,6 +568,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
   // Handle Audio Generation
   const handleGenerateAudio = async () => {
+    if (!hasValidAudioVoice) return
     if (!checkBalanceAndProceed()) return
 
     setIsGenerating(true)
@@ -1047,7 +1041,12 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             <button
               className="generate-btn"
               onClick={handleGenerateAudio}
-              disabled={isGenerating || !audioText.trim()}
+              disabled={
+                isGenerating ||
+                isLoadingVoices ||
+                !audioText.trim() ||
+                !hasValidAudioVoice
+              }
             >
               {isGenerating ? (
                 <>

@@ -5,6 +5,11 @@
 // ===============================
 
 import { API_BASE } from '../config'
+import { getAppAccessToken } from './appSession'
+import {
+  buildGenerateAuthHeaders,
+  generationErrorMessage,
+} from './generationAuth'
 import { getInitData, isTelegram } from './telegram'
 import { isAdmin } from '../config/admin'
 
@@ -44,9 +49,8 @@ export function isMockMode(): boolean {
 }
 try {
   ;(window as unknown as Record<string, unknown>).vibeeMock = (on: boolean) => {
-    on
-      ? localStorage.setItem('vibee_mock', '1')
-      : localStorage.removeItem('vibee_mock')
+    if (on) localStorage.setItem('vibee_mock', '1')
+    else localStorage.removeItem('vibee_mock')
     return isMockMode()
   }
 } catch {
@@ -99,13 +103,18 @@ function mfetch(url: string, init?: RequestInit): Promise<Response> {
  * подписи нет — подставляем ключ агента из VITE_AGENT_KEY.
  */
 function authHeaders(): Record<string, string> {
-  const initData = getInitData()
-  if (initData) return { 'X-Telegram-Init-Data': initData }
   const devKey = import.meta.env.DEV
     ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
     : undefined
-  if (devKey) return { 'X-Agent-Key': devKey }
-  return {}
+  return buildGenerateAuthHeaders({
+    initData: getInitData(),
+    accessToken: getAppAccessToken(), // secret-guard-ok: server-issued runtime session, never logged
+    devAgentKey: devKey || '',
+  })
+}
+
+function readGenerationError(response: Response, fallback: string): string {
+  return generationErrorMessage(response.status, fallback)
 }
 
 export interface GenerateImageParams {
@@ -175,8 +184,10 @@ export async function generateImage(
   })
 
   if (!response.ok) {
-    const text = await response.text()
-    return { success: false, error: text || 'Image generation failed' }
+    return {
+      success: false,
+      error: readGenerationError(response, 'Image generation failed'),
+    }
   }
 
   return response.json()
@@ -297,8 +308,10 @@ export async function generateVideo(
   })
 
   if (!response.ok) {
-    const text = await response.text()
-    return { success: false, error: text || 'Video generation failed' }
+    return {
+      success: false,
+      error: readGenerationError(response, 'Video generation failed'),
+    }
   }
 
   return response.json()
@@ -321,8 +334,10 @@ export async function generateAudio(
   })
 
   if (!response.ok) {
-    const text = await response.text()
-    return { success: false, error: text || 'Audio generation failed' }
+    return {
+      success: false,
+      error: readGenerationError(response, 'Audio generation failed'),
+    }
   }
 
   return response.json()
@@ -346,8 +361,10 @@ export async function generateLipsync(
   })
 
   if (!response.ok) {
-    const text = await response.text()
-    return { success: false, error: text || 'Lipsync generation failed' }
+    return {
+      success: false,
+      error: readGenerationError(response, 'Lipsync generation failed'),
+    }
   }
 
   return response.json()

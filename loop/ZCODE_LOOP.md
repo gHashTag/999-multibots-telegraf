@@ -4453,3 +4453,43 @@
 1. **«Выпустить social cards»** — player-only merge и production smoke профиля.
 2. **«Добавить быстрый remix»** — отдельной кнопкой создать новый draft по выбранному шаблону, без автопубликации.
 3. **«Усилить библиотеку»** — фильтры, поиск и сортировка Templates отдельным витком.
+
+---
+
+## Виток №248 — 2026-09-01T14:31Z — единая авторизация AI и fail-closed платные границы (LOCAL, без релиза)
+
+**Проверено**: актуальный `origin/main@5427ff6e` (divergence 0/0), основной dirty checkout и отдельный clean worktree. Через BrowserOS Neo снята read-only production-матрица: `/health` 200; формы Image/Video/Voice/Avatar/Script открываются, но вне Telegram показывают Login и не имеют `initData`; безопасные неподписанные POST всех пяти маршрутов возвращают 401 до провайдера. `/api/voices` возвращает 500: production ElevenLabs-переменная не является рабочим API key. Платные кнопки, provider health с генерацией и prod-мутации не запускались.
+
+**Сделано**: Image, Video, Voice, Avatar и Script используют одну credential-границу: Telegram initData → server-signed Bearer session → DEV-only agent key. Серверный billing owner берётся из проверенного session claim либо отдельно проверенного initData. Мусорный `X-Api-Key` больше не освобождает пользователя от списания; bypass разрешён только глобально проверенному `api-key`. Lipsync и Script, у которых нет утверждённой общей цены, отвечают 503 до чтения body и любого provider-вызова; lipsync имеет готовый charge/refund path на момент появления цены. Voice больше не показывает выдуманные Sarah/Rachel/Josh и не подменяет выбранный ElevenLabs voice безымянным Replicate-голосом. При нерабочем voice provider список очищается и Generate disabled; persisted старый/fake voice id сверяется с live registry и не может повторно включить кнопку. Сырые JSON/provider bodies и фрагменты credential больше не выходят в generation UI.
+
+**Аномалии / самокритика**: первый локальный фикс закрыл transport, но независимый review нашёл обход списания через мусорный header, бесплатный FAL lipsync, ложный voice fallback, сырой JSON и credential-derived prefix; все пять исправлены fail-closed. Production остаётся на старом коде. Voice останется недоступным до безопасной замены ElevenLabs credential. Текущее состояние провайдеров Image/Video нельзя честно назвать green без отдельного разрешённого платного smoke. Локальные dependencies отсутствуют и по запрету не переустанавливались, поэтому full Vitest/typecheck/build не запускались; вместо них выполнены dependency-free behavior/source contracts и parser checks. `tri selftest` PASS; `tri status` честно показывает canonical local render/player DOWN; legacy `tri regress` заблокирован отсутствующим agent key.
+
+**Метрики**: live feed — 43 reels / 102👁 / 0⭐ / 2 автора. TDD: общий auth/billing/voice/error contract 17/17 PASS; Node strip-types parse для изменённых `.ts` PASS; `git diff --check` PASS; secret-oriented scoped scan не нашёл новых literals. Потрачено на провайдеры: 0.
+
+**Следующий шаг**: получить повторный P0/P1 review точного diff; затем отдельным владельческим решением — либо выпускать player/render и делать signed-session smoke без генерации, либо сначала назначить цены Script/Lipsync и заменить ElevenLabs credential, после чего согласовать малый бюджет provider smoke.
+
+## Три варианта для владельца
+
+1. **«Безопасный AI release»** — после review выпустить player/render и проверить вход/401/402/503 без платной генерации.
+2. **«Включить Voice»** — отдельно заменить ElevenLabs credential, проверить список голосов и одну утверждённую тестовую озвучку.
+3. **«Разблокировать весь AI»** — утвердить цены Script/Lipsync и бюджет на по одному live smoke Image/Video/Voice/Avatar/Script.
+
+---
+
+## Виток №249 — 2026-09-01T15:30Z — AI web-session доведена до exact build gate (LOCAL, без релиза)
+
+**Проверено**: свежий `origin/main@f3e021f95`, dirty основной checkout оставлен без изменений; существующая auth-wave безопасно fast-forwarded через два непересекающихся upstream-коммита. BrowserOS Neo повторил production-дефект на `/generate/image`: route открыт как web-страница, Header показывает Login, а неподписанный generation request не имеет `initData`. Причина в коде двойная: `generateApi` обходил общий Bearer-aware `apiFetch`, а server billing после принятой app-session снова искал только Telegram initData.
+
+**Сделано**: Image, Video, Voice, Avatar и Script выбирают ровно одно доказательство — Telegram initData, затем server-signed Bearer session, затем DEV-only agent key. Billing owner берётся из проверенного `AuthResult`; мусорный `X-Api-Key` не даёт bypass. Сырые auth/provider JSON больше не доходят до UI. Script/Lipsync без утверждённой цены остаются fail-closed до body/provider; Voice без рабочего провайдера очищает registry и отключает Generate. Fresh typecheck нашёл остаточную ссылку на удалённый `req` в прежней заготовке; helper получил явный request только для повторной verified-initData выборки, а решение о bypass по-прежнему принимает `AuthResult`.
+
+**Аномалии / самокритика**: production не менялся и всё ещё отдаёт пользователю сырой 401. BrowserOS Neo не имеет владельческой production-сессии, поэтому реальный signed-session smoke и provider generation не выполнялись. Платных действий — 0. Voice production provider остаётся unavailable до отдельной безопасной замены credential; поддельные fallback voices намеренно не возвращены. Independent final review нового exact tree не выполнялся в этом витке.
+
+**Метрики**: feed — 43 reels / 106👁 / 0⭐ / 2 автора. Auth/billing/error contract 17/17 PASS; player 143/143 PASS; render 476 PASS / 1 штатно skipped; focused auth/session 39/39 PASS; player/render typecheck PASS; scoped player lint PASS; player production build и render Remotion bundle PASS; artifact scan подтверждает Bearer-session marker, человекочитаемый 401 и отсутствие сырого auth JSON; `tri selftest` и `git diff --check` PASS.
+
+**Следующий шаг**: independent exact diff review; затем owner-authorized player/render release и signed-session smoke без платной генерации. После этого отдельно решать credential Voice и бюджет provider smoke.
+
+## Три варианта для владельца
+
+1. **«Безопасный AI release»** — review, выпуск player/render и проверка web-session + 401/402/503 без списаний.
+2. **«Сначала Voice»** — оставить auth локально, заменить ElevenLabs credential и проверить registry без генерации.
+3. **«Полный AI smoke»** — утвердить цены Script/Lipsync и отдельный малый бюджет на реальные Image/Video/Voice проверки после auth-release.

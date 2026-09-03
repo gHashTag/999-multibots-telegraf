@@ -47,9 +47,14 @@ import path from 'node:path'
 import {
   authenticate,
   authMode,
+  type AuthResult,
   verifyTelegramInitData,
   verifiedTelegramId,
 } from './auth'
+import {
+  generationOwnerId,
+  mayBypassGenerationBilling,
+} from './src/generation-identity'
 import { TEMPLATE_CARDS } from './src/templates/registry'
 import {
   generateImage as kieGenerateImage,
@@ -193,21 +198,17 @@ function runFfprobeText(args: string[], timeoutMs = 30000): string {
 /** Ответ /api/providers живёт минуту: за ним пять чужих сервисов. */
 let providersCache: { at: number; data: Record<string, unknown> } | null = null
 
+// Script calls a paid provider but has no approved billing/refund contract.
+// It remains an explicit code-review capability, not a price-table side effect.
+const SCRIPT_GENERATION_ENABLED = false
+
 function elevenLabsKey(): string {
   const key = process.env.ELEVENLABS_API_KEY
   if (!key) {
-    throw new Error(
-      'ELEVENLABS_API_KEY не задан. Ключ создаётся в кабинете ElevenLabs ' +
-        '(Profile → API Keys) и начинается с «sk_».'
-    )
+    throw new Error('voice provider unavailable')
   }
   if (!key.startsWith('sk_')) {
-    throw new Error(
-      'ELEVENLABS_API_KEY хранит НЕ КЛЮЧ, а его идентификатор: настоящий ключ ' +
-        `начинается с «sk_», а этот — с «${key.slice(0, 3)}». ElevenLabs на такой ` +
-        'отвечает 400 (invalid_api_key). Ключ показывается один раз при создании ' +
-        'или ротации в кабинете ElevenLabs — его и нужно положить в переменную.'
-    )
+    throw new Error('voice provider unavailable')
   }
   return key
 }
@@ -395,7 +396,11 @@ import {
   MARK_POSTED,
   readChannelConfig,
 } from './src/channel-delivery'
-import { spendByTid, refundByTid } from './src/agent/billing-shared'
+import {
+  spendByTid,
+  refundByTid,
+  TOKEN_PRICES,
+} from './src/agent/billing-shared'
 import { lipSyncVideoOf, templateDurationInFrames } from './src/render-duration'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
@@ -1806,14 +1811,16 @@ function attachStoreOnce(): void {
  */
 async function chargeMiniAppUser(
   req: IncomingMessage,
-  op: string
+  op: string,
+  auth: AuthResult
 ): Promise<
   { ok: true; tid?: string } | { ok: false; status: number; reason: string }
 > {
-  // Server-to-server: already paid at the tool layer.
-  if (req.headers['x-api-key']) return { ok: true }
+  // Server-to-server: already paid at the tool layer. Header presence alone
+  // is never proof because a session user can attach an invalid header.
+  if (mayBypassGenerationBilling(auth)) return { ok: true }
 
-  const tid = verifiedTelegramId(req)
+  const tid = generationOwnerId(auth, verifiedTelegramId(req))
   if (!tid) {
     // Auth is enforced upstream; an unsigned caller should never reach here.
     return { ok: false, status: 401, reason: 'no verified telegram id' }
@@ -2086,12 +2093,7 @@ function startRenderAsync(
 
       // Video render
       const codec = (req.codec || 'h264') as
-        | 'h264'
-        | 'h265'
-        | 'vp8'
-        | 'vp9'
-        | 'prores'
-        | 'gif'
+        'h264' | 'h265' | 'vp8' | 'vp9' | 'prores' | 'gif'
       const ext = codec === 'gif' ? 'gif' : 'mp4'
       const outputPath = path.join(OUTPUT_DIR, `${renderId}.${ext}`)
 
@@ -2579,64 +2581,6 @@ const server = createServer(async (req, res) => {
   }
 
   /**
-   * TTS via Replicate when ElevenLabs is unavailable (the key stored in the env
-   * var is an identifier, not an sk_ key). minimax/speech-02-turbo is
-   * multilingual (Russian included) and Replicate is paid. Returns an audio
-   * URL; the caller downloads it and puts it in S3 like the ElevenLabs path, so
-   * the link does not expire.
-   */
-  async function generateAudioViaReplicate(text: string): Promise<string> {
-    const REPLICATE_TOKEN =
-      process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
-    if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
-    const response = await fetch(
-      'https://api.replicate.com/v1/models/minimax/speech-02-turbo/predictions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${REPLICATE_TOKEN}`,
-        },
-        body: JSON.stringify({ input: { text } }),
-      }
-    )
-    if (!response.ok) {
-      throw new Error(
-        `Replicate TTS failed: ${response.status} - ${await response.text()}`
-      )
-    }
-    let data = await response.json()
-    const predictionUrl: string | null = data?.urls?.get ?? null
-    const deadline = Date.now() + 120_000
-    while (
-      predictionUrl &&
-      data.output == null &&
-      !data.error &&
-      Date.now() < deadline
-    ) {
-      await new Promise(r => setTimeout(r, 2000))
-      const poll = await fetch(predictionUrl, {
-        headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` },
-      })
-      if (!poll.ok) break
-      data = await poll.json()
-    }
-    if (data.error) {
-      throw new Error(
-        `Replicate TTS error: ${String(data.error).slice(0, 120)}`
-      )
-    }
-    let out = Array.isArray(data.output) ? data.output[0] : data.output
-    if (out && typeof out === 'object') {
-      out = out.audio || out.audio_url || out.url
-    }
-    if (typeof out !== 'string') {
-      throw new Error('Replicate did not return an audio URL')
-    }
-    return out
-  }
-
-  /**
    * Third leg of the poster chain: Kie, the only provider with a funded
    * balance (FAL answers 403 "Exhausted balance", measured 2026-08-31).
    *
@@ -2780,7 +2724,7 @@ const server = createServer(async (req, res) => {
         )
 
         // Charge BEFORE spending the provider's money.
-        const billed = await chargeMiniAppUser(req, 'image_generate')
+        const billed = await chargeMiniAppUser(req, 'image_generate', auth)
         if (!billed.ok) {
           res.writeHead(billed.status, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ success: false, error: billed.reason }))
@@ -2988,7 +2932,7 @@ const server = createServer(async (req, res) => {
         console.log(`🎬 [Generate] Video: ${model}, duration: ${duration}`)
 
         // Charge BEFORE spending the provider's money.
-        const billed = await chargeMiniAppUser(req, 'video_generate')
+        const billed = await chargeMiniAppUser(req, 'video_generate', auth)
         if (!billed.ok) {
           res.writeHead(billed.status, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ success: false, error: billed.reason }))
@@ -3008,7 +2952,7 @@ const server = createServer(async (req, res) => {
          * The id is minted first so the answer has somewhere to land even if
          * the caller is gone by the time it arrives.
          */
-        const job = startJob('video', verifiedTelegramId(req) ?? '', prompt)
+        const job = startJob('video', billedTid ?? '', prompt)
         recordInto(job, res)
 
         // Determine which API to use based on model
@@ -3162,7 +3106,7 @@ const server = createServer(async (req, res) => {
         )
 
         // Charge BEFORE spending the provider's money.
-        const billed = await chargeMiniAppUser(req, 'audio_generate')
+        const billed = await chargeMiniAppUser(req, 'audio_generate', auth)
         if (!billed.ok) {
           res.writeHead(billed.status, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ success: false, error: billed.reason }))
@@ -3170,47 +3114,30 @@ const server = createServer(async (req, res) => {
         }
         billedTid = billed.tid
 
-        // ElevenLabs is the primary path; if it is unavailable (the key stored
-        // is an identifier, not an sk_ key, OR the API errors) fall back to
-        // Replicate TTS. Symmetric with images (FAL dead -> Replicate).
-        let audioBuffer: Buffer
-        let audioProvider = 'elevenlabs'
-        try {
-          const ELEVENLABS_API_KEY = elevenLabsKey() // throws if not an sk_ key
-          const ttsResponse = await fetch(
-            `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`,
-            {
-              method: 'POST',
-              headers: {
-                'xi-api-key': ELEVENLABS_API_KEY,
-                'Content-Type': 'application/json',
-                Accept: 'audio/mpeg',
-              },
-              body: JSON.stringify({
-                text,
-                model_id: 'eleven_multilingual_v2',
-                voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-              }),
-            }
-          )
-          if (!ttsResponse.ok) {
-            throw new Error(
-              `ElevenLabs TTS error: ${ttsResponse.status} - ${await ttsResponse.text()}`
-            )
+        // A selected ElevenLabs voice is a product promise. Never silently
+        // substitute a provider that does not understand that voice id.
+        const ELEVENLABS_API_KEY = elevenLabsKey()
+        const ttsResponse = await fetch(
+          `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}`,
+          {
+            method: 'POST',
+            headers: {
+              'xi-api-key': ELEVENLABS_API_KEY,
+              'Content-Type': 'application/json',
+              Accept: 'audio/mpeg',
+            },
+            body: JSON.stringify({
+              text,
+              model_id: 'eleven_multilingual_v2',
+              voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+            }),
           }
-          audioBuffer = Buffer.from(await ttsResponse.arrayBuffer())
-        } catch (elevenErr) {
-          console.warn(
-            `🎤 [Generate] ElevenLabs unavailable (${String(elevenErr).slice(0, 120)}), switching to Replicate TTS`
-          )
-          const audioUrl = await generateAudioViaReplicate(text)
-          const dl = await fetch(audioUrl)
-          if (!dl.ok) {
-            throw new Error(`Replicate audio download failed: ${dl.status}`)
-          }
-          audioBuffer = Buffer.from(await dl.arrayBuffer())
-          audioProvider = 'replicate/minimax-speech-02-turbo'
+        )
+        if (!ttsResponse.ok) {
+          throw new Error('voice provider unavailable')
         }
+        const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer())
+        const audioProvider = 'elevenlabs'
         console.log(
           `✅ [Generate] Audio received: ${audioBuffer.length} bytes (${audioProvider})`
         )
@@ -3244,7 +3171,7 @@ const server = createServer(async (req, res) => {
         res.end(
           JSON.stringify({
             success: false,
-            error: error instanceof Error ? error.message : 'Generation failed',
+            error: 'voice provider unavailable',
           })
         )
       }
@@ -3337,8 +3264,7 @@ const server = createServer(async (req, res) => {
       res.end(
         JSON.stringify({
           success: false,
-          error:
-            error instanceof Error ? error.message : 'Failed to fetch voices',
+          error: 'voice provider unavailable',
         })
       )
     }
@@ -3347,16 +3273,39 @@ const server = createServer(async (req, res) => {
 
   // POST /api/generate/lipsync - Generate lipsync video using fal.ai VEED Fabric
   if (req.url === '/api/generate/lipsync' && req.method === 'POST') {
+    // This provider spends money, but no owner-approved cost exists in the
+    // shared price table yet. Refuse before body/provider work instead of
+    // silently giving away an unbounded paid route. Adding a reviewed shared
+    // price activates the normal charge/refund path below.
+    if (!TOKEN_PRICES.lipsync_generate) {
+      sendJson(res, 503, {
+        success: false,
+        error: 'lipsync temporarily unavailable',
+        detail: 'pricing is not configured',
+      })
+      return
+    }
     let body = ''
     req.on('data', chunk => {
       body += chunk
     })
     req.on('end', async () => {
+      let billedTid: string | undefined
       try {
         const { audio_url, image_url, resolution } = JSON.parse(body)
         console.log(
           `👄 [Generate] Lipsync via fal.ai VEED Fabric: resolution=${resolution || '720p'}`
         )
+
+        const billed = await chargeMiniAppUser(req, 'lipsync_generate', auth)
+        if (!billed.ok) {
+          sendJson(res, billed.status, {
+            success: false,
+            error: billed.reason,
+          })
+          return
+        }
+        billedTid = billed.tid
 
         const FAL_KEY = process.env.FAL_KEY
         if (!FAL_KEY) throw new Error('FAL_KEY not configured')
@@ -3434,11 +3383,12 @@ const server = createServer(async (req, res) => {
         throw new Error('Lipsync generation timeout')
       } catch (error) {
         console.error('❌ [Generate] Lipsync error:', error)
+        await refundMiniAppUser(billedTid, 'lipsync_generate')
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
             success: false,
-            error: error instanceof Error ? error.message : 'Generation failed',
+            error: 'Generation failed',
           })
         )
       }
@@ -7694,14 +7644,30 @@ const server = createServer(async (req, res) => {
 
   // POST /api/ai/generate-script
   if (req.url === '/api/ai/generate-script' && req.method === 'POST') {
+    // Stop before reading user input or calling a provider. Enabling requires
+    // a dedicated billed/refundable implementation, not merely adding a price.
+    if (!SCRIPT_GENERATION_ENABLED) {
+      sendJson(res, 503, {
+        success: false,
+        error: 'script generation temporarily unavailable',
+        detail: 'billing is not configured',
+      })
+      return
+    }
     let body = ''
     req.on('data', chunk => {
       body += chunk
     })
     req.on('end', async () => {
       try {
-        const { topic, niche, style, duration, language, model: запрошенная } =
-          JSON.parse(body) as Record<string, string | undefined>
+        const {
+          topic,
+          niche,
+          style,
+          duration,
+          language,
+          model: запрошенная,
+        } = JSON.parse(body) as Record<string, string | undefined>
         if (!topic || topic.trim() === '') {
           res.writeHead(400, { 'Content-Type': 'application/json' })
           res.end(
