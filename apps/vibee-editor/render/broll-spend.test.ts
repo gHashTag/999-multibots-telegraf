@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import {
-  BROLL_CLIP_UNITS,
-  brollClaimId,
-  claimBroll,
-  settleBroll,
+  CLAIM_CREDITS,
+  claimSpend,
+  settleSpend,
+  spendClaimId,
 } from './src/broll-spend'
 
 /**
@@ -54,45 +54,64 @@ const CLAIM = {
 describe('заявка на клип берётся до оплаты', () => {
   it('ключ стабилен для одной темы и дня, и различает темы', () => {
     // The retry of the same cycle must produce the SAME key, or nothing dedups.
-    expect(brollClaimId('2026-09-04', 'Тема A')).toBe(
-      brollClaimId('2026-09-04', 'Тема A')
+    expect(spendClaimId('broll', '2026-09-04', 'Тема A')).toBe(
+      spendClaimId('broll', '2026-09-04', 'Тема A')
     )
-    expect(brollClaimId('2026-09-04', 'Тема A')).not.toBe(
-      brollClaimId('2026-09-04', 'Тема B')
+    expect(spendClaimId('broll', '2026-09-04', 'Тема A')).not.toBe(
+      spendClaimId('broll', '2026-09-04', 'Тема B')
     )
-    expect(brollClaimId('2026-09-05', 'Тема A')).not.toBe(
-      brollClaimId('2026-09-04', 'Тема A')
+    expect(spendClaimId('broll', '2026-09-05', 'Тема A')).not.toBe(
+      spendClaimId('broll', '2026-09-04', 'Тема A')
+    )
+  })
+
+  it('длинные темы с общим началом НЕ сталкиваются', () => {
+    // Blog-derived topics take their RSS title unsliced, so two of them can
+    // share a long prefix. A shared key means one topic's claim silently
+    // blocks another topic's paid layer, so the key carries a digest of the
+    // WHOLE title rather than a prefix alone.
+    const shared = 'О'.repeat(150)
+    expect(spendClaimId('poster', '2026-09-04', shared + 'A')).not.toBe(
+      spendClaimId('poster', '2026-09-04', shared + 'B')
+    )
+  })
+
+  it('слои не сталкиваются ключами в один день по одной теме', () => {
+    // Both paid layers can run for the same topic on the same day; a shared key
+    // would let one silently consume the other's claim.
+    expect(spendClaimId('poster', '2026-09-04', 'Тема A')).not.toBe(
+      spendClaimId('broll', '2026-09-04', 'Тема A')
     )
   })
 
   it('свободная тема — заявка взята, и это INSERT ... ON CONFLICT DO NOTHING', async () => {
     const db = fakeDb([{ rows: [] }, { rows: [{ id: CLAIM.id }] }])
-    expect(await claimBroll(db, CLAIM, noop)).toBe('claimed')
+    expect(await claimSpend(db, CLAIM, noop)).toBe('claimed')
     const insert = db.sql.find(s => /INSERT INTO autopilot_spend/.test(s))!
     expect(insert).toBeTruthy()
     // Existence is the guard, so the insert must not overwrite a prior claim.
     expect(insert).toMatch(/ON CONFLICT \(id\) DO NOTHING/)
     expect(insert).toMatch(/RETURNING id/)
-    expect(db.params.at(-1)).toContain(BROLL_CLIP_UNITS)
+    expect(db.params.at(-1)).toContain(CLAIM_CREDITS)
   })
 
   it('тема уже оплачена сегодня — второй раз не платим', async () => {
     // DO NOTHING returns no row: somebody already claimed this topic today.
     const db = fakeDb([{ rows: [] }, { rows: [] }])
-    expect(await claimBroll(db, CLAIM, noop)).toBe('taken')
+    expect(await claimSpend(db, CLAIM, noop)).toBe('taken')
   })
 
   it('база есть и молчит — отказ, а не трата вслепую', async () => {
     const db = fakeDb(() => {
       throw new Error('connection reset')
     })
-    expect(await claimBroll(db, CLAIM, noop)).toBe('silent')
+    expect(await claimSpend(db, CLAIM, noop)).toBe('silent')
   })
 
   it('базы нет вовсе — слой работает, как и раньше', async () => {
     // The portrait module makes the same deliberate choice: without a promise
     // of durability, refusing would simply disable the feature.
-    expect(await claimBroll(null, CLAIM, noop)).toBe('no-db')
+    expect(await claimSpend(null, CLAIM, noop)).toBe('no-db')
   })
 
   it('заявка НИКОГДА не снимается — снятие означало бы повторную покупку', () => {
@@ -109,12 +128,12 @@ describe('заявка на клип берётся до оплаты', () => {
       path.join(__dirname, 'scripts', 'agent-autopilot.ts'),
       'utf8'
     )
-    expect(script).not.toContain('releaseBroll')
+    expect(script).not.toContain('releaseSpend')
   })
 
   it('доставка закрывает заявку', async () => {
     const upd = fakeDb([{ rows: [] }])
-    await settleBroll(upd, CLAIM.id, noop)
+    await settleSpend(upd, CLAIM.id, noop)
     expect(upd.sql.join(' ')).toMatch(
       /UPDATE autopilot_spend SET state = 'delivered'/
     )
@@ -124,7 +143,7 @@ describe('заявка на клип берётся до оплаты', () => {
     const boom = fakeDb(() => {
       throw new Error('down')
     })
-    await expect(settleBroll(boom, CLAIM.id, noop)).resolves.toBeUndefined()
+    await expect(settleSpend(boom, CLAIM.id, noop)).resolves.toBeUndefined()
   })
 
   it('цена в строке — НОЛЬ, иначе она съедает бюджет портрета', () => {
@@ -132,7 +151,55 @@ describe('заявка на клип берётся до оплаты', () => {
     // (owner, day) with no filter, so any non-zero value here is subtracted
     // from a neighbouring paid feature's budget. Blocking is by row existence,
     // so zero costs the dedup nothing.
-    expect(BROLL_CLIP_UNITS).toBe(0)
+    expect(CLAIM_CREDITS).toBe(0)
+  })
+})
+
+describe('гравюра тоже claim-before-pay', () => {
+  const SCRIPT = fs.readFileSync(
+    path.join(__dirname, 'scripts', 'agent-autopilot.ts'),
+    'utf8'
+  )
+  const block = (() => {
+    const start = SCRIPT.indexOf('THE ENGRAVING IS CLAIMED BEFORE IT IS BOUGHT')
+    expect(start, 'poster claim not found').toBeGreaterThan(-1)
+    // The anchor must FOLLOW the block. The first version pointed at a comment
+    // that precedes it, so indexOf returned -1 and the window silently fell
+    // back to a fixed length -- a slice that reads like a boundary and is not.
+    const end = SCRIPT.indexOf('THE BRANCH THAT DID NOT EXIST', start)
+    expect(end, 'end anchor must follow the block').toBeGreaterThan(start)
+    return SCRIPT.slice(start, end)
+  })()
+
+  it('находит блок — иначе проверка пустая', () => {
+    expect(block).toContain("call('image_generate'")
+  })
+
+  it('заявка берётся РАНЬШЕ вызова image_generate', () => {
+    const claim = block.indexOf('claimSpend(')
+    const pay = block.indexOf("call('image_generate'")
+    expect(claim).toBeGreaterThan(-1)
+    expect(pay).toBeGreaterThan(-1)
+    expect(claim).toBeLessThan(pay)
+  })
+
+  it('пропущенный слой ЗАПИСАН в артефакт, а не только в лог', () => {
+    // null would make a claim-blocked cycle byte-identical to one with the
+    // engraving switched off, which is the silence this record exists to end.
+    expect(block).toMatch(/state: 'skipped'/)
+    const skip = block.search(/state: 'skipped'/)
+    const gate = block.search(/posterClaim === 'claimed'/)
+    expect(skip).toBeGreaterThan(-1)
+    expect(skip).toBeLessThan(gate)
+  })
+
+  it('платит ТОЛЬКО claimed или no-db', () => {
+    const gate = block.search(
+      /posterClaim === 'claimed' \|\| posterClaim === 'no-db'/
+    )
+    const pay = block.indexOf("call('image_generate'")
+    expect(gate, 'нет условия на исход заявки').toBeGreaterThan(-1)
+    expect(gate).toBeLessThan(pay)
   })
 })
 
@@ -154,7 +221,7 @@ describe('в автопилоте заявка стоит ДО платного 
   })
 
   it('claimBroll вызывается РАНЬШЕ, чем уходит запрос к провайдеру', () => {
-    const claim = block.indexOf('claimBroll(')
+    const claim = block.indexOf('claimSpend(')
     const pay = block.indexOf('/api/generate/video')
     expect(claim).toBeGreaterThan(-1)
     expect(pay).toBeGreaterThan(-1)
