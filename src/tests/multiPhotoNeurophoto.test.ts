@@ -274,6 +274,31 @@ describe('Multi-Photo Neurophoto System', () => {
   })
 
   describe('Enhanced Neurophoto Generation Service', () => {
+    // The reason below is accurate but stops one step short. Measured (it.92):
+    //
+    // generateNeuroPhotoMulti checks the BALANCE first and, when it is short,
+    // replies "not enough stars" and returns null -- generateNeuroPhotoMulti.ts
+    // line 159. This suite never mocked '@/core/supabase', so getUserBalance
+    // answered from the real client and every test here stopped at that guard,
+    // before reaching anything it asserts. That is what "returns null under a
+    // partial mock" actually meant.
+    //
+    // The next step is verified to work -- a partial mock that keeps the rest
+    // of the barrel real:
+    //
+    //   vi.mock('@/core/supabase', async importOriginal => ({
+    //     ...((await importOriginal()) as Record<string, unknown>),
+    //     getUserBalance: vi.fn().mockResolvedValue(100000),
+    //   }))
+    //
+    // With it the balance guard is passed and the failures CHANGE to deeper
+    // ones -- "expected undefined to be truthy", "spy was never called" -- so
+    // what remains is a stand for the service call itself. That is a smaller
+    // and better-defined job than "the whole pipeline".
+    //
+    // The recipe lives here rather than in the file because a mock no running
+    // test exercises is dead weight that rots.
+    //
     // 🚩 Требует полного стенда конвейера, а не правки ожиданий.
     // generateNeuroPhotoMulti проходит через баланс, supabase, отправку в
     // Telegram и работу с файлами; при частичном моке функция молча
