@@ -9,6 +9,7 @@ import { STORAGE_KEYS } from '@vibee/atoms'
 import { API_BASE } from '../config'
 import { authHeaders } from '../lib/apiFetch'
 import { logoutAppSession } from '../lib/appSession'
+import { resetAgentLocalSession } from '../lib/agentStream'
 
 // Import shared types from @vibee/atoms
 import type {
@@ -177,6 +178,7 @@ export const hasUnlimitedRendersAtom = atom(get => {
 
 // Logout action
 export const logoutAtom = atom(null, (_get, set) => {
+  resetAgentLocalSession()
   void logoutAppSession()
   set(userAtom, null)
   set(renderQuotaAtom, null)

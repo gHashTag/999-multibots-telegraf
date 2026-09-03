@@ -202,6 +202,9 @@ const PUBLIC_EXACT = new Set([
   // проверяет личность — подпись мини-аппа ИЛИ ключ агента. Общий гвард
   // умеет только первое, а коннектор для тестов требует второго.
   '/api/agent/chat',
+  // Shared Telegram/Mini App history resolves its own owner identity, just as
+  // the chat route does. The general guard cannot resolve agent keys.
+  '/api/agent/history',
   // Маршруты входа пропускаются гвардом НАМЕРЕННО: их задача — ВЫДАТЬ
   // личность. Требовать её на входе значит требовать того, чего у клиента
   // ещё нет. Каждый из трёх проверяет личность сам: обмен — подписью

@@ -293,6 +293,26 @@
   border-color: #3a3830;
 }
 
+.message-source {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 6px;
+  padding: 2px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  color: #8a8578;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.message-source--telegram {
+  border-color: rgba(51, 144, 236, 0.35);
+  color: #79b8f3;
+}
+
 .chat-topup {
   display: flex;
   flex-wrap: wrap;

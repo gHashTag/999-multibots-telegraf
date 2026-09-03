@@ -29,11 +29,16 @@ import {
   handleMcp,
   handleMcpCard,
   handleAgentChat,
+  handleAgentHistory,
   handleAgentKeys,
   chatIdentity,
   resolveIdentity,
   readBody,
 } from './src/agent/routes'
+import {
+  processTelegramAgentTextUpdate,
+  sendTelegramAgentWelcome,
+} from './src/agent/telegram-agent'
 // A2A: the open protocol for external agents. Imported here because this file
 // is the only place that mounts routes, and until now nothing imported it at
 // all -- see the block comment at the mount site.
@@ -2091,12 +2096,7 @@ function startRenderAsync(
 
       // Video render
       const codec = (req.codec || 'h264') as
-        | 'h264'
-        | 'h265'
-        | 'vp8'
-        | 'vp9'
-        | 'prores'
-        | 'gif'
+        'h264' | 'h265' | 'vp8' | 'vp9' | 'prores' | 'gif'
       const ext = codec === 'gif' ? 'gif' : 'mp4'
       const outputPath = path.join(OUTPUT_DIR, `${renderId}.${ext}`)
 
@@ -5650,6 +5650,18 @@ const server = createServer(async (req, res) => {
     await handleAgentChat(req, res, String(who), getPool)
     return
   }
+  if (
+    req.url?.split('?')[0] === '/api/agent/history' &&
+    (req.method === 'GET' || req.method === 'DELETE')
+  ) {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      sendJson(res, 401, { error: 'не удалось определить пользователя' })
+      return
+    }
+    await handleAgentHistory(req, res, String(who), getPool)
+    return
+  }
 
   /**
    * Self-service agent keys -- the route its own handler documents.
@@ -5723,6 +5735,8 @@ const server = createServer(async (req, res) => {
         '150': { tokens: 150, stars: 175, title: '150 токенов Trinity' },
       }
       const PAY_BOT = process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
+      const AGENT_BOT = process.env.BOT_TOKEN_12 || ''
+      const AGENT_ENABLED = process.env.TELEGRAM_AGENT_WEBHOOK_ENABLED === '1'
 
       if (feedPath === '/api/tokens/packs' && req.method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -5975,7 +5989,29 @@ const server = createServer(async (req, res) => {
         }
         try {
           const upd = JSON.parse((await readBody(req)) || '{}')
-          if (upd.pre_checkout_query) {
+          if (upd.message?.text && AGENT_ENABLED && PAY_BOT === AGENT_BOT) {
+            try {
+              const pool = await getPool()
+              const result = await processTelegramAgentTextUpdate(upd, {
+                pool,
+                botToken: AGENT_BOT,
+              })
+              if (result === 'ignored') {
+                await sendTelegramAgentWelcome(upd, {
+                  botToken: AGENT_BOT,
+                })
+              }
+              res.writeHead(200)
+              res.end()
+            } catch {
+              console.error(
+                '[telegram-agent] turn failed; requesting retry (details redacted)'
+              )
+              res.writeHead(503)
+              res.end()
+            }
+            return
+          } else if (upd.pre_checkout_query) {
             await fetch(
               `https://api.telegram.org/bot${PAY_BOT}/answerPreCheckoutQuery`,
               {
