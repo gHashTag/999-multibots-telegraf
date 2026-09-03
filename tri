@@ -1656,6 +1656,77 @@ cmd_why_red_selfcheck() {
   return "$rc"
 }
 
+cmd_unguarded() {
+  # СЛЕПОЕ ПЯТНО ВОРОТ. Ворота сравнивают МНОЖЕСТВА имён: они кричат, когда имя
+  # ПРОПАЛО из снимка. Про тест, которого в снимке НИКОГДА НЕ БЫЛО, сказать
+  # нечего — пропасть он не может. Такой тест зелёный, полезный и никем не
+  # охраняемый: сломай его завтра, и ворота промолчат.
+  #
+  # Так вышло с PR #1696: пять тестов влились и остались вне снимка на целую
+  # итерацию, потому что снимок обновляют отдельным действием, а PR его не
+  # трогал. Нашлось случайно — по расхождению «+11, а добавлено 6».
+  #
+  # Здесь ДЕШЁВАЯ проверка: файл, у которого в снимке НОЛЬ строк. Прогона нет,
+  # только текст. Точный пофайловый разбор имён — это tri в-гейте.
+  #
+  # ЧЕСТНАЯ ОГОВОРКА: ноль строк значит «ворота его не стерегут», а не
+  # «забыли обновить снимок». Файл мог не собираться, падать целиком или быть
+  # пропущен. Причину смотреть глазами; команда отвечает на вопрос
+  # «что не под охраной», а не «почему».
+  local snap="${1:-$ROOT/.test-baseline.txt}"
+  [ -f "$snap" ] || { bad "снимок не найден: $snap"; return 2; }
+
+  local total=0 naked=0
+  while IFS= read -r f; do
+    total=$((total + 1))
+    if ! grep -qF -- "$f :: " "$snap"; then
+      naked=$((naked + 1))
+      printf '  %s\n' "$f"
+    fi
+  done < <(git -C "$ROOT" ls-files '*.test.ts' '*.test.tsx' | sort)
+
+  printf '\nфайлов с тестами: %s, вне снимка: %s\n' "$total" "$naked"
+  [ "$naked" -eq 0 ]
+}
+
+cmd_unguarded_selfcheck() {
+  # ЛИНЕЙКА ОБЯЗАНА ОТВЕЧАТЬ ПО-РАЗНОМУ НА ДВУХ РЕАЛЬНЫХ СНИМКАХ.
+  #
+  # a937b089c — снимок сразу после мержа #1696: файл stars-secret-not-logged
+  # уже в репозитории, но в снимке его НЕТ. Команда обязана его назвать.
+  # Текущий снимок его содержит (обновлён в #1697) — назвать не должна.
+  local f='apps/vibee-editor/render/stars-secret-not-logged.test.ts'
+  local old_snap="/tmp/tri-unguarded-old-baseline.txt"
+  if ! git -C "$ROOT" show a937b089c:.test-baseline.txt > "$old_snap" 2>/dev/null; then
+    warn 'самопроверка пропущена: исторический снимок a937b089c недоступен'
+    return 0
+  fi
+  local rc=0
+  # ВЫВОД СНАЧАЛА В ПЕРЕМЕННУЮ, а не в конвейер. cmd_unguarded возвращает 1,
+  # КОГДА НАХОДИТ, — это удобно для ворот, но при set -o pipefail (строка 27)
+  # статус конвейера берётся от неё, а не от grep. Пайп «нашёл» читался как
+  # «не нашёл», и обе половины линейки врали: вторая печатала OK всегда,
+  # потому что незащищённые файлы есть ВСЕГДА. Проверка, которая не умеет
+  # провалиться, ничего не проверяет.
+  local out_old out_now
+  out_old="$(cmd_unguarded "$old_snap" 2>/dev/null || true)"
+  out_now="$(cmd_unguarded 2>/dev/null || true)"
+  if printf '%s' "$out_old" | grep -qF "$f"; then
+    good 'на снимке после #1696 незащищённый файл найден'
+  else
+    bad 'СЛОМАНА: на снимке после #1696 незащищённый файл не найден'
+    rc=1
+  fi
+  if printf '%s' "$out_now" | grep -qF "$f"; then
+    bad 'СЛОМАНА (или снимок снова отстал): файл всё ещё вне текущего снимка'
+    rc=1
+  else
+    good 'в текущем снимке этот файл под охраной'
+  fi
+  rm -f "$old_snap"
+  return "$rc"
+}
+
 cmd_in_gate_selfcheck() {
   # ЛИНЕЙКУ ПРОВЕРЯЕМ В ОБЕ СТОРОНЫ, иначе она умеет только говорить «да».
   # Нужен файл, который гейт ОБЯЗАН видеть, и файл, который он обязан НЕ
@@ -1787,6 +1858,8 @@ case "$action" in
   in-gate-check|в-гейте-проверка) cmd_in_gate_selfcheck ;;
   why-red|почему-красный) cmd_why_red "$@" ;;
   why-red-check|почему-красный-проверка) cmd_why_red_selfcheck ;;
+  unguarded|без-охраны) cmd_unguarded "$@" ;;
+  unguarded-check|без-охраны-проверка) cmd_unguarded_selfcheck ;;
   scan|скан)           node "$TOOLS/anomalies.mjs" ;;
   # Deliberately a TOP-LEVEL verb, not `tri scan check`. The sibling that took
   # the subcommand road is broken in exactly the documented spot: help promises
