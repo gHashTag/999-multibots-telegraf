@@ -135,19 +135,80 @@ export async function claimSpend(
   }
 }
 
-/** The clip arrived: settle the row so it reads as spent rather than pending. */
+/**
+ * It arrived: settle the row AND keep the address of what was bought.
+ *
+ * The url goes into task_id, the column the portrait uses for its provider
+ * task. Keeping it is what makes a lost cycle recoverable instead of merely
+ * cheap: without it the claim only stops the second purchase, and the post that
+ * triggered the first one publishes without the layer it already paid for.
+ */
 export async function settleSpend(
   db: Db | null,
   id: string,
-  log: Log
+  log: Log,
+  url?: string
 ): Promise<void> {
   if (!db) return
   try {
     await db.query(
-      `UPDATE autopilot_spend SET state = 'delivered', reason = $2 WHERE id = $1`,
-      [id, 'автопилот: оплаченное получено'] // cyrillic-ok: ledger text
+      `UPDATE autopilot_spend
+          SET state = 'delivered', reason = $2, task_id = COALESCE($3, task_id)
+        WHERE id = $1`,
+      [id, 'автопилот: оплаченное получено', url ?? null] // cyrillic-ok: ledger text
     )
   } catch (e) {
     log(`заявка: не закрыл (${String(e).slice(0, 100)})`)
+  }
+}
+
+/**
+ * What this claim already bought, if anything is still recorded.
+ *
+ * Only a SETTLED row answers. An 'intent' row means the money moved and the
+ * cycle died before anything came back -- there is nothing to reuse, and
+ * pretending otherwise would publish a broken address.
+ */
+export async function recallSpend(
+  db: Db | null,
+  id: string,
+  log: Log
+): Promise<string | null> {
+  if (!db) return null
+  try {
+    const r = await db.query(
+      `SELECT task_id FROM autopilot_spend
+        WHERE id = $1 AND state = 'delivered' AND task_id IS NOT NULL`,
+      [id]
+    )
+    const url = r.rows?.[0]?.task_id
+    return typeof url === 'string' && url.startsWith('http') ? url : null
+  } catch (e) {
+    log(`заявка: не смог перечитать (${String(e).slice(0, 100)})`)
+    return null
+  }
+}
+
+/**
+ * Is the thing we paid for STILL THERE?
+ *
+ * Providers hand back their own addresses and they do not live forever. Reusing
+ * a dead one would be worse than skipping: the render fetches it, fails, the
+ * cycle dies, and the next tick reuses the same dead address again -- a
+ * permanent loop for that topic instead of one plainer post. So a recalled
+ * address is used only if it still answers.
+ */
+export async function assetStillThere(
+  url: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<boolean> {
+  try {
+    const r = await fetchImpl(url, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(10_000),
+    })
+    return r.ok
+  } catch {
+    return false
   }
 }

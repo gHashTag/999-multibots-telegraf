@@ -43,7 +43,13 @@ import {
 } from '../src/autopilot-state'
 import { deliverToChannel } from '../src/channel-delivery'
 import { readFaceSourceFile } from '../src/face-source'
-import { claimSpend, settleSpend, spendClaimId } from '../src/broll-spend'
+import {
+  assetStillThere,
+  claimSpend,
+  recallSpend,
+  settleSpend,
+  spendClaimId,
+} from '../src/broll-spend'
 import {
   attemptTalkingPortrait,
   kieProvider,
@@ -566,7 +572,34 @@ async function main() {
         )
       ).catch(() => 'silent' as const)
     : ('skip' as const)
-  if (posterClaim === 'taken' || posterClaim === 'silent') {
+  /**
+   * A CLAIM THAT ALREADY BOUGHT SOMETHING HANDS IT BACK.
+   *
+   * Stopping the second purchase was only half the job: the post that triggered
+   * the first one still published without the layer it had paid for. If the
+   * settled row kept an address and that address still answers, use it -- no
+   * provider is called and the post is whole. A dead address is not used: the
+   * render would fail on it, the cycle would die, and the next tick would reuse
+   * the same dead address forever.
+   */
+  let posterReused: string | null = null
+  if (posterClaim === 'taken') {
+    const kept = await withDb(db => recallSpend(db, posterClaimKey, log)).catch(
+      () => null
+    )
+    if (kept && (await assetStillThere(kept))) {
+      posterReused = kept
+      props.posterUrl = kept
+      poster = {
+        state: 'reused',
+        reason: 'взята уже оплаченная гравюра', // cyrillic-ok: artefact text
+        provider: null,
+        tried: [],
+      }
+      log('гравюра: переиспользую уже оплаченную, провайдер не вызывается')
+    }
+  }
+  if (!posterReused && (posterClaim === 'taken' || posterClaim === 'silent')) {
     /**
      * A SKIPPED LAYER SAYS SO IN THE ARTEFACT, not only in the log.
      *
@@ -606,9 +639,9 @@ async function main() {
       if (img?.['сделано'] && typeof img.url === 'string') {
         props.posterUrl = img.url
         // Settle the row; it is never released, see src/broll-spend.ts.
-        await withDb(db => settleSpend(db, posterClaimKey, log)).catch(
-          () => undefined
-        )
+        await withDb(db =>
+          settleSpend(db, posterClaimKey, log, img.url as string)
+        ).catch(() => undefined)
         poster = {
           state: 'delivered',
           provider: img.provider ?? null,
@@ -762,7 +795,17 @@ async function main() {
       ).catch(() => 'silent' as const)
     : ('skip' as const)
   if (brollClaim === 'taken') {
-    log('b-roll: клип для этой темы сегодня уже куплен, второй раз не плачу')
+    // Same recovery as the engraving above: an address that still answers is
+    // the clip this topic already paid for.
+    const kept = await withDb(db => recallSpend(db, brollClaimKey, log)).catch(
+      () => null
+    )
+    if (kept && (await assetStillThere(kept))) {
+      props.avatarVideo = kept
+      log('b-roll: переиспользую уже оплаченный клип, провайдер не вызывается')
+    } else {
+      log('b-roll: клип для этой темы сегодня уже куплен, второй раз не плачу')
+    }
   } else if (brollClaim === 'silent') {
     log('b-roll: трачу только под запись, пропускаю слой')
   }
@@ -817,9 +860,9 @@ async function main() {
       if (vid?.success && typeof vid.url === 'string') {
         props.avatarVideo = vid.url
         // Settle the row; it is never released, see src/broll-spend.ts.
-        await withDb(db => settleSpend(db, brollClaimKey, log)).catch(
-          () => undefined
-        )
+        await withDb(db =>
+          settleSpend(db, brollClaimKey, log, vid.url as string)
+        ).catch(() => undefined)
       } else {
         log(
           `b-roll не получился (${JSON.stringify(vid).slice(0, 140)}) — рендерю без него`
