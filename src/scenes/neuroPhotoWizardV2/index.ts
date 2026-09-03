@@ -189,7 +189,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     return
   } catch (error) {
     console.error('Error in neuroPhotoConversationStep V2:', error)
-    await sendGenericErrorMessage(ctx, isRu, error as Error)
+    await sendGenericErrorMessage(ctx, isRu)
     throw error
   }
 }

@@ -194,7 +194,7 @@ const neuroPhotoConversationStep = async (ctx: MyContext) => {
     }
   } catch (error) {
     console.error('Error in neuroPhotoConversationStep:', error)
-    await sendGenericErrorMessage(ctx, isRu, error)
+    await sendGenericErrorMessage(ctx, isRu)
     return ctx.scene.leave()
   }
 }

@@ -200,7 +200,7 @@ uploadTrainFluxModelScene.enter(async ctx => {
     )
   } catch (error) {
     console.error('Error in uploadTrainFluxModelScene:', error)
-    await sendGenericErrorMessage(ctx, isRu, error)
+    await sendGenericErrorMessage(ctx, isRu)
   } finally {
     // Free and invalidate the consumed training photos. The dataset was zipped
     // and submitted above; leaving the Buffers in the session leaks memory and

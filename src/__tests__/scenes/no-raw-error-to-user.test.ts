@@ -69,4 +69,25 @@ describe('scenes and inngest functions do not echo a raw JS error to the user', 
       `raw error text shown to users:\n${offenders.join('\n')}`
     ).toEqual([])
   })
+
+  it('no source passes a raw caught error to sendGenericErrorMessage', () => {
+    // sendGenericErrorMessage(ctx, isRu, error) puts error.message straight into
+    // ctx.reply, so it leaks the raw exception to the user (CWE-209) — the same
+    // class as above but via the helper, which the literal scan misses. The error
+    // is already logged in each catch; the reply must stay generic. Passing a
+    // deliberate custom string is fine; passing the caught `error` is not.
+    const offenders: string[] = []
+    for (const f of files) {
+      const src = fs.readFileSync(f, 'utf8')
+      for (const m of src.matchAll(
+        /sendGenericErrorMessage\([^)]*,[^)]*,\s*error\b[^)]*\)/g
+      )) {
+        offenders.push(`${f}: ${m[0].slice(0, 70)}`)
+      }
+    }
+    expect(
+      offenders,
+      `raw error passed to sendGenericErrorMessage:\n${offenders.join('\n')}`
+    ).toEqual([])
+  })
 })

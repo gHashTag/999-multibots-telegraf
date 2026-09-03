@@ -160,7 +160,7 @@ const conversationStep = async (ctx: MyContext) => {
       error: error instanceof Error ? error.message : String(error),
       telegramId: ctx.from?.id,
     })
-    await sendGenericErrorMessage(ctx, isRu, error as Error)
+    await sendGenericErrorMessage(ctx, isRu)
   } finally {
     ctx.session.aiChatInProgress = false
   }
