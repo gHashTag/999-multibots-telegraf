@@ -1118,8 +1118,26 @@ async function uploadToS3(
       { expiresIn: 604800 } // 7 days
     )
 
-    // Return proxy URL instead of direct S3 URL for browser compatibility (HEVC → H.264)
-    const proxyUrl = `/s3/${key}`
+    /**
+     * Proxy URL is ABSOLUTE, not root-relative.
+     *
+     * This returned `/s3/${key}`, which resolves only for a client sitting on
+     * this same origin -- a browser page served by this server. The iOS app
+     * fed it straight into a URL and got nothing: /api/generate/audio answered
+     * 200 with a body nobody could fetch, so voice looked broken in the app
+     * while the endpoint itself was healthy.
+     *
+     * Video and image happen to return absolute links from other paths, which
+     * is why only voice showed the symptom -- and why it read as "the voice
+     * provider is down" rather than "the URL has no host".
+     *
+     * The proxy itself stays: it is what transcodes HEVC to H.264 on the way
+     * out. Only the host is added.
+     */
+    const PUBLIC_BASE = (
+      process.env.PUBLIC_URL || 'https://vibee-render-production.up.railway.app'
+    ).replace(/\/+$/, '')
+    const proxyUrl = `${PUBLIC_BASE}/s3/${key}`
     const directUrl = `${S3_PUBLIC_URL}/${key}`
     console.log(
       `✅ Uploaded to S3: ${directUrl} (signed: ${signedUrl.substring(0, 80)}...)`
