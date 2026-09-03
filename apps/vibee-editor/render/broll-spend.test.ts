@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import {
+  assetStillThere,
   CLAIM_CREDITS,
   claimSpend,
+  recallSpend,
   settleSpend,
   spendClaimId,
 } from './src/broll-spend'
@@ -134,9 +136,9 @@ describe('заявка на клип берётся до оплаты', () => {
   it('доставка закрывает заявку', async () => {
     const upd = fakeDb([{ rows: [] }])
     await settleSpend(upd, CLAIM.id, noop)
-    expect(upd.sql.join(' ')).toMatch(
-      /UPDATE autopilot_spend SET state = 'delivered'/
-    )
+    const sql = upd.sql.join(' ')
+    expect(sql).toMatch(/UPDATE autopilot_spend/)
+    expect(sql).toMatch(/state = 'delivered'/)
   })
 
   it('сбой закрытия не роняет цикл', async () => {
@@ -181,6 +183,18 @@ describe('гравюра тоже claim-before-pay', () => {
     expect(claim).toBeGreaterThan(-1)
     expect(pay).toBeGreaterThan(-1)
     expect(claim).toBeLessThan(pay)
+  })
+
+  it('сначала пробует ПЕРЕИСПОЛЬЗОВАТЬ оплаченное, и только потом пропускает', () => {
+    // Order matters: the skip branch must not run before the recovery, or the
+    // post loses a layer that was already paid for.
+    const recall = block.indexOf('recallSpend(')
+    const skip = block.search(/state: 'skipped'/)
+    expect(recall).toBeGreaterThan(-1)
+    expect(skip).toBeGreaterThan(-1)
+    expect(recall).toBeLessThan(skip)
+    // And a recalled address is used only when it still answers.
+    expect(block).toMatch(/assetStillThere\(/)
   })
 
   it('пропущенный слой ЗАПИСАН в артефакт, а не только в лог', () => {
@@ -242,5 +256,46 @@ describe('в автопилоте заявка стоит ДО платного 
     // And a refusal is still explained to the log rather than silent.
     expect(SCRIPT).toMatch(/brollClaim === 'taken'/)
     expect(SCRIPT).toMatch(/brollClaim === 'silent'/)
+  })
+})
+
+describe('оплаченное возвращается, а не теряется', () => {
+  it('закрытие заявки СОХРАНЯЕТ адрес купленного', async () => {
+    const db = fakeDb([{ rows: [] }])
+    await settleSpend(db, CLAIM.id, noop, 'https://cdn.example/x.png')
+    expect(db.sql.join(' ')).toMatch(/task_id = COALESCE/)
+    expect(db.params.at(-1)).toContain('https://cdn.example/x.png')
+  })
+
+  it('перечитывает адрес только у ЗАКРЫТОЙ заявки', async () => {
+    // An 'intent' row means the money moved and the cycle died before anything
+    // came back: there is nothing to reuse, and the query must not pretend.
+    const db = fakeDb([{ rows: [{ task_id: 'https://cdn.example/x.png' }] }])
+    expect(await recallSpend(db, CLAIM.id, noop)).toBe(
+      'https://cdn.example/x.png'
+    )
+    expect(db.sql.join(' ')).toMatch(/state = 'delivered'/)
+    expect(db.sql.join(' ')).toMatch(/task_id IS NOT NULL/)
+  })
+
+  it('не отдаёт мусор вместо адреса', async () => {
+    const notAUrl = fakeDb([{ rows: [{ task_id: 'kie-task-123' }] }])
+    expect(await recallSpend(notAUrl, CLAIM.id, noop)).toBeNull()
+    const empty = fakeDb([{ rows: [] }])
+    expect(await recallSpend(empty, CLAIM.id, noop)).toBeNull()
+    expect(await recallSpend(null, CLAIM.id, noop)).toBeNull()
+  })
+
+  it('мёртвый адрес НЕ переиспользуется', async () => {
+    // Reusing a dead address is worse than skipping: the render fails on it,
+    // the cycle dies, and the next tick reuses the same dead address again.
+    const ok = async () => ({ ok: true }) as never
+    const gone = async () => ({ ok: false }) as never
+    const boom = async () => {
+      throw new Error('timeout')
+    }
+    expect(await assetStillThere('https://a/x.png', ok as never)).toBe(true)
+    expect(await assetStillThere('https://a/x.png', gone as never)).toBe(false)
+    expect(await assetStillThere('https://a/x.png', boom as never)).toBe(false)
   })
 })
