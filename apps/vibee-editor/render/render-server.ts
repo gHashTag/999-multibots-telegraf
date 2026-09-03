@@ -1966,8 +1966,15 @@ async function chargeMiniAppUser(
 ): Promise<
   { ok: true; tid?: string } | { ok: false; status: number; reason: string }
 > {
-  // Server-to-server: already paid at the tool layer.
-  if (req.headers['x-api-key']) return { ok: true }
+  // Server-to-server: already paid at the tool layer. Key off the VALIDATED
+  // auth decision, not the raw header: authenticate() only returns via
+  // 'api-key' when X-Api-Key timing-safe-matches RENDER_API_KEY, whereas a
+  // WRONG X-Api-Key falls through to the initData/session branches (auth.ts
+  // does not reject it). So `req.headers['x-api-key']` present-but-invalid used
+  // to skip billing for any signed Mini App user who added a junk header ->
+  // free generation past the paywall. This mirrors the auth.via === 'api-key'
+  // gate already used for render-owner actions elsewhere in this file.
+  if (authenticate(req).via === 'api-key') return { ok: true }
 
   const tid = verifiedViewerId(req)
   if (!tid) {
