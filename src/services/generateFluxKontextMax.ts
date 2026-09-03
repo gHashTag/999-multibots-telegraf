@@ -76,6 +76,14 @@ export const generateFluxKontextMax = async (
   // the outer catch can remove it too when delivery fails, instead of orphaning
   // it on disk (#1029 class).
   let tempFileToCleanup: string | null = null
+  // Set once a refund has been issued, so the outer catch cannot refund a second
+  // time after the inner save-failure catch already did (in a batch the lump charge
+  // N*cost lets refundUser's netting pass a second per-image credit). Mirrors #1649.
+  let refunded = false
+  // Armed only on a REAL charge (balanceCheck success, or batch skipBalanceCheck);
+  // a welcome gift / insufficient-funds throw is never charged, so its failure must
+  // not refund against an unrelated prior charge. Mirrors #1649 / SeedEdit3.
+  let charged = false
 
   try {
     const {
@@ -189,7 +197,11 @@ export const generateFluxKontextMax = async (
         })
         throw new Error('Not enough stars')
       }
+      charged = true
     } else {
+      // Batch (skipBalanceCheck) was already charged by the caller and may be
+      // refunded on failure; a welcome gift was never charged, so it must not.
+      if (params.skipBalanceCheck && !params.is_welcome_gift) charged = true
       console.log('🎁 [FluxKontextMax] Skipping balance check - welcome gift', {
         telegram_id,
       })
@@ -417,13 +429,16 @@ export const generateFluxKontextMax = async (
         saveError instanceof Error ? saveError.message : String(saveError)
       console.error('🚨 [FluxKontextMax] Failed to save prompt:', saveError)
       // Refund user if database save fails
-      await refundUser(
-        ctx,
-        params.chargedCostOverride ?? FLUX_KONTEXT_MAX_MODEL.costPerImage,
-        {
-          reason: 'generation_failed',
-        }
-      )
+      if (charged) {
+        await refundUser(
+          ctx,
+          params.chargedCostOverride ?? FLUX_KONTEXT_MAX_MODEL.costPerImage,
+          {
+            reason: 'generation_failed',
+          }
+        )
+        refunded = true
+      }
       throw new Error(`Failed to save generation record: ${originalMsg}`)
     }
   } catch (error) {
@@ -544,8 +559,10 @@ export const generateFluxKontextMax = async (
       await params.ctx.reply(errorMessage)
     }
 
-    // Refund user - ONLY if not a welcome gift (no charge was made)
-    if (!params.is_welcome_gift) {
+    // Refund only when a real charge occurred (`charged`) and it was not already
+    // refunded by the inner save-failure catch (else a batch failure double-refunds).
+    // `charged` excludes welcome gifts and the insufficient-funds throw (no mint).
+    if (!refunded && charged) {
       await refundUser(
         params.ctx,
         params.chargedCostOverride ?? FLUX_KONTEXT_MAX_MODEL.costPerImage,
