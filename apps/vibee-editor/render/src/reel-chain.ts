@@ -79,6 +79,7 @@ import {
   assembleArgs,
   checkFaceBudget,
   defaultFaceCuts,
+  parseLeadingSilenceMs,
   planReel,
   sliceArgs,
   type FaceCut,
@@ -114,11 +115,7 @@ export type Exec = (
  * the second is free to retry.
  */
 export type JobStage =
-  | 'success'
-  | 'input-refused'
-  | 'provider-failed'
-  | 'timeout'
-  | 'empty-result'
+  'success' | 'input-refused' | 'provider-failed' | 'timeout' | 'empty-result'
 
 export interface JobAnswer {
   ok: boolean
@@ -550,10 +547,7 @@ export interface ReelDeps {
   workDir: string
   log: Log
   /** img2img. Injected because the still leg is already shipped elsewhere. */
-  editImage: (o: {
-    prompt: string
-    imageUrl: string
-  }) => Promise<{
+  editImage: (o: { prompt: string; imageUrl: string }) => Promise<{
     ok: boolean
     url?: string
     credits?: number | null
@@ -606,6 +600,26 @@ export async function probeMs(exec: Exec, file: string): Promise<number> {
   ])
   const v = Number(String(r.stdout).trim())
   return Number.isFinite(v) ? Math.round(v * 1000) : 0
+}
+
+/** Leading silence only; values are labels in logs, never audio contents. */
+export async function probeLeadingSilenceMs(
+  exec: Exec,
+  file: string
+): Promise<number> {
+  const r = await exec('ffmpeg', [
+    '-hide_banner',
+    '-t',
+    '2.5',
+    '-i',
+    file,
+    '-af',
+    'silencedetect=noise=-38dB:d=0.06',
+    '-f',
+    'null',
+    '-',
+  ])
+  return parseLeadingSilenceMs(r.stderr)
 }
 
 export async function produceReel(
@@ -699,6 +713,7 @@ export async function produceReel(
 
   // 4. The face cuts: slice the ONE voice-over, store the slice, animate it.
   const faceFiles: string[] = []
+  const faceVisualDelayMs: number[] = []
   let faceProviderId: string | undefined
   let faceAttempts: string[] = []
   for (let i = 0; i < plan.faceCuts.length; i++) {
@@ -746,6 +761,17 @@ export async function produceReel(
     faceProviderId = face.providerId
     const faceFile = path.join(d.workDir, `face-${stamp}-${i}.mp4`)
     await download(d.fetchImpl, face.url, faceFile)
+    const sourceLeadMs = await probeLeadingSilenceMs(d.exec, sliceFile)
+    const providerLeadMs = await probeLeadingSilenceMs(d.exec, faceFile)
+    const visualDelayMs = Math.max(
+      -350,
+      Math.min(350, sourceLeadMs - providerLeadMs)
+    )
+    faceVisualDelayMs.push(visualDelayMs)
+    d.log(
+      `лицо №${i + 1}: A/V pre-roll ${sourceLeadMs}/${providerLeadMs} мс, ` +
+        `поправка изображения ${visualDelayMs} мс`
+    )
     faceFiles.push(faceFile)
   }
 
@@ -777,6 +803,7 @@ export async function produceReel(
   const outFile = path.join(d.workDir, `reel-${stamp}.mp4`)
   const { args } = assembleArgs(plan, {
     faceFiles,
+    faceVisualDelayMs,
     stillFiles,
     voiceFile,
     outFile,

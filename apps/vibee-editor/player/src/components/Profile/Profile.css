@@ -1629,6 +1629,13 @@
   background: #0d0d0c;
 }
 
+.profile-skills__card--focused {
+  border-color: var(--vibee-gold, #d7b56d);
+  box-shadow:
+    0 0 0 1px rgba(215, 181, 109, 0.35),
+    0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
 .profile-skills__card-head {
   display: flex;
   justify-content: space-between;
@@ -1654,7 +1661,9 @@
   background: transparent;
   color: #8a8578;
   cursor: pointer;
-  transition: color 0.2s, background 0.2s;
+  transition:
+    color 0.2s,
+    background 0.2s;
 }
 
 .profile-skills__actions button:hover {
@@ -1929,7 +1938,9 @@
   font-size: 11px;
   white-space: nowrap;
   cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
 }
 
 .profile-plan__status:disabled {

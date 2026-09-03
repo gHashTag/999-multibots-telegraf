@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Globe, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import { API_BASE } from '@/config'
 import { authHeaders } from '@/lib/apiFetch'
+import { useSearchParams } from 'react-router-dom'
 
 interface Skill {
   id: number
@@ -21,6 +22,8 @@ interface Skill {
 type Draft = { id: number | null; name: string; content: string }
 
 export function ProfileSkills() {
+  const [searchParams] = useSearchParams()
+  const focusedSkillId = Number(searchParams.get('skill')) || null
   const [skills, setSkills] = useState<Skill[] | null>(null)
   const [market, setMarket] = useState<
     { id: number; name: string; excerpt: string; author: string }[] | null
@@ -65,6 +68,21 @@ export function ProfileSkills() {
     load().catch(() => setSkills([]))
   }, [load])
 
+  useEffect(() => {
+    if (
+      !focusedSkillId ||
+      !skills?.some(skill => skill.id === focusedSkillId)
+    ) {
+      return
+    }
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .getElementById(`profile-skill-${focusedSkillId}`)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [focusedSkillId, skills])
+
   const publish = async (id: number, pub: boolean) => {
     setBusy(true)
     try {
@@ -96,7 +114,10 @@ export function ProfileSkills() {
             name: draft.name,
             content: draft.content,
           })
-        : await call('skills_create', { name: draft.name, content: draft.content })
+        : await call('skills_create', {
+            name: draft.name,
+            content: draft.content,
+          })
       const okKey = draft.id ? 'обновлено' : 'создано'
       if (r[okKey]) {
         setDraft(null)
@@ -137,13 +158,19 @@ export function ProfileSkills() {
       {skills === null ? (
         <div className="profile-skills__list">
           {[1, 2].map(i => (
-            <div key={i} className="skeleton" style={{ height: 92, borderRadius: 12 }} />
+            <div
+              key={i}
+              className="skeleton"
+              style={{ height: 92, borderRadius: 12 }}
+            />
           ))}
         </div>
       ) : skills.length === 0 && !draft ? (
         <div className="profile-files__empty">
           <Sparkles size={32} />
-          <p>Скиллов пока нет. Одно-два правила — и агент пишет твоим голосом.</p>
+          <p>
+            Скиллов пока нет. Одно-два правила — и агент пишет твоим голосом.
+          </p>
           <button
             className="profile-files__cta"
             onClick={() =>
@@ -161,25 +188,44 @@ export function ProfileSkills() {
       ) : (
         <div className="profile-skills__list">
           {skills.map(sk => (
-            <div key={sk.id} className="profile-skills__card">
+            <div
+              key={sk.id}
+              id={`profile-skill-${sk.id}`}
+              className={`profile-skills__card${
+                focusedSkillId === sk.id ? ' profile-skills__card--focused' : ''
+              }`}
+            >
               <div className="profile-skills__card-head">
                 <span className="profile-skills__name">{sk.name}</span>
                 <span className="profile-skills__actions">
                   <button
                     title="Изменить"
                     onClick={() =>
-                      setDraft({ id: sk.id, name: sk.name, content: sk.content })
+                      setDraft({
+                        id: sk.id,
+                        name: sk.name,
+                        content: sk.content,
+                      })
                     }
                   >
                     <Pencil size={14} />
                   </button>
                   <button
-                    title={(sk as { is_public?: boolean }).is_public ? 'Скрыть с витрины' : 'На витрину маркета'}
-                    onClick={() => publish(sk.id, !(sk as { is_public?: boolean }).is_public)}
+                    title={
+                      (sk as { is_public?: boolean }).is_public
+                        ? 'Скрыть с витрины'
+                        : 'На витрину маркета'
+                    }
+                    onClick={() =>
+                      publish(sk.id, !(sk as { is_public?: boolean }).is_public)
+                    }
                   >
                     <Globe size={14} />
                   </button>
-                  <button title="Удалить" onClick={() => remove(sk.id, sk.name)}>
+                  <button
+                    title="Удалить"
+                    onClick={() => remove(sk.id, sk.name)}
+                  >
                     <Trash2 size={14} />
                   </button>
                 </span>
@@ -207,7 +253,8 @@ export function ProfileSkills() {
                   </button>
                 </div>
                 <p className="profile-skills__content">
-                  {mk.excerpt}… <span className="profile-skills__author">@{mk.author}</span>
+                  {mk.excerpt}…{' '}
+                  <span className="profile-skills__author">@{mk.author}</span>
                 </p>
               </div>
             ))}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
 import { agentMessagesAtom, agentDraftAtom } from '@/atoms/agentChat'
 import { sendToAgent, agentBusyAtom } from '@/lib/agentStream'
@@ -50,8 +50,12 @@ const WELCOME: Message = {
     // (PR #717), но приветствие — не его ответ, а статичная строка, и она
     // проверок не делает. Поэтому она больше ничего не обещает: спрашивает.
     // Что доступно, агент выяснит и скажет сам, когда человек ответит.
-    'С чего начнём? Скажи, что хочешь получить — я проверю, что из этого ' +
-    'работает прямо сейчас, и сделаю.',
+    'Можно просто написать: «начать обучение» — я проведу по семи коротким ' +
+    'урокам от профиля и контент-плана до готового рилса. Первые три урока ' +
+    'без списаний; перед каждой платной практикой я покажу результат, цену и ' +
+    'попрошу отдельное подтверждение словами. Публикация подтверждается отдельно.\n\n' +
+    'Другие команды: «мой прогресс», «следующий урок», «покажи смету», ' +
+    '«пополнить 50 токенов», «новый разговор», «стоп».',
 }
 
 /**
@@ -69,11 +73,11 @@ const WELCOME: Message = {
  * Порядок намеренный: сначала «что работает» — потому что у FAL кончился
  * баланс, и честнее узнать это до того, как что-то заказывать.
  */
-const SUGGESTIONS = [
-  'Что сейчас работает, а что нет?',
-  'Покажи мой контент-план',
-  'Что мне снять дальше — предложи три темы',
-  'Что ты знаешь обо мне?',
+const COMMAND_EXAMPLES = [
+  'начать обучение',
+  'покажи мой контент-план',
+  'подготовь второй рилс в моём стиле',
+  'покажи смету',
 ]
 
 function ChatPage() {
@@ -84,9 +88,7 @@ function ChatPage() {
   const [input, setInput] = useAtom(agentDraftAtom)
   // Занятость — в атоме: она принадлежит разговору, а не странице.
   const busy = useAtomValue(agentBusyAtom)
-  const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({})
   const [tokens, setTokens] = useState<number | null>(null)
-  const [topUp, setTopUp] = useState(false)
   const [topUpNote, setTopUpNote] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -265,10 +267,36 @@ function ChatPage() {
    * шёл посмотреть ленту и возвращался к оборванному ответу, даже когда
    * сервер честно досчитал. Теперь страница только зовёт и читает стор.
    */
-  const send = useCallback((text: string) => {
-    void sendToAgent(text)
-    setInput('')
-  }, [setInput])
+  const send = useCallback(
+    (text: string) => {
+      const clean = text.trim()
+      if (!clean) return
+      void sendToAgent(clean)
+      setInput('')
+    },
+    [setInput]
+  )
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const clean = input.trim()
+    if (!clean || busy) return
+    if (/^новый разговор[.!]?$/i.test(clean)) {
+      setMessages([WELCOME])
+      setInput('')
+      setTopUpNote(null)
+      return
+    }
+    const topUpMatch = clean.match(
+      /^пополнить\s+(10|50|150)(?:\s+токен(?:ов|а)?)?[.!]?$/i
+    )
+    if (topUpMatch) {
+      setInput('')
+      void buy(topUpMatch[1])
+      return
+    }
+    send(clean)
+  }
 
   return (
     <div className="chat-page">
@@ -281,39 +309,10 @@ function ChatPage() {
           <p>
             Смотрит в приложение своими инструментами и делает, а не советует
           </p>
-          {/* Переписка теперь переживает уход со страницы — значит нужен и
-              способ её закончить. Без этой кнопки старый разговор оставался
-              бы на экране навсегда. */}
-          {messages.length > 1 && (
-            <button
-              className="chat-reset"
-              onClick={() => {
-                setMessages([WELCOME])
-                setInput('')
-              }}
-            >
-              Новый разговор
-            </button>
-          )}
           {tokens !== null && (
-            <button className="chat-tokens" onClick={() => setTopUp(v => !v)}>
-              💰 {tokens} токенов · пополнить
-            </button>
+            <span className="chat-tokens">💰 {tokens} токенов</span>
           )}
-          {topUp && (
-            <div className="chat-topup">
-              {/* Якорная психология (2026): большой пакет первым — средний
-                  на его фоне выглядит выгодным. 150: 1.17⭐/ток против 1.5
-                  у десятки — честный «выгоднее всех», не маркетинговый. */}
-              {[150, 50, 10].map(p => (
-                <button key={p} className="chat-topup__pack" onClick={() => buy(String(p))}>
-                  {p} токенов{p === 150 ? ' · выгоднее всех' : ''}
-                  <span>{p === 10 ? '15 ⭐' : p === 50 ? '65 ⭐' : '175 ⭐'}</span>
-                </button>
-              ))}
-              {topUpNote && <p className="chat-topup__note">{topUpNote}</p>}
-            </div>
-          )}
+          {topUpNote && <p className="chat-topup__note">{topUpNote}</p>}
         </div>
       </div>
 
@@ -325,17 +324,10 @@ function ChatPage() {
               className={`message ${m.role === 'user' ? 'user' : 'agent'}`}
             >
               {m.thinking ? (
-                <button
-                  className="thinking-toggle"
-                  onClick={() =>
-                    setOpenThinking(s => ({ ...s, [m.id]: !s[m.id] }))
-                  }
-                >
-                  {openThinking[m.id] ? '▾' : '▸'} размышление
-                </button>
-              ) : null}
-              {m.thinking && openThinking[m.id] ? (
-                <div className="thinking-body">{m.thinking}</div>
+                <details className="thinking-details">
+                  <summary className="thinking-toggle">размышление</summary>
+                  <div className="thinking-body">{m.thinking}</div>
+                </details>
               ) : null}
               {m.tools && m.tools.length > 0 ? (
                 <div className="tool-chips">
@@ -365,23 +357,16 @@ function ChatPage() {
           ))}
 
           {messages.length <= 1 ? (
-            <div className="suggestions">
-              {SUGGESTIONS.map((s, i) => (
-                <button
-                  key={i}
-                  className="suggestion-btn"
-                  onClick={() => send(s)}
-                >
-                  {s}
-                </button>
-              ))}
+            <div className="chat-commands" aria-label="Примеры команд">
+              <p>Напишите команду своими словами:</p>
+              <code>{COMMAND_EXAMPLES.join(' · ')}</code>
             </div>
           ) : null}
         </div>
       </div>
 
       <div className="chat-input-area">
-        <div className="chat-input-container">
+        <form className="chat-input-container" onSubmit={submit}>
           <input
             type="text"
             className="chat-input"
@@ -389,16 +374,14 @@ function ChatPage() {
             value={input}
             disabled={busy}
             onChange={e => setInput(e.target.value)}
-            onKeyPress={e => e.key === 'Enter' && send(input)}
+            enterKeyHint="send"
+            autoComplete="off"
+            aria-label="Команда агенту"
           />
-          <button
-            className="send-btn"
-            onClick={() => send(input)}
-            disabled={busy}
-          >
-            {busy ? '…' : t('chat.send')}
-          </button>
-        </div>
+          <span className="chat-enter-hint" aria-hidden="true">
+            {busy ? 'агент работает…' : 'Enter ↵'}
+          </span>
+        </form>
       </div>
     </div>
   )

@@ -322,6 +322,12 @@ export function planReel(opts: {
 export interface AssemblyInput {
   /** Local file for each face segment, indexed like `PlannedSegment.index`. */
   faceFiles: string[]
+  /**
+   * Delay each face picture when its provider trimmed more leading silence
+   * than the master voice. Positive values hold the first frame; negative
+   * values trim provider pre-roll. Audio always remains the master voice.
+   */
+  faceVisualDelayMs?: number[]
   /** Local file for each still, indexed like `PlannedSegment.index`. */
   stillFiles: string[]
   /** The ONE voice-over. Its bytes are the finished reel's only audio. */
@@ -331,6 +337,16 @@ export interface AssemblyInput {
 
 function msToS(ms: number): string {
   return (ms / 1000).toFixed(3)
+}
+
+/** Parse only silence that genuinely starts at media time zero. */
+export function parseLeadingSilenceMs(stderr: string): number {
+  const match = stderr.match(
+    /silence_start:\s*0(?:\.0+)?[^]*?silence_end:\s*([0-9]+(?:\.[0-9]+)?)/i
+  )
+  if (!match) return 0
+  const seconds = Number(match[1])
+  return Number.isFinite(seconds) ? Math.max(0, Math.round(seconds * 1000)) : 0
 }
 
 /**
@@ -378,10 +394,21 @@ export function assembleArgs(
           `trim=end=${msToS(durMs)},setpts=PTS-STARTPTS,format=yuv420p[v${i}]`
       )
     } else {
+      const visualDelayMs = Math.max(
+        -350,
+        Math.min(350, Math.round(input.faceVisualDelayMs?.[seg.index] ?? 0))
+      )
+      const timing =
+        visualDelayMs > 0
+          ? `tpad=start_mode=clone:start_duration=${msToS(visualDelayMs)},`
+          : visualDelayMs < 0
+            ? `trim=start=${msToS(-visualDelayMs)},setpts=PTS-STARTPTS,`
+            : ''
       inputs.push('-i', file)
       filters.push(
         `[${idx}:v]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,` +
-          `crop=${WIDTH}:${HEIGHT},fps=${FPS},` +
+          `crop=${WIDTH}:${HEIGHT},${timing}` +
+          `minterpolate=fps=${FPS}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1,` +
           `trim=end=${msToS(durMs)},setpts=PTS-STARTPTS,format=yuv420p[v${i}]`
       )
     }
@@ -409,9 +436,9 @@ export function assembleArgs(
       '-c:v',
       'libx264',
       '-preset',
-      'medium',
+      'slow',
       '-crf',
-      '20',
+      '18',
       '-pix_fmt',
       'yuv420p',
       '-r',
@@ -419,7 +446,9 @@ export function assembleArgs(
       '-c:a',
       'aac',
       '-b:a',
-      '128k',
+      '192k',
+      '-movflags',
+      '+faststart',
       '-shortest',
       '-y',
       input.outFile,

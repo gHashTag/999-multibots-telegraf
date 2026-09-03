@@ -26,6 +26,8 @@
  */
 
 import { planTools } from './plan-tools'
+import { createReelTemplateTools } from './reel-template-tools'
+import { createAgentTrainingTools } from './agent-training-tools'
 import { pricingSummary, providerSetup, CLUB } from './pricing'
 import { editImage, EDIT_MODEL } from '../kie-image'
 
@@ -40,6 +42,13 @@ export interface AgentTool {
   description: string
   /** JSON Schema аргументов — её же отдаём наружу по MCP tools/list. */
   parameters: Record<string, unknown>
+  /** MCP hints for UI/trust. Enforcement still lives on the server. */
+  annotations?: {
+    readOnlyHint?: boolean
+    destructiveHint?: boolean
+    idempotentHint?: boolean
+    openWorldHint?: boolean
+  }
   handler: (args: Record<string, any>, ctx: ToolContext) => Promise<unknown>
 }
 
@@ -2017,6 +2026,13 @@ export const TOOLS: AgentTool[] = [
   },
 
   ...planTools,
+  ...createReelTemplateTools({
+    image_generate: TOKEN_PRICES.image_generate,
+    audio_generate: TOKEN_PRICES.audio_generate,
+    video_generate: TOKEN_PRICES.video_generate,
+    reel_render: TOKEN_PRICES.reel_render,
+  }),
+  ...createAgentTrainingTools(),
 ]
 
 /**
@@ -2047,5 +2063,6 @@ export function toMcpTools() {
     name: t.name,
     description: t.description,
     inputSchema: t.parameters,
+    ...(t.annotations ? { annotations: t.annotations } : {}),
   }))
 }

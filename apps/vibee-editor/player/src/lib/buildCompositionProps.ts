@@ -151,6 +151,8 @@ export function convertToSplitTalkingHeadProps(
     // Visual effects
     vignetteStrength: props.vignetteStrength,
     colorCorrection: props.colorCorrection,
+    filmGrainOpacity: 0,
+    filmFlickerStrength: 0,
     // Avatar settings mode (from UI toggle)
     avatarSettingsTab,
     // Avatar animation

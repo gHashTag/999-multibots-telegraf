@@ -172,33 +172,24 @@
   }
 }
 
-/* Подсказки-кнопки: контурные, зелёный на наведении. */
-.suggestions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* Команды остаются текстом: человек общается с агентом, а не выбирает CTA. */
+.chat-commands {
   max-width: 760px;
   margin: 6px auto 0;
   width: 100%;
-}
-.suggestion-btn {
-  text-align: left;
   padding: 12px 14px;
-  min-height: 44px;
   border-radius: 10px;
   border: 1px solid var(--t27-border);
-  background: transparent;
-  color: var(--t27-text);
+  color: var(--t27-muted);
   font-size: 14px;
-  font-family: inherit;
-  cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease;
 }
-.suggestion-btn:hover {
-  border-color: var(--t27-accent);
-  background: rgba(0, 255, 136, 0.06);
+.chat-commands p {
+  margin: 0 0 6px;
+}
+.chat-commands code {
+  color: var(--t27-text);
+  white-space: normal;
+  line-height: 1.7;
 }
 
 /* Поле ввода. */
@@ -232,25 +223,11 @@
 .chat-input::placeholder {
   color: var(--t27-muted);
 }
-.send-btn {
-  min-width: 90px;
-  min-height: 44px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--t27-accent);
-  color: #000;
-  font-weight: 600;
-  font-size: 14px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: filter 0.15s ease;
-}
-.send-btn:hover:not(:disabled) {
-  filter: brightness(1.08);
-}
-.send-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
+.chat-enter-hint {
+  align-self: center;
+  color: var(--t27-muted);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 /* Баланс токенов в шапке чата: цена генераций видна до первого списания */
@@ -264,63 +241,6 @@
   color: var(--vibee-gold);
   font-size: 13px;
   letter-spacing: 0.02em;
-}
-
-/* Пополнение токенов: пакеты под чипом баланса */
-.chat-tokens {
-  cursor: pointer;
-  font-size: 13px;
-}
-
-/* «Новый разговор»: та же таблетка, что у баланса, но приглушённая — это
-   выход из состояния, а не действие, которое стоит предлагать первым. */
-.chat-reset {
-  display: inline-block;
-  margin-top: 6px;
-  margin-left: 8px;
-  padding: 4px 12px;
-  border: 1px solid #2a2820;
-  border-radius: 999px;
-  background: transparent;
-  color: #8a8578;
-  font-size: 13px;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-}
-
-.chat-reset:hover {
-  color: var(--vibee-cream, #f2ede1);
-  border-color: #3a3830;
-}
-
-.chat-topup {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.chat-topup__pack {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 14px;
-  border: 1px solid #2a2820;
-  border-radius: 12px;
-  background: #0d0d0c;
-  color: #e6e0d2;
-  font-size: 13px;
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-
-.chat-topup__pack:hover {
-  border-color: var(--vibee-gold);
-}
-
-.chat-topup__pack span {
-  color: var(--vibee-gold);
-  font-size: 12px;
 }
 
 .chat-topup__note {
