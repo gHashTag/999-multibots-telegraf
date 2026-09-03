@@ -23,7 +23,10 @@ import { logger } from '@/utils/logger'
 // ✅ Webhook health verification on startup
 import { verifyWebhooksOnStartup } from '@/utils/webhookHealthCheck'
 import { requireInternalKey } from './middleware/requireInternalKey'
-import { redactSensitiveHeaders } from '@/utils/redactHeaders'
+import {
+  redactSensitiveHeaders,
+  redactSensitiveUrl,
+} from '@/utils/redactHeaders'
 
 // Определяем порт. Railway/Fly/Docker предоставляют PORT; мы используем API_PORT как override.
 // LAST FIX: 2025-11-25 - изменен с 2999 на 3000 согласно WEBHOOK_502_BAD_GATEWAY_FIX
@@ -69,7 +72,7 @@ export async function startApiServer(bot?: Telegraf): Promise<void> {
   app.use((req: any, res: any, next: any) => {
     logger.info(`[API] Request received`, {
       method: req.method,
-      url: req.url,
+      url: redactSensitiveUrl(req.url),
       // redactSensitiveHeaders masks x-secret-key/authorization/cookie/telegram
       // secret; logging raw req.headers leaks them (CWE-532).
       headers: redactSensitiveHeaders(req.headers),

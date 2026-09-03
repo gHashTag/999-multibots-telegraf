@@ -639,6 +639,11 @@ apps/vibee-editor/render/stars-credit.test.ts :: a Stars payment credits tokens 
 apps/vibee-editor/render/stars-credit.test.ts :: it refuses rather than guessing a payment with no charge id is credited but SAYS it had no dedup key
 apps/vibee-editor/render/stars-credit.test.ts :: it refuses rather than guessing a zero or negative amount means no credit
 apps/vibee-editor/render/stars-credit.test.ts :: it refuses rather than guessing no recipient means no credit
+apps/vibee-editor/render/stars-secret-not-logged.test.ts :: секрет кассира не попадает в лог вырезан и когда рядом есть query — query тут ни при чём
+apps/vibee-editor/render/stars-secret-not-logged.test.ts :: секрет кассира не попадает в лог логгер зовёт редактор, а не сырой путь
+apps/vibee-editor/render/stars-secret-not-logged.test.ts :: секрет кассира не попадает в лог обычные пути не искажаются — маска узкая, а не «прячь всё»
+apps/vibee-editor/render/stars-secret-not-logged.test.ts :: секрет кассира не попадает в лог секрет из ПУТИ вебхука вырезан
+apps/vibee-editor/render/stars-secret-not-logged.test.ts :: секрет кассира не попадает в лог секрет сравнивается с сегментом пути — то есть он и есть охрана
 apps/vibee-editor/render/sync-from-telegram-verify.test.ts :: sync-from-telegram verifies initData before believing it a browser session can only read the profile persisted at verified login
 apps/vibee-editor/render/sync-from-telegram-verify.test.ts :: sync-from-telegram verifies initData before believing it checks the signature before reading a user out of the header
 apps/vibee-editor/render/sync-from-telegram-verify.test.ts :: sync-from-telegram verifies initData before believing it the handler is found — otherwise the checks below are empty
@@ -4083,6 +4088,12 @@ src/__tests__/utils/redactBotToken.test.ts :: redactBotToken leaves ordinary tex
 src/__tests__/utils/redactBotToken.test.ts :: redactBotToken masks a token anywhere in a larger string (meta JSON)
 src/__tests__/utils/redactBotToken.test.ts :: redactBotToken masks the token hash inside a Telegram file URL
 src/__tests__/utils/redactBotToken.test.ts :: the main logger runs every line through redactBotToken commonFormat.printf returns redactBotToken(line)
+src/__tests__/utils/redactCallbackTokenInUrl.test.ts :: redactSensitiveUrl: the callback token must not reach the log does not throw on undefined
+src/__tests__/utils/redactCallbackTokenInUrl.test.ts :: redactSensitiveUrl: the callback token must not reach the log keeps the path, so the log still says which route was hit
+src/__tests__/utils/redactCallbackTokenInUrl.test.ts :: redactSensitiveUrl: the callback token must not reach the log leaves ordinary parameters alone rather than blinding the log
+src/__tests__/utils/redactCallbackTokenInUrl.test.ts :: redactSensitiveUrl: the callback token must not reach the log masks the cb value while keeping the key visible
+src/__tests__/utils/redactCallbackTokenInUrl.test.ts :: redactSensitiveUrl: the callback token must not reach the log passes through a url that carries no query
+src/__tests__/utils/redactCallbackTokenInUrl.test.ts :: redactSensitiveUrl: the callback token must not reach the log the api_server request logger routes req.url through the redactor
 src/__tests__/x402/x402.integration.test.ts :: USDC Top-up Options should have all standard amounts
 src/__tests__/x402/x402.integration.test.ts :: USDC Top-up Options should have correct labels in both languages
 src/__tests__/x402/x402.integration.test.ts :: USDC Top-up Options should have test amounts ($1, $2) for faucet testing
