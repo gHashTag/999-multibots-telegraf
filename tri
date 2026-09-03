@@ -1756,59 +1756,107 @@ cmd_dupes() {
   #
   # В JS позднее объявление `function` МОЛЧА перекрывает раннее: первое
   # становится мёртвым, и правка, попавшая в него, не делает ничего. Дважды
-  # подряд такой дубль прятал находку, и оба раза я натыкался на него случайно:
+  # такой дубль прятал находку (it.90: четыре мутации легли в мёртвую копию и
+  # «прошли»; it.95: две копии таблицы разошлись, 33 героя против 16).
   #
-  #   it.90  probe-will-it-write объявляет exportedNames дважды. Четыре мутации
-  #          легли в мёртвую копию, «прошли», и это выглядело как дыра в
-  #          контроле — под тестом не менялось НИЧЕГО.
-  #   it.95  avatarTransformScene объявляет getHeroButtonText и его таблицу
-  #          дважды; копии разошлись (33 героя против 16), и одна рисует
-  #          кнопку, которую обработчик разобрать не может.
+  # ПОЧЕМУ ТУТ NODE, А НЕ GREP. Первая версия (it.95) искала регекспом по
+  # сырому тексту и дала 10 совпадений, из которых НАСТОЯЩЕЕ ОДНО. Восемь
+  # оказались образцами кода внутри шаблонных строк — тестовые фикстуры вида
+  # `const gated = \`export async function h(req,res){...}\`` — а ещё одно
+  # перегрузкой TypeScript. Число «9 настоящих» я успел опубликовать.
   #
-  # ЧЕГО ЭТА КОМАНДА НЕ ЛОВИТ, И ПОЧЕМУ — замерено, а не предположено.
-  # Случай it.95 — это `const`, а не `function`, и здесь он НЕ найдётся.
-  # Расширение пробовалось дважды и отклонено по шуму:
-  #     любые const/let/function .......... 2106 имён
-  #     то же с учётом отступа (≈область) .. 1771 имя в 525 файлах
-  #     только function .................... 10
-  # Полторы тысячи «находок» — это не находки: одноимённые `const result` в
-  # разных функциях законны. Ловим тот класс, где перекрытие МОЛЧАЛИВОЕ и
-  # всегда дефект; про остальное честно сказано, что не покрыто.
-  #
-  # ЛОЖНОЕ СРАБАТЫВАНИЕ, КОТОРОЕ НАДО ЗНАТЬ: перегрузки TypeScript. Сигнатуры
-  # `export function f(...)` без собственного тела выглядят как повторные
-  # объявления, хотя это законная идиома. Померено на сегодняшнем дереве:
-  # из 10 совпадений таких ОДНО (createInputByProvider в lipsync/validators,
-  # три сигнатуры с пустыми телами), настоящих дублей — 9. Отличить их можно
-  # по телу: у перегрузки его нет. Здесь это не автоматизировано намеренно,
-  # чтобы не городить разбор скобок в bash ради одного случая; вместо этого
-  # число названо, и читающий знает, что вычесть.
+  # Это уже второй раз, когда мой матчер считает не-код: в it.91 перепись
+  # выключенных тестов считала упоминание `describe.skip` В КОММЕНТАРИИ.
+  # Поэтому здесь перед поиском вырезаются и комментарии, и строковые
+  # литералы (обычные, одинарные и шаблонные) — то есть всё, что выглядит
+  # кодом, но кодом не является.
   #
   # Команда не доказывает дефект, она сужает круг чтения.
   local target="${1:-src}"
-  local found=0 filelist
+  local filelist
   if [ -f "$target" ]; then
-    # Явный файл нужен самопроверке: её образцы НЕ отслеживаются git, и первая
-    # версия не видела их вовсе — самопроверка это и поймала на первом прогоне.
+    # Явный файл нужен самопроверке: её образцы НЕ отслеживаются git.
     filelist="$target"
   else
     filelist="$(git -C "$ROOT" ls-files "$target/**/*.ts" "$target/**/*.cjs" "$target/*.ts" "$target/*.cjs" 2>/dev/null | sed "s|^|$ROOT/|")"
   fi
-  while IFS= read -r f; do
-    [ -f "$f" ] || continue
-    dups="$(grep -oE '^[[:space:]]*(export[[:space:]]+)?(async[[:space:]]+)?function[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*' "$f" 2>/dev/null \
-      | sed -E 's/.*function[[:space:]]+//' | sort | uniq -d)"
-    [ -n "$dups" ] || continue
-    while IFS= read -r name; do
-      [ -n "$name" ] || continue
-      n=$(grep -cE "^[[:space:]]*(export[[:space:]]+)?(async[[:space:]]+)?function[[:space:]]+${name}\b" "$f")
-      found=$((found + 1))
-      printf '  %-56s %s  x%s\n' "${f#$ROOT/}" "$name" "$n"
-    done <<< "$dups"
-  done <<< "$filelist"
-  echo ""
-  echo "функций, объявленных повторно: $found"
-  [ "$found" -eq 0 ]
+  printf '%s' "$filelist" | node -e '
+    const fs = require("fs");
+    let input = "";
+    process.stdin.on("data", d => (input += d));
+    process.stdin.on("end", () => {
+      const files = input.split("\n").filter(Boolean);
+      // Blank out comments and every kind of string literal, keeping offsets
+      // so reported line numbers stay true.
+      const blank = t => {
+        let out = "", i = 0;
+        const keepNl = s => s.replace(/[^\n]/g, " ");
+        while (i < t.length) {
+          const c = t[i];
+          if (c === "/" && t[i + 1] === "*") {
+            const j = t.indexOf("*/", i + 2);
+            const end = j === -1 ? t.length : j + 2;
+            out += keepNl(t.slice(i, end)); i = end; continue;
+          }
+          if (c === "/" && t[i + 1] === "/") {
+            const j = t.indexOf("\n", i);
+            const end = j === -1 ? t.length : j;
+            out += keepNl(t.slice(i, end)); i = end; continue;
+          }
+          if (c === "`" || c === "\"" || c === "'\''") {
+            let j = i + 1;
+            while (j < t.length) {
+              if (t[j] === "\\") { j += 2; continue; }
+              if (t[j] === c) break;
+              if (c !== "`" && t[j] === "\n") break;   // unterminated quote
+              j++;
+            }
+            const end = Math.min(j + 1, t.length);
+            out += c + keepNl(t.slice(i + 1, end));
+            i = end; continue;
+          }
+          out += c; i++;
+        }
+        return out;
+      };
+      let found = 0;
+      const re = /^[ \t]*(?:export[ \t]+)?(?:async[ \t]+)?function[ \t]+([A-Za-z_$][\w$]*)/gm;
+      for (const f of files) {
+        let src;
+        try { src = fs.readFileSync(f, "utf8"); } catch { continue; }
+        const code = blank(src);
+        const seen = new Map();
+        for (const m of code.matchAll(re)) {
+          const name = m[1];
+          if (!seen.has(name)) seen.set(name, []);
+          seen.get(name).push(m.index);
+        }
+        for (const [name, idxs] of seen) {
+          if (idxs.length < 2) continue;
+          // A TypeScript overload signature has no body of its own.
+          const withBody = idxs.filter(ix => {
+            const j = code.indexOf("{", ix);
+            if (j === -1) return false;
+            let d = 0, k = j;
+            for (; k < code.length; k++) {
+              if (code[k] === "{") d++;
+              else if (code[k] === "}") d--;
+              if (d === 0) break;
+            }
+            return k - j > 3;
+          });
+          if (withBody.length < 2) continue;
+          const lines = idxs.map(ix => code.slice(0, ix).split("\n").length);
+          found++;
+          console.log("  " + f.replace(process.argv[1] + "/", "") +
+                      "  " + name + "  x" + withBody.length + "  lines=" + lines.join(","));
+        }
+      }
+      console.log("");
+      console.log("функций, объявленных повторно: " + found);
+      process.exit(found === 0 ? 0 : 1);
+    });
+  ' "$ROOT"
 }
 
 cmd_dupes_selfcheck() {
@@ -1817,6 +1865,10 @@ cmd_dupes_selfcheck() {
   rm -rf "$d"; mkdir -p "$d"
   printf 'function twice() { return 1 }\nfunction twice() { return 2 }\n' > "$d/dup.ts"
   printf 'function once() { return 1 }\nconst other = 2\n' > "$d/clean.ts"
+  # ОБРАЗЕЦ КОДА ВНУТРИ ШАБЛОННОЙ СТРОКИ — не объявление. Ровно это первая
+  # версия команды считала дефектом: 8 из 10 её «находок» были тестовыми
+  # фикстурами вида `const gated = \`function h(){}\``.
+  printf 'const a = `function inside() { return 1 }`\nconst b = `function inside() { return 2 }`\n' > "$d/fixture.ts"
   local rc=0 out
   out="$(cmd_dupes "$d/dup.ts" 2>&1 || true)"
   local out_clean
@@ -1832,6 +1884,14 @@ cmd_dupes_selfcheck() {
     rc=1
   else
     good 'одиночное объявление дублем не названо'
+  fi
+  local out_fixture
+  out_fixture="$(cmd_dupes "$d/fixture.ts" 2>&1 || true)"
+  if printf '%s' "$out_fixture" | grep -q 'inside'; then
+    bad 'СЛОМАНА: объявление внутри шаблонной строки посчитано дублем'
+    rc=1
+  else
+    good 'образец кода в шаблонной строке дублем не считается'
   fi
   rm -rf "$d"
   return "$rc"
