@@ -154,7 +154,10 @@ function ffArg(v: string | number): string {
    * ведущий дефис, и он по-прежнему отклоняется. Дефис в середине пути —
    * обычный символ имени файла.
    */
-  if (s.startsWith('-') || !/^[A-Za-z0-9_.\/:%+= ][A-Za-z0-9_.\/:%+= -]*$/.test(s)) {
+  if (
+    s.startsWith('-') ||
+    !/^[A-Za-z0-9_.\/:%+= ][A-Za-z0-9_.\/:%+= -]*$/.test(s)
+  ) {
     throw new Error(`аргумент не прошёл белый список: ${s.slice(0, 40)}`)
   }
   return s
@@ -4108,6 +4111,16 @@ const server = createServer(async (req, res) => {
         let filePath = mediaUrl
         if (mediaUrl.startsWith('/') && !mediaUrl.startsWith('//')) {
           filePath = path.join(process.cwd(), 'public', mediaUrl)
+        } else {
+          /**
+           * Anything not a local path is handed to ffmpeg (or canvas) as an
+           * INPUT URL, and they fetch it themselves. Without this check the
+           * body decided what the server connects to, which is the same SSRF
+           * shape assertFetchable already guards everywhere else here: the
+           * cloud metadata address and the private ranges are one POST away.
+           * Public media keeps working -- the editor sends S3 links.
+           */
+          assertFetchable(mediaUrl)
         }
 
         // Detect face
