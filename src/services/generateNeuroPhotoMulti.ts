@@ -5,6 +5,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { MyContext, ModelUrl } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import { generateNeuroPhotoDirect } from './generateNeuroPhotoDirect'
+import { getUserBalance } from '@/core/supabase'
 import { calculateModeCost } from '@/price/helpers/modelsCost'
 import { ModeEnum } from '@/interfaces/modes'
 import { Markup } from 'telegraf'
@@ -139,6 +140,25 @@ export async function generateNeuroPhotoMulti(
 
   // Send processing notification
   const isRu = isRussianFromState(ctx)
+
+  // Full-batch payment gate. PLAN B charges each image separately and passes
+  // bypass_payment_check=true for images 2..N, which SKIPS the balance gate but
+  // still inserts the charge — so a user who cannot afford the series was charged
+  // into the negative and got the extra images for free. All N images are charged,
+  // so refuse the whole series up front unless the full cost is affordable. This
+  // only PREVENTS charging/delivery; it never adds a charge. (Residual: a
+  // concurrent spend between this check and the loop is a narrow TOCTOU — the
+  // atomic per-op deduct RPC is #999, owner-side.)
+  const currentBalance = await getUserBalance(telegram_id)
+  if (currentBalance < exactTotalCost) {
+    await ctx.reply(
+      isRu
+        ? `Недостаточно звёзд для серии из ${actualImageCount} фото: нужно ${exactTotalCost} ⭐, на балансе ${currentBalance} ⭐.`
+        : `Not enough stars for a series of ${actualImageCount} photos: need ${exactTotalCost} ⭐, you have ${currentBalance} ⭐.`
+    )
+    return null
+  }
+
   if (isMultiImage) {
     await ctx.reply(
       isRu
@@ -361,6 +381,12 @@ export async function generateNeuroPhotoMulti(
 
           if (localResult && localResult.success) {
             results.push(localResult)
+          } else {
+            // Stop the series on any failure: images 2..N use
+            // bypass_payment_check=true (no per-image gate), so continuing after a
+            // failed image would charge the remaining ones with no gate. Break so a
+            // mid-series stop cannot bill the rest.
+            break
           }
         }
 
