@@ -13,6 +13,7 @@ import {
 } from '@/helpers/videoCompletionKeyboard'
 import { verifyCallbackToken } from '@/utils/callbackToken'
 import { getUserLanguageFromDB } from '@/core/supabase'
+import { sanitizeUrl } from '@/utils/sanitize'
 // ✅ EMERGENCY DISABLE: asyncLipSyncManager import causing TypeScript errors
 // import { asyncLipSyncManager } from '@/core/lipsync/async-lipsync-manager'
 
@@ -286,10 +287,31 @@ async function sendVideoDirectly(
     // guard (chargedVideoJobs).
     if (metadata.jobId && !claimVideoJobDelivery(metadata.jobId)) return
 
+    // SSRF guard: videoUrl comes from the untrusted webhook payload and is fetched
+    // server-side (HEAD below). Reject private/local/cloud-metadata hosts and abort
+    // delivery rather than probe an internal address.
+    try {
+      sanitizeUrl(videoUrl)
+    } catch (ssrfErr) {
+      logger.error(
+        '❌ [SEND VIDEO DIRECTLY] Blocked non-public video URL (SSRF)',
+        {
+          telegramId,
+          error: ssrfErr instanceof Error ? ssrfErr.message : String(ssrfErr),
+        }
+      )
+      return
+    }
+
     // ✅ Проверяем размер файла через HEAD запрос
     let fileSize = 0
     try {
-      const headResponse = await fetch(videoUrl, { method: 'HEAD' })
+      // redirect:'manual' so a public URL cannot 302 the HEAD to a private host;
+      // Telegram still follows any legitimate redirect when the video is sent.
+      const headResponse = await fetch(videoUrl, {
+        method: 'HEAD',
+        redirect: 'manual',
+      })
       const contentLength = headResponse.headers.get('content-length')
       if (contentLength) {
         fileSize = parseInt(contentLength)

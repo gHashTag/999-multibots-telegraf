@@ -2,6 +2,7 @@ import express from 'express'
 import { createVideoDeliveryClaimer } from '@/helpers/videoDeliveryIdempotency'
 import { Router } from 'express'
 import { logger } from '@/utils/logger'
+import { sanitizeUrl, assertPublicRedirect } from '@/utils/sanitize'
 import { defaultBot, getBotByName } from '@/core/bot'
 import { supabase, getUserLanguageFromDB } from '@/core/supabase'
 import axios from 'axios'
@@ -324,6 +325,21 @@ async function handleCompletedRender(
       return
     }
 
+    // SSRF guard: videoUrl comes from the untrusted callback payload and is
+    // downloaded server-side. Reject private/local/cloud-metadata hosts.
+    try {
+      sanitizeUrl(videoUrl)
+    } catch (ssrfErr) {
+      logger.error(
+        '❌ [AI REELS CALLBACK] Blocked non-public video URL (SSRF)',
+        {
+          telegramId,
+          error: ssrfErr instanceof Error ? ssrfErr.message : String(ssrfErr),
+        }
+      )
+      return
+    }
+
     logger.info('🎉 [AI REELS CALLBACK] Sending completed video to user', {
       telegramId,
       jobId: payload.job_id,
@@ -337,6 +353,8 @@ async function handleCompletedRender(
       timeout: 120000, // 120 секунд таймаут для больших файлов
       maxContentLength: 100 * 1024 * 1024, // 100MB max
       maxBodyLength: 100 * 1024 * 1024,
+      // SSRF: a public URL can 302 to a private/metadata host; re-validate each hop.
+      beforeRedirect: options => assertPublicRedirect(options),
     })
 
     const videoBuffer = Buffer.from(videoResponse.data)
