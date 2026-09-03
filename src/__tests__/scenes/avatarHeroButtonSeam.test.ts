@@ -70,15 +70,31 @@ function offeredHeroes(src: string): string[] {
   return [...list('male: ['), ...list('female: [')]
 }
 
-/** Russian button text per hero, from the FIRST heroTranslations table. */
-function renderedButtons(src: string): Map<string, string> {
-  const at = src.indexOf('const heroTranslations')
-  const table = braceBlock(src, src.indexOf('=', at))
-  const out = new Map<string, string>()
-  for (const m of table.matchAll(/'([^']+)'\s*:\s*\{\s*ru:\s*'([^']+)'/g)) {
-    out.set(m[1], m[2])
+/**
+ * Russian button text per hero, from EVERY heroTranslations table in the file.
+ *
+ * The first version of this read only the first table, and that gap hid a real
+ * one: the scene declares getHeroButtonText twice, with two separate tables of
+ * 33 and 16 heroes. They agree on the 15 they share, but the second one spells
+ * 'Гвен Стейси' with a spider emoji while the first has no entry for her at all
+ * and falls back to `🎨 ...`. Only the fallback spelling was a key in the
+ * handler's map, so the button the second generator draws resolved to nothing.
+ *
+ * A guard that reads one of two copies is a guard for one of two paths.
+ */
+function translationTables(src: string): Map<string, string>[] {
+  const tables: Map<string, string>[] = []
+  let at = src.indexOf('const heroTranslations')
+  while (at !== -1) {
+    const table = braceBlock(src, src.indexOf('=', at))
+    const out = new Map<string, string>()
+    for (const m of table.matchAll(/'([^']+)'\s*:\s*\{\s*ru:\s*'([^']+)'/g)) {
+      out.set(m[1], m[2])
+    }
+    tables.push(out)
+    at = src.indexOf('const heroTranslations', at + table.length)
   }
-  return out
+  return tables
 }
 
 function handlerKeys(src: string): Set<string> {
@@ -97,20 +113,30 @@ describe('every hero the scene offers resolves back through the tap handler', ()
    * with every possible state of the scene, and that is exactly how the group
    * this replaces managed to stay green while the tables drifted.
    */
-  it('the source reader still finds all three tables', () => {
+  it('the source reader still finds the heroes and every button table', () => {
     const src = source()
     expect(offeredHeroes(src).length).toBeGreaterThan(0)
-    expect(renderedButtons(src).size).toBeGreaterThan(0)
     expect(handlerKeys(src).size).toBeGreaterThan(0)
+    // Both generators, not just the first: the count is asserted so that a
+    // reader which silently stops finding the second one fails here rather
+    // than quietly halving what the next test checks.
+    const tables = translationTables(src)
+    expect(tables.length).toBeGreaterThanOrEqual(2)
+    for (const t of tables) expect(t.size).toBeGreaterThan(0)
   })
 
-  it('every offered hero renders a button the handler can resolve', () => {
+  it('every offered hero renders a resolvable button in EVERY generator', () => {
     const src = source()
-    const ru = renderedButtons(src)
     const keys = handlerKeys(src)
-    const unresolvable = offeredHeroes(src)
-      .filter(h => !keys.has(buttonFor(h, ru)))
-      .map(h => `${h} -> ${buttonFor(h, ru)}`)
+    const heroes = offeredHeroes(src)
+    const unresolvable: string[] = []
+    translationTables(src).forEach((ru, i) => {
+      for (const h of heroes) {
+        if (!keys.has(buttonFor(h, ru))) {
+          unresolvable.push(`table#${i + 1}: ${h} -> ${buttonFor(h, ru)}`)
+        }
+      }
+    })
     expect(unresolvable).toEqual([])
   })
 
@@ -119,7 +145,7 @@ describe('every hero the scene offers resolves back through the tap handler', ()
     const keys = handlerKeys(src)
     // Heroes with no translation reach the user as `🎨 <name>`, and that exact
     // string is what the handler receives.
-    const ru = renderedButtons(src)
+    const ru = translationTables(src)[0]
     const viaFallback = offeredHeroes(src).filter(h => !ru.has(h))
     expect(viaFallback.length).toBeGreaterThan(0)
     expect(viaFallback.filter(h => !keys.has(`🎨 ${h}`))).toEqual([])
