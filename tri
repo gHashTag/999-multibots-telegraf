@@ -1933,7 +1933,35 @@ cmd_probes() {
       withc=$((withc + 1))
       continue
     fi
-    if grep -qE "fetch\(|SUPABASE_URL|process\.env\.SUPABASE|axios" "$f"; then
+    # ПОВЕДЕНИЕ, А НЕ УПОМИНАНИЕ. Прежний признак «в файле встречается axios или
+    # SUPABASE_URL» относил к живым данным probe-charge-order, у которого слово
+    # axios лежит ВНУТРИ РЕГЕКСПА, которым он ищет по исходникам: ноль запросов,
+    # два чтения с диска. Из-за этого он числился «живым», потолок его не
+    # касался, и я публиковал «0 источниковых без контроля» — на деле 1.
+    #
+    # Тот же класс, что в #1712/#1724/#1725: матчер считал текст. Здесь
+    # вырезаются строки и комментарии, и требуется настоящий вызов клиента —
+    # включая createClient из supabase-js, которого прежний признак не знал
+    # вовсе (четыре искалки ходят в базу именно так).
+    if node -e '
+      const fs = require("fs");
+      const t = fs.readFileSync(process.argv[1], "utf8");
+      let o = "", i = 0;
+      const keep = s => s.replace(/[^\n]/g, " ");
+      while (i < t.length) {
+        const c = t[i];
+        if (c === "/" && t[i+1] === "*") { const j = t.indexOf("*/", i+2); const e = j === -1 ? t.length : j+2; o += keep(t.slice(i,e)); i = e; continue; }
+        if (c === "/" && t[i+1] === "/") { const j = t.indexOf("\n", i); const e = j === -1 ? t.length : j; o += keep(t.slice(i,e)); i = e; continue; }
+        if (c === "`" || c === "\"" || c === "'"'"'") {
+          let j = i+1;
+          while (j < t.length) { if (t[j] === "\\") { j += 2; continue; } if (t[j] === c) break; if (c !== "`" && t[j] === "\n") break; j++; }
+          const e = Math.min(j+1, t.length); o += c + keep(t.slice(i+1, e)); i = e; continue;
+        }
+        o += c; i++;
+      }
+      const NET = /(await\s+fetch\s*\(|axios\.(get|post|put|delete)\s*\(|require\(\s*.axios|from\s+.axios|createClient\s*\()/;
+      process.exit(NET.test(o) ? 0 : 1);
+    ' "$f"; then
       live_no=$((live_no + 1)); live_list="$live_list  $(basename "$f")
 "
     else

@@ -30,10 +30,12 @@ const files = []
   }
 })('src')
 
-const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+const strip = s =>
+  s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
 
 // Признаки списания.
-const CHARGE = /updateUserBalance\s*\(|processBalanceOperation\s*\(|processServiceBalanceOperation\s*\(|processBalanceVideoOperation\s*\(/
+const CHARGE =
+  /updateUserBalance\s*\(|processBalanceOperation\s*\(|processServiceBalanceOperation\s*\(|processBalanceVideoOperation\s*\(/
 const OUTCOME = /MONEY_OUTCOME|SERVICE_PAYMENT/
 
 // Признаки работы, которая может не удаться.
@@ -50,18 +52,24 @@ const RISKY = [
 
 const WINDOW = 60 // строк после списания, в пределах которых ищем работу
 
-const hits = []
-
-for (const f of files) {
-  if (f.includes('__tests__') || f.includes('/test/')) continue
-  const lines = strip(fs.readFileSync(f, 'utf8')).split('\n')
-
+/**
+ * The matcher, callable on a sample.
+ *
+ * It was inline in the file loop, so it could never be pointed at a known
+ * case -- and for a finder that is not a detail. "Nothing found" from a broken
+ * matcher reads exactly like "no money is charged before the work", which is
+ * the reassuring answer.
+ */
+function scanText(text) {
+  const out = []
+  const lines = strip(text).split('\n')
   for (let i = 0; i < lines.length; i++) {
     if (!CHARGE.test(lines[i])) continue
 
     // Списание ли это? Тип может стоять на соседних строках.
     const near = lines.slice(i, Math.min(i + 8, lines.length)).join('\n')
-    const isOutcome = OUTCOME.test(near) || /processBalance|processService/.test(lines[i])
+    const isOutcome =
+      OUTCOME.test(near) || /processBalance|processService/.test(lines[i])
     if (!isOutcome) continue
 
     // Что идёт ПОСЛЕ, в пределах окна и до конца функции (грубо — до строки,
@@ -85,8 +93,7 @@ for (const f of files) {
           /MONEY_INCOME|PaymentType\.REFUND|refund/i.test(tail) &&
           /updateUserBalance|refundUser|processBalance/.test(tail)
 
-        hits.push({
-          file: f,
+        out.push({
           chargeLine: i + 1,
           riskLine: found[0] + 1,
           what,
@@ -97,6 +104,76 @@ for (const f of files) {
       }
     }
   }
+  return out
+}
+
+/**
+ * POSITIVE CONTROL: the shape this probe exists for -- money taken, and only
+ * then the work that can fail. This is the Instagram-parsing case from the
+ * header: 28 charges on three people for zero runs.
+ *
+ * NEGATIVE CONTROL: two shapes that must NOT be reported, each rejected by a
+ * DIFFERENT clause, so neither can mask the other going wrong. The first does
+ * the risky work BEFORE charging, which is the correct order. The second
+ * charges with no risky work after it at all.
+ */
+const C_POSITIVE = [
+  'await updateUserBalance(id, cost, PaymentType.MONEY_OUTCOME)',
+  'const res = await axios.post(url, payload)',
+].join('\n')
+
+const C_NEGATIVE_ORDER = [
+  'const res = await axios.post(url, payload)',
+  'await updateUserBalance(id, cost, PaymentType.MONEY_OUTCOME)',
+].join('\n')
+
+// Rejected ONLY by the outcome check: this is a CREDIT, not a charge, so the
+// order does not matter. Without this sample, deleting that check changes
+// nothing about the controls -- mutation showed exactly that.
+const C_NEGATIVE_CREDIT = [
+  'await updateUserBalance(id, cost, PaymentType.MONEY_INCOME)',
+  'const res = await axios.post(url, payload)',
+].join('\n')
+
+const C_NEGATIVE_NOWORK = [
+  'await updateUserBalance(id, cost, PaymentType.MONEY_OUTCOME)',
+  "logger.info('charged')",
+].join('\n')
+
+if (scanText(C_POSITIVE).length !== 1) {
+  console.error(
+    'самопроверка не прошла: заведомое списание ПЕРЕД работой не найдено.\n' +
+      'пустой список ниже означал бы сломанный матчер, а не верный порядок.'
+  )
+  process.exit(2)
+}
+if (scanText(C_NEGATIVE_ORDER).length !== 0) {
+  console.error(
+    'самопроверка не прошла: верный порядок (работа, потом списание) назван дефектом.'
+  )
+  process.exit(2)
+}
+if (scanText(C_NEGATIVE_CREDIT).length !== 0) {
+  console.error(
+    'самопроверка не прошла: начисление (MONEY_INCOME) названо списанием перед работой.'
+  )
+  process.exit(2)
+}
+if (scanText(C_NEGATIVE_NOWORK).length !== 0) {
+  console.error(
+    'самопроверка не прошла: списание без рискованной работы после него названо дефектом.'
+  )
+  process.exit(2)
+}
+console.log(
+  'самопроверка: списание перед работой найдено, верный порядок отвергнут'
+)
+
+const hits = []
+for (const f of files) {
+  if (f.includes('__tests__') || f.includes('/test/')) continue
+  for (const h of scanText(fs.readFileSync(f, 'utf8')))
+    hits.push({ file: f, ...h })
 }
 
 console.log(`просмотрено файлов: ${files.length}`)
@@ -116,12 +193,16 @@ for (const [file, list] of [...byFile.entries()].sort()) {
   console.log(`  ${file}`)
   for (const h of list) {
     const mark = h.hasRefund ? 'возврат есть' : 'ВОЗВРАТА НЕ ВИДНО'
-    console.log(`      списание :${String(h.chargeLine).padStart(4)}  ->  ${h.what} :${h.riskLine}   [${mark}]`)
+    console.log(
+      `      списание :${String(h.chargeLine).padStart(4)}  ->  ${h.what} :${h.riskLine}   [${mark}]`
+    )
     console.log(`          ${h.snippet}`)
   }
 }
 
 console.log('\n=== ЧИТАТЬ В ПЕРВУЮ ОЧЕРЕДЬ ===')
 for (const h of noRefund) {
-  console.log(`  ${h.file}:${h.chargeLine}  (работа на :${h.riskLine} — ${h.what})`)
+  console.log(
+    `  ${h.file}:${h.chargeLine}  (работа на :${h.riskLine} — ${h.what})`
+  )
 }
