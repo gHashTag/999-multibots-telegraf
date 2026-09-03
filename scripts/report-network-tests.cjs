@@ -27,11 +27,32 @@ if (loads === 0) {
   process.exit(2)
 }
 
-const calls = fs.existsSync(LOG)
+const allLines = fs.existsSync(LOG)
   ? fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean)
   : []
 
+// The observer's own control calls a dead local port and is NOT test traffic.
+// It is counted separately: it MUST be present, and its absence means the
+// control did not run -- not that the suite got cleaner.
+const PROBE = '127.0.0.1:1'
+const control = allLines.filter(l => l.includes(PROBE))
+const calls = allLines.filter(l => !l.includes(PROBE))
+
+if (control.length === 0) {
+  console.error(
+    '❌ Контрольный зонд наблюдателя не отметился — отчёт недостоверен.\n' +
+      '   Ожидались вызовы на ' +
+      PROBE +
+      ' из network-observer-probe.test.ts.\n' +
+      '   Без него «ноль вызовов» неотличим от слепого наблюдателя.'
+  )
+  process.exit(2)
+}
+
 console.log(`наблюдатель подключился к ${loads} файлам тестов`)
+console.log(
+  `контроль наблюдателя (fetch и axios): ${control.length} — оба канала видны`
+)
 console.log(`настоящих сетевых вызовов: ${calls.length}`)
 
 if (!calls.length) {

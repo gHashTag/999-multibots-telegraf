@@ -1751,6 +1751,52 @@ cmd_why_red_selfcheck() {
   return "$rc"
 }
 
+cmd_net() {
+  # КТО ИЗ ТЕСТОВ ХОДИТ В СЕТЬ ПО-НАСТОЯЩЕМУ.
+  #
+  # Тест, зависящий от чужого сервера, однажды отвечает иначе — и разовая
+  # краснота приучает считать часть провалов шумом. Инструмент был, но им ни
+  # разу не пользовались, и он ВИДЕЛ ТОЛЬКО fetch: axios в Node идёт через
+  # транспорт http/https, поэтому его трафик наблюдателю был не виден вовсе.
+  # А axios здесь основной клиент. Его «ноль вызовов» означал не тишину, а
+  # слепоту к нужному каналу — проверено зондом: два вызова, одна строка.
+  #
+  # Теперь перехватываются оба канала, и у переписи есть СВОЙ контроль:
+  # network-observer-probe.test.ts делает по вызову каждым клиентом и требует,
+  # чтобы оба попали в журнал. Нет контроля — отчёт отказывается считать.
+  ( cd "$ROOT" && DETECT_NETWORK=1 npx vitest run --silent >/dev/null 2>&1
+    node scripts/report-network-tests.cjs )
+}
+
+cmd_net_selfcheck() {
+  # ОБЕ СТОРОНЫ. Прогон всей сьюты для этого не нужен — хватает зонда.
+  local rc=0 out
+  rm -f /tmp/tri-net-check.log /tmp/tri-net-check.log.mark
+  out="$( cd "$ROOT" && NETWORK_LOG=/tmp/tri-net-check.log DETECT_NETWORK=1 \
+      npx vitest run src/__tests__/network-observer-probe.test.ts 2>&1 || true )"
+  if printf '%s' "$out" | grep -q '1 passed'; then
+    good 'наблюдатель видит ОБА клиента (fetch и axios)'
+  else
+    bad 'СЛОМАНА: контроль наблюдателя не прошёл — перепись сети недостоверна'
+    rc=1
+  fi
+
+  # Отчёт ОБЯЗАН отказаться, если контроль не отметился: иначе «ноль вызовов»
+  # снова станет неотличим от слепого наблюдателя.
+  rm -f /tmp/tri-net-check2.log
+  printf 'ЗАГРУЖЕН\n' > /tmp/tri-net-check2.log.mark
+  if ( cd "$ROOT" && NETWORK_LOG=/tmp/tri-net-check2.log \
+        node scripts/report-network-tests.cjs >/dev/null 2>&1 ); then
+    bad 'СЛОМАНА: отчёт посчитал ноль БЕЗ контроля — это и есть слепота'
+    rc=1
+  else
+    good 'без контроля отчёт отказывается считать'
+  fi
+  rm -f /tmp/tri-net-check.log /tmp/tri-net-check.log.mark \
+        /tmp/tri-net-check2.log /tmp/tri-net-check2.log.mark
+  return "$rc"
+}
+
 cmd_skipped() {
   # ПЕРЕПИСЬ ВЫКЛЮЧЕННЫХ ТЕСТОВ.
   #
@@ -2073,6 +2119,8 @@ case "$action" in
   in-gate-check|в-гейте-проверка) cmd_in_gate_selfcheck ;;
   why-red|почему-красный) cmd_why_red "$@" ;;
   why-red-check|почему-красный-проверка) cmd_why_red_selfcheck ;;
+  net|сеть)          cmd_net ;;
+  net-check|сеть-проверка) cmd_net_selfcheck ;;
   skipped|выключены)  cmd_skipped "$@" ;;
   skipped-check|выключены-проверка) cmd_skipped_selfcheck ;;
   unguarded|без-охраны) cmd_unguarded "$@" ;;

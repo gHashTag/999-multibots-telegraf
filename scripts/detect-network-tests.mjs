@@ -16,6 +16,8 @@
  * Ничего не чинит и не меняет — только печатает, кто ходит в сеть.
  */
 import fs from 'fs'
+import http from 'http'
+import https from 'https'
 
 const OUT = process.env.NETWORK_LOG || '/tmp/vitest-network.log'
 const OUT_MARK = OUT + '.mark'
@@ -35,6 +37,45 @@ try {
 // показала ноль вызовов даже там, где сеть заведомо была: vitest прячет вывод
 // проходящих тестов. Ноль без самопроверки ничего не значит, и здесь это
 // подтвердилось ещё раз.
+/**
+ * TWO CLIENTS, NOT ONE.
+ *
+ * The first version hooked `fetch` alone, and reported "no test reaches the
+ * network" while axios went straight past it. In Node axios does not use fetch;
+ * it uses the http/https transport, so its traffic was invisible here. axios is
+ * the dominant client in this repository, so the observer's silence meant
+ * blindness to the client the code actually uses, not quiet on the wire.
+ *
+ * Measured with a probe: a test making one call of each kind produced a single
+ * log line out of two. Both channels are wrapped now; http.get and https.get
+ * call request internally, so wrapping request is enough.
+ */
+for (const mod of [http, https]) {
+  const realRequest = mod.request
+  mod.request = (...args) => {
+    let url = ''
+    try {
+      const a = args[0]
+      url =
+        typeof a === 'string'
+          ? a
+          : a instanceof URL
+            ? a.href
+            : `${a?.protocol ?? ''}//${a?.hostname ?? a?.host ?? ''}${
+                a?.port ? ':' + a.port : ''
+              }${a?.path ?? ''}`
+    } catch {
+      /* empty: the log is auxiliary, never fail a test over it */
+    }
+    try {
+      fs.appendFileSync(OUT, `СЕТЬ → ${url.slice(0, 120)}\n`)
+    } catch {
+      /* empty: the log is auxiliary, never fail a test over it */
+    }
+    return realRequest(...args)
+  }
+}
+
 globalThis.fetch = async (...args) => {
   const url = String(args[0]?.url ?? args[0] ?? '')
   try {
