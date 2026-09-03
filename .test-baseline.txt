@@ -2524,6 +2524,9 @@ src/__tests__/scenes/aiReelsWizard.test.ts :: aiReelsWizard (AI Reels Creation) 
 src/__tests__/scenes/aiReelsWizard.test.ts :: aiReelsWizard (AI Reels Creation) Step 4: Video Merging should handle video download failure
 src/__tests__/scenes/aiReelsWizard.test.ts :: aiReelsWizard (AI Reels Creation) Step 4: Video Merging should handle video merge failure
 src/__tests__/scenes/aiReelsWizard.test.ts :: aiReelsWizard (AI Reels Creation) Step 4: Video Merging should merge two videos successfully
+src/__tests__/scenes/avatarHeroButtonSeam.test.ts :: every hero the scene offers resolves back through the tap handler every offered hero renders a button the handler can resolve
+src/__tests__/scenes/avatarHeroButtonSeam.test.ts :: every hero the scene offers resolves back through the tap handler the fallback spelling is covered too, not only the emoji one
+src/__tests__/scenes/avatarHeroButtonSeam.test.ts :: every hero the scene offers resolves back through the tap handler the source reader still finds all three tables
 src/__tests__/scenes/avatarTransformScene.test.ts :: AvatarTransformScene Button Mapping Validation should handle emoji-prefixed hero "🎨 Алекс Мерсер" correctly
 src/__tests__/scenes/avatarTransformScene.test.ts :: AvatarTransformScene Button Mapping Validation should have button mapping for all male heroes
 src/__tests__/scenes/avatarTransformScene.test.ts :: AvatarTransformScene Button Mapping Validation should validate all female heroes have button mappings
