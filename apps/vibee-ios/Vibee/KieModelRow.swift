@@ -57,7 +57,7 @@ struct СтрокаМоделиKie: View {
       .overlay(
         RoundedRectangle(cornerRadius: 8)
           .strokeBorder(
-            выбрана ? Тема.Цвет.выборМодели : Color.clear, lineWidth: 1.5
+            выбрана ? Тема.Цвет.акцент : Color.clear, lineWidth: 1.5
           )
       )
       /**
