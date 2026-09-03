@@ -5250,3 +5250,59 @@ CONSEQUENCES I GOT WRONG AND MUST NOT REPEAT:
    on his brand. img2img must PRESERVE the photoreal look unless the brief
    says otherwise; the engraving canon belongs to TrinityBlogReel's own
    drawing, not to his face.
+
+## VERIFY THE WAY A PERSON USES IT, NOT THE WAY THAT IS CONVENIENT
+
+`GET /api/balance` answered **200** to `curl` with signed Telegram `initData`, and
+did **not work in the iOS app at all**. The app sends `Authorization: Bearer` or
+`X-Agent-Key`; it has no signature header. Every check I ran confirmed the one
+shape of caller the app never uses, so the Profile spun a loading indicator
+forever while the endpoint looked healthy.
+
+The same class of error, three more times in one shift:
+
+- **contrast measured against the wrong background.** Read the text colour off
+  one element and the background off another, without checking they overlap.
+  Claimed 1.8:1, then 1.34:1; the real figure was 3.70:1, and the defect was in
+  a *different* element (the badges, not the label).
+- **a truncated URL taken for the real one.** Printed `avatar_url` cut to 110
+  chars, then fetched the stump. It returned a 1×1 GIF, so I reported "the
+  avatar is an SVG placeholder, there is no face". The full URL 302-redirects to
+  a genuine 19 KB JPEG. The proxy was innocent.
+- **a diagnosis read out of the code while the log held the answer.** Blamed
+  `изображениеНеЧитается("c2")` for a black preview across two iterations.
+  `NSLog` was already there. The real cause was the layer clock never being set
+  on the media-failure path.
+
+Rules that follow:
+
+1. **iOS: run it on the simulator.** `xcrun simctl io UDID screenshot`. Tap
+   coordinates are in **device points** (402×874), not screenshot pixels
+   (1206×2622, ×3). A tap in pixel coordinates lands off-screen and looks like
+   "the app does not respond".
+2. **A measurement must name its element**, not just its number.
+   `getComputedStyle` always returns something plausible — the question is who
+   you asked.
+3. **Never fetch a value you printed truncated.** Print it whole or fetch it
+   from the source.
+4. **Read the log before reading the code.** If there is an `NSLog`/`console`
+   on the failure path, it already knows.
+
+## PRICE IS DERIVED FROM COST — CHANGE THEM TOGETHER
+
+`billing-shared.ts`: `price = ceil(OPERATION_COST_USD / 0.005)`. Swapping
+`KIE_WEB_MODEL.lipsync` from `veed/fabric-1` ($0.09/s) to `infinitalk/from-audio`
+($0.015/s) without touching the cost would have charged **18 tokens for a
+3-token operation** — six times over. The cost entry must name the same provider
+that sits in the allowlist.
+
+And some prices are **per second**: lipsync bills `3 × ceil(audio duration)`
+(`billedSeconds`). A client that compares a balance against the unit price will
+promise "enough" and be refused. State the unit.
+
+## ONE ALLOWLIST, NOT TWO
+
+`GenerateScreen.swift` grew a second copy of the reviewed-model set beside
+`пропускаетСервер` — and half of that duplication was mine. Changing the allowed
+model then meant editing both, and missing one offers a model the gate rejects.
+Derive the list; do not restate it.
