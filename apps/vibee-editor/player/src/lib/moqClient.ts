@@ -19,24 +19,24 @@
  */
 
 interface MoQClientConfig {
-  url: string;
-  authToken?: string;
-  timeout?: number;
+  url: string
+  authToken?: string
+  timeout?: number
 }
 
 interface MoQStream {
-  id: string;
-  readable: ReadableStream<Uint8Array>;
-  close: () => void;
+  id: string
+  readable: ReadableStream<Uint8Array>
+  close: () => void
 }
 
-type TransportState = 'connecting' | 'connected' | 'closed' | 'failed';
+type TransportState = 'connecting' | 'connected' | 'closed' | 'failed'
 
 /**
  * Check if WebTransport is supported
  */
 export function isWebTransportSupported(): boolean {
-  return 'WebTransport' in window;
+  return 'WebTransport' in window
 }
 
 /**
@@ -44,19 +44,19 @@ export function isWebTransportSupported(): boolean {
  */
 export function isMoQSupported(): boolean {
   if (!isWebTransportSupported()) {
-    return false;
+    return false
   }
 
   // Check if Safari (Safari doesn't support WebTransport as of 2025)
-  const ua = navigator.userAgent.toLowerCase();
-  const isSafari = ua.includes('safari') && !ua.includes('chrome');
+  const ua = navigator.userAgent.toLowerCase()
+  const isSafari = ua.includes('safari') && !ua.includes('chrome')
 
   if (isSafari) {
-    console.log('[MoQ] Safari detected, WebTransport not supported');
-    return false;
+    console.log('[MoQ] Safari detected, WebTransport not supported')
+    return false
   }
 
-  return true;
+  return true
 }
 
 /**
@@ -70,13 +70,13 @@ export function isMoQSupported(): boolean {
  * 4. ABR adaptation
  */
 class MoQClient {
-  private config: MoQClientConfig;
-  private transport: any | null = null; // WebTransport when available
-  private state: TransportState = 'closed';
-  private streams: Map<string, MoQStream> = new Map();
+  private config: MoQClientConfig
+  private transport: any | null = null // WebTransport when available
+  private state: TransportState = 'closed'
+  private streams: Map<string, MoQStream> = new Map()
 
   constructor(config: MoQClientConfig) {
-    this.config = config;
+    this.config = config
   }
 
   /**
@@ -84,35 +84,36 @@ class MoQClient {
    */
   async connect(): Promise<boolean> {
     if (!isMoQSupported()) {
-      console.log('[MoQ] WebTransport not supported, cannot connect');
-      return false;
+      console.log('[MoQ] WebTransport not supported, cannot connect')
+      return false
     }
 
     try {
-      this.state = 'connecting';
+      this.state = 'connecting'
 
-      // @ts-expect-error WebTransport types may not be available
-      this.transport = new WebTransport(this.config.url);
+      this.transport = new WebTransport(this.config.url)
 
-      await this.transport.ready;
-      this.state = 'connected';
+      await this.transport.ready
+      this.state = 'connected'
 
-      console.log('[MoQ] Connected to', this.config.url);
+      console.log('[MoQ] Connected to', this.config.url)
 
       // Handle connection close
-      this.transport.closed.then(() => {
-        this.state = 'closed';
-        console.log('[MoQ] Connection closed');
-      }).catch((err: Error) => {
-        this.state = 'failed';
-        console.error('[MoQ] Connection failed:', err);
-      });
+      this.transport.closed
+        .then(() => {
+          this.state = 'closed'
+          console.log('[MoQ] Connection closed')
+        })
+        .catch((err: Error) => {
+          this.state = 'failed'
+          console.error('[MoQ] Connection failed:', err)
+        })
 
-      return true;
+      return true
     } catch (error) {
-      this.state = 'failed';
-      console.error('[MoQ] Failed to connect:', error);
-      return false;
+      this.state = 'failed'
+      console.error('[MoQ] Failed to connect:', error)
+      return false
     }
   }
 
@@ -121,34 +122,34 @@ class MoQClient {
    */
   async subscribe(trackId: string): Promise<MoQStream | null> {
     if (this.state !== 'connected' || !this.transport) {
-      console.log('[MoQ] Not connected, cannot subscribe');
-      return null;
+      console.log('[MoQ] Not connected, cannot subscribe')
+      return null
     }
 
     try {
       // Create unidirectional stream for receiving media
-      const stream = await this.transport.createUnidirectionalStream();
+      const stream = await this.transport.createUnidirectionalStream()
 
       // Send subscribe request (MoQ protocol)
-      const writer = stream.writable.getWriter();
-      const subscribeMsg = this.encodeSubscribeMessage(trackId);
-      await writer.write(subscribeMsg);
-      writer.releaseLock();
+      const writer = stream.writable.getWriter()
+      const subscribeMsg = this.encodeSubscribeMessage(trackId)
+      await writer.write(subscribeMsg)
+      writer.releaseLock()
 
       // Create stream wrapper
       const moqStream: MoQStream = {
         id: trackId,
         readable: stream.readable,
         close: () => stream.close(),
-      };
+      }
 
-      this.streams.set(trackId, moqStream);
+      this.streams.set(trackId, moqStream)
 
-      console.log('[MoQ] Subscribed to track:', trackId);
-      return moqStream;
+      console.log('[MoQ] Subscribed to track:', trackId)
+      return moqStream
     } catch (error) {
-      console.error('[MoQ] Subscribe failed:', error);
-      return null;
+      console.error('[MoQ] Subscribe failed:', error)
+      return null
     }
   }
 
@@ -156,11 +157,11 @@ class MoQClient {
    * Unsubscribe from a media track
    */
   unsubscribe(trackId: string): void {
-    const stream = this.streams.get(trackId);
+    const stream = this.streams.get(trackId)
     if (stream) {
-      stream.close();
-      this.streams.delete(trackId);
-      console.log('[MoQ] Unsubscribed from track:', trackId);
+      stream.close()
+      this.streams.delete(trackId)
+      console.log('[MoQ] Unsubscribed from track:', trackId)
     }
   }
 
@@ -170,24 +171,24 @@ class MoQClient {
   close(): void {
     // Close all streams
     for (const stream of this.streams.values()) {
-      stream.close();
+      stream.close()
     }
-    this.streams.clear();
+    this.streams.clear()
 
     // Close transport
     if (this.transport) {
-      this.transport.close();
-      this.transport = null;
+      this.transport.close()
+      this.transport = null
     }
 
-    this.state = 'closed';
+    this.state = 'closed'
   }
 
   /**
    * Get connection state
    */
   getState(): TransportState {
-    return this.state;
+    return this.state
   }
 
   /**
@@ -196,11 +197,13 @@ class MoQClient {
   private encodeSubscribeMessage(trackId: string): Uint8Array {
     // MoQ protocol encoding (simplified placeholder)
     // Real implementation would follow MoQ draft spec
-    const encoder = new TextEncoder();
-    return encoder.encode(JSON.stringify({
-      type: 'subscribe',
-      trackId,
-    }));
+    const encoder = new TextEncoder()
+    return encoder.encode(
+      JSON.stringify({
+        type: 'subscribe',
+        trackId,
+      })
+    )
   }
 }
 
@@ -212,58 +215,58 @@ class MoQClient {
  * 2. Fallback to LL-HLS (Safari, legacy browsers)
  */
 export async function createVideoStream(url: string): Promise<{
-  type: 'moq' | 'll-hls' | 'hls';
-  url: string;
-  client?: MoQClient;
+  type: 'moq' | 'll-hls' | 'hls'
+  url: string
+  client?: MoQClient
 }> {
   // Try MoQ first
   if (isMoQSupported()) {
-    const moqUrl = url.replace(/\.(mp4|m3u8)$/, '.moq');
-    const client = new MoQClient({ url: moqUrl });
+    const moqUrl = url.replace(/\.(mp4|m3u8)$/, '.moq')
+    const client = new MoQClient({ url: moqUrl })
 
-    const connected = await client.connect();
+    const connected = await client.connect()
     if (connected) {
-      console.log('[Stream] Using MoQ transport (<300ms latency)');
-      return { type: 'moq', url: moqUrl, client };
+      console.log('[Stream] Using MoQ transport (<300ms latency)')
+      return { type: 'moq', url: moqUrl, client }
     }
   }
 
   // Fallback to LL-HLS
-  const llHlsUrl = url.replace('.mp4', '.m3u8');
+  const llHlsUrl = url.replace('.mp4', '.m3u8')
 
   // Check if LL-HLS available
   try {
-    const response = await fetch(llHlsUrl, { method: 'HEAD' });
+    const response = await fetch(llHlsUrl, { method: 'HEAD' })
     if (response.ok) {
-      console.log('[Stream] Using LL-HLS transport');
-      return { type: 'll-hls', url: llHlsUrl };
+      console.log('[Stream] Using LL-HLS transport')
+      return { type: 'll-hls', url: llHlsUrl }
     }
   } catch {
     // LL-HLS not available
   }
 
   // Final fallback: regular HLS or direct MP4
-  console.log('[Stream] Using standard HLS/MP4');
-  return { type: 'hls', url };
+  console.log('[Stream] Using standard HLS/MP4')
+  return { type: 'hls', url }
 }
 
 /**
  * Get transport info for debugging
  */
 export function getTransportInfo(): {
-  webTransportSupported: boolean;
-  moqSupported: boolean;
-  recommendedTransport: 'moq' | 'll-hls' | 'hls';
+  webTransportSupported: boolean
+  moqSupported: boolean
+  recommendedTransport: 'moq' | 'll-hls' | 'hls'
 } {
-  const webTransportSupported = isWebTransportSupported();
-  const moqSupported = isMoQSupported();
+  const webTransportSupported = isWebTransportSupported()
+  const moqSupported = isMoQSupported()
 
   return {
     webTransportSupported,
     moqSupported,
     recommendedTransport: moqSupported ? 'moq' : 'll-hls',
-  };
+  }
 }
 
-export { MoQClient };
-export default createVideoStream;
+export { MoQClient }
+export default createVideoStream

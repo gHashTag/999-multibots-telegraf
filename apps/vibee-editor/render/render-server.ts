@@ -19,9 +19,18 @@ import path from 'node:path'
 import {
   authenticate,
   authMode,
+  redactRequestTarget,
+  telegramAuthStatus,
   verifyTelegramInitData,
   verifiedTelegramId,
+  verifiedTelegramUser,
 } from './auth'
+import {
+  enforceSafeBetaHttpLock,
+  runSafeBetaPublishingAction,
+  safeBetaStatus,
+} from './src/runtime/safeBeta'
+import { loadOrCreateOwnProfile } from './src/profile/verifiedProfile'
 import { TEMPLATE_CARDS } from './src/templates/registry'
 import fs from 'node:fs'
 import { randomUUID, createHmac } from 'node:crypto'
@@ -567,29 +576,35 @@ interface PublishToFeedParams {
 }
 
 async function publishToFeed(params: PublishToFeedParams): Promise<boolean> {
-  try {
-    console.log(`📤 [Feed] Publishing to community feed: ${params.projectName}`)
-    const row = await publishTemplateRow({
-      telegram_id: params.telegramId,
-      creator_name: params.creatorName,
-      creator_avatar: params.creatorAvatar ?? null,
-      name: params.projectName,
-      description: `Created by ${params.creatorName}`,
-      thumbnail_url: null,
-      video_url: params.videoUrl,
-      // Объекты, а НЕ строки: publishTemplateRow сам приводит их к jsonb.
-      // Раньше здесь стоял JSON.stringify, и значение уезжало в базу
-      // JSON-скаляром «строка» — карточку нельзя было применить к себе.
-      template_settings: params.templateSettings || {},
-      assets: params.assets || [],
-      tracks: params.tracks || [],
-    })
-    console.log(`✅ [Feed] Published to feed: ID=${row.id}`)
-    return true
-  } catch (error) {
-    console.error('❌ [Feed] Publish error:', error)
-    return false
-  }
+  return (
+    (await runSafeBetaPublishingAction(async () => {
+      try {
+        console.log(
+          `📤 [Feed] Publishing to community feed: ${params.projectName}`
+        )
+        const row = await publishTemplateRow({
+          telegram_id: params.telegramId,
+          creator_name: params.creatorName,
+          creator_avatar: params.creatorAvatar ?? null,
+          name: params.projectName,
+          description: `Created by ${params.creatorName}`,
+          thumbnail_url: null,
+          video_url: params.videoUrl,
+          // Объекты, а НЕ строки: publishTemplateRow сам приводит их к jsonb.
+          // Раньше здесь стоял JSON.stringify, и значение уезжало в базу
+          // JSON-скаляром «строка» — карточку нельзя было применить к себе.
+          template_settings: params.templateSettings || {},
+          assets: params.assets || [],
+          tracks: params.tracks || [],
+        })
+        console.log(`✅ [Feed] Published to feed: ID=${row.id}`)
+        return true
+      } catch (error) {
+        console.error('❌ [Feed] Publish error:', error)
+        return false
+      }
+    })) ?? false
+  )
 }
 
 // Upload directory for temp files
@@ -1568,16 +1583,19 @@ function startRenderAsync(req: RenderRequest): string {
 
           // Auto-publish to community feed
           if (userInfo && userInfo.telegram_id) {
-            await publishToFeed({
-              telegramId: userInfo.telegram_id,
-              creatorName:
-                userInfo.first_name || userInfo.username || 'Anonymous',
-              projectName: userInfo.project_name || 'Vibee Reel',
-              videoUrl: uploadResult.signedUrl,
-              templateSettings: job.inputProps || {},
-              assets: job.assets || [],
-              tracks: job.tracks || [],
-            })
+            const publishedUrl = uploadResult.signedUrl
+            await runSafeBetaPublishingAction(() =>
+              publishToFeed({
+                telegramId: userInfo.telegram_id,
+                creatorName:
+                  userInfo.first_name || userInfo.username || 'Anonymous',
+                projectName: userInfo.project_name || 'Vibee Reel',
+                videoUrl: publishedUrl,
+                templateSettings: job.inputProps || {},
+                assets: job.assets || [],
+                tracks: job.tracks || [],
+              })
+            )
           } else {
             console.warn(
               `⚠️ [Feed] Skipping publish - no user info for render ${renderId}`
@@ -1599,16 +1617,18 @@ function startRenderAsync(req: RenderRequest): string {
           console.log(
             `📢 [Feed] Publishing with fallback URL (S3 unavailable): ${fallbackUrl}`
           )
-          await publishToFeed({
-            telegramId: userInfo.telegram_id,
-            creatorName:
-              userInfo.first_name || userInfo.username || 'Anonymous',
-            projectName: userInfo.project_name || 'Vibee Reel',
-            videoUrl: fallbackUrl,
-            templateSettings: job.inputProps || {},
-            assets: job.assets || [],
-            tracks: job.tracks || [],
-          })
+          await runSafeBetaPublishingAction(() =>
+            publishToFeed({
+              telegramId: userInfo.telegram_id,
+              creatorName:
+                userInfo.first_name || userInfo.username || 'Anonymous',
+              projectName: userInfo.project_name || 'Vibee Reel',
+              videoUrl: fallbackUrl,
+              templateSettings: job.inputProps || {},
+              assets: job.assets || [],
+              tracks: job.tracks || [],
+            })
+          )
         } catch (feedError) {
           console.error(
             `⚠️ [Feed] Fallback publish failed for ${renderId}:`,
@@ -1628,15 +1648,17 @@ function startRenderAsync(req: RenderRequest): string {
 
 // Simple HTTP server
 const server = createServer(async (req, res) => {
-  // Log all requests
-  console.log(`📥 ${req.method} ${req.url}`)
+  // Request targets may contain Telegram initData for browser APIs that cannot
+  // set headers. Never persist that credential in application logs.
+  const loggedTarget = redactRequestTarget(req.url)
+  console.log(`📥 ${req.method} ${loggedTarget}`)
 
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, X-Filename, X-Api-Key, X-Agent-Key, X-Telegram-Init-Data'
+    'Content-Type, X-Filename, X-Api-Key, X-Telegram-Init-Data'
   )
 
   if (req.method === 'OPTIONS') {
@@ -1651,7 +1673,7 @@ const server = createServer(async (req, res) => {
   const auth = authenticate(req)
   if (auth.wouldReject) {
     console.warn(
-      `🔒 [auth] ${auth.allowed ? 'ПРОПУЩЕНО (режим warn)' : 'ОТКАЗ'} ${req.method} ${req.url} — ${auth.reason}`
+      `🔒 [auth] ${auth.allowed ? 'ПРОПУЩЕНО (режим warn)' : 'ОТКАЗ'} ${req.method} ${loggedTarget} — ${auth.reason}`
     )
   }
   if (!auth.allowed) {
@@ -1666,10 +1688,21 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  // Immutable release gate: the SAFE BETA artifact cannot spend, render,
+  // publish, charge or execute an access/approval path. Check before any body
+  // is read and before a route handler can perform a side effect.
+  if (enforceSafeBetaHttpLock(req.method, req.url, res)) return
+
   // Health check
   if (req.url === '/health' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ status: 'ok', bundleReady: !!bundleLocation }))
+    res.end(
+      JSON.stringify({
+        status: 'ok',
+        bundleReady: !!bundleLocation,
+        safeBeta: safeBetaStatus(),
+      })
+    )
     return
   }
 
@@ -3417,16 +3450,18 @@ const server = createServer(async (req, res) => {
 
               // Auto-publish to community feed
               if (userInfo && userInfo.telegram_id) {
-                await publishToFeed({
-                  telegramId: userInfo.telegram_id,
-                  creatorName:
-                    userInfo.first_name || userInfo.username || 'Anonymous',
-                  projectName: userInfo.project_name || 'Vibee Reel',
-                  videoUrl: publicUrl,
-                  templateSettings: request.inputProps || request.props || {},
-                  assets: (request as any).assets || [],
-                  tracks: (request as any).tracks || [],
-                })
+                await runSafeBetaPublishingAction(() =>
+                  publishToFeed({
+                    telegramId: userInfo.telegram_id,
+                    creatorName:
+                      userInfo.first_name || userInfo.username || 'Anonymous',
+                    projectName: userInfo.project_name || 'Vibee Reel',
+                    videoUrl: publicUrl,
+                    templateSettings: request.props || {},
+                    assets: (request as any).assets || [],
+                    tracks: (request as any).tracks || [],
+                  })
+                )
               }
             }
           } catch (error) {
@@ -4349,7 +4384,7 @@ const server = createServer(async (req, res) => {
     return
   }
   if (req.url?.split('?')[0] === '/api/agent/chat' && req.method === 'POST') {
-    // Личность: подпись мини-аппа ИЛИ ключ агента (коннектор для тестов).
+    // Личность: только свежая подпись мини-аппа в SAFE BETA.
     // telegram_id никогда не берётся из тела: иначе любой публиковал бы от
     // чужого имени.
     const who = chatIdentity(req, verifiedTelegramId(req))
@@ -4358,8 +4393,7 @@ const server = createServer(async (req, res) => {
       res.end(
         JSON.stringify({
           error: 'не удалось определить пользователя',
-          detail:
-            'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
+          detail: 'нужна свежая подпись Telegram (X-Telegram-Init-Data)',
         })
       )
       return
@@ -4399,7 +4433,10 @@ const server = createServer(async (req, res) => {
     // setWebhook на них конфликтует. Владелец даёт токен — фея проснётся.
     // ============================================================
     {
-      const PACKS: Record<string, { tokens: number; stars: number; title: string }> = {
+      const PACKS: Record<
+        string,
+        { tokens: number; stars: number; title: string }
+      > = {
         '10': { tokens: 10, stars: 15, title: '10 токенов Trinity' },
         '50': { tokens: 50, stars: 65, title: '50 токенов Trinity' },
         '150': { tokens: 150, stars: 175, title: '150 токенов Trinity' },
@@ -4429,7 +4466,12 @@ const server = createServer(async (req, res) => {
         const who = chatIdentity(req, verifiedTelegramId(req))
         if (!who) {
           res.writeHead(401, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: false, error: 'нужна подпись или ключ агента' }))
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: 'нужна свежая подпись Telegram',
+            })
+          )
           return
         }
         if (!PAY_BOT) {
@@ -4446,8 +4488,9 @@ const server = createServer(async (req, res) => {
           const body = JSON.parse((await readBody(req)) || '{}')
           const pack = PACKS[String(body.pack)]
           if (!pack) throw new Error('неизвестный пакет')
-          const tg =
-            await fetch(`https://api.telegram.org/bot${PAY_BOT}/createInvoiceLink`, {
+          const tg = await fetch(
+            `https://api.telegram.org/bot${PAY_BOT}/createInvoiceLink`,
+            {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -4457,9 +4500,11 @@ const server = createServer(async (req, res) => {
                 currency: 'XTR',
                 prices: [{ label: pack.title, amount: pack.stars }],
               }),
-            })
+            }
+          )
           const tgd = await tg.json()
-          if (!tgd.ok) throw new Error('Bot API: ' + JSON.stringify(tgd).slice(0, 200))
+          if (!tgd.ok)
+            throw new Error('Bot API: ' + JSON.stringify(tgd).slice(0, 200))
           // Pending-чек: verify потом ищет звёзд-транзакцию от этого
           // человека на эту сумму после этого момента (вебхук-независимо).
           try {
@@ -4480,7 +4525,10 @@ const server = createServer(async (req, res) => {
               [who, pack.tokens, pack.stars]
             )
           } catch (e) {
-            console.warn('[STARS] pending-чек не записался:', String(e).slice(0, 120))
+            console.warn(
+              '[STARS] pending-чек не записался:',
+              String(e).slice(0, 120)
+            )
           }
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ ok: true, link: tgd.result }))
@@ -4502,7 +4550,12 @@ const server = createServer(async (req, res) => {
         const who = chatIdentity(req, verifiedTelegramId(req))
         if (!who) {
           res.writeHead(401, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: false, error: 'нужна подпись или ключ' }))
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: 'нужна свежая подпись Telegram',
+            })
+          )
           return
         }
         try {
@@ -4525,7 +4578,12 @@ const server = createServer(async (req, res) => {
           )
           if (!pend.rows.length) {
             res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ ok: false, причина: 'неоплаченных инвойсов нет' }))
+            res.end(
+              JSON.stringify({
+                ok: false,
+                причина: 'неоплаченных инвойсов нет',
+              })
+            )
             return
           }
           const st = await fetch(
@@ -4580,7 +4638,12 @@ const server = createServer(async (req, res) => {
             }
           }
           res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: false, причина: 'оплаты пока не видно — попробуй через минуту' }))
+          res.end(
+            JSON.stringify({
+              ok: false,
+              причина: 'оплаты пока не видно — попробуй через минуту',
+            })
+          )
         } catch (e) {
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ ok: false, error: String(e).slice(0, 300) }))
@@ -4591,7 +4654,9 @@ const server = createServer(async (req, res) => {
       // Вебхук бота-кассира: секрет в пути, чтобы гвард и злоумышленники
       // мимо не прошли. Telegram шлёт сюда pre_checkout и successful_payment.
       const WH_SECRET = process.env.STARS_WEBHOOK_SECRET || ''
-      const whMatch = req.url?.match(/^\/api\/telegram\/stars-wh\/([a-zA-Z0-9_-]+)$/)
+      const whMatch = req.url?.match(
+        /^\/api\/telegram\/stars-wh\/([a-zA-Z0-9_-]+)$/
+      )
       if (whMatch && req.method === 'POST') {
         if (!WH_SECRET || whMatch[1] !== WH_SECRET || !PAY_BOT) {
           res.writeHead(404, { 'Content-Type': 'application/json' })
@@ -4614,9 +4679,9 @@ const server = createServer(async (req, res) => {
             )
           } else if (upd.successful_payment) {
             // tokens:<amount>:<telegram_id> — единственный источник правды.
-            const m = String(upd.successful_payment.invoice_payload || '').match(
-              /^tokens:(\d+):(.+)$/
-            )
+            const m = String(
+              upd.successful_payment.invoice_payload || ''
+            ).match(/^tokens:(\d+):(.+)$/)
             const amount = m ? Number(m[1]) : 0
             const tid = m ? m[2] : ''
             if (amount > 0 && tid) {
@@ -4869,13 +4934,13 @@ const server = createServer(async (req, res) => {
     //   4. клиент пингует GET /api/feed/:id/star?payload= и видит paid
     const starMatch = feedPath.match(/^\/api\/feed\/(\d+)\/star$/)
     if (starMatch && req.method === 'POST') {
-      // Кто шлёт звезду: подпись мини-аппа или ключ агента. НЕ из тела —
+      // Кто шлёт звезду: только подпись мини-аппа. НЕ из тела —
       // иначе можно было бы дарить звёзды от чужого имени.
       const who = chatIdentity(req, verifiedTelegramId(req))
       if (!who) {
         sendJson(res, 401, {
           error: 'не удалось определить пользователя',
-          detail: 'нужна подпись Telegram или ключ агента',
+          detail: 'нужна свежая подпись Telegram',
         })
         return
       }
@@ -5263,7 +5328,7 @@ const server = createServer(async (req, res) => {
   // (липсинк, будущие генерации) делается от него. Таблица assets уже
   // связывает файлы с telegram_id; тип avatar_photo отличает «лицо человека»
   // от сгенерированных файлов. Личность — как у агента: подпись initData
-  // или ключ агента; telegram_id из тела не принимается никогда.
+  // Telegram initData; telegram_id из тела не принимается никогда.
   if (req.url?.split('?')[0] === '/api/assets' && req.method === 'POST') {
     const who = chatIdentity(req, verifiedTelegramId(req))
     if (!who) {
@@ -5271,8 +5336,7 @@ const server = createServer(async (req, res) => {
       res.end(
         JSON.stringify({
           error: 'не удалось определить пользователя',
-          detail:
-            'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
+          detail: 'нужна свежая подпись Telegram (X-Telegram-Init-Data)',
         })
       )
       return
@@ -5329,7 +5393,7 @@ const server = createServer(async (req, res) => {
   //
   // Удалять можно ТОЛЬКО свои строки типа avatar_photo: генерации — это
   // история, её стирать нельзя; чужие строки — нельзя тем более. Владелец
-  // определяется так же, как в POST: подпись или ключ агента.
+  // определяется так же, как в POST: свежая Telegram подпись.
   if (req.url?.split('?')[0] === '/api/assets' && req.method === 'DELETE') {
     const who = chatIdentity(req, verifiedTelegramId(req))
     if (!who) {
@@ -5337,8 +5401,7 @@ const server = createServer(async (req, res) => {
       res.end(
         JSON.stringify({
           error: 'не удалось определить пользователя',
-          detail:
-            'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
+          detail: 'нужна свежая подпись Telegram (X-Telegram-Init-Data)',
         })
       )
       return
@@ -5406,8 +5469,7 @@ const server = createServer(async (req, res) => {
       res.end(
         JSON.stringify({
           error: 'история доступна только её владельцу',
-          detail:
-            'подпись Telegram или ключ агента должны совпадать с telegram_id в пути',
+          detail: 'Telegram подпись должна совпадать с telegram_id в пути',
         })
       )
       return
@@ -5461,163 +5523,52 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  // POST /api/users/sync-from-telegram — синк профиля из данных Telegram.
+  // POST /api/users/me — create/load the active Telegram-owned profile.
+  // The request target and body intentionally contain no ownership input:
+  // telegram_id and all mutable Telegram fields come only from verified initData.
   //
-  // Раньше профиль показывал автора ПОСЛЕДНЕГО ПОСТА (fallback на
-  // public_templates): имя и аватар из Telegram никуда не сохранялись —
-  // автологин заполнял только userAtom в памяти клиента. Теперь подпись
-  // initData (или dev-ключ владельца) даёт серверу verified id + user,
-  // и профиль upsert'ится по-настоящему: users + profiles.
-  if (req.url?.split('?')[0] === '/api/users/sync-from-telegram' && req.method === 'POST') {
-    try {
-      const pool = await getPool()
-      let tgId = ''
-      let firstName = ''
-      let lastName = ''
-      let username = ''
-      let photoUrl: string | null = null
+  // /api/users/sync-from-telegram remains as a compatibility alias for the
+  // current client, but is governed by the same signed-owner path and ignores
+  // its historical client-supplied body.
+  const profilePath = (req.url || '').split('?')[0]
+  if (
+    (profilePath === '/api/users/me' ||
+      profilePath === '/api/users/sync-from-telegram') &&
+    req.method === 'POST'
+  ) {
+    const legacySync = profilePath === '/api/users/sync-from-telegram'
+    if (!verifiedTelegramUser(req)) {
+      sendJson(res, 401, {
+        error: 'telegram_identity_required',
+        detail: 'Откройте приложение из @t27ai_bot и повторите вход.',
+      })
+      return
+    }
 
-      const initRaw = (req.headers['x-telegram-init-data'] as string) || ''
-      if (initRaw) {
-        const params = new URLSearchParams(initRaw)
-        try {
-          const u = JSON.parse(params.get('user') || '{}')
-          tgId = String(u.id ?? '')
-          firstName = String(u.first_name ?? '')
-          lastName = String(u.last_name ?? '')
-          username = String(u.username ?? '')
-          photoUrl = u.photo_url ?? null
-        } catch {
-          /* повреждённый user — ответим честной ошибкой ниже */
-        }
-      }
-      // Dev-коннектор: тело доверяем ТОЛЬКО если совпало с владельцем ключа.
-      if (!tgId) {
-        const keyOwner = chatIdentity(req, null)
-        if (keyOwner) {
-          let body: any = {}
-          try {
-            body = JSON.parse((await readBody(req)) || '{}')
-          } catch {}
-          if (String(body.id) === keyOwner) {
-            tgId = keyOwner
-            firstName = String(body.first_name ?? '')
-            lastName = String(body.last_name ?? '')
-            username = String(body.username ?? '')
-            photoUrl = body.photo_url ?? null
-          }
-        }
-      }
-      if (!tgId) {
-        res.writeHead(401, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify({ error: 'нужна подпись Telegram (initData) или ключ владельца' })
-        )
+    try {
+      const result = await loadOrCreateOwnProfile(req, await getPool())
+      if (!result.ok) {
+        sendJson(res, 401, { error: 'telegram_identity_required' })
         return
       }
-      const display = [firstName, lastName].filter(Boolean).join(' ') || 'Автор'
-      // profiles может не существовать вовсе (на этой базе её нет) —
-      // создаём по канону профиля; затем UNIQUE по telegram_id для upsert.
-      await pool.query(
-        `CREATE TABLE IF NOT EXISTS profiles (
-           id serial PRIMARY KEY,
-           telegram_id text,
-           username text,
-           display_name text,
-           bio text DEFAULT '',
-           avatar_url text,
-           cover_url text,
-           social_links jsonb DEFAULT '[]',
-           is_public boolean DEFAULT TRUE,
-           is_verified boolean DEFAULT FALSE,
-           created_at timestamptz DEFAULT now()
-         )`
-      )
-      await pool
-        .query(`CREATE UNIQUE INDEX IF NOT EXISTS profiles_tg_uniq ON profiles (telegram_id)`)
-        .catch(async () => {
-          await pool.query(
-            `DELETE FROM profiles p USING profiles q
-             WHERE p.telegram_id = q.telegram_id AND p.id < q.id`
-          )
-          await pool.query(
-            `CREATE UNIQUE INDEX IF NOT EXISTS profiles_tg_uniq ON profiles (telegram_id)`
-          )
-        })
-      // users: telegram_id не уникален в этой базе (PK id, uniq user_id) —
-      // честный update-then-insert вместо ON CONFLICT.
-      {
-        const upd = await pool.query(
-          `UPDATE users SET username = $2, first_name = $3
-           WHERE telegram_id = $1 RETURNING id`,
-          [tgId, username || null, display]
-        )
-        if (!upd.rows.length) {
-          await pool.query(
-            `INSERT INTO users (telegram_id, username, first_name)
-             VALUES ($1, $2, $3)`,
-            [tgId, username || null, display]
-          )
-        }
-      }
-      await pool.query(
-        `INSERT INTO profiles (telegram_id, username, display_name, avatar_url)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (telegram_id)
-         DO UPDATE SET username = EXCLUDED.username,
-                       display_name = EXCLUDED.display_name,
-                       avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url)`,
-        [tgId, username || null, display, photoUrl]
-      ).catch(async e => {
-        // profiles может не иметь telegram_id-конфликта/колонок — чиним схему
-        // один раз и повторяем upsert.
-        if (String(e).includes('does not exist') || String(e).includes('constraint')) {
-          await pool.query(
-            `CREATE TABLE IF NOT EXISTS profiles (
-               id serial PRIMARY KEY,
-               telegram_id text UNIQUE,
-               username text,
-               display_name text,
-               bio text DEFAULT '',
-               avatar_url text,
-               cover_url text,
-               social_links jsonb DEFAULT '[]',
-               is_public boolean DEFAULT TRUE,
-               is_verified boolean DEFAULT FALSE,
-               created_at timestamptz DEFAULT now()
-             )`
-          )
-          await pool.query(
-            `INSERT INTO profiles (telegram_id, username, display_name, avatar_url)
-             VALUES ($1, $2, $3, $4)
-             ON CONFLICT (telegram_id)
-             DO UPDATE SET username = EXCLUDED.username,
-                           display_name = EXCLUDED.display_name,
-                           avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url)`,
-            [tgId, username || null, display, photoUrl]
-          )
-        } else {
-          throw e
-        }
-      })
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(
-        JSON.stringify({
+      if (legacySync) {
+        const profile = result.profile
+        sendJson(res, 200, {
           ok: true,
-          telegram_id: tgId,
-          username: username || null,
-          display_name: display,
-          avatar_url: photoUrl,
+          telegram_id: profile.telegram_id,
+          username: profile.username,
+          display_name: profile.display_name,
+          avatar_url: profile.avatar_url,
         })
-      )
-    } catch (error) {
-      console.error('[sync-from-telegram] error:', error)
-      res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ error: String(error).slice(0, 300) }))
+      } else {
+        sendJson(res, 200, { profile: result.profile })
+      }
+    } catch {
+      console.error('[profile session] verified profile upsert failed')
+      sendJson(res, 500, { error: 'profile_session_failed' })
     }
     return
   }
-
   // GET /api/users/id/:telegram_id
   if (req.url?.startsWith('/api/users/id/') && req.method === 'GET') {
     const telegram_id = req.url?.split('/').pop()
@@ -5688,7 +5639,9 @@ const server = createServer(async (req, res) => {
     const pathParts = url.pathname.split('/').filter(Boolean)
     const usernameIndex = pathParts.indexOf('api') + 2 // /api/users/:username
     const username = pathParts[usernameIndex]
-    const viewerTelegramId = url.searchParams.get('user_id')
+    // Public profile lookup may receive a signed viewer, but client query
+    // parameters never define ownership.
+    const viewerTelegramId = verifiedTelegramId(req)
 
     if (!username) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
@@ -5845,9 +5798,7 @@ const server = createServer(async (req, res) => {
               is_verified: false,
               created_at: row.created_at,
             }
-            console.log(
-              `[Profile] Found profile by telegram_id=${viewerTelegramId} for username=${username}`
-            )
+            console.log('[Profile] Found profile for verified viewer')
           }
         } catch (_e) {
           console.log('[Profile] Attempt 4 (telegram_id lookup) failed:', _e)
@@ -5869,9 +5820,7 @@ const server = createServer(async (req, res) => {
           is_verified: false,
           created_at: new Date().toISOString(),
         }
-        console.log(
-          `[Profile] Created minimal profile for telegram_id=${viewerTelegramId}, username=${username}`
-        )
+        console.log('[Profile] Created minimal profile for verified viewer')
       }
 
       if (!profile) {
@@ -6261,10 +6210,12 @@ async function main() {
   await initBundle()
 
   server.listen(Number(PORT), '0.0.0.0', () => {
+    const telegramAuth = telegramAuthStatus()
     console.log(`🚀 Remotion render server running on 0.0.0.0:${PORT}`)
     console.log(
       `🔒 Auth: mode=${authMode()} apiKey=${process.env.RENDER_API_KEY ? 'set' : 'MISSING'} ` +
-        `botToken=${process.env.TELEGRAM_BOT_TOKEN ? 'set' : 'MISSING'}`
+        `telegramBot=${telegramAuth.configured ? `@${telegramAuth.username}` : 'MISSING'} ` +
+        `telegramToken=${telegramAuth.tokenConfigured ? 'set' : 'MISSING'}`
     )
     console.log(`📍 HTTP Endpoints:`)
     console.log(`   GET  /health       - Health check`)

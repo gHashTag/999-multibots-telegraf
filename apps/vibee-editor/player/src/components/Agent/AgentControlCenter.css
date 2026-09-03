@@ -1,0 +1,239 @@
+.agent-control {
+  --agent-green: #00ff88;
+  width: min(920px, calc(100% - 28px));
+  margin: 16px auto;
+  padding: 18px;
+  color: #fff;
+  background: #080a09;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+}
+
+.agent-control--compact {
+  margin-top: 8px;
+  padding: 14px;
+}
+
+.agent-control__header,
+.agent-control__header h2,
+.agent-control__card h3,
+.agent-control__activity h3,
+.agent-control__success,
+.agent-control__event {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-control__header {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.agent-control__header h2,
+.agent-control__card h3,
+.agent-control__activity h3 {
+  margin: 5px 0;
+}
+
+.agent-control__header h2 {
+  font-size: 18px;
+}
+.agent-control__card h3,
+.agent-control__activity h3 {
+  font-size: 15px;
+}
+.agent-control p {
+  margin: 4px 0 12px;
+  color: #a7aca9;
+  line-height: 1.45;
+}
+.agent-control code {
+  color: var(--agent-green);
+  font-family: ui-monospace, monospace;
+}
+
+.agent-control__badge {
+  padding: 3px 7px;
+  color: #00190d;
+  background: var(--agent-green);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.agent-control button {
+  min-height: 40px;
+  padding: 8px 11px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.agent-control button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.agent-control__refresh {
+  min-width: 40px;
+  padding: 8px !important;
+}
+.agent-control__primary {
+  color: #00190d !important;
+  background: var(--agent-green) !important;
+  font-weight: 750;
+}
+
+.agent-control__boundaries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 12px 0;
+}
+
+.agent-control__boundaries span {
+  padding: 6px 9px;
+  color: #ffd98a;
+  background: rgba(255, 217, 138, 0.07);
+  border: 1px solid rgba(255, 217, 138, 0.18);
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.agent-control__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.agent-control__card,
+.agent-control__activity {
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+}
+
+.agent-control__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agent-control__tools {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-control__tools li {
+  display: grid;
+  grid-template-columns: minmax(145px, auto) 1fr;
+  gap: 8px;
+  padding: 7px 8px;
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+.agent-control__tools li span {
+  color: #9ea5a1;
+}
+
+.agent-control__result,
+.agent-control__success,
+.agent-control__error {
+  margin-top: 4px;
+  padding: 10px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.agent-control__result {
+  display: grid;
+  gap: 4px;
+  color: #dce4e0;
+  background: rgba(0, 255, 136, 0.06);
+}
+.agent-control__success {
+  color: var(--agent-green);
+  background: rgba(0, 255, 136, 0.08);
+}
+.agent-control__error {
+  color: #ffabab;
+  background: rgba(255, 70, 70, 0.1);
+}
+
+.agent-control__activity {
+  margin-top: 12px;
+}
+.agent-control__events {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow: auto;
+}
+.agent-control__event {
+  min-width: 0;
+  padding: 7px 3px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+}
+.agent-control__event > span:nth-of-type(2) {
+  color: #a7aca9;
+}
+.agent-control__event small {
+  margin-left: auto;
+  color: #8f9692;
+}
+.agent-control__dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #ffd98a;
+}
+.agent-control__dot--completed {
+  background: var(--agent-green);
+}
+.agent-control__dot--failed {
+  background: #ff6b6b;
+}
+
+@media (max-width: 720px) {
+  .agent-control {
+    width: calc(100% - 20px);
+    padding: 12px;
+  }
+  .agent-control__grid {
+    grid-template-columns: 1fr;
+  }
+  .agent-control__tools li {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+@media (max-width: 390px) {
+  .agent-control {
+    width: calc(100% - 12px);
+    margin: 6px auto;
+    border-radius: 12px;
+  }
+  .agent-control__header {
+    gap: 8px;
+  }
+  .agent-control__boundaries {
+    display: grid;
+  }
+  .agent-control__card {
+    padding: 11px;
+  }
+}

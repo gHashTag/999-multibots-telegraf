@@ -112,6 +112,22 @@ body[data-tabbar='visible'] .editor-main {
   min-height: 0;
 }
 
+/* Desktop uses the header navigation; rendering both surfaces duplicates
+   destinations and steals editor space. */
+@media (min-width: 1024px) {
+  .tma-tabbar {
+    display: none;
+  }
+
+  body[data-tabbar='visible'] #root {
+    padding-bottom: 0;
+  }
+
+  body[data-tabbar='visible'] .editor {
+    height: var(--app-vh-stable, 100dvh);
+  }
+}
+
 @media (min-width: 768px) {
   .tma-tabbar__label {
     font-size: 11px;

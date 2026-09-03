@@ -246,6 +246,7 @@ export const CaptionStyleSchema = z.object({
 export const SplitTalkingHeadSchema = z.object({
   lipSyncVideo: z.string(),
   segments: z.array(SegmentSchema),
+  captionLanguage: z.string().default('ru'),
   captionColor: z.string().default(CAPTION_DEFAULTS.textColor),
   splitRatio: z.number().default(0.5),
   backgroundMusic: z.string().optional(),
@@ -419,7 +420,6 @@ const BRollLayer: React.FC<BRollLayerProps> = ({
               objectPosition: objectPos,
             }}
             muted
-            loop
           />
         )}
       </div>

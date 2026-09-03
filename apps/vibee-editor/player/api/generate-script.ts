@@ -3,16 +3,8 @@
 
 const XAI_API_URL = 'https://api.x.ai/v1/chat/completions'
 const XAI_API_KEY = process.env.XAI_API_KEY
-
-// Падаем на старте, а не на третьем вызове с невнятным 401 от api.x.ai.
-if (!XAI_API_KEY) {
-  console.error(
-    'XAI_API_KEY не задан. Взять: railway variables --kv | grep XAI_API_KEY ' +
-      '(сервис vibee, apps/vibee-editor/railway.toml), либо выпустить новый ключ на https://console.x.ai/. ' +
-      'Задать: railway variables --set XAI_API_KEY=<значение>'
-  )
-  process.exit(1)
-}
+export const SAFE_BETA_LOCKED = true
+const SAFE_BETA_DENIAL = Object.freeze({ error: 'SAFE_BETA_PAID_DISABLED' })
 
 export default async function handler(req, res) {
   // CORS
@@ -21,6 +13,12 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
     return res.status(204).end()
+  }
+
+  // Immutable release lock, deliberately before method dispatch, body access,
+  // provider configuration checks, and fetch.
+  if (SAFE_BETA_LOCKED) {
+    return res.status(423).json(SAFE_BETA_DENIAL)
   }
 
   if (req.method !== 'POST') {

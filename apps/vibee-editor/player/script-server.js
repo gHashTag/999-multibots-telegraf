@@ -3,16 +3,8 @@ const http = require('http')
 
 const XAI_API_KEY = process.env.XAI_API_KEY
 const PORT = process.env.PORT || 3001
-
-// Падаем на старте, а не на третьем вызове с невнятным 401 от api.x.ai.
-if (!XAI_API_KEY) {
-  console.error(
-    'XAI_API_KEY не задан. Взять: railway variables --kv | grep XAI_API_KEY ' +
-      '(сервис vibee, apps/vibee-editor/railway.toml), либо выпустить новый ключ на https://console.x.ai/. ' +
-      'Локально: export XAI_API_KEY=<значение>'
-  )
-  process.exit(1)
-}
+const SAFE_BETA_LOCKED = true
+const SAFE_BETA_DENIAL = Object.freeze({ error: 'SAFE_BETA_PAID_DISABLED' })
 
 const server = http.createServer(async (req, res) => {
   // CORS
@@ -21,6 +13,13 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
   if (req.method === 'OPTIONS') return res.writeHead(204).end()
+
+  // Immutable release lock: no environment value or request payload can reach
+  // parsing or the paid provider call in SAFE BETA.
+  if (SAFE_BETA_LOCKED) {
+    res.writeHead(423, { 'Content-Type': 'application/json' })
+    return res.end(JSON.stringify(SAFE_BETA_DENIAL))
+  }
 
   // Только POST /api/ai/generate-script
   if (req.method !== 'POST' || req.url !== '/api/ai/generate-script') {
@@ -123,4 +122,8 @@ const server = http.createServer(async (req, res) => {
   }
 })
 
-server.listen(PORT, () => console.log(`Script server running on port ${PORT}`))
+server.listen(PORT, () =>
+  console.log(
+    `Script server running on port ${PORT}; SAFE BETA paid operations disabled`
+  )
+)

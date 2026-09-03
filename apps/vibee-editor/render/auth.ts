@@ -15,70 +15,96 @@
  *    уже есть. Подделать её без токена нельзя.
  *
  * РЕЖИМ ВНЕДРЕНИЯ. RENDER_AUTH_MODE:
- *   warn    (по умолчанию) — пропускает всё, но логирует, что было бы отвергнуто
- *   enforce — отвергает
- * Ретрофит авторизации на живой сервис вслепую ломает вызывающих, о которых не
- * знаешь. Сначала сутки в warn и смотрим лог, потом enforce.
+ *   enforce (по умолчанию) — отвергает
+ *   warn    — явный диагностический режим вне production, пропускает и
+ *             логирует отказ
+ * В production режим всегда enforce, независимо от runtime override.
  */
 import crypto from 'node:crypto'
 import type { IncomingMessage } from 'node:http'
+import { telegramAuthBotForEnvironment } from '../packages/vibee-atoms/src/telegram-auth'
 
 // Env читается ЛЕНИВО, а не на импорте. На импорте это делало модуль
 // непроверяемым (ESM поднимает import выше любого присваивания process.env в
 // тесте) и, что важнее в проде, требовало рестарта процесса для смены токена
 // или режима.
-const mode = () => (process.env.RENDER_AUTH_MODE || 'warn').toLowerCase()
-const apiKey = () => process.env.RENDER_API_KEY || ''
+const normalizedEnvironment = (value?: string) =>
+  (value || '').trim().toLowerCase()
 
-/**
- * ВСЕ токены ботов платформы, а не один.
- *
- * initData подписывается токеном ТОГО бота, из которого открыли мини-апп, а
- * ботов на платформе двенадцать. Пока здесь читался один TELEGRAM_BOT_TOKEN,
- * вход работал ровно из одного бота, а из остальных человек упирался в
- * «Login to Export» без объяснения причины.
- *
- * Второй, более коварный случай, который это же чинит: TELEGRAM_BOT_TOKEN мог
- * содержать УСТАРЕВШИЙ токен того же бота (id совпадает, строка нет) — тогда
- * подпись не сходилась вообще ни у кого, а симптом выглядел как «мини-апп
- * сломался». Перебор списка переживает ротацию одного значения.
- *
- * В имени токена бот не закодирован, поэтому подходящий ищется перебором.
- * HMAC дешёвый: двенадцать проверок — микросекунды.
- */
-const botTokens = (): string[] => {
-  const out: string[] = []
-  const push = (t?: string) => {
-    const v = (t || '').trim()
-    if (v && !out.includes(v)) out.push(v)
+const productionRuntime = () =>
+  normalizedEnvironment(process.env.NODE_ENV) === 'production' ||
+  normalizedEnvironment(process.env.TELEGRAM_AUTH_ENV) === 'production'
+
+const mode = () => {
+  if (productionRuntime()) return 'enforce'
+  return normalizedEnvironment(process.env.RENDER_AUTH_MODE) === 'warn'
+    ? 'warn'
+    : 'enforce'
+}
+const apiKey = () => process.env.RENDER_API_KEY || ''
+const TELEGRAM_ID = /^[1-9]\d{0,19}$/
+
+/** One configured bot owns Trinity auth; all other platform tokens are inert. */
+const expectedAuthBot = () =>
+  telegramAuthBotForEnvironment(
+    process.env.TELEGRAM_AUTH_ENV || process.env.NODE_ENV,
+    process.env.TELEGRAM_AUTH_BOT_USERNAME
+  )
+
+const authBotToken = (): string => {
+  const config = expectedAuthBot()
+  if (!config.configured) return ''
+  return (process.env[config.tokenEnv] || '').trim()
+}
+
+export function telegramAuthStatus(): {
+  configured: boolean
+  username: string
+  tokenConfigured: boolean
+} {
+  const config = expectedAuthBot()
+  return {
+    configured: config.configured,
+    username: config.username,
+    tokenConfigured: Boolean(authBotToken()),
   }
-  push(process.env.TELEGRAM_BOT_TOKEN)
-  for (let i = 1; i <= 20; i++) push(process.env[`BOT_TOKEN_${i}`])
-  push(process.env.BOT_TOKEN_TEST_1)
-  push(process.env.BOT_TOKEN_TEST_2)
-  return out
+}
+
+/** Keep launch credentials out of request logs, including the SSE fallback. */
+export function redactRequestTarget(target?: string): string {
+  try {
+    const parsed = new URL(target || '/', 'http://localhost')
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (
+        /^(?:initdata|tgwebappdata|authorization|cookie|secret|token|password|credential|api.?key|agent.?key|.*[_-](?:key|token|secret))$/i.test(
+          key
+        )
+      ) {
+        parsed.searchParams.set(key, '[REDACTED]')
+      }
+    }
+    return `${parsed.pathname}${parsed.search}`
+  } catch {
+    return '/invalid-request-target'
+  }
 }
 
 /** Открыто всегда: health для Railway и отдача уже отрендеренных файлов. */
 const PUBLIC_EXACT = new Set([
   '/health',
-  // /mcp пропускается общим гвардом НАМЕРЕННО, и это не дыра: обработчик
-  // проверяет собственный ключ X-Agent-Key и без него не выполняет ни одного
-  // инструмента. Здесь иначе нельзя — общий гвард умеет только подпись
-  // мини-аппа и общий серверный ключ, а внешнему агенту нужен ключ,
-  // ПРИВЯЗАННЫЙ к конкретному человеку: без привязки инструмент не знает,
-  // чью ленту читать и от чьего имени публиковать.
+  // /mcp пропускается общим гвардом НАМЕРЕННО: обработчик проверяет свежую
+  // Telegram initData до body/DB. Внешний key-path fail-closed в SAFE BETA.
   '/mcp',
   // /api/agent/chat пропускается общим гвардом НАМЕРЕННО: обработчик сам
-  // проверяет личность — подпись мини-аппа ИЛИ ключ агента. Общий гвард
-  // умеет только первое, а коннектор для тестов требует второго.
+  // проверяет свежую подпись мини-аппа. Сам маршрут дополнительно заблокирован
+  // immutable paid-generation gate в SAFE BETA.
   '/api/agent/chat',
   // POST /api/users/sync-from-telegram пропускается гвардом НАМЕРЕННО:
-  // хендлер сам достаёт личность из подписи initData (или сверяет
-  // dev-ключ с телом). Синк МОЖЕТ писать только своего владельца.
+  // legacy-хендлер сам повторно проверяет подпись initData и игнорирует body,
+  // path и query ownership. Он МОЖЕТ писать только своего владельца.
   '/api/users/sync-from-telegram',
   // POST /api/tokens/invoice пропускается гвардом НАМЕРЕННО: хендлер сам
-  // проверяет личность (подпись мини-аппа ИЛИ ключ агента) — как /mcp.
+  // проверяет Telegram identity сам; SAFE BETA payment gate срабатывает раньше.
   // Без этого прод-enforce отбивал создание инвойса 401 (ловушка №8,
   // третий случай: локальный warn маскирует).
   '/api/tokens/invoice',
@@ -86,8 +112,8 @@ const PUBLIC_EXACT = new Set([
   // а звёзды сверяются с Bot API — первоисточником.
   '/api/tokens/verify',
   // POST /api/assets (сохранить фото в профиль аватара) — тот же принцип:
-  // обработчик сам проверяет личность (подпись или ключ агента) и пишет
-  // файл строго от проверенного владельца. Гвард здесь мешал бы dev-ключу.
+  // обработчик сам проверяет Telegram identity и пишет файл строго от
+  // проверенного владельца. SAFE BETA default-deny блокирует запись раньше.
   // GET /api/assets/:id остаётся ЗА гвардом — чтение чужой истории
   // по известному telegram_id отдавать нельзя.
   '/api/assets',
@@ -99,7 +125,7 @@ const PUBLIC_PREFIXES = [
   '/s3/',
   '/proxy/image',
   // /api/assets* пропускается общим гвардом НАМЕРЕННО: каждый хендлер
-  // проверяет личность сам. POST/DELETE — через подпись или ключ агента;
+  // проверяет личность сам. POST/DELETE — через Telegram подпись;
   // GET /api/assets/:telegram_id — сверяет подписанта с запрошенным id
   // (см. хендлер). До этой правки гвард проверял только валидность
   // подписи, не совпадение с id в пути: подписанный человек мог читать
@@ -153,15 +179,109 @@ export function isPublic(req: IncomingMessage): boolean {
  * где data_check_string — все пары кроме hash, отсортированные по ключу,
  * склеенные через \n.
  */
-export function verifyTelegramInitData(initData: string): {
-  ok: boolean
-  reason?: string
-  /** id бота, чьей подписью initData сошлась — для журнала и атрибуции. */
-  botId?: string
-} {
-  const tokens = botTokens()
-  if (!tokens.length) {
-    return { ok: false, reason: 'no bot tokens configured on the server' }
+export interface VerifiedTelegramUser {
+  id: string
+  firstName: string
+  lastName?: string
+  username?: string
+  photoUrl?: string
+}
+
+export type TelegramInitDataVerification =
+  | {
+      ok: true
+      /** id бота, чьей подписью initData сошлась. */
+      botId: string
+      user: VerifiedTelegramUser
+    }
+  | { ok: false; reason: string }
+
+const optionalTelegramString = (
+  value: unknown,
+  field: string,
+  maxLength: number
+): { ok: true; value?: string } | { ok: false; reason: string } => {
+  if (value === undefined || value === null || value === '') {
+    return { ok: true }
+  }
+  if (typeof value !== 'string') {
+    return { ok: false, reason: `Telegram user.${field} must be a string` }
+  }
+  const normalized = value.trim()
+  if (!normalized) return { ok: true }
+  return { ok: true, value: normalized.slice(0, maxLength) }
+}
+
+const telegramUserFromParams = (
+  params: URLSearchParams
+): { ok: true; user: VerifiedTelegramUser } | { ok: false; reason: string } => {
+  const raw = params.get('user')
+  if (!raw) return { ok: false, reason: 'no user in initData' }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { ok: false, reason: 'Telegram user is not valid JSON' }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { ok: false, reason: 'Telegram user must be an object' }
+  }
+
+  const record = parsed as Record<string, unknown>
+  const rawId = record.id
+  const id =
+    typeof rawId === 'number' && Number.isSafeInteger(rawId) && rawId > 0
+      ? String(rawId)
+      : typeof rawId === 'string' && TELEGRAM_ID.test(rawId)
+        ? rawId
+        : ''
+  if (!TELEGRAM_ID.test(id)) {
+    return { ok: false, reason: 'Telegram user.id must be a positive integer' }
+  }
+
+  if (typeof record.first_name !== 'string' || !record.first_name.trim()) {
+    return {
+      ok: false,
+      reason: 'Telegram user.first_name must be a non-empty string',
+    }
+  }
+  const firstName = record.first_name.trim().slice(0, 128)
+  const lastName = optionalTelegramString(record.last_name, 'last_name', 128)
+  if (!lastName.ok) return lastName
+  const username = optionalTelegramString(record.username, 'username', 64)
+  if (!username.ok) return username
+  const photoUrl = optionalTelegramString(record.photo_url, 'photo_url', 2048)
+  if (!photoUrl.ok) return photoUrl
+
+  return {
+    ok: true,
+    user: {
+      id,
+      firstName,
+      lastName: lastName.value,
+      username: username.value,
+      photoUrl: photoUrl.value,
+    },
+  }
+}
+
+export function verifyTelegramInitData(
+  initData: string
+): TelegramInitDataVerification {
+  const bot = expectedAuthBot()
+  if (!bot.configured) {
+    return {
+      ok: false,
+      reason: 'Telegram auth bot is not configured for this runtime',
+    }
+  }
+  const token = authBotToken()
+  if (!token) {
+    return {
+      ok: false,
+      reason: `auth token for @${bot.username} is not configured on the server`,
+    }
   }
   if (!initData) return { ok: false, reason: 'empty initData' }
 
@@ -173,7 +293,9 @@ export function verifyTelegramInitData(initData: string): {
   }
 
   const hash = params.get('hash')
-  if (!hash) return { ok: false, reason: 'no hash in initData' }
+  if (!hash || !/^[0-9a-f]{64}$/.test(hash)) {
+    return { ok: false, reason: 'invalid hash in initData' }
+  }
 
   const checkString = [...params.entries()]
     .filter(([k]) => k !== 'hash')
@@ -181,43 +303,42 @@ export function verifyTelegramInitData(initData: string): {
     .map(([k, v]) => `${k}=${v}`)
     .join('\n')
 
-  // Подпись сверяется с КАЖДЫМ известным токеном: initData подписан ботом, из
-  // которого открыли мини-апп, и заранее неизвестно каким именно.
-  let matchedBotId: string | undefined
-  for (const token of tokens) {
-    const secret = crypto
-      .createHmac('sha256', 'WebAppData')
-      .update(token)
-      .digest()
-    const expected = crypto
-      .createHmac('sha256', secret)
-      .update(checkString)
-      .digest('hex')
-    // timingSafeEqual бросает на разной длине, поэтому длину сверяем заранее.
-    if (expected.length !== hash.length) continue
-    if (crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(hash))) {
-      matchedBotId = token.split(':')[0]
-      break
-    }
-  }
-  if (!matchedBotId) {
-    // Причина названа полно: «hash mismatch» без числа ботов отправлял
-    // диагностику в подпись, тогда как дело обычно в устаревшем или
-    // отсутствующем токене нужного бота.
+  const secret = crypto
+    .createHmac('sha256', 'WebAppData')
+    .update(token)
+    .digest()
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(checkString)
+    .digest('hex')
+  if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(hash))) {
     return {
       ok: false,
-      reason: `hash mismatch: подпись не сошлась ни с одним из ${tokens.length} известных токенов ботов`,
+      reason: `hash mismatch: initData was not signed by @${bot.username}`,
     }
   }
 
   // Просроченный launch. Подпись остаётся валидной вечно, поэтому без этой
   // проверки одна утёкшая ссылка работала бы всегда.
   const authDate = Number(params.get('auth_date') || 0)
-  const ageHours = (Date.now() / 1000 - authDate) / 3600
-  if (!authDate || ageHours > 24)
-    return { ok: false, reason: `initData is ${ageHours.toFixed(1)}h old` }
+  const ageSeconds = Date.now() / 1000 - authDate
+  if (!Number.isInteger(authDate) || authDate <= 0) {
+    return { ok: false, reason: 'invalid auth_date in initData' }
+  }
+  if (ageSeconds < -300) {
+    return { ok: false, reason: 'initData auth_date is in the future' }
+  }
+  if (ageSeconds > 24 * 60 * 60) {
+    return {
+      ok: false,
+      reason: `initData is ${(ageSeconds / 3600).toFixed(1)}h old`,
+    }
+  }
 
-  return { ok: true, botId: matchedBotId }
+  const parsedUser = telegramUserFromParams(params)
+  if (!parsedUser.ok) return parsedUser
+
+  return { ok: true, botId: token.split(':')[0], user: parsedUser.user }
 }
 
 export interface AuthResult {
@@ -226,6 +347,28 @@ export interface AuthResult {
   wouldReject: boolean
   via: 'public' | 'api-key' | 'telegram' | 'none'
   reason?: string
+}
+
+const initDataFromRequest = (req: IncomingMessage): string => {
+  const url = new URL(req.url || '/', 'http://localhost')
+  const canonicalHeader = req.headers['x-telegram-init-data']
+  const legacyHeader = req.headers['x-telegram-initdata']
+  return (
+    (typeof canonicalHeader === 'string' ? canonicalHeader : '') ||
+    (typeof legacyHeader === 'string' ? legacyHeader : '') ||
+    url.searchParams.get('initData') ||
+    ''
+  )
+}
+
+/** Return Telegram profile fields only after HMAC, freshness and shape checks. */
+export function verifiedTelegramUser(
+  req: IncomingMessage
+): VerifiedTelegramUser | null {
+  const initData = initDataFromRequest(req)
+  if (!initData) return null
+  const verification = verifyTelegramInitData(initData)
+  return verification.ok ? verification.user : null
 }
 
 export function authenticate(req: IncomingMessage): AuthResult {
@@ -252,12 +395,7 @@ export function authenticate(req: IncomingMessage): AuthResult {
   // Отдавать SSE без проверки было бы проще, но статус чужого рендера — не
   // публичные данные. Подпись в query проверяется тем же HMAC и так же
   // протухает через сутки.
-  const url = new URL(req.url || '/', 'http://localhost')
-  const initData =
-    (req.headers['x-telegram-init-data'] as string | undefined) ||
-    (req.headers['x-telegram-initdata'] as string | undefined) ||
-    url.searchParams.get('initData') ||
-    ''
+  const initData = initDataFromRequest(req)
   if (initData) {
     const v = verifyTelegramInitData(initData)
     if (v.ok) return { allowed: true, wouldReject: false, via: 'telegram' }
@@ -291,22 +429,7 @@ export function authenticate(req: IncomingMessage): AuthResult {
  * здесь была бы хуже: она молча превратилась бы в «пользователь ноль».
  */
 export function verifiedTelegramId(req: IncomingMessage): string | null {
-  const url = new URL(req.url || '/', 'http://localhost')
-  const initData =
-    (req.headers['x-telegram-init-data'] as string | undefined) ||
-    (req.headers['x-telegram-initdata'] as string | undefined) ||
-    url.searchParams.get('initData') ||
-    ''
-  if (!initData) return null
-  if (!verifyTelegramInitData(initData).ok) return null
-  try {
-    const raw = new URLSearchParams(initData).get('user')
-    if (!raw) return null
-    const id = JSON.parse(raw)?.id
-    return id != null ? String(id) : null
-  } catch {
-    return null
-  }
+  return verifiedTelegramUser(req)?.id ?? null
 }
 
 export function authMode(): string {

@@ -124,18 +124,10 @@ export const haptic = {
  * Вне Telegram (открытый веб) инвойс открыть нельзя — 'unsupported'.
  */
 export function openInvoice(
-  url: string
+  _url: string
 ): Promise<'paid' | 'cancelled' | 'failed' | 'unsupported'> {
-  return new Promise(resolve => {
-    const wa = getWebApp()
-    if (!wa?.openInvoice) {
-      resolve('unsupported')
-      return
-    }
-    try {
-      wa.openInvoice(url, status => resolve(status))
-    } catch {
-      resolve('failed')
-    }
-  })
+  // Immutable SAFE BETA boundary. Invoice creation/verification is also
+  // denied server-side; keeping this helper fail-closed prevents a future UI
+  // import from opening Telegram's payment surface accidentally.
+  return Promise.resolve('unsupported')
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Home, PlusSquare, User, Bot, Sparkles } from 'lucide-react'
+import { Home, PlusSquare, User, Bot } from 'lucide-react'
 import { myProfileAtom } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { haptic } from '@/lib/telegram'
@@ -29,21 +29,10 @@ interface TabItem {
 }
 
 /**
- * ПЯТЬ вкладок, а не девять.
- *
- * Было: feed, search, learn, editor, avatar, video, image, audio, profile.
- * Четыре из них — avatar/video/image/audio — это ОДНА функция «генерация» с
- * разным типом результата, разложенная в плоский ряд. При девяти вкладках шаг
- * полосы 476px против экрана 375px: часть уезжала вправо, и человек их не
- * находил.
- *
- * Теперь генерация живёт под одной вкладкой «ИИ», а выбор типа — внутри
- * страницы. Ровно так уже сделано в шапке (NAV_TABS + AI_SUBMENU в
- * components/Header/Header.tsx), нижняя панель просто отставала.
- *
  * Вкладка «Агент» стоит ВТОРОЙ по прямому указанию владельца: это чат с
  * агентом, у которого есть доступ ко всем функциям приложения. Она заменила
  * «Обучение» — учить проще разговором, чем текстом, который никто не читает.
+ * Генерация отсутствует: SAFE BETA сохраняет только read/draft UX.
  */
 const TABS: TabItem[] = [
   {
@@ -66,13 +55,6 @@ const TABS: TabItem[] = [
     labelKey: 'nav.create',
     icon: <PlusSquare size={20} />,
     match: /^\/editor/,
-  },
-  {
-    id: 'ai',
-    route: '/generate/video',
-    labelKey: 'tabs.ai',
-    icon: <Sparkles size={20} />,
-    match: /^\/generate/,
   },
   {
     id: 'profile',

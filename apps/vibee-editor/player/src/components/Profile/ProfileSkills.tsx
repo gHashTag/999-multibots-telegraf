@@ -31,16 +31,9 @@ export function ProfileSkills() {
 
   const call = useCallback(
     async (name: string, args: Record<string, unknown> = {}) => {
-      const headers = authHeaders()
-      const devKey = import.meta.env.DEV
-        ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
-        : undefined
-      if (devKey && !headers.has('X-Telegram-Init-Data')) {
-        headers.set('X-Agent-Key', devKey)
-      }
       const res = await fetch(`${API_BASE}/mcp`, {
         method: 'POST',
-        headers,
+        headers: authHeaders(),
         body: JSON.stringify({
           jsonrpc: '2.0',
           id: 1,
@@ -96,7 +89,10 @@ export function ProfileSkills() {
             name: draft.name,
             content: draft.content,
           })
-        : await call('skills_create', { name: draft.name, content: draft.content })
+        : await call('skills_create', {
+            name: draft.name,
+            content: draft.content,
+          })
       const okKey = draft.id ? 'обновлено' : 'создано'
       if (r[okKey]) {
         setDraft(null)
@@ -137,13 +133,19 @@ export function ProfileSkills() {
       {skills === null ? (
         <div className="profile-skills__list">
           {[1, 2].map(i => (
-            <div key={i} className="skeleton" style={{ height: 92, borderRadius: 12 }} />
+            <div
+              key={i}
+              className="skeleton"
+              style={{ height: 92, borderRadius: 12 }}
+            />
           ))}
         </div>
       ) : skills.length === 0 && !draft ? (
         <div className="profile-files__empty">
           <Sparkles size={32} />
-          <p>Скиллов пока нет. Одно-два правила — и агент пишет твоим голосом.</p>
+          <p>
+            Скиллов пока нет. Одно-два правила — и агент пишет твоим голосом.
+          </p>
           <button
             className="profile-files__cta"
             onClick={() =>
@@ -168,18 +170,31 @@ export function ProfileSkills() {
                   <button
                     title="Изменить"
                     onClick={() =>
-                      setDraft({ id: sk.id, name: sk.name, content: sk.content })
+                      setDraft({
+                        id: sk.id,
+                        name: sk.name,
+                        content: sk.content,
+                      })
                     }
                   >
                     <Pencil size={14} />
                   </button>
                   <button
-                    title={(sk as { is_public?: boolean }).is_public ? 'Скрыть с витрины' : 'На витрину маркета'}
-                    onClick={() => publish(sk.id, !(sk as { is_public?: boolean }).is_public)}
+                    title={
+                      (sk as { is_public?: boolean }).is_public
+                        ? 'Скрыть с витрины'
+                        : 'На витрину маркета'
+                    }
+                    onClick={() =>
+                      publish(sk.id, !(sk as { is_public?: boolean }).is_public)
+                    }
                   >
                     <Globe size={14} />
                   </button>
-                  <button title="Удалить" onClick={() => remove(sk.id, sk.name)}>
+                  <button
+                    title="Удалить"
+                    onClick={() => remove(sk.id, sk.name)}
+                  >
                     <Trash2 size={14} />
                   </button>
                 </span>
@@ -207,7 +222,8 @@ export function ProfileSkills() {
                   </button>
                 </div>
                 <p className="profile-skills__content">
-                  {mk.excerpt}… <span className="profile-skills__author">@{mk.author}</span>
+                  {mk.excerpt}…{' '}
+                  <span className="profile-skills__author">@{mk.author}</span>
                 </p>
               </div>
             ))}

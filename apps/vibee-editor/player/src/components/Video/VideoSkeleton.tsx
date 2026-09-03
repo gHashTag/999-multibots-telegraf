@@ -9,15 +9,16 @@
  * @see https://blog.logrocket.com/ux-design/skeleton-loading-screen-design/
  */
 
-import { CSSProperties, memo } from 'react';
+import { memo } from 'react'
+import type { CSSProperties } from 'react'
 
 interface VideoSkeletonProps {
-  width?: number | string;
-  height?: number | string;
-  aspectRatio?: string;
-  className?: string;
-  style?: CSSProperties;
-  showPlayButton?: boolean;
+  width?: number | string
+  height?: number | string
+  aspectRatio?: string
+  className?: string
+  style?: CSSProperties
+  showPlayButton?: boolean
 }
 
 export const VideoSkeleton = memo(function VideoSkeleton({
@@ -36,7 +37,8 @@ export const VideoSkeleton = memo(function VideoSkeleton({
         height: height || 'auto',
         aspectRatio: height ? undefined : aspectRatio,
         position: 'relative',
-        background: 'linear-gradient(90deg, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%)',
+        background:
+          'linear-gradient(90deg, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%)',
         backgroundSize: '200% 100%',
         animation: 'video-skeleton-shimmer 1.5s ease-in-out infinite',
         borderRadius: '8px',
@@ -103,7 +105,7 @@ export const VideoSkeleton = memo(function VideoSkeleton({
         }
       `}</style>
     </div>
-  );
-});
+  )
+})
 
-export default VideoSkeleton;
+export default VideoSkeleton

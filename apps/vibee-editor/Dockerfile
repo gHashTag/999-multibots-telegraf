@@ -21,7 +21,7 @@ COPY packages/ ./packages/
 # a peer range of react 15-18 and this app runs react 19.
 COPY player/package.json player/package-lock.json player/.npmrc ./player/
 WORKDIR /workspace/player
-RUN npm ci --no-audit --no-fund
+RUN npm ci --install-links --no-audit --no-fund
 
 # Source last — this layer changes on every commit.
 COPY player/ ./

@@ -18,68 +18,75 @@
  * - 1080p: ~4000 Kbps - High quality
  */
 
-import { BandwidthPredictor, getGlobalBandwidthPredictor, BandwidthStats } from './bandwidthPredictor';
+import {
+  BandwidthPredictor,
+  getGlobalBandwidthPredictor,
+} from './bandwidthPredictor'
+import type { BandwidthStats } from './bandwidthPredictor'
 
-export type Resolution = '360p' | '720p' | '1080p';
+export type Resolution = '360p' | '720p' | '1080p'
 
 export interface QualityLevel {
-  resolution: Resolution;
-  url: string;
-  bitrate: number; // Kbps
-  width: number;
-  height: number;
+  resolution: Resolution
+  url: string
+  bitrate: number // Kbps
+  width: number
+  height: number
 }
 
 export interface QualityManifest {
   [videoId: string]: {
-    [key in Resolution]?: QualityLevel;
-  };
+    [key in Resolution]?: QualityLevel
+  }
 }
 
 export interface AdaptiveQualityOptions {
-  safetyMargin?: number;        // Conservative factor (0.8 = 80%)
-  bufferThreshold?: number;     // Seconds of buffer before downgrading
-  minBufferForUpgrade?: number; // Seconds of buffer required to upgrade
-  switchCooldown?: number;      // Minimum ms between quality switches
-  preferHighQuality?: boolean;  // Bias toward higher quality
+  safetyMargin?: number // Conservative factor (0.8 = 80%)
+  bufferThreshold?: number // Seconds of buffer before downgrading
+  minBufferForUpgrade?: number // Seconds of buffer required to upgrade
+  switchCooldown?: number // Minimum ms between quality switches
+  preferHighQuality?: boolean // Bias toward higher quality
 }
 
 export interface QualityDecision {
-  selectedQuality: QualityLevel | null;
-  reason: string;
-  candidatesConsidered: number;
-  predictedBandwidth: number;
-  selectedBitrate: number;
+  selectedQuality: QualityLevel | null
+  reason: string
+  candidatesConsidered: number
+  predictedBandwidth: number
+  selectedBitrate: number
 }
 
 // Standard quality levels (bitrates in Kbps)
-export const STANDARD_QUALITIES: Record<Resolution, { bitrate: number; width: number; height: number }> = {
+export const STANDARD_QUALITIES: Record<
+  Resolution,
+  { bitrate: number; width: number; height: number }
+> = {
   '360p': { bitrate: 500, width: 640, height: 360 },
   '720p': { bitrate: 1500, width: 1280, height: 720 },
   '1080p': { bitrate: 4000, width: 1920, height: 1080 },
-};
+}
 
 export class AdaptiveQualitySelector {
-  private predictor: BandwidthPredictor;
-  private lastSwitchTime: number = 0;
-  private currentQuality: Resolution = '720p';
+  private predictor: BandwidthPredictor
+  private lastSwitchTime: number = 0
+  private currentQuality: Resolution = '720p'
 
-  private readonly safetyMargin: number;
-  private readonly bufferThreshold: number;
-  private readonly minBufferForUpgrade: number;
-  private readonly switchCooldown: number;
-  private readonly preferHighQuality: boolean;
+  private readonly safetyMargin: number
+  private readonly bufferThreshold: number
+  private readonly minBufferForUpgrade: number
+  private readonly switchCooldown: number
+  private readonly preferHighQuality: boolean
 
   constructor(
     options: AdaptiveQualityOptions = {},
     predictor?: BandwidthPredictor
   ) {
-    this.safetyMargin = options.safetyMargin ?? 0.8;
-    this.bufferThreshold = options.bufferThreshold ?? 2;
-    this.minBufferForUpgrade = options.minBufferForUpgrade ?? 4;
-    this.switchCooldown = options.switchCooldown ?? 3000; // 3 seconds
-    this.preferHighQuality = options.preferHighQuality ?? true;
-    this.predictor = predictor ?? getGlobalBandwidthPredictor();
+    this.safetyMargin = options.safetyMargin ?? 0.8
+    this.bufferThreshold = options.bufferThreshold ?? 2
+    this.minBufferForUpgrade = options.minBufferForUpgrade ?? 4
+    this.switchCooldown = options.switchCooldown ?? 3000 // 3 seconds
+    this.preferHighQuality = options.preferHighQuality ?? true
+    this.predictor = predictor ?? getGlobalBandwidthPredictor()
   }
 
   /**
@@ -97,63 +104,66 @@ export class AdaptiveQualitySelector {
         candidatesConsidered: 0,
         predictedBandwidth: 0,
         selectedBitrate: 0,
-      };
+      }
     }
 
     // Sort by bitrate (highest first)
-    const sortedQualities = [...qualities].sort((a, b) => b.bitrate - a.bitrate);
+    const sortedQualities = [...qualities].sort((a, b) => b.bitrate - a.bitrate)
 
     // Get bandwidth prediction
-    const stats = this.predictor.getStats();
-    const predictedBandwidth = this.predictor.predict();
+    const stats = this.predictor.getStats()
+    const predictedBandwidth = this.predictor.predict()
 
     // Calculate safe bitrate target
-    const safeBitrate = predictedBandwidth * this.safetyMargin;
+    const safeBitrate = predictedBandwidth * this.safetyMargin
 
     // Check if we should enforce cooldown
-    const now = Date.now();
-    const cooldownActive = (now - this.lastSwitchTime) < this.switchCooldown;
+    const now = Date.now()
+    const cooldownActive = now - this.lastSwitchTime < this.switchCooldown
 
     // Find highest quality that fits within bandwidth
-    let selectedQuality = sortedQualities[sortedQualities.length - 1]; // Start with lowest
-    let reason = 'Default to lowest quality';
+    let selectedQuality = sortedQualities[sortedQualities.length - 1] // Start with lowest
+    let reason = 'Default to lowest quality'
 
     for (const quality of sortedQualities) {
       if (quality.bitrate <= safeBitrate) {
-        selectedQuality = quality;
-        reason = `Bitrate ${quality.bitrate} Kbps fits within ${Math.round(safeBitrate)} Kbps safe bandwidth`;
-        break;
+        selectedQuality = quality
+        reason = `Bitrate ${quality.bitrate} Kbps fits within ${Math.round(safeBitrate)} Kbps safe bandwidth`
+        break
       }
     }
 
     // Buffer-based adjustments (BBA algorithm)
     if (bufferSeconds < this.bufferThreshold) {
       // Low buffer - drop quality immediately
-      const lowerQuality = sortedQualities.find((q) => q.bitrate < selectedQuality.bitrate);
+      const lowerQuality = sortedQualities.find(
+        q => q.bitrate < selectedQuality.bitrate
+      )
       if (lowerQuality) {
-        selectedQuality = lowerQuality;
-        reason = `Low buffer (${bufferSeconds.toFixed(1)}s) - downgrading to ${lowerQuality.resolution}`;
+        selectedQuality = lowerQuality
+        reason = `Low buffer (${bufferSeconds.toFixed(1)}s) - downgrading to ${lowerQuality.resolution}`
       }
     } else if (bufferSeconds > this.minBufferForUpgrade && !cooldownActive) {
       // High buffer - consider upgrading
       const higherQuality = sortedQualities.find(
-        (q) => q.bitrate > selectedQuality.bitrate && q.bitrate <= safeBitrate * 1.2
-      );
+        q =>
+          q.bitrate > selectedQuality.bitrate && q.bitrate <= safeBitrate * 1.2
+      )
       if (higherQuality && this.preferHighQuality) {
-        selectedQuality = higherQuality;
-        reason = `High buffer (${bufferSeconds.toFixed(1)}s) - upgrading to ${higherQuality.resolution}`;
+        selectedQuality = higherQuality
+        reason = `High buffer (${bufferSeconds.toFixed(1)}s) - upgrading to ${higherQuality.resolution}`
       }
     }
 
     // Stability check - avoid switching on unstable connection
     if (!stats.isStable && cooldownActive) {
-      reason += ' (switch delayed due to unstable connection)';
+      reason += ' (switch delayed due to unstable connection)'
     }
 
     // Update state
     if (selectedQuality.resolution !== this.currentQuality) {
-      this.lastSwitchTime = now;
-      this.currentQuality = selectedQuality.resolution;
+      this.lastSwitchTime = now
+      this.currentQuality = selectedQuality.resolution
     }
 
     return {
@@ -162,7 +172,7 @@ export class AdaptiveQualitySelector {
       candidatesConsidered: qualities.length,
       predictedBandwidth: Math.round(predictedBandwidth),
       selectedBitrate: selectedQuality.bitrate,
-    };
+    }
   }
 
   /**
@@ -173,7 +183,7 @@ export class AdaptiveQualitySelector {
     videoId: string,
     bufferSeconds: number = 4
   ): QualityDecision {
-    const videoQualities = manifest[videoId];
+    const videoQualities = manifest[videoId]
     if (!videoQualities) {
       return {
         selectedQuality: null,
@@ -181,17 +191,14 @@ export class AdaptiveQualitySelector {
         candidatesConsidered: 0,
         predictedBandwidth: 0,
         selectedBitrate: 0,
-      };
+      }
     }
 
-    const qualities: QualityLevel[] = Object.entries(videoQualities)
-      .filter(([_, level]) => level !== undefined)
-      .map(([resolution, level]) => ({
-        resolution: resolution as Resolution,
-        ...level!,
-      }));
+    const qualities = Object.values(videoQualities).filter(
+      (level): level is QualityLevel => level !== undefined
+    )
 
-    return this.selectQuality(qualities, bufferSeconds);
+    return this.selectQuality(qualities, bufferSeconds)
   }
 
   /**
@@ -199,30 +206,30 @@ export class AdaptiveQualitySelector {
    * Useful for initial quality decision
    */
   getInitialQuality(qualities: QualityLevel[]): QualityLevel | null {
-    const decision = this.selectQuality(qualities, 4); // Assume 4s buffer
-    return decision.selectedQuality;
+    const decision = this.selectQuality(qualities, 4) // Assume 4s buffer
+    return decision.selectedQuality
   }
 
   /**
    * Get current quality level
    */
   getCurrentQuality(): Resolution {
-    return this.currentQuality;
+    return this.currentQuality
   }
 
   /**
    * Force quality level (for user preference)
    */
   setPreferredQuality(resolution: Resolution): void {
-    this.currentQuality = resolution;
-    this.lastSwitchTime = Date.now();
+    this.currentQuality = resolution
+    this.lastSwitchTime = Date.now()
   }
 
   /**
    * Get bandwidth stats
    */
   getBandwidthStats(): BandwidthStats {
-    return this.predictor.getStats();
+    return this.predictor.getStats()
   }
 
   /**
@@ -230,9 +237,9 @@ export class AdaptiveQualitySelector {
    * Convention: video.mp4 → video_720p.mp4
    */
   static buildQualityUrl(baseUrl: string, resolution: Resolution): string {
-    const ext = baseUrl.substring(baseUrl.lastIndexOf('.'));
-    const base = baseUrl.substring(0, baseUrl.lastIndexOf('.'));
-    return `${base}_${resolution}${ext}`;
+    const ext = baseUrl.substring(baseUrl.lastIndexOf('.'))
+    const base = baseUrl.substring(0, baseUrl.lastIndexOf('.'))
+    return `${base}_${resolution}${ext}`
   }
 
   /**
@@ -260,18 +267,18 @@ export class AdaptiveQualitySelector {
           ...STANDARD_QUALITIES['1080p'],
         },
       },
-    };
+    }
   }
 }
 
 // Singleton instance
-let globalSelector: AdaptiveQualitySelector | null = null;
+let globalSelector: AdaptiveQualitySelector | null = null
 
 export function getGlobalQualitySelector(): AdaptiveQualitySelector {
   if (!globalSelector) {
-    globalSelector = new AdaptiveQualitySelector();
+    globalSelector = new AdaptiveQualitySelector()
   }
-  return globalSelector;
+  return globalSelector
 }
 
-export default AdaptiveQualitySelector;
+export default AdaptiveQualitySelector

@@ -14,6 +14,12 @@
 **/playwright-report
 **/test-results
 
+# Manual content-loop agents contain paid/publish orchestration and are not
+# part of the immutable SAFE BETA production artifact. They remain available
+# to the owner locally, but Docker never receives these files in its context.
+render/scripts/agent-autopilot.ts
+render/scripts/morning-summary.ts
+
 # Secrets never belong in a build layer.
 **/.env
 **/.env.*

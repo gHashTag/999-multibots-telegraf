@@ -22,24 +22,34 @@
  */
 import type { IncomingMessage, ServerResponse } from 'http'
 import { TOOLS_BY_NAME, toMcpTools } from './tools'
+import { executeSafeAgentTool } from './access'
+import { decideAgentToolAccess } from '../../../packages/vibee-atoms/src/agent-policy'
 import { runAgent, type ChatMessage } from './chat'
 import { resolveProvider } from './provider'
 import { verifiedTelegramId } from '../../auth'
 
 /**
- * Ключи внешних агентов: AGENT_KEYS="ключ1:telegramId,ключ2:telegramId".
- *
- * Ключ ПРИВЯЗАН к человеку. Без привязки инструмент не знает, чью ленту
- * читать и от чьего имени публиковать, а «telegram_id в аргументах» означал
- * бы, что любой желающий публикует от чужого имени.
+ * Codex key authentication is release-blocked until a reviewed server-side
+ * store exists with hash-only lookup, revocation and immutable owner binding.
+ * Plaintext/static AGENT_KEYS is never an identity source in SAFE BETA.
  */
-export function agentKeyOwner(key: string): string | null {
-  const raw = process.env.AGENT_KEYS || ''
-  for (const pair of raw.split(',')) {
-    const [k, id] = pair.split(':').map(s => s.trim())
-    if (k && id && k === key) return id
-  }
+export const CODEX_AGENT_KEY_STATUS = 'release-blocked' as const
+
+/** @deprecated Kept only so old imports fail closed instead of authenticating. */
+export function agentKeyOwner(_key: string): null {
   return null
+}
+
+/**
+ * The only active SAFE BETA identity is fresh Telegram initData already
+ * verified against the configured auth bot. X-Agent-Key is intentionally
+ * ignored: no trustworthy hash/revocation schema exists in this release.
+ */
+export function resolveAgentIdentity(
+  _req: IncomingMessage,
+  verifiedTelegramOwner: string | null
+): string | null {
+  return verifiedTelegramOwner || null
 }
 
 export function readBody(req: IncomingMessage): Promise<string> {
@@ -64,34 +74,33 @@ const CARD = () => {
     const p = resolveProvider()
     провайдер = `${p.id} / ${p.model}`
     размышление = p.thinking
-  } catch (e) {
-    провайдер = String(e).slice(0, 160)
+  } catch {
+    провайдер = 'не настроен'
   }
   return {
     сервис: 'Trinity S³AI — фабрика рилсов',
     протокол: 'MCP поверх JSON-RPC 2.0',
     как_подключиться: {
-      шаг1: 'Получите ключ у владельца: он выдаётся на ваш telegram_id.',
-      шаг2: 'Шлите POST на этот же адрес с заголовком X-Agent-Key: <ключ>.',
+      шаг1: 'Используйте свежий подписанный Telegram initData от @t27ai_bot.',
+      шаг2: 'Codex X-Agent-Key path release-blocked: hash-only revocable owner store ещё не реализован.',
       шаг3: 'Начните с {"jsonrpc":"2.0","id":1,"method":"tools/list"}.',
-      пример:
-        'curl -s https://vibee-render-production.up.railway.app/mcp ' +
-        "-H 'X-Agent-Key: КЛЮЧ' -H 'Content-Type: application/json' " +
-        '-d \'{"jsonrpc":"2.0","id":1,"method":"tools/list"}\'',
+    },
+    codex_key_path: {
+      статус: CODEX_AGENT_KEY_STATUS,
+      причина: 'нет hash-only lookup, revocation и owner binding',
     },
     методы: ['initialize', 'tools/list', 'tools/call'],
     инструментов: toMcpTools().length,
     модель: провайдер,
     видно_размышление: размышление,
     чего_сервис_НЕ_умеет: [
-      'публикация от чужого имени: telegram_id берётся из ключа, а не из аргументов',
-      'удаление записей ленты',
+      'платные операции и публикация недоступны в SAFE BETA',
+      'выдача ключей, доступов, approvals и квот недоступна в SAFE BETA',
     ],
-    производство: [
-      'image_generate: картинка по описанию (Replicate flux-schnell) — файл сразу в S3',
-      'audio_generate: озвучка текста (ElevenLabs; только при валидном ключе аккаунта)',
-      'video_generate: видеофрагмент по описанию (Replicate seedance-1-lite) — mp4 в S3',
-      'reel_render: сборка рилса в mp4 (Remotion), ждёт окончания',
+    safe_beta: [
+      'whoami: прочитать свою подтверждённую личность',
+      'feed_stats: прочитать только свою статистику',
+      'content_plan_prepare: сохранить только приватный draft',
     ],
     совет:
       'Начните с whoami и feed_stats — они бесплатны, мгновенны и ничего не меняют.',
@@ -109,11 +118,8 @@ export async function handleMcp(
   res: ServerResponse,
   getPool: () => any
 ) {
-  // Личность ДВЕ: ключ агента (внешний клиент, привязан к человеку) ИЛИ
-  // подпись initData (сам мини-апп). Раньше был только ключ — и профиль
-  // внутри Telegram не мог вызвать собственные инструменты человека,
-  // хотя подпись доказывает то же самое и не слабее.
-  const owner = chatIdentity(req, verifiedTelegramId(req))
+  // Identity resolves before body parsing and before pool/handler dispatch.
+  const owner = resolveAgentIdentity(req, verifiedTelegramId(req))
   if (!owner) {
     // Сообщение константно и не отражает содержимое заголовков: любое
     // эхо чужого ввода — путь к инъекции, даже в JSON.
@@ -122,7 +128,7 @@ export async function handleMcp(
       error: {
         code: -32001,
         message:
-          'Нужна подпись Telegram (X-Telegram-Init-Data) или корректный ключ агента (X-Agent-Key). Карточка: GET этот же адрес.',
+          'Нужна свежая подпись Telegram initData от @t27ai_bot. Codex key path release-blocked.',
       },
     })
   }
@@ -148,9 +154,8 @@ export async function handleMcp(
       capabilities: { tools: {} },
       serverInfo: { name: 'trinity-s3ai-reels', version: '1.0.0' },
       instructions:
-        'Инструменты читают и меняют состояние приложения по-настоящему. ' +
-        'Сначала посмотри (whoami, feed_stats, feed_list), потом действуй. ' +
-        'Публикация требует текста поста с хештегами — это канон проекта.',
+        'SAFE BETA: доступны только whoami, feed_stats и content_plan_prepare. ' +
+        'Платные операции, публикация, доступы, approvals и квоты недоступны.',
     })
   }
 
@@ -161,33 +166,38 @@ export async function handleMcp(
   if (rpc.method === 'tools/call') {
     const имя = rpc.params?.name
     const tool = имя ? TOOLS_BY_NAME.get(имя) : null
-    if (!tool) {
-      // Подсказываем ИМЕНА, а не просто отказываем: агент исправится за виток.
+    const decision = decideAgentToolAccess(tool)
+    if (!decision.allowed) {
       return err(
-        -32602,
-        `Инструмента «${имя}» нет. Доступны: ${toMcpTools()
-          .map(t => t.name)
-          .join(', ')}.`
+        -32003,
+        'SAFE_BETA_TOOL_DENIED: доступны только whoami, feed_stats, content_plan_prepare.'
       )
     }
     try {
       const pool = await getPool()
-      const значение = await tool.handler(rpc.params?.arguments || {}, {
-        telegramId: owner,
-        pool,
-      })
+      const execution = await executeSafeAgentTool(
+        имя,
+        rpc.params?.arguments || {},
+        { telegramId: owner, pool },
+        name => TOOLS_BY_NAME.get(name)
+      )
+      if (!execution.ok) return err(-32003, execution.error)
+      const значение = execution.value
       return ok({
         content: [{ type: 'text', text: JSON.stringify(значение, null, 1) }],
         structuredContent: значение,
       })
-    } catch (e) {
-      return err(-32603, `Инструмент «${имя}» упал: ${String(e).slice(0, 400)}`)
+    } catch {
+      return err(
+        -32603,
+        'SAFE_BETA_TOOL_FAILED: инструмент не выполнен; детали скрыты.'
+      )
     }
   }
 
   return err(
     -32601,
-    `Метода «${rpc.method}» нет. Поддерживаются: initialize, tools/list, tools/call.`
+    'Метод не поддерживается. Доступны: initialize, tools/list, tools/call.'
   )
 }
 
@@ -199,20 +209,14 @@ export async function handleMcp(
  * подпись в адрес, откуда она попадает в логи прокси.
  */
 /**
- * Личность для чата: подпись мини-аппа ИЛИ ключ агента.
- *
- * Ключ агента добавлен НАРОЧНО и по прямой просьбе владельца: коннектор, через
- * который агента можно тестировать напрямую, curl-ом, без Telegram. initData
- * подделать нельзя (в этом смысл), а форжить её ради теста — значит ослабить
- * проверку навсегда. Ключ же привязан к человеку и отзывается одной строкой.
+ * Compatibility wrapper used by existing server routes. It accepts only the
+ * already verified Telegram owner; X-Agent-Key always fails closed.
  */
 export function chatIdentity(
   req: IncomingMessage,
   verified: string | null
 ): string | null {
-  if (verified) return verified
-  const key = (req.headers['x-agent-key'] as string | undefined) || ''
-  return key ? agentKeyOwner(key) : null
+  return resolveAgentIdentity(req, verified)
 }
 
 export async function handleAgentChat(
@@ -249,9 +253,13 @@ export async function handleAgentChat(
     for await (const ev of runAgent(history, { telegramId, pool })) {
       res.write(JSON.stringify(ev) + '\n')
     }
-  } catch (e) {
+  } catch {
     res.write(
-      JSON.stringify({ тип: 'ошибка', текст: String(e).slice(0, 500) }) + '\n'
+      JSON.stringify({
+        тип: 'ошибка',
+        код: 'SAFE_BETA_CHAT_FAILED',
+        текст: 'Чат временно недоступен; детали ошибки скрыты.',
+      }) + '\n'
     )
   }
   res.end()

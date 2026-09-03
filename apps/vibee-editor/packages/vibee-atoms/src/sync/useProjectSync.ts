@@ -22,7 +22,12 @@ import {
   offlineQueueAtom,
   removeFromOfflineQueueAtom,
 } from './atoms'
-import type { SyncMessage, UserPresence, ItemLock, ConnectionState } from './types'
+import type {
+  SyncMessage,
+  UserPresence,
+  ItemLock,
+  ConnectionState,
+} from './types'
 import { getUserColor } from './index'
 
 export interface UseProjectSyncOptions {
@@ -116,7 +121,7 @@ export function useProjectSync(
   // Refs
   const wsManagerRef = useRef<WebSocketManager | null>(null)
   const lastCursorBroadcastRef = useRef<number>(0)
-  const cleanupIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const cleanupIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Handle incoming messages
   const handleMessage = useCallback(
@@ -296,10 +301,11 @@ export function useProjectSync(
   // Send message (with offline queue fallback)
   const sendMessage = useCallback(
     (type: SyncMessage['type'], payload: unknown) => {
-      const message: Omit<SyncMessage, 'timestamp' | 'senderId' | 'projectId'> = {
-        type,
-        payload,
-      }
+      const message: Omit<SyncMessage, 'timestamp' | 'senderId' | 'projectId'> =
+        {
+          type,
+          payload,
+        }
 
       if (wsManagerRef.current?.isConnected()) {
         wsManagerRef.current.send(message)

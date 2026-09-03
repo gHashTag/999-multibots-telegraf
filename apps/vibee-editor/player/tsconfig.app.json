@@ -21,9 +21,6 @@
     "paths": {
       "@/*": ["./src/*"],
       "@compositions/*": ["./src/compositions/*"],
-      // 74 files import '@vibee/atoms'; there was no path entry for it at all.
-      "@vibee/atoms": ["../packages/vibee-atoms/src"],
-      "@vibee/atoms/*": ["../packages/vibee-atoms/src/*"],
       // '@vibee/ui' has exactly one importer (SyncDemo.tsx) and the package
       // does not exist in this tree. Kept only so that file still resolves.
       "@vibee/ui": ["../packages/ui/src"],
@@ -36,5 +33,11 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/test",
+    "src/components/SyncDemo.tsx"
+  ]
 }

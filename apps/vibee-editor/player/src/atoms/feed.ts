@@ -19,8 +19,11 @@ import type {
 } from '@vibee/atoms'
 import { userAtom } from './user'
 import { API_BASE } from '../config'
-import { openInvoice } from '../lib/telegram'
 import { apiFetch } from '../lib/apiFetch'
+import {
+  SAFE_BETA_CLIENT_CAPABILITIES,
+  requireSafeBetaCapability,
+} from '@/config/safeBeta'
 
 // Re-export feed types for backward compatibility (types are now in @vibee/atoms)
 export type {
@@ -176,44 +179,26 @@ function transformTemplate(raw: any): FeedTemplate {
 async function fetchFeed(
   page: number,
   limit: number,
-  sort: FeedSort,
-  userId?: number
+  sort: FeedSort
 ): Promise<FeedTemplate[]> {
-  let url = `${API_BASE}/api/feed?page=${page}&limit=${limit}&sort=${sort}`
-  if (userId) {
-    url += `&user_id=${userId}`
-  }
+  const url = `${API_BASE}/api/feed?page=${page}&limit=${limit}&sort=${sort}`
   console.log('[Feed] Fetching:', url)
-  const response = await fetch(url)
-  if (!response.ok) {
-    // statusText пуст на HTTP/2 — стандарт убрал reason phrase, а Railway
-    // отдаёт всё по h2. Из-за этого в UI выводилось «Failed to fetch feed:»
-    // с обрывом на двоеточии, то есть ровно без той информации, за которой
-    // человек и смотрит на ошибку. Берём код и тело ответа.
-    const body = await response.text().catch(() => '')
-    const detail =
-      body.slice(0, 200) || response.statusText || 'no response body'
-    throw new Error(`Failed to fetch feed: HTTP ${response.status} — ${detail}`)
-  }
-  const data = await response.json()
+  const data = await apiFetch<{ templates?: unknown[] }>(url)
   console.log('[Feed] API response:', data)
   return (data.templates || []).map(transformTemplate)
 }
 
 async function likeTemplate(
-  id: number,
-  userId: number
+  id: number
 ): Promise<{ liked: boolean; likesCount: number }> {
-  // apiFetch: маршрут не публичный, без подписи сервер отбивает до обработчика.
-  // Отправляем ОБА написания — telegram_id принят на сервере, user_id остаётся
-  // ради совместимости со старым клиентом, пока он не обновится у всех.
+  // The server derives the actor exclusively from signed Telegram initData.
   const data = await apiFetch<{
     is_liked?: boolean
     liked?: boolean
     likes_count?: number
   }>(`${API_BASE}/api/feed/${id}/like`, {
     method: 'POST',
-    body: JSON.stringify({ telegram_id: userId, user_id: userId }),
+    body: '{}',
   })
   return {
     liked: data.is_liked ?? data.liked ?? false,
@@ -232,96 +217,8 @@ async function starTemplate(id: number): Promise<{
   status: 'paid' | 'cancelled' | 'failed' | 'unsupported' | 'pending'
   starsCount: number | null
 }> {
-  const created = await apiFetch<{ invoice_url?: string; payload?: string }>(
-    `${API_BASE}/api/feed/${id}/star`,
-    { method: 'POST' }
-  )
-  if (!created.invoice_url || !created.payload) {
-    throw new Error('server did not return an invoice')
-  }
-  const invoiceResult = await openInvoice(created.invoice_url)
-  if (invoiceResult !== 'paid') {
-    return { status: invoiceResult, starsCount: null }
-  }
-  // Оплата прошла, но вебхук бота может добежать чуть позже — пингуем.
-  for (let i = 0; i < 6; i++) {
-    await new Promise(r => setTimeout(r, 1500))
-    try {
-      const st = await apiFetch<{ status?: string; stars_count?: number }>(
-        `${API_BASE}/api/feed/${id}/star?payload=${encodeURIComponent(created.payload)}`
-      )
-      if (st.status === 'paid') {
-        return { status: 'paid', starsCount: st.stars_count ?? null }
-      }
-    } catch {
-      /* следующий пинг */
-    }
-  }
-  return { status: 'pending', starsCount: null }
-}
-
-interface PublishUserInfo {
-  telegramId: number
-  creatorName: string
-  creatorAvatar?: string
-}
-
-async function publishTemplate(
-  data: PublishData,
-  userInfo: PublishUserInfo
-): Promise<FeedTemplate> {
-  const requestBody = {
-    telegram_id: userInfo.telegramId,
-    creator_name: userInfo.creatorName,
-    creator_avatar: userInfo.creatorAvatar ?? null, // must be null, not undefined (Gleam expects field to exist)
-    name: data.name,
-    description: data.description ?? null, // must be null, not undefined
-    thumbnail_url: data.thumbnailUrl ?? null, // must be null, not undefined
-    video_url: data.videoUrl,
-    // Backend expects JSON strings, not objects
-    template_settings: JSON.stringify(data.templateSettings || {}),
-    assets: JSON.stringify(data.assets || []),
-    tracks: JSON.stringify(data.tracks || []),
-    post_to_telegram: data.postToTelegram ?? true, // Default to true - auto-post to Telegram
-    post_to_instagram: data.postToInstagram ?? true, // Default to true - auto-post to Instagram
-    telegram_caption: data.telegramCaption ?? null, // Custom caption for Telegram post
-    // Remix attribution
-    parent_template_id: data.parentTemplateId ?? null,
-    original_creator_id: data.originalCreatorId ?? null,
-  }
-
-  console.log('[Feed] Publishing template with:', {
-    video_url: data.videoUrl?.slice(0, 80),
-    post_to_telegram: requestBody.post_to_telegram,
-    post_to_instagram: requestBody.post_to_instagram,
-    has_caption: !!requestBody.telegram_caption,
-  })
-
-  /**
-   * apiFetch, а НЕ голый fetch.
-   *
-   * Голый fetch отправлял только Content-Type. Сервер работает в режиме
-   * enforce, а POST /api/feed/publish намеренно не входит в публичные
-   * маршруты (публичен только GET /api/feed), поэтому запрос отбивался
-   * ДО обработчика с 401 — в том числе внутри Telegram, где валидная подпись
-   * есть, но не отправлялась. Проверено живым запросом:
-   *   POST /api/feed/publish без заголовков ->
-   *   401 {"error":"unauthorized","detail":"no X-Api-Key and no Telegram initData"}
-   *
-   * То есть кнопка «Опубликовать» нажималась, а в ленту не попадало ничего,
-   * и человеку показывалась общая ошибка вместо причины.
-   *
-   * apiFetch ставит X-Telegram-Init-Data и разбирает статус, поэтому причина
-   * отказа доезжает до вызывающего, а не теряется в `await res.json()`.
-   */
-  const result = await apiFetch<{ template?: unknown }>(
-    `${API_BASE}/api/feed/publish`,
-    { method: 'POST', body: JSON.stringify(requestBody) }
-  )
-  console.log('[Feed] Publish success')
-  return transformTemplate(
-    (result as { template?: unknown }).template || result
-  )
+  void id
+  return { status: 'unsupported', starsCount: null }
 }
 
 async function useTemplate(id: number): Promise<FeedTemplate> {
@@ -334,15 +231,12 @@ async function useTemplate(id: number): Promise<FeedTemplate> {
   return transformTemplate((data as { template?: unknown }).template || data)
 }
 
-async function trackView(
-  id: number,
-  userId: number
-): Promise<{ viewsCount: number }> {
+async function trackView(id: number): Promise<{ viewsCount: number }> {
   const data = await apiFetch<{ views_count?: number; viewsCount?: number }>(
     `${API_BASE}/api/feed/${id}/view`,
     {
       method: 'POST',
-      body: JSON.stringify({ telegram_id: userId, user_id: userId }),
+      body: '{}',
     }
   )
   return { viewsCount: data.views_count ?? data.viewsCount ?? 0 }
@@ -365,20 +259,18 @@ export const loadFeedAtom = atom(null, async (get, set, refresh?: boolean) => {
   isLoadingFeed = true
 
   const sort = get(feedSortAtom)
-  const user = get(userAtom)
-  const userId = user?.id
 
   // If refresh, start from page 0
   const page = refresh ? 0 : get(feedPageAtom)
   const limit = 20
 
-  console.log('[Feed] Loading feed...', { page, limit, sort, refresh, userId })
+  console.log('[Feed] Loading feed...', { page, limit, sort, refresh })
 
   set(feedLoadingAtom, true)
   set(feedErrorAtom, null)
 
   try {
-    const templates = await fetchFeed(page, limit, sort, userId)
+    const templates = await fetchFeed(page, limit, sort)
     console.log('[Feed] Loaded templates:', templates.length)
 
     // ALWAYS deduplicate by ID to prevent any duplicates
@@ -476,10 +368,8 @@ export const likeTemplateAtom = atom(
       )
     )
 
-    const userId = user.id
-
     try {
-      const result = await likeTemplate(templateId, userId)
+      const result = await likeTemplate(templateId)
 
       // Update with server response (in case of discrepancy)
       const currentTemplates = get(feedTemplatesAtom)
@@ -522,6 +412,7 @@ export const starTemplateAtom = atom(
     set,
     templateId: number
   ): Promise<'paid' | 'cancelled' | 'failed' | 'unsupported' | 'pending'> => {
+    if (!SAFE_BETA_CLIENT_CAPABILITIES.charges) return 'unsupported'
     if (starringTemplates.has(templateId)) return 'pending'
     starringTemplates.add(templateId)
     try {
@@ -575,7 +466,7 @@ export const trackViewAtom = atom(
     }
 
     try {
-      const result = await trackView(templateId, user.id)
+      const result = await trackView(templateId)
       // Update with server response (reflects actual unique count)
       const currentTemplates = get(feedTemplatesAtom)
       set(
@@ -600,17 +491,9 @@ export const deleteTemplateAtom = atom(
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/feed/${templateId}`, {
+      await apiFetch(`${API_BASE}/api/feed/${templateId}`, {
         method: 'DELETE',
-        headers: {
-          'X-Telegram-Id': String(user.id),
-        },
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to delete')
-      }
 
       // Remove from local feed list
       const templates = get(feedTemplatesAtom)
@@ -691,71 +574,16 @@ export const useTemplateAtom = atom(
 export const publishToFeedAtom = atom(
   null,
   async (
-    get,
-    set,
-    data: Omit<PublishData, 'templateSettings' | 'assets' | 'tracks'> & {
+    _get,
+    _set,
+    _data: Omit<PublishData, 'templateSettings' | 'assets' | 'tracks'> & {
       templateSettings?: TemplateSettings
       postToTelegram?: boolean
       postToInstagram?: boolean
       telegramCaption?: string
     }
   ) => {
-    // Get actual user from Telegram auth
-    const user = get(userAtom)
-    if (!user) {
-      throw new Error('User not authenticated')
-    }
-
-    const userInfo: PublishUserInfo = {
-      telegramId: user.id,
-      creatorName: user.first_name || user.username || 'Anonymous',
-      creatorAvatar: user.photo_url,
-    }
-
-    try {
-      // Get remix source if this is a remix
-      const remixSource = get(currentRemixSourceAtom)
-
-      const fullData: PublishData = {
-        ...data,
-        templateSettings: (data.templateSettings || {}) as Record<
-          string,
-          unknown
-        >,
-        assets: get(assetsAtom),
-        tracks: get(tracksAtom),
-        postToTelegram: data.postToTelegram ?? true, // Default to true
-        postToInstagram: data.postToInstagram ?? true, // Default to true
-        telegramCaption: data.telegramCaption,
-        // Remix attribution
-        parentTemplateId: remixSource?.templateId,
-        originalCreatorId: remixSource?.templateId, // Use parent template's telegram_id as original creator
-      }
-
-      const template = await publishTemplate(fullData, userInfo)
-
-      // Add to feed list
-      const templates = get(feedTemplatesAtom)
-      set(feedTemplatesAtom, [template, ...templates])
-
-      // Clear remix source after publishing
-      set(currentRemixSourceAtom, null)
-
-      console.log(
-        '[Feed] Published:',
-        template.name,
-        'with remix:',
-        remixSource?.templateName
-      )
-      return template
-    } catch (error) {
-      console.error('[Feed] Failed to publish:', error)
-      set(
-        feedErrorAtom,
-        error instanceof Error ? error.message : 'Failed to publish'
-      )
-      throw error
-    }
+    return requireSafeBetaCapability('publish')
   }
 )
 
@@ -782,11 +610,12 @@ async function fetchStats(): Promise<FeedStats> {
   // побайтовым сравнением ответов /api/feed/stats и /api/feed — совпадали.
   // Маршрут добавлен; здесь остаётся проверка формы ответа, чтобы такая
   // подмена больше не проходила молча.
-  const response = await fetch(`${API_BASE}/api/feed/stats`)
-  if (!response.ok) {
-    throw new Error(`Failed to fetch stats: ${response.statusText}`)
-  }
-  const data = await response.json()
+  const data = await apiFetch<{
+    creators_count?: number
+    reels_count?: number
+    total_views?: number
+    total_likes?: number
+  }>(`${API_BASE}/api/feed/stats`)
   return {
     creatorsCount: data.creators_count || 0,
     reelsCount: data.reels_count || 0,

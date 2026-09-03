@@ -144,6 +144,8 @@ export interface VideoItemProps {
 export interface ImageItemProps {
   type: 'image'
   url?: string
+  cropX?: number
+  cropY?: number
 }
 
 export interface TextItemProps {

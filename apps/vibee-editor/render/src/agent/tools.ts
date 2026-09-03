@@ -16,14 +16,18 @@
  * аргументов — только из подтверждённого контекста вызова. Иначе любой, кто
  * умеет писать JSON, читал бы чужие черновики и публиковал от чужого имени.
  *
- * ГЕНЕРАЦИИ. Владелец выдал агенту полный доступ к производству: картинки —
- * через собственный POST /api/generate/image (FAL), озвучка — через
- * /api/generate/audio (ElevenLabs), видео — через /api/generate/video (MCP),
- * рилс целиком — через /render/template (Remotion). Инструменты ниже ходят
- * в эти же эндпоинты по SELF_URL, а не дублируют их логику: один список
- * возможностей — один путь к провайдеру. Когда появится списание баланса,
- * границу пропуска нужно будет вернуть сюда же — одним местом.
+ * SAFE BETA. Старые реализации пока остаются ниже как приватный код миграции,
+ * но наружу и в исполняемый реестр попадают только три рассмотренных действия:
+ * два owner-scoped чтения и один owner-scoped draft. Платные операции,
+ * публикация, доступы и approvals не регистрируются независимо от env.
  */
+
+import {
+  SAFE_BETA_AGENT_POLICY,
+  decideAgentToolAccess,
+  type AgentToolEffect,
+  type AgentToolScope,
+} from '../../../packages/vibee-atoms/src/agent-policy'
 
 export interface ToolContext {
   /** Подтверждён подписью или ключом. НЕ приходит из аргументов. */
@@ -34,6 +38,11 @@ export interface ToolContext {
 export interface AgentTool {
   name: string
   description: string
+  /** SAFE BETA is fail-closed: tools without a reviewed effect are unregistered. */
+  effect?: AgentToolEffect
+  scope?: AgentToolScope
+  paid?: boolean
+  approvalGroup?: string
   /** JSON Schema аргументов — её же отдаём наружу по MCP tools/list. */
   parameters: Record<string, unknown>
   handler: (args: Record<string, any>, ctx: ToolContext) => Promise<unknown>
@@ -183,7 +192,12 @@ async function ensureSkillsTable(ctx: ToolContext): Promise<void> {
 async function spendTokens(
   ctx: ToolContext,
   tool: string
-): Promise<{ ok: boolean; потрачено?: number; осталось?: number; причина?: string }> {
+): Promise<{
+  ok: boolean
+  потрачено?: number
+  осталось?: number
+  причина?: string
+}> {
   const price = TOKEN_PRICES[tool]
   if (!price) return { ok: true }
   const balance = await ensureTokenRow(ctx)
@@ -215,9 +229,11 @@ async function withTokens<T extends object>(
   return { ...result, токены: { потрачено: price, осталось: balance } }
 }
 
-export const TOOLS: AgentTool[] = [
+const IMPLEMENTED_TOOLS: AgentTool[] = [
   {
     name: 'whoami',
+    effect: 'read',
+    scope: 'owner',
     description:
       'Кто вызывает инструменты: telegram_id, имя в приложении и сколько у человека опубликованных роликов. ' +
       'Полезно, чтобы не спрашивать имя у человека, который уже вошёл.',
@@ -440,7 +456,10 @@ export const TOOLS: AgentTool[] = [
 
   {
     name: 'feed_stats',
-    description: 'Сводка по ленте: авторов, роликов, просмотров, лайков.',
+    effect: 'read',
+    scope: 'owner',
+    description:
+      'Сводка только по ленте текущего владельца: роликов, просмотров и лайков.',
     parameters: noArgs,
     async handler(_a, ctx) {
       const r = await ctx.pool.query(
@@ -448,9 +467,102 @@ export const TOOLS: AgentTool[] = [
                 COUNT(*)::int AS роликов,
                 COALESCE(SUM(views_count),0)::int AS просмотров,
                 COALESCE(SUM(likes_count),0)::int AS лайков
-         FROM public_templates WHERE is_public = TRUE AND deleted_at IS NULL`
+         FROM public_templates
+         WHERE telegram_id = $1 AND is_public = TRUE AND deleted_at IS NULL`,
+        [ctx.telegramId]
       )
       return r.rows[0]
+    },
+  },
+
+  {
+    name: 'content_plan_prepare',
+    effect: 'draft',
+    scope: 'owner',
+    description:
+      'Подготовить приватный черновик контент-плана текущего владельца. ' +
+      'SAFE BETA никогда не публикует и не запускает платное производство.',
+    parameters: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 200,
+          description: 'тема контент-плана',
+        },
+        goal: { type: 'string', maxLength: 500, description: 'цель плана' },
+        audience: {
+          type: 'string',
+          maxLength: 500,
+          description: 'для кого готовится контент',
+        },
+        days: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 30,
+          description: 'горизонт плана в днях, по умолчанию 7',
+        },
+      },
+      required: ['topic'],
+      additionalProperties: false,
+    },
+    async handler(args, ctx) {
+      const topic = String(args.topic || '').trim()
+      if (!topic) {
+        return {
+          prepared: false,
+          status: 'draft',
+          reason: 'topic must be a non-empty string',
+        }
+      }
+      if (topic.length > 200) {
+        return {
+          prepared: false,
+          status: 'draft',
+          reason: 'topic must be at most 200 characters',
+        }
+      }
+
+      const goal = String(args.goal || '')
+        .trim()
+        .slice(0, 500)
+      const audience = String(args.audience || '')
+        .trim()
+        .slice(0, 500)
+      const days = Math.min(
+        Math.max(parseInt(String(args.days ?? 7), 10) || 7, 1),
+        30
+      )
+
+      await ctx.pool.query(
+        `CREATE TABLE IF NOT EXISTS agent_content_plans (
+           id          bigserial PRIMARY KEY,
+           telegram_id text NOT NULL,
+           topic       text NOT NULL,
+           plan        jsonb NOT NULL,
+           status      text NOT NULL DEFAULT 'draft' CHECK (status = 'draft'),
+           created_at  timestamptz NOT NULL DEFAULT now(),
+           updated_at  timestamptz NOT NULL DEFAULT now()
+         )`
+      )
+      const plan = { goal, audience, days }
+      const r = await ctx.pool.query(
+        `INSERT INTO agent_content_plans (telegram_id, topic, plan, status)
+         VALUES ($1, $2, $3::jsonb, $4)
+         RETURNING id, topic, status, created_at::text`,
+        [ctx.telegramId, topic, JSON.stringify(plan), 'draft']
+      )
+      const row = r.rows[0] || {}
+      return {
+        prepared: true,
+        id: row.id,
+        topic,
+        plan,
+        status: 'draft' as const,
+        owner: ctx.telegramId,
+        created_at: row.created_at,
+      }
     },
   },
 
@@ -463,7 +575,10 @@ export const TOOLS: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        prompt: { type: 'string', description: 'что нарисовать, по-русски или по-английски' },
+        prompt: {
+          type: 'string',
+          description: 'что нарисовать, по-русски или по-английски',
+        },
         model: {
           type: 'string',
           description:
@@ -499,13 +614,20 @@ export const TOOLS: AgentTool[] = [
       })
       const genData: any = await gen.json().catch(() => null)
       if (!gen.ok || !genData?.url) {
-        return { сделано: false, причина: `генерация не удалась: HTTP ${gen.status} ${String(genData?.error || '')}` }
+        return {
+          сделано: false,
+          причина: `генерация не удалась: HTTP ${gen.status} ${String(genData?.error || '')}`,
+        }
       }
       // Ссылка FAL живёт ограниченное время — сразу забираем файл в наше S3,
       // иначе через час и лента, и рендер показывали бы битую картинку.
       const img = await fetch(genData.url) // внешний провайдер — ключ не нужен
       if (!img.ok) {
-        return { сделано: false, причина: `картинка сгенерирована, но не скачалась: HTTP ${img.status}`, fal_url: genData.url }
+        return {
+          сделано: false,
+          причина: `картинка сгенерирована, но не скачалась: HTTP ${img.status}`,
+          fal_url: genData.url,
+        }
       }
       const bytes = Buffer.from(await img.arrayBuffer())
       const up = await selfFetch(`${base}/upload`, {
@@ -518,7 +640,11 @@ export const TOOLS: AgentTool[] = [
       })
       const upData: any = await up.json().catch(() => null)
       if (!up.ok || !upData?.directUrl) {
-        return { сделано: false, причина: `S3 не принял файл: HTTP ${up.status}`, fal_url: genData.url }
+        return {
+          сделано: false,
+          причина: `S3 не принял файл: HTTP ${up.status}`,
+          fal_url: genData.url,
+        }
       }
       const r = await ctx.pool.query(
         `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
@@ -530,7 +656,8 @@ export const TOOLS: AgentTool[] = [
         сделано: true,
         url: upData.directUrl,
         id: r.rows[0]?.id,
-        подсказка: 'ссылка готова: отдай её в reel_render как слой или в feed_publish',
+        подсказка:
+          'ссылка готова: отдай её в reel_render как слой или в feed_publish',
       })
     },
   },
@@ -545,7 +672,10 @@ export const TOOLS: AgentTool[] = [
       type: 'object',
       properties: {
         text: { type: 'string', description: 'текст для озвучки' },
-        voice_id: { type: 'string', description: 'идентификатор голоса ElevenLabs, необязателен' },
+        voice_id: {
+          type: 'string',
+          description: 'идентификатор голоса ElevenLabs, необязателен',
+        },
       },
       required: ['text'],
       additionalProperties: false,
@@ -561,7 +691,10 @@ export const TOOLS: AgentTool[] = [
         voiceId = vData?.voices?.[0]?.voice_id || ''
       }
       if (!voiceId) {
-        return { сделано: false, причина: 'не нашёлся ни один голос — проверь ELEVENLABS_API_KEY' }
+        return {
+          сделано: false,
+          причина: 'не нашёлся ни один голос — проверь ELEVENLABS_API_KEY',
+        }
       }
       const gen = await selfFetch(`${base}/api/generate/audio`, {
         method: 'POST',
@@ -570,11 +703,16 @@ export const TOOLS: AgentTool[] = [
       })
       const genData: any = await gen.json().catch(() => null)
       if (!gen.ok || !genData?.url) {
-        return { сделано: false, причина: `озвучка не удалась: HTTP ${gen.status} ${String(genData?.error || '')}` }
+        return {
+          сделано: false,
+          причина: `озвучка не удалась: HTTP ${gen.status} ${String(genData?.error || '')}`,
+        }
       }
       // /api/generate/audio отдаёт прокси-путь /s3/... — делаем абсолютным,
       // чтобы ссылку можно было отдать и в рендер, и в ленту.
-      const absolute = genData.url.startsWith('http') ? genData.url : `${base}${genData.url}`
+      const absolute = genData.url.startsWith('http')
+        ? genData.url
+        : `${base}${genData.url}`
       const direct = genData.directUrl || absolute
       const r = await ctx.pool.query(
         `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
@@ -600,7 +738,11 @@ export const TOOLS: AgentTool[] = [
       type: 'object',
       properties: {
         prompt: { type: 'string', description: 'что происходит в кадре' },
-        model: { type: 'string', description: 'например kling-v1-6 std/pro — если не уверен, не указывай' },
+        model: {
+          type: 'string',
+          description:
+            'например kling-v1-6 std/pro — если не уверен, не указывай',
+        },
         duration: { type: 'integer', description: 'длительность в секундах' },
         aspect_ratio: { type: 'string', description: 'например 9:16' },
       },
@@ -628,7 +770,10 @@ export const TOOLS: AgentTool[] = [
       })
       const genData: any = await gen.json().catch(() => null)
       if (!gen.ok || !genData?.url) {
-        return { сделано: false, причина: `видео не сгенерировалось: HTTP ${gen.status} ${String(genData?.error || '')}` }
+        return {
+          сделано: false,
+          причина: `видео не сгенерировалось: HTTP ${gen.status} ${String(genData?.error || '')}`,
+        }
       }
       const r = await ctx.pool.query(
         `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
@@ -652,12 +797,19 @@ export const TOOLS: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        compositionId: { type: 'string', description: 'идентификатор композиции из templates_list' },
+        compositionId: {
+          type: 'string',
+          description: 'идентификатор композиции из templates_list',
+        },
         props: {
           type: 'object',
-          description: 'входные данные композиции: картинки, текст, аудио и т.д.',
+          description:
+            'входные данные композиции: картинки, текст, аудио и т.д.',
         },
-        wait: { type: 'boolean', description: 'ждать окончания (по умолчанию true)' },
+        wait: {
+          type: 'boolean',
+          description: 'ждать окончания (по умолчанию true)',
+        },
       },
       required: ['compositionId'],
       additionalProperties: false,
@@ -676,11 +828,19 @@ export const TOOLS: AgentTool[] = [
       })
       const startData: any = await start.json().catch(() => null)
       if (!start.ok || !startData?.renderId) {
-        return { началось: false, причина: `рендер не стартовал: HTTP ${start.status} ${String(startData?.error || '')}` }
+        return {
+          началось: false,
+          причина: `рендер не стартовал: HTTP ${start.status} ${String(startData?.error || '')}`,
+        }
       }
       const renderId: string = startData.renderId
       if (args.wait === false) {
-        return { началось: true, renderId, статус: `GET /render/${renderId}`, подсказка: 'проверь render_status' }
+        return {
+          началось: true,
+          renderId,
+          статус: `GET /render/${renderId}`,
+          подсказка: 'проверь render_status',
+        }
       }
       // Рендер занимает минуты: держим один вызов инструмента до готовности,
       // иначе 8 витков диалога уходят на поллинг, а не на работу.
@@ -692,19 +852,32 @@ export const TOOLS: AgentTool[] = [
         if (stData?.status === 'completed') {
           const url = stData.publicUrl || stData.outputUrl
           const full = url && !url.startsWith('http') ? `${base}${url}` : url
-          return withTokens(ctx, 'reel_render', { готово: true, renderId, url: full })
+          return withTokens(ctx, 'reel_render', {
+            готово: true,
+            renderId,
+            url: full,
+          })
         }
         if (stData?.status === 'failed') {
-          return { готово: false, renderId, причина: `рендер упал: ${String(stData.error || 'без подробностей')}` }
+          return {
+            готово: false,
+            renderId,
+            причина: `рендер упал: ${String(stData.error || 'без подробностей')}`,
+          }
         }
       }
-      return { готово: false, renderId, причина: 'не уложился в 6 минут — проверь render_status' }
+      return {
+        готово: false,
+        renderId,
+        причина: 'не уложился в 6 минут — проверь render_status',
+      }
     },
   },
 
   {
     name: 'render_status',
-    description: 'Статус рендера: progress, готовое видео или ошибка. Для renderId из reel_render.',
+    description:
+      'Статус рендера: progress, готовое видео или ошибка. Для renderId из reel_render.',
     parameters: {
       type: 'object',
       properties: { renderId: { type: 'string' } },
@@ -712,13 +885,18 @@ export const TOOLS: AgentTool[] = [
       additionalProperties: false,
     },
     async handler(args) {
-      const st = await selfFetch(`${selfBase()}/render/${encodeURIComponent(String(args.renderId))}`)
+      const st = await selfFetch(
+        `${selfBase()}/render/${encodeURIComponent(String(args.renderId))}`
+      )
       const stData: any = await st.json().catch(() => null)
       if (!st.ok) {
         return { ошибка: `рендер не найден: HTTP ${st.status}` }
       }
       const url = stData.publicUrl || stData.outputUrl
-      return { ...stData, url: url && !url.startsWith('http') ? `${selfBase()}${url}` : url }
+      return {
+        ...stData,
+        url: url && !url.startsWith('http') ? `${selfBase()}${url}` : url,
+      }
     },
   },
 
@@ -765,7 +943,8 @@ export const TOOLS: AgentTool[] = [
       const sum = (k: string) =>
         rows.reduce((acc: number, x: any) => acc + (Number(x[k]) || 0), 0)
       const best = rows.reduce(
-        (b: any, x: any) => (Number(x.views_count) > Number(b?.views_count ?? -1) ? x : b),
+        (b: any, x: any) =>
+          Number(x.views_count) > Number(b?.views_count ?? -1) ? x : b,
         null
       )
       const week = rows.filter(
@@ -777,12 +956,18 @@ export const TOOLS: AgentTool[] = [
         звёзд: sum('stars_count'),
         ремиксов: sum('uses_count'),
         среднее_просмотров: rows.length
-          ? Math.round(sum('views_count') / rows.length * 10) / 10
+          ? Math.round((sum('views_count') / rows.length) * 10) / 10
           : 0,
         лучший_пост: best
           ? { id: best.id, name: best.name, просмотров: best.views_count }
           : null,
-        за_7_дней: { постов: week.length, просмотров: week.reduce((a: number, x: any) => a + Number(x.views_count || 0), 0) },
+        за_7_дней: {
+          постов: week.length,
+          просмотров: week.reduce(
+            (a: number, x: any) => a + Number(x.views_count || 0),
+            0
+          ),
+        },
       } as Record<string, unknown>
       // A/B заголовков: стиль лежит в template_settings.ab_style
       // (кладёт автопилот). Посты без метки в «прочие» не попадают —
@@ -830,7 +1015,8 @@ export const TOOLS: AgentTool[] = [
       return {
         всего: r.rows.length,
         скиллы: r.rows,
-        подсказка: 'применяй их к текстам постов и тонам; изменение — через skills_update',
+        подсказка:
+          'применяй их к текстам постов и тонам; изменение — через skills_update',
       }
     },
   },
@@ -855,9 +1041,13 @@ export const TOOLS: AgentTool[] = [
       if (!name || !content) {
         return { создано: false, причина: 'нужны непустые name и content' }
       }
-      if (name.length > 100) return { создано: false, причина: 'имя до 100 символов' }
+      if (name.length > 100)
+        return { создано: false, причина: 'имя до 100 символов' }
       if (content.length > 8192) {
-        return { создано: false, причина: `слишком длинно: ${content.length} > 8192` }
+        return {
+          создано: false,
+          причина: `слишком длинно: ${content.length} > 8192`,
+        }
       }
       await ensureSkillsTable(ctx)
       const dup = await ctx.pool.query(
@@ -865,7 +1055,10 @@ export const TOOLS: AgentTool[] = [
         [ctx.telegramId, name]
       )
       if (dup.rows.length) {
-        return { создано: false, причина: `скилл «${name}» уже есть — используй skills_update` }
+        return {
+          создано: false,
+          причина: `скилл «${name}» уже есть — используй skills_update`,
+        }
       }
       const r = await ctx.pool.query(
         `INSERT INTO user_skills (telegram_id, name, content)
@@ -883,7 +1076,10 @@ export const TOOLS: AgentTool[] = [
     parameters: {
       type: 'object',
       properties: {
-        id: { type: 'integer', description: 'идентификатор скилла из skills_list' },
+        id: {
+          type: 'integer',
+          description: 'идентификатор скилла из skills_list',
+        },
         name: { type: 'string' },
         content: { type: 'string', description: 'полный новый текст' },
       },
@@ -897,7 +1093,12 @@ export const TOOLS: AgentTool[] = [
          SET name = COALESCE(NULLIF($3, ''), name), content = $2, updated_at = now()
          WHERE id = $1 AND telegram_id = $4
          RETURNING id, name`,
-        [args.id, String(args.content || ''), String(args.name || ''), ctx.telegramId]
+        [
+          args.id,
+          String(args.content || ''),
+          String(args.name || ''),
+          ctx.telegramId,
+        ]
       )
       if (!r.rows.length) {
         return { обновлено: false, причина: 'скилл не найден (или чужой)' }
@@ -921,7 +1122,8 @@ export const TOOLS: AgentTool[] = [
         `DELETE FROM user_skills WHERE id = $1 AND telegram_id = $2 RETURNING name`,
         [args.id, ctx.telegramId]
       )
-      if (!r.rows.length) return { удалено: false, причина: 'скилл не найден (или чужой)' }
+      if (!r.rows.length)
+        return { удалено: false, причина: 'скилл не найден (или чужой)' }
       return { удалено: true, имя: r.rows[0].name }
     },
   },
@@ -935,7 +1137,10 @@ export const TOOLS: AgentTool[] = [
       type: 'object',
       properties: {
         id: { type: 'integer' },
-        public: { type: 'boolean', description: 'true — опубликовать, false — скрыть' },
+        public: {
+          type: 'boolean',
+          description: 'true — опубликовать, false — скрыть',
+        },
       },
       required: ['id', 'public'],
       additionalProperties: false,
@@ -947,11 +1152,15 @@ export const TOOLS: AgentTool[] = [
          WHERE id = $1 AND telegram_id = $2 RETURNING name`,
         [args.id, ctx.telegramId, args.public === true]
       )
-      if (!r.rows.length) return { опубликовано: false, причина: 'скилл не найден' }
+      if (!r.rows.length)
+        return { опубликовано: false, причина: 'скилл не найден' }
       return {
         опубликовано: args.public === true,
         имя: r.rows[0].name,
-        витрина: args.public === true ? 'скилл виден в skills_market' : 'скрыт с витрины',
+        витрина:
+          args.public === true
+            ? 'скилл виден в skills_market'
+            : 'скрыт с витрины',
       }
     },
   },
@@ -983,7 +1192,9 @@ export const TOOLS: AgentTool[] = [
       'Установить публичный скилл с витрины себе (копия). Бесплатно.',
     parameters: {
       type: 'object',
-      properties: { id: { type: 'integer', description: 'id с витрины skills_market' } },
+      properties: {
+        id: { type: 'integer', description: 'id с витрины skills_market' },
+      },
       required: ['id'],
       additionalProperties: false,
     },
@@ -993,7 +1204,8 @@ export const TOOLS: AgentTool[] = [
         `SELECT name, content FROM user_skills WHERE id = $1 AND is_public = TRUE`,
         [args.id]
       )
-      if (!src.rows.length) return { установлено: false, причина: 'скилла нет на витрине' }
+      if (!src.rows.length)
+        return { установлено: false, причина: 'скилла нет на витрине' }
       const { name, content } = src.rows[0]
       const r = await ctx.pool.query(
         `INSERT INTO user_skills (telegram_id, name, content)
@@ -1094,6 +1306,21 @@ export const TOOLS: AgentTool[] = [
   },
 ]
 
+const IMPLEMENTATIONS_BY_NAME = new Map(
+  IMPLEMENTED_TOOLS.map(tool => [tool.name, tool])
+)
+
+/** The exported/executable registry is exact and cannot be widened by env. */
+export const TOOLS: AgentTool[] = SAFE_BETA_AGENT_POLICY.executableTools.map(
+  name => {
+    const tool = IMPLEMENTATIONS_BY_NAME.get(name)
+    if (!tool || !decideAgentToolAccess(tool).allowed) {
+      throw new Error(`SAFE BETA tool implementation is missing: ${name}`)
+    }
+    return tool
+  }
+)
+
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
 
 /** Формат OpenAI tool-calling. Схема ОДНА и та же, что уходит наружу по MCP. */
@@ -1114,5 +1341,14 @@ export function toMcpTools() {
     name: t.name,
     description: t.description,
     inputSchema: t.parameters,
+    _meta: {
+      scope: t.scope,
+      effect: t.effect,
+      requiresOwnerApproval: false,
+    },
+    annotations: {
+      readOnlyHint: t.effect === 'read',
+      destructiveHint: false,
+    },
   }))
 }

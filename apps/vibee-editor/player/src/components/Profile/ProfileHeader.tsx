@@ -1,6 +1,15 @@
-import { useEffect, useState } from 'react';
-import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { User, Users, Video, Eye, Heart, Settings, CheckCircle, Camera } from 'lucide-react';
+import { useEffect, useState } from 'react'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import {
+  User,
+  Users,
+  Video,
+  Eye,
+  Heart,
+  Settings,
+  CheckCircle,
+  Camera,
+} from 'lucide-react'
 import {
   viewedProfileAtom,
   userAtom,
@@ -8,76 +17,113 @@ import {
   unfollowUserAtom,
   showLoginModalAtom,
   myProfileAtom,
-} from '@/atoms';
-import { useLanguage } from '@/hooks/useLanguage';
+} from '@/atoms'
+import { useLanguage } from '@/hooks/useLanguage'
 import { API_BASE } from '@/config'
+import { SAFE_BETA_CLIENT_LOCKED } from '@/config/safeBeta'
 import { authHeaders } from '@/lib/apiFetch'
-import { FollowButton } from './FollowButton';
-import { SocialLinks } from './SocialLinks';
+import { FollowButton } from './FollowButton'
+import { SocialLinks } from './SocialLinks'
 
 interface ProfileHeaderProps {
-  onEditClick?: () => void;
+  onEditClick?: () => void
 }
 
 export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
-  const { t } = useLanguage();
+  const { t } = useLanguage()
   const profile = useAtomValue(viewedProfileAtom)
-  const myProfile = useAtomValue(myProfileAtom);
-  const user = useAtomValue(userAtom);
-  const follow = useSetAtom(followUserAtom);
-  const unfollow = useSetAtom(unfollowUserAtom);
-  const [, setShowLogin] = useAtom(showLoginModalAtom);
+  const myProfile = useAtomValue(myProfileAtom)
+  const user = useAtomValue(userAtom)
+  const follow = useSetAtom(followUserAtom)
+  const unfollow = useSetAtom(unfollowUserAtom)
+  const [, setShowLogin] = useAtom(showLoginModalAtom)
 
-  if (!profile) return null;
+  if (!profile) return null
 
-  const [avatarError, setAvatarError] = useState(false);
+  const [avatarError, setAvatarError] = useState(false)
 
   // Use Telegram data as fallback when profile has no avatar/name
-  const rawAvatarUrl = profile.avatar_url || (profile.is_own_profile && user?.photo_url) || null;
-  const avatarUrl = rawAvatarUrl && rawAvatarUrl !== 'null' && rawAvatarUrl !== 'undefined' ? rawAvatarUrl : null;
-  const displayName = profile.display_name || (profile.is_own_profile && user?.first_name) || profile.username;
+  const rawAvatarUrl =
+    profile.avatar_url || (profile.is_own_profile && user?.photo_url) || null
+  const avatarUrl =
+    rawAvatarUrl && rawAvatarUrl !== 'null' && rawAvatarUrl !== 'undefined'
+      ? rawAvatarUrl
+      : null
+  const displayName =
+    profile.display_name ||
+    (profile.is_own_profile && user?.first_name) ||
+    profile.username
 
   const handleFollowClick = async () => {
-    console.log('[Follow] Clicked, user:', user?.id, 'target:', profile.username);
+    console.log(
+      '[Follow] Clicked, user:',
+      user?.id,
+      'target:',
+      profile.username
+    )
     if (!user) {
-      console.log('[Follow] No user, showing login modal');
-      setShowLogin(true);
-      return;
+      console.log('[Follow] No user, showing login modal')
+      setShowLogin(true)
+      return
     }
 
     if (profile.is_following) {
-      console.log('[Follow] Unfollowing...');
-      await unfollow(profile.username);
+      console.log('[Follow] Unfollowing...')
+      await unfollow(profile.username)
     } else {
-      console.log('[Follow] Following...');
-      const result = await follow(profile.username);
-      console.log('[Follow] Result:', result);
+      console.log('[Follow] Following...')
+      const result = await follow(profile.username)
+      console.log('[Follow] Result:', result)
     }
-  };
+  }
 
   const formatNumber = (num: number): string => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toString();
-  };
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
+    return num.toString()
+  }
 
   const stats = [
-    { icon: <Users size={18} />, value: profile.followers_count, label: t('profile.followers') },
-    { icon: <Users size={18} />, value: profile.following_count, label: t('profile.following') },
-    { icon: <Video size={18} />, value: profile.templates_count, label: t('profile.videos') },
-    { icon: <Eye size={18} />, value: profile.total_views, label: t('profile.views') },
-    { icon: <Heart size={18} />, value: profile.total_likes, label: t('profile.likes') },
-  ];
+    {
+      icon: <Users size={18} />,
+      value: profile.followers_count,
+      label: t('profile.followers'),
+    },
+    {
+      icon: <Users size={18} />,
+      value: profile.following_count,
+      label: t('profile.following'),
+    },
+    {
+      icon: <Video size={18} />,
+      value: profile.templates_count,
+      label: t('profile.videos'),
+    },
+    {
+      icon: <Eye size={18} />,
+      value: profile.total_views,
+      label: t('profile.views'),
+    },
+    {
+      icon: <Heart size={18} />,
+      value: profile.total_likes,
+      label: t('profile.likes'),
+    },
+  ]
 
   return (
     <>
       {/* Cover Image */}
       <div className="profile-cover">
         {profile.cover_url ? (
-          <img src={profile.cover_url} alt="" className="profile-cover__image" />
+          <img
+            src={profile.cover_url}
+            alt=""
+            className="profile-cover__image"
+          />
         ) : null}
         <div className="profile-cover__gradient" />
-        {profile.is_own_profile && (
+        {profile.is_own_profile && !SAFE_BETA_CLIENT_LOCKED && (
           <button className="profile-cover__edit" onClick={onEditClick}>
             <Camera size={16} />
             <span>{t('profile.edit_cover')}</span>
@@ -122,40 +168,46 @@ export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
             <SocialLinks links={profile.social_links} />
           </div>
 
-          <div className="profile-header__actions">
-            {profile.is_own_profile ? (
-              <button className="profile-header__edit-btn" onClick={onEditClick}>
-                <Settings size={18} />
-                <span>{t('profile.edit')}</span>
-              </button>
-            ) : (
-              <FollowButton
-                isFollowing={profile.is_following}
-                onClick={handleFollowClick}
-              />
-            )}
-          </div>
+          {!SAFE_BETA_CLIENT_LOCKED ? (
+            <div className="profile-header__actions">
+              {profile.is_own_profile ? (
+                <button
+                  className="profile-header__edit-btn"
+                  onClick={onEditClick}
+                >
+                  <Settings size={18} />
+                  <span>{t('profile.edit')}</span>
+                </button>
+              ) : (
+                <FollowButton
+                  isFollowing={profile.is_following}
+                  onClick={handleFollowClick}
+                />
+              )}
+            </div>
+          ) : null}
         </div>
 
         {/* Stats Cards with Glassmorphism */}
-        <ProfileTokens
-          isOwn={
-            (!!myProfile && myProfile.telegram_id === profile.telegram_id) ||
-            (import.meta.env.DEV && !!import.meta.env.VITE_AGENT_KEY)
-          }
-        />
+        {!SAFE_BETA_CLIENT_LOCKED ? (
+          <ProfileTokens
+            isOwn={!!myProfile && myProfile.telegram_id === profile.telegram_id}
+          />
+        ) : null}
         <div className="profile-stats">
           {stats.map((stat, index) => (
             <div key={index} className="profile-stat-card">
               <div className="profile-stat-card__icon">{stat.icon}</div>
-              <span className="profile-stat-card__value">{formatNumber(stat.value)}</span>
+              <span className="profile-stat-card__value">
+                {formatNumber(stat.value)}
+              </span>
               <span className="profile-stat-card__label">{stat.label}</span>
             </div>
           ))}
         </div>
       </div>
     </>
-  );
+  )
 }
 
 /**
@@ -170,16 +222,9 @@ function ProfileTokens({ isOwn }: { isOwn: boolean }) {
   useEffect(() => {
     ;(async () => {
       try {
-        const headers = authHeaders()
-        const devKey = import.meta.env.DEV
-          ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
-          : undefined
-        if (devKey && !headers.has('X-Telegram-Init-Data')) {
-          headers.set('X-Agent-Key', devKey)
-        }
         const res = await fetch(`${API_BASE}/mcp`, {
           method: 'POST',
-          headers,
+          headers: authHeaders(),
           body: JSON.stringify({
             jsonrpc: '2.0',
             id: 1,

@@ -1,105 +1,116 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { listAgentTools, type McpToolDescription } from '@/lib/agentMcp'
+import {
+  SAFE_BETA_TOOL_NAMES,
+  isExactSafeBetaRegistry,
+  selectSafeBetaTools,
+} from '@/lib/agentControls'
 import './AgentConnect.css'
 
-/**
- * Секция лендинга: агентный вайбрилс.
- *
- * Ядро продукта — агент, который делает рилсы. Подключить можно ЛЮБОГО:
- * встроенного в приложении или своего по MCP. Отсюда две кнопки:
- *  - «Попробовать агента» — во встроенный чат;
- *  - «Copy to agent» — копирует готовый промпт-инструкцию, которую человек
- *    вставляет своему агенту (Claude, свой скрипт, любой MCP-клиент), и тот
- *    сам подключается.
- *
- * Инструкция написана ДЛЯ АГЕНТА, а не для человека: короткая, с точным
- * адресом, порядком вызовов и честным списком того, чего сервис не умеет, —
- * чтобы агент не тратил витки на выяснение перебором.
- */
-
-const MCP_URL = 'https://vibee-render-production.up.railway.app/mcp'
-
-const AGENT_BRIEF = `Ты подключаешься к Trinity S³AI — сервису создания рилсов — по MCP.
-
-Эндпоинт: ${MCP_URL}
-Протокол: MCP поверх JSON-RPC 2.0.
-Авторизация: заголовок X-Agent-Key: <КЛЮЧ>. Ключ выдаёт владелец на его
-telegram_id; инструменты работают от его имени, чужой id подставить нельзя.
-
-Начни так:
-1. GET ${MCP_URL} — карточка подключения и список инструментов (без ключа).
-2. POST с телом {"jsonrpc":"2.0","id":1,"method":"tools/list"} и заголовком
-   X-Agent-Key — точные схемы инструментов.
-3. Вызов: {"jsonrpc":"2.0","id":1,"method":"tools/call",
-   "params":{"name":"feed_stats","arguments":{}}}
-
-Инструменты: whoami, feed_stats, feed_list, feed_get (со слоями — для ремикса),
-my_assets, templates_list, feed_publish (текст поста с хештегами обязателен).
-Начинай с whoami и feed_stats — они бесплатны, мгновенны и ничего не меняют.
-
-Чего сервис пока НЕ умеет: платных генераций (нет списания баланса),
-публикации от чужого имени, удаления записей ленты.
-
-Пример одной командой:
-curl -s ${MCP_URL} -H 'X-Agent-Key: КЛЮЧ' -H 'Content-Type: application/json' \\
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"feed_stats","arguments":{}}}'`
+const toolEffect = {
+  whoami: 'read',
+  feed_stats: 'read',
+  content_plan_prepare: 'draft only',
+} as const
 
 export function AgentConnect() {
-  const [copied, setCopied] = useState(false)
+  const [tools, setTools] = useState<McpToolDescription[]>([])
+  const [registryStatus, setRegistryStatus] = useState<
+    'checking' | 'ready' | 'unavailable' | 'regression'
+  >('checking')
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(AGENT_BRIEF)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // Некоторые встраивания Telegram блокируют clipboard API. Тогда даём
-      // человеку выделить текст руками — а не молча делаем вид, что скопировали.
-      const ta = document.getElementById(
-        'agent-brief'
-      ) as HTMLTextAreaElement | null
-      if (ta) {
-        ta.focus()
-        ta.select()
-      }
+  useEffect(() => {
+    let active = true
+    void listAgentTools()
+      .then(discovered => {
+        if (!active) return
+        if (isExactSafeBetaRegistry(discovered)) {
+          setTools(selectSafeBetaTools(discovered))
+          setRegistryStatus('ready')
+        } else {
+          setTools([])
+          setRegistryStatus('regression')
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setTools([])
+          setRegistryStatus('unavailable')
+        }
+      })
+    return () => {
+      active = false
     }
-  }
+  }, [])
+
+  const registryMessage = (() => {
+    switch (registryStatus) {
+      case 'ready':
+        return 'контракт registry подтверждён'
+      case 'regression':
+        return 'контракт registry не подтверждён; действия закрыты'
+      case 'unavailable':
+        return 'live registry доступен только после Telegram-входа'
+      default:
+        return 'проверяем live registry…'
+    }
+  })()
 
   return (
     <section className="agent-connect">
       <div className="agent-connect__inner">
-        <div className="agent-connect__badge">MCP · white-label</div>
-        <h2 className="agent-connect__title">Подключи любого агента</h2>
+        <div className="agent-connect__badge">MCP · SAFE BETA</div>
+        <h2 className="agent-connect__title">Встроенный агент уже работает</h2>
         <p className="agent-connect__lead">
-          Агент читает твою ленту, файлы и шаблоны и публикует рилсы за тебя.
-          Встроенный — во вкладке «Агент». Свой — по MCP одной инструкцией.
+          Он видит только подтверждённый Telegram-профиль, читает его статистику
+          и сохраняет контент-план только как черновик.
         </p>
 
         <div className="agent-connect__panel">
           <div className="agent-connect__panel-head">
-            <span className="agent-connect__dot" />
-            инструкция для агента
+            <span
+              className={`agent-connect__dot ${
+                registryStatus === 'ready' ? '' : 'agent-connect__dot--blocked'
+              }`}
+            />
+            {tools.length} / {SAFE_BETA_TOOL_NAMES.length} live tools
           </div>
-          <textarea
-            id="agent-brief"
-            className="agent-connect__code"
-            readOnly
-            value={AGENT_BRIEF}
-            rows={12}
-          />
+          <p className="agent-connect__registry-status" role="status">
+            {registryMessage}
+          </p>
+          {registryStatus === 'ready' ? (
+            <ul className="agent-connect__tools">
+              {tools.map(tool => (
+                <li key={tool.name}>
+                  <code>{tool.name}</code>
+                  <span>
+                    {toolEffect[tool.name as keyof typeof toolEffect]}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <div className="agent-connect__blocked">
+            <strong>Внешнее MCP-подключение временно закрыто.</strong>
+            <span>
+              Оно появится только после защищённой личной выдачи и отзыва
+              доступа. Сейчас Codex, Claude и другие внешние клиенты не
+              подключаются.
+            </span>
+          </div>
+
           <div className="agent-connect__actions">
-            <button className="agent-connect__copy" onClick={copy}>
-              {copied ? '✓ Скопировано' : 'Copy to agent'}
-            </button>
             <Link to="/chat" className="agent-connect__try">
-              Попробовать агента
+              Открыть встроенного агента
             </Link>
           </div>
         </div>
 
         <p className="agent-connect__note">
-          Ключ выдаётся на твой telegram_id. Инструменты работают от твоего
-          имени — чужой аккаунт не тронуть.
+          Публикация и траты в SAFE BETA отключены. Владельца определяет сервер,
+          а не аргументы агента.
         </p>
       </div>
     </section>
