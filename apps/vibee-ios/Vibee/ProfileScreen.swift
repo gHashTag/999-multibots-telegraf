@@ -103,6 +103,9 @@ struct ProfileScreen: View {
   /// Растёт при входе и выходе — по нему перезагружаются данные.
   @State private var версия = 0
   @State private var пакеты: [API.TokenPack] = []
+  /// nil — ещё не спросили. Отличать от нуля обязательно: ноль это ответ,
+  /// nil это отсутствие ответа, и на экране они значат разное.
+  @State private var остаток: Int?
 
   var body: some View {
     ScrollView {
@@ -198,9 +201,32 @@ struct ProfileScreen: View {
   @ViewBuilder private var токены: some View {
     if !пакеты.isEmpty {
       VStack(alignment: .leading, spacing: 8) {
-        Text("Токены")
-          .font(Тема.Шрифт.стиль(.subheadline, .semibold))
-          .foregroundStyle(Тема.Профиль.текст)
+        HStack(alignment: .firstTextBaseline) {
+          Text("Токены")
+            .font(Тема.Шрифт.стиль(.subheadline, .semibold))
+            .foregroundStyle(Тема.Профиль.текст)
+          Spacer()
+          /**
+           * ОСТАТОК РЯДОМ С ПАКЕТАМИ, и это не украшение.
+           *
+           * Здесь были только пакеты «10 / 50 / 150» — цены на ПОКУПКУ. Своего
+           * числа на экране не было вовсе, и витрину читали как счёт: «у меня
+           * же есть на балансе». Узнать правду можно было единственным
+           * способом — нажать «Сгенерировать» и получить отказ, уже выбрав
+           * модель и дождавшись сервера.
+           *
+           * Пока не загрузилось — не пишем ноль. Ноль здесь означал бы
+           * «у вас пусто», то есть враньё на секунду раньше правды.
+           */
+          if let б = остаток {
+            Text("есть \(б)")
+              .font(Тема.Шрифт.стиль(.subheadline, .semibold))
+              .foregroundStyle(Тема.Цвет.акцент)
+              .accessibilityIdentifier("профиль.баланс")
+          } else {
+            ProgressView().controlSize(.mini)
+          }
+        }
         HStack(spacing: Тема.Профиль.просветСетки) {
           ForEach(пакеты) { пакет in
             ПлиткаПакета(пакет: пакет)
@@ -332,6 +358,9 @@ struct ProfileScreen: View {
       // профиль без списка полезен, список без профиля — нет.
       ролики = (try? await API.userTemplates(username: p.username)) ?? []
       пакеты = await API.tokenPacks()
+      // Остаток НЕ обязателен для экрана: без входа его нет, и профиль обязан
+      // открыться всё равно. Поэтому отдельной попыткой и без throw наружу.
+      остаток = try? await API.баланс().balance
     } catch {
       ошибка = "Профиль не загрузился: \(error.localizedDescription)"
     }
