@@ -320,6 +320,7 @@ async function sendVideoDirectly(
     })
 
     // ✅ Если файл > 50 MB - отправляем ссылку, иначе - видео
+    const isRu = (await getUserLanguageFromDB(telegramId)) !== 'en'
     if (fileSize > MAX_TELEGRAM_VIDEO_SIZE) {
       logger.info('📎 [SEND VIDEO DIRECTLY] File too large, sending as link', {
         fileSizeMB: (fileSize / 1024 / 1024).toFixed(2),
@@ -327,33 +328,37 @@ async function sendVideoDirectly(
 
       await botInstance.telegram.sendMessage(
         chatId,
-        `✅ Видео готово!\n\n` +
-          `⚠️ Файл слишком большой (${(fileSize / 1024 / 1024).toFixed(1)} MB), отправляю ссылку:\n\n` +
+        (isRu ? `✅ Видео готово!\n\n` : `✅ Your video is ready!\n\n`) +
+          (isRu
+            ? `⚠️ Файл слишком большой (${(fileSize / 1024 / 1024).toFixed(1)} MB), отправляю ссылку:\n\n`
+            : `⚠️ File too large (${(fileSize / 1024 / 1024).toFixed(1)} MB), sending a link:\n\n`) +
           `🔗 ${videoUrl}\n\n` +
           `🎬 Job ID: ${metadata.jobId || 'N/A'}\n` +
-          `⏱ Длительность: ${metadata.duration || 'N/A'} сек`,
+          (isRu
+            ? `⏱ Длительность: ${metadata.duration || 'N/A'} сек`
+            : `⏱ Duration: ${metadata.duration || 'N/A'} sec`),
         {
           link_preview_options: { is_disabled: false },
         }
       )
 
       // ✅ Отправляем клавиатуру с кнопками продолжения (для больших файлов)
-      const isRuLargeFile = (await getUserLanguageFromDB(telegramId)) !== 'en'
       await botInstance.telegram.sendMessage(
         chatId,
-        getVideoCompletionMessage(isRuLargeFile),
-        createVideoCompletionKeyboard(isRuLargeFile)
+        getVideoCompletionMessage(isRu),
+        createVideoCompletionKeyboard(isRu)
       )
     } else {
       // Отправляем видео пользователю
       await botInstance.telegram.sendVideo(chatId, videoUrl, {
-        caption: `✅ Видео готово!\n\n🎬 Job ID: ${metadata.jobId || 'N/A'}\n⏱ Длительность: ${metadata.duration || 'N/A'} сек`,
+        caption: isRu
+          ? `✅ Видео готово!\n\n🎬 Job ID: ${metadata.jobId || 'N/A'}\n⏱ Длительность: ${metadata.duration || 'N/A'} сек`
+          : `✅ Your video is ready!\n\n🎬 Job ID: ${metadata.jobId || 'N/A'}\n⏱ Duration: ${metadata.duration || 'N/A'} sec`,
       })
     }
 
     // ✅ Отправляем клавиатуру с кнопками продолжения
     try {
-      const isRu = (await getUserLanguageFromDB(telegramId)) !== 'en'
       await botInstance.telegram.sendMessage(
         chatId,
         getVideoCompletionMessage(isRu),
@@ -1208,19 +1213,18 @@ async function handleSoraSuccess(
       const modelName = modelInfo?.nameRu || 'Sora 2'
 
       // Отправляем видео с простым текстом (без Markdown чтобы избежать ошибок парсинга)
+      const isRu = (await getUserLanguageFromDB(taskContext.chatId)) !== 'en'
       await botInstance.telegram.sendVideo(
         taskContext.chatId,
         Input.fromURL(videoUrl),
         {
-          caption:
-            `🤖 Модель: ${modelName}\n` +
-            `⏱️ Длительность: ${taskContext.duration} сек\n` +
-            `⚡ Сгенерировано через AI`,
+          caption: isRu
+            ? `🤖 Модель: ${modelName}\n⏱️ Длительность: ${taskContext.duration} сек\n⚡ Сгенерировано через AI`
+            : `🤖 Model: ${modelName}\n⏱️ Duration: ${taskContext.duration} sec\n⚡ Generated with AI`,
         }
       )
 
       // ✅ Отправляем клавиатуру для продолжения работы
-      const isRu = (await getUserLanguageFromDB(taskContext.chatId)) !== 'en'
       await botInstance.telegram.sendMessage(
         taskContext.chatId,
         getVideoCompletionMessage(isRu),
@@ -2015,11 +2019,15 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
           })
 
           // Успешная генерация - отправляем видео
+          const isRu =
+            (await getUserLanguageFromDB(taskContext.chatId)) !== 'en'
           await botInstance.telegram.sendVideo(
             taskContext.chatId,
             result.output,
             {
-              caption: `✅ Видео готово!\n\n🎬 Модель: ${taskContext.modelId}\n⏱ Длительность: ${result.duration || 'N/A'} сек`,
+              caption: isRu
+                ? `✅ Видео готово!\n\n🎬 Модель: ${taskContext.modelId}\n⏱ Длительность: ${result.duration || 'N/A'} сек`
+                : `✅ Your video is ready!\n\n🎬 Model: ${taskContext.modelId}\n⏱ Duration: ${result.duration || 'N/A'} sec`,
             }
           )
 
@@ -2052,8 +2060,6 @@ async function notifyJobCompletion(taskId: string, result: any): Promise<void> {
           })
 
           // ✅ Отправляем клавиатуру для продолжения работы
-          const isRu =
-            (await getUserLanguageFromDB(taskContext.chatId)) !== 'en'
           await botInstance.telegram.sendMessage(
             taskContext.chatId,
             getVideoCompletionMessage(isRu),
