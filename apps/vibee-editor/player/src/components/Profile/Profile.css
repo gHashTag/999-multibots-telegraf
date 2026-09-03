@@ -121,7 +121,7 @@
   border-radius: 0.5rem;
   color: var(--text-primary);
   font-size: 0.85rem;
-  cursor: pointer;
+  cursor: default;
   transition: all 0.2s;
 }
 
@@ -754,29 +754,6 @@
   opacity: 1;
 }
 
-.profile-templates__play-btn {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  background: rgba(var(--color-brand-amber-rgb, 0, 255, 136), 0.9);
-  border-radius: 50%;
-  color: var(--color-bg-primary);
-  opacity: 0;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: calc(var(--z-base) + 1);
-}
-
-.profile-templates__item:hover .profile-templates__play-btn {
-  transform: translate(-50%, -50%) scale(1);
-  opacity: 1;
-}
-
 .profile-templates__thumbnail {
   position: relative;
   aspect-ratio: 9/16;
@@ -849,6 +826,132 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+.profile-templates__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.profile-templates__action {
+  min-width: 0;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.55rem;
+  border: 1px solid var(--border-color, var(--bg-input));
+  background: var(--bg-secondary, var(--color-bg-elevated));
+  color: var(--text-primary, #fff);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  z-index: calc(var(--z-base) + 2);
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    color 0.2s;
+}
+
+.profile-templates__action:hover:not(:disabled),
+.profile-templates__action:focus-visible {
+  border-color: var(--vibee-amber);
+  background: rgba(var(--color-brand-amber-rgb, 0, 255, 136), 0.12);
+  outline: none;
+}
+
+.profile-templates__action--delete {
+  color: var(--status-error, #ef4444);
+}
+
+.profile-templates__action--delete:hover:not(:disabled),
+.profile-templates__action--delete:focus-visible {
+  border-color: var(--status-error, #ef4444);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.profile-templates__action:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.profile-templates__error {
+  margin: 1rem 0 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: 0.65rem;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--status-error, #ef4444);
+}
+
+.profile-templates__confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.profile-templates__confirm {
+  width: min(100%, 360px);
+  padding: 1.5rem;
+  border: 1px solid var(--border-color, var(--bg-input));
+  border-radius: 1rem;
+  background: var(--bg-secondary, var(--color-bg-elevated));
+  color: var(--text-primary, #fff);
+  text-align: center;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+}
+
+.profile-templates__confirm > svg {
+  color: var(--status-error, #ef4444);
+}
+
+.profile-templates__confirm h3 {
+  margin: 0.75rem 0 0.4rem;
+  font-size: 1.05rem;
+}
+
+.profile-templates__confirm p {
+  margin: 0 0 1.25rem;
+  color: var(--text-secondary, #888);
+  overflow-wrap: anywhere;
+}
+
+.profile-templates__confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.profile-templates__confirm-actions button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 0.65rem;
+  background: var(--bg-tertiary, var(--color-bg-secondary));
+  color: var(--text-primary, #fff);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.profile-templates__confirm-actions .profile-templates__confirm-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  background: var(--status-error, #ef4444);
+  color: #fff;
 }
 
 .profile-templates__load-more {
@@ -1283,6 +1386,10 @@
     gap: 0.75rem;
   }
 
+  .profile-templates__actions {
+    grid-template-columns: 1fr;
+  }
+
   .profile-edit {
     position: fixed;
     inset: 0;
@@ -1654,7 +1761,9 @@
   background: transparent;
   color: #8a8578;
   cursor: pointer;
-  transition: color 0.2s, background 0.2s;
+  transition:
+    color 0.2s,
+    background 0.2s;
 }
 
 .profile-skills__actions button:hover {
@@ -1929,7 +2038,9 @@
   font-size: 11px;
   white-space: nowrap;
   cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
 }
 
 .profile-plan__status:disabled {

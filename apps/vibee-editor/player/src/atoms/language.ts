@@ -871,6 +871,11 @@ const en: Translations = {
 
   // Profile
   'profile.edit': 'Edit',
+  'profile.edit_template': 'Edit',
+  'profile.delete_template': 'Delete',
+  'profile.delete_template_confirm': 'Remove this template from your profile?',
+  'profile.template_action_failed':
+    'Could not update the template. Sign in and try again.',
   'profile.edit_cover': 'Edit Cover',
   'profile.followers': 'Followers',
   'profile.following': 'Following',
@@ -2526,6 +2531,11 @@ const ru: Translations = {
 
   // Profile
   'profile.edit': 'Редактировать',
+  'profile.edit_template': 'Редактировать',
+  'profile.delete_template': 'Удалить',
+  'profile.delete_template_confirm': 'Удалить шаблон из профиля?',
+  'profile.template_action_failed':
+    'Не удалось изменить шаблон. Войдите и попробуйте ещё раз.',
   'profile.edit_cover': 'Изменить обложку',
   'profile.followers': 'Подписчики',
   'profile.following': 'Подписки',
