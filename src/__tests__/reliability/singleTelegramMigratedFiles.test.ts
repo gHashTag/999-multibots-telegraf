@@ -29,6 +29,7 @@ const MIGRATED = [
   'core/supabase/getAspectRatio.ts',
   'core/supabase/getUserLevel.ts',
   'core/supabase/getUserModel.ts',
+  'core/supabase/getUserData.ts',
   'db/userSettings.ts',
 ]
 
@@ -53,7 +54,8 @@ function singleOnTelegramId(source: string): number {
     if (
       ts.isCallExpression(node) &&
       ts.isPropertyAccessExpression(node.expression) &&
-      node.expression.name.text === 'single' &&
+      (node.expression.name.text === 'single' ||
+        node.expression.name.text === 'maybeSingle') &&
       /\.eq\(\s*['"]telegram_id['"]/.test(
         node.expression.expression.getText(sf)
       )
@@ -94,7 +96,8 @@ function singleOnTelegramIdInFn(source: string, fnName: string): number {
     if (
       ts.isCallExpression(node) &&
       ts.isPropertyAccessExpression(node.expression) &&
-      node.expression.name.text === 'single' &&
+      (node.expression.name.text === 'single' ||
+        node.expression.name.text === 'maybeSingle') &&
       /\.eq\(\s*['"]telegram_id['"]/.test(
         node.expression.expression.getText(sf)
       )
@@ -158,6 +161,11 @@ describe('migrated users-readers stay off .single()-on-telegram_id', () => {
     const good = `supabase.from('users').select('level').eq('telegram_id', id).order('updated_at',{ascending:false}).limit(1)`
     expect(singleOnTelegramId(bad)).toBe(1)
     expect(singleOnTelegramId(good)).toBe(0)
+  })
+
+  it('self-check: detector also flags .maybeSingle() on telegram_id', () => {
+    const bad = `supabase.from('users').select('x').eq('telegram_id', id).maybeSingle()`
+    expect(singleOnTelegramId(bad)).toBe(1)
   })
 
   it('mutation: reverting a migrated reader to .single() turns the check RED', () => {
