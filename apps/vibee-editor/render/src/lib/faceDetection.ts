@@ -7,8 +7,28 @@
 import * as faceapi from '@vladmandic/face-api'
 import * as canvas from 'canvas'
 import * as path from 'path'
-import { execFileSync } from 'child_process'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import * as fs from 'fs'
+
+const execFileAsync = promisify(execFile)
+
+/**
+ * Frame extraction is bounded, and it does not block the event loop.
+ *
+ * `-i` here can be a REMOTE url: /analyze-face passes the caller's videoUrl
+ * through untouched unless it starts with '/', and ffmpeg fetches http(s)
+ * inputs itself. This used to be execFileSync with no timeout, which is two
+ * problems at once on a service where every bot shares one process: a server
+ * that accepts the connection and then trickles bytes pinned the whole event
+ * loop -- not just this request -- for as long as it cared to, and nothing
+ * ever timed it out.
+ *
+ * execFile (async) keeps the process responsive; the timeout bounds the child
+ * itself. 60s is generous for pulling one frame and well under the 300s the
+ * render path allows a full ffmpeg job (render-server.ts runFfmpeg).
+ */
+const FRAME_EXTRACT_TIMEOUT_MS = 60_000
 
 const { Canvas, Image, ImageData } = canvas
 
@@ -58,7 +78,7 @@ async function extractFrame(videoPath: string): Promise<string> {
   const tempPath = `/tmp/face-frame-${Date.now()}.png`
 
   // Use ffmpeg to extract first frame (аргументы массивом — без шелла)
-  execFileSync(
+  await execFileAsync(
     'ffmpeg',
     [
       '-i',
@@ -70,7 +90,7 @@ async function extractFrame(videoPath: string): Promise<string> {
       '-y',
       tempPath,
     ],
-    { stdio: 'pipe' }
+    { timeout: FRAME_EXTRACT_TIMEOUT_MS }
   )
 
   return tempPath
