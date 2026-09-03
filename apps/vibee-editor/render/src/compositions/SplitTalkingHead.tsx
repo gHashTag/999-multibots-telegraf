@@ -36,6 +36,7 @@ import {
   DEFAULT_MUSIC_VOLUME,
 } from '../constants/captions'
 import type { AvatarAnimation, AvatarBorderEffect } from '../shared/types'
+import { filmGrainFrame, segmentsWithBRoll } from '../storyboard-contract'
 
 // ============================================================
 // Video Layout Types
@@ -289,6 +290,8 @@ export const SplitTalkingHeadSchema = z.object({
   // Visual effects
   vignetteStrength: z.number().default(0),
   colorCorrection: z.number().default(1),
+  filmGrainOpacity: z.number().min(0).max(0.35).default(0),
+  filmFlickerStrength: z.number().min(0).max(0.08).default(0),
   // Avatar settings mode (from UI Fullscreen/Split toggle)
   avatarSettingsTab: z.enum(['split', 'fullscreen']).default('split'),
   // Avatar animation (for PiP appearance)
@@ -340,6 +343,66 @@ export const SplitTalkingHeadSchema = z.object({
 export type SplitTalkingHeadProps = z.infer<typeof SplitTalkingHeadSchema>
 export type Segment = z.infer<typeof SegmentSchema>
 export type ImageOverlay = SplitTalkingHeadProps['imageOverlays'][number]
+
+const FilmGrainOverlay: React.FC<{
+  opacity: number
+  flickerStrength: number
+}> = ({ opacity, flickerStrength }) => {
+  const frame = useCurrentFrame()
+  if (opacity <= 0 && flickerStrength <= 0) return null
+
+  const state = filmGrainFrame(frame)
+  const noiseSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".82" numOctaves="3" seed="${state.seed}" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="100%" height="100%" filter="url(%23n)" opacity=".78"/></svg>`
+
+  return (
+    <>
+      {/* ========== FILM GRAIN OVERLAY (below captions at z=100) ========== */}
+      {opacity > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: '-5%',
+            zIndex: 52,
+            pointerEvents: 'none',
+            opacity,
+            backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(noiseSvg)}")`,
+            backgroundSize: '180px 180px',
+            backgroundPosition: `${state.offsetX}px ${state.offsetY}px`,
+            mixBlendMode: 'soft-light',
+          }}
+        />
+      )}
+      {flickerStrength > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 52,
+            pointerEvents: 'none',
+            opacity: state.flicker * flickerStrength,
+            background: '#f4ead7',
+            mixBlendMode: 'soft-light',
+          }}
+        />
+      )}
+      {state.scratchX !== null && opacity > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            left: `${state.scratchX}%`,
+            top: 0,
+            bottom: 0,
+            width: 1,
+            zIndex: 52,
+            pointerEvents: 'none',
+            background: 'rgba(255,255,255,0.32)',
+            opacity: Math.min(0.2, opacity * 1.3),
+          }}
+        />
+      )}
+    </>
+  )
+}
 
 // ============================================================
 // B-Roll Layer Component (with Sequence for proper playback)
@@ -819,6 +882,8 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
   // Visual effects
   vignetteStrength = 0,
   colorCorrection = 1,
+  filmGrainOpacity = 0,
+  filmFlickerStrength = 0,
   // Avatar settings mode (from UI toggle)
   avatarSettingsTab = 'split',
   // Avatar animation
@@ -838,9 +903,7 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
   // Prefetch all b-roll videos for smooth playback
   useEffect(() => {
     const videoUrls = segments
-      .filter(
-        seg => seg.type === 'split' && seg.bRollUrl && seg.bRollType === 'video'
-      )
+      .filter(seg => seg.bRollUrl && seg.bRollType === 'video')
       .map(seg => resolveMediaPath(seg.bRollUrl!))
 
     const prefetchers = videoUrls.map(url => {
@@ -890,12 +953,18 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
   const pipSize = Math.max(8, Math.min(currentSize / 4, 30))
 
   // Filter B-roll segments for rendering
-  const brollSegments = segments.filter(
-    seg => seg.type === 'split' && seg.bRollUrl
-  )
+  const brollSegments = segmentsWithBRoll(segments)
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
+      {/* ========== MASTER VOICE SPINE (independent from scene visibility) ========== */}
+      <Audio
+        key={`voice-${lipSyncVideo}`}
+        src={resolveMediaPath(lipSyncVideo)}
+        volume={videoVolume}
+        pauseWhenBuffering
+      />
+
       {/* ========== B-ROLL LAYERS (all segments with Sequence timing) ========== */}
       {brollSegments.map((segment, index) => (
         <BRollLayer
@@ -991,7 +1060,7 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
               const videoElement = (
                 <OffthreadVideo
                   src={resolveMediaPath(lipSyncVideo)}
-                  volume={videoVolume}
+                  muted
                   style={{
                     width: '100%',
                     height: '100%',
@@ -1075,7 +1144,7 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
               const videoElement = (
                 <OffthreadVideo
                   src={resolveMediaPath(lipSyncVideo)}
-                  volume={videoVolume}
+                  muted
                   style={{
                     width: '100%',
                     height: '100%',
@@ -1229,6 +1298,11 @@ export const SplitTalkingHead: React.FC<SplitTalkingHeadProps> = ({
           }}
         />
       )}
+
+      <FilmGrainOverlay
+        opacity={filmGrainOpacity}
+        flickerStrength={filmFlickerStrength}
+      />
     </AbsoluteFill>
   )
 }
