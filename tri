@@ -305,6 +305,13 @@ CHECKS THAT EACH COST A CYCLE
 
 LOOP TOOLING
   tri lock | tri unlock   take or release the iteration lock
+  tri disk [reap]         DATA-volume usage + self-heal. Reports stale worktrees
+                          and DEAD-session scratch (0 open handles AND mtime>1d;
+                          liveness is judged by OPEN HANDLE, not mtime -- a
+                          week-idle 31G scratch was a LIVE vvp sim). `tri disk
+                          reap` frees the dead ones. Big OWNER eaters (Docker,
+                          Caches, Simulators, DerivedData) are named, never
+                          touched -- deleting their data is the owner's call.
   tri scan                anomalies, and what is waiting on the owner
   tri scan-check          Can `tri scan` still fail? Stands up a local server,
                           feeds the checker deliberately broken payloads and
@@ -1483,6 +1490,67 @@ cmd_stepjump() {
   ( cd "$ROOT" && node "$TOOLS/stepjump-audit.mjs" "$@" )
 }
 
+cmd_disk() {
+  # САМОВОССТАНОВЛЕНИЕ ДИСКА. Цикл делит DATA-том с чужими сессиями; когда том
+  # заполняется под нуль, Bash падает с ENOSPC ещё ДО запуска команды — харнесс
+  # не может создать файл вывода, и весь виток встаёт (случилось it.69). Команда
+  # мерит ВЕРНЫЙ том, чистит МОИ следы и называет чужих пожирателей.
+  #
+  # ЛИНЕЙКА «занято» — ОТКРЫТЫЙ ДЕСКРИПТОР, а не mtime. Пойман vvp-симулятор
+  # Verilog, державший 31G scratch с mtime недельной давности: жив, хотя выглядел
+  # мёртвым. Поэтому reap удаляет сессию только когда lsof=0 хендлов И mtime
+  # старше суток (двойная страховка; текущую сессию бережёт свежий mtime).
+  local mode="${1:-}"
+
+  # (1) ВЕРНЫЙ том. `df /` показывает запечатанный системный снапшот (почти
+  # всегда «полон» и неинформативен); реальное место живёт на DATA-томе.
+  paint '1;36' 'DATA-том'
+  df -h /System/Volumes/Data | sed -n '1,2p'
+
+  # (2) Мои worktree'ы. prune снимает записи, чей каталог уже исчез (безопасно).
+  echo; paint '1;36' 'worktree цикла'
+  git -C "$ROOT" worktree prune 2>/dev/null
+  git -C "$ROOT" worktree list 2>/dev/null
+
+  # (3) Scratch сессий. Один прогон lsof, дальше сверяем по пути открытых файлов.
+  echo; paint '1;36' 'scratch сессий  (к возврату = 0 хендлов И mtime>суток)'
+  local tmproot="/private/tmp/claude-$(id -u)"
+  local held; held="$(lsof -Fn 2>/dev/null | grep "^n$tmproot" || true)"
+  local d base sz
+  for d in "$tmproot"/*/*; do
+    [ -d "$d" ] || continue
+    base="$(basename "$d")"
+    case "$base" in
+      [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-*) ;;
+      *) continue ;;
+    esac
+    sz="$(du -sh "$d" 2>/dev/null | cut -f1)"
+    if printf '%s\n' "$held" | grep -q -- "$base"; then
+      skip "жива (открыт дескриптор), пропуск: $sz  $base"
+    elif [ -n "$(find "$d" -maxdepth 0 -mtime +1 2>/dev/null)" ]; then
+      if [ "$mode" = "reap" ] || [ "$mode" = "чисти" ]; then
+        rm -rf "$d" 2>/dev/null && good "освобождено $sz  $base"
+      else
+        warn "мёртвая, к возврату: $sz  $base   (запусти: tri диск чисти)"
+      fi
+    else
+      skip "свежая (<суток), пропуск: $sz  $base"
+    fi
+  done
+
+  # (4) Крупные ЧУЖИЕ пожиратели — НАЗВАТЬ, но не трогать: это данные владельца,
+  # а удаление данных — его решение (деструктив последним, [[debugging_doctrine]]).
+  echo; paint '1;36' 'крупные пожиратели  (владельцу — сам не трогаю)'
+  local p
+  for p in \
+    "$HOME/Library/Containers/com.docker.docker" \
+    "$HOME/Library/Caches" \
+    "$HOME/Library/Developer/CoreSimulator" \
+    "$HOME/Library/Developer/Xcode/DerivedData"; do
+    [ -e "$p" ] && du -sh "$p" 2>/dev/null
+  done
+}
+
 action="${1:-помощь}"
 shift 2>/dev/null || true
 
@@ -1522,6 +1590,7 @@ case "$action" in
   lesson|опыт)         cmd_lesson "$@" ;;
   lock|лок)            bash "$TOOLS/guard.sh" acquire ;;
   unlock|раслок)       bash "$TOOLS/guard.sh" release ;;
+  disk|диск)           cmd_disk "$@" ;;
   scan|скан)           node "$TOOLS/anomalies.mjs" ;;
   # Deliberately a TOP-LEVEL verb, not `tri scan check`. The sibling that took
   # the subcommand road is broken in exactly the documented spot: help promises
