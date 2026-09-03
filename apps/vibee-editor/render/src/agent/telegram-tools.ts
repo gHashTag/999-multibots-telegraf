@@ -29,7 +29,50 @@
  * acting reaches other people and is not.
  */
 
-import type { AgentTool } from './tools'
+import type { AgentTool, ToolContext } from './tools'
+
+/**
+ * WHOSE ACCOUNT THIS IS -- and why every reading tool below asks.
+ *
+ * There is exactly ONE Telegram session here: TELEGRAM_SESSION_STRING, the
+ * owner's. It is process-wide, so a reading tool does not act "as the caller",
+ * it acts as the owner no matter who called. The four reading handlers used to
+ * take only `args` -- they never bound the ToolContext -- so the verified
+ * telegram_id of the caller was not merely unchecked, it was unavailable.
+ *
+ * That silently broke the boundary tools.ts states for the whole registry: a
+ * tool must take identity from the confirmed call context. The registry is
+ * shared (tools.ts appends TELEGRAM_TOOLS unconditionally) and the three
+ * dispatchers -- /mcp, /api/agent/chat, /a2a -- accept a plain Mini App
+ * initData signature, verified against EVERY bot token on the platform. So any
+ * user of any of these bots could call tg_history{chat:'777000'} and read the
+ * owner's Telegram service messages, i.e. login codes; tg_contacts dumped the
+ * owner's contact list, tg_search grepped the owner's whole history. Read-only
+ * -- the acting tools return proposals -- but disclosure of exactly the wrong
+ * mailbox.
+ *
+ * The gate is fail-closed: no context, or a context that is not the owner, is
+ * refused. It cannot lock the owner out, because every dispatcher passes a
+ * ctx (routes.ts, chat.ts, a2a.ts all invoke handler(args, ctx)).
+ *
+ * The id matches render-server.ts (TELEGRAM_OWNER_ID), which already uses this
+ * same value for its admin checks; OWNER_TELEGRAM_ID may override it per
+ * deployment.
+ */
+const OWNER_TELEGRAM_ID = (process.env.OWNER_TELEGRAM_ID || '144022504').trim()
+
+/**
+ * Throwing, not returning a value: a refusal must not be mistakable for data.
+ * The dispatchers already turn a thrown tool error into an error result, which
+ * is how `client()` reports "no session" a few lines below.
+ */
+function requireOwner(ctx?: ToolContext): void {
+  if (ctx && String(ctx.telegramId) === OWNER_TELEGRAM_ID) return
+  throw new Error(
+    'Telegram-аккаунт принадлежит владельцу: читать его переписку, контакты и ' +
+      'диалоги может только он сам.'
+  )
+}
 
 /** One dialog as the agent sees it. Foreign text is framed, never raw. */
 export interface Dialog {
@@ -132,7 +175,8 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
         },
       },
     },
-    async handler(args: Record<string, any>) {
+    async handler(args: Record<string, any>, ctx?: ToolContext) {
+      requireOwner(ctx)
       const c = (await client()) as {
         getDialogs: (o: { limit: number }) => Promise<unknown[]>
       }
@@ -187,7 +231,8 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
       },
       required: ['chat'],
     },
-    async handler(args: Record<string, any>) {
+    async handler(args: Record<string, any>, ctx?: ToolContext) {
+      requireOwner(ctx)
       const c = (await client()) as {
         getMessages: (chat: string, o: { limit: number }) => Promise<unknown[]>
       }
@@ -235,7 +280,8 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
       },
       required: ['query'],
     },
-    async handler(args: Record<string, any>) {
+    async handler(args: Record<string, any>, ctx?: ToolContext) {
+      requireOwner(ctx)
       const c = (await client()) as {
         getMessages: (
           chat: string,
@@ -263,7 +309,8 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
     description:
       'Контакты пользователя в Telegram: name и username. ЧИТАЮЩИЙ инструмент.',
     parameters: { type: 'object', properties: {} },
-    async handler(_args: Record<string, any>) {
+    async handler(_args: Record<string, any>, ctx?: ToolContext) {
+      requireOwner(ctx)
       const c = (await client()) as {
         invoke: (r: unknown) => Promise<{ users?: unknown[] }>
       }
