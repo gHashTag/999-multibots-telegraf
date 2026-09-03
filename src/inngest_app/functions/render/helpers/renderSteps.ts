@@ -307,7 +307,10 @@ export async function uploadToS3(
   // Generate download URL
   const downloadUrl = await s3Service.generateGetUrl(objectKey, 604800, logger)
 
-  logger.info('Generated download URL', { downloadUrl })
+  // redact SigV4 query (X-Amz-Signature bearer capability) before logging
+  logger.info('Generated download URL', {
+    downloadUrl: downloadUrl.split('?')[0],
+  })
 
   return {
     objectKey,

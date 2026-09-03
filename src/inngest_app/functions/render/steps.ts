@@ -336,7 +336,9 @@ export async function uploadToS3(
       })
       .eq('id', job_id)
 
-    logger.info(`✅ Result uploaded to S3 for job ${job_id}: ${resultUrl}`)
+    logger.info(
+      `✅ Result uploaded to S3 for job ${job_id}: ${resultUrl.split('?')[0]}`
+    )
 
     return resultUrl
   } catch (error: any) {
@@ -1036,7 +1038,7 @@ export async function generateSpeechAudio(
         604800,
         logger
       )
-      logger.info(`✅ Returning existing audio URL: ${audioUrl}`)
+      logger.info(`✅ Returning existing audio URL: ${audioUrl.split('?')[0]}`)
       return audioUrl
     }
 
