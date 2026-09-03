@@ -1588,31 +1588,27 @@ export const generateImageToVideo = async (
           modelId,
         })
 
-        // ✅ FIX: Save taskId to session so "Update status" button works
-        if (ctx && ctx.session) {
-          ctx.session.videoJobId = taskId
-          ctx.session.videoPrompt = processedPrompt || prompt || ''
-          ctx.session.videoModelId = modelId as any
-          ctx.session.videoMessageId = 0 // Will be updated later
-          logger.info(
-            '[I2V BG] ✅ Saved taskId to session for status updates',
-            {
-              telegramId,
-              taskId,
-              sessionHasContext: !!ctx.session,
-            }
-          )
-        } else {
-          logger.warn(
-            '[I2V BG] ⚠️ Cannot save taskId - ctx or session missing',
-            {
-              telegramId,
-              taskId,
-              hasCtx: !!ctx,
-              hasSession: !!ctx?.session,
-            }
-          )
+        // The Kie webhook is the SINGLE charger for this path (it gets the task
+        // via videoTaskStore.saveTask below). Do NOT arm ctx.session.videoJobId
+        // here, and clear any stale one: with videoJobId armed the "Update status"
+        // button polls and charges AGAIN via handleTextToVideoDirect's own
+        // claimVideoJobDelivery Set — a separate idempotency Set the webhook never
+        // populates — so a tap after webhook delivery double-debits and re-sends.
+        // Cleared, the button takes the safe "webhook will deliver" branch. (The
+        // poll path arms it only for its in-loop window and clears it after; this
+        // webhook-only path has no such window.)
+        if (ctx?.session) {
+          delete ctx.session.videoJobId
+          delete ctx.session.videoModelId
+          delete ctx.session.videoPrompt
         }
+        logger.info(
+          '[I2V BG] Sora task queued; webhook will charge + deliver',
+          {
+            telegramId,
+            taskId,
+          }
+        )
 
         // Give the webhook the task context it needs to CHARGE.
         //
