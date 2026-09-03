@@ -43,12 +43,14 @@ import {
 } from '../src/autopilot-state'
 import { deliverToChannel } from '../src/channel-delivery'
 import { readFaceSourceFile } from '../src/face-source'
+import { brollClaimId, claimBroll, settleBroll } from '../src/broll-spend'
 import {
   attemptTalkingPortrait,
   kieProvider,
   portraitRecord,
   readPortraitConfig,
   s3Mirror,
+  SPEND_TABLE,
   type PortraitResult,
 } from '../src/talking-portrait'
 
@@ -662,7 +664,49 @@ async function main() {
    * clause is redundant today and would be the only thing standing between a
    * future zero-cost delivery and a b-roll overwriting it.
    */
-  if (withVideo && portraitCredits <= 0 && !props.avatarVideo) {
+  /**
+   * CLAIM THE CLIP BEFORE THE MONEY MOVES.
+   *
+   * This layer was authorised purely by durable SUCCESS state and left no trace
+   * of itself: the cycle's only write happens after publication (writeState,
+   * below). So everything between paying for the clip and that write -- the
+   * render ceiling, a publish failure, a redeploy killing the child -- left the
+   * durable state byte-identical to before the spend. The next tick re-derived
+   * the same authorisation, picked the same topic, and bought the clip AGAIN,
+   * while the one already paid for was persisted nowhere.
+   *
+   * Same shape the portrait uses one layer above -- an intent row written
+   * BEFORE the provider is told anything -- keyed per topic. Only 'claimed'
+   * (the row is ours) and 'no-db' (nothing durable was ever promised, which is
+   * the portrait module's own deliberate choice) may spend. The contract and
+   * the reasoning live in src/broll-spend.ts, where typecheck can see them.
+   *
+   * The condition is folded into this `if` rather than wrapping the block
+   * below: that block is full of pre-existing Russian comments, and re-indenting
+   * them would present them to the no-cyrillic gate as newly added lines.
+   */
+  const brollWanted = withVideo && portraitCredits <= 0 && !props.avatarVideo
+  const brollClaimKey = brollClaimId(today, topic.title)
+  const brollClaim = brollWanted
+    ? await withDb(db =>
+        claimBroll(
+          db,
+          {
+            id: brollClaimKey,
+            owner: OWNER,
+            day: today,
+            spendTable: SPEND_TABLE,
+          },
+          log
+        )
+      ).catch(() => 'silent' as const)
+    : ('skip' as const)
+  if (brollClaim === 'taken') {
+    log('b-roll: клип для этой темы сегодня уже куплен, второй раз не плачу')
+  } else if (brollClaim === 'silent') {
+    log('b-roll: трачу только под запись, пропускаю слой')
+  }
+  if (brollWanted && (brollClaim === 'claimed' || brollClaim === 'no-db')) {
     // THE OLD PAID LAYER, UNCHANGED: a silent generated b-roll dropped into the
     // same oval.
     // B-roll конвейера — расход КАНАЛА, не токенов человека (PRICING.md
@@ -712,6 +756,10 @@ async function main() {
       })()
       if (vid?.success && typeof vid.url === 'string') {
         props.avatarVideo = vid.url
+        // Settle the row; it is never released, see src/broll-spend.ts.
+        await withDb(db => settleBroll(db, brollClaimKey, log)).catch(
+          () => undefined
+        )
       } else {
         log(
           `b-roll не получился (${JSON.stringify(vid).slice(0, 140)}) — рендерю без него`
