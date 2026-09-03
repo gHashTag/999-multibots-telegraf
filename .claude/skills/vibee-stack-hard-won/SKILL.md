@@ -5188,3 +5188,65 @@ WHY IT MATTERS COMMERCIALLY. Discovery is the first step of A2A: a platform
 fetches /.well-known/agent-card.json BEFORE it has credentials. Ours is not a
 route at all, so no agent platform can find this service, and the tools_list
 that MCP exposes is the only door anyone can walk through.
+
+## A reel IS a JSON. The feed is a set of rendered JSONs. Stop assembling video by hand
+
+THE MISTAKE THIS ENTRY EXISTS TO PREVENT. I spent a day producing reels with
+ffmpeg -- concat, zoompan, an audio track laid over stills -- and handing the
+owner an mp4 URL. Every one of those bypassed the product. The unit of work here
+is NOT a video file. It is a PROPS OBJECT that Remotion renders, and the feed is
+a set of rendered props. Assembling video by hand produces something the system
+cannot re-render, cannot remix, cannot A/B and cannot show in the editor.
+
+THE PIPELINE, and there is only one:
+author props (JSON) -> reel_render {compositionId, props} -> mp4
+-> feed_publish, which stores props BACK
+a feed row = template_settings {props, compositionId, ab_style} + assets +
+tracks + parent_template_id + uses_count
+So publishing a reel publishes the recipe. Someone else remixes it by taking the
+props and changing values. That is what makes it a network.
+
+THREE COMPOSITIONS, 1080x1920 @30fps. Read the Zod schema in the .tsx before
+writing props -- it is the contract, and a field you invent is silently dropped.
+
+TrinityBlogReel (900 frames, 30 s) -- the engraved blog card:
+lang 'ru'|'en', title, subtitle, dateline, tags[], lesson, invariant, url,
+year, plates[{label,value}] -- the numeric tablets,
+club{name,tagline,terms,cta}?,
+posterUrl? a still, and
+avatarVideo? a video -- THESE TWO SHARE ONE OVAL MEDALLION and video
+wins; the medallion's window is a fixed 15.6 s slice
+avatarVideoVolume?, avatarVideoSeconds?
+voiceover? A NARRATION TRACK. It exists. I did not read the schema
+and built the same thing with ffmpeg instead.
+music?, musicVolume (0.05)
+captions[{text,startMs,endMs}] WORD-LEVEL TITLES. Also already here.
+
+NoirReel (810 frames) -- the black-and-white reel with an end card:
+lipSyncVideo, captions[{text,startMs,endMs}],
+cutaways[{src,startFrame,durationFrames}] -- inserts over the face,
+music?, musicVolume (0.07),
+endCardStartMs? -- WITH captions: [] THE END CARD STARTS AT ZERO and covers
+the whole reel. My first render was 26 s of logo on black
+and reported success.
+brand{masthead,eyebrow,name,cta,sub} -- masthead defaults to Trinity S3AI.
+
+SplitTalkingHead (1020 frames) -- face plus b-roll, per-segment:
+segments[{type:'split'|'fullscreen', startFrame, durationFrames,
+bRollUrl?, bRollType:'video'|'image', caption?,
+layout, offsetX/Y, scaleWidth/Height, cropX/cropY (0-100),
+fontSize, textColor, highlightColor, backgroundColor,
+bottomPercent, fontFamily}]
+Every framing decision is a NUMBER IN THE JSON, not a hard-coded style.
+
+CONSEQUENCES I GOT WRONG AND MUST NOT REPEAT:
+
+1. Captions come from `captions`, not from burning text with ffmpeg.
+2. Voice-over is a `voiceover` prop, not an audio track muxed on the side.
+3. Dynamic movement is Remotion's job through segments and frame numbers.
+4. Style is the composition's, not mine. The owner's avatar is a
+   PHOTOREALISTIC black-and-white portrait -- dramatic light, sunglasses,
+   tuxedo. Turning it into a 17th-century engraving was my aesthetic imposed
+   on his brand. img2img must PRESERVE the photoreal look unless the brief
+   says otherwise; the engraving canon belongs to TrinityBlogReel's own
+   drawing, not to his face.
