@@ -732,6 +732,8 @@ struct GenerateScreen: View {
         }
       }
 
+      историяДляВида
+
       Button {
         Task { await сгенерировать() }
       } label: {
@@ -809,6 +811,77 @@ struct GenerateScreen: View {
       }
       .pickerStyle(.segmented)
     }
+  }
+
+  /**
+   * ИСТОРИЯ ЭТОГО ВИДА — ДО КНОПКИ, а не после.
+   *
+   * `историяАссетов` уже существовала, но жила только в «Редакторе» и
+   * показывала ВСЁ подряд: текст рядом с видео рядом со звуком. Человек на
+   * вкладке «Голос» её не видел вовсе — вкладка отдельная, и предыдущие
+   * озвучки было негде взять, кроме как сгенерировать заново. Комментарий
+   * рядом уже называл это прямым убытком, только для сборки, не для
+   * генерации.
+   *
+   * Фильтр по `дорожкаСлоя` — тому же самому вычислению, что решает, на
+   * какую дорожку редактора ляжет результат. Стоит ДО кнопки «Сгенерировать»
+   * умышленно: увидеть готовое дешевле, чем платить за то же самое второй
+   * раз, а решение стоит принимать раньше траты, не после.
+   */
+  @ViewBuilder private var историяДляВида: some View {
+    let свои = слои.история.filter { $0.дорожка == дорожкаСлоя }
+    if !свои.isEmpty {
+      VStack(alignment: .leading, spacing: 8) {
+        Text("Прошлые генерации · \(свои.count)")
+          .font(Тема.Шрифт.стиль(.caption))
+          .foregroundStyle(Тема.Цвет.текстПриглушённый)
+
+        ForEach(свои.prefix(8)) { а in
+          HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(а.подпись).font(Тема.Шрифт.стиль(.callout)).lineLimit(1)
+              Text(давность(а.когда))
+                .font(Тема.Шрифт.стиль(.caption2))
+                .foregroundStyle(Тема.Цвет.текстПриглушённый)
+            }
+            Spacer(minLength: 8)
+            Button("Взять") { слои.взятьВРолик(а.id) }
+              .font(Тема.Шрифт.стиль(.footnote, .medium))
+              .buttonStyle(.plain)
+              .foregroundStyle(Тема.Цвет.акцент)
+              .frame(minHeight: Тема.Касание.минимум)
+            // Удаление здесь, не только в сборке: неудачный результат
+            // отсеивают до того, как он попал в ролик, а не после.
+            Button {
+              слои.забытьИзИстории(а.id)
+            } label: {
+              Image(systemName: "trash")
+                .foregroundStyle(Тема.Цвет.текстПриглушённый)
+            }
+            .buttonStyle(.plain)
+            .frame(width: Тема.Касание.минимум, height: Тема.Касание.минимум)
+          }
+        }
+      }
+      .padding(.top, 4)
+    }
+  }
+
+  /// «5 мин назад» из ISO-строки. Секунды не нужны человеку — решает,
+  /// свежее или старое, а не сколько ровно секунд прошло.
+  private func давность(_ isoКогда: String) -> String {
+    guard let дата = ISO8601DateFormatter().date(from: isoКогда) else { return "" }
+    let ф = RelativeDateTimeFormatter()
+    ф.unitsStyle = .short
+    // Локаль ЯВНАЯ, а не системная. Весь остальной интерфейс на русском
+    // текстом, зашитым в код, а не через Localizable.strings — он не
+    // подстраивается под язык устройства. RelativeDateTimeFormatter же
+    // читает системную локаль по умолчанию и на английском симуляторе
+    // отдал бы «11 min ago» посреди русского экрана.
+    ф.locale = Locale(identifier: "ru_RU")
+    ф.calendar = Calendar(identifier: .gregorian)
+    ф.calendar?.locale = ф.locale
+    return ф.localizedString(for: дата, relativeTo: Date())
   }
 
   private var выборДлительностиСценария: some View {
