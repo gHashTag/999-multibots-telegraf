@@ -1902,18 +1902,37 @@ cmd_skipped() {
     process.stdin.on("data", d => input += d);
     process.stdin.on("end", () => {
       const files = input.split("\n").filter(Boolean);
-      const SKIP = /\b(describe|it|test)\.skip\b/;
+      // ТОЛЬКО ВЫЗОВ, И НЕ В КОММЕНТАРИИ.
+      //
+      // Первая версия искала `\b(describe|it|test)\.skip\b` по сырому тексту и
+      // посчитала выключенным тест в trainingDedupColumn, где эта пара слов
+      // стоит В КОММЕНТАРИИ: «соседняя рантайм-сьюта — describe.skip». Итог
+      // 46 вместо 45, и это число я успел опубликовать. Теперь требуется
+      // скобка вызова, а комментарии вырезаются до поиска.
+      const SKIP = /\b(describe|it|test)\.skip\s*\(/;
+      const stripComments = t =>
+        t
+          .replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, " "))
+          .replace(/(^|[^:])\/\/.*$/gm, (m, p1) => p1 + " ".repeat(m.length - p1.length));
       let sites = 0, hidden = 0, undoc = 0;
       const undocList = [], hiddenFiles = new Map();
       for (const f of files) {
         let src;
-        try { src = fs.readFileSync(f, "utf8").split("\n"); } catch { continue; }
+        // ДВА ТЕКСТА, А НЕ ОДИН. Поиск идёт по тексту БЕЗ комментариев (иначе
+        // упоминание в комментарии считается выключенным тестом), а окно
+        // «есть ли записанная причина» смотрит в ИСХОДНЫЙ текст — причина и
+        // есть комментарий, и вырезав их, я бы объявил недокументированными
+        // все до одного. Самопроверка это и поймала.
+        let raw;
+        try { raw = fs.readFileSync(f, "utf8"); } catch { continue; }
+        src = stripComments(raw).split("\n");
+        const rawLines = raw.split("\n");
         const green = snap.includes(f + " :: ");
         for (let i = 0; i < src.length; i++) {
           if (!SKIP.test(src[i])) continue;
           sites++;
           if (green) { hidden++; hiddenFiles.set(f, (hiddenFiles.get(f)||0)+1); }
-          const win = src.slice(Math.max(0, i-12), i).join("\n");
+          const win = rawLines.slice(Math.max(0, i-12), i).join("\n");
           if (!/(\/\/|\*)\s*\S/.test(win)) { undoc++; undocList.push(f + ":" + (i+1)); }
         }
       }
@@ -1943,6 +1962,15 @@ cmd_skipped_selfcheck() {
     bad 'СЛОМАНА: skip без объяснения не опознан'
     rc=1
   fi
+  printf "// the sibling suite is describe.skip and that is fine\ndescribe('x', () => {\n  it('live', () => {})\n})\n" > "$d/mention.test.ts"
+  out="$(cmd_skipped "$d/mention.test.ts" 2>&1 || true)"
+  if printf '%s' "$out" | grep -q 'выключенных тестов: 0'; then
+    good 'упоминание skip в комментарии не считается выключенным тестом'
+  else
+    bad 'СЛОМАНА: комментарий со словом skip посчитан выключенным тестом'
+    rc=1
+  fi
+
   out="$(cmd_skipped "$d/doc.test.ts" 2>&1 || true)"
   if printf '%s' "$out" | grep -q 'без записанной причины: 0'; then
     good 'skip с записанной причиной не считается нарушением'

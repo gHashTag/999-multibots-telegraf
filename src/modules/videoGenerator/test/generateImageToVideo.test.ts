@@ -345,16 +345,20 @@ describe('generateImageToVideo', () => {
       )
     })
 
-    // 🚩 ТРЕБУЕТ ПОЛНОГО СТЕНДА КОНВЕЙЕРА, А НЕ ПРАВКИ ОЖИДАНИЙ.
-    // Списание средств и опрос статуса живут в ветке Plan B polling: код
-    // скачивает файл (downloadFileHelper), пишет его на диск (writeFile),
-    // сохраняет ссылку и только потом зовёт deductBalanceAfterSuccess.
-    // Провайдер, загрузка и файловая система должны быть замоканы согласованно;
-    // при частичном моке поток либо уходит в задержки опроса, либо обрывается
-    // раньше проверяемой строки. Это отдельная работа по стенду —
-    // подгонять ожидания под текущий вывод здесь нельзя, они описывают
-    // настоящее поведение.
-    it.skip('should deduct balance after successful video generation', async () => {
+    // REVIVED. This used to be skipped as "needs the whole pipeline stand",
+    // on the grounds that deduction is reached only through the Plan B polling
+    // branch, after download and a filesystem write. That is not this test: it
+    // mocks Plan A to succeed, so the flow reaches deductBalanceAfterSuccess
+    // with no polling, no download and no filesystem at all.
+    //
+    // Checked to be a real guard rather than a vacuous pass: disabling the
+    // deduction call at generateImageToVideo.ts turns this test red. The two
+    // other call sites are on branches this test does not cover, and it stays
+    // green for those -- so it guards one path and says so.
+    //
+    // Its five siblings in this file remain skipped. Un-skipping them still
+    // fails, so their reason is intact; only this one had gone stale.
+    it('should deduct balance after successful video generation', async () => {
       // Очищаем все предыдущие моки
       ;(axios.post as any).mockClear()
       ;(downloadFileHelper as any).mockClear()

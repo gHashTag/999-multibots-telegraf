@@ -4157,6 +4157,7 @@ src/modules/videoGenerator/test/generateImageToVideo.test.ts :: generateImageToV
 src/modules/videoGenerator/test/generateImageToVideo.test.ts :: generateImageToVideo Input Validation should reject when prompt is missing
 src/modules/videoGenerator/test/generateImageToVideo.test.ts :: generateImageToVideo Input Validation should reject when user is not found
 src/modules/videoGenerator/test/generateImageToVideo.test.ts :: generateImageToVideo Input Validation should truncate long prompts
+src/modules/videoGenerator/test/generateImageToVideo.test.ts :: generateImageToVideo Payment Processing should deduct balance after successful video generation
 src/modules/videoGenerator/test/generateImageToVideo.test.ts :: generateImageToVideo Payment Processing should reject when balance is insufficient
 src/modules/videoGenerator/test/generateImageToVideo.test.ts :: generateImageToVideo Plan B (Kie.ai) should handle balance check errors
 src/modules/videoGenerator/test/generateTextToVideo.test.ts :: generateTextToVideo (dispatch, mocked) Kie provider: returns the taskId when the job is async (no videoUrl)
