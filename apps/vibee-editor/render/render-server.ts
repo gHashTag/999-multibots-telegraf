@@ -472,7 +472,11 @@ import {
   MARK_POSTED,
   readChannelConfig,
 } from './src/channel-delivery'
-import { spendByTid, refundByTid } from './src/agent/billing-shared'
+import {
+  spendByTid,
+  refundByTid,
+  TOKEN_PRICES,
+} from './src/agent/billing-shared'
 import { lipSyncVideoOf, templateDurationInFrames } from './src/render-duration'
 /**
  * Адреса сервисов. Inlined, чтобы не тянуть workspace-зависимость в Docker.
@@ -3402,6 +3406,62 @@ const server = createServer(async (req, res) => {
         }
       }
     })
+    return
+  }
+
+  /**
+   * GET /api/balance — сколько токенов ОСТАЛОСЬ.
+   *
+   * Такого маршрута не было вовсе, и это не пробел в документации, а дыра в
+   * продукте: приложение списывает из `user_tokens`, а прочитать оттуда
+   * остаток не могло НИКАК. В Профиле показывались пакеты «10 / 50 / 150» —
+   * это ВИТРИНА, цены на покупку, — и человек читал их как свой счёт. Узнать
+   * настоящий остаток можно было единственным способом: нажать
+   * «Сгенерировать» и получить отказ «нужно 20, есть 16» — то есть уже выбрав
+   * модель и дождавшись ответа сервера.
+   *
+   * Цены отдаём тем же ответом. Клиенту нужно СРАВНИТЬ остаток со стоимостью
+   * шага ещё до нажатия; иначе он либо повторит нашу таблицу у себя (два
+   * источника одной правды, разъедутся при первой правке), либо снова узнает
+   * цену от ошибки.
+   *
+   * Личность — из подписи initData, не из параметра. `verifiedTelegramId`
+   * возвращает id только если подпись сошлась ключом бота, поэтому чужой
+   * баланс так не прочитать.
+   */
+  if (req.url?.split('?')[0] === '/api/balance' && req.method === 'GET') {
+    const tid = verifiedTelegramId(req)
+    if (!tid) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          success: false,
+          error: 'no verified Telegram initData',
+        })
+      )
+      return
+    }
+    try {
+      const pool = getPool()
+      const r = await pool.query(
+        `SELECT balance FROM user_tokens WHERE telegram_id = $1`,
+        [tid]
+      )
+      // Нет строки — это НОЛЬ, а не ошибка: строка заводится при первом
+      // списании (ensureRow), и до него человек просто ещё ничего не тратил.
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          success: true,
+          balance: Number(r.rows[0]?.balance ?? 0),
+          prices: TOKEN_PRICES,
+        })
+      )
+    } catch (e) {
+      console.error('❌ /api/balance:', e)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: 'balance unavailable' }))
+    }
     return
   }
 
