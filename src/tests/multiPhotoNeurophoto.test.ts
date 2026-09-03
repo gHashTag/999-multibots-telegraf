@@ -37,7 +37,26 @@ vi.mock('axios', () => {
 })
 
 vi.mock('@/utils/logger')
-vi.mock('@/helpers/centralizedLanguage')
+// A bare vi.mock() replaces every export with a stub returning undefined, so
+// isRussianFromState answered "not Russian" no matter what context it was
+// given, and the handler took its English branch. Every Russian expectation in
+// this file then failed, which was read at the time as the function silently
+// returning null under a partial mock -- it does not, it runs and replies in
+// the other language.
+//
+// The stub now derives language from the context the same way production does
+// (session first, then Telegram's language_code), so these assertions describe
+// a Russian user because the mock context IS one.
+vi.mock('@/helpers/centralizedLanguage', () => ({
+  isRussianFromState: (ctx: any) =>
+    ctx?.session?.userLanguage
+      ? ctx.session.userLanguage === 'ru'
+      : ctx?.from?.language_code === 'ru',
+  getUserLanguageFromState: (ctx: any) =>
+    ctx?.from?.language_code === 'ru' ? 'ru' : 'en',
+  setUserLanguageInState: vi.fn(),
+  toggleUserLanguageInState: vi.fn(),
+}))
 vi.mock('@/services/generateNeuroPhotoDirect')
 
 describe('Multi-Photo Neurophoto System', () => {
@@ -90,7 +109,13 @@ describe('Multi-Photo Neurophoto System', () => {
     mockContext = {
       session: mockSession,
       message: mockMessage,
-      from: { id: 123456789, username: 'testuser' },
+      // The assertions in this file describe what a RUSSIAN user sees, which is
+      // what isRussianFromState decides from session.userLanguage or
+      // from.language_code. The mock supplied neither, so the handler took its
+      // English branch and every Russian expectation failed -- read at the time
+      // as "the function silently returns null under a partial mock". It does
+      // not: it runs to completion and replies in the other language.
+      from: { id: 123456789, username: 'testuser', language_code: 'ru' },
       chat: { id: 123456789 },
       telegram: {
         getFileLink: vi.fn().mockResolvedValue({
@@ -155,13 +180,25 @@ describe('Multi-Photo Neurophoto System', () => {
       mockSession.multiPhotoCount = 3
     })
 
-    // 🚩 Требует полного стенда конвейера, а не правки ожиданий.
-    // generateNeuroPhotoMulti проходит через баланс, supabase, отправку в
-    // Telegram и работу с файлами; при частичном моке функция молча
-    // возвращает null и до проверяемых строк не доходит. Мок axios уже
-    // добавлен (сервис ходит на внутренний сервер), очередь фото изолирована;
-    // остальное — отдельная работа по стенду.
-    it.skip('should handle multi-photo neurophoto request', async () => {
+    // REVIVED. This one never had the problem the comment described. It does
+    // not reach generateNeuroPhotoMulti at all -- it checks the step BEFORE
+    // any generation: that a user who drops three photos is shown the count,
+    // the price, and a Continue/Cancel keyboard, rather than being charged for
+    // three straight away.
+    //
+    // It failed for one reason only: `vi.mock('@/helpers/centralizedLanguage')`
+    // had no factory, so isRussianFromState returned undefined and the handler
+    // replied in English while every assertion here describes a Russian user.
+    // The stub now derives language from the context, as production does.
+    //
+    // Checked to be a real guard, not a vacuous pass: forcing the English
+    // branch, renaming the Continue button, or dropping the cost line each
+    // turns it red.
+    //
+    // Its seven siblings stay skipped and their comment is accurate for them --
+    // they call generateNeuroPhotoMulti, which does return null under these
+    // mocks.
+    it('should handle multi-photo neurophoto request', async () => {
       const photos = [
         {
           fileId: 'photo1_id',

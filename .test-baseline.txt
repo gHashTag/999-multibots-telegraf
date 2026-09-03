@@ -4170,6 +4170,7 @@ src/tests/multiPhotoNeurophoto.test.ts :: Integration Tests should complete full
 src/tests/multiPhotoNeurophoto.test.ts :: Multi-Photo Neurophoto System Error Handling should handle file download errors
 src/tests/multiPhotoNeurophoto.test.ts :: Multi-Photo Neurophoto System Error Handling should handle missing user ID
 src/tests/multiPhotoNeurophoto.test.ts :: Multi-Photo Neurophoto System Multi-Photo Neurophoto Generation should calculate correct cost for multiple images
+src/tests/multiPhotoNeurophoto.test.ts :: Multi-Photo Neurophoto System Multi-Photo Neurophoto Generation should handle multi-photo neurophoto request
 src/tests/multiPhotoNeurophoto.test.ts :: Multi-Photo Neurophoto System Photo Queue Manager should detect multi-photo upload with media group
 src/tests/multiPhotoNeurophoto.test.ts :: Multi-Photo Neurophoto System Photo Queue Manager should detect single photo upload
 src/tests/multiPhotoNeurophoto.test.ts :: Multi-Photo Neurophoto System Photo Queue Manager should queue multiple photos correctly
