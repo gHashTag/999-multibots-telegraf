@@ -448,6 +448,21 @@ describe('AvatarTransformScene', () => {
     })
   })
 
+  /**
+   * THIS GROUP GUARDS NOTHING, and it is left here only because removing other
+   * people's tests is not mine to do unasked. See avatarHeroButtonSeam.test.ts,
+   * which checks the same claim against the scene itself.
+   *
+   * Both AI_HEROES and buttonToHeroMap below are literals declared IN THIS
+   * FILE, so these tests compare the test's own copies with each other and
+   * cannot fail for any change to the product. Measured, not assumed: renaming
+   * a hero in all 12 places it occurs in the scene leaves every test in this
+   * group green, and so does deleting a key from the scene's real
+   * buttonToHeroMap, and so does adding a hero with no mapping at all.
+   *
+   * The copies have already drifted, which is the whole point: the roster below
+   * lists 72 male heroes -- Goku, Kratos, Mario -- while the scene offers 11.
+   */
   describe('Button Mapping Validation', () => {
     // Test all heroes from AI_HEROES lists have corresponding button mappings
     const AI_HEROES = {
