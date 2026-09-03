@@ -73,6 +73,18 @@ export const generateFluxKontextPro = async (
   // the long-running process. The Max sibling already tracks + unlinks it; mirror
   // that here with a finally so cleanup is guaranteed on every path.
   let tempFileToCleanup: string | null = null
+  // Hoisted so the outer catch can refund the exact charge on any post-generation
+  // failure (validate/save/savePrompt/delivery). The inner replicate.run catch
+  // sets `refunded` so the outer refund never double-attempts. Mirrors
+  // generateQwenImageEdit / generateFluxKontextMax — Pro was the sole image
+  // service missing this refund.
+  let totalCost = 0
+  let refunded = false
+  // Only refund when a REAL charge for this call occurred. processBalanceOperation
+  // returns success:false on insufficient funds yet the service continues, so
+  // refunding an uncharged failure would credit against an unrelated prior charge
+  // (refundUser is ledger-guarded but keying on a real charge is the honest gate).
+  let charged = false
 
   try {
     const {
@@ -123,7 +135,7 @@ export const generateFluxKontextPro = async (
     // ✅ Calculate cost
     const costPerImage = FLUX_KONTEXT_PRO_MODEL.costPerImage
     const qualityMultiplier = size === '4K' ? 6 : size === '2K' ? 4 : 1
-    const totalCost = costPerImage * qualityMultiplier
+    totalCost = costPerImage * qualityMultiplier
 
     logger.info('💰 [FluxKontextPro] Cost calculation:', {
       telegram_id,
@@ -147,12 +159,15 @@ export const generateFluxKontextPro = async (
         is_ru,
         bot_name: ctx.botInfo.username,
       })
+      charged = balanceResult.success === true
 
       logger.info('🟢 [FluxKontextPro] Balance check result:', {
         telegram_id,
         balanceCheckSuccess: !!balanceResult,
       })
     } else {
+      // Batch mode: the caller already charged (chargedCostOverride) before the loop.
+      charged = true
       logger.info(
         '⏭️ [FluxKontextPro] Skipping balance check (already verified)',
         {
@@ -203,11 +218,16 @@ export const generateFluxKontextPro = async (
         error: error instanceof Error ? error.message : String(error),
       })
 
-      // ✅ Refund user on API failure (silent mode if needed)
-      await refundUser(ctx, params.chargedCostOverride ?? totalCost, {
-        silent: params.silent || false,
-        reason: 'generation_failed',
-      })
+      // ✅ Refund on API failure — only when a real charge occurred (`charged`),
+      // so an uncharged (insufficient-funds) failure cannot mint against an
+      // unrelated prior charge. Mirrors the outer-catch gate.
+      if (charged) {
+        await refundUser(ctx, params.chargedCostOverride ?? totalCost, {
+          silent: params.silent || false,
+          reason: 'generation_failed',
+        })
+        refunded = true
+      }
 
       throw error
     }
@@ -332,6 +352,29 @@ export const generateFluxKontextPro = async (
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     })
+
+    // ✅ Refund on any post-generation failure (validate/save/savePrompt/delivery)
+    // the inner replicate.run catch did not already handle. refundUser is
+    // ledger-guarded (refuses when no charge exists, nets prior refunds under a
+    // per-user lock), so this cannot mint or double-refund; `refunded` avoids
+    // even attempting it after the inner catch already refunded. Mirrors the
+    // sibling Qwen/Max services.
+    if (!refunded && charged && params.ctx) {
+      try {
+        await refundUser(params.ctx, params.chargedCostOverride ?? totalCost, {
+          silent: params.silent || false,
+          reason: 'generation_failed',
+        })
+      } catch (refundError) {
+        logger.error('❌ [FluxKontextPro] Refund after service error failed', {
+          telegram_id: params.telegram_id,
+          error:
+            refundError instanceof Error
+              ? refundError.message
+              : String(refundError),
+        })
+      }
+    }
 
     throw error
   } finally {
