@@ -43,7 +43,7 @@ import {
 } from '../src/autopilot-state'
 import { deliverToChannel } from '../src/channel-delivery'
 import { readFaceSourceFile } from '../src/face-source'
-import { brollClaimId, claimBroll, settleBroll } from '../src/broll-spend'
+import { claimSpend, settleSpend, spendClaimId } from '../src/broll-spend'
 import {
   attemptTalkingPortrait,
   kieProvider,
@@ -538,7 +538,63 @@ async function main() {
    * public_templates is queryable over HTTP by anyone, forever.
    */
   let poster: Record<string, unknown> | null = null
-  if (withImage) {
+  /**
+   * THE ENGRAVING IS CLAIMED BEFORE IT IS BOUGHT, for the same reason the
+   * b-roll is (src/broll-spend.ts) -- and this layer bleeds faster.
+   *
+   * The b-roll runs on the day's LAST post; the engraving runs on EVERY post
+   * and defaults ON (AUTOPILOT_IMAGE is unset in the deploy, and the supervisor
+   * spawns this script with no arguments). So a cycle that dies between paying
+   * FAL for the image and the post-publication writeState re-buys the engraving
+   * on the next tick, for the same topic, every thirty minutes.
+   *
+   * The house exemption does NOT protect against this: it waives the agent's
+   * TOKENS, while the provider is paid out of the channel's purse either way.
+   */
+  const posterClaimKey = spendClaimId('poster', today, topic.title)
+  const posterClaim = withImage
+    ? await withDb(db =>
+        claimSpend(
+          db,
+          {
+            id: posterClaimKey,
+            owner: OWNER,
+            day: today,
+            spendTable: SPEND_TABLE,
+          },
+          log
+        )
+      ).catch(() => 'silent' as const)
+    : ('skip' as const)
+  if (posterClaim === 'taken' || posterClaim === 'silent') {
+    /**
+     * A SKIPPED LAYER SAYS SO IN THE ARTEFACT, not only in the log.
+     *
+     * `poster` stays null when the layer was never asked, and the publish site
+     * below omits the key entirely in that case -- the contract stated a few
+     * lines up. Leaving null here would make a claim-blocked cycle
+     * byte-identical to a deployment with the engraving switched off, which is
+     * precisely the silence that once left "why is there no engraving on any of
+     * these posts" unanswerable for weeks. The log does not cover it: stdout
+     * lives in a container with no volume, and there is a redeploy on every
+     * merge.
+     */
+    poster = {
+      state: 'skipped',
+      reason:
+        posterClaim === 'taken'
+          ? 'заявка на эту тему уже взята сегодня' // cyrillic-ok: artefact text
+          : 'журнал расходов не ответил', // cyrillic-ok: artefact text
+      provider: null,
+      tried: [],
+    }
+    log(
+      posterClaim === 'taken'
+        ? 'гравюра: для этой темы сегодня уже оплачена, второй раз не плачу'
+        : 'гравюра: трачу только под запись, пропускаю слой'
+    )
+  }
+  if (withImage && (posterClaim === 'claimed' || posterClaim === 'no-db')) {
     try {
       const img = await call('image_generate', {
         prompt: `гравюра к посту «${topic.title}»: матовый чёрный, кремово-серебряная штриховка, золото только на заголовке`,
@@ -549,6 +605,10 @@ async function main() {
       // is what it actually is -- the tool's own response field.
       if (img?.['сделано'] && typeof img.url === 'string') {
         props.posterUrl = img.url
+        // Settle the row; it is never released, see src/broll-spend.ts.
+        await withDb(db => settleSpend(db, posterClaimKey, log)).catch(
+          () => undefined
+        )
         poster = {
           state: 'delivered',
           provider: img.provider ?? null,
@@ -686,10 +746,10 @@ async function main() {
    * them would present them to the no-cyrillic gate as newly added lines.
    */
   const brollWanted = withVideo && portraitCredits <= 0 && !props.avatarVideo
-  const brollClaimKey = brollClaimId(today, topic.title)
+  const brollClaimKey = spendClaimId('broll', today, topic.title)
   const brollClaim = brollWanted
     ? await withDb(db =>
-        claimBroll(
+        claimSpend(
           db,
           {
             id: brollClaimKey,
@@ -757,7 +817,7 @@ async function main() {
       if (vid?.success && typeof vid.url === 'string') {
         props.avatarVideo = vid.url
         // Settle the row; it is never released, see src/broll-spend.ts.
-        await withDb(db => settleBroll(db, brollClaimKey, log)).catch(
+        await withDb(db => settleSpend(db, brollClaimKey, log)).catch(
           () => undefined
         )
       } else {

@@ -1,14 +1,21 @@
+import { createHash } from 'node:crypto'
+
 /**
- * The b-roll clip, claimed before it is paid for.
+ * A paid autopilot layer, claimed before it is paid for.
  *
- * WHY THIS EXISTS. The autopilot's b-roll layer was authorised purely by
- * durable SUCCESS state and left no trace of itself: the cycle's only write
+ * WHY THIS EXISTS. The autopilot's paid layers were authorised purely by
+ * durable SUCCESS state and left no trace of themselves: the cycle's only write
  * happens after publication. Everything between the money moving and that write
  * -- the render ceiling, a publish failure, a redeploy killing the child --
  * left the durable state byte-identical to before the spend, so the next tick
- * re-derived the same authorisation, picked the same topic, and bought the clip
- * AGAIN. The one already paid for was persisted nowhere. At a 30-minute
+ * re-derived the same authorisation, picked the same topic, and bought the same
+ * thing AGAIN. What was already paid for is persisted nowhere. At a 30-minute
  * interval that repeats until a cycle finally survives to the end.
+ *
+ * TWO LAYERS USE THIS, and they differ in how often they can bleed. The b-roll
+ * runs on the day's last post only (paidSlotDue); the poster engraving runs on
+ * EVERY post and defaults ON, so it is the one that repeats fastest. The `kind`
+ * in the key keeps their claims apart on a day when both run for one topic.
  *
  * The shape is the one talking-portrait.ts already uses one layer above -- an
  * intent row written BEFORE the provider is told anything -- with two
@@ -62,7 +69,7 @@ export type Log = (line: string) => void
  * Zero is also the honest figure: a b-roll is Replicate dollars, not the Kie
  * credits this column meters.
  */
-export const BROLL_CLIP_UNITS = 0
+export const CLAIM_CREDITS = 0
 
 /**
  * Stable across a retry of the same cycle, which is the whole point.
@@ -71,8 +78,20 @@ export const BROLL_CLIP_UNITS = 0
  * never touches topic.title, so a retried cycle produces the same key. Sliced
  * because a title is free text and the column is a primary key.
  */
-export function brollClaimId(day: string, title: string): string {
-  return `broll-${day}-${String(title).slice(0, 120)}`
+export function spendClaimId(
+  kind: 'broll' | 'poster',
+  day: string,
+  title: string
+): string {
+  const t = String(title)
+  /**
+   * The slice keeps the key readable in the table; the digest keeps it UNIQUE.
+   * Blog-derived topics take their RSS title unsliced, so two long titles can
+   * share the first 120 characters -- and a shared key means one topic's claim
+   * silently blocks another topic's layer.
+   */
+  const digest = createHash('sha256').update(t).digest('hex').slice(0, 8)
+  return `${kind}-${day}-${t.slice(0, 80)}-${digest}`
 }
 
 export type ClaimOutcome = 'claimed' | 'taken' | 'silent' | 'no-db'
@@ -88,7 +107,7 @@ export type ClaimOutcome = 'claimed' | 'taken' | 'silent' | 'no-db'
  *             record: an unrecorded generation is exactly the state in which a
  *             repeat-spend loop cannot be seen.
  */
-export async function claimBroll(
+export async function claimSpend(
   db: Db | null,
   args: { id: string; owner: string; day: string; spendTable: string },
   log: Log
@@ -105,19 +124,19 @@ export async function claimBroll(
         args.id,
         args.owner,
         args.day,
-        BROLL_CLIP_UNITS,
-        'b-roll: заявка записана до оплаты', // cyrillic-ok: ledger text
+        CLAIM_CREDITS,
+        'автопилот: заявка записана до оплаты', // cyrillic-ok: ledger text
       ]
     )
     return claimed.rows.length > 0 ? 'claimed' : 'taken'
   } catch (e) {
-    log(`b-roll: журнал не ответил (${String(e).slice(0, 100)})`)
+    log(`заявка: журнал не ответил (${String(e).slice(0, 100)})`)
     return 'silent'
   }
 }
 
 /** The clip arrived: settle the row so it reads as spent rather than pending. */
-export async function settleBroll(
+export async function settleSpend(
   db: Db | null,
   id: string,
   log: Log
@@ -126,9 +145,9 @@ export async function settleBroll(
   try {
     await db.query(
       `UPDATE autopilot_spend SET state = 'delivered', reason = $2 WHERE id = $1`,
-      [id, 'b-roll: клип получен'] // cyrillic-ok: ledger text
+      [id, 'автопилот: оплаченное получено'] // cyrillic-ok: ledger text
     )
   } catch (e) {
-    log(`b-roll: заявку не закрыл (${String(e).slice(0, 100)})`)
+    log(`заявка: не закрыл (${String(e).slice(0, 100)})`)
   }
 }
