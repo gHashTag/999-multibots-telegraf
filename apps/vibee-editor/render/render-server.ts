@@ -1983,7 +1983,9 @@ function attachStoreOnce(): void {
 async function chargeMiniAppUser(
   req: IncomingMessage,
   op: string,
-  quantity = 1
+  quantity = 1,
+  /** Выбранная модель (`kie/<id>`): цена берётся её, а не общая по виду. */
+  modelId?: string
 ): Promise<
   { ok: true; tid?: string } | { ok: false; status: number; reason: string }
 > {
@@ -2005,7 +2007,7 @@ async function chargeMiniAppUser(
 
   try {
     const pool = getPool()
-    const spent = await spendByTid(pool as never, tid, op, quantity)
+    const spent = await spendByTid(pool as never, tid, op, quantity, modelId)
     if (!spent.ok) {
       return {
         ok: false,
@@ -3001,7 +3003,7 @@ const server = createServer(async (req, res) => {
         )
 
         // Charge BEFORE spending the provider's money.
-        const billed = await chargeMiniAppUser(req, 'image_generate')
+        const billed = await chargeMiniAppUser(req, 'image_generate', 1, model)
         if (!billed.ok) {
           res.writeHead(billed.status, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ success: false, error: billed.reason }))
@@ -3234,7 +3236,7 @@ const server = createServer(async (req, res) => {
         console.log(`🎬 [Generate] Video: ${model}, duration: ${duration}`)
 
         // Charge BEFORE spending the provider's money.
-        const billed = await chargeMiniAppUser(req, 'video_generate')
+        const billed = await chargeMiniAppUser(req, 'video_generate', 1, model)
         if (!billed.ok) {
           res.writeHead(billed.status, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ success: false, error: billed.reason }))
@@ -3547,7 +3549,7 @@ const server = createServer(async (req, res) => {
         )
 
         // Charge BEFORE spending the provider's money.
-        const billed = await chargeMiniAppUser(req, 'audio_generate')
+        const billed = await chargeMiniAppUser(req, 'audio_generate', 1, model)
         if (!billed.ok) {
           res.writeHead(billed.status, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ success: false, error: billed.reason }))
@@ -3851,7 +3853,8 @@ const server = createServer(async (req, res) => {
         const billed = await chargeMiniAppUser(
           req,
           'lipsync_generate',
-          billedSeconds
+          billedSeconds,
+          model
         )
         if (!billed.ok) {
           res.writeHead(billed.status, { 'Content-Type': 'application/json' })
