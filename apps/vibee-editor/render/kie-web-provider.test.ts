@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { KIE_WEB_MODEL, reviewedKieModel } from './src/agent/kie-web-provider'
+import { KIE_WEB_MODELS, reviewedKieModel } from './src/agent/kie-web-provider'
+import { priceForKieModel } from './src/agent/billing-shared'
 
 const server = fs.readFileSync(path.join(__dirname, 'render-server.ts'), 'utf8')
 
@@ -30,14 +31,30 @@ describe('reviewed Kie provider routes', () => {
   })
 
   it('rejects arbitrary paid model ids at the server boundary', () => {
-    for (const [kind, model] of Object.entries(KIE_WEB_MODEL)) {
-      expect(
-        reviewedKieModel(kind as keyof typeof KIE_WEB_MODEL, `kie/${model}`)
-      ).toBe(model)
+    for (const [kind, models] of Object.entries(KIE_WEB_MODELS)) {
+      // Каждый вид обязан что-то допускать: пустое множество означало бы
+      // молча выключенный вид, а не строгую проверку.
+      expect(models.size).toBeGreaterThan(0)
+      for (const model of models) {
+        expect(
+          reviewedKieModel(kind as keyof typeof KIE_WEB_MODELS, `kie/${model}`)
+        ).toBe(model)
+      }
       expect(() =>
-        reviewedKieModel(kind as keyof typeof KIE_WEB_MODEL, 'kie/other/model')
+        reviewedKieModel(kind as keyof typeof KIE_WEB_MODELS, 'kie/other/model')
       ).toThrow(/not enabled/)
     }
     expect(reviewedKieModel('image', 'fal-ai/flux/dev')).toBeNull()
+  })
+
+  it('никогда не допускает опасную модель и модель без цены', () => {
+    // grok-imagine/image-to-video создаёт ПЛАТНОЕ задание на пустой запрос.
+    for (const models of Object.values(KIE_WEB_MODELS)) {
+      expect(models.has('grok-imagine/image-to-video')).toBe(false)
+    }
+    // Цена известна у каждой допущенной: иначе сумму нечем назвать до нажатия.
+    for (const models of Object.values(KIE_WEB_MODELS)) {
+      for (const m of models) expect(priceForKieModel(m)).not.toBeNull()
+    }
   })
 })

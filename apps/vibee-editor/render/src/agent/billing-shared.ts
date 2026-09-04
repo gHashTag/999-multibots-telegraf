@@ -1,3 +1,7 @@
+import {
+  СЕБЕСТОИМОСТЬ_USD,
+  ЕДИНИЦА_ЦЕНЫ,
+} from './kie-prices.generated'
 /**
  * Тарификация — ЕДИНЫЙ источник для двух путей генерации.
  *
@@ -39,6 +43,39 @@ const OPERATION_COST_USD: Record<string, number> = {
   lipsync_generate: 0.015,
   reel_render: 0.005,
 }
+/**
+ * НАЦЕНКА. Цена продажи = себестоимость × 2 (200% от себестоимости).
+ *
+ * Назначена владельцем и вынесена ОДНОЙ константой: наценка, размазанная по
+ * таблице готовых чисел, не пересчитывается при смене прайса провайдера и
+ * тихо превращается в убыток.
+ */
+const НАЦЕНКА = 2.0
+
+/**
+ * Цена КОНКРЕТНОЙ модели в токенах, а не одна на весь вид.
+ *
+ * Пока к оплате допускалась одна модель на вид, `OPERATION_COST_USD` совпадал
+ * с правдой. Как только допускаются все, одна константа начинает врать: у
+ * липсинка себестоимость расходится ВДЕВЯТЕРО (0.015 у InfiniTalk против
+ * 0.135 у OmniHuman). Общая цена означала бы либо переплату человека на
+ * дешёвой модели, либо убыток владельца на дорогой.
+ *
+ * `null` — провайдер цены не назвал (таких 5 из 48). Такую модель к оплате не
+ * допускаем совсем: назвать сумму до нажатия мы не можем, а брать неизвестно
+ * сколько нельзя.
+ */
+export function priceForKieModel(modelId: string): number | null {
+  const cost = СЕБЕСТОИМОСТЬ_USD[modelId]
+  if (cost == null) return null
+  return Math.ceil((cost * НАЦЕНКА) / COST_PER_TOKEN_USD)
+}
+
+/** Единица, за которую берётся цена: «за секунду», «за картинку». */
+export function unitForKieModel(modelId: string): string | null {
+  return ЕДИНИЦА_ЦЕНЫ[modelId] ?? null
+}
+
 /** Цена = ceil(себестоимость / база). Источник значений — расчёт, не руки. */
 export function priceFor(op: string): number {
   const cost = OPERATION_COST_USD[op]
@@ -75,14 +112,28 @@ export async function spendByTid(
   pool: Pool,
   tid: string,
   op: string,
-  quantity = 1
+  quantity = 1,
+  /**
+   * Модель, если её выбрал человек. Тогда цена берётся ЕЁ, а не общая по виду.
+   *
+   * Общая цена на вид верна только пока к оплате допущена одна модель. Мы
+   * допустили все, а себестоимость у них расходится вдевятеро — списывать
+   * одинаково значит либо переплачивать за человека, либо брать с него
+   * лишнее. Приходит `kie/<id>`, потому что ровно в таком виде модель
+   * присылает клиент.
+   */
+  modelId?: string
 ): Promise<{
   ok: boolean
   списано?: number
   осталось?: number
   причина?: string
 }> {
-  const unitPrice = TOKEN_PRICES[op]
+  const кие =
+    typeof modelId === 'string' && modelId.startsWith('kie/')
+      ? priceForKieModel(modelId.slice(4))
+      : null
+  const unitPrice = кие ?? TOKEN_PRICES[op]
   if (!unitPrice) return { ok: true }
   if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 3600) {
     return { ok: false, причина: 'invalid billing quantity' } // cyrillic-ok: public API field
