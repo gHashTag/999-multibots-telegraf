@@ -1549,6 +1549,9 @@ src/__tests__/money/fluxMaxBatchRefundExactCharge.test.ts :: generateFluxKontext
 src/__tests__/money/geminiChargedNoRefund.test.ts :: generateGeminiImage refunds a failed paid generation (no charged-no-refund) also refunds a delivery failure (sendPhotoWithFallback returns false, never throws)
 src/__tests__/money/geminiChargedNoRefund.test.ts :: generateGeminiImage refunds a failed paid generation (no charged-no-refund) refunds the ACTUAL charged amount, gated so a free generation is never minted
 src/__tests__/money/geminiChargedNoRefund.test.ts :: generateGeminiImage refunds a failed paid generation (no charged-no-refund) refunds via refundAndTell on a generation error
+src/__tests__/money/guardsAssumeOneProcess.test.ts :: the money guards assume exactly one process railway.toml still pins a single replica
+src/__tests__/money/guardsAssumeOneProcess.test.ts :: the money guards assume exactly one process the guards this protects are still the ones counted here
+src/__tests__/money/guardsAssumeOneProcess.test.ts :: the money guards assume exactly one process the session is still the in-memory default, with no store
 src/__tests__/money/hedraRefundChecked.test.ts :: hedra-render refund result is checked (no silent unrefunded charge) assigns the MONEY_INCOME refund result and reacts to a failure
 src/__tests__/money/heygenRefundChecked.test.ts :: heygen-render refund result is checked and reported truthfully assigns the MONEY_INCOME refund result
 src/__tests__/money/heygenRefundChecked.test.ts :: heygen-render refund result is checked and reported truthfully tells the user "funds refunded" only when the refund actually succeeded
