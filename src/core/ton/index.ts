@@ -233,10 +233,20 @@ function parseJettonAmount(tx: any): number {
 /**
  * Найти платёж по комментарию (invoice ID)
  */
+/**
+ * expectedAmountUsdt is REQUIRED, and that is the point.
+ *
+ * It used to be optional, so the amount comparison below sat behind
+ * `if (expectedAmountUsdt !== undefined)` and a caller that omitted it got a
+ * transaction matched on the COMMENT ALONE -- credited for whatever the
+ * invoice said, regardless of what actually arrived on chain. Both callers
+ * pass it today, so requiring it changes no behaviour; it changes omission
+ * from a silent skip into a compile error.
+ */
 export async function findPaymentByComment(
   walletAddress: string,
   expectedComment: string,
-  expectedAmountUsdt?: number,
+  expectedAmountUsdt: number,
   sinceTimestamp?: number
 ): Promise<TonTransaction | null> {
   try {
@@ -421,10 +431,15 @@ export async function getNativeTransactions(
 /**
  * Найти нативный TON платёж по комментарию (invoice ID)
  */
+/**
+ * expectedAmountTon is REQUIRED, for the same reason as the USDT twin above:
+ * an optional amount makes the on-chain check opt-in, and a caller that
+ * forgets it credits on a comment match alone.
+ */
 export async function findNativePaymentByComment(
   walletAddress: string,
   expectedComment: string,
-  expectedAmountTon?: number,
+  expectedAmountTon: number,
   sinceTimestamp?: number
 ): Promise<TonTransaction | null> {
   try {
