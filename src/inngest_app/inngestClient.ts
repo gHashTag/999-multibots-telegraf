@@ -10,10 +10,16 @@ import { logger } from '@/utils/logger'
 export const inngest = new Inngest({
   id: 'vibee',
   name: 'Vibee AI Bot Platform',
+  // No literal fallback. A non-empty fake passes every `if (!eventKey)`
+  // check, so a missing key produced a client that looked configured and
+  // sent events with a key the service rejects. Its twin in client.ts has
+  // always ended this chain with undefined and throws before sending;
+  // measured: the Inngest constructor does not throw on a missing key, so
+  // dropping the literal moves the failure to send time, not to startup.
   eventKey:
     process.env.INNGEST_EVENT_KEY ||
     process.env.BOT_INNGEST_EVENT_KEY ||
-    'local-dev-key',
+    undefined,
   // For local development, no baseUrl needed
   // For production, will use default Inngest Cloud
 })

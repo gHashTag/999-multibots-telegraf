@@ -8,8 +8,13 @@ import { getBotToken } from '@/handlers'
 import { ModeEnum } from '@/interfaces/modes'
 import { getBotNameByToken } from '@/core/bot'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
-// Используем заглушку для HUGGINGFACE_TOKEN
-process.env.HUGGINGFACE_TOKEN = process.env.HUGGINGFACE_TOKEN || 'dummy-token'
+// The stub that used to stand here wrote process.env.HUGGINGFACE_TOKEN =
+// 'dummy-token' at module load -- a process-wide mutation, and the only one
+// in src. It protected nothing: this wizard never reads the token, no
+// HuggingFace client library exists in the repo, and the captioning call in
+// plan_b/generateImageToPrompt goes to a PUBLIC space over plain axios. What
+// it did do was make the variable look configured to every other module for
+// the life of the process, defeating any `if (!token)` check downstream.
 
 export const imageToPromptWizard = new Scenes.WizardScene<MyContext>(
   ModeEnum.ImageToPrompt,

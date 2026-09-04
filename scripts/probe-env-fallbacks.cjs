@@ -113,6 +113,13 @@ function selfCheck() {
   )
 }
 
+// Exported so a test can use THESE matchers rather than restating them. A test
+// with its own copy of the pattern is a twin definition, and a twin whose two
+// halves drift is the defect this repo keeps finding.
+module.exports = { fallbackPattern, categorise, selfCheck }
+
+if (require.main !== module) return
+
 selfCheck()
 
 const files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
