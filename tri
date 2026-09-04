@@ -1817,6 +1817,39 @@ cmd_wt() {
   echo "  Убирать своё: git worktree remove <путь>"
 }
 
+cmd_trust_all() {
+  # ТО ЖЕ, НО ПО ВСЕМ РАБОЧИМ ДЕРЕВЬЯМ СРАЗУ.
+  #
+  # Написано потому, что деградацию не удаётся вызвать по заказу, а значит
+  # единственный способ её застать -- смотреть на все деревья, когда она
+  # случается. Первый же прогон дал ОТРИЦАТЕЛЬНЫЙ результат, и он ценен:
+  # 25 деревьев из 25 здоровы, включая самые старые. Значит порча НЕ
+  # накапливается со временем и НЕ остаётся навсегда -- она проходит сама.
+  # Это уточняет вывод it.128 («дерево портится не при создании»).
+  local smoke='src/__tests__/inngest/stuckTrainingAgeUnknown.test.ts'
+  local bad=0 total=0
+  while IFS= read -r w; do
+    [ -d "$w" ] || continue
+    total=$((total + 1))
+    if [ ! -e "$w/node_modules" ]; then
+      printf '  %-46s %s\n' "$(basename "$w")" "нет node_modules"
+      bad=$((bad + 1)); continue
+    fi
+    local out
+    out=$(cd "$w" && npx vitest list "$smoke" 2>&1)
+    if printf '%s' "$out" | grep -qiE 'cannot find|error|failed'; then
+      printf '  %-46s %s\n' "$(basename "$w")" "ДЕГРАДИРОВАНО"
+      printf '%s\n' "$out" | head -3 | sed 's/^/        /'
+      bad=$((bad + 1))
+    else
+      printf '  %-46s %s\n' "$(basename "$w")" "ok"
+    fi
+  done < <(cd "$ROOT" && git worktree list | awk '{print $1}')
+  echo
+  echo "деревьев: $total, деградировавших: $bad"
+  [ "$bad" -eq 0 ] || return 1
+}
+
 cmd_trust() {
   # ГОДНО ЛИ ЭТО ДЕРЕВО, ЧТОБЫ ВЕРИТЬ ЕГО ГЕЙТУ.
   #
@@ -1830,12 +1863,24 @@ cmd_trust() {
   # мало, и нужна та, которую можно позвать в любой момент, ПЕРЕД тем как
   # поверить вердикту.
   #
-  # Проба -- один файл из числа поражаемых. Если он перечисляется, дереву
-  # можно верить; если нет, вердикт гейта здесь не про код.
-  local smoke='src/__tests__/inngest/stuckTrainingAgeUnknown.test.ts'
-  if [ ! -f "$ROOT/$smoke" ]; then
-    bad "пробный файл пропал: $smoke"
-    echo "   Выберите другой из поражаемых и обновите cmd_trust."
+  # НЕСКОЛЬКО проб, а не одна. Померено it.138: порча детерминирована для
+  # ПАРЫ (дерево, файл) -- в одном и том же дереве один файл не перечисляется
+  # трижды из трёх, а другой проходит трижды из трёх. Пока проба была одна,
+  # эта команда отвечала «годно» про дерево, где другие файлы стабильно
+  # падали: вопрос был уже названия, а популяция -- один файл.
+  local smokes=(
+    'src/__tests__/inngest/stuckTrainingAgeUnknown.test.ts'
+    'src/__tests__/security/webhookSecretToken.test.ts'
+    'src/__tests__/money/paidServicesTableUnread.test.ts'
+  )
+  local present=()
+  local f
+  for f in "${smokes[@]}"; do
+    [ -f "$ROOT/$f" ] && present+=("$f")
+  done
+  if [ "${#present[@]}" -eq 0 ]; then
+    bad "ни один пробный файл не найден"
+    echo "   Обновите список smokes в cmd_trust."
     return 2
   fi
   # Capture FIRST, test after. `npx vitest | grep -q` inside this script is a
@@ -1844,15 +1889,19 @@ cmd_trust() {
   # grep matched -- so the check reported a degraded tree as healthy. The first
   # version of this command did exactly that, and it was caught by comparing it
   # against the same command typed by hand.
-  local out
-  out=$(cd "$ROOT" && npx vitest run "$smoke" 2>&1)
-  if printf '%s' "$out" | grep -q 'Cannot find module'; then
+  local out failed=()
+  for f in "${present[@]}"; do
+    out=$(cd "$ROOT" && npx vitest list "$f" 2>&1)
+    printf '%s' "$out" | grep -q 'Cannot find module' && failed+=("$f")
+  done
+  if [ "${#failed[@]}" -gt 0 ]; then
     bad "дереву верить НЕЛЬЗЯ: vite-node не резолвит встроенный модуль"
+    for f in "${failed[@]}"; do echo "   не перечисляется: $f"; done
     echo "   Вердикт гейта здесь будет про окружение, а не про код."
     echo "   Возьмите вердикт из основного чекаута или сделайте новое дерево."
     return 1
   fi
-  good "дерево годно: пробный файл перечисляется, гейту здесь можно верить"
+  good "дерево годно: ${#present[@]} пробных файла перечисляются, гейту можно верить"
 }
 
 cmd_timers() {
@@ -2781,6 +2830,7 @@ case "$action" in
   why-red-check|почему-красный-проверка) cmd_why_red_selfcheck ;;
   wt|деревья)      cmd_wt "$@" ;;
   trust|доверие)      cmd_trust "$@" ;;
+  trust-all|доверие-всем)  cmd_trust_all "$@" ;;
   timers|таймеры)      cmd_timers "$@" ;;
   optional|необязательные)      cmd_optional "$@" ;;
   events|события)      cmd_events "$@" ;;
