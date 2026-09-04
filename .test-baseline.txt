@@ -4227,6 +4227,9 @@ src/__tests__/tools/self-loop-detection.test.ts :: findSelfLoops detects a self-
 src/__tests__/tools/self-loop-detection.test.ts :: findSelfLoops detects a self-referential node_modules flags node_modules that symlinks to itself
 src/__tests__/tools/self-loop-detection.test.ts :: findSelfLoops detects a self-referential node_modules is quiet when node_modules is a real directory
 src/__tests__/tools/self-loop-detection.test.ts :: findSelfLoops detects a self-referential node_modules is quiet when there is no node_modules at all
+src/__tests__/tools/skipsExplained.test.ts :: a switched-off test says why every unconditional skip carries a reason
+src/__tests__/tools/skipsExplained.test.ts :: a switched-off test says why floor: the census still finds the skips, so it is not measuring nothing
+src/__tests__/tools/skipsExplained.test.ts :: a switched-off test says why the detector agrees with its own samples
 src/__tests__/tools/verify-flaky-retry.test.ts :: verify.cjs retries known-flaky steps before failing defines a FLAKY_RETRY set
 src/__tests__/tools/verify-flaky-retry.test.ts :: verify.cjs retries known-flaky steps before failing retries both test:bun and audit
 src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities handleButtonError should execute fallback action synchronously
