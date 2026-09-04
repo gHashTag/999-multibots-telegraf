@@ -16,6 +16,11 @@
  *
  * Ничего не пишет. Только HEAD-запросы к CDN.
  */
+const { hostCensus, selfCheck: urlSelfCheck } = require('./lib/url-host.cjs')
+// Runs BEFORE the credentials are touched, so it is verifiable without a
+// database -- these probes cannot otherwise be exercised here at all.
+urlSelfCheck()
+const urls = hostCensus()
 const url = process.env.SUPABASE_URL.replace(/\/$/, '')
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 const H = { apikey: key, Authorization: `Bearer ${key}` }
@@ -24,11 +29,25 @@ const PER_HOST = Number(process.env.PER_HOST || 3)
 
 // Таблицы, которые существуют — из docs/audit/table-seams.md.
 const TABLES = [
-  'assets', 'attachments', 'avatars', 'eleven_labs_transcriptions', 'game',
-  'idempotency_keys', 'instagram_apify_reels', 'instagram_scrapings', 'jobs',
-  'model_trainings', 'payments_v2', 'pending_messages', 'prompts_history',
-  'superhero_generations', 'synclabs_videos', 'templates', 'translations',
-  'user_feature_views', 'users',
+  'assets',
+  'attachments',
+  'avatars',
+  'eleven_labs_transcriptions',
+  'game',
+  'idempotency_keys',
+  'instagram_apify_reels',
+  'instagram_scrapings',
+  'jobs',
+  'model_trainings',
+  'payments_v2',
+  'pending_messages',
+  'prompts_history',
+  'superhero_generations',
+  'synclabs_videos',
+  'templates',
+  'translations',
+  'user_feature_views',
+  'users',
 ]
 
 const ourHost = new URL(url).host
@@ -53,7 +72,10 @@ async function fetchAll(table) {
 
 async function alive(link) {
   try {
-    const res = await fetch(link, { method: 'HEAD', signal: AbortSignal.timeout(20000) })
+    const res = await fetch(link, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(20000),
+    })
     return res.status
   } catch (e) {
     return `сеть:${String(e.message).slice(0, 20)}`
@@ -71,13 +93,10 @@ async function main() {
       for (const [col, val] of Object.entries(r)) {
         if (typeof val !== 'string') continue
         if (!/^https?:\/\//.test(val)) continue
-        let host
-        try {
-          host = new URL(val).host
-        } catch {
-          continue
-        }
-        if (!hosts.has(host)) hosts.set(host, { count: 0, samples: [], where: new Set() })
+        const host = urls.hostOf(val)
+        if (host === null) continue
+        if (!hosts.has(host))
+          hosts.set(host, { count: 0, samples: [], where: new Set() })
         const h = hosts.get(host)
         h.count++
         h.where.add(`${table}.${col}`)
@@ -112,7 +131,10 @@ async function main() {
   }
 
   const dead = sorted.filter(([host]) => host !== ourHost)
-  console.log(`\nвсего чужих ссылок в базе: ${dead.reduce((s, [, h]) => s + h.count, 0)}`)
+  console.log(`\n${urls.note()}`)
+  console.log(
+    `\nвсего чужих ссылок в базе: ${dead.reduce((s, [, h]) => s + h.count, 0)}`
+  )
   const own = sorted.find(([host]) => host === ourHost)
   console.log(`своих: ${own ? own[1].count : 0}`)
 }

@@ -13,6 +13,11 @@
  *
  * Запросы только HEAD и только к CDN — ничего не скачиваем и не меняем.
  */
+const { hostCensus, selfCheck: urlSelfCheck } = require('./lib/url-host.cjs')
+// Runs BEFORE the credentials are touched, so it is verifiable without a
+// database -- these probes cannot otherwise be exercised here at all.
+urlSelfCheck()
+const urls = hostCensus()
 const url = process.env.SUPABASE_URL.replace(/\/$/, '')
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 const H = { apikey: key, Authorization: `Bearer ${key}` }
@@ -38,7 +43,10 @@ async function fetchAll(table, select) {
 
 async function alive(link) {
   try {
-    const res = await fetch(link, { method: 'HEAD', signal: AbortSignal.timeout(20000) })
+    const res = await fetch(link, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(20000),
+    })
     return res.status
   } catch (e) {
     return `сеть:${String(e.message).slice(0, 24)}`
@@ -46,18 +54,19 @@ async function alive(link) {
 }
 
 async function main() {
-  const rows = await fetchAll('assets', 'telegram_id,public_url,created_at,type')
+  const rows = await fetchAll(
+    'assets',
+    'telegram_id,public_url,created_at,type'
+  )
 
   const groups = new Map() // host -> month -> [rows]
   for (const r of rows) {
     const u = String(r.public_url || '')
     if (!u || u.startsWith('data:')) continue
-    let host
-    try {
-      host = new URL(u).host
-    } catch {
-      continue
-    }
+    // Unparseable URLs are counted, not dropped: a row that vanishes here
+    // shrinks the population the verdict below is computed over.
+    const host = urls.hostOf(u)
+    if (host === null) continue
     const month = String(r.created_at).slice(0, 7)
     if (!groups.has(host)) groups.set(host, new Map())
     const m = groups.get(host)
@@ -65,8 +74,10 @@ async function main() {
     m.get(month).push(r)
   }
 
+  console.log(`\n${urls.note()}`)
   for (const [host, months] of [...groups.entries()].sort(
-    (a, b) => [...b[1].values()].flat().length - [...a[1].values()].flat().length
+    (a, b) =>
+      [...b[1].values()].flat().length - [...a[1].values()].flat().length
   )) {
     const total = [...months.values()].flat().length
     console.log(`\n=== ${host}  (всего ${total}) ===`)
@@ -84,7 +95,8 @@ async function main() {
         if (st === 200) ok++
         else bad++
       }
-      const mark = bad === sample.length && sample.length > 0 ? '  <-- ВСЕ МЕРТВЫ' : ''
+      const mark =
+        bad === sample.length && sample.length > 0 ? '  <-- ВСЕ МЕРТВЫ' : ''
       console.log(
         `${month}  ${String(list.length).padStart(6)}  ${String(sample.length).padStart(9)}  ${String(ok).padStart(5)}  ${String(bad).padStart(7)}${mark}   ${[...new Set(codes)].join(',')}`
       )
