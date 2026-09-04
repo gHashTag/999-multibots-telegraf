@@ -33,7 +33,7 @@ class MockElevenLabsClient {
       model: options.model_id,
     })
     // Return a mock readable stream
-    const { Readable } = require('stream')
+    const { Readable } = require('node:stream')
     const mockStream = new Readable({
       read() {
         this.push(Buffer.from('mock audio data'))
