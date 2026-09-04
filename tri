@@ -1238,7 +1238,37 @@ cmd_worktree() {
     mkdir -p "$wt/$(dirname "$rel")"
     ln -s "$ROOT/$rel" "$wt/$rel"
   done < <(cd "$ROOT" && find apps \( -type d -o -type l \) -name node_modules -prune 2>/dev/null | grep -v '/node_modules/')
-  good "worktree готов, node_modules слинкованы (root + apps)"
+  # Smoke the tree before handing it over.
+  #
+  # Some worktrees deterministically break vite-node module resolution: a bare
+  # `stream` import resolves as <root>/stream and the file collects no tests.
+  # Reproducible 5 out of 5 in an affected tree, while the same commit in a
+  # neighbouring tree is clean.
+  #
+  # THE CAUSE IS NOT KNOWN, and every hypothesis tried has been refuted rather
+  # than left open: not the file contents (reverting every change did not clear
+  # it), not the shared vite cache (clearing it changes nothing and run order
+  # does not matter), not node or vitest versions, not the set of files present
+  # on disk, and not the path -- a name that fails under one spelling passes
+  # under another of the same length.
+  #
+  # So this guard is justified by what it COSTS, not by a diagnosis: three
+  # seconds against the hour it took to prove the code innocent the first time,
+  # when the gate reported a regression that no change had caused. A cheap
+  # detector for an undiagnosed fault is still worth having; calling it a fix
+  # would not be.
+  local smoke='src/__tests__/inngest/stuckTrainingAgeUnknown.test.ts'
+  if [ -f "$wt/$smoke" ]; then
+    if (cd "$wt" && npx vitest run "$smoke" 2>&1 | grep -q 'Cannot find module'); then
+      bad "дерево непригодно: vite-node не резолвит встроенный модуль по этому пути"
+      echo "   Это свойство ПУТИ, а не содержимого: тот же коммит рядом собирается."
+      echo "   Дерево удалено. Повторите с другим именем ветки, путь изменится."
+      git -C "$ROOT" worktree remove --force "$wt" >/dev/null 2>&1
+      git -C "$ROOT" branch -D "$branch" >/dev/null 2>&1
+      return 1
+    fi
+  fi
+  good "worktree готов, node_modules слинкованы (root + apps), проба прошла"
   # Print ONLY the path on the last line so a caller can:  cd "$(tri worktree x | tail -1)"
   printf '%s\n' "$wt"
 }
