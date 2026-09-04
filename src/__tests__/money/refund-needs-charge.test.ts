@@ -187,6 +187,74 @@ describe('поведение возврата', () => {
     expect(updateUserBalance).not.toHaveBeenCalled()
   })
 
+  it('второй возврат не проходит, если первый записан типом REFUND', async () => {
+    // The aiCoverWizard shape: type REFUND, description not starting with
+    // "Refund". The old check tested the DESCRIPTION only, so rows like this
+    // were invisible: alreadyReturned came out zero and a second refund passed.
+    ledger = [
+      {
+        id: 2,
+        stars: 8,
+        type: 'REFUND',
+        payment_date: '2026-08-20T00:00:05Z',
+        description: 'AI Cover refund - error',
+      },
+      {
+        id: 1,
+        stars: 8,
+        type: 'MONEY_OUTCOME',
+        payment_date: '2026-08-20T00:00:00Z',
+      },
+    ]
+    await call(8)
+    expect(updateUserBalance).not.toHaveBeenCalled()
+  })
+
+  it('второй возврат не проходит, если первый описан по-русски', async () => {
+    // The musicGenerationWizard shape: type MONEY_INCOME, description written
+    // in Russian.
+    ledger = [
+      {
+        id: 2,
+        stars: 8,
+        type: 'MONEY_INCOME',
+        payment_date: '2026-08-20T00:00:05Z',
+        description: 'Возврат за неудачную генерацию музыки',
+      },
+      {
+        id: 1,
+        stars: 8,
+        type: 'MONEY_OUTCOME',
+        payment_date: '2026-08-20T00:00:00Z',
+      },
+    ]
+    await call(8)
+    expect(updateUserBalance).not.toHaveBeenCalled()
+  })
+
+  it('пополнение НЕ считается уже возвращённым', async () => {
+    // The other direction: MONEY_INCOME is also how top-ups arrive. Counting
+    // one as "already returned" would REFUSE a refund the user is owed, which
+    // is harm, not safety.
+    ledger = [
+      {
+        id: 2,
+        stars: 500,
+        type: 'MONEY_INCOME',
+        payment_date: '2026-08-20T00:00:05Z',
+        description: 'Пополнение баланса через Robokassa (InvId: 123)',
+      },
+      {
+        id: 1,
+        stars: 8,
+        type: 'MONEY_OUTCOME',
+        payment_date: '2026-08-20T00:00:00Z',
+      },
+    ]
+    await call(8)
+    expect(updateUserBalance).toHaveBeenCalled()
+  })
+
   it('вернуть больше, чем заплатили, нельзя', async () => {
     ledger = [
       {
