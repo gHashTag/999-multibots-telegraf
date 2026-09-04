@@ -82,7 +82,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'seedream/5-pro-image-to-image',
     kind: 'image',
     state: 'live',
-    needs: [],
+    needs: ['prompt', 'image_urls', 'aspect_ratio', 'quality'],
     probed: 'This field is required',
   },
   {
@@ -138,7 +138,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'grok-imagine/image-to-image',
     kind: 'image',
     state: 'live',
-    needs: [],
+    needs: ['image_urls'],
     probed: 'This field is required',
   },
   {
@@ -250,7 +250,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'kling/v3-turbo-text-to-video',
     kind: 'video',
     state: 'live',
-    needs: [],
+    needs: ['prompt', 'duration', 'aspect_ratio', 'resolution'],
     probed: 'This field is required',
   },
   {
@@ -274,7 +274,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'bytedance/v1-pro-text-to-video',
     kind: 'video',
     state: 'live',
-    needs: [],
+    needs: ['prompt'],
     probed: 'Server exception, please try again later or contact customer service',
   },
   {
