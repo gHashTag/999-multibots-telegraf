@@ -1,4 +1,5 @@
 import { Telegraf, Context } from 'telegraf'
+import { webhookSecretFor } from './webhookSecret'
 import { botLogger, logSecurityEvent } from './logger'
 
 /**
@@ -92,6 +93,12 @@ export async function setupWebhookWithRetry(
       // Set webhook
       await bot.telegram.setWebhook(webhookUrl, {
         allowed_updates: ['message', 'callback_query', 'pre_checkout_query'],
+        // Same secret as the launch path in bot.ts, derived the same way from
+        // the same token. Nothing imports this module today, and that is
+        // exactly why the line belongs here: a dead copy that sets a webhook
+        // WITHOUT the secret is a trap -- reviving it would silently switch
+        // the protection off, which is the drift this loop keeps finding.
+        secret_token: webhookSecretFor(bot.telegram.token), // secret-guard-ok: derived, not a literal
       })
 
       // Verify webhook was set correctly
