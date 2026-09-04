@@ -1495,6 +1495,10 @@ src/__tests__/money/charge-order.test.ts :: деньги не уходят ра�
 src/__tests__/money/chargeNotBeforeDelivery.test.ts :: a failure costs the user nothing in the files that never refund each file still has the mechanism it is listed with
 src/__tests__/money/chargeNotBeforeDelivery.test.ts :: a failure costs the user nothing in the files that never refund the detector agrees with its own samples, in both directions
 src/__tests__/money/chargeNotBeforeDelivery.test.ts :: a failure costs the user nothing in the files that never refund the list still matches the files that charge without refunding
+src/__tests__/money/chargeReachability.test.ts :: the set of callers that can reach a charge is frozen floor: there are charging services outside scenes to be reached at all
+src/__tests__/money/chargeReachability.test.ts :: the set of callers that can reach a charge is frozen no NEW file can reach a charge
+src/__tests__/money/chargeReachability.test.ts :: the set of callers that can reach a charge is frozen no listed caller lost its route to a charge (the list is not a wish list)
+src/__tests__/money/chargeReachability.test.ts :: the set of callers that can reach a charge is frozen the graph is read from source, not from a mask
 src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is thrown away both x402 credits are bound and their success line is conditional
 src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is thrown away leaves only the two known discarded calls, both in one file
 src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is thrown away the matcher still recognises a discarded call
