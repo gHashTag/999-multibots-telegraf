@@ -225,6 +225,7 @@ struct GenerateScreen: View {
   /// Остаток и цены с сервера. nil — ещё не спросили; отличать от нуля
   /// обязательно, иначе на секунду показали бы «не хватит» всем подряд.
   @State private var баланс: API.Баланс?
+  @State private var частьСценария: ЧастьСценария = .озвучка
   @State private var прошло = 0
   @State private var результат: Результат?
   @State private var ошибка: String?
@@ -1090,10 +1091,84 @@ struct GenerateScreen: View {
     .tint(Тема.Цвет.акцент)
   }
 
+  /// Какая часть сценария открыта. Имена — как в вебе.
+  private enum ЧастьСценария: String, CaseIterable {
+    case озвучка = "Озвучка"
+    case обложка = "Обложка"
+    case броль = "B-Roll"
+  }
+
+  @ViewBuilder private func частиСценария(_ р: Результат) -> some View {
+    VStack(alignment: .leading, spacing: 10) {
+      // Подчёркивание, а не заливка: в вебе активная подвкладка помечена
+      // зелёной чертой снизу (2px) при прозрачном фоне — замерено.
+      HStack(spacing: 0) {
+        ForEach(ЧастьСценария.allCases, id: \.self) { ч in
+          Button { частьСценария = ч } label: {
+            Text(ч.rawValue)
+              .font(Тема.Шрифт.стиль(.subheadline, .medium))
+              .foregroundStyle(
+                частьСценария == ч ? Тема.Цвет.акцент : Тема.Цвет.текстПриглушённый
+              )
+              .frame(maxWidth: .infinity, minHeight: Тема.Касание.минимум)
+              .overlay(alignment: .bottom) {
+                Rectangle()
+                  .fill(частьСценария == ч ? Тема.Цвет.акцент : .clear)
+                  .frame(height: 2)
+              }
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+        }
+      }
+
+      Text(содержимоеЧасти(р))
+        .font(Тема.Шрифт.стиль(.callout))
+        .textSelection(.enabled)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Тема.Цвет.поверхность, in: RoundedRectangle(cornerRadius: Тема.Радиус.lg))
+    }
+  }
+
+  private func содержимоеЧасти(_ р: Результат) -> String {
+    switch частьСценария {
+    case .озвучка:
+      var к = [р.озвучка ?? "—"]
+      // Подписи — тайминги озвучки, поэтому живут с ней, а не отдельной
+      // вкладкой: отдельной их нет и в вебе.
+      if !р.подписи.isEmpty {
+        к.append("\nПодписи:\n" + р.подписи.map { "• \($0)" }.joined(separator: "\n"))
+      }
+      return к.joined(separator: "\n")
+    case .обложка:
+      return р.обложка ?? "Сервер не прислал промпт обложки."
+    case .броль:
+      return р.кадры.isEmpty
+        ? "Сервер не прислал описания кадров."
+        : р.кадры.map { "• \($0)" }.joined(separator: "\n")
+    }
+  }
+
   @ViewBuilder private func показ(_ r: Результат) -> some View {
     let р = r
     VStack(alignment: .leading, spacing: 10) {
-      if let текст = р.текст {
+      /**
+       * СЦЕНАРИЙ ПОКАЗЫВАЕТСЯ ПО ЧАСТЯМ, как в вебе (`script-output-tabs`).
+       *
+       * Части приходят с сервера отдельными полями и УЖЕ хранятся отдельно —
+       * `озвучка`, `обложка`, `кадры` питают кнопки «Дальше». А на экран
+       * выводились одной склеенной строкой: «текст, Подписи:, Кадры:,
+       * Обложка:» подряд. Прочитать в ней промпт обложки можно, найти —
+       * трудно, а решение о трате принимают именно по нему.
+       *
+       * Три вкладки — те же, что в вебе: Озвучка · Обложка · B-Roll.
+       * Подписи остаются с озвучкой: это её тайминги, а не отдельная работа.
+       */
+      if р.озвучка != nil || р.обложка != nil || !р.кадры.isEmpty {
+        частиСценария(р)
+      } else if let текст = р.текст {
         // Текст выделяемый: сценарий пишут, чтобы его скопировать.
         Text(текст)
           .font(Тема.Шрифт.стиль(.callout))
