@@ -2213,6 +2213,44 @@ cmd_credit_guards() {
   ' )
 }
 
+cmd_mock_imports() {
+  # ГОЛЫЙ ВСТРОЕННЫЙ МОДУЛЬ ВНУТРИ ФАБРИКИ МОКА -- ВЕРДИКТ, ЗАВИСЯЩИЙ ОТ ДЕРЕВА.
+  #
+  # Итерации 155-173: один и тот же коммит, побайтово одинаковые файлы, чистый
+  # git status -- и противоположные стабильные вердикты в двух worktree. Причина
+  # была одной строкой в фабрике `vi.mock('fs')` самого теста: `import('stream')`
+  # без префикса. Внутри фабрики имя разрешает vitest, а не Node, и результат
+  # зависел от дерева. `node:stream` разрешается одинаково везде.
+  #
+  # ПОПУЛЯЦИЯ УЗКАЯ НАМЕРЕННО. Статические голые импорты наверху теста сюда НЕ
+  # входят: их сотни, и набор зелёный. Ломает только позиция внутри фабрики.
+  #
+  # ЧИТАЕТСЯ AST, А НЕ РЕГЭКСП: первая перепись этого класса регэкспом
+  # засчитала `typeof import('fs')` -- ТИПОВУЮ позицию, которая стирается
+  # компилятором и не может повлиять ни на что. Регэксп знает написание;
+  # значение это или тип, знает только разбор.
+  ( cd "$ROOT" && node -e '
+    const fs = require("fs"), { execFileSync } = require("child_process")
+    const m = require("./scripts/lib/mock-factory-imports.cjs")
+    m.selfCheck()
+    console.log("самопроверка: 5 образцов сошлись (опасная форма против четырёх похожих)\n")
+    const files = execFileSync("git", ["ls-files"], { encoding: "utf8" }).split("\n")
+      .filter(f => /\.(ts|mts|cts|js|mjs|cjs)$/.test(f) && /__tests__|\.test\./.test(f))
+    let factories = 0, hits = 0
+    for (const f of files) {
+      if (!fs.existsSync(f)) continue
+      const raw = fs.readFileSync(f, "utf8")
+      factories += (raw.match(/\bvi\.mock\s*\(/g) || []).length
+      for (const h of m.bareBuiltinsInMockFactories(raw, f)) {
+        hits++
+        console.log("  ГОЛЫЙ  " + f + ":" + h.line + "  " + h.module + "  ->  node:" + h.module)
+      }
+    }
+    console.log("фабрик просмотрено: " + factories)
+    console.log("голых встроенных внутри них: " + hits + (hits ? "" : "  (класс пуст)"))
+  ' )
+}
+
 cmd_credit_sites() {
   # ГДЕ РЕПОЗИТОРИЙ НАЧИСЛЯЕТ ДЕНЬГИ. КАЖДЫЙ САЙТ -- ПОВЕРХНОСТЬ ЧЕКАНКИ.
   #
@@ -3164,6 +3202,7 @@ case "$action" in
   scopes|области)  cmd_scopes "$@" ;;
   charge-timing|момент-списания)  cmd_charge_timing "$@" ;;
   credit-guards|защита-начислений)  cmd_credit_guards "$@" ;;
+  mock-imports|импорты-моков)  cmd_mock_imports "$@" ;;
   credit-sites|кредитные-сайты)  cmd_credit_sites "$@" ;;
   matcher-forms|формы-матчеров)  cmd_matcher_forms "$@" ;;
   money-writers|писатели-денег)  cmd_money_writers "$@" ;;
