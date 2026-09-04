@@ -2213,6 +2213,47 @@ cmd_credit_guards() {
   ' )
 }
 
+cmd_untracked() {
+  # ФАЙЛ, КОТОРОГО ЕЩЁ НЕТ В ИНДЕКСЕ, НЕВИДИМ ДЛЯ ОХРАН -- И ГЕЙТ ЗЕЛЕНЕЕТ.
+  #
+  # it.174: я написал файл, прогнал гейт (зелено, регрессий нет), и ТОЛЬКО
+  # ПОТОМ сделал git add. На следующей итерации main оказался красным из-за
+  # этого файла. Популяция охран приходит из `git ls-files`, а он не
+  # перечисляет неотслеживаемое: единственная охрана, которая обязана была
+  # его судить, физически не могла его увидеть.
+  #
+  # Порядок «написал -> гейт -> add» выглядит осторожным и является обычным.
+  # Значит дефект не в дисциплине, а в том, что зелёный гейт на таком дереве
+  # НЕОТЛИЧИМ от зелёного гейта на полном.
+  #
+  # Команда печатает: какие исходники сейчас невидимы и какие охраны их
+  # пропустят. Пустой список -- значит гейту можно верить.
+  ( cd "$ROOT" && node -e '
+    const { execFileSync } = require("child_process")
+    const run = a => execFileSync("git", a, { encoding: "utf8" }).split("\n").filter(Boolean)
+    const SRC = /\.(ts|mts|cts|js|mjs|cjs)$/
+    const hidden = run(["ls-files", "--others", "--exclude-standard"]).filter(f => SRC.test(f))
+    const guards = execFileSync("bash", ["-c",
+      "grep -rl \"ls-files\" src/__tests__ 2>/dev/null || true"],
+      { encoding: "utf8" }).split("\n").filter(Boolean)
+    const blind = guards.filter(g => {
+      const t = require("fs").readFileSync(g, "utf8")
+      return !/--others/.test(t)
+    })
+    console.log("охран, берущих популяцию из git ls-files: " + guards.length)
+    console.log("  из них НЕ видят неотслеживаемое: " + blind.length)
+    blind.forEach(g => console.log("     слепа: " + g))
+    console.log("\nневидимых сейчас исходников: " + hidden.length)
+    hidden.forEach(f => console.log("     " + f))
+    if (hidden.length && blind.length) {
+      console.log("\n!! ГЕЙТ СЕЙЧАС НЕ СУДИТ ЭТИ ФАЙЛЫ.")
+      console.log("   git add их до прогона -- иначе зелёный ничего не значит.")
+    } else if (!hidden.length) {
+      console.log("\nневидимых исходников нет -- зелёному гейту можно верить.")
+    }
+  ' )
+}
+
 cmd_mock_imports() {
   # ГОЛЫЙ ВСТРОЕННЫЙ МОДУЛЬ ВНУТРИ ФАБРИКИ МОКА -- ВЕРДИКТ, ЗАВИСЯЩИЙ ОТ ДЕРЕВА.
   #
@@ -3203,6 +3244,7 @@ case "$action" in
   charge-timing|момент-списания)  cmd_charge_timing "$@" ;;
   credit-guards|защита-начислений)  cmd_credit_guards "$@" ;;
   mock-imports|импорты-моков)  cmd_mock_imports "$@" ;;
+  untracked|невидимые)  cmd_untracked "$@" ;;
   credit-sites|кредитные-сайты)  cmd_credit_sites "$@" ;;
   matcher-forms|формы-матчеров)  cmd_matcher_forms "$@" ;;
   money-writers|писатели-денег)  cmd_money_writers "$@" ;;
