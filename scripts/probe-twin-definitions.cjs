@@ -30,8 +30,14 @@ const ROOT = path.resolve(__dirname, '..')
 const DEFINITION =
   /^export\s+(?:async\s+)?(?:function|const|class|enum)\s+([A-Za-z_$][\w$]*)/gm
 
+// RE-EXPORTS ONLY. `import ... from` is deliberately excluded: a plain import
+// binds a local name explicitly, so pulling two modules in creates no
+// ambiguity at all. The first version accepted both, and reported
+// provider-registry as a barrel holding two definitions of getBalance and
+// rateLimit -- it imports the four adapters as DEFAULTS and re-exports
+// nothing at all. Two of five findings were the matcher's, not the code's.
 const RE_FROM =
-  /(?:export|import)\s*(?:\*|\{[^}]*\}|[A-Za-z_$][\w$]*)?\s*(?:as\s+[A-Za-z_$][\w$]*\s*)?from\s*['"]([^'"]+)['"]/g
+  /export\s*(?:\*|\{[^}]*\})\s*(?:as\s+[A-Za-z_$][\w$]*\s*)?from\s*['"]([^'"]+)['"]/g
 
 /**
  * Names that decide access, money or identity.
@@ -173,7 +179,10 @@ function selfCheck() {
   const sample = [
     "export * from './a'",
     "export { x } from './b'",
+    // A plain import is NOT a re-export and must not count: it binds a local
+    // name, so two of them cannot make a consumer receive the wrong copy.
     "import { y } from './c'",
+    "import z from './d'",
     "// export * from './commented'",
   ].join('\n')
   const sampleMask = blank(sample)
@@ -182,7 +191,7 @@ function selfCheck() {
     if (sampleMask[m.index] === ' ') continue
     seen.push(m[1])
   }
-  if (seen.join(',') !== './a,./b,./c') {
+  if (seen.join(',') !== './a,./b') {
     fail(`реэкспорты разобраны как ${JSON.stringify(seen)}`)
   }
 
