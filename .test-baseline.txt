@@ -1402,6 +1402,10 @@ src/__tests__/inngest/trainingDedupColumn.test.ts :: training dedup queries the 
 src/__tests__/inngest/trainingDedupIncludesPending.test.ts :: model-training duplicate guard covers the PENDING window every status filter that guards duplicates includes 'PENDING'
 src/__tests__/inngest/trainingDedupIncludesPending.test.ts :: model-training duplicate guard covers the PENDING window matcher is not stale: the function has a status-filtered duplicate guard
 src/__tests__/inngest/trainingDedupIncludesPending.test.ts :: model-training duplicate guard covers the PENDING window self-check: detector reads the .in('status', [...]) array
+src/__tests__/inngest/trainingIncompleteStaysVisible.test.ts :: a training that produced no usable model does not report itself finished does not mark the record SUCCESS when there is no model to show
+src/__tests__/inngest/trainingIncompleteStaysVisible.test.ts :: a training that produced no usable model does not report itself finished does not write a model_url it could not build
+src/__tests__/inngest/trainingIncompleteStaysVisible.test.ts :: a training that produced no usable model does not report itself finished still flips the status out of pending, so the watchdog stops
+src/__tests__/inngest/trainingIncompleteStaysVisible.test.ts :: a training that produced no usable model does not report itself finished the branch is still there to inspect
 src/__tests__/inngest/trainingServedStepsGuard.test.ts :: served training handler refuses an invalid steps count lets a valid positive step count past the guard (reaches the first step)
 src/__tests__/inngest/trainingServedStepsGuard.test.ts :: served training handler refuses an invalid steps count rejects a negative step count
 src/__tests__/inngest/trainingServedStepsGuard.test.ts :: served training handler refuses an invalid steps count rejects a non-integer / NaN step count
