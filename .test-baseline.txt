@@ -456,6 +456,10 @@ apps/vibee-editor/render/jobs-store-attached-at-boot.test.ts :: хранилищ
 apps/vibee-editor/render/jobs-store-attached-at-boot.test.ts :: хранилище заданий подключено на старте вызов на старте предшествует запуску сервера
 apps/vibee-editor/render/jobs-store-attached-at-boot.test.ts :: хранилище заданий подключено на старте находит boot-функцию и обёртку — иначе проверка пустая
 apps/vibee-editor/render/jobs-store-attached-at-boot.test.ts :: хранилище заданий подключено на старте подключение не валит старт без DATABASE_URL
+apps/vibee-editor/render/kie-input-shape.test.ts :: вход для KieAI по контракту модели ОТКАЗЫВАЕТ до траты, когда требуемого поля нет
+apps/vibee-editor/render/kie-input-shape.test.ts :: вход для KieAI по контракту модели незнакомой модели отдаёт то, что есть, а не пустоту
+apps/vibee-editor/render/kie-input-shape.test.ts :: вход для KieAI по контракту модели отдаёт aspect_ratio тем, кто его требует
+apps/vibee-editor/render/kie-input-shape.test.ts :: вход для KieAI по контракту модели отдаёт ровно те поля, которые модель назвала, и ни одного лишнего
 apps/vibee-editor/render/kie-models.test.ts :: проба не тратит кредиты тело пробы пустое — задание не может начаться
 apps/vibee-editor/render/kie-models.test.ts :: реестр описывает то, что измерено адрес — createTask, а не create
 apps/vibee-editor/render/kie-models.test.ts :: реестр описывает то, что измерено живые модели называют требуемые поля, приостановленные — нет
@@ -533,6 +537,9 @@ apps/vibee-editor/render/no-silent-revert.test.ts :: merged money fixes are stil
 apps/vibee-editor/render/no-silent-revert.test.ts :: merged money fixes are still in main #874: /api/tokens/verify compares dates numerically
 apps/vibee-editor/render/no-silent-revert.test.ts :: merged security fixes are still in main #878: the agent key is compared in constant time
 apps/vibee-editor/render/no-silent-revert.test.ts :: merged security fixes are still in main the agent key is never compared with a plain ===
+apps/vibee-editor/render/owner-billing.test.ts :: владельцы не платят внутренней квотой НЕ пускает того, кого нет в списке
+apps/vibee-editor/render/owner-billing.test.ts :: владельцы не платят внутренней квотой узнаёт владельца из ADMIN_IDS — той же переменной, что у бота
+apps/vibee-editor/render/owner-billing.test.ts :: владельцы не платят внутренней квотой число и строка означают одного человека
 apps/vibee-editor/render/pairing-e2e.test.ts :: Login Widget exchange consumes one signed widget assertion only once
 apps/vibee-editor/render/pairing-e2e.test.ts :: Login Widget exchange does not create a session for a forged widget identity
 apps/vibee-editor/render/pairing-e2e.test.ts :: Login Widget exchange mints a session only after the server verifies the widget signature
@@ -845,6 +852,9 @@ src/__tests__/billingFilters.test.ts :: isRealClientIncome отсекает си
 src/__tests__/billingFilters.test.ts :: isRealClientIncome пропускает платежи реальными методами
 src/__tests__/billingFilters.test.ts :: toStars конвертирует TON через USD
 src/__tests__/billingFilters.test.ts :: toStars не трогает звёздные валюты
+src/__tests__/bot/deleteWebhookDropsBacklog.test.ts :: leaving webhook mode for polling drops pending updates at every call
+src/__tests__/bot/deleteWebhookDropsBacklog.test.ts :: leaving webhook mode for polling still deletes the webhook somewhere
+src/__tests__/bot/deleteWebhookDropsBacklog.test.ts :: leaving webhook mode for polling still launches in polling, so the backlog has somewhere to land
 src/__tests__/commands/autofixerAnswerCbQuery.test.ts :: autofixer-config action handlers answer the callback on success back_to_main_config calls answerCbQuery before its catch (no hanging spinner)
 src/__tests__/commands/autofixerAnswerCbQuery.test.ts :: autofixer-config action handlers answer the callback on success configure_fix_types calls answerCbQuery before its catch (no hanging spinner)
 src/__tests__/commands/autofixerAnswerCbQuery.test.ts :: autofixer-config action handlers answer the callback on success save_and_exit calls answerCbQuery before its catch (no hanging spinner)
@@ -1206,6 +1216,12 @@ src/__tests__/helpers/getGenerationLimitMessage.test.ts :: getGenerationLimitMes
 src/__tests__/helpers/getGenerationLimitMessage.test.ts :: getGenerationLimitMessage getSuccessGenerationMessage limited access with remaining should show remaining count in Russian
 src/__tests__/helpers/getGenerationLimitMessage.test.ts :: getGenerationLimitMessage getSuccessGenerationMessage unlimited access should return success message in English
 src/__tests__/helpers/getGenerationLimitMessage.test.ts :: getGenerationLimitMessage getSuccessGenerationMessage unlimited access should return success message in Russian
+src/__tests__/helpers/isRussianLanguageCode.test.ts :: isRussianLanguageCode accepts a bare tag and every regional variant
+src/__tests__/helpers/isRussianLanguageCode.test.ts :: isRussianLanguageCode is what every branch of the language middleware uses
+src/__tests__/helpers/isRussianLanguageCode.test.ts :: isRussianLanguageCode leaves no raw comparison anywhere in production code
+src/__tests__/helpers/isRussianLanguageCode.test.ts :: isRussianLanguageCode refuses another language whose tag merely starts with ru
+src/__tests__/helpers/isRussianLanguageCode.test.ts :: isRussianLanguageCode refuses other languages and absent values
+src/__tests__/helpers/isRussianLanguageCode.test.ts :: isRussianLanguageCode the ratchet matcher still recognises the shape it forbids
 src/__tests__/helpers/promoHelper.test.ts :: promoHelper getPromoConfig known promo types should return config for neurophoto promo
 src/__tests__/helpers/promoHelper.test.ts :: promoHelper getPromoConfig known promo types should return config for neurovideo promo
 src/__tests__/helpers/promoHelper.test.ts :: promoHelper getPromoConfig unknown promo types should return null for case-sensitive mismatch
@@ -1577,6 +1593,10 @@ src/__tests__/money/ownerDebtPaymentsUnknown.test.ts :: owner debt: unknown paym
 src/__tests__/money/ownerDebtPaymentsUnknown.test.ts :: owner debt: unknown payments are not zero payments reports payments_known when the table answers
 src/__tests__/money/ownerDebtPaymentsUnknown.test.ts :: owner debt: unknown payments are not zero payments the debt computed without that figure is an upper bound, not a fact
 src/__tests__/money/ownerDebtPaymentsUnknown.test.ts :: owner debt: unknown payments are not zero payments the scheduled loop refuses to notify when payments are unknown
+src/__tests__/money/paidServicesTableUnread.test.ts :: the two dollar-cost tables agree on every shared service except the recorded one
+src/__tests__/money/paidServicesTableUnread.test.ts :: the two dollar-cost tables both still parse
+src/__tests__/money/paidServicesTableUnread.test.ts :: the two dollar-cost tables keeps the divergent table unread, which is what makes it harmless
+src/__tests__/money/paidServicesTableUnread.test.ts :: the two dollar-cost tables pins the recorded disagreement to its exact pair
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа в тексте ошибки есть номер счёта — по нему ищут в поддержке
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа ошибка вставки БРОСАЕТ, а не молчит
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа повтор той же записи НЕ бросает — строка уже есть
@@ -1726,6 +1746,11 @@ src/__tests__/money/videoDoubleChargeIdempotency.test.ts :: video delivery is id
 src/__tests__/money/videoPollChargeIdempotent.test.ts :: image-to-video poll-loop charge is idempotency-guarded every deductBalanceAfterSuccess inside a loop is guarded by a charged flag
 src/__tests__/money/videoPollChargeIdempotent.test.ts :: image-to-video poll-loop charge is idempotency-guarded matcher is not stale: the file still calls deductBalanceAfterSuccess
 src/__tests__/money/videoPollChargeIdempotent.test.ts :: image-to-video poll-loop charge is idempotency-guarded self-check: detector distinguishes guarded from unguarded loop charge
+src/__tests__/money/videoRefundWithoutCharge.test.ts :: the video generator that refunded without charging credits nobody
+src/__tests__/money/videoRefundWithoutCharge.test.ts :: the video generator that refunded without charging is still the only caller, so the population is one scene
+src/__tests__/money/videoRefundWithoutCharge.test.ts :: the video generator that refunded without charging still has no charge on that path, which is why no refund is due
+src/__tests__/money/videoRefundWithoutCharge.test.ts :: the video generator that refunded without charging still reports the failure instead of swallowing it
+src/__tests__/money/videoRefundWithoutCharge.test.ts :: the video generator that refunded without charging the matchers still recognise what they forbid
 src/__tests__/money/videoWizardsInflightGuard.test.ts :: video wizards guard against concurrent double-generate scenes/imageToVideoWizard/index.ts sets imageToVideoInProgress before the charge and releases it in finally
 src/__tests__/money/videoWizardsInflightGuard.test.ts :: video wizards guard against concurrent double-generate scenes/textToVideoWizard/index.ts sets textToVideoInProgress before the charge and releases it in finally
 src/__tests__/money/voiceAvatarFallbackNotCharged.test.ts :: voice-avatar Cloudflare fallback is not charged as a clone createVoiceAvatar returns an isFallback signal
@@ -3819,6 +3844,11 @@ src/__tests__/security/callback-token.test.ts :: метка обратного �
 src/__tests__/security/creditWebhookAuthenticated.test.ts :: credit-webhook routes are authenticated before crediting every MONEY_INCOME credit in api_server/routes has a preceding auth gate
 src/__tests__/security/creditWebhookAuthenticated.test.ts :: credit-webhook routes are authenticated before crediting matcher is not stale: finds every credit site (>= 3)
 src/__tests__/security/creditWebhookAuthenticated.test.ts :: credit-webhook routes are authenticated before crediting self-check: the detector distinguishes gated from ungated credits
+src/__tests__/security/devSubscriptionSimulationGate.test.ts :: the dev subscription simulation grants a paid tier to a user who has none, when isDev is true
+src/__tests__/security/devSubscriptionSimulationGate.test.ts :: the dev subscription simulation is reached from exactly one place, so the gate has one owner
+src/__tests__/security/devSubscriptionSimulationGate.test.ts :: the dev subscription simulation keeps the two isDev definitions on the sides they are on
+src/__tests__/security/devSubscriptionSimulationGate.test.ts :: the dev subscription simulation returns the real subscription when isDev is false
+src/__tests__/security/devSubscriptionSimulationGate.test.ts :: the dev subscription simulation takes its isDev from @/helpers, which ignores FORCE_DEV_MODE
 src/__tests__/security/getRuBillNoErrorLeak.test.ts :: getRuBillWizard does not leak caught errors to the user (CWE-209) no ctx.reply argument interpolates error.message
 src/__tests__/security/getRuBillNoErrorLeak.test.ts :: getRuBillWizard does not leak caught errors to the user (CWE-209) self-check: the analyzer catches an injected error.message leak
 src/__tests__/security/getRuBillNoErrorLeak.test.ts :: getRuBillWizard does not leak caught errors to the user (CWE-209) still has the replies and catch blocks this ratchet guards
@@ -3833,10 +3863,23 @@ src/__tests__/security/no-secrets-in-repo.test.ts :: в репозитории �
 src/__tests__/security/no-token-in-urls.test.ts :: токен бота не уходит в адресах разбор находит места, где такой адрес строится — иначе тест пустой
 src/__tests__/security/no-token-in-urls.test.ts :: токен бота не уходит в адресах такой адрес не возвращается из функции
 src/__tests__/security/no-token-in-urls.test.ts :: токен бота не уходит в адресах такой адрес не кладётся в поля профиля
+src/__tests__/security/noEmbeddedDbCredentials.test.ts :: credentials embedded in connection strings does not fire the guard on an ordinary URL
+src/__tests__/security/noEmbeddedDbCredentials.test.ts :: credentials embedded in connection strings is still refused by the commit guard
+src/__tests__/security/noEmbeddedDbCredentials.test.ts :: credentials embedded in connection strings the matcher recognises the shape and spares ordinary URLs
+src/__tests__/security/noFakeCredentialDefaults.test.ts :: fake credentials standing in for missing ones no credential falls back to a non-empty literal
+src/__tests__/security/noFakeCredentialDefaults.test.ts :: fake credentials standing in for missing ones no production module writes to process.env at load time
+src/__tests__/security/noFakeCredentialDefaults.test.ts :: fake credentials standing in for missing ones the census matchers still recognise both shapes
+src/__tests__/security/noFakeCredentialDefaults.test.ts :: fake credentials standing in for missing ones the empty-string form is still present, so the rule is not vacuous
 src/__tests__/security/privilegedCommandAdminGate.test.ts :: privileged commands are admin-gated (money-mint / admin authorization) addbalance handler ALSO re-checks isAdmin internally (defense in depth)
 src/__tests__/security/privilegedCommandAdminGate.test.ts :: privileged commands are admin-gated (money-mint / admin authorization) detector separates gated from ungated (control can fail)
 src/__tests__/security/privilegedCommandAdminGate.test.ts :: privileged commands are admin-gated (money-mint / admin authorization) every privileged command registration carries requireAdmin()
 src/__tests__/security/privilegedCommandAdminGate.test.ts :: privileged commands are admin-gated (money-mint / admin authorization) finds the privileged command registrations (matcher is not stale)
+src/__tests__/security/repoWideSecretSweep.test.ts :: the repo-wide secret sweep enforces every shape the repo-wide test knows
+src/__tests__/security/repoWideSecretSweep.test.ts :: the repo-wide secret sweep has a sample for every rule the commit guard enforces
+src/__tests__/security/repoWideSecretSweep.test.ts :: the repo-wide secret sweep keeps the guard label and pattern arrays the same length
+src/__tests__/security/repoWideSecretSweep.test.ts :: the repo-wide secret sweep parses the guard's table instead of restating it
+src/__tests__/security/repoWideSecretSweep.test.ts :: the repo-wide secret sweep separates a value from a reference to a value
+src/__tests__/security/repoWideSecretSweep.test.ts :: the repo-wide secret sweep still calls a quoted opaque value a literal
 src/__tests__/security/sanitizeUrlSsrf.test.ts :: sanitizeUrl blocks SSRF hosts (metadata, loopback, private) allows https://api.telegram.org/file/bot123/x.ogg
 src/__tests__/security/sanitizeUrlSsrf.test.ts :: sanitizeUrl blocks SSRF hosts (metadata, loopback, private) allows https://example.com/video.mp4
 src/__tests__/security/sanitizeUrlSsrf.test.ts :: sanitizeUrl blocks SSRF hosts (metadata, loopback, private) allows https://fcbarcelona.com/x
@@ -3904,6 +3947,12 @@ src/__tests__/security/voiceAvatarClearsVeedReturnFlag.test.ts :: voiceAvatarWiz
 src/__tests__/security/voiceAvatarNoTokenLog.test.ts :: createVoiceAvatar does not log the token-bearing fileUrl matcher is not stale: the file still uses console logging
 src/__tests__/security/voiceAvatarNoTokenLog.test.ts :: createVoiceAvatar does not log the token-bearing fileUrl no console.* call references fileUrl
 src/__tests__/security/voiceAvatarNoTokenLog.test.ts :: createVoiceAvatar does not log the token-bearing fileUrl self-check: detector flags fileUrl in a console call but not a safe one
+src/__tests__/security/webhookSecretToken.test.ts :: the webhook secret token does not leak the bot token
+src/__tests__/security/webhookSecretToken.test.ts :: the webhook secret token is accepted by Telegram: 1-256 chars of A-Z a-z 0-9 _ -
+src/__tests__/security/webhookSecretToken.test.ts :: the webhook secret token is stable for a token and different across tokens
+src/__tests__/security/webhookSecretToken.test.ts :: the webhook secret token is wired into every place that establishes a webhook
+src/__tests__/security/webhookSecretToken.test.ts :: the webhook secret token refuses to derive a secret from nothing
+src/__tests__/security/webhookSecretToken.test.ts :: the webhook secret token still has a webhook launch to protect
 src/__tests__/security/x402CreditFailClosed.test.ts :: x402 credit paths are fail-closed every MONEY_INCOME credit is preceded by a 501 fail-closed response
 src/__tests__/security/x402CreditFailClosed.test.ts :: x402 credit paths are fail-closed matcher is not stale: finds every credit site (>= 2)
 src/__tests__/security/x402CreditFailClosed.test.ts :: x402 credit paths are fail-closed self-check: the detector distinguishes guarded from unguarded credits
@@ -4101,6 +4150,14 @@ src/__tests__/services/temp-file-cleanup.test.ts :: image generators clean up th
 src/__tests__/services/transcription-temp-cleanup.test.ts :: transcription cleans up the temp file on failure deletes the downloaded file when transcription fails
 src/__tests__/services/ttv-no-raw-error-leak.test.ts :: generateTextToVideo does not leak a raw provider error to the user returns a curated message, not the raw upstream error body
 src/__tests__/setCommands.test.ts :: setBotCommands treats a missing optional bot owner as an ordinary empty result
+src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure calls nothing flaky when the retry passes nothing
+src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure counts every assertion the run produced, whatever its status
+src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure counts only passing assertions as passing
+src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure keeps the id spelling identical in both sets
+src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure puts every suspect in exactly one bucket
+src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure reads an empty report as nothing having run, not as everything passing
+src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure separates a failed test from one that never ran
+src/__tests__/tools/gateDistinguishesAbsentFromFailed.test.ts :: the gate telling absence from failure splits suspects into regression, flaky, and never-ran
 src/__tests__/tools/global-error-handlers.test.ts :: global error handlers are armed is idempotent — a second call does not stack listeners
 src/__tests__/tools/global-error-handlers.test.ts :: global error handlers are armed registers an unhandledRejection listener and an uncaughtException one
 src/__tests__/tools/global-error-handlers.test.ts :: index.ts arms the handlers once, before the bot loop arms them before the per-bot loop, so it runs once
@@ -4142,6 +4199,11 @@ src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities validateCa
 src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities validateCallbackData should reject callback data with wrong prefix
 src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities validateCallbackData should reject empty callback data
 src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities validateCallbackData should validate correct callback data
+src/__tests__/utils/exclusiveTick.test.ts :: exclusiveTick does not let the rejection escape into the timer
+src/__tests__/utils/exclusiveTick.test.ts :: exclusiveTick is wired into every repeating timer in the notification handler
+src/__tests__/utils/exclusiveTick.test.ts :: exclusiveTick releases the flag when the run throws
+src/__tests__/utils/exclusiveTick.test.ts :: exclusiveTick runs again once the previous one finished
+src/__tests__/utils/exclusiveTick.test.ts :: exclusiveTick skips a tick while the previous one is still running
 src/__tests__/utils/pathSegmentGuard.test.ts :: an identifier used as a directory name accepts the ids that actually occur
 src/__tests__/utils/pathSegmentGuard.test.ts :: an identifier used as a directory name computes a non-empty population
 src/__tests__/utils/pathSegmentGuard.test.ts :: an identifier used as a directory name guards every computed site, not just the hand-listed ones
@@ -4227,7 +4289,7 @@ src/modules/videoGenerator/test/generateTextToVideo.test.ts :: generateTextToVid
 src/modules/videoGenerator/test/generateTextToVideo.test.ts :: generateTextToVideo (dispatch, mocked) Replicate provider: returns array[0] (no Kie call, no refund)
 src/modules/videoGenerator/test/generateTextToVideo.test.ts :: generateTextToVideo (dispatch, mocked) invalid modelId returns null WITHOUT a refund or user lookup
 src/modules/videoGenerator/test/generateTextToVideo.test.ts :: generateTextToVideo (dispatch, mocked) model without text input returns null, no provider call, no refund
-src/modules/videoGenerator/test/generateTextToVideo.test.ts :: generateTextToVideo (dispatch, mocked) provider failure triggers a refund and returns null
+src/modules/videoGenerator/test/generateTextToVideo.test.ts :: generateTextToVideo (dispatch, mocked) provider failure returns null WITHOUT crediting anyone
 src/tests/multiPhotoNeurophoto.test.ts :: Integration Tests should complete full multi-photo workflow
 src/tests/multiPhotoNeurophoto.test.ts :: Multi-Photo Neurophoto System Enhanced Neurophoto Generation Service should process multiple input images
 src/tests/multiPhotoNeurophoto.test.ts :: Multi-Photo Neurophoto System Error Handling should handle file download errors

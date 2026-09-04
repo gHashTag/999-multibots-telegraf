@@ -6,9 +6,6 @@ import {
   UNIFIED_VIDEO_MODELS as VIDEO_MODELS_CONFIG,
   type UnifiedVideoModelConfig as VideoModelConfig,
 } from '@/config/unified-video-models.config'
-import { updateUserBalance } from '@/core/supabase/updateUserBalance'
-import { calculateFinalPrice } from '@/price/helpers'
-import { PaymentType } from '@/interfaces/payments.interface'
 import { getUserHelper } from './helpers'
 
 interface ModuleTextToVideoResponse {
@@ -395,51 +392,32 @@ export async function generateTextToVideo(
       errorMessage = error.message
     }
 
-    // Универсальный возврат средств для всех моделей при ошибке
-    logger.warn(
-      '[generateTextToVideo] Video generation failed, attempting refund',
+    // NO REFUND HERE. There is nothing to refund: this path never charges.
+    //
+    // The only caller of this function is the improvePromptWizard scene, and
+    // neither the scene nor any module it imports performs a debit -- measured
+    // across every charge primitive in the repo (updateUserBalance,
+    // directPaymentProcessor, setPayments, processBalanceOperation). The single
+    // balance mutation reachable from here used to be the credit below, so
+    // every failed generation handed the user stars that were never taken.
+    //
+    // The neighbouring live path, handleTextToVideoDirect, charges AFTER
+    // delivering the video; a failure there costs the user nothing, so it has
+    // nothing to give back either. The two paths also price differently --
+    // that one uses getUnifiedModelPrice(id, {duration}), this credit used
+    // calculateFinalPrice(id) with no duration -- so the amount returned was
+    // not even the amount any path would have charged.
+    //
+    // Refusing to credit is the safe direction. Restoring money to a user who
+    // WAS charged is the owner's call, not this function's.
+    logger.error(
+      '[generateTextToVideo] generation failed; no refund is due because this path never charges',
       {
         telegram_id,
         model: modelConfig.id,
         error: error.message,
       }
     )
-
-    try {
-      // Вычисляем стоимость модели для возврата
-      const modelCost = calculateFinalPrice(modelConfig.id)
-
-      // Возвращаем средства обратно
-      const refundResult = await updateUserBalance(
-        telegram_id,
-        modelCost,
-        PaymentType.MONEY_INCOME,
-        `Refund for failed ${modelConfig.name} generation`,
-        {
-          bot_name: bot_name,
-          service_type: 'video-generation-refund',
-          model_name: modelConfig.id,
-          original_error: error.message,
-          refund_amount: modelCost,
-        }
-      )
-
-      logger.info(
-        '[generateTextToVideo] Refund processed for video generation failure',
-        {
-          telegram_id,
-          model: modelConfig.id,
-          refund_amount: modelCost,
-          refund_result: refundResult,
-        }
-      )
-    } catch (refundError) {
-      logger.error('[generateTextToVideo] Failed to process refund', {
-        telegram_id,
-        model: modelConfig.id,
-        refund_error: refundError.message,
-      })
-    }
 
     // В любом случае возвращаем null, чтобы вызывающая функция знала об ошибке
     return null

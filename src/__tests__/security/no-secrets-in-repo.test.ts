@@ -439,7 +439,12 @@ describe('в репозитории нет новых секретов', () => {
     }
 
     expect(unexplained).toEqual([])
-  })
+    // 30s, not the 5s default. This walks every tracked file and reads each
+    // one; alone it takes about two seconds, and under a loaded full-suite run
+    // it crossed the default and timed out. That is what the gate reported as
+    // a flaky test in it.136 and what silently dropped this name from the
+    // snapshot on a --save: a security check can be lost by being slow.
+  }, 30_000)
 
   it('в списке долга нет файлов, которые уже вычищены', () => {
     // Запись, пережившая свою причину, молча прикроет следующую ошибку.
