@@ -10,7 +10,6 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest'
 import { generateTextToVideo } from '../generateTextToVideo'
-import { PaymentType } from '../../../interfaces/payments.interface'
 
 vi.mock('../../../utils/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
@@ -127,7 +126,14 @@ describe('generateTextToVideo (dispatch, mocked)', () => {
     expect(refund).not.toHaveBeenCalled()
   })
 
-  it('provider failure triggers a refund and returns null', async () => {
+  it('provider failure returns null WITHOUT crediting anyone', async () => {
+    // This case used to assert the opposite, and the assertion was locking in
+    // a mint: nothing on this path ever charges, so the credit handed out
+    // stars that were never taken. The only caller is the improvePromptWizard
+    // scene, and no charge primitive is reachable from it.
+    //
+    // The three neighbouring cases already assert "no refund"; this one now
+    // joins them, which makes the whole file say one thing instead of two.
     price.mockReturnValue(50)
     generateVideoMock.mockResolvedValue({
       success: false,
@@ -137,13 +143,7 @@ describe('generateTextToVideo (dispatch, mocked)', () => {
     const res = await call('veo3')
 
     expect(res).toBeNull()
-    expect(refund).toHaveBeenCalledWith(
-      '123456789',
-      50,
-      PaymentType.MONEY_INCOME,
-      expect.stringContaining('Refund'),
-      expect.anything()
-    )
+    expect(refund).not.toHaveBeenCalled()
   })
 
   it('invalid modelId returns null WITHOUT a refund or user lookup', async () => {
