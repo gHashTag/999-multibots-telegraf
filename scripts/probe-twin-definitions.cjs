@@ -548,8 +548,15 @@ for (const [name, fileList, consumers] of ranked) {
 // and all nine consumers land on one file; that is a non-finding. A name whose
 // consumers land on two different files is where a rename, a price change or an
 // access rule reaches only half of them.
+// The authority dictionary is itself a matcher that knows spellings, not
+// things: a name it never learned is invisible to it. --all drops the
+// dictionary entirely and asks the only question that needs no vocabulary --
+// do this name's consumers land on more than one file.
+const ALL = process.argv.includes('--all')
+const splitPopulation = ALL ? twins : ranked
+
 const splits = []
-for (const [name] of ranked) {
+for (const [name] of splitPopulation) {
   const by = consumerSplit(name)
   if (by.size > 1) splits.push([name, by])
 }
