@@ -1,4 +1,5 @@
 import { inngest } from '@/inngest_app/client'
+import { assertSafePathSegment } from '@/utils/pathSegment'
 import { logger } from '@/utils/logger'
 import { getUserBalance } from '@/core/supabase/getUserBalance'
 import { getUserByTelegramId } from '@/core/supabase'
@@ -335,6 +336,7 @@ export const morphImages = inngest.createFunction(
         })
 
         // Создаем временную директорию для склейки
+        assertSafePathSegment(telegram_id, 'telegram_id')
         const tempDir = path.join(
           __dirname,
           '../../../tmp/morphing',

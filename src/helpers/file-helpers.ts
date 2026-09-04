@@ -1,4 +1,5 @@
 import axios, { isAxiosError } from 'axios'
+import { assertSafePathSegment } from '@/utils/pathSegment'
 import { assertPublicRedirect } from '@/utils/sanitize'
 import * as fs from 'fs/promises'
 import path from 'path'
@@ -119,6 +120,7 @@ export async function saveFileLocally(
   category: string,
   extension: string
 ): Promise<string> {
+  assertSafePathSegment(telegram_id, 'telegram_id')
   const fileLocalPath = path.join(
     __dirname,
     '../uploads',
