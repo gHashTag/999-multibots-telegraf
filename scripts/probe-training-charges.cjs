@@ -25,7 +25,7 @@
  *
  * Ничего не пишет.
  */
-const url = process.env.SUPABASE_URL.replace(/\/$/, '')
+const url = (process.env.SUPABASE_URL || '').replace(/\/$/, '')
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 const H = { apikey: key, Authorization: `Bearer ${key}` }
 
@@ -54,6 +54,68 @@ async function fetchAll(pathAndQuery) {
   return out
 }
 
+/**
+ * The matching rule, callable on a sample.
+ *
+ * It answers "was there a charge beside this training", and every comparison
+ * with NaN is false -- so a training whose date will not parse, or a charge
+ * whose date will not parse, reads as a training nobody paid for. That IS the
+ * finding this probe reports, so the failure mode manufactures it.
+ *
+ * Runs before any fetch: what is checked is the time matching, not the query.
+ */
+const MATCH_WINDOW_MS = 6 * 60 * 60 * 1000
+function chargeNear(charges, training) {
+  const ts = Date.parse(training.created_at)
+  if (Number.isNaN(ts)) return null // cannot tell, not "no charge"
+  return (
+    charges.find(
+      c =>
+        String(c.telegram_id) === String(training.telegram_id) &&
+        // No NaN guard on this side on purpose: Math.abs(NaN - ts) < W is
+        // already false, so an unparseable charge date can never match. A guard
+        // here would be a rule no mutation can kill -- removing it left every
+        // assertion green, which is the definition of redundant.
+        Math.abs(Date.parse(c.payment_date) - ts) < MATCH_WINDOW_MS
+    ) || false
+  )
+}
+
+function selfCheck() {
+  const training = { telegram_id: 7, created_at: '2026-09-01T12:00:00Z' }
+  const near = [{ telegram_id: 7, payment_date: '2026-09-01T14:00:00Z' }]
+  const far = [{ telegram_id: 7, payment_date: '2026-09-02T12:00:00Z' }]
+  const other = [{ telegram_id: 8, payment_date: '2026-09-01T12:05:00Z' }]
+
+  if (!chargeNear(near, training)) {
+    console.error('самопроверка не прошла: списание внутри окна не найдено.')
+    process.exit(2)
+  }
+  if (chargeNear(far, training) !== false) {
+    console.error('самопроверка не прошла: списание за окном засчитано.')
+    process.exit(2)
+  }
+  if (chargeNear(other, training) !== false) {
+    console.error(
+      'самопроверка не прошла: чужое списание засчитано этому обучению.'
+    )
+    process.exit(2)
+  }
+  // The defect itself, on both sides.
+  if (chargeNear(near, { telegram_id: 7, created_at: 'not a date' }) !== null) {
+    console.error(
+      'самопроверка не прошла: обучение с неразбираемой датой должно быть\n' +
+        '«не оценить», а не «без списания» — иначе доля бесплатных завышается.'
+    )
+    process.exit(2)
+  }
+  console.log(
+    'самопроверка: окно и владелец различаются, неразбираемые даты не считаются отсутствием списания'
+  )
+}
+
+selfCheck()
+
 async function main() {
   // --- Самопроверка искалки: заведомо-положительный и заведомо-отрицательный
   const pos = await get('payments_v2?select=id&limit=1')
@@ -71,7 +133,7 @@ async function main() {
   // --- 1. Голосовое обучение: списания и возвраты -------------------------
   console.log('=== 1. Платежи со словом «Voice training» ===')
   const voicePays = await fetchAll(
-    "payments_v2?select=telegram_id,stars,type,description,payment_date,status&description=ilike.*voice%20training*&order=payment_date.desc"
+    'payments_v2?select=telegram_id,stars,type,description,payment_date,status&description=ilike.*voice%20training*&order=payment_date.desc'
   )
   console.log(`строк: ${voicePays.length}`)
   for (const p of voicePays.slice(0, 20)) {
@@ -82,13 +144,19 @@ async function main() {
 
   // --- 2. Таблица voice_models --------------------------------------------
   console.log('\n=== 2. voice_models ===')
-  const vm = await get('voice_models?select=id,telegram_id,status,created_at&order=created_at.desc&limit=10')
+  const vm = await get(
+    'voice_models?select=id,telegram_id,status,created_at&order=created_at.desc&limit=10'
+  )
   if (!vm.ok) {
-    console.log(`таблица недоступна: HTTP ${vm.status} (вероятно, не существует)`)
+    console.log(
+      `таблица недоступна: HTTP ${vm.status} (вероятно, не существует)`
+    )
   } else {
     console.log(`строк (последние 10): ${vm.rows.length}`)
     for (const r of vm.rows)
-      console.log(`  ${String(r.created_at).slice(0, 10)}  ${r.status}  ${r.telegram_id}`)
+      console.log(
+        `  ${String(r.created_at).slice(0, 10)}  ${r.status}  ${r.telegram_id}`
+      )
   }
 
   // --- 3. model_trainings против списаний ---------------------------------
@@ -108,8 +176,16 @@ async function main() {
   for (const t of trainings) {
     const ts = Date.parse(t.created_at)
     const m = String(t.created_at).slice(0, 7)
-    byMonth[m] = byMonth[m] || { total: 0, charged: 0 }
+    byMonth[m] = byMonth[m] || { total: 0, charged: 0, unknown: 0 }
     byMonth[m].total++
+    // Every comparison with NaN is false, so a training whose date will not
+    // parse finds no charge beside it and reads as "trained for free" -- which
+    // is the finding this probe reports. That is not what was measured; it is
+    // "cannot tell". Counted apart, and kept out of the ratio below.
+    if (Number.isNaN(ts)) {
+      byMonth[m].unknown++
+      continue
+    }
     const hit = charges.find(
       c =>
         String(c.telegram_id) === String(t.telegram_id) &&
@@ -117,10 +193,12 @@ async function main() {
     )
     if (hit) byMonth[m].charged++
   }
-  console.log('месяц      обучений  со списанием рядом (±6ч)')
+  console.log('месяц      обучений  со списанием рядом (±6ч)  не оценить')
   for (const m of Object.keys(byMonth).sort().reverse()) {
+    const b = byMonth[m]
     console.log(
-      `${m}    ${String(byMonth[m].total).padStart(4)}      ${String(byMonth[m].charged).padStart(4)}`
+      `${m}    ${String(b.total).padStart(4)}      ${String(b.charged).padStart(4)}` +
+        `                ${String(b.unknown || 0).padStart(4)}`
     )
   }
 
@@ -146,7 +224,9 @@ async function main() {
   }
   console.log(
     `\nконтроль (2025-07..10): обучений ${ctrl.total}, со списанием ${ctrl.charged} — ` +
-      (ctrl.total ? 'сопоставление работает' : 'в окне контроля обучений нет (контроль пуст, читать с осторожностью)')
+      (ctrl.total
+        ? 'сопоставление работает'
+        : 'в окне контроля обучений нет (контроль пуст, читать с осторожностью)')
   )
 
   // --- 4. Второй способ: обучения с ноября 2025 против ЛЮБЫХ списаний ------
@@ -175,7 +255,11 @@ async function main() {
       `  ${String(t.created_at).slice(0, 16)}  ${t.status}  tg=${ids}${isTest ? ' (тест)' : ''}` +
         `  списаний(любых): ${near.length}` +
         (near.length
-          ? '  [' + near.map(p => `${p.stars}⭐ ${String(p.description).slice(0, 30)}`).join(' | ') + ']'
+          ? '  [' +
+            near
+              .map(p => `${p.stars}⭐ ${String(p.description).slice(0, 30)}`)
+              .join(' | ') +
+            ']'
           : '')
     )
   }
