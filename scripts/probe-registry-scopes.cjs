@@ -33,6 +33,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { matchCode } = require('./lib/blank-code.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 
@@ -92,7 +93,13 @@ function rootsOf(raw) {
     const lit = literalsOf(m[1])
     if (lit) roots.add(lit)
   }
-  for (const m of raw.matchAll(CALL)) {
+  // Calls are located on the MASK and their arguments read from the RAW text.
+  // Without this the census counted walk() written inside a comment or a
+  // template string: 66 "tests building a population" where 63 do, and 143
+  // unresolved arguments where 136 exist. Structure decides what is a call;
+  // content decides what the root is -- the argument is a string literal, so
+  // it cannot be read from a masked source.
+  for (const m of matchCode(raw, CALL)) {
     const arg = m[1].trim()
     if (/^['"]/.test(arg)) {
       roots.add(arg.slice(1, -1))
@@ -117,6 +124,18 @@ function rootsOf(raw) {
 }
 
 const SAMPLES = [
+  {
+    why: 'a call inside a comment is not a call',
+    code: `// walk('src/commented')\nconst x = 1`,
+    roots: [],
+    unresolved: 0,
+  },
+  {
+    why: 'a call inside a template string is not a call',
+    code: "const sample = `walk('src/quoted')`",
+    roots: [],
+    unresolved: 0,
+  },
   {
     why: 'a literal root is read directly',
     code: `walk('src/scenes')`,
