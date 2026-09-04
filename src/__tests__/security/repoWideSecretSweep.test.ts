@@ -43,6 +43,75 @@ describe('the repo-wide secret sweep', () => {
     expect(labels.length).toBe(patterns.length)
   })
 
+  it('has a sample for every rule the commit guard enforces', () => {
+    // The vocabularies drifted, measured: the guard knew 15 shapes and the
+    // repo-wide test knew 11 of them -- Slack, PEM, Fal.ai and the connection
+    // string were enforced at commit time and invisible in the tree. One of
+    // those four I added to the guard myself, two iterations earlier, without
+    // adding it here.
+    //
+    // The corpus of samples in no-secrets-in-repo.test.ts is the meeting
+    // point: every guard rule must match at least one of them. A rule with no
+    // sample is a rule nothing exercises.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fsMod = require('node:fs')
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { spawnSync } = require('node:child_process')
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const pathMod = require('node:path')
+
+    const corpus = fsMod.readFileSync(
+      pathMod.resolve(__dirname, 'no-secrets-in-repo.test.ts'),
+      'utf8'
+    )
+    const { patterns, labels } = readGuardRules()
+    const uncovered: string[] = []
+    patterns.forEach((p: string, i: number) => {
+      const r = spawnSync('grep', ['-qEi', '-e', p], { input: corpus })
+      if (r.status !== 0) uncovered.push(labels[i] || `rule ${i}`)
+    })
+    expect(uncovered).toEqual([])
+  })
+
+  it('enforces every shape the repo-wide test knows', () => {
+    // The other direction. Guard-covers-corpus alone would let a rule be
+    // deleted from the guard while the tree-wide test kept finding the shape:
+    // new leaks would land, old ones would be reported. Measured before
+    // pinning -- exactly one shape was enforced tree-wide and not at commit
+    // time, and it was a provider this repo reads in twenty places.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fsMod = require('node:fs')
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { spawnSync } = require('node:child_process')
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const pathMod = require('node:path')
+
+    const corpus = fsMod.readFileSync(
+      pathMod.resolve(__dirname, 'no-secrets-in-repo.test.ts'),
+      'utf8'
+    )
+    const block = corpus.match(/const SELF_CHECK[\s\S]*?\n\]/)
+    expect(block, 'sample table must parse').toBeTruthy()
+    const pairs = [
+      ...(block as RegExpMatchArray)[0].matchAll(
+        /\[\s*\n\s*'([^']+)',\s*\n\s*'([^']+)',/g
+      ),
+    ]
+    expect(pairs.length, 'samples must parse').toBeGreaterThan(10)
+
+    const { patterns } = readGuardRules()
+    const unenforced = pairs
+      .filter(
+        m =>
+          !patterns.some(
+            (p: string) =>
+              spawnSync('grep', ['-qEi', '-e', p], { input: m[2] }).status === 0
+          )
+      )
+      .map(m => m[1])
+    expect(unenforced).toEqual([])
+  })
+
   it('separates a value from a reference to a value', () => {
     // The triage that makes the queue readable. The guard's broad rule ends
     // with [A-Za-z0-9_/+=-]{16,}, which an ordinary identifier satisfies, so
