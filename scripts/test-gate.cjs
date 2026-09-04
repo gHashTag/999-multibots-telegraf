@@ -98,6 +98,31 @@ function fileOf(id) {
 }
 
 /**
+ * Split the suspects three ways, given what the first run produced and what
+ * the retry passed.
+ *
+ *   confirmed   -- still not passing on the retry: a real regression
+ *   flakyRan    -- ran and failed, then passed: genuine flakiness
+ *   flakyAbsent -- never appeared in the first run, then passed: NOT a flaky
+ *                  test. The name was absent from the report entirely, which
+ *                  is how a tree that stops enumerating files looks.
+ *
+ * A pure function on purpose. Inside main() these three lines could only be
+ * exercised by an actual degradation event, and that cannot be summoned on
+ * demand -- all twenty-five worktrees on this machine were healthy when it was
+ * last checked. Untestable-in-place code is how a branch ships unproven.
+ */
+function classifySuspects(suspects, ranFirst, recheckPassing) {
+  const confirmed = suspects.filter(id => !recheckPassing.has(id))
+  const flaky = suspects.filter(id => recheckPassing.has(id))
+  return {
+    confirmed,
+    flakyRan: flaky.filter(id => ranFirst.has(id)),
+    flakyAbsent: flaky.filter(id => !ranFirst.has(id)),
+  }
+}
+
+/**
  * The names this file PRODUCES right now, without running the tests.
  *
  * Listed PER FILE on purpose: a whole-suite `vitest list` aborts entirely on
@@ -229,15 +254,15 @@ function main() {
     `\nподозреваемых: ${suspects.length} в ${files.length} файлах — перепроверяю…`
   )
   const recheck = passingSet(runVitest(files))
-  const confirmed = suspects.filter(id => !recheck.has(id))
-  const flaky = suspects.filter(id => recheck.has(id))
+  const { confirmed, flakyRan, flakyAbsent } = classifySuspects(
+    suspects,
+    ranFirst,
+    recheck
+  )
 
   // Told apart, not merged: "ran and failed, then passed" is flakiness;
   // "never ran, then passed" is this machine, and calling it flaky hides the
   // only symptom the degradation problem produces here.
-  const flakyRan = flaky.filter(id => ranFirst.has(id))
-  const flakyAbsent = flaky.filter(id => !ranFirst.has(id))
-
   if (flakyRan.length) {
     console.log(
       `\nнестабильных (упали, со второго раза зелёные): ${flakyRan.length}`
@@ -247,9 +272,12 @@ function main() {
   }
 
   if (flakyAbsent.length) {
-    const files = [...new Set(flakyAbsent.map(fileOf))]
+    // NOT named `files`: that name is already taken by the retry target list
+    // in this scope, and a shadowed accumulator is a defect this repo has
+    // produced before.
+    const absentFiles = [...new Set(flakyAbsent.map(fileOf))]
     console.log(
-      `\n⚠️  НЕ ЗАПУСКАЛИСЬ в первом прогоне, зелёные во втором: ${flakyAbsent.length} в ${files.length} файл(ах)`
+      `\n⚠️  НЕ ЗАПУСКАЛИСЬ в первом прогоне, зелёные во втором: ${flakyAbsent.length} в ${absentFiles.length} файл(ах)`
     )
     console.log(
       '   Это НЕ нестабильный тест: имени не было в отчёте вовсе. Так выглядит'
@@ -257,8 +285,9 @@ function main() {
     console.log(
       '   дерево, в котором файлы перестают перечисляться. Проверьте `tri trust`.'
     )
-    for (const f of files.slice(0, 10)) console.log(`  ? ${f}`)
-    if (files.length > 10) console.log(`  ... ещё ${files.length - 10}`)
+    for (const f of absentFiles.slice(0, 10)) console.log(`  ? ${f}`)
+    if (absentFiles.length > 10)
+      console.log(`  ... ещё ${absentFiles.length - 10}`)
   }
 
   if (!confirmed.length) {
@@ -356,6 +385,6 @@ function main() {
 // Exported so the classification can be exercised on synthetic reports. A
 // test with its own copy of these would be a twin, and the whole point here is
 // that two questions must not share one answer.
-module.exports = { passingSet, ranSet, fileOf }
+module.exports = { passingSet, ranSet, fileOf, classifySuspects }
 
 if (require.main === module) main()
