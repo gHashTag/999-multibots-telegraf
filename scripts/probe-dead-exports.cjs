@@ -82,12 +82,24 @@ function blank(t) {
 }
 
 const RE_REEXPORT = /export\s*\{([^}]*)\}\s*from\s*['"]([^'"]*)['"]/g
-const importsByName = name =>
-  new RegExp(
+// A symbol arrives two ways, and counting only the static form OVER-reports
+// death. `getAllButtonTexts` was filed as imported-only-by-tests while
+// core/supabase/getTranslation.ts really uses it as
+//   const { getAllButtonTexts } = await import('@/navigation')
+// There are 319 such destructuring sites in prod, so the form is ordinary, not
+// exotic. The second branch requires the `import(`/`require(` call itself:
+// plain destructuring off an object is not an import and must not count.
+const importsByName = name => {
+  const n = name.replace(/\$/g, '\\$')
+  return new RegExp(
     'import\\s*(?:type\\s*)?\\{[^}]*\\b' +
-      name.replace(/\$/g, '\\$') +
-      '\\b[^}]*\\}'
+      n +
+      '\\b[^}]*\\}' +
+      '|\\{[^}]*\\b' +
+      n +
+      '\\b[^}]*\\}\\s*=\\s*(?:await\\s+)?(?:import|require)\\s*\\('
   )
+}
 
 /** Re-exported symbol names in one blanked source. */
 function reExported(code) {
@@ -137,9 +149,15 @@ function selfCheck() {
     )
     process.exit(2)
   }
-  if (!importsByName('delta').test("import { delta } from './x'")) {
-    console.error('самопроверка не прошла: импорт по имени не распознан.')
-    process.exit(2)
+  for (const yes of [
+    "import { delta } from './x'",
+    "const { delta } = await import('./x')",
+    "const { delta } = require('./x')",
+  ]) {
+    if (!importsByName('delta').test(yes)) {
+      console.error('самопроверка не прошла: импорт не распознан — ' + yes)
+      process.exit(2)
+    }
   }
   // Both boundaries, not one. A mutation that removed only the LEADING \b
   // survived the first version of this check, because the trailing one still
@@ -147,6 +165,11 @@ function selfCheck() {
   for (const near of [
     "import { deltaX } from './x'",
     "import { xdelta } from './x'",
+    "const { deltaX } = await import('./x')",
+    "const { xdelta } = await import('./x')",
+    // Destructuring off a plain object is not an import. Without this sample a
+    // matcher that dropped the call would count every `const { x } = obj`.
+    'const { delta } = someObject',
   ]) {
     if (importsByName('delta').test(near)) {
       console.error(
