@@ -2,7 +2,7 @@
  * Is this Telegram language code Russian?
  *
  * Telegram sends an IETF tag in `from.language_code`, and that tag carries an
- * optional region: 'ru', but also 'ru-RU', 'ru-UA', 'ru-KZ'. Thirty places in
+ * optional region: 'ru', but also 'ru-RU', 'ru-UA', 'ru-KZ'. Twenty-eight places in
  * this repository compared it with `=== 'ru'`, so every one of those users was
  * answered in English -- including the three branches of languageMiddleware,
  * which is the single point where the raw code becomes the internal

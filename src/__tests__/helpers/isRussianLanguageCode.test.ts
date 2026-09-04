@@ -5,8 +5,11 @@ import { isRussianLanguageCode } from '@/helpers/isRussianLanguageCode'
 
 /**
  * Telegram's `from.language_code` is an IETF tag and carries an optional
- * region: 'ru', but also 'ru-RU', 'ru-UA', 'ru-KZ'. Thirty places compared it
- * with `=== 'ru'`, so every one of those users was answered in English.
+ * region: 'ru', but also 'ru-RU', 'ru-UA', 'ru-KZ'. Twenty-eight places
+ * compared it with `=== 'ru'`, so every one of those users was answered in
+ * English. (The first scan said thirty: it counted one line twice and included
+ * the users-table COLUMN, which is a stored, already-normalised value and is
+ * deliberately still compared strictly.)
  *
  * The three that mattered most are the branches of languageMiddleware -- the
  * single point where the raw code becomes the internal 'ru' | 'en' the rest of
