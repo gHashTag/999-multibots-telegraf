@@ -16,69 +16,77 @@
 бесплатно», «человек платил USDC и не получал звёзд») едва не ушли в отчёт как
 живые денежные дефекты — оба неверны.
 
-## Колонка ливнесс — главное
+## Что реестру НУЖНО — и чего я потребовал зря
 
-Перепись по тексту находит **форму**, но не отвечает, **исполняется ли** код.
-Ответ живёт только в реестре:
+Первая версия карты (it.147) ратчетила «каждый реестр обязан нести пометку о
+ливнесс». **Правило снято через итерацию — оно не выдержало замера.**
 
-- `dead, verified #1347` — вопрос закрыт;
-- голое имя файла — вопрос открывается заново каждый цикл.
+Из 23 реестров код-сайты перечисляют **10**; остальные держат данные — имена
+таблиц, юзернеймы прод-ботов, куски кода строками, прозу. Для них вопрос
+«исполняется ли это?» **бессмыслен**: секрет в файле, который никто не
+импортирует, утёк ровно так же. А те, что перечисляют код, **уже объясняют
+себя** — просто не теми словами, которые искал матчер: у них у каждой записи
+есть `reason`.
 
-Из 23 реестров **15 без пометки о ливнесс**. Это работа на чтение для будущих
-циклов; сейчас закреплено только то, что число **не растёт** — новый реестр
-обязан сказать, живы ли его записи (`registryLivenessRatchet`).
+Вторая попытка — «у каждой записи обязана быть причина» — падает так же: голому
+списку имён таблиц причина на строку не нужна.
+
+Оба правила были **правдоподобными подменами** настоящего требования: шапка
+реестра должна говорить, что список означает и что считается починкой записи.
+Правило, которое удовлетворяется аннотациями «чтобы ратчет замолчал», хуже
+отсутствия правила, поэтому осталась карта и её самопроверки.
+
+Колонки в выводе: `[код]` — реестр перечисляет файлы исходников, `[данные]` —
+нет; `ливнесс` — рядом есть ответ на вопрос, исполняется ли перечисленное.
+Это **сведения для читателя**, а не проверка.
 
 ## Текущая карта
 
 ```
-src/__tests__/money/no-invented-price.test.ts
-       предмет: цена не выдумывается
-    6  ливнесс НЕТ   KNOWN_PUBLIC
-       src/__tests__/reliability/routerMountAuthBoundary.test.ts
-       предмет: router mount auth boundary (public routers are an explicit allowlist)
-    5  ливнесс есть  DEBT
+предмет: router mount auth boundary (public routers are an explicit allowlist)
+    5  [код, ливнесс]  DEBT
        src/__tests__/money/unchecked-money-result.test.ts
        предмет: результат денежной операции не выбрасывается
-    4  ливнесс есть  ALLOWED
+    4  [код, ливнесс]  ALLOWED
        src/__tests__/assets/no-direct-insert.test.ts
        предмет: вложения сохраняются одной дверью
-    4  ливнесс НЕТ   ALLOWED
+    4  [код]  ALLOWED
        src/__tests__/money/no-fabricated-returns.test.ts
        предмет: нет выдуманных возвратов
-    3  ливнесс есть  KNOWN_UNGUARDED_TRACKED
+    3  [код, ливнесс]  KNOWN_UNGUARDED_TRACKED
        src/__tests__/scenes/paid-wizard-guard-ratchet.test.ts
        предмет: paid wizards keep their in-flight guard
-    3  ливнесс есть  ALLOWLIST
+    3  [данные, ливнесс]  ALLOWLIST
        src/__tests__/tools/no-dead-handler-registrar.test.ts
        предмет: no dead handler-registrars
-    2  ливнесс НЕТ   KNOWN
+    2  [код]  KNOWN
        src/__tests__/money/charge-order.test.ts
        предмет: деньги не уходят раньше работы
-    1  ливнесс НЕТ   KNOWN_REASONS
+    1  [данные]  KNOWN_REASONS
        src/__tests__/money/refund-reason.test.ts
        предмет: возврат денег называет причину
-    1  ливнесс есть  DEAD_DISCARD_ALLOWLIST
+    1  [код, ливнесс]  DEAD_DISCARD_ALLOWLIST
        src/__tests__/scenes/charge-result-checked-ratchet.test.ts
        предмет: charge results are never discarded in live scenes (unbilled-paid)
-    1  ливнесс НЕТ   ALLOWLIST
+    1  [данные]  ALLOWLIST
        src/__tests__/tools/no-phantom-setup.test.ts
        предмет: no phantom setup/register/init imports in index.ts
-    1  ливнесс НЕТ   ALLOWED_PLAIN_LS
+    1  [код]  ALLOWED_PLAIN_LS
        src/__tests__/tools/no-silent-blindness.test.ts
        предмет: инструменты не слепнут молча
-    0  ливнесс НЕТ   EXEMPT
+    0  [данные]  EXEMPT
        src/__tests__/commands/autonomousMonitorGate.test.ts
        предмет: every autonomousMonitor handler is behind the admin gate
-    0  ливнесс НЕТ   KNOWN_SAFE
+    0  [данные]  KNOWN_SAFE
        src/__tests__/money/batchRefundReconciliation.test.ts
        предмет: aiPhotoshop batch refunds reconcile the exact charge
-    0  ливнесс есть  KNOWN_ID_COLLISIONS
+    0  [данные, ливнесс]  KNOWN_ID_COLLISIONS
        src/__tests__/scenes/duplicate-scene-id-ratchet.test.ts
        предмет: registered scenes have unique ids (no last-writer-wins shadowing) #1343
-    0  ливнесс есть  ALLOWLIST
+    0  [данные, ливнесс]  ALLOWLIST
        src/__tests__/scenes/sceneIdUniquenessRatchet.test.ts
        предмет: scene ids are unique (no silent Stage shadowing)
-    0  ливнесс НЕТ   DEBT
+    0  [данные]  DEBT
        src/__tests__/security/streamErrorListenerRatchet.test.ts
        предмет: stream/archiver sources have an error listener (no process crash)
 ```
