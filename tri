@@ -1996,10 +1996,21 @@ cmd_probes() {
   local reg="$ROOT/scripts/live-probe-matchers.txt"
   local sep_yes=0 sep_no=0 unlisted=""
   if [ -f "$reg" ]; then
-    # grep, а не awk: вложенные кавычки awk внутри bash-функции дают тихий
-    # ноль вместо счёта — так и вышло с первой версией этой строки.
-    sep_yes=$(grep -cE "^[A-Za-z0-9._-]+\.cjs[[:space:]]+yes[[:space:]]" "$reg" || true)
-    sep_no=$(grep -cE "^[A-Za-z0-9._-]+\.cjs[[:space:]]+no[[:space:]]" "$reg" || true)
+    # СЧИТАЕМ ТОЛЬКО ТЕХ, КТО СЕЙЧАС БЕЗ КОНТРОЛЯ. Реестр описывает свойство
+    # матчера и живёт дольше: искалка, получившая контроль, из него не
+    # удаляется. Первая версия считала все строки файла — и после двух новых
+    # контролей печатала «без контроля 21, из них отделимы 21 и нечего
+    # проверять 2», то есть 23 из 21. Несогласованность и выдала ошибку.
+    sep_yes=0; sep_no=0
+    while IFS= read -r nm; do
+      nm="${nm#"${nm%%[![:space:]]*}"}"
+      [ -n "$nm" ] || continue
+      if grep -qE "^$nm[[:space:]]+yes[[:space:]]" "$reg"; then
+        sep_yes=$((sep_yes + 1))
+      elif grep -qE "^$nm[[:space:]]+no[[:space:]]" "$reg"; then
+        sep_no=$((sep_no + 1))
+      fi
+    done <<< "$live_list"
     while IFS= read -r nm; do
       # live_list накапливается с отступом для печати — здесь он мешает.
       nm="${nm#"${nm%%[![:space:]]*}"}"
