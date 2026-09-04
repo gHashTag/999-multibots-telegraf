@@ -133,7 +133,56 @@ function selfCheck(label) {
   if (!/export \{ y \} from '\s*'/.test(blanked)) {
     fail('строка после эмодзи погашена целиком')
   }
+  // matchCode reads what blank() erases, and skips what blank() masked.
+  const src =
+    "import { exec } from 'child_process'\n// import { x } from 'evil'\n"
+  const found = matchCode(src, /from\s*['"]([^'"]+)['"]/g).map(m => m[1])
+  if (found.join(',') !== 'child_process') {
+    fail(`matchCode вернул ${JSON.stringify(found)}`)
+  }
+  // Anchored on the code around the literal, per the contract above.
+  const commented = matchCode(
+    "// import { x } from 'evil'\n",
+    /from\s*['"]([^'"]+)['"]/g
+  )
+  if (commented.length !== 0) fail('закомментированный импорт принят за живой')
+
   if (label) console.log(`самопроверка бланкера: ${label}`)
 }
 
-module.exports = { blank, selfCheck }
+/**
+ * Match on the RAW source while using the blanked copy as a mask.
+ *
+ * Needed because the two things a probe most often looks for -- a module path
+ * and a re-export target -- ARE string bodies, which blank() erases. Written
+ * after making that exact mistake twice: a barrel-resolution pass and a
+ * shell-caller pass each returned zero with a known positive in hand, both
+ * because they matched on blanked code.
+ *
+ * Works only because blank() preserves offsets byte for byte: if a match
+ * starts where the mask holds a space, that match was inside a comment.
+ *
+ * Returns the matches, so a caller reads real captured text and still skips
+ * anything commented out.
+ *
+ * CONTRACT: the pattern must START outside a string literal. The mask is
+ * consulted at the match's first character, so a bare word that lives inside
+ * a literal -- /child_process/ against `from 'child_process'` -- starts on a
+ * masked space and is dropped every time. Anchor on the code around the
+ * literal instead: /from\s*['"]([^'"]+)['"]/.
+ *
+ * A first version shipped a testCode() convenience alongside this, and its own
+ * control immediately failed on exactly that misuse. Removed rather than
+ * documented: a helper whose obvious call is wrong is worse than no helper.
+ */
+function matchCode(raw, regex) {
+  const mask = blank(raw)
+  const out = []
+  for (const m of raw.matchAll(regex)) {
+    if (mask[m.index] === ' ') continue
+    out.push(m)
+  }
+  return out
+}
+
+module.exports = { blank, selfCheck, matchCode }
