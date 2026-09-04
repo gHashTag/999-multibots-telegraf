@@ -40,16 +40,20 @@ router.post(
 )
 
 // Endpoint для проверки статуса автофиксера
+//
+// This router is mounted WITHOUT requireInternalKey, so everything below is
+// world-readable. The per-secret booleans that used to live here told an
+// anonymous caller which credentials the deployment holds. diagnostic.routes
+// reports the same thing and is mounted behind the internal key; this router
+// was the one place the same disclosure was public.
+//
+// The endpoints stay open and keep their shape, because an external uptime
+// monitor may poll them and nothing in the repo does, so no consumer can be
+// checked. Only the configuration detail is gone.
 router.get('/autofixer/status', (req: any, res: any) => {
   res.json({
     status: 'active',
     version: '1.0.0',
-    features: {
-      githubWebhooks: true,
-      claudeIntegration: !!process.env.CLAUDE_API_KEY,
-      telegramNotifications: !!process.env.BOT_TOKEN_1,
-      botSpecificFixes: true,
-    },
     supportedEvents: ['pull_request.opened', 'pull_request.synchronize'],
     botFixTypes: ['async/await', 'telegraf', 'scenes', 'typescript', 'eslint'],
   })
@@ -75,18 +79,23 @@ router.get('/autofixer/stats', (req: any, res: any) => {
 
 // Health check для автофиксера
 router.get('/autofixer/health', (req: any, res: any) => {
+  // A conjunction, not a map. The verdict is what a monitor needs; WHICH
+  // secret is missing is the part that helps an attacker choose an attack --
+  // webhook_secret being false says the signed webhook cannot verify.
+  //
+  // Deliberately not `const checks = { … }`: an object of per-secret booleans
+  // is one keystroke from being serialised into the response, and that is the
+  // exact shape this router used to send. A plain boolean cannot leak a name.
+  const allHealthy =
+    !!process.env.GITHUB_TOKEN &&
+    !!process.env.CLAUDE_API_KEY &&
+    !!process.env.BOT_TOKEN_1 &&
+    !!process.env.GITHUB_WEBHOOK_SECRET
+
   const health = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    checks: {
-      github: !!process.env.GITHUB_TOKEN,
-      claude: !!process.env.CLAUDE_API_KEY,
-      telegram: !!process.env.BOT_TOKEN_1,
-      webhook_secret: !!process.env.GITHUB_WEBHOOK_SECRET,
-    },
   }
-
-  const allHealthy = Object.values(health.checks).every(Boolean)
   if (!allHealthy) {
     health.status = 'degraded'
     res.status(503)
