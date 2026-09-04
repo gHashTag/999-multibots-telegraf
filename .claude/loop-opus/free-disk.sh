@@ -28,8 +28,17 @@ for корень in ~/999-multibots-telegraf ~/t27 ~/.vibee-worktrees; do
     -not -path '*/node_modules/*' -prune -exec rm -rf {} + 2>/dev/null
 done
 
-# 3. Данные симуляторов: перезаливаются установкой приложения.
-xcrun simctl delete unavailable 2>/dev/null
+# 3. Симуляторы НЕ трогаем.
+#
+# Здесь стояло `xcrun simctl delete unavailable`, и оно снесло устройство, на
+# котором шла вся проверка приложения: «unavailable» у simctl означает не
+# «мусор», а «рантайм сейчас не подхватился» — состояние временное, а удаление
+# окончательное. Следующая сборка упала с «Unable to find a device matching the
+# provided destination», и восстановление стоило дороже, чем освобождённые
+# мегабайты.
+#
+# Место освобождает `~/Library/Developer/CoreSimulator/Caches` выше — он
+# пересоздаётся сам и устройств не касается.
 
 # 4. Докер, если он тут есть.
 command -v docker >/dev/null && docker system prune -af --volumes 2>/dev/null | tail -1
