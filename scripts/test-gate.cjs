@@ -69,6 +69,30 @@ function passingSet(report) {
   return set
 }
 
+/**
+ * Every assertion the run actually PRODUCED, whatever its status.
+ *
+ * The gate's suspects are baseline names missing from the PASSING set, and
+ * that set answers two different questions with one silence: a test that ran
+ * and failed is missing, and a test that never ran at all is also missing. A
+ * retry then turns both into "flaky", which is a diagnosis for the first and a
+ * misnomer for the second -- and files failing to enumerate is a known,
+ * recurring condition on this machine (see the degraded-run banner below).
+ *
+ * With this set the two are told apart: failed means present here, absent
+ * means the file did not produce the name at all.
+ */
+function ranSet(report) {
+  const set = new Set()
+  for (const file of report.testResults || []) {
+    const rel = path.relative(REPO, file.name)
+    for (const a of file.assertionResults || []) {
+      set.add(`${rel} :: ${a.fullName || a.title}`)
+    }
+  }
+  return set
+}
+
 function fileOf(id) {
   return id.split(' :: ')[0]
 }
@@ -188,6 +212,7 @@ function main() {
   )
 
   const suspects = [...before].filter(id => !now.has(id))
+  const ranFirst = ranSet(report)
   const gained = [...now].filter(id => !before.has(id))
 
   console.log(`стало зелёных больше на: ${gained.length}`)
@@ -207,10 +232,33 @@ function main() {
   const confirmed = suspects.filter(id => !recheck.has(id))
   const flaky = suspects.filter(id => recheck.has(id))
 
-  if (flaky.length) {
-    console.log(`\nнестабильных (со второго раза зелёные): ${flaky.length}`)
-    for (const id of flaky.slice(0, 10)) console.log(`  ~ ${id}`)
-    if (flaky.length > 10) console.log(`  ... ещё ${flaky.length - 10}`)
+  // Told apart, not merged: "ran and failed, then passed" is flakiness;
+  // "never ran, then passed" is this machine, and calling it flaky hides the
+  // only symptom the degradation problem produces here.
+  const flakyRan = flaky.filter(id => ranFirst.has(id))
+  const flakyAbsent = flaky.filter(id => !ranFirst.has(id))
+
+  if (flakyRan.length) {
+    console.log(
+      `\nнестабильных (упали, со второго раза зелёные): ${flakyRan.length}`
+    )
+    for (const id of flakyRan.slice(0, 10)) console.log(`  ~ ${id}`)
+    if (flakyRan.length > 10) console.log(`  ... ещё ${flakyRan.length - 10}`)
+  }
+
+  if (flakyAbsent.length) {
+    const files = [...new Set(flakyAbsent.map(fileOf))]
+    console.log(
+      `\n⚠️  НЕ ЗАПУСКАЛИСЬ в первом прогоне, зелёные во втором: ${flakyAbsent.length} в ${files.length} файл(ах)`
+    )
+    console.log(
+      '   Это НЕ нестабильный тест: имени не было в отчёте вовсе. Так выглядит'
+    )
+    console.log(
+      '   дерево, в котором файлы перестают перечисляться. Проверьте `tri trust`.'
+    )
+    for (const f of files.slice(0, 10)) console.log(`  ? ${f}`)
+    if (files.length > 10) console.log(`  ... ещё ${files.length - 10}`)
   }
 
   if (!confirmed.length) {
@@ -305,4 +353,9 @@ function main() {
   process.exit(degraded ? 3 : 1)
 }
 
-main()
+// Exported so the classification can be exercised on synthetic reports. A
+// test with its own copy of these would be a twin, and the whole point here is
+// that two questions must not share one answer.
+module.exports = { passingSet, ranSet, fileOf }
+
+if (require.main === module) main()
