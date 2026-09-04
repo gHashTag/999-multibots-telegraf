@@ -59,7 +59,11 @@ export async function combineVideos(
   // -c:v libx264: видео кодек (H.264)
   // -c:a aac: аудио кодек (AAC)
   // Это сохраняет аудио из всех видео при склейке
-  const command = `ffmpeg -f concat -safe 0 -i ${listPath} -c:v libx264 -c:a aac -b:a 192k -y ${outputPath}`
+  // Quoted, like every other command in this file. execAsync runs through a
+  // shell, and outputPath is not a constant: generateAdvancedLoopingVideo
+  // builds it as `reels_kling_v7_${telegram_id}_${Date.now()}`, where
+  // telegram_id is destructured straight off event.data with no validation.
+  const command = `ffmpeg -f concat -safe 0 -i "${listPath}" -c:v libx264 -c:a aac -b:a 192k -y "${outputPath}"`
 
   logger.info('🎬 [VIDEO MERGE] Executing FFmpeg command', {
     clipPaths,
