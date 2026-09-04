@@ -317,8 +317,21 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
         return ctx.scene.leave()
       }
 
-      // Списание средств
-      await updateUserBalance(
+      // Charge the balance.
+      //
+      // The result is checked, not discarded. updateUserBalance returns false
+      // WITHOUT throwing when the payer row is missing or the insert fails, and
+      // the old code ignored that: the Inngest event was sent anyway, so the
+      // generation would have run unpaid, and the user was then told a charged
+      // amount and a new balance computed by subtraction -- two claims that
+      // were not checked against anything.
+      //
+      // This scene is not registered, so none of that reached a user; the fix
+      // stands because the shape is wrong, not because it was firing.
+      //
+      // Bailing here is the same shape aiCoverWizard uses: paid work only runs
+      // once a charge is real.
+      const charged = await updateUserBalance(
         telegramId,
         totalCost,
         PaymentType.MONEY_OUTCOME,
@@ -328,6 +341,22 @@ export const aiReelsInngestWizard = new Scenes.WizardScene<MyContext>(
           service_type: 'ai_reels_inngest',
         }
       )
+
+      if (!charged) {
+        logger.error(
+          '[AI_REELS_INNGEST] charge failed — generation not started',
+          {
+            telegramId,
+            totalCost,
+          }
+        )
+        await ctx.reply(
+          isRu
+            ? '❌ Не удалось списать средства. Генерация не запущена, попробуйте ещё раз.'
+            : '❌ Failed to deduct the stars. Generation was not started, please try again.'
+        )
+        return ctx.scene.leave()
+      }
 
       // Отправляем событие в Inngest
       const { eventId } = await sendAIReelsEvent({
