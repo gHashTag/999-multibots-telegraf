@@ -74,7 +74,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'seedream/5-pro-text-to-image',
     kind: 'image',
     state: 'live',
-    needs: [],
+    needs: ['prompt', 'aspect_ratio', 'quality'],
     probed: 'This field is required',
   },
   {
@@ -338,7 +338,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'omnihuman-1-5',
     kind: 'lipsync',
     state: 'live',
-    needs: [],
+    needs: ['image_url', 'audio_url'],
     probed: 'This field is required',
   },
   {
