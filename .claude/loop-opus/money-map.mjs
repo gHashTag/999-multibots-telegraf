@@ -91,6 +91,16 @@ function classify(name, node, sf) {
     const args = node.arguments.map(a => a.getText(sf)).join(' ')
     if (/MONEY_INCOME/.test(args)) return 'credit'
     if (/MONEY_OUTCOME/.test(args)) return 'charge'
+    // PaymentType.REFUND is a credit written in the OTHER spelling, and this
+    // branch used to miss it while the CHARGE_FNS branch six lines above tests
+    // /REFUND|MONEY_INCOME/. One function, two rules for one word: three real
+    // refunds (aiCoverWizard, voiceTrainingRVC x2) were filed as 'balance-op',
+    // so a file whose only refund is REFUND-typed read as "charges and never
+    // gives anything back".
+    if (/REFUND/.test(args)) return 'refund'
+    // What is left really is undecidable HERE: the type arrives through a
+    // variable (refundAndTell does `const type = params.type ?? ...`), so the
+    // answer is not in the call. Left as balance-op rather than guessed.
     return 'balance-op'
   }
   return null
