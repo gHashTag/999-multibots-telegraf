@@ -287,7 +287,18 @@ async function initializeBots() {
         if (usePolling || !webhookDomain) {
           // Используем polling режим
           logger.debug(`🔄 Запуск бота ${botInfo.username} в polling режиме`)
-          await bot.telegram.deleteWebhook() // Удаляем webhook перед polling
+          // drop_pending_updates, like the dev path above does at the top of
+          // this file for the same situation.
+          //
+          // Without it, everything Telegram queued while the webhook endpoint
+          // was unreachable is delivered to the poller the moment the bot comes
+          // back. Those are real user commands, and they reach scene handlers
+          // that charge for generation -- a backlog replay during an incident
+          // is precisely when a storm of paid commands is least wanted.
+          //
+          // The two sites disagreed while intending the same thing: the dev
+          // path drops, this one did not, and this one is the production path.
+          await bot.telegram.deleteWebhook({ drop_pending_updates: true })
           bot.launch({
             allowedUpdates: [
               'message',
