@@ -241,7 +241,14 @@ export function createHandleModelTrainingCompletedFunction(inngest: any) {
                 // to terminal (updateData.status is already SUCCESS above) so the
                 // watchdog stops, but skip the broken model_url rather than write
                 // it. result stays unset so the record is visibly incomplete.
-                updateData.result = 'SUCCESS'
+                //
+                // That last sentence used to be false: the line below set
+                // result = 'SUCCESS', which is exactly what the comment says not
+                // to do. A row with no model_url then read as a finished
+                // training to anyone looking at `result` -- the one field whose
+                // whole job here is to say the record is NOT complete. Nothing
+                // in src reads it today, so this changes no behaviour; it makes
+                // the record say what it was meant to say.
                 logger.warn(
                   '[TRAINING COMPLETED] Succeeded with no usable model version — status flipped, model_url skipped',
                   {
