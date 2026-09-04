@@ -42,7 +42,17 @@ import { execFileSync } from 'node:child_process'
 const ROOT = path.resolve(__dirname, '../../..')
 
 /** Bare `stream`, not `node:stream`, and not a longer name ending in it. */
-const BARE_STREAM = /(?:from|import|require\()\s*['"]stream['"]/
+// The dynamic form is listed BEFORE bare `import`: after a bare `import` this
+// pattern expects whitespace and then a quote, so a dynamic import of the bare
+// module never matched. (The forbidden spelling is not written out here -- this
+// file is inside the population it scans, and a comment would flag itself, the
+// same trap the assembled sample below exists for.)
+//
+// That gap was live: aiReelsWizard.test.ts mocked 'fs' with a factory doing a
+// dynamic import of the bare module, and the resulting tree-dependent resolution
+// failure made "should merge two videos successfully" pass in one worktree and
+// fail in another built from the same commit. This ratchet was green throughout.
+const BARE_STREAM = /(?:from|import\(|import|require\()\s*['"]stream['"]/
 
 const sources = (): string[] =>
   execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
@@ -70,6 +80,10 @@ describe('the stream builtin is imported as node:stream', () => {
     expect(BARE_STREAM.test(`import { pipeline } from '${M}'`)).toBe(true)
     expect(BARE_STREAM.test(`const { Readable } = require('${M}')`)).toBe(true)
     expect(BARE_STREAM.test(`import { pipeline } from 'node:${M}'`)).toBe(false)
+    expect(BARE_STREAM.test(`const { Readable } = await import('${M}')`)).toBe(
+      true
+    )
+    expect(BARE_STREAM.test(`await import('node:${M}')`)).toBe(false)
     expect(BARE_STREAM.test(`import x from '${M}-json'`)).toBe(false)
     expect(BARE_STREAM.test(`responseType: '${M}'`)).toBe(false)
   })
