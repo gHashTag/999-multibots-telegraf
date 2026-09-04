@@ -798,6 +798,10 @@ src/__tests__/api_server/mountOrder.test.ts :: api_server mount order public web
 src/__tests__/api_server/mountOrder.test.ts :: api_server mount order public whitelabel endpoints are mounted before any keyed mount
 src/__tests__/api_server/mountOrder.test.ts :: api_server mount order the guarded mounts still exist (protection not silently dropped)
 src/__tests__/api_server/providersRouteAuth.test.ts :: GET /api/providers is auth-guarded (no anonymous leak) registers /api/providers with the requireInternalKey middleware
+src/__tests__/api_server/publicRouterSecretDisclosure.test.ts :: a publicly mounted router never reports which secrets are configured
+src/__tests__/api_server/publicRouterSecretDisclosure.test.ts :: a publicly mounted router reads the mount list at all
+src/__tests__/api_server/publicRouterSecretDisclosure.test.ts :: a publicly mounted router resolves each mounted router to a file
+src/__tests__/api_server/publicRouterSecretDisclosure.test.ts :: a publicly mounted router would notice the disclosure it removed
 src/__tests__/api_server/requireInternalKey.test.ts :: internalKeyMatches accepts the exact key
 src/__tests__/api_server/requireInternalKey.test.ts :: internalKeyMatches is symmetric for equal inputs of any content
 src/__tests__/api_server/requireInternalKey.test.ts :: internalKeyMatches rejects a wrong key of a different length without throwing
@@ -844,6 +848,10 @@ src/__tests__/billingFilters.test.ts :: toStars не трогает звёздн
 src/__tests__/commands/autofixerAnswerCbQuery.test.ts :: autofixer-config action handlers answer the callback on success back_to_main_config calls answerCbQuery before its catch (no hanging spinner)
 src/__tests__/commands/autofixerAnswerCbQuery.test.ts :: autofixer-config action handlers answer the callback on success configure_fix_types calls answerCbQuery before its catch (no hanging spinner)
 src/__tests__/commands/autofixerAnswerCbQuery.test.ts :: autofixer-config action handlers answer the callback on success save_and_exit calls answerCbQuery before its catch (no hanging spinner)
+src/__tests__/commands/autonomousMonitorGate.test.ts :: every autonomousMonitor handler is behind the admin gate confirms the file really does execute remote commands
+src/__tests__/commands/autonomousMonitorGate.test.ts :: every autonomousMonitor handler is behind the admin gate finds the handlers at all
+src/__tests__/commands/autonomousMonitorGate.test.ts :: every autonomousMonitor handler is behind the admin gate gates every handler that is not an exempt no-op
+src/__tests__/commands/autonomousMonitorGate.test.ts :: every autonomousMonitor handler is behind the admin gate keeps the exemption list honest
 src/__tests__/commands/interactiveStatsCommand.test.ts :: interactiveStatsCommand Admin access admin IDs should be configured
 src/__tests__/commands/interactiveStatsCommand.test.ts :: interactiveStatsCommand Admin access admin should see all 11 bots regardless of avatars table
 src/__tests__/commands/interactiveStatsCommand.test.ts :: interactiveStatsCommand Bot owner access should return bots for valid owner
@@ -852,6 +860,10 @@ src/__tests__/commands/interactiveStatsCommand.test.ts :: interactiveStatsComman
 src/__tests__/commands/interactiveStatsCommand.test.ts :: interactiveStatsCommand Non-owner access should deny access to non-owners
 src/__tests__/commands/interactiveStatsCommand.test.ts :: interactiveStatsCommand Production bots list should have all 11 production bots defined
 src/__tests__/commands/interactiveStatsCommand.test.ts :: interactiveStatsCommand Stats display should format bot names correctly
+src/__tests__/commands/statsCommandBotName.test.ts :: the bot name /stats takes from the command text accepts the bot names that actually exist
+src/__tests__/commands/statsCommandBotName.test.ts :: the bot name /stats takes from the command text is validated before every filename that embeds it
+src/__tests__/commands/statsCommandBotName.test.ts :: the bot name /stats takes from the command text refuses a bot name that would leave the directory
+src/__tests__/commands/statsCommandBotName.test.ts :: the bot name /stats takes from the command text still comes from the message and still reaches a filename
 src/__tests__/config/aiServer.test.ts :: getAiServerUrl НЕ откатывается на адрес самого бота
 src/__tests__/config/aiServer.test.ts :: getAiServerUrl в разработке предпочитает локальный адрес
 src/__tests__/config/aiServer.test.ts :: getAiServerUrl возвращает null для адреса без схемы
@@ -1269,6 +1281,10 @@ src/__tests__/helpers/sendLongMessage.test.ts :: sendLongMessage long messages s
 src/__tests__/helpers/sendLongMessage.test.ts :: sendLongMessage short messages should handle exactly 4000 characters
 src/__tests__/helpers/sendLongMessage.test.ts :: sendLongMessage short messages should pass options for short messages
 src/__tests__/helpers/sendLongMessage.test.ts :: sendLongMessage short messages should send short message as is
+src/__tests__/helpers/shellCommandQuoting.test.ts :: shell command templates quote what they interpolate confirms these files really do run a shell
+src/__tests__/helpers/shellCommandQuoting.test.ts :: shell command templates quote what they interpolate finds the templates at all
+src/__tests__/helpers/shellCommandQuoting.test.ts :: shell command templates quote what they interpolate leaves no interpolation unquoted
+src/__tests__/helpers/shellCommandQuoting.test.ts :: shell command templates quote what they interpolate would notice an unquoted interpolation
 src/__tests__/helpers/validateImageUrl.test.ts :: validateImageUrl HTTP error handling should handle network errors
 src/__tests__/helpers/validateImageUrl.test.ts :: validateImageUrl HTTP error handling should return invalid for 404 response
 src/__tests__/helpers/validateImageUrl.test.ts :: validateImageUrl HTTP error handling should return invalid for 500 response
@@ -1653,6 +1669,11 @@ src/__tests__/money/ton-payment-claim-once.test.ts :: src/scenes/tonPaymentScene
 src/__tests__/money/ton-payment-claim-once.test.ts :: src/scenes/tonPaymentScene/index.ts credits a TON payment once reads the affected rows with .select()
 src/__tests__/money/ton-payment-claim-once.test.ts :: src/scenes/tonPaymentScene/index.ts credits a TON payment once skips the credit when the claim was already taken
 src/__tests__/money/ton-payment-claim-once.test.ts :: src/scenes/tonPaymentScene/index.ts credits a TON payment once the completion update is a compare-and-set on status = PENDING
+src/__tests__/money/tonAmountVerificationParity.test.ts :: the two on-chain payment finders both exist and are not the same text
+src/__tests__/money/tonAmountVerificationParity.test.ts :: the two on-chain payment finders keeps the same tolerance in both
+src/__tests__/money/tonAmountVerificationParity.test.ts :: the two on-chain payment finders reaches the same number of rejections before accepting
+src/__tests__/money/tonAmountVerificationParity.test.ts :: the two on-chain payment finders reject on the same three grounds
+src/__tests__/money/tonAmountVerificationParity.test.ts :: the two on-chain payment finders require the expected amount rather than accepting it optionally
 src/__tests__/money/tonCheckAtomicCreditGuard.test.ts :: TON check credits only after an atomic status CAS (no double-credit mint) floor: tonNativePaymentScene tonn_check_ handler still credits MONEY_INCOME
 src/__tests__/money/tonCheckAtomicCreditGuard.test.ts :: TON check credits only after an atomic status CAS (no double-credit mint) floor: tonPaymentScene ton_check_ handler still credits MONEY_INCOME
 src/__tests__/money/tonCheckAtomicCreditGuard.test.ts :: TON check credits only after an atomic status CAS (no double-credit mint) self-check: a handler that credits without the atomic CAS is detected
@@ -2012,6 +2033,10 @@ src/__tests__/navigation/ownerMenuButton.test.ts :: ownerOnly Menu Button bot_st
 src/__tests__/navigation/ownerMenuButton.test.ts :: ownerOnly Menu Button bot_stats button configuration should have bot_stats item in profile category
 src/__tests__/navigation/ownerMenuButton.test.ts :: ownerOnly Menu Button ownerOnly flag in NavigationItem NavigationItem interface should support ownerOnly
 src/__tests__/navigation/ownerMenuButton.test.ts :: ownerOnly Menu Button ownerOnly flag in NavigationItem only bot_stats should have ownerOnly flag in categories
+src/__tests__/navigation/parsingAccessShadowCopy.test.ts :: getParsingAccess has a shadow copy with a wider staff list keeps every production caller on the barrel
+src/__tests__/navigation/parsingAccessShadowCopy.test.ts :: getParsingAccess has a shadow copy with a wider staff list pins the exact difference between the two staff lists
+src/__tests__/navigation/parsingAccessShadowCopy.test.ts :: getParsingAccess has a shadow copy with a wider staff list reads both staff lists
+src/__tests__/navigation/parsingAccessShadowCopy.test.ts :: getParsingAccess has a shadow copy with a wider staff list routes the barrel export to the live copy, not the shadow one
 src/__tests__/navigation/registerGlobalNavigationMiddleware.test.ts :: registerGlobalNavigationMiddleware Balance handling обрабатывает "💎 Пополнить баланс"
 src/__tests__/navigation/registerGlobalNavigationMiddleware.test.ts :: registerGlobalNavigationMiddleware Balance handling обрабатывает "💰 Balance"
 src/__tests__/navigation/registerGlobalNavigationMiddleware.test.ts :: registerGlobalNavigationMiddleware Balance handling обрабатывает "💰 Баланс"
@@ -2124,6 +2149,9 @@ src/__tests__/navigation/sceneTransition.test.ts :: SceneTransition safeEnterSce
 src/__tests__/navigation/sceneTransition.test.ts :: SceneTransition safeEnterScene() сохраняет историю навигации по умолчанию
 src/__tests__/navigation/sceneTransition.test.ts :: SceneTransition safeEnterScene() устанавливает mode в сессию если указан
 src/__tests__/navigation/sceneTransition.test.ts :: SceneTransition safeEnterScene() устанавливает sceneState если указан
+src/__tests__/navigation/staffListResolution.test.ts :: the staff list production receives contains no placeholder id
+src/__tests__/navigation/staffListResolution.test.ts :: the staff list production receives is the real list, not the placeholder one
+src/__tests__/navigation/staffListResolution.test.ts :: the staff list production receives still has a competing definition, so this test still has a subject
 src/__tests__/navigation/z-buttonMatcher.test.ts :: ButtonMatcher ButtonMatchResult structure normalizedText содержит нормализованный текст
 src/__tests__/navigation/z-buttonMatcher.test.ts :: ButtonMatcher ButtonMatchResult structure originalText сохраняет оригинальный текст
 src/__tests__/navigation/z-buttonMatcher.test.ts :: ButtonMatcher ButtonMatchResult structure содержит все необходимые поля
@@ -2425,6 +2453,9 @@ src/__tests__/render/auth.test.ts :: verifyTelegramInitData отвергает �
 src/__tests__/render/auth.test.ts :: verifyTelegramInitData отвергает просроченный launch — подпись валидна вечно
 src/__tests__/render/auth.test.ts :: verifyTelegramInitData отвергает пустую строку
 src/__tests__/render/auth.test.ts :: verifyTelegramInitData принимает подпись, сделанную настоящим токеном
+src/__tests__/render/shellSafeJobId.test.ts :: job_id reaching a remote shell command accepts every id production actually generates
+src/__tests__/render/shellSafeJobId.test.ts :: job_id reaching a remote shell command is actually called before every interpolation, in both pipelines
+src/__tests__/render/shellSafeJobId.test.ts :: job_id reaching a remote shell command refuses each metacharacter class separately
 src/__tests__/robokassa-payment-url.test.ts :: Robokassa Payment URL Generation generateRobokassaUrl должен генерировать URL без undefined в параметрах
 src/__tests__/robokassa-payment-url.test.ts :: Robokassa Payment URL Generation generateRobokassaUrl должен содержать ResultURL с корректным доменом
 src/__tests__/robokassa-payment-url.test.ts :: Robokassa Payment URL Generation generateRobokassaUrl должен содержать валидную подпись MD5
@@ -2618,6 +2649,10 @@ src/__tests__/scenes/chatWithAvatarWizard.test.ts :: chatWithAvatarWizard (Chat 
 src/__tests__/scenes/chatWithAvatarWizard.test.ts :: chatWithAvatarWizard (Chat with AI Avatar) 8. Обработка ошибок должен обрабатывать ошибку answerAi
 src/__tests__/scenes/chatWithAvatarWizard.test.ts :: chatWithAvatarWizard (Chat with AI Avatar) 8. Обработка ошибок должен показывать сообщение об ошибке на русском
 src/__tests__/scenes/chatWithAvatarWizard.test.ts :: chatWithAvatarWizard (Chat with AI Avatar) 9. Обработка нетекстовых сообщений должен выходить при неизвестном типе сообщения
+src/__tests__/scenes/checkBalanceScenePriceCopy.test.ts :: checkBalanceScene keeps its price copy to itself keeps every price consumer on the canonical modules
+src/__tests__/scenes/checkBalanceScenePriceCopy.test.ts :: checkBalanceScene keeps its price copy to itself lets nobody import a price symbol from the scenes barrel
+src/__tests__/scenes/checkBalanceScenePriceCopy.test.ts :: checkBalanceScene keeps its price copy to itself records that the two rate tables disagree
+src/__tests__/scenes/checkBalanceScenePriceCopy.test.ts :: checkBalanceScene keeps its price copy to itself still has both copies to compare
 src/__tests__/scenes/crossbot-delivery-ratchet.test.ts :: cross-bot misdelivery: no singleton delivers per-user via the shared this.bot (#1150) both matchers find code (a broken matcher fails, not passes)
 src/__tests__/scenes/crossbot-delivery-ratchet.test.ts :: cross-bot misdelivery: no singleton delivers per-user via the shared this.bot (#1150) no allowlist entry is stale (each still is a singleton that delivers)
 src/__tests__/scenes/crossbot-delivery-ratchet.test.ts :: cross-bot misdelivery: no singleton delivers per-user via the shared this.bot (#1150) no singleton also delivers via the shared this.bot
@@ -3823,8 +3858,13 @@ src/__tests__/security/ssrfRedirectGuard.test.ts :: assertPublicRedirect (axios 
 src/__tests__/security/ssrfRedirectGuard.test.ts :: assertPublicRedirect (axios beforeRedirect hop guard) throws for private IPv4 given only host (with port)
 src/__tests__/security/ssrfRedirectGuard.test.ts :: assertPublicRedirect (axios beforeRedirect hop guard) throws when a redirect hop targets cloud metadata
 src/__tests__/security/ssrfRedirectGuard.test.ts :: assertPublicRedirect (axios beforeRedirect hop guard) throws when a redirect hop targets loopback
-src/__tests__/security/ssrfRedirectGuard.test.ts :: download primitives wire the redirect guard (ratchet) src/helpers/downloadFile.ts passes beforeRedirect: assertPublicRedirect to axios
-src/__tests__/security/ssrfRedirectGuard.test.ts :: download primitives wire the redirect guard (ratchet) src/helpers/file-helpers.ts passes beforeRedirect: assertPublicRedirect to axios
+src/__tests__/security/ssrfRedirectGuard.test.ts :: assertPublicRedirect (axios beforeRedirect hop guard) throws when the next hop cannot be identified: both null
+src/__tests__/security/ssrfRedirectGuard.test.ts :: assertPublicRedirect (axios beforeRedirect hop guard) throws when the next hop cannot be identified: empty strings
+src/__tests__/security/ssrfRedirectGuard.test.ts :: assertPublicRedirect (axios beforeRedirect hop guard) throws when the next hop cannot be identified: hostname undefined only
+src/__tests__/security/ssrfRedirectGuard.test.ts :: assertPublicRedirect (axios beforeRedirect hop guard) throws when the next hop cannot be identified: neither field
+src/__tests__/security/ssrfRedirectGuard.test.ts :: download primitives wire the redirect guard (ratchet) every downloadFile actually follows redirects, so the guard means something
+src/__tests__/security/ssrfRedirectGuard.test.ts :: download primitives wire the redirect guard (ratchet) every downloadFile passes beforeRedirect: assertPublicRedirect
+src/__tests__/security/ssrfRedirectGuard.test.ts :: download primitives wire the redirect guard (ratchet) finds every downloadFile in the tree
 src/__tests__/security/ssrfRedirectGuard.test.ts :: isPrivateHost allows 8.8.8.8
 src/__tests__/security/ssrfRedirectGuard.test.ts :: isPrivateHost allows api.telegram.org
 src/__tests__/security/ssrfRedirectGuard.test.ts :: isPrivateHost allows cdn.example.com
@@ -4102,6 +4142,12 @@ src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities validateCa
 src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities validateCallbackData should reject callback data with wrong prefix
 src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities validateCallbackData should reject empty callback data
 src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities validateCallbackData should validate correct callback data
+src/__tests__/utils/pathSegmentGuard.test.ts :: an identifier used as a directory name accepts the ids that actually occur
+src/__tests__/utils/pathSegmentGuard.test.ts :: an identifier used as a directory name computes a non-empty population
+src/__tests__/utils/pathSegmentGuard.test.ts :: an identifier used as a directory name guards every computed site, not just the hand-listed ones
+src/__tests__/utils/pathSegmentGuard.test.ts :: an identifier used as a directory name is called at every site that builds a path from the id
+src/__tests__/utils/pathSegmentGuard.test.ts :: an identifier used as a directory name refuses each way out of the directory
+src/__tests__/utils/pathSegmentGuard.test.ts :: an identifier used as a directory name still has sites to guard
 src/__tests__/utils/redactBotToken.test.ts :: redactBotToken coerces non-strings without throwing
 src/__tests__/utils/redactBotToken.test.ts :: redactBotToken leaves ordinary text and short token-shaped fragments untouched
 src/__tests__/utils/redactBotToken.test.ts :: redactBotToken masks a token anywhere in a larger string (meta JSON)

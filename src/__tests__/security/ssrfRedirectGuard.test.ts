@@ -11,7 +11,7 @@
  * structurally here; the guard's decision logic is tested behaviorally.
  */
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
+import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { isPrivateHost, assertPublicRedirect } from '@/utils/sanitize'
 
@@ -90,13 +90,64 @@ describe('assertPublicRedirect (axios beforeRedirect hop guard)', () => {
 })
 
 describe('download primitives wire the redirect guard (ratchet)', () => {
-  const files = ['src/helpers/file-helpers.ts', 'src/helpers/downloadFile.ts']
-  for (const f of files) {
-    it(`${f} passes beforeRedirect: assertPublicRedirect to axios`, () => {
-      const src = readFileSync(join(process.cwd(), f), 'utf8')
-      expect(src).toMatch(/beforeRedirect:\s*assertPublicRedirect/)
-      // and it must actually follow redirects (guard is meaningful)
-      expect(src).toMatch(/maxRedirects:\s*[1-9]/)
-    })
+  /**
+   * Computed, not listed.
+   *
+   * This block used to name two files by hand -- and that is exactly how the
+   * other copies drifted. There are FOUR functions called downloadFile in the
+   * tree: two in helpers, which carried the guard, one in
+   * core/replicate/generateVideo.ts and one local to
+   * services/localMorphingProcessor.ts, which did not. The first two are
+   * near-identical to each other, differing in a console.log and in the
+   * presence of this guard, so the copies were made before the fix and never
+   * caught up.
+   *
+   * A hand-written list can only ratchet what its author already knew about.
+   */
+  const downloaders = (): string[] => {
+    const out: string[] = []
+    const walk = (dir: string) => {
+      for (const e of readdirSync(join(process.cwd(), dir), {
+        withFileTypes: true,
+      })) {
+        const rel = `${dir}/${e.name}`
+        if (e.isDirectory()) {
+          if (e.name !== '__tests__' && e.name !== 'node_modules') walk(rel)
+        } else if (e.name.endsWith('.ts')) {
+          const src = readFileSync(join(process.cwd(), rel), 'utf8')
+          if (/(?:async\s+)?function\s+downloadFile\s*\(/.test(src))
+            out.push(rel)
+        }
+      }
+    }
+    walk('src')
+    return out
   }
+
+  it('finds every downloadFile in the tree', () => {
+    // Control: a shrunken population would let the assertion below pass while
+    // checking almost nothing, which is the failure this block is recovering
+    // from rather than a hypothetical one.
+    expect(downloaders().length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('every downloadFile passes beforeRedirect: assertPublicRedirect', () => {
+    const unguarded = downloaders().filter(
+      f =>
+        !/beforeRedirect:\s*assertPublicRedirect/.test(
+          readFileSync(join(process.cwd(), f), 'utf8')
+        )
+    )
+    expect(unguarded).toEqual([])
+  })
+
+  it('every downloadFile actually follows redirects, so the guard means something', () => {
+    const notFollowing = downloaders().filter(f => {
+      const src = readFileSync(join(process.cwd(), f), 'utf8')
+      // axios follows redirects by default; an explicit maxRedirects: 0 would
+      // make the guard vacuous rather than protective.
+      return /maxRedirects:\s*0\b/.test(src)
+    })
+    expect(notFollowing).toEqual([])
+  })
 })
