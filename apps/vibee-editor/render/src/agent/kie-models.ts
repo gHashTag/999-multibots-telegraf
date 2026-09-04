@@ -98,7 +98,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'google/imagen4-ultra',
     kind: 'image',
     state: 'live',
-    needs: [],
+    needs: ['prompt', 'aspect_ratio'],
     probed: 'This field is required',
   },
   {
@@ -106,7 +106,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'google/imagen4',
     kind: 'image',
     state: 'live',
-    needs: [],
+    needs: ['prompt', 'aspect_ratio'],
     probed: 'This field is required',
   },
   {
@@ -130,7 +130,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'grok-imagine/text-to-image',
     kind: 'image',
     state: 'live',
-    needs: [],
+    needs: ['prompt', 'aspect_ratio'],
     probed: 'This field is required',
   },
   {
@@ -170,7 +170,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'ideogram/v3-text-to-image',
     kind: 'image',
     state: 'live',
-    needs: [],
+    needs: ['prompt'],
     probed: 'This field is required',
   },
   {
@@ -202,7 +202,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'qwen3/text-to-image',
     kind: 'image',
     state: 'live',
-    needs: [],
+    needs: ['prompt'],
     probed: 'This field is required',
   },
   {
@@ -210,7 +210,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'wan/2-7-image',
     kind: 'image',
     state: 'live',
-    needs: [],
+    needs: ['prompt'],
     probed: 'This field is required',
   },
   {
@@ -298,7 +298,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'wan/2-6-text-to-video',
     kind: 'video',
     state: 'live',
-    needs: [],
+    needs: ['prompt'],
     probed: 'This field is required',
   },
   {
@@ -378,7 +378,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'google/gemini-3-1-flash-tts',
     kind: 'audio',
     state: 'live',
-    needs: [],
+    needs: ['prompt', 'speakers'],
     probed: 'The speakers parameter cannot be empty',
   },
   {

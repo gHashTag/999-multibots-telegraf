@@ -6,7 +6,10 @@ import {
   запустить as startKieJob, // cyrillic-ok
   состояниеЗадания as getKieJobState, // cyrillic-ok
 } from './src/agent/kie-run'
-import { reviewedKieModel } from './src/agent/kie-web-provider'
+import {
+  reviewedKieModel,
+  kieInputFor,
+} from './src/agent/kie-web-provider'
 import {
   downloadBoundedMediaToFile,
   isPublicInternetAddress,
@@ -3269,7 +3272,7 @@ const server = createServer(async (req, res) => {
 
         if (typeof model === 'string' && model.startsWith('kie/')) {
           const kieModel = reviewedKieModel('video', model)!
-          const result = await runExplicitKieJob(kieModel, {
+          const вход = kieInputFor(kieModel, {
             prompt,
             aspect_ratio: aspect_ratio || '9:16',
             mode: 'normal',
@@ -3277,6 +3280,17 @@ const server = createServer(async (req, res) => {
               (parseInt(String(duration || '6'), 10) || 6) <= 5 ? '6' : '10',
             resolution: '480p',
           })
+          if (!вход) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                success: false,
+                error: `модель ${kieModel} просит поля, которых у нас нет`,
+              })
+            )
+            return
+          }
+          const result = await runExplicitKieJob(kieModel, вход)
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(
             JSON.stringify({
