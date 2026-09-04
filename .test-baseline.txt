@@ -1501,6 +1501,7 @@ src/__tests__/money/chargeSiteCensus.test.ts :: charge-site census: no unreviewe
 src/__tests__/money/chargeSiteCensus.test.ts :: charge-site census: no unreviewed place that takes money no NEW file charges without review
 src/__tests__/money/chargeSiteCensus.test.ts :: charge-site census: no unreviewed place that takes money no allowlisted file GREW its charge count
 src/__tests__/money/chargeSiteCensus.test.ts :: charge-site census: no unreviewed place that takes money no allowlisted file stopped charging (the list is not a wish list)
+src/__tests__/money/chargeSiteCensus.test.ts :: charge-site census: no unreviewed place that takes money the charging files nobody calls are still called by nobody
 src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generation the user already paid for no longer tells the user only to try again later
 src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generation the user already paid for still charges before generating, which is why the message is true
 src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generation the user already paid for still issues no refund, which is the other half of the reason
