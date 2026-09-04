@@ -1,3 +1,4 @@
+import { kieInputFor } from './agent/kie-web-provider'
 /**
  * IMAGE-TO-IMAGE, the capability the service sells but did not have.
  *
@@ -227,12 +228,33 @@ export async function generateImage(opts: {
   model?: string
   timeoutMs?: number
 }): Promise<KieResult> {
+  const модель = opts.model || T2I_MODEL
+  /**
+   * Вход собираем ПО КОНТРАКТУ модели, а не одной формой на всех.
+   *
+   * Здесь безусловно уходили `prompt` и `aspect_ratio`. Для допущенной ранее
+   * единственной модели это совпадало; после открытия каталога — уже нет.
+   * Часть моделей `aspect_ratio` требует (`google/imagen4` отвечает
+   * «aspect_ratio cannot be empty»), часть о нём не просила вовсе, а лишнее
+   * поле у некоторых само по себе повод для отказа.
+   *
+   * `null` означает, что модель просит поле, которого у нас нет. Отказываем
+   * ДО обращения к провайдеру: заведомо неполный запрос всё равно вернёт
+   * отказ, только уже после ожидания.
+   */
+  const вход = kieInputFor(модель, {
+    prompt: opts.prompt,
+    aspect_ratio: opts.aspectRatio || '9:16',
+  })
+  if (!вход) {
+    return {
+      ok: false,
+      reason: `модель ${модель} просит поля, которых у нас нет`,
+    } as KieResult
+  }
   return runKieJob({
-    model: opts.model || T2I_MODEL,
-    input: {
-      prompt: opts.prompt,
-      aspect_ratio: opts.aspectRatio || '9:16',
-    },
+    model: модель,
+    input: вход,
     timeoutMs: opts.timeoutMs,
   })
 }
