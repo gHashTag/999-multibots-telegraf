@@ -42,7 +42,12 @@ const SCENE = 'src/scenes/improvePromptWizard/index.ts'
 /** Every way this repository moves a balance. */
 const CHARGE_PRIMITIVES =
   /\b(updateUserBalance|directPaymentProcessor|setPayments|processBalanceOperation)\s*\(/g
-const CREDIT = /\bMONEY_INCOME\b/g
+// Both spellings of a credit. This knew only MONEY_INCOME until a sweep over
+// every money matcher found it: a refund reintroduced here as PaymentType.REFUND
+// would have passed the check below. CHARGE_PRIMITIVES covers that case anyway,
+// so nothing was reachable through the gap -- but a guard that names one of two
+// spellings is one refactor away from being the only guard left.
+const CREDIT = /\b(MONEY_INCOME|REFUND)\b/g
 const DEBIT = /\bMONEY_OUTCOME\b/g
 
 describe('the video generator that refunded without charging', () => {
