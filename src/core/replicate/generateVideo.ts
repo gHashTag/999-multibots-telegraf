@@ -1,4 +1,5 @@
 import { replicate } from '.'
+import { assertPublicRedirect } from '@/utils/sanitize'
 import { supabase } from '@/core/supabase'
 import axios, { isAxiosError } from 'axios'
 
@@ -30,6 +31,11 @@ export async function downloadFile(url: string): Promise<Buffer> {
       responseType: 'arraybuffer',
       timeout: 60000,
       maxRedirects: 5,
+      // SSRF: re-check each redirect hop against the private/metadata
+      // blocklist. This copy of downloadFile is near-identical to the one in
+      // helpers/downloadFile.ts, which received that guard; this one did not,
+      // and the two differ in nothing else that matters.
+      beforeRedirect: assertPublicRedirect,
       validateStatus: status => status === 200,
     })
 

@@ -82,6 +82,25 @@ const AUTHORITY_WORDS = new Set([
   'charges',
   'discount',
   'discounts',
+  // What the server CONNECTS TO is authority too, and this half was missing.
+  // helpers/downloadFile carries the SSRF redirect guard; a near-identical
+  // copy in core/replicate/generateVideo did not, and the census could not see
+  // the pair because no word here matched either name.
+  'download',
+  'downloads',
+  'fetch',
+  'upload',
+  'uploads',
+  'url',
+  'urls',
+  'host',
+  'hosts',
+  'redirect',
+  'redirects',
+  'webhook',
+  'webhooks',
+  'callback',
+  'callbacks',
 ])
 
 /** `calculateCostInStars` -> [calculate, cost, in, stars]; `STAR_COST` -> [star, cost]. */
@@ -186,6 +205,9 @@ function selfCheck() {
     'METAMUSE_STAFF_IDS',
     'STAR_COST',
     'processBalanceOperation',
+    // The pair the vocabulary used to miss entirely.
+    'downloadFile',
+    'sanitizeUrl',
   ]) {
     if (!AUTHORITY.test(yes)) fail(`властное имя не распознано: ${yes}`)
   }

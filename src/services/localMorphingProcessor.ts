@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { assertPublicRedirect } from '@/utils/sanitize'
 import path from 'path'
 import { exec } from 'child_process'
 import { promisify } from 'util'
@@ -584,6 +585,10 @@ async function downloadFile(
     url: url,
     responseType: 'stream',
     timeout: 300000, // 5 минут таймаут
+    // SSRF: re-check each redirect hop against the private/metadata blocklist.
+    // This is the fourth downloadFile in the tree; the two in helpers carry
+    // this guard and the two outside them did not.
+    beforeRedirect: assertPublicRedirect,
   })
 
   const writer = fs.createWriteStream(destinationPath)
