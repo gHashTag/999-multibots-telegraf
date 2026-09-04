@@ -2272,6 +2272,66 @@ cmd_untracked() {
   ' )
 }
 
+cmd_checks_of_checks() {
+  # КАЖДАЯ САМОПРОВЕРКА ОБЯЗАНА ПОКРАСНЕТЬ, КОГДА ЕЁ ИНСТРУМЕНТ СЛОМАН.
+  #
+  # it.177: `tri dupes` падал на каждом файле с кавычкой, а его самопроверка
+  # была ЗЕЛЁНОЙ -- два из трёх её утверждений отрицательные («это НЕ дубль»),
+  # а пустой вывод отрицательное утверждение удовлетворяет. Мёртвый инструмент
+  # и здоровый давали одни и те же слова.
+  #
+  # Читать восемь самопроверок глазами в поисках следующей такой -- медленно и
+  # ненадёжно. Вопрос задаётся снаружи и всем сразу: ломаем чтение данных под
+  # инструментом и смотрим, кто всё ещё говорит OK.
+  #
+  # ТРИ ИСХОДА, А НЕ ДВА. Узкая версия этой пробы ломала только чтение
+  # исходников и не доходила до трёх инструментов из восьми -- их самопроверки
+  # были обвинены в том, что проходят на сломанном, хотя сломан никто не был.
+  # «Мутация не дошла» -- отдельный ответ, а не разновидность провала.
+  #
+  # ПОПУЛЯЦИЯ БЕРЁТСЯ ИЗ ДИСПЕТЧЕРА, а не списком здесь: список в коде тихо
+  # отстаёт от репозитория, и новая самопроверка ускользнула бы от проверки.
+  # ДВЕ ПРОБЫ, А НЕ ОДНА. Тупая ломает КАЖДОЕ чтение данных, поэтому любая
+  # самопроверка хотя бы с одним положительным утверждением краснеет от неё --
+  # то есть ловит только собранные целиком из отрицательных. Настоящий дефект
+  # it.177 был уже: падение ЩАДИЛО положительный образец (в нём не было
+  # кавычек) и было невидимо двум отрицательным.
+  local pre="$ROOT/scripts/lib/crash-preload.cjs"
+  local pre_sel="$ROOT/scripts/lib/crash-preload-selective.cjs"
+  [ -f "$pre" ] || { bad "нет $pre"; return 2; }
+  [ -f "$pre_sel" ] || { bad "нет $pre_sel"; return 2; }
+  local checks
+  checks=$(grep -oE "^  [a-z-]+-check\|" "$ROOT/tri" | sed "s/|//;s/^ *//")
+  [ -n "$checks" ] || { bad "популяция пуста -- матчер диспетчера сломан"; return 2; }
+  local c rc_ok rc_broken err vacuous=0 unreached=0 total=0
+  local errfile; errfile=$(mktemp)
+  for c in $checks; do
+    total=$((total + 1))
+    ( cd "$ROOT" && ./tri "$c" ) >/dev/null 2>&1; rc_ok=$?
+    ( cd "$ROOT" && NODE_OPTIONS="--require $pre" ./tri "$c" ) >/dev/null 2>"$errfile"; rc_broken=$?
+    err=$(wc -c <"$errfile" | tr -d " ")
+    local rc_sel
+    ( cd "$ROOT" && NODE_OPTIONS="--require $pre_sel" ./tri "$c" ) >/dev/null 2>&1; rc_sel=$?
+    if [ "$rc_broken" -ne 0 ] && [ "$rc_sel" -ne 0 ]; then
+      printf "  краснеет на обеих    %-18s\n" "$c"
+    elif [ "$rc_broken" -ne 0 ]; then
+      printf "  ПРОШЛА НА ИЗБИРАТ.   %-18s <-- падение, щадящее образец, невидимо\n" "$c"
+      vacuous=$((vacuous + 1))
+    elif [ "$rc_ok" -eq "$rc_broken" ] && [ "$err" -lt 50 ]; then
+      # инструмент не читает данных этим способом -- проба его не тронула
+      printf "  мутация не дошла     %-18s (прочитай сам)\n" "$c"
+      unreached=$((unreached + 1))
+    else
+      printf "  ПРОШЛА НА СЛОМАННОМ  %-18s <-- утверждения выполняются пустым выводом\n" "$c"
+      vacuous=$((vacuous + 1))
+    fi
+  done
+  rm -f "$errfile"
+  echo ""
+  echo "самопроверок: $total   проходят на сломанном: $vacuous   не тронуты пробой: $unreached"
+  [ "$vacuous" -eq 0 ] || return 1
+}
+
 cmd_mask_diff() {
   # СПРАШИВАЕТ У ВСЕХ ПЕРЕПИСЕЙ СРАЗУ: ЗАВИСИТ ЛИ ОТВЕТ ОТ ТОГО, ЧТО КОММЕНТАРИЙ
   # ВЫГЛЯДИТ КОДОМ.
@@ -2557,11 +2617,18 @@ cmd_dupes() {
       // been dead the whole time, and the self-check passed anyway (see
       // cmd_dupes_selfcheck).
       const { blank } = require("./scripts/lib/blank-code.cjs");
-      let found = 0;
+      let found = 0, read = 0;
+      const unreadable = [];
       const re = /^[ \t]*(?:export[ \t]+)?(?:async[ \t]+)?function[ \t]+([A-Za-z_$][\w$]*)/gm;
       for (const f of files) {
         let src;
-        try { src = fs.readFileSync(f, "utf8"); } catch { continue; }
+        // A swallowed read is a THIRD answer, not a clean one. `catch
+        // { continue }` made "no duplicates" and "read nothing at all"
+        // print the same words, and no probe could break the tool: every
+        // injected failure was absorbed silently. Skips are counted and
+        // named; reading nothing is an error, not a clean result.
+        try { src = fs.readFileSync(f, "utf8"); read++; }
+        catch (e) { unreadable.push(f + ": " + e.message); continue; }
         const code = blank(src);
         const seen = new Map();
         for (const m of code.matchAll(re)) {
@@ -2591,7 +2658,16 @@ cmd_dupes() {
         }
       }
       console.log("");
+      if (unreadable.length) {
+        console.log("НЕ ПРОЧИТАНО файлов: " + unreadable.length + " из " + files.length);
+        for (const u of unreadable.slice(0, 5)) console.log("     " + u);
+      }
+      console.log("прочитано файлов: " + read + " из " + files.length);
       console.log("функций, объявленных повторно: " + found);
+      if (files.length && read === 0) {
+        console.log("НИ ОДИН файл не прочитан -- это не чистый результат, а слепота.");
+        process.exit(2);
+      }
       process.exit(found === 0 ? 0 : 1);
     });
   ' "$ROOT" )
@@ -2647,6 +2723,16 @@ cmd_dupes_selfcheck() {
     good 'образец кода в шаблонной строке дублем не считается (и команда отработала)'
   fi
   rm -f "$err_fixture"
+  # ТРЕТИЙ ОТВЕТ. Пока нечитаемый файл молча пропускался, «дублей нет» и
+  # «не прочитано ничего» печатались одинаково, и НИ ОДНА проба не могла
+  # сломать команду: любой отказ чтения поглощался. Счётчик прочитанного
+  # закрепляется здесь, иначе он тихо исчезнет обратно.
+  if printf '%s' "$out" | grep -q 'прочитано файлов: 1 из 1'; then
+    good 'команда сообщает, сколько файлов прочла'
+  else
+    bad 'СЛОМАНА: команда не сообщает число прочитанных файлов'
+    rc=1
+  fi
   rm -rf "$d"
   return "$rc"
 }
@@ -3298,6 +3384,7 @@ case "$action" in
   credit-guards|защита-начислений)  cmd_credit_guards "$@" ;;
   mock-imports|импорты-моков)  cmd_mock_imports "$@" ;;
   mask-diff|маска-разница)  cmd_mask_diff "$@" ;;
+  checks-of-checks|проверки-проверок)  cmd_checks_of_checks "$@" ;;
   untracked|невидимые)  cmd_untracked "$@" ;;
   credit-sites|кредитные-сайты)  cmd_credit_sites "$@" ;;
   matcher-forms|формы-матчеров)  cmd_matcher_forms "$@" ;;
