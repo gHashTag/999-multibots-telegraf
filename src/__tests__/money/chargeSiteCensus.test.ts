@@ -46,6 +46,25 @@ const MAP = path.join(ROOT, '.claude/loop-opus/money-map.mjs')
 
 type Site = { file: string; line: number; fn: string; direction: string }
 
+/** Every non-test source under src, for the reference check below. */
+function sources(): string[] {
+  const out: string[] = []
+  const walk = (dir: string) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name)
+      if (e.isDirectory()) walk(p)
+      else if (
+        p.endsWith('.ts') &&
+        !p.endsWith('.test.ts') &&
+        !p.includes('__tests__')
+      )
+        out.push(p)
+    }
+  }
+  walk(path.join(ROOT, 'src'))
+  return out
+}
+
 function census(): Site[] {
   expect(
     fs.existsSync(MAP),
@@ -152,5 +171,40 @@ describe('charge-site census: no unreviewed place that takes money', () => {
     // the entry -- or a broken reader. Both need a person, so neither may pass
     // quietly.
     expect(Object.keys(ALLOWLIST).filter(f => !(f in actual))).toEqual([])
+  })
+
+  it('the charging files nobody calls are still called by nobody', () => {
+    // TWO OF THESE 44 FILES CHARGE MONEY AND NOTHING IMPORTS THEM. Measured
+    // while answering "can a retry charge twice": every other charge site is
+    // covered -- 18 scenes carry an in-progress flag and all 18 are in
+    // paid-wizard-guard-ratchet, 3 Inngest entry points charge inside step.run,
+    // and the rest are reached only through those. These two are reached by
+    // nothing at all.
+    //
+    // Dead code that charges is not harmless here. This repository has revived
+    // dead money paths before, and a revival is exactly the moment the
+    // double-charge question must be asked -- while nobody is thinking about
+    // it, because the file "already existed". So the deadness is pinned rather
+    // than the file deleted: wiring one up turns this red and asks the question
+    // at the right time.
+    const unreferenced = ['generateGeminiImage', 'generateNanoBananaKie']
+    const revived: string[] = []
+    for (const name of unreferenced) {
+      const refs = sources().filter(
+        f =>
+          !f.endsWith(`/${name}.ts`) &&
+          new RegExp(`(?<![\\w$])${name}(?![\\w$])`).test(
+            fs.readFileSync(f, 'utf8')
+          )
+      )
+      if (refs.length) revived.push(`${name}: ${refs.length} referrer(s)`)
+    }
+    expect(
+      revived,
+      `A charging file that nothing referenced is now referenced. Before it goes ` +
+        `live, give it what every other charge site has: a guard against being ` +
+        `charged twice (an in-progress flag for a scene, step.run for an Inngest ` +
+        `function), and then move it out of this list.`
+    ).toEqual([])
   })
 })
