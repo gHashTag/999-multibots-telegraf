@@ -2016,6 +2016,34 @@ cmd_registries() {
   ( cd "$ROOT" && node scripts/probe-registries.cjs )
 }
 
+cmd_cache() {
+  # КУДА НА САМОМ ДЕЛЕ ЛОЖИТСЯ КЭШ VITE ЭТОГО ДЕРЕВА.
+  #
+  # По умолчанию Vite кладёт cacheDir в <корень>/node_modules/.vite. В worktree
+  # node_modules -- СИМЛИНК в главный чекаут, поэтому путь разрешается В ГЛАВНЫЙ
+  # ЧЕКАУТ, и все деревья пишут в ОДИН кэш. Померено: 25 деревьев на 25 ветках.
+  #
+  # Разделяемое изменяемое состояние между ветками там, где одновременно
+  # работают несколько агентов. Печатается РЕАЛЬНЫЙ путь, потому что весь
+  # дефект в том, что путь внутри дерева разрешается наружу: сравнение строк из
+  # конфига прошло бы и при живой ошибке.
+  ( cd "$ROOT" && node -e '
+    const fs = require("fs"), path = require("path")
+    const root = fs.realpathSync(process.cwd())
+    const show = (label, p) => {
+      const real = fs.existsSync(p) ? fs.realpathSync(p) : null
+      const inside = real && real.startsWith(root)
+      console.log("  " + label)
+      console.log("      путь:    " + p)
+      console.log("      реально: " + (real || "(не создан)"))
+      if (real) console.log("      " + (inside ? "внутри дерева -- свой" : "СНАРУЖИ -- ОБЩИЙ С ДРУГИМИ ДЕРЕВЬЯМИ"))
+    }
+    console.log("корень дерева: " + root + "\n")
+    show("настроенный (.vite-cache)", path.join(root, ".vite-cache"))
+    show("умолчание Vite (node_modules/.vite)", path.join(root, "node_modules/.vite"))
+  ' )
+}
+
 cmd_skips() {
   # ВЫКЛЮЧЕННЫЕ ТЕСТЫ: КАКИЕ И СКАЗАНО ЛИ ПОЧЕМУ.
   #
@@ -3019,6 +3047,7 @@ case "$action" in
   fallbacks|запасные)  cmd_fallbacks "$@" ;;
   refunds|возвраты)    cmd_refunds "$@" ;;
   registries|реестры)  cmd_registries "$@" ;;
+  cache|кэш)  cmd_cache "$@" ;;
   skips|пропуски)  cmd_skips "$@" ;;
   silent-reds|тихие-красные)  cmd_silent_reds "$@" ;;
   window-width|ширина-окна)  cmd_window_width "$@" ;;

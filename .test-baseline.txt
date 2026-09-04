@@ -4220,6 +4220,8 @@ src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не �
 src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча ни один инструмент не перечисляет файлы без -z
 src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча перечисление БЕЗ -z действительно теряет файлы — иначе проверка выше пустая
 src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча перечисление через git с -z открывается целиком
+src/__tests__/tools/noBareStreamImport.test.ts :: the stream builtin is imported as node:stream no file imports it bare
+src/__tests__/tools/noBareStreamImport.test.ts :: the stream builtin is imported as node:stream the matcher sees the bare form and spares the prefixed one
 src/__tests__/tools/registryMap.test.ts :: the map of registries that hold this audit memory recognises a liveness note and refuses an ordinary comment
 src/__tests__/tools/registryMap.test.ts :: the map of registries that hold this audit memory recognises a registry name and refuses an ordinary constant
 src/__tests__/tools/registryMap.test.ts :: the map of registries that hold this audit memory still finds them, so the map is not measuring an empty set
@@ -4232,6 +4234,9 @@ src/__tests__/tools/skipsExplained.test.ts :: a switched-off test says why floor
 src/__tests__/tools/skipsExplained.test.ts :: a switched-off test says why the detector agrees with its own samples
 src/__tests__/tools/verify-flaky-retry.test.ts :: verify.cjs retries known-flaky steps before failing defines a FLAKY_RETRY set
 src/__tests__/tools/verify-flaky-retry.test.ts :: verify.cjs retries known-flaky steps before failing retries both test:bun and audit
+src/__tests__/tools/viteCacheNotShared.test.ts :: the vite cache is not shared between worktrees the cache directory is ignored by git
+src/__tests__/tools/viteCacheNotShared.test.ts :: the vite cache is not shared between worktrees the cache directory really lives inside this tree
+src/__tests__/tools/viteCacheNotShared.test.ts :: the vite cache is not shared between worktrees the configured cacheDir is not inside node_modules
 src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities handleButtonError should execute fallback action synchronously
 src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities handleButtonError should handle async fallback action
 src/__tests__/utils/buttonMapping.test.ts :: Button Mapping Utilities handleButtonError should handle fallback action that throws
