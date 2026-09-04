@@ -1,4 +1,5 @@
 import { Inngest } from 'inngest'
+import { assertSafePathSegment } from '@/utils/pathSegment'
 import { logger } from '@/utils/logger'
 import path from 'path'
 import fs from 'fs/promises'
@@ -122,6 +123,7 @@ export const generateAdvancedLoopingVideoFunction = inngest.createFunction(
       throw new Error('This function requires at least 2 images for a loop.')
     }
 
+    assertSafePathSegment(String(telegram_id), 'telegram_id')
     const filePrefix = `reels_kling_v7_${telegram_id}_${Date.now()}`
     const tempDir = path.join(process.cwd(), 'assets', 'temp_reels_images')
     await fs.mkdir(tempDir, { recursive: true })

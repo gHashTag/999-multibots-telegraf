@@ -1,4 +1,5 @@
 import { logger } from '@/utils/logger'
+import { assertSafePathSegment } from '@/utils/pathSegment'
 import { inngest } from '@/inngest_app/client'
 
 /**
@@ -167,6 +168,7 @@ export const generateAIReelsFunction = inngest.createFunction(
         const os = await import('os')
 
         // Создаем временную директорию
+        assertSafePathSegment(String(telegramId), 'telegramId')
         const tempDir = path.join(
           os.tmpdir(),
           `ai-reels-inngest-${telegramId}-${Date.now()}`
