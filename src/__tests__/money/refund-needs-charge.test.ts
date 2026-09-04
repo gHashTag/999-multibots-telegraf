@@ -23,6 +23,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import fs from 'fs'
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { ifElseBlocks } = require('../../../scripts/lib/call-args.cjs')
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { blank } = require('../../../scripts/lib/blank-code.cjs')
+
 const updateUserBalance = vi.fn()
 let ledger: unknown[] = []
 let queryError: { message: string } | null = null
@@ -81,11 +86,16 @@ describe('возврат требует состоявшегося списан�
     expect(src).toMatch(/if \(!check\.allowed\)/)
     // Именно return, а не «залогировали и пошли дальше»: иначе проверка
     // становится украшением.
-    const at = src.indexOf('if (!check.allowed)')
-    const tail = src.slice(at, at + 300)
-    expect(tail).toMatch(/return/)
-    expect(tail.indexOf('return')).toBeLessThan(
-      tail.indexOf('updateUserBalance') + 1 || 300
+    // The refusal branch's own body, not 300 characters after it. The width
+    // carried the verdict (halving it turned this red), and "return appears
+    // before updateUserBalance within 300 chars" was an awkward way of saying
+    // what the branch itself says: it returns, and it does not credit.
+    const g = ifElseBlocks(blank(src), 'if \\(!check\\.allowed\\)')
+    expect(g.conStart, 'no refusal branch').toBeGreaterThan(-1)
+    const body = src.slice(g.conStart, g.conEnd)
+    expect(body, 'the refusal branch does not return').toMatch(/\breturn\b/)
+    expect(body, 'the refusal branch credits anyway').not.toMatch(
+      /updateUserBalance/
     )
   })
 
