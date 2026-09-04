@@ -1,4 +1,5 @@
 import { Telegraf } from 'telegraf'
+import { isRussianLanguageCode } from '@/helpers/isRussianLanguageCode'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 
@@ -20,14 +21,13 @@ export const sendPaymentNotification = async ({
   bot: Telegraf<MyContext>
 }) => {
   try {
-    const caption =
-      language_code === 'ru'
-        ? `💸 Пользователь @${
-            username || 'Пользователь без username'
-          } (Telegram ID: ${telegramId.toString()}) оплатил ${amount} рублей и получил ${stars} звезд.`
-        : `💸 User @${
-            username || 'User without username'
-          } (Telegram ID: ${telegramId.toString()}) paid ${amount} RUB and received ${stars} stars.`
+    const caption = isRussianLanguageCode(language_code)
+      ? `💸 Пользователь @${
+          username || 'Пользователь без username'
+        } (Telegram ID: ${telegramId.toString()}) оплатил ${amount} рублей и получил ${stars} звезд.`
+      : `💸 User @${
+          username || 'User without username'
+        } (Telegram ID: ${telegramId.toString()}) paid ${amount} RUB and received ${stars} stars.`
 
     await bot.telegram.sendMessage(groupId, caption)
     logger.info('✅ Уведомление об оплате отправлено в группу', {

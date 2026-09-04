@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces/telegram-bot.interface'
+import { isRussianLanguageCode } from '@/helpers/isRussianLanguageCode'
 import { getUserLanguageFromDB } from '@/core/supabase'
 import { logger } from '@/utils/logger'
 
@@ -27,7 +28,9 @@ export const languageMiddleware = async (
 
   if (!telegramId) {
     // Если нет telegramId, используем fallback язык
-    const fallbackLanguage = telegramLanguage === 'ru' ? 'ru' : 'en'
+    const fallbackLanguage = isRussianLanguageCode(telegramLanguage)
+      ? 'ru'
+      : 'en'
     ctx.state = ctx.state || {}
     ctx.state.userLanguage = fallbackLanguage
 
@@ -54,7 +57,7 @@ export const languageMiddleware = async (
       })
     } else {
       // Fallback к Telegram языку
-      finalLanguage = telegramLanguage === 'ru' ? 'ru' : 'en'
+      finalLanguage = isRussianLanguageCode(telegramLanguage) ? 'ru' : 'en'
       logger.info(
         `[LanguageMiddleware] 🔄 DATABASE EMPTY, using Telegram: ${finalLanguage}`,
         {
@@ -77,7 +80,9 @@ export const languageMiddleware = async (
     })
   } catch (error) {
     // В случае ошибки БД используем Telegram fallback
-    const fallbackLanguage = telegramLanguage === 'ru' ? 'ru' : 'en'
+    const fallbackLanguage = isRussianLanguageCode(telegramLanguage)
+      ? 'ru'
+      : 'en'
     ctx.state = ctx.state || {}
     ctx.state.userLanguage = fallbackLanguage
 

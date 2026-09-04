@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { isRussianLanguageCode } from '@/helpers/isRussianLanguageCode'
 import { Markup } from 'telegraf'
 
 export async function handleSubscriptionMessage(
@@ -6,9 +7,8 @@ export async function handleSubscriptionMessage(
   language_code: string,
   telegram_channel_id: string
 ): Promise<void> {
-  const message =
-    language_code === 'ru'
-      ? `🚫 ДОСТУП ОГРАНИЧЕН
+  const message = isRussianLanguageCode(language_code)
+    ? `🚫 ДОСТУП ОГРАНИЧЕН
 
 ❗️ Для продолжения работы с ботом необходимо оформить платную подписку
 
@@ -22,7 +22,7 @@ export async function handleSubscriptionMessage(
 💳 Оформите подписку для полного доступа!
 
 👇 Нажмите /start для выбора тарифа`
-      : `🚫 ACCESS LIMITED
+    : `🚫 ACCESS LIMITED
 
 ❗️ To continue using the bot, you need to get a paid subscription
 
@@ -41,7 +41,7 @@ export async function handleSubscriptionMessage(
     reply_markup: Markup.inlineKeyboard([
       [
         Markup.button.url(
-          language_code === 'ru'
+          isRussianLanguageCode(language_code)
             ? '📢 Подписаться на канал'
             : '📢 Subscribe to Channel',
           `https://t.me/${telegram_channel_id}`
@@ -49,7 +49,7 @@ export async function handleSubscriptionMessage(
       ],
       [
         Markup.button.callback(
-          language_code === 'ru'
+          isRussianLanguageCode(language_code)
             ? '💫 Оформить подписку'
             : '💫 Get Subscription',
           'go_to_subscription_scene'

@@ -1,4 +1,5 @@
 import { logger } from '@/utils/logger'
+import { isRussianLanguageCode } from '@/helpers/isRussianLanguageCode'
 import type { MyContext } from '@/interfaces/telegram-bot.interface'
 import { updateUserLanguage } from '@/core/supabase'
 
@@ -36,7 +37,7 @@ export const getUserLanguageFromState = (ctx: MyContext): 'ru' | 'en' => {
   }
 
   // Fallback если middleware не сработал
-  const fallback = telegramLanguage === 'ru' ? 'ru' : 'en'
+  const fallback = isRussianLanguageCode(telegramLanguage) ? 'ru' : 'en'
   logger.warn(
     `[getUserLanguageFromState] ⚠️ STATE EMPTY, using fallback: ${fallback}`,
     {

@@ -1,4 +1,5 @@
 import { Context } from 'telegraf'
+import { isRussianLanguageCode } from '@/helpers/isRussianLanguageCode'
 import { MyContext } from '@/interfaces'
 import { updateUserLanguage } from '@/core/supabase/updateUserLanguage'
 import { getUserLanguageFromDB } from '@/core/supabase/getUserLanguage'
@@ -17,7 +18,7 @@ export const isRussian = (ctx: Context): boolean => {
     return stateLanguage === 'ru'
   }
 
-  return ctx.from?.language_code === 'ru'
+  return isRussianLanguageCode(ctx.from?.language_code)
 }
 
 // ✅ НОВАЯ СИСТЕМА ЯЗЫКОВ: БД → Сессия → Telegram
@@ -43,7 +44,9 @@ export const getUserLanguage = async (ctx: MyContext): Promise<'ru' | 'en'> => {
     logger.warn(
       '[getUserLanguage] No telegram ID found, using Telegram fallback'
     )
-    const fallback = ctx.from?.language_code === 'ru' ? 'ru' : 'en'
+    const fallback = isRussianLanguageCode(ctx.from?.language_code)
+      ? 'ru'
+      : 'en'
     logger.info(`[getUserLanguage] NO_ID fallback result: ${fallback}`)
     return fallback
   }
@@ -73,7 +76,7 @@ export const getUserLanguage = async (ctx: MyContext): Promise<'ru' | 'en'> => {
       }
     )
 
-    const newLanguage = telegramLanguage === 'ru' ? 'ru' : 'en'
+    const newLanguage = isRussianLanguageCode(telegramLanguage) ? 'ru' : 'en'
     await updateUserLanguage(telegramId, newLanguage)
 
     logger.info(`[getUserLanguage] ✅ CREATED in DB: ${newLanguage}`, {
@@ -91,7 +94,7 @@ export const getUserLanguage = async (ctx: MyContext): Promise<'ru' | 'en'> => {
       telegramLanguage,
     })
 
-    const fallback = telegramLanguage === 'ru' ? 'ru' : 'en'
+    const fallback = isRussianLanguageCode(telegramLanguage) ? 'ru' : 'en'
     logger.info(`[getUserLanguage] 🚨 ERROR fallback result: ${fallback}`)
     return fallback
   }
@@ -130,7 +133,7 @@ export const getUserLanguageSync = (ctx: MyContext): 'ru' | 'en' => {
   }
 
   // Фоллбэк на Telegram язык
-  const result = ctx.from?.language_code === 'ru' ? 'ru' : 'en'
+  const result = isRussianLanguageCode(ctx.from?.language_code) ? 'ru' : 'en'
   logger.info(`[getUserLanguageSync] Using TELEGRAM fallback: ${result}`, {
     telegramId,
     telegramLanguage,

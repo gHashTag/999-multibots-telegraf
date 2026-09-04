@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { isRussianLanguageCode } from '@/helpers/isRussianLanguageCode'
 import { checkSubscription, kickUnpaidUser } from './checkSubscription'
 import { handleSubscriptionMessage } from './handleSubscriptionMessage'
 import { logger } from '@/utils/logger'
@@ -20,10 +21,9 @@ export async function verifySubscription(
       language_code,
     })
 
-    const kickReason =
-      language_code === 'ru'
-        ? 'Отсутствие подписки на канал'
-        : 'No channel subscription'
+    const kickReason = isRussianLanguageCode(language_code)
+      ? 'Отсутствие подписки на канал'
+      : 'No channel subscription'
 
     await kickUnpaidUser(ctx, telegram_channel_id, kickReason)
 
