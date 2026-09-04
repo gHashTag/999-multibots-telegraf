@@ -1,4 +1,5 @@
 import { MyContext } from '../../interfaces'
+import { isRussianLanguageCode } from '@/helpers/isRussianLanguageCode'
 import { errorMessage } from '@/helpers/error'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { getSubScribeChannel } from '@/handlers'
@@ -450,7 +451,11 @@ The "Voice for Avatar" function allows you to personalize your digital image, ma
     })
   } catch (error) {
     console.error('Error in handleLevel7:', error)
-    errorMessage(ctx, error as Error, ctx.from?.language_code === 'ru')
+    errorMessage(
+      ctx,
+      error as Error,
+      isRussianLanguageCode(ctx.from?.language_code)
+    )
     throw error
   }
 }

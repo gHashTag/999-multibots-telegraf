@@ -1,4 +1,5 @@
 import { MyContext } from '@/interfaces'
+import { isRussianLanguageCode } from '@/helpers/isRussianLanguageCode'
 import { supabase } from '@/core/supabase'
 import { getBotNameByToken, DEFAULT_BOT_NAME } from '@/core/bot'
 import logger from '@/utils/logger'
@@ -192,7 +193,9 @@ export async function getTranslation({
           })
         } else {
           // Ultimate fallback - try opposite language
-          const fallbackLanguage = language_code === 'ru' ? 'en' : 'ru'
+          const fallbackLanguage = isRussianLanguageCode(language_code)
+            ? 'en'
+            : 'ru'
           const fallbackResult = await supabase
             .from('translations')
             .select('translation, url, buttons')
@@ -261,7 +264,9 @@ export async function getTranslation({
     const keysNeedingDefaultButtons = ['digitalAvatar', 'subscriptionScene']
 
     if (keysNeedingDefaultButtons.includes(key) && buttons.length === 0) {
-      buttons = language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN
+      buttons = isRussianLanguageCode(language_code)
+        ? DEFAULT_BUTTONS_RU
+        : DEFAULT_BUTTONS_EN
       logger.info(`[getTranslation] Applied default buttons for key "${key}"`, {
         telegramId,
         key,
@@ -312,14 +317,16 @@ export async function getTranslation({
                     .map((c: string) => c.charCodeAt(0)),
                   title_ru: item.ru,
                   title_en: item.en,
-                  comparison_result: language_code === 'ru',
-                  strict_equals_ru: language_code === 'ru',
-                  loose_equals_ru: language_code == 'ru',
+                  comparison_result: isRussianLanguageCode(language_code),
+                  strict_equals_ru: isRussianLanguageCode(language_code),
+                  loose_equals_ru: isRussianLanguageCode(language_code),
                 }
               )
             }
 
-            const textValue = language_code === 'ru' ? item.ru : item.en
+            const textValue = isRussianLanguageCode(language_code)
+              ? item.ru
+              : item.en
 
             // 🐛 DEBUG: Log selected value
             if (index < 3) {
@@ -327,8 +334,9 @@ export async function getTranslation({
                 `[getTranslation DEBUG] Button ${index} AFTER selection:`,
                 {
                   selected_text: textValue,
-                  selected_from:
-                    language_code === 'ru' ? 'title_ru' : 'title_en',
+                  selected_from: isRussianLanguageCode(language_code)
+                    ? 'title_ru'
+                    : 'title_en',
                 }
               )
             }
@@ -366,8 +374,9 @@ export async function getTranslation({
           }
         )
         // Fallback to minimal default
-        buttons =
-          language_code === 'ru' ? DEFAULT_BUTTONS_RU : DEFAULT_BUTTONS_EN
+        buttons = isRussianLanguageCode(language_code)
+          ? DEFAULT_BUTTONS_RU
+          : DEFAULT_BUTTONS_EN
       }
     }
 
@@ -456,7 +465,7 @@ export async function getTranslation({
 
     const emergencyButtons =
       key === 'digitalAvatar' || key === 'subscriptionScene' || key === 'menu'
-        ? language_code === 'ru'
+        ? isRussianLanguageCode(language_code)
           ? DEFAULT_BUTTONS_RU
           : DEFAULT_BUTTONS_EN
         : []

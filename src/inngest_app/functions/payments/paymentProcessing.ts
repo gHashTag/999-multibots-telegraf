@@ -1,4 +1,5 @@
 import { inngest } from '@/inngest_app/client'
+import { isRussianLanguageCode } from '@/helpers/isRussianLanguageCode'
 import { updateUserBalance } from '@/core/supabase'
 import { createBotByName } from '@/core/bot'
 import { getTelegramIdFromInvId } from '@/core/supabase'
@@ -195,10 +196,9 @@ export const processPayment = inngest.createFunction(
           const bot = new Telegraf<MyContext>(botToken)
 
           // Отправляем уведомление об оплате
-          const caption =
-            language_code === 'ru'
-              ? `💸 Пользователь @${username || 'Пользователь без username'} (Telegram ID: ${telegram_id}) оплатил ${roundedIncSum} рублей и получил ${stars} звезд.`
-              : `💸 User @${username || 'User without username'} (Telegram ID: ${telegram_id}) paid ${roundedIncSum} RUB and received ${stars} stars.`
+          const caption = isRussianLanguageCode(language_code)
+            ? `💸 Пользователь @${username || 'Пользователь без username'} (Telegram ID: ${telegram_id}) оплатил ${roundedIncSum} рублей и получил ${stars} звезд.`
+            : `💸 User @${username || 'User without username'} (Telegram ID: ${telegram_id}) paid ${roundedIncSum} RUB and received ${stars} stars.`
 
           await bot.telegram.sendMessage('-4166575919', caption)
 
@@ -249,7 +249,7 @@ export const processPayment = inngest.createFunction(
       try {
         const { telegram_id, language_code } =
           await getTelegramIdFromInvId(inv_id)
-        errorMessage(null, error as Error, language_code === 'ru')
+        errorMessage(null, error as Error, isRussianLanguageCode(language_code))
         errorMessageAdmin(null, error as Error)
       } catch (innerError) {
         console.log(

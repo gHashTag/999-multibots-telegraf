@@ -5,6 +5,7 @@
  */
 
 import { MyContext } from '@/interfaces'
+import { isRussianLanguageCode } from '@/helpers/isRussianLanguageCode'
 import { logger } from '@/utils/logger'
 
 export interface LanguageData {
@@ -77,7 +78,7 @@ export class LanguageManager {
       else {
         const telegramLanguage = ctx.from?.language_code
         const isRussian =
-          telegramLanguage === 'ru' ||
+          isRussianLanguageCode(telegramLanguage) ||
           telegramLanguage?.startsWith('ru-') ||
           false
 
@@ -127,7 +128,9 @@ export class LanguageManager {
     // 2. Проверяем Telegram
     const telegramLanguage = ctx.from?.language_code
     return (
-      telegramLanguage === 'ru' || telegramLanguage?.startsWith('ru-') || false
+      isRussianLanguageCode(telegramLanguage) ||
+      telegramLanguage?.startsWith('ru-') ||
+      false
     )
   }
 
