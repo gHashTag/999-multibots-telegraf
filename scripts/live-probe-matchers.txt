@@ -1,0 +1,39 @@
+# Прочитано вручную 08.09.2026 (итерация 99). Для КАЖДОЙ искалки по живым данным
+# записано, отделим ли её матчер от выборки — то есть можно ли проверить разбор
+# синтетическим образцом, НЕ трогая прод.
+#
+# Зачем этот файл вообще существует. В переписи несколько итераций стояла
+# оговорка «образец зависит от строк в проде», и она оказалась отговоркой
+# (#1730): от прода зависят ДАННЫЕ, а не МАТЧЕР. Отделимость нельзя определить
+# грепом — её определяют чтением, поэтому результат чтения лежит здесь списком,
+# а не вычисляется матчером. Иначе он повторил бы ровно ту ошибку, ради которой
+# файл заведён.
+#
+# Формат:  <имя файла>  <yes|no>  <что именно является матчером>
+#
+# yes — есть чистая функция от ответа: её можно вызвать на выдуманном образце.
+# no  — искалка только перечисляет и печатает; проверять в ней нечего.
+
+probe-abuse-traces.cjs        yes  фильтр строк по признаку api_user и по пустому bot_name
+probe-asset-links.cjs         yes  классификация HTTP-статусов в живой/мёртвый и метка «все мертвы»
+probe-assets-schema.cjs       no   выгружает колонки и счётчики NULL, решений не принимает
+probe-balance-formula.cjs     yes  свёртка сумм с условием на status и type
+probe-fixes-vs-data.cjs       yes  isForeign(u) и after(row, field) — обе чистые
+probe-foreign-links.cjs       yes  сравнение хоста ссылки с нашим
+probe-ghost-payers.cjs        yes  tally(rows, f) — группировка и подсчёт
+probe-identity.cjs            yes  разбор текста ошибки: violating_col против имени PK
+probe-money-map.cjs           yes  фильтры по status/type и суммирование
+probe-openapi.cjs             yes  отбор путей по префиксу /rpc/
+probe-paid-nothing-made.cjs   yes  near(idx,uid,t) и доли по услугам против среднего
+probe-precision.cjs           yes  распознавание переполнения по телу ответа (22003)
+probe-retention.cjs           yes  day(ts) и balance(rows)
+probe-storage-inventory.cjs   yes  claims(jwt) — разбор токена, чистая функция
+probe-storage-reconcile.cjs   no   обходит бакеты и печатает, решений не принимает
+probe-supabase.cjs            yes  вычисление отсутствующих таблиц как разности множеств
+probe-table-seams.cjs         yes  strip(s) и учёт использования таблиц по исходникам
+probe-testdata-victims.cjs    yes  isTestData(r) и balance(rows)
+probe-track-b-minus9.cjs      yes  tally(rows, keyFn)
+probe-track-b-sign.cjs        yes  отбор по типу, знаку и статусу операции
+probe-track-c.cjs             yes  tally и ageDays(iso)
+probe-training-charges.cjs    yes  отбор обучений по дате
+probe-why-idle.cjs            yes  month(ts) и byMonth(rows, ...)
