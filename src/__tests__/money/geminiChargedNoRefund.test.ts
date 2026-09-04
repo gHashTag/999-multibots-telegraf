@@ -20,6 +20,11 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { ifElseBlocks } = require('../../../scripts/lib/call-args.cjs')
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { blank } = require('../../../scripts/lib/blank-code.cjs')
+
 const SRC = path.join(
   __dirname,
   '..',
@@ -77,9 +82,12 @@ describe('generateGeminiImage refunds a failed paid generation (no charged-no-re
       'sendPhotoWithFallback result is discarded (a delivery failure is silent)'
     ).toBe(true)
     // ...and a failed delivery must refund before returning, not fall through
-    const guard = s.search(/if \(!delivered\)/)
-    expect(guard, 'no delivery-failure branch').toBeGreaterThan(-1)
-    const body = s.slice(guard, guard + 900)
+    // The guard's own body, not 900 characters after it. That width carried the
+    // verdict -- halving it turned this red -- and it accepted a refund from
+    // anywhere nearby, including from a LATER branch that is not this failure.
+    const g = ifElseBlocks(blank(s), 'if \\(!delivered\\)')
+    expect(g.conStart, 'no delivery-failure branch').toBeGreaterThan(-1)
+    const body = s.slice(g.conStart, g.conEnd)
     expect(
       /refundAndTell\(/.test(body),
       'a delivery failure does not refund'
