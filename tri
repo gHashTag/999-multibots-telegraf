@@ -1751,6 +1751,42 @@ cmd_why_red_selfcheck() {
   return "$rc"
 }
 
+cmd_wt() {
+  # ИНВЕНТАРЬ РАБОЧИХ ДЕРЕВЬЕВ. Только отчёт: репозиторий общий с форком и
+  # другими агентами, поэтому чужое дерево не удаляем -- печатаем.
+  #
+  # Зачем: устаревшее дерево однажды стало отдавать ЛОЖНУЮ красноту гейта --
+  # 18 файлов перестали читаться, и прогон отчитался о регрессии, которой не
+  # было. Час ушёл на доказательство.
+  #
+  # Столбца "влито" здесь НЕТ, и это решение, а не упущение. Все PR влиты
+  # СКВОШЕМ, поэтому ни ancestry, ни трёхточечный diff на вопрос не отвечают,
+  # а сравнение содержимого путает "влито и дополнено" с "не влито": ветка,
+  # дописавшая строку в файл, который с тех пор вырос, выглядит неслитой.
+  # Печатать неверный ответ хуже, чем не печатать никакого.
+  local main_wt
+  main_wt=$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')
+  printf '%-42s %-28s %s\n' "tree" "branch" "state"
+  git worktree list --porcelain | awk '
+    /^worktree /{wt=$2}
+    /^branch /{br=$2; sub("refs/heads/","",br); print wt"\t"br}
+  ' | while IFS=$'\t' read -r wt br; do
+    [ "$wt" = "$main_wt" ] && continue
+    local state
+    if [ ! -d "$wt" ]; then
+      state="КАТАЛОГА НЕТ -- git worktree prune"
+    elif [ -n "$(cd "$wt" && git status --porcelain 2>/dev/null | grep -v '^??')" ]; then
+      state="есть правки"
+    else
+      state="чисто"
+    fi
+    printf '%-42s %-28s %s\n' "$(basename "$wt")" "$br" "$state"
+  done
+  echo
+  echo "  Чистое дерево держать незачем: вердикт гейта берите со СВЕЖЕГО."
+  echo "  Убирать своё: git worktree remove <путь>"
+}
+
 cmd_optional() {
   # ОТКАЗ, СТОЯЩИЙ ЗА НЕОБЯЗАТЕЛЬНЫМ ПАРАМЕТРОМ, -- ЭТО ОТКАЗ ПО ЖЕЛАНИЮ.
   #
@@ -2605,6 +2641,7 @@ case "$action" in
   in-gate-check|в-гейте-проверка) cmd_in_gate_selfcheck ;;
   why-red|почему-красный) cmd_why_red "$@" ;;
   why-red-check|почему-красный-проверка) cmd_why_red_selfcheck ;;
+  wt|деревья)      cmd_wt "$@" ;;
   optional|необязательные)      cmd_optional "$@" ;;
   events|события)      cmd_events "$@" ;;
   shell|оболочка)      cmd_shell "$@" ;;
