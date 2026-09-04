@@ -16,6 +16,7 @@
  */
 const fs = require('fs')
 const path = require('path')
+const { matchCode } = require('./lib/blank-code.cjs')
 const { execSync } = require('child_process')
 
 /** Нулевой байт — признак двоичного файла. Записан кодом, а не буквально. */
@@ -141,15 +142,32 @@ console.log(
  * of these patterns stopped matching, the count would fall to zero and read as
  * "the tools got better".
  */
+/**
+ * Matched on CODE, not on raw text.
+ *
+ * Every rule here is about what a tool DOES, so a file that explains the rule
+ * in prose must not be flagged for quoting it. Two of sixteen suspects were
+ * exactly that: scripts/lib/read-census.cjs, whose doc-comment quotes the
+ * forbidden shape while describing why it is forbidden, and the guard
+ * no-silent-blindness.test.ts, which does the same. This is the third file in
+ * this family to trip over its own documentation, and the cure is the same as
+ * for the others -- matchCode drops any hit that BEGINS inside a comment or a
+ * string body.
+ */
+const RULES = [
+  [/execSync\(\s*['"`]git ls-files['"`]/g, 'git ls-files без -z'],
+  [
+    /catch\s*(\([^)]*\))?\s*\{\s*(continue|return)\s*\}/g,
+    'молчаливый пропуск при ошибке чтения',
+  ],
+  [
+    /if\s*\(!fs\.existsSync\([^)]*\)\)\s*continue/g,
+    'пропуск несуществующего без счётчика',
+  ],
+]
+
 function flagsFor(text) {
-  const flags = []
-  if (/execSync\(\s*['"`]git ls-files['"`]/.test(text))
-    flags.push('git ls-files без -z')
-  if (/catch\s*(\([^)]*\))?\s*\{\s*(continue|return)\s*\}/.test(text))
-    flags.push('молчаливый пропуск при ошибке чтения')
-  if (/if\s*\(!fs\.existsSync\([^)]*\)\)\s*continue/.test(text))
-    flags.push('пропуск несуществующего без счётчика')
-  return flags
+  return RULES.filter(([re]) => matchCode(text, re).length > 0).map(r => r[1])
 }
 
 /**
@@ -170,6 +188,13 @@ const C_NEG = [
   "execSync('git ls-files -z')",
   'try { read() } catch (e) { logger.warn(e); continue }',
   'if (!fs.existsSync(p)) { missing++; continue }',
+  // PROSE. A file explaining the rule must not be flagged for quoting it.
+  // Two of sixteen suspects were exactly this, and both were the files that
+  // document the rule -- including the fix written for it one iteration
+  // earlier.
+  '// the old code swallowed it with catch { continue }',
+  '/* forbidden shape: catch { return } */',
+  "const doc = 'if (!fs.existsSync(p)) continue'",
 ].join('\n')
 
 const posFlags = flagsFor(C_POS)
@@ -183,12 +208,12 @@ if (posFlags.length !== 3) {
 const negFlags = flagsFor(C_NEG)
 if (negFlags.length !== 0) {
   console.error(
-    `самопроверка не прошла: матчер пометил исправные формы (${negFlags.join('; ')}).`
+    `самопроверка не прошла: матчер пометил исправные формы или прозу (${negFlags.join('; ')}).`
   )
   process.exit(2)
 }
 console.log(
-  'самопроверка: три признака найдены, три исправные формы отвергнуты'
+  'самопроверка: три признака найдены; исправные формы и проза отвергнуты'
 )
 
 // --- 5. Молчаливые пропуски в самих инструментах ------------------------
