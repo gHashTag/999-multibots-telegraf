@@ -1,4 +1,5 @@
 import { Telegraf } from 'telegraf'
+import { assertSafePathSegment } from '@/utils/pathSegment'
 import { MyContext } from '@/interfaces'
 import { logger } from '@/utils/logger'
 import {
@@ -304,6 +305,21 @@ export async function statsCommand(ctx: MyContext): Promise<void> {
       )
       return
     }
+
+    // botName arrives from the command text -- `ctx.message.text.split(' ')` --
+    // and ends up inside a filename that is written to disk:
+    //
+    //   const fileName = `admin_report_${botName}_<date>.xlsx`
+    //   fs.writeFileSync(path.join(tempDir, fileName), excelBuffer)
+    //
+    // path.join RESOLVES `..` rather than rejecting it, so `../../x` escapes
+    // the tmp directory. The ownership check below already stops a non-admin
+    // naming a bot they do not own, but an admin skips that check entirely,
+    // and an admin is the one who can pass an arbitrary string here.
+    //
+    // Refuses nothing real: a bot name is a Telegram username, which cannot
+    // contain a separator or a dot-dot.
+    assertSafePathSegment(botName, 'botName')
 
     // Проверяем права доступа к боту (админы имеют доступ ко всем ботам)
     if (!isAdmin && ownedBots && !ownedBots.includes(botName)) {
