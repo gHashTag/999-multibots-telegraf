@@ -31,8 +31,39 @@ const ROOT = path.resolve(__dirname, '..')
 /** Every way this repository moves a balance. */
 const CHARGE_PRIMITIVE =
   /\b(updateUserBalance|directPaymentProcessor|setPayments|processBalanceOperation)\s*\(/g
-const CREDIT = /\bMONEY_INCOME\b/g
-const DEBIT = /\bMONEY_OUTCOME\b/g
+/**
+ * The money directions are read from the PaymentType enum, not guessed.
+ *
+ * The first version of this probe hardcoded MONEY_INCOME as "credit" and
+ * missed PaymentType.REFUND entirely -- a third member used in six files. It
+ * therefore reported files as never crediting when they refund on every
+ * failure. Deriving the vocabulary from the enum makes that impossible to
+ * repeat silently: an unclassified member stops the run instead of being
+ * counted as nothing.
+ */
+const PAYMENT_TYPES_FILE = 'src/interfaces/payments.interface.ts'
+const CREDIT_MEMBERS = ['MONEY_INCOME', 'REFUND']
+const DEBIT_MEMBERS = ['MONEY_OUTCOME']
+
+function enumMembers() {
+  const src = fs.readFileSync(path.join(ROOT, PAYMENT_TYPES_FILE), 'utf8')
+  const block = src.match(/enum PaymentType\s*\{([\s\S]*?)\}/)
+  if (!block) return null
+  return [...block[1].matchAll(/^\s*([A-Z_]+)\s*=/gm)].map(m => m[1])
+}
+
+// Qualified by the enum on purpose. The bare word appears as a string literal
+// in the zot classifier's case labels, which classify payments rather than
+// making them; matching it there accused two files of moving money they only
+// describe.
+const CREDIT = new RegExp(
+  `(?<![A-Za-z0-9_])PaymentType\\.(?:${CREDIT_MEMBERS.join('|')})\\b`,
+  'g'
+)
+const DEBIT = new RegExp(
+  `(?<![A-Za-z0-9_])PaymentType\\.(?:${DEBIT_MEMBERS.join('|')})\\b`,
+  'g'
+)
 /** The shared helpers whose whole job is to give money back. */
 const REFUND_HELPER = /\b(refundUser|refundAndTell|refundAndDescribe)\s*\(/g
 
@@ -45,8 +76,23 @@ function selfCheck() {
 
   const hit = (src, re) => matchCode(src, re).length
 
+  // Every member of the enum must be classified. A new direction added to
+  // PaymentType and not to this probe would otherwise be silently ignored,
+  // which is exactly how REFUND was missed the first time.
+  const members = enumMembers()
+  if (!members || members.length < 2)
+    fail('перечисление PaymentType не разобрано')
+  const known = new Set([...CREDIT_MEMBERS, ...DEBIT_MEMBERS])
+  const unclassified = members.filter(m => !known.has(m))
+  if (unclassified.length)
+    fail(
+      `в PaymentType есть неразнесённые значения: ${unclassified.join(', ')}`
+    )
+
   if (!hit('await updateUserBalance(id, 1, PaymentType.MONEY_INCOME)', CREDIT))
-    fail('начисление не распознано')
+    fail('начисление MONEY_INCOME не распознано')
+  if (!hit('await updateUserBalance(id, 1, PaymentType.REFUND)', CREDIT))
+    fail('возврат PaymentType.REFUND не распознан')
   if (!hit('PaymentType.MONEY_OUTCOME', DEBIT)) fail('списание не распознано')
   if (!hit('await processBalanceOperation({ ... })', CHARGE_PRIMITIVE))
     fail('денежный примитив не распознан')
@@ -59,6 +105,17 @@ function selfCheck() {
     fail('упоминание в комментарии принято за вызов')
   if (hit('const refundUserName = x', REFUND_HELPER))
     fail('другое имя с той же приставкой принято за помощника')
+  if (hit("case 'MONEY_INCOME':", CREDIT))
+    fail('строковый литерал в classifier принят за начисление')
+  if (hit("appliedRules.push('MONEY_INCOME_BONUS')", CREDIT))
+    fail('имя правила принято за начисление')
+  // ZOTPaymentType ENDS WITH PaymentType, so an unanchored pattern matched
+  // inside another enum's name and accused the zot classifier of moving money
+  // it only labels.
+  if (hit('type = ZOTPaymentType.REFUND', CREDIT))
+    fail('другое перечисление с тем же окончанием принято за наше')
+  if (hit('ZOTPaymentType.MONEY_OUTCOME', DEBIT))
+    fail('другое перечисление принято за наше (списание)')
 
   console.log('самопроверка: денежные формы распознаны, упоминания отвергнуты')
 }
