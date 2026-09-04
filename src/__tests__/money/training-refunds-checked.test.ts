@@ -20,6 +20,11 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { ifElseBlocks } = require('../../../scripts/lib/call-args.cjs')
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { blank } = require('../../../scripts/lib/blank-code.cjs')
+
 const strip = (s: string) =>
   s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
 
@@ -53,13 +58,19 @@ describe('generateModelTraining: списание и возврат', () => {
   })
 
   it('отказ списания останавливает запуск обучения — без ретраев', () => {
+    // The body of the `if (!ok)` guard, not 1200 characters after the charge.
+    // That width carried the verdict -- halving it turned this red -- and it
+    // accepted a throw from anywhere nearby, including outside this branch.
     const at = src.indexOf('const ok = await updateUserBalance(')
     expect(at).toBeGreaterThan(-1)
-    const tail = src.slice(at, at + 1200)
-    expect(tail).toMatch(/if \(!ok\)/)
+    const g = ifElseBlocks(blank(src), 'if \\(!ok\\)')
+    expect(g.conStart, 'нет охраны if (!ok)').toBeGreaterThan(at)
+    // Sliced from the RAW source: the message is a string literal, and the
+    // mask blanks literal contents.
+    const body = src.slice(g.conStart, g.conEnd)
     // Именно NonRetriableError: обычный Error заставил бы Inngest ретраить
     // неидемпотентное списание — двойная строка MONEY_OUTCOME.
-    expect(tail).toMatch(
+    expect(body).toMatch(
       /throw new NonRetriableError\(\s*'Balance charge failed/
     )
   })
@@ -134,9 +145,10 @@ describe('voiceTrainingWizard: списание, возврат, отказ', ()
 
   it('отказ списания не запускает обучение', () => {
     expect(src).toMatch(/charged = await updateUserBalance\(/)
-    const at = src.indexOf('if (!charged)')
-    expect(at).toBeGreaterThan(-1)
-    expect(src.slice(at, at + 700)).toMatch(/ctx\.scene\.leave\(\)/)
+    // The guard's body, not 700 characters after it.
+    const g = ifElseBlocks(blank(src), 'if \\(!charged\\)')
+    expect(g.conStart, 'нет охраны if (!charged)').toBeGreaterThan(-1)
+    expect(src.slice(g.conStart, g.conEnd)).toMatch(/ctx\.scene\.leave\(\)/)
   })
 
   it('возврат в catch — только после состоявшегося списания и не второй раз', () => {
