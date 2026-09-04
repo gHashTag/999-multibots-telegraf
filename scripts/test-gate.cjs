@@ -222,6 +222,38 @@ function main() {
 
   const { behaviour, vanished, unknown } = explainConfirmed(confirmed)
 
+  // Say FIRST when the run itself is degraded.
+  //
+  // A file that cannot be enumerated is not a failing test -- it is a file the
+  // instrument could not read, and its names land in `unknown` below rather
+  // than in the regression list. That part was already right. What was missing
+  // is that a run with many such files cannot be trusted to have measured
+  // anything, and the verdict was printed as if it could.
+  //
+  // This happened for real: a worktree began failing to resolve a Node builtin
+  // through vite-node, 17 files stopped enumerating, and the run reported a
+  // regression. The same commit in a fresh worktree was clean. Reverting every
+  // change did not clear it, which is what proved the code innocent -- an hour
+  // that this banner would have saved.
+  //
+  // The threshold is deliberately low. One unreadable file is a broken test;
+  // several at once is a broken environment.
+  const DEGRADED_FILES = 3
+  const degraded = unknown.length >= DEGRADED_FILES
+  if (degraded) {
+    console.log(
+      `\n🧪 ПРОГОН НЕНАДЁЖЕН: ${unknown.length} файл(ов) не прочитаны`
+    )
+    console.log(
+      '   Столько нечитаемых файлов сразу -- это сломанное ОКРУЖЕНИЕ,'
+    )
+    console.log(
+      '   а не сломанный код. Вердикт ниже мерил не то, что вы думаете.'
+    )
+    console.log('   Прежде чем верить: воспроизведите на СВЕЖЕМ дереве')
+    console.log('   (./tri worktree <ветка>) и сравните число зелёных.')
+  }
+
   if (behaviour.length) {
     console.log(`\n❌ РЕГРЕССИИ: ${behaviour.length}`)
     console.log('   Тест существует и перестал проходить — это поведение.')
@@ -267,7 +299,10 @@ function main() {
     }
   }
 
-  process.exit(1)
+  // A distinct code, still non-zero, so anything testing for success is
+  // unaffected while a caller that wants to tell "your change broke a test"
+  // from "this machine cannot run the suite" now can.
+  process.exit(degraded ? 3 : 1)
 }
 
 main()
