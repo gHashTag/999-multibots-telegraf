@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'fs'
 
 const {
   bareBuiltinsInMockFactories,
+  countFactories,
   selfCheck,
 } = require('../../../scripts/lib/mock-factory-imports.cjs')
 const { repoFiles } = require('../../../scripts/lib/repo-sources.cjs')
@@ -62,7 +63,7 @@ describe('no bare builtin dynamic import inside a mock factory', () => {
     for (const f of files) {
       if (!existsSync(f)) continue
       const src = readFileSync(f, 'utf8')
-      factories += (src.match(/\bvi\.mock\s*\(/g) || []).length
+      factories += countFactories(src)
     }
     expect(factories).toBeGreaterThan(400)
   })

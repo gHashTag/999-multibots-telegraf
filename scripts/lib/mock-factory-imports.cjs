@@ -128,4 +128,16 @@ function selfCheck() {
   })
 }
 
-module.exports = { bareBuiltinsInMockFactories, selfCheck }
+/**
+ * How many mock factories the population contains, counted on CODE.
+ *
+ * The first version of this count used a raw regex and reported 699 where 693
+ * exist: six `vi.mock(` written inside comments or strings. The number is a
+ * floor in the ratchet, so an inflated one weakens the guard silently.
+ */
+function countFactories(source) {
+  const { matchCode } = require('./blank-code.cjs')
+  return matchCode(source, /\bvi\.mock\s*\(/g).length
+}
+
+module.exports = { bareBuiltinsInMockFactories, countFactories, selfCheck }

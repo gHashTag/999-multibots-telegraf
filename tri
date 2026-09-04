@@ -2272,6 +2272,49 @@ cmd_untracked() {
   ' )
 }
 
+cmd_mask_diff() {
+  # СПРАШИВАЕТ У ВСЕХ ПЕРЕПИСЕЙ СРАЗУ: ЗАВИСИТ ЛИ ОТВЕТ ОТ ТОГО, ЧТО КОММЕНТАРИЙ
+  # ВЫГЛЯДИТ КОДОМ.
+  #
+  # it.176: измеритель классифицировал охраны по найденному тексту, а не по
+  # тому, чем они читают список, и опубликовал 5 там, где было 4. Читать
+  # двадцать инструментов глазами в поисках седьмого такого -- долго и
+  # ненадёжно. Этот прогон задаёт вопрос снаружи: каждый глагол выполняется
+  # дважды, второй раз с подменой чтения исходников на ЗАМАСКИРОВАННЫЕ.
+  #
+  # СДВИНУЛСЯ -- НЕ ПРИГОВОР. Перепись, чей предмет и есть содержимое строк
+  # (имя таблицы в .from(...), ключ inv_id, шаблоны exclude в конфиге), обязана
+  # сдвинуться: маска стирает её предмет. Сдвиг -- повод прочитать, а не вывод.
+  #
+  # Найдено этим прогоном: scopes считал walk() из комментариев (66 против 64,
+  # и «19 неразобранных корней» оказалось 17), mock-imports считал vi.mock(
+  # из комментариев (699 против 693).
+  #
+  # Обе стороны обязаны собираться ОДИНАКОВО: первая версия сравнивала md5 от
+  # `print -r -- "$out"` с md5 от вывода по конвейеру. print добавляет перевод
+  # строки, конвейер нет -- и любой глагол с пустым выводом объявлялся
+  # сдвинувшимся. Так `dupes` был обвинён зря (а оказался мёртв по другой
+  # причине).
+  local pre="$ROOT/scripts/lib/mask-preload.cjs"
+  [ -f "$pre" ] || { bad "нет $pre"; return 2; }
+  local verbs=(money-writers idempotency-keys unguarded dupes mock-imports \
+               credit-sites scopes charge-timing credit-guards untracked)
+  local v a b moved=0
+  for v in "${verbs[@]}"; do
+    a="$( ( cd "$ROOT" && ./tri "$v" ) 2>/dev/null | md5 )"
+    b="$( ( cd "$ROOT" && NODE_OPTIONS="--require $pre" ./tri "$v" ) 2>/dev/null | md5 )"
+    if [ "$a" = "$b" ]; then
+      printf '  устойчив   %s\n' "$v"
+    else
+      printf '  СДВИНУЛСЯ  %s  -- прочитай diff, это вопрос, а не вердикт\n' "$v"
+      moved=$((moved + 1))
+    fi
+  done
+  echo ""
+  echo "сдвинулось: $moved из ${#verbs[@]}"
+  echo "diff одного глагола:  diff <(./tri V) <(NODE_OPTIONS=\"--require $pre\" ./tri V)"
+}
+
 cmd_mock_imports() {
   # ГОЛЫЙ ВСТРОЕННЫЙ МОДУЛЬ ВНУТРИ ФАБРИКИ МОКА -- ВЕРДИКТ, ЗАВИСЯЩИЙ ОТ ДЕРЕВА.
   #
@@ -2299,7 +2342,9 @@ cmd_mock_imports() {
     for (const f of files) {
       if (!fs.existsSync(f)) continue
       const raw = fs.readFileSync(f, "utf8")
-      factories += (raw.match(/\bvi\.mock\s*\(/g) || []).length
+      // Counted on CODE: a commented-out or quoted vi.mock( is not a factory.
+      // The raw count said 699 where 693 exist.
+      factories += m.countFactories(raw)
       for (const h of m.bareBuiltinsInMockFactories(raw, f)) {
         hits++
         console.log("  ГОЛЫЙ  " + f + ":" + h.line + "  " + h.module + "  ->  node:" + h.module)
@@ -3252,6 +3297,7 @@ case "$action" in
   charge-timing|момент-списания)  cmd_charge_timing "$@" ;;
   credit-guards|защита-начислений)  cmd_credit_guards "$@" ;;
   mock-imports|импорты-моков)  cmd_mock_imports "$@" ;;
+  mask-diff|маска-разница)  cmd_mask_diff "$@" ;;
   untracked|невидимые)  cmd_untracked "$@" ;;
   credit-sites|кредитные-сайты)  cmd_credit_sites "$@" ;;
   matcher-forms|формы-матчеров)  cmd_matcher_forms "$@" ;;
