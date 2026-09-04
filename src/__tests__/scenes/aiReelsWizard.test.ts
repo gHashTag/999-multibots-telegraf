@@ -63,7 +63,7 @@ vi.mock('@/core/supabase/getVoiceId', () => ({
 // именно это давало «unhandled ENOENT … final-reels.mp4».
 vi.mock('fs', async importOriginal => {
   const actual = await importOriginal<typeof import('fs')>()
-  const { Readable } = await import('stream')
+  const { Readable } = await import('node:stream')
   const createReadStream = vi.fn(() =>
     Readable.from([Buffer.from('video-bytes')])
   )
@@ -153,14 +153,13 @@ vi.mock('@/utils/logger', () => ({
   },
 }))
 
-vi.mock('fs/promises', () => ({
-  default: {
-    mkdir: vi.fn(() => Promise.resolve()),
-    stat: vi.fn(() => Promise.resolve({ size: 1024000 })),
-    unlink: vi.fn(() => Promise.resolve()),
-    rm: vi.fn(() => Promise.resolve()),
-  },
-}))
+// A SECOND vi.mock('fs/promises') stood here, with a default-only factory and
+// a smaller API than the one above. Two factories for one module leave the
+// winner to hoisting order, and the outcome of "should merge two videos
+// successfully" followed that: it passed in one worktree and failed in another
+// built from the same commit, at the same moment, with identical files.
+// One factory only -- the complete one above, which also provides the named
+// exports the default-only version dropped.
 
 vi.mock('path', () => ({
   default: {
