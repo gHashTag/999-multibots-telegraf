@@ -33,7 +33,10 @@ const CAPTURED =
 // dead + SAFE (with a self-verifying assertion) in paid-wizard-guard-ratchet.
 const DEAD_DISCARD_ALLOWLIST = new Set<string>([
   'src/scenes/lipSyncWizard/fal-render-wizard.ts',
-  'src/scenes/lipSyncWizard/ai-reels-inngest-wizard.ts',
+  // ai-reels-inngest-wizard removed: its charge now binds the result and bails
+  // when the charge fails, so it no longer discards and the entry would be
+  // stale. The scene is still unregistered -- the allowlist tracks discarding,
+  // not liveness.
 ])
 
 const stripComments = (s: string) =>

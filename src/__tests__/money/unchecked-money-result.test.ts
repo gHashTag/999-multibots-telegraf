@@ -82,8 +82,11 @@ const DEBT: Record<string, number> = {
   //     scenesToRegister -> never entered.
   //   fal-render-wizard.ts: dead branch (long-standing).
   // (updateUserBalance.ts removed: it was a // comment, false positive #1347.)
-  'src/api_server/routes/x402.routes.ts': 2,
-  'src/scenes/lipSyncWizard/ai-reels-inngest-wizard.ts': 1,
+  // x402.routes.ts and ai-reels-inngest-wizard.ts are GONE from this list:
+  // both now bind the result. Still dead code (the router is never app.use'd,
+  // the scene is never registered) -- binding a result does not make them
+  // live, it only stops the debt count from covering sites that no longer
+  // discard.
   'src/scenes/lipSyncWizard/fal-render-wizard.ts': 2,
 }
 
@@ -135,10 +138,15 @@ describe('результат денежной операции не выбрас
     // make every commit pass). The floor tracks cleanup progress: as
     // discarded-result sites are fixed the count legitimately drops, so the
     // floor is loosened as the discarded-result campaign cleans siblings
-    // (10 -> 8 -> 2 across #1190/#1194/#1196...). The latent/dead/phantom
-    // files (x402, marketplace, a dead fal branch, a commented call) keep the
-    // count above 2, so a truly broken pattern (~0) is still caught. A broken pattern would return ~0, still far below 8.
-    expect(Object.keys(countByFile()).length).toBeGreaterThan(2)
+    // (10 -> 8 -> 2 -> 1). Only fal-render-wizard is left: one call behind an
+    // eslint no-unreachable marker and one refund in a dead branch. x402 and
+    // ai-reels-inngest-wizard left the list when their results were bound.
+    //
+    // The floor is now 0, which still catches the failure it exists for: a
+    // broken pattern returns 0 and fails here. When the last file is cleaned
+    // this guard becomes unsatisfiable and must be replaced by a positive
+    // sample -- a floor of zero cannot distinguish "clean" from "blind".
+    expect(Object.keys(countByFile()).length).toBeGreaterThan(0)
   })
 
   it('разбор не считает присвоение выброшенным результатом', () => {

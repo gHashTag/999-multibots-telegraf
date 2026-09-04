@@ -163,8 +163,14 @@ router.get(
         // Update payment status to COMPLETED
         await updatePaymentStatus(inv_id as string, PaymentStatus.COMPLETED)
 
-        // Credit user balance
-        await updateUserBalance(
+        // Credit user balance.
+        //
+        // The result is CHECKED, not discarded. updateUserBalance returns false
+        // WITHOUT throwing when the payer row is missing or the insert fails,
+        // and the old code logged 'Payment completed' regardless: someone paid
+        // real USDC, the stars may never have arrived, and the only record said
+        // it went fine.
+        const credited = await updateUserBalance(
           telegram_id as string,
           starsAmount,
           PaymentType.MONEY_INCOME,
@@ -177,7 +183,17 @@ router.get(
           }
         )
 
-        logX402Event('Payment completed', {
+        if (!credited) {
+          logX402Event('PAID BUT NOT CREDITED', {
+            inv_id,
+            telegram_id,
+            amount: amountUsd,
+            stars: starsAmount,
+            alert: 'user paid USDC and the stars were not added',
+          })
+        }
+
+        logX402Event(credited ? 'Payment completed' : 'Payment NOT credited', {
           inv_id,
           telegram_id,
           amount: amountUsd,
@@ -879,8 +895,9 @@ router.post(
       // Update payment status
       await updatePaymentStatus(inv_id, PaymentStatus.COMPLETED)
 
-      // Credit user balance
-      await updateUserBalance(
+      // Credit user balance. Same as the route above: a discarded result meant
+      // the callback reported success whether or not the stars arrived.
+      const credited = await updateUserBalance(
         telegram_id,
         starsAmount,
         PaymentType.MONEY_INCOME,
@@ -894,13 +911,27 @@ router.post(
         }
       )
 
-      logX402Event('Payment callback processed', {
-        inv_id,
-        telegram_id,
-        amount: amountUsd,
-        stars: starsAmount,
-        transaction_hash,
-      })
+      if (!credited) {
+        logX402Event('PAID BUT NOT CREDITED', {
+          inv_id,
+          telegram_id,
+          amount: amountUsd,
+          stars: starsAmount,
+          transaction_hash,
+          alert: 'user paid USDC and the stars were not added',
+        })
+      }
+
+      logX402Event(
+        credited ? 'Payment callback processed' : 'Callback NOT credited',
+        {
+          inv_id,
+          telegram_id,
+          amount: amountUsd,
+          stars: starsAmount,
+          transaction_hash,
+        }
+      )
 
       // Send notification
       if (botInstance) {
