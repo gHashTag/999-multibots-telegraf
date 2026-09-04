@@ -85,12 +85,33 @@ async function hasChargeToRefund(
     if (!charge)
       return { allowed: false, reason: 'за сутки нет ни одного списания' }
 
+    // A prior refund is recognised by its TYPE first and by its prose only as a
+    // fallback. The description test alone missed four of the seven real refund
+    // sites in this repository: voiceTrainingRVC writes "Voice training failed -
+    // refund", aiCoverWizard writes "AI Cover refund - error", and
+    // musicGenerationWizard writes the word in Russian. For those, this sum came
+    // out zero and the guard permitted a SECOND refund of the same charge.
+    //
+    // PaymentType.REFUND exists precisely to mark a refund, so it counts
+    // unconditionally. MONEY_INCOME still needs the prose test, because top-ups
+    // share that type and must never be mistaken for money already returned --
+    // counting a top-up here would block a refund the user is owed.
+    const isRefundRow = (r: { type?: unknown; description?: unknown }) => {
+      if (String(r.type) === 'REFUND') return true
+      if (String(r.type) === 'MONEY_OUTCOME') return false
+      // The second alternative is the Russian word for "refund", spelled with
+      // escapes: musicGenerationWizard writes its description in Russian, so
+      // the pattern must contain it, and the repo requires source outside
+      // string literals to stay ASCII.
+      return /refund|\u0432\u043e\u0437\u0432\u0440\u0430\u0442/i.test(
+        String(r.description || '')
+      )
+    }
+
     const alreadyReturned = data
       .filter(
         r =>
-          r.type !== 'MONEY_OUTCOME' &&
-          /^Refund/i.test(String(r.description || '')) &&
-          String(r.payment_date) > String(charge.payment_date)
+          isRefundRow(r) && String(r.payment_date) > String(charge.payment_date)
       )
       .reduce((s, r) => s + Number(r.stars ?? 0), 0)
 
