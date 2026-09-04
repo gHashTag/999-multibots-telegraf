@@ -70,6 +70,23 @@ describe('assertPublicRedirect (axios beforeRedirect hop guard)', () => {
       assertPublicRedirect({ host: 'cdn.example.com:443' })
     ).not.toThrow()
   })
+
+  // The case the guard used to allow. Its throw read
+  // `if (host && isPrivateHost(host))`, so an options object that named no
+  // host at all fell straight through and the hop was FOLLOWED. A guard whose
+  // entire job is to block treated absence of the value as do-not-block.
+  //
+  // follow-redirects populates one of the two for any real hop, so refusing
+  // here rejects nothing that occurs -- it removes the case where a hop nobody
+  // could name was permitted.
+  it.each([
+    ['neither field', {}],
+    ['both null', { hostname: null, host: null }],
+    ['empty strings', { hostname: '', host: '' }],
+    ['hostname undefined only', { hostname: undefined }],
+  ])('throws when the next hop cannot be identified: %s', (_why, options) => {
+    expect(() => assertPublicRedirect(options)).toThrow(/unidentifiable/)
+  })
 })
 
 describe('download primitives wire the redirect guard (ratchet)', () => {
