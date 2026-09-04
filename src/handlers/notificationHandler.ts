@@ -1,4 +1,5 @@
 import { supabase } from '../core/supabase'
+import { exclusiveTick } from '@/utils/exclusiveTick'
 import { logger } from '../utils/logger'
 import { Telegraf } from 'telegraf'
 import { MyContext } from '../interfaces'
@@ -314,14 +315,16 @@ export function setupNotificationProcessor(bot: Telegraf<MyContext>): void {
   const handler = createNotificationHandler(bot)
 
   // Обрабатываем уведомления каждую минуту
-  setInterval(async () => {
-    await handler.processNotificationQueue()
-  }, 60000) // 1 минута
+  setInterval(
+    exclusiveTick('notifications', () => handler.processNotificationQueue()),
+    60000
+  ) // every minute
 
   // Очищаем старые сообщения каждый час
-  setInterval(async () => {
-    await handler.cleanupOldMessages()
-  }, 3600000) // 1 час
+  setInterval(
+    exclusiveTick('notifications-cleanup', () => handler.cleanupOldMessages()),
+    3600000
+  ) // hourly
 
   logger.info(
     '✅ ГЛОБАЛЬНАЯ система уведомлений успешно запущена (одиночная инициализация)'
