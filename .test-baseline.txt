@@ -1391,6 +1391,10 @@ src/__tests__/inngest/slugify.test.ts :: slugify trimming should remove multiple
 src/__tests__/inngest/slugify.test.ts :: slugify trimming should remove trailing dashes
 src/__tests__/inngest/slugify.test.ts :: slugify trimming should trim leading spaces
 src/__tests__/inngest/slugify.test.ts :: slugify trimming should trim trailing spaces
+src/__tests__/inngest/stuckTrainingAgeUnknown.test.ts :: a training whose age cannot be read is still reported answers null rather than NaN when the timestamp cannot be read
+src/__tests__/inngest/stuckTrainingAgeUnknown.test.ts :: a training whose age cannot be read is still reported measures a readable age in hours
+src/__tests__/inngest/stuckTrainingAgeUnknown.test.ts :: a training whose age cannot be read is still reported null is distinguishable from an age below the alert threshold
+src/__tests__/inngest/stuckTrainingAgeUnknown.test.ts :: a training whose age cannot be read is still reported the watchdog alerts on an unknown age instead of skipping it
 src/__tests__/inngest/training-completed-version-guard.test.ts :: handleModelTrainingCompleted flips status even on version-less success still writes model_url when the version IS present (happy path unchanged)
 src/__tests__/inngest/training-completed-version-guard.test.ts :: handleModelTrainingCompleted flips status even on version-less success writes a terminal SUCCESS status and does not throw when output has no version
 src/__tests__/inngest/trainingCompletedReplayDedup.test.ts :: handleModelTrainingCompleted dedups a replayed webhook before re-notifying has a terminal-status dedup guard (with a return) before the notify step
