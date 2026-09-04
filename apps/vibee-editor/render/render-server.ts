@@ -1122,6 +1122,64 @@ interface PublishToFeedParams {
   tracks?: unknown[]
 }
 
+/**
+ * Кадр из ролика для обложки ленты.
+ *
+ * `thumbnail_url` стоял здесь ЖЁСТКИМ `null` — у всех опубликованных роликов
+ * до одного. В профиле это выглядело как двадцать чёрных карточек со
+ * счётчиками просмотров: данные есть, показать нечего. Ролик при этом
+ * существует и содержит нужный кадр — его просто никто не доставал.
+ *
+ * Кадр берём на ОДНОЙ секунде, а не на нулевой: первый кадр у сгенерированных
+ * роликов часто чёрный (плавное появление), и обложка вышла бы такой же
+ * чёрной, только уже «по-настоящему».
+ *
+ * Отказ здесь НЕ отменяет публикацию. Ролик без обложки хуже ролика с
+ * обложкой, но несравнимо лучше ролика, который не опубликовался: обложка —
+ * украшение записи, а не её условие.
+ */
+async function обложкаИзРолика(videoUrl: string): Promise<string | null> {
+  const дир = fs.mkdtempSync(path.join(os.tmpdir(), 'vibee-poster-'))
+  const кадр = path.join(дир, 'poster.jpg')
+  try {
+    runFfmpeg(
+      [
+        '-ss',
+        '1',
+        '-i',
+        ffArg(videoUrl),
+        '-frames:v',
+        '1',
+        '-vf',
+        'scale=540:-2',
+        '-q:v',
+        '4',
+        '-y',
+        ffArg(кадр),
+      ],
+      60_000
+    )
+    if (!fs.existsSync(кадр)) return null
+    const загружено = await uploadToS3(
+      fs.readFileSync(кадр),
+      `poster-${Date.now()}.jpg`,
+      'image/jpeg'
+    )
+    // `url` необязателен в типе результата: пустая строка и undefined
+    // означают «файла нет», и обе обязаны стать null, а не «».
+    return загружено.success && загружено.url ? загружено.url : null
+  } catch (e) {
+    console.warn('[Feed] обложку снять не вышло:', e)
+    return null
+  } finally {
+    try {
+      fs.rmSync(дир, { recursive: true, force: true })
+    } catch {
+      /* временная папка — не повод ронять публикацию */
+    }
+  }
+}
+
 async function publishToFeed(params: PublishToFeedParams): Promise<boolean> {
   try {
     console.log(`📤 [Feed] Publishing to community feed: ${params.projectName}`)
@@ -1131,7 +1189,7 @@ async function publishToFeed(params: PublishToFeedParams): Promise<boolean> {
       creator_avatar: params.creatorAvatar ?? null,
       name: params.projectName,
       description: `Created by ${params.creatorName}`,
-      thumbnail_url: null,
+      thumbnail_url: await обложкаИзРолика(params.videoUrl),
       video_url: params.videoUrl,
       // Объекты, а НЕ строки: publishTemplateRow сам приводит их к jsonb.
       // Раньше здесь стоял JSON.stringify, и значение уезжало в базу
