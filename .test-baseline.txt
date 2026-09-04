@@ -1492,6 +1492,9 @@ src/__tests__/money/cache-invalidation-isolated-ratchet.test.ts :: every invalid
 src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы в списке известных нет тех, где возврат уже появился
 src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы нет новых мест, где списание раньше работы и возврата нет
 src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы разбор вообще что-то находит — иначе тест пустой
+src/__tests__/money/chargeNotBeforeDelivery.test.ts :: a failure costs the user nothing in the files that never refund each file still has the mechanism it is listed with
+src/__tests__/money/chargeNotBeforeDelivery.test.ts :: a failure costs the user nothing in the files that never refund the detector agrees with its own samples, in both directions
+src/__tests__/money/chargeNotBeforeDelivery.test.ts :: a failure costs the user nothing in the files that never refund the list still matches the files that charge without refunding
 src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is thrown away both x402 credits are bound and their success line is conditional
 src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is thrown away leaves only the two known discarded calls, both in one file
 src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is thrown away the matcher still recognises a discarded call
