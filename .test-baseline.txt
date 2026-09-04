@@ -1497,6 +1497,10 @@ src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is
 src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is thrown away the matcher still recognises a discarded call
 src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is thrown away the reels wizard binds its charge and refuses to work unpaid
 src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is thrown away the reels wizard no longer claims a charge it did not verify
+src/__tests__/money/chargeSiteCensus.test.ts :: charge-site census: no unreviewed place that takes money floor: the census tool produced a real population
+src/__tests__/money/chargeSiteCensus.test.ts :: charge-site census: no unreviewed place that takes money no NEW file charges without review
+src/__tests__/money/chargeSiteCensus.test.ts :: charge-site census: no unreviewed place that takes money no allowlisted file GREW its charge count
+src/__tests__/money/chargeSiteCensus.test.ts :: charge-site census: no unreviewed place that takes money no allowlisted file stopped charging (the list is not a wish list)
 src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generation the user already paid for no longer tells the user only to try again later
 src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generation the user already paid for still charges before generating, which is why the message is true
 src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generation the user already paid for still issues no refund, which is the other half of the reason
