@@ -56,6 +56,49 @@ type Rule = [name: string, re: RegExp, why: string]
  * уверенность.
  */
 const PATTERNS: Rule[] = [
+  /**
+   * The four shapes below were enforced by the commit guard and unknown to
+   * this test. A NEW such line would have been stopped; one already in the
+   * tree would have been found by nobody. Measured: 4 of the guard's 15 rules
+   * had neither pattern nor sample here -- and one of them, the connection
+   * string, was added to the guard two iterations earlier by the same hand
+   * that failed to add it here.
+   */
+  [
+    'токен Slack',
+    /xox[baprs]-[A-Za-z0-9-]{10,}/g,
+    'чтение и отправка сообщений в чужой workspace',
+  ],
+  [
+    'приватный ключ (PEM)',
+    /-----BEGIN [A-Z ]*PRIVATE KEY-----/g,
+    'вход на сервер по SSH или подпись от чужого имени',
+  ],
+  [
+    'ключ Fal.ai',
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{32}/gi,
+    'генерация за чужой счёт',
+  ],
+  [
+    'строка подключения с паролем',
+    /[a-z][a-z0-9+.-]*:\/\/[a-z0-9_.%-]+:[^@\s"'`/]{6,}@/gi,
+    'полный доступ к базе',
+  ],
+  /**
+   * Inngest signing key. NO dictionary in this repository knew the shape --
+   * not the commit guard, not the history probe, not the database probe, not
+   * this test. So "no new secrets in the repository" stayed green while
+   * fourteen files carried keys, six of them PRODUCTION.
+   *
+   * Every real occurrence has a 64-hex tail; the threshold is 32 for slack,
+   * and the truncated previews in the docs (16 and 2 characters) fall below
+   * it -- correctly, a preview is not a secret.
+   */
+  [
+    'подписывающий ключ Inngest',
+    /signkey-(?:prod|test)-[a-f0-9]{32,}/gi,
+    'подделка вызовов Inngest: чужой может выдать себя за платформу',
+  ],
   [
     'токен бота Telegram',
     /(?:bot|token[=:"'\s]+)\d{8,10}:[A-Za-z0-9_-]{30,}/gi,
@@ -130,6 +173,56 @@ const PATTERNS: Rule[] = [
  * остаться, см. `SELF_CHECK` ниже.
  */
 const KNOWN_DEBT: Record<string, string> = {
+  /*
+   * Five files surfaced by adding the four shapes the commit guard enforced
+   * and this test did not know. Each was read: two carry real passwords and
+   * await rotation (owner item 19), three match legitimately.
+   */
+  'apps/vibee-editor/player/api-server.js':
+    'НАСТОЯЩИЙ пароль Railway запасным значением -- пункт 19 владельцу',
+  'scripts/financial/run_cleanup.js':
+    'НАСТОЯЩИЙ пароль литералом -- пункт 19 владельцу',
+  '.env.local.example':
+    'пример: и хост, и порт -- подстановки HOST/PORT, пароля нет',
+  'docker-compose.test.yml':
+    'учётка тестового контейнера, живёт только внутри compose',
+  'src/inngest_app/functions/render/helpers/ssh.service.ts':
+    'не ключ, а ОБЁРТКА BEGIN/END вокруг значения из SSH_KEY_STRING; без переменной бросает',
+  /*
+   * Inngest signing keys. NOT an indulgence: they are listed because deleting
+   * a line does not undo a leak -- the keys are in git history, and the only
+   * fix is ROTATION (owner item 20). Recorded so the debt is named: before the
+   * pattern above existed, this test was green while fourteen files carried
+   * keys, three of them production.
+   */
+  'docs/features/INNGEST_IMPORTANT_RULES.md':
+    'ПРОДОВЫЕ подписывающие ключи Inngest -- пункт 20 владельцу',
+  'docs/features/INNGEST_PRODUCTION_SECRETS.md':
+    'ПРОДОВЫЙ подписывающий ключ Inngest -- пункт 20 владельцу',
+  'scripts/inngest/fix-inngest-production-secrets.js':
+    'ПРОДОВЫЕ подписывающие ключи Inngest -- пункт 20 владельцу',
+  'scripts/database/check-loaded-keys.js':
+    'тестовый подписывающий ключ Inngest -- пункт 20',
+  'scripts/financial/check-inngest-keys.js':
+    'тестовый подписывающий ключ Inngest -- пункт 20',
+  'scripts/financial/test-production-keys.sh':
+    'тестовый подписывающий ключ Inngest -- пункт 20',
+  'scripts/financial/update-bot-inngest-keys.js':
+    'тестовый подписывающий ключ Inngest -- пункт 20',
+  'scripts/financial/update-inngest-keys-production.js':
+    'тестовый подписывающий ключ Inngest -- пункт 20',
+  'scripts/financial/update_keys.js':
+    'тестовый подписывающий ключ Inngest -- пункт 20',
+  'scripts/financial/update_keys.sh':
+    'тестовый подписывающий ключ Inngest -- пункт 20',
+  'scripts/inngest/add-inngest-keys-to-infisical.js':
+    'тестовый подписывающий ключ Inngest -- пункт 20',
+  'scripts/inngest/add-inngest-secrets.js':
+    'тестовый подписывающий ключ Inngest -- пункт 20',
+  'scripts/inngest/fix-inngest-with-keys.js':
+    'тестовый подписывающий ключ Inngest -- пункт 20',
+  'scripts/inngest/update-inngest-keys-infisical.js':
+    'тестовый подписывающий ключ Inngest -- пункт 20',
   'scripts/probe-secrets-in-db.cjs':
     'образцы для самопроверки, значения выдуманы',
   'scripts/probe-secrets-in-history.cjs':
@@ -158,6 +251,26 @@ const KNOWN_DEBT: Record<string, string> = {
  * отрывает.
  */
 const SELF_CHECK: Array<[string, string]> = [
+  [
+    'токен Slack',
+    'xoxb-qqqqqqqqqqqq-qqqqqqqqqqqq', // secret-guard-ok: invented self-check sample
+  ],
+  [
+    'приватный ключ (PEM)',
+    '-----BEGIN OPENSSH PRIVATE KEY-----', // secret-guard-ok: invented self-check sample
+  ],
+  [
+    'ключ Fal.ai',
+    '00000000-0000-0000-0000-000000000000:00000000000000000000000000000000', // secret-guard-ok: invented self-check sample
+  ],
+  [
+    'строка подключения с паролем',
+    'postgresql://user:notarealpw123@host.example.com/db', // secret-guard-ok: invented self-check sample
+  ],
+  [
+    'подписывающий ключ Inngest',
+    'signkey-prod-deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef', // secret-guard-ok: invented self-check sample
+  ],
   [
     'токен бота Telegram',
     'bot1111111111:AAHqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq', // secret-guard-ok: выдуманный образец самопроверки
