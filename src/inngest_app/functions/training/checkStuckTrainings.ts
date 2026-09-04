@@ -19,6 +19,31 @@ const STUCK_THRESHOLD_HOURS = 3
 // Trainings older than this trigger an admin alert
 const ALERT_THRESHOLD_HOURS = 6
 
+/**
+ * Age of a training in hours, or null when the timestamp cannot be read.
+ *
+ * Exported so the rule can be checked without standing up the cron function.
+ * The third outcome is explicit because the alternative is silence: NaN fails
+ * every comparison, and a row nobody can date is exactly the row that needs
+ * saying out loud.
+ */
+export function trainingAgeHours(
+  createdAt: string | null | undefined,
+  now: number = Date.now()
+): number | null {
+  // `new Date(null)` is the EPOCH, not an invalid date, so a null timestamp
+  // would otherwise produce a real-looking age of about half a million hours --
+  // past every threshold, raising an alert that says the training has been
+  // stuck since 1970. Absence has to be rejected before the Date is built;
+  // only a malformed non-empty value reaches the NaN check.
+  if (createdAt === null || createdAt === undefined || createdAt === '') {
+    return null
+  }
+  const t = new Date(createdAt).getTime()
+  if (Number.isNaN(t)) return null
+  return (now - t) / (1000 * 60 * 60)
+}
+
 export const checkStuckTrainings = inngest.createFunction(
   {
     id: 'check-stuck-trainings',
@@ -117,10 +142,21 @@ export const checkStuckTrainings = inngest.createFunction(
           }
 
           // Check if training is very old (potential permanent stuck)
-          const ageHours =
-            (Date.now() - new Date(training.created_at).getTime()) /
-            (1000 * 60 * 60)
-          if (
+          //
+          // An unreadable created_at makes this NaN, and every comparison with
+          // NaN is false -- so `ageHours > ALERT_THRESHOLD_HOURS` was false and
+          // the training was never alerted. That is the one case where the
+          // alert matters most: the row is non-terminal, the user has paid and
+          // is waiting, and nothing else in this loop will mention it again.
+          // Silence there is indistinguishable from "nothing is stuck".
+          const ageHours = trainingAgeHours(training.created_at)
+          if (ageHours === null) {
+            alerts.push(
+              `Training ${training.replicate_training_id} for user ${training.telegram_id} ` +
+                `has an unreadable created_at (${String(training.created_at)}) — age unknown, ` +
+                `still ${replicateTraining.status} on Replicate`
+            )
+          } else if (
             ageHours > ALERT_THRESHOLD_HOURS &&
             !terminalStatuses.includes(replicateTraining.status)
           ) {
