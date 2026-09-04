@@ -2009,6 +2009,36 @@ cmd_registries() {
   ( cd "$ROOT" && node scripts/probe-registries.cjs )
 }
 
+cmd_credit_sites() {
+  # ГДЕ РЕПОЗИТОРИЙ НАЧИСЛЯЕТ ДЕНЬГИ. КАЖДЫЙ САЙТ -- ПОВЕРХНОСТЬ ЧЕКАНКИ.
+  #
+  # Повтор начисления удваивает деньги, поддельная нагрузка чеканит, сумма из
+  # недоверенного входа чеканит сколько попросят. Перепись держит ИЗВЕСТНУЮ
+  # популяцию; новый сайт обязан пройти через человека.
+  #
+  # Единица счёта -- ВЫЗОВ, а не окно строк. Прошлый матчер искал MONEY_INCOME
+  # в восьми строках после вызова и ошибался ЧЕТЫРЬМЯ способами сразу:
+  # комментарий в двенадцать строк прятал два обучающих сайта (один ЖИВОЙ),
+  # окно в сорок выдумывало три несуществующих, сырой текст засчитывал
+  # комментарии, а начисление с типом REFUND было невидимо целиком -- включая
+  # живую сцену aiCoverWizard.
+  #
+  # Читается замаскированный код, берётся сбалансированный список аргументов,
+  # прослеживается ОДИН хоп через локальную переменную (так делает
+  # refundAndTell). Настраивать нечего: числа-окна больше нет.
+  ( cd "$ROOT" && node -e '
+    const c = require("./scripts/lib/credit-sites.cjs")
+    c.selfCheck()
+    const r = c.creditCallsByFile("src")
+    const files = Object.keys(r).sort()
+    const calls = Object.values(r).reduce((a, b) => a + b, 0)
+    console.log("самопроверка: " + c.SAMPLES.length + " образцов сошлись, обе стороны")
+    console.log("написания начисления: " + c.CREDIT_TYPES.join(" | "))
+    console.log("кредитных сайтов: " + files.length + " файлов, " + calls + " вызовов\n")
+    for (const f of files) console.log("  " + r[f] + "  " + f)
+  ' )
+}
+
 cmd_matcher_forms() {
   # СПИСОК ДЛЯ ЧТЕНИЯ: какой ратчет знает одно написание вещи из двух.
   #
@@ -2922,6 +2952,7 @@ case "$action" in
   fallbacks|запасные)  cmd_fallbacks "$@" ;;
   refunds|возвраты)    cmd_refunds "$@" ;;
   registries|реестры)  cmd_registries "$@" ;;
+  credit-sites|кредитные-сайты)  cmd_credit_sites "$@" ;;
   matcher-forms|формы-матчеров)  cmd_matcher_forms "$@" ;;
   money-writers|писатели-денег)  cmd_money_writers "$@" ;;
   secrets-audit|секреты)  cmd_secrets_audit "$@" ;;

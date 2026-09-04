@@ -1489,6 +1489,16 @@ src/__tests__/money/cache-invalidation-isolated-ratchet.test.ts :: every invalid
 src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы в списке известных нет тех, где возврат уже появился
 src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы нет новых мест, где списание раньше работы и возврата нет
 src/__tests__/money/charge-order.test.ts :: деньги не уходят раньше работы разбор вообще что-то находит — иначе тест пустой
+src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is thrown away both x402 credits are bound and their success line is conditional
+src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is thrown away leaves only the two known discarded calls, both in one file
+src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is thrown away the matcher still recognises a discarded call
+src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is thrown away the reels wizard binds its charge and refuses to work unpaid
+src/__tests__/money/chargeResultIsChecked.test.ts :: money calls whose result is thrown away the reels wizard no longer claims a charge it did not verify
+src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generation the user already paid for no longer tells the user only to try again later
+src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generation the user already paid for still charges before generating, which is why the message is true
+src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generation the user already paid for still issues no refund, which is the other half of the reason
+src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generation the user already paid for tells the user the stars were taken, in both languages
+src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generation the user already paid for the matchers still recognise what they check for
 src/__tests__/money/createSuccessfulPayment-schema.test.ts :: createSuccessfulPayment schema contract inserts an UPPERCASE operation type from the enum
 src/__tests__/money/createSuccessfulPayment-schema.test.ts :: createSuccessfulPayment schema contract inserts telegram_id as a NUMBER (schema requires z.number())
 src/__tests__/money/createSuccessfulPayment-schema.test.ts :: createSuccessfulPayment schema contract keeps the subscription-granting fields the reader matches on
@@ -1498,10 +1508,11 @@ src/__tests__/money/creditNotInLoop.test.ts :: user credits are not called insid
 src/__tests__/money/creditNotInLoop.test.ts :: user credits are not called inside a loop (scalar-credit mint #1468/#1470) every ALLOWLIST file still has in-loop credits at the expected count (not stale)
 src/__tests__/money/creditNotInLoop.test.ts :: user credits are not called inside a loop (scalar-credit mint #1468/#1470) finds credit call-sites across live code (matcher is not stale)
 src/__tests__/money/creditNotInLoop.test.ts :: user credits are not called inside a loop (scalar-credit mint #1468/#1470) no unreviewed credit is inside a loop (would mint a scalar amount N times)
-src/__tests__/money/creditSiteCensus.test.ts :: credit-site census: no unreviewed mint surface floor: the known credit population is present (census not stale)
-src/__tests__/money/creditSiteCensus.test.ts :: credit-site census: no unreviewed mint surface no NEW file credits MONEY_INCOME without review
-src/__tests__/money/creditSiteCensus.test.ts :: credit-site census: no unreviewed mint surface no allowlisted file GREW its credit count (a new unreviewed credit call)
-src/__tests__/money/creditSiteCensus.test.ts :: credit-site census: no unreviewed mint surface self-check: the census + allowlist logic flags a synthetic new site
+src/__tests__/money/creditSiteCensus.test.ts :: credit-site census: no unreviewed mint surface no NEW file credits without review
+src/__tests__/money/creditSiteCensus.test.ts :: credit-site census: no unreviewed mint surface no allowlisted file GREW its credit count
+src/__tests__/money/creditSiteCensus.test.ts :: credit-site census: no unreviewed mint surface no allowlisted file lost its credits (the census is not a wish list)
+src/__tests__/money/creditSiteCensus.test.ts :: credit-site census: no unreviewed mint surface self-check: the diff logic flags a synthetic new site and a grown count
+src/__tests__/money/creditSiteCensus.test.ts :: credit-site census: no unreviewed mint surface the reader agrees with its own samples, in both directions
 src/__tests__/money/directPaymentPostCommit.test.ts :: directPayment isolates post-commit side-effects from the committed return (#1397) wraps invalidateBalanceCache in its own try (a throw must not flip success)
 src/__tests__/money/directPaymentPostCommit.test.ts :: directPayment isolates post-commit side-effects from the committed return (#1397) wraps the return-payload balance read in its own try with a fallback
 src/__tests__/money/emailWizardPriceAllowlist.test.ts :: emailWizard setPayments is allowlist-guarded every setPayments is gated by a paymentOptions allowlist check
@@ -1571,6 +1582,10 @@ src/__tests__/money/money-invariants.test.ts :: карта денег: типы 
 src/__tests__/money/money-invariants.test.ts :: карта денег: типы операций разбор находит объявление типов — иначе тест пустой
 src/__tests__/money/money-invariants.test.ts :: карта денег: типы операций ровно один тип списывает — остальные прибавляют
 src/__tests__/money/money-invariants.test.ts :: карта денег: типы операций список типов ровно такой, каким он измерен
+src/__tests__/money/moneyWriteVocabulary.test.ts :: the vocabulary of money movement detects a write by its own samples, in both directions
+src/__tests__/money/moneyWriteVocabulary.test.ts :: the vocabulary of money movement keeps the gap between the vocabulary and the population known
+src/__tests__/money/moneyWriteVocabulary.test.ts :: the vocabulary of money movement lists every file that writes the payments table
+src/__tests__/money/moneyWriteVocabulary.test.ts :: the vocabulary of money movement walks to the end of a chain rather than over a budget
 src/__tests__/money/nanoAllModelsBilled.test.ts :: aiPhotoshop all_models charges nano_banana (no unbilled-paid) the all_models nano branch does not skip the balance check
 src/__tests__/money/neuroImageDoubleCharge.test.ts :: neuroImageGeneration charges exactly once (no double charge) does not perform a second, direct MONEY_OUTCOME deduction
 src/__tests__/money/neuroImageDoubleCharge.test.ts :: neuroImageGeneration charges exactly once (no double charge) has a single processBalanceOperation charge entry
@@ -1582,7 +1597,9 @@ src/__tests__/money/neuroPhotoDirectFalTimeout.test.ts :: generateNeuroPhotoDire
 src/__tests__/money/neurophoto-multi-batch-gate.test.ts :: generateNeuroPhotoMulti gates the full batch before charging breaks the PLAN B loop on any per-image failure
 src/__tests__/money/neurophoto-multi-batch-gate.test.ts :: generateNeuroPhotoMulti gates the full batch before charging imports and calls getUserBalance
 src/__tests__/money/neurophoto-multi-batch-gate.test.ts :: generateNeuroPhotoMulti gates the full batch before charging refuses the whole series up front when it cannot afford exactTotalCost
+src/__tests__/money/no-fabricated-returns.test.ts :: нет выдуманных возвратов в списке заглушек нет файлов, которые уже вычищены
 src/__tests__/money/no-fabricated-returns.test.ts :: нет выдуманных возвратов в списке разрешённых нет файлов, где таких возвратов уже нет
+src/__tests__/money/no-fabricated-returns.test.ts :: нет выдуманных возвратов выдуманный адрес В СВОЙСТВЕ тоже виден, и все такие места названы
 src/__tests__/money/no-fabricated-returns.test.ts :: нет выдуманных возвратов нет выдуманных возвратов вне разрешённых файлов
 src/__tests__/money/no-fabricated-returns.test.ts :: нет выдуманных возвратов разбор что-то находит — иначе тест пустой
 src/__tests__/money/no-invented-price.test.ts :: цена не выдумывается в двух починенных местах выдуманных чисел больше нет
@@ -1603,6 +1620,11 @@ src/__tests__/money/payment-record-not-silent.test.ts :: запись плате
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа успешная вставка не бросает
 src/__tests__/money/paymentHandlerInvIdDeterministic.test.ts :: handleSuccessfulPayment InvIds are deterministic (idempotent on Telegram retry) every InvId is derived from the invoice payload, not a fresh id
 src/__tests__/money/paymentHandlerInvIdDeterministic.test.ts :: handleSuccessfulPayment InvIds are deterministic (idempotent on Telegram retry) finds the InvId assignments (a broken matcher fails, not passes)
+src/__tests__/money/paymentTypeVocabularyComplete.test.ts :: the money vocabulary of the refund census anchors the enum name so another enum ending in it cannot match
+src/__tests__/money/paymentTypeVocabularyComplete.test.ts :: the money vocabulary of the refund census classifies every member of the PaymentType enum
+src/__tests__/money/paymentTypeVocabularyComplete.test.ts :: the money vocabulary of the refund census counts REFUND as a credit, not as nothing
+src/__tests__/money/paymentTypeVocabularyComplete.test.ts :: the money vocabulary of the refund census does not classify members that do not exist
+src/__tests__/money/paymentTypeVocabularyComplete.test.ts :: the money vocabulary of the refund census keeps its own negative samples for the two false matches it made
 src/__tests__/money/processBalanceOperationNonPositive.test.ts :: processBalanceOperation refuses a non-positive price before charging a non-positive-price refuse precedes the charge
 src/__tests__/money/processBalanceOperationNonPositive.test.ts :: processBalanceOperation refuses a non-positive price before charging floor: the shared image op still charges via updateUserBalance
 src/__tests__/money/processBalanceOperationNonPositive.test.ts :: processBalanceOperation refuses a non-positive price before charging mutation: stripping the real non-positive guard turns the check RED
@@ -1639,7 +1661,10 @@ src/__tests__/money/refund-needs-charge.test.ts :: возврат требует
 src/__tests__/money/refund-needs-charge.test.ts :: поведение возврата без списаний за сутки — деньги НЕ начисляются
 src/__tests__/money/refund-needs-charge.test.ts :: поведение возврата вернуть больше, чем заплатили, нельзя
 src/__tests__/money/refund-needs-charge.test.ts :: поведение возврата второй возврат за то же списание не проходит
+src/__tests__/money/refund-needs-charge.test.ts :: поведение возврата второй возврат не проходит, если первый записан типом REFUND
+src/__tests__/money/refund-needs-charge.test.ts :: поведение возврата второй возврат не проходит, если первый описан по-русски
 src/__tests__/money/refund-needs-charge.test.ts :: поведение возврата есть списание — возврат проходит
+src/__tests__/money/refund-needs-charge.test.ts :: поведение возврата пополнение НЕ считается уже возвращённым
 src/__tests__/money/refund-needs-charge.test.ts :: поведение возврата при сбое проверки возврат ВЫПОЛНЯЕТСЯ
 src/__tests__/money/refund-reason.test.ts :: возврат денег называет причину и хотя бы два разных вида причин действительно используются
 src/__tests__/money/refund-reason.test.ts :: возврат денег называет причину каждый вызов передаёт причину
@@ -1647,6 +1672,10 @@ src/__tests__/money/refund-reason.test.ts :: возврат денег назы�
 src/__tests__/money/refund-reason.test.ts :: возврат денег называет причину причины — только из известного списка
 src/__tests__/money/refund-reason.test.ts :: возврат денег называет причину разбор находит вызовы — иначе тест пустой
 src/__tests__/money/refund-reason.test.ts :: возврат денег называет причину человеку говорят разное при отмене и при отказе
+src/__tests__/money/refundFailureIsAnnounced.test.ts :: a refund that failed is announced too every file that claims a refund can also admit it failed
+src/__tests__/money/refundFailureIsAnnounced.test.ts :: a refund that failed is announced too still says the amount in the failure message, not just "an error"
+src/__tests__/money/refundFailureIsAnnounced.test.ts :: a refund that failed is announced too the matchers recognise both halves
+src/__tests__/money/refundFailureIsAnnounced.test.ts :: a refund that failed is announced too the two fixed wizards branch on the result both ways
 src/__tests__/money/replicateWrapperTimeout.test.ts :: shared replicate.run wrapper bounds client.run with a timeout every client.run is bounded by a Promise.race timeout
 src/__tests__/money/replicateWrapperTimeout.test.ts :: shared replicate.run wrapper bounds client.run with a timeout floor: the wrapper still delegates to client.run
 src/__tests__/money/replicateWrapperTimeout.test.ts :: shared replicate.run wrapper bounds client.run with a timeout mutation: unwrapping the real Promise.race turns the check RED
@@ -1661,6 +1690,10 @@ src/__tests__/money/robokassa-order.test.ts :: порядок обработки
 src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты подпись проверяется раньше любых изменений
 src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты разбор находит ключевые шаги — иначе тест пустой
 src/__tests__/money/robokassa-order.test.ts :: порядок обработки оплаты человеку сообщают об успехе ПОСЛЕ отметки
+src/__tests__/money/sessionPaymentAmountNeverUnbacked.test.ts :: the session field the cancel button refunds is never given a non-zero value anywhere in production code
+src/__tests__/money/sessionPaymentAmountNeverUnbacked.test.ts :: the session field the cancel button refunds is not written by the price validator, which runs before any charge
+src/__tests__/money/sessionPaymentAmountNeverUnbacked.test.ts :: the session field the cancel button refunds still zeroes the field after refunding, so a refund cannot repeat
+src/__tests__/money/sessionPaymentAmountNeverUnbacked.test.ts :: the session field the cancel button refunds the matcher still recognises the write it forbids
 src/__tests__/money/sibling-batch-double-refund.test.ts :: sibling image services refund a batch failure at most once generateFluxKontextMax arms `charged` only on a real charge / batch (not welcome gift / insufficient)
 src/__tests__/money/sibling-batch-double-refund.test.ts :: sibling image services refund a batch failure at most once generateFluxKontextMax has refunded + charged flags
 src/__tests__/money/sibling-batch-double-refund.test.ts :: sibling image services refund a batch failure at most once generateFluxKontextMax inner save-failure refund is charged-gated and sets refunded
@@ -4180,6 +4213,9 @@ src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не �
 src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча ни один инструмент не перечисляет файлы без -z
 src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча перечисление БЕЗ -z действительно теряет файлы — иначе проверка выше пустая
 src/__tests__/tools/no-silent-blindness.test.ts :: инструменты не слепнут молча перечисление через git с -z открывается целиком
+src/__tests__/tools/registryMap.test.ts :: the map of registries that hold this audit memory recognises a liveness note and refuses an ordinary comment
+src/__tests__/tools/registryMap.test.ts :: the map of registries that hold this audit memory recognises a registry name and refuses an ordinary constant
+src/__tests__/tools/registryMap.test.ts :: the map of registries that hold this audit memory still finds them, so the map is not measuring an empty set
 src/__tests__/tools/self-loop-detection.test.ts :: findSelfLoops detects a self-referential node_modules does not flag a symlink that points somewhere else
 src/__tests__/tools/self-loop-detection.test.ts :: findSelfLoops detects a self-referential node_modules flags node_modules that symlinks to itself
 src/__tests__/tools/self-loop-detection.test.ts :: findSelfLoops detects a self-referential node_modules is quiet when node_modules is a real directory
