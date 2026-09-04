@@ -66,7 +66,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'seedream/5-lite-text-to-image',
     kind: 'image',
     state: 'live',
-    needs: [],
+    needs: ['prompt', 'aspect_ratio', 'quality'],
     probed: 'This field is required',
   },
   {
@@ -242,7 +242,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'kling/v2-1-pro',
     kind: 'image',
     state: 'live',
-    needs: [],
+    needs: ['prompt', 'image_url'],
     probed: 'This field is required',
   },
   {
@@ -330,7 +330,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'minimax-h3/text-to-video',
     kind: 'video',
     state: 'live',
-    needs: [],
+    needs: ['prompt', 'aspect_ratio', 'duration'],
     probed: 'This field is required',
   },
   {
@@ -346,7 +346,7 @@ export const KIE_MODELS: KieModel[] = [
     title: 'volcengine/video-to-video-lip-sync',
     kind: 'lipsync',
     state: 'live',
-    needs: [],
+    needs: ['mode', 'video_url', 'audio_url'],
     probed: 'This field is required',
   },
   {
