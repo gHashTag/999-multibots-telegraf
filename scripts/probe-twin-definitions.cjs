@@ -98,6 +98,34 @@ const AUTHORITY = {
   test: name => words(name).some(w => AUTHORITY_WORDS.has(w)),
 }
 
+/**
+ * Definitions that are NOT top-level exports: a module-local function, a
+ * module-local const, or a class method. They are invisible to DEFINITION
+ * above, and for an authority name that hides the most dangerous shape --
+ * a private predicate nobody can see from outside.
+ *
+ * isAdmin is the case that forced this. The census reported two definitions;
+ * there are four. The two it missed are a class method on ConfigManager and a
+ * module-local function in commands/autonomousMonitor.ts -- and that last one
+ * is the sole gate on ten handlers that run commands on the production server
+ * as root.
+ *
+ * Reported as an addendum, never mixed into the twin count: these are not
+ * competing exports, and a local helper sharing a name with an exported one is
+ * often perfectly fine. The point is that somebody should look.
+ */
+function definedLocally(code, name) {
+  const n = name.replace(/\$/g, '\\$')
+  return [
+    new RegExp(`^(?:async\\s+)?function\\s+${n}\\b`, 'm'),
+    new RegExp(`^(?:const|let)\\s+${n}\\b`, 'm'),
+    new RegExp(
+      `^\\s+(?:public|private|protected)\\s+(?:async\\s+)?${n}\\s*\\(`,
+      'm'
+    ),
+  ].some(re => re.test(code))
+}
+
 function definedNames(code) {
   const out = new Set()
   for (const m of blank(code).matchAll(DEFINITION)) out.add(m[1])
@@ -195,6 +223,32 @@ function selfCheck() {
     fail(`реэкспорты разобраны как ${JSON.stringify(seen)}`)
   }
 
+  // Both sides for the local matcher too.
+  const localYes = [
+    'function isAdmin(userId) {}',
+    'const isAdmin = 1',
+    '  public isAdmin(id) {}',
+  ]
+  for (const y of localYes) {
+    if (!definedLocally(y, 'isAdmin'))
+      fail(`локальное определение пропущено: ${y}`)
+  }
+  // One negative PER BRANCH. A first version had a longer-name sample only for
+  // the const branch, so dropping the boundary from the function branch
+  // survived: nothing in the list could tell isAdminReally from isAdmin there.
+  const localNo = [
+    'if (isAdmin(x)) {}',
+    'const isAdminReally = 1',
+    'function isAdminReally() {}',
+    '  public isAdminReally(id) {}',
+    "const s = 'function isAdmin() {}'",
+  ]
+  for (const nn of localNo) {
+    if (definedLocally(blank(nn), 'isAdmin')) {
+      fail(`принято за локальное определение: ${nn}`)
+    }
+  }
+
   console.log(
     'самопроверка: определения разобраны, посторонние формы отвергнуты'
   )
@@ -211,6 +265,7 @@ const files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
 const fileSet = new Set(files)
 
 const where = new Map()
+const blanked = {}
 for (const f of files) {
   let code
   try {
@@ -218,6 +273,7 @@ for (const f of files) {
   } catch {
     continue
   }
+  blanked[f] = blank(code)
   for (const n of definedNames(code)) {
     if (!where.has(n)) where.set(n, [])
     where.get(n).push(f)
@@ -321,6 +377,26 @@ for (const [name, barrelList] of ambiguous) {
     console.log(`  ${name}  <- ${barrel}`)
     for (const h of hit) console.log(`      ${h}`)
   }
+}
+
+// Addendum: authority names that ALSO have a definition no export reveals.
+const hidden = []
+for (const [name] of authority) {
+  const extra = []
+  for (const [f, code] of Object.entries(blanked)) {
+    if (where.get(name).includes(f)) continue
+    if (definedLocally(code, name)) extra.push(f)
+  }
+  if (extra.length) hidden.push([name, extra])
+}
+
+console.log(`\n=== ПЛЮС ОПРЕДЕЛЕНИЯ БЕЗ ЭКСПОРТА: ${hidden.length} ===`)
+console.log(
+  '   (локальная функция, локальная константа или метод класса -- снаружи не видно)\n'
+)
+for (const [name, fileList] of hidden) {
+  console.log(`  ${name}  (+${fileList.length})`)
+  for (const f of fileList.sort()) console.log(`      ${f}`)
 }
 
 const ordinary = twins.length - authority.length
