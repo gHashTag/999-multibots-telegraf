@@ -18,13 +18,23 @@
  *
  * Integration-only services → structural assertions + mutation (their live tests
  * skip without env).
+ *
+ * The refund-branch assertions were character windows (`[\s\S]{0,220}`). Both
+ * of these files contain a SECOND refundUser call in another branch, so a wide
+ * window can be satisfied by the wrong one -- and `tri window-width` showed the
+ * verdict flipping with the width, which means the constant, not the structure,
+ * was carrying the proof. The unit is now the guarded block itself.
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
 
+const { blank } = require('../../../scripts/lib/blank-code.cjs')
+const { ifElseBlocks } = require('../../../scripts/lib/call-args.cjs')
+
 describe('sibling image services refund a batch failure at most once', () => {
   describe('generateSeedEdit3', () => {
     const src = fs.readFileSync('src/services/generateSeedEdit3.ts', 'utf8')
+    const masked = blank(src)
 
     it('has refunded + charged flags', () => {
       expect(src).toMatch(/let refunded = false/)
@@ -37,13 +47,18 @@ describe('sibling image services refund a batch failure at most once', () => {
     })
 
     it('inner replicate.run refund is charged-gated and sets refunded', () => {
-      expect(src).toMatch(
-        /if \(charged\) \{[\s\S]{0,60}refundUser\([\s\S]{0,220}refunded = true/
-      )
+      const inner = ifElseBlocks(masked, 'if \\(charged\\)')
+      expect(inner.consequent).not.toBe('')
+      // Both must live in the SAME block: a refund that does not arm the flag
+      // is exactly the double-refund this file exists to prevent.
+      expect(inner.consequent).toMatch(/refundUser\(/)
+      expect(inner.consequent).toMatch(/refunded = true/)
     })
 
     it('outer refund is gated on !refunded && charged (no double, no mint)', () => {
-      expect(src).toMatch(/if \(!refunded && charged[\s\S]{0,220}refundUser\(/)
+      const outer = ifElseBlocks(masked, 'if \\(!refunded && charged')
+      expect(outer.consequent).not.toBe('')
+      expect(outer.consequent).toMatch(/refundUser\(/)
     })
 
     it('the old ungated outer guard (totalCost>0 only) is gone', () => {
@@ -56,6 +71,7 @@ describe('sibling image services refund a batch failure at most once', () => {
       'src/services/generateFluxKontextMax.ts',
       'utf8'
     )
+    const masked = blank(src)
 
     it('has refunded + charged flags', () => {
       expect(src).toMatch(/let refunded = false/)
@@ -71,9 +87,10 @@ describe('sibling image services refund a batch failure at most once', () => {
     })
 
     it('inner save-failure refund is charged-gated and sets refunded', () => {
-      expect(src).toMatch(
-        /if \(charged\) \{[\s\S]{0,60}refundUser\([\s\S]{0,220}refunded = true/
-      )
+      const inner = ifElseBlocks(masked, 'if \\(charged\\)')
+      expect(inner.consequent).not.toBe('')
+      expect(inner.consequent).toMatch(/refundUser\(/)
+      expect(inner.consequent).toMatch(/refunded = true/)
     })
 
     it('outer refund is gated on !refunded && charged (no double, no mint)', () => {
