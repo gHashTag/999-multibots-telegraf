@@ -350,6 +350,22 @@ export const musicGenerationWizard = new Scenes.WizardScene<MyContext>(
               ? `❌ Ошибка при генерации музыки.\n\n💫 Средства возвращены: ${cost} ⭐\n\nПопробуйте с другим описанием.`
               : `❌ Error generating music.\n\n💫 Refunded: ${cost} ⭐\n\nTry with a different description.`
           )
+        } else {
+          // updateUserBalance returns false WITHOUT throwing on a ghost-payer
+          // or a database error, so this branch is reached without an
+          // exception. Saying nothing here is the worst of the three
+          // outcomes: the generation failed, the stars were not returned, and
+          // the user is told neither. The same shape is already handled in
+          // aiCoverWizard and async-lipsync-manager; this matches them.
+          logger.error('[MusicGeneration] Refund returned false', {
+            telegramId: ctx.from.id,
+            refundAmount: cost,
+          })
+          await ctx.reply(
+            isRu
+              ? `❌ Ошибка при генерации музыки.\n\n💫 Вернуть ${cost} ⭐ автоматически не удалось — напишите в поддержку.`
+              : `❌ Error generating music.\n\n💫 Could not return ${cost} ⭐ automatically — please contact support.`
+          )
         }
       } catch (refundError) {
         logger.error('[MusicGeneration] CRITICAL: Refund failed!', {

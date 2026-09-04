@@ -448,6 +448,20 @@ export const videoTranscriptionWizard = new Scenes.WizardScene<MyContext>(
               ? `💫 Средства возвращены: ${costInStars} ⭐`
               : `💫 Refunded: ${costInStars} ⭐`
           )
+        } else {
+          // Reached without an exception: updateUserBalance returns false on a
+          // ghost-payer or a database error. Announcing only the successful
+          // refund and staying silent on the failed one leaves the user
+          // believing the money came back.
+          logger.error('❌ [VideoTranscription] Refund returned false', {
+            telegramId: ctx.from.id,
+            refundAmount: costInStars,
+          })
+          await ctx.reply(
+            isRu
+              ? `💫 Вернуть ${costInStars} ⭐ автоматически не удалось — напишите в поддержку.`
+              : `💫 Could not return ${costInStars} ⭐ automatically — please contact support.`
+          )
         }
       } catch (refundError) {
         logger.error('❌ [VideoTranscription] CRITICAL: Refund failed!', {
