@@ -23,7 +23,11 @@
 const fs = require('fs')
 const path = require('path')
 const { execFileSync } = require('child_process')
-const { blank, selfCheck: blankSelfCheck } = require('./lib/blank-code.cjs')
+const {
+  blank,
+  selfCheck: blankSelfCheck,
+  matchCode,
+} = require('./lib/blank-code.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 
@@ -48,6 +52,13 @@ const RE_FROM =
  * of the thirty-six. A vocabulary matched by substring reports the language,
  * not the meaning.
  */
+// Every named import in the repo, parsed once. Bounded to a single statement:
+// this codebase omits semicolons, so a `[^;]*` form spans statements and glues
+// a name from one import onto the `from` of a later one -- it reported
+// calculateFinalPrice as coming from utils/logger.
+const IMPORT_STATEMENT =
+  /import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g
+
 const AUTHORITY_WORDS = new Set([
   'cost',
   'costs',
@@ -271,6 +282,34 @@ function selfCheck() {
     }
   }
 
+  // The importer matcher, both ways. A counter that always returned zero would
+  // rank every name equally and quietly report "nothing worth reading" -- the
+  // failure this ranking exists to prevent, and one I actually produced: in a
+  // shell one-liner the escaping turned the word boundary into a literal and
+  // every count came back zero.
+  // The import statement parser. This codebase omits semicolons, so a matcher
+  // bounded by `;` runs past the end of one statement into the next and pairs a
+  // name with the wrong module -- measured, not hypothetical.
+  const twoImports = "import { alpha } from './a'\nimport { beta } from './b'\n"
+  const parsed = matchCode(twoImports, IMPORT_STATEMENT).map(m => [
+    m[1].trim(),
+    m[2],
+  ])
+  if (parsed.length !== 2) fail('разбор импортов не нашёл оба выражения')
+  if (parsed[0][1] !== './a' || parsed[1][1] !== './b')
+    fail('имя связано не со своим модулем')
+
+  const importSample = "import { alpha, beta as gamma } from './x'"
+  const hits = n => matchCode(importSample, importPattern(n)).length
+  if (!hits('alpha')) fail('импортируемое имя не распознано')
+  if (!hits('beta')) fail('имя перед as не распознано')
+  if (hits('alph')) fail('приставка имени принята за импорт')
+  // Each boundary needs its own negative: the trailing \b rejects a prefix,
+  // the leading one rejects a suffix. With only the prefix sample, dropping
+  // the leading \b passed this check -- measured, not assumed.
+  if (hits('lpha')) fail('окончание имени принято за импорт')
+  if (hits('delta')) fail('отсутствующее имя найдено среди импортов')
+
   console.log(
     'самопроверка: определения разобраны, посторонние формы отвергнуты'
   )
@@ -288,6 +327,7 @@ const fileSet = new Set(files)
 
 const where = new Map()
 const blanked = {}
+const rawSources = {}
 for (const f of files) {
   let code
   try {
@@ -295,6 +335,7 @@ for (const f of files) {
   } catch {
     continue
   }
+  rawSources[f] = code
   blanked[f] = blank(code)
   for (const n of definedNames(code)) {
     if (!where.has(n)) where.set(n, [])
@@ -359,6 +400,125 @@ function ambiguousBarrels(definingFiles) {
   return out
 }
 
+/**
+ * How many files IMPORT a name.
+ *
+ * The census sorted by definition count, and that ranking is close to useless:
+ * of 33 authority twins, 17 have no importer at all. A name defined five times
+ * and imported nowhere is noise; a name defined twice and imported eleven times
+ * is where a divergence would actually be felt.
+ *
+ * The vocabulary finds names. Danger lives in consumers, so the report is
+ * ordered by them.
+ */
+// Shared by importerCount and by its self-check, so the check exercises the
+// real expression rather than a replica of it.
+function importPattern(name) {
+  return new RegExp(
+    'import\\s*(?:type\\s*)?\\{[^}]*\\b' +
+      name.replace(/\$/g, '\\$') +
+      '\\b[^}]*\\}',
+    'g'
+  )
+}
+
+function importerCount(name) {
+  const re = importPattern(name)
+  let n = 0
+  for (const [f, raw] of Object.entries(rawSources)) {
+    if (where.get(name) && where.get(name).includes(f)) continue
+    if (matchCode(raw, re).length) n++
+  }
+  return n
+}
+
+/**
+ * Two spellings of one barrel are not two definitions. Grouping consumers by
+ * the module STRING reported calculateFinalPrice as split four ways when every
+ * consumer lands on the same file, so specifiers are resolved to files first.
+ */
+const existsFile = f => fileSet.has(f)
+
+function resolveModule(fromFile, spec) {
+  let base
+  if (spec.startsWith('@/')) base = path.join('src', spec.slice(2))
+  else if (spec.startsWith('.'))
+    base = path.normalize(path.join(path.dirname(fromFile), spec))
+  else return null // a package, not ours
+  for (const c of [base + '.ts', path.join(base, 'index.ts')])
+    if (existsFile(c)) return c
+  return null
+}
+
+/** One hop through a barrel: which file does THIS name really come from. */
+function followReexport(file, name) {
+  if (!file || !rawSources[file]) return file
+  const src = rawSources[file]
+  for (const m of matchCode(
+    src,
+    /export\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g
+  )) {
+    const listed = m[1].split(',').map(x =>
+      x
+        .trim()
+        .split(/\s+as\s+/)
+        .pop()
+        .trim()
+    )
+    if (listed.includes(name)) {
+      const r = resolveModule(file, m[2])
+      if (r) return r
+    }
+  }
+  // `export * from './x'` is the common form here; follow it only to a file
+  // that actually defines the name, so a star that re-exports something else
+  // does not capture the consumer.
+  for (const m of matchCode(src, /export\s*\*\s*from\s*['"]([^'"]+)['"]/g)) {
+    const r = resolveModule(file, m[1])
+    if (r && rawSources[r] && DEFINES(rawSources[r], name)) return r
+  }
+  return file
+}
+
+/** Does this source define the name at top level (not merely mention it)? */
+function DEFINES(src, name) {
+  return new RegExp(
+    'export\\s+(?:async\\s+)?(?:function|const|class|type|interface|enum)\\s+' +
+      name.replace(/\$/g, '\\$') +
+      '\\b'
+  ).test(src)
+}
+
+function importsIn(file) {
+  const out = []
+  for (const m of matchCode(rawSources[file], IMPORT_STATEMENT)) {
+    out.push({
+      names: m[1].split(',').map(x =>
+        x
+          .trim()
+          .split(/\s+as\s+/)[0]
+          .trim()
+      ),
+      mod: m[2],
+    })
+  }
+  return out
+}
+
+/** name -> Map(resolved definition file -> consumer count) */
+function consumerSplit(name) {
+  const by = new Map()
+  for (const f of Object.keys(rawSources)) {
+    for (const i of importsIn(f)) {
+      if (!i.names.includes(name)) continue
+      const r = followReexport(resolveModule(f, i.mod), name)
+      if (!r) continue
+      by.set(r, (by.get(r) || 0) + 1)
+    }
+  }
+  return by
+}
+
 const twins = [...where.entries()].filter(([, v]) => v.length > 1)
 const authority = twins.filter(([n]) => AUTHORITY.test(n))
 
@@ -369,11 +529,38 @@ console.log(
 )
 console.log('   (список для чтения, не вердикт: две копии могут и совпадать)\n')
 
-for (const [name, fileList] of authority.sort(
-  (a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0])
-)) {
-  console.log(`  ${name}  (${fileList.length})`)
+const ranked = authority
+  .map(([name, fileList]) => [name, fileList, importerCount(name)])
+  .sort(
+    (a, b) =>
+      b[2] - a[2] || b[1].length - a[1].length || a[0].localeCompare(b[0])
+  )
+
+const unread = ranked.filter(r => r[2] === 0).length
+console.log(`   из них никто не импортирует: ${unread} -- их можно не читать\n`)
+for (const [name, fileList, consumers] of ranked) {
+  console.log(`  ${name}  (${fileList.length} опред., ${consumers} импортёров)`)
   for (const f of fileList.sort()) console.log(`      ${f}`)
+}
+
+// The sharpest question is not how many copies exist but whether consumers
+// DISAGREE about which one they get. calculateModeCost has three definitions
+// and all nine consumers land on one file; that is a non-finding. A name whose
+// consumers land on two different files is where a rename, a price change or an
+// access rule reaches only half of them.
+const splits = []
+for (const [name] of ranked) {
+  const by = consumerSplit(name)
+  if (by.size > 1) splits.push([name, by])
+}
+console.log(`\n=== ПОТРЕБИТЕЛИ РАСХОДЯТСЯ ПО ФАЙЛАМ: ${splits.length} ===`)
+console.log(
+  '   (правка одной копии дойдёт не до всех -- это и есть список на чтение)\n'
+)
+for (const [name, by] of splits) {
+  console.log(`  ${name}`)
+  for (const [file, n] of [...by].sort((a, b) => b[1] - a[1]))
+    console.log(`      ${file}  <- ${n}`)
 }
 
 // A resolution pass that resolves nothing prints "0 barrels pull two
