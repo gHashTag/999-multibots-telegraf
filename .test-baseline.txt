@@ -1533,6 +1533,7 @@ src/__tests__/money/i2v-deduct-result-checked.test.ts :: generateImageToVideo ch
 src/__tests__/money/i2v-sora-webhook-no-double-charge.test.ts :: Sora i2v webhook path does not double-charge via the status button arms videoJobId only on the poll path (the webhook path defers)
 src/__tests__/money/i2v-sora-webhook-no-double-charge.test.ts :: Sora i2v webhook path does not double-charge via the status button the Sora webhook branch clears videoJobId so the button defers
 src/__tests__/money/imageToVideoPollClearsJobId.test.ts :: generateImageToVideo poll disarms the update-status button after inline delivery floor: the file still ARMS the button (sets videoJobId = taskId)
+src/__tests__/money/imageToVideoPollClearsJobId.test.ts :: generateImageToVideo poll disarms the update-status button after inline delivery mutation: removing EVERY real delete turns the check RED
 src/__tests__/money/imageToVideoPollClearsJobId.test.ts :: generateImageToVideo poll disarms the update-status button after inline delivery self-check: detector distinguishes arm-only from arm+clear
 src/__tests__/money/imageToVideoPollClearsJobId.test.ts :: generateImageToVideo poll disarms the update-status button after inline delivery the file also DISARMS it (deletes videoJobId) so the button cannot re-charge
 src/__tests__/money/imageUpscalerProviderTimeout.test.ts :: imageUpscaler bounds its post-charge replicate.run with a timeout every replicate.run is bounded by a Promise.race timeout
@@ -1559,6 +1560,7 @@ src/__tests__/money/kie-webhook-charge.test.ts :: chargeForDeliveredVideo behavi
 src/__tests__/money/kie-webhook-charge.test.ts :: chargeForDeliveredVideo behaviour the real Sora keys ARE priceable
 src/__tests__/money/kie-webhook-charge.test.ts :: kie webhook billing charges in the task-found branch of the Sora handler
 src/__tests__/money/kie-webhook-charge.test.ts :: kie webhook billing does not pass the bogus non-price model id any more
+src/__tests__/money/kie-webhook-charge.test.ts :: kie webhook billing image-to-video saves task context so the webhook can price it
 src/__tests__/money/kie-webhook-charge.test.ts :: kie webhook billing logs every non-charge instead of skipping quietly
 src/__tests__/money/kieWebhookDeliveryIdempotency.test.ts :: kie/sora webhook video delivery is idempotent per job claims delivery BEFORE sendVideo in every delivery path
 src/__tests__/money/kieWebhookDeliveryIdempotency.test.ts :: kie/sora webhook video delivery is idempotent per job sources the shared delivery claimer from the util (bound tested there)
