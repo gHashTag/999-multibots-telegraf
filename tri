@@ -2124,6 +2124,38 @@ cmd_window_width() {
   ( cd "$ROOT" && node scripts/probe-window-width.cjs "$@" )
 }
 
+cmd_credit_guards() {
+  # ЧТО НА САМОМ ДЕЛЕ ЗАЩИЩАЕТ КАЖДОЕ НАЧИСЛЕНИЕ. НЕ ОБЕЩАНИЕ, А НАХОДКА.
+  #
+  # Перепись кредитных сайтов держит СПИСОК файлов и рядом фразу прозой: почему
+  # это начисление безопасно. Проза стареет молча: строка «покупка за этим
+  # идемпотентна» оказалась ложной через сутки после того, как я её написал, --
+  # единственной защитой было множество в памяти, которое бросок оставлял
+  # висеть навсегда (#1861). Перепись всё это время была зелёной, потому что
+  # она проверяет СПИСОК, а не обещания рядом с ним.
+  #
+  # Здесь механизм ищется структурно: step.run, catch, CAS, finally,
+  # списание-раньше. Реестр в creditGuardsHold.test.ts называет минимум,
+  # который сайт обязан сохранить, и мутация, снимающая механизм, роняет тест.
+  #
+  # ЧЕГО ЭТО НЕ ДОКАЗЫВАЕТ: что начисление идемпотентно. Только что названный
+  # механизм на месте. Разрыв «сказано X» / «X существует» закрыт; разрыв
+  # «X существует» / «X верен» закрывает чтение, а не команда.
+  ( cd "$ROOT" && node -e '
+    const fs = require("fs"), path = require("path")
+    const g = require("./scripts/lib/credit-guards.cjs")
+    const c = require("./scripts/lib/credit-sites.cjs")
+    g.selfCheck()
+    console.log("самопроверка: " + g.SAMPLES.length + " образцов сошлись, обе стороны")
+    console.log("известные механизмы: " + g.KINDS.join(", ") + "\n")
+    for (const rel of Object.keys(c.creditCallsByFile("src")).sort()) {
+      const raw = fs.readFileSync(path.join("src", rel), "utf8")
+      const k = [...g.guardsFor(raw)].sort()
+      console.log("  " + (k.join(" + ") || "-- механизма не найдено --").padEnd(36) + rel)
+    }
+  ' )
+}
+
 cmd_credit_sites() {
   # ГДЕ РЕПОЗИТОРИЙ НАЧИСЛЯЕТ ДЕНЬГИ. КАЖДЫЙ САЙТ -- ПОВЕРХНОСТЬ ЧЕКАНКИ.
   #
@@ -3072,6 +3104,7 @@ case "$action" in
   skips|пропуски)  cmd_skips "$@" ;;
   silent-reds|тихие-красные)  cmd_silent_reds "$@" ;;
   window-width|ширина-окна)  cmd_window_width "$@" ;;
+  credit-guards|защита-начислений)  cmd_credit_guards "$@" ;;
   credit-sites|кредитные-сайты)  cmd_credit_sites "$@" ;;
   matcher-forms|формы-матчеров)  cmd_matcher_forms "$@" ;;
   money-writers|писатели-денег)  cmd_money_writers "$@" ;;

@@ -1507,6 +1507,10 @@ src/__tests__/money/createSuccessfulPayment-schema.test.ts :: createSuccessfulPa
 src/__tests__/money/createSuccessfulPayment-schema.test.ts :: createSuccessfulPayment schema contract keeps the subscription-granting fields the reader matches on
 src/__tests__/money/createSuccessfulPayment-schema.test.ts :: createSuccessfulPayment schema contract passes a caller-supplied valid type through, uppercased
 src/__tests__/money/createSuccessfulPayment-schema.test.ts :: createSuccessfulPayment schema contract the admin override call reaches the insert instead of throwing
+src/__tests__/money/creditGuardsHold.test.ts :: the guard each credit site is described as having still exists every named mechanism is one the detector can actually find
+src/__tests__/money/creditGuardsHold.test.ts :: the guard each credit site is described as having still exists every promised mechanism is still detectable
+src/__tests__/money/creditGuardsHold.test.ts :: the guard each credit site is described as having still exists the detector agrees with its own samples, in both directions
+src/__tests__/money/creditGuardsHold.test.ts :: the guard each credit site is described as having still exists the promise list covers every credit site, and invents none
 src/__tests__/money/creditNotInLoop.test.ts :: user credits are not called inside a loop (scalar-credit mint #1468/#1470) detector distinguishes in-loop from out-of-loop, and MONEY_INCOME from OUTCOME (control can fail)
 src/__tests__/money/creditNotInLoop.test.ts :: user credits are not called inside a loop (scalar-credit mint #1468/#1470) every ALLOWLIST file still has in-loop credits at the expected count (not stale)
 src/__tests__/money/creditNotInLoop.test.ts :: user credits are not called inside a loop (scalar-credit mint #1468/#1470) finds credit call-sites across live code (matcher is not stale)
