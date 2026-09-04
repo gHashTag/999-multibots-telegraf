@@ -73,6 +73,14 @@ function calleeName(node) {
 // direction: 'charge' | 'refund' | 'credit' | 'charge-or-refund'
 function classify(name, node, sf) {
   if (REFUND_FNS.has(name)) return 'refund'
+  // processBalanceOperation has NO direction parameter: BalanceOperationProps
+  // is { ctx, telegram_id, paymentAmount, is_ru, bot_name, is_welcome_gift },
+  // and the single money call inside it is MONEY_OUTCOME. It can only charge,
+  // so reading its ARGUMENTS for a direction word finds nothing and lands every
+  // call in 'charge-or-refund'. That was 21 calls in 19 files -- about half the
+  // charge surface, filed as unknown, and therefore outside the population the
+  // charge census (#1863) claimed to pin.
+  if (name === 'processBalanceOperation') return 'charge'
   if (CHARGE_FNS.has(name)) {
     const args = node.arguments.map(a => a.getText(sf)).join(' ')
     if (/REFUND|MONEY_INCOME/.test(args)) return 'refund'

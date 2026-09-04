@@ -18,6 +18,20 @@ import { execFileSync } from 'node:child_process'
  * invented-price live. This repository has separate tests for each of those
  * failures; what it lacked was the population they apply to.
  *
+ * THE FIRST VERSION OF THIS CENSUS PINNED HALF THE SURFACE AND SAID "every".
+ * It filtered money-map for direction === 'charge' and got 26 calls. But
+ * money-map read the direction out of a call's ARGUMENTS, and
+ * processBalanceOperation has no direction parameter at all -- its props are
+ * { ctx, telegram_id, paymentAmount, is_ru, bot_name, is_welcome_gift } and the
+ * single money call inside it is MONEY_OUTCOME. So all 21 of its call sites,
+ * across 19 files, were filed as 'charge-or-refund' and sat OUTSIDE the
+ * population this file claimed to pin. Teaching the classifier that a function
+ * with no direction parameter can only charge emptied that bucket: 26 -> 47
+ * calls, 25 -> 44 files.
+ *
+ * A census inherits the blind spots of the instrument it reads. Reading the
+ * classifier is what found this; the census itself was green either way.
+ *
  * IT CONSUMES money-map RATHER THAN RE-IMPLEMENTING IT. money-map walks the
  * TypeScript AST; a matcher written here would be weaker, and measurably was:
  * a masked-regex census built while writing this found 23 of the 25 charging
@@ -48,12 +62,16 @@ function census(): Site[] {
 
 /** Reviewed charge sites: file -> number of charge calls. */
 const ALLOWLIST: Record<string, number> = {
+  'src/core/openai/requests.ts': 1,
   'src/handlers/handleTextToVideoDirect.ts': 1,
+  'src/inngest_app/functions/generation/neuroImageGeneration.ts': 1,
   'src/inngest_app/functions/training/generateModelTraining.ts': 1,
+  'src/inngest_app/functions/training/modelTrainingV2.ts': 1,
   'src/inngest_app/services/bot-adapter.ts': 1,
   'src/modules/videoGenerator/helpers/priceHelper.ts': 2,
   'src/price/helpers/processBalanceOperation.ts': 1,
   'src/scenes/aiCoverWizard/index.ts': 1,
+  'src/scenes/aiPhotoshopScene/index.ts': 1,
   'src/scenes/faceSwapWizard/index.ts': 1,
   'src/scenes/instagramParserScene/index.ts': 1,
   'src/scenes/instagramParserWizard/index.ts': 1,
@@ -70,7 +88,22 @@ const ALLOWLIST: Record<string, number> = {
   'src/scenes/videoTranscriptionWizard/index.ts': 1,
   'src/scenes/voiceAvatarWizard/index.ts': 1,
   'src/scenes/voiceTrainingWizard/index.ts': 1,
+  'src/services/generateFluxKontext.ts': 3,
+  'src/services/generateFluxKontextMax.ts': 1,
+  'src/services/generateFluxKontextPro.ts': 1,
+  'src/services/generateGeminiImage.ts': 1,
+  'src/services/generateNanoBanana.ts': 1,
+  'src/services/generateNanoBananaKie.ts': 1,
+  'src/services/generateNanoBananaProReplicate.ts': 1,
   'src/services/generateNeuroPhotoDirect.ts': 1,
+  'src/services/generateQwenImageEdit.ts': 1,
+  'src/services/generateQwenImageEditPlus.ts': 1,
+  'src/services/generateSeeDream4.ts': 1,
+  'src/services/generateSeeDream45.ts': 1,
+  'src/services/generateSeedEdit3.ts': 1,
+  'src/services/generateSeedream45Replicate.ts': 1,
+  'src/services/generateTextToImageDirect.ts': 1,
+  'src/services/imageUpscaler.ts': 1,
   'src/services/marketplaceService.ts': 1,
   'src/services/plan_b/generateImageToPrompt.ts': 1,
 }
@@ -93,7 +126,7 @@ describe('charge-site census: no unreviewed place that takes money', () => {
     expect(
       charges.length,
       'no site is classified as a charge -- the direction vocabulary changed'
-    ).toBeGreaterThan(15)
+    ).toBeGreaterThan(35)
   })
 
   it('no NEW file charges without review', () => {
