@@ -2124,6 +2124,41 @@ cmd_window_width() {
   ( cd "$ROOT" && node scripts/probe-window-width.cjs "$@" )
 }
 
+cmd_charge_timing() {
+  # ПОЧЕМУ ПРОВАЛ НЕ СТОИТ ЧЕЛОВЕКУ ДЕНЕГ ТАМ, ГДЕ ВОЗВРАТА НЕТ.
+  #
+  # Десять файлов списывают и никогда не возвращают. Шесть объяснены тем, что
+  # уже держит тест. Четыре безопасны по причине, которая жила ТОЛЬКО в
+  # комментарии: списание стоит после успеха. Правда сегодня, не проверена
+  # ничем -- перенеси вызов на двадцать строк выше, и комментарий читается
+  # так же, а люди начинают платить за неудачи.
+  #
+  # Механизма ДВА, и одно общее правило их бы склеило:
+  #   доставка-первой -- списание НИЖЕ вызова, отдающего результат человеку;
+  #   по-результату   -- списание внутри условия на результат провайдера.
+  #
+  # Проверка цены -- НЕ проверка успеха: `if (cost > 0)` ничего не говорит о
+  # том, получилось ли. Именно поэтому textToSpeechWizard числится
+  # «доставка-первой», а не «по-результату».
+  ( cd "$ROOT" && node -e '
+    const fs = require("fs")
+    const t = require("./scripts/lib/charge-timing.cjs")
+    t.selfCheck()
+    console.log("самопроверка: " + t.SAMPLES.length + " образцов сошлись, обе стороны\n")
+    const FILES = [
+      "src/handlers/handleTextToVideoDirect.ts",
+      "src/scenes/textToSpeechWizard/index.ts",
+      "src/scenes/voiceAvatarWizard/index.ts",
+      "src/scenes/instagramParserScene/index.ts",
+    ]
+    for (const f of FILES) {
+      const r = t.timingFor(fs.readFileSync(f, "utf8"))
+      const m = r.deliveryFirst ? "доставка-первой" : r.successGated ? "по-результату  " : "НИ ОДНОГО"
+      console.log("  " + m + "  " + f.replace(/^src\//, ""))
+    }
+  ' )
+}
+
 cmd_credit_guards() {
   # ЧТО НА САМОМ ДЕЛЕ ЗАЩИЩАЕТ КАЖДОЕ НАЧИСЛЕНИЕ. НЕ ОБЕЩАНИЕ, А НАХОДКА.
   #
@@ -3104,6 +3139,7 @@ case "$action" in
   skips|пропуски)  cmd_skips "$@" ;;
   silent-reds|тихие-красные)  cmd_silent_reds "$@" ;;
   window-width|ширина-окна)  cmd_window_width "$@" ;;
+  charge-timing|момент-списания)  cmd_charge_timing "$@" ;;
   credit-guards|защита-начислений)  cmd_credit_guards "$@" ;;
   credit-sites|кредитные-сайты)  cmd_credit_sites "$@" ;;
   matcher-forms|формы-матчеров)  cmd_matcher_forms "$@" ;;
