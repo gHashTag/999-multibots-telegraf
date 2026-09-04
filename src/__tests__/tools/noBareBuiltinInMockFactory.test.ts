@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { execFileSync } from 'child_process'
 import { existsSync, readFileSync } from 'fs'
 
 const {
   bareBuiltinsInMockFactories,
   selfCheck,
 } = require('../../../scripts/lib/mock-factory-imports.cjs')
+const { repoFiles } = require('../../../scripts/lib/repo-sources.cjs')
 
 /**
  * A bare builtin dynamic import inside a mock factory is not a style
@@ -29,8 +29,9 @@ describe('no bare builtin dynamic import inside a mock factory', () => {
   })
 
   it('no test file has one', () => {
-    const files = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
-      .split('\n')
+    // Tracked AND present-but-unstaged: a factory is hazardous the moment
+    // it is on disk, not when it reaches the index.
+    const files = repoFiles(process.cwd())
       .filter(f => /\.(ts|mts|cts|js|mjs|cjs)$/.test(f))
       .filter(f => /__tests__|\.test\./.test(f))
 
@@ -53,9 +54,9 @@ describe('no bare builtin dynamic import inside a mock factory', () => {
   it('the population it scans is real, not an empty list', () => {
     // A guard whose subject has disappeared prints "pass" forever. If the
     // factory count ever collapses, the zero above stops meaning anything.
-    const files = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
-      .split('\n')
-      .filter(f => /__tests__|\.test\./.test(f) && /\.(ts|js)$/.test(f))
+    const files = repoFiles(process.cwd()).filter(
+      f => /__tests__|\.test\./.test(f) && /\.(ts|js)$/.test(f)
+    )
 
     let factories = 0
     for (const f of files) {

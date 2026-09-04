@@ -2236,13 +2236,26 @@ cmd_untracked() {
     const guards = execFileSync("bash", ["-c",
       "grep -rl \"ls-files\" src/__tests__ 2>/dev/null || true"],
       { encoding: "utf8" }).split("\n").filter(Boolean)
-    const blind = guards.filter(g => {
-      const t = require("fs").readFileSync(g, "utf8")
-      return !/--others/.test(t)
+    // ПОПУЛЯЦИЯ -- ЭТО ТО, ЧЕМ ОНА ЧИТАЕТСЯ, А НЕ ТО, ЧТО УПОМЯНУТО В ТЕКСТЕ.
+    // Первая версия этой команды считала слепой любую охрану, где встречается
+    // ls-files без --others, и насчитала 5. Одна из пяти сканирует ОБХОДОМ
+    // ФАЙЛОВОЙ СИСТЕМЫ (walk/readdirSync) и неотслеживаемое видит прекрасно;
+    // её вызовы ls-files -- предмет её собственной проверки. Настоящих слепых
+    // было 4. Матчер знал написание, а не вещь.
+    const fs2 = require("fs")
+    const rows = guards.map(g => {
+      const t = fs2.readFileSync(g, "utf8")
+      // Обход ФС проверяется ПЕРВЫМ: он полон по построению, независимо от
+      // того, что ещё упомянуто в файле.
+      if (/walk\(|readdirSync\(/.test(t)) return [g, "полная (обход ФС)"]
+      if (/repoFiles\(/.test(t)) return [g, "полная (repoFiles)"]
+      if (/--others/.test(t)) return [g, "полная (--others)"]
+      return [g, "СЛЕПА (только индекс)"]
     })
-    console.log("охран, берущих популяцию из git ls-files: " + guards.length)
-    console.log("  из них НЕ видят неотслеживаемое: " + blind.length)
-    blind.forEach(g => console.log("     слепа: " + g))
+    const blind = rows.filter(r => r[1].startsWith("СЛЕПА"))
+    console.log("охран, упоминающих git ls-files: " + guards.length)
+    rows.forEach(r => console.log("     " + r[1].padEnd(24) + r[0]))
+    console.log("  слепых на неотслеживаемое: " + blind.length)
     console.log("\nневидимых сейчас исходников: " + hidden.length)
     hidden.forEach(f => console.log("     " + f))
     if (hidden.length && blind.length) {

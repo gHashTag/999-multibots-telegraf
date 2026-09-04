@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
 
 const { matchCode } = require('../../../scripts/lib/blank-code.cjs')
+const { repoFiles } = require('../../../scripts/lib/repo-sources.cjs')
 
 /**
  * Ratchet: the Node builtin `stream` must be imported as `node:stream`.
@@ -57,10 +57,11 @@ const ROOT = path.resolve(__dirname, '../../..')
 const BARE_STREAM = /(?:from|import\(|import|require\()\s*['"]stream['"]/
 const BARE_STREAM_G = new RegExp(BARE_STREAM.source, 'g')
 
+// Tracked AND present-but-unstaged: a bare specifier breaks collection as
+// soon as the file is on disk and something imports it -- the index has no
+// say in that.
 const sources = (): string[] =>
-  execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
-    .split('\n')
-    .filter(f => /\.(ts|mts|cts|js|mjs|cjs)$/.test(f))
+  repoFiles(ROOT).filter(f => /\.(ts|mts|cts|js|mjs|cjs)$/.test(f))
 
 /**
  * The module name, ASSEMBLED rather than written.

@@ -33,6 +33,24 @@ const ALLOWED_PLAIN_LS: Record<string, string> = {
   'scripts/probe-tool-blindness.cjs': 'сравнивает перечисление с -z и без него',
 }
 
+const { matchCode } = require('../../../scripts/lib/blank-code.cjs')
+
+/** A tracked-listing call, assembled so this file's prose is not a hit. */
+const LS_CALL_RE = new RegExp(
+  `['"\`]git ${['ls', '-files'].join('')}|['"\`]${['ls', '-files'].join('')}['"\`]`,
+  'g'
+)
+
+/**
+ * Guards allowed an index-only population -- and why.
+ * Exactly one: the file that compares the two listings, where those calls are
+ * the subject under test rather than a population.
+ */
+const ALLOWED_TRACKED_ONLY: Record<string, string> = {
+  'src/__tests__/tools/no-silent-blindness.test.ts':
+    'сама сравнивает перечисления; её вызовы — предмет проверки, а не популяция',
+}
+
 function walk(root: string, filter: (p: string) => boolean): string[] {
   const out: string[] = []
   ;(function rec(dir: string) {
@@ -88,6 +106,43 @@ describe('инструменты не слепнут молча', () => {
       return PLAIN_LS_RE.test(text)
     })
     expect(offenders).toEqual([])
+  })
+
+  it('ни одна охрана не берёт популяцию из одного лишь индекса', () => {
+    // it.174: file written, gate run (green), and only THEN `git add`. The
+    // next day main was red because of that file. The population came from the
+    // tracked listing, which knows nothing of a new file, so the guard obliged
+    // to judge it could not see it.
+    //
+    // Same class as the 50 files lost to name escaping, for which this whole
+    // file exists: the tool inspected less than the repository and said nothing.
+    // Only WHAT dropped out differs -- non-ASCII names there, everything not
+    // yet in the index here.
+    //
+    // The correct population is repoFiles() in scripts/lib/repo-sources.cjs:
+    // tracked PLUS present-but-unstaged, both via -z.
+    const guards = walk('src/__tests__', p => p.endsWith('.ts'))
+    expect(guards.length).toBeGreaterThan(20)
+
+    const offenders = guards.filter(g => {
+      if (ALLOWED_TRACKED_ONLY[g]) return false
+      // matchCode drops hits that begin inside a comment or a string: a file
+      // DESCRIBING the rule does not violate it.
+      return matchCode(fs.readFileSync(g, 'utf8'), LS_CALL_RE).length > 0
+    })
+    expect(
+      offenders,
+      'a guard population must include untracked files: ' +
+        'repoFiles() from scripts/lib/repo-sources.cjs'
+    ).toEqual([])
+  })
+
+  it('в списке разрешённых на индекс нет записей, переживших причину', () => {
+    const stale = Object.keys(ALLOWED_TRACKED_ONLY).filter(f => {
+      if (!fs.existsSync(f)) return true
+      return matchCode(fs.readFileSync(f, 'utf8'), LS_CALL_RE).length === 0
+    })
+    expect(stale).toEqual([])
   })
 
   it('в списке разрешённых нет инструментов, которые так уже не делают', () => {

@@ -15,8 +15,12 @@
  * Тест — последняя линия: он не чинит прошлое, но не даёт добавить новое.
  */
 import { describe, it, expect } from 'vitest'
-import { execSync } from 'child_process'
 import fs from 'fs'
+
+const {
+  repoFiles,
+  selfCheck: sourcesSelfCheck,
+} = require('../../../scripts/lib/repo-sources.cjs')
 
 type Rule = [name: string, re: RegExp, why: string]
 
@@ -363,13 +367,18 @@ const NEGATIVE_CHECK: string[] = [
  *
  * `-z` разделяет имена нулевым байтом и ничего не экранирует.
  */
+/**
+ * Tracked AND present-but-unstaged.
+ *
+ * A secret is a secret before `git add`. The old population started at the
+ * index, so the ordinary order of work -- write the file, run the gate, then
+ * add it -- produced a green scan over a file the scan could not see. (it.174:
+ * that is how a file reddening a neighbouring guard reached main.) Same class
+ * as the 50 files lost to name escaping below: the tool was inspecting less
+ * than the whole repository and said nothing about it.
+ */
 function trackedFiles(): string[] {
-  return execSync('git ls-files -z', {
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  })
-    .split('\0')
-    .filter(Boolean)
+  return repoFiles(process.cwd())
 }
 
 describe('в репозитории нет новых секретов', () => {
