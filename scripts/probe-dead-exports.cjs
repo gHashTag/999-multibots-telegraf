@@ -35,51 +35,11 @@ const ROOT = execFileSync('git', ['rev-parse', '--show-toplevel'], {
  * reported half the truth -- 150 re-exports where there are 281. Caught only by
  * checking one symbol known to be dead and finding it absent.
  */
-function blank(t) {
-  let out = ''
-  let i = 0
-  const keep = s => s.replace(/[^\n]/g, ' ')
-  while (i < t.length) {
-    const c = t[i]
-    if (c === '/' && t[i + 1] === '*') {
-      const j = t.indexOf('*/', i + 2)
-      const e = j === -1 ? t.length : j + 2
-      out += keep(t.slice(i, e))
-      i = e
-      continue
-    }
-    if (c === '/' && t[i + 1] === '/') {
-      const j = t.indexOf('\n', i)
-      const e = j === -1 ? t.length : j
-      out += keep(t.slice(i, e))
-      i = e
-      continue
-    }
-    if (c === '`' || c === '"' || c === String.fromCharCode(39)) {
-      let j = i + 1
-      while (j < t.length) {
-        if (t[j] === '\\') {
-          j += 2
-          continue
-        }
-        if (t[j] === c) break
-        if (c !== '`' && t[j] === '\n') break
-        j++
-      }
-      if (j < t.length && t[j] === c) {
-        out += c + keep(t.slice(i + 1, j)) + c
-        i = j + 1
-      } else {
-        out += c + keep(t.slice(i + 1, j))
-        i = j
-      }
-      continue
-    }
-    out += c
-    i++
-  }
-  return out
-}
+// The blanker lives in scripts/lib/blank-code.cjs now. It was written five
+// times across five probes, and one of those copies -- this one -- ate a
+// string's closing quote and halved the census. One definition, one set of
+// controls, mutated in place.
+const { blank, selfCheck: blankSelfCheck } = require('./lib/blank-code.cjs')
 
 const RE_REEXPORT = /export\s*\{([^}]*)\}\s*from\s*['"]([^'"]*)['"]/g
 // A symbol arrives two ways, and counting only the static form OVER-reports
@@ -178,6 +138,7 @@ function selfCheck() {
       process.exit(2)
     }
   }
+  blankSelfCheck()
   console.log('самопроверка: реэкспорт разобран, посторонние формы отвергнуты')
 }
 
