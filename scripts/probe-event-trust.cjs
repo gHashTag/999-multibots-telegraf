@@ -31,9 +31,13 @@ const REGISTRY = 'src/inngest_app/registerFunctions.ts'
 
 /** Sinks worth naming, matched as CALLS rather than as words. */
 const SINKS = [
-  ['путь', /path\.join\s*\(/],
-  ['оболочка', /\b(execSync|exec)\s*\(|\w*ssh\w*\.exec\s*\(/],
-  ['деньги', /(updateUserBalance|processBalanceOperation|setPayments)\s*\(/],
+  ['путь', /path\.join\s*\(/, 'path.join(a)'],
+  ['оболочка', /\b(execSync|exec)\s*\(|\w*ssh\w*\.exec\s*\(/, 'exec(cmd)'],
+  [
+    'деньги',
+    /(updateUserBalance|processBalanceOperation|setPayments)\s*\(/,
+    'updateUserBalance(x)',
+  ],
 ]
 
 const readsEventData = code => /event\.data/.test(code)
