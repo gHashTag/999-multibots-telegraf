@@ -411,11 +411,17 @@ export const neuroImageGeneration = inngest.createFunction(
               // BEFORE the generate loop, so on a mid-generation failure the
               // user HAS been charged and onFailure issues no refund. The
               // previous 'you were not charged' text was therefore untrue (and
-              // cited a now-removed 'deduct-balance-final' step); refunding on
-              // failure is tracked as a separate follow-up.
+              // cited a now-removed 'deduct-balance-final' step).
+              //
+              // Until an automatic refund is enabled -- that is a credit to a
+              // user's balance and belongs to the owner, see owner item 21 --
+              // the message must at least SAY that the stars were taken.
+              // Telling someone only to "try again later" after charging them
+              // hides the loss: they retry, get charged again, and never learn
+              // that the first attempt cost them anything.
               is_ru
-                ? '❌ Не удалось сгенерировать изображение. Попробуйте ещё раз чуть позже.'
-                : '❌ Image generation failed. Please try again a little later.'
+                ? '❌ Не удалось сгенерировать изображение. Звёзды за эту попытку были списаны — напишите в поддержку, чтобы их вернули.'
+                : '❌ Image generation failed. The stars for this attempt were charged — contact support to have them returned.'
             )
           }
         } catch (notifyError) {
