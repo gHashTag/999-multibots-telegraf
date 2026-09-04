@@ -11,7 +11,7 @@ import path from 'path'
 import https from 'https'
 import http from 'http'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
-import { Readable } from 'stream'
+import { Readable } from 'node:stream'
 
 // S3 client for downloading videos
 const s3Client = new S3Client({

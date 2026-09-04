@@ -1868,10 +1868,17 @@ cmd_trust() {
   # трижды из трёх, а другой проходит трижды из трёх. Пока проба была одна,
   # эта команда отвечала «годно» про дерево, где другие файлы стабильно
   # падали: вопрос был уже названия, а популяция -- один файл.
+  # Четвёртая проба ОБЯЗАНА импортировать модуль приложения, а не читать
+  # исходник текстом. Три первых читают текст и импортируют только fs/path --
+  # то есть ровно ту половину, которая не ломалась НИКОГДА. Из-за этого trust
+  # печатал «дереву можно верить» на деревьях, где сбор падал (it.155:
+  # голый 'stream' вместо 'node:stream' разрешался относительно корня дерева).
+  # staffListResolution тянет @/navigation, чья бочка доходит до сервисов.
   local smokes=(
     'src/__tests__/inngest/stuckTrainingAgeUnknown.test.ts'
     'src/__tests__/security/webhookSecretToken.test.ts'
     'src/__tests__/money/paidServicesTableUnread.test.ts'
+    'src/__tests__/navigation/staffListResolution.test.ts'
   )
   local present=()
   local f

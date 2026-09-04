@@ -2,7 +2,7 @@ import fs, { createReadStream } from 'fs'
 import path from 'path'
 import https from 'https'
 import { promisify } from 'util'
-import { pipeline } from 'stream'
+import { pipeline } from 'node:stream'
 import axios from 'axios'
 import FormData from 'form-data'
 import {

@@ -1,0 +1,92 @@
+import { describe, it, expect } from 'vitest'
+import fs from 'node:fs'
+import path from 'node:path'
+import { execFileSync } from 'node:child_process'
+
+/**
+ * Ratchet: the Node builtin `stream` must be imported as `node:stream`.
+ *
+ * This is the cause of the worktree degradation that cost eight refuted
+ * hypotheses across several iterations, and it is one character wide.
+ *
+ * THE SYMPTOM. In a git worktree whose node_modules is a symlink to the main
+ * checkout, some test files failed to collect at all:
+ *
+ *   Cannot find module '<worktree>/stream'
+ *   imported from '<main-checkout>/node_modules/vite-node/dist/client.mjs'
+ *
+ * It looked like an environment fault -- the message names vite-node and two
+ * different roots and no source file of ours -- and it was per-file, which made
+ * it look random. `tri trust` passed on trees where it was live, because the
+ * probe files it runs read sources as TEXT and import nothing.
+ *
+ * THE CAUSE. `stream` written WITHOUT the `node:` prefix. Vite resolves the bare
+ * specifier against the project root, and in a worktree the root that
+ * node_modules really lives under is a different directory, so it looks for
+ * <worktree>/stream and finds nothing. Only files whose import graph reaches one
+ * of these ever hit it: staffListResolution imports @/navigation, whose barrel
+ * reaches services/videoTranscription. The text-reading ratchets import only fs
+ * and path, so they never did -- that is the whole of the "randomness".
+ *
+ * PROVEN BY REPRODUCTION, both directions: with node:stream the file collects
+ * and its 3 tests pass; reverting videoTranscription alone brings the error
+ * back; reverting both keeps it; re-applying clears it again.
+ *
+ * WHY ONLY `stream`. 495 bare builtin imports live in this tree, 431 of them fs
+ * and path, and those demonstrably do not break -- the suite is green with them.
+ * So this forbids the one module measured to break, not the whole class. Widen
+ * it when another module is shown to break, not before: a 271-file rewrite to
+ * prevent a fault that has never occurred is a bigger risk than the fault.
+ */
+
+const ROOT = path.resolve(__dirname, '../../..')
+
+/** Bare `stream`, not `node:stream`, and not a longer name ending in it. */
+const BARE_STREAM = /(?:from|import|require\()\s*['"]stream['"]/
+
+const sources = (): string[] =>
+  execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
+    .split('\n')
+    .filter(f => /\.(ts|mts|cts|js|mjs|cjs)$/.test(f))
+
+/**
+ * The module name, ASSEMBLED rather than written.
+ *
+ * Spelled as a literal, the positive samples below would themselves be bare
+ * imports as far as the whole-tree check is concerned, and this file would fail
+ * on its own fixture. That is not a hypothetical: it happened on the first run
+ * here, and it is the SAME trap noEmbeddedDbCredentials fell into -- recorded
+ * one iteration earlier as "fix the class, not the instance you tripped on",
+ * and then walked into again while writing this. A guard that scans the whole
+ * tree is inside its own population; that is a property of the guard, not an
+ * accident of one file.
+ */
+const M = ['str', 'eam'].join('')
+
+describe('the stream builtin is imported as node:stream', () => {
+  it('the matcher sees the bare form and spares the prefixed one', () => {
+    // Both directions. Without the negative, a matcher broadened until it also
+    // matched node:stream would report the tree dirty forever and get deleted.
+    expect(BARE_STREAM.test(`import { pipeline } from '${M}'`)).toBe(true)
+    expect(BARE_STREAM.test(`const { Readable } = require('${M}')`)).toBe(true)
+    expect(BARE_STREAM.test(`import { pipeline } from 'node:${M}'`)).toBe(false)
+    expect(BARE_STREAM.test(`import x from '${M}-json'`)).toBe(false)
+    expect(BARE_STREAM.test(`responseType: '${M}'`)).toBe(false)
+  })
+
+  it('no file imports it bare', () => {
+    const files = sources()
+    expect(files.length, 'the file list must not be empty').toBeGreaterThan(300)
+    const offenders = files.filter(f => {
+      const p = path.join(ROOT, f)
+      return fs.existsSync(p) && BARE_STREAM.test(fs.readFileSync(p, 'utf8'))
+    })
+    expect(
+      offenders,
+      `Import it as node:stream. Bare 'stream' resolves against the project ` +
+        `root, and in a git worktree that root is not where node_modules lives, ` +
+        `so any test whose import graph reaches this file fails to collect with ` +
+        `"Cannot find module <worktree>/stream".`
+    ).toEqual([])
+  })
+})
