@@ -1,4 +1,5 @@
 import { isDev } from './config'
+import { webhookSecretFor } from '@/utils/webhookSecret'
 import { logger } from '@/utils/enhancedLogger'
 import { setupSafeConsoleLogging } from './utils/logger'
 
@@ -310,6 +311,12 @@ async function initializeBots() {
               domain: webhookDomain,
               port: currentPort,
               hookPath: webhookPath, // Используем hookPath, как было раньше
+              // Without this the endpoint is protected only by the secrecy of
+              // its URL, and the URL is the bot's public @name under a known
+              // domain. Telegraf both sends this to setWebhook and REJECTS a
+              // delivery whose X-Telegram-Bot-Api-Secret-Token does not match,
+              // so one option closes both ends.
+              secretToken: webhookSecretFor(token), // secret-guard-ok: derived, not a literal
             },
             allowedUpdates: [
               'message',
