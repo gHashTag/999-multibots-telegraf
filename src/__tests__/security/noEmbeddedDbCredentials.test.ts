@@ -44,6 +44,17 @@ const SAMPLE = [
   'notarealpw123@ep-x.neon.tech/db',
 ].join(':')
 
+/**
+ * The repository's existing escape hatch, honoured by scripts/security-guard at
+ * commit time: a deliberate sample carries `secret-guard-ok: reason` on the
+ * SAME line. Assembled here for the same reason SAMPLE is.
+ */
+const MARKER = ['secret', 'guard', 'ok'].join('-')
+
+/** Lines that carry an embedded credential and are not excused. */
+const offendingLines = (src: string): string[] =>
+  src.split('\n').filter(l => EMBEDDED_PASSWORD.test(l) && !l.includes(MARKER))
+
 const sourceFiles = (): string[] => {
   const out: string[] = []
   const walk = (dir: string) => {
@@ -76,11 +87,38 @@ describe('credentials embedded in connection strings', () => {
     }
   })
 
+  it('spares a line carrying the repository escape marker, and only that line', () => {
+    // Control for the exemption below, in both directions. An exemption with no
+    // negative is a hole with a comment on it.
+    expect(offendingLines(`const s = '${SAMPLE}'`)).toHaveLength(1)
+    expect(
+      offendingLines(`const s = '${SAMPLE}' // ${MARKER}: invented sample`)
+    ).toHaveLength(0)
+    // The marker excuses ITS OWN line, not the file around it.
+    expect(
+      offendingLines(
+        `const ok = '' // ${MARKER}: reason\nconst bad = '${SAMPLE}'`
+      )
+    ).toHaveLength(1)
+  })
+
   it('appears in no source file', () => {
+    // This shipped RED and stayed red, because the author fixed the instance
+    // they tripped on instead of the class: the header above records that the
+    // check matched its own literal sample and was solved by assembling that
+    // one string at runtime. Nobody then asked which OTHER file holds the same
+    // shape -- and no-secrets-in-repo.test.ts does, in the table of invented
+    // samples that proves the COMMIT guard recognises each secret shape.
+    //
+    // That sample is already excused by the repository's own convention, the
+    // `secret-guard-ok: reason` marker the commit guard honours. This check
+    // simply did not know about it. Honouring the existing marker keeps the
+    // population whole -- test files are still scanned, because a real
+    // credential parked in a test leaks exactly as hard as one in production.
     const files = sourceFiles()
     expect(files.length, 'file walk must find sources').toBeGreaterThan(300)
-    const offenders = files.filter(f =>
-      EMBEDDED_PASSWORD.test(fs.readFileSync(path.join(ROOT, f), 'utf8'))
+    const offenders = files.filter(
+      f => offendingLines(fs.readFileSync(path.join(ROOT, f), 'utf8')).length
     )
     expect(offenders).toEqual([])
   })

@@ -293,6 +293,9 @@ apps/vibee-editor/render/autopilot-talking-portrait.test.ts :: the switch on wit
 apps/vibee-editor/render/autopilot-talking-portrait.test.ts :: the switch on with a broken provider still produces a reel a provider that is not there at all is the same story
 apps/vibee-editor/render/autopilot-talking-portrait.test.ts :: the switch on with a broken provider still produces a reel a refusal that cost nothing still fills the oval with the b-roll
 apps/vibee-editor/render/autopilot-talking-portrait.test.ts :: the switch on with a broken provider still produces a reel a refused task publishes the engraving and says why in the recipe
+apps/vibee-editor/render/backfill-thumbnails-guard.test.ts :: дозаполнение обложек — только владельцу владельца из ADMIN_IDS пускает
+apps/vibee-editor/render/backfill-thumbnails-guard.test.ts :: дозаполнение обложек — только владельцу постороннего не пускает, и подстрока id не помогает
+apps/vibee-editor/render/backfill-thumbnails-guard.test.ts :: дозаполнение обложек — только владельцу пустой ADMIN_IDS не делает владельцем никого
 apps/vibee-editor/render/branding-auth-contract.test.ts :: branding identity transport accepts Telegram initData only from headers, never from the URL
 apps/vibee-editor/render/broll-spend.test.ts :: в автопилоте заявка стоит ДО платного вызова claimBroll вызывается РАНЬШЕ, чем уходит запрос к провайдеру
 apps/vibee-editor/render/broll-spend.test.ts :: в автопилоте заявка стоит ДО платного вызова находит блок — иначе проверка пустая
@@ -3898,8 +3901,10 @@ src/__tests__/security/no-secrets-in-repo.test.ts :: в репозитории �
 src/__tests__/security/no-token-in-urls.test.ts :: токен бота не уходит в адресах разбор находит места, где такой адрес строится — иначе тест пустой
 src/__tests__/security/no-token-in-urls.test.ts :: токен бота не уходит в адресах такой адрес не возвращается из функции
 src/__tests__/security/no-token-in-urls.test.ts :: токен бота не уходит в адресах такой адрес не кладётся в поля профиля
+src/__tests__/security/noEmbeddedDbCredentials.test.ts :: credentials embedded in connection strings appears in no source file
 src/__tests__/security/noEmbeddedDbCredentials.test.ts :: credentials embedded in connection strings does not fire the guard on an ordinary URL
 src/__tests__/security/noEmbeddedDbCredentials.test.ts :: credentials embedded in connection strings is still refused by the commit guard
+src/__tests__/security/noEmbeddedDbCredentials.test.ts :: credentials embedded in connection strings spares a line carrying the repository escape marker, and only that line
 src/__tests__/security/noEmbeddedDbCredentials.test.ts :: credentials embedded in connection strings the matcher recognises the shape and spares ordinary URLs
 src/__tests__/security/noFakeCredentialDefaults.test.ts :: fake credentials standing in for missing ones no credential falls back to a non-empty literal
 src/__tests__/security/noFakeCredentialDefaults.test.ts :: fake credentials standing in for missing ones no production module writes to process.env at load time
