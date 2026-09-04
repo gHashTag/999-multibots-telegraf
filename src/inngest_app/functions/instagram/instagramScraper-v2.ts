@@ -47,9 +47,13 @@ const log = {
 
 // Database connection pool
 const dbPool = new Pool({
-  connectionString:
-    process.env.NEON_DATABASE_URL ||
-    'postgresql://neondb_owner:npg_vXnxbypES56V@ep-proud-grass-aegoipez-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require',
+  // No literal fallback. A connection string with an embedded password
+  // used to sit here, which meant a missing variable silently connected
+  // to a real database using a credential committed to the repository.
+  // This file already refuses when the variable is absent (see the
+  // guards further down), so the fallback also contradicted its own
+  // file. Without it, a missing variable fails on connect instead.
+  connectionString: process.env.NEON_DATABASE_URL,
   ssl: {
     rejectUnauthorized: false,
   },
