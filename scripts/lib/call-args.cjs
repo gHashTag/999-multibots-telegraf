@@ -71,6 +71,52 @@ function braceBody(masked, anchor) {
   return ''
 }
 
+/**
+ * The consequent and alternate blocks of the `if` at `anchor`.
+ *
+ * The alternative people reach for is "take N characters after the anchor and
+ * look for an else". Measured on refundFailureIsAnnounced, N was 2000 and the
+ * verdict moved when it was halved -- so the constant was carrying the answer,
+ * and any admission of failure ANYWHERE in those 2000 characters satisfied a
+ * rule that means "in the else branch".
+ *
+ * Returns { consequent, alternate } plus the alternate's OFFSETS in the source.
+ * The offsets matter: blank-code preserves length but blanks string-literal
+ * CONTENTS, so a caller looking for a user-facing message must slice the RAW
+ * source by these offsets. Testing the masked block for a Cyrillic sentence
+ * finds nothing, every time -- the fifth appearance of that trap here.
+ */
+function ifElseBlocks(masked, anchor) {
+  const m = new RegExp(anchor).exec(masked)
+  const none = { consequent: '', alternate: '', start: -1, end: -1 }
+  if (!m) return none
+  const consequent = braceBody(masked, anchor)
+  if (!consequent) return none
+  const after = masked.indexOf(consequent, m.index) + consequent.length
+  const tail = masked.slice(after)
+  const elseAt = /^\s*else\b/.exec(tail)
+  if (!elseAt) return { ...none, consequent }
+  const restAt = after + elseAt[0].length
+  const rest = masked.slice(restAt)
+  // `else if` chains: the alternate is the nested if's own consequent.
+  const openRel = rest.indexOf('{')
+  if (openRel === -1) return { ...none, consequent }
+  let i = openRel
+  let depth = 0
+  while (i < rest.length) {
+    if (rest[i] === '{') depth++
+    else if (rest[i] === '}' && --depth === 0)
+      return {
+        consequent,
+        alternate: rest.slice(openRel, i + 1),
+        start: restAt + openRel,
+        end: restAt + i + 1,
+      }
+    i++
+  }
+  return { ...none, consequent }
+}
+
 const SAMPLES = [
   { why: 'one call, one argument list', code: `f(a, b)`, name: 'f', n: 1 },
   {
@@ -100,6 +146,28 @@ const SAMPLES = [
     n: 0,
   },
   { why: 'two calls are two lists', code: `f(1)\nf(2)`, name: 'f', n: 2 },
+]
+
+const ELSE_SAMPLES = [
+  {
+    why: 'the else block is returned, and the consequent is not part of it',
+    code: `if (ok) {\n  good()\n} else {\n  bad()\n}`,
+    anchor: 'if \\(ok\\)',
+    alternateHas: 'bad()',
+    alternateLacks: 'good()',
+  },
+  {
+    why: 'no else means an empty alternate, not the next statement',
+    code: `if (ok) {\n  good()\n}\nunrelated()`,
+    anchor: 'if \\(ok\\)',
+    alternateEmpty: true,
+  },
+  {
+    why: 'a later sibling if does not become the alternate',
+    code: `if (ok) {\n  good()\n}\nif (other) {\n  NOT_MINE\n}`,
+    anchor: 'if \\(ok\\)',
+    alternateEmpty: true,
+  },
 ]
 
 const BODY_SAMPLES = [
@@ -136,6 +204,17 @@ function selfCheck() {
         `callArgs lost part of the list (${s.why}): ${JSON.stringify(got[0])}`
       )
   }
+  for (const s of ELSE_SAMPLES) {
+    const { alternate } = ifElseBlocks(s.code, s.anchor)
+    if (s.alternateEmpty && alternate !== '')
+      throw new Error(
+        `ifElseBlocks invented an alternate (${s.why}): ${alternate}`
+      )
+    if (s.alternateHas && !alternate.includes(s.alternateHas))
+      throw new Error(`ifElseBlocks lost the else body (${s.why})`)
+    if (s.alternateLacks && alternate.includes(s.alternateLacks))
+      throw new Error(`ifElseBlocks included the consequent (${s.why})`)
+  }
   for (const s of BODY_SAMPLES) {
     const body = braceBody(s.code, s.anchor)
     if (s.empty && body !== '')
@@ -152,6 +231,8 @@ function selfCheck() {
 
 module.exports = {
   callArgs,
+  ifElseBlocks,
+  ELSE_SAMPLES,
   argsMention,
   braceBody,
   SAMPLES,
