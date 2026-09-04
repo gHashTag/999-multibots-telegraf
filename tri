@@ -2256,13 +2256,18 @@ cmd_untracked() {
     console.log("охран, упоминающих git ls-files: " + guards.length)
     rows.forEach(r => console.log("     " + r[1].padEnd(24) + r[0]))
     console.log("  слепых на неотслеживаемое: " + blind.length)
-    console.log("\nневидимых сейчас исходников: " + hidden.length)
+    console.log("\nнеотслеживаемых исходников: " + hidden.length)
     hidden.forEach(f => console.log("     " + f))
     if (hidden.length && blind.length) {
-      console.log("\n!! ГЕЙТ СЕЙЧАС НЕ СУДИТ ЭТИ ФАЙЛЫ.")
+      console.log("\n!! " + blind.length + " ОХРАН НЕ СУДЯТ ЭТИ ФАЙЛЫ.")
       console.log("   git add их до прогона -- иначе зелёный ничего не значит.")
-    } else if (!hidden.length) {
-      console.log("\nневидимых исходников нет -- зелёному гейту можно верить.")
+    } else if (hidden.length) {
+      // После #1883 популяция охран включает неотслеживаемое, поэтому список
+      // выше -- уже НЕ список невидимого. Называть его так значило бы
+      // пугать несуществующим: сами файлы никуда не делись, а слепота ушла.
+      console.log("\nслепых охран нет -- эти файлы уже входят в популяцию.")
+    } else {
+      console.log("\nнеотслеживаемых исходников нет.")
     }
   ' )
 }
