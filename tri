@@ -2499,45 +2499,19 @@ cmd_dupes() {
   else
     filelist="$(git -C "$ROOT" ls-files "$target/**/*.ts" "$target/**/*.cjs" "$target/*.ts" "$target/*.cjs" 2>/dev/null | sed "s|^|$ROOT/|")"
   fi
-  printf '%s' "$filelist" | node -e '
+  printf '%s' "$filelist" | ( cd "$ROOT" && node -e '
     const fs = require("fs");
     let input = "";
     process.stdin.on("data", d => (input += d));
     process.stdin.on("end", () => {
       const files = input.split("\n").filter(Boolean);
-      // Blank out comments and every kind of string literal, keeping offsets
-      // so reported line numbers stay true.
-      const blank = t => {
-        let out = "", i = 0;
-        const keepNl = s => s.replace(/[^\n]/g, " ");
-        while (i < t.length) {
-          const c = t[i];
-          if (c === "/" && t[i + 1] === "*") {
-            const j = t.indexOf("*/", i + 2);
-            const end = j === -1 ? t.length : j + 2;
-            out += keepNl(t.slice(i, end)); i = end; continue;
-          }
-          if (c === "/" && t[i + 1] === "/") {
-            const j = t.indexOf("\n", i);
-            const end = j === -1 ? t.length : j;
-            out += keepNl(t.slice(i, end)); i = end; continue;
-          }
-          if (c === "`" || c === "\"" || c === "'\''") {
-            let j = i + 1;
-            while (j < t.length) {
-              if (t[j] === "\\") { j += 2; continue; }
-              if (t[j] === c) break;
-              if (c !== QUOTES[0] && t[j] === "\n") break;   // unterminated quote
-              j++;
-            }
-            const end = Math.min(j + 1, t.length);
-            out += c + keepNl(t.slice(i + 1, end));
-            i = end; continue;
-          }
-          out += c; i++;
-        }
-        return out;
-      };
+      // One definition, not a copy. This inline blank() was copied from
+      // scripts/lib/blank-code.cjs and drifted: it kept a reference to the
+      // QUOTES table it left behind, so the verb threw ReferenceError on any
+      // file containing a quote -- that is, on every real source file. It had
+      // been dead the whole time, and the self-check passed anyway (see
+      // cmd_dupes_selfcheck).
+      const { blank } = require("./scripts/lib/blank-code.cjs");
       let found = 0;
       const re = /^[ \t]*(?:export[ \t]+)?(?:async[ \t]+)?function[ \t]+([A-Za-z_$][\w$]*)/gm;
       for (const f of files) {
@@ -2575,7 +2549,7 @@ cmd_dupes() {
       console.log("функций, объявленных повторно: " + found);
       process.exit(found === 0 ? 0 : 1);
     });
-  ' "$ROOT"
+  ' "$ROOT" )
 }
 
 cmd_dupes_selfcheck() {
@@ -2604,14 +2578,30 @@ cmd_dupes_selfcheck() {
   else
     good 'одиночное объявление дублем не названо'
   fi
-  local out_fixture
-  out_fixture="$(cmd_dupes "$d/fixture.ts" 2>&1 || true)"
-  if printf '%s' "$out_fixture" | grep -q 'inside'; then
+  # ОТРИЦАТЕЛЬНОЕ УТВЕРЖДЕНИЕ ОБЯЗАНО ДОКАЗАТЬ, ЧТО ИНСТРУМЕНТ ВООБЩЕ РАБОТАЛ.
+  #
+  # До этой правки обе отрицательные проверки выполнялись УПАВШЕЙ командой:
+  # копия blank() внутри cmd_dupes ссылалась на таблицу QUOTES, которую при
+  # копировании не взяли, и любой файл с кавычкой ронял её с ReferenceError.
+  # Пустой вывод не содержит слова 'inside' -- значит «дублем не считается»
+  # проходило. Положительный образец кавычек не содержал и до этой ветки не
+  # доходил, поэтому самопроверка была зелёной, а команда мёртвой.
+  #
+  # Теперь stderr и код возврата ловятся отдельно: «не нашёл» принимается
+  # только от команды, которая отработала.
+  local out_fixture err_fixture rc_fixture
+  err_fixture="$(mktemp)"
+  out_fixture="$(cmd_dupes "$d/fixture.ts" 2>"$err_fixture")"; rc_fixture=$?
+  if [ -s "$err_fixture" ] || [ "$rc_fixture" -gt 1 ]; then
+    bad "СЛОМАНА: команда упала на образце (rc=$rc_fixture): $(head -c 120 "$err_fixture")"
+    rc=1
+  elif printf '%s' "$out_fixture" | grep -q 'inside'; then
     bad 'СЛОМАНА: объявление внутри шаблонной строки посчитано дублем'
     rc=1
   else
-    good 'образец кода в шаблонной строке дублем не считается'
+    good 'образец кода в шаблонной строке дублем не считается (и команда отработала)'
   fi
+  rm -f "$err_fixture"
   rm -rf "$d"
   return "$rc"
 }
