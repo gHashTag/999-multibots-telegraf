@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 
+const { matchCode } = require('../../../scripts/lib/blank-code.cjs')
+
 /**
  * Ratchet: the Node builtin `stream` must be imported as `node:stream`.
  *
@@ -53,6 +55,7 @@ const ROOT = path.resolve(__dirname, '../../..')
 // failure made "should merge two videos successfully" pass in one worktree and
 // fail in another built from the same commit. This ratchet was green throughout.
 const BARE_STREAM = /(?:from|import\(|import|require\()\s*['"]stream['"]/
+const BARE_STREAM_G = new RegExp(BARE_STREAM.source, 'g')
 
 const sources = (): string[] =>
   execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
@@ -88,12 +91,34 @@ describe('the stream builtin is imported as node:stream', () => {
     expect(BARE_STREAM.test(`responseType: '${M}'`)).toBe(false)
   })
 
+  it('prose that quotes the forbidden spelling is not an import', () => {
+    // Third occurrence of this trap. Twice it was cured by rewording the
+    // comment; that fixes the instance and leaves the class. A guard that
+    // scans whole files is inside its own population, and so is every file
+    // documenting the rule -- the reader must therefore skip prose, not the
+    // authors remember to.
+    const inComment = `// const { Readable } = require('${M}')\nconst a = 1`
+    const inBlock = `/**\n * await import('${M}')\n */\nconst b = 2`
+    const inString = `const msg = "use require('${M}') here"`
+    const real = `const { Readable } = require('${M}')`
+    expect(matchCode(inComment, BARE_STREAM_G).length).toBe(0)
+    expect(matchCode(inBlock, BARE_STREAM_G).length).toBe(0)
+    expect(matchCode(inString, BARE_STREAM_G).length).toBe(0)
+    // ...and the real thing is still caught, or the rule above is vacuous.
+    expect(matchCode(real, BARE_STREAM_G).length).toBe(1)
+  })
+
   it('no file imports it bare', () => {
     const files = sources()
     expect(files.length, 'the file list must not be empty').toBeGreaterThan(300)
     const offenders = files.filter(f => {
       const p = path.join(ROOT, f)
-      return fs.existsSync(p) && BARE_STREAM.test(fs.readFileSync(p, 'utf8'))
+      if (!fs.existsSync(p)) return false
+      // matchCode drops any hit that BEGINS inside a comment or a string body.
+      // The specifier itself survives because the match starts at `from` /
+      // `import(` / `require(`, which is code. Prose that quotes the forbidden
+      // spelling -- documentation of this very rule -- no longer counts.
+      return matchCode(fs.readFileSync(p, 'utf8'), BARE_STREAM_G).length > 0
     })
     expect(
       offenders,
