@@ -44,15 +44,21 @@ const stripComments = (s: string) =>
 
 const code = () => stripComments(fs.readFileSync(SRC, 'utf8'))
 
+const { blank } = require('../../../scripts/lib/blank-code.cjs')
+const { callArgs, braceBody } = require('../../../scripts/lib/call-args.cjs')
+
+// Comments already stripped (length-preserving), then string CONTENTS blanked:
+// a `return` or a `jobId` written inside a message cannot satisfy a rule.
+const masked = () => blank(code())
+
 describe('video delivery is idempotent per job (no double charge)', () => {
   it('handleVideoReady accepts an optional jobId claim token', () => {
-    const s = code()
-    const sig = s.match(
-      /async function handleVideoReady\([\s\S]{0,260}?\): Promise<void>/
-    )
-    expect(sig, 'no handleVideoReady signature').not.toBeNull()
+    // The parameter list is a balanced paren group, not a 260-char window: a
+    // window either clips a longer signature or runs past it into the body.
+    const decl = callArgs(masked(), 'function handleVideoReady')
+    expect(decl.length, 'no handleVideoReady declaration').toBe(1)
     expect(
-      /jobId\?: string/.test(sig![0]),
+      /jobId\?: string/.test(decl[0]),
       'handleVideoReady has no jobId param'
     ).toBe(true)
   })
@@ -64,8 +70,14 @@ describe('video delivery is idempotent per job (no double charge)', () => {
     )
     expect(guard, 'no jobId idempotency guard').toBeGreaterThan(-1)
 
-    // guard body returns on a duplicate
-    const body = s.slice(guard, guard + 400)
+    // The return must be INSIDE the guard's own block. A 400-char slice also
+    // covers whatever follows the guard, so a `return` that belongs to the
+    // next statement would have satisfied it just as well.
+    const body = braceBody(
+      masked(),
+      'if \\(jobId !== undefined && !claimVideoJobDelivery\\(jobId\\)\\)'
+    )
+    expect(body, 'no jobId idempotency guard block').not.toBe('')
     expect(
       /\breturn\b/.test(body),
       'guard does not return on a duplicate'
@@ -109,10 +121,10 @@ describe('video delivery is idempotent per job (no double charge)', () => {
     ).toBe(true)
     // of the three handleVideoReady CALL sites, exactly the two async ones
     // (poller, button) pass a trailing jobId argument; the sync path passes none
-    const calls =
-      s.match(/await handleVideoReady\(\s*\n\s*ctx,[\s\S]{0,300}?\n\s*\)/g) ||
-      []
-    const withJob = calls.filter(c => /,\s*\n\s*jobId\n\s*\)$/.test(c))
+    // Each call's argument list is read by balancing parens, so a long call
+    // cannot fall out of the population by exceeding a width.
+    const calls = callArgs(masked(), 'await handleVideoReady')
+    const withJob = calls.filter(c => /,\s*jobId\s*$/.test(c))
     expect(calls.length, 'expected three handleVideoReady call sites').toBe(3)
     expect(
       withJob.length,
