@@ -1599,6 +1599,9 @@ src/__tests__/money/money-invariants.test.ts :: карта денег: типы 
 src/__tests__/money/money-invariants.test.ts :: карта денег: типы операций разбор находит объявление типов — иначе тест пустой
 src/__tests__/money/money-invariants.test.ts :: карта денег: типы операций ровно один тип списывает — остальные прибавляют
 src/__tests__/money/money-invariants.test.ts :: карта денег: типы операций список типов ровно такой, каким он измерен
+src/__tests__/money/moneyMapKnowsBothCreditSpellings.test.ts :: money-map knows both spellings of giving money back classifies a REFUND-typed balance call as a refund, not as unknown
+src/__tests__/money/moneyMapKnowsBothCreditSpellings.test.ts :: money-map knows both spellings of giving money back the classifier itself tests REFUND for the balance primitive
+src/__tests__/money/moneyMapKnowsBothCreditSpellings.test.ts :: money-map knows both spellings of giving money back what remains unclassified really is unclassifiable from the call
 src/__tests__/money/moneyWriteVocabulary.test.ts :: the vocabulary of money movement detects a write by its own samples, in both directions
 src/__tests__/money/moneyWriteVocabulary.test.ts :: the vocabulary of money movement keeps the gap between the vocabulary and the population known
 src/__tests__/money/moneyWriteVocabulary.test.ts :: the vocabulary of money movement lists every file that writes the payments table
