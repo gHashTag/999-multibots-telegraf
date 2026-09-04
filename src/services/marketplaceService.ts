@@ -138,59 +138,69 @@ export async function purchaseItem(
   }
   purchasesInFlight.add(purchaseKey)
 
-  // Deduct from buyer
-  const deducted = await updateUserBalance(
-    buyerId,
-    item.price_stars,
-    PaymentType.MONEY_OUTCOME,
-    `Marketplace: ${item.title}`,
-    {
-      bot_name: botName,
-      service_type: 'marketplace',
-      modePrice: item.price_stars,
-    }
-  )
-  if (!deducted) {
-    purchasesInFlight.delete(purchaseKey)
-    return { success: false, error: 'insufficient_balance' }
-  }
-
-  // Credit 95% to author. updateUserBalance returns false on a failed credit
-  // (it does not throw); the buyer has already been charged and will receive the
-  // content, so complete the sale but log a CRITICAL alert -- a failed author
-  // payout must be reconciled manually, not vanish silently.
-  const authorCredit = Math.floor(item.price_stars * 0.95)
-  const authorCredited = await updateUserBalance(
-    item.author_id,
-    authorCredit,
-    PaymentType.MONEY_INCOME,
-    `Marketplace sale: ${item.title}`,
-    { bot_name: botName, stars: authorCredit }
-  )
-  if (!authorCredited) {
-    logger.error('💸❌ Marketplace author NOT credited -- reconcile manually', {
-      alert: 'AUTHOR PAYOUT FAILED',
-      author_id: item.author_id,
-      buyer_id: buyerId,
-      item_id: itemId,
-      author_credit: authorCredit,
-      price_stars: item.price_stars,
-    })
-  }
-
-  // Record purchase
+  // try/finally, because the key means "a purchase is in flight RIGHT NOW"
+  // and only a finally keeps that true. Without it a throw between the charge
+  // and the delete leaves the key set forever, and every later purchase of
+  // this item by this buyer takes the early return above -- content delivered,
+  // nobody charged, the author never paid. Two awaits live in that window.
   try {
-    await supabase.from('marketplace_purchases').insert({
-      buyer_id: buyerId,
-      item_id: itemId,
-      price_stars: item.price_stars,
-    })
-  } catch {
-    /* table may not exist */
-  }
+    // Deduct from buyer
+    const deducted = await updateUserBalance(
+      buyerId,
+      item.price_stars,
+      PaymentType.MONEY_OUTCOME,
+      `Marketplace: ${item.title}`,
+      {
+        bot_name: botName,
+        service_type: 'marketplace',
+        modePrice: item.price_stars,
+      }
+    )
+    if (!deducted) {
+      return { success: false, error: 'insufficient_balance' }
+    }
 
-  purchasesInFlight.delete(purchaseKey)
-  return { success: true, content: item.content }
+    // Credit 95% to author. updateUserBalance returns false on a failed credit
+    // (it does not throw); the buyer has already been charged and will receive the
+    // content, so complete the sale but log a CRITICAL alert -- a failed author
+    // payout must be reconciled manually, not vanish silently.
+    const authorCredit = Math.floor(item.price_stars * 0.95)
+    const authorCredited = await updateUserBalance(
+      item.author_id,
+      authorCredit,
+      PaymentType.MONEY_INCOME,
+      `Marketplace sale: ${item.title}`,
+      { bot_name: botName, stars: authorCredit }
+    )
+    if (!authorCredited) {
+      logger.error(
+        '💸❌ Marketplace author NOT credited -- reconcile manually',
+        {
+          alert: 'AUTHOR PAYOUT FAILED',
+          author_id: item.author_id,
+          buyer_id: buyerId,
+          item_id: itemId,
+          author_credit: authorCredit,
+          price_stars: item.price_stars,
+        }
+      )
+    }
+
+    // Record purchase
+    try {
+      await supabase.from('marketplace_purchases').insert({
+        buyer_id: buyerId,
+        item_id: itemId,
+        price_stars: item.price_stars,
+      })
+    } catch {
+      /* table may not exist */
+    }
+
+    return { success: true, content: item.content }
+  } finally {
+    purchasesInFlight.delete(purchaseKey)
+  }
 }
 
 /** Create a new listing. */

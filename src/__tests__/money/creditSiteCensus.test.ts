@@ -58,7 +58,14 @@ const ALLOWLIST: Record<string, number> = {
   'scenes/tonPaymentScene/index.ts': 1, // atomic status CAS (#1548/#1555)
 
   // peer payout
-  'services/marketplaceService.ts': 1, // 95% author payout; the purchase behind it is idempotent
+  // 95% author payout. NOT "idempotent", which is what this line used to say
+  // and what sent nobody to look: the guard is an in-memory Set keyed
+  // buyerId:itemId, per process, released in a finally. It prevents a
+  // CONCURRENT double charge inside one process and nothing more -- a second
+  // instance, or the same process after a restart, sees an empty Set. The
+  // finally is load-bearing and was added in #1861 after a throw between the
+  // charge and the release turned the key into a permanent free tap.
+  'services/marketplaceService.ts': 1,
 
   // refunds: reconcile to a charge that happened, so not a mint when guarded
   'core/lipsync/async-lipsync-manager.ts': 1, // job.refundIssued flag

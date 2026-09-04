@@ -1574,6 +1574,9 @@ src/__tests__/money/marketplace-deduct-guarded.test.ts :: marketplace purchaseIt
 src/__tests__/money/marketplace-deduct-guarded.test.ts :: marketplace purchaseItem checks item existence before deducting getItem is called before updateUserBalance
 src/__tests__/money/marketplace-deduct-guarded.test.ts :: marketplace purchaseItem checks item existence before deducting the function is found — otherwise the checks below are empty
 src/__tests__/money/marketplaceAuthorPayout.test.ts :: marketplace author payout is checked (no silent unpaid author) captures the author credit result and logs a failure
+src/__tests__/money/marketplaceInFlightReleased.test.ts :: marketplace purchase releases its in-flight key releases the key on the insufficient-balance exit too
+src/__tests__/money/marketplaceInFlightReleased.test.ts :: marketplace purchase releases its in-flight key releases the key when the charge THROWS, so the next purchase still charges
+src/__tests__/money/marketplaceInFlightReleased.test.ts :: marketplace purchase releases its in-flight key still short-circuits a genuinely concurrent purchase
 src/__tests__/money/marketplacePurchaseIdempotent.test.ts :: marketplace purchase is idempotent under a concurrent double-tap two concurrent purchases of the same item charge the buyer only once
 src/__tests__/money/modelTrainingV2ProviderTimeouts.test.ts :: modelTrainingV2 bounds its post-charge provider calls (no charged-not-delivered hang) every axios.get has an explicit timeout
 src/__tests__/money/modelTrainingV2ProviderTimeouts.test.ts :: modelTrainingV2 bounds its post-charge provider calls (no charged-not-delivered hang) self-check: the analyzer flags an axios.get with no timeout
