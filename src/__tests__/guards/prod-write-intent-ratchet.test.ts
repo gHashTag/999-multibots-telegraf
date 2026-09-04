@@ -19,13 +19,19 @@ import path from 'path'
  */
 const REPO = path.join(__dirname, '..', '..', '..')
 
+const { repoFiles } = require('../../../scripts/lib/repo-sources.cjs')
+
+/**
+ * Tracked AND present-but-unstaged test files.
+ *
+ * A test that writes to the live database is dangerous the moment it exists
+ * on disk -- running the suite runs it, staged or not. The old population
+ * started at the index, so a brand-new migration test was ungoverned for
+ * exactly as long as it took to `git add` it, which is the window in which it
+ * is most likely to be run for the first time.
+ */
 function tracked(): string[] {
-  return execFileSync('git', ['ls-files', '*.test.ts'], {
-    cwd: REPO,
-    encoding: 'utf8',
-  })
-    .split('\n')
-    .filter(Boolean)
+  return repoFiles(REPO).filter(f => f.endsWith('.test.ts'))
 }
 
 /** Files that reach the real client AND write through it. */
