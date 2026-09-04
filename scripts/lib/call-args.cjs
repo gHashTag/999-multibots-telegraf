@@ -88,19 +88,28 @@ function braceBody(masked, anchor) {
  */
 function ifElseBlocks(masked, anchor) {
   const m = new RegExp(anchor).exec(masked)
-  const none = { consequent: '', alternate: '', start: -1, end: -1 }
+  const none = {
+    consequent: '',
+    alternate: '',
+    start: -1,
+    end: -1,
+    conStart: -1,
+    conEnd: -1,
+  }
   if (!m) return none
   const consequent = braceBody(masked, anchor)
   if (!consequent) return none
+  const conStart = masked.indexOf(consequent, m.index)
+  const conEnd = conStart + consequent.length
   const after = masked.indexOf(consequent, m.index) + consequent.length
   const tail = masked.slice(after)
   const elseAt = /^\s*else\b/.exec(tail)
-  if (!elseAt) return { ...none, consequent }
+  if (!elseAt) return { ...none, consequent, conStart, conEnd }
   const restAt = after + elseAt[0].length
   const rest = masked.slice(restAt)
   // `else if` chains: the alternate is the nested if's own consequent.
   const openRel = rest.indexOf('{')
-  if (openRel === -1) return { ...none, consequent }
+  if (openRel === -1) return { ...none, consequent, conStart, conEnd }
   let i = openRel
   let depth = 0
   while (i < rest.length) {
@@ -111,10 +120,12 @@ function ifElseBlocks(masked, anchor) {
         alternate: rest.slice(openRel, i + 1),
         start: restAt + openRel,
         end: restAt + i + 1,
+        conStart,
+        conEnd,
       }
     i++
   }
-  return { ...none, consequent }
+  return { ...none, consequent, conStart, conEnd }
 }
 
 const SAMPLES = [
@@ -170,6 +181,15 @@ const ELSE_SAMPLES = [
   },
 ]
 
+const CON_SAMPLES = [
+  {
+    why: 'consequent offsets point at the consequent, in the RAW source',
+    code: `if (!ok) {\n  throw new Error('boom')\n}`,
+    anchor: 'if \\(!ok\\)',
+    rawHas: 'boom',
+  },
+]
+
 const BODY_SAMPLES = [
   {
     why: 'a body ends at its own closing brace, not at the next one',
@@ -215,6 +235,14 @@ function selfCheck() {
     if (s.alternateLacks && alternate.includes(s.alternateLacks))
       throw new Error(`ifElseBlocks included the consequent (${s.why})`)
   }
+  for (const s of CON_SAMPLES) {
+    const r = ifElseBlocks(s.code, s.anchor)
+    if (
+      r.conStart < 0 ||
+      !s.code.slice(r.conStart, r.conEnd).includes(s.rawHas)
+    )
+      throw new Error(`consequent offsets wrong (${s.why})`)
+  }
   for (const s of BODY_SAMPLES) {
     const body = braceBody(s.code, s.anchor)
     if (s.empty && body !== '')
@@ -233,6 +261,7 @@ module.exports = {
   callArgs,
   ifElseBlocks,
   ELSE_SAMPLES,
+  CON_SAMPLES,
   argsMention,
   braceBody,
   SAMPLES,
