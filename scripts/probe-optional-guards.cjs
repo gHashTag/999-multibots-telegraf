@@ -22,6 +22,8 @@
 
 const fs = require('fs')
 const path = require('path')
+const readCensus = require('./lib/read-census.cjs').census
+const scan = readCensus('исходники')
 const { execFileSync } = require('child_process')
 const { blank, selfCheck: blankSelfCheck } = require('./lib/blank-code.cjs')
 
@@ -122,13 +124,10 @@ const optionalPositions = new Set()
 const found = []
 for (const f of files) {
   let raw
-  let code
-  try {
-    raw = fs.readFileSync(path.join(ROOT, f), 'utf8')
-    code = blank(raw)
-  } catch {
-    continue
-  }
+  // Reading nothing must not look like finding nothing.
+  raw = scan.read1(path.join(ROOT, f))
+  if (raw === null) continue
+  const code = blank(raw)
   for (const fn of functions(code)) {
     const paramsAt = code.indexOf(fn.params, fn.at)
     for (const pm of fn.params.matchAll(/(\w+)\?\s*:/g)) {
@@ -140,6 +139,7 @@ for (const f of files) {
   }
 }
 
+scan.report(files.length)
 console.log(`\nнеобязательных параметров: ${optionalPositions.size}`)
 console.log(`\n=== ОТКАЗ ЗА НЕОБЯЗАТЕЛЬНЫМ ПАРАМЕТРОМ: ${found.length} ===`)
 console.log('   (список для чтения: спроси, что будет, если не передать)\n')

@@ -20,6 +20,8 @@
 
 const fs = require('fs')
 const path = require('path')
+const readCensus = require('./lib/read-census.cjs').census
+const scan = readCensus('исходники')
 const { execFileSync } = require('child_process')
 const {
   blank,
@@ -148,12 +150,8 @@ const files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
 const shellReaching = []
 const argvOnly = []
 for (const f of files) {
-  let raw
-  try {
-    raw = fs.readFileSync(path.join(ROOT, f), 'utf8')
-  } catch {
-    continue
-  }
+  const raw = scan.read1(path.join(ROOT, f))
+  if (raw === null) continue
   if (!importsChildProcess(raw)) continue
   const imported = importedPrimitives(raw)
   const used = PRIMITIVES.filter(([n]) => imported.has(n))
@@ -179,6 +177,7 @@ shellReaching.sort().forEach(r => console.log(r))
 
 console.log(`\n=== УДАЛЁННАЯ ОБОЛОЧКА ЧЕРЕЗ SSH: ${sshCallers.length} ===\n`)
 sshCallers.sort().forEach(f => console.log(`  ${f}`))
+scan.report(files.length)
 
 console.log(`\nargv, без оболочки: ${argvOnly.length}`)
 argvOnly.sort().forEach(r => console.log(r))

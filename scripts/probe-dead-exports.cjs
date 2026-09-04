@@ -21,6 +21,8 @@
  */
 const fs = require('fs')
 const path = require('path')
+const readCensus = require('./lib/read-census.cjs').census
+const scan = readCensus('исходники')
 const { execFileSync } = require('child_process')
 
 const ROOT = execFileSync('git', ['rev-parse', '--show-toplevel'], {
@@ -152,14 +154,13 @@ const isTest = f => f.includes('__tests__') || f.includes('/test/')
 const prod = {}
 const tests = {}
 for (const f of files) {
-  let code
-  try {
-    code = blank(fs.readFileSync(path.join(ROOT, f), 'utf8'))
-  } catch {
-    continue
-  }
-  ;(isTest(f) ? tests : prod)[f] = code
+  // A swallowed read made this probe print a confident 0 while reading
+  // nothing: the count described the file list, not the work.
+  const raw = scan.read1(path.join(ROOT, f))
+  if (raw === null) continue
+  ;(isTest(f) ? tests : prod)[f] = blank(raw)
 }
+scan.report(files.length)
 
 const barrels = {}
 for (const [f, code] of Object.entries(prod)) {
