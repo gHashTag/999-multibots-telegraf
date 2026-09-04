@@ -457,3 +457,6 @@ apps/vibee-editor/render/node_modules
 # git add -A swept these in once and the secret guard stopped the commit.
 .mimosa/
 .runtime/
+
+# Vite cache — per worktree, never in the shared node_modules (see vitest.config.ts)
+.vite-cache/

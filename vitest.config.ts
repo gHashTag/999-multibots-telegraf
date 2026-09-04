@@ -2,6 +2,22 @@ import { defineConfig } from 'vitest/config'
 import path from 'path'
 
 export default defineConfig({
+  // ONE CACHE PER TREE, NOT ONE CACHE FOR ALL OF THEM.
+  //
+  // Vite defaults cacheDir to <root>/node_modules/.vite. In a git worktree
+  // node_modules is a SYMLINK to the main checkout, so that path resolves to
+  // the main checkout's directory and every worktree writes into the same
+  // cache. Measured: 25 worktrees on 25 branches sharing one.
+  //
+  // That is shared mutable state between branches, which is the wrong default
+  // for a repository several agents work in at once. This puts the cache in a
+  // real directory inside the tree that owns it, where a branch cannot inherit
+  // another branch's optimized dependencies.
+  //
+  // Not claimed: that this caused any specific failure. What is claimed is that
+  // 25 trees sharing one cache is a channel that should not exist, and closing
+  // it costs one re-optimisation per tree.
+  cacheDir: path.resolve(__dirname, '.vite-cache'),
   test: {
     globals: true,
     // Deterministic test environment (complements vitest.setup.ts, which sets
