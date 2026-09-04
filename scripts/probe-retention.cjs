@@ -17,7 +17,7 @@
  *
  * Ничего не пишет.
  */
-const url = process.env.SUPABASE_URL.replace(/\/$/, '')
+const url = (process.env.SUPABASE_URL || '').replace(/\/$/, '')
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 const H = { apikey: key, Authorization: `Bearer ${key}` }
 
@@ -44,14 +44,84 @@ async function fetchAll(table, select) {
 const n = x => Number(x ?? 0)
 const day = ts => String(ts || '').slice(0, 10)
 
+/**
+ * Days between a recorded day and NOW, or null when the day cannot be read.
+ *
+ * Named and lifted here so a control can call it with no credentials. The third
+ * outcome is explicit on purpose: every comparison with NaN is false, so an
+ * unreadable date used to slide past `daysSince < 60` and be reported as a
+ * churned user.
+ */
+// `now` is passed in rather than defaulted: NOW lives inside main(), and a
+// default parameter resolves in THIS function's scope, so defaulting to it
+// would throw at the first call.
+function daysBetween(lastDay, now) {
+  const a = Date.parse(now)
+  const b = Date.parse(lastDay)
+  if (Number.isNaN(a) || Number.isNaN(b)) return null
+  return Math.round((a - b) / 86400000)
+}
+
 /** Баланс по измеренной формуле: сумма COMPLETED, OUTCOME со знаком минус. */
 function balance(rows) {
   return rows.reduce(
     (s, r) =>
-      r.status !== 'COMPLETED' ? s : r.type === 'MONEY_OUTCOME' ? s - n(r.stars) : s + n(r.stars),
+      r.status !== 'COMPLETED'
+        ? s
+        : r.type === 'MONEY_OUTCOME'
+          ? s - n(r.stars)
+          : s + n(r.stars),
     0
   )
 }
+
+/**
+ * The churn rule, checked without credentials.
+ *
+ * The number this section reports is "people who stopped spending", and an
+ * unreadable last-spend date used to land in it: NaN fails every comparison, so
+ * `daysSince < 60` was false and the person fell through into the churned list
+ * carrying daysSince: NaN. The failure mode manufactures the finding.
+ */
+function selfCheck() {
+  const NOW_T = '2026-08-20'
+  if (daysBetween('2026-06-21', NOW_T) !== 60) {
+    console.error(
+      `самопроверка не прошла: расстояние в днях посчитано неверно ` +
+        `(${daysBetween('2026-06-21', NOW_T)} вместо 60).`
+    )
+    process.exit(2)
+  }
+  if (daysBetween('2026-08-19', NOW_T) !== 1) {
+    console.error('самопроверка не прошла: вчерашняя дата дала не 1 день.')
+    process.exit(2)
+  }
+  // The defect: unreadable must be its own answer, never a number.
+  for (const bad of ['not a date', '', null, undefined]) {
+    if (daysBetween(bad, NOW_T) !== null) {
+      console.error(
+        `самопроверка не прошла: нечитаемая дата ${JSON.stringify(bad)} дала ` +
+          `${daysBetween(bad, NOW_T)} вместо null — такой человек попадёт в «ушедшие».`
+      )
+      process.exit(2)
+    }
+  }
+  // The half that lives inside main(): the caller must skip on null rather than
+  // compare it. A behavioural control cannot reach it, so the source is asserted.
+  const src = require('fs').readFileSync(__filename, 'utf8')
+  if (!/daysSince === null\s*\)\s*\{\s*undatable\.push/.test(src)) {
+    console.error(
+      'самопроверка не прошла: нечитаемая дата снова падает в сравнение\n' +
+        'вместо отдельного счёта — число ушедших завышается.'
+    )
+    process.exit(2)
+  }
+  console.log(
+    'самопроверка: дни считаются верно, нечитаемая дата не выдаётся за ушедшего'
+  )
+}
+
+selfCheck()
 
 async function main() {
   const pay = await fetchAll(
@@ -76,16 +146,25 @@ async function main() {
   console.log('=== Ушедшие: остались ли у них звёзды ===')
   const NOW = '2026-08-20'
   const gone = []
+  const undatable = []
   for (const [uid, rows] of spenders) {
     const spends = rows
       .filter(r => r.status === 'COMPLETED' && r.type === 'MONEY_OUTCOME')
-      .sort((a, b) => String(a.payment_date).localeCompare(String(b.payment_date)))
+      .sort((a, b) =>
+        String(a.payment_date).localeCompare(String(b.payment_date))
+      )
     const last = spends[spends.length - 1]
     const lastDay = day(last.payment_date)
     // «Ушёл» — не тратил больше 60 дней.
-    const daysSince = Math.round(
-      (Date.parse(NOW) - Date.parse(lastDay)) / 86400000
-    )
+    const daysSince = daysBetween(lastDay, NOW)
+    // A last-spend date that will not parse yields NaN, and `NaN < 60` is
+    // false -- so the person fell straight through into "churned", carrying
+    // daysSince: NaN with them. That is "cannot tell", not sixty days of
+    // silence, and it inflates the one number this section reports.
+    if (daysSince === null) {
+      undatable.push({ uid, lastDay })
+      continue
+    }
     if (daysSince < 60) continue
     gone.push({
       uid,
@@ -96,20 +175,34 @@ async function main() {
       lastService: String(last.service_type || '—'),
     })
   }
-  console.log(`  ушедших (не тратят 60+ дней): ${gone.length} из ${spenders.length}`)
+  console.log(
+    `  ушедших (не тратят 60+ дней): ${gone.length} из ${spenders.length}`
+  )
+  if (undatable.length) {
+    console.log(
+      `  не поддаются оценке (дата последней траты не читается): ${undatable.length}` +
+        ' — в число ушедших НЕ входят'
+    )
+  }
 
   const withMoney = gone.filter(g => g.balance >= 10)
   const broke = gone.filter(g => g.balance < 10)
-  console.log(`  ушли, имея на счету 10+ звёзд:  ${withMoney.length} (${Math.round((withMoney.length / gone.length) * 100)}%)`)
-  console.log(`  ушли почти без звёзд (<10):     ${broke.length} (${Math.round((broke.length / gone.length) * 100)}%)`)
+  console.log(
+    `  ушли, имея на счету 10+ звёзд:  ${withMoney.length} (${Math.round((withMoney.length / gone.length) * 100)}%)`
+  )
+  console.log(
+    `  ушли почти без звёзд (<10):     ${broke.length} (${Math.round((broke.length / gone.length) * 100)}%)`
+  )
   const sumLeft = withMoney.reduce((s, g) => s + g.balance, 0)
   console.log(`  всего звёзд осталось у ушедших: ${Math.round(sumLeft)}`)
 
   // --- 2. Сколько раз человек успевал попробовать -----------------------
   console.log('\n=== Сколько списаний человек сделал за всю жизнь ===')
-  const buckets = { '1': 0, '2-3': 0, '4-10': 0, '11-50': 0, '51+': 0 }
+  const buckets = { 1: 0, '2-3': 0, '4-10': 0, '11-50': 0, '51+': 0 }
   for (const [, rows] of spenders) {
-    const c = rows.filter(r => r.status === 'COMPLETED' && r.type === 'MONEY_OUTCOME').length
+    const c = rows.filter(
+      r => r.status === 'COMPLETED' && r.type === 'MONEY_OUTCOME'
+    ).length
     if (c === 1) buckets['1']++
     else if (c <= 3) buckets['2-3']++
     else if (c <= 10) buckets['4-10']++
@@ -117,7 +210,9 @@ async function main() {
     else buckets['51+']++
   }
   for (const [k, v] of Object.entries(buckets)) {
-    console.log(`  ${k.padEnd(7)} ${String(v).padStart(4)} человек (${Math.round((v / spenders.length) * 100)}%)`)
+    console.log(
+      `  ${k.padEnd(7)} ${String(v).padStart(4)} человек (${Math.round((v / spenders.length) * 100)}%)`
+    )
   }
 
   // --- 3. Обрыв на оплате ----------------------------------------------
@@ -129,7 +224,9 @@ async function main() {
     if (!pendingUsers.has(k)) pendingUsers.set(k, [])
     pendingUsers.get(k).push(p)
   }
-  console.log(`  незавершённых попыток: ${pending.length} у ${pendingUsers.size} человек`)
+  console.log(
+    `  незавершённых попыток: ${pending.length} у ${pendingUsers.size} человек`
+  )
 
   let neverPaid = 0
   let paidLater = 0
@@ -161,13 +258,17 @@ async function main() {
   for (const g of gone) {
     lastSvc[g.lastService] = (lastSvc[g.lastService] || 0) + 1
   }
-  for (const [k, v] of Object.entries(lastSvc).sort((a, b) => b[1] - a[1]).slice(0, 10)) {
+  for (const [k, v] of Object.entries(lastSvc)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)) {
     console.log(`  ${k.padEnd(24)} ${String(v).padStart(4)}`)
   }
 
   // --- 5. Кто ушёл с деньгами — крупнейшие ------------------------------
   console.log('\n=== Ушли с наибольшим остатком (10 человек) ===')
-  for (const g of withMoney.sort((a, b) => b.balance - a.balance).slice(0, 10)) {
+  for (const g of withMoney
+    .sort((a, b) => b.balance - a.balance)
+    .slice(0, 10)) {
     console.log(
       `  ${g.uid.padEnd(13)} остаток ${String(g.balance).padStart(9)}  последний раз ${g.lastDay} (${g.daysSince} дн назад), списаний ${g.spends}`
     )
