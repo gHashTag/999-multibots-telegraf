@@ -27,6 +27,7 @@
 const fs = require('fs')
 const path = require('path')
 const { execFileSync } = require('child_process')
+const scan = require('./lib/read-census.cjs').census('исходники')
 const {
   blank,
   matchCode,
@@ -96,12 +97,9 @@ const risky = []
 const lossy = []
 let total = 0
 for (const f of files) {
-  let raw
-  try {
-    raw = fs.readFileSync(path.join(ROOT, f), 'utf8')
-  } catch {
-    continue
-  }
+  // "0 places lose work silently" is what this printed while reading nothing.
+  const raw = scan.read1(path.join(ROOT, f))
+  if (raw === null) continue
   for (const m of matchCode(raw, /set(Interval|Timeout)\s*\(\s*async/g)) {
     total++
     const body = blank(callbackBody(raw, m.index))
@@ -117,6 +115,8 @@ console.log(`\n=== ПОВТОРЯЮЩИЙСЯ БЕЗ ОХРАНЫ ПЕРЕКРЫ
 console.log(
   '   (setInterval не ждёт: медленный тик запускается рядом с собой)\n'
 )
+scan.report(files.length)
+
 risky.sort().forEach(r => console.log(`  ${r}`))
 console.log(`\n=== РАБОТА ТЕРЯЕТСЯ МОЛЧА: ${lossy.length} ===`)
 console.log('   (ни try, ни .catch: процесс выживет, работа -- нет)\n')

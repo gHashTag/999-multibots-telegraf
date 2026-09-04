@@ -198,18 +198,26 @@ const tools = [
   ...disk.filter(f => f.startsWith('src/__tests__/') && f.endsWith('.ts')),
 ]
 const suspects = []
+const scan = require('./lib/read-census.cjs').census('инструменты')
 for (const t of tools) {
   let text
   try {
     text = fs.readFileSync(t, 'utf8')
-  } catch {
+  } catch (e) {
+    // A swallowed read used to make this probe unfalsifiable: with every read
+    // failing it still printed "540 checked, 0 blind", because the number
+    // described the list git had enumerated rather than the files it opened.
+    // The tool that looks for silent blindness was silently blind.
+    scan.unread.push(`${t}: ${e.message}`)
     continue
   }
+  scan.read++
   const flags = flagsFor(text)
   if (flags.length) suspects.push({ t, flags })
 }
+scan.report(tools.length)
 console.log(
-  `  инструментов проверено: ${tools.length}, с признаками слепоты: ${suspects.length}`
+  `  инструментов проверено: ${scan.read}, с признаками слепоты: ${suspects.length}`
 )
 for (const s of suspects)
   console.log(`    ${s.t}\n        ${s.flags.join('; ')}`)

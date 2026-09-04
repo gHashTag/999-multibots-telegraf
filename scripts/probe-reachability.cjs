@@ -22,6 +22,8 @@
  */
 const fs = require('fs')
 const path = require('path')
+const readCensus = require('./lib/read-census.cjs').census
+const scan = readCensus('модули графа')
 
 const ROOT = process.cwd()
 const SRC = path.join(ROOT, 'src')
@@ -64,12 +66,12 @@ function resolveSpecifier(spec, fromFile) {
 }
 
 function importsOf(file) {
-  let src
-  try {
-    src = strip(fs.readFileSync(file, 'utf8'))
-  } catch {
-    return []
-  }
+  // An unreadable file used to return "no imports", which is
+  // indistinguishable from a file that genuinely imports nothing -- and the
+  // whole reachability verdict is built out of these answers.
+  const raw = scan.read1(file)
+  if (raw === null) return []
+  const src = strip(raw)
   return specifiersIn(src)
 }
 
@@ -235,6 +237,7 @@ function main() {
       .sort()
       .join('\n') + '\n'
   )
+  scan.report(scan.read + scan.unread.length)
   console.log('\nсписок сохранён в /tmp/unreachable.txt')
 }
 
