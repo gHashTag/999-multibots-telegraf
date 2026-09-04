@@ -4,6 +4,7 @@
  */
 
 import { Logger } from 'inngest'
+import { assertShellSafeJobId } from './jobId'
 import { NonRetriableError } from 'inngest'
 import { SSHService } from './ssh.service'
 import { S3Service } from './s3.service'
@@ -93,6 +94,7 @@ export async function createJobFolder(
     await ssh.connect()
 
     // Create job directory
+    assertShellSafeJobId(job_id)
     const jobDir = RenderConfig.getJobDir(job_id)
     await ssh.exec(`mkdir "${jobDir}"`, 10000)
     logger.info(`Created job folder: ${jobDir}`)
@@ -128,6 +130,7 @@ export async function downloadFiles(
   logger.info(`Downloading files for job ${job_id}`)
 
   // Get paths
+  assertShellSafeJobId(job_id)
   const jobDir = RenderConfig.getJobDir(job_id)
   const templatePath = RenderConfig.getTemplatePath(job_id)
   const jobJsonPath = RenderConfig.getJobFile(job_id)

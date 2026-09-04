@@ -10,6 +10,7 @@ import { NonRetriableError } from 'inngest'
 import { SSHService } from './helpers/ssh.service'
 import { S3Service } from './helpers/s3.service'
 import fs from 'node:fs'
+import { assertShellSafeJobId } from './helpers/jobId'
 import { RenderConfig } from './helpers/config'
 import type { RenderEventData } from './types'
 import axios from 'axios'
@@ -38,36 +39,6 @@ import { HeyGenService } from '@/services/heygenService'
 import { HedraService } from '@/services/hedra'
 import { v4 as uuidv4 } from 'uuid'
 import OpenAI from 'openai'
-
-/**
- * job_id is interpolated into remote shell commands in this file, and ssh2's
- * exec runs its argument through the remote shell. The event schema accepts
- * any non-empty string (`job_id: z.string().min(1)` in schemas.ts), so a
- * job_id of `x /` turns
- *
- *     rm -rf /renders/job_${job_id}
- *
- * into two paths, and the second one is the filesystem root of the render
- * server. `mkdir -p ${jobDir}/assets` has the same shape.
- *
- * Every job_id production actually generates is already within this charset --
- * `telegram-<id>-<ts>` from render-server-client and `morphing_<id>_<ts>` from
- * morphImages -- so this refuses nothing that exists today. It can only
- * refuse: it never widens what runs.
- *
- * Quoting the interpolation would not be enough on its own. renderSteps.ts
- * writes `mkdir "${jobDir}"`, which survives a space but not a double quote.
- * Validating the value covers both.
- */
-const SHELL_SAFE_JOB_ID = /^[A-Za-z0-9._-]+$/
-
-export function assertShellSafeJobId(job_id: string): void {
-  if (!SHELL_SAFE_JOB_ID.test(job_id)) {
-    throw new NonRetriableError(
-      `Refusing to build a remote command from an unsafe job_id: ${JSON.stringify(job_id)}`
-    )
-  }
-}
 
 // ========================
 // Core Render Steps

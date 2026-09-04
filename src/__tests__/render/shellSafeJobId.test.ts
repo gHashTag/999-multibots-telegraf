@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import { assertShellSafeJobId } from '@/inngest_app/functions/render/steps'
+import { assertShellSafeJobId } from '@/inngest_app/functions/render/helpers/jobId'
 
 /**
  * render/steps.ts interpolates job_id into commands that ssh2 runs through the
@@ -24,7 +24,6 @@ import { assertShellSafeJobId } from '@/inngest_app/functions/render/steps'
  */
 
 const ROOT = path.resolve(__dirname, '../../..')
-const STEPS = 'src/inngest_app/functions/render/steps.ts'
 
 describe('job_id reaching a remote shell command', () => {
   it('accepts every id production actually generates', () => {
@@ -57,17 +56,36 @@ describe('job_id reaching a remote shell command', () => {
     }
   })
 
-  it('is actually called before both interpolations', () => {
-    // The behavioural test above passes whether or not steps.ts calls the
+  it('is actually called before every interpolation, in both pipelines', () => {
+    // The behavioural test above passes whether or not the pipelines call the
     // guard. This reads the source and requires the call to come BEFORE the
     // line that builds the path, since a guard after the fact guards nothing.
-    const src = fs.readFileSync(path.join(ROOT, STEPS), 'utf8').split('\n')
-    const builds = src
-      .map((l, i) => [l, i] as const)
-      .filter(([l]) => l.includes('const jobDir = `/renders/job_${job_id}`'))
-    expect(builds.length).toBe(2)
-    for (const [, i] of builds) {
-      expect(src[i - 1]).toContain('assertShellSafeJobId(job_id)')
+    //
+    // Both pipelines, because both are registered: renderFunction uses
+    // helpers/renderSteps.ts and renderRiddleFunction uses steps.ts. Checking
+    // only the one that was fixed first would have said the class was closed
+    // while the live pipeline was still open.
+    const sites: Array<[string, RegExp]> = [
+      [
+        'src/inngest_app/functions/render/steps.ts',
+        /const jobDir = `\/renders\/job_\$\{job_id\}`/,
+      ],
+      [
+        'src/inngest_app/functions/render/helpers/renderSteps.ts',
+        /const jobDir = RenderConfig\.getJobDir\(job_id\)/,
+      ],
+    ]
+    for (const [file, builds] of sites) {
+      const src = fs.readFileSync(path.join(ROOT, file), 'utf8').split('\n')
+      const hits = src
+        .map((l, i) => [l, i] as const)
+        .filter(([l]) => builds.test(l))
+      expect(hits.length, `${file} should build jobDir twice`).toBe(2)
+      for (const [, i] of hits) {
+        expect(src[i - 1], `${file}:${i + 1}`).toContain(
+          'assertShellSafeJobId(job_id)'
+        )
+      }
     }
   })
 })
