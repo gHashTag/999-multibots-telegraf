@@ -504,6 +504,7 @@ apps/vibee-editor/render/kie-web-provider.test.ts :: reviewed Kie provider route
 apps/vibee-editor/render/kie-web-provider.test.ts :: reviewed Kie provider routes /api/generate/video honors an explicit Kie model
 apps/vibee-editor/render/kie-web-provider.test.ts :: reviewed Kie provider routes keeps the provider key inside the server-side transport helper
 apps/vibee-editor/render/kie-web-provider.test.ts :: reviewed Kie provider routes rejects arbitrary paid model ids at the server boundary
+apps/vibee-editor/render/kie-web-provider.test.ts :: reviewed Kie provider routes никогда не допускает опасную модель и модель без цены
 apps/vibee-editor/render/medallion.test.ts :: how long the medallion stays on screen a 6-second talking portrait leaves after 6 seconds, not after 15.6
 apps/vibee-editor/render/medallion.test.ts :: how long the medallion stays on screen a clip longer than the window is clamped, never run under the colophon
 apps/vibee-editor/render/medallion.test.ts :: how long the medallion stays on screen an unmeasured clip gets the whole window, as it always did
@@ -2524,7 +2525,7 @@ src/__tests__/scenes/aiReelsWizard.test.ts :: aiReelsWizard (AI Reels Creation) 
 src/__tests__/scenes/aiReelsWizard.test.ts :: aiReelsWizard (AI Reels Creation) Step 4: Video Merging should handle video download failure
 src/__tests__/scenes/aiReelsWizard.test.ts :: aiReelsWizard (AI Reels Creation) Step 4: Video Merging should handle video merge failure
 src/__tests__/scenes/aiReelsWizard.test.ts :: aiReelsWizard (AI Reels Creation) Step 4: Video Merging should merge two videos successfully
-src/__tests__/scenes/avatarHeroButtonSeam.test.ts :: every hero the scene offers resolves back through the tap handler every offered hero renders a resolvable button in EVERY generator
+src/__tests__/scenes/avatarHeroButtonSeam.test.ts :: every hero the scene offers resolves back through the tap handler every offered hero renders a resolvable button
 src/__tests__/scenes/avatarHeroButtonSeam.test.ts :: every hero the scene offers resolves back through the tap handler the fallback spelling is covered too, not only the emoji one
 src/__tests__/scenes/avatarHeroButtonSeam.test.ts :: every hero the scene offers resolves back through the tap handler the source reader still finds the heroes and every button table
 src/__tests__/scenes/avatarTransformScene.test.ts :: AvatarTransformScene Button Mapping Validation should handle emoji-prefixed hero "🎨 Алекс Мерсер" correctly

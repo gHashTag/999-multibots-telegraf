@@ -84,7 +84,7 @@ function offeredHeroes(src: string): string[] {
  */
 function translationTables(src: string): Map<string, string>[] {
   const tables: Map<string, string>[] = []
-  let at = src.indexOf('const heroTranslations')
+  let at = src.indexOf('const HERO_BUTTON_TEXT')
   while (at !== -1) {
     const table = braceBlock(src, src.indexOf('=', at))
     const out = new Map<string, string>()
@@ -92,7 +92,7 @@ function translationTables(src: string): Map<string, string>[] {
       out.set(m[1], m[2])
     }
     tables.push(out)
-    at = src.indexOf('const heroTranslations', at + table.length)
+    at = src.indexOf('const HERO_BUTTON_TEXT', at + table.length)
   }
   return tables
 }
@@ -117,15 +117,17 @@ describe('every hero the scene offers resolves back through the tap handler', ()
     const src = source()
     expect(offeredHeroes(src).length).toBeGreaterThan(0)
     expect(handlerKeys(src).size).toBeGreaterThan(0)
-    // Both generators, not just the first: the count is asserted so that a
-    // reader which silently stops finding the second one fails here rather
-    // than quietly halving what the next test checks.
+    // EXACTLY one table now, and that is the point. There used to be two
+    // copies inside two wizard steps, 33 entries and 16, and they had drifted
+    // apart -- one drew a button spelling the handler could not resolve. They
+    // were merged into a single source, so a SECOND table appearing here is
+    // itself the regression, not merely a reader that stopped looking.
     const tables = translationTables(src)
-    expect(tables.length).toBeGreaterThanOrEqual(2)
-    for (const t of tables) expect(t.size).toBeGreaterThan(0)
+    expect(tables.length).toBe(1)
+    expect(tables[0].size).toBeGreaterThan(0)
   })
 
-  it('every offered hero renders a resolvable button in EVERY generator', () => {
+  it('every offered hero renders a resolvable button', () => {
     const src = source()
     const keys = handlerKeys(src)
     const heroes = offeredHeroes(src)

@@ -914,6 +914,64 @@ const createMarvelPromptByGender = (
 const superheroGenInFlight = new Map<string, number>()
 const SUPERHERO_INFLIGHT_TTL_MS = 180_000 // 3 min -- covers max generation time
 
+/**
+ * One button label per hero, for both places that draw hero buttons.
+ *
+ * There used to be two copies of this table inside two wizard steps, 33 entries
+ * and 16, and they had drifted: one spelled a hero with the palette fallback and
+ * the other with her own emoji, and only the first spelling was a key in the
+ * handler's buttonToHeroMap, so the button the second one drew resolved to
+ * nothing (#1721 added the missing key).
+ *
+ * Merging them is safe and was measured rather than assumed: the two tables
+ * agree on every one of the 15 heroes they share, and of the 22 heroes the scene
+ * actually offers exactly one renders differently -- she now gets her own emoji
+ * instead of the generic fallback, and both spellings resolve.
+ */
+const HERO_BUTTON_TEXT: Record<string, { ru: string; en: string }> = {
+  'Алая ведьма': { ru: '🌹 Алая ведьма', en: '🌹 Wanda Maximoff' },
+  'Алёша Попович': { ru: '🎯 Алёша Попович', en: '🎯 Alyosha Popovich' },
+  'Баба Яга': { ru: '🏠 Баба Яга', en: '🏠 Baba Yaga' },
+  'Василиса Прекрасная': { ru: '👸 Василиса Прекрасная', en: '👸 Vasilisa' },
+  'Гвен Стейси': { ru: '🕸️ Гвен Стейси', en: '🕸️ Gwen Stacy' },
+  'Добрыня Никитич': { ru: '💉 Добрыня Никитич', en: '💉 Dobrynya Nikitich' },
+  'Доктор Стрэндж': { ru: '🧿 Доктор Стрэндж', en: '🧿 Doctor Strange' },
+  'Жар-птица': { ru: '🔥 Жар-птица', en: '🔥 Firebird' },
+  'Железный человек': { ru: '🤖 Железный человек', en: '🤖 Iron Man' },
+  'Звёздный лорд': { ru: '🚀 Звёздный лорд', en: '🚀 Star Lord' },
+  'Иван-царевич': { ru: '🤴 Иван-царевич', en: '🤴 Ivan Tsarevich' },
+  'Илья Муромец': { ru: '🛡️ Илья Муромец', en: '🛡️ Ilya Muromets' },
+  'Капитан Америка': { ru: '🇦🇲 Капитан Америка', en: '🇦🇲 Captain America' },
+  'Капитан Марвел': { ru: '⭐ Капитан Марвел', en: '⭐ Captain Marvel' },
+  'Кастомный промпт': { ru: '✍️ Свой промпт', en: '✍️ Custom Prompt' },
+  'Кощей Бессмертный': { ru: '💀 Кощей Бессмертный', en: '💀 Koschei' },
+  'Красная Шапочка': { ru: '🧧 Красная Шапочка', en: '🧧 Red Hood' },
+  'Лайт Ягами': { ru: '📓 Лайт Ягами', en: '📓 Light Yagami' },
+  'Лара Крофт': { ru: '🗿 Лара Крофт', en: '🗿 Lara Croft' },
+  'Леви Аккерман': { ru: '⚔️ Леви Аккерман', en: '⚔️ Levi Ackerman' },
+  'Марья Моревна': { ru: '💂 Марья Моревна', en: '💂 Marya Morevna' },
+  'Пеппи Длинныйчулок': { ru: '🦾 Пеппи Длинныйчулок', en: '🦾 Pippi' },
+  'Сейлор Мун': { ru: '🌙 Сейлор Мун', en: '🌙 Sailor Moon' },
+  'Серый Волк': { ru: '🐺 Серый Волк', en: '🐺 Grey Wolf' },
+  'Скарлет Витч': { ru: '🔮 Скарлет Витч', en: '🔮 Scarlet Witch' },
+  'Снежная Королева': { ru: '🌨️ Снежная Королева', en: '🌨️ Snow Queen' },
+  'Соколиный глаз': { ru: '🏹 Соколиный глаз', en: '🏹 Hawkeye' },
+  'Харли Квинн': { ru: '🎭 Харли Квинн', en: '🎭 Harley Quinn' },
+  'Царевна-лягушка': { ru: '🐸 Царевна-лягушка', en: '🐸 Frog Princess' },
+  'Человек-паук': { ru: '🕷️ Человек-паук', en: '🕷️ Spider-Man' },
+  'Чудо-женщина': { ru: '⭐ Чудо-женщина', en: '⭐ Wonder Woman' },
+  'Чёрная вдова': { ru: '🕷️ Чёрная вдова', en: '🕷️ Black Widow' },
+  'Эдвард Элрик': { ru: '⚙️ Эдвард Элрик', en: '⚙️ Edward Elric' },
+  'Эрен Йегер': { ru: '🧿 Эрен Йегер', en: '🧿 Eren Yeager' },
+}
+
+/** The label a hero is drawn with; falls back to the palette prefix. */
+function getHeroButtonText(heroName: string, isRu: boolean): string {
+  const t = HERO_BUTTON_TEXT[heroName]
+  if (!t) return `\u{1F3A8} ${heroName}`
+  return isRu ? t.ru : t.en
+}
+
 export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
   ModeEnum.AvatarTransform,
   // Шаг 0: Объяснение ИИ Герои + выбор пола
@@ -1634,112 +1692,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
       const primaryHeroes = AI_HEROES[gender]
 
       // 🌍 ЛОКАЛИЗАЦИЯ КНОПОК ДЛЯ ГЕРОЕВ
-      const getHeroButtonText = (heroName: string) => {
-        const heroTranslations: Record<string, { ru: string; en: string }> = {
-          // Marvel герои - уникальные эмодзи
-          'Человек-паук': { ru: '🕷️ Человек-паук', en: '🕷️ Spider-Man' },
-          'Железный человек': { ru: '🤖 Железный человек', en: '🤖 Iron Man' },
-          'Капитан Америка': {
-            ru: '🇦🇲 Капитан Америка',
-            en: '🇦🇲 Captain America',
-          },
-          Тор: { ru: '⚡ Тор', en: '⚡ Thor' },
-          'Доктор Стрэндж': {
-            ru: '🧿 Доктор Стрэндж',
-            en: '🧿 Doctor Strange',
-          },
-          'Соколиный глаз': { ru: '🏹 Соколиный глаз', en: '🏹 Hawkeye' },
-          'Звёздный лорд': { ru: '🚀 Звёздный лорд', en: '🚀 Star Lord' },
-          'Капитан Марвел': {
-            ru: '⭐ Капитан Марвел',
-            en: '⭐ Captain Marvel',
-          },
-          'Скарлет Витч': { ru: '🔮 Скарлет Витч', en: '🔮 Scarlet Witch' },
-          'Алая ведьма': { ru: '🌹 Алая ведьма', en: '🌹 Wanda Maximoff' },
-          Гамора: { ru: '🗡️ Гамора', en: '🗡️ Gamora' },
-          Шури: { ru: '💙 Шури', en: '💙 Shuri' },
-          Валькирия: { ru: '⚔️ Валькирия', en: '⚔️ Valkyrie' },
-          // Славянские сказочные герои
-          'Иван-царевич': { ru: '🤴 Иван-царевич', en: '🤴 Ivan Tsarevich' },
-          'Илья Муромец': { ru: '🛡️ Илья Муромец', en: '🛡️ Ilya Muromets' },
-          'Добрыня Никитич': {
-            ru: '💉 Добрыня Никитич',
-            en: '💉 Dobrynya Nikitich',
-          },
-          'Алёша Попович': {
-            ru: '🎯 Алёша Попович',
-            en: '🎯 Alyosha Popovich',
-          },
-          'Кощей Бессмертный': { ru: '💀 Кощей Бессмертный', en: '💀 Koschei' },
-          'Серый Волк': { ru: '🐺 Серый Волк', en: '🐺 Grey Wolf' },
-          Емеля: { ru: '🎣 Емеля', en: '🎣 Emelya' },
-          'Василиса Прекрасная': {
-            ru: '👸 Василиса Прекрасная',
-            en: '👸 Vasilisa',
-          },
-          'Баба Яга': { ru: '🏠 Баба Яга', en: '🏠 Baba Yaga' },
-          Снегурочка: { ru: '❄️ Снегурочка', en: '❄️ Snow Maiden' },
-          'Марья Моревна': { ru: '💂 Марья Моревна', en: '💂 Marya Morevna' },
-          Алёнушка: { ru: '🌾 Алёнушка', en: '🌾 Alyonushka' },
-          'Жар-птица': { ru: '🔥 Жар-птица', en: '🔥 Firebird' },
-          'Царевна-лягушка': {
-            ru: '🐸 Царевна-лягушка',
-            en: '🐸 Frog Princess',
-          },
-          Мальвина: { ru: '👩‍🎨 Мальвина', en: '👩‍🎨 Malvina' },
-          'Красная Шапочка': { ru: '🧧 Красная Шапочка', en: '🧧 Red Hood' },
-          Золушка: { ru: '👠 Золушка', en: '👠 Cinderella' },
-          'Снежная Королева': {
-            ru: '🌨️ Снежная Королева',
-            en: '🌨️ Snow Queen',
-          },
-          Алиса: { ru: '🎀 Алиса', en: '🎀 Alice' },
-          'Пеппи Длинныйчулок': { ru: '🦾 Пеппи Длинныйчулок', en: '🦾 Pippi' },
-          Карающий: { ru: '🎨 Карающий', en: '🎨 Punisher' },
-          // DC Universe
-          Супермен: { ru: '🚀 Супермен', en: '🚀 Superman' },
-          Бэтмен: { ru: '🦇 Бэтмен', en: '🦇 Batman' },
-          Флэш: { ru: '⚡ Флэш', en: '⚡ Flash' },
-          'Чудо-женщина': { ru: '⭐ Чудо-женщина', en: '⭐ Wonder Woman' },
-          'Харли Квинн': { ru: '🎭 Харли Квинн', en: '🎭 Harley Quinn' },
-          Джокер: { ru: '🃏 Джокер', en: '🃏 Joker' },
-          // Marvel дополнительные
-          Халк: { ru: '💚 Халк', en: '💚 Hulk' },
-          Дэдпул: { ru: '🔴 Дэдпул', en: '🔴 Deadpool' },
-          Росомаха: { ru: '🦾 Росомаха', en: '🦾 Wolverine' },
-          'Чёрная вдова': { ru: '🕷️ Чёрная вдова', en: '🕷️ Black Widow' },
-          // Anime популярные
-          Гоку: { ru: '🥋 Гоку', en: '🥋 Goku' },
-          Наруто: { ru: '🍥 Наруто', en: '🍥 Naruto' },
-          Луффи: { ru: '🎩 Луффи', en: '🎩 Luffy' },
-          'Сейлор Мун': { ru: '🌙 Сейлор Мун', en: '🌙 Sailor Moon' },
-          'Эдвард Элрик': { ru: '⚙️ Эдвард Элрик', en: '⚙️ Edward Elric' },
-          Ичиго: { ru: '⚔️ Ичиго', en: '⚔️ Ichigo' },
-          Саитама: { ru: '👊 Саитама', en: '👊 Saitama' },
-          'Лайт Ягами': { ru: '📓 Лайт Ягами', en: '📓 Light Yagami' },
-          Какаши: { ru: '🐈 Какаши', en: '🐈 Kakashi' },
-          Сасукэ: { ru: '⚡ Сасукэ', en: '⚡ Sasuke' },
-          Вегета: { ru: '🔥 Вегета', en: '🔥 Vegeta' },
-          'Эрен Йегер': { ru: '🧿 Эрен Йегер', en: '🧿 Eren Yeager' },
-          'Леви Аккерман': { ru: '⚔️ Леви Аккерман', en: '⚔️ Levi Ackerman' },
-          // Games популярные
-          'Лара Крофт': { ru: '🗿 Лара Крофт', en: '🗿 Lara Croft' },
-          Марио: { ru: '🍄 Марио', en: '🍄 Mario' },
-          Соник: { ru: '💨 Соник', en: '💨 Sonic' },
-          // Custom prompt option
-          'Кастомный промпт': { ru: '✍️ Свой промпт', en: '✍️ Custom Prompt' },
-        }
-
-        const translation = heroTranslations[heroName]
-        if (translation) {
-          return isRu ? translation.ru : translation.en
-        }
-
-        // Фолбэк для неизвестных героев - всегда 🎨 для совместимости с button mapping
-        return `🎨 ${heroName}`
-      }
-
-      const heroButtonsList = primaryHeroes.map(hero => getHeroButtonText(hero))
+      const heroButtonsList = primaryHeroes.map(hero =>
+        getHeroButtonText(hero, isRu)
+      )
 
       const heroButtons = [
         ...createTwoButtonRows(heroButtonsList),
@@ -2843,67 +2798,9 @@ export const avatarTransformScene = new Scenes.WizardScene<MyContext>(
         return rows
       }
 
-      const getHeroButtonText = (heroName: string): string => {
-        // Используем ту же логику, что и в основном коде
-        const heroTranslations: Record<string, { ru: string; en: string }> = {
-          // Marvel герои - уникальные эмодзи
-          'Человек-паук': { ru: '🕷️ Человек-паук', en: '🕷️ Spider-Man' },
-          'Железный человек': { ru: '🤖 Железный человек', en: '🤖 Iron Man' },
-          'Капитан Америка': {
-            ru: '🇦🇲 Капитан Америка',
-            en: '🇦🇲 Captain America',
-          },
-          Тор: { ru: '⚡ Тор', en: '⚡ Thor' },
-          'Доктор Стрэндж': {
-            ru: '🧿 Доктор Стрэндж',
-            en: '🧿 Doctor Strange',
-          },
-          'Соколиный глаз': { ru: '🏹 Соколиный глаз', en: '🏹 Hawkeye' },
-          'Звёздный лорд': { ru: '🚀 Звёздный лорд', en: '🚀 Star Lord' },
-          'Капитан Марвел': {
-            ru: '⭐ Капитан Марвел',
-            en: '⭐ Captain Marvel',
-          },
-          'Скарлет Витч': { ru: '🔮 Скарлет Витч', en: '🔮 Scarlet Witch' },
-          'Алая ведьма': { ru: '🌹 Алая ведьма', en: '🌹 Wanda Maximoff' },
-          Гамора: { ru: '🗡️ Гамора', en: '🗡️ Gamora' },
-          Шури: { ru: '💙 Шури', en: '💙 Shuri' },
-          Валькирия: { ru: '⚔️ Валькирия', en: '⚔️ Valkyrie' },
-          // DC Universe female heroes
-          'Чудо-женщина': { ru: '⭐ Чудо-женщина', en: '⭐ Wonder Woman' },
-          'Харли Квинн': { ru: '🎭 Харли Квинн', en: '🎭 Harley Quinn' },
-          Супергёрл: { ru: '💫 Супергёрл', en: '💫 Supergirl' },
-          // Marvel additional female heroes
-          'Чёрная вдова': { ru: '🕷️ Чёрная вдова', en: '🕷️ Black Widow' },
-          'Гвен Стейси': { ru: '🕸️ Гвен Стейси', en: '🕸️ Gwen Stacy' },
-          // Slavic fairy tale heroines
-          'Василиса Прекрасная': {
-            ru: '👸 Василиса Прекрасная',
-            en: '👸 Vasilisa',
-          },
-          // Games & Disney
-          'Лара Крофт': { ru: '🗿 Лара Крофт', en: '🗿 Lara Croft' },
-          Эльза: { ru: '❄️ Эльза', en: '❄️ Elsa' },
-          // Custom prompt option
-          'Кастомный промпт': { ru: '✍️ Свой промпт', en: '✍️ Custom Prompt' },
-          // Additional popular heroes for male avatars
-          Халк: { ru: '💚 Халк', en: '💚 Hulk' },
-          Дэдпул: { ru: '🔴 Дэдпул', en: '🔴 Deadpool' },
-          Росомаха: { ru: '🦾 Росомаха', en: '🦾 Wolverine' },
-          Супермен: { ru: '🚀 Супермен', en: '🚀 Superman' },
-          Бэтмен: { ru: '🦇 Бэтмен', en: '🦇 Batman' },
-        }
-
-        const translation = heroTranslations[heroName]
-        if (translation) {
-          return isRu ? translation.ru : translation.en
-        }
-
-        // Фолбэк для неизвестных героев - всегда 🎨 для совместимости с button mapping
-        return `🎨 ${heroName}`
-      }
-
-      const heroButtonsList = primaryHeroes.map(hero => getHeroButtonText(hero))
+      const heroButtonsList = primaryHeroes.map(hero =>
+        getHeroButtonText(hero, isRu)
+      )
       const heroButtons = [
         ...createTwoButtonRows(heroButtonsList),
         [
