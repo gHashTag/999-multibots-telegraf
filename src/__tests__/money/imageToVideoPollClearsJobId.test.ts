@@ -33,11 +33,26 @@ function strip(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
 }
 
+/**
+ * One spelling of "disarm", used BOTH to detect it and to mutate it away.
+ *
+ * These were two separate literals, and they drifted: the detector matched
+ * `delete\s+ctx.session.videoJobId` while the mutation removed
+ * `delete ctx.session.videoJobId\n` -- and, without /g, only the FIRST one. The
+ * file has since grown a SECOND disarm (another terminal path was hardened), so
+ * the mutation took clears from 2 to 1, expected 0, and this ratchet had been
+ * RED on a clean tree. Nothing reported it: a test that was already failing when
+ * the gate snapshot was taken is ABSENT from the snapshot, not flagged by it.
+ */
+const CLEAR = /delete\s+ctx\.session\.videoJobId/g
+const ARM = /ctx\.session\.videoJobId\s*=\s*taskId/g
+
 function analyze(source: string): { arms: number; clears: number } {
   const s = strip(source)
-  const arms = (s.match(/ctx\.session\.videoJobId\s*=\s*taskId/g) || []).length
-  const clears = (s.match(/delete\s+ctx\.session\.videoJobId/g) || []).length
-  return { arms, clears }
+  return {
+    arms: (s.match(ARM) || []).length,
+    clears: (s.match(CLEAR) || []).length,
+  }
 }
 
 describe('generateImageToVideo poll disarms the update-status button after inline delivery', () => {
@@ -69,9 +84,12 @@ describe('generateImageToVideo poll disarms the update-status button after inlin
     expect(analyze(armClear)).toEqual({ arms: 1, clears: 1 })
   })
 
-  it('mutation: removing the real delete turns the check RED', () => {
-    const mutated = source.replace(/delete ctx\.session\.videoJobId\n/, '')
+  it('mutation: removing EVERY real delete turns the check RED', () => {
+    // Removing one of several disarms proves nothing: the invariant is that the
+    // file disarms at all, so the mutation has to take the count to zero.
+    const mutated = source.replace(CLEAR, '')
     expect(mutated).not.toEqual(source)
     expect(analyze(mutated).clears).toBe(0)
+    expect(analyze(mutated).arms).toBe(a.arms)
   })
 })

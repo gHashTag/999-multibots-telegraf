@@ -37,32 +37,13 @@
 const fs = require('fs')
 const path = require('path')
 const { blank } = require('./blank-code.cjs')
+const { callArgs } = require('./call-args.cjs')
 
 /** Both spellings of a credit. A refund mints exactly as hard as a top-up. */
 const CREDIT_TYPES = ['MONEY_INCOME', 'REFUND']
 
 const CREDIT_RE = new RegExp(`PaymentType\\.(${CREDIT_TYPES.join('|')})\\b`)
 const PRIMITIVES = ['updateUserBalance', 'updateUserBalanceUnlocked']
-
-/** The balanced argument text of every call to `name` in a masked source. */
-function callArgs(masked, name) {
-  const re = new RegExp(`(?<![A-Za-z0-9_$])${name}\\s*\\(`, 'g')
-  const out = []
-  for (const m of masked.matchAll(re)) {
-    let i = m.index + m[0].length
-    let depth = 1
-    while (i < masked.length && depth > 0) {
-      const c = masked[i]
-      if (c === '(') depth++
-      else if (c === ')') depth--
-      i++
-    }
-    // An unbalanced tail means the parse lost the end of the call; counting it
-    // would attribute the rest of the file to this one argument list.
-    if (depth === 0) out.push(masked.slice(m.index + m[0].length, i - 1))
-  }
-  return out
-}
 
 /** Locals bound to a credit PaymentType, so one hop of indirection resolves. */
 function creditBoundLocals(masked) {

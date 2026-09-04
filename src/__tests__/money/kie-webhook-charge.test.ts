@@ -17,6 +17,15 @@
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest'
 import fs from 'fs'
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const {
+  callArgs,
+  argsMention,
+  braceBody,
+} = require('../../../scripts/lib/call-args.cjs')
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { blank } = require('../../../scripts/lib/blank-code.cjs')
+
 const SRC = fs.readFileSync(
   'src/api_server/routes/kie-ai-webhook.routes.ts',
   'utf8'
@@ -35,11 +44,22 @@ describe('kie webhook billing', () => {
   })
 
   it('charges in the task-found branch of the Sora handler', () => {
-    const soraStart = SRC.indexOf('async function handleSoraSuccess')
-    expect(soraStart).toBeGreaterThan(-1)
-    const sora = SRC.slice(soraStart, soraStart + 6000)
-    expect(sora).toContain('chargeForDeliveredVideo')
-    expect(sora).toContain('taskContext.modelId')
+    // This read the 6000 characters after the signature. Measured, that number
+    // was carrying the verdict: the assertion passes at 6000 and fails at 3000,
+    // so it was a body reader with a guess for a length. The body ends where its
+    // brace closes.
+    const sora = braceBody(blank(SRC), 'async function handleSoraSuccess')
+    expect(sora, 'handleSoraSuccess not found').not.toBe('')
+    // toContain('chargeForDeliveredVideo') used to stand here and it did not
+    // bite: renaming the helper to chargeForDeliveredVideoXX kept the assertion
+    // green, because a substring match cannot tell a name from a prefix of a
+    // longer one. Ask for the CALL instead.
+    expect(
+      callArgs(sora, 'chargeForDeliveredVideo').length,
+      'the Sora handler must call chargeForDeliveredVideo'
+    ).toBeGreaterThanOrEqual(1)
+    expect(argsMention(sora, 'taskContext')).toBe(true)
+    expect(sora).toMatch(/taskContext\.modelId(?![\w$])/)
   })
 
   it('logs every non-charge instead of skipping quietly', () => {
@@ -53,9 +73,20 @@ describe('kie webhook billing', () => {
   it('image-to-video saves task context so the webhook can price it', () => {
     // Without this the webhook always fell into direct mode, where the model
     // (and therefore the price) is unknown.
-    expect(I2V).toContain('videoTaskStore.saveTask')
-    const saveIdx = I2V.indexOf('videoTaskStore.saveTask')
-    expect(I2V.slice(saveIdx, saveIdx + 400)).toContain('modelId')
+    //
+    // This asserted over the 400 characters after indexOf('videoTaskStore.
+    // saveTask') and had been RED on a clean tree: a COMMENT 28 lines above the
+    // real call mentions saveTask, indexOf takes the FIRST occurrence, and the
+    // window then read prose instead of code. The production call was correct
+    // the whole time -- only the guard was blind, and nobody saw it because a
+    // test that has never passed is absent from the gate's snapshot rather than
+    // reported by it.
+    //
+    // So: read the arguments of the CALL, from a masked source in which a
+    // comment cannot be an anchor. No occurrence to pick, no width to tune.
+    const calls = callArgs(blank(I2V), 'videoTaskStore\\.saveTask')
+    expect(calls.length, 'no videoTaskStore.saveTask call in code').toBe(1)
+    expect(argsMention(calls[0], 'modelId')).toBe(true)
   })
 })
 
