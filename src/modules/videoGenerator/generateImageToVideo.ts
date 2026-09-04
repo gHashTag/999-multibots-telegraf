@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from 'fs/promises'
+import { assertSafePathSegment } from '@/utils/pathSegment'
 import path from 'path'
 import { createHash } from 'crypto'
 import { Telegraf } from 'telegraf'
@@ -161,6 +162,7 @@ export const generateImageToVideo = async (
   selectedAspectRatio?: string, // Добавлен параметр для соотношения сторон Kie.ai моделей
   ctx?: MyContext // ✅ FIX: Added ctx to save videoJobId in session
 ): Promise<void> => {
+  assertSafePathSegment(telegramId, 'telegramId')
   let localVideoPath: string | undefined
   const notificationMessage = isRu
     ? 'Генерация видео...'

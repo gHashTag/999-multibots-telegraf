@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { assertSafePathSegment } from '@/utils/pathSegment'
 import path from 'path'
 import { promisify } from 'util'
 import { downloadFile } from '@/helpers/downloadFile'
@@ -20,6 +21,7 @@ export async function saveFileLocally(
   category: string,
   extension: string
 ): Promise<string> {
+  assertSafePathSegment(telegram_id, 'telegram_id')
   const fileLocalPath = path.join(
     __dirname,
     '../uploads',
