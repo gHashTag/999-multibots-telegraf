@@ -1514,6 +1514,11 @@ src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generat
 src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generation the user already paid for still issues no refund, which is the other half of the reason
 src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generation the user already paid for tells the user the stars were taken, in both languages
 src/__tests__/money/chargedGenerationFailureIsHonest.test.ts :: a failed generation the user already paid for the matchers still recognise what they check for
+src/__tests__/money/consumeOnceCensus.test.ts :: consume-once guards: registered, and marking before they spend every guard marks with nothing awaited on the path to the mark
+src/__tests__/money/consumeOnceCensus.test.ts :: consume-once guards: registered, and marking before they spend floor: the census still finds the known guards
+src/__tests__/money/consumeOnceCensus.test.ts :: consume-once guards: registered, and marking before they spend no NEW consume-once guard is unregistered
+src/__tests__/money/consumeOnceCensus.test.ts :: consume-once guards: registered, and marking before they spend no registered guard disappeared (the list is not a wish list)
+src/__tests__/money/consumeOnceCensus.test.ts :: consume-once guards: registered, and marking before they spend the detector agrees with its own samples, in both directions
 src/__tests__/money/createSuccessfulPayment-schema.test.ts :: createSuccessfulPayment schema contract inserts an UPPERCASE operation type from the enum
 src/__tests__/money/createSuccessfulPayment-schema.test.ts :: createSuccessfulPayment schema contract inserts telegram_id as a NUMBER (schema requires z.number())
 src/__tests__/money/createSuccessfulPayment-schema.test.ts :: createSuccessfulPayment schema contract keeps the subscription-granting fields the reader matches on
