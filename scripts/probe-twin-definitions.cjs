@@ -30,6 +30,9 @@ const ROOT = path.resolve(__dirname, '..')
 const DEFINITION =
   /^export\s+(?:async\s+)?(?:function|const|class|enum)\s+([A-Za-z_$][\w$]*)/gm
 
+const RE_FROM =
+  /(?:export|import)\s*(?:\*|\{[^}]*\}|[A-Za-z_$][\w$]*)?\s*(?:as\s+[A-Za-z_$][\w$]*\s*)?from\s*['"]([^'"]+)['"]/g
+
 /**
  * Names that decide access, money or identity.
  *
@@ -163,6 +166,26 @@ function selfCheck() {
     if (AUTHORITY.test(no)) fail(`обычное имя принято за властное: ${no}`)
   }
 
+  // The re-export matcher, on both sides. It reads the module path, which is a
+  // STRING BODY -- so it runs on raw text with the blanked copy used only as a
+  // mask. The first version ran on blanked code and returned zero paths, which
+  // reads as "no barrel pulls two definitions" rather than as a broken matcher.
+  const sample = [
+    "export * from './a'",
+    "export { x } from './b'",
+    "import { y } from './c'",
+    "// export * from './commented'",
+  ].join('\n')
+  const sampleMask = blank(sample)
+  const seen = []
+  for (const m of sample.matchAll(RE_FROM)) {
+    if (sampleMask[m.index] === ' ') continue
+    seen.push(m[1])
+  }
+  if (seen.join(',') !== './a,./b,./c') {
+    fail(`реэкспорты разобраны как ${JSON.stringify(seen)}`)
+  }
+
   console.log(
     'самопроверка: определения разобраны, посторонние формы отвергнуты'
   )
@@ -176,6 +199,8 @@ const files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
     f => f.startsWith('src/') && f.endsWith('.ts') && !f.includes('__tests__')
   )
 
+const fileSet = new Set(files)
+
 const where = new Map()
 for (const f of files) {
   let code
@@ -188,6 +213,63 @@ for (const f of files) {
     if (!where.has(n)) where.set(n, [])
     where.get(n).push(f)
   }
+}
+
+/**
+ * The dangerous subclass: ONE barrel re-exports more than one definition of the
+ * same name. Then which copy a consumer receives is decided by the barrel's
+ * internal ordering, not by the import.
+ *
+ * That is not hypothetical. src/navigation/index.ts re-exports
+ * HAIM_GROUP_STAFF_IDS from config/access.config and, via `export *`, also
+ * pulls the copy in constants/access -- which holds ['123456789','987654321'],
+ * placeholder ids nobody replaced. Measured on a fixture of the same shape:
+ * with the stars in the other order, the placeholder is what production gets.
+ * Two live authorization checks read that name.
+ */
+
+/** './config/access.config' from src/navigation/index.ts -> src/navigation/config/access.config.ts */
+function resolveFrom(fromFile, spec) {
+  if (!spec.startsWith('.')) return null
+  const base = path.posix.join(path.posix.dirname(fromFile), spec)
+  for (const cand of [`${base}.ts`, `${base}/index.ts`]) {
+    if (fileSet.has(cand)) return cand
+  }
+  return null
+}
+
+const reExportTargets = new Map()
+for (const f of files) {
+  let raw
+  try {
+    raw = fs.readFileSync(path.join(ROOT, f), 'utf8')
+  } catch {
+    continue
+  }
+  // Matched on the RAW text, not the blanked one: the module path IS a string
+  // body, and blank() erases exactly that. The first version of this pass ran
+  // on blanked code and reported zero -- with a known positive in hand.
+  //
+  // blank() promises byte-for-byte offsets, so the blanked copy is still
+  // usable as a mask: if the statement starts where the mask has a space, the
+  // whole statement was inside a comment and does not count.
+  const mask = blank(raw)
+  const targets = new Set()
+  for (const m of raw.matchAll(RE_FROM)) {
+    if (mask[m.index] === ' ') continue
+    const r = resolveFrom(f, m[1])
+    if (r) targets.add(r)
+  }
+  if (targets.size) reExportTargets.set(f, targets)
+}
+
+function ambiguousBarrels(definingFiles) {
+  const out = []
+  for (const [barrel, targets] of reExportTargets) {
+    const hit = definingFiles.filter(d => targets.has(d) && d !== barrel)
+    if (hit.length > 1) out.push([barrel, hit])
+  }
+  return out
 }
 
 const twins = [...where.entries()].filter(([, v]) => v.length > 1)
@@ -205,6 +287,31 @@ for (const [name, fileList] of authority.sort(
 )) {
   console.log(`  ${name}  (${fileList.length})`)
   for (const f of fileList.sort()) console.log(`      ${f}`)
+}
+
+// A resolution pass that resolves nothing prints "0 barrels pull two
+// definitions", which is indistinguishable from good news. This repo has
+// barrels; if none resolved, the path mapping is broken, not the code clean.
+if (reExportTargets.size === 0) {
+  console.error(
+    'самопроверка не прошла: ни одна бочка не разрешилась -- сломано сопоставление путей.'
+  )
+  process.exit(2)
+}
+
+const ambiguous = authority
+  .map(([name, fileList]) => [name, ambiguousBarrels(fileList)])
+  .filter(([, b]) => b.length)
+
+console.log(`\n=== ОДНА БОЧКА ТЯНЕТ ДВА ОПРЕДЕЛЕНИЯ: ${ambiguous.length} ===`)
+console.log(
+  '   (какую копию получит потребитель, решает ПОРЯДОК внутри бочки)\n'
+)
+for (const [name, barrelList] of ambiguous) {
+  for (const [barrel, hit] of barrelList) {
+    console.log(`  ${name}  <- ${barrel}`)
+    for (const h of hit) console.log(`      ${h}`)
+  }
 }
 
 const ordinary = twins.length - authority.length
