@@ -26,6 +26,12 @@ export interface DebtSummary {
   bot_name: string
   total_ai_costs: number
   total_owner_payments: number
+  /**
+   * False when the owner_payments query did not answer -- the table is absent,
+   * the request errored, or it threw. Payments are then UNKNOWN, not zero, and
+   * `debt` below is an upper bound rather than a figure worth telling an owner.
+   */
+  payments_known: boolean
   total_user_income: number
   net_profit: number
   platform_share: number
@@ -174,22 +180,42 @@ export async function calculateOwnerDebt(
     ...v,
   }))
 
-  // Owner payments (table may not exist yet)
+  // Owner payments (table may not exist yet).
+  //
+  // A failure here used to leave this at 0, which does not mean "the owner paid
+  // nothing" -- it means we do not know what they paid. The difference reaches a
+  // real person: debt is platform_share minus this, so a single failed query
+  // bills the owner for the entire share, and above 500 that message repeats
+  // every three days. Someone who has paid in full would be dunned by a bot,
+  // unattended, on the strength of a network error.
   let total_owner_payments = 0
+  let payments_known = false
   try {
     const { data, error } = await supabaseAdmin
       .from('owner_payments')
       .select('amount_stars')
       .eq('bot_name', botName)
     if (!error && data) {
+      payments_known = true
       total_owner_payments = data.reduce(
         (s: number, r: { amount_stars: number }) =>
           s + (Number(r.amount_stars) || 0),
         0
       )
+    } else if (error) {
+      logger.warn(
+        '[Billing] owner_payments unreadable — debt is an upper bound',
+        {
+          botName,
+          error: error.message,
+        }
+      )
     }
-  } catch {
-    /* owner_payments table may not exist */
+  } catch (e) {
+    logger.warn('[Billing] owner_payments threw — debt is an upper bound', {
+      botName,
+      error: e instanceof Error ? e.message : String(e),
+    })
   }
 
   // User income (MONEY_INCOME) — только реальные клиентские платежи.
@@ -216,6 +242,7 @@ export async function calculateOwnerDebt(
   const debt = Math.max(0, platform_share - total_owner_payments)
 
   return {
+    payments_known,
     bot_name: botName,
     total_ai_costs,
     total_owner_payments,
@@ -383,9 +410,21 @@ export async function runBillingCheck(): Promise<void> {
 
   for (const botName of botNames) {
     try {
-      const { debt } = await calculateOwnerDebt(botName)
+      const { debt, payments_known } = await calculateOwnerDebt(botName)
       const prev = notifHistory[botName]
       const now = Date.now()
+
+      // Silence beats a false accusation. Without the payments figure `debt` is
+      // an upper bound -- it assumes the owner paid nothing -- and every branch
+      // below tells a person they owe money. Skipping costs at most a delayed
+      // reminder; sending costs the trust of someone who already paid.
+      if (!payments_known) {
+        logger.warn('[Billing] skipping debt notice: payments unknown', {
+          botName,
+          debtUpperBound: debt,
+        })
+        continue
+      }
 
       if (debt > 500) {
         const shouldNotify =

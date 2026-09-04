@@ -1549,6 +1549,10 @@ src/__tests__/money/no-invented-price.test.ts :: цена не выдумыва�
 src/__tests__/money/no-invented-price.test.ts :: цена не выдумывается в денежных путях не появилось новых выдуманных цен
 src/__tests__/money/no-invented-price.test.ts :: цена не выдумывается перед списанием цена проверяется, а не подставляется
 src/__tests__/money/no-invented-price.test.ts :: цена не выдумывается разбор ловит выдуманную цену на заведомом образце
+src/__tests__/money/ownerDebtPaymentsUnknown.test.ts :: owner debt: unknown payments are not zero payments does NOT report payments_known when the query errors
+src/__tests__/money/ownerDebtPaymentsUnknown.test.ts :: owner debt: unknown payments are not zero payments reports payments_known when the table answers
+src/__tests__/money/ownerDebtPaymentsUnknown.test.ts :: owner debt: unknown payments are not zero payments the debt computed without that figure is an upper bound, not a fact
+src/__tests__/money/ownerDebtPaymentsUnknown.test.ts :: owner debt: unknown payments are not zero payments the scheduled loop refuses to notify when payments are unknown
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа в тексте ошибки есть номер счёта — по нему ищут в поддержке
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа ошибка вставки БРОСАЕТ, а не молчит
 src/__tests__/money/payment-record-not-silent.test.ts :: запись платежа повтор той же записи НЕ бросает — строка уже есть
