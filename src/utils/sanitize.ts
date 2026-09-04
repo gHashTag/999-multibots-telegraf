@@ -97,7 +97,21 @@ export function assertPublicRedirect(options: {
       ? h.slice(1, h.indexOf(']'))
       : h.replace(/:\d+$/, '')
   }
-  if (host && isPrivateHost(host)) {
+  // Refuse when the next hop cannot be identified, rather than allowing it.
+  //
+  // This read `if (host && isPrivateHost(host)) throw`, so an options object
+  // carrying neither hostname nor host fell through and the redirect was
+  // FOLLOWED. The whole job of this function is to block, and absence of the
+  // value meant do-not-block: a guard that fails open on missing input.
+  //
+  // follow-redirects always populates one of the two for a real hop, so this
+  // refuses nothing that occurs today; it removes the case where a hop nobody
+  // could name was permitted.
+  if (!host) {
+    throw new Error('SSRF: redirect with an unidentifiable host blocked')
+  }
+
+  if (isPrivateHost(host)) {
     throw new Error('SSRF: redirect to private/local address blocked')
   }
 }
