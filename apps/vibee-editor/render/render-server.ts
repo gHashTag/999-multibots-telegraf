@@ -479,6 +479,7 @@ import {
   spendByTid,
   refundByTid,
   TOKEN_PRICES,
+  владелец,
 } from './src/agent/billing-shared'
 import { lipSyncVideoOf, templateDurationInFrames } from './src/render-duration'
 /**
@@ -3606,6 +3607,72 @@ const server = createServer(async (req, res) => {
       console.error('❌ /api/balance:', e)
       res.writeHead(500, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ success: false, error: 'balance unavailable' }))
+    }
+    return
+  }
+
+  /**
+   * POST /api/feed/backfill-thumbnails — обложки для УЖЕ опубликованных роликов.
+   *
+   * `thumbnail_url` перестал быть жёстким `null` при публикации, но это лечит
+   * только БУДУЩИЕ ролики. Двадцать уже опубликованных остаются чёрными
+   * карточками навсегда — а именно их человек и видит у себя в профиле.
+   * Правка, которая не касается существующих данных, для владельца этих данных
+   * выглядит как отсутствие правки.
+   *
+   * ПРЕДЕЛ НА ВЫЗОВ. Каждая обложка — это скачивание ролика и прогон ffmpeg;
+   * пустить их все одним запросом значит связать процесс на минуты и словить
+   * тот же обрыв соединения, что и у липсинка. Двадцать за раз, повторный
+   * вызов продолжает с того места — операция идемпотентна по построению,
+   * потому что берёт только строки С ПУСТОЙ обложкой.
+   *
+   * ТОЛЬКО ВЛАДЕЛЕЦ. Это массовая правка чужих записей и трата процессорного
+   * времени; личность берётся из подписи или сессии, а список — из `ADMIN_IDS`,
+   * той же переменной, что решает вопрос оплаты.
+   */
+  if (req.url?.split('?')[0] === '/api/feed/backfill-thumbnails' && req.method === 'POST') {
+    const кто = generationOwnerId(req)
+    if (!кто || !владелец(кто)) {
+      res.writeHead(403, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: 'owners only' }))
+      return
+    }
+    try {
+      const pool = getPool()
+      const строки = await pool.query(
+        `SELECT id, video_url FROM public_templates
+          WHERE (thumbnail_url IS NULL OR thumbnail_url = '')
+            AND video_url IS NOT NULL AND video_url <> ''
+          ORDER BY created_at DESC
+          LIMIT 20`
+      )
+      let сделано = 0
+      const неудачи: string[] = []
+      for (const р of строки.rows) {
+        const обложка = await обложкаИзРолика(String(р.video_url))
+        if (!обложка) {
+          неудачи.push(String(р.id))
+          continue
+        }
+        await pool.query(
+          `UPDATE public_templates SET thumbnail_url = $2 WHERE id = $1`,
+          [р.id, обложка]
+        )
+        сделано += 1
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          success: true,
+          рассмотрено: строки.rows.length,
+          сделано,
+          неудачи,
+        })
+      )
+    } catch (e) {
+      console.error('❌ backfill-thumbnails:', e)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: 'backfill failed' }))
     }
     return
   }
