@@ -48,8 +48,29 @@ const LIVENESS = new RegExp(
   'i'
 )
 
+function entryList(text) {
+  return [...text.matchAll(/^\s*['"]([^'"]+)['"]\s*[:,]/gm)].map(m => m[1])
+}
+
 function entriesOf(text) {
-  return (text.match(/^\s*['"][^'"]+['"]\s*[:,]/gm) || []).length
+  return entryList(text).length
+}
+
+/**
+ * Does "does this code run?" even apply to this registry?
+ *
+ * Only to one that lists CODE SITES. Several list data instead -- table names,
+ * production bot usernames, code snippets quoted as strings, prose -- and for
+ * those liveness is meaningless: a secret in a file nobody imports is still
+ * leaked, and a table either exists or does not.
+ *
+ * Demanding a note there would produce annotations written to satisfy a
+ * ratchet, which is worse than no note at all. Measured when the first version
+ * of this probe asked for one everywhere: 15 registries were flagged, and only
+ * 5 of them list code.
+ */
+function listsCodeSites(text) {
+  return entryList(text).some(e => /\.(ts|tsx|js|cjs|mjs)$/.test(e))
 }
 
 function classOf(src) {
@@ -76,6 +97,11 @@ function selfCheck() {
     fail('записи реестра посчитаны неверно')
   if (entriesOf('  someCall(),\n') !== 0)
     fail('обычный код принят за записи реестра')
+
+  if (!listsCodeSites("  'src/a/b.ts': 1,\n"))
+    fail('путь к исходнику не признан код-сайтом')
+  if (listsCodeSites("  'ai_requests',\n  'avatar_videos',\n"))
+    fail('имена таблиц приняты за код-сайты')
 
   if (!LIVENESS.test('// verified DEAD, never mounted'))
     fail('пометка о ливнесс не распознана')
@@ -110,6 +136,7 @@ function census() {
         file: f,
         name: m[1],
         entries: entriesOf(after),
+        codeSites: listsCodeSites(after),
         liveness: LIVENESS.test(around),
         subject: classOf(src),
       })
@@ -118,47 +145,28 @@ function census() {
   return out.sort((a, b) => b.entries - a.entries)
 }
 
-module.exports = { census, selfCheck, REGISTRY_WORD, LIVENESS }
+module.exports = { census, selfCheck, REGISTRY_WORD, LIVENESS, listsCodeSites }
 
 if (require.main !== module) return
 
 selfCheck()
 
-const files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
-  .split('\n')
-  .filter(
-    f => f.endsWith('.ts') && (f.includes('__tests__') || f.includes('/tests/'))
-  )
-
-const rows = []
-for (const f of files) {
-  const src = fs.readFileSync(path.join(ROOT, f), 'utf8')
-  for (const m of src.matchAll(DECLARATION)) {
-    if (!REGISTRY_WORD.test(m[1])) continue
-    const after = src.slice(m.index + m[0].length, m.index + m[0].length + 6000)
-    const around = src.slice(Math.max(0, m.index - 2000), m.index + 3000)
-    rows.push({
-      file: f,
-      name: m[1],
-      entries: entriesOf(after),
-      liveness: LIVENESS.test(around),
-      subject: classOf(src),
-    })
-  }
-}
-
-rows.sort((a, b) => b.entries - a.entries)
+// One loop, not two: the main flow uses the same census the ratchet
+// imports. The first version kept a private copy here -- a twin definition in
+// the very probe written to find registries that drift.
+const rows = census()
 
 const total = rows.reduce((n, r) => n + r.entries, 0)
-const blind = rows.filter(r => !r.liveness).length
+const codeRegistries = rows.filter(r => r.codeSites).length
 
 console.log(`реестров: ${rows.length}, записей всего: ${total}`)
-console.log(`из них БЕЗ пометки о ливнесс: ${blind}\n`)
+console.log(`из них перечисляют код-сайты: ${codeRegistries}\n`)
 
 for (const r of rows) {
-  console.log(
-    `  ${String(r.entries).padStart(3)}  ${r.liveness ? 'ливнесс есть' : 'ливнесс НЕТ '}  ${r.name}`
-  )
+  const marks = [r.codeSites ? 'код' : 'данные', r.liveness ? 'ливнесс' : null]
+    .filter(Boolean)
+    .join(', ')
+  console.log(`  ${String(r.entries).padStart(3)}  [${marks}]  ${r.name}`)
   console.log(`       ${r.file}`)
   console.log(`       предмет: ${r.subject}`)
 }
