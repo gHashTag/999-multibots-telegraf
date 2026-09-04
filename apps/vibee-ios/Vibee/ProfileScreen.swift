@@ -308,13 +308,45 @@ struct ProfileScreen: View {
       ) {
         ForEach(ролики) { р in
           ZStack(alignment: .bottomLeading) {
-            // `background: #0d0d0c` плитки — Profile.css:1514
+            // `background: #0d0d0c` плитки — Profile.css:1514. Остаётся
+            // подложкой: пока обложка грузится и если её нет вовсе.
             Тема.Профиль.поверхность
-            // Счётчик просмотров поверх плитки: в вебе он там же, и это
-            // единственное число, ради которого автор сюда заходит.
+
+            if let обложка = р.thumbnailUrl.flatMap(URL.init(string:)) {
+              AsyncImage(url: обложка) { фаза in
+                if let к = фаза.image {
+                  к.resizable().scaledToFill()
+                } else {
+                  // Ни спиннера, ни значка поломки: плитка маленькая, и любой
+                  // символ в ней читается как содержимое ролика. Пустая
+                  // подложка честнее — она ничего не обещает.
+                  Color.clear
+                }
+              }
+            }
+
+            /**
+             * Счётчик просмотров поверх плитки: в вебе он там же, и это
+             * единственное число, ради которого автор сюда заходит.
+             *
+             * ЗАТЕМНЕНИЕ ПОД НИМ — не украшение. Раньше цифра лежала на
+             * ровной подложке #0d0d0c, где её было видно всегда. Теперь под
+             * ней кадр ролика, то есть ЛЮБОЙ цвет: белые цифры на светлом
+             * кадре исчезают. Градиент снизу даёт им постоянный тёмный фон
+             * независимо от того, что попало в кадр.
+             */
+            LinearGradient(
+              colors: [.black.opacity(0.65), .clear],
+              startPoint: .bottom,
+              endPoint: .top
+            )
+            .frame(height: 44)
+            .frame(maxHeight: .infinity, alignment: .bottom)
+            .allowsHitTesting(false)
+
             Label("\(р.viewsCount)", systemImage: "eye")
               .font(Тема.Шрифт.стиль(.caption2))
-              .foregroundStyle(Тема.Профиль.текст)
+              .foregroundStyle(.white)
               .padding(Тема.Отступ.вкладка)
           }
           .aspectRatio(9.0 / 16.0, contentMode: .fit)
