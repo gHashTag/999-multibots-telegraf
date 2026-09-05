@@ -2361,6 +2361,61 @@ cmd_error_or_empty() {
   ' )
 }
 
+FALSIFY_JS=$(cat <<'FALSIFY_EOF'
+    const fs = require("fs")
+    const load = p => JSON.parse(fs.readFileSync(p, "utf8"))
+    const set = j => { const m = new Map()
+      for (const f of j.testResults) for (const x of f.assertionResults)
+        m.set(f.name.split("/__tests__/")[1] + " :: " + x.title, x.status)
+      return m }
+    const A = set(load(process.argv[1])), B = set(load(process.argv[2]))
+    const surv = [], fell = []
+    for (const [k, v] of A) { if (v !== "passed") continue
+      ;(B.get(k) === "passed" ? surv : fell).push(k) }
+    const byFile = new Map()
+    for (const s of surv) { const f = s.split(" :: ")[0]; byFile.set(f, (byFile.get(f) || 0) + 1) }
+    console.log("assertions: " + A.size)
+    console.log("  redden when the subject breaks: " + fell.length)
+    console.log("  SURVIVED (probe may not apply): " + surv.length)
+    console.log("")
+    for (const [f, n] of [...byFile].sort((x, y) => y[1] - x[1])) {
+      const p = "src/__tests__/" + f
+      let why = "read it"
+      try { const raw = fs.readFileSync(p, "utf8")
+        if (/vi\.mock/.test(raw)) why = "behavioural (vi.mock)"
+        else if (!/readFileSync/.test(raw)) why = "reads no files"
+        else if (/scripts\//.test(raw)) why = "via scripts/"
+      } catch {}
+      console.log("   " + String(n).padStart(2) + "  " + why.padEnd(24) + f)
+    }
+FALSIFY_EOF
+)
+
+cmd_falsify() {
+  # МОЖЕТ ЛИ ЭТОТ РАТЧЕТ ВООБЩЕ ПОКРАСНЕТЬ?
+  #
+  # Тест, читающий исходники как текст, обязан упасть, когда их нельзя
+  # прочитать. Если он всё равно проходит -- его вердикт не зависел от того,
+  # что он стережёт.
+  #
+  # ВЫЖИЛ НЕ ЗНАЧИТ ВАКУУМЕН. Проба ломает чтение .ts/.js и щадит тесты,
+  # node_modules и scripts/. Значит она НЕ судит: поведенческие тесты с
+  # vi.mock, предметы вида railway.toml и *.md, чтение через scripts/,
+  # утверждения на литеральных образцах.
+  #
+  # it.192 по 99 денежным ратчетам: 312 из 369 утверждений покраснели, и все
+  # 57 выживших оказались вне досягаемости, а не пустыми.
+  local dir="${1:-src/__tests__/money}"
+  local pre="$ROOT/scripts/lib/crash-subject.cjs"
+  [ -f "$pre" ] || { bad "нет $pre"; return 2; }
+  local a=/tmp/tri-falsify-ok.json b=/tmp/tri-falsify-broken.json
+  rm -f "$a" "$b"
+  ( cd "$ROOT" && npx vitest run "$dir" --reporter=json --outputFile="$a" ) >/dev/null 2>&1
+  ( cd "$ROOT" && NODE_OPTIONS="--require $pre" npx vitest run "$dir" --reporter=json --outputFile="$b" ) >/dev/null 2>&1
+  [ -f "$a" ] && [ -f "$b" ] || { bad "vitest не отдал json"; return 2; }
+  ( cd "$ROOT" && node -e "$FALSIFY_JS" "$a" "$b" )
+}
+
 cmd_blind_probes() {
   # ИНСТРУМЕНТ, КОТОРЫЙ ОТВЕЧАЕТ УВЕРЕННО ПРИ СЛОМАННОМ ЧТЕНИИ, НЕОПРОВЕРЖИМ.
   #
@@ -3531,6 +3586,7 @@ case "$action" in
   mask-diff|маска-разница)  cmd_mask_diff "$@" ;;
   checks-of-checks|проверки-проверок)  cmd_checks_of_checks "$@" ;;
   blind-probes|слепые-пробы)  cmd_blind_probes "$@" ;;
+  falsify|опровержимость)  cmd_falsify "$@" ;;
   error-or-empty|ошибка-или-пусто)  cmd_error_or_empty "$@" ;;
   money-invariants|карта-денег)  cmd_money_invariants "$@" ;;
   money-ratchets|реестр-ратчетов)  cmd_money_ratchets "$@" ;;
