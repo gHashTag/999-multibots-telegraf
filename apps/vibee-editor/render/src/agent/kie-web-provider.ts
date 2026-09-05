@@ -68,7 +68,18 @@ export const ПОЛЯ_МАРШРУТА: Record<KieWebMediaKind, string[]> = {
     'image',
   ],
   // render-server.ts:3387
-  video: ['prompt', 'aspect_ratio', 'mode', 'duration', 'resolution'],
+  video: [
+    'prompt',
+    'aspect_ratio',
+    'mode',
+    'duration',
+    'resolution',
+    // Исходник: `kling/v2-1-pro` оживляет картинку, `topaz/video-upscale`
+    // увеличивает готовое видео. Экран выбирает файл нужного вида по
+    // контракту модели.
+    'image_url',
+    'video_url',
+  ],
   // render-server.ts:3785
   audio: [
     'text', 'voice', 'stability', 'similarity_boost', 'style', 'speed',

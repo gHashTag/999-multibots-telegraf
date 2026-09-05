@@ -3337,7 +3337,8 @@ const server = createServer(async (req, res) => {
       let billedTid: string | undefined
       let requestedModel: string | undefined
       try {
-        const { model, prompt, duration, aspect_ratio } = JSON.parse(body)
+        const { model, prompt, duration, aspect_ratio, image_url, video_url } =
+          JSON.parse(body)
         requestedModel = typeof model === 'string' ? model : undefined
         console.log(`🎬 [Generate] Video: ${model}, duration: ${duration}`)
 
@@ -3401,6 +3402,22 @@ const server = createServer(async (req, res) => {
             duration:
               (parseInt(String(duration || '6'), 10) || 6) <= 5 ? '6' : '10',
             resolution: '480p',
+            /*
+             * ИСХОДНИК ДЛЯ ВИДЕО. `kling/v2-1-pro` оживляет КАРТИНКУ,
+             * `topaz/video-upscale` увеличивает ГОТОВОЕ ВИДЕО — разные файлы
+             * под разными именами. Обе модели лежали в каталоге и не работали
+             * никогда: экран писал «нужно: фото», а послать его не мог.
+             *
+             * Пустые значения не подставляем: `kieInputFor` вернёт null, и
+             * человек получит честный отказ вместо заявки без обязательного
+             * поля.
+             */
+            ...(typeof image_url === 'string' && image_url
+              ? { image_url }
+              : {}),
+            ...(typeof video_url === 'string' && video_url
+              ? { video_url }
+              : {}),
           })
           if (!вход) {
             res.writeHead(400, { 'Content-Type': 'application/json' })
