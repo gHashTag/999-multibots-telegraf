@@ -1,6 +1,7 @@
 // ETIMEDOUT AggregateError на fetch к api.replicate.com (витки №121/173):
 // undici первым пробует IPv6, в этой сети он чёрной дырой — таймаут.
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
+import { KIE_MODELS } from './src/agent/kie-models'
 import * as dns from 'node:dns'
 import {
   запустить as startKieJob, // cyrillic-ok
@@ -482,6 +483,7 @@ import {
   TOKEN_PRICES,
   модельныеЦены,
   посекунднаяМодель,
+  длинойУправляемМы,
   посекундныеМодели,
   познаковаяМодель,
   познаковыеМодели,
@@ -3438,7 +3440,19 @@ const server = createServer(async (req, res) => {
          * 6/10. Без `duration` списывали секунду и покупали шесть.
          */
         длинаРолика = секундыКОплате(duration) <= 6 ? 6 : 10
-        секунды = посекунднаяМодель(model) ? длинаРолика : 1
+        /*
+         * Посекундно — только когда длину задаём МЫ. У четырёх видеомоделей
+         * контракт просит один `prompt`: длительность до провайдера не
+         * доходит, и умножать счёт на неё значит брать за незаказанное.
+         */
+        const контракт = KIE_MODELS.find(
+          (м: { id: string; needs?: string[] }) =>
+            м.id === String(model ?? '').replace(/^kie\//, '')
+        )?.needs
+        секунды =
+          посекунднаяМодель(model) && длинойУправляемМы(контракт)
+            ? длинаРолика
+            : 1
 
         // Charge BEFORE spending the provider's money.
         const billed = await chargeMiniAppUser(
