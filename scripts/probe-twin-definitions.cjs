@@ -21,6 +21,7 @@
  */
 
 const fs = require('fs')
+const { repoFiles } = require('./lib/repo-sources.cjs')
 const path = require('path')
 const { execFileSync } = require('child_process')
 const {
@@ -317,11 +318,13 @@ function selfCheck() {
 
 selfCheck()
 
-const files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
-  .split('\n')
-  .filter(
-    f => f.startsWith('src/') && f.endsWith('.ts') && !f.includes('__tests__')
-  )
+// Tracked AND present-but-unstaged. An index-only population makes a file
+// invisible until `git add`, and the verdict below then describes a tree
+// that is not the one on disk (it.176 closed this for the test-side
+// guards; it.190 found it still open on the probe side).
+const files = repoFiles(ROOT).filter(
+  f => f.startsWith('src/') && f.endsWith('.ts') && !f.includes('__tests__')
+)
 
 const fileSet = new Set(files)
 

@@ -21,6 +21,7 @@
  */
 
 const fs = require('fs')
+const { repoFiles } = require('./lib/repo-sources.cjs')
 const path = require('path')
 const { execFileSync } = require('child_process')
 
@@ -113,15 +114,13 @@ function selfCheck() {
 
 /** The whole census, as data. Exported so the ratchet uses THIS, not a copy. */
 function census() {
-  const files = execFileSync('git', ['ls-files'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-  })
-    .split('\n')
-    .filter(
-      f =>
-        f.endsWith('.ts') && (f.includes('__tests__') || f.includes('/tests/'))
-    )
+  // Tracked AND present-but-unstaged. An index-only population makes a file
+  // invisible until `git add`, and the verdict below then describes a tree
+  // that is not the one on disk (it.176 closed this for the test-side
+  // guards; it.190 found it still open on the probe side).
+  const files = repoFiles(ROOT).filter(
+    f => f.endsWith('.ts') && (f.includes('__tests__') || f.includes('/tests/'))
+  )
   const out = []
   for (const f of files) {
     const src = fs.readFileSync(path.join(ROOT, f), 'utf8')
