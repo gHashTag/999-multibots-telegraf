@@ -2286,11 +2286,21 @@ cmd_money_ratchets() {
   # Индекс сверяется тестом moneyRatchetsIndexIsCurrent: он перегенерирует его
   # в памяти и требует совпадения байт в байт. Переименовал тест или переписал
   # заголовок -- тест краснеет, пока индекс не пересобран.
-  ( cd "$ROOT" && node scripts/gen-money-ratchets.cjs )
-  echo ""
+  # ПО УМОЛЧАНИЮ НИЧЕГО НЕ ПИШЕТ. Первая версия звала генератор всегда, и
+  # каждый показ реестра пачкал общее дерево 101 строкой: prettier форматирует
+  # docs/*.md иначе, чем печатает генератор, поэтому запись расходится с
+  # закоммиченным файлом ВСЕГДА. А грязное дерево блокирует `tri worktree`
+  # соседним агентам -- то есть команда показа ломала бы чужую работу.
+  if [ "${1:-}" = "--write" ]; then
+    ( cd "$ROOT" && node scripts/gen-money-ratchets.cjs )
+    echo "(после записи прогони prettier или закоммить как есть -- тест сверяет СТРОКИ, не байты)"
+    return 0
+  fi
   ( cd "$ROOT" && head -20 docs/money-ratchets.md )
   echo "  ..."
+  echo ""
   echo "полный список: docs/money-ratchets.md"
+  echo "пересобрать:   ./tri money-ratchets --write"
 }
 
 cmd_money_invariants() {
