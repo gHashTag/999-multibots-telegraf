@@ -1,6 +1,12 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useLanguage } from '@/hooks/useLanguage'
+import {
+  загрузитьБаланс,
+  ценаНажатия,
+  мераЦены,
+  type Баланс,
+} from '@/lib/balance'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
 import {
   Sparkles,
@@ -145,6 +151,29 @@ interface GeneratePanelProps {
 export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   const { t, lang } = useLanguage()
   const [internalTab, setInternalTab] = useState<GenerateTab>('image')
+  /*
+   * ЦЕНА ДО НАЖАТИЯ. Мини-приложение не спрашивало баланс ни разу: человек
+   * жал «Сгенерировать» и платил, не увидев суммы. Ту же дыру в мобильном
+   * приложении закрывали всю ночь.
+   */
+  const [баланс, setБаланс] = useState<Баланс | null>(null)
+  useEffect(() => {
+    let живо = true
+    void загрузитьБаланс().then(б => {
+      if (живо) setБаланс(б)
+    })
+    return () => {
+      живо = false
+    }
+  }, [])
+
+  /** Подпись цены на кнопке: «· 40» или «· 36/с», либо ничего, если не знаем. */
+  const подписьЦены = (операция: string, модель: string | undefined) => {
+    const ц = ценаНажатия(баланс, операция, модель)
+    if (ц == null) return null
+    const мера = мераЦены(баланс, модель)
+    return мера ? ` · ${ц}/${мера}` : ` · ${ц}`
+  }
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -835,6 +864,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                 <>
                   <Image size={16} />
                   {t('generate.generateImage')}
+                  {подписьЦены('image_generate', imageModel)}
                 </>
               )}
             </button>
@@ -1021,6 +1051,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                 <>
                   <Video size={16} />
                   {t('generate.generateVideo')}
+                  {подписьЦены('video_generate', videoModel)}
                 </>
               )}
             </button>
@@ -1197,6 +1228,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                 <>
                   <Music size={16} />
                   {t('generate.generateAudio')}
+                  {подписьЦены('audio_generate', audioModel)}
                 </>
               )}
             </button>
@@ -1532,6 +1564,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                 <>
                   <Mic size={16} />
                   {t('generate.generateLipsync')}
+                  {подписьЦены('lipsync_generate', lipsyncModel)}
                 </>
               )}
             </button>
