@@ -24,7 +24,20 @@
 
 const KEEP = new Set(['\n', '\r'])
 
-function blank(source) {
+/**
+ * @param {string} source
+ * @param {Array<{start:number,end:number}>} [commentsOut] when given, receives
+ *   the range of every COMMENT the scanner passes over, string bodies excluded.
+ *
+ * The second argument exists because the mask alone cannot answer "was this a
+ * comment?". blank() erases comment text and string bodies to the same spaces,
+ * so `'// not a comment'` and a real one look identical afterwards. The
+ * scanner below already tells them apart -- it simply threw that away. A
+ * caller that needs comment text was otherwise going to write a second
+ * string-aware scanner, which is how this file came to exist in the first
+ * place.
+ */
+function blank(source, commentsOut) {
   // split(''), not Array.from(). Array.from() splits by CODE POINT, so an
   // emoji becomes one element while `source[i]` below indexes UTF-16 units --
   // after the first emoji the two sequences are off by one and the wipe lands
@@ -44,6 +57,7 @@ function blank(source) {
     if (c === '/' && d === '/') {
       let j = i
       while (j < n && source[j] !== '\n') j++
+      if (commentsOut) commentsOut.push({ start: i, end: j })
       wipe(i, j)
       i = j
       continue
@@ -51,6 +65,7 @@ function blank(source) {
     if (c === '/' && d === '*') {
       let j = i + 2
       while (j < n && !(source[j] === '*' && source[j + 1] === '/')) j++
+      if (commentsOut) commentsOut.push({ start: i, end: Math.min(j + 2, n) })
       wipe(i, Math.min(j + 2, n))
       i = j + 2
       continue
@@ -160,6 +175,23 @@ function selfCheck(label) {
   )
   if (commented.length !== 0) fail('закомментированный импорт принят за живой')
 
+  // comments() must return real comments and NOT a string that merely looks
+  // like one. Both are blanked identically, so this cannot be checked from the
+  // mask -- which is the whole reason the scanner reports the ranges itself.
+  {
+    const src =
+      "const s = '// not a comment'\nconst a = 1 // real\n/* block */\n"
+    const got = comments(src).map(c => c.text)
+    if (got.length !== 2) fail(`comments() вернул ${got.length}, а не 2`)
+    if (!got.includes('// real'))
+      fail('comments() потерял настоящий комментарий')
+    if (!got.includes('/* block */'))
+      fail('comments() потерял блочный комментарий')
+    if (got.some(t => t.includes('not a comment'))) {
+      fail('comments() принял тело строки за комментарий')
+    }
+  }
+
   if (label) console.log(`самопроверка бланкера: ${label}`)
 }
 
@@ -211,4 +243,11 @@ function matchCode(raw, regex) {
   return out
 }
 
-module.exports = { blank, selfCheck, matchCode }
+/** The text of every comment in `source`, string bodies excluded. */
+function comments(source) {
+  const ranges = []
+  blank(source, ranges)
+  return ranges.map(r => ({ ...r, text: source.slice(r.start, r.end) }))
+}
+
+module.exports = { blank, selfCheck, matchCode, comments }
