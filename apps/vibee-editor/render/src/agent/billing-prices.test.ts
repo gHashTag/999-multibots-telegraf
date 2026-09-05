@@ -80,7 +80,29 @@ describe('цены', () => {
     expect(ц['kie/seedream/5-pro-text-to-image']).toBe(14)
     expect(ц['kie/seedream/5-pro-image-to-image']).toBe(14)
     expect(ц['kie/ideogram/v3-text-to-image']).toBe(7)
-    expect(ц['kie/elevenlabs/audio-isolation']).toBe(28)
+    // Был `elevenlabs/audio-isolation` = 28. Модель осталась без цены: в
+    // прайсе KieAI нет строки про выделение голоса вовсе, а стояла ставка
+    // «Elevenlabs V3, Text to dialogue» — чужого товара. Взамен закреплены
+    // две модели, которые дают ту же точную дробь:
+    //   0.04 * 2 / 0.005 = 16.000000000000004 -> наивный ceil дал бы 17
+    //   0.06 * 2 / 0.005 = 24.000000000000004 -> и 25
+    expect(ц['kie/google/imagen4']).toBe(16)
+    expect(ц['kie/elevenlabs/text-to-speech-multilingual-v2']).toBe(24)
+  })
+
+  it('модели одного семейства НЕ делят цену самой дешёвой', () => {
+    /*
+     * Одно имя прайса на несколько наших моделей означало, что цену выбирает
+     * правило «бери минимум». Замер: Imagen 4 Fast $0.02, default $0.04,
+     * Ultra $0.06 — все три продавались по цене Fast, то есть Ultra втрое
+     * ниже себестоимости.
+     */
+    const ц = модельныеЦены()
+    expect(ц['kie/google/imagen4-fast']).toBeLessThan(ц['kie/google/imagen4'])
+    expect(ц['kie/google/imagen4']).toBeLessThan(ц['kie/google/imagen4-ultra'])
+    expect(ц['kie/elevenlabs/text-to-speech-turbo-2-5']).toBeLessThan(
+      ц['kie/elevenlabs/text-to-speech-multilingual-v2']
+    )
   })
 
   it('акционная строка прайса не становится ценой модели', () => {

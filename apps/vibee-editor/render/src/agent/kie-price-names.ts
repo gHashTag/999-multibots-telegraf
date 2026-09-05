@@ -23,9 +23,9 @@ export const ИМЯ_В_ПРАЙСЕ: Record<string, string | null> = {
   'seedream/5-lite-text-to-image': 'seedream 5.0 Lite',
   'seedream/5-pro-text-to-image': 'seedream 5 Pro',
   'seedream/5-pro-image-to-image': 'seedream 5 Pro',
-  'google/imagen4-fast': 'google imagen4',
-  'google/imagen4-ultra': 'google imagen4',
-  'google/imagen4': 'google imagen4',
+  'google/imagen4-fast': 'google imagen4, text-to-image, Fast',
+  'google/imagen4-ultra': 'google imagen4, text-to-image, Ultra',
+  'google/imagen4': 'google imagen4, text-to-image, default',
   'google/nano-banana-edit': 'Google nano banana edit',
   'google/nano-banana': 'Google nano banana',
   'grok-imagine/text-to-image': 'grok-imagine-image-2-0',
@@ -64,9 +64,9 @@ export const ИМЯ_В_ПРАЙСЕ: Record<string, string | null> = {
   'volcengine/video-to-video-lip-sync': 'volcengine',
 
   // — звук —
-  'elevenlabs/text-to-speech-multilingual-v2': 'Elevenlabs Text to Speech',
-  'elevenlabs/text-to-speech-turbo-2-5': 'Elevenlabs Text to Speech',
-  'elevenlabs/audio-isolation': 'Elevenlabs V3',
+  'elevenlabs/text-to-speech-multilingual-v2': 'Elevenlabs Text to Speech, multilingual v2',
+  'elevenlabs/text-to-speech-turbo-2-5': 'Elevenlabs Text to Speech, turbo 2.5',
+  'elevenlabs/audio-isolation': null,
   'google/gemini-3-1-flash-tts': 'Gemini 3.1 Flash TTS',
 
   // — в прайсе KieAI отсутствуют —
@@ -88,4 +88,18 @@ export const ИМЯ_В_ПРАЙСЕ: Record<string, string | null> = {
 }
 
 /** Адрес прайса. POST, поле страницы называется pageNum, размер ≤ 100. */
+/*
+ * ИМЕНА УТОЧНЕНЫ ДО СЕГМЕНТА, ОТЛИЧАЮЩЕГО МОДЕЛЬ.
+ *
+ * Одно имя на несколько наших моделей означало, что цену им выбирает правило
+ * «самый дешёвый вариант», а не мы. Замер: Imagen 4 Ultra стоит $0.06, а
+ * продавался по цене Fast — $0.02.
+ *
+ * `elevenlabs/audio-isolation` переведён в `null`: в прайсе KieAI НЕТ строки
+ * про выделение голоса вовсе (проверено — ноль совпадений на «isolation»), а
+ * стояло имя «Elevenlabs V3», единственная строка которого — «Text to
+ * dialogue», то есть ОЗВУЧКА. Мы брали ставку чужого товара, да ещё «за 1000
+ * знаков» за обработку аудиофайла, где знаков нет. Без цены модель не
+ * продаётся — это честнее, чем счёт, взятый ниоткуда.
+ */
 export const АДРЕС_ПРАЙСА = 'https://api.kie.ai/client/v1/model-pricing/page'

@@ -100,10 +100,38 @@ const экр = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 
 async function main() {
   const строки = await прайс()
-  const поИмени = new Map<string, Строка[]>()
-  for (const р of строки) {
-    const имя = р.modelDescription.split(',')[0].trim()
-    поИмени.set(имя, [...(поИмени.get(имя) ?? []), р])
+  /*
+   * СОПОСТАВЛЕНИЕ ПОСЕГМЕНТНОЕ, А НЕ ПО ЧАСТИ ДО ПЕРВОЙ ЗАПЯТОЙ.
+   *
+   * Прежнее правило отбрасывало всё, что отличает строки внутри семейства, и
+   * «самый дешёвый вариант» разрешал неоднозначность в пользу покупателя.
+   * Замер по живому прайсу — пять имён собирали одиннадцать наших моделей:
+   *
+   *   google imagen4             Fast $0.02, default $0.04, Ultra $0.06
+   *                              — все три модели получали $0.02
+   *   Elevenlabs Text to Speech  turbo $0.03, multilingual $0.06
+   *                              — обе получали $0.03
+   *
+   * То есть Imagen 4 Ultra продавался ВТРОЕ ниже себестоимости, Imagen 4 —
+   * вдвое, multilingual — вдвое.
+   *
+   * Почему СЕГМЕНТЫ, а не начало строки: имя «Qwen image 3.0» оказалось бы
+   * началом и для «Qwen image 3.0 Pro» — другой модели. По сегментам это
+   * разные первые части, и подмены не происходит.
+   */
+  const сегменты = (s: string) =>
+    s
+      .split(',')
+      .map(ч => ч.trim().toLowerCase())
+      .filter(ч => ч.length > 0)
+
+  /** Строки прайса, чьё описание начинается ТЕМИ ЖЕ сегментами, что имя. */
+  const подходящие = (имя: string) => {
+    const ждём = сегменты(имя)
+    return строки.filter(р => {
+      const есть = сегменты(р.modelDescription)
+      return есть.length >= ждём.length && ждём.every((ч, i) => есть[i] === ч)
+    })
   }
 
   const записи = KIE_MODELS.map(м => {
@@ -114,8 +142,8 @@ async function main() {
       throw new Error(`${м.id} не сопоставлен с прайсом — правьте kie-price-names.ts`)
     }
     if (имя === null) return { м, видимое, цена: null as null | Строка }
-    const rs = поИмени.get(имя)
-    if (!rs?.length) throw new Error(`имени «${имя}» нет в прайсе (${м.id})`)
+    const rs = подходящие(имя)
+    if (!rs.length) throw new Error(`имени «${имя}» нет в прайсе (${м.id})`)
     /*
      * САМЫЙ ДЕШЁВЫЙ вариант — но НЕ АКЦИОННЫЙ.
      *
