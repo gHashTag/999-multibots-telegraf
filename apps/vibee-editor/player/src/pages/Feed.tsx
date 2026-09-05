@@ -31,6 +31,7 @@ export function FeedPage() {
    */
   const [параметры] = useSearchParams();
   const искомый = параметры.get('post');
+  const [неНайден, setНеНайден] = useState(false);
   useEffect(() => {
     if (!искомый) return;
     let попыток = 0;
@@ -41,6 +42,18 @@ export function FeedPage() {
         window.clearInterval(таймер);
       } else if (++попыток > 20) {
         window.clearInterval(таймер);
+        /*
+         * НЕ НАШЛИ — СКАЖЕМ, А НЕ ПРОМОЛЧИМ.
+         *
+         * Лента грузит по 20 записей, а их 47: больше половины ссылок вели
+         * на первую страницу и оставляли человека у ЧУЖОГО ролика, ничего не
+         * объясняя. Молчание тут хуже отказа — оно выглядит как «вот он».
+         *
+         * Отличить «удалён» от «не на этой странице» на клиенте нечем,
+         * поэтому формулировка честно покрывает оба случая и предлагает
+         * действие вместо приговора.
+         */
+        setНеНайден(true);
       }
     }, 250);
     return () => window.clearInterval(таймер);
@@ -60,6 +73,12 @@ export function FeedPage() {
           <div className={`pull-indicator ${isRefreshing ? 'refreshing' : ''}`}>
             <div className="pull-spinner" />
           </div>
+          {неНайден && (
+            <div className="feed-notice" role="status">
+              Этот ролик не найден на первой странице ленты — он мог уйти ниже
+              или быть удалён автором. Прокрутите ленту или откройте её заново.
+            </div>
+          )}
           <FeedPanel fullscreen />
         </section>
       </main>

@@ -74,3 +74,16 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Сообщение о ненайденном ролике по ссылке ?post=. Лента грузит по 20 записей,
+   а их десятки: молчание оставляло человека у ЧУЖОГО ролика без объяснений. */
+.feed-notice {
+  margin: 10px 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--bg-elevated);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
