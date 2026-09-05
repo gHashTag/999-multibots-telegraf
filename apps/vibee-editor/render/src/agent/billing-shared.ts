@@ -22,9 +22,9 @@ import {
  * он уже оплачен на слое инструментов.
  */
 
-const COST_PER_TOKEN_USD = 0.005
+export const COST_PER_TOKEN_USD = 0.005
 /** Себестоимость операций, $ (оценки Replicate/рынка — см. PRICING.md). */
-const OPERATION_COST_USD: Record<string, number> = {
+export const OPERATION_COST_USD: Record<string, number> = {
   image_generate: 0.003,
   video_generate: 0.1,
   audio_generate: 0.03,
@@ -50,7 +50,7 @@ const OPERATION_COST_USD: Record<string, number> = {
  * таблице готовых чисел, не пересчитывается при смене прайса провайдера и
  * тихо превращается в убыток.
  */
-const НАЦЕНКА = 2.0
+export const НАЦЕНКА = 2.0
 
 /**
  * Цена КОНКРЕТНОЙ модели в токенах, а не одна на весь вид.
@@ -76,11 +76,41 @@ export function unitForKieModel(modelId: string): string | null {
   return ЕДИНИЦА_ЦЕНЫ[modelId] ?? null
 }
 
-/** Цена = ceil(себестоимость / база). Источник значений — расчёт, не руки. */
+/**
+ * Цена операции = ceil(себестоимость × НАЦЕНКА / база).
+ *
+ * НАЦЕНКА ЗДЕСЬ ОТСУТСТВОВАЛА, и это была не мелочь: `priceForKieModel` её
+ * применял, а `priceFor` — нет. Пути, идущие мимо KieAI (запасной провайдер),
+ * продавали РОВНО ПО СЕБЕСТОИМОСТИ — то есть наценка, назначенная владельцем,
+ * молча не действовала ни на одну из этих операций.
+ */
 export function priceFor(op: string): number {
   const cost = OPERATION_COST_USD[op]
   if (cost == null) return 0
-  return Math.ceil(cost / COST_PER_TOKEN_USD)
+  return Math.ceil((cost * НАЦЕНКА) / COST_PER_TOKEN_USD)
+}
+
+/**
+ * Цены ВСЕХ моделей в токенах — для клиента, который должен назвать сумму
+ * до нажатия.
+ *
+ * Списание идёт ПО МОДЕЛИ (`chargeMiniAppUser` берёт `priceForKieModel`), а
+ * `/api/balance` отдавал только цены по ОПЕРАЦИИ. Замер расхождения:
+ *
+ *   картинка  показывали 1  — списывали 8   (отказ после нажатия)
+ *   липсинк   показывали 3  — списывали 6   (отказ после нажатия)
+ *   видео     показывали 20 — списывали 5   (отказ в том, что по карману)
+ *
+ * Неверно в обе стороны: то обещаем невозможное, то запрещаем оплаченное.
+ * Клиенту нужна цена ТОЙ модели, которую он выбрал, а не средняя по виду.
+ */
+export function модельныеЦены(): Record<string, number> {
+  const из: Record<string, number> = {}
+  for (const id of Object.keys(СЕБЕСТОИМОСТЬ_USD)) {
+    const ц = priceForKieModel(id)
+    if (ц != null) из[`kie/${id}`] = ц
+  }
+  return из
 }
 /**
  * Операции, у которых цена умножается на секунды звука.
@@ -100,11 +130,11 @@ export function priceFor(op: string): number {
 export const PER_SECOND_OPS: readonly string[] = ['lipsync_generate']
 
 export const TOKEN_PRICES: Record<string, number> = {
-  image_generate: priceFor('image_generate'), // 1
-  audio_generate: priceFor('audio_generate'), // 6
-  lipsync_generate: priceFor('lipsync_generate'), // 3 per audio second
-  reel_render: priceFor('reel_render'), // 1
-  video_generate: priceFor('video_generate'), // 20
+  image_generate: priceFor('image_generate'), // 2
+  audio_generate: priceFor('audio_generate'), // 12
+  lipsync_generate: priceFor('lipsync_generate'), // 6 per audio second
+  reel_render: priceFor('reel_render'), // 2
+  video_generate: priceFor('video_generate'), // 40
 }
 
 /** Пул, минимально типизированный: и pg.Pool, и обёртки подходят. */
