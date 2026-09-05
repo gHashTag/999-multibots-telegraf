@@ -133,3 +133,61 @@ console.log(
     )
   }
 }
+
+// --- item 9: the seven tables the code still touches -------------------------
+{
+  const { matchCode } = require('./lib/blank-code.cjs')
+  const TABLES = [
+    'ai_requests',
+    'bots',
+    'white_label_configs',
+    'marketplace_items',
+    'marketplace_purchases',
+    'service_usage_stats',
+    'voice_models',
+  ]
+  const src = repoFiles('.').filter(
+    f => /^src\/.*\.ts$/.test(f) && !f.includes('__tests__')
+  )
+  let total = 0
+  const per = {}
+  for (const f of src) {
+    if (!fs.existsSync(f)) continue
+    const raw = fs.readFileSync(f, 'utf8')
+    for (const t of TABLES) {
+      const n = matchCode(
+        raw,
+        new RegExp('from\\([\'"]' + t + '[\'"]\\)', 'g')
+      ).length
+      if (n) {
+        per[t] = (per[t] || 0) + n
+        total += n
+      }
+    }
+  }
+  console.log(
+    '9.  seven tables: ' + total + ' call sites in live code (claimed 28)'
+  )
+  console.log('    ' + TABLES.map(t => t + '=' + (per[t] || 0)).join(' '))
+}
+
+// --- item 10: voice training -------------------------------------------------
+{
+  const reg = fs.readFileSync('src/inngest_app/registerFunctions.ts', 'utf8')
+  const registered = /voiceTrainingRVC/.test(reg)
+  const scene = fs.readFileSync(
+    'src/scenes/voiceTrainingWizard/index.ts',
+    'utf8'
+  )
+  const off = /const VOICE_TRAINING_DISCONNECTED = true/.test(scene)
+  const guards = (scene.match(/if \(VOICE_TRAINING_DISCONNECTED\)/g) || [])
+    .length
+  console.log(
+    '10. voiceTrainingRVC registered: ' +
+      (registered ? 'YES (item changed)' : 'no, as claimed')
+  )
+  console.log(
+    '    scene refuses at entry: ' +
+      (off ? 'yes, ' + guards + ' guards' : 'NO -- it would charge')
+  )
+}
