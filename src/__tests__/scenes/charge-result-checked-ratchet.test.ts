@@ -22,6 +22,8 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 
+const { matchCode } = require('../../../scripts/lib/blank-code.cjs')
+
 const CHARGE =
   /await\s+(updateUserBalance|processBalanceOperation|processBalanceVideoOperationHelper)\s*\(/
 // captured if the charge is assigned or returned on the same line
@@ -93,6 +95,47 @@ describe('charge results are never discarded in live scenes (unbilled-paid) ', (
         'generates (unbilled-paid). Capture it (const x = await ...) and handle ' +
         '!x, or (if the charge is dead) prove it dead and add to the allowlist:\n' +
         discarded.join('\n')
+    ).toEqual([])
+  })
+
+  it('the narrow scope is complete: no discarded charge lives outside src/scenes', () => {
+    // WHY THIS RATCHET IS NARROW, stated as a CHECK rather than a comment.
+    //
+    // it.188 nearly widened a different money guard because its scope looked
+    // arbitrary; reading the call sites showed the narrow scope was right, and
+    // widening would have added false positives. The reason had been recorded
+    // nowhere, so the question cost half an iteration.
+    //
+    // A comment would answer it once. This assertion answers it every run: the
+    // scope is src/scenes because a discarded charge exists nowhere else. If
+    // one ever appears in services or inngest, this fails and the scope has to
+    // be revisited deliberately -- rather than the guard staying quietly
+    // narrower than its class.
+    const outside: string[] = []
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name)
+        if (e.isDirectory()) {
+          if (p !== 'src/scenes' && !p.includes('__tests__')) walk(p)
+          continue
+        }
+        if (!p.endsWith('.ts')) continue
+        const raw = fs.readFileSync(p, 'utf8')
+        const bare =
+          /^[ \t]*await[ \t]+(updateUserBalance|processBalanceOperation|processBalanceVideoOperationHelper|deductBalanceAfterSuccess)[ \t]*\(/gm
+        for (const m of matchCode(raw, bare)) {
+          outside.push(
+            `${p}:${raw.slice(0, m.index).split('\n').length} ${m[1]}`
+          )
+        }
+      }
+    }
+    walk('src')
+    expect(
+      outside,
+      'a charge result is discarded OUTSIDE src/scenes, so this scope no longer ' +
+        'covers the class. Widen it deliberately, or handle these there:\n' +
+        outside.join('\n')
     ).toEqual([])
   })
 
