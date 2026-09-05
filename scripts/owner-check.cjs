@@ -87,3 +87,49 @@ console.log(
       ? 'yes (still owner decision)'
       : 'CHANGED')
 )
+
+// --- item 17: the two dollar-cost tables ------------------------------------
+//
+// Bounded extraction, and the bound is the point. A first attempt matched
+// baseCostUSD with [\s\S]*? after the entry key, which happily crossed into
+// the NEXT entry: KlingVideo has NO baseCostUSD (it is COMPLEX, priced per
+// model), so the regex borrowed the following service's number and invented a
+// 1.1-vs-0.12 contradiction that does not exist.
+{
+  const { matchCode } = require('./lib/blank-code.cjs')
+  const a = fs.readFileSync('src/price/helpers/modelsCost.ts', 'utf8')
+  const b = fs.readFileSync('src/interfaces/paidServices.ts', 'utf8')
+  const A = {}
+  for (const m of matchCode(a, /\[ModeEnum\.(\w+)\]\s*:\s*([0-9.]+)/g))
+    A[m[1]] = parseFloat(m[2])
+  const B = {}
+  // each entry is its own { ... } block: never look past the closing brace
+  for (const m of matchCode(
+    b,
+    /\[PaidServiceEnum\.(\w+)\]\s*:\s*\{([^}]*)\}/g
+  )) {
+    const cost = /baseCostUSD\s*:\s*([0-9.]+)/.exec(m[2])
+    if (cost) B[m[1]] = parseFloat(cost[1])
+  }
+  const both = Object.keys(A).filter(k => k in B)
+  const diff = both.filter(k => Math.abs(A[k] - B[k]) > 1e-9)
+  console.log(
+    '17. cost tables: ' +
+      Object.keys(A).length +
+      ' modes / ' +
+      Object.keys(B).length +
+      ' priced services, ' +
+      both.length +
+      ' shared, ' +
+      diff.length +
+      ' disagree'
+  )
+  console.log('    claimed 21 / 9 / 8 shared / 1 disagrees (LipSync)')
+  for (const k of diff) console.log('    ' + k + ': ' + A[k] + ' vs ' + B[k])
+  const twin = 'src/interfaces/paidServices.updated.ts'
+  if (fs.existsSync(twin)) {
+    console.log(
+      '    NOTE: a second copy exists at ' + twin + ' with 0 importers'
+    )
+  }
+}
