@@ -60,8 +60,13 @@ describe('mini-app generation is billed', () => {
     // matches RENDER_API_KEY; a present-but-WRONG X-Api-Key falls through to
     // the Telegram/session branch (auth.ts does not reject it). So a signed
     // Mini App user who adds a junk X-Api-Key header must still be charged.
-    expect(SERVER).toContain(
-      "if (authenticate(req).via === 'api-key') return { ok: true }"
+    // Matched as a pattern, not as a whole literal: the ok-branch now also
+    // carries the receipt (what was charged, what is left), and pinning the
+    // exact `{ ok: true }` text made this security assertion fail on a change
+    // that did not touch the gate. What must hold is the CONDITION -- the
+    // validated auth decision -- and that is what is pinned.
+    expect(SERVER).toMatch(
+      /if \(authenticate\(req\)\.via === 'api-key'\) return \{ ok: true/
     )
     // The old presence check skipped billing for ANY spoofed header -> free
     // generation past the paywall. It must not come back.
