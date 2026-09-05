@@ -112,6 +112,53 @@ enum API {
    *
    * Требует подписи: маршрут отдаёт остаток только тому, чью подпись проверил.
    */
+  /**
+   * Положить файл на S3 и получить ссылку.
+   *
+   * Маршрут `/upload` принимает СЫРОЕ тело и имя в заголовке `X-Filename` —
+   * не multipart. Это уже готовый транспорт, которым пользуется рендер;
+   * заводить второй ради приложения было бы второй правдой об одном и том же.
+   *
+   * Возвращает абсолютную ссылку: относительная доедет до KieAI как мусор,
+   * и провайдер откажет по причине, из которой ничего не понять.
+   */
+  static func положитьФайл(_ данные: Data, имя: String, тип: String) async throws -> String {
+    var з = URLRequest(url: base.appendingPathComponent("upload"))
+    з.httpMethod = "POST"
+    з.setValue(тип, forHTTPHeaderField: "Content-Type")
+    з.setValue(имя, forHTTPHeaderField: "X-Filename")
+    /*
+     * ЛИЧНОСТЬ — ТЕМ ЖЕ СПОСОБОМ, ЧТО И ВЕЗДЕ.
+     *
+     * Первая версия ушла без заголовков, и загрузка отвечала
+     * «unauthorized: no X-Api-Key and no Telegram initData» — дословно тот
+     * случай, ради которого в этом цикле и записано главное правило. Общий
+     * сторож принимает `Authorization: Bearer` (auth.ts:496), то есть сессию
+     * приложения; чинить надо было вызов, а не сервер.
+     *
+     * Нашлось потому, что отказ показан НА ЭКРАНЕ словами. Молчаливый провал
+     * выглядел бы как «кнопка не нажимается».
+     */
+    for (k, v) in Identity.headers() { з.setValue(v, forHTTPHeaderField: k) }
+    з.httpBody = данные
+    з.timeoutInterval = 120
+    let (d, о) = try await URLSession.shared.data(for: з)
+    guard let к = (о as? HTTPURLResponse)?.statusCode, (200..<300).contains(к) else {
+      let текст = String(data: d, encoding: .utf8) ?? ""
+      throw NSError(
+        domain: "upload", code: (о as? HTTPURLResponse)?.statusCode ?? -1,
+        userInfo: [NSLocalizedDescriptionKey: текст.isEmpty ? "загрузка не удалась" : текст]
+      )
+    }
+    struct Ответ: Decodable { let url: String? }
+    guard let ссылка = try? JSONDecoder().decode(Ответ.self, from: d).url, !ссылка.isEmpty
+    else { throw NSError(domain: "upload", code: -2,
+      userInfo: [NSLocalizedDescriptionKey: "сервер не назвал ссылку"]) }
+    return ссылка.hasPrefix("http")
+      ? ссылка
+      : base.appendingPathComponent(ссылка).absoluteString
+  }
+
   struct Баланс: Decodable {
     let balance: Int
     let prices: [String: Int]

@@ -3093,7 +3093,7 @@ const server = createServer(async (req, res) => {
         // other provider" path was unreachable dead code: removing the FAL key
         // to force the fallback produced a 500 and a refund. A missing key is
         // now just the first entry in `tried`.
-        const { model, prompt, width, height } = JSON.parse(body)
+        const { model, prompt, width, height, image_url } = JSON.parse(body)
         console.log(
           `📷 [Generate] Photo: ${model}, prompt: "${prompt.substring(0, 50)}..."`
         )
@@ -3121,10 +3121,20 @@ const server = createServer(async (req, res) => {
         // silently spend money at another provider when Kie rejects it.
         if (typeof model === 'string' && model.startsWith('kie/')) {
           const kieModel = reviewedKieModel('image', model)!
+          /*
+           * ИСХОДНИК ПЕРЕДАЁТСЯ ПОД ТРЕМЯ ИМЕНАМИ — так его называют разные
+           * модели: `image_urls` (seedream, grok), `image_url` (topaz),
+           * `image` (recraft). Лишнее не уйдёт: `kieInputFor` берёт из
+           * доступного РОВНО поля контракта, остальное отбрасывает.
+           *
+           * Без этого пять моделей «правки» были в каталоге и не работали
+           * никогда: экран честно писал «нужно: фото», а послать его не мог.
+           */
           const outcome = await kieGenerateImage({
             prompt,
             aspectRatio,
             model: kieModel,
+            imageUrl: typeof image_url === 'string' ? image_url : undefined,
           })
           if (!outcome.ok) throw new Error(outcome.reason)
           res.writeHead(200, { 'Content-Type': 'application/json' })
