@@ -1127,3 +1127,35 @@
     width: 360px;
   }
 }
+
+/* ЧЕТЫРЕ ВЫХОДА ПОДРЯД, А НЕ ЧЕТЫРЕ ВКЛАДКИ.
+   Ряд вкладок прятал три четверти готового результата за клики и притворялся
+   навигацией того же ранга, что и виды генерации. Заголовок секции берёт на
+   себя ту работу, ради которой вкладка и существовала: сказать, что это. */
+.script-output-block {
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--bg-elevated);
+  margin-bottom: 22px;
+}
+.script-output-block:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+.script-output-block-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--text-muted);
+}
+/* Ряда больше нет, поэтому у кнопки «копировать всё» нет соседа, с которым её
+   разводил `space-between`. Прижимаем её вправо явно. */
+.script-output-tools {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 0;
+}

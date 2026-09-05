@@ -37,7 +37,6 @@ import {
 import {
   scriptInputAtom,
   scriptDataAtom,
-  scriptOutputTabAtom,
   isGeneratingScriptAtom,
   scriptErrorAtom,
   scriptHistoryAtom,
@@ -101,7 +100,6 @@ function ScriptContent() {
   // Atoms
   const [input, setInput] = useAtom(scriptInputAtom)
   const data = useAtomValue(scriptDataAtom)
-  const [outputTab, setOutputTab] = useAtom(scriptOutputTabAtom)
   const isGenerating = useAtomValue(isGeneratingScriptAtom)
   const error = useAtomValue(scriptErrorAtom)
   const history = useAtomValue(scriptHistoryAtom)
@@ -189,21 +187,9 @@ function ScriptContent() {
         handleGenerate()
       }
 
-      // Ctrl/Cmd + 1-4 - Switch tabs
-      if ((e.metaKey || e.ctrlKey) && ['1', '2', '3', '4'].includes(e.key)) {
-        e.preventDefault()
-        const tabs: ScriptOutputTab[] = [
-          'voiceover',
-          'cover',
-          'broll',
-          'captions',
-        ]
-        const index = parseInt(e.key) - 1
-        if (tabs[index]) {
-          setOutputTab(tabs[index])
-        }
-      }
-
+      // Ctrl/Cmd + 1-4 переключал вкладки вывода. Вкладок больше нет —
+      // все четыре выхода видны сразу, и сочетание стало бы обещанием
+      // действия, которого не происходит.
       // Ctrl/Cmd + K - Clear script
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
@@ -217,7 +203,7 @@ function ScriptContent() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleGenerate, setOutputTab, clearScript, data])
+  }, [handleGenerate, clearScript, data])
 
   // Voice input using Web Speech API
   const toggleVoiceInput = useCallback(() => {
@@ -376,7 +362,21 @@ ${caption?.hashtags?.join(' ') || ''}
     const voiceoverText = getCurrentVoiceover()
     const currentWordCount = voiceoverText.split(/\s+/).filter(Boolean).length
 
-    switch (outputTab) {
+    /*
+     * ЧЕТЫРЕ ВЫВОДА — ЧЕТЫРЕ СЕКЦИИ, А НЕ ЧЕТЫРЕ ВКЛАДКИ.
+     *
+     * Второй ряд вкладок прятал три четверти уже готового результата за
+     * клики и притворялся навигацией того же ранга, что и виды генерации.
+     * Ранг у него другой: озвучка, обложка, B-Roll и посты — это ВЫХОДЫ
+     * одного нажатия, а не разделы.
+     *
+     * Тела кейсов оставлены нетронутыми намеренно: два из них заводят
+     * собственные `const` (`brollSegments`, `caption`), и разрезание switch
+     * на четыре куска столкнуло бы имена. Дешевле и безопаснее вызвать одну
+     * функцию четырежды.
+     */
+    const одинВывод = (tab: ScriptOutputTab) => {
+    switch (tab) {
       case 'voiceover':
         return (
           <div className="script-output-section">
@@ -670,6 +670,21 @@ ${caption?.hashtags?.join(' ') || ''}
       default:
         return null
     }
+    }
+
+    return (
+      <>
+        {OUTPUT_TABS.map(t => (
+          <section key={t.id} className="script-output-block">
+            <h4 className="script-output-block-title">
+              <t.icon size={15} />
+              {lang === 'ru' ? t.labelRu : t.labelEn}
+            </h4>
+            {одинВывод(t.id)}
+          </section>
+        ))}
+      </>
+    )
   }
 
   return (
@@ -1059,31 +1074,10 @@ ${caption?.hashtags?.join(' ') || ''}
 
         {/* Right: Output Panel */}
         <section className="script-content">
-          {/* Output Tabs */}
-          <div className="script-output-tabs-wrapper">
-            <div
-              className="script-output-tabs"
-              role="tablist"
-              aria-label={lang === 'ru' ? 'Разделы скрипта' : 'Script sections'}
-            >
-              {OUTPUT_TABS.map(tab => {
-                const Icon = tab.icon
-                return (
-                  <button
-                    key={tab.id}
-                    className={`script-output-tab ${outputTab === tab.id ? 'active' : ''}`}
-                    onClick={() => setOutputTab(tab.id)}
-                    role="tab"
-                    aria-selected={outputTab === tab.id}
-                    aria-controls={`panel-${tab.id}`}
-                    id={`tab-${tab.id}`}
-                  >
-                    <Icon size={18} />
-                    <span>{getLabel(tab)}</span>
-                  </button>
-                )
-              })}
-            </div>
+          {/* Заголовок вывода: ряда вкладок больше нет — четыре выхода
+              идут секциями подряд, потому что это выходы одного
+              нажатия, а не разделы. Кнопка «копировать всё» осталась. */}
+          <div className="script-output-tools">
             {data?.output && (
               <button
                 className="script-copy-all-btn"
@@ -1113,9 +1107,10 @@ ${caption?.hashtags?.join(' ') || ''}
           {/* Output Content */}
           <div
             className="script-output-body"
-            role="tabpanel"
-            id={`panel-${outputTab}`}
-            aria-labelledby={`tab-${outputTab}`}
+            // Было role="tabpanel" с id и aria-labelledby на несуществующий
+            // теперь таб. Панель, помеченная элементом, которого нет, хуже
+            // отсутствующей разметки: скринридер обещает связь и не находит её.
+            aria-label={lang === 'ru' ? 'Результат сценария' : 'Script output'}
           >
             {renderOutputContent()}
           </div>
