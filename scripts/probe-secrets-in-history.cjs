@@ -14,6 +14,7 @@
  * Ничего не пишет.
  */
 const { execSync, spawnSync } = require('child_process')
+const { repoFiles } = require('./lib/repo-sources.cjs')
 const fs = require('fs')
 const path = require('path')
 
@@ -268,12 +269,12 @@ function main() {
   )
 
   // --- 1. Файлы в рабочем дереве, ОТСЛЕЖИВАЕМЫЕ git ---------------------
-  const tracked = execSync('git ls-files -z', {
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  })
-    .split('\0')
-    .filter(Boolean)
+  // Tracked AND present-but-unstaged. A secret sitting in a file that has not
+  // been `git add`ed yet is still a secret on this disk; the index-only
+  // population made it invisible to the very scan written to find it.
+  // (repoFiles uses -z on both halves, which is why the escaping lesson below
+  // still holds.)
+  const tracked = repoFiles(process.cwd())
   const inFiles = new Map()
   // Skipped by TYPE, not size (same blind spot as the repo scan: the old 2 MB
   // limit dropped seven payment-table dumps of 4-18 MB). Skips are counted, so
