@@ -1,7 +1,44 @@
 import { useEffect, useRef, useState } from 'react'
+import { useAtomValue } from 'jotai'
 import { API_BASE } from '@/config'
+import { canAuthorizeRequestsAtom } from '@/atoms/telegramAuth'
 import { apiFetch } from '@/lib/apiFetch'
+import { isTelegram } from '@/lib/telegram'
 import './PairWithApp.css'
+
+/** Один заголовок на оба состояния панели, чтобы они не разъехались. */
+const PANEL_TITLE = 'Войти в приложение на телефоне'
+
+/**
+ * Что стоит на месте кнопки, когда подписи нет.
+ *
+ * Вкладка «Агент» не может просто опустеть: сюда ведёт диплинк start_param
+ * 'pair' (TelegramProvider), человек приходит СПЕЦИАЛЬНО за кодом. Поэтому
+ * здесь не «недоступно», а дорога к подписанному запуску: команда /app
+ * отвечает инлайн-кнопкой web_app, и вот её запуск initData уже несёт
+ * (src/commands/appLoginCommand.ts).
+ *
+ * Формулировка зависит от isTelegram() только на словах: «вы в браузере» и
+ * «вы в Telegram, но запуск без подписи» — разные ситуации для человека, хотя
+ * сервер отвергает обе одинаково.
+ */
+function PairUnavailable({ inTelegram }: { inTelegram: boolean }) {
+  return (
+    <section className="pair-with-app">
+      <h3 className="pair-with-app__title">{PANEL_TITLE}</h3>
+      <p className="pair-with-app__unavailable" role="note">
+        {inTelegram
+          ? 'Этот запуск не несёт подписи Telegram — так открывается мини-апп с кнопки под полем ввода. Сервер не сможет подтвердить, кто вы, и код не выдаст.'
+          : 'Код выдаётся только внутри Telegram: подпись запуска есть лишь там, а эта страница открыта в обычном браузере.'}
+      </p>
+      <ol className="pair-with-app__steps">
+        <li>{'Откройте личный чат с ботом в Telegram.'}</li>
+        <li>{'Отправьте команду /app и нажмите кнопку в его ответе.'}</li>
+        <li>{'Профиль → «Агент»: кнопка с кодом будет здесь.'}</li>
+      </ol>
+    </section>
+  )
+}
 
 /**
  * Issues a short-lived code that pairs the signed-in Telegram identity with
@@ -17,6 +54,7 @@ export function PairWithApp() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const requestInFlight = useRef(false)
+  const canAuthorize = useAtomValue(canAuthorizeRequestsAtom)
 
   useEffect(() => {
     if (expiresAt === null) return
@@ -40,6 +78,25 @@ export function PairWithApp() {
       document.removeEventListener('visibilitychange', syncDeadline)
     }
   }, [expiresAt])
+
+  /**
+   * ГЕЙТ ДО НАЖАТИЯ, А НЕ ПОСЛЕ ОТВЕТА СЕРВЕРА.
+   *
+   * `/api/auth/pair/start` выдаёт код только под подписанным initData
+   * (render/session-routes.ts проверяет X-Telegram-Init-Data и отвечает 401
+   * «подпись Telegram не принята»). Без подписи нажатие не могло сработать НИ
+   * РАЗУ — тот же замер 2026-09-03: ни одной строки в `app_pairing_codes` за
+   * сутки. Текст ошибки ниже уже человеческий, но кнопка, которая заведомо не
+   * может сработать, до этого предлагалась как готовая к нажатию.
+   *
+   * Условие сервера — «нет подписи», а не «не Telegram»: запуск с reply-кнопки
+   * идёт ИЗНУТРИ Telegram, но initData у него пустой (см. lib/telegram.ts), то
+   * есть гейт на isTelegram() пропустил бы человека в тот же 401 на самом
+   * частом способе запуска. Предикат берётся ровно тот, что применяет сервер,
+   * и ровно из одного места — canAuthorizeRequestsAtom над
+   * hasVerifiableInitData().
+   */
+  if (!canAuthorize) return <PairUnavailable inTelegram={isTelegram()} />
 
   async function requestCode() {
     if (requestInFlight.current) return
@@ -115,9 +172,7 @@ export function PairWithApp() {
 
   return (
     <section className="pair-with-app">
-      <h3 className="pair-with-app__title">
-        {'Войти в приложение на телефоне'}
-      </h3>
+      <h3 className="pair-with-app__title">{PANEL_TITLE}</h3>
       {actionButton}
 
       {code ? (

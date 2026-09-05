@@ -48,6 +48,14 @@
   line-height: 1.45;
 }
 
+/* Объяснение вместо кнопки, когда подпись запуска отсутствует. */
+.pair-with-app__unavailable {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 .pair-with-app__result {
   display: flex;
   flex-direction: column;
