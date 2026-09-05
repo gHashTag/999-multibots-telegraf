@@ -479,6 +479,7 @@ import {
   spendByTid,
   refundByTid,
   TOKEN_PRICES,
+  модельныеЦены,
   PER_SECOND_OPS,
   владелец,
 } from './src/agent/billing-shared'
@@ -3602,6 +3603,16 @@ const server = createServer(async (req, res) => {
           success: true,
           balance: Number(r.rows[0]?.balance ?? 0),
           prices: TOKEN_PRICES,
+          /**
+           * Цены ПО МОДЕЛЯМ — то, что списывают на самом деле.
+           *
+           * `prices` выше — по ВИДУ работы, а `chargeMiniAppUser` берёт цену
+           * выбранной модели и только при её отсутствии падает на вид. Клиент
+           * же называл сумму по виду, и расхождение замерено:
+           *   картинка 1 против 8, липсинк 3 против 6 — отказ ПОСЛЕ нажатия;
+           *   видео   20 против 5 — запрет того, что человеку по карману.
+           */
+          modelPrices: модельныеЦены(),
           // Какие из этих цен — за секунду. Без этого клиент держит свой
           // список и расходится с нами молча.
           perSecond: PER_SECOND_OPS,
