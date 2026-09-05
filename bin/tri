@@ -1,0 +1,79 @@
+#!/bin/bash
+# tri — командная оболочка проекта Trinity S³AI.
+#
+# ЗАЧЕМ. Автономный цикл каждые 15 минут начинается с одних и тех же вопросов:
+# хватает ли места, сходится ли конвейер, что уже закрыто, какие цены сейчас,
+# какие посты в ленте. Раньше каждый ответ собирался заново из пяти команд, и
+# половина ошибок цикла была именно в этой сборке: то кириллица в арифметике,
+# то устаревшая рабочая копия, то проверка не того дерева.
+#
+# Каждая команда здесь — это ответ, добытый один раз и записанный, чтобы
+# следующая смена его не выводила заново.
+set -u
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RENDER="$ROOT/apps/vibee-editor/render"
+LOOP="$ROOT/.claude/loop-opus"
+
+usage() {
+  cat <<'U'
+tri — оболочка Trinity S³AI
+
+  tri doctor     всё перед началом смены: копия, диск, конвейер
+  tri fresh      сверить рабочую копию с origin/main (частая причина ложных диагнозов)
+  tri disk       освободить место и проверить сам инструмент чистки
+  tri pipeline   проверка конвейера без единой траты кредитов
+  tri prices     таблица цен: модель, токены, единица
+  tri feed       посты в ленте с id (в интерфейсе ссылок на посты нет)
+  tri open       что ещё открыто по pipeline-STATUS.md
+  tri tests      тесты денег и iOS-модулей
+U
+}
+
+# КОПИЯ ОТСТАЁТ — САМАЯ ДОРОГАЯ ИЗ ДЕШЁВЫХ ОШИБОК.
+# Однажды проверка упала с «файла нет», и первая мысль была «влил сломанное».
+# На деле копия стояла на локальном main на десять коммитов позади.
+fresh() {
+  git -C "$ROOT" fetch -q origin main
+  # ИМЕНА ЛАТИНИЦЕЙ. Первая версия этой функции была написана
+  # кириллицей и упала на `local`: bash принимает только
+  # [A-Za-z_][A-Za-z0-9_]*. Тот же класс уже ломал free-disk.sh дважды —
+  # и печатал ошибку, продолжая работать, поэтому выглядел исправным.
+  local here there
+  here=$(git -C "$ROOT" rev-parse --short HEAD)
+  there=$(git -C "$ROOT" rev-parse --short origin/main)
+  if [ "$here" = "$there" ]; then
+    echo "✓ копия совпадает с origin/main ($here)"
+  else
+    echo "✗ КОПИЯ ОТСТАЁТ ИЛИ РАЗОШЛАСЬ: тут $here, origin/main $there"
+    echo "  git log --oneline origin/main..HEAD   # что есть только тут"
+    echo "  git log --oneline HEAD..origin/main   # чего не хватает"
+    return 1
+  fi
+  local dirty
+  dirty=$(git -C "$ROOT" status --short | grep -v '^??' | wc -l | tr -d ' ')
+  [ "$dirty" = "0" ] && echo "✓ незакоммиченных правок нет" \
+    || echo "! незакоммиченных файлов: $dirty (git status)"
+}
+
+case "${1:-}" in
+  fresh)    fresh ;;
+  disk)     bash "$LOOP/check-free-disk.sh" && bash "$LOOP/free-disk.sh" ;;
+  pipeline) (cd "$RENDER" && npx tsx scripts/pipeline-check.ts) ;;
+  prices)   (cd "$RENDER" && npx tsx scripts/prices.ts) ;;
+  feed)
+    # В ЛЕНТЕ НЕТ ССЫЛОК НА ПОСТЫ — ни в вебе, ни в приложении. Сослаться на
+    # конкретный ролик из интерфейса нечем, поэтому id достаём отсюда.
+    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+           | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
+    if [ -z "$KEY" ]; then echo "нет RENDER_API_KEY в окружении сервиса"; exit 1; fi
+    curl -s -m 30 "https://vibee-render-production.up.railway.app/api/feed?limit=100" \
+      -H "X-Api-Key: $KEY" | python3 "$ROOT/bin/helpers/feed.py" ;;
+  open)     sed -n '/^## Открыто/,/^## Не переоткрывать/p' "$LOOP/pipeline-STATUS.md" ;;
+  tests)
+    (cd "$RENDER" && npx vitest run src/agent/billing-prices.test.ts miniapp-receipt miniapp-billing) ;;
+  doctor)
+    echo "── копия ──";     fresh || true
+    echo; echo "── диск ──"; bash "$LOOP/check-free-disk.sh" | tail -1; bash "$LOOP/free-disk.sh" | tail -1
+    echo; echo "── конвейер ──"; (cd "$RENDER" && npx tsx scripts/pipeline-check.ts | tail -3) ;;
+  *) usage ;;
+esac
