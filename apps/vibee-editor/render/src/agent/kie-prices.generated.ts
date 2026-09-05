@@ -7,8 +7,11 @@
  *
  * Значение — САМЫЙ ДЕШЁВЫЙ вариант модели (у одной модели бывает восемь цен
  * на разные разрешения), поэтому в интерфейсе оно показано со словом «от».
- * `null` — провайдер цены не назвал; такую модель к оплате не допускаем:
- * назвать сумму до нажатия мы не сможем.
+ * `null` — цену за ВЫЗОВ назвать нечем. Два случая: провайдер не назвал её
+ * вовсе, ИЛИ назвал в единице, которую в один вызов не перевести («за млн
+ * токенов» — не цена одной озвучки; взятая плоско, она давала 280 токенов за
+ * работу в доли цента). Такую модель к оплате не допускаем: сумму до нажатия
+ * мы назвать не сможем.
  */
 export const СЕБЕСТОИМОСТЬ_USD: Record<string, number | null> = {
   'seedream/5-lite-text-to-image': 0.0275,
@@ -50,14 +53,14 @@ export const СЕБЕСТОИМОСТЬ_USD: Record<string, number | null> = {
   'elevenlabs/audio-isolation': 0.07,
   'elevenlabs/text-to-speech-multilingual-v2': 0.03,
   'elevenlabs/text-to-speech-turbo-2-5': 0.03,
-  'google/gemini-3-1-flash-tts': 0.7,
+  'google/gemini-3-1-flash-tts': null,
   'sora-2-text-to-video': null,
   'sora-2-pro-text-to-video': null,
   'sora-2-image-to-video': null,
   'veed/fabric-1': null,
-  'gpt-5-2': 0.44,
-  'gemini-3-pro': 0.5,
-  'gemini-2.5-flash': 0.09,
+  'gpt-5-2': null,
+  'gemini-3-pro': null,
+  'gemini-2.5-flash': null,
   'glm-5.3': null,
 }
 
