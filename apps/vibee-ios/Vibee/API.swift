@@ -680,23 +680,16 @@ extension API {
 
   private struct JobsResponse: Decodable { let jobs: [Job] }
 
-  /**
-   * Последнее ЗАВЕРШЁННОЕ задание нужного вида.
+  /*
+   * `последнееЗадание` УДАЛЕНА, и это часть правки, а не уборка.
    *
-   * Незавершённые пропускаем намеренно: показать «running» как результат
-   * значило бы подсунуть человеку пустую ссылку. А молчание здесь честнее —
-   * пусть повторит, чем получит ничто под видом чего-то.
+   * Она брала самую свежую готовую задачу вида БЕЗ проверки времени, то есть
+   * могла отдать ПРЕДЫДУЩУЮ генерацию как свою. Оба места вызова переведены
+   * на `подобратьОборванное`, который сверяет время начала запроса.
+   *
+   * Оставлять её рядом означало держать наготове тот же дефект: следующий
+   * вызывающий взял бы короткую и понятную функцию, а не длинную с окном.
    */
-  static func последнееЗадание(вид: String) async -> Job? {
-    var r = URLRequest(url: base.appendingPathComponent("api/generate/jobs"))
-    for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
-    guard let (data, resp) = try? await URLSession.shared.data(for: r),
-          (resp as? HTTPURLResponse)?.statusCode == 200,
-          let ответ = try? JSONDecoder().decode(JobsResponse.self, from: data)
-    else { return nil }
-
-    return ответ.jobs.first { $0.kind == вид && $0.state == "done" && $0.url != nil }
-  }
 }
 
 extension API {
