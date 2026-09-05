@@ -8,6 +8,7 @@ import {
 } from './src/agent/kie-run'
 import {
   reviewedKieModel,
+  РАЗРЕШЕНИЕ_ВИДЕО,
   kieInputFor,
 } from './src/agent/kie-web-provider'
 import {
@@ -3440,7 +3441,7 @@ const server = createServer(async (req, res) => {
             mode: 'normal',
             duration:
               (parseInt(String(duration || '6'), 10) || 6) <= 5 ? '6' : '10',
-            resolution: '480p',
+            resolution: РАЗРЕШЕНИЕ_ВИДЕО,
             /*
              * ИСХОДНИК ДЛЯ ВИДЕО. `kling/v2-1-pro` оживляет КАРТИНКУ,
              * `topaz/video-upscale` увеличивает ГОТОВОЕ ВИДЕО — разные файлы
