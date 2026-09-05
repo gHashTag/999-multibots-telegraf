@@ -16,6 +16,8 @@ import { useLanguage } from '@/hooks/useLanguage'
 import { haptic } from '@/lib/telegram'
 import { LikeAnimation } from '@/components/LikeAnimation'
 import {
+  Link2,
+  Check,
   Heart,
   Eye,
   Users,
@@ -93,6 +95,29 @@ export function FeedCard({ template }: FeedCardProps) {
   // Check if current user is admin or author
   const isAdmin = user?.is_admin === true
   const isAuthor = user && template.telegramId === user.id
+
+  /*
+   * Ссылка ведёт на ленту с указанием поста. Отдельной страницы ролика ещё
+   * нет; адрес, который открывает ленту и прокручивает к нужной карточке,
+   * честнее, чем адрес, который никуда не ведёт.
+   */
+  const [copiedLink, setCopiedLink] = useState(false)
+  const handleCopyLink = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+      const адрес = `${window.location.origin}/feed?post=${template.id}`
+      try {
+        await navigator.clipboard.writeText(адрес)
+        setCopiedLink(true)
+        window.setTimeout(() => setCopiedLink(false), 1800)
+      } catch {
+        // Буфер может быть закрыт политикой страницы. Молчать нельзя:
+        // человек решит, что скопировалось, и вставит чужое.
+        window.prompt('Скопируйте ссылку вручную:', адрес)
+      }
+    },
+    [template.id]
+  )
   const canDelete = isAdmin || isAuthor
 
   // Lazy load video when card is near viewport (200px before visible)
@@ -302,6 +327,9 @@ export function FeedCard({ template }: FeedCardProps) {
     <div
       ref={cardRef}
       className="feed-card"
+      // Якорь для ссылки вида /feed?post=<id>. Без него скопированный адрес
+      // открывал бы просто ленту — обещание, которого никто не исполняет.
+      data-feed-id={template.id}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
@@ -424,6 +452,25 @@ export function FeedCard({ template }: FeedCardProps) {
 
         {/* TikTok-style right action bar */}
         <div className="feed-card-actions">
+          {/*
+            ССЫЛКА НА КОНКРЕТНЫЙ РОЛИК. Её не было НИ ОДНОЙ: карточка умела
+            звук, звезду и ремикс, а адреса у поста не существовало — ни
+            скопировать, ни отправить, ни открыть напрямую. Для продукта, где
+            люди делают контент, это значит, что поделиться сделанным нельзя
+            в принципе.
+
+            Копируем полный адрес, а не идентификатор: id без адреса — это
+            то, чем нельзя поделиться, а только сослаться в переписке с тем,
+            кто знает, что с ним делать.
+          */}
+          <button
+            className={`action-btn link-btn ${copiedLink ? 'copied' : ''}`}
+            onClick={handleCopyLink}
+            title={copiedLink ? 'Скопировано' : 'Скопировать ссылку'}
+            aria-label="Скопировать ссылку на ролик"
+          >
+            {copiedLink ? <Check size={30} /> : <Link2 size={30} />}
+          </button>
           {/* Sound toggle - shows effective state for this video */}
           <button
             className={`action-btn sound-btn ${!effectiveMuted ? 'unmuted' : ''}`}

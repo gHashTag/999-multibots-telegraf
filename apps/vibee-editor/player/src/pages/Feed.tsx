@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { FeedPanel } from '@/components/Panels/FeedPanel';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
@@ -16,6 +17,34 @@ export function FeedPage() {
     await loadFeed(true);
     setIsRefreshing(false);
   }, [loadFeed]);
+
+  /*
+   * АДРЕС С УКАЗАНИЕМ ПОСТА ДОЛЖЕН ВЕСТИ К ПОСТУ.
+   *
+   * Кнопка «скопировать ссылку» без этого давала бы адрес, открывающий
+   * просто ленту, — то есть обещание, которого никто не исполняет. Ищем
+   * карточку по id и прокручиваем к ней, когда лента загрузилась.
+   *
+   * Не нашли — ничего не делаем и не показываем ошибку: пост мог быть удалён
+   * автором, и «ролик не найден» на чужой ссылке пугает сильнее, чем просто
+   * лента.
+   */
+  const [параметры] = useSearchParams();
+  const искомый = параметры.get('post');
+  useEffect(() => {
+    if (!искомый) return;
+    let попыток = 0;
+    const таймер = window.setInterval(() => {
+      const карточка = document.querySelector(`[data-feed-id="${искомый}"]`);
+      if (карточка) {
+        карточка.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        window.clearInterval(таймер);
+      } else if (++попыток > 20) {
+        window.clearInterval(таймер);
+      }
+    }, 250);
+    return () => window.clearInterval(таймер);
+  }, [искомый]);
 
   usePullToRefresh({
     containerRef,
