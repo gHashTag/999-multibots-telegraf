@@ -167,6 +167,40 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
     }
   }, [])
 
+  /**
+   * Хватает ли на нажатие. `null` — не мешаем: неизвестность это не «нельзя».
+   *
+   * Освобождённый кошелёк (владелец) пропускаем: с него сервер не списывает
+   * вовсе, и запрет там означал бы единственный счёт без права работать.
+   */
+  const неХватает = (операция: string, модель: string | undefined) => {
+    if (!баланс || баланс.exempt) return null
+    const ц = ценаНажатия(баланс, операция, модель)
+    if (ц == null) return null
+    if (баланс.balance >= ц) return null
+    const мера = мераЦены(баланс, модель)
+    return мера
+      ? `не хватит: ${ц} за ${мера}, есть ${баланс.balance}`
+      : `не хватит токенов: нужно ${ц}, есть ${баланс.balance}`
+  }
+
+  /*
+   * ЧЕК ПОСЛЕ ГЕНЕРАЦИИ. Сервер возвращает списанное и остаток в каждом
+   * успешном ответе, а веб их выбрасывал: сумму человек не видел ни до, ни
+   * после — только в отказе «не хватает».
+   */
+  const [чек, setЧек] = useState<string | null>(null)
+  const запомнитьЧек = (о: unknown) => {
+    const r = о as { charged?: number; balance?: number } | null
+    if (!r || typeof r.charged !== 'number') return
+    setЧек(
+      typeof r.balance === 'number'
+        ? `списано ${r.charged} · осталось ${r.balance}`
+        : `списано ${r.charged}`
+    )
+    void загрузитьБаланс().then(б => б && setБаланс(б))
+  }
+
   /** Подпись цены на кнопке: «· 40» или «· 36/с», либо ничего, если не знаем. */
   const подписьЦены = (операция: string, модель: string | undefined) => {
     const ц = ценаНажатия(баланс, операция, модель)
@@ -605,6 +639,9 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
       })
 
       if (result.success && result.url) {
+        // Чек из ответа: сервер кладёт списанное и остаток в КАЖДЫЙ успешный
+        // ответ, а веб их выбрасывал — сумму человек не видел ни до, ни после.
+        запомнитьЧек(result)
         const resultName = `AI ${videoModel} ${Date.now()}`
         const url = result.url
 
@@ -1040,7 +1077,12 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             <button
               className="generate-btn"
               onClick={handleGenerateVideo}
-              disabled={isGenerating || !videoPrompt.trim()}
+              disabled={
+                isGenerating ||
+                !videoPrompt.trim() ||
+                неХватает('video_generate', videoModel) != null
+              }
+              title={неХватает('video_generate', videoModel) ?? undefined}
             >
               {isGenerating ? (
                 <>
@@ -1055,6 +1097,17 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                 </>
               )}
             </button>
+
+            {/* Причина ТЕКСТОМ, а не подсказкой: `title` на телефоне не
+                показывается вовсе, и кнопка выглядела бы сломанной. */}
+            {неХватает('video_generate', videoModel) && !isGenerating && (
+              <div className="generate-hint">
+                {неХватает('video_generate', videoModel)}
+              </div>
+            )}
+            {чек && activeTab === 'video' && (
+              <div className="generate-hint">{чек}</div>
+            )}
 
             {error && activeTab === 'video' && (
               <div className="generate-error">
