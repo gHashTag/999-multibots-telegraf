@@ -479,6 +479,7 @@ import {
   spendByTid,
   refundByTid,
   TOKEN_PRICES,
+  PER_SECOND_OPS,
   владелец,
 } from './src/agent/billing-shared'
 import { lipSyncVideoOf, templateDurationInFrames } from './src/render-duration'
@@ -3601,6 +3602,9 @@ const server = createServer(async (req, res) => {
           success: true,
           balance: Number(r.rows[0]?.balance ?? 0),
           prices: TOKEN_PRICES,
+          // Какие из этих цен — за секунду. Без этого клиент держит свой
+          // список и расходится с нами молча.
+          perSecond: PER_SECOND_OPS,
         })
       )
     } catch (e) {

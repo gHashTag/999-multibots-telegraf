@@ -82,6 +82,23 @@ export function priceFor(op: string): number {
   if (cost == null) return 0
   return Math.ceil(cost / COST_PER_TOKEN_USD)
 }
+/**
+ * Операции, у которых цена умножается на секунды звука.
+ *
+ * Список живёт РЯДОМ С ЦЕНАМИ и отдаётся клиенту вместе с ними
+ * (`GET /api/balance`), потому что вторая копия уже завелась: в iOS-приложении
+ * стоял свой набор `посекундные`. Сегодня он верен — липсинк единственный, кто
+ * считает `billedSeconds`, остальные списывают `quantity = 1`, — но верен он
+ * СЛУЧАЙНО: сделай видео посекундным, и приложение продолжит обещать плоскую
+ * цену, а сервер откажет уже после нажатия. Ровно эта форма расхождения стоила
+ * отдельного разбора с ценой липсинка.
+ *
+ * Здесь список ведётся руками — вывести его из кода нельзя: посекундность
+ * задаётся тем, что вызывающий передаёт `billedSeconds` вместо единицы. Но
+ * место у него одно, и оно то же, где меняют цену.
+ */
+export const PER_SECOND_OPS: readonly string[] = ['lipsync_generate']
+
 export const TOKEN_PRICES: Record<string, number> = {
   image_generate: priceFor('image_generate'), // 1
   audio_generate: priceFor('audio_generate'), // 6
