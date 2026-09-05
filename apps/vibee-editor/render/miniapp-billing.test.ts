@@ -47,6 +47,29 @@ describe('mini-app generation is billed', () => {
     })
   }
 
+  it('quantity is measured, not a literal, wherever the provider bills per unit', () => {
+    /*
+     * ЕДИНИЦА БЕЗ КОЛИЧЕСТВА — ЭТО ПЛОСКАЯ ЦЕНА ПОД ДРУГИМ ИМЕНЕМ.
+     *
+     * Помощники `тысячиЗнаковКОплате` и `секундыКОплате` проверены своими
+     * тестами, но НИЧТО не проверяло, что маршрут ими пользуется. Мутация это
+     * показала: вернул в маршруте звука `оплаченныеТысячи = 1`, и всё
+     * осталось зелёным — и юнит-тесты, и pipeline-check. Проводку можно было
+     * молча оторвать.
+     *
+     * Три маршрута тарифицируются не за вызов, и все три пинятся здесь по
+     * исходнику: звук — за тысячу знаков, видео и липсинк — за секунду.
+     */
+    expect(SERVER).toMatch(/оплаченныеТысячи = познаковаяМодель\(model\)/)
+    expect(SERVER).toMatch(/'audio_generate',\s*\n\s*оплаченныеТысячи,/)
+
+    expect(SERVER).toMatch(/секунды = посекунднаяМодель\(model\)/)
+    expect(SERVER).toMatch(/'video_generate',\s*\n\s*секунды,/)
+
+    // Липсинк уже считал секунды до этой правки — пинится, чтобы не потерялось.
+    expect(SERVER).toMatch(/'lipsync_generate',\s*\n\s*billedSeconds/)
+  })
+
   it('refuses instead of giving the generation away when billing cannot run', () => {
     // Fail-closed: a route that cannot charge does not open. Matches
     // requireInternalKey's rule in the bot.

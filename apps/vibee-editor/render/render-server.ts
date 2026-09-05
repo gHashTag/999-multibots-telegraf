@@ -483,6 +483,9 @@ import {
   модельныеЦены,
   посекунднаяМодель,
   посекундныеМодели,
+  познаковаяМодель,
+  познаковыеМодели,
+  тысячиЗнаковКОплате,
   секундыКОплате,
   PER_SECOND_OPS,
   владелец,
@@ -3857,6 +3860,9 @@ const server = createServer(async (req, res) => {
       // Same charge, two possible providers below (KieAI, then ElevenLabs or
       // Replicate). Whoever delivers, the price stated is the one taken.
       let receipt: Receipt = {}
+      // Сколько тысяч знаков оплачено — снаружи try по той же причине,
+      // что и модель: возврат живёт в catch.
+      let оплаченныеТысячи = 1
       try {
         const { text, voice_id, voice_name, speed, model } = JSON.parse(body)
         requestedModel = typeof model === 'string' ? model : undefined
@@ -3888,8 +3894,25 @@ const server = createServer(async (req, res) => {
           `🎤 [Generate] Audio: voice=${voice_id}, text="${text.substring(0, 50)}..."`
         )
 
+        /*
+         * СЧИТАЕМ ЗНАКИ, ЕСЛИ МОДЕЛЬ ПРОДАЁТСЯ ПО ЗНАКАМ.
+         *
+         * Обе живые TTS-модели тарифицируются за 1000 знаков, а списывалась
+         * единица независимо от длины, и предела длины на маршруте не было
+         * вовсе. Текст в 20 000 знаков обходился в двадцать цен и приносил
+         * одну — чем длиннее озвучка, тем больше убыток, без потолка.
+         */
+        оплаченныеТысячи = познаковаяМодель(model)
+          ? тысячиЗнаковКОплате(text)
+          : 1
+
         // Charge BEFORE spending the provider's money.
-        const billed = await chargeMiniAppUser(req, 'audio_generate', 1, model)
+        const billed = await chargeMiniAppUser(
+          req,
+          'audio_generate',
+          оплаченныеТысячи,
+          model
+        )
         if (!billed.ok) {
           res.writeHead(billed.status, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ success: false, error: billed.reason }))
@@ -4045,7 +4068,14 @@ const server = createServer(async (req, res) => {
       } catch (error) {
         console.error('❌ [Generate] Audio error:', error)
         // Nothing was delivered, so the tokens go back.
-        await refundMiniAppUser(billedTid, 'audio_generate', 1, requestedModel)
+        // Той же величиной, что списали: возврат за одну тысячу там, где
+        // взяли двадцать, — это конфискация девятнадцати.
+        await refundMiniAppUser(
+          billedTid,
+          'audio_generate',
+          оплаченныеТысячи,
+          requestedModel
+        )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
