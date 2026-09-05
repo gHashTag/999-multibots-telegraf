@@ -2272,6 +2272,27 @@ cmd_untracked() {
   ' )
 }
 
+cmd_money_ratchets() {
+  # ПОЛНЫЙ СПИСОК ДЕНЕЖНЫХ РАТЧЕТОВ С ТЕМ, ЧТО КАЖДЫЙ УТВЕРЖДАЕТ.
+  #
+  # Двенадцать СЕМЕЙ живут в docs/money-invariants.md -- они выведены чтением.
+  # Здесь -- плоский полный список, СГЕНЕРИРОВАННЫЙ из заголовков describe
+  # самих тестов. Группировку остальных 86 файлов по семьям я мерил дважды и
+  # оба раза отверг: по ключевым словам 42 из 97 попадали сразу в три семьи, а
+  # по авторской оговорке "(no ...)" покрывались 25 файлов на 20 оговорок.
+  # Любая таксономия сверх этого была бы моей выдумкой, поданной как структура
+  # репозитория.
+  #
+  # Индекс сверяется тестом moneyRatchetsIndexIsCurrent: он перегенерирует его
+  # в памяти и требует совпадения байт в байт. Переименовал тест или переписал
+  # заголовок -- тест краснеет, пока индекс не пересобран.
+  ( cd "$ROOT" && node scripts/gen-money-ratchets.cjs )
+  echo ""
+  ( cd "$ROOT" && head -20 docs/money-ratchets.md )
+  echo "  ..."
+  echo "полный список: docs/money-ratchets.md"
+}
+
 cmd_money_invariants() {
   # КАРТА ДЕНЕГ: ЧТО ИЗВЕСТНО, ГДЕ ЗАКРЕПЛЕНО, ЧЕМ МЕРИТЬ.
   #
@@ -3463,6 +3484,7 @@ case "$action" in
   checks-of-checks|проверки-проверок)  cmd_checks_of_checks "$@" ;;
   blind-probes|слепые-пробы)  cmd_blind_probes "$@" ;;
   money-invariants|карта-денег)  cmd_money_invariants "$@" ;;
+  money-ratchets|реестр-ратчетов)  cmd_money_ratchets "$@" ;;
   untracked|невидимые)  cmd_untracked "$@" ;;
   credit-sites|кредитные-сайты)  cmd_credit_sites "$@" ;;
   matcher-forms|формы-матчеров)  cmd_matcher_forms "$@" ;;
