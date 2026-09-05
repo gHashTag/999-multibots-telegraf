@@ -92,21 +92,33 @@ case "${1:-}" in
     # им диск ДО НУЛЯ — до состояния, когда не выполняется ни одна команда,
     # включая чистилку. Убирать после себя нельзя «не забыть»: это должно быть
     # частью самой сборки.
+    # xcodegen ПЕРЕД сборкой: новый файл в каталоге ещё не значит файл в
+    # проекте, и «cannot find X in scope» выглядит как ошибка кода.
+    (cd "$ROOT/apps/vibee-ios" && xcodegen generate >/dev/null 2>&1)
+    # УСПЕХ СБОРКИ ПРОВЕРЯЕТСЯ, А НЕ ПРЕДПОЛАГАЕТСЯ. Первая версия печатала
+    # «установлено» после ПРОВАЛИВШЕЙСЯ сборки и ставила старый .app с диска:
+    # проверка глазами шла по вчерашнему коду и ничего не доказывала.
+    # ИМЯ ЛАТИНИЦЕЙ: первая версия звалась кириллицей, и проверка скриптов
+    # поймала её сразу — тот же класс, что дважды ломал free-disk.sh.
+    built=0
     (cd "$ROOT/apps/vibee-ios" && \
       xcodebuild build -scheme Vibee \
         -destination "platform=iOS Simulator,id=${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" \
-        -derivedDataPath /tmp/dd 2>&1 | grep -E "error:|BUILD" | head -5)
+        -derivedDataPath /tmp/dd 2>&1 | grep -E "error:|BUILD" | head -5) \
+      | tee /tmp/tri-build.txt
+    grep -q "BUILD SUCCEEDED" /tmp/tri-build.txt && built=1
     # УСТАНОВКА ДО УБОРКИ, иначе смотреть будет нечего: первая версия команды
     # сносила каталог вместе с собранным .app, и проверка глазами становилась
     # невозможной — уборка мешала тому, ради чего сборка и делалась.
     APP=/tmp/dd/Build/Products/Debug-iphonesimulator/Vibee.app
-    if [ -d "$APP" ]; then
+    if [ "$built" = "1" ] && [ -d "$APP" ]; then
       xcrun simctl install "${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" "$APP" \
         >/dev/null 2>&1 && echo "установлено на симулятор"
       xcrun simctl terminate "${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" ai.t27.vibee >/dev/null 2>&1
       xcrun simctl launch "${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" ai.t27.vibee >/dev/null 2>&1
     fi
     rm -rf /tmp/dd
+    [ "$built" = "1" ] || echo "СБОРКА НЕ ПРОШЛА — на симулятор ничего не ставил"
     df -k /System/Volumes/Data | awk '{if(NR==2) printf "убрано за сборкой, свободно %d МБ\n", $4/1024}' ;;
   deps)
     # `npm ci`, а НЕ `npm install`.
