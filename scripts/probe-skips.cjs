@@ -27,6 +27,7 @@
  */
 
 const fs = require('fs')
+const { repoFiles } = require('./lib/repo-sources.cjs')
 const path = require('path')
 const { execFileSync } = require('child_process')
 const { blank } = require('./lib/blank-code.cjs')
@@ -142,9 +143,10 @@ function selfCheck() {
 }
 
 function testFiles() {
-  return execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
-    .split('\n')
-    .filter(f => /\.test\.ts$/.test(f))
+  // A switched-off test is switched off whether or not it is staged. With the
+  // index-only population an untracked skipped test was invisible: the
+  // mutation that proved it survived until the file was `git add`ed.
+  return repoFiles(ROOT).filter(f => /\.test\.ts$/.test(f))
 }
 
 function census() {

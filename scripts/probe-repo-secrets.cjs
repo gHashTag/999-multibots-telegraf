@@ -23,6 +23,7 @@
  */
 
 const fs = require('fs')
+const { repoFiles } = require('./lib/repo-sources.cjs')
 const path = require('path')
 const { execFileSync, spawnSync } = require('child_process')
 
@@ -184,10 +185,10 @@ if (require.main !== module) return
 
 const rules = selfCheck()
 
-const files = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
-  .split('\n')
-  .filter(Boolean)
-  .filter(f => fs.existsSync(path.join(ROOT, f)))
+// Tracked AND present-but-unstaged. A secret is a secret before `git add`,
+// and the index-only population made an unstaged file invisible to the scan
+// (it.176 closed this for the test-side guards; the probes kept the hole).
+const files = repoFiles(ROOT).filter(f => fs.existsSync(path.join(ROOT, f)))
 
 console.log(`отслеживаемых файлов: ${files.length}`)
 
