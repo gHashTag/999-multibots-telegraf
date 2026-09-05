@@ -154,24 +154,30 @@ async function generationsLeftToday(ctx: ToolContext): Promise<number> {
  * в минус (видео раньше стоило 5 токенов ≈ $0.025 продажи при $0.10
  * себестоимости — прямые убытки на каждом ролике).
  */
-const COST_PER_TOKEN_USD = 0.005
-/** Себестоимость операций, $ (оценки Replicate/рынка — см. PRICING.md). */
-const OPERATION_COST_USD: Record<string, number> = {
-  image_generate: 0.003,
-  video_generate: 0.1,
-  audio_generate: 0.03,
-  reel_render: 0.005,
-}
-/** Цена = ceil(себестоимость / база). Источник значений — не руки, а расчёт. */
-function priceFor(op: string): number {
-  return Math.ceil(OPERATION_COST_USD[op] / COST_PER_TOKEN_USD)
-}
-export const TOKEN_PRICES: Record<string, number> = {
-  image_generate: priceFor('image_generate'), // 1
-  audio_generate: priceFor('audio_generate'), // 6
-  reel_render: priceFor('reel_render'), // 1
-  video_generate: priceFor('video_generate'), // 20
-}
+/*
+ * ЦЕНЫ БЕРУТСЯ ИЗ ОБЩЕЙ ТАБЛИЦЫ, А НЕ ИЗ СВОЕЙ.
+ *
+ * Здесь стояла ВТОРАЯ копия: свои `COST_PER_TOKEN_USD`, `OPERATION_COST_USD`
+ * и `priceFor` — и БЕЗ НАЦЕНКИ. Пока общий путь считал 2 / 12 / 2 / 40,
+ * агентский продавал по 1 / 6 / 1 / 20, то есть ровно по себестоимости.
+ *
+ * `billing-shared.ts` в своей шапке прямо говорит, что оба пути генерации
+ * берут цены оттуда, «чтобы они не разошлись». Этот файл её не импортировал
+ * ни разу — и они разошлись ровно вдвое, молча, потому что каждая таблица по
+ * отдельности «посчитана верно». Тот же класс, что уже чинили между клиентом
+ * и сервером (#1961), между списанием и возвратом (#1992).
+ */
+export {
+  TOKEN_PRICES,
+  COST_PER_TOKEN_USD,
+  OPERATION_COST_USD,
+} from './billing-shared'
+import {
+  TOKEN_PRICES,
+  COST_PER_TOKEN_USD,
+  OPERATION_COST_USD,
+} from './billing-shared'
+
 const TOKEN_START = 20
 
 /**
