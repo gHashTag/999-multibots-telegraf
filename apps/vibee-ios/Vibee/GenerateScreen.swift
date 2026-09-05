@@ -1350,7 +1350,6 @@ struct GenerateScreen: View {
      * Из подходящих берём САМУЮ РАННЮЮ: наша — первая, созданная после
      * отправки. Всё, что позже, — уже другой запрос.
      */
-    let порогНачала = начатоВ.addingTimeInterval(-5)
     /**
      * ЕСЛИ ЗАДАЧИ НЕТ ВОВСЕ — ЖДАТЬ НЕЧЕГО.
      *
@@ -1364,11 +1363,17 @@ struct GenerateScreen: View {
     for _ in 0..<36 {
       try? await Task.sleep(nanoseconds: 5_000_000_000)
       guard let задачи = try? await API.задачи() else { continue }
-      let подходящие = задачи.filter { з in
-        з.kind == видСервера
-          && Date(timeIntervalSince1970: з.startedAt / 1000) >= порогНачала
-      }
-      guard let з = подходящие.min(by: { $0.startedAt < $1.startedAt }) else {
+      // Сам выбор — в `ПодборЗадачи`: чистая функция, которую можно
+      // проверить без сети и без экрана. Здесь остаётся только опрос.
+      let найдена = ПодборЗадачи.своя(
+        среди: задачи.map {
+          ПодборЗадачи.Задача(
+            kind: $0.kind, startedAt: $0.startedAt, state: $0.state,
+            url: $0.url, error: $0.error)
+        },
+        вид: видСервера,
+        началоЗапроса: начатоВ)
+      guard let з = найдена else {
         пустыхОпросов += 1
         if пустыхОпросов >= 3 { return nil }
         continue

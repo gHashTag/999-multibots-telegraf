@@ -14,11 +14,13 @@ schemes:
       targets:
         Vibee: all
         VibeeUITests: [test]
+        VibeeTests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
+        - VibeeTests
         - VibeeUITests
     profile:
       config: Release
@@ -37,6 +39,29 @@ targets:
   #
   # XCUITest ищет элементы по опознавателям («ии.модель.glm-5.3»), а не по
   # пикселям, и печатает текст через API, минуя раскладку.
+  # МОДУЛЬНАЯ ЦЕЛЬ — для чистой логики, которую UI-тест не достаёт.
+  #
+  # Её здесь не было, и это стоило реального дефекта: подбор оборванной
+  # генерации искал задачу в окне «30 секунд НАЗАД», куда попадает предыдущая
+  # генерация того же вида. Ни сборка, ни UI-тест этого не видят — окно
+  # срабатывает только при двух запусках подряд. Нашлось перечитыванием кода
+  # на следующий день, то есть случайно.
+  VibeeTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - VibeeTests
+    dependencies:
+      - target: Vibee
+    settings:
+      base:
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Vibee.app/Vibee"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        # Без этого сборка падает на подписи: «target does not have an
+        # Info.plist file and one is not being generated automatically».
+        # У UI-цели он уже есть, у модульной xcodegen его не заводит.
+        GENERATE_INFOPLIST_FILE: YES
+
   VibeeUITests:
     type: bundle.ui-testing
     platform: iOS
