@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { ЕДИНИЦА_ЦЕНЫ } from './kie-prices.generated'
+import { refundByTid } from './billing-shared'
 import { РАЗРЕШЕНИЕ_ВИДЕО } from './kie-web-provider'
 import { ИМЯ_В_ПРАЙСЕ } from './kie-price-names'
 import {
@@ -186,6 +187,42 @@ describe('цены', () => {
         `${наш}: цена снята с ${вИмени[1]}, а маршрут просит ${РАЗРЕШЕНИЕ_ВИДЕО}`
       ).toBe(РАЗРЕШЕНИЕ_ВИДЕО)
     }
+  })
+
+  it('ВОЗВРАТ РАВЕН СПИСАНИЮ у каждой модели', async () => {
+    /*
+     * Возврат считался по цене ВИДА, списание — по цене МОДЕЛИ. Из 36 пар
+     * совпадали две, и расхождение шло в обе стороны:
+     *
+     *   omnihuman-1-5, 10 с   списано 540, возврат 60   — забрали 480
+     *   minimax-h3/t2v        списано 8,   возврат 40   — НАПЕЧАТАЛИ 32
+     *
+     * Вторая строка страшнее первой: сбой провайдера вызывается кем угодно и
+     * повторяется, то есть это кран, а не переплата.
+     */
+    const цены = модельныеЦены()
+    const виды: Record<string, string> = {
+      image_generate: 'kie/google/imagen4-ultra',
+      video_generate: 'kie/kling/v3-turbo-text-to-video',
+      audio_generate: 'kie/elevenlabs/text-to-speech-multilingual-v2',
+      lipsync_generate: 'kie/omnihuman-1-5',
+    }
+    const расхождения: string[] = []
+    for (const [оп, модель] of Object.entries(виды)) {
+      const списано = (цены[модель] ?? TOKEN_PRICES[оп]) * 10
+      let возвращено = 0
+      const поддельный = {
+        query: async (_т: string, п: unknown[]) => {
+          возвращено = Number((п as unknown[])[1])
+          return { rows: [{ balance: 0 }] }
+        },
+      }
+      await refundByTid(поддельный as never, '999', оп, 10, модель)
+      if (возвращено !== списано) {
+        расхождения.push(`${оп}/${модель}: списано ${списано}, возврат ${возвращено}`)
+      }
+    }
+    expect(расхождения).toEqual([])
   })
 
   it('ни одна цена не равна нулю: бесплатных генераций нет', () => {
