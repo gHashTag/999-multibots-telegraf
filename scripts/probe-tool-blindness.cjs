@@ -164,6 +164,16 @@ const RULES = [
     /if\s*\(!fs\.existsSync\([^)]*\)\)\s*continue/g,
     'пропуск несуществующего без счётчика',
   ],
+  // A bound on how far a walk goes, taken with a BARE return: the population
+  // shrinks and nothing records it. Written as `if (x > N) return`, N >= 2 --
+  // that shape excludes a loop condition like `depth > 0`, which is what an
+  // earlier version of this rule confused it with (3 false positives of 5).
+  // probe-storage-inventory shows the correct form: it sets truncated=true and
+  // prints it beside its numbers.
+  [
+    /if\s*\(\s*\w+\s*>\s*[2-9]\d*\s*\)\s*(?:\{\s*)?return\s*[;}\n]/g,
+    'граница обхода без отметки об усечении',
+  ],
 ]
 
 function flagsFor(text) {
@@ -179,12 +189,18 @@ function flagsFor(text) {
  * it dropped is not a silent one either.
  */
 const C_POS = [
+  'if (d > 8) return',
   "execSync('git ls-files')",
   'try { read() } catch { continue }',
   'if (!fs.existsSync(p)) continue',
 ].join('\n')
 
 const C_NEG = [
+  // A loop condition, not a population bound -- the shape this rule must not
+  // confuse with one.
+  'while (i < n && depth > 0) { i++ }',
+  // A bound that RECORDS what it skipped is the correct form.
+  'if (depth > 8) { acc.truncated = true; return }',
   "execSync('git ls-files -z')",
   'try { read() } catch (e) { logger.warn(e); continue }',
   'if (!fs.existsSync(p)) { missing++; continue }',
@@ -198,9 +214,9 @@ const C_NEG = [
 ].join('\n')
 
 const posFlags = flagsFor(C_POS)
-if (posFlags.length !== 3) {
+if (posFlags.length !== 4) {
   console.error(
-    `самопроверка не прошла: из трёх заведомых признаков слепоты найдено ${posFlags.length}.\n` +
+    `самопроверка не прошла: из четырёх заведомых признаков слепоты найдено ${posFlags.length}.\n` +
       'ноль подозреваемых ниже означал бы сломанный матчер, а не исправные инструменты.'
   )
   process.exit(2)
@@ -213,7 +229,7 @@ if (negFlags.length !== 0) {
   process.exit(2)
 }
 console.log(
-  'самопроверка: три признака найдены; исправные формы и проза отвергнуты'
+  'самопроверка: четыре признака найдены; формы, проза и условие цикла отвергнуты'
 )
 
 // --- 5. Молчаливые пропуски в самих инструментах ------------------------
