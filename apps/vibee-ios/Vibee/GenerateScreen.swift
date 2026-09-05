@@ -1,4 +1,5 @@
 import AVKit
+import PhotosUI
 import SwiftUI
 
 /**
@@ -52,6 +53,11 @@ struct GenerateScreen: View {
   @State private var длительностьСценарияСек = 30
   @State private var свояДлительность = false
   @State private var соотношение = "9:16"
+  /// Ссылка на загруженный исходник. Пока её нет, модель правки не пустим.
+  @State private var исходник: String?
+  @State private var выбранное: PhotosPickerItem?
+  @State private var идётЗагрузка = false
+  @State private var ошибкаЗагрузки: String?
   /**
    * Выбранная модель KieAI. `nil` — человек ещё не выбирал.
    *
@@ -173,11 +179,43 @@ struct GenerateScreen: View {
     }
   }
 
+  /**
+   * Загрузить выбранное фото и запомнить ссылку.
+   *
+   * Ссылка сбрасывается ПЕРЕД загрузкой: иначе при неудачной замене осталась
+   * бы старая, и человек отправил бы в работу не тот файл, который видит
+   * выбранным. Отказ показывается словами — молчаливый провал выглядит как
+   * «кнопка не нажимается».
+   */
+  private func загрузитьИсходник(_ элемент: PhotosPickerItem) async {
+    идётЗагрузка = true
+    ошибкаЗагрузки = nil
+    исходник = nil
+    defer { идётЗагрузка = false }
+    do {
+      guard let данные = try await элемент.loadTransferable(type: Data.self) else {
+        ошибкаЗагрузки = "Не удалось прочитать фото"
+        return
+      }
+      исходник = try await API.положитьФайл(
+        данные, имя: "source-\(Int(Date().timeIntervalSince1970)).jpg",
+        тип: "image/jpeg"
+      )
+    } catch {
+      ошибкаЗагрузки = "Загрузка не удалась: \(error.localizedDescription)"
+    }
+  }
+
   private var почемуНельзяЗапускать: String? {
     if идёт { return nil }
     guard let м = модель else { return "Выберите модель" }
     if !м.живая { return м.почемуНельзя }
     if промпт.isEmpty { return "Нужно описание" }
+    // Модель правки без исходника — заявка, которую сервер соберёт как null.
+    // Сказать об этом ДО нажатия честнее, чем показать отказ после.
+    if м.нуженИсходник && исходник == nil {
+      return идётЗагрузка ? "Фото загружается" : "Нужно фото"
+    }
     /**
      * ХВАТИТ ЛИ ТОКЕНОВ — СПРАШИВАЕМ ДО НАЖАТИЯ.
      *
@@ -816,6 +854,52 @@ struct GenerateScreen: View {
       // чего картинки нет вовсе.
       if [.видео, .картинка, .аватар].contains(вид) {
         строкаВыбора("Кадр", ["9:16", "16:9", "1:1"], $соотношение)
+      }
+
+      /**
+       * ИСХОДНИК — ТОЛЬКО ТАМ, ГДЕ ЕГО ПРОСЯТ.
+       *
+       * Пять моделей правки были в каталоге и не работали НИКОГДА: строка
+       * честно писала «нужно: фото», а послать его было нечем — выбора файла
+       * на экране не существовало. Показывать поле всем подряд не стоит: у
+       * «Seedream 5 Lite — картинка» исходника нет и быть не должно.
+       */
+      if модель?.нуженИсходник == true {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Исходник")
+            .font(Тема.Шрифт.стиль(.caption))
+            .foregroundStyle(Тема.Цвет.текстПриглушённый)
+
+          PhotosPicker(selection: $выбранное, matching: .images) {
+            HStack(spacing: Тема.Отступ.sm) {
+              Image(systemName: исходник == nil ? "photo.badge.plus" : "checkmark.circle.fill")
+              Text(
+                идётЗагрузка
+                  ? "Загружаю…"
+                  : исходник == nil ? "Выбрать фото" : "Фото готово — заменить"
+              )
+              .accessibilityIdentifier("ии.исходник.кнопка")
+            }
+            .font(Тема.Шрифт.стиль(.subheadline))
+            .frame(maxWidth: .infinity, minHeight: Тема.Кнопка.высота)
+            .background(Тема.Цвет.поверхность)
+            .foregroundStyle(исходник == nil ? Тема.Цвет.текст : Тема.Цвет.акцент)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+          }
+          .disabled(идётЗагрузка)
+
+          if let о = ошибкаЗагрузки {
+            // Молчаливый провал загрузки выглядит как «кнопка не нажимается».
+            Text(о)
+              .font(Тема.Шрифт.стиль(.caption))
+              .foregroundStyle(Тема.Цвет.предупреждение)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        .onChange(of: выбранное) { _, новое in
+          guard let новое else { return }
+          Task { await загрузитьИсходник(новое) }
+        }
       }
 
       /**
@@ -1636,7 +1720,7 @@ struct GenerateScreen: View {
       Task { баланс = try? await API.баланс() }
     }
 
-    let тело: [String: Any]
+    var тело: [String: Any]
     if вид == .сценарий {
       /**
        * У СЦЕНАРИЯ СВОЁ ТЕЛО, И БЕЗ ЭТОЙ ВЕТКИ КНОПКА НЕ РАБОТАЛА БЫ.
@@ -1700,6 +1784,8 @@ struct GenerateScreen: View {
     } else {
       let (ш, в) = размер(соотношение)
       тело = ["model": модельДляСервера, "prompt": промпт, "width": ш, "height": в]
+      // Сервер разложит одну ссылку по всем именам, какими её зовут контракты.
+      if let и = исходник { тело["image_url"] = и }
     }
 
     let о = await позвать(вид.путь, тело)

@@ -227,6 +227,8 @@ export async function generateImage(opts: {
   aspectRatio?: string
   model?: string
   timeoutMs?: number
+  /** Исходник для моделей правки. Без него они просто не допущены. */
+  imageUrl?: string
 }): Promise<KieResult> {
   const модель = opts.model || T2I_MODEL
   /**
@@ -257,6 +259,17 @@ export async function generateImage(opts: {
     prompt: opts.prompt,
     aspect_ratio: opts.aspectRatio || '9:16',
     quality: 'basic',
+    // Одна и та же ссылка под тремя именами: контракты моделей называют
+    // исходник по-разному, а `kieInputFor` возьмёт только то, что просят.
+    // Без исходника поля остаются undefined — и модель, которая его требует,
+    // получит null вместо заявки, то есть честный отказ вместо мусора.
+    ...(opts.imageUrl
+      ? {
+          image_urls: [opts.imageUrl],
+          image_url: opts.imageUrl,
+          image: opts.imageUrl,
+        }
+      : {}),
   })
   if (!вход) {
     return {

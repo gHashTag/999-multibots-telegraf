@@ -51,11 +51,22 @@ export const ПОЛЯ_МАРШРУТА: Record<KieWebMediaKind, string[]> = {
    * а экран «Фото» шлёт только {model, prompt, width, height} — картинку он
    * передать не может вовсе, загрузки на нём нет.
    *
-   * Я едва не оставил `image_urls` в списке, потому что видел его в файле.
-   * Это дало бы допуск четырём моделям «правка картинки», у которых на этом
-   * экране нет и не может быть входа.
+   * Однажды `image_urls` уже стоял здесь ошибочно — он принадлежал
+   * `editImage` с фиксированной моделью, а экран исходник передать не мог.
+   * Теперь может: маршрут принимает `image_url` и раскладывает его по всем
+   * трём именам, а экран требует выбрать фото прежде, чем пустит нажатие.
    */
-  image: ['prompt', 'aspect_ratio', 'quality'],
+  image: [
+    'prompt',
+    'aspect_ratio',
+    'quality',
+    // Исходник для моделей правки. Три имени — потому что контракты называют
+    // его по-разному: seedream и grok просят `image_urls`, topaz `image_url`,
+    // recraft `image`. Маршрут шлёт все три, `kieInputFor` берёт нужное.
+    'image_urls',
+    'image_url',
+    'image',
+  ],
   // render-server.ts:3387
   video: ['prompt', 'aspect_ratio', 'mode', 'duration', 'resolution'],
   // render-server.ts:3785
