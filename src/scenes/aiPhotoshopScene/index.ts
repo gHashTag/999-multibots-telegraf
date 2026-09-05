@@ -62,7 +62,14 @@ const AI_PHOTOSHOP_PRICING = {
 
   // 💰 НАЦЕНКА для AI Photoshop (множитель)
   // Купили за 100 → продали за 240 = наценка 140%
-  markup: 2.4, // 140% наценка (для достижения целевых цен 5+6+5+5=21⭐)
+  // The four ALL_MODELS entries were intended to reach 5+6+5+5 = 21 stars.
+  // They do not: the function floors, so they compute to 4+5+4+4 = 17.
+  // Reaching 21 means raising the markup or rounding instead of flooring,
+  // and both raise what people pay -- an owner decision, not a repair.
+  // Recorded as item 22 in docs/OWNER-DECISIONS.md. The comments on each
+  // entry below state the COMPUTED price and are held there by
+  // src/__tests__/money/aiPhotoshopPriceCommentsMatch.test.ts
+  markup: 2.4,
 
   // 💎 ЦЕНЫ МОДЕЛЕЙ В ЗВЁЗДАХ (рассчитываются автоматически с наценкой)
   get models() {
@@ -71,38 +78,38 @@ const AI_PHOTOSHOP_PRICING = {
         this.modelsUSD.seedream,
         0.016,
         this.markup
-      ), // $0.03 → 5⭐
+      ), // $0.03 → 4⭐
       nano_banana: calculateFinalPriceInStars(
         this.modelsUSD.nano_banana,
         0.016,
         this.markup
-      ), // $0.039 → 6⭐
+      ), // $0.039 → 5⭐
       nano_banana_pro: calculateFinalPriceInStars(
         this.modelsUSD.nano_banana_pro,
         0.016,
         this.markup
-      ), // $0.05 → 8⭐
+      ), // $0.05 → 7⭐
       seedream_45: calculateFinalPriceInStars(
         this.modelsUSD.seedream_45,
         0.016,
         this.markup
-      ), // $0.06 → 10⭐
+      ), // $0.06 → 9⭐
       flux_multi_kontext: calculateFinalPriceInStars(
         this.modelsUSD.flux_multi_kontext,
         0.016,
         this.markup
-      ), // $0.03 → 5⭐
+      ), // $0.03 → 4⭐
       qwen_edit_plus: calculateFinalPriceInStars(
         this.modelsUSD.qwen_edit_plus,
         0.016,
         this.markup
-      ), // $0.03 → 5⭐
+      ), // $0.03 → 4⭐
       // ✨ NEW AI PHOTOSHOP MODELS - January 2025 (ONLY image transformation models)
       flux_kontext_pro: calculateFinalPriceInStars(
         this.modelsUSD.flux_kontext_pro,
         0.016,
         this.markup
-      ), // $0.05 → 8⭐
+      ), // $0.05 → 7⭐
       flux_kontext_max: calculateFinalPriceInStars(
         this.modelsUSD.flux_kontext_max,
         0.016,
@@ -112,12 +119,12 @@ const AI_PHOTOSHOP_PRICING = {
         this.modelsUSD.seededit_3,
         0.016,
         this.markup
-      ), // $0.05 → 8⭐
+      ), // $0.05 → 7⭐
       qwen_image_edit: calculateFinalPriceInStars(
         this.modelsUSD.qwen_image_edit,
         0.016,
         this.markup
-      ), // $0.025 → 4⭐
+      ), // $0.025 → 3⭐
     }
   },
 
