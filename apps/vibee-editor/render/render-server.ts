@@ -3412,6 +3412,8 @@ const server = createServer(async (req, res) => {
       // Секунды объявлены СНАРУЖИ try: возврат живёт в catch и без этого
       // отдавал бы одну секунду там, где списал десять.
       let секунды = 1
+      // Длина в сетке провайдера — одна на счёт и на заказ.
+      let длинаРолика = 6
       try {
         const { model, prompt, duration, aspect_ratio, image_url, video_url } =
           JSON.parse(body)
@@ -3430,7 +3432,13 @@ const server = createServer(async (req, res) => {
          * «видео» единицы РАЗНЫЕ (8 «за секунду», 4 «за ролик»), поэтому
          * пометка на виде не может быть верной в принципе.
          */
-        секунды = посекунднаяМодель(model) ? секундыКОплате(duration) : 1
+        /*
+         * ОДНА ДЛИНА И ДЛЯ СЧЁТА, И ДЛЯ ЗАКАЗА. `duration` читался дважды и
+         * по-разному: счёт брал сырое значение, провайдеру уходила сетка
+         * 6/10. Без `duration` списывали секунду и покупали шесть.
+         */
+        длинаРолика = секундыКОплате(duration) <= 6 ? 6 : 10
+        секунды = посекунднаяМодель(model) ? длинаРолика : 1
 
         // Charge BEFORE spending the provider's money.
         const billed = await chargeMiniAppUser(
@@ -3476,8 +3484,8 @@ const server = createServer(async (req, res) => {
             prompt,
             aspect_ratio: aspect_ratio || '9:16',
             mode: 'normal',
-            duration:
-              (parseInt(String(duration || '6'), 10) || 6) <= 5 ? '6' : '10',
+            // Та же величина, что оплачена выше.
+            duration: String(длинаРолика),
             resolution: РАЗРЕШЕНИЕ_ВИДЕО,
             /*
              * ИСХОДНИК ДЛЯ ВИДЕО. `kling/v2-1-pro` оживляет КАРТИНКУ,
@@ -3497,6 +3505,15 @@ const server = createServer(async (req, res) => {
               : {}),
           })
           if (!вход) {
+            // ЕДИНСТВЕННЫЙ ранний выход ПОСЛЕ списания, который не бросает, —
+            // поэтому catch с возвратами сюда не доходил, и деньги оставались
+            // у нас за работу, которую даже не начали.
+            await refundMiniAppUser(
+              billedTid,
+              'video_generate',
+              секунды,
+              requestedModel
+            )
             res.writeHead(400, { 'Content-Type': 'application/json' })
             res.end(
               JSON.stringify({
@@ -3928,9 +3945,17 @@ const server = createServer(async (req, res) => {
          * вовсе. Текст в 20 000 знаков обходился в двадцать цен и приносил
          * одну — чем длиннее озвучка, тем больше убыток, без потолка.
          */
-        оплаченныеТысячи = познаковаяМодель(model)
-          ? тысячиЗнаковКОплате(text)
-          : 1
+        /*
+         * СЧЁТ ЗНАКОВ БЕЗУСЛОВЕН, А НЕ ПО ИМЕНИ МОДЕЛИ.
+         *
+         * Проверка `познаковаяМодель(model)` делала измерение ДОБРОВОЛЬНЫМ:
+         * запрос без `model` оставлял множитель единицей, и 20 000 знаков
+         * стоили 12 токенов вместо 480. Дыру открыл я сам, закрывая соседнюю.
+         *
+         * Условие и не нужно: все ноги этого маршрута — KieAI ElevenLabs,
+         * прямой ElevenLabs, Replicate — тарифицируются провайдером за знаки.
+         */
+        оплаченныеТысячи = тысячиЗнаковКОплате(text)
 
         // Charge BEFORE spending the provider's money.
         const billed = await chargeMiniAppUser(
@@ -4338,9 +4363,15 @@ const server = createServer(async (req, res) => {
           'veed/fabric-1',
         ]
         const explicitKie = model?.startsWith('kie/') ?? false
+/*
+         * ГОЛОЕ ИМЯ НЕ ВЫБИРАЕТ МОДЕЛЬ. Было `: model`: строка без префикса
+         * `kie/` миновала допуск и попадала в список липсинка, а цена
+         * считалась ПО ПРЕФИКСУ — убери четыре символа, и OmniHuman работал
+         * за 60 токенов вместо 540.
+         */
         const requestedKieModel = explicitKie
           ? reviewedKieModel('lipsync', model)!
-          : model
+          : undefined
         if (process.env.KIE_AI_API_KEY) {
           const selectedKieModel =
             requestedKieModel && KIE_LIPSYNC.includes(requestedKieModel)
