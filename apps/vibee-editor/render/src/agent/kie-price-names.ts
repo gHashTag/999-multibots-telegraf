@@ -41,8 +41,8 @@ export const ИМЯ_В_ПРАЙСЕ: Record<string, string | null> = {
   'wan/2-7-image': 'wan 2.7 image',
 
   // — видео —
-  'grok-imagine/text-to-video': 'grok-imagine-video-1-5-preview',
-  'grok-imagine/image-to-video': 'grok-imagine-video-1-5-preview',
+  'grok-imagine/text-to-video': 'grok-imagine-video-1-5-preview, image-to-video, 480p',
+  'grok-imagine/image-to-video': 'grok-imagine-video-1-5-preview, image-to-video, 480p',
   'kling/ai-avatar-standard': 'Kling AI Avtar',
   'kling/v2-1-pro': 'Kling 2.1',
   'kling/v3-turbo-text-to-video': 'kling 3.0 turbo',
@@ -101,5 +101,17 @@ export const ИМЯ_В_ПРАЙСЕ: Record<string, string | null> = {
  * dialogue», то есть ОЗВУЧКА. Мы брали ставку чужого товара, да ещё «за 1000
  * знаков» за обработку аудиофайла, где знаков нет. Без цены модель не
  * продаётся — это честнее, чем счёт, взятый ниоткуда.
+ */
+/*
+ * РАЗРЕШЕНИЕ В ИМЕНИ — НЕ УКРАШЕНИЕ.
+ *
+ * У grok-imagine в прайсе две строки: 480p за $0.012 и 720p за $0.0225.
+ * Правило «бери самый дешёвый вариант» брало 480p, а маршрут — в другом файле
+ * — слал `resolution: '480p'`. Сходилось, но СЛУЧАЙНО: поменяйте разрешение в
+ * запросе, и цена за ним не поедет, потому что она про это разрешение ничего
+ * не знала.
+ *
+ * Теперь имя называет разрешение прямо, а тест сверяет его с константой,
+ * которую шлёт маршрут. Разъедутся — упадёт сборка, а не счёт.
  */
 export const АДРЕС_ПРАЙСА = 'https://api.kie.ai/client/v1/model-pricing/page'
