@@ -28,6 +28,7 @@ const {
   ranSet,
   fileOf,
   classifySuspects,
+  filesWithoutAssertions,
 } = require('../../../scripts/test-gate.cjs')
 
 const REPO = path.resolve(__dirname, '../../..')
@@ -141,6 +142,74 @@ describe('the gate telling absence from failure', () => {
     expect(passingSet({}).size).toBe(0)
     expect(ranSet({}).size).toBe(0)
     expect(passingSet({ testResults: [] }).size).toBe(0)
+  })
+
+  it('names a file that produced no assertion at all', () => {
+    // The third answer, one level up. Both sets above reason about assertions,
+    // so a file whose import throws is absent from BOTH -- it contributes
+    // neither a pass nor a failure, and the suspect list cannot name it
+    // either, because suspects come from the baseline and a file that never
+    // ran never entered the baseline.
+    const r = {
+      testResults: [
+        {
+          name: path.join(REPO, 'src/ok.test.ts'),
+          assertionResults: [
+            { title: 'a', fullName: 'a', status: 'passed' as const },
+          ],
+        },
+        {
+          name: path.join(REPO, 'src/broken.test.ts'),
+          status: 'failed',
+          message: "Cannot find package 'undici'\n  at import",
+          assertionResults: [],
+        },
+      ],
+    }
+    expect(passingSet(r).size, 'the healthy file still counts').toBe(1)
+    expect(ranSet(r).size, 'the broken file adds nothing to either set').toBe(1)
+
+    const silent = filesWithoutAssertions(r)
+    expect(silent.map((s: { file: string }) => s.file)).toEqual([
+      'src/broken.test.ts',
+    ])
+    expect(
+      silent[0].reason,
+      'the reason must travel with the name, or the report says only that something is wrong'
+    ).toBe("Cannot find package 'undici'")
+  })
+
+  it('does not confuse an all-skipped file with one that never ran', () => {
+    // Control, and the discriminator this rests on: a file whose tests are all
+    // skipped still PRODUCES those assertions, so its list is non-empty. Only
+    // a file that failed to load has none. Without this the check would report
+    // 41 healthy skipped files as broken.
+    const skipped = report('src/skipped.test.ts', [
+      { title: 'a', status: 'skipped' },
+      { title: 'b', status: 'skipped' },
+    ])
+    expect(passingSet(skipped).size, 'nothing passed here').toBe(0)
+    expect(filesWithoutAssertions(skipped)).toEqual([])
+  })
+
+  it('reports nothing on a report with no files', () => {
+    expect(filesWithoutAssertions({})).toEqual([])
+    expect(filesWithoutAssertions({ testResults: [] })).toEqual([])
+  })
+
+  it('treats a missing assertion list the same as an empty one', () => {
+    // Today vitest writes `assertionResults: []` for a file that failed to
+    // load -- the key is present and empty, which is what the fixture above
+    // reproduces. The fallback for a MISSING key is therefore unreachable
+    // through the real reporter, and a mutation of it survived every other
+    // check here. Specified rather than left unjudged: both shapes mean the
+    // file produced nothing, so both must be named.
+    const r = {
+      testResults: [{ name: path.join(REPO, 'src/nokey.test.ts') }],
+    }
+    expect(
+      filesWithoutAssertions(r).map((s: { file: string }) => s.file)
+    ).toEqual(['src/nokey.test.ts'])
   })
 
   it('keeps the id spelling identical in both sets', () => {

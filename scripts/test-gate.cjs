@@ -207,11 +207,44 @@ function explainConfirmed(confirmed) {
   return { behaviour, vanished, unknown }
 }
 
+/**
+ * Test files that produced NO assertion at all.
+ *
+ * A file whose import throws contributes neither a pass nor a failure: its
+ * test names never enter the report, so every count in this gate steps around
+ * it. `зелёных 4603 из 4902` says nothing about such a file, and the suspect
+ * list cannot name it either, because suspects come from the baseline and a
+ * file that never ran never got into the baseline.
+ *
+ * Zero assertions from a test file is never a healthy state, so it is printed
+ * whatever else the run says. It does NOT change the verdict: one file is in
+ * this condition today (a dependency declared by apps/vibee-editor/render and
+ * installed nowhere), and blocking on it would stop every agent's gate on a
+ * fault none of them introduced.
+ */
+function filesWithoutAssertions(report) {
+  return (report.testResults || [])
+    .filter(f => (f.assertionResults || []).length === 0)
+    .map(f => ({
+      file: path.relative(REPO, f.name),
+      reason: (f.message || '').split('\n')[0].slice(0, 200),
+    }))
+}
+
 function main() {
   console.log('Прогон…')
   const report = runVitest()
   const now = passingSet(report)
   console.log(`зелёных тестов: ${now.size} (всего ${report.numTotalTests})`)
+
+  const silent = filesWithoutAssertions(report)
+  if (silent.length) {
+    console.log(
+      `\n⚠️  файлов, не давших НИ ОДНОГО теста: ${silent.length} — они не зелёные и не красные, их просто нет в счёте`
+    )
+    for (const s of silent) console.log(`   ${s.file}\n     ${s.reason}`)
+    console.log('')
+  }
 
   if (SAVE) {
     const header =
@@ -385,6 +418,12 @@ function main() {
 // Exported so the classification can be exercised on synthetic reports. A
 // test with its own copy of these would be a twin, and the whole point here is
 // that two questions must not share one answer.
-module.exports = { passingSet, ranSet, fileOf, classifySuspects }
+module.exports = {
+  passingSet,
+  ranSet,
+  fileOf,
+  classifySuspects,
+  filesWithoutAssertions,
+}
 
 if (require.main === module) main()
