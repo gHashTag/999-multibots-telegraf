@@ -2323,6 +2323,44 @@ cmd_money_invariants() {
   ( cd "$ROOT" && npx vitest run src/__tests__/money/invariantsMapPointsAtRealThings.test.ts 2>&1 | tail -4 )
 }
 
+cmd_error_or_empty() {
+  # ГДЕ «ПУСТО» И «СЛОМАЛОСЬ» СКЛЕЕНЫ В ОДНУ ВЕТКУ ВЫХОДА.
+  #
+  # it.185: `if (error || !data?.length) return` в пробе, сверяющей «упомянуто
+  # в базе» против «лежит в хранилище». Ошибка на одной папке превращала всё
+  # под ней в «отсутствует» -- то есть не уменьшала ответ, а СОЗДАВАЛА находки.
+  # В вычитании множеств молчаливый пропуск опаснее, чем в подсчёте.
+  #
+  # СПИСОК -- КАНДИДАТЫ, А НЕ ПРИГОВОР. В продуктовом коде склейка часто
+  # законна: и при ошибке, и при пустом ответе человеку показывают одно и то
+  # же сообщение. Правило в детектор НЕ добавлено намеренно -- разграничителя,
+  # отделяющего опасную склейку от законной, у меня нет, а матчер с половиной
+  # ложных срабатываний хуже, чем его отсутствие.
+  #
+  # Читать так: опасны те места, чей результат -- РАЗНОСТЬ или СЧЁТ популяции.
+  ( cd "$ROOT" && node -e '
+    const fs = require("fs")
+    const { matchCode } = require("./scripts/lib/blank-code.cjs")
+    const { repoFiles } = require("./scripts/lib/repo-sources.cjs")
+    const RE = /if\s*\(\s*[^)]*\b(error|err)\b[^)]*\|\|[^)]*(?:!\s*\w+(?:\?\.)?\.?length|!\s*\w+|\.length\s*===\s*0)[^)]*\)\s*(?:\{\s*)?(return|continue|break)/g
+    const files = repoFiles(".").filter(f => /\.(cjs|mjs|js|ts)$/.test(f) && !/node_modules/.test(f))
+    let n = 0
+    for (const f of files) {
+      if (!fs.existsSync(f)) continue
+      const raw = fs.readFileSync(f, "utf8")
+      for (const m of matchCode(raw, RE)) {
+        const line = raw.slice(0, m.index).split("\n").length
+        const probe = f.startsWith("scripts/") ? "скрипт" : "прод  "
+        console.log("  " + probe + f + ":" + line)
+        console.log("        " + raw.split("\n")[line - 1].trim().slice(0, 88))
+        n++
+      }
+    }
+    console.log("")
+    console.log("мест: " + n + "   (кандидаты; опасны те, где результат -- разность или счёт)")
+  ' )
+}
+
 cmd_blind_probes() {
   # ИНСТРУМЕНТ, КОТОРЫЙ ОТВЕЧАЕТ УВЕРЕННО ПРИ СЛОМАННОМ ЧТЕНИИ, НЕОПРОВЕРЖИМ.
   #
@@ -3493,6 +3531,7 @@ case "$action" in
   mask-diff|маска-разница)  cmd_mask_diff "$@" ;;
   checks-of-checks|проверки-проверок)  cmd_checks_of_checks "$@" ;;
   blind-probes|слепые-пробы)  cmd_blind_probes "$@" ;;
+  error-or-empty|ошибка-или-пусто)  cmd_error_or_empty "$@" ;;
   money-invariants|карта-денег)  cmd_money_invariants "$@" ;;
   money-ratchets|реестр-ратчетов)  cmd_money_ratchets "$@" ;;
   untracked|невидимые)  cmd_untracked "$@" ;;

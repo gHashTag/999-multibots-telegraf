@@ -23,23 +23,45 @@ const db = createClient(url, key)
 const TABLES = process.argv.slice(2).length
   ? process.argv.slice(2)
   : [
-      'users', 'payments_v2', 'assets', 'model_trainings', 'prompts_history',
-      'avatars', 'bots', 'subscriptions', 'user_settings', 'pending_messages',
-      'feed', 'templates', 'leads', 'referrals', 'tasks', 'broadcasts',
-      'superhero_generations', 'translations',
+      'users',
+      'payments_v2',
+      'assets',
+      'model_trainings',
+      'prompts_history',
+      'avatars',
+      'bots',
+      'subscriptions',
+      'user_settings',
+      'pending_messages',
+      'feed',
+      'templates',
+      'leads',
+      'referrals',
+      'tasks',
+      'broadcasts',
+      'superhero_generations',
+      'translations',
     ]
 
 async function count(table) {
   const { count, error } = await db
     .from(table)
     .select('*', { count: 'exact', head: true })
-  if (error) return { table, exists: false, reason: error.code || error.message }
+  if (error)
+    return { table, exists: false, reason: error.code || error.message }
   return { table, exists: true, rows: count }
 }
 
 async function shape(table) {
   const { data, error } = await db.from(table).select('*').limit(1)
-  if (error || !data?.length) return null
+  // null means "no such shape" to the caller, which then SKIPS the breakdown.
+  // An error returning null therefore reads as "this table has no bot_name",
+  // which is a different claim than "we could not look".
+  if (error) {
+    console.log(`  ОШИБКА ЧТЕНИЯ СХЕМЫ ${table}: ${error.message}`)
+    return null
+  }
+  if (!data?.length) return null
   return Object.keys(data[0])
 }
 
@@ -54,8 +76,15 @@ async function botBreakdown(table) {
       .from(table)
       .select('bot_name')
       .range(from, from + 999)
-    if (error || !data?.length) break
-    for (const r of data) names[r.bot_name ?? '(null)'] = (names[r.bot_name ?? '(null)'] || 0) + 1
+    if (error) {
+      console.log(
+        `  ОШИБКА ЧТЕНИЯ ${table}: ${error.message} -- счёт ниже занижен`
+      )
+      break
+    }
+    if (!data?.length) break
+    for (const r of data)
+      names[r.bot_name ?? '(null)'] = (names[r.bot_name ?? '(null)'] || 0) + 1
     if (data.length < 1000) break
     from += 1000
   }
@@ -87,7 +116,8 @@ async function main() {
     if (!b) continue
     const entries = Object.entries(b).sort((a, c) => c[1] - a[1])
     console.log(`  ${p.table} — ${entries.length} distinct bot_name:`)
-    for (const [name, n] of entries) console.log(`      ${String(n).padStart(7)}  ${name}`)
+    for (const [name, n] of entries)
+      console.log(`      ${String(n).padStart(7)}  ${name}`)
   }
 }
 

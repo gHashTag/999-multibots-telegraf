@@ -110,7 +110,16 @@ async function main() {
         .select(c)
         .like(c, '%/object/public/%')
         .range(from, from + 999)
-      if (error || !data?.length) break
+      // Sibling of the walk fix: an error here truncates the REFERENCES side,
+      // so present objects turn into phantom ORPHANS -- the same class in the
+      // other direction. Yesterday only the walk was fixed; this site was
+      // missed, which is why a defect class is not closed until every call
+      // site is named.
+      if (error) {
+        blind.errors.push(`${t}.${c}: ${error.message}`)
+        break
+      }
+      if (!data?.length) break
       for (const r of data) add(r[c], `${t}.${c}`)
       if (data.length < 1000) break
       from += 1000
