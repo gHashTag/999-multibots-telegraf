@@ -1,0 +1,94 @@
+<meta charset="utf-8">
+<title>Trinity S³AI · цикл улучшений</title>
+<style>
+  :root{
+    --bg:#1a1815; --panel:#211f1c; --line:#332f2a; --ink:#e8e3dc; --dim:#9a9088;
+    --accent:#d97757; --ok:#7fb069; --warn:#e0a458; --bad:#d1697a; --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  }
+  @media (prefers-color-scheme:light){
+    :root{--bg:#faf9f7;--panel:#fff;--line:#e6e1da;--ink:#1f1c19;--dim:#6b635b}
+  }
+  :root[data-theme="light"]{--bg:#faf9f7;--panel:#fff;--line:#e6e1da;--ink:#1f1c19;--dim:#6b635b}
+  :root[data-theme="dark"]{--bg:#1a1815;--panel:#211f1c;--line:#332f2a;--ink:#e8e3dc;--dim:#9a9088}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 var(--mono);padding:32px 20px 72px}
+  .wrap{max-width:900px;margin:0 auto}
+  .top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+  h1{font-size:17px;margin:0;font-weight:600;letter-spacing:.2px}
+  h1 .mark{color:var(--accent)}
+  .sub{color:var(--dim);font-size:12.5px;margin-bottom:26px}
+  h2{font-size:11.5px;text-transform:uppercase;letter-spacing:1.2px;color:var(--dim);
+     margin:32px 0 10px;font-weight:600}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:13px 15px}
+  .card .n{font-size:24px;font-weight:700;line-height:1.15}
+  .card .k{color:var(--dim);font-size:11.5px;margin-top:2px}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)} .acc{color:var(--accent)}
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.8px}
+  tr:last-child td{border-bottom:none}
+  code{background:var(--line);padding:1px 5px;border-radius:3px;font-size:12px}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  .tag{display:inline-block;padding:1px 7px;border-radius:3px;font-size:11px;font-weight:600;white-space:nowrap}
+  .t-ok{background:rgba(127,176,105,.15);color:var(--ok)}
+  .t-open{background:rgba(224,164,88,.15);color:var(--warn)}
+  .t-hole{background:rgba(209,105,122,.15);color:var(--bad)}
+  .note{color:var(--dim);font-size:12.5px;line-height:1.65;margin-top:8px}
+  .cmd{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 15px;
+       color:var(--dim);font-size:12.5px;line-height:1.9}
+  .cmd b{color:var(--ink);font-weight:600}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <h1><span class="mark">◤</span> Trinity S³AI · непрерывный цикл</h1>
+  </div>
+  <div class="sub">каждые 15 минут · задание <code>29549cb5</code> · обновлено 05.09.2026, 22:10</div>
+
+  <div class="cards">
+    <div class="card"><div class="n ok">54</div><div class="k">влито</div></div>
+    <div class="card"><div class="n warn">6</div><div class="k">открыто</div></div>
+    <div class="card"><div class="n bad">21</div><div class="k">своих ошибок признано</div></div>
+    <div class="card"><div class="n acc">0</div><div class="k">расхождений в конвейере</div></div>
+  </div>
+
+  <h2>Статус смены</h2>
+  <div class="scroll"><table>
+    <tr><th>что</th><th>состояние</th><th>чем проверено</th></tr>
+    <tr><td>Цена до нажатия = списанной</td><td><span class="tag t-ok">закрыто</span></td><td>скриншот «Сгенерировать · 11»</td></tr>
+    <tr><td>Списание видно после генерации</td><td><span class="tag t-ok">закрыто</span></td><td>20 тестов, чек в 9 местах (#1987)</td></tr>
+    <tr><td>Кнопка кода вне Telegram</td><td><span class="tag t-ok">закрыто</span></td><td>31 тест веба (#1986)</td></tr>
+    <tr><td>Загрузка исходника: Фото, Видео, Аватар</td><td><span class="tag t-ok">закрыто</span></td><td>генерация: красный квадрат → синий</td></tr>
+    <tr><td>Превью и проигрывание файлов</td><td><span class="tag t-ok">закрыто</span></td><td>скриншот истории</td></tr>
+    <tr><td><code>tri</code> — оболочка цикла</td><td><span class="tag t-ok">закрыто</span></td><td><code>tri doctor</code> проходит (#1988)</td></tr>
+    <tr><td>Два ряда вкладок на «Сценарии»</td><td><span class="tag t-open">открыто</span></td><td>план есть: 9 шагов, ARIA и <code>Cmd+1-4</code></td></tr>
+    <tr><td><code>userAtom</code> не восстанавливается из сессии</td><td><span class="tag t-hole">дыра</span></td><td>шапка рисует «Войти» при живом токене</td></tr>
+    <tr><td>У постов нет постоянных ссылок</td><td><span class="tag t-hole">дыра</span></td><td>поделиться роликом нельзя вовсе</td></tr>
+    <tr><td>Лента: скрыть свои, оставить одно интро</td><td><span class="tag t-open">ждёт</span></td><td>нужен id поста — <code>tri feed</code></td></tr>
+    <tr><td>Одобрение перед публикацией</td><td><span class="tag t-open">ждёт</span></td><td>решение владельца</td></tr>
+    <tr><td>Цена видео совпадает с запросом случайно</td><td><span class="tag t-open">открыто</span></td><td><code>grep "resolution: 480p"</code></td></tr>
+  </table></div>
+
+  <h2>Команды смены</h2>
+  <div class="cmd">
+    <b>tri doctor</b> — копия, диск, конвейер: всё перед началом<br>
+    <b>tri fresh</b> — копия против <code>origin/main</code>; отставание однажды стоило часа<br>
+    <b>tri pipeline</b> — согласие контрактов, цен и единиц; ноль трат<br>
+    <b>tri prices</b> — модель, токены, посекундность<br>
+    <b>tri feed</b> — посты с id, потому что в интерфейсе ссылок нет<br>
+    <b>tri open</b> — что ещё открыто по <code>pipeline-STATUS.md</code>
+  </div>
+
+  <h2>Правило, которое дороже остальных</h2>
+  <p class="note">
+    Проверять тем же способом, которым пользуется человек. За смену это правило
+    сломалось четырежды в мою пользу: кнопка была серой из-за пустого промпта, а
+    не из-за входа; «правка не подействовала», пока не оказалось, что установка
+    пришлась на перезагрузку симулятора; проверка скриптов молчала, потому что
+    смотрела в единственный уже починенный файл; условие с <code>head</code> в
+    конвейере было истинно всегда. Каждый раз зелёный ответ означал не «работает»,
+    а «спросили не то».
+  </p>
+</div>
