@@ -47,7 +47,7 @@ const ROOT = path.resolve(__dirname, '..')
  * is what caught it.
  */
 const CALL =
-  /(?:walk|walkAll|collect|sourceFiles|readdirSync)\(\s*(path\.join\([^)]*\)|['"][^'"]+['"]|[A-Za-z_$][\w$]*)/g
+  /(?:walk|walkAll|collect|collectFiles|tsFiles|sourceFiles|readdirSync)\(\s*(path\.(?:join|resolve)\([^)]*\)|['"][^'"]+['"]|[A-Za-z_$][\w$]*)/g
 
 function testFiles() {
   const out = []
@@ -76,7 +76,7 @@ const literalsOf = expr =>
  * accounted for most of the unresolved arguments on the first run, including
  * unchecked-money-result, whose walk covers all of src.
  */
-const IIFE = /\}\)\(\s*(path\.join\([^)]*\)|['"][^'"]+['"])\s*\)/g
+const IIFE = /\}\)\(\s*(path\.(?:join|resolve)\([^)]*\)|['"][^'"]+['"])\s*\)/g
 
 /**
  * The walk roots of one test: a set of resolved strings, plus how many
@@ -120,7 +120,7 @@ function rootsOf(raw) {
       roots.add(arg.slice(1, -1))
       continue
     }
-    if (arg.startsWith('path.join')) {
+    if (/^path\.(join|resolve)/.test(arg)) {
       const lit = literalsOf(arg)
       if (lit) roots.add(lit)
       else unresolved++
@@ -183,6 +183,18 @@ const SAMPLES = [
     code: `function go(dir) { readdirSync(dir); walk(dir) }`,
     roots: [],
     unresolved: 2,
+  },
+  {
+    why: 'path.resolve resolves like path.join',
+    code: `readdirSync(path.resolve(__dirname, '../../inngest_app/functions'))`,
+    roots: ['../../inngest_app/functions'],
+    unresolved: 0,
+  },
+  {
+    why: 'a local walker name is still a walk',
+    code: `const files = collectFiles('src')\nreaddirSync('src')`,
+    roots: ['src'],
+    unresolved: 0,
   },
   {
     why: 'an AST traversal is not a directory walk',
