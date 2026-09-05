@@ -89,6 +89,19 @@ function selfCheck(label) {
     console.error(`самопроверка бланкера не прошла: ${why}`)
     process.exit(2)
   }
+  // matchCode judges the first NON-WHITESPACE character of a match. A
+  // line-anchored pattern begins on the INDENT, and an indent is a space in
+  // the mask too -- judging m.index alone dropped every such hit as if it sat
+  // inside a comment. The failure mode is a silent zero, which reads exactly
+  // like a clean repository.
+  {
+    const src = 'function f() {\n  await pay(1)\n}\n// await pay(9)\n'
+    if (matchCode(src, /^[ \t]*await[ \t]+pay\(/gm).length !== 1)
+      fail('совпадение с отступом отброшено как комментарий')
+    if (matchCode(src, /await[ \t]+pay\(/g).length !== 1)
+      fail('совпадение внутри комментария засчитано')
+  }
+
   const cases = [
     // [input, what must survive, what must be gone]
     ["const a = 'hello'", "const a = ''", 'hello'],
@@ -179,7 +192,20 @@ function matchCode(raw, regex) {
   const mask = blank(raw)
   const out = []
   for (const m of raw.matchAll(regex)) {
-    if (mask[m.index] === ' ') continue
+    // Judge the first NON-WHITESPACE character of the match, not the first.
+    //
+    // Testing m.index alone carried an unwritten contract: the pattern had to
+    // begin on a code character. A perfectly ordinary line-anchored pattern
+    // like /^[ \t]*await charge\(/gm begins on the INDENT, and an indent is a
+    // space in the mask too -- so every hit was dropped as if it sat inside a
+    // comment. The failure mode is a silent zero, which reads exactly like a
+    // clean repository; it cost a live mutation that survived undetected until
+    // the matcher was tested on its own.
+    let i = m.index
+    const end = m.index + m[0].length
+    while (i < end && /\s/.test(m[0][i - m.index])) i++
+    if (i >= end) continue
+    if (mask[i] === ' ') continue
     out.push(m)
   }
   return out
