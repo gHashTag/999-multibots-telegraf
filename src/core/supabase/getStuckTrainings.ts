@@ -14,10 +14,16 @@ import { logger } from '@/utils/logger'
  * застряло. Человек, заплативший 1210 звёзд, узнаёт, что моделей у него нет,
  * и не узнаёт, почему.
  *
- * Сторож `checkStuckTrainings` (раз в 30 минут) в проекте есть, но НЕ
- * зарегистрирован — и его подключение меняет статусы в базе, то есть решение
- * владельца (docs/audit/unregistered-functions.md). Эта функция ничего не
- * меняет: только смотрит и позволяет СКАЗАТЬ человеку правду.
+ * The `checkStuckTrainings` watchdog (every 30 min) HAS since been registered
+ * in `registerFunctions.ts`, where the reason it is safe is recorded too:
+ * `handleModelTrainingCompleted` moves the row to a terminal status, so the
+ * next run no longer selects it -- the cron is self-terminating, there is no
+ * refund path, and it can neither loop nor pay twice. This function still
+ * changes nothing: it only looks, so a human can be TOLD the truth.
+ *
+ * (The comment here previously claimed the watchdog was NOT registered, and
+ * said so for as long as the owner queue's own summary table recorded it as
+ * done -- corrected in it.193.)
  */
 export interface StuckTraining {
   created_at: string
