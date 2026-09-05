@@ -586,6 +586,9 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
           })
 
       if (result.success && result.url) {
+        // Чек из ответа — тот же, что у видео: сервер кладёт его в каждый
+        // успешный ответ, а веб выбрасывал.
+        запомнитьЧек(result)
         const resultName = `AI ${imageModel} ${Date.now()}`
         const url = result.url
 
@@ -639,6 +642,9 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
       })
 
       if (result.success && result.url) {
+        // Чек из ответа — тот же, что у видео: сервер кладёт его в каждый
+        // успешный ответ, а веб выбрасывал.
+        запомнитьЧек(result)
         // Чек из ответа: сервер кладёт списанное и остаток в КАЖДЫЙ успешный
         // ответ, а веб их выбрасывал — сумму человек не видел ни до, ни после.
         запомнитьЧек(result)
@@ -712,6 +718,9 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
       })
 
       if (result.success && result.url) {
+        // Чек из ответа — тот же, что у видео: сервер кладёт его в каждый
+        // успешный ответ, а веб выбрасывал.
+        запомнитьЧек(result)
         const voiceName =
           voices.find(v => v.id === audioVoice)?.name || audioVoice
         const resultName = `TTS ${voiceName}`
@@ -766,6 +775,9 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
       })
 
       if (result.success && result.url) {
+        // Чек из ответа — тот же, что у видео: сервер кладёт его в каждый
+        // успешный ответ, а веб выбрасывал.
+        запомнитьЧек(result)
         const resultName = `Lipsync ${Date.now()}`
         const url = result.url
 
@@ -890,7 +902,11 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             <button
               className="generate-btn"
               onClick={handleGenerateImage}
-              disabled={isGenerating || !imagePrompt.trim()}
+              disabled={
+                isGenerating ||
+                !imagePrompt.trim() ||
+                неХватает('image_generate', imageModel) != null
+              }
             >
               {isGenerating ? (
                 <>
@@ -905,6 +921,14 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                 </>
               )}
             </button>
+
+            {/* Причина ТЕКСТОМ: `title` на телефоне не видно. */}
+            {неХватает('image_generate', imageModel) && !isGenerating && (
+              <div className="generate-hint">{неХватает('image_generate', imageModel)}</div>
+            )}
+            {чек && activeTab === 'image' && (
+              <div className="generate-hint">{чек}</div>
+            )}
 
             {error && activeTab === 'image' && (
               <div className="generate-error">
@@ -1270,7 +1294,11 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             <button
               className="generate-btn"
               onClick={handleGenerateAudio}
-              disabled={isGenerating || !audioText.trim()}
+              disabled={
+                isGenerating ||
+                !audioText.trim() ||
+                неХватает('audio_generate', audioModel) != null
+              }
             >
               {isGenerating ? (
                 <>
@@ -1285,6 +1313,14 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                 </>
               )}
             </button>
+
+            {/* Причина ТЕКСТОМ: `title` на телефоне не видно. */}
+            {неХватает('audio_generate', audioModel) && !isGenerating && (
+              <div className="generate-hint">{неХватает('audio_generate', audioModel)}</div>
+            )}
+            {чек && activeTab === 'audio' && (
+              <div className="generate-hint">{чек}</div>
+            )}
 
             {error && activeTab === 'audio' && (
               <div className="generate-error">
