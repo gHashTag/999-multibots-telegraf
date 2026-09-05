@@ -5,6 +5,7 @@ import {
   загрузитьБаланс,
   ценаНажатия,
   мераЦены,
+  тысячиЗнаковКОплате,
   type Баланс,
 } from '@/lib/balance'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
@@ -179,11 +180,12 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
     операция: string,
     модель: string | undefined,
     промптПуст: boolean,
-    чегоНеХватает: string
+    чегоНеХватает: string,
+    количество = 1
   ) => {
     if (isGenerating) return null
     if (промптПуст) return чегоНеХватает
-    return неХватает(операция, модель)
+    return неХватает(операция, модель, количество)
   }
 
   /**
@@ -192,15 +194,32 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
    * Освобождённый кошелёк (владелец) пропускаем: с него сервер не списывает
    * вовсе, и запрет там означал бы единственный счёт без права работать.
    */
-  const неХватает = (операция: string, модель: string | undefined) => {
+  const неХватает = (
+    операция: string,
+    модель: string | undefined,
+    /**
+     * СКОЛЬКО ЕДИНИЦ ОПЛАТЯТ. По умолчанию одна — так вели себя все кнопки.
+     *
+     * Сравнение остатка с ценой ЕДИНИЦЫ пропускало вперёд того, кому хватало
+     * на секунду и не хватало на ролик, — тот самый отказ после нажатия, ради
+     * устранения которого проверка и заведена. На мобильном это чинили
+     * отдельно, здесь оставалось целиком: сервер множит (`quantity` в
+     * `chargeMiniAppUser`), экран не множил нигде.
+     */
+    количество = 1
+  ) => {
     if (!баланс || баланс.exempt) return null
     const ц = ценаНажатия(баланс, операция, модель)
     if (ц == null) return null
-    if (баланс.balance >= ц) return null
-    const мера = мераЦены(баланс, модель)
-    return мера
+    const всего = ц * количество
+    if (баланс.balance >= всего) return null
+    const мера = мераЦены(баланс, модель, операция)
+    // Точную сумму называем, когда знаем количество. Когда не знаем (липсинк:
+    // длину задаст будущая озвучка) — честно называем цену меры, а не
+    // выдуманное число.
+    return мера && количество === 1
       ? `не хватит: ${ц} за ${мера}, есть ${баланс.balance}`
-      : `не хватит токенов: нужно ${ц}, есть ${баланс.balance}`
+      : `не хватит токенов: нужно ${всего}, есть ${баланс.balance}`
   }
 
   /*
@@ -219,12 +238,29 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
     )
     void загрузитьБаланс().then(б => б && setБаланс(б))
   }
+  /**
+   * ЧЕК ЖИВЁТ РОВНО ОДНУ ГЕНЕРАЦИЮ.
+   *
+   * Строка была одна на всю панель и не стиралась НИКОГДА: `запомнитьЧек`
+   * выходит молча, если в ответе нет `charged`, — а так отвечают и неудача, и
+   * подпись агентским ключом, и мок. Панель между вкладками не пересобирается
+   * (один `<Route>`), поэтому «списано 2 · осталось 98» от картинки повисало
+   * над словами «генерация не удалась» на видео — счёт за работу, которой не
+   * было. После липсинка та же строка уносила на другую вкладку число до 60.
+   */
+  const забытьЧек = () => setЧек(null)
 
   /** Подпись цены на кнопке: «· 40» или «· 36/с», либо ничего, если не знаем. */
-  const подписьЦены = (операция: string, модель: string | undefined) => {
+  const подписьЦены = (
+    операция: string,
+    модель: string | undefined,
+    количество = 1
+  ) => {
     const ц = ценаНажатия(баланс, операция, модель)
     if (ц == null) return null
-    const мера = мераЦены(баланс, модель)
+    // Знаем количество — называем СУММУ: это и есть то, что спишут.
+    if (количество > 1) return ` · ${ц * количество}`
+    const мера = мераЦены(баланс, модель, операция)
     return мера ? ` · ${ц}/${мера}` : ` · ${ц}`
   }
   const [isGenerating, setIsGenerating] = useState(false)
@@ -272,6 +308,17 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   const [audioText, setAudioText] = useState('')
   const [audioSpeed, setAudioSpeed] = useState(1.0)
   const [audioModel, setAudioModel] = useState('direct/elevenlabs')
+  /**
+   * ЗА СКОЛЬКО ТЫСЯЧ ЗНАКОВ ВОЗЬМУТ. Считается всегда, при любой модели.
+   *
+   * Маршрут озвучки умножает счёт на длину текста БЕЗУСЛОВНО, и предела длины
+   * у поля нет. Модель по умолчанию (`direct/elevenlabs`) в серверном списке
+   * познаковых не значится, поэтому подпись не показывала даже единицы
+   * измерения: остаток 12, текст на 2500 знаков, кнопка «· 12» — и отказ
+   * «нужно 36» ПОСЛЕ нажатия. Ставить множитель в зависимость от списка
+   * значило бы оставить эту, самую частую, дыру открытой.
+   */
+  const тысячиОзвучки = тысячиЗнаковКОплате(audioText)
 
   // Voices from Jotai (persisted to localStorage)
   const voices = useAtomValue(voicesAtom)
@@ -588,6 +635,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
     setIsGenerating(true)
     setError(null)
+    забытьЧек()
 
     try {
       // Use Replicate API for replicate:* models, vibee-mcp for others
@@ -651,6 +699,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
     setIsGenerating(true)
     setError(null)
+    забытьЧек()
 
     try {
       const result = await generateVideo({
@@ -661,11 +710,10 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
       })
 
       if (result.success && result.url) {
-        // Чек из ответа — тот же, что у видео: сервер кладёт его в каждый
-        // успешный ответ, а веб выбрасывал.
-        запомнитьЧек(result)
         // Чек из ответа: сервер кладёт списанное и остаток в КАЖДЫЙ успешный
         // ответ, а веб их выбрасывал — сумму человек не видел ни до, ни после.
+        // Вызов ОДИН: второй, оставшийся от правки-близнеца, тянул за собой и
+        // второй запрос баланса на каждую генерацию.
         запомнитьЧек(result)
         const resultName = `AI ${videoModel} ${Date.now()}`
         const url = result.url
@@ -726,6 +774,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
     setIsGenerating(true)
     setError(null)
+    забытьЧек()
 
     try {
       const result = await generateAudio({
@@ -783,6 +832,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
     setIsGenerating(true)
     setError(null)
+    забытьЧек()
 
     try {
       const result = await generateLipsync({
@@ -1318,7 +1368,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
               disabled={
                 isGenerating ||
                 !audioText.trim() ||
-                неХватает('audio_generate', audioModel) != null
+                неХватает('audio_generate', audioModel, тысячиОзвучки) != null
               }
             >
               {isGenerating ? (
@@ -1330,15 +1380,15 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                 <>
                   <Music size={16} />
                   {t('generate.generateAudio')}
-                  {подписьЦены('audio_generate', audioModel)}
+                  {подписьЦены('audio_generate', audioModel, тысячиОзвучки)}
                 </>
               )}
             </button>
 
             {/* Причина ТЕКСТОМ: `title` на телефоне не видно. */}
-            {почемуНельзя('audio_generate', audioModel, !audioText.trim(), 'Введите текст, который надо произнести') && (
+            {почемуНельзя('audio_generate', audioModel, !audioText.trim(), 'Введите текст, который надо произнести', тысячиОзвучки) && (
               <div className="generate-hint">
-                {почемуНельзя('audio_generate', audioModel, !audioText.trim(), 'Введите текст, который надо произнести')}
+                {почемуНельзя('audio_generate', audioModel, !audioText.trim(), 'Введите текст, который надо произнести', тысячиОзвучки)}
               </div>
             )}
             {чек && activeTab === 'audio' && (
@@ -1664,8 +1714,10 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
               disabled={
                 isGenerating ||
                 !lipsyncAudioUrl.trim() ||
-                !lipsyncImageUrl.trim()
+                !lipsyncImageUrl.trim() ||
+                неХватает('lipsync_generate', lipsyncModel) != null
               }
+              title={неХватает('lipsync_generate', lipsyncModel) ?? undefined}
             >
               {isGenerating ? (
                 <>
@@ -1680,6 +1732,35 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                 </>
               )}
             </button>
+
+            {/*
+              ВОРОТА, ПРИЧИНА И ЧЕК — как у остальных трёх кнопок.
+
+              Здесь стояла одна подпись цены, и это была самая дорогая кнопка
+              панели: счёт за липсинк посекундный, до 60 токенов за десять
+              секунд звука. То есть единственная кнопка, способная отказать
+              после нажатия, была единственной без проверки до нажатия.
+              «Пока только для трёх из четырёх» — это незаконченная работа, а
+              не этап.
+            */}
+            {почемуНельзя(
+              'lipsync_generate',
+              lipsyncModel,
+              !lipsyncAudioUrl.trim() || !lipsyncImageUrl.trim(),
+              'Нужны фото и звук — без них озвучивать нечего'
+            ) && (
+              <div className="generate-hint">
+                {почемуНельзя(
+                  'lipsync_generate',
+                  lipsyncModel,
+                  !lipsyncAudioUrl.trim() || !lipsyncImageUrl.trim(),
+                  'Нужны фото и звук — без них озвучивать нечего'
+                )}
+              </div>
+            )}
+            {чек && activeTab === 'lipsync' && (
+              <div className="generate-hint">{чек}</div>
+            )}
 
             {error && activeTab === 'lipsync' && (
               <div className="generate-error">
