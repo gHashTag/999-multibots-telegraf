@@ -316,7 +316,11 @@ struct GenerateScreen: View {
       множитель: {
         switch мера {
         case "с": return вид == .видео ? секундыИзДлительности(длительность) : nil
-        case "1000 зн.": return промпт.isEmpty ? nil : (промпт.count + 999) / 1000
+        case "1000 зн.":
+          // utf16.count, а НЕ count: сервер считает `text.length` в JS, то
+          // есть единицы UTF-16, а Swift `count` — графемы. Эмодзи весит одну
+          // графему и две единицы: кнопка обещала 24, счёт брал 48.
+          return промпт.isEmpty ? nil : (промпт.utf16.count + 999) / 1000
         default: return nil
         }
       }()
