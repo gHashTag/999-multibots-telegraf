@@ -11,7 +11,7 @@
 [карте инвариантов](money-invariants.md) — они выведены чтением, а не
 матчером. Здесь — полный список того, что репозиторий уже утверждает сам.
 
-Ратчетов: 99. Без заголовка: 0.
+Ратчетов: 101. Без заголовка: 0.
 
 | файл                                                | что утверждает                                                                                |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------- |
@@ -75,6 +75,7 @@
 | `neurophoto-multi-batch-gate.test.ts`               | generateNeuroPhotoMulti gates the full batch before charging                                  |
 | `no-fabricated-returns.test.ts`                     | нет выдуманных возвратов                                                                      |
 | `no-invented-price.test.ts`                         | цена не выдумывается                                                                          |
+| `oneEventOneCharger.test.ts`                        | one event, at most one registered charger                                                     |
 | `ownerDebtPaymentsUnknown.test.ts`                  | owner debt: unknown payments are not zero payments                                            |
 | `paidServicesTableUnread.test.ts`                   | the two dollar-cost tables                                                                    |
 | `payment-record-not-silent.test.ts`                 | запись платежа                                                                                |
@@ -104,6 +105,7 @@
 | `unchecked-money-result.test.ts`                    | результат денежной операции не выбрасывается                                                  |
 | `unifiedModelPriceFailClosed.test.ts`               | getUnifiedModelPrice fails closed on an unpriced input (no free paid generation)              |
 | `unlockedDeductionLocked.test.ts`                   | every updateUserBalanceUnlocked call is inside withUserBalanceLock (#999 double-spend)        |
+| `unregisteredChargers.test.ts`                      | unregistered money handlers are a known, fixed set                                            |
 | `upscaleImageConsumeBeforeCharge.test.ts`           | upscale_image consumes the image before charging (no stale-tap replay)                        |
 | `upscaleNeuroPhotoConsumeBeforeCharge.test.ts`      | upscale_neurophoto_image consumes the image before charging (no stale-tap replay)             |
 | `veedFabricOuterRefund.test.ts`                     | veed-fabric outer catch refunds a post-charge failure (no charged-no-refund)                  |
