@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { ЕДИНИЦА_ЦЕНЫ } from './kie-prices.generated'
-import { refundByTid } from './billing-shared'
+import {
+  refundByTid,
+  познаковаяМодель,
+  тысячиЗнаковКОплате,
+} from './billing-shared'
 import { РАЗРЕШЕНИЕ_ВИДЕО } from './kie-web-provider'
 import { ИМЯ_В_ПРАЙСЕ } from './kie-price-names'
 import {
@@ -223,6 +227,29 @@ describe('цены', () => {
       }
     }
     expect(расхождения).toEqual([])
+  })
+
+  it('озвучка считается по знакам, а не за вызов', () => {
+    /*
+     * Обе живые TTS-модели тарифицируются за 1000 знаков, а списывалась
+     * единица независимо от длины, и предела длины не было вовсе. Текст в
+     * 20 000 знаков стоил нам двадцать цен и приносил одну: $1.20 расхода
+     * против $0.12 выручки, без потолка.
+     */
+    expect(познаковаяМодель('kie/elevenlabs/text-to-speech-multilingual-v2')).toBe(true)
+    expect(познаковаяМодель('kie/kling/v3-turbo-text-to-video')).toBe(false)
+    expect(познаковаяМодель(undefined)).toBe(false)
+
+    // Округление ВВЕРХ: провайдер берёт за начатую тысячу.
+    expect(тысячиЗнаковКОплате('x'.repeat(1))).toBe(1)
+    expect(тысячиЗнаковКОплате('x'.repeat(1000))).toBe(1)
+    expect(тысячиЗнаковКОплате('x'.repeat(1001))).toBe(2)
+    expect(тысячиЗнаковКОплате('x'.repeat(20000))).toBe(20)
+    // Пустое и мусор дают единицу, а не ноль: сделанная работа не бесплатна.
+    expect(тысячиЗнаковКОплате('')).toBe(1)
+    expect(тысячиЗнаковКОплате(undefined)).toBe(1)
+    // Потолок совпадает с проверкой в chargeMiniAppUser.
+    expect(тысячиЗнаковКОплате('x'.repeat(9_000_000))).toBe(3600)
   })
 
   it('ни одна цена не равна нулю: бесплатных генераций нет', () => {
