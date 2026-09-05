@@ -45,12 +45,12 @@
   <div class="top">
     <h1><span class="mark">◤</span> Trinity S³AI · непрерывный цикл</h1>
   </div>
-  <div class="sub">каждые 15 минут · задание <code>29549cb5</code> · обновлено 06.09.2026, 00:30</div>
+  <div class="sub">каждые 15 минут · задание <code>29549cb5</code> · обновлено 06.09.2026, 01:00</div>
 
   <div class="cards">
-    <div class="card"><div class="n ok">76</div><div class="k">влито</div></div>
+    <div class="card"><div class="n ok">78</div><div class="k">влито</div></div>
     <div class="card"><div class="n warn">6</div><div class="k">открыто</div></div>
-    <div class="card"><div class="n bad">30</div><div class="k">своих ошибок признано</div></div>
+    <div class="card"><div class="n bad">31</div><div class="k">своих ошибок признано</div></div>
     <div class="card"><div class="n acc">0</div><div class="k">расхождений в конвейере</div></div>
   </div>
 
@@ -68,7 +68,7 @@
     <tr><td>Цена видео × длительность до нажатия</td><td><span class="tag t-ok">закрыто</span></td><td>тесты; на экране — ждёт сессии (#1994)</td></tr>
     <tr><td>Цена видео привязана к разрешению</td><td><span class="tag t-ok">закрыто</span></td><td>мутация 480p→720p валит тест (#1991)</td></tr>
     <tr><td>Картинки и звук регистрируют задание</td><td><span class="tag t-ok">закрыто</span></td><td>мутация: подмена вида валит тест (#1996)</td></tr>
-    <tr><td>Пакет <code>undici</code> отсутствует — один набор не грузится</td><td><span class="tag t-open">открыто</span></td><td><code>tri all</code></td></tr>
+    <tr><td>Все наборы тестов грузятся</td><td><span class="tag t-ok">закрыто</span></td><td>75 наборов, 621 тест — <code>tri deps</code> + <code>tri all</code></td></tr>
     <tr><td><b>У поста появился адрес</b></td><td><span class="tag t-ok">закрыто</span></td><td>в живой ленте: «Скопировать ссылку на ролик» (#2004)</td></tr>
     <tr><td>Два ряда вкладок слиты в один</td><td><span class="tag t-ok">закрыто</span></td><td>проверено на app.t27.ai: второго ряда нет (#1998)</td></tr>
     <tr><td>Шаг называется «Липсинк», а не «Аватар»</td><td><span class="tag t-ok">закрыто</span></td><td>на app.t27.ai в полосе стоит «Липсинк» (#1999)</td></tr>
@@ -90,7 +90,8 @@
     <b>tri prices</b> — модель, токены, посекундность<br>
     <b>tri feed</b> — посты с id, потому что в интерфейсе ссылок нет<br>
     <b>tri open</b> — что ещё открыто по <code>pipeline-STATUS.md</code><br>
-    <b>tri all</b> — весь серверный набор: свои файлы зелёные ≠ проект зелёный
+    <b>tri all</b> — весь серверный набор на Node 20: свои файлы зелёные ≠ проект зелёный<br>
+    <b>tri deps</b> — вылечить node_modules: <code>npm ci</code>, а не <code>install</code>
   </div>
 
   <h2>Правило, которое дороже остальных</h2>

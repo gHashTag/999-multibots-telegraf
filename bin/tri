@@ -13,6 +13,8 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RENDER="$ROOT/apps/vibee-editor/render"
 LOOP="$ROOT/.claude/loop-opus"
+# Прогонщик тестов требует Node 20; в оболочке по умолчанию 18.
+NODE20="$HOME/.nvm/versions/node/v20.19.0/bin"
 
 usage() {
   cat <<'U'
@@ -26,7 +28,8 @@ tri — оболочка Trinity S³AI
   tri feed       посты в ленте с id (в интерфейсе ссылок на посты нет)
   tri open       что ещё открыто по pipeline-STATUS.md
   tri tests      тесты денег и iOS-модулей
-  tri all        ВЕСЬ серверный набор — свои файлы зелёные ещё не значит зелёный проект
+  tri all        ВЕСЬ серверный набор (Node 20) — свои файлы зелёные ≠ зелёный проект
+  tri deps       вылечить node_modules: npm ci, а не install
 U
 }
 
@@ -76,7 +79,21 @@ case "${1:-}" in
     # ВЕСЬ набор, а не свои файлы. Две проверки падали сутки незамеченными:
     # я гонял только те тесты, что писал сам, и «зелено» означало «зелено у
     # меня», а не «зелено в проекте». Обе поломки оказались моими.
-    (cd "$RENDER" && npx vitest run) ;;
+    #
+    # NODE 20 ЯВНО. По умолчанию в оболочке 18, и прогонщик падает на
+    # `styleText` из node:util, которого там нет: «Startup Error» вместо
+    # тестов читается как поломка проекта, а это поломка окружения.
+    (cd "$RENDER" && PATH="$NODE20:$PATH" npx vitest run) ;;
+  deps)
+    # `npm ci`, а НЕ `npm install`.
+    #
+    # Один набор не грузился из-за отсутствующего `undici` — при том, что в
+    # package.json он объявлен. То есть разъехалось node_modules, а не
+    # манифест. `npm install` в такой ситуации подтянул новые версии соседей
+    # и сломал прогонщик целиком: было 599 зелёных и один нерабочий набор,
+    # стало ноль. `npm ci` ставит РОВНО то, что в локе, и вылечил оба разом:
+    # 75 наборов, 621 тест.
+    (cd "$RENDER" && PATH="$NODE20:$PATH" npm ci) ;;
   doctor)
     echo "── копия ──";     fresh || true
     echo; echo "── диск ──"; bash "$LOOP/check-free-disk.sh" | tail -1; bash "$LOOP/free-disk.sh" | tail -1
