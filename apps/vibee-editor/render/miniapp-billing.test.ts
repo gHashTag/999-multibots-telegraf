@@ -101,6 +101,18 @@ describe('mini-app generation is billed', () => {
     }
   })
 
+  it('the balance answer says whether this wallet is exempt', () => {
+    /*
+     * ОСВОБОЖДЕНИЕ ДОЛЖНО ДОЕХАТЬ ДО КЛИЕНТА. С владельца не списывают, а
+     * приложение сверяло остаток с ценой и гасило кнопку: единственный счёт
+     * без списаний оказался единственным без права работать.
+     *
+     * Пинится по исходнику, потому что признак живёт в ОТВЕТЕ: юнит-тест на
+     * `владелец()` зелен и тогда, когда поле в ответ не кладут.
+     */
+    expect(SERVER).toMatch(/exempt: владелец\(tid\)/)
+  })
+
   it('refuses instead of giving the generation away when billing cannot run', () => {
     // Fail-closed: a route that cannot charge does not open. Matches
     // requireInternalKey's rule in the bot.
