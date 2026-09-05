@@ -70,7 +70,14 @@ describe('the money invariants map points at real things', () => {
     const wrong: string[] = []
     for (const { file, title } of invariantRows()) {
       const p = path.join(__dirname, file)
-      if (!fs.existsSync(p)) continue
+      // No silent skip. A missing file is caught by the assertion above, but
+      // skipping here would also hide it if that one were ever weakened --
+      // and a guard whose population quietly shrinks is the defect this
+      // repository keeps finding.
+      if (!fs.existsSync(p)) {
+        wrong.push(`${file}: файла нет`)
+        continue
+      }
       if (!fs.readFileSync(p, 'utf8').includes(title)) {
         wrong.push(`${file}: "${title}"`)
       }

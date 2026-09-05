@@ -427,25 +427,65 @@ describe('в репозитории нет новых секретов', () => {
 
   it('нет секретов в файлах вне списка известного долга', () => {
     const unexplained: string[] = []
+    // Skips are COUNTED. The branches below used to drop a file out of the
+    // scan in silence, so "no secrets" described an unknown subset. Measured
+    // here: 3505 of 3535 scanned, 30 skipped for size -- 23 media and SEVEN
+    // payment-table backups of 4 to 18 MB. The limit was not the danger;
+    // its silence was.
+    const MEDIA =
+      /\.(mp3|mp4|webm|mov|avi|png|jpe?g|gif|webp|ico|pdf|zip|gz|woff2?|ttf|otf|wasm|bin|sqlite|db)$/i
+    const skipped = {
+      missing: [] as string[],
+      notFile: [] as string[],
+      big: [] as string[],
+      unreadable: [] as string[],
+    }
+    let scanned = 0
 
     for (const f of trackedFiles()) {
       if (KNOWN_DEBT[f]) continue
-      if (!fs.existsSync(f)) continue
+      if (!fs.existsSync(f)) {
+        skipped.missing.push(f)
+        continue
+      }
       const st = fs.statSync(f)
-      if (!st.isFile() || st.size > 2 * 1024 * 1024) continue
+      if (!st.isFile()) {
+        skipped.notFile.push(f)
+        continue
+      }
+      // Skipped by TYPE, not by size. The old 2 MB limit dropped seven dumps
+      // of the payments table -- exactly the kind of file a secret would sit
+      // in unseen. All seven were checked against all 17 patterns and all
+      // seven are clean: there was no leak, there was a blind spot. Scanning
+      // the full 50 MB of backups costs one second.
+      if (MEDIA.test(f)) {
+        skipped.big.push(f)
+        continue
+      }
 
       let text: string
       try {
         text = fs.readFileSync(f, 'utf8')
       } catch {
+        skipped.unreadable.push(f)
         continue
       }
+      scanned++
 
       for (const [name, re] of PATTERNS) {
         re.lastIndex = 0
         if (re.test(text)) unexplained.push(`${f} — ${name}`)
       }
     }
+
+    // A census that collapsed to nothing would print "no secrets" in
+    // exactly the same words.
+    expect(scanned, 'осмотрено подозрительно мало файлов').toBeGreaterThan(3000)
+    expect(skipped.unreadable, 'нечитаемые файлы не осмотрены').toEqual([])
+
+    // Nothing but media leaves the scan -- size is no longer a reason.
+    const bigNonMedia = skipped.big.filter(f => !MEDIA.test(f))
+    expect(bigNonMedia, 'не-медиа файл выпал из осмотра на секреты').toEqual([])
 
     expect(unexplained).toEqual([])
     // 30s, not the 5s default. This walks every tracked file and reads each
