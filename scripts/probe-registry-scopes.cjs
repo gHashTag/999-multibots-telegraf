@@ -86,7 +86,22 @@ const IIFE = /\}\)\(\s*(path\.join\([^)]*\)|['"][^'"]+['"])\s*\)/g
  * would print a tidy list and understate its own blindness -- the failure this
  * file exists to make visible.
  */
+/**
+ * A DIRECTORY walk needs readdirSync. Without this guard the census counted
+ * `walk(node)` from a TypeScript AST traversal as a directory walk: 10 of the
+ * 17 "unresolved roots" were tests that never touch a directory at all, and
+ * the headline "17 unresolved" was really 7. That number had been published as
+ * a next-iteration option in five consecutive reports.
+ *
+ * The discriminator was chosen before the rule and checked against the known
+ * false positives, per the walk-bound rule of it.185.
+ */
+function walksDirectories(raw) {
+  return /readdirSync/.test(raw)
+}
+
 function rootsOf(raw) {
+  if (!walksDirectories(raw)) return { roots: [], unresolved: 0 }
   const roots = new Set()
   let unresolved = 0
   for (const m of raw.matchAll(IIFE)) {
@@ -138,33 +153,42 @@ const SAMPLES = [
   },
   {
     why: 'a literal root is read directly',
-    code: `walk('src/scenes')`,
+    code: `readdirSync('src/scenes')\nwalk('src/scenes')`,
     roots: ['src/scenes'],
     unresolved: 0,
   },
   {
     why: 'a path.join root keeps its literal parts',
-    code: `walk(path.join(__dirname, '..', '..', 'scenes'))`,
+    code: `readdirSync(path.join(__dirname, '..', '..', 'scenes'))\nwalk(path.join(__dirname, '..', '..', 'scenes'))`,
     roots: ['../../scenes'],
     unresolved: 0,
   },
   {
     why: 'a variable root is resolved through its definition',
-    code: `const SRC = 'src'\nwalk(SRC)`,
+    code: `const SRC = 'src'\nreaddirSync(SRC)\nwalk(SRC)`,
     roots: ['src'],
     unresolved: 0,
   },
   {
     why: 'an immediately-invoked walk keeps its argument',
-    code: `;(function walk(dir) { go(dir) })('src')`,
+    code: `;(function walk(dir) { readdirSync(dir) })('src')`,
     roots: ['src'],
-    unresolved: 1,
+    // TWO unresolvable sites, not one: the IIFE's parameter and the
+    // readdirSync inside its body. Counting one was an artefact of a sample
+    // whose walker never actually read a directory.
+    unresolved: 2,
   },
   {
     why: 'an unresolvable root is COUNTED, not dropped',
-    code: `function go(dir) { walk(dir) }`,
+    code: `function go(dir) { readdirSync(dir); walk(dir) }`,
     roots: [],
-    unresolved: 1,
+    unresolved: 2,
+  },
+  {
+    why: 'an AST traversal is not a directory walk',
+    code: `ts.forEachChild(sf, function walk(node) { walk(node) })`,
+    roots: [],
+    unresolved: 0,
   },
 ]
 
