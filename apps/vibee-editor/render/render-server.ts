@@ -2148,14 +2148,22 @@ async function chargeMiniAppUser(
 }
 
 /** Give the tokens back when the provider did not deliver. */
+/**
+ * Возврат должен зеркалить списание — И ЦЕНОЙ, И КОЛИЧЕСТВОМ.
+ *
+ * `modelId` не был параметром вовсе, поэтому возврат считался по виду работы,
+ * а списание по модели: из 36 пар совпадали две. `quantity` терялся отдельно —
+ * маршрут видео умножает списание на секунды, а возвращал за одну.
+ */
 async function refundMiniAppUser(
   tid: string | undefined,
   op: string,
-  quantity = 1
+  quantity = 1,
+  modelId?: string
 ): Promise<void> {
   if (!tid) return
   try {
-    await refundByTid(getPool() as never, tid, op, quantity)
+    await refundByTid(getPool() as never, tid, op, quantity, modelId)
   } catch (e) {
     console.error('[токены] возврат не прошёл:', e)
   }
@@ -3110,6 +3118,9 @@ const server = createServer(async (req, res) => {
       // Declared BEFORE the try: the refund in catch must know whether we
       // charged, and a const inside the try is not visible there.
       let billedTid: string | undefined
+      // Модель нужна ВОЗВРАТУ: он считает ту же цену, что списание,
+      // а `model` объявлена внутри try и из catch не видна.
+      let requestedModel: string | undefined
       // What the charge took and left. Spread into EVERY success body below:
       // whichever provider ends up delivering, the person is told the price of
       // the thing they just received.
@@ -3125,6 +3136,7 @@ const server = createServer(async (req, res) => {
         // to force the fallback produced a 500 and a refund. A missing key is
         // now just the first entry in `tried`.
         const { model, prompt, width, height, image_url } = JSON.parse(body)
+        requestedModel = typeof model === 'string' ? model : undefined
         console.log(
           `📷 [Generate] Photo: ${model}, prompt: "${prompt.substring(0, 50)}..."`
         )
@@ -3251,7 +3263,7 @@ const server = createServer(async (req, res) => {
       } catch (error) {
         console.error('❌ [Generate] Image error:', error)
         // Nothing was delivered, so the tokens go back.
-        await refundMiniAppUser(billedTid, 'image_generate')
+        await refundMiniAppUser(billedTid, 'image_generate', 1, requestedModel)
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
@@ -3375,6 +3387,9 @@ const server = createServer(async (req, res) => {
       // silent about the money.
       let receipt: Receipt = {}
       let requestedModel: string | undefined
+      // Секунды объявлены СНАРУЖИ try: возврат живёт в catch и без этого
+      // отдавал бы одну секунду там, где списал десять.
+      let секунды = 1
       try {
         const { model, prompt, duration, aspect_ratio, image_url, video_url } =
           JSON.parse(body)
@@ -3393,7 +3408,7 @@ const server = createServer(async (req, res) => {
          * «видео» единицы РАЗНЫЕ (8 «за секунду», 4 «за ролик»), поэтому
          * пометка на виде не может быть верной в принципе.
          */
-        const секунды = посекунднаяМодель(model) ? секундыКОплате(duration) : 1
+        секунды = посекунднаяМодель(model) ? секундыКОплате(duration) : 1
 
         // Charge BEFORE spending the provider's money.
         const billed = await chargeMiniAppUser(
@@ -3580,7 +3595,14 @@ const server = createServer(async (req, res) => {
       } catch (error) {
         if (requestedModel?.startsWith('kie/')) {
           console.error('❌ [Generate] Explicit Kie video error:', error)
-          await refundMiniAppUser(billedTid, 'video_generate')
+          // Секунды и модель — те же, что при списании: без них возврат
+          // за десятисекундный ролик отдавал одну секунду по цене вида.
+          await refundMiniAppUser(
+            billedTid,
+            'video_generate',
+            секунды,
+            requestedModel
+          )
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(
             JSON.stringify({
@@ -3621,7 +3643,14 @@ const server = createServer(async (req, res) => {
           console.error('❌ [Generate] Video error:', fallbackError)
           // Both the primary path and the Replicate fallback failed: nothing
           // was delivered, so the tokens go back.
-          await refundMiniAppUser(billedTid, 'video_generate')
+          // Секунды и модель — те же, что при списании: без них возврат
+          // за десятисекундный ролик отдавал одну секунду по цене вида.
+          await refundMiniAppUser(
+            billedTid,
+            'video_generate',
+            секунды,
+            requestedModel
+          )
           res.writeHead(500, { 'Content-Type': 'application/json' })
           res.end(
             JSON.stringify({
@@ -3822,11 +3851,15 @@ const server = createServer(async (req, res) => {
     req.on('end', async () => {
       // Before the try: the refund path in catch must see it.
       let billedTid: string | undefined
+      // Модель нужна ВОЗВРАТУ: он считает ту же цену, что списание,
+      // а `model` объявлена внутри try и из catch не видна.
+      let requestedModel: string | undefined
       // Same charge, two possible providers below (KieAI, then ElevenLabs or
       // Replicate). Whoever delivers, the price stated is the one taken.
       let receipt: Receipt = {}
       try {
         const { text, voice_id, voice_name, speed, model } = JSON.parse(body)
+        requestedModel = typeof model === 'string' ? model : undefined
 
         /**
          * ПРОВЕРКА ДО ЖУРНАЛА, А НЕ ПОСЛЕ.
@@ -4012,7 +4045,7 @@ const server = createServer(async (req, res) => {
       } catch (error) {
         console.error('❌ [Generate] Audio error:', error)
         // Nothing was delivered, so the tokens go back.
-        await refundMiniAppUser(billedTid, 'audio_generate')
+        await refundMiniAppUser(billedTid, 'audio_generate', 1, requestedModel)
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
@@ -4128,6 +4161,8 @@ const server = createServer(async (req, res) => {
     // pressing. The button can promise a per-second rate; only the answer can
     // state what was actually taken.
     let receipt: Receipt = {}
+    // Модель нужна ВОЗВРАТУ: он считает ту же цену, что списание.
+    let requestedModel: string | undefined
     req.on('data', chunk => {
       body += chunk
     })
@@ -4136,6 +4171,7 @@ const server = createServer(async (req, res) => {
         const { audio_url, image_url, resolution, model } = JSON.parse(
           body
         ) as Record<string, string | undefined>
+        requestedModel = typeof model === 'string' ? model : undefined
         if (!audio_url || !image_url) {
           res.writeHead(400, { 'Content-Type': 'application/json' })
           res.end(
@@ -4365,7 +4401,8 @@ const server = createServer(async (req, res) => {
         await refundMiniAppUser(
           billedTid,
           'lipsync_generate',
-          billedSeconds || 1
+          billedSeconds || 1,
+          requestedModel
         )
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(
