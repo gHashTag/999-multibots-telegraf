@@ -68,7 +68,7 @@ export const НАЦЕНКА = 2.0
 export function priceForKieModel(modelId: string): number | null {
   const cost = СЕБЕСТОИМОСТЬ_USD[modelId]
   if (cost == null) return null
-  return Math.ceil((cost * НАЦЕНКА) / COST_PER_TOKEN_USD)
+  return вТокены(cost)
 }
 
 /** Единица, за которую берётся цена: «за секунду», «за картинку». */
@@ -84,10 +84,26 @@ export function unitForKieModel(modelId: string): string | null {
  * продавали РОВНО ПО СЕБЕСТОИМОСТИ — то есть наценка, назначенная владельцем,
  * молча не действовала ни на одну из этих операций.
  */
+/**
+ * Себестоимость → токены. ОКРУГЛЕНИЕ ДО `ceil`, И ЭТО НЕ ПРИДИРКА.
+ *
+ * `0.035 * 2 / 0.005` в двоичной арифметике даёт 14.000000000000002, и
+ * `Math.ceil` честно поднимает это до 15. Замер по таблице: лишний токен
+ * брали с ЧЕТЫРЁХ моделей — обеих Seedream 5 Pro (15 вместо 14),
+ * Ideogram v3 (8 вместо 7) и ElevenLabs audio-isolation (29 вместо 28).
+ *
+ * Округление до шестого знака снимает мусор двоичного представления, не
+ * трогая настоящие дроби: для базы в полцента шестой знак недостижим никакой
+ * реальной ценой.
+ */
+function вТокены(cost: number): number {
+  return Math.ceil(Number(((cost * НАЦЕНКА) / COST_PER_TOKEN_USD).toFixed(6)))
+}
+
 export function priceFor(op: string): number {
   const cost = OPERATION_COST_USD[op]
   if (cost == null) return 0
-  return Math.ceil((cost * НАЦЕНКА) / COST_PER_TOKEN_USD)
+  return вТокены(cost)
 }
 
 /**

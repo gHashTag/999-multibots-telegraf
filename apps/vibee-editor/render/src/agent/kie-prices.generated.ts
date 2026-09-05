@@ -12,8 +12,8 @@
  */
 export const СЕБЕСТОИМОСТЬ_USD: Record<string, number | null> = {
   'seedream/5-lite-text-to-image': 0.0275,
-  'seedream/5-pro-text-to-image': 0.0025,
-  'seedream/5-pro-image-to-image': 0.0025,
+  'seedream/5-pro-text-to-image': 0.035,
+  'seedream/5-pro-image-to-image': 0.035,
   'google/imagen4-fast': 0.02,
   'google/imagen4-ultra': 0.02,
   'google/imagen4': 0.02,
