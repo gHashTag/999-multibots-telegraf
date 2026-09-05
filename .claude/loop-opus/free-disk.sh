@@ -27,9 +27,14 @@ rm -rf ~/Library/Caches/* 2>/dev/null
 rm -rf ~/.npm/_cacache 2>/dev/null
 
 # 2. Наши сборочные выходы — но НЕ те, что лежат в node_modules (см. выше).
-for корень in ~/999-multibots-telegraf ~/t27 ~/.vibee-worktrees; do
-  [ -d "$корень" ] || continue
-  find "$корень" -maxdepth 4 -type d \
+# ИМЯ ПЕРЕМЕННОЙ ЦИКЛА — ЛАТИНИЦЕЙ, по той же причине, что и у арифметики
+# выше: `for корень in …` даёт «not a valid identifier», цикл НЕ выполняется
+# вовсе, и наши сборочные выходы не удалялись ни разу. Вчера я починил
+# арифметику и не проверил остальной файл на тот же класс — ошибка печаталась
+# в ПЕРВОЙ строке вывода, а я смотрел на последнюю.
+for root in ~/999-multibots-telegraf ~/t27 ~/.vibee-worktrees; do
+  [ -d "$root" ] || continue
+  find "$root" -maxdepth 4 -type d \
     \( -name dist -o -name .next -o -name .turbo -o -name build-dev \) \
     -not -path '*/node_modules/*' -prune -exec rm -rf {} + 2>/dev/null
 done
