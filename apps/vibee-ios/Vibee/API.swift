@@ -121,6 +121,34 @@ enum API {
     func цена(_ операция: String) -> Int? { prices[операция] }
   }
 
+  /**
+   * Задачи генерации этого человека — для ПОДБОРА оборванного результата.
+   *
+   * Липсинк и видео идут минутами, и Railway рвёт соединение раньше, чем
+   * провайдер отвечает: замер дал 502 «upstream error» на запросе, который при
+   * повторе вернул готовый ролик. Работа при этом СДЕЛАНА и ОПЛАЧЕНА — теряется
+   * только ответ по дороге, и это худший из исходов.
+   *
+   * Сервер заводит задачу до обращения к провайдеру (`startJob`), поэтому
+   * оборванный запрос оставляет след, по которому результат можно забрать.
+   */
+  struct Задача: Decodable {
+    let id: String
+    let kind: String
+    let state: String
+    let startedAt: Double
+    let url: String?
+    let error: String?
+  }
+
+  static func задачи() async throws -> [Задача] {
+    struct Ответ: Decodable { let jobs: [Задача] }
+    let (d, http) = try await сЛичностью(
+      URLRequest(url: base.appendingPathComponent("api/generate/jobs")))
+    guard http.statusCode == 200 else { throw причина(d, http.statusCode) }
+    return try JSONDecoder().decode(Ответ.self, from: d).jobs
+  }
+
   static func баланс() async throws -> Баланс {
     let (d, http) = try await сЛичностью(
       URLRequest(url: base.appendingPathComponent("api/balance")))
