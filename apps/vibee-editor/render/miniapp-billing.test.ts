@@ -70,6 +70,26 @@ describe('mini-app generation is billed', () => {
     expect(SERVER).toMatch(/'lipsync_generate',\s*\n\s*billedSeconds/)
   })
 
+  it('every paid kind registers a job, so a dropped connection can be rescued', () => {
+    /*
+     * `startJob` звали только видео и липсинк, а приложение спрашивает
+     * оборванный результат для ВСЕХ видов. Для картинки и звука отвечать было
+     * нечем: обрыв терял генерацию, уже оплаченную провайдеру.
+     *
+     * Тип задачи перечислял все четыре вида с самого начала — то есть замысел
+     * был, а проводки не было. Ровно тот случай, когда «покрыто типами» и
+     * «работает» расходятся.
+     *
+     * Пинится по ИСХОДНИКУ по вчерашней причине: юнит-тест на startJob
+     * остаётся зелёным, даже если маршрут его не зовёт.
+     */
+    for (const вид of ['image', 'video', 'audio', 'lipsync']) {
+      expect(SERVER, `${вид}: маршрут не регистрирует задачу`).toMatch(
+        new RegExp(`startJob\\('${вид}'`)
+      )
+    }
+  })
+
   it('refuses instead of giving the generation away when billing cannot run', () => {
     // Fail-closed: a route that cannot charge does not open. Matches
     // requireInternalKey's rule in the bot.

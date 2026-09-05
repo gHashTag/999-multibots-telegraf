@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { KIE_MODELS, NEVER_PROBE } from './src/agent/kie-models'
+import { СЕБЕСТОИМОСТЬ_USD } from './src/agent/kie-prices.generated'
 import { ИМЯ_В_ПРАЙСЕ } from './src/agent/kie-price-names'
 
 /**
@@ -105,9 +106,28 @@ describe('цены не разошлись с сопоставлением', () 
     const безЦеныSwift = new Set(
       [...swift.matchAll(/Модель\(id: "([^"]+)"[^\n]*ценаUSD: nil/g)].map(m => m[1])
     )
-    const безЦеныСписок = new Set(
-      Object.entries(ИМЯ_В_ПРАЙСЕ).filter(([, v]) => v === null).map(([k]) => k)
-    )
+    /*
+     * ПРИЧИН «НЕТ ЦЕНЫ» ДВЕ, И ОБЕ ЗАКОННЫ.
+     *
+     * 1. Имени нет в прайсе вовсе — `ИМЯ_В_ПРАЙСЕ === null`. Так у
+     *    `elevenlabs/audio-isolation`: строки про выделение голоса в прайсе
+     *    KieAI нет ни одной.
+     * 2. Цена названа в единице, которую не перевести в один вызов, и
+     *    генератор пишет `null` в себестоимость. Так у моделей «за млн
+     *    токенов»: 280 токенов за озвучку в доли цента — не цена.
+     *
+     * Проверка знала только первую причину и падала на второй. Это не повод
+     * её ослабить: смысл прежний — в Swift `nil` РОВНО там, где цены за вызов
+     * нет, — просто оснований теперь два.
+     */
+    const безЦеныСписок = new Set([
+      ...Object.entries(ИМЯ_В_ПРАЙСЕ)
+        .filter(([, v]) => v === null)
+        .map(([k]) => k),
+      ...Object.entries(СЕБЕСТОИМОСТЬ_USD)
+        .filter(([, v]) => v === null)
+        .map(([k]) => k),
+    ])
     expect([...безЦеныSwift].sort()).toEqual([...безЦеныСписок].sort())
   })
 
