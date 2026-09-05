@@ -34,8 +34,10 @@ function назовут(op: string, modelId?: string): number {
 describe('цены', () => {
   it('наценка действует на ВСЕ операции, а не только на модели', () => {
     for (const [op, cost] of Object.entries(OPERATION_COST_USD)) {
+      // `toFixed` здесь по той же причине, что и в самой формуле: без него
+      // тест закрепил бы лишний токен как правильный ответ.
       expect(TOKEN_PRICES[op]).toBe(
-        Math.ceil((cost * НАЦЕНКА) / COST_PER_TOKEN_USD)
+        Math.ceil(Number(((cost * НАЦЕНКА) / COST_PER_TOKEN_USD).toFixed(6)))
       )
       // Продажа по себестоимости — это не «дёшево», это отсутствие наценки.
       expect(TOKEN_PRICES[op]).toBeGreaterThan(
@@ -65,6 +67,26 @@ describe('цены', () => {
       expect(назовут(op, нет)).toBe(спишут(op, нет))
       expect(назовут(op, нет)).toBe(TOKEN_PRICES[op])
     }
+  })
+
+  it('точное деление не даёт лишнего токена', () => {
+    // 0.035 * 2 / 0.005 == 14, но в двоичной арифметике 14.000000000000002,
+    // и наивный ceil брал 15. Замер: лишний токен с четырёх моделей.
+    const ц = модельныеЦены()
+    expect(ц['kie/seedream/5-pro-text-to-image']).toBe(14)
+    expect(ц['kie/seedream/5-pro-image-to-image']).toBe(14)
+    expect(ц['kie/ideogram/v3-text-to-image']).toBe(7)
+    expect(ц['kie/elevenlabs/audio-isolation']).toBe(28)
+  })
+
+  it('акционная строка прайса не становится ценой модели', () => {
+    // «seedream 5 Pro, input image, First image free» стоит $0.0025 при
+    // настоящих $0.035 — правило «бери минимум» выбирало её, и модель
+    // продавалась вчетырнадцатеро ниже себестоимости.
+    const ц = модельныеЦены()
+    expect(ц['kie/seedream/5-pro-text-to-image']).toBeGreaterThan(
+      ц['kie/seedream/5-lite-text-to-image']
+    )
   })
 
   it('ни одна цена не равна нулю: бесплатных генераций нет', () => {
