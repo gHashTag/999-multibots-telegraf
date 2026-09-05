@@ -2272,6 +2272,26 @@ cmd_untracked() {
   ' )
 }
 
+cmd_money_invariants() {
+  # КАРТА ДЕНЕГ: ЧТО ИЗВЕСТНО, ГДЕ ЗАКРЕПЛЕНО, ЧЕМ МЕРИТЬ.
+  #
+  # Знание про деньги копилось двадцать итераций и жило в заголовках разных
+  # тестов: каждый новый цикл начинал с их поиска. Здесь оно собрано, и --
+  # главное -- КАЖДЫЙ указатель карты проверяется тестом
+  # invariantsMapPointsAtRealThings: файл существует, процитированный
+  # заголовок describe в нём есть, названный глагол есть в диспетчере.
+  #
+  # Поэтому карта не может протухнуть молча: строка, потерявшая предмет,
+  # роняет тест. Это ответ на длинный ряд случаев, когда отчёт называл символ,
+  # живущий только в отчёте, а реестр -- файлы, которых нет.
+  local map="$ROOT/docs/money-invariants.md"
+  [ -f "$map" ] || { bad "карты нет: $map"; return 2; }
+  cat "$map"
+  echo ""
+  echo "--- проверка указателей карты:"
+  ( cd "$ROOT" && npx vitest run src/__tests__/money/invariantsMapPointsAtRealThings.test.ts 2>&1 | tail -4 )
+}
+
 cmd_blind_probes() {
   # ИНСТРУМЕНТ, КОТОРЫЙ ОТВЕЧАЕТ УВЕРЕННО ПРИ СЛОМАННОМ ЧТЕНИИ, НЕОПРОВЕРЖИМ.
   #
@@ -3442,6 +3462,7 @@ case "$action" in
   mask-diff|маска-разница)  cmd_mask_diff "$@" ;;
   checks-of-checks|проверки-проверок)  cmd_checks_of_checks "$@" ;;
   blind-probes|слепые-пробы)  cmd_blind_probes "$@" ;;
+  money-invariants|карта-денег)  cmd_money_invariants "$@" ;;
   untracked|невидимые)  cmd_untracked "$@" ;;
   credit-sites|кредитные-сайты)  cmd_credit_sites "$@" ;;
   matcher-forms|формы-матчеров)  cmd_matcher_forms "$@" ;;
