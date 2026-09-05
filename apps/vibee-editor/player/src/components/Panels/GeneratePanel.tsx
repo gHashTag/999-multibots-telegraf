@@ -168,6 +168,25 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   }, [])
 
   /**
+   * ПОЧЕМУ КНОПКА ПОГАШЕНА — СЛОВАМИ.
+   *
+   * Веб гасил её молча: пустое описание, идущая генерация и нехватка токенов
+   * выглядели одинаково — серой кнопкой без объяснения. Я сам три итерации
+   * принимал это за проблему со входом, пока не прочитал условие в коде.
+   * Мобильное приложение говорит причину с самого начала.
+   */
+  const почемуНельзя = (
+    операция: string,
+    модель: string | undefined,
+    промптПуст: boolean,
+    чегоНеХватает: string
+  ) => {
+    if (isGenerating) return null
+    if (промптПуст) return чегоНеХватает
+    return неХватает(операция, модель)
+  }
+
+  /**
    * Хватает ли на нажатие. `null` — не мешаем: неизвестность это не «нельзя».
    *
    * Освобождённый кошелёк (владелец) пропускаем: с него сервер не списывает
@@ -923,8 +942,10 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             </button>
 
             {/* Причина ТЕКСТОМ: `title` на телефоне не видно. */}
-            {неХватает('image_generate', imageModel) && !isGenerating && (
-              <div className="generate-hint">{неХватает('image_generate', imageModel)}</div>
+            {почемуНельзя('image_generate', imageModel, !imagePrompt.trim(), 'Опишите картинку — без описания генерировать нечего') && (
+              <div className="generate-hint">
+                {почемуНельзя('image_generate', imageModel, !imagePrompt.trim(), 'Опишите картинку — без описания генерировать нечего')}
+              </div>
             )}
             {чек && activeTab === 'image' && (
               <div className="generate-hint">{чек}</div>
@@ -1124,9 +1145,9 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
             {/* Причина ТЕКСТОМ, а не подсказкой: `title` на телефоне не
                 показывается вовсе, и кнопка выглядела бы сломанной. */}
-            {неХватает('video_generate', videoModel) && !isGenerating && (
+            {почемуНельзя('video_generate', videoModel, !videoPrompt.trim(), 'Опишите видео — без описания генерировать нечего') && (
               <div className="generate-hint">
-                {неХватает('video_generate', videoModel)}
+                {почемуНельзя('video_generate', videoModel, !videoPrompt.trim(), 'Опишите видео — без описания генерировать нечего')}
               </div>
             )}
             {чек && activeTab === 'video' && (
@@ -1315,8 +1336,10 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             </button>
 
             {/* Причина ТЕКСТОМ: `title` на телефоне не видно. */}
-            {неХватает('audio_generate', audioModel) && !isGenerating && (
-              <div className="generate-hint">{неХватает('audio_generate', audioModel)}</div>
+            {почемуНельзя('audio_generate', audioModel, !audioText.trim(), 'Введите текст, который надо произнести') && (
+              <div className="generate-hint">
+                {почемуНельзя('audio_generate', audioModel, !audioText.trim(), 'Введите текст, который надо произнести')}
+              </div>
             )}
             {чек && activeTab === 'audio' && (
               <div className="generate-hint">{чек}</div>
