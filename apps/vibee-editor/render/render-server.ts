@@ -2056,6 +2056,21 @@ function attachStoreOnce(): void {
 }
 
 /**
+ * What one charge TOOK and what it LEFT.
+ *
+ * Both numbers already exist at the moment of the charge: billing-shared.ts
+ * returns them from the very `UPDATE ... RETURNING balance` that moves the
+ * money. They were discarded here, so no success response could state a
+ * price, and the only place a person ever saw one was the 402 refusal, baked
+ * into prose -- the price was known only to whoever ran out of it.
+ *
+ * `balance` is deliberately the SAME wire name GET /api/balance already uses
+ * for the same quantity. One name for one number: a second name for the
+ * remaining balance is a second source of truth, and they drift.
+ */
+type Receipt = { charged?: number; balance?: number }
+
+/**
  * Charge the Mini App user for a generation, or refuse it.
  *
  * The two callers of /api/generate/* are not equal:
@@ -2083,7 +2098,8 @@ async function chargeMiniAppUser(
   /** Выбранная модель (`kie/<id>`): цена берётся её, а не общая по виду. */
   modelId?: string
 ): Promise<
-  { ok: true; tid?: string } | { ok: false; status: number; reason: string }
+  | { ok: true; tid?: string; receipt: Receipt }
+  | { ok: false; status: number; reason: string }
 > {
   // Server-to-server: already paid at the tool layer. Key off the VALIDATED
   // auth decision, not the raw header: authenticate() only returns via
@@ -2093,7 +2109,10 @@ async function chargeMiniAppUser(
   // to skip billing for any signed Mini App user who added a junk header ->
   // free generation past the paywall. This mirrors the auth.via === 'api-key'
   // gate already used for render-owner actions elsewhere in this file.
-  if (authenticate(req).via === 'api-key') return { ok: true }
+  // Empty receipt, not a zero one: this caller paid at the tool layer and the
+  // amount it paid is not known here. Stating 0 would be a lie; stating
+  // nothing keeps the agent's response shape exactly as it was.
+  if (authenticate(req).via === 'api-key') return { ok: true, receipt: {} }
 
   const tid = verifiedViewerId(req)
   if (!tid) {
@@ -2113,7 +2132,14 @@ async function chargeMiniAppUser(
         reason: spent.причина || 'not enough tokens', // cyrillic-ok: shared API field
       }
     }
-    return { ok: true, tid }
+    // The ONE place a charge becomes public numbers. Field names on the left
+    // are the wire; on the right they are billing-shared.ts's public return
+    // type, renaming which would touch the agent tools too.
+    return {
+      ok: true,
+      tid,
+      receipt: { charged: spent.списано, balance: spent.осталось }, // cyrillic-ok: shared API field
+    }
   } catch (e) {
     console.error('[токены] списание невозможно, генерация отклонена:', e)
     return { ok: false, status: 503, reason: 'billing unavailable' }
@@ -3083,6 +3109,10 @@ const server = createServer(async (req, res) => {
       // Declared BEFORE the try: the refund in catch must know whether we
       // charged, and a const inside the try is not visible there.
       let billedTid: string | undefined
+      // What the charge took and left. Spread into EVERY success body below:
+      // whichever provider ends up delivering, the person is told the price of
+      // the thing they just received.
+      let receipt: Receipt = {}
       // Declared BEFORE the try for the same reason billedTid is: the failure
       // body must carry every provider's refusal, and the catch cannot see a
       // const that lives inside the try.
@@ -3106,6 +3136,7 @@ const server = createServer(async (req, res) => {
           return
         }
         billedTid = billed.tid
+        receipt = billed.receipt
 
         // Convert width/height to aspect ratio. Every value it can emit is in
         // the list google/nano-banana validates against, so the Kie leg needs
@@ -3145,6 +3176,7 @@ const server = createServer(async (req, res) => {
               id: outcome.taskId,
               provider: model,
               tried,
+              ...receipt,
             })
           )
           return
@@ -3204,6 +3236,7 @@ const server = createServer(async (req, res) => {
               id: `${outcome.provider.replace(/\W+/g, '-')}-${Date.now()}`,
               provider: outcome.provider,
               tried,
+              ...receipt,
             })
           )
           return
@@ -3335,6 +3368,11 @@ const server = createServer(async (req, res) => {
     req.on('end', async () => {
       // Before the try: the refund path in catch must see it.
       let billedTid: string | undefined
+      // Before the try for a second reason as well: the Replicate fallback
+      // ANSWERS from inside the catch, and that answer is as charged as any
+      // other. A `const` next to the charge would leave that one success body
+      // silent about the money.
+      let receipt: Receipt = {}
       let requestedModel: string | undefined
       try {
         const { model, prompt, duration, aspect_ratio, image_url, video_url } =
@@ -3369,6 +3407,7 @@ const server = createServer(async (req, res) => {
           return
         }
         billedTid = billed.tid
+        receipt = billed.receipt
 
         /**
          * Record the job BEFORE the provider is called.
@@ -3437,6 +3476,7 @@ const server = createServer(async (req, res) => {
               url: result.url,
               id: result.taskId,
               provider: model,
+              ...receipt,
             })
           )
           return
@@ -3524,7 +3564,12 @@ const server = createServer(async (req, res) => {
           if (videoUrl) {
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.end(
-              JSON.stringify({ success: true, url: videoUrl, id: taskId })
+              JSON.stringify({
+                success: true,
+                url: videoUrl,
+                id: taskId,
+                ...receipt,
+              })
             )
             return
           }
@@ -3568,6 +3613,7 @@ const server = createServer(async (req, res) => {
               url: videoUrl,
               id: `replicate-${Date.now()}`,
               provider: 'replicate/seedance-1-lite',
+              ...receipt,
             })
           )
         } catch (fallbackError) {
@@ -3775,6 +3821,9 @@ const server = createServer(async (req, res) => {
     req.on('end', async () => {
       // Before the try: the refund path in catch must see it.
       let billedTid: string | undefined
+      // Same charge, two possible providers below (KieAI, then ElevenLabs or
+      // Replicate). Whoever delivers, the price stated is the one taken.
+      let receipt: Receipt = {}
       try {
         const { text, voice_id, voice_name, speed, model } = JSON.parse(body)
 
@@ -3813,6 +3862,7 @@ const server = createServer(async (req, res) => {
           return
         }
         billedTid = billed.tid
+        receipt = billed.receipt
 
         if (typeof model === 'string' && model.startsWith('kie/')) {
           /**
@@ -3859,6 +3909,7 @@ const server = createServer(async (req, res) => {
                 url: result.url,
                 id: result.taskId,
                 provider: model,
+                ...receipt,
               })
             )
             return
@@ -3954,6 +4005,7 @@ const server = createServer(async (req, res) => {
             ...(timedCaptions && timedCaptions.length > 0
               ? { timed_captions: timedCaptions }
               : {}),
+            ...receipt,
           })
         )
       } catch (error) {
@@ -4070,6 +4122,11 @@ const server = createServer(async (req, res) => {
     let body = ''
     let billedTid: string | undefined
     let billedSeconds = 0
+    // The receipt matters MOST here: lipsync is charged per second of audio,
+    // so the sum taken depends on a duration the caller does not know before
+    // pressing. The button can promise a per-second rate; only the answer can
+    // state what was actually taken.
+    let receipt: Receipt = {}
     req.on('data', chunk => {
       body += chunk
     })
@@ -4143,6 +4200,7 @@ const server = createServer(async (req, res) => {
           return
         }
         billedTid = billed.tid
+        receipt = billed.receipt
 
         /**
          * KieAI ПЕРВЫМ, fal.ai запасным — и это не предпочтение, а замер.
@@ -4205,6 +4263,7 @@ const server = createServer(async (req, res) => {
                 url: result.url,
                 id: result.taskId,
                 provider: `kie/${selectedKieModel}`,
+                ...receipt,
               })
             )
             return
@@ -4289,7 +4348,12 @@ const server = createServer(async (req, res) => {
           console.log(`👄 [fal.ai] Video ready: ${videoUrl}`)
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(
-            JSON.stringify({ success: true, url: videoUrl, id: requestId })
+            JSON.stringify({
+              success: true,
+              url: videoUrl,
+              id: requestId,
+              ...receipt,
+            })
           )
           return
         }
