@@ -17,7 +17,9 @@ import SwiftUI
 struct ПревьюФайла: View {
   let дорожка: String
   let ссылка: String?
-  var сторона: CGFloat = 56
+  /// 72, а не 56: на 56 кадр из ролика читался как цветное пятно —
+  /// понять, тот ли это дубль, было нельзя, а ради этого превью и делалось.
+  var сторона: CGFloat = 72
 
   @State private var кадр: UIImage?
   @State private var проигрыватель: AVPlayer?
