@@ -30,6 +30,7 @@ tri — оболочка Trinity S³AI
   tri tests      тесты денег и iOS-модулей
   tri all        ВЕСЬ серверный набор (Node 20) — свои файлы зелёные ≠ зелёный проект
   tri deps       вылечить node_modules: npm ci, а не install
+  tri ios        собрать приложение И УБРАТЬ за собой — иначе диск кончится
 U
 }
 
@@ -84,6 +85,19 @@ case "${1:-}" in
     # `styleText` из node:util, которого там нет: «Startup Error» вместо
     # тестов читается как поломка проекта, а это поломка окружения.
     (cd "$RENDER" && PATH="$NODE20:$PATH" npx vitest run) ;;
+  ios)
+    # СБОРКА iOS И УБОРКА ЗА НЕЙ — ОДНОЙ КОМАНДОЙ.
+    #
+    # Каталог `/tmp/dd` растёт на каждой сборке. За ночь мои итерации набили
+    # им диск ДО НУЛЯ — до состояния, когда не выполняется ни одна команда,
+    # включая чистилку. Убирать после себя нельзя «не забыть»: это должно быть
+    # частью самой сборки.
+    (cd "$ROOT/apps/vibee-ios" && \
+      xcodebuild build -scheme Vibee \
+        -destination "platform=iOS Simulator,id=${UDID:-FC82900F-FB30-48E1-BBEE-0B672B71A096}" \
+        -derivedDataPath /tmp/dd 2>&1 | grep -E "error:|BUILD" | head -5)
+    rm -rf /tmp/dd
+    df -k /System/Volumes/Data | awk '{if(NR==2) printf "убрано за сборкой, свободно %d МБ\n", $4/1024}' ;;
   deps)
     # `npm ci`, а НЕ `npm install`.
     #
