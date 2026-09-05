@@ -480,6 +480,9 @@ import {
   refundByTid,
   TOKEN_PRICES,
   модельныеЦены,
+  посекунднаяМодель,
+  посекундныеМодели,
+  секундыКОплате,
   PER_SECOND_OPS,
   владелец,
 } from './src/agent/billing-shared'
@@ -3328,8 +3331,27 @@ const server = createServer(async (req, res) => {
         requestedModel = typeof model === 'string' ? model : undefined
         console.log(`🎬 [Generate] Video: ${model}, duration: ${duration}`)
 
+        /*
+         * СЧИТАЕМ СЕКУНДЫ, ЕСЛИ МОДЕЛЬ ПРОДАЁТСЯ ПО СЕКУНДАМ.
+         *
+         * Здесь стояла единица для ВСЕХ видеомоделей, а восемь из двенадцати
+         * тарифицируются посекундно: `kling/v3-turbo` стоит $0.09 в секунду,
+         * и десятисекундный ролик обходится в $0.90 при списании 36 токенов.
+         * Каждое такое видео было убытком, и тем большим, чем длиннее.
+         *
+         * Признак берётся из единицы цены KieAI, а не из списка видов: внутри
+         * «видео» единицы РАЗНЫЕ (8 «за секунду», 4 «за ролик»), поэтому
+         * пометка на виде не может быть верной в принципе.
+         */
+        const секунды = посекунднаяМодель(model) ? секундыКОплате(duration) : 1
+
         // Charge BEFORE spending the provider's money.
-        const billed = await chargeMiniAppUser(req, 'video_generate', 1, model)
+        const billed = await chargeMiniAppUser(
+          req,
+          'video_generate',
+          секунды,
+          model
+        )
         if (!billed.ok) {
           res.writeHead(billed.status, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ success: false, error: billed.reason }))
@@ -3613,6 +3635,12 @@ const server = createServer(async (req, res) => {
            *   видео   20 против 5 — запрет того, что человеку по карману.
            */
           modelPrices: модельныеЦены(),
+          /**
+           * Какие МОДЕЛИ считаются посекундно. `perSecond` ниже помечает виды
+           * работы, и для видео такая пометка невозможна: половина моделей
+           * вида берёт за секунду, половина за ролик.
+           */
+          perSecondModels: посекундныеМодели(),
           // Какие из этих цен — за секунду. Без этого клиент держит свой
           // список и расходится с нами молча.
           perSecond: PER_SECOND_OPS,
