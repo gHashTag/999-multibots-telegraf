@@ -120,7 +120,18 @@ async function getOwnerTelegramIds(botName: string): Promise<string[]> {
     .from('avatars')
     .select('telegram_id')
     .eq('bot_name', botName)
-  if (error || !data) return []
+  // A query failure and an owner-less bot are different facts, and the caller
+  // logs the second one ("No owners found") for both. That message is false
+  // when we simply could not look, and it is the only trace this path leaves.
+  // Control flow is deliberately unchanged -- this is observability only.
+  if (error) {
+    logger.error('[Billing] owners query failed, treating as no owners', {
+      botName,
+      error: error.message,
+    })
+    return []
+  }
+  if (!data) return []
   return data.map((r: { telegram_id: string }) => r.telegram_id).filter(Boolean)
 }
 
