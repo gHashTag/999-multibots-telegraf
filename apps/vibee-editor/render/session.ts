@@ -284,10 +284,30 @@ export function issueRefreshToken(now?: Date): RefreshIssue {
   }
 }
 
+/**
+ * Насколько недавнее повторное предъявление считается ГОНКОЙ, а не кражей.
+ *
+ * Разница между честным повтором и воровством не в самом факте повтора, а в
+ * ПРОМЕЖУТКЕ. Две вкладки одного браузера держат один и тот же refresh в
+ * localStorage и заводят таймер от одного и того же срока — они приходят с
+ * разницей в миллисекунды. Вор приходит тогда, когда ему удобно, и попадает
+ * между обновлениями законного клиента, то есть через минуты или часы: сам
+ * клиент ходит сюда раз в десять минут.
+ *
+ * Десять секунд отделяют одно от другого с огромным запасом в обе стороны.
+ */
+export const REUSE_GRACE_SECONDS = 10
+
 export type RotateOutcome =
   | { ok: true; next: RefreshIssue }
   | { ok: false; reason: 'unknown' | 'expired' | 'revoked' }
   | { ok: false; reason: 'reused'; familyId: string }
+  /**
+   * Тот же токен предъявлен дважды почти одновременно. Семья НЕ гасится:
+   * победитель гонки уже положил новый токен туда, откуда проигравший его
+   * прочитает.
+   */
+  | { ok: false; reason: 'raced' }
 
 /**
  * Rotate a refresh token, detecting reuse.
@@ -295,13 +315,37 @@ export type RotateOutcome =
  * A refresh token is single-use. Presenting one that has already been
  * exchanged means one of two things: the network dropped the reply and the
  * client is retrying honestly, or the token was stolen and both parties are
- * now using it. There is no way to tell them apart from the outside, so the
- * safe reading is theft — and the whole family is revoked, forcing a fresh
- * login on every device that descended from it.
+ * now using it. Guessing "just a retry" would let an attacker keep access
+ * indefinitely, so a stale reuse revokes the whole family.
  *
- * That is deliberately harsher than the alternative. The failure mode of
- * being wrong is one re-login; the failure mode of guessing "just a retry"
- * is an attacker keeping access indefinitely.
+ * ── ОДИН СИГНАЛ ВСЁ-ТАКИ ЕСТЬ, И ЗДЕСЬ ЕГО ДОЛГО НЕ ВИДЕЛИ ─────────────────
+ *
+ * Прежний текст на этом месте утверждал: «различить их снаружи невозможно».
+ * Невозможно по самому факту повтора — но не по ПРОМЕЖУТКУ до него.
+ *
+ * Две вкладки одного браузера держат общий refresh в localStorage и заводят
+ * таймер от общего срока: они приходят с разницей в миллисекунды. Это не
+ * редкость и не край — это то, что происходит у каждого, кто открыл
+ * приложение дважды. Расплата была максимальной из возможных: гасилась вся
+ * семья, человека выбрасывало из приложения, и вернуться он мог только через
+ * восьмизначный код из Telegram. Без единого злоумышленника.
+ *
+ * Поэтому повтор в пределах `REUSE_GRACE_SECONDS` — это `raced`: отказ без
+ * гашения. Проигравший гонку перечитает хранилище, где победитель уже оставил
+ * новый токен.
+ *
+ * Что при этом теряется, честно: вор, попавший в те же десять секунд, не
+ * будет замечен. Чтобы попасть, ему надо угадать момент, когда законный
+ * клиент — ходящий сюда раз в десять минут — как раз обновляется. Взамен
+ * исчезает выброс из приложения, случавшийся у людей ежедневно.
+ *
+ * ── ОТДЕЛЬНО ПРО ПРОИГРЫШ В `consumeAndInsert` ─────────────────────────────
+ *
+ * Эта ветка — гонка ПО ПОСТРОЕНИЮ: `find` увидел непотраченный токен, а
+ * `UPDATE … WHERE used_at IS NULL` не нашёл строки, значит её потратили в
+ * промежутке между двумя запросами. Промежуток тут исчисляется миллисекундами
+ * и никаким «через час» быть не может: вор с чужим токеном пришёл бы к
+ * `usedAt` выше. Гасить семью здесь было прямой ошибкой.
  *
  * The caller supplies storage: this module holds no database handle, which
  * is what makes it testable without one.
@@ -333,6 +377,10 @@ export async function rotateRefreshToken(
     return { ok: false, reason: 'expired' }
 
   if (row.usedAt) {
+    const прошлоСекунд = (t.getTime() - row.usedAt.getTime()) / 1000
+    if (прошлоСекунд <= REUSE_GRACE_SECONDS) {
+      return { ok: false, reason: 'raced' }
+    }
     const sessionIds = await store.revokeFamily(row.familyId)
     for (const sid of sessionIds) revokeNow(sid)
     return { ok: false, reason: 'reused', familyId: row.familyId }
@@ -340,11 +388,7 @@ export async function rotateRefreshToken(
 
   const next = issueRefreshToken(t)
   const consumed = await store.consumeAndInsert(hash, next.hash, next.expiresAt)
-  if (!consumed) {
-    const sessionIds = await store.revokeFamily(row.familyId)
-    for (const sid of sessionIds) revokeNow(sid)
-    return { ok: false, reason: 'reused', familyId: row.familyId }
-  }
+  if (!consumed) return { ok: false, reason: 'raced' }
   return { ok: true, next }
 }
 

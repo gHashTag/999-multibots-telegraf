@@ -91,6 +91,43 @@ export async function refreshAppSession(): Promise<AppSession> {
       error?: string
       detail?: string
     }
+    /*
+     * ГОНКА ВКЛАДОК: ЧИСТИТЬ СЕССИЮ ЗДЕСЬ — ЗНАЧИТ ВЫГНАТЬ ЧЕЛОВЕКА ЗРЯ.
+     *
+     * `refreshInFlight` — переменная модуля, то есть одна НА ВКЛАДКУ, а
+     * refresh лежит в localStorage, общем для всех вкладок одного браузера.
+     * Две открытые вкладки заводят таймер от одного и того же срока и приходят
+     * обновляться с разницей в миллисекунды. Одна выигрывает и кладёт новый
+     * токен в хранилище; вторая узнаёт об этом по 409.
+     *
+     * Ответ на 409 — перечитать хранилище, а не стирать его: победитель уже
+     * положил туда то, что нужно. Одна попытка, без цикла: если там всё ещё
+     * прежний токен, значит дело не в гонке, и общая ветка ниже отработает
+     * честно.
+     */
+    if (response.status === 409 && body.error === 'auth_refresh_raced') {
+      await new Promise(готово => setTimeout(готово, 400))
+      const свежий = storage()?.getItem(REFRESH_KEY) || ''
+      if (свежий && свежий !== refreshToken && generation === sessionGeneration) {
+        const access = getAppAccessToken()
+        const expiresAt = Number(storage()?.getItem(EXPIRES_KEY) || 0)
+        if (access) {
+          const сессия: AppSession = {
+            access_token: access,
+            refresh_token: свежий,
+            expires_in: Math.max(
+              1,
+              Math.round((expiresAt - Date.now()) / 1000)
+            ),
+          }
+          // Записать, а не просто вернуть: `storeAppSession` заново заводит
+          // таймер обновления. Без этого проигравшая вкладка дожила бы до
+          // конца access-токена и больше не обновилась бы никогда.
+          storeAppSession(сессия)
+          return сессия
+        }
+      }
+    }
     if (
       !response.ok ||
       typeof body.access_token !== 'string' ||
