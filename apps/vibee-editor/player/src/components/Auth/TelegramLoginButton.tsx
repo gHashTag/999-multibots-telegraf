@@ -210,7 +210,16 @@ export function TelegramLoginButton({
 interface UserAvatarProps {
   user: TelegramUser
   avatarUrl?: string // Use avatar_url from database instead of user.photo_url
-  onLogout: () => void
+  /**
+   * Выход. НЕОБЯЗАТЕЛЕН — и это главное в этом типе.
+   *
+   * Внутри мини-аппа выходить не из чего: личность даёт сам запуск Telegram,
+   * а `telegramAutoLoginAtom` возвращает её при следующем же рендере. Кнопка
+   * там не просто ничего не делала — она оставляла экран в противоречии:
+   * шапка предлагала «Войти», а человек уже был снова опознан, и профиль
+   * показывал «Пользователь не найден». Замерено вживую 07.09.2026.
+   */
+  onLogout?: () => void
 }
 
 export function UserAvatar({
@@ -250,13 +259,19 @@ export function UserAvatar({
         )}
         <span className="user-name">{user.first_name}</span>
       </Link>
-      <button
-        onClick={onLogout}
-        className="logout-btn"
-        title={t('auth.logout')}
-      >
-        &times;
-      </button>
+      {/*
+        ВЫХОД ПОКАЗЫВАЕТСЯ ТОЛЬКО ТАМ, ГДЕ ЕМУ ЕСТЬ ЧТО ЗАКРЫТЬ.
+        Условие живёт в Header: здесь мы лишь не рисуем то, чего не дали.
+      */}
+      {onLogout && (
+        <button
+          onClick={onLogout}
+          className="logout-btn"
+          title={t('auth.logout')}
+        >
+          &times;
+        </button>
+      )}
     </div>
   )
 }
