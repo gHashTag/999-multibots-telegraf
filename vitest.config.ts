@@ -54,6 +54,22 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
+      /**
+       * РАБОЧИЕ КОПИИ АГЕНТОВ — НЕ ЧАСТЬ ПРОЕКТА.
+       *
+       * `.claude/worktrees/<id>` заводит воркфлоу с изоляцией; они должны
+       * убираться сами, но убираются не всегда. Двенадцать оставшихся копий
+       * весили 5,1 ГБ и ПОПАДАЛИ В ПРОГОН: `bun run verify` шёл больше
+       * пятнадцати минут вместо ста секунд (весь набор запускался дважды) и
+       * падал с «Cannot find package 'bun:test'» — в копии не тот
+       * `node_modules`.
+       *
+       * Ни одна из тех поломок не относилась к коду: все 12 упавших файлов
+       * лежали в `.claude/worktrees/wf_78a9fb44-5be-1`. То есть единственная
+       * замена CI показывала красное из-за собственного мусора инструмента —
+       * ровно тот случай, когда проверка перестаёт нести сигнал.
+       */
+      '.claude/worktrees/**',
       // Three more files fail at MODULE LOAD, so not one assertion in them
       // ever runs — the same reason as the list below:
       //   plugin-neurophoto/**/generateImage.test.ts imports 'bun:test';
