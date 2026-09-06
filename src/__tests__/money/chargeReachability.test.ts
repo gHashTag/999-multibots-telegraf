@@ -128,6 +128,19 @@ const actual = (): string[] => {
 }
 
 describe('the set of callers that can reach a charge is frozen', () => {
+  /*
+   * БЮДЖЕТ ВРЕМЕНИ ЗАДАН ЯВНО.
+   *
+   * Этот сторож читает граф импортов ВСЕГО `src` — работа на секунды, а не на
+   * миллисекунды. С умолчанием vitest в 5000 мс он падал по времени (замер:
+   * 5376, 6225 и 7848 мс) на машине под нагрузкой, и падал КАК ОБЫЧНЫЙ ОТКАЗ:
+   * «набор мест, способных списать деньги, изменился» — сообщение, которое
+   * пугает и не соответствует действительности.
+   *
+   * Срок, истекающий раньше, чем работа успевает закончиться, превращает
+   * медленную машину в красный тест и обесценивает сторожа: его начинают
+   * перезапускать вместо того, чтобы читать.
+   */
   it('the graph is read from source, not from a mask', () => {
     // The first version read import specifiers from a blank-code mask and found
     // ZERO importers for every file in the repository -- the module path lives
@@ -135,11 +148,11 @@ describe('the set of callers that can reach a charge is frozen', () => {
     // a broken instrument, not a clean repository, and the self-check refuses an
     // implausibly empty graph for exactly that reason.
     expect(() => reach.selfCheck(ROOT)).not.toThrow()
-  })
+  }, 30_000)
 
   it('floor: there are charging services outside scenes to be reached at all', () => {
     expect(chargingServices().length).toBeGreaterThan(10)
-  })
+  }, 30_000)
 
   it('no NEW file can reach a charge', () => {
     expect(
@@ -149,7 +162,7 @@ describe('the set of callers that can reach a charge is frozen', () => {
         `for one user action (an in-progress flag, a consume-once mark set BEFORE ` +
         `the charge, or step.run), then add it to REACHABLE_FROM.`
     ).toEqual([])
-  })
+  }, 30_000)
 
   it('no listed caller lost its route to a charge (the list is not a wish list)', () => {
     const now = actual()
@@ -157,5 +170,5 @@ describe('the set of callers that can reach a charge is frozen', () => {
       REACHABLE_FROM.filter(f => !now.includes(f)),
       'these no longer reach a charge -- drop them, or the list reads as coverage of routes that no longer exist'
     ).toEqual([])
-  })
+  }, 30_000)
 })
