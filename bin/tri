@@ -173,6 +173,42 @@ case "${1:-}" in
     fi
     ;;
 
+  session)
+    # ЖИЗНЬ СЕССИИ: сроки, окно гонки и то, как на неё отвечают три клиента.
+    #
+    # Урок 07.09.2026: повторное предъявление refresh-токена читалось как
+    # кража и гасило ВСЮ семью. Но две вкладки одного браузера держат общий
+    # токен в localStorage и обновляются с разницей в миллисекунды -- то есть
+    # человека выкидывало из приложения ежедневно, без злоумышленника.
+    # Различает их не факт повтора, а ПРОМЕЖУТОК.
+    R=apps/vibee-editor/render
+    echo "— сроки —"
+    grep -n "ACCESS_TTL_SECONDS = \|REFRESH_TTL_SECONDS = \|REUSE_GRACE_SECONDS = " \
+      "$R/session.ts" | sed 's|^|  |'
+    echo "— как отвечают на гонку —"
+    for F in "$R/session-routes.ts:сервер" \
+             "apps/vibee-editor/player/src/lib/appSession.ts:мини-апп" \
+             "apps/vibee-ios/Vibee/Identity.swift:iOS"; do
+      # ИМЕНА ТОЛЬКО ASCII. Кириллическая переменная в bash -- это "command
+      # not found", и цикл продолжает крутиться дальше: здесь он напечатал
+      # "НЕТ" про все три клиента, то есть выдал уверенную ложь вместо ошибки.
+      FILE="${F%%:*}"; NAME="${F##*:}"
+      if [ ! -f "$FILE" ]; then
+        echo "  $NAME: файла нет ($FILE) -- проверка НЕ выполнена"
+      elif grep -q "auth_refresh_raced" "$FILE"; then
+        echo "  $NAME: гонка отличается от кражи"
+      else
+        echo "  $NAME: НЕТ -- повтор читается как кража, человека выбросит"
+      fi
+    done
+    echo "— выход гасит семью, а не одну сессию —"
+    if grep -q "SELECT family_id FROM app_sessions" "$R/session-routes.ts"; then
+      echo "  да"
+    else
+      echo "  НЕТ -- после «Выйти» может остаться живой 60-дневный токен"
+    fi
+    ;;
+
   feed-hide)
     # СКРЫТЬ ВСЁ, КРОМЕ ОДНОГО. Скрытие обратимо: маршрут ставит `deleted_at`,
     # а повторная публикация того же имени его снимает. Удаления здесь нет и

@@ -322,8 +322,29 @@ extension Identity {
       return false
     }
     let тело = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+    let код = (resp as? HTTPURLResponse)?.statusCode ?? 0
 
-    guard (resp as? HTTPURLResponse)?.statusCode == 200,
+    /*
+     * ГОНКА — НЕ КОНЕЦ СЕССИИ.
+     *
+     * Здесь нет защиты от одновременных обновлений вовсе: два запроса,
+     * получившие 401, зовут `refreshSession()` каждый, и второй предъявляет
+     * токен, который первый уже потратил. На вебе такое даёт две вкладки; тут
+     * хватает двух экранов.
+     *
+     * Раньше любой отказ вёл к `forget()` — то есть человек, ничего не сделав,
+     * оказывался выкинут и шёл за восьмизначным кодом. Сервер теперь отвечает
+     * на такое 409 и НИЧЕГО не отзывает: победитель гонки уже положил новый
+     * токен в Keychain, и его достаточно прочитать.
+     *
+     * `forget()` здесь не зовётся ни в одной ветке — в этом весь смысл правки.
+     */
+    if код == 409, (тело["error"] as? String) == "auth_refresh_raced" {
+        if let свежий = refreshToken, свежий != rt { return true }
+        return false
+    }
+
+    guard код == 200,
           let новыйRefresh = тело["refresh_token"] as? String,
           let новыйAccess = тело["access_token"] as? String
     else {
