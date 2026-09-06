@@ -48,10 +48,10 @@
   <div class="sub">каждые 15 минут · задание <code>29549cb5</code> · обновлено 06.09.2026, 02:25</div>
 
   <div class="cards">
-    <div class="card"><div class="n ok">94</div><div class="k">влито</div></div>
+    <div class="card"><div class="n ok">95</div><div class="k">влито</div></div>
     <div class="card"><div class="n warn">6</div><div class="k">открыто</div></div>
-    <div class="card"><div class="n bad">36</div><div class="k">своих ошибок признано</div></div>
-    <div class="card"><div class="n acc">624</div><div class="k">тестов зелёные</div></div>
+    <div class="card"><div class="n bad">39</div><div class="k">своих ошибок признано</div></div>
+    <div class="card"><div class="n acc">860</div><div class="k">тестов зелёные: 625 сервер + 195 веб + 40 iOS</div></div>
   </div>
 
   <h2>Статус смены</h2>
@@ -75,6 +75,12 @@
     <tr><td>Превью 72pt и в редакторе тоже</td><td><span class="tag t-ok">закрыто</span></td><td>скриншот: кадр из ролика читается (#2000)</td></tr>
     <tr><td>Экран говорит «за 1000 знаков»</td><td><span class="tag t-ok">закрыто</span></td><td>8 тестов; на экране ждёт сессии (#2001)</td></tr>
     <tr><td>История вкладки — своя, а не по дорожке</td><td><span class="tag t-ok">закрыто</span></td><td>липсинк больше не показывает чужой ролик (#2002)</td></tr>
+    <tr><td><b>Список посекундных врал обоим клиентам</b></td><td><span class="tag t-ok">закрыто</span></td><td>8 моделей из 12; приложение гасило кнопку при 20 за работу в 5 (#2027)</td></tr>
+    <tr><td>«Нет в списке» больше не значит «плоская цена»</td><td><span class="tag t-ok">закрыто</span></td><td>липсинк остаётся посекундным видом: 2 теста iOS + 2 веба (#2027)</td></tr>
+    <tr><td>Веб умножает цену на количество</td><td><span class="tag t-ok">закрыто</span></td><td>2500 знаков по 12 — кнопка называет 36 (#2027)</td></tr>
+    <tr><td>Ворота, причина и чек на ЧЕТВЁРТОЙ кнопке</td><td><span class="tag t-ok">закрыто</span></td><td>скриншот «Липсинк»: кнопка говорит, чего не хватает (#2027)</td></tr>
+    <tr><td>Чек не переезжает на чужую вкладку</td><td><span class="tag t-ok">закрыто</span></td><td>стирается на входе в каждую генерацию (#2027)</td></tr>
+    <tr><td><b>Выбор голоса и скорости не доходит до провайдера</b></td><td><span class="tag t-hole">дыра</span></td><td>звук делает Replicate minimax, ему шлют только текст</td></tr>
     <tr><td><code>userAtom</code> не восстанавливается из сессии</td><td><span class="tag t-hole">дыра</span></td><td>шапка рисует «Войти» при живом токене</td></tr>
     <tr><td>У постов нет постоянных ссылок</td><td><span class="tag t-hole">дыра</span></td><td>поделиться роликом нельзя вовсе</td></tr>
     <tr><td>Лента: скрыть свои, оставить одно интро</td><td><span class="tag t-open">ждёт</span></td><td>нужен id поста — <code>tri feed</code></td></tr>
@@ -114,7 +120,7 @@
     <tr><td>Сценарий</td><td><span class="tag t-open">открыто</span> четвёртый выход «Посты» — в приложении три</td></tr>
     <tr><td>Фото</td><td><span class="tag t-open">решение</span> веб даёт 5 кураторских моделей с описаниями, приложение — 14 сырых имён KieAI</td></tr>
     <tr><td>Фото</td><td><span class="tag t-open">открыто</span> соотношение 4:3 (в приложении три варианта)</td></tr>
-    <tr><td>Липсинк</td><td><span class="tag t-open">открыто</span> запись звука с микрофона; разрешение 480p/720p</td></tr>
+    <tr><td>Липсинк</td><td><span class="tag t-open">открыто</span> запись звука с микрофона; разрешение 480p/720p — <i>проверено grep'ом: приложение зашивает 480p, выбора нет</i></td></tr>
   </table></div>
 
   <h2>Команды смены</h2>
