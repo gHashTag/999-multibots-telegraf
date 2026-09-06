@@ -23,7 +23,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { пуститьПопытку, источникЗапроса } from './src/entry-throttle'
+import { пуститьВход } from './src/entry-throttle'
 import crypto from 'node:crypto'
 import {
   verifyTelegramInitData,
@@ -426,6 +426,24 @@ export async function handleAuthRoute(
 
   // ─── Exchange: a verified Telegram signature becomes a session ─────────
   if (path === '/api/auth/telegram' && req.method === 'POST') {
+    /*
+     * ТОРМОЗ: дверь неаутентифицированная и подпись сверяется с КАЖДЫМ токеном ботов платформы — до четырнадцати HMAC на попытку.
+     *
+     * Подпись защищает от подделки, но не от потока: без ограничения любой
+     * может заставить сервис считать и ходить в базу столько, сколько
+     * пропустит сеть. Тот же тормоз, что на подборе кода.
+     */
+    {
+      const пуск = пуститьВход(req)
+      if (!пуск.можно) {
+        res.setHeader('Retry-After', String(пуск.ждатьСекунд))
+        json(res, 429, {
+          error: 'слишком часто — подождите и попробуйте снова',
+          ждать_секунд: пуск.ждатьСекунд,
+        })
+        return true
+      }
+    }
     let body: Record<string, unknown>
     try {
       body = JSON.parse((await readBody(req)) || '{}')
@@ -465,6 +483,24 @@ export async function handleAuthRoute(
 
   // ─── Browser login: verified Login Widget payload becomes a session ───
   if (path === '/api/auth/widget' && req.method === 'POST') {
+    /*
+     * ТОРМОЗ: дверь неаутентифицированная и проверка подписи считает SHA256+HMAC на каждую попытку.
+     *
+     * Подпись защищает от подделки, но не от потока: без ограничения любой
+     * может заставить сервис считать и ходить в базу столько, сколько
+     * пропустит сеть. Тот же тормоз, что на подборе кода.
+     */
+    {
+      const пуск = пуститьВход(req)
+      if (!пуск.можно) {
+        res.setHeader('Retry-After', String(пуск.ждатьСекунд))
+        json(res, 429, {
+          error: 'слишком часто — подождите и попробуйте снова',
+          ждать_секунд: пуск.ждатьСекунд,
+        })
+        return true
+      }
+    }
     let body: Record<string, unknown>
     try {
       body = JSON.parse((await readBody(req)) || '{}')
@@ -584,7 +620,7 @@ export async function handleAuthRoute(
      * Стоит ПЕРВЫМ: считать попытку после разбора тела значит позволить
      * заваливать сервис телами, которые всё равно будут отвергнуты.
      */
-    const пуск = пуститьПопытку(источникЗапроса(req))
+    const пуск = пуститьВход(req)
     if (!пуск.можно) {
       res.setHeader('Retry-After', String(пуск.ждатьСекунд))
       json(res, 429, {
@@ -662,6 +698,24 @@ export async function handleAuthRoute(
 
   // ─── Refresh ───────────────────────────────────────────────────────────
   if (path === '/api/auth/refresh' && req.method === 'POST') {
+    /*
+     * ТОРМОЗ: дверь неаутентифицированная и обмен ходит в базу на КАЖДУЮ попытку — незнакомый токен стоит запроса.
+     *
+     * Подпись защищает от подделки, но не от потока: без ограничения любой
+     * может заставить сервис считать и ходить в базу столько, сколько
+     * пропустит сеть. Тот же тормоз, что на подборе кода.
+     */
+    {
+      const пуск = пуститьВход(req)
+      if (!пуск.можно) {
+        res.setHeader('Retry-After', String(пуск.ждатьСекунд))
+        json(res, 429, {
+          error: 'слишком часто — подождите и попробуйте снова',
+          ждать_секунд: пуск.ждатьСекунд,
+        })
+        return true
+      }
+    }
     let body: Record<string, unknown>
     try {
       body = JSON.parse((await readBody(req)) || '{}')
@@ -719,6 +773,39 @@ export async function handleAuthRoute(
     }
 
     const s = row.rows[0]
+
+    /*
+     * ЕСЛИ У СЕССИИ ЕСТЬ КЛЮЧ УСТРОЙСТВА — ПРЕДЪЯВИ ЕГО.
+     *
+     * До этой правки записанный при входе `device_pubkey` не проверялся
+     * НИГДЕ: ни при обмене, ни при использовании токена доступа. Колонка
+     * заполнялась и не работала, а комментарий в session.ts утверждал, что
+     * токен «привязан к одному устройству».
+     *
+     * Правило намеренно одностороннее: требуем совпадения ТОЛЬКО у сессий, у
+     * которых ключ записан. Клиенты, которые его не присылают (сегодня —
+     * все), продолжают работать; тот, кто пришлёт, сразу получает настоящую
+     * привязку. Именно этого хотел автор `deviceThumbprint`: «колонка есть,
+     * она заполнится».
+     *
+     * Это не криптографическое доказательство владения — предъявленный ключ
+     * такой же предъявляемый секрет, как и сам refresh-токен. Но украсть
+     * теперь нужно оба, а не один, и это честная разница, которую можно
+     * назвать вслух, не выдавая за большее.
+     */
+    const записанный = String(s.device_pubkey ?? '')
+    if (записанный) {
+      const предъявленный = deviceThumbprint(body)
+      if (предъявленный !== записанный) {
+        json(res, 401, {
+          error: 'auth_refresh_failed',
+          detail:
+            'этот refresh-токен выдан другому устройству — войдите заново',
+        })
+        return true
+      }
+    }
+
     await pool.query(
       `UPDATE app_sessions SET last_seen_at = now() WHERE id = $1`,
       [s.id]
