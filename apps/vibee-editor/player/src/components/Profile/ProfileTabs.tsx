@@ -4,6 +4,7 @@ import { ProfileFilesGrid } from './ProfileFilesGrid'
 import { ProfileSkills } from './ProfileSkills'
 import { ProfilePlan } from './ProfilePlan'
 import { ProfilePending } from './ProfilePending'
+import { ConnectTelegram } from './ConnectTelegram'
 import { useIsOwnProfile } from './useIsOwnProfile'
 import { ProfileBlog } from './ProfileBlog'
 import { SoulEditor } from './SoulEditor'
@@ -236,7 +237,18 @@ export function ProfileTabs() {
 
         {visibleActiveTab === 'soul' && <SoulEditor />}
 
-        {visibleActiveTab === 'agent' && <PairWithApp />}
+        {visibleActiveTab === 'agent' && (
+          <>
+            <PairWithApp />
+            {/*
+              Подключение Telegram живёт во вкладке «Агент», а не отдельной:
+              это и есть то, ЧЕМ агент будет пользоваться. Рядом с ключом
+              подключения оно читается как продолжение одной мысли, а не как
+              отдельная настройка, до которой ещё надо додуматься.
+            */}
+            <ConnectTelegram />
+          </>
+        )}
 
         {visibleActiveTab === 'blog' && <ProfileBlog />}
 
