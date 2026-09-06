@@ -166,7 +166,7 @@ export async function ensureAuthTables(pool: Pool): Promise<void> {
    * The code crosses the gap through the person's eyes, not through a URL.
    * A deep link would have been fewer taps, but a refresh token in a query
    * string lands in logs, in pasteboard history, and in whatever app renders
-   * the link. Six digits read off one screen and typed into another leave no
+   * the link. Digits read off one screen and typed into another leave no
    * copy anywhere.
    *
    * `code_hash` is the primary key and the raw code has NO column: a database

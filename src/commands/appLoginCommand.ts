@@ -10,7 +10,7 @@ import {
  * /app — the button the iOS app's sign-in screen has been telling people to press.
  *
  * WHAT WAS BROKEN. `/api/auth/pair/start` and `/api/auth/pair/claim` were both
- * written, tested and deployed; the app's six-digit screen works. But nothing
+ * written, tested and deployed; the app's code screen works. But nothing
  * anywhere ever called `start`, so no code could be minted. The app said "open
  * the bot and press Sign in" and no such button existed. An instruction that
  * leads nowhere is worse than a missing feature: it makes the user believe they
@@ -61,7 +61,10 @@ appLoginCommand.command('app', async ctx => {
         // (PAIRING.DIGITS) и уже менялась. Текст, повторяющий число
         // руками, разошёлся бы с настоящим кодом молча.
         'Нажмите кнопку — откроется окно с кодом. Введите его в приложении на вкладке «Профиль».\n\nКод живёт несколько минут и работает один раз.'
-      : 'Press the button — a window opens with a six-digit code. Enter it in the app under “Profile”.\n\nThe code lasts a few minutes and works once.',
+      : // Длина НЕ названа и здесь: русский текст выше её не называет по
+        // той же причине, а английский называл — и разошёлся, как только
+        // сервер поднял длину с шести цифр до восьми.
+        'Press the button — a window opens with your code. Enter it in the app under “Profile”.\n\nThe code lasts a few minutes and works once.',
     Markup.inlineKeyboard([
       [
         Markup.button.webApp(

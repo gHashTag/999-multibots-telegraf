@@ -48,7 +48,7 @@ import {
 } from './session-store'
 
 /**
- * Six digits from `randomInt`, not from `Math.random`.
+ * Digits from `randomInt`, not from `Math.random`. How many — PAIRING.DIGITS.
  *
  * `Math.random` is seeded predictably enough that a stream of its output can
  * be extrapolated; that is fine for shuffling a playlist and disqualifying for
@@ -686,7 +686,7 @@ export async function handleAuthRoute(
      * ТОРМОЗ ДО РАЗБОРА ТЕЛА.
      *
      * Дверь не требует личности и не может её требовать: у входящего ещё
-     * ничего нет. Единственное, чем можно ограничить перебор шестизначного
+     * ничего нет. Единственное, чем можно ограничить перебор
      * кода, — частота обращений с источника.
      *
      * Стоит ПЕРВЫМ: считать попытку после разбора тела значит позволить
