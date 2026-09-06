@@ -40,6 +40,14 @@ export interface Пул {
 export type РольРеплики = 'user' | 'assistant'
 
 export interface Реплика {
+  /*
+   * НОМЕР ОТДАЁТСЯ КЛИЕНТУ, иначе удаление одной реплики невозможно.
+   *
+   * Маршрут удаления принимает `?id=`, а история его не возвращала — то есть
+   * возможность была написана, покрыта тестами и недостижима. Найдено при
+   * попытке убрать собственные проверочные реплики из разговора владельца.
+   */
+  id?: number
   role: РольРеплики
   content: string
   /** Откуда пришла: чтобы в общем разговоре было видно, где человек писал. */
@@ -136,7 +144,7 @@ export async function прочитатьРазговор(
   await убедитьсяВТаблице(pool)
   const n = Math.max(1, Math.min(500, Math.floor(предел) || РЕПЛИК_ПО_УМОЛЧАНИЮ))
   const r = await pool.query(
-    `SELECT role, content, surface, created_at::text AS created_at
+    `SELECT id, role, content, surface, created_at::text AS created_at
        FROM agent_messages
       WHERE telegram_id = $1
       ORDER BY id DESC
@@ -144,6 +152,7 @@ export async function прочитатьРазговор(
     [String(telegramId), n]
   )
   return (r.rows || []).reverse().map(row => ({
+    id: row.id == null ? undefined : Number(row.id),
     role: row.role as РольРеплики,
     content: String(row.content),
     surface: String(row.surface || 'unknown'),
