@@ -107,13 +107,61 @@ enum API {
     let total_likes: Int?
   }
 
-  /// Профиль по своему telegram_id: единственное, что приложение о себе знает.
+  /**
+   * Профиль по своему telegram_id: единственное, что приложение о себе знает.
+   *
+   * ── ИМЯ ПРИХОДИТ ПУСТЫМ, И ЭТО ОБЫЧНОЕ ДЕЛО ──────────────────────────────
+   *
+   * Найдено аудитом паритета 07.09.2026. `GET /api/users/id/:telegram_id`
+   * отвечает **200** с `username: null`, когда у человека ещё нет
+   * опубликованного профиля (render-server.ts:9122-9134). Здесь стояло
+   * `let username: String` — НЕобязательное поле, — и `JSONDecoder` бросал.
+   *
+   * Ронялся при этом не запрос, а ВЕСЬ ЭКРАН: человек видел «Профиль не
+   * загрузился» и ни слова о том, что загружать нечего. То есть у всякого,
+   * кто ещё ничего не опубликовал, профиль в приложении не открывался вовсе —
+   * а это ровно те, кто пришёл первый раз.
+   *
+   * Поле необязательное, а отсутствие имени — отдельный, названный случай.
+   */
+  enum ПрофильError: LocalizedError {
+    case имениНет
+
+    var errorDescription: String? {
+      switch self {
+      case .имениНет:
+        return "Профиль ещё не создан: у аккаунта нет @имени. "
+          + "Задайте его в Telegram («Настройки» → «Имя пользователя») и вернитесь."
+      }
+    }
+  }
+
   static func profile(telegramId: String) async throws -> Profile {
-    struct ById: Decodable { let username: String }
+    struct ById: Decodable { let username: String? }
     let (d, _) = try await URLSession.shared.data(
       from: base.appendingPathComponent("api/users/id/\(telegramId)"))
-    let username = try JSONDecoder().decode(ById.self, from: d).username
-    return try await profile(username: username)
+    let имя = (try? JSONDecoder().decode(ById.self, from: d))?.username
+    guard let имя, !имя.isEmpty else { throw ПрофильError.имениНет }
+    return try await profile(username: имя)
+  }
+
+  /**
+   * SOUL — визитка человека, которую читают и люди, и агенты.
+   *
+   * Тот же адрес, что у веба (`SoulCard.tsx:76`): один источник, иначе два
+   * клиента однажды покажут разные визитки одного человека.
+   *
+   * Пустой SOUL — НЕ ошибка: у большинства его просто нет. Поэтому здесь
+   * `String?`, а не бросок: отсутствие визитки не должно ронять профиль.
+   */
+  static func soul(username: String) async throws -> String? {
+    struct Ответ: Decodable { let soul: String? }
+    let (d, resp) = try await URLSession.shared.data(
+      from: base.appendingPathComponent("api/soul/\(username)"))
+    guard (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+    let текст = try? JSONDecoder().decode(Ответ.self, from: d).soul
+    let чистый = текст?.trimmingCharacters(in: .whitespacesAndNewlines)
+    return (чистый?.isEmpty ?? true) ? nil : чистый
   }
 
   static func profile(username: String) async throws -> Profile {
@@ -661,7 +709,14 @@ extension API {
    * refresh одноразовый, и сервер считает повторное предъявление кражей,
    * отзывая всю семью сессий.
    */
-  private static func сЛичностью(_ запрос: URLRequest) async throws -> (Data, HTTPURLResponse) {
+  /*
+   * ВИДИМОСТЬ ПОДНЯТА ДО `internal` НАМЕРЕННО.
+   *
+   * `Connect` (подключение своего Telegram) обязан ходить с ТОЙ ЖЕ личностью и
+   * с тем же обновлением протухшей сессии. Своя копия этой логики разошлась бы
+   * с этой — так в этом проекте уже расходились две двери подряд.
+   */
+  static func сЛичностью(_ запрос: URLRequest) async throws -> (Data, HTTPURLResponse) {
     func послать() async throws -> (Data, HTTPURLResponse) {
       var r = запрос
       for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
