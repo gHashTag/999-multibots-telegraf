@@ -102,6 +102,29 @@ export function SoulEditor() {
     }
   }
 
+  const [перевожу, setПеревожу] = useState(false)
+  const перевести = async () => {
+    setПеревожу(true)
+    try {
+      const о = await fetch(`${API_BASE}/api/soul/translate`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: draft }),
+      })
+      const д = await о.json().catch(() => null)
+      if (!о.ok || !д?.text) throw new Error(д?.error || `HTTP ${о.status}`)
+      setDraft(д.text as string)
+    } catch (e) {
+      // Отказ ПОКАЗАН, а не проглочен: кнопка, которая молча ничего не
+      // делает, читается как поломка и жмётся снова.
+      setError(
+        `Перевод не вышел: ${e instanceof Error ? e.message : String(e)}`
+      )
+    } finally {
+      setПеревожу(false)
+    }
+  }
+
   return (
     <section className="soul-editor">
       <h2>
@@ -129,6 +152,24 @@ export function SoulEditor() {
         >
           {saving ? <Loader2 size={14} className="spin" /> : <Save size={14} />}
           <span>{savedFlash ? t('soul.saved') : t('soul.save')}</span>
+        </button>
+        {/*
+          ПЕРЕВОД ОДНИМ НАЖАТИЕМ.
+
+          SOUL открыт, и по нему знакомятся — знакомятся не только
+          по-русски. Переписывать его вручную второй раз человек не станет, и
+          открытый профиль остался бы читаемым половине.
+
+          Перевод кладём В ПОЛЕ, а не сохраняем: это черновик, и решает
+          человек. Молча заменить чужие слова о себе нельзя даже переводом.
+        */}
+        <button
+          type="button"
+          className="soul-editor__template"
+          disabled={перевожу || !draft.trim()}
+          onClick={() => void перевести()}
+        >
+          {перевожу ? 'Перевожу…' : 'На английский'}
         </button>
         {!soul && (
           <button

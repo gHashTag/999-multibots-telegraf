@@ -9407,6 +9407,132 @@ const server = createServer(async (req, res) => {
   }
 
   // POST /api/ai/generate-script
+  /**
+   * ПЕРЕВОД SOUL НА АНГЛИЙСКИЙ — ОДНИМ НАЖАТИЕМ.
+   *
+   * SOUL открыт и по нему знакомятся; знакомятся не только по-русски.
+   * Переписывать его вручную второй раз — работа, которую человек делать не
+   * станет, и открытый профиль останется читаемым половине.
+   *
+   * Возвращаем ТЕКСТ, а не сохраняем: перевод — это черновик, и решает
+   * человек. Молча заменить чужие слова о себе нельзя даже переводом.
+   *
+   * Тот же список провайдеров, что у сценария: заводить второй значило бы
+   * получить второй набор ключей и второе место, где они кончаются.
+   */
+  if (req.url === '/api/soul/translate' && req.method === 'POST') {
+    const кто = chatIdentity(req, verifiedTelegramId(req))
+    if (!кто) {
+      sendJson(res, 401, { success: false, error: 'unauthorized' })
+      return
+    }
+    let body = ''
+    req.on('data', (c: Buffer) => {
+      body += c.toString()
+    })
+    req.on('end', async () => {
+      try {
+        const { text } = JSON.parse(body || '{}')
+        const исходник = String(text ?? '').slice(0, 8000)
+        if (!исходник.trim()) {
+          sendJson(res, 400, { success: false, error: 'текст пуст' })
+          return
+        }
+        const провайдер = ПЕРВЫЙ_ЖИВОЙ_ПРОВАЙДЕР()
+        if (!провайдер) {
+          // Причина названа: «не получилось» человек читает как поломку и
+          // жмёт снова, а ключа от этого не появится.
+          sendJson(res, 503, {
+            success: false,
+            error: 'ни один провайдер текста не подключён',
+          })
+          return
+        }
+        const о = await fetch(провайдер.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${провайдер.key}`,
+          },
+          body: JSON.stringify({
+            model: провайдер.model,
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'Translate the user\'s SOUL.md into natural English. ' +
+                  'Keep the markdown structure and heading levels exactly. ' +
+                  'Do not add, drop or soften anything: this is what a person ' +
+                  'says about themselves. Answer with the translation only.',
+              },
+              { role: 'user', content: исходник },
+            ],
+          }),
+        })
+        if (!о.ok) {
+          sendJson(res, 502, {
+            success: false,
+            error: `${провайдер.имя}: HTTP ${о.status}`,
+          })
+          return
+        }
+        const д = (await о.json()) as {
+          choices?: { message?: { content?: string } }[]
+        }
+        const перевод = д.choices?.[0]?.message?.content?.trim()
+        if (!перевод) {
+          sendJson(res, 502, {
+            success: false,
+            error: `${провайдер.имя} вернул пустой ответ`,
+          })
+          return
+        }
+        // Кто перевёл — в ответе: выбор мог не сбыться, и разница между
+        // «выбрал» и «ответил» должна читаться, а не угадываться по стилю.
+        sendJson(res, 200, {
+          success: true,
+          text: перевод,
+          provider: провайдер.имя,
+          model: провайдер.model,
+        })
+      } catch (e) {
+        sendJson(res, 500, { success: false, error: String(e) })
+      }
+    })
+    return
+  }
+
+  /**
+   * Первый провайдер текста, у которого есть ключ.
+   *
+   * Список тот же, что у сценария, и живёт он там же — здесь только выбор
+   * первого живого. Вторая копия списка разошлась бы с первой на первой же
+   * правке: это уже случалось с ценами, с голосами и со списком моделей.
+   */
+  const ПЕРВЫЙ_ЖИВОЙ_ПРОВАЙДЕР = () => {
+    const все = [
+      {
+        имя: 'xAI',
+        url: 'https://api.x.ai/v1/chat/completions',
+        key: process.env.XAI_API_KEY,
+        model: 'grok-beta',
+      },
+      {
+        имя: 'z.ai',
+        url: 'https://api.z.ai/api/coding/paas/v4/chat/completions',
+        key: process.env.GLM_API_KEY,
+        model: 'glm-5.3',
+      },
+      {
+        имя: 'KieAI',
+        url: 'https://api.kie.ai/v1/chat/completions',
+        key: process.env.KIE_AI_API_KEY,
+        model: 'gpt-5-2',
+      },
+    ]
+    return все.find((п): п is typeof п & { key: string } => Boolean(п.key))
+  }
+
   if (req.url === '/api/ai/generate-script' && req.method === 'POST') {
     let body = ''
     req.on('data', chunk => {

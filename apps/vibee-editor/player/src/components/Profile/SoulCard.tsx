@@ -26,6 +26,47 @@ interface SoulCardProps {
 /** Сколько строк показать свёрнутой карточкой. */
 const СТРОК_В_ПРЕВЬЮ = 6
 
+/**
+ * SOUL — ЭТО ТЕКСТ С ЗАГОЛОВКАМИ, А НЕ ИСХОДНИК MARKDOWN.
+ *
+ * Карточка показывала файл как есть, и человек читал решётки: «# Мой SOUL»,
+ * «## Кто я». Решётка — разметка для машины; тому, кто знакомится, она
+ * говорит только, что мы не потрудились её убрать.
+ *
+ * Разбираем ровно то подмножество, которым SOUL и написан: заголовки двух
+ * уровней и абзацы. Полноценный разборщик markdown сюда не тянем — он принёс
+ * бы таблицы, ссылки и картинки, которых в SOUL нет, и вместе с ними
+ * возможность выполнить чужую разметку на нашей странице.
+ *
+ * Текст вставляется ТЕКСТОМ, а не разметкой: SOUL пишет человек, и его слова
+ * не должны превращаться в HTML на чужом экране.
+ */
+function разметить(строки: string[]) {
+  return строки.map((строка, i) => {
+    const чистая = строка.trim()
+    if (!чистая) return <div key={i} className="soul-card__gap" />
+    if (чистая.startsWith('## ')) {
+      return (
+        <h3 key={i} className="soul-card__h2">
+          {чистая.slice(3)}
+        </h3>
+      )
+    }
+    if (чистая.startsWith('# ')) {
+      return (
+        <h3 key={i} className="soul-card__h1">
+          {чистая.slice(2)}
+        </h3>
+      )
+    }
+    return (
+      <p key={i} className="soul-card__p">
+        {чистая}
+      </p>
+    )
+  })
+}
+
 export function SoulCard({ username, isOwn, onEdit }: SoulCardProps) {
   const [текст, setТекст] = useState<string | null>(null)
   const [развёрнуто, setРазвёрнуто] = useState(false)
@@ -51,7 +92,7 @@ export function SoulCard({ username, isOwn, onEdit }: SoulCardProps) {
   const строки = текст.split('\n')
   const длинный = строки.length > СТРОК_В_ПРЕВЬЮ
   const показать =
-    развёрнуто || !длинный ? текст : строки.slice(0, СТРОК_В_ПРЕВЬЮ).join('\n')
+    развёрнуто || !длинный ? строки : строки.slice(0, СТРОК_В_ПРЕВЬЮ)
 
   return (
     <section className="soul-card" data-soul-owner={username}>
@@ -77,7 +118,7 @@ export function SoulCard({ username, isOwn, onEdit }: SoulCardProps) {
         </p>
       ) : (
         <>
-          <pre className="soul-card__text">{показать}</pre>
+          <div className="soul-card__text">{разметить(показать)}</div>
           {длинный && (
             <button
               type="button"

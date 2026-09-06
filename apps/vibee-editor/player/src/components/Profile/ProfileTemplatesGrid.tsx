@@ -12,7 +12,11 @@ import {
   Pause,
 } from 'lucide-react'
 import { useSetAtom } from 'jotai'
-import { deleteTemplateAtom, editTemplateAtom } from '@/atoms'
+import {
+  deleteTemplateAtom,
+  editTemplateAtom,
+  useTemplateAtom,
+} from '@/atoms'
 import type { FeedTemplate } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { API_BASE } from '../../config'
@@ -65,6 +69,27 @@ export function ProfileTemplatesGrid({
   const activePreviewRef = useRef<number | null>(null)
 
   const editTemplate = useSetAtom(editTemplateAtom)
+  const useTemplate = useSetAtom(useTemplateAtom)
+  const [беруId, setБеруId] = useState<number | null>(null)
+  /**
+   * Взять чужой шаблон себе. Чужой пост не трогаем — создаётся СВОЯ копия в
+   * редакторе, и ошибка называется словами: молчащая кнопка неотличима от
+   * сломанной.
+   */
+  const взятьШаблон = async (template: FeedTemplate) => {
+    setБеруId(template.id)
+    setActionError(null)
+    try {
+      await useTemplate(template.id)
+      navigate('/editor')
+    } catch (e) {
+      setActionError(
+        `Не вышло взять: ${e instanceof Error ? e.message : String(e)}`
+      )
+    } finally {
+      setБеруId(null)
+    }
+  }
   const deleteTemplate = useSetAtom(deleteTemplateAtom)
 
   const loadTemplates = useCallback(
@@ -575,6 +600,36 @@ export function ProfileTemplatesGrid({
                     </span>
                   </div>
                 </div>
+
+                {/*
+                  ГОСТЮ — СВОЯ КНОПКА.
+
+                  У хозяина правка и удаление; у гостя на карточке не было
+                  НИЧЕГО — только счётчики. Витрина, из которой нельзя ничего
+                  взять, это не витрина.
+
+                  «Взять» кладёт шаблон в редактор гостя ремиксом: чужой пост
+                  при этом не меняется, а счётчик `uses_count`, который уже
+                  есть в данных и уже показан на карточке, начинает наконец
+                  что-то считать.
+                */}
+                {!isOwn && (
+                  <div className="profile-templates__social-actions">
+                    <button
+                      type="button"
+                      className="profile-templates__social-action"
+                      aria-label={`Взять шаблон ${template.name}`}
+                      disabled={беруId === template.id}
+                      onClick={() => void взятьШаблон(template)}
+                    >
+                      {беруId === template.id ? (
+                        <Loader2 className="spinning" size={16} />
+                      ) : (
+                        <Plus size={16} />
+                      )}
+                    </button>
+                  </div>
+                )}
 
                 {isOwn && (
                   <div className="profile-templates__social-actions">
