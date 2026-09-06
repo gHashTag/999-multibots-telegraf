@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { PAIRING } from './session-store'
 import crypto from 'node:crypto'
 import { Readable } from 'node:stream'
 
@@ -289,7 +290,15 @@ describe('вход по коду: сквозной путь', () => {
       пул as any
     )
     expect(о1.код).toBe(200)
-    expect(о1.тело.code).toMatch(/^\d{6}$/)
+    /*
+     * Длина берётся из PAIRING.DIGITS, а не из числа в регулярке.
+     *
+     * Число здесь уже разошлось с настройкой: длину подняли до восьми ради
+     * стойкости (10^8 вместо 10^6), а проверка продолжала требовать шесть.
+     * Она честно упала — и заодно доказала, что энтропия настоящая: выдался
+     * восьмизначный код, а не шестизначный, дополненный нулями.
+     */
+    expect(о1.тело.code).toMatch(new RegExp(`^\\d{${PAIRING.DIGITS}}$`))
 
     // 2. Приложение: подписи нет вообще, есть только шесть цифр.
     const о2 = ответ()
