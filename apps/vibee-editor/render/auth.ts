@@ -324,6 +324,13 @@ const PUBLIC_GET_PREFIXES = [
   // /branding/avatar/<id> — картинка, она и так публична в Telegram.
   '/branding',
   '/api/voices',
+  /*
+   * SOUL ОТКРЫТ НА ЧТЕНИЕ. На нём строится знакомство: люди находят друг
+   * друга по интересам, а агенты a2a — людей. Закрытый SOUL связывать никого
+   * не может. Правка идёт другим путём (инструменты MCP) и личность
+   * по-прежнему требует.
+   */
+  '/api/soul/',
 ]
 
 export function isPublic(req: IncomingMessage): boolean {

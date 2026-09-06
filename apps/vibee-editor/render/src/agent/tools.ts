@@ -1776,6 +1776,55 @@ export const TOOLS: AgentTool[] = [
   },
 
   {
+    /**
+     * SOUL ДРУГОГО ЧЕЛОВЕКА — ПО ИМЕНИ, БЕЗ ПОДПИСИ.
+     *
+     * SOUL.md открыт намеренно: на нём строится знакомство. Человек находит
+     * человека по интересам, а внешний агент a2a — обоих. Закрытый SOUL
+     * связывать никого не может, и без этого инструмента агент мог прочитать
+     * только СВОЙ — то есть не мог найти никого.
+     *
+     * Только чтение. Правка чужого SOUL невозможна: `soul_edit` пишет строго
+     * по личности вызывающего.
+     */
+    name: 'soul_of',
+    description:
+      'Прочитать ОТКРЫТЫЙ SOUL.md другого человека по его имени пользователя: ' +
+      'кем он себя считает, какие у него темы и интересы. Нужен, чтобы находить ' +
+      'людей по интересам и предлагать знакомство. Правки чужого SOUL нет.',
+    parameters: {
+      type: 'object',
+      properties: {
+        username: {
+          type: 'string',
+          description: 'Имя пользователя без «@», как в профиле.',
+        },
+      },
+      required: ['username'],
+    },
+    async handler(a: Record<string, unknown>, ctx) {
+      const имя = String(a.username ?? '').replace(/^@/, '').trim()
+      if (!имя) return { ok: false, error: 'нужно имя пользователя' }
+      const r = await ctx.pool.query(
+        `SELECT us.content, us.updated_at::text AS updated_at, p.username
+           FROM profiles p
+           LEFT JOIN user_soul us ON us.telegram_id = p.telegram_id::text
+          WHERE p.username = $1
+          LIMIT 1`,
+        [имя]
+      )
+      if (r.rows.length === 0) return { ok: false, error: 'такого имени нет' }
+      // Пустой SOUL и отсутствующий человек — РАЗНЫЕ ответы: спутав их, агент
+      // пойдёт искать несуществующего.
+      return {
+        ok: true,
+        username: r.rows[0].username,
+        soul: r.rows[0].content ?? '',
+        updatedAt: r.rows[0].updated_at ?? null,
+      }
+    },
+  },
+  {
     name: 'soul_get',
     description:
       'Прочитать ЛИЧНЫЙ SOUL.md владельца: кем он себя считает, каким голосом писать его посты, ' +
