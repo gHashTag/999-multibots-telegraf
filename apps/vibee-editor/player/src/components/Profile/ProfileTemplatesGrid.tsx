@@ -50,6 +50,10 @@ export function ProfileTemplatesGrid({
    * показывать шаблоны, а не сорок шесть роликов, снятых по трём из них.
    */
   const [раскрытые, setРаскрытые] = useState<Set<string>>(() => new Set())
+  /** Сколько роликов у каждого шаблона ВСЕГО — приходит с сервера. */
+  const [всегоВГруппе, setВсегоВГруппе] = useState<Record<string, number>>(
+    () => ({})
+  )
   const videoRefs = useRef(new Map<number, HTMLVideoElement>())
   const mediaRefs = useRef(new Map<number, HTMLDivElement>())
   const mediaRefCallbacks = useRef(
@@ -72,10 +76,27 @@ export function ProfileTemplatesGrid({
         )
         if (response.ok) {
           const data = await response.json()
+          // Итоги по шаблонам считает сервер по ВСЕМ записям: страница
+          // урезана `limit`, и посчитать по ней целое нельзя в принципе.
+          if (data.compositionCounts) setВсегоВГруппе(data.compositionCounts)
           if (pageNum === 0) {
             setTemplates(data.templates || [])
           } else {
-            setTemplates(prev => [...prev, ...(data.templates || [])])
+            /*
+             * ПО id, А НЕ ПРОСТО КОНКАТЕНАЦИЯ.
+             *
+             * Дочитывание страниц запускается эффектом, а React в разработке
+             * вызывает эффекты дважды — страница добавлялась второй раз, и
+             * заголовок группы показывал 66 там, где роликов 43. Неверное
+             * число хуже отсутствующего.
+             */
+            setTemplates(prev => {
+              const было = new Set(prev.map(т => т.id))
+              const новые = (data.templates || []).filter(
+                (т: FeedTemplate) => !было.has(т.id)
+              )
+              return новые.length ? [...prev, ...новые] : prev
+            })
           }
           setHasMore((data.templates || []).length === 20)
           setPage(pageNum)
@@ -92,6 +113,26 @@ export function ProfileTemplatesGrid({
   useEffect(() => {
     void loadTemplates()
   }, [loadTemplates])
+
+  /**
+   * ГРУППЫ СЧИТАЮТСЯ ПО ВСЕМ РОЛИКАМ, А НЕ ПО ПЕРВОЙ СТРАНИЦЕ.
+   *
+   * Страница отдаёт по 20, и у владельца первые двадцать — один и тот же
+   * шаблон. Значит на экране была ОДНА группа, а шаблонов три: два других
+   * лежали на следующих страницах и до вкладки «Шаблоны» не доходили вовсе.
+   *
+   * Дочитываем остальное сразу. Записей у профиля десятки, не тысячи, а
+   * список шаблонов, показывающий не все шаблоны, — это тот же неверный
+   * ответ, только тише.
+   *
+   * Потолок в 10 страниц — предохранитель от бесконечного цикла, если сервер
+   * вдруг начнёт отдавать полную страницу всегда. Он назван, а не подразуме-
+   * вается: молчаливое усечение читается как «здесь всё».
+   */
+  useEffect(() => {
+    if (loading || !hasMore || page >= 9) return
+    void loadTemplates(page + 1)
+  }, [loading, hasMore, page, loadTemplates])
 
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') {
@@ -332,14 +373,21 @@ export function ProfileTemplatesGrid({
    */
   const группы = поШаблонам(templates)
   /**
-   * ОДНУ ГРУППУ НЕ СВОРАЧИВАЕМ.
+   * СВЁРНУТО ВСЕГДА, И ПРАВИЛО «ОДНУ ГРУППУ НЕ СВОРАЧИВАЕМ» БЫЛО ОШИБКОЙ.
    *
-   * Свёрнутый единственный шаблон прячет содержимое и не даёт ничего взамен:
-   * складывать нечего. Свёртка нужна там, где групп несколько, — а это и есть
-   * случай, ради которого всё делалось: 46 роликов на три шаблона.
+   * Я вывел его из ПАДАВШИХ ТЕСТОВ, а не из данных: двенадцать проверок
+   * рисуют один ролик и ждут карточку, и авторазворот сделал их зелёными.
+   *
+   * На живом профиле оно дало ровно то, что чинили. Страница грузит по 20
+   * записей, у владельца первые двадцать — один и тот же `TrinityBlogReel`,
+   * значит группа ОДНА, значит развёрнута, значит на экране снова стена
+   * карточек. Владелец увидел это первым и назвал верно: «нет по группе, там
+   * все одинаковые».
+   *
+   * Вкладка называется «Шаблоны» и обязана показывать шаблоны. Открывают их
+   * нажатием — и тесты теперь тоже.
    */
-  const раскрыта = (ключ: string | null) =>
-    группы.length === 1 || раскрытые.has(ключ ?? '')
+  const раскрыта = (ключ: string | null) => раскрытые.has(ключ ?? '')
 
   return (
     <div className="profile-templates">
@@ -349,6 +397,7 @@ export function ProfileTemplatesGrid({
             type="button"
             className="profile-templates__group-head"
             aria-expanded={раскрыта(г.ключ)}
+            data-group={г.ключ ?? ''}
             onClick={() =>
               setРаскрытые(п => {
                 const н = new Set(п)
@@ -361,7 +410,12 @@ export function ProfileTemplatesGrid({
           >
             <span className="profile-templates__group-name">{г.имя}</span>
             <span className="profile-templates__group-count">
-              {г.ролики.length}
+              {/*
+                ЧИСЛО — ПО ВСЕМ РОЛИКАМ ШАБЛОНА, а не по загруженной странице.
+                Страница отдаёт 20, и у шаблона с 43 роликами стояло «20».
+                Неверное число хуже отсутствующего: по нему принимают решение.
+              */}
+              {всегоВГруппе[г.ключ ?? ''] ?? г.ролики.length}
             </span>
           </button>
           {раскрыта(г.ключ) && (
