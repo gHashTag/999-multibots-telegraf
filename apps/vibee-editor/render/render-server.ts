@@ -5,7 +5,11 @@ import { KIE_MODELS } from './src/agent/kie-models'
 import { РАЗРЕШЕНИЕ_ЛИПСИНКА, поляМоделей } from './src/agent/kie-web-provider'
 // Голоса и вход того провайдера, который реально отдаёт mp3. См. модуль:
 // экран показывал чужие голоса, а выбор до провайдера не доходил.
-import { ГОЛОСА_MINIMAX, входМиниМакс } from './src/agent/minimax-voices'
+import {
+  ГОЛОСА_MINIMAX,
+  входМиниМакс,
+  имяДляElevenLabs,
+} from './src/agent/minimax-voices'
 import * as dns from 'node:dns'
 import {
   запустить as startKieJob, // cyrillic-ok
@@ -4133,10 +4137,16 @@ const server = createServer(async (req, res) => {
             const kieModel = reviewedKieModel('audio', model)!
             const result = await runExplicitKieJob(kieModel, {
               text,
-              voice:
-                typeof voice_name === 'string' && voice_name.trim()
-                  ? voice_name.trim()
-                  : 'Rachel',
+              /*
+               * ИМЯ — ТОЛЬКО ТО, ЧТО ЭТОТ ПРОВАЙДЕР УЗНАЕТ.
+               *
+               * Здесь стояло «взять `voice_name` как есть», и это было верно,
+               * пока список голосов был от ElevenLabs. Теперь он от MiniMax:
+               * приходит «Максим — уверенный», а нога ждёт «Rachel». Чужая
+               * строка даёт отказ на ПЕРВОЙ ноге — то есть удлиняет путь до
+               * звука ради имени, которого здесь не поймут.
+               */
+              voice: имяДляElevenLabs(voice_name) ?? 'Rachel',
               stability: 0.5,
               similarity_boost: 0.75,
               style: 0,
