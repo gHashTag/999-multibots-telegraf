@@ -57,6 +57,22 @@ describe('aiPhotoshop batch refunds reconcile the exact charge', () => {
     const idx: Array<[number, string]> = []
     let m: RegExpExecArray | null
     while ((m = re.exec(s))) idx.push([m.index, m[1]])
+    // A floor before the bound. If `modelKey === '...'` stops matching -- a
+    // rename, a switch rewritten as a map -- idx is empty, offenders is empty,
+    // and this batch-refund ratchet passes over nothing at all. Measured
+    // 2026-09-06: 18 model blocks, of which 4 carry skipBalanceCheck.
+    expect(
+      idx.length,
+      'no model blocks found -- the matcher is stale'
+    ).toBeGreaterThan(10)
+    const skipping = idx.filter(([start], i) => {
+      const end = i + 1 < idx.length ? idx[i + 1][0] : start + 2500
+      return /skipBalanceCheck:\s*true/.test(s.slice(start, end))
+    })
+    expect(
+      skipping.length,
+      'no batch block skips the balance check -- the subject of this ratchet is gone'
+    ).toBeGreaterThan(2)
     const offenders: string[] = []
     for (let i = 0; i < idx.length; i++) {
       const [start, name] = idx[i]

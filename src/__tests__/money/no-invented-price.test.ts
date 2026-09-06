@@ -129,6 +129,11 @@ describe('цена не выдумывается', () => {
     // Узко: только там, где число попадает в списание.
     const MONEY_PATH = /^src\/(handlers|scenes|core\/openai|services)\//
     const CHARGE = /(costPerImage|paymentAmount|totalCost|upscaleCost)/
+    // A floor before the bound. `expect(fresh).toEqual([])` is satisfied by an
+    // empty scan, so a broken walk or a renamed directory would turn this
+    // money ratchet green at the moment it stopped looking. Measured
+    // 2026-09-06: the walk finds 718 production sources.
+    expect(FILES.length, 'the source walk found nothing').toBeGreaterThan(500)
     const fresh = invented().filter(h => {
       const file = h.split(':')[0]
       return MONEY_PATH.test(file) && CHARGE.test(h)

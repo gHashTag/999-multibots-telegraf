@@ -64,8 +64,13 @@ describe('the session field the cancel button refunds', () => {
     // The ratchet. A non-zero write is only honest if the code that made it
     // had just performed a debit -- which is why reintroducing one has to fail
     // here and be argued for, rather than slipping in as "restoring a refund".
+    // A floor before the bound. An empty walk gives an empty offender list and
+    // this ratchet reports health while seeing nothing. Measured 2026-09-06:
+    // 718 production sources.
+    const sources = productionSources()
+    expect(sources.length, 'the source walk found nothing').toBeGreaterThan(500)
     const offenders: string[] = []
-    for (const f of productionSources()) {
+    for (const f of sources) {
       for (const m of matchCode(read(f), WRITE)) {
         const assigned = m[1].trim()
         if (/^0\b/.test(assigned)) continue
