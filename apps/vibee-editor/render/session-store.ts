@@ -31,19 +31,25 @@ let готово = false
 export async function ensureAuthTables(pool: Pool): Promise<void> {
   if (готово) return
 
-  // Pending authorization requests. Short-lived by design: a row older than
-  // five minutes is a request nobody finished, and keeping it alive only
-  // widens the window in which a stolen `state` is worth something.
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS oidc_auth_requests (
-      state text PRIMARY KEY,
-      code_verifier text NOT NULL,
-      device_pubkey text NOT NULL,
-      device_name text,
-      created_at timestamptz NOT NULL DEFAULT now(),
-      expires_at timestamptz NOT NULL,
-      consumed_at timestamptz
-    )`)
+  /*
+   * ЗДЕСЬ ЗАВОДИЛАСЬ ТАБЛИЦА `oidc_auth_requests` — И БОЛЬШЕ НИГДЕ НЕ
+   * УПОМИНАЛАСЬ.
+   *
+   * Ни одной вставки, ни одного чтения во всём репозитории: заготовка под
+   * вход по OIDC с PKCE (`state`, `code_verifier`), который так и не был
+   * написан. Создавалась она при каждом запуске сервиса.
+   *
+   * Убрана не ради экономии — таблица пустая и ничего не стоила. Убрана
+   * потому, что схема ОПИСЫВАЕТ ДВЕРИ: читающий её видел четвёртый способ
+   * войти и был вправе считать, что он есть. Ровно та же неправда, что поле
+   * `dkt` с подписью «привязывает токен к устройству», которое никто не
+   * проверял. Заготовка, неотличимая от работающего кода, — это долг с
+   * отрицательной ставкой.
+   *
+   * На существующих базах строка `CREATE TABLE IF NOT EXISTS` и так ничего не
+   * делала: таблица там давно есть и остаётся, пустая. Удалять её оттуда
+   * миграцией — отдельная работа, к входу отношения не имеющая.
+   */
 
   // A session is one device. Revocation works on this row, and the in-memory
   // set in session.ts is filled from it.
@@ -117,6 +123,37 @@ export async function ensureAuthTables(pool: Pool): Promise<void> {
       assertion_hash text PRIMARY KEY,
       telegram_id text NOT NULL,
       consumed_at timestamptz NOT NULL DEFAULT now()
+    )`)
+
+  /**
+   * ОДИН ЗАПУСК МИНИ-АППА — ОДНА СЕМЬЯ ТОКЕНОВ.
+   *
+   * Найдено при разборе входа 07.09.2026. Подпись Login Widget одноразовая:
+   * `app_widget_assertions` не даёт предъявить её дважды. У initData такой
+   * защиты не было вовсе, а живёт она 24 часа — значит одну и ту же строку
+   * можно предъявлять сколько угодно раз, и КАЖДЫЙ раз рождалась новая
+   * НЕЗАВИСИМАЯ семья на шестьдесят дней.
+   *
+   * Так суточный пропуск превращался в двухмесячный, причём во множестве
+   * копий, не связанных друг с другом: человек нажимает «Выйти», гасится его
+   * семья, а чужая — заведённая той же строкой — продолжает жить.
+   *
+   * Одноразовость здесь не годится: initData выдаётся на запуск, а запросов
+   * на вход внутри запуска может быть больше одного (повтор после обрыва
+   * сети, две вкладки — см. `REUSE_GRACE_SECONDS`). Поэтому не «нельзя
+   * дважды», а «дважды — та же семья»: повторный вход по той же строке
+   * продлевает существующую сессию вместо того, чтобы заводить рядом вторую.
+   *
+   * Хранится только отпечаток строки: сама initData несёт подпись, по которой
+   * можно представиться человеком.
+   */
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_launch_families (
+      assertion_hash text PRIMARY KEY,
+      telegram_id text NOT NULL,
+      family_id text NOT NULL,
+      session_id text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
     )`)
 
   /**
@@ -370,6 +407,22 @@ export async function pollRevocations(pool: Pool): Promise<number> {
   )
   const ids = r.rows.map((x: any) => String(x.id))
   setRevokedSessions(ids)
+
+  /*
+   * Заодно убираем отработавшие записи о запусках.
+   *
+   * `app_launch_families` растёт по строке на КАЖДЫЙ запуск мини-аппа, а
+   * смысла живёт ровно столько же, сколько сама initData, — сутки. Дальше
+   * запись бесполезна: по ней уже никто не войдёт, потому что подпись
+   * просрочена.
+   *
+   * Уборка стоит здесь, а не отдельным таймером: опрос отзывов уже ходит по
+   * расписанию и уже держит соединение. Второй таймер — вторая движущаяся
+   * часть, которая однажды остановится незаметно.
+   */
+  await pool.query(
+    `DELETE FROM app_launch_families WHERE created_at < now() - interval '2 days'`
+  )
   return ids.length
 }
 
