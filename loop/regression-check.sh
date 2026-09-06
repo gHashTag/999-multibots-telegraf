@@ -113,29 +113,35 @@ if [ "${REGRESS_PROBE_PROD:-0}" = "1" ]; then
     code=$(curl -s -m 15 -o /dev/null -w '%{http_code}' "https://vibee-editor-production.up.railway.app$fpath")
     check "прод-фронт $fpath" 200 "$code"
   done
-  # Вебхук кассира звёзд: слетал разово (цикл №64) — теперь под надзором
-  # каждого зонда. Кассовый токен живёт в vibee-render, печатать нельзя.
+  # ПРИЁМ АПДЕЙТОВ У КАССИРА. Зонд перевёрнут 06.09.2026: раньше он требовал,
+  # чтобы вебхук СТОЯЛ, и был зелёным ровно тогда, когда бот молчал.
+  #
+  # Вебхук стоял с allowed_updates, где `successful_payment` — не тип апдейта,
+  # а поле внутри `message`; Telegram выбрасывал его молча, оставляя один
+  # `pre_checkout_query`. Пока вебхук стоит, getUpdates отвечает 409, а сервис
+  # бота при виде вебхука опрос не запускал. Итог: ни одного сообщения за всё
+  # время, включая оплаты клуба, и ни одной транзакции звёзд.
+  #
+  # Теперь приёмник один — опрос, — и признак здоровья обратный: вебхука быть
+  # НЕ должно. Кассовый токен живёт в vibee-render, печатать нельзя.
   PAYBOT=$(railway variables list -s vibee-render -e production --kv 2>/dev/null | grep ^TOKENS_PAYMENT_BOT_TOKEN= | cut -d= -f2-)
   if [ -n "$PAYBOT" ]; then
-    wh=$(curl -s -m 10 "https://api.telegram.org/bot${PAYBOT}/getWebhookInfo" | python3 -c "import json,sys; u=json.load(sys.stdin)['result'].get('url',''); print('ok' if 'stars-wh' in u else 'gone')" 2>/dev/null)
-    check "вебхук кассира" ok "$wh"
+    wh=$(curl -s -m 10 "https://api.telegram.org/bot${PAYBOT}/getWebhookInfo" | python3 -c "import json,sys; u=json.load(sys.stdin)['result'].get('url',''); print('gone' if not u else 'set')" 2>/dev/null)
+    check "у кассира нет вебхука (принимает опросом)" gone "$wh"
   fi
 fi
 
-# Страж кассира (цикл №220): локальный мост до деплоя периодического
-# re-set. Умерший страж = окно «оплачено, но не зачислено» снова 25+ мин.
-say "— Страж кассира —"
-if [ -f loop/.cashier-watch.pid ]; then
-  wpid=$(cat loop/.cashier-watch.pid)
-  if ps -p "$wpid" > /dev/null 2>&1; then
-    say "  ✅ страж жив (PID $wpid)"
-  else
-    say "  ❌ СТРАЖ УМЕР (PID $wpid) — поднять: nohup zsh loop/cashier-watch.sh > /dev/null 2>&1 & echo \$! > loop/.cashier-watch.pid"
-    fail=1
-  fi
-else
-  say "  ⚠️ страж не запускался (окей, если фикс кассира уже задеплоен)"
-fi
+# Страж кассира УБРАН вместе с тем, что он сторожил.
+#
+# Страж каждые 5 минут возвращал вебхук, если тот пропал. Пока вебхук стоит,
+# бот не может принимать сообщения опросом (409), а сам вебхук был разрешён
+# только на pre_checkout_query — значит страж круглосуточно возвращал систему
+# в состояние «бот молчит». Он был мостом до постоянного фикса; фикс сделан
+# обратный тому, что задумывался, и мост больше не нужен.
+#
+# Зонд выше проверяет ровно то, что теперь важно: у кассира НЕТ вебхука.
+# Проверка живости стража была красной и до этой правки: процесса нет с
+# неизвестного момента, а PID-файл остался.
 
 say "— Очередь и состояние —"
 python3 - <<'PYEOF'
