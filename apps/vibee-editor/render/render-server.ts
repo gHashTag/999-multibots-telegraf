@@ -6841,7 +6841,8 @@ const server = createServer(async (req, res) => {
         updatedAt: r.rows[0].updated_at ?? null,
       })
     } catch (e) {
-      sendJson(res, 500, { success: false, error: String(e) })
+      console.error('[render] ошибка обработчика:', e)
+      sendJson(res, 500, { success: false, error: 'внутренняя ошибка — подробность в журнале сервера' })
     }
     return
   }
@@ -6928,7 +6929,8 @@ const server = createServer(async (req, res) => {
       )
       sendJson(res, 200, { success: true, coverUrl: результат.url })
     } catch (e) {
-      sendJson(res, 500, { success: false, error: String(e) })
+      console.error('[render] ошибка обработчика:', e)
+      sendJson(res, 500, { success: false, error: 'внутренняя ошибка — подробность в журнале сервера' })
     }
     return
   }
@@ -6980,7 +6982,8 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ success: true, templates: r.rows }))
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ success: false, error: String(e) }))
+      console.error('[render] ошибка обработчика:', e)
+      res.end(JSON.stringify({ success: false, error: 'внутренняя ошибка — подробность в журнале сервера' }))
     }
     return
   }
@@ -7030,7 +7033,8 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ success: true, id: r.rows[0].id }))
       } catch (e) {
         res.writeHead(500, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ success: false, error: String(e) }))
+        console.error('[render] ошибка обработчика:', e)
+      res.end(JSON.stringify({ success: false, error: 'внутренняя ошибка — подробность в журнале сервера' }))
       }
     })
     return
@@ -7614,7 +7618,13 @@ const server = createServer(async (req, res) => {
           res.end(JSON.stringify({ ok: true, link: tgd.result }))
         } catch (e) {
           res.writeHead(500, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: false, error: String(e).slice(0, 300) }))
+          console.error('[render] ошибка обработчика:', e)
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: понятнаяПричина(e),
+            })
+          )
         }
         return
       }
@@ -7759,7 +7769,13 @@ const server = createServer(async (req, res) => {
           )
         } catch (e) {
           res.writeHead(500, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: false, error: String(e).slice(0, 300) }))
+          console.error('[render] ошибка обработчика:', e)
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: понятнаяПричина(e),
+            })
+          )
         }
         return
       }
@@ -7880,7 +7896,13 @@ const server = createServer(async (req, res) => {
         } catch (e) {
           console.error('[STARS] credit error:', e)
           res.writeHead(500, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ ok: false, error: String(e).slice(0, 300) }))
+          console.error('[render] ошибка обработчика:', e)
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: понятнаяПричина(e),
+            })
+          )
         }
         return
       }
@@ -8728,7 +8750,7 @@ const server = createServer(async (req, res) => {
       res.end(
         JSON.stringify({
           снято: false,
-          error: `не удалось снять: ${String(e).slice(0, 160)}`,
+          error: `не удалось снять: ${понятнаяПричина(e)}`,
         })
       )
     }
@@ -9727,7 +9749,8 @@ const server = createServer(async (req, res) => {
           model: провайдер.model,
         })
       } catch (e) {
-        sendJson(res, 500, { success: false, error: String(e) })
+        console.error('[render] ошибка обработчика:', e)
+      sendJson(res, 500, { success: false, error: 'внутренняя ошибка — подробность в журнале сервера' })
       }
     })
     return
@@ -10222,6 +10245,33 @@ function broadcastWS(message: WSMessage, exclude?: WebSocket) {
 export { broadcastWS }
 
 // Start server
+/**
+ * ПРИЧИНА, ПОНЯТНАЯ ЧЕЛОВЕКУ, БЕЗ СЫРОГО ТЕКСТА ИСКЛЮЧЕНИЯ.
+ *
+ * Отдавать `String(e)` наружу нельзя: вместе с причиной уходят пути файлов,
+ * имена таблиц и куски запросов. Но и общее «что-то пошло не так» здесь
+ * вредно — эти маршруты про оплату и подключение аккаунта, где «неверный
+ * код» и «слишком много попыток» человек исправляет по-разному.
+ *
+ * Поэтому известные причины называются словами, а всё остальное сводится к
+ * одной общей строке. Подробность остаётся в журнале сервера.
+ */
+function понятнаяПричина(e: unknown): string {
+  const т = String(e)
+  if (/PHONE_CODE_INVALID/i.test(т)) return 'код неверный — проверьте и введите заново'
+  if (/PHONE_CODE_EXPIRED/i.test(т)) return 'код истёк — запросите новый'
+  if (/PHONE_NUMBER_INVALID/i.test(т)) return 'номер не принят Telegram — проверьте формат'
+  if (/PASSWORD_HASH_INVALID/i.test(т)) return 'пароль двухфакторной защиты не подошёл'
+  if (/FLOOD_WAIT_(\d+)/i.test(т)) {
+    const m = /FLOOD_WAIT_(\d+)/i.exec(т)
+    return `Telegram просит подождать ${m ? m[1] : 'немного'} секунд`
+  }
+  if (/SESSION_PASSWORD_NEEDED/i.test(т)) return 'нужен пароль двухфакторной защиты'
+  // Сообщения, которые мы формулируем сами, безопасны и полезны.
+  if (e instanceof Error && /^[А-Яа-яЁё]/.test(e.message)) return e.message.slice(0, 200)
+  return 'не получилось — подробность в журнале сервера'
+}
+
 async function main() {
   await startSessionRevocationSync()
   await initBundle()
