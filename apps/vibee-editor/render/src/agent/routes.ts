@@ -27,6 +27,12 @@ import { TOOLS_BY_NAME, toMcpTools } from './tools'
 import { runAgent, type ChatMessage } from './chat'
 import { resolveProvider } from './provider'
 import { verifiedTelegramId } from '../../auth'
+import {
+  записатьРеплику,
+  прочитатьРазговор,
+  собратьОтвет,
+  РЕПЛИК_ПО_УМОЛЧАНИЮ,
+} from './conversation'
 
 /**
  * CONSTANT-TIME key comparison.
@@ -382,10 +388,53 @@ export async function handleAgentChat(
     'X-Accel-Buffering': 'no',
   })
 
+  /*
+   * ГДЕ ЧЕЛОВЕК ПИШЕТ. Бот и мини-апп — один разговор, но видеть, с какой
+   * стороны пришла реплика, полезно и человеку, и агенту. Значение приходит
+   * от клиента, поэтому НЕ доверяем ему слепо: берём короткое известное слово
+   * или «unknown».
+   */
+  const ИЗВЕСТНЫЕ_ПОВЕРХНОСТИ = new Set(['miniapp', 'bot', 'agent', 'ios'])
+  const поверхность = ИЗВЕСТНЫЕ_ПОВЕРХНОСТИ.has(String(body.surface))
+    ? String(body.surface)
+    : 'unknown'
+
   try {
     const pool = await getPool()
+
+    /*
+     * Записываем ПОСЛЕДНЮЮ реплику человека, а не всю присланную историю:
+     * клиент шлёт весь свой транскрипт каждым запросом, и запись целиком
+     * дублировала бы разговор на каждом витке.
+     */
+    const последняя = history[history.length - 1]
+    if (последняя?.role === 'user') {
+      await записатьРеплику(pool, telegramId, {
+        role: 'user',
+        content: String(последняя.content ?? ''),
+        surface: поверхность,
+      }).catch(() => {
+        // Хранение — удобство, а не условие разговора. Упавшая запись не
+        // должна лишать человека ответа: он и так уже ждёт.
+      })
+    }
+
+    const события: Array<{ тип?: string; текст?: string }> = []
     for await (const ev of runAgent(history, { telegramId, pool })) {
+      события.push(ev as { тип?: string; текст?: string })
       res.write(JSON.stringify(ev) + '\n')
+    }
+
+    const ответ = собратьОтвет(события)
+    if (ответ) {
+      await записатьРеплику(pool, telegramId, {
+        role: 'assistant',
+        content: ответ,
+        surface: поверхность,
+      }).catch(() => {
+        // Ответ человек уже получил потоком; потерянная запись — потеря
+        // памяти, а не ответа.
+      })
     }
   } catch (e) {
     res.write(
@@ -393,6 +442,37 @@ export async function handleAgentChat(
     )
   }
   res.end()
+}
+
+/**
+ * GET /api/agent/history — общий разговор владельца, откуда бы он ни писал.
+ *
+ * Пока этого маршрута не было, «синхронизировать» было нечего: история жила в
+ * localStorage одного браузера. Теперь обе поверхности читают одно место.
+ *
+ * Личность НЕ берётся из запроса: telegramId приходит уже проверенным от
+ * диспетчера. Иначе любой мог бы прочитать чужой разговор, назвав чужой id.
+ */
+export async function handleAgentHistory(
+  req: IncomingMessage,
+  res: ServerResponse,
+  telegramId: string,
+  getPool: () => any
+) {
+  const предел = Number(
+    new URL(req.url || '', 'http://x').searchParams.get('limit') || 0
+  )
+  try {
+    const pool = await getPool()
+    const реплики = await прочитатьРазговор(
+      pool,
+      telegramId,
+      предел > 0 ? предел : РЕПЛИК_ПО_УМОЛЧАНИЮ
+    )
+    return json(res, 200, { ok: true, messages: реплики })
+  } catch (e) {
+    return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
+  }
 }
 
 /** SHA-256 hex ключа — то, что храним в БД вместо самого ключа (как пароль). */
