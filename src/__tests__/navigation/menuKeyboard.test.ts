@@ -20,7 +20,7 @@ import {
   navigateToCategory,
 } from '@/navigation/helpers/menuKeyboard'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
-import { CATEGORIES } from '@/navigation/config/categories.config'
+import { CATEGORIES, getCategoryText } from '@/navigation/config/categories.config'
 
 // Mock logger
 vi.mock('@/utils/logger', () => ({
@@ -108,14 +108,27 @@ describe('menuKeyboard', () => {
       })
     })
 
-    it('содержит все категории', () => {
+    it('НЕ перечисляет категории — их убрали намеренно', () => {
+      /*
+       * Раньше здесь сверялось число кнопок с числом категорий. Владелец
+       * убрал список 06.09.2026: «чтобы вся работа в мини аппе или в чате
+       * бота, так будет понятно». Аудит перед удалением показал, что все
+       * кнопки были ИСПРАВНЫ — убраны не поломанные, а лишние; сами сцены
+       * остались на месте.
+       *
+       * Проверяется отсутствие категорий, а не точное число кнопок: кнопка
+       * приложения рисуется только в личке, и завязка на её наличие сделала
+       * бы проверку зависимой от типа чата у мока.
+       */
       ;(isRussianFromState as Mock).mockReturnValue(true)
 
       const keyboard = createMainMenuKeyboard(mockContext as MyContext)
-      const allButtons = keyboard.reply_markup.keyboard.flat()
-
-      // Количество кнопок должно соответствовать количеству категорий
-      expect(allButtons.length).toBe(CATEGORIES.length)
+      const тексты = keyboard.reply_markup.keyboard
+        .flat()
+        .map((b: any) => (typeof b === 'string' ? b : b.text))
+      for (const cat of CATEGORIES) {
+        expect(тексты).not.toContain(getCategoryText(cat, true))
+      }
     })
 
     it('имеет resize: true', () => {
@@ -146,9 +159,10 @@ describe('menuKeyboard', () => {
       )
 
       expect(keyboard).toBeDefined()
-      // Должна вернуться клавиатура главного меню (количество категорий)
-      const allButtons = keyboard.reply_markup.keyboard.flat()
-      expect(allButtons.length).toBe(CATEGORIES.length)
+      // Возвращается главное меню. Оно больше не перечисляет категории, но
+      // остаётся валидной клавиатурой — а не пустотой вместо ответа.
+      expect(keyboard.reply_markup.resize_keyboard).toBe(true)
+      expect(Array.isArray(keyboard.reply_markup.keyboard)).toBe(true)
     })
 
     it('группирует кнопки по 3 в ряд', () => {
@@ -472,11 +486,16 @@ describe('menuKeyboard', () => {
         .flat()
         .map((btn: any) => btn.text || btn)
 
-      // Проверяем, что кнопки содержат эмодзи категорий
-      const hasEmojis = allButtonTexts.some((text: string) =>
-        /[\u{1F300}-\u{1F9FF}]/u.test(text)
-      )
-      expect(hasEmojis).toBe(true)
+      /*
+       * Категорий в главном меню больше нет (решение владельца 06.09.2026:
+       * вся работа — в приложении или в разговоре с агентом). Осталась одна
+       * кнопка мини-аппа, и эмодзи есть у неё — поэтому проверка на эмодзи
+       * сохраняет смысл, но говорит уже о другом: меню не пустое.
+       */
+      // Категорий в меню больше нет; проверяем, что и следов их не осталось.
+      expect(
+        allButtonTexts.filter((t: string) => /Фото|Видео|Аудио/.test(t)).length
+      ).toBe(0)
     })
 
     it('клавиатура категории содержит функции категории', () => {

@@ -21,14 +21,22 @@ import path from 'node:path'
 import * as barrelScenes from '@/scenes'
 import { autoFixerConfigScene } from '@/commands/autofixer/autofixer-config.scene'
 
-// neuroPhotoWizard (V1, id ModeEnum.NeuroPhoto) and neuroPhotoWizardV2 (V2, id
-// literal 'neuro_photo') both register 'neuro_photo'. V2 is registered after V1,
-// so Stage shadows V1 -> V1 is dead code, tracked for removal in #1344.
-// Allowlisted until V1 is deleted; deleting V1 (or its registration) makes the
-// "not stale" test below force this entry's removal.
-const KNOWN_ID_COLLISIONS: Record<string, string[]> = {
-  neuro_photo: ['neuroPhotoWizard', 'neuroPhotoWizardV2'],
-}
+/*
+ * ПУСТО — И ЭТО РЕЗУЛЬТАТ, А НЕ ЗАБЫТЫЙ СПИСОК.
+ *
+ * Здесь стояла одна запись: neuroPhotoWizard (V1, id ModeEnum.NeuroPhoto) и
+ * neuroPhotoWizardV2 (V2, литерал 'neuro_photo') регистрировались под ОДНИМ
+ * идентификатором. Stage у Telegraf last-write-wins, поэтому V2 молча затенял
+ * V1, и V1 был мёртвым грузом, помеченным к удалению (#1344).
+ *
+ * 06.09.2026 регистрация V1 снята: поведение не изменилось (побеждал V2 и
+ * раньше), исчезла иллюзия, что живы обе версии. Храповик сработал ровно так,
+ * как задуман, — сам потребовал убрать запись, переставшую соответствовать
+ * действительности, вместо того чтобы тихо разрешать несуществующее.
+ *
+ * Пустая карта означает: известных коллизий нет. Новая уронит прогон.
+ */
+const KNOWN_ID_COLLISIONS: Record<string, string[]> = {}
 
 // Registered scenes NOT re-exported by the '@/scenes' barrel, imported
 // explicitly so coverage is complete. A new off-barrel registered scene must be

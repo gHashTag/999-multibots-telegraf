@@ -37,7 +37,6 @@ import {
   subscriptionScene,
   subscriptionCheckScene,
   balanceScene,
-  neuroPhotoWizard,
   neuroPhotoWizardV2,
   textToImageWizard,
   textToVideoWizard,
@@ -1086,7 +1085,15 @@ export function createStage(): Scenes.Stage<MyContext> {
     subscriptionScene,
     subscriptionCheckScene,
     balanceScene,
-    neuroPhotoWizard,
+    /*
+     * neuroPhotoWizard НЕ регистрируется: он и V2 объявлены под ОДНИМ id
+     * ('neuro_photo' — ModeEnum.NeuroPhoto). У Telegraf карта сцен
+     * last-write-wins, поэтому V2, стоявший ниже, молча затенял V1, и в
+     * работе всегда был только V2. Регистрация V1 ничего не давала и лишь
+     * создавала впечатление, что обе версии живы.
+     *
+     * Поведение НЕ меняется: побеждал V2 и раньше. Убрана иллюзия выбора.
+     */
     neuroPhotoWizardV2,
     textToImageWizard,
     textToVideoWizard,

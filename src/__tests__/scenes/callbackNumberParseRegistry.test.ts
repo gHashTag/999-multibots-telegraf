@@ -11,6 +11,23 @@ import path from 'node:path'
 // paid result for nothing. This registry forces every such site through review:
 // a NEW one fails here until it is verified + registered with HOW it validates.
 const REGISTERED: Record<string, string> = {
+  /*
+   * tokens:(\d+):(id) из invoice_payload оплаты звёздами.
+   *
+   * Число НЕ приходит от человека: payload задаём мы сами при создании счёта
+   * (render-server.ts, createInvoiceLink), Telegram возвращает его дословно в
+   * successful_payment, и подменить его покупатель не может — он не создаёт
+   * счёт.
+   *
+   * ОСТАТОЧНЫЙ РИСК НАЗЫВАЮ ЧЕСТНО: зачисляется количество из payload, а не
+   * пересчитанное из фактически уплаченных звёзд. Если счёт когда-нибудь
+   * выпишут с расхождением между payload и ценой, зачислится payload. Обе
+   * величины считаются одной шкалой (src/agent/token-packs.ts), и её пакеты
+   * закреплены тестом — но это соглашение, а не проверка в момент
+   * зачисления.
+   */
+  'handlers/paymentHandlers/index.ts':
+    'tokens:(d+):(id) from invoice_payload; the number is OUR OWN value echoed back by Telegram from an invoice we created, not user input; credited amount is the payload, priced by the single scale in agent/token-packs.ts',
   'scenes/instagramParserScene/index.ts':
     'count_(d+) via action.match; validated `typeof cost !== number` reject (#1425)',
   'scenes/videoDurationScene.ts':

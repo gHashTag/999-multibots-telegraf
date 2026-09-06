@@ -166,20 +166,30 @@ describe('no two scenes claim the same id by accident', () => {
     )
     expect(stageAt, 'no Scenes.Stage in the registry').toBeGreaterThan(listAt)
     const registry = whole.slice(listAt, stageAt)
+    /*
+     * СПОРА БОЛЬШЕ НЕТ — ОСТАЛСЯ ОДИН ПРЕТЕНДЕНТ.
+     *
+     * Раньше здесь проверялся ПОРЯДОК двух регистраций: обе сцены заявляли id
+     * 'neuro_photo', Stage — это Map, побеждает последняя, и перестановка двух
+     * строк молча меняла бы, какой платный поток фото получают люди. Проверка
+     * была верной ровно до тех пор, пока обе строки существовали.
+     *
+     * 06.09.2026 регистрация V1 снята. Полагаться на порядок больше не нужно и
+     * НЕЛЬЗЯ: правило «побеждает последний» — свойство, на которое опираться
+     * страшно, а не гарантия. Теперь проверяется сильнейшее утверждение:
+     * претендент один.
+     */
     const first = registry.indexOf('neuroPhotoWizard,')
     const second = registry.indexOf('neuroPhotoWizardV2,')
-    expect(first, 'neuroPhotoWizard is no longer registered').toBeGreaterThan(
-      -1
-    )
     expect(
       second,
-      'neuroPhotoWizardV2 is no longer registered'
+      `${DELIBERATE.winner} must stay registered`
     ).toBeGreaterThan(-1)
     expect(
-      second,
-      `${DELIBERATE.winner} must be registered AFTER neuroPhotoWizard: Stage is a ` +
-        'Map and the last registration of an id wins. Swapping these two lines ' +
-        'silently changes which paid photo flow users get.'
-    ).toBeGreaterThan(first)
+      first,
+      'neuroPhotoWizard must NOT be registered: it claims the same id as V2, ' +
+        'and relying on registration order to pick the winner is a property to ' +
+        'remove, not to guard.'
+    ).toBe(-1)
   })
 })
