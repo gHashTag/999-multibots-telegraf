@@ -209,6 +209,21 @@ case "${1:-}" in
     fi
     ;;
 
+  schema)
+    # СХЕМА В КОДЕ ПРОТИВ СХЕМЫ В БАЗЕ.
+    #
+    # `CREATE TABLE IF NOT EXISTS` на существующей базе не выполняется вовсе:
+    # объявление и прод расходятся молча и живут так годами. Вылезает это в
+    # день пересоздания базы -- на новом окружении, на стенде, при
+    # восстановлении, -- то есть в худший день из возможных.
+    railway service postgres-nfrq >/dev/null 2>&1 || {
+      echo "нет доступа к сервису базы"; exit 1; }
+    URL=$(railway variables --kv 2>/dev/null | grep -E "^DATABASE_PUBLIC_URL=" | head -1 | cut -d= -f2-)
+    if [ -z "$URL" ]; then echo "нет DATABASE_PUBLIC_URL -- проверка НЕ выполнена"; exit 1; fi
+    echo "— вход (session-store.ts) —"
+    (cd "$RENDER" && DB="$URL" node "$ROOT/bin/helpers/schema-drift.mjs" session-store.ts)
+    ;;
+
   feed-hide)
     # СКРЫТЬ ВСЁ, КРОМЕ ОДНОГО. Скрытие обратимо: маршрут ставит `deleted_at`,
     # а повторная публикация того же имени его снимает. Удаления здесь нет и

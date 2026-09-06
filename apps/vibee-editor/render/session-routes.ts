@@ -83,12 +83,68 @@ function mintPairingCode(): string {
 async function mintSession(
   pool: Pick<PoolClient, 'query'>,
   telegramId: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  /**
+   * Отпечаток подписанной строки, по которой входят.
+   *
+   * Передаётся только для initData: она живёт сутки и предъявляется столько
+   * раз, сколько захочет предъявляющий. Без этого КАЖДОЕ предъявление заводило
+   * новую независимую семью на шестьдесят дней — суточный пропуск превращался
+   * в двухмесячный, во множестве несвязанных копий.
+   *
+   * Для кода спаривания и подписи виджета отпечаток не нужен: первый
+   * одноразовый по своей записи, вторая — по первичному ключу
+   * `app_widget_assertions`.
+   */
+  отпечатокЗапуска?: string
 ): Promise<Record<string, unknown>> {
-  const sessionId = crypto.randomUUID()
-  const familyId = crypto.randomUUID()
+  let sessionId: string = crypto.randomUUID()
+  let familyId: string = crypto.randomUUID()
   const dkt = deviceThumbprint(body)
   const refresh = issueRefreshToken()
+
+  /*
+   * ПОВТОР ПО ТОЙ ЖЕ СТРОКЕ — ТА ЖЕ СЕМЬЯ, А НЕ ВТОРАЯ РЯДОМ.
+   *
+   * Запрет повтора здесь был бы ошибкой того же рода, что гашение семьи за
+   * гонку вкладок: initData выдаётся на ЗАПУСК, а входов внутри запуска может
+   * быть больше одного — повтор после обрыва сети, второе окно. Поэтому не
+   * «нельзя дважды», а «дважды — то же самое».
+   *
+   * Живой сессии может уже не быть (человек вышел, семью погасили). Тогда
+   * заводим новую и переписываем отображение: иначе повторный вход по ещё
+   * действующей initData возвращал бы токены к погашенной семье, то есть
+   * мёртвые.
+   */
+  if (отпечатокЗапуска) {
+    const было = await pool.query(
+      `SELECT f.family_id, f.session_id
+         FROM app_launch_families f
+         JOIN app_sessions s ON s.id = f.session_id
+        WHERE f.assertion_hash = $1 AND s.revoked_at IS NULL
+        LIMIT 1`,
+      [отпечатокЗапуска]
+    )
+    if (было.rows.length) {
+      familyId = String(было.rows[0].family_id)
+      sessionId = String(было.rows[0].session_id)
+      await pool.query(
+        `INSERT INTO app_refresh_tokens (token_hash, family_id, session_id, expires_at)
+         VALUES ($1, $2, $3, $4)`,
+        [refresh.hash, familyId, sessionId, refresh.expiresAt.toISOString()]
+      )
+      return {
+        access_token: signAccessToken({
+          telegramId,
+          sessionId,
+          deviceKeyThumbprint: dkt,
+        }),
+        refresh_token: refresh.token,
+        expires_in: SESSION_TUNING.ACCESS_TTL_SECONDS,
+        telegram_id: telegramId,
+      }
+    }
+  }
 
   await pool.query(
     `INSERT INTO app_sessions (id, telegram_id, device_pubkey, device_name, family_id)
@@ -100,6 +156,18 @@ async function mintSession(
      VALUES ($1, $2, $3, $4)`,
     [refresh.hash, familyId, sessionId, refresh.expiresAt.toISOString()]
   )
+  if (отпечатокЗапуска) {
+    await pool.query(
+      `INSERT INTO app_launch_families (assertion_hash, telegram_id, family_id, session_id)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (assertion_hash) DO UPDATE
+         SET family_id = EXCLUDED.family_id,
+             session_id = EXCLUDED.session_id,
+             telegram_id = EXCLUDED.telegram_id,
+             created_at = now()`,
+      [отпечатокЗапуска, telegramId, familyId, sessionId]
+    )
+  }
 
   return {
     access_token: signAccessToken({
@@ -477,7 +545,11 @@ export async function handleAuthRoute(
       return true
     }
 
-    json(res, 200, await mintSession(pool, telegramId, body))
+    json(
+      res,
+      200,
+      await mintSession(pool, telegramId, body, digest(`telegram-initdata:${initData}`))
+    )
     return true
   }
 
