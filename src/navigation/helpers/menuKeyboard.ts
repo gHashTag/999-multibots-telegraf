@@ -23,6 +23,7 @@ import {
 import { logSceneEnter, logMainMenuReturn } from './navigationLogger'
 import { logger } from '@/utils/logger'
 import { isUserBotOwner } from '@/core/supabase/getOwnedBots'
+import { isAdmin } from '@/middleware/adminOnly'
 
 /**
  * Создаёт клавиатуру главного меню (категории)
@@ -33,23 +34,30 @@ export function createMainMenuKeyboard(
 ): Markup.Markup<ReplyKeyboardMarkup> {
   const isRu = isRussianFromState(ctx)
 
-  // Кнопки категорий (3 в ряд)
-  const categoryButtons = CATEGORIES.map(cat => getCategoryText(cat, isRu))
+  /*
+   * ДВЕ ДВЕРИ ВМЕСТО ВОСЬМИ КНОПОК.
+   *
+   * Здесь строилась клавиатура из категорий — Фото, Видео, Аудио, Аватары,
+   * Маркетплейс, Пополнить, Профиль — плюс мини-апп. Владелец убрал её
+   * сознательно: «чтобы вся работа в мини аппе или в чате бота, так будет
+   * понятно».
+   *
+   * И это не косметика. Восемь кнопок обещали восемь разных способов
+   * работать, а на деле каждая вела в свой мастер со своими шагами. Человек
+   * выбирал не действие, а ветку меню. Две двери — приложение и разговор —
+   * описывают продукт честнее: либо ты работаешь руками в приложении, либо
+   * говоришь агенту, что нужно.
+   *
+   * Аудит перед удалением показал, что все восемь кнопок ИСПРАВНЫ и ведут в
+   * зарегистрированные сцены. Убраны не поломанные, а лишние: сами сцены
+   * остаются на месте и доступны, просто их больше не предлагают списком.
+   *
+   * Кнопка мини-аппа ОСТАЁТСЯ — это и есть первая из двух дверей, видимая.
+   * Кнопка меню чата («APP») ведёт туда же, но её легко не заметить: она
+   * маленькая и лежит у поля ввода. Одна широкая кнопка внизу — понятная
+   * подсказка, что приложение вообще есть.
+   */
   const rows: KeyboardButton[][] = []
-
-  for (let i = 0; i < categoryButtons.length; i += 3) {
-    const row: KeyboardButton[] = [categoryButtons[i]]
-    if (categoryButtons[i + 1]) {
-      row.push(categoryButtons[i + 1])
-    }
-    if (categoryButtons[i + 2]) {
-      row.push(categoryButtons[i + 2])
-    }
-    rows.push(row)
-  }
-
-  // Мини-апп (видеоредактор) отдельной строкой — только в личке:
-  // вне приватного чата Telegram отклоняет web_app в reply-клавиатуре.
   if (canShowMiniAppButton(ctx.chat?.type)) {
     rows.push([createMiniAppButton(isRu)])
   }
@@ -76,11 +84,29 @@ export function createCategoryKeyboard(
     return createMainMenuKeyboard(ctx)
   }
 
-  // Собираем все кнопки функций (без админских, скрытых и ownerOnly)
+  /*
+   * АДМИНСКИЕ КНОПКИ НЕ ВИДЕЛ НИКТО — ВКЛЮЧАЯ АДМИНОВ.
+   *
+   * Здесь стояло безусловное `if (item.adminOnly) continue`: пункт
+   * отбрасывался у ВСЕХ, и проверки «а ты админ?» не было вовсе. То есть
+   * «🎬 ИИ Рилс» и «🔍 Парсинг Instagram» не рисовались никому и никогда,
+   * хотя их обработчики зарегистрированы и срабатывают, если набрать
+   * название текстом.
+   *
+   * Это не «скрыто от посторонних», а «спрятано от собственного владельца».
+   * Признак ровно тот, на который жаловался владелец: кнопки не работают —
+   * потому что их нет на экране.
+   *
+   * Проверка берётся из уже существующего `isAdmin` (src/middleware/adminOnly),
+   * того же ADMIN_IDS_ARRAY, которым пользуются сцены. Второго списка админов
+   * заводить незачем: разошлись бы.
+   */
+  const админ = isAdmin(ctx.from?.id ?? 0)
+
+  // Собираем все кнопки функций (админские — только админам)
   const buttons: string[] = []
   for (const item of category.items) {
-    // Пропускаем админские кнопки
-    if (item.adminOnly) {
+    if (item.adminOnly && !админ) {
       continue
     }
     // ✅ Пропускаем скрытые кнопки (например, "Подписка" - не нужна пользователям)
@@ -134,11 +160,15 @@ export async function createCategoryKeyboardAsync(
   const telegramId = ctx.from?.id
   const isBotOwner = await isUserBotOwner(telegramId)
 
+  // Та же поправка, что и в синхронной версии выше: админский пункт скрыт от
+  // не-админа, а не от всех. Две копии одного цикла разошлись бы молча, если
+  // починить только одну — а именно эту версию и зовёт меню «Профиля».
+  const админ = isAdmin(telegramId ?? 0)
+
   // Собираем все кнопки функций
   const buttons: string[] = []
   for (const item of category.items) {
-    // Пропускаем админские кнопки
-    if (item.adminOnly) {
+    if (item.adminOnly && !админ) {
       continue
     }
     // Пропускаем скрытые кнопки
