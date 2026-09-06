@@ -309,6 +309,29 @@ case "${1:-}" in
     bash "$ROOT/bin/helpers/shipped.sh"
     ;;
 
+  space)
+    # МЕСТО — БЕЗ ОБХОДА ВСЕГО ДИСКА.
+    #
+    # 07.09.2026 цикл встал на ENOSPC: оболочка создаёт файл под вывод ДО
+    # команды, поэтому при полном диске не стартует ничего, включая чистилку.
+    # Смысл этой команды -- увидеть подход к обрыву РАНЬШЕ него.
+    #
+    # `du` по домашнему каталогу тут не годится: он идёт минутами и сам
+    # упирается в тайм-аут. Смотрим только то, что мы же и создаём.
+    echo "— тома —"
+    df -h / /System/Volumes/Data 2>/dev/null | awk 'NR==1 || /disk/ {print "  "$0}'
+    FREE_MB=$(df -m / | awk 'NR==2 {print $4}')
+    if [ "${FREE_MB:-0}" -lt 2048 ]; then
+      echo "  МАЛО: ${FREE_MB} МБ. Сборка iOS откажется работать (и правильно)."
+    fi
+    echo "— что создаём мы и можно вернуть —"
+    for D in "$ROOT/apps/vibee-ios/build2" /tmp/dd "$ROOT/.vite-cache" \
+             "$ROOT/.claude/worktrees" "$HOME/Library/Developer/Xcode/DerivedData"; do
+      [ -e "$D" ] && printf "  %-52s %s\n" "$D" "$(du -sh "$D" 2>/dev/null | cut -f1)"
+    done
+    echo "  (worktrees могут содержать несохранённую работу -- см. tri worktrees)"
+    ;;
+
   worktrees)
     # БРОШЕННЫЕ КОПИИ РЕПОЗИТОРИЯ. Обнаружено 07.09.2026: `find` по имени
     # файла вывел копию из `.claude/worktrees/`, и я едва не измерил не тот
