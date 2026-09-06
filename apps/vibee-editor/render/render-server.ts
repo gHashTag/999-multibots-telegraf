@@ -7566,20 +7566,36 @@ const server = createServer(async (req, res) => {
                 [row.id, match.id]
               )
               if (upd.rows.length) {
-                await pool.query(
-                  `CREATE TABLE IF NOT EXISTS user_tokens (
-                     telegram_id text PRIMARY KEY,
-                     balance int NOT NULL,
-                     updated_at timestamptz NOT NULL DEFAULT now()
-                   )`
-                )
-                await pool.query(
-                  `INSERT INTO user_tokens (telegram_id, balance)
-                   VALUES ($1, $2)
-                   ON CONFLICT (telegram_id)
-                   DO UPDATE SET balance = user_tokens.balance + $2, updated_at = now()`,
-                  [who, row.tokens]
-                )
+                /*
+                 * ОДИН ЗАМОК НА ОБА ПУТИ ЗАЧИСЛЕНИЯ.
+                 *
+                 * Здесь стоял свой INSERT в user_tokens, а у пути бота —
+                 * creditStarsPayment. Замки были РАЗНЫЕ: тут
+                 * `token_invoices.redeemed`, там `star_payments.charge_id`.
+                 * Общего ключа нет, значит первая же реальная продажа
+                 * зачислилась бы ДВАЖДЫ: мини-апп зовёт verify сразу по
+                 * `status === 'paid'` (Chat.tsx), а боту тот же платёж
+                 * приезжает опросом. Не гонка — оба срабатывают наверняка.
+                 *
+                 * Дефект был спящим, пока вебхук кассира не работал и verify
+                 * оставался единственным путём. Починка приёма апдейтов его
+                 * РАЗБУДИЛА бы — поэтому чинится здесь же.
+                 *
+                 * Ключ общий и он не выдуман: Telegram документирует, что
+                 * `StarTransaction.id` совпадает с
+                 * `SuccessfulPayment.telegram_payment_charge_id` для входящих
+                 * оплат. Значит обе стороны кладут в star_payments один и тот
+                 * же идентификатор, и второй по счёту получает конфликт по
+                 * первичному ключу и не начисляет.
+                 *
+                 * `token_invoices.redeemed` выше остаётся: это отметка «счёт
+                 * погашен», отдельная от «деньги зачислены».
+                 */
+                await creditStarsPayment(pool, {
+                  chargeId: String(match.id),
+                  telegramId: String(who),
+                  amount: row.tokens,
+                })
                 const bal = await pool.query(
                   `SELECT balance FROM user_tokens WHERE telegram_id = $1`,
                   [who]
@@ -7643,6 +7659,34 @@ const server = createServer(async (req, res) => {
        */
       const путьЗачисления = (req.url || '').split('?')[0]
       if (путьЗачисления === '/api/stars/credit' && req.method === 'POST') {
+        /*
+         * ТОЛЬКО КЛЮЧ СЕРВЕРА. Общего гварда здесь НЕДОСТАТОЧНО.
+         *
+         * Гвард отвечает на вопрос «пускать ли», и says «да» пяти разным
+         * способам: ключ сервера, ключ агента, сессия приложения, подпись
+         * мини-аппа. Подпись есть у КАЖДОГО, кто открыл мини-апп, — иначе он
+         * не смог бы им пользоваться. А этот маршрут начисляет токены, беря
+         * сумму и получателя ИЗ ТЕЛА запроса.
+         *
+         * То есть с одним лишь общим гвардом любой пользователь мини-аппа мог
+         * бы прислать сюда {"amount": 999999} и получить токены, за которыми
+         * стоят реальные счета FAL, ElevenLabs и OpenAI. Найдено ревью через
+         * час после выкладки — моей же правкой и открыто.
+         *
+         * Здесь нужен не «кто-то опознанный», а «наш сервер». Тот же приём
+         * уже применён в этом файле (см. проверку via === 'api-key' у
+         * внутренней квитанции).
+         */
+        if (authenticate(req).via !== 'api-key') {
+          res.writeHead(403, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: 'этот маршрут принимает только ключ сервера',
+            })
+          )
+          return
+        }
         try {
           const тело = JSON.parse((await readBody(req)) || '{}')
           const сумма = Number(тело.amount)
@@ -7655,7 +7699,16 @@ const server = createServer(async (req, res) => {
            * конфликтует по первичному ключу и не зачисляет второй раз.
            */
           const chargeId = String(тело.chargeId || '')
-          if (!(amount > 0) || !tid) {
+          /*
+           * Пустой chargeId ОТВЕРГАЕТСЯ, а не принимается «как есть».
+           *
+           * creditStarsPayment без ключа зачисляет БЕЗ дедупликации (его
+           * собственная ветка `no charge id — credited without dedup`). То
+           * есть повтор вызова начислил бы токены второй раз — ровно то, от
+           * чего ключ и защищает. Лучше отказать и разобраться, чем молча
+           * начислить дважды.
+           */
+          if (!(amount > 0) || !tid || !chargeId) {
             /*
              * 400, а НЕ 200. Прежний обработчик отвечал 200 на что угодно,
              * потому что Telegram повторяет доставку на любой не-200. Здесь
@@ -7666,7 +7719,7 @@ const server = createServer(async (req, res) => {
             res.end(
               JSON.stringify({
                 ok: false,
-                error: 'нужны положительный amount и telegramId',
+                error: 'нужны положительный amount, telegramId и chargeId',
               })
             )
             return

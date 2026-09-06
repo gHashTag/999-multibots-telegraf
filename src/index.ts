@@ -376,12 +376,35 @@ async function initializeBots() {
       // ✅ Сохраняем ВСЕ bot instances для multi-bot поддержки
       botInstances.push(bot)
 
+      /*
+       * ОПЛАТА ЛОВИТСЯ ДО СЦЕН, А НЕ ПОСЛЕ.
+       *
+       * Раньше эти два обработчика стояли ПОСЛЕ registerCommands, внутри
+       * которого регистрируется `bot.use(stage.middleware())`. Пока кассир
+       * жил вебхуком, это было безразлично: оплата вообще не входила в
+       * цепочку middleware бота.
+       *
+       * С опросом входит — и приезжает ВНУТРИ `message`. А десятки шагов
+       * сцен устроены так: «нет текста — ответить и `return`», без вызова
+       * next(). Человек, пополняющий баланс, сидит ровно в такой сцене
+       * (balanceScene). Его оплата была бы съедена шагом сцены, деньги
+       * списаны, токены не начислены — и ни одной записи о том, что что-то
+       * произошло.
+       *
+       * Поэтому регистрация поднята ВЫШЕ сцен: Telegraf идёт по middleware в
+       * порядке регистрации, и оплата разбирается раньше, чем сцена успеет
+       * её отвергнуть.
+       *
+       * Плата за это: до stage.middleware() у контекста ещё нет `ctx.scene`,
+       * поэтому выход из сцены в обработчике зовётся через `?.` — см.
+       * paymentHandlers/index.ts.
+       */
+      bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
+      bot.on('successful_payment', handleSuccessfulPayment as any)
+
       registerCommands({ bot }) // 3. Сцены и команды (включая stage.middleware() и hears обработчики)
       // РЕГИСТРИРУЕМ НОВУЮ КОМАНДУ STATS
       setupStatsCommand(bot) // <--- НОВАЯ СТРОКА
-      // 3. Глобальные обработчики платежей (ПОСЛЕ stage)
-      bot.on('pre_checkout_query', handlePreCheckoutQuery as any)
-      bot.on('successful_payment', handleSuccessfulPayment as any)
       // AI fallback зарегистрирован внутри registerCommands (последний handler)
 
       const botInfo = await bot.telegram.getMe()

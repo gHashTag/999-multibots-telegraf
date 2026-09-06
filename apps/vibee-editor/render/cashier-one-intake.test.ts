@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import { isPublic } from './auth'
+import { isPublic, authenticate } from './auth'
 
 /**
  * ОДИН ПРИЁМНИК АПДЕЙТОВ НА БОТА — И ЭТО ОПРОС.
@@ -83,7 +83,7 @@ describe('служебный маршрут зачисления звёзд', ()
      */
     const блок = СЕРВЕР.slice(
       СЕРВЕР.indexOf("путьЗачисления === '/api/stars/credit'"),
-      СЕРВЕР.indexOf("путьЗачисления === '/api/stars/credit'") + 3000
+      СЕРВЕР.indexOf("путьЗачисления === '/api/stars/credit'") + 6000
     )
     expect(блок).toContain("const chargeId = String(тело.chargeId || '')")
     expect(блок).toMatch(/creditStarsPayment\(pool, \{\s*chargeId,/)
@@ -97,9 +97,90 @@ describe('служебный маршрут зачисления звёзд', ()
      */
     const блок = СЕРВЕР.slice(
       СЕРВЕР.indexOf("путьЗачисления === '/api/stars/credit'"),
-      СЕРВЕР.indexOf("путьЗачисления === '/api/stars/credit'") + 3000
+      СЕРВЕР.indexOf("путьЗачисления === '/api/stars/credit'") + 6000
     )
     expect(блок).toContain('res.writeHead(400')
+  })
+})
+
+describe('зачисление нельзя вызвать от имени пользователя', () => {
+  /*
+   * ДЫРУ ОТКРЫЛА ПРЕДЫДУЩАЯ ПРАВКА ЭТОГО ЖЕ ФАЙЛА, и нашло её ревью через час
+   * после выкладки.
+   *
+   * Маршрут закрывался ТОЛЬКО общим гвардом. Гвард отвечает «пускать ли» и
+   * говорит «да» пяти способам, включая подпись мини-аппа — а она есть у
+   * КАЖДОГО, кто открыл приложение. Маршрут при этом берёт сумму и получателя
+   * из тела запроса. То есть любой пользователь мог прислать
+   * {"amount": 999999} и получить токены, за которыми стоят реальные счета
+   * провайдеров.
+   *
+   * «Опознан» и «наш сервер» — разные вопросы. Здесь нужен второй.
+   */
+  it('маршрут требует именно ключ сервера, а не любую опознанную личность', () => {
+    const блок = СЕРВЕР.slice(
+      СЕРВЕР.indexOf("путьЗачисления === '/api/stars/credit'"),
+      СЕРВЕР.indexOf("путьЗачисления === '/api/stars/credit'") + 6000
+    )
+    expect(блок).toContain("authenticate(req).via !== 'api-key'")
+    expect(блок).toContain('res.writeHead(403')
+  })
+
+  it('гвард действительно различает ключ сервера и прочие способы', () => {
+    // Поведенческая половина: проверка выше закрепляет, что маршрут смотрит на
+    // `via`, а эта — что `via` не равно 'api-key' для чужого ключа.
+    const прежний = process.env.RENDER_API_KEY
+    process.env.RENDER_API_KEY = 'верный-ключ-для-проверки'
+    try {
+      const запрос = (ключ?: string) =>
+        ({
+          url: '/api/stars/credit',
+          method: 'POST',
+          headers: ключ ? { 'x-api-key': ключ } : {},
+        }) as any
+      expect(authenticate(запрос('верный-ключ-для-проверки')).via).toBe(
+        'api-key'
+      )
+      expect(authenticate(запрос('чужой-ключ')).via).not.toBe('api-key')
+      expect(authenticate(запрос()).via).not.toBe('api-key')
+    } finally {
+      process.env.RENDER_API_KEY = прежний
+    }
+  })
+
+  it('пустой chargeId отвергается, а не зачисляется без дедупликации', () => {
+    /*
+     * creditStarsPayment без ключа идёт веткой «credited without dedup» —
+     * то есть повтор начислит второй раз. Молча принимать пустой ключ значит
+     * отключать защиту, ради которой он и заведён.
+     */
+    const блок = СЕРВЕР.slice(
+      СЕРВЕР.indexOf("путьЗачисления === '/api/stars/credit'"),
+      СЕРВЕР.indexOf("путьЗачисления === '/api/stars/credit'") + 6000
+    )
+    expect(блок).toContain('!(amount > 0) || !tid || !chargeId')
+  })
+})
+
+describe('два пути зачисления — один замок', () => {
+  it('verify зачисляет через creditStarsPayment, а не своим INSERT', () => {
+    /*
+     * ДВОЙНОЕ ЗАЧИСЛЕНИЕ НА ПЕРВОЙ ЖЕ ПРОДАЖЕ.
+     *
+     * verify запирался на `token_invoices.redeemed`, путь бота — на
+     * `star_payments.charge_id`. Общего ключа нет, а зовутся оба наверняка:
+     * мини-апп дёргает verify сразу по `status === 'paid'`, боту тот же платёж
+     * приезжает опросом. Пакет на 10 токенов начислил бы 20.
+     *
+     * Дефект был спящим, пока приём апдейтов не работал. Починка приёма его
+     * разбудила бы — поэтому оба пути сведены к одной функции с одним замком.
+     */
+    const хвост = СЕРВЕР.slice(СЕРВЕР.indexOf('UPDATE token_invoices SET redeemed'))
+    const доКонцаВетки = хвост.slice(0, 2500)
+    expect(доКонцаВетки).toContain('await creditStarsPayment(pool, {')
+    expect(доКонцаВетки).toContain('chargeId: String(match.id)')
+    // Свой INSERT в user_tokens в этой ветке остаться не должен.
+    expect(доКонцаВетки).not.toContain('INSERT INTO user_tokens')
   })
 })
 
