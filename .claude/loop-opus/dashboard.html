@@ -48,10 +48,10 @@
   <div class="sub">каждые 15 минут · задание <code>29549cb5</code> · обновлено 06.09.2026, 02:25</div>
 
   <div class="cards">
-    <div class="card"><div class="n ok">117</div><div class="k">влито</div></div>
+    <div class="card"><div class="n ok">119</div><div class="k">влито</div></div>
     <div class="card"><div class="n warn">6</div><div class="k">открыто</div></div>
     <div class="card"><div class="n bad">51</div><div class="k">своих ошибок признано</div></div>
-    <div class="card"><div class="n acc">921</div><div class="k">тестов зелёные: 659 сервер + 200 веб + 50 iOS + 12 экранных</div></div>
+    <div class="card"><div class="n acc">935</div><div class="k">тестов зелёные: 668 сервер + 205 веб + 50 iOS + 12 экранных</div></div>
   </div>
 
   <h2>Статус смены</h2>
@@ -103,7 +103,9 @@
     <tr><td><code>userAtom</code> не восстанавливается из сессии</td><td><span class="tag t-hole">дыра</span></td><td>шапка рисует «Войти» при живом токене</td></tr>
     <tr><td>У постов нет постоянных ссылок</td><td><span class="tag t-hole">дыра</span></td><td>поделиться роликом нельзя вовсе</td></tr>
     <tr><td>Лента: скрыть свои, оставить одно интро</td><td><span class="tag t-open">ждёт</span></td><td>нужен id поста — <code>tri feed</code></td></tr>
-    <tr><td>Одобрение перед публикацией</td><td><span class="tag t-open">решение</span></td><td>разобрано: публикует только агент; скрытый пост невидим даже автору — нужен раздел «ждут одобрения»</td></tr>
+    <tr><td><b>В ленту только с одобрения</b></td><td><span class="tag t-ok">закрыто</span></td><td>агент публикует скрыто; раздел «Ждут одобрения» и кнопка; в канал скрытое не уходит (#2051)</td></tr>
+    <tr><td>Новый маршрут стал публичным сам собой</td><td><span class="tag t-ok">закрыто</span></td><td>префикс <code>/api/feed</code> открыт на чтение и проглотил <code>/pending</code> (#2051)</td></tr>
+    <tr><td>Чип по контракту и в приложении</td><td><span class="tag t-ok">закрыто</span></td><td>скриншот: «Кадр» исчезает при выборе Nano Banana</td></tr>
     <tr><td>Цена видео совпадает с запросом случайно</td><td><span class="tag t-open">открыто</span></td><td><code>grep "resolution: 480p"</code></td></tr>
   </table></div>
 
