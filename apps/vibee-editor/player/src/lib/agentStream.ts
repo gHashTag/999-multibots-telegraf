@@ -105,7 +105,17 @@ export async function sendToAgent(
     const res = await fetch(`${API_BASE}/api/agent/chat`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ messages: history }),
+      body: JSON.stringify({
+        messages: history,
+        /*
+         * ОТКУДА ПИШЕТ ЧЕЛОВЕК. Разговор общий для бота и мини-аппа, и
+         * сервер сохраняет поверхность вместе с репликой: по общей ленте
+         * должно быть видно, где именно человек это сказал. Значение
+         * сверяется сервером со списком известных — своему клиенту тут тоже
+         * не верим на слово.
+         */
+        surface: 'miniapp',
+      }),
     })
     if (!res.ok || !res.body) {
       // Код И тело: тело — единственное место, где сервер объясняет причину.
