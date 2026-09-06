@@ -224,6 +224,29 @@ case "${1:-}" in
     (cd "$RENDER" && DB="$URL" node "$ROOT/bin/helpers/schema-drift.mjs" session-store.ts)
     ;;
 
+  pairing)
+    # ДЛИНА КОДА ВХОДА: СЕРВЕР ПРОТИВ КЛИЕНТОВ.
+    #
+    # Урок 07.09.2026, регрессия моя же. Длину подняли с шести цифр до восьми
+    # ради стойкости -- серверной правкой, с тестом и мутацией. Клиентов никто
+    # не посмотрел: поле iOS обрезало ввод на шестой цифре, и вход в
+    # приложение не работал ВООБЩЕ. Серверное ужесточение убило клиентскую
+    # дверь, и это не заметил ни один тест.
+    R=apps/vibee-editor/render
+    echo "— сервер —"
+    grep -n "DIGITS:" "$R/session-store.ts" | sed 's|^|  |'
+    echo "— что отвечает живой сервер на пустой код —"
+    curl -s --max-time 25 -X POST \
+      "https://vibee-render-production.up.railway.app/api/auth/pair/claim" \
+      -H "Content-Type: application/json" -d '{"code":""}' | head -c 120; echo
+    echo "— копии длины у клиентов (их не должно быть) —"
+    python3 "$ROOT/bin/helpers/code-length-copies.py" \
+      apps/vibee-ios/Vibee/SignIn.swift \
+      apps/vibee-ios/Vibee/Identity.swift \
+      apps/vibee-editor/player/src/components/Profile/PairWithApp.tsx \
+      src/commands/appLoginCommand.ts
+    ;;
+
   feed-hide)
     # СКРЫТЬ ВСЁ, КРОМЕ ОДНОГО. Скрытие обратимо: маршрут ставит `deleted_at`,
     # а повторная публикация того же имени его снимает. Удаления здесь нет и
