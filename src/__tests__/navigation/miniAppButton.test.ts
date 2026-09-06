@@ -1,15 +1,33 @@
 /**
- * 🧪 Тесты кнопки Telegram Mini App (VIBEE видеоредактор) в главном меню
+ * КНОПКИ МИНИ-АППА В REPLY-КЛАВИАТУРЕ БЫТЬ НЕ ДОЛЖНО — И ЭТО НЕ ВКУСОВЩИНА.
  *
- * Проверяет:
- * - кнопка появляется в личке и НЕ появляется в группах
- *   (Telegram отклоняет web_app в reply-клавиатуре вне приватных чатов)
- * - URL мини-аппа и deep-link через startParam
- * - локализацию подписи
+ * Этот файл раньше сторожил ОБРАТНОЕ: что кнопка «🎬 Видеоредактор» есть в
+ * личке, стоит отдельной строкой, локализована и не попадает в группы. Всё
+ * верно — ровно до того дня, когда выяснилось, чем такая кнопка расплачивается.
+ *
+ * ЧТО ВЫЯСНИЛОСЬ 06.09.2026. Владелец открыл приложение этой кнопкой и упёрся
+ * в «Войти», находясь ВНУТРИ Telegram: «почему я автоматически не зашёл через
+ * tma?». Причина не в приложении. Мини-апп, запущенный кнопкой
+ * reply-клавиатуры, не получает ни подписи, ни пользователя — так устроен
+ * Telegram. Это записано и в самом приложении:
+ *
+ *     atoms/telegramAuth.ts: «запуск с reply-кнопки не несёт ни подписи, ни
+ *     пользователя… войти неоткуда»
+ *
+ * То есть кнопка выглядела главной дверью, а вела в тупик: сервер отвергает
+ * запросы без подписи, и человеку показывают вход, которого для него не
+ * существует.
+ *
+ * Подписанный запуск дают: кнопка МЕНЮ чата (у нас «APP»), прямая ссылка и
+ * inline-кнопка. Поэтому reply-кнопка убрана, а вместе с ней — вся клавиатура
+ * (решение владельца: «чтобы вся работа в мини аппе или в чате бота»).
+ *
+ * Проверки ниже сторожат новое правило: главное меню СНИМАЕТ клавиатуру и не
+ * предлагает никаких reply-кнопок. Сама конфигурация мини-аппа остаётся
+ * рабочей — она нужна для кнопки меню и ссылок.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { KeyboardButton } from 'telegraf/types'
 import { createMainMenuKeyboard } from '@/navigation/helpers/menuKeyboard'
 import {
   MINI_APP_URL,
@@ -37,129 +55,76 @@ vi.mock('@/core/supabase/getOwnedBots', () => ({
   isUserBotOwner: vi.fn().mockResolvedValue(false),
 }))
 
-/** Достаёт web_app-кнопки из reply-клавиатуры. */
-function webAppButtons(
-  keyboard: KeyboardButton[][]
-): KeyboardButton.WebAppButton[] {
-  return keyboard
-    .flat()
-    .filter(
-      (b): b is KeyboardButton.WebAppButton =>
-        typeof b === 'object' && b !== null && 'web_app' in b
-    )
-}
-
-function makeCtx(chatType: string): MyContext {
-  return {
+const makeCtx = (chatType: 'private' | 'group'): MyContext =>
+  ({
     chat: { id: 1, type: chatType },
-    from: { id: 42, language_code: 'ru' },
-  } as unknown as MyContext
-}
+    from: { id: 42, is_bot: false, first_name: 'T' },
+    session: {},
+  }) as unknown as MyContext
 
-describe('Mini App button — конфигурация', () => {
-  it('URL мини-аппа — https (Telegram требует https для web_app)', () => {
-    expect(MINI_APP_URL).toMatch(/^https:\/\//)
-  })
-
-  it('buildMiniAppUrl без startParam возвращает базовый URL', () => {
-    expect(buildMiniAppUrl()).toBe(MINI_APP_URL)
-  })
-
-  it('buildMiniAppUrl прокидывает startParam как tgWebAppStartParam', () => {
-    expect(buildMiniAppUrl('video')).toBe(
-      `${MINI_APP_URL}/?tgWebAppStartParam=video`
-    )
-  })
-
-  it('buildMiniAppUrl экранирует startParam', () => {
-    expect(buildMiniAppUrl('a b&c')).toBe(
-      `${MINI_APP_URL}/?tgWebAppStartParam=a%20b%26c`
-    )
-  })
-
-  it('canShowMiniAppButton — только приватные чаты', () => {
-    expect(canShowMiniAppButton('private')).toBe(true)
-    expect(canShowMiniAppButton('group')).toBe(false)
-    expect(canShowMiniAppButton('supergroup')).toBe(false)
-    expect(canShowMiniAppButton('channel')).toBe(false)
-    expect(canShowMiniAppButton(undefined)).toBe(false)
-  })
-
-  it('createMiniAppButton локализует подпись', () => {
-    const ru = createMiniAppButton(true) as KeyboardButton.WebAppButton
-    const en = createMiniAppButton(false) as KeyboardButton.WebAppButton
-    expect(ru.text).toContain('Видеоредактор')
-    expect(en.text).toContain('Video editor')
-  })
-})
-
-describe('Mini App button — главное меню', () => {
+describe('главное меню не предлагает reply-кнопок', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(isRussianFromState).mockReturnValue(true)
   })
 
-  it('в личке кнопка есть и ведёт на мини-апп', () => {
-    const kb = createMainMenuKeyboard(makeCtx('private'))
-    const buttons = webAppButtons(
-      kb.reply_markup.keyboard as KeyboardButton[][]
-    )
-
-    expect(buttons).toHaveLength(1)
-    expect(buttons[0].web_app.url).toBe(MINI_APP_URL)
-    expect(buttons[0].text).toContain('Видеоредактор')
-  })
-
-  it('кнопка стоит отдельной строкой в конце', () => {
-    const rows = createMainMenuKeyboard(makeCtx('private')).reply_markup
-      .keyboard as KeyboardButton[][]
-    const lastRow = rows[rows.length - 1]
-
-    expect(lastRow).toHaveLength(1)
-    expect(webAppButtons([lastRow])).toHaveLength(1)
-  })
-
-  it('в группе кнопки НЕТ — иначе Telegram вернёт BUTTON_TYPE_INVALID', () => {
-    for (const type of ['group', 'supergroup', 'channel']) {
-      const kb = createMainMenuKeyboard(makeCtx(type))
-      expect(
-        webAppButtons(kb.reply_markup.keyboard as KeyboardButton[][])
-      ).toHaveLength(0)
-    }
-  })
-
-  it('в меню осталась ОДНА дверь — приложение, без списка категорий', () => {
+  it('меню СНИМАЕТ клавиатуру, а не рисует пустую', () => {
     /*
-     * ПРОВЕРКА ПЕРЕВЁРНУТА НАМЕРЕННО, 06.09.2026.
-     *
-     * Раньше она требовала, чтобы семь категорий (Фото, Видео, Аудио,
-     * Аватары, Маркетплейс, Пополнить, Профиль) остались текстовыми
-     * кнопками, и охраняла их от случайной потери при добавлении мини-аппа.
-     * Своё дело она делала.
-     *
-     * Владелец убрал их сознательно: «чтобы вся работа в мини аппе или в
-     * чате бота, так будет понятно». Аудит перед удалением показал, что все
-     * восемь кнопок ИСПРАВНЫ и ведут в зарегистрированные сцены, — убраны не
-     * поломанные, а лишние. Сами сцены остались на месте.
-     *
-     * Поэтому теперь охраняется обратное: список категорий не должен
-     * вернуться сам собой, а кнопка приложения обязана остаться — иначе
-     * дверей станет ноль.
+     * `Markup.keyboard([])` Telegram показывает как пустую панель, и прежняя
+     * клавиатура у человека может остаться висеть. Снятие — единственный
+     * способ убрать её наверняка.
      */
-    const rows = createMainMenuKeyboard(makeCtx('private')).reply_markup
-      .keyboard as KeyboardButton[][]
-    const textButtons = rows.flat().filter(b => typeof b === 'string')
-    expect(textButtons.length).toBe(0)
-    expect(webAppButtons(rows).length).toBe(1)
+    const kb = createMainMenuKeyboard(makeCtx('private'))
+    expect(kb.reply_markup).toHaveProperty('remove_keyboard', true)
   })
 
-  it('английская локаль даёт английскую подпись', () => {
-    vi.mocked(isRussianFromState).mockReturnValue(false)
+  it('кнопки мини-аппа в клавиатуре НЕТ — она ломает вход', () => {
+    // Ради этого файл и переписан: reply-запуск не несёт подписи.
     const kb = createMainMenuKeyboard(makeCtx('private'))
-    const buttons = webAppButtons(
-      kb.reply_markup.keyboard as KeyboardButton[][]
-    )
+    expect(JSON.stringify(kb.reply_markup)).not.toContain('web_app')
+  })
 
-    expect(buttons[0].text).toContain('Video editor')
+  it('в группе — то же самое', () => {
+    const kb = createMainMenuKeyboard(makeCtx('group'))
+    expect(kb.reply_markup).toHaveProperty('remove_keyboard', true)
+  })
+})
+
+describe('конфигурация мини-аппа осталась рабочей', () => {
+  /*
+   * Убрана КНОПКА, а не приложение. Адрес и его сборка нужны кнопке меню
+   * («APP»), ссылкам и диплинкам — то есть тем запускам, которые подпись как
+   * раз несут. Стереть конфигурацию заодно означало бы сломать рабочие двери
+   * вместе со сломанной.
+   */
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(isRussianFromState).mockReturnValue(true)
+  })
+
+  it('адрес приложения задан', () => {
+    expect(MINI_APP_URL).toMatch(/^https:\/\//)
+  })
+
+  it('диплинк добавляет start_param', () => {
+    const u = buildMiniAppUrl('abc')
+    expect(u).toContain(MINI_APP_URL)
+    expect(u).toContain('abc')
+  })
+
+  it('web_app по-прежнему разрешён только в личке', () => {
+    /*
+     * Знание не устарело: вне приватного чата Telegram отклоняет web_app в
+     * reply-клавиатуре с BUTTON_TYPE_INVALID. Пригодится всякому, кто решит
+     * вернуть такую кнопку, — пусть узнает об этом здесь, а не в проде.
+     */
+    expect(canShowMiniAppButton('private')).toBe(true)
+    expect(canShowMiniAppButton('group')).toBe(false)
+    expect(canShowMiniAppButton('supergroup')).toBe(false)
+  })
+
+  it('подпись кнопки локализована', () => {
+    expect(createMiniAppButton(true).text).toMatch(/[А-Яа-я]/)
+    expect(createMiniAppButton(false).text).toMatch(/[A-Za-z]/)
   })
 })

@@ -26,7 +26,7 @@ import { verifyAppSession } from '../../session'
 import { TOOLS_BY_NAME, toMcpTools } from './tools'
 import { runAgent, type ChatMessage } from './chat'
 import { resolveProvider } from './provider'
-import { verifiedTelegramId } from '../../auth'
+import { verifiedTelegramId, authenticate } from '../../auth'
 import {
   записатьРеплику,
   прочитатьРазговор,
@@ -212,6 +212,36 @@ export async function resolveIdentity(
 ): Promise<string | null> {
   const sync = chatIdentity(req, verifiedTelegramId(req))
   if (sync) return sync
+
+  /*
+   * ЧЕТВЁРТАЯ ЛИЧНОСТЬ: НАШ СОБСТВЕННЫЙ СЕРВИС БОТА.
+   *
+   * Сервис бота разговаривает с агентом ОТ ИМЕНИ ЧЕЛОВЕКА, который написал
+   * ему в Telegram. Подписи мини-аппа у него нет и быть не может — она
+   * существует только внутри WebView, — а личного ключа агента у каждого
+   * пользователя тоже нет. Без этой ветки бот не мог бы позвать агента ни за
+   * кого, и «вся работа в чате бота» осталась бы обещанием.
+   *
+   * Механизм тот же, что уже принят в этом сервисе для внутренних вызовов
+   * (DELETE /api/feed/:id, GET /api/feed/pending): общий серверный ключ плюс
+   * ЯВНО названный telegram_id.
+   *
+   * Два условия, оба обязательны:
+   *
+   *  1. `via === 'api-key'` — именно серверный ключ, а не «кто-то опознанный».
+   *     Подпись мини-аппа есть у каждого пользователя, и разреши мы ей
+   *     называть чужой id — любой читал бы и продолжал чужой разговор.
+   *  2. id назван ЯВНО. Умолчания здесь быть не может: «не назвали — значит
+   *     владелец» превратило бы каждый безымянный вызов в действие от лица
+   *     владельца.
+   */
+  if (authenticate(req).via === 'api-key') {
+    const явный = new URL(req.url || '', 'http://x').searchParams.get(
+      'telegram_id'
+    )
+    if (явный && /^\d{5,15}$/.test(явный)) return явный
+  }
+
   const key = (req.headers['x-agent-key'] as string | undefined) || ''
   if (!key) return null
   try {
