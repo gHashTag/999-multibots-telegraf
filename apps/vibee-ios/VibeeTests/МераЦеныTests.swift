@@ -24,7 +24,10 @@ final class МераЦеныTests: XCTestCase {
     цены: [String: Int] = ["video_generate": 11, "lipsync_generate": 6],
     модели: [String: Int]? = nil,
     посекундныеВиды: [String]? = ["lipsync_generate"],
-    посекундныеМодели: [String]? = ["kie/kling/v3-turbo-text-to-video"],
+    посекундныеМодели: [String]? = [
+      "kie/kling/v3-turbo-text-to-video", "kie/topaz/video-upscale",
+    ],
+    поЗамеру: [String]? = ["kie/topaz/video-upscale"],
     познаковыеМодели: [String]? = ["kie/elevenlabs/text-to-speech-multilingual-v2"]
   ) -> API.Баланс {
     // Через JSON, а не через инициализатор: так тест проверяет ровно ту
@@ -33,6 +36,7 @@ final class МераЦеныTests: XCTestCase {
     if let модели { о["modelPrices"] = модели }
     if let посекундныеВиды { о["perSecond"] = посекундныеВиды }
     if let посекундныеМодели { о["perSecondModels"] = посекундныеМодели }
+    if let поЗамеру { о["perSecondFromFile"] = поЗамеру }
     if let познаковыеМодели { о["perThousandCharsModels"] = познаковыеМодели }
     let данные = try! JSONSerialization.data(withJSONObject: о)
     return try! JSONDecoder().decode(API.Баланс.self, from: данные)
@@ -77,10 +81,28 @@ final class МераЦеныTests: XCTestCase {
     )
   }
 
+  func testМодельПоЗамеруФайлаНеПолучаетЧипДлительности() {
+    /*
+     * `topaz/video-upscale` просит готовый ролик: чип «6с/10с» до провайдера
+     * не доходит, а экран множил на него цену — 96 или 160 токенов за один и
+     * тот же файл. Сервер теперь считает по замеру, и число до нажатия не
+     * знает никто.
+     */
+    let б = баланс()
+    XCTAssertTrue(б.поЗамеруФайла("kie/topaz/video-upscale"))
+    XCTAssertFalse(б.поЗамеруФайла("kie/kling/v3-turbo-text-to-video"))
+    XCTAssertFalse(б.поЗамеруФайла(nil))
+    // Посекундной модель при этом остаётся: подпись «/с» никуда не девается.
+    XCTAssertEqual(б.мера("video_generate", модель: "kie/topaz/video-upscale"), "с")
+  }
+
   func testСтарыйСерверБезСписковНеЛомаетЭкран() {
     // Полей может не быть вовсе — это не повод менять поведение: цена тогда
     // берётся из вида работы, как было до всей этой истории.
-    let б = баланс(посекундныеВиды: nil, посекундныеМодели: nil, познаковыеМодели: nil)
+    let б = баланс(
+      посекундныеВиды: nil, посекундныеМодели: nil, поЗамеру: nil,
+      познаковыеМодели: nil
+    )
     XCTAssertNil(б.мера("lipsync_generate", модель: "kie/veed/fabric-1"))
     XCTAssertFalse(б.посекундная("video_generate", модель: nil))
   }
