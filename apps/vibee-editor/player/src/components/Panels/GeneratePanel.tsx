@@ -6,6 +6,7 @@ import {
   ценаНажатия,
   мераЦены,
   тысячиЗнаковКОплате,
+  полеДоходит,
   type Баланс,
 } from '@/lib/balance'
 import { useAudioRecorder } from '@/hooks/useAudioRecorder'
@@ -1148,7 +1149,18 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
               />
             </div>
 
+            {/*
+              ЧИП — ТОЛЬКО ПОД ПОЛЕ, КОТОРОЕ ДОЕДЕТ ДО ПРОВАЙДЕРА.
+
+              У десяти видеомоделей из двенадцати контракт — один `prompt`, и
+              сборщик входа срезает `duration` и `aspect_ratio` молча. Человек
+              выбирал 9:16 для рилса и получал то, что модель решила сама.
+
+              Список полей приходит с сервера — оттуда же, где живёт сборщик.
+              Модели не из Kie (veo3) в списке отсутствуют и чипы сохраняют.
+            */}
             <div className="form-row">
+              {полеДоходит(баланс, 'duration', videoModel) && (
               <div className="form-group">
                 <label>{t('generate.duration')}</label>
                 <div className="form-chips">
@@ -1166,7 +1178,9 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                   ))}
                 </div>
               </div>
+              )}
 
+              {полеДоходит(баланс, 'aspect_ratio', videoModel) && (
               <div className="form-group">
                 <label>{t('generate.aspectRatio')}</label>
                 <div className="form-chips">
@@ -1181,6 +1195,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                   ))}
                 </div>
               </div>
+              )}
             </div>
 
             <button

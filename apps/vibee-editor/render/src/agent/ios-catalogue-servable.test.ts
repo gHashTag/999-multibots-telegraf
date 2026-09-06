@@ -146,3 +146,69 @@ describe('генератор выдаёт то, что компилируетс�
     }
   })
 })
+
+import { поляМоделей } from './kie-web-provider'
+import { KIE_MODELS } from './kie-models'
+
+describe('чип показывают только под поле, которое доедет', () => {
+  it('десять видеомоделей из двенадцати не получают ни длительности, ни кадра', () => {
+    /*
+     * Замер, ради которого поле и заведено. Контракт этих моделей — один
+     * `prompt`, и сборщик входа режет остальное молча. Человек выбирал 9:16
+     * для рилса и получал то, что модель решила сама.
+     */
+    const поля = поляМоделей()
+    // Только `prompt` — то есть ни длительности, ни кадра.
+    expect(поля['kie/grok-imagine/text-to-video']).toEqual(['prompt'])
+    expect(поля['kie/wan/3-0-video']).toEqual(['prompt'])
+    // А эти двое получают всё, что показывает экран.
+    expect(поля['kie/kling/v3-turbo-text-to-video']).toContain('duration')
+    expect(поля['kie/kling/v3-turbo-text-to-video']).toContain('aspect_ratio')
+    expect(поля['kie/minimax-h3/text-to-video']).toContain('duration')
+  })
+
+  it('допущенная модель получает ВЕСЬ свой контракт', () => {
+    /*
+     * Отсечение по `ПОЛЯ_МАРШРУТА` в `поляМоделей` сегодня не срезает ничего —
+     * и это не лишний код, а ПРОВЕРЯЕМОЕ свойство: допуск не пускает модель,
+     * чьё поле маршрут передать не умеет. Здесь оно и проверяется, чтобы
+     * сужение `ПОЛЯ_МАРШРУТА` не начало молча отнимать у моделей поля,
+     * оставляя их в витрине.
+     */
+    const поля = поляМоделей()
+    const урезанные: string[] = []
+    for (const [полное, доедет] of Object.entries(поля)) {
+      const контракт =
+        KIE_MODELS.find(м => м.id === полное.slice(4))?.needs ?? []
+      if (контракт.some(п => !доедет.includes(п))) урезанные.push(полное)
+    }
+    expect(урезанные).toEqual([])
+    expect(поля['kie/omnihuman-1-5']).toEqual(['image_url', 'audio_url'])
+  })
+
+  it('оба клиента спрашивают сервер, а не заводят свой список', () => {
+    const сервер = fs.readFileSync(
+      path.join(__dirname, '..', '..', 'render-server.ts'),
+      'utf8'
+    )
+    expect(сервер).toContain('modelFields: поляМоделей()')
+    const веб = fs.readFileSync(
+      path.join(
+        __dirname, '..', '..', '..', 'player', 'src', 'components', 'Panels',
+        'GeneratePanel.tsx'
+      ),
+      'utf8'
+    )
+    expect(веб).toContain("полеДоходит(баланс, 'duration', videoModel)")
+    expect(веб).toContain("полеДоходит(баланс, 'aspect_ratio', videoModel)")
+    const экран = fs.readFileSync(
+      path.join(
+        __dirname, '..', '..', '..', '..', 'vibee-ios', 'Vibee',
+        'GenerateScreen.swift'
+      ),
+      'utf8'
+    )
+    expect(экран).toContain('полеДоходит("aspect_ratio", модель: модельДляСервера)')
+    expect(экран).toContain('полеДоходит("duration", модель: модельДляСервера)')
+  })
+})
