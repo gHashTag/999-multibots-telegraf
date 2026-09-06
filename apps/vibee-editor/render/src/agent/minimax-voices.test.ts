@@ -6,6 +6,7 @@ import {
   голосMinimax,
   скоростьMinimax,
   входМиниМакс,
+  имяДляElevenLabs,
 } from './minimax-voices'
 
 /**
@@ -87,5 +88,28 @@ describe('проводка, а не только помощник', () => {
     // именами вместо голосов того, кто действительно читает.
     expect(СЕРВЕР).toContain('voices: ГОЛОСА_MINIMAX')
     expect(СЕРВЕР).toContain("provider: 'replicate/minimax-speech-02-turbo'")
+  })
+})
+
+describe('имя голоса уходит тому, кто его узнает', () => {
+  it('русская подпись НЕ уходит в ElevenLabs', () => {
+    // Список голосов теперь MiniMax, и `voice_name` приходит по-русски.
+    // Нога KieAI ждёт имя ElevenLabs; чужая строка даёт отказ на ПЕРВОЙ ноге.
+    expect(имяДляElevenLabs('Максим — уверенный')).toBeUndefined()
+    expect(имяДляElevenLabs('Wise Lady')).toBe('Wise Lady')
+    expect(имяДляElevenLabs('Rachel')).toBe('Rachel')
+    expect(имяДляElevenLabs('  Josh  ')).toBe('Josh')
+  })
+
+  it('мусор и пустота дают голос по умолчанию, а не отказ', () => {
+    expect(имяДляElevenLabs('')).toBeUndefined()
+    expect(имяДляElevenLabs(undefined)).toBeUndefined()
+    expect(имяДляElevenLabs('x'.repeat(80))).toBeUndefined()
+    expect(имяДляElevenLabs('Russian_ReliableMan')).toBeUndefined()
+  })
+
+  it('нога KieAI берёт имя через отбор, а не как есть', () => {
+    expect(СЕРВЕР).toContain("имяДляElevenLabs(voice_name) ?? 'Rachel'")
+    expect(СЕРВЕР).not.toMatch(/voice:\s*\n\s*typeof voice_name === 'string'/)
   })
 })
