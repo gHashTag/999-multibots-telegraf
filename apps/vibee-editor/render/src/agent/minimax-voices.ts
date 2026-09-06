@@ -33,22 +33,36 @@ export interface ГолосПровайдера {
   category: string
 }
 
+/**
+ * `category` У ВСЕХ — `premade`, И ЭТО НЕ КОСМЕТИКА.
+ *
+ * Сначала здесь стояли `ru` и `en` — язык голоса, что казалось полезнее. Оно
+ * столкнулось с двумя проверками, которые уже читают это поле и понимают под
+ * ним другое: «сток или клон владельца».
+ *
+ * `tools.ts:1181` ищет `category !== 'premade'` и объявляет найденное голосом
+ * ВЛАДЕЛЬЦА — то есть агент отчитывался бы, что озвучил клоном хозяина, взяв
+ * стоковый голос MiniMax. Веб по тому же полю рисует значок клона.
+ *
+ * Это стоковые голоса провайдера, и `premade` — правда о них. Язык виден в
+ * самом имени и никакой проверке не нужен.
+ */
 export const ГОЛОСА_MINIMAX: readonly ГолосПровайдера[] = [
   // — русские —
-  { id: 'Russian_ReliableMan', name: 'Максим — уверенный', category: 'ru' },
-  { id: 'Russian_BrightHeroine', name: 'Алиса — звонкая', category: 'ru' },
-  { id: 'Russian_AmbitiousWoman', name: 'Вера — деловая', category: 'ru' },
-  { id: 'Russian_HandsomeChildhoodFriend', name: 'Артём — свой парень', category: 'ru' },
-  { id: 'Russian_AttractiveGuy', name: 'Егор — обаятельный', category: 'ru' },
-  { id: 'Russian_PessimisticGirl', name: 'Ника — сдержанная', category: 'ru' },
-  { id: 'Russian_CrazyQueen', name: 'Рита — дерзкая', category: 'ru' },
-  { id: 'Russian_Bad-temperedBoy', name: 'Слава — резкий', category: 'ru' },
+  { id: 'Russian_ReliableMan', name: 'Максим — уверенный', category: 'premade' },
+  { id: 'Russian_BrightHeroine', name: 'Алиса — звонкая', category: 'premade' },
+  { id: 'Russian_AmbitiousWoman', name: 'Вера — деловая', category: 'premade' },
+  { id: 'Russian_HandsomeChildhoodFriend', name: 'Артём — свой парень', category: 'premade' },
+  { id: 'Russian_AttractiveGuy', name: 'Егор — обаятельный', category: 'premade' },
+  { id: 'Russian_PessimisticGirl', name: 'Ника — сдержанная', category: 'premade' },
+  { id: 'Russian_CrazyQueen', name: 'Рита — дерзкая', category: 'premade' },
+  { id: 'Russian_Bad-temperedBoy', name: 'Слава — резкий', category: 'premade' },
   // — английские —
-  { id: 'English_Wiselady', name: 'Wise Lady', category: 'en' },
-  { id: 'English_Deep-VoicedGentleman', name: 'Deep-Voiced Gentleman', category: 'en' },
-  { id: 'English_CalmWoman', name: 'Calm Woman', category: 'en' },
-  { id: 'English_FriendlyPerson', name: 'Friendly Person', category: 'en' },
-  { id: 'English_CaptivatingStoryteller', name: 'Captivating Storyteller', category: 'en' },
+  { id: 'English_Wiselady', name: 'Wise Lady', category: 'premade' },
+  { id: 'English_Deep-VoicedGentleman', name: 'Deep-Voiced Gentleman', category: 'premade' },
+  { id: 'English_CalmWoman', name: 'Calm Woman', category: 'premade' },
+  { id: 'English_FriendlyPerson', name: 'Friendly Person', category: 'premade' },
+  { id: 'English_CaptivatingStoryteller', name: 'Captivating Storyteller', category: 'premade' },
 ]
 
 const ИЗВЕСТНЫЕ = new Set(ГОЛОСА_MINIMAX.map(г => г.id))
