@@ -51,6 +51,7 @@ import {
   handleMcpCard,
   handleAgentChat,
   handleAgentHistory,
+  handleAgentHistoryDelete,
   handleAgentKeys,
   chatIdentity,
   resolveIdentity,
@@ -7346,6 +7347,32 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleAgentHistory(req, res, String(who), getPool)
+    return
+  }
+
+  /*
+   * DELETE /api/agent/history — правка СВОЕЙ переписки: убрать реплику
+   * (?id=<n>) или начать разговор заново (без id). Опознание — тем же
+   * resolveIdentity, что у чтения и у чата: три маршрута об одном и том же
+   * разговоре обязаны понимать личность одинаково.
+   */
+  if (
+    req.url?.split('?')[0] === '/api/agent/history' &&
+    req.method === 'DELETE'
+  ) {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: 'не удалось определить пользователя',
+          detail:
+            'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
+        })
+      )
+      return
+    }
+    await handleAgentHistoryDelete(req, res, String(who), getPool)
     return
   }
 
