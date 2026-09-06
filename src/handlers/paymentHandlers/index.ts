@@ -178,7 +178,7 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
         ? 'Произошла ошибка с валютой платежа. Обратитесь в поддержку.'
         : 'Payment currency error. Please contact support.'
     )
-    await ctx.scene.leave()
+    await ctx.scene?.leave?.()
     return
   }
 
@@ -330,7 +330,7 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
         tier: club.tier.key,
         stars: club.stars,
       })
-      await ctx.scene.leave()
+      await ctx.scene?.leave?.()
     } catch (error) {
       // Деньги уже списаны Telegram'ом: не молчим и не маскируем.
       logger.error('❌ [handleSuccessfulPayment] Foundry branch failed', {
@@ -343,7 +343,7 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
           ? 'Оплата прошла, но при активации клуба возникла ошибка. Напишите admin@t27.ai — активируем вручную.'
           : 'The payment went through, but club activation failed. Write to admin@t27.ai — we will activate it manually.'
       )
-      await ctx.scene.leave()
+      await ctx.scene?.leave?.()
     }
     return
   }
@@ -454,7 +454,7 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
           : '⭐ The payment went through, but the star did not reach the author. Write to admin@t27.ai — we will credit it manually.'
       )
     }
-    await ctx.scene.leave()
+    await ctx.scene?.leave?.()
     return
   }
 
@@ -722,7 +722,7 @@ If not, continue on your own and click the "I myself" button`
       )
     }
 
-    await ctx.scene.leave()
+    await ctx.scene?.leave?.()
     const { showMainMenu } = await import('@/navigation')
     await showMainMenu(ctx)
   } catch (error) {
@@ -732,7 +732,7 @@ If not, continue on your own and click the "I myself" button`
       telegram_id: normalizedUserId,
       payload,
     })
-    await ctx.scene.leave()
+    await ctx.scene?.leave?.()
     await ctx.reply(
       isRu
         ? 'Произошла ошибка при обработке вашего платежа. Обратитесь в поддержку.'
