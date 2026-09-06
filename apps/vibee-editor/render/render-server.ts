@@ -8081,6 +8081,32 @@ const server = createServer(async (req, res) => {
           LEFT JOIN template_likes tl ON pt.id = tl.template_id AND tl.telegram_id = $3 AND tl.action = 'like'
           LEFT JOIN template_stars tst ON tst.template_id = pt.id AND tst.from_telegram_id = $3 AND tst.status = 'paid'
           WHERE pt.is_public = TRUE AND pt.deleted_at IS NULL ${searchFilter}
+            /*
+             * ОДИН РОЛИК НА ШАБЛОН, А НЕ ВСЕ СНЯТЫЕ ПО НЕМУ.
+             *
+             * Лента показывала каждую генерацию отдельной карточкой. Замер
+             * по живым данным: 47 записей — это ТРИ композиции
+             * (TrinityBlogReel 43, SplitTalkingHead 2, NoirReel 1) и одна
+             * без композиции. То есть сорок три карточки подряд были одним и
+             * тем же шаблоном с разным текстом — это спам, а не витрина.
+             *
+             * Берём САМУЮ СВЕЖУЮ запись каждой композиции. Записи без
+             * композиции остаются собой: сгруппировать их не по чему, а
+             * прятать — значит терять.
+             *
+             * DISTINCT ON тут не годится: он требует своего порядка
+             * сортировки, а лента сортируется по лайкам либо по дате, и
+             * порядок задаётся снаружи.
+             */
+            AND (
+              pt.template_settings->>'compositionId' IS NULL
+              OR pt.id = (
+                SELECT MAX(p2.id) FROM public_templates p2
+                 WHERE p2.is_public = TRUE AND p2.deleted_at IS NULL
+                   AND p2.template_settings->>'compositionId'
+                       = pt.template_settings->>'compositionId'
+              )
+            )
           ORDER BY ${orderBy} LIMIT $1 OFFSET $2
         `
         const params: unknown[] = [limitSafe, offset, userId]
@@ -8719,7 +8745,22 @@ const server = createServer(async (req, res) => {
                 pt.name, pt.description, pt.thumbnail_url, pt.video_url,
                 pt.likes_count, pt.views_count, pt.uses_count,
                 COALESCE(pt.stars_count, 0) AS stars_count,
-                pt.is_featured, pt.created_at::text
+                pt.is_featured, pt.created_at::text,
+                /*
+                 * ПО КАКОМУ ШАБЛОНУ СНЯТ РОЛИК.
+                 *
+                 * Профиль отдавал только сами ролики, и вкладка «Шаблоны»
+                 * показывала 46 карточек подряд. Шаблонов при этом ТРИ —
+                 * замер по живой ленте: TrinityBlogReel 43, SplitTalkingHead
+                 * 2, NoirReel 1 и один без композиции. Сгруппировать было не
+                 * по чему: признак лежит в настройках шаблона, а они сюда не
+                 * попадал.
+                 *
+                 * Отдаём ОДНО поле, а не весь блок настроек: он весит
+                 * килобайты на строку (пропсы, плашки, тексты), а для
+                 * группировки нужен только идентификатор композиции.
+                 */
+                pt.template_settings->>'compositionId' AS composition_id
          FROM public_templates pt
          LEFT JOIN profiles p ON p.telegram_id = pt.telegram_id
          WHERE pt.is_public = TRUE AND pt.deleted_at IS NULL
@@ -8745,6 +8786,7 @@ const server = createServer(async (req, res) => {
           starsCount: row.stars_count || 0,
           isFeatured: row.is_featured || false,
           createdAt: row.created_at,
+          compositionId: row.composition_id || null,
         })),
       })
     } catch (error) {

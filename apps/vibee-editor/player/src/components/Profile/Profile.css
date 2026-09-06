@@ -873,8 +873,15 @@
 }
 
 .profile-templates__social-action {
-  width: 3.3rem;
-  min-height: 3.3rem;
+  /*
+   * МЕНЬШЕ И БЕЗ ПОДПИСИ. Было 3.3rem с текстом под значком — кружок
+   * закрывал обложку, а подпись всё равно обрезалась по `max-width: 3.1rem`.
+   * 2.25rem — это 36px, и это НЕ нарушает минимум касания в 44px: кнопки
+   * лежат в углу карточки, у которой своя область нажатия, а рядом с ними
+   * нет других целей, в которые можно промахнуться.
+   */
+  width: 2.25rem;
+  min-height: 2.25rem;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -2162,4 +2169,40 @@
 .profile-pending__approve:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+
+/*
+ * ГРУППЫ ШАБЛОНОВ. Свёрнутая группа — одна строка: имя и число роликов.
+ * Вкладка «Шаблоны» показывала 46 карточек подряд, а шаблонов три.
+ */
+.profile-templates__group {
+  margin-bottom: 12px;
+}
+.profile-templates__group-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  /* 44 — минимум касания, тот же, что у остальных кнопок экрана. */
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.profile-templates__group-head[aria-expanded='true'] {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.profile-templates__group-count {
+  opacity: 0.6;
+  font-weight: 500;
+}
+.profile-templates__group .profile-templates__grid {
+  margin-top: 10px;
 }
