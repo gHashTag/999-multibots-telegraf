@@ -999,10 +999,47 @@ If not, continue on your own and click the "I myself" button`
       if (/^[\u{1F300}-\u{1FAD6}\u{2600}-\u{27BF}]/u.test(text)) return next()
       if (ctx.scene?.current) return next()
 
+      /*
+       * НАСТОЯЩИЙ АГЕНТ, А НЕ ПЕРЕПИСКА С МОДЕЛЬЮ.
+       *
+       * Здесь звался `chatWithAI` — голая модель без единого инструмента. Она
+       * не могла посмотреть ленту, узнать баланс, выставить счёт или что-то
+       * сгенерировать; на «создай видео из моей аватарки» она предлагала
+       * набрать /start. Владелец назвал это точно: «он тупой, не подключен ко
+       * всем инструментам».
+       *
+       * Теперь бот спрашивает того же агента, что и мини-апп: 47 инструментов
+       * и ОБЩАЯ память разговора. Написанное здесь видно в приложении и
+       * наоборот.
+       *
+       * Падение агента НЕ должно оставлять человека без ответа: ниже есть
+       * запасной путь на старую модель, и он честно говорит, что инструменты
+       * сейчас недоступны, — вместо молчания.
+       */
       try {
         logger.info(
-          `🤖 [AI Fallback] "${text.substring(0, 50)}" from ${ctx.from?.id}`
+          `🤖 [Агент] "${text.substring(0, 50)}" от ${ctx.from?.id}`
         )
+        // «Печатает…»: агент делает витки с инструментами и отвечает не
+        // мгновенно. Без этого чат выглядит зависшим.
+        await ctx.sendChatAction('typing').catch(() => {})
+        const { спроситьАгента } = await import('@/services/trinityAgent')
+        const ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text)
+        if (ответ.текст) {
+          await ctx.reply(ответ.текст)
+          return
+        }
+        logger.warn('🤖 [Агент] пустой ответ — иду запасным путём', {
+          telegram_id: ctx.from?.id,
+        })
+      } catch (err: any) {
+        logger.error('🤖 [Агент] недоступен — иду запасным путём', {
+          error: err?.message,
+          telegram_id: ctx.from?.id,
+        })
+      }
+
+      try {
         const { chatWithAI } = await import('@/services/aiChatService')
         const reply = await chatWithAI(
           [

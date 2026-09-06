@@ -5,7 +5,11 @@
  */
 
 import { Markup } from 'telegraf'
-import type { ReplyKeyboardMarkup, KeyboardButton } from 'telegraf/types'
+import type {
+  ReplyKeyboardMarkup,
+  ReplyKeyboardRemove,
+  KeyboardButton,
+} from 'telegraf/types'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
@@ -31,7 +35,7 @@ import { isAdmin } from '@/middleware/adminOnly'
  */
 export function createMainMenuKeyboard(
   ctx: MyContext
-): Markup.Markup<ReplyKeyboardMarkup> {
+): Markup.Markup<ReplyKeyboardRemove> {
   const isRu = isRussianFromState(ctx)
 
   /*
@@ -52,17 +56,23 @@ export function createMainMenuKeyboard(
    * зарегистрированные сцены. Убраны не поломанные, а лишние: сами сцены
    * остаются на месте и доступны, просто их больше не предлагают списком.
    *
-   * Кнопка мини-аппа ОСТАЁТСЯ — это и есть первая из двух дверей, видимая.
-   * Кнопка меню чата («APP») ведёт туда же, но её легко не заметить: она
-   * маленькая и лежит у поля ввода. Одна широкая кнопка внизу — понятная
-   * подсказка, что приложение вообще есть.
+   * КНОПКА ПРИЛОЖЕНИЯ В КЛАВИАТУРЕ ТОЖЕ УБРАНА — И ЭТО НЕ ЭСТЕТИКА.
+   *
+   * Мини-апп, запущенный кнопкой reply-клавиатуры, НЕ ПОЛУЧАЕТ ни подписи, ни
+   * пользователя: Telegram так устроен, и это записано в самом приложении
+   * (atoms/telegramAuth.ts: «запуск с reply-кнопки не несёт ни подписи, ни
+   * пользователя»). Владелец увидел ровно это: открыл приложение из бота и
+   * упёрся в «Войти», хотя он уже внутри Telegram.
+   *
+   * Подписанный запуск даёт кнопка МЕНЮ чата (у нас она называется «APP»),
+   * ссылка и inline-кнопка. Поэтому широкая кнопка внизу была не «понятной
+   * подсказкой», а единственной дверью, которая ломает вход.
+   *
+   * Клавиатура убирается целиком (removeKeyboard), а не подменяется пустой:
+   * пустой массив кнопок Telegram показывает как пустую панель, и старая
+   * клавиатура у человека может остаться висеть.
    */
-  const rows: KeyboardButton[][] = []
-  if (canShowMiniAppButton(ctx.chat?.type)) {
-    rows.push([createMiniAppButton(isRu)])
-  }
-
-  return Markup.keyboard(rows).resize()
+  return Markup.removeKeyboard()
 }
 
 /**
@@ -75,7 +85,7 @@ export function createCategoryKeyboard(
   ctx: MyContext,
   categoryId: string,
   options: { includeBack?: boolean } = {}
-): Markup.Markup<ReplyKeyboardMarkup> {
+): Markup.Markup<ReplyKeyboardMarkup | ReplyKeyboardRemove> {
   const isRu = isRussianFromState(ctx)
   const category = getCategoryById(categoryId)
 
@@ -147,7 +157,7 @@ export async function createCategoryKeyboardAsync(
   ctx: MyContext,
   categoryId: string,
   options: { includeBack?: boolean } = {}
-): Promise<Markup.Markup<ReplyKeyboardMarkup>> {
+): Promise<Markup.Markup<ReplyKeyboardMarkup | ReplyKeyboardRemove>> {
   const isRu = isRussianFromState(ctx)
   const category = getCategoryById(categoryId)
 
@@ -302,7 +312,11 @@ export async function showCategoryMenu(
     logger.info('🗺 [showCategoryMenu] Sending message...', {
       telegramId,
       categoryId,
-      keyboardRows: keyboard.reply_markup?.keyboard?.length || 0,
+      // Клавиатура может быть и снятием (removeKeyboard) — у него рядов нет.
+      keyboardRows:
+        'keyboard' in (keyboard.reply_markup ?? {})
+          ? ((keyboard.reply_markup as ReplyKeyboardMarkup).keyboard?.length ?? 0)
+          : 0,
       messageLength: description.length,
     })
 
@@ -314,7 +328,11 @@ export async function showCategoryMenu(
       telegramId,
       categoryId,
       messageLength: description.length,
-      keyboardRows: keyboard.reply_markup?.keyboard?.length || 0,
+      // Клавиатура может быть и снятием (removeKeyboard) — у него рядов нет.
+      keyboardRows:
+        'keyboard' in (keyboard.reply_markup ?? {})
+          ? ((keyboard.reply_markup as ReplyKeyboardMarkup).keyboard?.length ?? 0)
+          : 0,
     })
   } catch (error) {
     logger.error('❌ [showCategoryMenu] Error displaying category', {

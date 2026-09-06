@@ -105,7 +105,28 @@ export function FeedCard({ template }: FeedCardProps) {
   const handleCopyLink = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation()
-      const адрес = `${window.location.origin}/feed?post=${template.id}`
+      /*
+       * ССЫЛКА ВЕДЁТ НА НАШ АДРЕС, А НЕ НА АДРЕС ХОСТИНГА.
+       *
+       * Было `window.location.origin` — то есть человек копировал
+       * `vibee-editor-production.up.railway.app/feed?post=1` и рассылал
+       * служебный адрес Railway. Он работает, но это не адрес продукта: по
+       * нему не видно, чей он, его нельзя произнести вслух, и он привязывает
+       * нас к площадке — сменим хостинг, и все разосланные ссылки умрут.
+       *
+       * Публичный дом приложения — app.t27.ai. Литерал, а не переменная
+       * окружения: у сборки фронта нет надёжного способа узнать собственный
+       * публичный адрес, а неверная переменная здесь тихо вернула бы прежнее
+       * поведение.
+       *
+       * На локальном стенде адрес остаётся местным: иначе разработчик,
+       * проверяя копирование, каждый раз получал бы ссылку на прод и уходил
+       * туда вместо своего стенда.
+       */
+      const дом = import.meta.env.DEV
+        ? window.location.origin
+        : 'https://app.t27.ai'
+      const адрес = `${дом}/feed?post=${template.id}`
       try {
         await navigator.clipboard.writeText(адрес)
         setCopiedLink(true)

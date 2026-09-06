@@ -77,64 +77,39 @@ describe('menuKeyboard', () => {
   })
 
   describe('createMainMenuKeyboard()', () => {
-    it('создаёт клавиатуру для русского языка', () => {
+    /*
+     * ГЛАВНОЕ МЕНЮ БОЛЬШЕ НЕ КЛАВИАТУРА, А ЕЁ СНЯТИЕ.
+     *
+     * Проверки здесь описывали список категорий и раскладку по три в ряд.
+     * Владелец убрал список 06.09.2026: «чтобы вся работа в мини аппе или в
+     * чате бота, так будет понятно». Аудит перед удалением показал, что все
+     * кнопки ИСПРАВНЫ — убраны не поломанные, а лишние; сцены остались.
+     *
+     * Кнопка мини-аппа убрана отдельно и по другой причине: запуск с
+     * reply-кнопки не несёт ни подписи, ни пользователя, поэтому приложение
+     * встречало человека словом «Войти» прямо внутри Telegram. Подробности —
+     * в miniAppButton.test.ts.
+     */
+    it('снимает клавиатуру, а не рисует пустую', () => {
       ;(isRussianFromState as Mock).mockReturnValue(true)
-
       const keyboard = createMainMenuKeyboard(mockContext as MyContext)
-
-      expect(keyboard).toBeDefined()
-      expect(keyboard.reply_markup).toBeDefined()
-      expect(keyboard.reply_markup.keyboard).toBeDefined()
-      expect(Array.isArray(keyboard.reply_markup.keyboard)).toBe(true)
+      expect(keyboard.reply_markup).toHaveProperty('remove_keyboard', true)
     })
 
-    it('создаёт клавиатуру для английского языка', () => {
-      ;(isRussianFromState as Mock).mockReturnValue(false)
-
-      const keyboard = createMainMenuKeyboard(mockContext as MyContext)
-
-      expect(keyboard).toBeDefined()
-      expect(keyboard.reply_markup).toBeDefined()
-      expect(keyboard.reply_markup.keyboard).toBeDefined()
-    })
-
-    it('группирует кнопки по 3 в ряд', () => {
-      const keyboard = createMainMenuKeyboard(mockContext as MyContext)
-      const rows = keyboard.reply_markup.keyboard
-
-      // Каждый ряд должен иметь максимум 3 кнопки
-      rows.forEach((row: any[]) => {
-        expect(row.length).toBeLessThanOrEqual(3)
-      })
-    })
-
-    it('НЕ перечисляет категории — их убрали намеренно', () => {
-      /*
-       * Раньше здесь сверялось число кнопок с числом категорий. Владелец
-       * убрал список 06.09.2026: «чтобы вся работа в мини аппе или в чате
-       * бота, так будет понятно». Аудит перед удалением показал, что все
-       * кнопки были ИСПРАВНЫ — убраны не поломанные, а лишние; сами сцены
-       * остались на месте.
-       *
-       * Проверяется отсутствие категорий, а не точное число кнопок: кнопка
-       * приложения рисуется только в личке, и завязка на её наличие сделала
-       * бы проверку зависимой от типа чата у мока.
-       */
-      ;(isRussianFromState as Mock).mockReturnValue(true)
-
-      const keyboard = createMainMenuKeyboard(mockContext as MyContext)
-      const тексты = keyboard.reply_markup.keyboard
-        .flat()
-        .map((b: any) => (typeof b === 'string' ? b : b.text))
+    it('в снятии нет ни одной кнопки — ни текстовой, ни web_app', () => {
+      const сериализовано = JSON.stringify(
+        createMainMenuKeyboard(mockContext as MyContext).reply_markup
+      )
+      expect(сериализовано).not.toContain('web_app')
       for (const cat of CATEGORIES) {
-        expect(тексты).not.toContain(getCategoryText(cat, true))
+        expect(сериализовано).not.toContain(getCategoryText(cat, true))
       }
     })
 
-    it('имеет resize: true', () => {
+    it('язык на снятие не влияет', () => {
+      ;(isRussianFromState as Mock).mockReturnValue(false)
       const keyboard = createMainMenuKeyboard(mockContext as MyContext)
-
-      expect(keyboard.reply_markup.resize_keyboard).toBe(true)
+      expect(keyboard.reply_markup).toHaveProperty('remove_keyboard', true)
     })
   })
 
@@ -159,10 +134,12 @@ describe('menuKeyboard', () => {
       )
 
       expect(keyboard).toBeDefined()
-      // Возвращается главное меню. Оно больше не перечисляет категории, но
-      // остаётся валидной клавиатурой — а не пустотой вместо ответа.
-      expect(keyboard.reply_markup.resize_keyboard).toBe(true)
-      expect(Array.isArray(keyboard.reply_markup.keyboard)).toBe(true)
+      /*
+       * Возвращается ГЛАВНОЕ МЕНЮ — а оно теперь снимает клавиатуру. Важно
+       * именно это: на неизвестную категорию человек получает осмысленный
+       * ответ, а не пустоту и не обломок прежнего меню.
+       */
+      expect(keyboard.reply_markup).toHaveProperty('remove_keyboard', true)
     })
 
     it('группирует кнопки по 3 в ряд', () => {
@@ -478,24 +455,16 @@ describe('menuKeyboard', () => {
   })
 
   describe('Keyboard structure', () => {
-    it('главное меню содержит корректные тексты кнопок', () => {
-      ;(isRussianFromState as Mock).mockReturnValue(true)
-
-      const keyboard = createMainMenuKeyboard(mockContext as MyContext)
-      const allButtonTexts = keyboard.reply_markup.keyboard
-        .flat()
-        .map((btn: any) => btn.text || btn)
-
+    it('главное меню не содержит кнопок вовсе', () => {
       /*
-       * Категорий в главном меню больше нет (решение владельца 06.09.2026:
-       * вся работа — в приложении или в разговоре с агентом). Осталась одна
-       * кнопка мини-аппа, и эмодзи есть у неё — поэтому проверка на эмодзи
-       * сохраняет смысл, но говорит уже о другом: меню не пустое.
+       * Проверка сверяла эмодзи в подписях категорий. Категорий больше нет:
+       * меню снимает клавиатуру, а обе двери — приложение (кнопка меню «APP»)
+       * и разговор с агентом прямо в чате.
        */
-      // Категорий в меню больше нет; проверяем, что и следов их не осталось.
-      expect(
-        allButtonTexts.filter((t: string) => /Фото|Видео|Аудио/.test(t)).length
-      ).toBe(0)
+      ;(isRussianFromState as Mock).mockReturnValue(true)
+      const keyboard = createMainMenuKeyboard(mockContext as MyContext)
+      expect(keyboard.reply_markup).toHaveProperty('remove_keyboard', true)
+      expect(JSON.stringify(keyboard.reply_markup)).not.toContain('text')
     })
 
     it('клавиатура категории содержит функции категории', () => {
