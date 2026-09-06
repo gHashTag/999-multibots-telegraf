@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { tamaguiPlugin } from '@tamagui/vite-plugin'
 import path from 'path'
+import type { PluginOption } from 'vite'
 import type { Plugin } from 'vite'
 
 // Replicate API proxy plugin
@@ -123,8 +124,48 @@ function replicatePlugin(): Plugin {
   }
 }
 
+/**
+ * ВЫРЕЗАТЬ ПОДСТАВНОЙ TELEGRAM ИЗ ЛЮБОЙ НЕ-DEV СБОРКИ.
+ *
+ * Заведено 07.09.2026, после того как проверка `telegram-dev-mock.test.ts`
+ * дважды поймала подставку в продакшен-бандле.
+ *
+ * Первая попытка защиты — `import.meta.env.DEV` внутри самого модуля: ветка
+ * мертва, но модуль остаётся в графе, и строки уезжают в бандл. Вторая —
+ * динамический импорт под тем же условием: Rollup выпустил его ОТДЕЛЬНЫМ
+ * КУСКОМ, который никто не грузит, но который лежит на сервере и доступен по
+ * адресу.
+ *
+ * Надёжно только одно: в не-dev сборке модуля просто НЕТ. Подмена на пустышку
+ * делает это на уровне разрешения путей, до всякой оптимизации, и не зависит
+ * от того, насколько умён минификатор в этом году.
+ */
+function вырезатьПодставнойTelegram(): PluginOption {
+  const ПУСТЫШКА = 'export function включитьПодставнойTelegram() {}'
+  return {
+    name: 'вырезать-подставной-telegram',
+    apply: 'build',
+    enforce: 'pre',
+    load(id: string) {
+      /*
+       * Условия на NODE_ENV здесь НЕТ намеренно.
+       *
+       * Первая версия сверялась с `process.env.NODE_ENV`, и подставка снова
+       * уехала в бандл: в дочернем процессе сборки переменная оказалась не
+       * той, что ожидалось, а проверка молча вернула «не продакшен».
+       *
+       * `apply: 'build'` уже говорит всё нужное: dev-сервер — это `serve`, и
+       * туда плагин не попадает вовсе. Любая СБОРКА получает пустышку. Одно
+       * условие вместо двух, и оно проверяется тестом.
+       */
+      return id.includes('telegramDevMock') ? ПУСТЫШКА : null
+    },
+  }
+}
+
 export default defineConfig({
   plugins: [
+    вырезатьПодставнойTelegram(),
     react(),
     tamaguiPlugin({
       config: './tamagui.config.ts',

@@ -1,10 +1,12 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { LanguageProvider } from '@/hooks/useLanguage'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { JotaiProvider } from '@/atoms/Provider'
 import { myProfileAtom, userAtom } from '@/atoms'
+import { API_BASE } from '@/config'
+import { authHeaders } from '@/lib/apiFetch'
 import { TamaguiProvider } from '@/providers/TamaguiProvider'
 import { ToastContainer } from '@/components/Toast/Toast'
 import { PageTransition } from '@/components/PageTransition'
@@ -33,12 +35,72 @@ const TermsServicePage = lazy(() => import('@/pages/TermsService'))
 const LearnPage = lazy(() => import('@/pages/Learn'))
 
 // Redirect /profile to /:username for current user
-function ProfileRedirect() {
+// Экспортируется РАДИ ПРОВЕРОК: три ветки этой функции (имя есть / имя знает
+// сервер / имени нет нигде) различаются только тем, что видит человек, и
+// проверить их через всё приложение значит не проверить их вовсе.
+export function ProfileRedirect() {
   const myProfile = useAtomValue(myProfileAtom)
   const user = useAtomValue(userAtom)
+  const [поИдентификатору, setПоИдентификатору] = useState<string | null | undefined>(
+    undefined
+  )
   const username = myProfile?.username || user?.username
+
+  /**
+   * ИМЯ СПРАШИВАЕМ У СЕРВЕРА, ЕСЛИ ЗАПУСК ЕГО НЕ ДАЛ.
+   *
+   * Найдено 07.09.2026 живым прогоном мини-аппа.
+   *
+   * Профиль открывается по адресу `/:username`, а имя бралось ровно из двух
+   * мест: профиля, уже загруженного в память, и launch-данных Telegram. Ни
+   * одно не гарантировано:
+   *
+   *  - у множества аккаунтов Telegram @имени НЕТ ВОВСЕ;
+   *  - Telegram кладёт `username` в launch-данные не всегда.
+   *
+   * В обоих случаях человек попадал на экран «Профиль не открыть: подпись
+   * Telegram сюда не пришла» — при том что подпись пришла, человек опознан, и
+   * дело совсем не в ней. Ложная причина хуже отсутствия причины: она уводит
+   * искать не там, и «почему я не зашёл через TMA» — ровно этот вопрос.
+   *
+   * Сервер знает имя: он синхронизирует его из Telegram при входе, и маршрут
+   * `GET /api/users/id/:telegram_id` его отдаёт. Один запрос превращает тупик
+   * в рабочий экран.
+   */
+  useEffect(() => {
+    if (username || !user?.id) return
+    let живо = true
+    fetch(`${API_BASE}/api/users/id/${encodeURIComponent(String(user.id))}`, {
+      headers: authHeaders(),
+    })
+      .then(о => (о.ok ? о.json() : null))
+      .then(д => {
+        if (живо) setПоИдентификатору(д?.username || null)
+      })
+      .catch(() => {
+        // Сеть отвалилась — это НЕ «имени нет». Ниже отличается одно от
+        // другого: `null` значит «спросили, имени нет», `undefined` — «ещё
+        // не знаем».
+        if (живо) setПоИдентификатору(null)
+      })
+    return () => {
+      живо = false
+    }
+  }, [username, user?.id])
+
   if (username) {
     return <Navigate to={`/${username}`} replace />
+  }
+  if (поИдентификатору) {
+    return <Navigate to={`/${поИдентификатору}`} replace />
+  }
+  // Ещё спрашиваем — молчим. Показать «профиль не открыть» и через миг увести
+  // на профиль значит мигнуть человеку неправдой.
+  if (user?.id && поИдентификатору === undefined) {
+    return null
+  }
+  if (user?.id) {
+    return <ProfileHasNoUsername />
   }
   /**
    * НЕ на ленту молча.
@@ -52,6 +114,62 @@ function ProfileRedirect() {
    * не читает, — декорация, и в этом репозитории таких уже хватало.
    */
   return <ProfileNeedsSignIn />
+}
+
+/**
+ * Человек опознан, но открывать профиль НЕ ПО ЧЕМУ: имени нет ни у Telegram,
+ * ни у сервера.
+ *
+ * Отдельный экран, потому что причина другая. Раньше сюда попадали на текст
+ * «подпись Telegram сюда не пришла» — при живой подписи. Человек шёл проверять
+ * Telegram, перезапускать мини-апп и писать в поддержку о том, чего нет.
+ */
+function ProfileHasNoUsername() {
+  return (
+    <div
+      style={{
+        minHeight: '60vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+        padding: 24,
+        textAlign: 'center',
+      }}
+    >
+      <h2 style={{ margin: 0, fontSize: 18 }}>Профиль открывается по имени</h2>
+      <p
+        style={{
+          margin: 0,
+          maxWidth: 420,
+          opacity: 0.7,
+          fontSize: 14,
+          lineHeight: 1.5,
+        }}
+      >
+        Мы вас узнали, но у вашего аккаунта Telegram нет @имени — а страница
+        профиля живёт по нему. Задайте имя в Telegram: «Настройки» → «Имя
+        пользователя», и вернитесь сюда.
+      </p>
+      <a
+        href="/feed"
+        style={{
+          marginTop: 8,
+          minHeight: 44,
+          display: 'inline-flex',
+          alignItems: 'center',
+          padding: '0 16px',
+          borderRadius: 12,
+          border: '1px solid rgba(255,255,255,0.15)',
+          textDecoration: 'none',
+          color: 'inherit',
+        }}
+      >
+        Открыть ленту
+      </a>
+    </div>
+  )
 }
 
 /**
