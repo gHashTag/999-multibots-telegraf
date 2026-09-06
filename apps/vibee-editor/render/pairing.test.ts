@@ -80,12 +80,25 @@ class FakePool {
     }
 
     if (s.includes('SET consumed_at = now() WHERE code_hash')) {
+      /*
+       * УСЛОВИЯ БЕРУТСЯ ИЗ ЗАПРОСА, А НЕ ПОВТОРЯЮТСЯ ЗДЕСЬ.
+       *
+       * Подделка переписывала WHERE у себя, поэтому удаление
+       * `AND consumed_at IS NULL` из настоящего кода — то есть снятие
+       * ОДНОРАЗОВОСТИ кода, который выдаёт сессию и refresh-токен, —
+       * оставляло все 20 тестов зелёными. Включая два с названиями «второй
+       * обмен тем же кодом не проходит» и «код второй раз не проходит».
+       *
+       * Отсутствующее в SQL условие обязано отсутствовать и в отборе.
+       */
+      const проверяетОдноразовость = s.includes('consumed_at IS NULL')
+      const проверяетСрок = s.includes('expires_at > now()')
       const out: any[] = []
       for (const r of this.rows) {
         if (
           r.code_hash === params[0] &&
-          r.consumed_at === null &&
-          r.expires_at > this.now
+          (!проверяетОдноразовость || r.consumed_at === null) &&
+          (!проверяетСрок || r.expires_at > this.now)
         ) {
           r.consumed_at = this.now
           out.push({ telegram_id: r.telegram_id })
