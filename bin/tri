@@ -26,6 +26,7 @@ tri — оболочка Trinity S³AI
   tri pipeline   проверка конвейера без единой траты кредитов
   tri prices     таблица цен: модель, токены, единица
   tri feed       посты в ленте с id (в интерфейсе ссылок на посты нет)
+  tri feed-hide <id>  скрыть все свои посты, кроме одного (обратимо)
   tri open       что ещё открыто по pipeline-STATUS.md
   tri tests      тесты денег и iOS-модулей
   tri all        ВЕСЬ серверный набор (Node 20) — свои файлы зелёные ≠ зелёный проект
@@ -73,6 +74,62 @@ case "${1:-}" in
     if [ -z "$KEY" ]; then echo "нет RENDER_API_KEY в окружении сервиса"; exit 1; fi
     curl -s -m 30 "https://vibee-render-production.up.railway.app/api/feed?limit=100" \
       -H "X-Api-Key: $KEY" | python3 "$ROOT/bin/helpers/feed.py" ;;
+  feed-hide)
+    # СКРЫТЬ ВСЁ, КРОМЕ ОДНОГО. Скрытие обратимо: маршрут ставит `deleted_at`,
+    # а повторная публикация того же имени его снимает. Удаления здесь нет и
+    # быть не должно — вернуть удалённое неоткуда.
+    #
+    # id того, что ОСТАЁТСЯ, передаётся руками и обязателен. Угаданный выбор
+    # владелец заметит не сразу, а лента — это чужие глаза.
+    KEEP="${2:-}"
+    if [ -z "$KEEP" ]; then
+      echo "нужен id поста, который остаётся: tri feed-hide <id>"; exit 1
+    fi
+    KEY=$( (railway service vibee-render >/dev/null 2>&1; railway variables --kv 2>/dev/null) \
+           | grep -E '^RENDER_API_KEY=' | cut -d= -f2- )
+    if [ -z "$KEY" ]; then echo "нет RENDER_API_KEY в окружении сервиса"; exit 1; fi
+    BASE="https://vibee-render-production.up.railway.app"
+    # Владельца берём у самого поста, который оставляем: скрывать можно только
+    # своё, и сервер это проверяет тем же UPDATE. Мы лишь не шлём заведомо
+    # чужие запросы.
+    OWNER=$(curl -s -m 30 "$BASE/api/feed/$KEEP" -H "X-Api-Key: $KEY" \
+             | python3 -c "import json,sys; print(json.load(sys.stdin).get('telegramId',''))")
+    if [ -z "$OWNER" ]; then echo "поста $KEEP нет — ничего не трогаю"; exit 1; fi
+    echo "оставляю id $KEEP (владелец $OWNER), остальное скрываю"
+    # СПИСОК БЕРЁМ ИЗ ПРОФИЛЯ, А НЕ ИЗ ЛЕНТЫ.
+    #
+    # Лента с недавних пор отдаёт ОДНУ запись на шаблон — иначе сорок три
+    # карточки одного шаблона были спамом. Для скрытия это ровно неверный
+    # список: по нему скрылись бы три поста из сорока шести, и выглядело бы
+    # как «сработало».
+    #
+    # Профиль отдаёт все свои, страницами по 20; идём страницами, пока они не
+    # кончатся.
+    USERNAME=$(curl -s -m 30 "$BASE/api/users/id/$OWNER" \
+               | python3 -c "import json,sys; print(json.load(sys.stdin).get('username',''))")
+    if [ -z "$USERNAME" ]; then echo "не нашёл имя владельца"; exit 1; fi
+    PAGE=0
+    : > /tmp/tri-hide-ids
+    while [ "$PAGE" -lt 20 ]; do
+      GOT=$(curl -s -m 30 "$BASE/api/users/$USERNAME/templates?page=$PAGE&limit=20" \
+            | python3 -c "
+import json,sys
+data=json.load(sys.stdin)
+ts=data.get('templates') or []
+for t in ts:
+    if str(t.get('id'))!='$KEEP':
+        print(t['id'])
+sys.stderr.write(str(len(ts)))
+" 2>/tmp/tri-hide-count)
+      echo "$GOT" >> /tmp/tri-hide-ids
+      [ "$(cat /tmp/tri-hide-count)" = "20" ] || break
+      PAGE=$((PAGE + 1))
+    done
+    grep -E '^[0-9]+$' /tmp/tri-hide-ids | sort -u | while read -r ID; do
+        ANSWER=$(curl -s -m 30 -X DELETE "$BASE/api/feed/$ID?telegram_id=$OWNER" -H "X-Api-Key: $KEY")
+        echo "  $ID -> $ANSWER"
+      done
+    echo "готово. вернуть можно повторной публикацией — скрытие обратимо" ;;
   open)     sed -n '/^## Открыто/,/^## Не переоткрывать/p' "$LOOP/pipeline-STATUS.md" ;;
   tests)
     (cd "$RENDER" && npx vitest run src/agent/billing-prices.test.ts miniapp-receipt miniapp-billing) ;;
