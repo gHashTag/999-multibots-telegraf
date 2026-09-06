@@ -56,6 +56,7 @@ import {
   resolveIdentity,
   readBody,
 } from './src/agent/routes'
+import { ценаТокенов, названиеСчёта } from './src/agent/token-packs'
 // A2A: the open protocol for external agents. Imported here because this file
 // is the only place that mounts routes, and until now nothing imported it at
 // all -- see the block comment at the mount site.
@@ -7464,8 +7465,29 @@ const server = createServer(async (req, res) => {
         }
         try {
           const body = JSON.parse((await readBody(req)) || '{}')
-          const pack = PACKS[String(body.pack)]
-          if (!pack) throw new Error('неизвестный пакет')
+          /*
+           * СЧЁТ НА ЛЮБОЕ КОЛИЧЕСТВО, А НЕ ТОЛЬКО НА ТРИ ПАКЕТА.
+           *
+           * Владелец: «пакетное пополнение уже сделано, но можно сделать чек
+           * на любое количество — главное, чтобы агент умел это делать».
+           *
+           * Цена берётся из ОДНОЙ шкалы (token-packs.ts), из которой прежние
+           * пакеты выводятся точно: 10→15, 50→65, 150→175. Иначе рядом с
+           * кассой появилась бы вторая правда о цене, а их в этом сервисе
+           * уже было достаточно.
+           *
+           * `pack` продолжает работать: мини-апп шлёт его сегодня, и ломать
+           * работающего клиента ради формы запроса незачем.
+           */
+          const запрошено =
+            body.tokens != null ? Number(body.tokens) : PACKS[String(body.pack)]?.tokens
+          if (!запрошено) throw new Error('нужно поле tokens или известный pack')
+          const цена = ценаТокенов(запрошено)
+          const pack = {
+            tokens: цена.токенов,
+            stars: цена.звёзд,
+            title: названиеСчёта(цена.токенов),
+          }
           const tg = await fetch(
             `https://api.telegram.org/bot${PAY_BOT}/createInvoiceLink`,
             {

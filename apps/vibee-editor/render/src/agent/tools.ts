@@ -407,6 +407,7 @@ async function withTokens<T extends object>(
   return { ...result, токены: { потрачено: price, осталось: balance } }
 }
 
+import { ценаТокенов, названиеСчёта } from './token-packs'
 import { TELEGRAM_TOOLS } from './telegram-tools'
 import { PROJECT_TOOLS } from './project-tools'
 
@@ -1452,6 +1453,72 @@ export const TOOLS: AgentTool[] = [
       return {
         ...stData,
         url: url && !url.startsWith('http') ? `${selfBase()}${url}` : url,
+      }
+    },
+  },
+
+  {
+    name: 'tokens_invoice',
+    description:
+      'Выставить счёт на ПОКУПКУ токенов за звёзды Telegram — на любое количество, ' +
+      'не только на готовые пакеты. Возвращает ссылку на оплату и цену. ' +
+      'Бесплатно: счёт — это предложение, деньги спишет Telegram только после подтверждения человеком. ' +
+      'Называй цену ИЗ ОТВЕТА этого инструмента, а не по памяти: шкала со скидкой за объём, ' +
+      'и придуманное число будет обещанием, за которое платит владелец. ' +
+      'Тарифов и подписок нет — есть только токены.',
+    parameters: {
+      type: 'object',
+      properties: {
+        tokens: {
+          type: 'number',
+          description: 'сколько токенов купить, целое число от 1',
+        },
+      },
+      required: ['tokens'],
+    },
+    async handler(a: any, ctx) {
+      /*
+       * Цена считается ЗДЕСЬ ЖЕ той же шкалой, что и в маршруте счёта, а не
+       * пересказывается моделью: пересказ разошёлся бы с кассой в тот день,
+       * когда шкалу поправят.
+       */
+      const цена = ценаТокенов(Number(a?.tokens))
+      const PAY_BOT = process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
+      if (!PAY_BOT) {
+        throw new Error(
+          'касса не настроена: TOKENS_PAYMENT_BOT_TOKEN не задан — счёт выставить нечем'
+        )
+      }
+      const о = await fetch(
+        `https://api.telegram.org/bot${PAY_BOT}/createInvoiceLink`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: названиеСчёта(цена.токенов),
+            description: 'Токены для генераций в Trinity S³AI',
+            // Тот же payload, что и у маршрута: его разбирает бот и
+            // переправляет зачисление сюда. Разойдись он — оплата не
+            // зачислилась бы, а деньги ушли бы.
+            payload: `tokens:${цена.токенов}:${ctx.telegramId}`,
+            currency: 'XTR',
+            prices: [
+              { label: названиеСчёта(цена.токенов), amount: цена.звёзд },
+            ],
+          }),
+        }
+      )
+      const д: any = await о.json()
+      if (!д?.ok || !д?.result) {
+        throw new Error(`Telegram не выдал ссылку: ${String(д?.description).slice(0, 200)}`)
+      }
+      return {
+        ссылка: д.result,
+        токенов: цена.токенов,
+        звёзд: цена.звёзд,
+        звёзд_за_токен: Number(цена.звёздЗаТокен.toFixed(4)),
+        как_платить:
+          'открой ссылку в Telegram и подтверди — токены зачислятся сразу после оплаты',
       }
     },
   },
