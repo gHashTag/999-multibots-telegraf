@@ -171,6 +171,59 @@ export async function logoutAppSession(): Promise<void> {
   }
 }
 
+/**
+ * ОБМЕНЯТЬ ПОДПИСЬ ЗАПУСКА НА СЕССИЮ ПРИЛОЖЕНИЯ.
+ *
+ * Заведено 07.09.2026. До этого `/api/auth/telegram` не звал НИКТО: ни
+ * мини-апп, ни приложение на iOS, ни бот. Маршрут был написан, покрыт тестами,
+ * задеплоен — и не имел ни одного посетителя. Весь мини-апп работал по
+ * заголовку `X-Telegram-Init-Data` на каждом запросе.
+ *
+ * ЧЕГО ЭТО НЕ ДАЁТ, чтобы не обещать лишнего. Сессия НЕ делает личность внутри
+ * Telegram отзываемой: `initData` живёт сутки по правилам Telegram, и пока она
+ * жива, по ней выпускается новая сессия. Отзыв станет настоящим только вместе
+ * с коротким окном приёма `initData` — это отдельная работа, и делать её надо
+ * ПОСЛЕ того, как станет видно, что сессии вообще выпускаются.
+ *
+ * ЧТО ЭТО ДАЁТ УЖЕ СЕЙЧАС:
+ *
+ *  - у запроса появляется предъявитель, живущий десять минут, а не сутки;
+ *  - обновление сессии (и гонка вкладок, и отзыв семьи) начинает работать для
+ *    мини-аппа, а не только для веба;
+ *  - отображение «один запуск — одна семья» (app_launch_families) перестаёт
+ *    быть кодом без посетителей.
+ *
+ * ОТКАЗ НЕ ЛОМАЕТ НИЧЕГО. Не вышло — работаем ровно как вчера, по подписи.
+ * Поэтому здесь нет ни одного `throw`: это добавка, а не замена.
+ */
+export async function exchangeTelegramLaunch(
+  initData: string
+): Promise<AppSession | null> {
+  if (!initData) return null
+  try {
+    const response = await fetch(`${API_BASE}/api/auth/telegram`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ init_data: initData }),
+    })
+    const body = (await response.json().catch(() => ({}))) as Partial<AppSession>
+    if (
+      !response.ok ||
+      typeof body.access_token !== 'string' ||
+      typeof body.refresh_token !== 'string' ||
+      typeof body.expires_in !== 'number'
+    ) {
+      return null
+    }
+    const session = body as AppSession
+    storeAppSession(session)
+    return session
+  } catch {
+    // Сеть отвалилась — не повод трогать то, что уже работает.
+    return null
+  }
+}
+
 export async function exchangeTelegramWidget(
   payload: Record<string, unknown>
 ): Promise<AppSession> {

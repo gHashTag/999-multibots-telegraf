@@ -268,6 +268,15 @@ case "${1:-}" in
     else
       echo "  НЕ отвечает: npm run dev в apps/vibee-editor/player"
     fi
+    echo "— берёт ли мини-апп сессию —"
+    # Урок 07.09.2026: /api/auth/telegram не звал никто, и вся работа вокруг
+    # сессий касалась только веба. Проверка смотрит, что вызов на месте.
+    if grep -q "exchangeTelegramLaunch(initData)" \
+      apps/vibee-editor/player/src/components/Telegram/TelegramProvider.tsx; then
+      echo "  обмен подписи на сессию есть"
+    else
+      echo "  НЕТ -- мини-апп работает только по заголовку подписи"
+    fi
     echo "— кнопки, которые отменяет соседний код —"
     # Урок 07.09.2026: «Выйти» внутри Telegram чистила память, а автологин
     # возвращал человека за доли секунды. Кнопка не сломана -- она лишняя там,

@@ -39,10 +39,23 @@ export function authHeaders(extra?: HeadersInit): Headers {
   const h = new Headers(extra)
   if (!h.has('Content-Type')) h.set('Content-Type', 'application/json')
   const initData = getInitData()
+  const accessToken = getAppAccessToken() // secret-guard-ok: runtime session value, never a literal credential
+  /*
+   * ОБА УДОСТОВЕРЕНИЯ, КОГДА ОБА ЕСТЬ — И ЭТО НЕ ИЗБЫТОЧНОСТЬ.
+   *
+   * Раньше сессия ставилась ТОЛЬКО при отсутствии подписи, то есть внутри
+   * Telegram не использовалась никогда. Пока так, выпуск сессии для мини-аппа
+   * бессмыслен: её никто не предъявляет, и отзывать нечего.
+   *
+   * Сервер принимает любое из двух и обе ветки ведут к одному telegram_id,
+   * поэтому лишний заголовок ничего не меняет для сегодняшнего поведения — но
+   * делает сессию НАСТОЯЩИМ предъявителем, как только она появляется. Если
+   * выпуск не удался, остаётся ровно вчерашняя картина.
+   */
   if (initData) {
     h.set('X-Telegram-Init-Data', initData)
+    if (accessToken) h.set('Authorization', `Bearer ${accessToken}`)
   } else {
-    const accessToken = getAppAccessToken() // secret-guard-ok: runtime session value, never a literal credential
     if (accessToken) h.set('Authorization', `Bearer ${accessToken}`)
     else {
       /*
