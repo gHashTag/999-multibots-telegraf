@@ -22,6 +22,8 @@
  * nothing downstream changes when it does.
  */
 
+import { сообщитьОВходе } from './src/auth/notify-sign-in'
+import { отправитьВTelegram } from './src/auth/telegram-sender'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { пуститьВход } from './src/entry-throttle'
 import crypto from 'node:crypto'
@@ -764,7 +766,29 @@ export async function handleAuthRoute(
       `🔑 [pair] claim ПРИНЯТ telegram_id=${outcome.telegramId}, ` +
         `устройство=${String(body.device_name ?? 'без имени').slice(0, 40)}`
     )
-    json(res, 200, await mintSession(pool, outcome.telegramId, body))
+    const сессия = await mintSession(pool, outcome.telegramId, body)
+
+    /*
+     * СООБЩАЕМ В TELEGRAM — И НЕ ЖДЁМ ОТПРАВКИ.
+     *
+     * Владелец 07.09.2026: «только в боте не видно, что я зашёл с другого
+     * устройства». Он прав, и это не косметика: код виден на экране две
+     * минуты, он одноразовый, и кто набрал первым — тот и вошёл. До сих пор
+     * единственным следом чужого входа было ОТСУТСТВИЕ следов: настоящий
+     * владелец видел «код не подошёл» и думал, что опечатался.
+     *
+     * `void` намеренный. Вход уже состоялся: сессия выдана, код погашен.
+     * Недоступный Telegram, протухший токен бота, заблокированный бот — всё
+     * это должно кончаться потерянным уведомлением и НИЧЕМ больше. Ждать
+     * отправку значит поставить успех входа в зависимость от чужой сети.
+     */
+    void сообщитьОВходе(отправитьВTelegram, {
+      telegramId: outcome.telegramId,
+      устройство: body.device_name,
+      когда: new Date(),
+    })
+
+    json(res, 200, сессия)
     return true
   }
 
