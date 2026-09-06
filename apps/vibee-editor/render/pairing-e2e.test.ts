@@ -106,13 +106,20 @@ function пул() {
       if (s.includes('SET attempts = attempts + 1')) return { rows: [] }
       if (s.includes('attempts >=')) return { rows: [] }
       if (s.includes('SET consumed_at = now() WHERE code_hash')) {
+        /*
+         * Условия берутся ИЗ ЗАПРОСА — та же поправка, что в pairing.test.ts.
+         * Подделка повторяла WHERE у себя, и удаление одноразовости кода из
+         * настоящего кода не роняло ни одного из 20 тестов.
+         */
+        const проверяетОдноразовость = s.includes('consumed_at IS NULL')
+        const проверяетСрок = s.includes('expires_at > now()')
         const out: any[] = []
         for (const r of строки) {
           if (
             r.t === 'code' &&
             r.code_hash === params[0] &&
-            !r.consumed_at &&
-            r.expires_at > Date.now()
+            (!проверяетОдноразовость || !r.consumed_at) &&
+            (!проверяетСрок || r.expires_at > Date.now())
           ) {
             r.consumed_at = 1
             out.push({ telegram_id: r.telegram_id })
