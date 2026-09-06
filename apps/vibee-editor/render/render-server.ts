@@ -50,6 +50,7 @@ import {
   handleMcp,
   handleMcpCard,
   handleAgentChat,
+  handleAgentHistory,
   handleAgentKeys,
   chatIdentity,
   resolveIdentity,
@@ -7320,6 +7321,30 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleAgentChat(req, res, String(who), getPool)
+    return
+  }
+
+  /*
+   * GET /api/agent/history — ОДИН разговор на обе поверхности.
+   *
+   * Личность определяется тем же resolveIdentity, что и у чата: маршруты,
+   * читающие одно и то же, обязаны опознавать одинаково, иначе рано или
+   * поздно один пустит туда, куда второй не пускает.
+   */
+  if (req.url?.split('?')[0] === '/api/agent/history' && req.method === 'GET') {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: 'не удалось определить пользователя',
+          detail:
+            'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
+        })
+      )
+      return
+    }
+    await handleAgentHistory(req, res, String(who), getPool)
     return
   }
 
