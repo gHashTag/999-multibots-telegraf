@@ -294,6 +294,19 @@ const PUBLIC_PREFIXES = [
 // правила канона), а не чьи-то данные. Мини-апп показывает её до входа,
 // иначе выбрать шаблон можно только вслепую. Рендер по шаблону — POST /render —
 // по-прежнему требует ключа.
+/**
+ * НЕ ПУБЛИЧНЫЕ ИСКЛЮЧЕНИЯ ИЗ ПУБЛИЧНЫХ ПРЕФИКСОВ.
+ *
+ * Список выше открывает ПРЕФИКС, а не маршруты: любой новый сосед под
+ * `/api/feed` становится открытым, и никто этого не выбирал. Так под общий
+ * префикс попал `GET /api/feed/pending` — свои НЕОДОБРЕННЫЕ посты, то есть
+ * ровно то, что видеть должен только автор.
+ *
+ * Сам обработчик личность и так требует, но защита в один слой — это защита
+ * до первой правки. Здесь она названа явно.
+ */
+const НЕ_ПУБЛИЧНЫЕ = ['/api/feed/pending']
+
 const PUBLIC_GET_PREFIXES = [
   '/api/feed',
   // Пакеты токенов публичны (цены — витрина); покупка /api/tokens/invoice
@@ -315,6 +328,9 @@ const PUBLIC_GET_PREFIXES = [
 
 export function isPublic(req: IncomingMessage): boolean {
   const url = (req.url || '').split('?')[0]
+  // Исключения проверяются ПЕРВЫМИ: иначе более общий префикс уже вернул бы
+  // `true` и до них дело не дошло.
+  if (НЕ_ПУБЛИЧНЫЕ.some(p => url === p || url.startsWith(p + '/'))) return false
   if (PUBLIC_EXACT.has(url)) return true
   if (PUBLIC_PREFIXES.some(p => url.startsWith(p))) return true
   if (req.method === 'GET' && PUBLIC_GET_PREFIXES.some(p => url.startsWith(p)))

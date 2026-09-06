@@ -997,6 +997,19 @@ async function publishTemplateRow(data: Record<string, any>): Promise<{
 }> {
   const pool = await getPool()
 
+  /**
+   * ВИДИМОСТЬ РЕШАЕТ ВЫЗЫВАЮЩИЙ.
+   *
+   * В таблицу ведёт одна дверь, и зовут её двое: веб — по нажатию человека,
+   * агент — сам. Владелец просил, чтобы в ленте появлялось только одобренное,
+   * а функция ставила `is_public = TRUE` обоим одинаково.
+   *
+   * Умолчание TRUE намеренно: все прежние вызывающие поля не передают, и
+   * менять их поведение молча значило бы спрятать чужие посты без спроса.
+   * Скрытым публикует тот, кто явно об этом просит.
+   */
+  const видимость = data.is_public !== false
+
   let creatorUsername = ''
   try {
     const userResult = await pool.query(
@@ -1070,11 +1083,17 @@ async function publishTemplateRow(data: Record<string, any>): Promise<{
        SET creator_name = $2, creator_avatar = $3, creator_username = $4,
            name = $5, description = $6, thumbnail_url = $7, video_url = $8,
            template_settings = $9::jsonb, assets = $10::jsonb, tracks = $11::jsonb,
-           is_public = TRUE,
+           -- ВИДИМОСТЬ РЕШАЕТ ВЫЗЫВАЮЩИЙ, А НЕ ЭТА ФУНКЦИЯ.
+           --
+           -- Здесь стояло безусловное TRUE, и это верно для
+           -- нажатия человека — но ту же дверь зовёт АГЕНТ, сам, без спроса.
+           -- Владелец просил обратного: пост в ленте только с одобрения.
+           --
            -- Снятая публикация возвращается, если её публикуют заново. Без
            -- этой строки upsert по имени обновил бы скрытую запись и она
            -- осталась бы невидимой: человек нажал «опубликовать», получил
            -- «готово» и не увидел ничего.
+           is_public = $13,
            deleted_at = NULL
        WHERE id = $1 AND telegram_id = $12
        RETURNING id, created_at::text`,
@@ -1091,6 +1110,7 @@ async function publishTemplateRow(data: Record<string, any>): Promise<{
         assetsJson,
         tracksJson,
         String(data.telegram_id),
+        видимость,
       ]
     )
     const row = upd.rows[0]
@@ -1112,7 +1132,7 @@ async function publishTemplateRow(data: Record<string, any>): Promise<{
       template_settings, assets, tracks,
       parent_template_id, original_creator_id,
       is_public, likes_count, views_count, uses_count
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, TRUE, 0, 0, 0)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, $14, 0, 0, 0)
     RETURNING id, created_at::text`,
     [
       String(data.telegram_id),
@@ -1128,6 +1148,7 @@ async function publishTemplateRow(data: Record<string, any>): Promise<{
       tracksJson,
       data.parent_template_id || null,
       data.original_creator_id || null,
+      видимость,
     ]
   )
 
@@ -6700,6 +6721,95 @@ const server = createServer(async (req, res) => {
   // ===============================
 
   // POST /api/feed/publish - Publish template to community feed
+  /**
+   * ЖДУТ ОДОБРЕНИЯ — СВОИ СКРЫТЫЕ ПОСТЫ.
+   *
+   * Единственное место, где запись без `is_public = TRUE` вообще видна. Все
+   * остальные чтения фильтруют по нему — и лента, и профиль, и карточка, —
+   * поэтому без этого маршрута скрытая публикация была бы невидима И АВТОРУ:
+   * одобрять негде, работа автопилота исчезает молча.
+   *
+   * Только СВОИ: владелец берётся из подписи, а не из строки запроса. Иначе
+   * чужие неодобренные черновики читал бы кто угодно по номеру.
+   */
+  if (req.url === '/api/feed/pending' && req.method === 'GET') {
+    const кто = chatIdentity(req, verifiedTelegramId(req))
+    if (!кто) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    try {
+      const pool = await getPool()
+      const r = await pool.query(
+        `SELECT id, name, description, thumbnail_url, video_url,
+                created_at::text
+           FROM public_templates
+          WHERE telegram_id = $1 AND is_public = FALSE AND deleted_at IS NULL
+          ORDER BY created_at DESC
+          LIMIT 50`,
+        [String(кто)]
+      )
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: true, templates: r.rows }))
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: String(e) }))
+    }
+    return
+  }
+
+  /**
+   * ОДОБРИТЬ — сделать свой скрытый пост видимым.
+   *
+   * `telegram_id = $2` в условии, а не проверка после выборки: иначе чужой
+   * пост можно было бы открыть, зная его номер. Тот же приём, что у удаления
+   * рядом.
+   */
+  if (req.url === '/api/feed/approve' && req.method === 'POST') {
+    const кто = chatIdentity(req, verifiedTelegramId(req))
+    if (!кто) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'unauthorized' }))
+      return
+    }
+    let body = ''
+    req.on('data', (chunk: Buffer) => {
+      body += chunk.toString()
+    })
+    req.on('end', async () => {
+      try {
+        const { id } = JSON.parse(body || '{}')
+        if (!id) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'id is required' }))
+          return
+        }
+        const pool = await getPool()
+        const r = await pool.query(
+          `UPDATE public_templates
+              SET is_public = TRUE
+            WHERE id = $1 AND telegram_id = $2 AND deleted_at IS NULL
+            RETURNING id`,
+          [id, String(кто)]
+        )
+        if (r.rows.length === 0) {
+          // Не «нашли, но чужой» и не «нет такого» по отдельности: разделив
+          // их, мы дали бы способ проверять существование чужих постов.
+          res.writeHead(404, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'not found' }))
+          return
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, id: r.rows[0].id }))
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, error: String(e) }))
+      }
+    })
+    return
+  }
+
   if (req.url === '/api/feed/publish' && req.method === 'POST') {
     let body = ''
     req.on('data', (chunk: Buffer) => {
@@ -6766,7 +6876,17 @@ const server = createServer(async (req, res) => {
          * теперь говорит, что именно получилось, а что нет.
          */
         let telegram: { posted: boolean; error?: string } | undefined
-        if (data.post_to_telegram) {
+        /*
+         * СКРЫТЫЙ ПОСТ В КАНАЛ НЕ УХОДИТ.
+         *
+         * Иначе одобрение не значило бы ничего: в ленте пусто, а подписчики
+         * канала ролик уже увидели. Скрытая публикация — это «подождите
+         * одобрения», и ждать должны ВСЕ витрины, а не только одна.
+         *
+         * Канал получит ролик при одобрении — там же, где пост становится
+         * видимым.
+         */
+        if (data.post_to_telegram && data.is_public !== false) {
           telegram = await postReelToChannel({
             videoUrl: data.video_url,
             caption:

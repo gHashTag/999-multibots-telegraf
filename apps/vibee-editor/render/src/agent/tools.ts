@@ -669,6 +669,19 @@ export const TOOLS: AgentTool[] = [
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           telegram_id: ctx.telegramId,
+          /**
+           * АГЕНТ ПУБЛИКУЕТ СКРЫТО: в ленту пост попадает только с одобрения.
+           *
+           * В `public_templates` ведёт одна дверь, и зовут её двое: веб — по
+           * нажатию человека, и вот этот вызов — сам. Владелец просил, чтобы
+           * посторонние видели только одобренное, а разницы между двумя
+           * вызывающими не было никакой.
+           *
+           * Пост не теряется: он лежит скрытым и ждёт в разделе «Ждут
+           * одобрения» (`GET /api/feed/pending`), где его показывают ТОЛЬКО
+           * автору. Одно нажатие — и он в ленте.
+           */
+          is_public: false,
           creator_name: u.rows[0]?.n ?? 'Автор',
           creator_username: u.rows[0]?.un ?? '',
           name: args.name,

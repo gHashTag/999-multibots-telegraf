@@ -3,6 +3,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { ProfileFilesGrid } from './ProfileFilesGrid'
 import { ProfileSkills } from './ProfileSkills'
 import { ProfilePlan } from './ProfilePlan'
+import { ProfilePending } from './ProfilePending'
 import { useIsOwnProfile } from './useIsOwnProfile'
 import { ProfileBlog } from './ProfileBlog'
 import { SoulEditor } from './SoulEditor'
@@ -17,6 +18,7 @@ import {
   Wand2,
   BookOpen,
   Target,
+  Clock,
 } from 'lucide-react'
 import {
   viewedProfileAtom,
@@ -35,6 +37,7 @@ import { profileTabCount } from './profileTabCounts'
 
 type TabId =
   | 'templates'
+  | 'pending'
   | 'plan'
   | 'files'
   | 'skills'
@@ -46,6 +49,9 @@ type TabId =
 
 const OWNER_TAB_ORDER: TabId[] = [
   'templates',
+  // Сразу за роликами: то, что ждёт решения, не должно лежать в конце ряда.
+  // Раздела нет у чужого профиля — там нечего одобрять.
+  'pending',
   'plan',
   'files',
   'skills',
@@ -129,6 +135,19 @@ export function ProfileTabs() {
     ...(isOwn
       ? [
           {
+            /*
+             * ЖДУТ ОДОБРЕНИЯ — только на СВОЁМ профиле.
+             *
+             * Агент публикует сам, и владелец просил, чтобы в ленте было
+             * только одобренное. Скрытый пост не виден нигде больше — все
+             * чтения фильтруют `is_public = TRUE`, — поэтому без этого
+             * раздела одобрять было бы негде.
+             */
+            id: 'pending' as const,
+            icon: <Clock size={18} />,
+            label: 'Ждут одобрения',
+          },
+          {
             id: 'plan' as const,
             icon: <Target size={18} />,
             label: 'План',
@@ -208,6 +227,7 @@ export function ProfileTabs() {
           <ProfileTemplatesGrid username={profile.username} isOwn={isOwn} />
         )}
 
+        {visibleActiveTab === 'pending' && <ProfilePending />}
         {visibleActiveTab === 'plan' && <ProfilePlan />}
 
         {visibleActiveTab === 'files' && <ProfileFilesGrid />}

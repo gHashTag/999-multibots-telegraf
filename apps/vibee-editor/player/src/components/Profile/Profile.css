@@ -2108,3 +2108,58 @@
   border-color: #1c1b18;
   text-decoration: line-through;
 }
+
+/*
+ * ЖДУТ ОДОБРЕНИЯ. Карточка строкой, а не плиткой: решение принимают по
+ * названию и обложке, а не разглядывая сетку, и кнопка должна быть рядом с
+ * тем, к чему относится.
+ */
+.profile-pending {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.profile-pending__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--surface, #1a1a1a);
+}
+.profile-pending__cover {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.profile-pending__text {
+  flex: 1;
+  min-width: 0;
+}
+.profile-pending__name {
+  font-weight: 600;
+}
+.profile-pending__desc {
+  font-size: 0.85em;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 44 — минимум касания, тот же, что у остальных кнопок экрана. */
+.profile-pending__approve {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  background: var(--accent, #3ddc84);
+  color: #000;
+  font-weight: 600;
+}
+.profile-pending__approve:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

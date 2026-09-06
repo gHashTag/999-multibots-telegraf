@@ -5,3 +5,4 @@ export { FollowButton } from './FollowButton';
 export { UserCard } from './UserCard';
 export { SocialLinks } from './SocialLinks';
 export { ProfileTemplatesGrid } from './ProfileTemplatesGrid';
+export { ProfilePending } from './ProfilePending';
