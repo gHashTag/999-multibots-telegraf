@@ -24,8 +24,26 @@ describe('cross-replica session revocation', () => {
     })
     expect(() => verifyAppSession(token)).not.toThrow()
 
+    /*
+     * ПОДДЕЛКА ПОДЧИНЯЕТСЯ ЗАПРОСУ, А НЕ ОТДАЁТ СТРОКУ ВСЕГДА.
+     *
+     * Здесь стояло `query: async () => ({ rows: [{ id: … }] })` — отозванная
+     * сессия возвращалась при ЛЮБОМ SQL. Доказано мутацией: заменить
+     * `revoked_at IS NOT NULL` на `IS NULL` — и тест остаётся зелёным, хотя
+     * в настоящем Postgres `NULL > timestamp` даёт NULL, запрос навсегда
+     * возвращает ноль строк, и отозванный или разлогиненный токен продолжает
+     * работать на каждой реплике.
+     *
+     * Теперь подделка ведёт себя как база: отдаёт строку, только если
+     * условие действительно выбирает отозванные.
+     */
     const pool = {
-      query: async () => ({ rows: [{ id: 'revoked-on-another-replica' }] }),
+      query: async (sql: string) => {
+        const т = String(sql).replace(/\s+/g, ' ')
+        const отозванные =
+          /revoked_at IS NOT NULL/.test(т) && /revoked_at >/.test(т)
+        return { rows: отозванные ? [{ id: 'revoked-on-another-replica' }] : [] }
+      },
     }
     expect(await pollRevocations(pool)).toBe(1)
     expect(() => verifyAppSession(token)).toThrow(/revoked/)
