@@ -247,6 +247,35 @@ case "${1:-}" in
       src/commands/appLoginCommand.ts
     ;;
 
+  tma)
+    # ПОСМОТРЕТЬ ЭКРАНЫ ВХОДА МИНИ-АППА ГЛАЗАМИ.
+    #
+    # Урок 07.09.2026: вне Telegram мини-апп экраны входа не показывает вовсе,
+    # поэтому правки в них шли вслепую -- и дважды стоили входа на iOS. Теперь
+    # есть подставка для разработки; команда печатает готовые адреса.
+    #
+    # Подставка вырезается из ЛЮБОЙ сборки плагином Vite, и это проверяется
+    # тестом, который собирает бандл и ищет метку.
+    PORT="${VIBEE_PORT:-5174}"
+    echo "— адреса (dev-сервер на :$PORT) —"
+    echo "  профиль:        http://localhost:$PORT/profile?mock-telegram=144022504"
+    echo "  экран кода:     http://localhost:$PORT/profile?mock-telegram=144022504&mock-username=t27_dev&mock-pair-code=12345678"
+    echo "  без @имени:     http://localhost:$PORT/profile?mock-telegram=999000111"
+    echo
+    echo "— жив ли dev-сервер —"
+    if curl -s -o /dev/null -m 5 "http://localhost:$PORT/"; then
+      echo "  отвечает"
+    else
+      echo "  НЕ отвечает: npm run dev в apps/vibee-editor/player"
+    fi
+    echo "— вырезана ли подставка из сборки —"
+    if grep -q "вырезатьПодставнойTelegram" apps/vibee-editor/player/vite.config.ts; then
+      echo "  плагин на месте (проверка: telegram-dev-mock.test.ts)"
+    else
+      echo "  НЕТ ПЛАГИНА -- подставка уедет в продакшен"
+    fi
+    ;;
+
   feed-hide)
     # СКРЫТЬ ВСЁ, КРОМЕ ОДНОГО. Скрытие обратимо: маршрут ставит `deleted_at`,
     # а повторная публикация того же имени его снимает. Удаления здесь нет и
