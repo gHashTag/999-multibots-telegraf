@@ -95,7 +95,18 @@ case "${1:-}" in
     OWNER=$(curl -s -m 30 "$BASE/api/feed/$KEEP" -H "X-Api-Key: $KEY" \
              | python3 -c "import json,sys; print(json.load(sys.stdin).get('telegramId',''))")
     if [ -z "$OWNER" ]; then echo "поста $KEEP нет — ничего не трогаю"; exit 1; fi
-    echo "оставляю id $KEEP (владелец $OWNER), остальное скрываю"
+    echo "оставляю id $KEEP (владелец $OWNER); остальное скрываю по всем аккаунтам ленты"
+    # ВСЕ ВЛАДЕЛЬЦЫ, А НЕ ТОЛЬКО ХОЗЯИН СОХРАНЯЕМОГО ПОСТА.
+    #
+    # Первая версия брала владельца у сохраняемого поста и трогала только его
+    # строки. В ленте после уборки осталось ДВА поста: нужный и чужой — от
+    # `@vibee_agent`, аккаунта нашего же агента. Команда о нём промолчала, и
+    # «готово» означало «почти готово».
+    #
+    # Теперь идём по всем аккаунтам, которые видны в ленте, и КАЖДЫЙ называем
+    # вслух: скрытие в публичной ленте нельзя делать молча, даже когда
+    # скрывать правильно.
+    #
     # СПИСОК БЕРЁМ ИЗ ПРОФИЛЯ, А НЕ ИЗ ЛЕНТЫ.
     #
     # Лента с недавних пор отдаёт ОДНУ запись на шаблон — иначе сорок три
@@ -105,28 +116,40 @@ case "${1:-}" in
     #
     # Профиль отдаёт все свои, страницами по 20; идём страницами, пока они не
     # кончатся.
-    USERNAME=$(curl -s -m 30 "$BASE/api/users/id/$OWNER" \
-               | python3 -c "import json,sys; print(json.load(sys.stdin).get('username',''))")
-    if [ -z "$USERNAME" ]; then echo "не нашёл имя владельца"; exit 1; fi
-    PAGE=0
-    : > /tmp/tri-hide-ids
-    while [ "$PAGE" -lt 20 ]; do
-      GOT=$(curl -s -m 30 "$BASE/api/users/$USERNAME/templates?page=$PAGE&limit=20" \
-            | python3 -c "
+    : > /tmp/tri-hide-pairs
+    # Аккаунты берём из самой ленты: там видно всех, кто в ней стоит.
+    curl -s -m 30 "$BASE/api/feed?limit=200" -H "X-Api-Key: $KEY" \
+      | python3 -c "
+import json,sys
+seen=set()
+for t in json.load(sys.stdin).get('templates') or []:
+    tid=str(t.get('telegramId') or '')
+    if tid and tid not in seen:
+        seen.add(tid)
+        print(tid, t.get('creatorUsername') or '')
+" > /tmp/tri-hide-owners
+    while read -r TID UNAME; do
+      [ -n "$UNAME" ] || continue
+      echo "  аккаунт @$UNAME ($TID)"
+      PAGE=0
+      while [ "$PAGE" -lt 20 ]; do
+        GOT=$(curl -s -m 30 "$BASE/api/users/$UNAME/templates?page=$PAGE&limit=20" \
+              | python3 -c "
 import json,sys
 data=json.load(sys.stdin)
 ts=data.get('templates') or []
 for t in ts:
     if str(t.get('id'))!='$KEEP':
-        print(t['id'])
+        print('$TID', t['id'])
 sys.stderr.write(str(len(ts)))
 " 2>/tmp/tri-hide-count)
-      echo "$GOT" >> /tmp/tri-hide-ids
-      [ "$(cat /tmp/tri-hide-count)" = "20" ] || break
-      PAGE=$((PAGE + 1))
-    done
-    grep -E '^[0-9]+$' /tmp/tri-hide-ids | sort -u | while read -r ID; do
-        ANSWER=$(curl -s -m 30 -X DELETE "$BASE/api/feed/$ID?telegram_id=$OWNER" -H "X-Api-Key: $KEY")
+        echo "$GOT" >> /tmp/tri-hide-pairs
+        [ "$(cat /tmp/tri-hide-count)" = "20" ] || break
+        PAGE=$((PAGE + 1))
+      done
+    done < /tmp/tri-hide-owners
+    grep -E '^[0-9]+ [0-9]+$' /tmp/tri-hide-pairs | sort -u | while read -r TID ID; do
+        ANSWER=$(curl -s -m 30 -X DELETE "$BASE/api/feed/$ID?telegram_id=$TID" -H "X-Api-Key: $KEY")
         echo "  $ID -> $ANSWER"
       done
     echo "готово. вернуть можно повторной публикацией — скрытие обратимо" ;;
