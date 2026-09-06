@@ -452,6 +452,34 @@ export interface AuthResult {
   telegramId?: string
 }
 
+/**
+ * ЕСТЬ ЛИ У ЗАПРОСА КЛЮЧ СЕРВЕРА — БЕЗ ОГЛЯДКИ НА ПУБЛИЧНОСТЬ МАРШРУТА.
+ *
+ * Отдельная функция нужна ровно потому, что `authenticate` начинается с
+ * `isPublic` и на публичном маршруте возвращает `via: 'public'`, НЕ ДОЙДЯ до
+ * проверки ключа. Для «пускать или нет» это правильно. Но обработчик,
+ * которому важно отличить СВОЙ СЕРВЕР от «кого-то опознанного», получал от
+ * `authenticate` бесполезный ответ.
+ *
+ * Куплено ошибкой: ветка «сервис бота зовёт агента за человека» сверялась с
+ * `authenticate(req).via === 'api-key'` на маршруте /api/agent/chat, который
+ * числится публичным (он проверяет личность сам). Условие не выполнялось
+ * никогда, и бот получал «не удалось определить пользователя» — при верном
+ * ключе. Тот же класс, что и `/api/feed/pending`: проверка стояла не там, где
+ * принимается решение.
+ *
+ * Сравнение постоянного времени: посимвольное `===` возвращается на первом
+ * различии и выдаёт ключ по префиксу.
+ */
+export function hasServerKey(req: IncomingMessage): boolean {
+  const expected = apiKey()
+  const given = (req.headers['x-api-key'] as string | undefined) || ''
+  if (!expected || !given) return false
+  const a = Buffer.from(given)
+  const b = Buffer.from(expected)
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+
 export function authenticate(req: IncomingMessage): AuthResult {
   if (isPublic(req)) return { allowed: true, wouldReject: false, via: 'public' }
 
