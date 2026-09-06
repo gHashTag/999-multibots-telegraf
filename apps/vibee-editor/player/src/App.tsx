@@ -88,11 +88,19 @@ export function ProfileRedirect() {
     }
   }, [username, user?.id])
 
+  /*
+   * СТРОКА ЗАПРОСА ПЕРЕЖИВАЕТ ПЕРЕХОД.
+   *
+   * `/profile?tab=agent` — то, чем бот открывает экран кода. Переход,
+   * теряющий `?tab=`, снова высаживал бы человека на «Шаблоны», и правка выше
+   * стала бы косметикой.
+   */
+  const хвост = typeof window !== 'undefined' ? window.location.search : ''
   if (username) {
-    return <Navigate to={`/${username}`} replace />
+    return <Navigate to={`/${username}${хвост}`} replace />
   }
   if (поИдентификатору) {
-    return <Navigate to={`/${поИдентификатору}`} replace />
+    return <Navigate to={`/${поИдентификатору}${хвост}`} replace />
   }
   // Ещё спрашиваем — молчим. Показать «профиль не открыть» и через миг увести
   // на профиль значит мигнуть человеку неправдой.

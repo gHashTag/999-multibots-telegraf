@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router-dom'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -85,7 +86,15 @@ describe('ProfileTabs owner workspace', () => {
 
   it('restores SOUL.md and Agent as first-class owner tabs', async () => {
     state.isOwn = true
-    await act(async () => root.render(<ProfileTabs />))
+    await act(async () =>
+      root.render(
+        // Роутер обязателен: начальная вкладка читается из `?tab=` — так бот
+        // приводит человека прямо на экран кода, а не на «Шаблоны».
+        <MemoryRouter>
+          <ProfileTabs />
+        </MemoryRouter>
+      )
+    )
 
     const labels = [
       ...host.querySelectorAll<HTMLButtonElement>('.profile-tabs__tab'),
@@ -122,7 +131,15 @@ describe('ProfileTabs owner workspace', () => {
 
   it('keeps private workspace tabs hidden on somebody else profile', async () => {
     state.isOwn = false
-    await act(async () => root.render(<ProfileTabs />))
+    await act(async () =>
+      root.render(
+        // Роутер обязателен: начальная вкладка читается из `?tab=` — так бот
+        // приводит человека прямо на экран кода, а не на «Шаблоны».
+        <MemoryRouter>
+          <ProfileTabs />
+        </MemoryRouter>
+      )
+    )
 
     expect(host.textContent).not.toContain('План')
     expect(host.textContent).not.toContain('Файлы')
