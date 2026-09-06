@@ -48,10 +48,10 @@
   <div class="sub">каждые 15 минут · задание <code>29549cb5</code> · обновлено 06.09.2026, 02:25</div>
 
   <div class="cards">
-    <div class="card"><div class="n ok">104</div><div class="k">влито</div></div>
+    <div class="card"><div class="n ok">112</div><div class="k">влито</div></div>
     <div class="card"><div class="n warn">6</div><div class="k">открыто</div></div>
-    <div class="card"><div class="n bad">46</div><div class="k">своих ошибок признано</div></div>
-    <div class="card"><div class="n acc">895</div><div class="k">тестов зелёные: 647 сервер + 198 веб + 50 iOS</div></div>
+    <div class="card"><div class="n bad">50</div><div class="k">своих ошибок признано</div></div>
+    <div class="card"><div class="n acc">916</div><div class="k">тестов зелёные: 654 сервер + 200 веб + 50 iOS + 12 экранных</div></div>
   </div>
 
   <h2>Статус смены</h2>
@@ -75,6 +75,11 @@
     <tr><td>Превью 72pt и в редакторе тоже</td><td><span class="tag t-ok">закрыто</span></td><td>скриншот: кадр из ролика читается (#2000)</td></tr>
     <tr><td>Экран говорит «за 1000 знаков»</td><td><span class="tag t-ok">закрыто</span></td><td>8 тестов; на экране ждёт сессии (#2001)</td></tr>
     <tr><td>История вкладки — своя, а не по дорожке</td><td><span class="tag t-ok">закрыто</span></td><td>липсинк больше не показывает чужой ролик (#2002)</td></tr>
+    <tr><td><b>Долг проверки закрыт: цены видно без сессии</b></td><td><span class="tag t-ok">закрыто</span></td><td>скриншот: «· 11» на veo3, «· 5» на Grok, чипы Grok пропали (#2045, #2043)</td></tr>
+    <tr><td>Чип показывают только под доезжающее поле</td><td><span class="tag t-ok">закрыто</span></td><td>10 из 12 видеомоделей получают один <code>prompt</code> (#2042)</td></tr>
+    <tr><td>Обновление прайса не снимает сторожа</td><td><span class="tag t-ok">закрыто</span></td><td>единица остаётся там, где цену взять нельзя (#2041)</td></tr>
+    <tr><td>Красный на <code>main</code> тест починен, а не обойдён</td><td><span class="tag t-ok">закрыто</span></td><td>мерил отсутствие входа у проверяющего (#2044)</td></tr>
+    <tr><td>Скорость у ElevenLabs всё ещё теряется</td><td><span class="tag t-open">открыто</span></td><td>диапазон не проверить: поиск и выборка страниц недоступны</td></tr>
     <tr><td><b>Голос и скорость не доходили до провайдера</b></td><td><span class="tag t-ok">закрыто</span></td><td>8 русских голосов MiniMax; скорость доехала впервые (#2034)</td></tr>
     <tr><td>Три поломки, внесённые ТОЙ ЖЕ правкой часом раньше</td><td><span class="tag t-ok">закрыто</span></td><td>найдены состязательным прогоном по своей работе (#2036)</td></tr>
     <tr><td><b>Липсинк просил 720p по цене 480p</b></td><td><span class="tag t-ok">закрыто</span></td><td>живой прайс: $0.06/с против $0.015/с (#2037)</td></tr>
@@ -132,6 +137,21 @@
     <tr><td>Фото</td><td><span class="tag t-open">открыто</span> соотношение 4:3 (в приложении три варианта)</td></tr>
     <tr><td>Липсинк</td><td><span class="tag t-open">открыто</span> запись звука с микрофона; разрешение 480p/720p — <i>проверено grep'ом: приложение зашивает 480p, выбора нет</i></td></tr>
   </table></div>
+
+  <h2>Сколько стоит проверка</h2>
+  <div class="scroll"><table>
+    <tr><th>проверка</th><th>время</th></tr>
+    <tr><td>один vitest-файл</td><td>0,2–0,8 с</td></tr>
+    <tr><td>весь render (78 файлов)</td><td>11–53 с</td></tr>
+    <tr><td>один XCUITest</td><td><b>35–75 с</b></td></tr>
+    <tr><td>весь <code>VibeeUITests</code></td><td><b>5–6 мин</b></td></tr>
+  </table></div>
+  <p class="note">
+    Разница в тысячу раз. Я гонял полный набор iOS, чтобы проверить один
+    тест, — владелец заметил это раньше меня. Правило и таблица записаны в
+    скилл <code>economical-testing</code>: берём самый дешёвый вид проверки,
+    СПОСОБНЫЙ упасть на этом дефекте.
+  </p>
 
   <h2>Команды смены</h2>
   <div class="cmd">
