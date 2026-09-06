@@ -11,7 +11,8 @@
  * вовсе, ИЛИ назвал в единице, которую в один вызов не перевести («за млн
  * токенов» — не цена одной озвучки; взятая плоско, она давала 280 токенов за
  * работу в доли цента). Такую модель к оплате не допускаем: сумму до нажатия
- * мы назвать не сможем.
+ * мы назвать не сможем. Единица при этом СОХРАНЯЕТСЯ в `ЕДИНИЦА_ЦЕНЫ` —
+ * она и есть причина отказа, и по ней сторожит тест.
  */
 export const СЕБЕСТОИМОСТЬ_USD: Record<string, number | null> = {
   'seedream/5-lite-text-to-image': 0.0275,
@@ -70,7 +71,7 @@ export const ЕДИНИЦА_ЦЕНЫ: Record<string, string | null> = {
   'seedream/5-pro-text-to-image': 'за картинку',
   'seedream/5-pro-image-to-image': 'за картинку',
   'google/imagen4-fast': 'за запрос',
-  'google/imagen4-ultra': 'за запрос',
+  'google/imagen4-ultra': 'за картинку',
   'google/imagen4': 'за запрос',
   'google/nano-banana-edit': 'за картинку',
   'google/nano-banana': 'за картинку',
@@ -102,7 +103,7 @@ export const ЕДИНИЦА_ЦЕНЫ: Record<string, string | null> = {
   'minimax-h3/text-to-video': 'за картинку',
   'omnihuman-1-5': 'за секунду',
   'volcengine/video-to-video-lip-sync': 'за секунду',
-  'elevenlabs/audio-isolation': 'за 1000 знаков',
+  'elevenlabs/audio-isolation': null,
   'elevenlabs/text-to-speech-multilingual-v2': 'за 1000 знаков',
   'elevenlabs/text-to-speech-turbo-2-5': 'за 1000 знаков',
   'google/gemini-3-1-flash-tts': 'за млн токенов',
