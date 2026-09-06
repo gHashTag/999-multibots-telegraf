@@ -185,3 +185,62 @@ describe('CRM ничего не рассылает', () => {
     for (const т of CRM_TOOLS) expect(т.name).toMatch(/^crm_/)
   })
 })
+
+describe('читаем всю базу, а не первую страницу', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('страницы склеиваются, пока не придёт короткая', async () => {
+    /*
+     * НАЙДЕНО НА ЖИВОЙ БАЗЕ, а не в тесте: crm_overview отвечал
+     * «всего_людей: 1000» при 2380 в таблице и «пришли_за_7_дней: 0», потому
+     * что PostgREST режет выдачу своим потолком. Худшая форма ошибки —
+     * уверенный неверный ответ.
+     *
+     * Подделка ОБЯЗАНА уважать Range: иначе проверка пагинации сама была бы
+     * слепой — ровно тот дефект, который сегодня находился четыре раза.
+     */
+    const ЧЕЛОВЕК = (i: number) => ({
+      telegram_id: i,
+      username: null,
+      first_name: null,
+      bot_name: 'bot1',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      language_code: 'ru',
+    })
+    const ВСЕГО = 1500
+    const запрошено: string[] = []
+    vi.stubGlobal('fetch', async (url: string, init: any) => {
+      const адрес = String(url)
+      const диапазон = String(init?.headers?.Range ?? '')
+      if (адрес.includes('/payments_v2?')) {
+        return { ok: true, json: async () => [] } as any
+      }
+      if (!адрес.includes('/users?')) {
+        throw new Error(`подделка не знает адрес: ${адрес}`)
+      }
+      запрошено.push(диапазон)
+      const m = /^(\d+)-(\d+)$/.exec(диапазон)
+      if (!m) throw new Error(`запрос без Range: ${диапазон || '(пусто)'}`)
+      const от = Number(m[1])
+      const до = Math.min(Number(m[2]), ВСЕГО - 1)
+      const кусок = []
+      for (let i = от; i <= до; i++) кусок.push(ЧЕЛОВЕК(i))
+      return { ok: true, json: async () => кусок } as any
+    })
+
+    const r: any = await инструмент('crm_overview').handler({}, ВЛАДЕЛЕЦ)
+    expect(r.всего_людей).toBe(ВСЕГО)
+    expect(запрошено).toEqual(['0-999', '1000-1999'])
+  })
+
+  it('каждый запрос уходит С заголовком Range', async () => {
+    let сRange = 0
+    vi.stubGlobal('fetch', async (_u: string, init: any) => {
+      if (init?.headers?.Range) сRange++
+      return { ok: true, json: async () => [] } as any
+    })
+    await инструмент('crm_overview').handler({}, ВЛАДЕЛЕЦ)
+    expect(сRange).toBeGreaterThan(0)
+  })
+})
