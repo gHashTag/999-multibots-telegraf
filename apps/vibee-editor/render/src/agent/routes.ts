@@ -26,7 +26,7 @@ import { verifyAppSession } from '../../session'
 import { TOOLS_BY_NAME, toMcpTools } from './tools'
 import { runAgent, type ChatMessage } from './chat'
 import { resolveProvider } from './provider'
-import { verifiedTelegramId, authenticate } from '../../auth'
+import { verifiedTelegramId, hasServerKey } from '../../auth'
 import {
   записатьРеплику,
   прочитатьРазговор,
@@ -228,14 +228,21 @@ export async function resolveIdentity(
    *
    * Два условия, оба обязательны:
    *
-   *  1. `via === 'api-key'` — именно серверный ключ, а не «кто-то опознанный».
-   *     Подпись мини-аппа есть у каждого пользователя, и разреши мы ей
-   *     называть чужой id — любой читал бы и продолжал чужой разговор.
+   *  1. Именно СЕРВЕРНЫЙ КЛЮЧ, а не «кто-то опознанный». Подпись мини-аппа
+   *     есть у каждого пользователя, и разреши мы ей называть чужой id —
+   *     любой читал бы и продолжал чужой разговор.
+   *
+   *     Проверка идёт через `hasServerKey`, а НЕ через `authenticate`:
+   *     последний начинается с `isPublic`, а /api/agent/chat числится
+   *     публичным (он проверяет личность сам), поэтому возвращал бы
+   *     `via: 'public'`, не дойдя до ключа. Именно на этом условие сначала и
+   *     не сработало — бот получал «не удалось определить пользователя» при
+   *     верном ключе.
    *  2. id назван ЯВНО. Умолчания здесь быть не может: «не назвали — значит
    *     владелец» превратило бы каждый безымянный вызов в действие от лица
    *     владельца.
    */
-  if (authenticate(req).via === 'api-key') {
+  if (hasServerKey(req)) {
     const явный = new URL(req.url || '', 'http://x').searchParams.get(
       'telegram_id'
     )
