@@ -255,8 +255,23 @@ describe('getRuBillWizard', () => {
     })
 
     it('should use unique invoice ID based on timestamp', async () => {
-      // Arrange
-      const dateSpy = vi.spyOn(Date, 'now').mockReturnValue(1234567890123)
+      // The invoice id is NOT a pure function of the clock, and asserting a
+      // value derived from a mocked Date.now() was a test that only passed in
+      // isolation.
+      //
+      // nextInvoiceId() keeps a module-level counter on purpose: two invoices
+      // created in the same millisecond used to receive the same InvId, and
+      // Robokassa treats one InvId as one invoice, so two payments merged into
+      // one. When the clock goes backwards -- which is exactly what mocking it
+      // to 1234567890123 does after an earlier test in this file has already
+      // advanced the counter past 1.9e9 -- the code correctly returns
+      // previous + 1 rather than the smaller number.
+      //
+      // So the property is asserted instead of the value: the id stays inside
+      // Robokassa's range and STRICTLY INCREASES, which is the whole point of
+      // the counter. Verified across two invoices rather than one.
+      const invIdOf = (call: number) =>
+        Number((setPayments as Mock).mock.calls[call][0].InvId)
 
       mockContext.session.selectedPayment = {
         amount: 2999,
@@ -264,18 +279,26 @@ describe('getRuBillWizard', () => {
         subscription: SubscriptionType.NEUROVIDEO,
       }
 
-      // Act
+      await generateInvoiceStep(mockContext)
       await generateInvoiceStep(mockContext)
 
-      // Assert
-      const expectedInvId = 1234567890123 % 2147483647
-      expect(setPayments).toHaveBeenCalledWith(
-        expect.objectContaining({
-          InvId: expectedInvId.toString(),
-        })
-      )
+      expect(
+        (setPayments as Mock).mock.calls.length,
+        'both invoices must have been recorded'
+      ).toBeGreaterThanOrEqual(2)
 
-      dateSpy.mockRestore()
+      const first = invIdOf(0)
+      const second = invIdOf(1)
+      for (const id of [first, second]) {
+        expect(Number.isInteger(id), `InvId ${id} is not an integer`).toBe(true)
+        expect(id).toBeGreaterThan(0)
+        expect(id).toBeLessThanOrEqual(2147483647)
+      }
+      expect(
+        second,
+        'two invoices in the same run received a non-increasing InvId -- ' +
+          'Robokassa would treat them as one invoice and merge the payments'
+      ).toBeGreaterThan(first)
     })
   })
 
