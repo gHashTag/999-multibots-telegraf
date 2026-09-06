@@ -17,7 +17,7 @@
  * переменной и командой, которой её взять.
  */
 
-export type ProviderId = 'zai' | 'zai-lite' | 'nemotron' | 'openai'
+export type ProviderId = 'zai' | 'zai-lite' | 'nemotron'
 
 export interface Provider {
   id: ProviderId
@@ -84,12 +84,6 @@ const CATALOG: Record<
     model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
     thinking: false,
   },
-  openai: {
-    base: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-    env: 'OPENAI_API_KEY',
-    model: 'gpt-4o-mini',
-    thinking: false,
-  },
 }
 
 /**
@@ -115,7 +109,18 @@ export function allProviders(): Provider[] {
    */
   // Nemotron ПЕРЕД openai: у openai ключ недействителен (замер 06.09.2026),
   // и держать его выше живого провайдера значит тратить виток на отказ.
-  const DEFAULT_ORDER: ProviderId[] = ['zai', 'zai-lite', 'nemotron', 'openai']
+  /*
+   * OPENAI УБРАН ПО РЕШЕНИЮ ВЛАДЕЛЬЦА.
+   *
+   * Его ключ недействителен — замерено дважды (2026-08-26 и 06.09.2026,
+   * ответ 401 «Incorrect API key provided»). Провайдер, который заведомо
+   * откажет, стоит витка на каждом обращении и засоряет диагностику строкой
+   * «ключ недействителен», рядом с настоящими причинами отказа.
+   *
+   * Мёртвый запасной путь хуже отсутствующего: он создаёт впечатление, что
+   * запас есть.
+   */
+  const DEFAULT_ORDER: ProviderId[] = ['zai', 'zai-lite', 'nemotron']
   const order: ProviderId[] = DEFAULT_ORDER.includes(wanted)
     ? [wanted, ...DEFAULT_ORDER.filter(id => id !== wanted)]
     : DEFAULT_ORDER
@@ -162,10 +167,15 @@ export function diagnose(id: ProviderId, status: number, body: string): string {
 
 export function resolveProvider(): Provider {
   const wanted = (process.env.AGENT_PROVIDER || '').toLowerCase() as ProviderId
-  const order: ProviderId[] =
-    wanted === 'zai' || wanted === 'openai'
-      ? [wanted, wanted === 'zai' ? 'openai' : 'zai']
-      : ['zai', 'openai']
+  /*
+   * Явно названный провайдер идёт первым, остальные — за ним по порядку
+   * предпочтения. Прежняя версия перечисляла пару вручную и после удаления
+   * openai назвала бы несуществующего.
+   */
+  const известные: ProviderId[] = ['zai', 'zai-lite', 'nemotron']
+  const order: ProviderId[] = известные.includes(wanted)
+    ? [wanted, ...известные.filter(id => id !== wanted)]
+    : известные
 
   for (const id of order) {
     const c = CATALOG[id]
