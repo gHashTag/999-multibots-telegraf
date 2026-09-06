@@ -28,9 +28,35 @@ SDK="$(xcodebuild -showsdks 2>/dev/null | grep -o 'iphonesimulator[0-9.]*' | hea
 [ -n "$SDK" ] || { echo "❌ не нашёл симуляторный SDK"; exit 1; }
 
 # 1. Устройство. Загружаем, если спит: без этого install падает невнятно.
+# `|| true` ОБЯЗАТЕЛЕН, и вот почему.
+#
+# При `set -e` + `pipefail` присваивание из неудачной подстановки роняет
+# скрипт НА МЕСТЕ. `grep`, ничего не нашедший, возвращает 1 — значит при
+# отсутствующем симуляторе скрипт умирал молча, ДО проверки ниже, и та
+# проверка вместе со всем её объяснением была недостижима. Ровно это и
+# случилось 07.09.2026: три попытки ушли на догадки о пустом выводе.
 UDID="$(xcrun simctl list devices available \
-  | grep -F "$SIM (" | head -1 | grep -oE '[0-9A-F-]{36}')"
-[ -n "$UDID" ] || { echo "❌ симулятор «$SIM» не найден"; exit 1; }
+  | grep -F "$SIM (" | head -1 | grep -oE '[0-9A-F-]{36}' || true)"
+if [ -z "$UDID" ]; then
+  # НАЗВАТЬ ПРИЧИНУ, А НЕ ТОЛЬКО ФАКТ. 07.09.2026 на этой машине не было НИ
+  # ОДНОГО созданного устройства -- только рантайм. Сообщение «симулятор не
+  # найден» звучало как опечатка в имени, и я потратил три попытки, прежде чем
+  # посмотрел список. Пустой список -- отдельный случай, и говорить о нём надо
+  # отдельно.
+  echo "❌ симулятор «$SIM» не найден"
+  DEVICES="$(xcrun simctl list devices available | grep -E '^ +[A-Za-z]' || true)"
+  if [ -z "$DEVICES" ]; then
+    RUNTIME="$(xcrun simctl list runtimes | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.[A-Za-z0-9-]+' | head -1)"
+    echo "   устройств не создано ВООБЩЕ. Создать:"
+    echo "   xcrun simctl create '$SIM' \\"
+    echo "     com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro \\"
+    echo "     ${RUNTIME:-<рантайм из: xcrun simctl list runtimes>}"
+  else
+    echo "   есть такие:"
+    echo "$DEVICES" | sed 's|^|   |'
+  fi
+  exit 1
+fi
 
 if ! xcrun simctl list devices | grep -F "$UDID" | grep -q Booted; then
   echo "▸ загружаю $SIM"
