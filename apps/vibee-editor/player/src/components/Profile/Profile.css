@@ -2270,3 +2270,26 @@
 .soul-card__a2a code {
   font-size: 0.75rem;
 }
+
+/* Две кнопки над обложкой в ряд: «изменить» и «сделать». */
+.profile-cover__actions {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.profile-cover__actions .profile-cover__edit {
+  position: static;
+}
+.profile-cover__error {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  margin: 0;
+  max-width: 60%;
+  font-size: 0.8rem;
+  color: #ff9b9b;
+}

@@ -6782,6 +6782,93 @@ const server = createServer(async (req, res) => {
     return
   }
 
+  /**
+   * ОБЛОЖКА ПРОФИЛЯ ИЗ АВАТАРКИ И SOUL — ПО НАЖАТИЮ.
+   *
+   * Владелец решил: обложку делаем за наш счёт, но ТОЛЬКО тому, кто нажал.
+   * Автоматически каждому — это расход на всех сразу, включая тех, кто её
+   * никогда не увидит; по нажатию платим ровно за желающих.
+   *
+   * Промпт собирается из двух вещей, которые уже есть: аватарки Telegram
+   * (лицо, чтобы обложка была про человека) и его SOUL.md (о чём он). Ничего
+   * не выдумываем: пустой SOUL даёт нейтральную обложку, а не сочинённую
+   * биографию.
+   *
+   * С кошелька человека НЕ СПИСЫВАЕМ — это подарок платформы, и списание
+   * здесь противоречило бы решению владельца. Ограничитель — раз в сутки:
+   * без него одна кнопка превращается в кран.
+   */
+  if (req.url === '/api/profile/cover' && req.method === 'POST') {
+    const кто = chatIdentity(req, verifiedTelegramId(req))
+    if (!кто) {
+      sendJson(res, 401, { success: false, error: 'unauthorized' })
+      return
+    }
+    try {
+      const pool = await getPool()
+      const п = await pool.query(
+        `SELECT username, avatar_url, cover_updated_at::text AS updated
+           FROM profiles WHERE telegram_id = $1 LIMIT 1`,
+        [String(кто)]
+      )
+      if (п.rows.length === 0) {
+        sendJson(res, 404, { success: false, error: 'profile not found' })
+        return
+      }
+      const было = п.rows[0].updated ? Date.parse(п.rows[0].updated) : 0
+      if (было && Date.now() - было < 24 * 60 * 60 * 1000) {
+        // Отказ НАЗЫВАЕТ срок: «нельзя» без «когда можно» человек читает как
+        // поломку и жмёт снова.
+        sendJson(res, 429, {
+          success: false,
+          error: 'обложку можно обновлять раз в сутки',
+        })
+        return
+      }
+
+      const s = await pool.query(
+        `SELECT content FROM user_soul WHERE telegram_id = $1`,
+        [String(кто)]
+      )
+      const soul = String(s.rows[0]?.content ?? '').slice(0, 1200)
+      const аватар = п.rows[0].avatar_url as string | null
+
+      /*
+       * Лицо — ИСХОДНИКОМ, а не словами. Описать чужое лицо текстом значит
+       * выдумать его; модель правки берёт саму аватарку и делает из неё фон.
+       * Нет аватарки — генерируем без исходника, по одному SOUL.
+       */
+      const prompt =
+        'Wide cinematic cover banner for a personal profile, 16:9, ' +
+        'dark elegant background, no text, no logos, no faces of other people. ' +
+        (soul.trim()
+          ? `Mood and subject from this description of the person: ${soul}`
+          : 'Neutral abstract technological mood.')
+
+      const результат = await kieGenerateImage({
+        prompt,
+        aspectRatio: '16:9',
+        ...(аватар ? { imageUrl: аватар } : {}),
+      })
+      if (!результат.ok) {
+        // Причина от провайдера уходит НАРУЖУ: «не получилось» без причины
+        // человек читает как поломку приложения и жмёт снова.
+        sendJson(res, 502, { success: false, error: результат.reason })
+        return
+      }
+      await pool.query(
+        `UPDATE profiles
+            SET cover_url = $2, cover_updated_at = now()
+          WHERE telegram_id = $1`,
+        [String(кто), результат.url]
+      )
+      sendJson(res, 200, { success: true, coverUrl: результат.url })
+    } catch (e) {
+      sendJson(res, 500, { success: false, error: String(e) })
+    }
+    return
+  }
+
   if (req.url === '/api/feed/pending' && req.method === 'GET') {
     const кто = chatIdentity(req, verifiedTelegramId(req))
     if (!кто) {
@@ -8596,6 +8683,10 @@ const server = createServer(async (req, res) => {
            bio text DEFAULT '',
            avatar_url text,
            cover_url text,
+           -- Когда обложку сгенерировали в последний раз. Ограничитель «раз в
+           -- сутки» держится на этой колонке: без неё одна кнопка становится
+           -- краном, а платит за него платформа.
+           cover_updated_at timestamptz,
            social_links jsonb DEFAULT '[]',
            is_public boolean DEFAULT TRUE,
            is_verified boolean DEFAULT FALSE,
@@ -8657,6 +8748,10 @@ const server = createServer(async (req, res) => {
                bio text DEFAULT '',
                avatar_url text,
                cover_url text,
+           -- Когда обложку сгенерировали в последний раз. Ограничитель «раз в
+           -- сутки» держится на этой колонке: без неё одна кнопка становится
+           -- краном, а платит за него платформа.
+           cover_updated_at timestamptz,
                social_links jsonb DEFAULT '[]',
                is_public boolean DEFAULT TRUE,
                is_verified boolean DEFAULT FALSE,

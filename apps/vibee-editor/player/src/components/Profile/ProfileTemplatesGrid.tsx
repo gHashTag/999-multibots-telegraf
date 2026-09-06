@@ -280,6 +280,35 @@ export function ProfileTemplatesGrid({
     return callback
   }
 
+  /**
+   * Развернуть видео на весь экран, как умеет ЭТОТ браузер.
+   *
+   * Способов три, и они не взаимозаменяемы: стандартный `requestFullscreen`,
+   * префиксный вебкитовский для старых сборок и `webkitEnterFullscreen` У
+   * САМОГО ЭЛЕМЕНТА VIDEO — на iPhone работает только последний, и без него
+   * «на весь экран» на телефоне не случится вовсе.
+   */
+  const развернуть = async (video: HTMLVideoElement) => {
+    const элемент = video as HTMLVideoElement & {
+      webkitEnterFullscreen?: () => void
+      webkitRequestFullscreen?: () => Promise<void> | void
+    }
+    try {
+      if (typeof элемент.webkitEnterFullscreen === 'function') {
+        элемент.webkitEnterFullscreen()
+        return
+      }
+      if (typeof video.requestFullscreen === 'function') {
+        await video.requestFullscreen()
+        return
+      }
+      await элемент.webkitRequestFullscreen?.()
+    } catch {
+      // Молчим: политика браузера может запретить, и это не повод обрывать
+      // воспроизведение.
+    }
+  }
+
   const togglePreview = async (template: FeedTemplate) => {
     const video = videoRefs.current.get(template.id)
     if (!video) return
@@ -301,6 +330,18 @@ export function ProfileTemplatesGrid({
     setPlayingId(template.id)
     try {
       await video.play()
+      /*
+       * ПЛЕЙ ОТКРЫВАЕТ РОЛИК НА ВЕСЬ ЭКРАН.
+       *
+       * Плитка в сетке — превью размером с ноготь: разглядеть в ней, что
+       * получилось, нельзя, а именно за этим и нажимают «плей».
+       *
+       * Отказ ГЛУШИМ намеренно: полноэкранный режим требует жеста и в
+       * некоторых окружениях запрещён политикой. Ролик при этом играет в
+       * плитке, как играл раньше, — ронять воспроизведение из-за оформления
+       * нельзя.
+       */
+      void развернуть(video)
       if (
         playRequestRef.current !== requestId ||
         activePreviewRef.current !== template.id

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { User, Users, Video, Eye, Heart, Settings, CheckCircle, Camera } from 'lucide-react';
+import { User, Users, Video, Eye, Heart, Settings, CheckCircle, Camera, Sparkles } from 'lucide-react';
 import {
   viewedProfileAtom,
   userAtom,
@@ -70,19 +70,72 @@ export function ProfileHeader({ onEditClick }: ProfileHeaderProps) {
     { icon: <Heart size={18} />, value: profile.total_likes, label: t('profile.likes') },
   ];
 
+  /**
+   * Сделать обложку из аватарки и SOUL. Платит платформа, поэтому только по
+   * нажатию и не чаще раза в сутки — ограничитель держит сервер, здесь мы
+   * лишь показываем его ответ словами.
+   */
+  const [делаю, setДелаю] = useState(false)
+  const [ошибкаОбложки, setОшибкаОбложки] = useState<string | null>(null)
+  const [свежаяОбложка, setСвежаяОбложка] = useState<string | null>(null)
+  const сделатьОбложку = async () => {
+    setДелаю(true)
+    setОшибкаОбложки(null)
+    try {
+      const о = await fetch(`${API_BASE}/api/profile/cover`, {
+        method: 'POST',
+        headers: authHeaders(),
+      })
+      const д = await о.json().catch(() => null)
+      if (!о.ok || !д?.coverUrl) throw new Error(д?.error || `HTTP ${о.status}`)
+      // Показываем сразу: человек нажал и должен увидеть результат, а не
+      // гадать, получилось ли.
+      setСвежаяОбложка(д.coverUrl as string)
+    } catch (e) {
+      setОшибкаОбложки(
+        `Не получилось: ${e instanceof Error ? e.message : String(e)}`
+      )
+    } finally {
+      setДелаю(false)
+    }
+  }
+
   return (
     <>
       {/* Cover Image */}
       <div className="profile-cover">
-        {profile.cover_url ? (
-          <img src={profile.cover_url} alt="" className="profile-cover__image" />
+        {свежаяОбложка || profile.cover_url ? (
+          <img
+            src={свежаяОбложка || profile.cover_url || ''}
+            alt=""
+            className="profile-cover__image"
+          />
         ) : null}
         <div className="profile-cover__gradient" />
         {isOwn && (
-          <button className="profile-cover__edit" onClick={onEditClick}>
-            <Camera size={16} />
-            <span>{t('profile.edit_cover')}</span>
-          </button>
+          <div className="profile-cover__actions">
+            <button className="profile-cover__edit" onClick={onEditClick}>
+              <Camera size={16} />
+              <span>{t('profile.edit_cover')}</span>
+            </button>
+            {/*
+              ОБЛОЖКА ПО НАЖАТИЮ, А НЕ КАЖДОМУ ПРИ ВХОДЕ.
+              Рисуем за свой счёт, поэтому тратим только на того, кто
+              попросил: генерация каждому при входе — расход на всех сразу,
+              включая тех, кто обложку никогда не откроет.
+            */}
+            <button
+              className="profile-cover__edit"
+              disabled={делаю}
+              onClick={сделатьОбложку}
+            >
+              <Sparkles size={16} />
+              <span>{делаю ? 'Рисую…' : 'Сделать обложку'}</span>
+            </button>
+          </div>
+        )}
+        {ошибкаОбложки && (
+          <p className="profile-cover__error">{ошибкаОбложки}</p>
         )}
       </div>
 
