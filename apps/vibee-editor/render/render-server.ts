@@ -7610,71 +7610,86 @@ const server = createServer(async (req, res) => {
         return
       }
 
-      // Вебхук бота-кассира: секрет в пути, чтобы гвард и злоумышленники
-      // мимо не прошли. Telegram шлёт сюда pre_checkout и successful_payment.
-      const WH_SECRET = process.env.STARS_WEBHOOK_SECRET || ''
-      const whMatch = req.url?.match(
-        /^\/api\/telegram\/stars-wh\/([a-zA-Z0-9_-]+)$/
-      )
-      if (whMatch && req.method === 'POST') {
-        if (!WH_SECRET || whMatch[1] !== WH_SECRET || !PAY_BOT) {
-          res.writeHead(404, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ error: 'not found' }))
-          return
-        }
+      /*
+       * ЗАЧИСЛЕНИЕ ЗВЁЗД: СЛУЖЕБНЫЙ МАРШРУТ ДЛЯ БОТА, А НЕ ВЕБХУК TELEGRAM.
+       *
+       * Здесь стоял `POST /api/telegram/stars-wh/<секрет>` — вебхук кассира.
+       * Он не работал ни одним из трёх своих участков, и все три молчали:
+       *
+       *  1. Общий гвард (auth.ts) закрывает всё, что не названо публичным.
+       *     Telegram приходит без X-Api-Key и получал 401 — измерено боем
+       *     06.09.2026. Секрет в пути задумывался как аутентификация, но до
+       *     обработчика запрос не доходил вовсе.
+       *  2. `upd.successful_payment` читалось на ВЕРХНЕМ уровне апдейта, где
+       *     его не бывает: Telegram кладёт оплату в `update.message.
+       *     successful_payment`. Ветка зачисления не сработала бы никогда.
+       *  3. Вебхук ставился с `allowed_updates`, где `successful_payment` —
+       *     несуществующий тип апдейта; Telegram его выбрасывал, и оплата не
+       *     доставлялась сюда в принципе.
+       *
+       * Три независимых отказа на одном пути — признак того, что путь не
+       * проверялся ни разу. Проверить его и нельзя было, не заплатив: тесты
+       * закрывали `creditStarsPayment`, а не проводку до неё.
+       *
+       * Теперь апдейты Telegram принимает ОДИН приёмник — опрос в сервисе
+       * бота (как у остальных десяти ботов). Бот сам подтверждает
+       * pre_checkout и сам разбирает payload; покупку токенов мини-приложения
+       * (`tokens:<сумма>:<id>`) он переправляет сюда, потому что леджер
+       * `user_tokens` живёт в базе ЭТОГО сервиса, а не в Supabase бота.
+       *
+       * Аутентификация — общий гвард, тот же X-Api-Key, которым бот уже
+       * ходит в /api/star-paid. Маршрут намеренно НЕ внесён ни в один
+       * публичный список: без ключа он отвечает 401, и это проверено тестом.
+       */
+      const путьЗачисления = (req.url || '').split('?')[0]
+      if (путьЗачисления === '/api/stars/credit' && req.method === 'POST') {
         try {
-          const upd = JSON.parse((await readBody(req)) || '{}')
-          if (upd.pre_checkout_query) {
-            await fetch(
-              `https://api.telegram.org/bot${PAY_BOT}/answerPreCheckoutQuery`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  pre_checkout_query_id: upd.pre_checkout_query.id,
-                  ok: true,
-                }),
-              }
-            )
-          } else if (upd.successful_payment) {
-            // tokens:<amount>:<telegram_id> — единственный источник правды.
-            const m = String(
-              upd.successful_payment.invoice_payload || ''
-            ).match(/^tokens:(\d+):(.+)$/)
-            const amount = m ? Number(m[1]) : 0
-            const tid = m ? m[2] : ''
-            // Idempotency key taken from the event itself. Telegram retries
-            // webhook delivery on any non-200 and on network trouble; without a
-            // key each redelivery of one payment credited the tokens again.
-            // telegram_payment_charge_id is unique per payment.
-            const chargeId = String(
-              upd.successful_payment.telegram_payment_charge_id || ''
-            )
-            if (amount > 0 && tid) {
-              // Logic extracted to src/stars-credit.ts so it can be tested
-              // without spending money -- see stars-credit.test.ts. The two
-              // fixes this path has needed (idempotency, numeric dates) both
-              // shipped on reasoning alone and were both silently reverted
-              // later without a single test going red.
-              const pool = await getPool()
-              const outcome = await creditStarsPayment(pool, {
-                chargeId,
-                telegramId: tid,
-                amount,
+          const тело = JSON.parse((await readBody(req)) || '{}')
+          const сумма = Number(тело.amount)
+          const amount = Number.isFinite(сумма) ? сумма : 0
+          const tid = String(тело.telegramId || '')
+          /*
+           * Ключ идемпотентности берётся из самого платежа.
+           * `telegram_payment_charge_id` уникален на платёж, и повтор вызова
+           * (бот перезапустился между зачислением и фиксацией offset опроса)
+           * конфликтует по первичному ключу и не зачисляет второй раз.
+           */
+          const chargeId = String(тело.chargeId || '')
+          if (!(amount > 0) || !tid) {
+            /*
+             * 400, а НЕ 200. Прежний обработчик отвечал 200 на что угодно,
+             * потому что Telegram повторяет доставку на любой не-200. Здесь
+             * вызывающий — наш бот, и молчаливое «ок» на кривое тело
+             * означало бы потерянную оплату без единой записи в журнале.
+             */
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(
+              JSON.stringify({
+                ok: false,
+                error: 'нужны положительный amount и telegramId',
               })
-              console.log(
-                outcome.credited
-                  ? `[STARS] +${amount} to ${tid} (${outcome.reason})`
-                  : `[STARS] not credited for ${tid}: ${outcome.reason}`
-              )
-            }
+            )
+            return
           }
-          res.writeHead(200)
-          res.end()
+          // Логика вынесена в src/stars-credit.ts, чтобы её можно было
+          // проверить, не тратя денег, — см. stars-credit.test.ts.
+          const pool = await getPool()
+          const outcome = await creditStarsPayment(pool, {
+            chargeId,
+            telegramId: tid,
+            amount,
+          })
+          console.log(
+            outcome.credited
+              ? `[STARS] +${amount} to ${tid} (${outcome.reason})`
+              : `[STARS] not credited for ${tid}: ${outcome.reason}`
+          )
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: true, ...outcome }))
         } catch (e) {
-          console.error('[STARS] webhook error:', e)
-          res.writeHead(200)
-          res.end()
+          console.error('[STARS] credit error:', e)
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: String(e).slice(0, 300) }))
         }
         return
       }
@@ -10121,42 +10136,29 @@ async function main() {
     console.log(`🔌 WebSocket: ws://0.0.0.0:${PORT} (real-time sync)`)
     console.log(`📦 S3 Bucket: ${S3_BUCKET}`)
 
-    // САМОВОССТАНОВЛЕНИЕ ВЕБХУКА КАССИРА. Соседний сервис ботов (общий
-    // main) сбивает setWebhook кассира звёзд на СВОИХ рестартах — а рендер
-    // при этом может не рестартовать, и вебхук висит слетевшим до
-    // следующего деплоя (инцидент цикла №218: оплата могла не зачислиться).
-    // Поэтому не разовый таймер, а периодический re-set: идемпотентен,
-    // с теми же параметрами безвреден. Локальный стенд не тянет кассирные
-    // env — блок у него не активен и прод не трогает.
-    const payBot = process.env.TOKENS_PAYMENT_BOT_TOKEN || ''
-    const whSecret = process.env.STARS_WEBHOOK_SECRET || ''
-    const selfUrl = process.env.SELF_URL || ''
-    if (payBot && whSecret && selfUrl) {
-      const rehook = () =>
-        fetch(`https://api.telegram.org/bot${payBot}/setWebhook`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: `${selfUrl}/api/telegram/stars-wh/${whSecret}`,
-            allowed_updates: ['pre_checkout_query', 'successful_payment'],
-          }),
-        })
-          .then(r => r.json())
-          .then(d =>
-            console.log(
-              '💰 [cashier] вебхук самовосстановлен:',
-              d.ok ? 'ok' : JSON.stringify(d).slice(0, 120)
-            )
-          )
-          .catch(e =>
-            console.warn(
-              '💰 [cashier] вебхук не восстановился:',
-              String(e).slice(0, 120)
-            )
-          )
-      setTimeout(rehook, 30_000)
-      setInterval(rehook, 10 * 60_000)
-    }
+    /*
+     * ЗДЕСЬ РЕНДЕР КАЖДЫЕ 10 МИНУТ СТАВИЛ КАССИРУ ВЕБХУК — И ГЛУШИЛ БОТА.
+     *
+     * Замысел: сосед по общему main сбивает вебхук своим deleteWebhook на
+     * каждом рестарте, значит будем возвращать его периодически. Логика
+     * самовосстановления верная — неверен был выбор победителя в споре.
+     *
+     * Пока вебхук стоит, Telegram не отдаёт апдейты опросом (409), а сам
+     * вебхук был разрешён только на `pre_checkout_query`: имя
+     * `successful_payment` — поле внутри `message`, а не тип апдейта, и
+     * Telegram его молча выбрасывал. Плюс маршрут закрыт общим гвардом и
+     * отвечал Telegram 401. То есть этот блок круглосуточно возвращал
+     * систему в состояние «бот молчит и ничего не продаёт».
+     *
+     * Приём апдейтов теперь один на все одиннадцать ботов — опрос в сервисе
+     * бота. Оплаты приходят туда же: клуб и тарифы бот зачисляет сам, а
+     * покупку токенов мини-приложения (payload `tokens:<сумма>:<id>`)
+     * переправляет сюда на POST /api/stars/credit — тем же ключом, которым
+     * уже ходит postStarPaid. Каждый леджер пишет его хозяин.
+     *
+     * Ничего не ставим и не удаляем: удаление делает сервис бота на старте,
+     * а два сервиса, дёргающие один вебхук, — это и был исходный спор.
+     */
   })
 }
 

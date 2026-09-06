@@ -72,6 +72,56 @@ export async function postStarPaid(payload: string): Promise<{
   }
 }
 
+/**
+ * Зачислить покупку токенов мини-приложения — В БАЗЕ РЕНДЕРА.
+ *
+ * Токены живут в таблице `user_tokens` базы рендер-сервиса (Railway
+ * Postgres), а баланс бота — в леджере `payments_v2` Supabase. Это две разные
+ * базы, и зачислять покупку токенов записью в Supabase было бы зачислением не
+ * туда: человек заплатил, а в мини-приложении по-прежнему ноль.
+ *
+ * Поэтому оплату переправляем хозяину леджера. Адрес — литерал прод-деплоя по
+ * той же причине, что и у postStarPaid выше: URL, собранный из ENV, сканер
+ * считает потенциальным SSRF.
+ *
+ * `chargeId` передаём обязательно: на нём стоит идемпотентность зачисления
+ * (первичный ключ star_payments). Без него повторная доставка одного платежа
+ * начислила бы токены дважды.
+ */
+export async function postStarsCredit(payment: {
+  chargeId: string
+  telegramId: string
+  amount: number
+}): Promise<{ ok: boolean; credited?: boolean; reason?: string }> {
+  const target = new URL(
+    'https://vibee-render-production.up.railway.app/api/stars/credit'
+  )
+  const r = await fetch(target, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-Key': process.env.RENDER_API_KEY || '',
+    },
+    body: JSON.stringify(payment),
+  })
+  return (await r.json()) as {
+    ok: boolean
+    credited?: boolean
+    reason?: string
+  }
+}
+
+/** Разобрать payload покупки токенов мини-приложения: `tokens:<сумма>:<id>`. */
+export function parseTokensPayload(
+  payload: string
+): { amount: number; telegramId: string } | null {
+  const m = /^tokens:(\d+):(.+)$/.exec(payload)
+  if (!m) return null
+  const amount = Number(m[1])
+  if (!(amount > 0)) return null
+  return { amount, telegramId: m[2] }
+}
+
 async function sendNotification(ctx: MyContext, message: string) {
   const adminChatId = process.env.ADMIN_CHAT_ID
   if (adminChatId) {
@@ -135,6 +185,64 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
   // 🏛 Клуб «Золотая Литейная» (@t27ai_bot): payload `foundry-<tier>_<stars>_<ts>`.
   // Ветка стоит ДО общего разбора: иначе parts[0] не найдётся в
   // paymentOptionsPlans и оплата клуба молча запишется как пополнение баланса.
+  /*
+   * ПОКУПКА ТОКЕНОВ МИНИ-ПРИЛОЖЕНИЯ: payload `tokens:<сумма>:<id>`.
+   *
+   * Счёт на неё выставляет рендер (render-server.ts, createInvoiceLink), а
+   * зачисляет он же — в свою базу. Раньше подтверждение оплаты шло к нему
+   * вебхуком, и этот вебхук, стоя на том же токене бота, глушил боту весь
+   * приём сообщений (см. src/index.ts, снятый CASHIER GUARD). Приёмник
+   * теперь один — опрос здесь, — поэтому оплата приходит боту, а бот
+   * переправляет её хозяину леджера.
+   *
+   * Ветка стоит ПЕРВОЙ по той же причине, по какой клубная стоит выше общего
+   * разбора: `parts[0]` не найдётся в paymentOptionsPlans, и покупка токенов
+   * молча записалась бы пополнением баланса не в ту базу.
+   */
+  const токены = payload ? parseTokensPayload(payload) : null
+  if (токены) {
+    try {
+      const outcome = await postStarsCredit({
+        chargeId: telegramPaymentChargeId,
+        telegramId: токены.telegramId,
+        amount: токены.amount,
+      })
+      if (!outcome.ok) {
+        throw new Error(`рендер отказал: ${outcome.reason ?? 'без причины'}`)
+      }
+      logger.info('[handleSuccessfulPayment] mini-app tokens credited', {
+        telegram_id: токены.telegramId,
+        amount: токены.amount,
+        credited: outcome.credited,
+        reason: outcome.reason,
+      })
+      await ctx.reply(
+        isRu
+          ? `Зачислено ${токены.amount} токенов. Спасибо!`
+          : `${токены.amount} tokens credited. Thank you!`
+      )
+    } catch (error) {
+      // Деньги уже списаны Telegram'ом: не молчим и не маскируем.
+      logger.error('❌ [handleSuccessfulPayment] tokens branch failed', {
+        error: error instanceof Error ? error.message : String(error),
+        telegram_id: токены.telegramId,
+        amount: токены.amount,
+        charge_id: telegramPaymentChargeId,
+        payload,
+      })
+      await ctx.reply(
+        isRu
+          ? 'Оплата прошла, но зачисление не удалось. Мы уже знаем и починим — напишите в поддержку с этим сообщением.'
+          : 'Payment went through but crediting failed. We know and will fix it — please contact support with this message.'
+      )
+      await sendNotification(
+        ctx,
+        `⚠️ Токены не зачислены: ${токены.amount} для ${токены.telegramId}, charge ${telegramPaymentChargeId}`
+      )
+    }
+    return
+  }
+
   if (payload?.startsWith('foundry-')) {
     const { parseFoundryPayload, replyClubWelcome } = await import(
       '@/handlers/foundryClub'
