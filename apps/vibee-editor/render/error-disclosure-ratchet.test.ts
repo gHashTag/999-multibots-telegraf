@@ -25,14 +25,30 @@ const stripComments = (s: string) =>
     )
 
 describe('render server does not leak raw error strings to clients', () => {
-  it('no response embeds error: String(error)', () => {
+  it('no response embeds a raw error string, under ANY variable name', () => {
+    /*
+     * ХРАПОВИК ЛОВИЛ НАПИСАНИЕ, А НЕ УТЕЧКУ.
+     *
+     * Он искал буквальное `error: String(error)`. На чистом дереве рядом
+     * жили ВОСЕМЬ `error: String(e)` — та же утечка под именем в одну букву,
+     * — и храповик был зелёным. Проверено в обе стороны: вписать
+     * `String(error)` в обработчик — краснеет; переименовать переменную в
+     * `e` — зеленеет, а утечка на месте.
+     *
+     * Имя переменной ничего не решает: наружу уходит текст исключения, а с
+     * ним пути файлов, имена таблиц и куски запросов.
+     */
     const s = stripComments(fs.readFileSync(SERVER, 'utf8'))
-    const hits = [...s.matchAll(/error:\s*String\(error\)/g)]
+    const hits = [
+      ...s.matchAll(/error:\s*String\(\s*\w+\s*\)/g),
+      ...s.matchAll(/error:\s*`[^`]*\$\{\s*String\(\s*\w+\s*\)/g),
+      ...s.matchAll(/error:\s*\w+\s*\.\s*message\b/g),
+    ]
     expect(
       hits.length,
-      `a response leaks the raw error string (String(error)) to the client ` +
-        `in ${hits.length} place(s) — return a generic message and log the ` +
-        `detail server-side instead`
+      `ответ отдаёт клиенту сырой текст ошибки в ${hits.length} месте(ах): ` +
+        `${hits.map(h => h[0]).slice(0, 6).join(' | ')} — ` +
+        `верните общее сообщение, а подробность оставьте в console.error`
     ).toBe(0)
   })
 })
