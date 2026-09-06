@@ -6732,6 +6732,56 @@ const server = createServer(async (req, res) => {
    * Только СВОИ: владелец берётся из подписи, а не из строки запроса. Иначе
    * чужие неодобренные черновики читал бы кто угодно по номеру.
    */
+  /**
+   * SOUL ЧЕЛОВЕКА — ПУБЛИЧНО, ПО ИМЕНИ.
+   *
+   * SOUL.md — это то, кем человек себя считает и что ему интересно. Владелец
+   * решил, что он открыт: на нём строится знакомство людей друг с другом и
+   * агентов a2a с людьми. Закрытый SOUL связывать никого не может.
+   *
+   * Читается БЕЗ подписи — как и профиль рядом. Правка по-прежнему требует
+   * личности: открыт на чтение не значит открыт на запись.
+   *
+   * Отдаём text/markdown, а не HTML: это исходник, который читают и агенты, и
+   * человек, и превращать его в разметку на сервере значило бы решить за
+   * читателя, как он выглядит.
+   */
+  if (req.url?.startsWith('/api/soul/') && req.method === 'GET') {
+    const имя = decodeURIComponent(req.url.slice('/api/soul/'.length).split('?')[0])
+    if (!имя) {
+      sendJson(res, 400, { success: false, error: 'username is required' })
+      return
+    }
+    try {
+      const pool = await getPool()
+      const r = await pool.query(
+        `SELECT us.content, us.updated_at::text AS updated_at,
+                p.username, p.telegram_id
+           FROM profiles p
+           LEFT JOIN user_soul us ON us.telegram_id = p.telegram_id::text
+          WHERE p.username = $1
+          LIMIT 1`,
+        [имя]
+      )
+      if (r.rows.length === 0) {
+        sendJson(res, 404, { success: false, error: 'not found' })
+        return
+      }
+      sendJson(res, 200, {
+        success: true,
+        username: r.rows[0].username,
+        // Пустой SOUL — это НЕ ошибка: человек его ещё не написал. Пустая
+        // строка и «нет такого человека» — разные ответы, и путать их значит
+        // отправлять агента искать несуществующее.
+        soul: r.rows[0].content ?? '',
+        updatedAt: r.rows[0].updated_at ?? null,
+      })
+    } catch (e) {
+      sendJson(res, 500, { success: false, error: String(e) })
+    }
+    return
+  }
+
   if (req.url === '/api/feed/pending' && req.method === 'GET') {
     const кто = chatIdentity(req, verifiedTelegramId(req))
     if (!кто) {

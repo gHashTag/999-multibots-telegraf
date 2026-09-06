@@ -11,6 +11,8 @@ import {
 import { useLanguage } from '@/hooks/useLanguage'
 import { Header } from '@/components/Header'
 import { ProfileHeader, ProfileTabs, ProfileEdit } from '@/components/Profile'
+import { SoulCard } from '@/components/Profile/SoulCard'
+import { useIsOwnProfile } from '@/components/Profile/useIsOwnProfile'
 import '@/components/Profile/Profile.css'
 
 export function ProfilePage() {
@@ -18,6 +20,7 @@ export function ProfilePage() {
   const { username } = useParams<{ username: string }>()
 
   const profile = useAtomValue(viewedProfileAtom)
+  const своя = useIsOwnProfile()
   const loading = useAtomValue(profileLoadingAtom)
   const error = useAtomValue(profileErrorAtom)
   const loadProfile = useSetAtom(loadProfileAtom)
@@ -117,6 +120,21 @@ export function ProfilePage() {
       <div className="profile-page">
         <div className="profile-page__container">
           <ProfileHeader onEditClick={() => setShowEdit(true)} />
+          {/*
+            SOUL СРАЗУ ПОД ШАПКОЙ, ДО ВКЛАДОК.
+
+            Он был седьмой вкладкой и только у себя. Но SOUL.md — это то, по
+            чему людей находят: по нему знакомятся люди и агенты a2a.
+            Спрятанный на седьмой вкладке открытый файл почти не отличается
+            от закрытого.
+          */}
+          {profile?.username && (
+            <SoulCard
+              username={profile.username}
+              isOwn={своя}
+              onEdit={() => setShowEdit(true)}
+            />
+          )}
           <ProfileTabs />
 
           <ProfileEdit isOpen={showEdit} onClose={() => setShowEdit(false)} />
