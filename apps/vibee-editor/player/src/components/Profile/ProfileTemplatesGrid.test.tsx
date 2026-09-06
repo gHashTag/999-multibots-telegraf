@@ -148,6 +148,24 @@ describe('ProfileTemplatesGrid owner actions', () => {
       root.render(<ProfileTemplatesGrid username="t27_dev" isOwn={isOwn} />)
     })
     await act(async () => Promise.resolve())
+    /*
+     * ГРУППЫ СВЁРНУТЫ — РАСКРЫВАЕМ, как это делает человек.
+     *
+     * Вкладка называется «Шаблоны» и показывает шаблоны: у владельца 46
+     * роликов на три шаблона, и стена карточек — то, из-за чего всё и
+     * переделывалось.
+     *
+     * Раньше здесь была поблажка «одну группу не сворачиваем», и я вывел её
+     * ИЗ ЭТИХ ПАДАВШИХ ТЕСТОВ, а не из данных. На живом профиле первая
+     * страница — двадцать роликов одного шаблона, то есть ровно одна группа,
+     * то есть снова стена. Правильный ответ был не в поблажке, а здесь.
+     */
+    await act(async () => {
+      host
+        .querySelectorAll<HTMLElement>('.profile-templates__group-head')
+        .forEach(кнопка => кнопка.click())
+    })
+    await act(async () => Promise.resolve())
   }
 
   async function reveal(target: Element) {

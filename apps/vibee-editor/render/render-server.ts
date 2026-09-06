@@ -8769,7 +8769,30 @@ const server = createServer(async (req, res) => {
          LIMIT $2 OFFSET $3`,
         [username, limit, page * limit]
       )
+      /**
+       * СКОЛЬКО РОЛИКОВ У КАЖДОГО ШАБЛОНА — ПО ВСЕМ, А НЕ ПО СТРАНИЦЕ.
+       *
+       * Профиль отдаёт по 20 записей, и заголовок группы считал загруженные:
+       * у шаблона с 43 роликами стояло «20». Неверное число хуже
+       * отсутствующего — по нему принимают решение.
+       *
+       * Отдельным запросом, а не окном по выборке: страница уже урезана
+       * `LIMIT`, и посчитать по ней целое нельзя в принципе.
+       */
+      const counts = await pool.query(
+        `SELECT COALESCE(pt.template_settings->>'compositionId', '') AS k,
+                COUNT(*)::int AS n
+           FROM public_templates pt
+           LEFT JOIN profiles p ON p.telegram_id = pt.telegram_id
+          WHERE pt.is_public = TRUE AND pt.deleted_at IS NULL
+            AND (pt.creator_username = $1 OR p.username = $1)
+          GROUP BY 1`,
+        [username]
+      )
       sendJson(res, 200, {
+        compositionCounts: Object.fromEntries(
+          counts.rows.map(r => [r.k, r.n])
+        ),
         templates: result.rows.map(row => ({
           id: row.id,
           telegramId: row.telegram_id,
