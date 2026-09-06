@@ -133,19 +133,59 @@ export function telegramUserUnavailable(): string | null {
  * be a condition of the service starting. If the session is absent the assistant
  * loses Telegram and keeps everything else.
  */
-async function client(): Promise<unknown> {
-  const session = process.env.TELEGRAM_SESSION_STRING
+/**
+ * ЧЬЯ СЕССИЯ — ТОГО И ПЕРЕПИСКА.
+ *
+ * Раньше сессия была ОДНА на весь сервис — `TELEGRAM_SESSION_STRING`, — и это
+ * прямо означало, что читающий инструмент действует как владелец, кто бы его
+ * ни позвал. Отсюда и жёсткий гвард «только владелец»: другого способа не
+ * ошибиться не было.
+ *
+ * Владелец попросил «чтобы вся настройка у клиентов». Значит сессия должна
+ * быть у КАЖДОГО своя: она берётся из таблицы `tg_sessions` по проверенному
+ * telegram_id вызывающего. Переменная окружения остаётся запасной и только
+ * для владельца платформы — чтобы уже работающая настройка не отвалилась.
+ */
+async function сессияДля(ctx?: ToolContext): Promise<string> {
+  const кто = ctx ? String(ctx.telegramId ?? '') : ''
+  if (кто && (ctx as { pool?: { query: Function } })?.pool) {
+    try {
+      const { прочитатьСессию } = await import('./tg-connect')
+      const своя = await прочитатьСессию((ctx as any).pool, кто)
+      if (своя) return своя
+    } catch {
+      // Таблицы может не быть на свежей базе — это не повод не пустить
+      // владельца по переменной окружения ниже.
+    }
+  }
+  if (кто && кто === OWNER_TELEGRAM_ID) {
+    return process.env.TELEGRAM_SESSION_STRING || ''
+  }
+  return ''
+}
+
+async function client(ctx?: ToolContext): Promise<unknown> {
+  const session = await сессияДля(ctx)
   const apiId = Number(
     process.env.TELEGRAM_API_ID || process.env.TG_API_ID || 0
   )
   const apiHash = process.env.TELEGRAM_API_HASH || ''
 
-  if (!session || !apiId || !apiHash) {
-    // Named precisely: "not configured" is a different problem from "wrong
-    // credentials", and the person reading the log has to tell them apart.
+  if (!apiId || !apiHash) {
     unavailableReason =
-      'TELEGRAM_SESSION_STRING / TELEGRAM_API_ID / TELEGRAM_API_HASH are not set — ' +
-      'the assistant has no Telegram session to act through.'
+      'TELEGRAM_API_ID / TELEGRAM_API_HASH не заданы на сервисе рендера — ' +
+      'подключать аккаунты нечем.'
+    throw new Error(unavailableReason)
+  }
+  if (!session) {
+    /*
+     * Отличаем «сервис не настроен» от «ВЫ не подключили аккаунт»: чинится
+     * это по-разному, и общий текст отправил бы человека искать поломку там,
+     * где её нет.
+     */
+    unavailableReason =
+      'Ваш Telegram не подключён. Откройте приложение и подключите аккаунт — ' +
+      'после этого агент сможет читать ваши диалоги и контакты.'
     throw new Error(unavailableReason)
   }
 
@@ -211,7 +251,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       requireOwner(ctx)
-      const c = (await client()) as {
+      const c = (await client(ctx)) as {
         getDialogs: (o: { limit: number }) => Promise<unknown[]>
       }
       const dialogs = await c.getDialogs({
@@ -267,7 +307,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       requireOwner(ctx)
-      const c = (await client()) as {
+      const c = (await client(ctx)) as {
         getMessages: (chat: string, o: { limit: number }) => Promise<unknown[]>
       }
       const messages = await c.getMessages(args.chat, {
@@ -316,7 +356,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
     },
     async handler(args: Record<string, any>, ctx?: ToolContext) {
       requireOwner(ctx)
-      const c = (await client()) as {
+      const c = (await client(ctx)) as {
         getMessages: (
           chat: string,
           o: Record<string, unknown>
@@ -345,7 +385,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
     parameters: { type: 'object', properties: {} },
     async handler(_args: Record<string, any>, ctx?: ToolContext) {
       requireOwner(ctx)
-      const c = (await client()) as {
+      const c = (await client(ctx)) as {
         invoke: (r: unknown) => Promise<{ users?: unknown[] }>
       }
       const { Api } = await import('telegram')
