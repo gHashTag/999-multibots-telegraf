@@ -48,6 +48,7 @@ import {
 } from '@/atoms/user'
 import { PublishModal } from '../Modals/PublishModal'
 import {
+  voiceProviderAtom,
   voicesAtom,
   voicesLoadingAtom,
   voicesErrorAtom,
@@ -331,6 +332,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   const isLoadingVoices = useAtomValue(voicesLoadingAtom)
   const voicesError = useAtomValue(voicesErrorAtom)
   const [audioVoice, setAudioVoice] = useAtom(selectedVoiceAtom)
+  const voiceProvider = useAtomValue(voiceProviderAtom)
   const fetchVoices = useSetAtom(fetchVoicesAtom)
 
   // Load voices from ElevenLabs on mount
@@ -1320,10 +1322,18 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                     key={voice.id}
                     className={`model-btn model-btn-audio ${audioVoice === voice.id ? 'active' : ''}`}
                     onClick={() => setAudioVoice(voice.id)}
+                    /*
+                     * Чей голос — С СЕРВЕРА. Здесь стояло «ElevenLabs voice»
+                     * для всего, что не клон, и это подписывало голоса
+                     * MiniMax чужим именем: ElevenLabs недоступен, читает
+                     * другой провайдер, и он же называет себя в ответе.
+                     */
                     title={
                       voice.category === 'cloned'
-                        ? 'Custom cloned voice'
-                        : 'ElevenLabs voice'
+                        ? 'Свой клонированный голос'
+                        : voiceProvider
+                          ? `Голос ${voiceProvider}`
+                          : 'Голос провайдера'
                     }
                   >
                     <span className="model-name">

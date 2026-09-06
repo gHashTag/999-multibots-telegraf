@@ -47,6 +47,13 @@ export const voicesErrorAtom = atom<string | null>(null);
 // Selected voice ID (persisted)
 export const selectedVoiceAtom = atomWithStorage<string>(STORAGE_KEYS.selectedVoice, '');
 
+/**
+ * ЧЬИ это голоса. Сервер называет провайдера в ответе, а веб выбрасывал поле
+ * и подписывал каждый голос «ElevenLabs voice» — включая голоса MiniMax,
+ * которые он теперь и показывает.
+ */
+export const voiceProviderAtom = atom<string>('');
+
 // Fetch voices action atom
 export const fetchVoicesAtom = atom(
   null,
@@ -63,10 +70,26 @@ export const fetchVoicesAtom = atom(
 
       if (data.success && data.voices && data.voices.length > 0) {
         set(voicesAtom, data.voices);
+        if (data.provider) set(voiceProviderAtom, data.provider);
 
-        // Set first voice as default if none selected
+        /*
+         * ВЫБОР СВЕРЯЕТСЯ СО СПИСКОМ, А НЕ ТОЛЬКО С ПУСТОТОЙ.
+         *
+         * Здесь стояло «поставить первый, если не выбрано ничего» — и этого
+         * мало ровно тогда, когда список СМЕНИЛСЯ. У всех, кто заходил
+         * раньше, в хранилище лежит `sarah` или идентификатор ElevenLabs;
+         * список приезжает новый, выбор остаётся старый, и провайдер снова
+         * получает строку, которой не знает. То есть починка выбора голоса
+         * не подействовала бы ни на одного вернувшегося.
+         *
+         * Приложение так и делает с самого начала (GenerateScreen.swift):
+         * нет выбранного в новом списке — берём первый.
+         */
         const currentSelected = get(selectedVoiceAtom);
-        if (!currentSelected) {
+        const естьВСписке = data.voices.some(
+          (v: Voice) => v.id === currentSelected
+        );
+        if (!currentSelected || !естьВСписке) {
           set(selectedVoiceAtom, data.voices[0].id);
         }
 
