@@ -398,8 +398,14 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   // Lipsync state
   const [lipsyncAudioUrl, setLipsyncAudioUrl] = useState('')
   const [lipsyncImageUrl, setLipsyncImageUrl] = useState('')
-  const [lipsyncResolution, setLipsyncResolution] = useState('720p')
-  const [lipsyncAspect, setLipsyncAspect] = useState('9:16')
+  /*
+   * Разрешение липсинка задаёт СЕРВЕР (`РАЗРЕШЕНИЕ_ЛИПСИНКА`): от него зависит
+   * цена, а цену назначаем не здесь. Значения остаются в запросе, чтобы не
+   * менять форму тела, но выбора на экране больше нет — он ничего не менял, а
+   * умолчание 720p стоило нам вчетверо против того, что мы брали.
+   */
+  const lipsyncResolution = '480p'
+  const lipsyncAspect = '9:16'
   const [lipsyncModel, setLipsyncModel] = useState(KIE_WEB_MODELS.lipsync[0].id)
   const [isUploadingAudio, setIsUploadingAudio] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
@@ -1693,35 +1699,27 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                 </div>
               </div>
 
-              <div className="form-group">
-                <label>{t('generate.resolution')}</label>
-                <div className="form-chips">
-                  {RESOLUTIONS.slice(0, 2).map(res => (
-                    <button
-                      key={res}
-                      className={`form-chip ${lipsyncResolution === res ? 'active' : ''}`}
-                      onClick={() => setLipsyncResolution(res)}
-                    >
-                      {res}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/*
+                ДВА ВЫБОРА УБРАНЫ, ПОТОМУ ЧТО НИ ОДИН ИЗ НИХ НЕ ДЕЙСТВОВАЛ.
 
-              <div className="form-group">
-                <label>{t('generate.aspectRatio')}</label>
-                <div className="form-chips">
-                  {ASPECT_RATIOS.slice(0, 3).map(ratio => (
-                    <button
-                      key={ratio}
-                      className={`form-chip ${lipsyncAspect === ratio ? 'active' : ''}`}
-                      onClick={() => setLipsyncAspect(ratio)}
-                    >
-                      {ratio}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                «Соотношение» сервер не читал вовсе: обработчик липсинка
+                разбирает `{ audio_url, image_url, resolution, model }`, и
+                `aspect_ratio` в нём не встречается ни разу. Даже дойди оно —
+                контракт InfiniTalk просит один `image_url`, а сборщик входа
+                оставляет только поля контракта, так что до провайдера чип не
+                добрался бы никогда.
+
+                «Разрешение» действовало ХУЖЕ, чем не действовало: 720p стоит
+                нам вчетверо дороже 480p ($0.06 против $0.015 в секунду по
+                живому прайсу KieAI), цена в каталоге взята с дешёвой строки,
+                а веб слал 720p по умолчанию. Мы платили вчетверо и брали как
+                за 480p. Разрешение теперь задаёт сервер — там же, где
+                назначается цена (`РАЗРЕШЕНИЕ_ЛИПСИНКА`), ровно как это давно
+                сделано для видео.
+
+                Продавать 720p — решение владельца, и у него должна быть своя
+                цена. Возвращать чип раньше цены значит вернуть убыток.
+              */}
             </div>
 
             <button
