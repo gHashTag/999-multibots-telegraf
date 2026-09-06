@@ -13,14 +13,37 @@ const tool = (name: string) => {
   return found
 }
 
+/*
+ * ВЛАДЕНИЕ ПРОВЕРЯЕТСЯ ПО SQL, А НЕ ПО ПАРАМЕТРАМ.
+ *
+ * Мок отдавал строку при любом запросе, а проверки смотрели только на
+ * переданные параметры. Доказано мутацией: убрать `WHERE projects.telegram_id
+ * = $2` из upsert — все тесты остаются зелёными, и ни один из 88 файлов
+ * набора не краснеет. То есть инструмент агента мог бы затирать ЧУЖОЙ проект,
+ * и об этом никто бы не узнал. Вторая мутация, AND→OR в чтении, превращает
+ * `project_get` в чтение любого проекта по id — тоже зелено.
+ */
+function требуетВладения(sql: string, что: string): void {
+  const т = sql.replace(/\s+/g, ' ')
+  if (!/telegram_id = \$\d/.test(т)) {
+    throw new Error(`${что}: в запросе нет привязки к владельцу — ${т.slice(0, 160)}`)
+  }
+  if (/ OR telegram_id/.test(т)) {
+    throw new Error(`${что}: владелец через OR — это не ограничение, а обход`)
+  }
+}
+
 describe('owner-scoped project tools', () => {
   it('lists and reads only with the verified context owner', async () => {
-    const query = vi
-      .fn()
-      .mockResolvedValueOnce({ rows: [{ id: 'one', name: 'One' }] })
-      .mockResolvedValueOnce({
-        rows: [{ id: 'one', name: 'One', composition: '{"tracks":[]}' }],
-      })
+    let n = 0
+    const ответы = [
+      { rows: [{ id: 'one', name: 'One' }] },
+      { rows: [{ id: 'one', name: 'One', composition: '{"tracks":[]}' }] },
+    ]
+    const query = vi.fn(async (sql: string, _params?: unknown[]) => {
+      требуетВладения(sql, 'чтение проекта')
+      return ответы[n++] ?? { rows: [] }
+    })
     const ctx = { telegramId: 'owner-42', pool: { query } }
     await tool('projects_list').handler({}, ctx)
     await tool('project_get').handler({ project_id: 'one' }, ctx)
@@ -29,13 +52,14 @@ describe('owner-scoped project tools', () => {
   })
 
   it('saves a draft without accepting ownership from arguments', async () => {
-    const query = vi
-      .fn()
-      .mockResolvedValue({
+    const query = vi.fn(async (sql: string, _params?: unknown[]) => {
+      требуетВладения(sql, 'сохранение проекта')
+      return {
         rows: [
           { id: 'one', name: 'One', updated_at: '2026-09-02T00:00:00.000Z' },
         ],
-      })
+      }
+    })
     const ctx = { telegramId: 'owner-42', pool: { query } }
     const result = await tool('project_save').handler(
       {

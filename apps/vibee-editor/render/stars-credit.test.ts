@@ -42,7 +42,32 @@ function fakePool() {
       if (sql.includes('INSERT INTO user_tokens')) {
         const tid = String(params[0])
         const amount = Number(params[1])
-        balances.set(tid, (balances.get(tid) ?? 0) + amount)
+        /*
+         * ПОДДЕЛКА ПОДЧИНЯЕТСЯ SQL, А НЕ ПРИБАВЛЯЕТ ВСЕГДА.
+         *
+         * Здесь стояло безусловное `balances.set(tid, (было ?? 0) + amount)`,
+         * то есть фальшивая база складывала независимо от запроса. Мутация
+         * `DO UPDATE SET balance = user_tokens.balance + $2` →
+         * `DO UPDATE SET balance = $2` оставляла ВСЕ 8 тестов зелёными, и
+         * ни один из 88 файлов набора не краснел.
+         *
+         * В настоящем Postgres это значит: человек купил 50 токенов, потом
+         * 20 — и у него стало 20. Прямая потеря денег покупателя на
+         * единственном пути, который этот файл и называет «местом, где ошибка забирает
+         * у человека деньги и не даёт ничего взамен».
+         *
+         * Теперь прибавление происходит, только если запрос ДЕЙСТВИТЕЛЬНО
+         * прибавляет; замена — заменяет. Неузнанная форма — ошибка, а не
+         * тихое «как раньше».
+         */
+        const прибавляет = /DO UPDATE SET balance = user_tokens\.balance \+ \$2/.test(sql)
+        const заменяет = /DO UPDATE SET balance = \$2(\D|$)/.test(sql)
+        if (прибавляет) balances.set(tid, (balances.get(tid) ?? 0) + amount)
+        else if (заменяет) balances.set(tid, amount)
+        else
+          throw new Error(
+            `подделка не узнала форму зачисления: ${sql.replace(/\s+/g, ' ').slice(0, 160)}`
+          )
         return { rowCount: 1, rows: [] }
       }
       return { rowCount: 0, rows: [] } // CREATE TABLE IF NOT EXISTS
