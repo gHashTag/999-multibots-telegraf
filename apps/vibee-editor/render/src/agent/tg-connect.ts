@@ -267,3 +267,137 @@ export async function подтвердитьПароль(
   попытки.delete(handle)
   return { сессия, phone: п.phone }
 }
+
+/**
+ * ── HTTP: пять маршрутов, которыми пользуется экран ─────────────────────────
+ *
+ * ЛИЧНОСТЬ ЗДЕСЬ СТРОЖЕ, ЧЕМ У ОСТАЛЬНЫХ МАРШРУТОВ. Подключение аккаунта —
+ * действие человека над своим аккаунтом, поэтому серверный ключ с явным
+ * telegram_id тут НЕ принимается, хотя он принят у чата и у ленты. Иначе
+ * владелец ключа мог бы начать вход за кого угодно, а Telegram прислал бы
+ * код ничего не подозревающему человеку.
+ *
+ * Так что подпись мини-аппа или сессия приложения — и ничего кроме.
+ */
+export interface ЗависимостиМаршрута {
+  getPool: () => Promise<Пул>
+  /** Кто спрашивает: только подпись/сессия, без серверного ключа. */
+  личность: (req: unknown) => string | null
+  readBody: (req: unknown) => Promise<string>
+  создатьКлиент: () => Promise<any>
+  случайныйКлюч: () => string
+  выйтиВTelegram: (session: string) => Promise<void>
+}
+
+/** Пути, которые обслуживает этот модуль. */
+export const ПУТИ_ПОДКЛЮЧЕНИЯ = [
+  '/api/tg/connect/start',
+  '/api/tg/connect/code',
+  '/api/tg/connect/password',
+  '/api/tg/connect/status',
+  '/api/tg/connect',
+] as const
+
+export function этоПутьПодключения(путь: string): boolean {
+  return (ПУТИ_ПОДКЛЮЧЕНИЯ as readonly string[]).includes(путь)
+}
+
+interface Ответ {
+  код: number
+  тело: Record<string, unknown>
+}
+
+/**
+ * Обработать запрос подключения.
+ *
+ * Возвращает код и тело, а не пишет в сокет: так модуль проверяется без
+ * поднятого сервера, а сервер остаётся одной строчкой.
+ */
+export async function обработатьПодключение(
+  req: { url?: string; method?: string },
+  зав: ЗависимостиМаршрута
+): Promise<Ответ> {
+  const путь = (req.url || '').split('?')[0]
+  const кто = зав.личность(req)
+  if (!кто) {
+    return {
+      код: 401,
+      тело: {
+        ok: false,
+        error:
+          'подключение аккаунта требует вашей подписи Telegram — откройте экран из приложения',
+      },
+    }
+  }
+
+  const pool = await зав.getPool()
+
+  if (путь === '/api/tg/connect/status' && req.method === 'GET') {
+    const есть = await прочитатьСессию(pool, кто)
+    return { код: 200, тело: { ok: true, подключено: !!есть } }
+  }
+
+  if (путь === '/api/tg/connect' && req.method === 'DELETE') {
+    const r = await отключитьСессию(pool, кто, зав.выйтиВTelegram)
+    return { код: 200, тело: { ok: true, ...r } }
+  }
+
+  if (req.method !== 'POST') {
+    return { код: 405, тело: { ok: false, error: 'метод не поддерживается' } }
+  }
+
+  let тело: any = {}
+  try {
+    тело = JSON.parse((await зав.readBody(req)) || '{}')
+  } catch {
+    return { код: 400, тело: { ok: false, error: 'тело не разобрано как JSON' } }
+  }
+
+  try {
+    if (путь === '/api/tg/connect/start') {
+      const r = await начатьВход(
+        кто,
+        String(тело.phone ?? ''),
+        зав.создатьКлиент,
+        зав.случайныйКлюч
+      )
+      // Телефон возвращаем ЧЕЛОВЕКУ, чтобы он видел, куда ушёл код, и заметил
+      // опечатку до того, как начнёт ждать сообщение впустую.
+      return { код: 200, тело: { ok: true, handle: r.handle, phone: r.phone } }
+    }
+
+    if (путь === '/api/tg/connect/code') {
+      const r = await подтвердитьКод(
+        кто,
+        String(тело.handle ?? ''),
+        String(тело.code ?? '')
+      )
+      if (r.нуженПароль) {
+        return { код: 200, тело: { ok: true, нужен_пароль: true } }
+      }
+      await сохранитьСессию(pool, кто, r.сессия as string, r.phone)
+      // Сама строка сессии НЕ возвращается: она сильнее пароля, и клиенту
+      // она не нужна ни для чего.
+      return { код: 200, тело: { ok: true, подключено: true } }
+    }
+
+    if (путь === '/api/tg/connect/password') {
+      const r = await подтвердитьПароль(
+        кто,
+        String(тело.handle ?? ''),
+        String(тело.password ?? '')
+      )
+      await сохранитьСессию(pool, кто, r.сессия, r.phone)
+      return { код: 200, тело: { ok: true, подключено: true } }
+    }
+  } catch (e) {
+    /*
+     * Причина отказа доходит до человека ЦЕЛИКОМ: «неверный код» и «слишком
+     * много попыток» он исправляет по-разному, а общее «не получилось»
+     * оставляет его гадать. Текст Telegram при этом короткий и без секретов.
+     */
+    return { код: 400, тело: { ok: false, error: String(e).slice(0, 300) } }
+  }
+
+  return { код: 404, тело: { ok: false, error: 'нет такого пути' } }
+}

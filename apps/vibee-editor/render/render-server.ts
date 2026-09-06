@@ -58,6 +58,10 @@ import {
   readBody,
 } from './src/agent/routes'
 import { ценаТокенов, названиеСчёта } from './src/agent/token-packs'
+import {
+  этоПутьПодключения,
+  обработатьПодключение,
+} from './src/agent/tg-connect'
 // A2A: the open protocol for external agents. Imported here because this file
 // is the only place that mounts routes, and until now nothing imported it at
 // all -- see the block comment at the mount site.
@@ -7303,6 +7307,55 @@ const server = createServer(async (req, res) => {
     await handleMcp(req, res, getPool)
     return
   }
+  /*
+   * ПОДКЛЮЧЕНИЕ СВОЕГО TELEGRAM — пять маршрутов одного экрана.
+   *
+   * Личность здесь СТРОЖЕ, чем у соседей: `chatIdentity` (подпись мини-аппа
+   * или сессия приложения) и НИЧЕГО больше. Серверный ключ с явным
+   * telegram_id, который принимают чат и лента, тут не годится: иначе
+   * владелец ключа начал бы вход за постороннего, и Telegram прислал бы код
+   * ничего не подозревающему человеку.
+   */
+  if (этоПутьПодключения(req.url?.split('?')[0] || '')) {
+    const { TelegramClient } = await import('telegram')
+    const { StringSession } = await import('telegram/sessions')
+    const apiId = Number(process.env.TELEGRAM_API_ID || 0)
+    const apiHash = process.env.TELEGRAM_API_HASH || ''
+    const ответ = await обработатьПодключение(req, {
+      getPool: async () => (await getPool()) as any,
+      личность: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
+      readBody: r => readBody(r as any),
+      создатьКлиент: async () => {
+        const c: any = new TelegramClient(new StringSession(''), apiId, apiHash, {
+          connectionRetries: 2,
+        })
+        c.apiId = apiId
+        c.apiHash = apiHash
+        await c.connect()
+        return c
+      },
+      случайныйКлюч: () =>
+        require('node:crypto').randomBytes(24).toString('base64url'),
+      выйтиВTelegram: async session => {
+        const c: any = new TelegramClient(
+          new StringSession(session),
+          apiId,
+          apiHash,
+          { connectionRetries: 2 }
+        )
+        await c.connect()
+        try {
+          await c.invoke({ _: 'auth.logOut' })
+        } finally {
+          await c.disconnect().catch(() => {})
+        }
+      },
+    })
+    res.writeHead(ответ.код, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify(ответ.тело))
+    return
+  }
+
   if (req.url?.split('?')[0] === '/api/agent/chat' && req.method === 'POST') {
     // Identity: the mini-app signature OR an agent key (the connector used for
     // testing). telegram_id is never taken from the body -- otherwise anyone

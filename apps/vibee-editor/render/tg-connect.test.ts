@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { isPublic } from './auth'
 import {
+  обработатьПодключение,
+  этоПутьПодключения,
   нормализоватьТелефон,
   нормализоватьКод,
   сохранитьСессию,
@@ -213,5 +216,115 @@ describe('чужой вход нельзя завершить', () => {
     await expect(подтвердитьКод('1', 'нет-такого', '12345')).rejects.toThrow(
       /не начат или истёк/
     )
+  })
+})
+
+describe('маршруты подключения: личность строже, чем у соседей', () => {
+  beforeEach(() => {
+    забытьПопытки()
+    забытьТаблицуСессий()
+  })
+
+  const зав = (кто: string | null, строки = new Map<string, any>()) => ({
+    getPool: async () => поддельныйПулИз(строки),
+    личность: () => кто,
+    readBody: async () => JSON.stringify({ phone: '+79991234567' }),
+    создатьКлиент: async () => ({
+      apiId: 1,
+      apiHash: 'h',
+      session: { save: () => 'НОВАЯ' },
+      async sendCode() {
+        return { phoneCodeHash: 'HASH' }
+      },
+      async invoke() {},
+      async signInWithPassword() {},
+      async disconnect() {},
+    }),
+    случайныйКлюч: () => 'КЛЮЧ',
+    выйтиВTelegram: async () => {},
+  })
+
+  function поддельныйПулИз(строки: Map<string, any>): Пул {
+    return {
+      async query(sql: string, params: unknown[] = []) {
+        const т = sql.replace(/\s+/g, ' ').trim()
+        if (/^CREATE TABLE/i.test(т)) return { rows: [] }
+        if (/^INSERT INTO tg_sessions/i.test(т)) {
+          строки.set(String(params[0]), { session: String(params[1]) })
+          return { rows: [] }
+        }
+        if (/^SELECT session FROM tg_sessions WHERE telegram_id = \$1$/i.test(т)) {
+          const c = строки.get(String(params[0]))
+          return { rows: c ? [{ session: c.session }] : [] }
+        }
+        if (/^DELETE FROM tg_sessions WHERE telegram_id = \$1$/i.test(т)) {
+          строки.delete(String(params[0]))
+          return { rows: [] }
+        }
+        throw new Error(`подделка не узнала запрос: ${т.slice(0, 140)}`)
+      },
+    }
+  }
+
+  it('без подписи — 401, и текст объясняет почему', async () => {
+    const r = await обработатьПодключение(
+      { url: '/api/tg/connect/start', method: 'POST' },
+      зав(null) as any
+    )
+    expect(r.код).toBe(401)
+    expect(String(r.тело.error)).toMatch(/вашей подписи/)
+  })
+
+  it('строка сессии НИКОГДА не возвращается клиенту', async () => {
+    /*
+     * Она сильнее пароля — не спрашивает второй фактор — и клиенту не нужна
+     * ни для чего. Вернуть её один раз значит оставить её в истории запросов
+     * браузера и в любом журнале по дороге.
+     */
+    const строки = new Map<string, any>()
+    const д = зав('1', строки) as any
+    await обработатьПодключение(
+      { url: '/api/tg/connect/start', method: 'POST' },
+      д
+    )
+    д.readBody = async () => JSON.stringify({ handle: 'КЛЮЧ', code: '12345' })
+    const r = await обработатьПодключение(
+      { url: '/api/tg/connect/code', method: 'POST' },
+      д
+    )
+    expect(r.тело).toEqual({ ok: true, подключено: true })
+    expect(JSON.stringify(r.тело)).not.toContain('НОВАЯ')
+    // А в базе она есть.
+    expect(строки.get('1')?.session).toBe('НОВАЯ')
+  })
+
+  it('статус не выдумывает подключение', async () => {
+    const r = await обработатьПодключение(
+      { url: '/api/tg/connect/status', method: 'GET' },
+      зав('1') as any
+    )
+    expect(r.тело).toEqual({ ok: true, подключено: false })
+  })
+
+  it('все пути объявлены и достижимы через общий гвард', () => {
+    /*
+     * В этом файле уже четырежды случалось, что написанный и покрытый
+     * тестами маршрут отвечал 401, не дойдя до обработчика. Здесь гвард
+     * пропускает НАМЕРЕННО: личность проверяет сам обработчик, и проверяет
+     * строже — он отвергает серверный ключ, который гвард пустил бы.
+     */
+    for (const путь of [
+      '/api/tg/connect/start',
+      '/api/tg/connect/code',
+      '/api/tg/connect/password',
+      '/api/tg/connect/status',
+      '/api/tg/connect',
+    ]) {
+      expect(этоПутьПодключения(путь)).toBe(true)
+      expect(
+        isPublic({ url: путь, method: 'POST', headers: {} } as any),
+        `${путь} не пропущен гвардом — обработчик не получит запрос`
+      ).toBe(true)
+    }
   })
 })
