@@ -76,7 +76,21 @@ import {
   verifyTelegramInitData,
   verifiedTelegramId,
 } from './auth'
+import { z } from 'zod'
 import { TEMPLATE_CARDS } from './src/templates/registry'
+import { SplitTalkingHeadSchema } from './src/compositions/SplitTalkingHead'
+
+/**
+ * Композиции, чью заявку сверяем со схемой перед рендером.
+ *
+ * Список, а не «сверять всё»: у части композиций схемы нет вовсе, и
+ * отсутствие проверки должно быть ВИДНО здесь, а не выясняться по тому, что
+ * ролик вышел не тем. Появилась схема — появилась строка.
+ */
+const ПРОВЕРЯЕМЫЕ_КОМПОЗИЦИИ: Record<string, z.ZodType> = {
+  SplitTalkingHead: SplitTalkingHeadSchema,
+}
+
 import {
   credits as kieCredits,
   generateImage as kieGenerateImage,
@@ -2392,6 +2406,38 @@ function startRenderAsync(
           }
         } else {
           console.warn(`⚠️ Video file not found for analysis: ${videoPath}`)
+        }
+      }
+
+      /*
+       * ФОРМА ЗАЯВКИ ПРОВЕРЯЕТСЯ ДО РЕНДЕРА.
+       *
+       * Схема композиции описана в `SplitTalkingHead.tsx` и до сих пор НИКЕМ
+       * не применялась: Remotion сам её не сверяет, а props приходили сюда
+       * как есть. Схема была документацией, а не проверкой.
+       *
+       * Что это стоило, замерено на живом ролике (лента, id 20, 30 секунд).
+       * Его `segments` — это `[{url, duration}]` в трёх штуках, а
+       * `SegmentSchema` требует `{type, startFrame, durationFrames}`. Ни у
+       * одного нет `type`, поэтому `isSplit` ложно, панели не считаются, слой
+       * биролла не рисуется — и `lipSyncVideo` растянут на весь кадр все
+       * тридцать секунд. Композиция называется «сплит» и сделала не сплит.
+       *
+       * Отказ ДО рендера, а не картинка не о том: рендер стоит минут и денег,
+       * а заявка неверной формы не станет верной ни при каких настройках.
+       * Причина называет ПОЛЕ — «неверная форма» заставляет угадывать.
+       */
+      const проверка = ПРОВЕРЯЕМЫЕ_КОМПОЗИЦИИ[req.compositionId]
+      if (проверка) {
+        const r = проверка.safeParse(inputProps)
+        if (!r.success) {
+          const где = r.error.issues
+            .slice(0, 4)
+            .map(i => `${i.path.join('.') || '(корень)'}: ${i.message}`)
+            .join('; ')
+          throw new Error(
+            `заявка не проходит схему ${req.compositionId}: ${где}`
+          )
         }
       }
 
