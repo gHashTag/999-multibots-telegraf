@@ -49,7 +49,19 @@ export function ProfilePending() {
     try {
       const о = await fetch(`${API_BASE}/api/feed/approve`, {
         method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        /*
+         * НЕ СПРЕД: `Headers` не разворачивается.
+         *
+         * `{...new Headers({'X-A':'b'})}` даёт `{}` — данные лежат
+         * внутри объекта, а не в собственных свойствах. Поэтому
+         * запрос уходил РОВНО с `Content-Type` и без единого
+         * удостоверения, а сервер отвечал 401. Кнопка нажималась,
+         * ничего не происходило, причины не было видно.
+         *
+         * `authHeaders` принимает дополнительные заголовки сама —
+         * ей и передаём.
+         */
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ id }),
       })
       if (!о.ok) throw new Error(String(о.status))
