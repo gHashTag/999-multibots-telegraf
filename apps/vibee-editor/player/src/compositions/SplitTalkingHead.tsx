@@ -226,7 +226,27 @@ export const CaptionStyleSchema = z.object({
 
 export const SplitTalkingHeadSchema = z.object({
   lipSyncVideo: z.string(),
-  segments: z.array(SegmentSchema),
+  /**
+   * ХОТЯ БЫ ОДИН СЕГМЕНТ — ИНАЧЕ ЭТО НЕ СПЛИТ.
+   *
+   * Пустой массив проходил проверку, и композиция молча делала не то, чем
+   * называется: без сегментов `currentSegment` не находится, `isSplit`
+   * ложно, размеры панелей не считаются вовсе — и `lipSyncVideo`
+   * растягивается на весь кадр.
+   *
+   * Замер на ролике из ленты (id 20, 30 секунд): сегментов ноль, и все
+   * тридцать секунд — один слой во весь экран. Ни второй панели, ни титров.
+   * Владелец увидел это первым и назвал бедой с пропорциями; беда была в
+   * том, что сплита не было вовсе.
+   *
+   * Отказ на входе, а не картинка не о том: заявка без сегментов не станет
+   * сплитом ни при каких настройках, и узнать об этом лучше ДО рендера,
+   * который стоит денег и минут.
+   */
+  segments: z.array(SegmentSchema).min(1, {
+    message:
+      'SplitTalkingHead без сегментов — это не сплит: нужен хотя бы один',
+  }),
   captionColor: z.string().default(CAPTION_DEFAULTS.textColor),
   splitRatio: z.number().default(0.5),
   backgroundMusic: z.string().optional(),
