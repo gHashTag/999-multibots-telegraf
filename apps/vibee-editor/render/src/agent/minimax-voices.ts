@@ -1,0 +1,103 @@
+/**
+ * ГОЛОСА ТОГО ПРОВАЙДЕРА, КОТОРЫЙ ОЗВУЧИВАЕТ НА САМОМ ДЕЛЕ.
+ *
+ * Экран показывал голоса ElevenLabs, а звук делал не ElevenLabs.
+ *
+ * Замер на боевом сервере: `GET /api/voices` отвечает 500 —
+ * «ELEVENLABS_API_KEY хранит НЕ КЛЮЧ, а его идентификатор». Веб на отказе
+ * подставляет три запасных имени (`sarah`, `rachel`, `josh`,
+ * player/src/atoms/voices.ts), которые не являются идентификаторами голоса
+ * НИГДЕ. Человек выбирал один из трёх, платил, и получал `English_Wiselady`
+ * — голос MiniMax по умолчанию, потому что маршрут доходит до третьей ноги
+ * (Replicate minimax/speech-02-turbo), а ей передавали ОДИН текст.
+ *
+ * То есть выбор голоса не значил ничего, и повторная генерация «другим
+ * голосом» стоила столько же и возвращала тот же файл.
+ *
+ * ОТКУДА СПИСОК. Страница модели на Replicate, раздел README «MiniMax TTS
+ * Voice List», снято 06.09.2026:
+ *   https://replicate.com/minimax/speech-02-turbo/readme
+ * Оттуда же схема входа (`voice_id`, `speed` 0.5–2.0, `language_boost`):
+ *   https://replicate.com/minimax/speech-02-turbo/api/schema
+ *
+ * Взяты русские голоса — все восемь, что есть у провайдера, — и несколько
+ * английских. Приложение русскоязычное, а список ElevenLabs был английским
+ * целиком: даже работай он, русский текст читался бы с акцентом.
+ *
+ * Идентификаторы НЕ ПРИДУМАНЫ и не переведены: они уходят провайдеру дословно.
+ * Придуманное имя здесь означало бы отказ после списания.
+ */
+export interface ГолосПровайдера {
+  id: string
+  name: string
+  category: string
+}
+
+export const ГОЛОСА_MINIMAX: readonly ГолосПровайдера[] = [
+  // — русские —
+  { id: 'Russian_ReliableMan', name: 'Максим — уверенный', category: 'ru' },
+  { id: 'Russian_BrightHeroine', name: 'Алиса — звонкая', category: 'ru' },
+  { id: 'Russian_AmbitiousWoman', name: 'Вера — деловая', category: 'ru' },
+  { id: 'Russian_HandsomeChildhoodFriend', name: 'Артём — свой парень', category: 'ru' },
+  { id: 'Russian_AttractiveGuy', name: 'Егор — обаятельный', category: 'ru' },
+  { id: 'Russian_PessimisticGirl', name: 'Ника — сдержанная', category: 'ru' },
+  { id: 'Russian_CrazyQueen', name: 'Рита — дерзкая', category: 'ru' },
+  { id: 'Russian_Bad-temperedBoy', name: 'Слава — резкий', category: 'ru' },
+  // — английские —
+  { id: 'English_Wiselady', name: 'Wise Lady', category: 'en' },
+  { id: 'English_Deep-VoicedGentleman', name: 'Deep-Voiced Gentleman', category: 'en' },
+  { id: 'English_CalmWoman', name: 'Calm Woman', category: 'en' },
+  { id: 'English_FriendlyPerson', name: 'Friendly Person', category: 'en' },
+  { id: 'English_CaptivatingStoryteller', name: 'Captivating Storyteller', category: 'en' },
+]
+
+const ИЗВЕСТНЫЕ = new Set(ГОЛОСА_MINIMAX.map(г => г.id))
+
+/**
+ * Тот ли это голос, который MiniMax поймёт.
+ *
+ * Чужую строку (идентификатор ElevenLabs, запасное `sarah`, пустоту) провайдеру
+ * не отдаём: он ответит отказом, а деньги уже списаны. Пусть лучше прочитает
+ * голосом по умолчанию, чем не прочитает вовсе.
+ */
+export function голосMinimax(значение: unknown): string | undefined {
+  return typeof значение === 'string' && ИЗВЕСТНЫЕ.has(значение)
+    ? значение
+    : undefined
+}
+
+/**
+ * Скорость в границах провайдера: 0.5–2.0 по схеме модели.
+ *
+ * Вне границ Replicate отвечает отказом на весь запрос — то есть ползунок,
+ * уехавший на 2.5, стоил бы человеку денег и не дал бы ничего. Поэтому
+ * прижимаем к границе, а не отбрасываем: 2.5 — это «как можно быстрее», и
+ * читать так честнее, чем не читать.
+ */
+export function скоростьMinimax(значение: unknown): number | undefined {
+  const n = Number(значение)
+  if (!Number.isFinite(n)) return undefined
+  return Math.min(Math.max(n, 0.5), 2)
+}
+
+/**
+ * Тело запроса к minimax/speech-02-turbo.
+ *
+ * Отдельной функцией — потому что дефект был именно в СБОРКЕ тела: она
+ * принимала один `text`, и ни один тест этого не видел. Здесь её можно
+ * проверить числами.
+ */
+export function входМиниМакс(
+  text: string,
+  выбор: { voice?: unknown; speed?: unknown } = {}
+): Record<string, unknown> {
+  const голос = голосMinimax(выбор.voice)
+  const скорость = скоростьMinimax(выбор.speed)
+  return {
+    text,
+    ...(голос ? { voice_id: голос } : {}),
+    // Единицу не шлём: это и есть значение провайдера по умолчанию, а лишнее
+    // поле в теле — лишняя причина для отказа.
+    ...(скорость != null && скорость !== 1 ? { speed: скорость } : {}),
+  }
+}

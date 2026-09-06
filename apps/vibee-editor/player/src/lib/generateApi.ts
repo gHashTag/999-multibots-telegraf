@@ -134,7 +134,14 @@ export interface GenerateVideoParams {
 export interface GenerateAudioParams {
   model?: string
   text: string
-  voiceId: string // 'sarah', 'rachel', 'josh', 'adam', 'bella'
+  /**
+   * Идентификатор голоса В ТОМ ВИДЕ, в каком его понимает провайдер, который
+   * читает. Комментарий здесь перечислял `sarah`/`rachel`/`josh` — выдуманные
+   * имена из запасного списка, не существующие ни у ElevenLabs, ни у MiniMax.
+   * Список приходит из `/api/voices`; поле `provider` в ответе говорит, чьи
+   * это голоса.
+   */
+  voiceId: string
   voiceName?: string
   speed: number // 0.5 - 2.0
 }
