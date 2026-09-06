@@ -53,7 +53,15 @@ const START_PARAM_ROUTES: Record<string, string> = {
    * (`PairWithApp`) lives there. No separate route was added: one screen with
    * two addresses is one more pair that will eventually drift apart.
    */
-  pair: '/profile',
+  /*
+   * НА ВКЛАДКУ, ГДЕ КОД, А НЕ «КУДА-НИБУДЬ В ПРОФИЛЬ».
+   *
+   * Бот пишет: «Нажмите кнопку — откроется окно с кодом». Кнопка вела на
+   * `/profile`, профиль открывался на «Шаблонах», а код живёт во вкладке
+   * «Агент» — о которой в сообщении ни слова. Человек, пришедший за кодом по
+   * единственному рекламируемому пути, кода не видел.
+   */
+  pair: '/profile?tab=agent',
 }
 
 const TELEGRAM_HOME = '/feed'

@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { ProfileFilesGrid } from './ProfileFilesGrid'
@@ -62,6 +63,20 @@ const OWNER_TAB_ORDER: TabId[] = [
   'followers',
   'following',
 ]
+/** Все известные имена вкладок — для сверки того, что пришло из адреса. */
+const ВСЕ_ВКЛАДКИ: TabId[] = [
+  'templates',
+  'pending',
+  'plan',
+  'files',
+  'skills',
+  'soul',
+  'agent',
+  'blog',
+  'followers',
+  'following',
+]
+
 const PUBLIC_TAB_ORDER: TabId[] = [
   'templates',
   'blog',
@@ -73,7 +88,27 @@ export function ProfileTabs() {
   const { t } = useLanguage()
   const isOwn = useIsOwnProfile()
   const tabOrder = isOwn ? OWNER_TAB_ORDER : PUBLIC_TAB_ORDER
-  const [activeTab, setActiveTab] = useState<TabId>('templates')
+  /**
+   * НАЧАЛЬНАЯ ВКЛАДКА — ИЗ АДРЕСА, ЕСЛИ ЕЁ ТАМ НАЗВАЛИ.
+   *
+   * Найдено 07.09.2026 разбором пути, который бот РЕКЛАМИРУЕТ.
+   *
+   * Команда `/app` пишет человеку: «Нажмите кнопку — откроется окно с кодом».
+   * Кнопка открывала мини-апп на `/profile`, а `/profile` открывался на
+   * вкладке «Шаблоны». Код входа живёт во вкладке «Агент», о которой в
+   * сообщении нет ни слова. Человек, пришедший ЗА КОДОМ по единственному
+   * рекламируемому пути, кода не видел.
+   *
+   * Имя вкладки сверяется со списком: чужая строка в адресе не должна
+   * открывать несуществующий раздел или раздел чужого профиля (у чужого
+   * профиля свой, короткий порядок вкладок, и `visibleActiveTab` ниже это
+   * уже учитывает).
+   */
+  const [searchParams] = useSearchParams()
+  const изАдреса = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState<TabId>(
+    ВСЕ_ВКЛАДКИ.includes(изАдреса as TabId) ? (изАдреса as TabId) : 'templates'
+  )
   const visibleActiveTab = tabOrder.includes(activeTab)
     ? activeTab
     : 'templates'

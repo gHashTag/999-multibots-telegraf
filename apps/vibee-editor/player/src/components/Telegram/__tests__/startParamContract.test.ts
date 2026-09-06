@@ -107,6 +107,21 @@ describe('start_param: the bot sends only what the mini app understands', () => 
     // Asserted on its own, not only through the sweep above: this is the one
     // route whose failure is invisible -- the feed opens, everything "works".
     expect(routeKeys()).toContain('pair')
-    expect(fs.readFileSync(PROVIDER, 'utf8')).toMatch(/pair:\s*'\/profile'/)
+    /*
+     * ТЕСТ НАЗЫВАЛ СВОЙСТВО И ЗАКРЕПЛЯЛ ЕГО ОТСУТСТВИЕ.
+     *
+     * Здесь стояло `toMatch(/pair:\s*'\/profile'/)` — то есть проверялось
+     * ровно то значение, при котором человек экрана с кодом НЕ ВИДИТ:
+     * `/profile` открывается на вкладке «Шаблоны», а код живёт во вкладке
+     * «Агент». Имя теста обещало «ведёт на экран, где показан код», и
+     * комментарий рядом честно предупреждал, что отказ этого маршрута
+     * невидим, — а утверждение фиксировало дефект.
+     *
+     * Теперь проверяется НАЗНАЧЕНИЕ: адрес обязан называть вкладку, на
+     * которой код действительно есть.
+     */
+    const провайдер = fs.readFileSync(PROVIDER, 'utf8')
+    expect(провайдер).toMatch(/pair:\s*'\/profile\?tab=agent'/)
+    expect(провайдер).not.toMatch(/pair:\s*'\/profile',/)
   })
 })
