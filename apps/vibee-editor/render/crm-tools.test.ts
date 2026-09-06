@@ -1,0 +1,145 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import fs from 'node:fs'
+import path from 'node:path'
+import { CRM_TOOLS } from './src/agent/crm-tools'
+
+/**
+ * CRM ПОКАЗЫВАЕТ ЧУЖИХ ЛЮДЕЙ — ЗНАЧИТ ГЛАВНОЕ ЗДЕСЬ НЕ ЦИФРЫ, А ГРАНИЦА.
+ *
+ * Владелец просил CRM и «горячих лидов». Контакты Telegram по-прежнему
+ * требуют его личного входа, но ждать незачем: аудитория уже есть — 2380
+ * человек и 1510 завершённых платежей (замер 06.09.2026). Это люди, которые
+ * сами пришли к его ботам.
+ *
+ * И ровно поэтому первая проверка — про доступ. Отдать этот список «любому
+ * опознанному» значит отдать базу клиентов каждому, кто открыл мини-апп:
+ * подпись мини-аппа есть у всех пользователей платформы.
+ */
+const инструмент = (имя: string) => {
+  const т = CRM_TOOLS.find(t => t.name === имя)
+  if (!т) throw new Error(`нет инструмента ${имя}`)
+  return т
+}
+
+const ЧУЖОЙ = { telegramId: '999', pool: {} } as any
+const ВЛАДЕЛЕЦ = { telegramId: '144022504', pool: {} } as any
+
+describe('чужую аудиторию не отдаём', () => {
+  it.each(['crm_overview', 'crm_hot_leads', 'crm_winback'])(
+    '%s отказывает не-владельцу',
+    async имя => {
+      await expect(инструмент(имя).handler({}, ЧУЖОЙ)).rejects.toThrow(
+        /только владельцу/
+      )
+    }
+  )
+
+  it('отказывает и при ОТСУТСТВИИ контекста', async () => {
+    /*
+     * Fail-closed: «контекста нет» не должно означать «значит, свой». Именно
+     * так в соседнем модуле (telegram-tools) четыре читающих инструмента
+     * когда-то отдавали переписку владельца кому угодно.
+     */
+    await expect(инструмент('crm_overview').handler({}, undefined as any)).rejects.toThrow()
+  })
+})
+
+describe('считаем по данным, а не по ощущениям', () => {
+  const ЛЮДИ = [
+    // платил, заходил вчера — живой, не лид
+    { telegram_id: 1, username: 'a', first_name: 'A', bot_name: 'bot1', created_at: дн(100), updated_at: дн(1), language_code: 'ru' },
+    // не платил, заходил вчера — ГОРЯЧИЙ
+    { telegram_id: 2, username: 'b', first_name: 'B', bot_name: 'bot1', created_at: дн(3), updated_at: дн(1), language_code: 'ru' },
+    // платил, молчит 90 дней — ВЕРНУТЬ
+    { telegram_id: 3, username: null, first_name: 'C', bot_name: 'bot2', created_at: дн(300), updated_at: дн(90), language_code: 'en' },
+    // не платил, молчит 200 дней — ни то ни другое
+    { telegram_id: 4, username: 'd', first_name: 'D', bot_name: 'bot2', created_at: дн(400), updated_at: дн(200), language_code: 'en' },
+  ]
+  const ПЛАТЕЖИ = [{ telegram_id: 1 }, { telegram_id: 3 }]
+
+  function дн(n: number): string {
+    return new Date(Date.now() - n * 86_400_000).toISOString()
+  }
+
+  beforeEach(() => {
+    process.env.SUPABASE_URL = 'https://пример.test'
+    process.env.SUPABASE_SERVICE_KEY = 'ключ'
+    /*
+     * ПОДДЕЛКА ПОДЧИНЯЕТСЯ ЗАПРОСУ, А НЕ УГАДЫВАЕТ ОТВЕТ.
+     *
+     * Сегодня трижды находились тесты, где двойник сам решал, что вернуть, и
+     * поломка настоящего кода их не роняла. Здесь ответ выбирается по ТАБЛИЦЕ
+     * в адресе, а неизвестный адрес — ошибка, а не «пусто»: молчаливый пустой
+     * ответ на незнакомый запрос выглядел бы как «никого не нашлось».
+     */
+    vi.stubGlobal('fetch', async (url: string) => {
+      const адрес = String(url)
+      const тело = адрес.includes('/users?')
+        ? ЛЮДИ
+        : адрес.includes('/payments_v2?')
+          ? ПЛАТЕЖИ
+          : null
+      if (тело === null) throw new Error(`подделка не знает адрес: ${адрес}`)
+      return { ok: true, json: async () => тело } as any
+    })
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('сводка считает платящих и долю', async () => {
+    const r: any = await инструмент('crm_overview').handler({}, ВЛАДЕЛЕЦ)
+    expect(r.всего_людей).toBe(4)
+    expect(r.платящих).toBe(2)
+    expect(r.доля_платящих).toBe('50.0%')
+    expect(r.по_ботам).toEqual({ bot1: 2, bot2: 2 })
+  })
+
+  it('горячий лид — недавний И НЕПЛАТИВШИЙ', async () => {
+    const r: any = await инструмент('crm_hot_leads').handler({ дней: 14 }, ВЛАДЕЛЕЦ)
+    expect(r.люди.map((ч: any) => ч.telegram_id)).toEqual(['2'])
+  })
+
+  it('вернуть — ПЛАТИВШИЙ и замолчавший', async () => {
+    const r: any = await инструмент('crm_winback').handler({ молчит_дней: 30 }, ВЛАДЕЛЕЦ)
+    expect(r.люди.map((ч: any) => ч.telegram_id)).toEqual(['3'])
+  })
+
+  it('незавершённый платёж НЕ делает человека покупателем', async () => {
+    /*
+     * Запрос обязан фильтровать по COMPLETED и MONEY_INCOME. Иначе брошенная
+     * попытка оплаты записала бы человека в покупатели — и он выпал бы из
+     * горячих лидов, то есть из тех, кому как раз стоит написать.
+     */
+    const исходник = fs.readFileSync(
+      path.join(__dirname, 'src', 'agent', 'crm-tools.ts'),
+      'utf8'
+    )
+    expect(исходник).toContain('status=eq.COMPLETED')
+    expect(исходник).toContain('type=eq.MONEY_INCOME')
+  })
+
+  it('человек без username отдаётся без ссылки, а не с битой', async () => {
+    const r: any = await инструмент('crm_winback').handler({ молчит_дней: 30 }, ВЛАДЕЛЕЦ)
+    expect(r.люди[0].ссылка).toBeNull()
+  })
+})
+
+describe('CRM ничего не рассылает', () => {
+  it('среди инструментов нет отправки', () => {
+    /*
+     * Массовая отправка — необратимое действие в адрес живых людей, и решать
+     * его должен человек. Инструменты только показывают, кому имеет смысл
+     * написать.
+     */
+    /*
+     * Сверяем КОД без комментариев: рассказ о том, почему рассылки нет,
+     * обязан содержать слово «рассылка» — и четырежды за смену такие
+     * проверки ловили мою же прозу вместо поведения.
+     */
+    const код = fs
+      .readFileSync(path.join(__dirname, 'src', 'agent', 'crm-tools.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '')
+    expect(код).not.toMatch(/sendMessage|broadcast/i)
+    for (const т of CRM_TOOLS) expect(т.name).toMatch(/^crm_/)
+  })
+})
