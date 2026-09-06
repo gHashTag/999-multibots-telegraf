@@ -33,6 +33,7 @@
 const fs = require('fs')
 const path = require('path')
 const { census } = require('./lib/read-census.cjs')
+const calib = require('./lib/calibrate.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 
@@ -302,37 +303,13 @@ function selfCheckMe() {
  * health.
  */
 function calibrate(censusPath) {
-  const truth = JSON.parse(fs.readFileSync(censusPath, 'utf8'))
+  const truth = calib.load(censusPath)
   const c = census('negative-controls')
   const mine = new Map()
   for (const d of detectors(c, null)) {
     mine.set(d.file, hasNegativeControl(selfCheckRegion(d.raw)).present)
   }
-  let agree = 0
-  const falseAlarm = []
-  const missed = []
-  for (const [file, hasIt] of Object.entries(truth)) {
-    if (!mine.has(file)) continue
-    const said = mine.get(file)
-    if (said === hasIt) agree++
-    else if (said && !hasIt) falseAlarm.push(file)
-    else missed.push(file)
-  }
-  const judged = agree + falseAlarm.length + missed.length
-  console.log(`\nсверено с ручной переписью: ${judged}`)
-  console.log(`  совпало:            ${agree}`)
-  console.log(
-    `  ЛОЖНАЯ ТРЕВОГА:     ${falseAlarm.length}  (сказал «есть», на деле нет)`
-  )
-  console.log(
-    `  ПРОПУСК:            ${missed.length}  (сказал «нет», на деле есть)`
-  )
-  for (const f of falseAlarm) console.log(`    ложно: ${f}`)
-  for (const f of missed) console.log(`    пропущено: ${f}`)
-  if (judged === 0) {
-    console.log('НИ ОДИН файл не сверен — калибровка ничего не измерила')
-    process.exit(2)
-  }
+  calib.report(calib.compare(truth, mine), 'negative controls')
 }
 
 function main() {
