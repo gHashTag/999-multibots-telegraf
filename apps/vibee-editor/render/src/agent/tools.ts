@@ -408,6 +408,7 @@ async function withTokens<T extends object>(
 }
 
 import { ценаТокенов, названиеСчёта } from './token-packs'
+import { CRM_TOOLS } from './crm-tools'
 import { TELEGRAM_TOOLS } from './telegram-tools'
 import { PROJECT_TOOLS } from './project-tools'
 
@@ -2183,6 +2184,12 @@ export const TOOLS: AgentTool[] = [
  * read every place foreign content enters the agent in a single file.
  */
 TOOLS.push(...TELEGRAM_TOOLS)
+/*
+ * CRM встаёт в тот же реестр: агент должен уметь ответить «кто мои люди»
+ * там же, где отвечает про ленту и баланс. Инструменты только показывают —
+ * рассылки среди них нет намеренно (см. crm-tools.ts).
+ */
+TOOLS.push(...CRM_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
 
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
