@@ -98,3 +98,26 @@ describe('агент публикует скрыто, человек — вид�
     expect(блок).toMatch(/WHERE id = \$1 AND telegram_id = \$2/)
   })
 })
+
+describe('лента показывает шаблоны, а не каждую генерацию', () => {
+  it('берётся одна запись на композицию', () => {
+    /*
+     * Замер по живой ленте: 47 записей — это ТРИ композиции
+     * (TrinityBlogReel 43, SplitTalkingHead 2, NoirReel 1) и одна без
+     * композиции. Сорок три карточки подряд были одним шаблоном с разным
+     * текстом — витрина обещала разнообразие, которого нет.
+     */
+    expect(СЕРВЕР).toMatch(/pt\.id = \(\s*\n\s*SELECT MAX\(p2\.id\) FROM public_templates p2/)
+    expect(СЕРВЕР).toMatch(/p2\.template_settings->>'compositionId'/)
+  })
+
+  it('записи без композиции остаются собой', () => {
+    // Сгруппировать их не по чему, а спрятать — значит потерять.
+    expect(СЕРВЕР).toMatch(/pt\.template_settings->>'compositionId' IS NULL/)
+  })
+
+  it('профиль отдаёт композицию, иначе группировать нечем', () => {
+    expect(СЕРВЕР).toMatch(/pt\.template_settings->>'compositionId' AS composition_id/)
+    expect(СЕРВЕР).toContain('compositionId: row.composition_id || null')
+  })
+})

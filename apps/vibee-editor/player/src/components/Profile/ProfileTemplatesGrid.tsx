@@ -16,6 +16,7 @@ import { deleteTemplateAtom, editTemplateAtom } from '@/atoms'
 import type { FeedTemplate } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { API_BASE } from '../../config'
+import { поШаблонам } from './группыШаблонов'
 
 interface ProfileTemplatesGridProps {
   username: string
@@ -44,6 +45,11 @@ export function ProfileTemplatesGrid({
     () => new Set()
   )
   const [playingId, setPlayingId] = useState<number | null>(null)
+  /**
+   * Какие шаблоны раскрыты. По умолчанию НИ ОДИН: вкладка «Шаблоны» должна
+   * показывать шаблоны, а не сорок шесть роликов, снятых по трём из них.
+   */
+  const [раскрытые, setРаскрытые] = useState<Set<string>>(() => new Set())
   const videoRefs = useRef(new Map<number, HTMLVideoElement>())
   const mediaRefs = useRef(new Map<number, HTMLDivElement>())
   const mediaRefCallbacks = useRef(
@@ -314,10 +320,53 @@ export function ProfileTemplatesGrid({
     )
   }
 
+  /*
+   * ГРУППЫ ВМЕСТО СТЕНЫ КАРТОЧЕК.
+   *
+   * Вкладка показывала 46 роликов подряд, а шаблонов ТРИ: сорок три карточки
+   * были одним шаблоном с разным текстом. Свёрнутые группы дают то, что
+   * человек и ожидает увидеть на вкладке «Шаблоны», — сами шаблоны.
+   *
+   * Раскрытая группа показывает свои ролики той же сеткой: второй способ их
+   * рисовать разошёлся бы с первым.
+   */
+  const группы = поШаблонам(templates)
+  /**
+   * ОДНУ ГРУППУ НЕ СВОРАЧИВАЕМ.
+   *
+   * Свёрнутый единственный шаблон прячет содержимое и не даёт ничего взамен:
+   * складывать нечего. Свёртка нужна там, где групп несколько, — а это и есть
+   * случай, ради которого всё делалось: 46 роликов на три шаблона.
+   */
+  const раскрыта = (ключ: string | null) =>
+    группы.length === 1 || раскрытые.has(ключ ?? '')
+
   return (
     <div className="profile-templates">
-      <div className="profile-templates__grid">
-        {templates.map(template => {
+      {группы.map(г => (
+        <div key={г.ключ ?? 'без'} className="profile-templates__group">
+          <button
+            type="button"
+            className="profile-templates__group-head"
+            aria-expanded={раскрыта(г.ключ)}
+            onClick={() =>
+              setРаскрытые(п => {
+                const н = new Set(п)
+                const к = г.ключ ?? ''
+                if (н.has(к)) н.delete(к)
+                else н.add(к)
+                return н
+              })
+            }
+          >
+            <span className="profile-templates__group-name">{г.имя}</span>
+            <span className="profile-templates__group-count">
+              {г.ролики.length}
+            </span>
+          </button>
+          {раскрыта(г.ключ) && (
+            <div className="profile-templates__grid">
+              {г.ролики.map(template => {
           const videoAvailable =
             Boolean(template.videoUrl) && !failedVideos.has(template.id)
           const posterAvailable =
@@ -443,12 +492,19 @@ export function ProfileTemplatesGrid({
                         editingId === template.id || deletingId === template.id
                       }
                     >
+                      {/*
+                        БЕЗ ПОДПИСИ И МЕНЬШЕ.
+
+                        Подпись под значком не помещалась и обрезалась
+                        (`max-width: 3.1rem`), а кружок в 3.3rem закрывал
+                        обложку. Значение остаётся в `aria-label` — для тех,
+                        кто читает экран голосом, подпись как раз нужна.
+                      */}
                       {editingId === template.id ? (
-                        <Loader2 className="spinning" size={22} />
+                        <Loader2 className="spinning" size={16} />
                       ) : (
-                        <Pencil size={22} />
+                        <Pencil size={16} />
                       )}
-                      <span>{t('profile.edit_template')}</span>
                     </button>
                     <button
                       type="button"
@@ -459,16 +515,18 @@ export function ProfileTemplatesGrid({
                         editingId === template.id || deletingId === template.id
                       }
                     >
-                      <Trash2 size={22} />
-                      <span>{t('profile.delete_template')}</span>
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 )}
               </div>
             </article>
           )
-        })}
-      </div>
+              })}
+            </div>
+          )}
+        </div>
+      ))}
 
       {hasMore && (
         <button
