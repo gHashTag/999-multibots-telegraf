@@ -2,6 +2,7 @@
 // undici первым пробует IPv6, в этой сети он чёрной дырой — таймаут.
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
 import { KIE_MODELS } from './src/agent/kie-models'
+import { РАЗРЕШЕНИЕ_ЛИПСИНКА } from './src/agent/kie-web-provider'
 // Голоса и вход того провайдера, который реально отдаёт mp3. См. модуль:
 // экран показывал чужие голоса, а выбор до провайдера не доходил.
 import { ГОЛОСА_MINIMAX, входМиниМакс } from './src/agent/minimax-voices'
@@ -4482,7 +4483,14 @@ const server = createServer(async (req, res) => {
               {
                 image_url,
                 audio_url,
-                resolution: resolution || '480p',
+                /*
+                 * РАЗРЕШЕНИЕ ЗАДАЁМ МЫ, а не клиент: у InfiniteTalk 720p
+                 * стоит вчетверо дороже 480p ($0.06 против $0.015 в
+                 * секунду по живому прайсу), а цена в каталоге взята с
+                 * дешёвой строки. Веб слал 720p по умолчанию — и мы
+                 * платили вчетверо, взяв как за 480p.
+                 */
+                resolution: РАЗРЕШЕНИЕ_ЛИПСИНКА,
                 prompt: 'person speaking naturally',
               },
               { attempts: 60, intervalMs: 5_000 }
@@ -4508,7 +4516,7 @@ const server = createServer(async (req, res) => {
           throw new Error('KIE_AI_API_KEY не задан в сервисе')
         }
         console.log(
-          `👄 [Generate] Lipsync via fal.ai VEED Fabric: resolution=${resolution || '720p'}`
+          `👄 [Generate] Lipsync via fal.ai VEED Fabric: resolution=${РАЗРЕШЕНИЕ_ЛИПСИНКА}`
         )
 
         const FAL_KEY = process.env.FAL_KEY
@@ -4526,7 +4534,10 @@ const server = createServer(async (req, res) => {
             body: JSON.stringify({
               image_url,
               audio_url,
-              resolution: resolution || '720p',
+              // Та же ставка, что у ноги KieAI: цену назначаем мы, значит и
+              // разрешение выбираем мы. Прежнее умолчание 720p делало
+              // запасную ногу дороже основной при одинаковом счёте.
+              resolution: РАЗРЕШЕНИЕ_ЛИПСИНКА,
             }),
           }
         )

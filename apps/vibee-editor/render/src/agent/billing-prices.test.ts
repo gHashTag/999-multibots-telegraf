@@ -5,7 +5,9 @@ import {
   познаковаяМодель,
   тысячиЗнаковКОплате,
 } from './billing-shared'
-import { РАЗРЕШЕНИЕ_ВИДЕО } from './kie-web-provider'
+import { РАЗРЕШЕНИЕ_ВИДЕО, РАЗРЕШЕНИЕ_ЛИПСИНКА } from './kie-web-provider'
+import { readFileSync } from 'fs'
+import { join as pathJoin } from 'path'
 import { ИМЯ_В_ПРАЙСЕ } from './kie-price-names'
 import {
   длинойУправляемМы,
@@ -331,5 +333,28 @@ describe('цены', () => {
     for (const op of Object.keys(TOKEN_PRICES)) {
       expect(TOKEN_PRICES[op], op).toBeGreaterThanOrEqual(1)
     }
+  })
+})
+
+describe('разрешение выбирает тот, кто назначает цену', () => {
+  it('липсинк просит ТО разрешение, с чьей строки взята цена', () => {
+    /*
+     * Цена модели в каталоге — САМАЯ ДЕШЁВАЯ строка прайса; файл это прямо
+     * объявляет. У InfiniteTalk строк две: «up to 15 seconds-480p» за $0.015
+     * в секунду и «…-720p» за $0.06 — вчетверо. Маршрут видео от этого давно
+     * защищён пином, липсинк не был: веб слал 720p ПО УМОЛЧАНИЮ, приложение
+     * 480p, счёт одинаковый. За одну и ту же секунду мы платили вчетверо
+     * больше в зависимости от того, откуда пришёл человек.
+     */
+    expect(РАЗРЕШЕНИЕ_ЛИПСИНКА).toBe('480p')
+    // Не константа ради константы: она обязана СТОЯТЬ в запросе к обоим
+    // провайдерам, иначе пин остаётся украшением.
+    const сервер = readFileSync(
+      pathJoin(__dirname, '..', '..', 'render-server.ts'),
+      'utf8'
+    )
+    expect(сервер).not.toMatch(/resolution: resolution \|\| '720p'/)
+    expect(сервер).not.toMatch(/resolution: resolution \|\| '480p'/)
+    expect(сервер.match(/resolution: РАЗРЕШЕНИЕ_ЛИПСИНКА/g)?.length).toBe(2)
   })
 })
