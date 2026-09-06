@@ -968,20 +968,34 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
               />
             </div>
 
-            <div className="form-group">
-              <label>{t('generate.aspectRatio')}</label>
-              <div className="form-chips">
-                {ASPECT_RATIOS.map(ratio => (
-                  <button
-                    key={ratio}
-                    className={`form-chip ${imageAspect === ratio ? 'active' : ''}`}
-                    onClick={() => setImageAspect(ratio)}
-                  >
-                    {ratio}
-                  </button>
-                ))}
+            {/*
+              ТОТ ЖЕ ЗАПРЕТ, ЧТО И НА ВИДЕО, — и его тут не было.
+
+              Правку «чип только под доезжающее поле» я сделал на вкладке
+              видео и не сделал здесь, хотя блок отдельный и такой же.
+              Нашлось обходом экранов: у `kie/google/nano-banana` контракт —
+              один `prompt`, соотношение до провайдера не доходит, а чипы
+              стояли.
+
+              «Пока только для одной вкладки» — это половина правки, и правило
+              об этом записано давно.
+            */}
+            {полеДоходит(баланс, 'aspect_ratio', imageModel) && (
+              <div className="form-group">
+                <label>{t('generate.aspectRatio')}</label>
+                <div className="form-chips">
+                  {ASPECT_RATIOS.map(ratio => (
+                    <button
+                      key={ratio}
+                      className={`form-chip ${imageAspect === ratio ? 'active' : ''}`}
+                      onClick={() => setImageAspect(ratio)}
+                    >
+                      {ratio}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <button
               className="generate-btn"
