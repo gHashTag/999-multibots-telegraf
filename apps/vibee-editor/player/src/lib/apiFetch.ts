@@ -44,6 +44,30 @@ export function authHeaders(extra?: HeadersInit): Headers {
   } else {
     const accessToken = getAppAccessToken() // secret-guard-ok: runtime session value, never a literal credential
     if (accessToken) h.set('Authorization', `Bearer ${accessToken}`)
+    else {
+      /*
+       * КЛЮЧ АГЕНТА — ТРЕТИЙ СПОСОБ, И ЕГО МЕСТО ЗДЕСЬ, А НЕ В КАЖДОМ ЭКРАНЕ.
+       *
+       * Этот файл называет себя единственной дверью к серверу, но ключ агента
+       * дверь не знала. Поэтому его дописывали снаружи — десять раз, в десяти
+       * компонентах, одной и той же строкой. Загрузка вложений его не
+       * дописала, и получилось: чат работает, а фото к нему приложить нельзя.
+       *
+       * Симптом со стороны человека — «photo_….jpeg: загрузка не удалась».
+       * Со стороны сервера, дословно из журнала прода:
+       * «[auth] ОТКАЗ POST /upload — no X-Api-Key and no Telegram initData».
+       * Запрос уходил вообще без удостоверения.
+       *
+       * Ветка стоит ПОСЛЕДНЕЙ: подпись мини-аппа и сессия приложения
+       * принадлежат конкретному человеку, а ключ агента — способ для наладки
+       * и внешних агентов. Сам ключ приходит из сборочного окружения, то есть
+       * в прод-сборке его просто нет, и ветка там пустая.
+       */
+      const ключАгента = import.meta.env.DEV
+        ? (import.meta.env.VITE_AGENT_KEY as string | undefined)
+        : undefined
+      if (ключАгента) h.set('X-Agent-Key', ключАгента)
+    }
   }
   return h
 }

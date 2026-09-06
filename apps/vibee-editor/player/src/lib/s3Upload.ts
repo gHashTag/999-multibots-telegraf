@@ -25,19 +25,59 @@ export async function uploadToS3(
       method: 'POST',
       headers: authHeaders({
         'Content-Type': file instanceof File ? file.type : 'audio/webm',
-        'X-Filename': filename,
+        /*
+         * ИМЯ ФАЙЛА КОДИРУЕТСЯ, ИНАЧЕ КИРИЛЛИЦА ЛОМАЕТ ЗАГРУЗКУ ДО СЕТИ.
+         *
+         * Значение заголовка обязано быть Latin-1: `Headers.set` на «фото.jpg»
+         * бросает «parameter 2 is not a valid ByteString». Прежний код ловил
+         * это своим catch и возвращал null — то есть у русскоязычного
+         * пользователя любой файл с русским именем не грузился ВООБЩЕ, а
+         * человек читал «загрузка не удалась» и не мог знать, что дело в
+         * имени. Запроса при этом даже не возникало, поэтому в журнале
+         * сервера такой отказ не виден.
+         *
+         * Нашлось при написании проверки на этот файл: я подставил кириллицу
+         * в значение заголовка, и упал не сервер, а браузерный Headers.
+         */
+        'X-Filename': encodeURIComponent(filename),
       }),
       body: file,
     })
 
-    const result = await response.json()
+    /*
+     * ПРИЧИНА ОТКАЗА ДОЕЗЖАЕТ ДО ЧЕЛОВЕКА.
+     *
+     * Раньше любая ошибка — отказ в доступе, слишком большой файл, занятая
+     * очередь — превращалась в `null`, а человек читал «загрузка не удалась».
+     * Диагностировать по такому сообщению нечего: оно одинаково для отказа
+     * аутентификации и для лопнувшей сети. Настоящую причину знал только
+     * журнал сервера, куда человек не смотрит.
+     *
+     * Тело читается ТЕКСТОМ, а не сразу json: на 502 от прокси там HTML, и
+     * `.json()` падал бы своей ошибкой поверх настоящей, подменяя её.
+     */
+    const сырое = await response.text()
+    let result: { success?: boolean; url?: string; error?: string } = {}
+    try {
+      result = JSON.parse(сырое)
+    } catch {
+      throw new Error(
+        `сервер ответил ${response.status}: ${сырое.slice(0, 200) || 'пустой ответ'}`
+      )
+    }
     if (result.success && result.url) {
       return result.url
     }
-    throw new Error(result.error || 'Upload failed')
+    throw new Error(
+      result.error
+        ? `${result.error} (HTTP ${response.status})`
+        : `сервер ответил ${response.status}`
+    )
   } catch (error) {
     console.error('[S3 Upload] Error:', error)
-    return null
+    // Бросаем дальше, а не возвращаем null: все вызывающие уже стоят внутри
+    // try, и им нужна причина, а не пустота.
+    throw error instanceof Error ? error : new Error(String(error))
   }
 }
 

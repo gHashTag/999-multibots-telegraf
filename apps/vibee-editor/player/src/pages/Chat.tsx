@@ -301,8 +301,18 @@ function ChatPage() {
           if (file.size > 100 * 1024 * 1024) {
             throw new Error(`${file.name}: максимум 100 МБ`)
           }
-          const url = await uploadToS3(file, file.name)
-          if (!url) throw new Error(`${file.name}: загрузка не удалась`)
+          /*
+           * Имя файла остаётся в сообщении, но теперь рядом с ПРИЧИНОЙ.
+           * «photo_….jpeg: загрузка не удалась» одинаково звучало и при
+           * отказе в доступе, и при лопнувшей сети — по такому тексту
+           * чинить нечего.
+           */
+          const url = await uploadToS3(file, file.name).catch(e => {
+            throw new Error(
+              `${file.name}: ${e instanceof Error ? e.message : String(e)}`
+            )
+          })
+          if (!url) throw new Error(`${file.name}: сервер не вернул адрес`)
           const kind: AgentAttachmentKind = file.type.startsWith('image/')
             ? 'image'
             : file.type.startsWith('video/')

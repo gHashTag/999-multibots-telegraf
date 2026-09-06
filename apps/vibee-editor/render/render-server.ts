@@ -5086,8 +5086,19 @@ const server = createServer(async (req, res) => {
       return
     }
 
-    const rawFilename =
+    const заголовокИмени =
       (req.headers['x-filename'] as string) || `file-${Date.now()}`
+    /*
+     * Имя приходит percent-кодированным: значение HTTP-заголовка обязано быть
+     * Latin-1, а имена бывают русские. Старые клиенты шлют его сырым, поэтому
+     * неудачное декодирование — не ошибка, а «прислали как есть».
+     */
+    let rawFilename = заголовокИмени
+    try {
+      rawFilename = decodeURIComponent(заголовокИмени)
+    } catch {
+      rawFilename = заголовокИмени
+    }
     const filename =
       path
         .basename(rawFilename)
