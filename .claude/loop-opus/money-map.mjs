@@ -184,9 +184,30 @@ for (const abs of listTsFiles(SRC)) {
 }
 
 if (process.argv.includes('--json')) {
+  /*
+   * БЕЗ `process.exit()` — И ЭТО НЕ СТИЛЬ, А ПОЧИНКА ПЯТИ ДЕНЕЖНЫХ СТОРОЖЕЙ.
+   *
+   * Здесь стояло `process.exit(0)` сразу после печати. В терминале всё было
+   * хорошо: stdout там — TTY, и запись синхронная. А когда вывод читает
+   * ДРУГАЯ ПРОГРАММА, stdout становится каналом, запись в канал асинхронна, и
+   * выход обрубает всё, что не успело уйти, — ровно на размере буфера канала,
+   * 8192 байта на macOS.
+   *
+   * Отчёт весит около 25 КБ. Значит потребитель получал первые 8 КБ и падал с
+   * `Expected double-quoted property name in JSON at position 8192`. Из-за
+   * этого НЕ РАБОТАЛИ пять сторожей, замораживающих набор мест, способных
+   * списать деньги: chargeSiteCensus, chargeReachability,
+   * moneyMapKnowsBothCreditSpellings и соседние. Они падали, а не сторожили,
+   * и в таком виде прожили не одну неделю.
+   *
+   * Симптом «работает руками, падает в тестах» — визитная карточка именно
+   * этой ошибки: разница не в тестах, а в том, TTY на том конце или канал.
+   *
+   * Достаточно НЕ ВЫХОДИТЬ: скрипт и так больше ничего не делает, а Node
+   * дожидается опустошения потоков сам.
+   */
   console.log(JSON.stringify(sites, null, 2))
-  process.exit(0)
-}
+} else {
 
 // Human report.
 const byDir = {}
@@ -252,3 +273,4 @@ console.log(
 )
 console.log('')
 console.log('This is a read-only overview. Enforcement lives in tri guards.')
+}
