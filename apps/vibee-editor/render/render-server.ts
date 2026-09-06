@@ -6915,8 +6915,33 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  if (req.url === '/api/feed/pending' && req.method === 'GET') {
-    const кто = chatIdentity(req, verifiedTelegramId(req))
+  if (
+    (req.url || '').split('?')[0] === '/api/feed/pending' &&
+    req.method === 'GET'
+  ) {
+    /*
+     * ПУТЬ, А НЕ ВЕСЬ АДРЕС.
+     *
+     * Здесь стояло `req.url === '/api/feed/pending'`, а `req.url` несёт и
+     * строку запроса. Любой параметр — и сравнение не совпадало, запрос
+     * проваливался ниже, к общему сторожу ленты, и получал 404 «лента такого
+     * не обслуживает». Маршрут был не сломан, а НЕДОСТИЖИМ по части
+     * обращений, и выглядело это как «раздела нет».
+     *
+     * Нашлось живой проверкой цепочки одобрения, а не чтением: веб зовёт без
+     * параметров и работал.
+     */
+    /*
+     * ЛИЧНОСТЬ — ПОДПИСЬ ИЛИ ВНУТРЕННИЙ КЛЮЧ С ЯВНЫМ telegram_id.
+     *
+     * Второй путь не для удобства: без него ни агент, ни проверка до раздела
+     * не доходят — пускала только подпись мини-аппа. Приём тот же, что у
+     * `DELETE /api/feed/:id` рядом: один способ на два маршрута.
+     */
+    const внутренний = new URL(req.url || '', 'http://x').searchParams
+    const кто =
+      chatIdentity(req, verifiedTelegramId(req)) ||
+      внутренний.get('telegram_id')
     if (!кто) {
       res.writeHead(401, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ error: 'unauthorized' }))
