@@ -19,6 +19,19 @@ export interface TemplateField {
   kind: 'text' | 'media' | 'captions' | 'number' | 'list'
   required?: boolean
   hint?: string
+  /**
+   * ФОРМА ЗНАЧЕНИЯ СЛОВАМИ — для полей, где подписи мало.
+   *
+   * `reel_render` принимает `props` свободным объектом, а каталог называл
+   * только ярлык поля. Модель, собирающая сплит, придумывала правдоподобную
+   * форму — и придумала: в ленте лежит ролик с `segments: [{url, duration}]`
+   * вместо `{type, startFrame, durationFrames}`. Отказ на входе теперь есть,
+   * но отказ — половина ответа; вторая половина в том, чтобы форму не надо
+   * было угадывать.
+   */
+  shape?: string
+  /** Готовый пример значения. Пример короче любого описания. */
+  example?: string
 }
 
 export interface TemplateCard {
@@ -84,7 +97,37 @@ export const TEMPLATE_CARDS: TemplateCard[] = [
     accent: '#FFFF00',
     fields: [
       { key: 'lipSyncVideo', label: 'Липсинк', kind: 'media', required: true },
-      { key: 'segments', label: 'Сегменты и биролл', kind: 'list', required: true },
+      {
+        key: 'segments',
+        label: 'Сегменты и биролл',
+        kind: 'list',
+        required: true,
+        /**
+         * ФОРМА НАЗВАНА, потому что до сих пор её знал только код.
+         *
+         * Инструмент `reel_render` принимает `props` как свободный объект, а
+         * каталог называл поле «Сегменты и биролл» — подпись, а не форма.
+         * Модель, которую просят собрать сплит, придумывает правдоподобное:
+         * в ленте лежит ролик (id 20) с `segments: [{url, duration}]`, и это
+         * ровно то, что придумал бы человек на её месте.
+         *
+         * Дальше молчали все: Remotion схему сам не сверял, сервер props не
+         * проверял, а композиция без `type` просто не считала панели — и
+         * тридцать секунд липсинка заняли весь кадр. Ролик опубликовался и
+         * лежал в ленте под именем «Сплит».
+         *
+         * Проверка теперь есть (render-server сверяет со схемой до рендера),
+         * но отказ — это половина ответа. Вторая половина здесь: сказать
+         * форму заранее, чтобы её не пришлось угадывать.
+         */
+        shape:
+          '{ type: "split" | "fullscreen", startFrame: число, ' +
+          'durationFrames: число, bRollUrl?: ссылка, caption?: строка }',
+        example:
+          '[{ "type": "fullscreen", "startFrame": 0, "durationFrames": 60 }, ' +
+          '{ "type": "split", "startFrame": 60, "durationFrames": 120, ' +
+          '"bRollUrl": "https://…/b.mp4" }]',
+      },
       { key: 'captions', label: 'Титры пословно', kind: 'captions' },
       { key: 'backgroundMusic', label: 'Музыка', kind: 'media' },
       { key: 'ctaText', label: 'Призыв', kind: 'text' },
