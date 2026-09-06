@@ -37,22 +37,51 @@ import type { AgentTool, ToolContext } from './tools'
  * ЭТО ЧУЖИЕ ЛЮДИ, А НЕ ПРОСТО СТРОКИ.
  *
  * Здесь отдаются имена и идентификаторы посторонних. Открыть это «любому
- * опознанному» значит отдать базу клиентов каждому, кто открыл мини-апп.
- * Гвард тот же, что у доступа к переписке владельца, и по той же причине.
+ * опознанному» значит отдать базу клиентов каждому, кто открыл мини-апп:
+ * подпись мини-аппа есть у всех пользователей платформы.
  *
- * ОГРАНИЧЕНИЕ, КОТОРОЕ НАДО СНЯТЬ СЛЕДУЮЩИМ ШАГОМ: сейчас доступ только у
- * владельца платформы, то есть ботовладельцы своей аудитории не видят.
- * Правильное разделение — по `bot_name`: каждый видит людей своих ботов.
- * Пока это не сделано, лучше не показывать никому, чем показать лишнее.
+ * КАЖДЫЙ ВИДИТ ТОЛЬКО СВОЮ АУДИТОРИЮ. Первая версия пускала одного владельца
+ * платформы — безопасно, но бесполезно для остальных пятнадцати
+ * ботовладельцев. Теперь граница проходит по `bot_name`: чьи боты — того и
+ * люди. Владение берётся из `avatars` (таблица, на которой уже стоит
+ * `getOwnedBots` в сервисе бота), а не из нового списка: второй источник
+ * владения разошёлся бы с первым.
+ *
+ * Fail-closed: не удалось определить, чьи боты, — отказ, а не «покажем всё».
  */
 const OWNER_TELEGRAM_ID = (process.env.OWNER_TELEGRAM_ID || '144022504').trim()
 
-function requireOwner(ctx?: ToolContext): void {
-  if (ctx && String(ctx.telegramId) === OWNER_TELEGRAM_ID) return
-  throw new Error(
-    'CRM показывает данные других людей: пока он доступен только владельцу платформы. ' +
-      'Разделение по ботам (каждому — своя аудитория) ещё не сделано.'
+/** Боты, которыми человек владеет. Пустой список — значит показывать нечего. */
+async function моиБоты(telegramId: string): Promise<string[]> {
+  const строки = await запрос<{ bot_name: string | null }>(
+    `avatars?select=bot_name&telegram_id=eq.${encodeURIComponent(telegramId)}`
   )
+  return строки.map(с => (с.bot_name || '').trim()).filter(Boolean)
+}
+
+/**
+ * Чью аудиторию показываем.
+ *
+ * `null` означает «все боты» и достаётся ТОЛЬКО владельцу платформы: он
+ * отвечает за платформу целиком, и разбивка по ботам в сводке — его рабочий
+ * инструмент. Всем остальным возвращается конкретный список их ботов.
+ */
+async function областьВидимости(ctx?: ToolContext): Promise<string[] | null> {
+  const кто = ctx ? String(ctx.telegramId ?? '') : ''
+  if (!кто) {
+    throw new Error(
+      'CRM показывает данные других людей и требует подтверждённой личности'
+    )
+  }
+  if (кто === OWNER_TELEGRAM_ID) return null
+  const боты = await моиБоты(кто)
+  if (!боты.length) {
+    throw new Error(
+      'CRM показывает аудиторию ВАШИХ ботов, а за вами ботов не числится. ' +
+        'Если бот ваш — он должен быть записан на вас в avatars.'
+    )
+  }
+  return боты
 }
 
 const noArgs = { type: 'object', properties: {} } as const
@@ -115,10 +144,18 @@ async function платившие(): Promise<Set<string>> {
   return new Set(строки.map(с => String(с.telegram_id)))
 }
 
-async function люди(): Promise<Человек[]> {
-  return запрос<Человек>(
-    'users?select=telegram_id,username,first_name,bot_name,created_at,updated_at,language_code&limit=20000'
-  )
+async function люди(область: string[] | null): Promise<Человек[]> {
+  const поля =
+    'telegram_id,username,first_name,bot_name,created_at,updated_at,language_code'
+  /*
+   * Фильтруем НА СТОРОНЕ БАЗЫ, а не после выборки: тянуть всю платформу,
+   * чтобы отдать владельцу одного бота его сотню, — это и лишний трафик, и
+   * лишний риск, что отфильтровать забудут.
+   */
+  const фильтр = область
+    ? `&bot_name=in.(${область.map(b => `"${b.replace(/"/g, '')}"`).join(',')})`
+    : ''
+  return запрос<Человек>(`users?select=${поля}${фильтр}&limit=20000`)
 }
 
 /** То, что можно показать владельцу: имя, ссылка, давность. Без лишнего. */
@@ -142,8 +179,8 @@ export const CRM_TOOLS: AgentTool[] = [
       'Начинай с неё: она отвечает на вопрос «кто мои люди» числами, а не догадками.',
     parameters: noArgs,
     async handler(_a, ctx) {
-      requireOwner(ctx)
-      const [все, платят] = await Promise.all([люди(), платившие()])
+      const область = await областьВидимости(ctx)
+      const [все, платят] = await Promise.all([люди(область), платившие()])
 
       const свежие = (дней: number) =>
         все.filter(ч => {
@@ -166,6 +203,9 @@ export const CRM_TOOLS: AgentTool[] = [
         Object.fromEntries(Object.entries(о).sort((a, b) => b[1] - a[1]))
 
       return {
+        // Чья это аудитория — прямо в ответе: иначе владелец одного бота
+        // прочитает свою сотню как «всю платформу» и сделает неверный вывод.
+        показана_аудитория: область ? область.join(', ') : 'все боты платформы',
         всего_людей: все.length,
         платящих,
         доля_платящих: `${(долюПлатящих(платящих, все.length) * 100).toFixed(1)}%`,
@@ -196,9 +236,9 @@ export const CRM_TOOLS: AgentTool[] = [
       },
     },
     async handler(a: any, ctx) {
-      requireOwner(ctx)
+      const область = await областьВидимости(ctx)
       const окно = Number(a?.дней) > 0 ? Math.floor(Number(a.дней)) : 14
-      const [все, платят] = await Promise.all([люди(), платившие()])
+      const [все, платят] = await Promise.all([люди(область), платившие()])
       const лиды = все
         .filter(ч => {
           const d = днейНазад(ч.updated_at)
@@ -235,10 +275,10 @@ export const CRM_TOOLS: AgentTool[] = [
       },
     },
     async handler(a: any, ctx) {
-      requireOwner(ctx)
+      const область = await областьВидимости(ctx)
       const порог =
         Number(a?.молчит_дней) > 0 ? Math.floor(Number(a.молчит_дней)) : 30
-      const [все, платят] = await Promise.all([люди(), платившие()])
+      const [все, платят] = await Promise.all([люди(область), платившие()])
       const ушедшие = все
         .filter(ч => {
           const d = днейНазад(ч.updated_at)

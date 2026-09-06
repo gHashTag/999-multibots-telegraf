@@ -24,15 +24,55 @@ const инструмент = (имя: string) => {
 const ЧУЖОЙ = { telegramId: '999', pool: {} } as any
 const ВЛАДЕЛЕЦ = { telegramId: '144022504', pool: {} } as any
 
-describe('чужую аудиторию не отдаём', () => {
+/*
+ * Настройки Supabase ставятся ДЛЯ ВСЕГО файла: без них любой инструмент
+ * падает на «CRM не настроен», и проверка доступа отвечала бы не на тот
+ * вопрос — «нет ключей» вместо «не ваши люди».
+ */
+beforeEach(() => {
+  process.env.SUPABASE_URL = 'https://пример.test'
+  process.env.SUPABASE_SERVICE_KEY = 'ключ'
+})
+
+describe('каждый видит только свою аудиторию', () => {
   it.each(['crm_overview', 'crm_hot_leads', 'crm_winback'])(
-    '%s отказывает не-владельцу',
+    '%s отказывает тому, за кем ботов нет',
     async имя => {
+      // Пустой список ботов — не повод показать всё: показывать нечего.
+      vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => [] }) as any)
       await expect(инструмент(имя).handler({}, ЧУЖОЙ)).rejects.toThrow(
-        /только владельцу/
+        /ботов не числится/
       )
+      vi.unstubAllGlobals()
     }
   )
+
+  it('владелец бота видит ТОЛЬКО своих людей — фильтр уходит в запрос', async () => {
+    /*
+     * Главная проверка разделения: фильтр по bot_name должен попасть В САМ
+     * ЗАПРОС. Отфильтровать после выборки означало бы тянуть чужую базу в
+     * память и полагаться на то, что фильтр не забудут.
+     */
+    const адреса: string[] = []
+    vi.stubGlobal('fetch', async (url: string) => {
+      const a = String(url)
+      адреса.push(a)
+      const тело = a.includes('/avatars?')
+        ? [{ bot_name: 'bot1' }]
+        : a.includes('/users?')
+          ? []
+          : a.includes('/payments_v2?')
+            ? []
+            : null
+      if (тело === null) throw new Error(`подделка не знает адрес: ${a}`)
+      return { ok: true, json: async () => тело } as any
+    })
+    await инструмент('crm_overview').handler({}, ЧУЖОЙ)
+    const запросЛюдей = адреса.find(a => a.includes('/users?')) || ''
+    expect(запросЛюдей).toContain('bot_name=in.')
+    expect(запросЛюдей).toContain('bot1')
+    vi.unstubAllGlobals()
+  })
 
   it('отказывает и при ОТСУТСТВИИ контекста', async () => {
     /*
@@ -40,7 +80,9 @@ describe('чужую аудиторию не отдаём', () => {
      * так в соседнем модуле (telegram-tools) четыре читающих инструмента
      * когда-то отдавали переписку владельца кому угодно.
      */
-    await expect(инструмент('crm_overview').handler({}, undefined as any)).rejects.toThrow()
+    await expect(
+      инструмент('crm_overview').handler({}, undefined as any)
+    ).rejects.toThrow(/подтверждённой личности/)
   })
 })
 
