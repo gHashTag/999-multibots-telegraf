@@ -36,7 +36,34 @@ export interface Баланс {
   exempt?: boolean
 }
 
+/**
+ * ПОДСТАВНОЙ ОСТАТОК ДЛЯ ПРОВЕРКИ — ТОЛЬКО В СБОРКЕ РАЗРАБОТЧИКА.
+ *
+ * Та же дыра проверки, что была в приложении: денежные подписи появляются
+ * лишь когда сервер ответил остатком, а остаток он отдаёт по сессии. Кода
+ * авторизации у проверяющего нет — это учётные данные владельца. Значит цену
+ * на кнопке, отказ и меру нельзя было увидеть ГЛАЗАМИ ни разу, и долг
+ * проверки не закрывался никогда.
+ *
+ * Значение берётся из строки адреса (`?баланс=<json>`), которую задаёт тот,
+ * кто открывает страницу. `import.meta.env.DEV` в рабочей сборке равен
+ * `false`, и Vite вырезает эту ветку целиком — в собранных файлах её нет.
+ */
+function подставнойБаланс(): Баланс | null {
+  if (!import.meta.env.DEV) return null
+  try {
+    const сырое = new URLSearchParams(location.search).get('баланс')
+    if (!сырое) return null
+    const б = JSON.parse(сырое) as Баланс
+    return typeof б?.balance === 'number' ? б : null
+  } catch {
+    return null
+  }
+}
+
 export async function загрузитьБаланс(): Promise<Баланс | null> {
+  const свой = подставнойБаланс()
+  if (свой) return свой
   try {
     const о = await fetch(`${API_BASE}/api/balance`, { headers: authHeaders() })
     if (!о.ok) return null
