@@ -31,6 +31,8 @@ import {
   записатьРеплику,
   прочитатьРазговор,
   собратьОтвет,
+  удалитьРеплику,
+  очиститьРазговор,
   РЕПЛИК_ПО_УМОЛЧАНИЮ,
 } from './conversation'
 
@@ -490,6 +492,46 @@ export async function handleAgentChat(
  * Личность НЕ берётся из запроса: telegramId приходит уже проверенным от
  * диспетчера. Иначе любой мог бы прочитать чужой разговор, назвав чужой id.
  */
+/**
+ * DELETE /api/agent/history — убрать реплику или начать разговор заново.
+ *
+ * Два действия одним маршрутом, потому что это одно и то же право: править
+ * СВОЮ переписку. `?id=<n>` убирает одну реплику, без него — весь разговор.
+ *
+ * Личность приходит уже проверенной от диспетчера и НЕ берётся из тела: иначе
+ * знание чужого telegram_id стало бы правом стирать чужое.
+ *
+ * Явное `?id` вместо «удалить последнее»: «последнее» зависит от того, что
+ * успело записаться, и человек, нажавший дважды, снёс бы лишнее.
+ */
+export async function handleAgentHistoryDelete(
+  req: IncomingMessage,
+  res: ServerResponse,
+  telegramId: string,
+  getPool: () => any
+) {
+  const параметры = new URL(req.url || '', 'http://x').searchParams
+  const сырой = параметры.get('id')
+  try {
+    const pool = await getPool()
+    if (сырой != null) {
+      const id = Number(сырой)
+      if (!Number.isFinite(id) || id <= 0) {
+        return json(res, 400, { ok: false, error: 'id должен быть числом' })
+      }
+      const убрано = await удалитьРеплику(pool, telegramId, id)
+      // 404, а не 200: «удалил ноль строк» и «удалил» — разные исходы, и
+      // молчаливое «ок» на несуществующий id скрывало бы опечатку.
+      if (!убрано) return json(res, 404, { ok: false, error: 'реплика не найдена' })
+      return json(res, 200, { ok: true, убрано })
+    }
+    const убрано = await очиститьРазговор(pool, telegramId)
+    return json(res, 200, { ok: true, убрано })
+  } catch (e) {
+    return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
+  }
+}
+
 export async function handleAgentHistory(
   req: IncomingMessage,
   res: ServerResponse,

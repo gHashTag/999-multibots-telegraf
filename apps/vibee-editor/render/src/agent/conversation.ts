@@ -152,6 +152,47 @@ export async function прочитатьРазговор(
 }
 
 /**
+ * Удалить ОДНУ реплику — только свою.
+ *
+ * `telegram_id` в условии не для красоты: без него знание чужого id
+ * превращалось бы в право стирать чужую переписку. Возвращаем, сколько строк
+ * удалилось, чтобы вызывающий отличал «удалил» от «такой реплики нет».
+ */
+export async function удалитьРеплику(
+  pool: Пул,
+  telegramId: string,
+  id: number
+): Promise<number> {
+  if (!telegramId || !Number.isFinite(id)) return 0
+  await убедитьсяВТаблице(pool)
+  const r: any = await pool.query(
+    `DELETE FROM agent_messages WHERE id = $1 AND telegram_id = $2`,
+    [id, String(telegramId)]
+  )
+  return r?.rowCount ?? 0
+}
+
+/**
+ * Очистить разговор целиком.
+ *
+ * Нужно кнопке «Новый разговор»: раньше она стирала только память браузера, и
+ * общий разговор на сервере оставался — человек нажимал «начать заново», а
+ * агент продолжал помнить всё. Обещание, которого интерфейс не выполнял.
+ */
+export async function очиститьРазговор(
+  pool: Пул,
+  telegramId: string
+): Promise<number> {
+  if (!telegramId) return 0
+  await убедитьсяВТаблице(pool)
+  const r: any = await pool.query(
+    `DELETE FROM agent_messages WHERE telegram_id = $1`,
+    [String(telegramId)]
+  )
+  return r?.rowCount ?? 0
+}
+
+/**
  * Собрать текст ответа агента из потока событий.
  *
  * Ответ приходит кусками (`тип: 'текст'`), а размышление — отдельным типом и
