@@ -141,3 +141,50 @@ describe('выход гасит семью, а не одну сессию', () =
     expect(ВЫХОД).toContain('WHERE family_id = $1 AND revoked_at IS NULL')
   })
 })
+
+describe('iOS не выкидывает человека за гонку', () => {
+  /*
+   * В Swift защиты от одновременных обновлений нет ВОВСЕ: два запроса,
+   * получивших 401, зовут `refreshSession()` каждый. На вебе для этого нужны
+   * две вкладки, здесь хватает двух экранов. Любой отказ вёл к `forget()` —
+   * человек оказывался выкинут, ничего не сделав.
+   */
+  const IOS = читать('..', '..', 'vibee-ios', 'Vibee', 'Identity.swift')
+  const ОБНОВЛЕНИЕ = (() => {
+    const от = IOS.indexOf('static func refreshSession')
+    const до = IOS.indexOf('static func forget', от)
+    return от < 0 ? '' : IOS.slice(от, до < 0 ? IOS.length : до)
+  })()
+
+  it('ветка обновления вообще найдена', () => {
+    // Иначе три проверки ниже зеленеют на пустой строке.
+    expect(ОБНОВЛЕНИЕ.length).toBeGreaterThan(200)
+  })
+
+  it('409 разбирается по тому же коду, что шлёт сервер', () => {
+    expect(ОБНОВЛЕНИЕ).toContain('409')
+    expect(ОБНОВЛЕНИЕ).toContain('auth_refresh_raced')
+  })
+
+  it('в ветке гонки Keychain перечитывается, а не стирается', () => {
+    /*
+     * Границу берём по концу ветки, а не «плюс триста символов»: окно
+     * фиксированной длины перелезает в соседний `guard` с его `forget()` —
+     * тест падает на чужом коде и точно так же может ЗАЗЕЛЕНЕТЬ на чужом.
+     * Та же ошибка, что часом раньше была сделана в серверной половине этого
+     * файла; повторил её здесь дословно.
+     */
+    const от = ОБНОВЛЕНИЕ.indexOf('auth_refresh_raced')
+    const до = ОБНОВЛЕНИЕ.indexOf('guard код == 200', от)
+    const блок = ОБНОВЛЕНИЕ.slice(от, до < 0 ? от : до)
+    expect(блок.length).toBeGreaterThan(40)
+    expect(блок).toContain('refreshToken')
+    expect(блок).not.toContain('forget()')
+  })
+
+  it('разбор гонки стоит ДО guard, который стирает сессию', () => {
+    expect(ОБНОВЛЕНИЕ.indexOf('auth_refresh_raced')).toBeLessThan(
+      ОБНОВЛЕНИЕ.indexOf('forget()')
+    )
+  })
+})
