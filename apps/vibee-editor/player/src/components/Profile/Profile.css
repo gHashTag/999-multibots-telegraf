@@ -2248,14 +2248,34 @@
 }
 .soul-card__text {
   margin: 10px 0 0;
-  white-space: pre-wrap;
   /* Перенос по словам: SOUL пишут прозой, и горизонтальная прокрутка в
      карточке знакомства читается как поломка. */
   word-break: break-word;
-  font: inherit;
   font-size: 0.9rem;
   line-height: 1.5;
+}
+/*
+ * Заголовки РАЗМЕРОМ, а не решёткой. Уровни различаются весом и отступом,
+ * оба — h3 в разметке: карточка живёт внутри страницы профиля, и настоящий
+ * h1 здесь спорил бы с её собственным заголовком.
+ */
+.soul-card__h1 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.soul-card__h2 {
+  margin: 12px 0 4px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  opacity: 0.85;
+}
+.soul-card__p {
+  margin: 0 0 4px;
   opacity: 0.9;
+}
+.soul-card__gap {
+  height: 6px;
 }
 .soul-card__empty {
   margin: 10px 0 0;
