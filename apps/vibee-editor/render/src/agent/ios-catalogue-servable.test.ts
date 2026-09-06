@@ -212,3 +212,33 @@ describe('чип показывают только под поле, которо
     expect(экран).toContain('полеДоходит("duration", модель: модельДляСервера)')
   })
 })
+
+describe('в запасном списке липсинка нет того, что не проходит допуск', () => {
+  it('каждое имя из KIE_LIPSYNC сервер обслуживает', () => {
+    /*
+     * Список нужен, чтобы взять запасную модель. Строка, которую допуск
+     * отвергает, оказаться выбранной не может — а читается как «эту модель
+     * мы обслуживаем». Ровно так `veed/fabric-1` попал в витрину веба и
+     * стоил целой вкладки.
+     */
+    const сервер = fs.readFileSync(
+      path.join(__dirname, '..', '..', 'render-server.ts'),
+      'utf8'
+    )
+    const блок = сервер.slice(
+      сервер.indexOf('const KIE_LIPSYNC = ['),
+      сервер.indexOf(']', сервер.indexOf('const KIE_LIPSYNC = ['))
+    )
+    const имена = [...блок.matchAll(/'([^']+)'/g)].map(м => м[1])
+    expect(имена.length).toBeGreaterThan(2)
+    const отвергнутые = имена.filter(id => {
+      try {
+        reviewedKieModel('lipsync', `kie/${id}`)
+        return false
+      } catch {
+        return true
+      }
+    })
+    expect(отвергнутые).toEqual([])
+  })
+})
