@@ -19,7 +19,14 @@ import {
  * in a hurry. These tests make the erosion loud.
  */
 
-const READING = ['tg_dialogs', 'tg_history', 'tg_search', 'tg_contacts']
+const READING = ['tg_dialogs', 'tg_history', 'tg_search', 'tg_contacts',
+  /*
+   * tg_unanswered — читающий: «кто написал, а я не ответил». Долг считается
+   * по последнему слову в диалоге, а не по счётчику непрочитанного:
+   * прочитать и не ответить — тоже долг.
+   */
+  'tg_unanswered',
+]
 const ACTING = ['tg_send', 'tg_forward', 'tg_read']
 
 describe('чужой text помечен как данные', () => {
