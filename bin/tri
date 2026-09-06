@@ -153,6 +153,17 @@ case "${1:-}" in
       | grep -v node_modules | grep -v ".test.ts" \
       | sed 's|apps/vibee-editor/render/||'
     echo
+    echo "— доходит ли X-Forwarded-For до контейнера —"
+    # Единственная проверка, которую нельзя сделать из кода: дюжина запросов с
+    # одного адреса. 429 после десятого -- заголовок доходит, ключ клиента
+    # живой. Сплошные 400 -- заголовка нет, работает только потолок канала.
+    B="https://vibee-render-production.up.railway.app"
+    printf "  "
+    for i in $(seq 1 12); do
+      printf "%s " "$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
+        -X POST "$B/api/auth/refresh" -H 'Content-Type: application/json' -d '{}')"
+    done
+    echo
     echo "— есть ли разделение клиент/канал —"
     if grep -q "ПОТОЛОК_КАНАЛА" apps/vibee-editor/render/src/entry-throttle.ts 2>/dev/null; then
       grep -n "ПОПЫТОК_В_ОКНЕ = \|ПОТОЛОК_КАНАЛА = \|ОКНО_МС = " \
