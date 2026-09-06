@@ -4,7 +4,7 @@ import path from 'path'
 import {
   ГОЛОСА_MINIMAX,
   голосMinimax,
-  скоростьMinimax,
+  скоростьРечи,
   входМиниМакс,
   имяДляElevenLabs,
 } from './minimax-voices'
@@ -43,7 +43,7 @@ describe('голос и скорость доходят до провайдер�
     expect(входМиниМакс('т', { speed: 1.25 })).toEqual({ text: 'т', speed: 1.25 })
     expect(входМиниМакс('т', { speed: 5 })).toEqual({ text: 'т', speed: 2 })
     expect(входМиниМакс('т', { speed: 0.1 })).toEqual({ text: 'т', speed: 0.5 })
-    expect(скоростьMinimax('abc')).toBeUndefined()
+    expect(скоростьРечи('abc')).toBeUndefined()
   })
 
   it('единица не шлётся: это и есть значение провайдера по умолчанию', () => {
@@ -111,5 +111,21 @@ describe('имя голоса уходит тому, кто его узнает'
   it('нога KieAI берёт имя через отбор, а не как есть', () => {
     expect(СЕРВЕР).toContain("имяДляElevenLabs(voice_name) ?? 'Rachel'")
     expect(СЕРВЕР).not.toMatch(/voice:\s*\n\s*typeof voice_name === 'string'/)
+  })
+})
+
+describe('скорость доходит до КАЖДОЙ ноги, а не до одной', () => {
+  it('нога ElevenLabs кладёт скорость в voice_settings', () => {
+    /*
+     * Ползунок терялся на всех трёх ногах. Две починены; эта осталась бы
+     * мёртвой ровно до того дня, когда починят ключ ElevenLabs, — и слайдер
+     * снова перестал бы значить что-либо, без единой правки в коде.
+     */
+    expect(СЕРВЕР).toMatch(/voice_settings: \{[\s\S]{0,200}?speed: скоростьРечи\(speed\)/)
+  })
+
+  it('единица не шлётся ни одной ноге: это и есть значение по умолчанию', () => {
+    // Лишнее поле в теле — лишняя причина для отказа.
+    expect(СЕРВЕР).toMatch(/скоростьРечи\(speed\) !== 1/)
   })
 })
