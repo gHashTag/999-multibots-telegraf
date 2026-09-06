@@ -100,16 +100,59 @@ function настройки(): { url: string; key: string } {
   return { url, key }
 }
 
-/** Запрос к Supabase REST. Отдельной библиотеки не заводим — нужен один GET. */
+/**
+ * Сколько строк отдаёт Supabase за один запрос.
+ *
+ * PostgREST режет выдачу СВОИМ потолком (db-max-rows), и `limit` в адресе
+ * его не отменяет. Поэтому читаем страницами через заголовок Range.
+ */
+const СТРАНИЦА = 1000
+
+/**
+ * ЧИТАЕМ ВСЮ БАЗУ, А НЕ ПЕРВУЮ СТРАНИЦУ.
+ *
+ * Первая версия слала один запрос и считала, что получила всех. Спросил
+ * живой сервис 06.09.2026 — и он ответил:
+ *
+ *     всего_людей: 1000    при 2380 в таблице
+ *     пришли_за_7_дней: 0  свежие просто не попали в срез
+ *
+ * Худшая форма ошибки: ответ выглядит уверенно и неверен. Владелец прочитал
+ * бы «роста нет» и «платящих 5.6%» и принял бы решения по обоим.
+ *
+ * Пагинация идёт до КОРОТКОЙ страницы: ждать пустую — лишний запрос, а
+ * «до потолка попыток» молча обрезало бы базу ровно так же, как PostgREST.
+ */
 async function запрос<T>(путь: string): Promise<T[]> {
   const { url, key } = настройки()
-  const о = await fetch(`${url}/rest/v1/${путь}`, {
-    headers: { apikey: key, Authorization: `Bearer ${key}` },
-  })
-  if (!о.ok) {
-    throw new Error(`Supabase ответил ${о.status}: ${(await о.text()).slice(0, 200)}`)
+  const всё: T[] = []
+  for (let начало = 0; ; начало += СТРАНИЦА) {
+    const о = await fetch(`${url}/rest/v1/${путь}`, {
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        Range: `${начало}-${начало + СТРАНИЦА - 1}`,
+        'Range-Unit': 'items',
+      },
+    })
+    if (!о.ok && о.status !== 206) {
+      throw new Error(
+        `Supabase ответил ${о.status}: ${(await о.text()).slice(0, 200)}`
+      )
+    }
+    const кусок = (await о.json()) as T[]
+    всё.push(...кусок)
+    if (кусок.length < СТРАНИЦА) return всё
+    /*
+     * Предохранитель ГРОМКИЙ: молчаливая остановка вернула бы нас ровно к
+     * той ошибке, которую эта функция и чинит.
+     */
+    if (всё.length > 200_000) {
+      throw new Error(
+        `чтение ${путь} не закончилось на 200000 строк — проверьте Range`
+      )
+    }
   }
-  return (await о.json()) as T[]
 }
 
 interface Человек {
@@ -139,7 +182,7 @@ function днейНазад(дата: string | null): number | null {
  */
 async function платившие(): Promise<Set<string>> {
   const строки = await запрос<{ telegram_id: string | number }>(
-    'payments_v2?select=telegram_id&status=eq.COMPLETED&type=eq.MONEY_INCOME&limit=20000'
+    'payments_v2?select=telegram_id&status=eq.COMPLETED&type=eq.MONEY_INCOME'
   )
   return new Set(строки.map(с => String(с.telegram_id)))
 }
@@ -155,7 +198,7 @@ async function люди(область: string[] | null): Promise<Человек
   const фильтр = область
     ? `&bot_name=in.(${область.map(b => `"${b.replace(/"/g, '')}"`).join(',')})`
     : ''
-  return запрос<Человек>(`users?select=${поля}${фильтр}&limit=20000`)
+  return запрос<Человек>(`users?select=${поля}${фильтр}`)
 }
 
 /** То, что можно показать владельцу: имя, ссылка, давность. Без лишнего. */
