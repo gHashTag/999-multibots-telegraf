@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { fetchMyProfileAtom } from '@/atoms'
 import { useTelegramWebApp } from '@/hooks/useTelegramWebApp'
-import { getWebApp, isTelegram } from '@/lib/telegram'
+import { getWebApp, getInitData, isTelegram } from '@/lib/telegram'
 import { telegramAutoLoginAtom } from '@/atoms/telegramAuth'
+import { exchangeTelegramLaunch } from '@/lib/appSession'
 
 // ===============================
 // Mounts the Telegram runtime wiring. Must render INSIDE <BrowserRouter>
@@ -80,6 +81,29 @@ export function TelegramProvider() {
   // в модалку «Login to Export», у которой внутри Telegram нет ни одной
   // кнопки.
   const fetchMyProfile = useSetAtom(fetchMyProfileAtom)
+
+  /*
+   * ОБМЕН ПОДПИСИ ЗАПУСКА НА СЕССИЮ — ОДИН РАЗ ЗА ЗАПУСК.
+   *
+   * `/api/auth/telegram` не звал никто: маршрут был написан, покрыт тестами,
+   * задеплоен и не имел ни одного посетителя, а весь мини-апп ходил по
+   * заголовку подписи на каждом запросе.
+   *
+   * Ссылка на «уже пробовали» нужна, потому что эффект может пройти повторно
+   * (StrictMode в разработке, перемонтирование), а каждый лишний обмен — это
+   * лишний запрос в базу. Повтор по той же строке сервер и так сводит к одной
+   * семье (app_launch_families), но не просить дважды дешевле, чем сводить.
+   *
+   * Отказ НЕ ЛОМАЕТ НИЧЕГО: не вышло — работаем по подписи, как вчера.
+   */
+  const обменПробовали = useRef(false)
+  useEffect(() => {
+    if (обменПробовали.current) return
+    const initData = getInitData()
+    if (!initData) return
+    обменПробовали.current = true
+    void exchangeTelegramLaunch(initData)
+  }, [])
 
   useEffect(() => {
     const r = autoLogin()
