@@ -23,6 +23,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { пуститьПопытку, источникЗапроса } from './src/entry-throttle'
 import crypto from 'node:crypto'
 import {
   verifyTelegramInitData,
@@ -55,7 +56,20 @@ import {
  * as key material and has no modulo bias.
  */
 function mintPairingCode(): string {
-  return String(crypto.randomInt(0, 1_000_000)).padStart(PAIRING.DIGITS, '0')
+  /*
+   * ДИАПАЗОН ВЫВОДИТСЯ ИЗ ДЛИНЫ, А НЕ ЗАДАН ОТДЕЛЬНО.
+   *
+   * Здесь стояло `randomInt(0, 1_000_000)` с добавлением нулей до
+   * `PAIRING.DIGITS`. Пока цифр было шесть, всё сходилось. Стоило поднять
+   * длину до восьми ради стойкости — и генератор молча продолжил бы выдавать
+   * миллион значений, дополняя их нулями: восемь цифр на экране, энтропия
+   * прежняя. Косметика вместо защиты, и заметить это можно было бы только
+   * посчитав.
+   *
+   * Теперь верхняя граница — производная от длины: разойтись они не могут.
+   */
+  const верх = 10 ** PAIRING.DIGITS
+  return String(crypto.randomInt(0, верх)).padStart(PAIRING.DIGITS, '0')
 }
 
 /**
@@ -560,6 +574,26 @@ export async function handleAuthRoute(
 
   // ─── Pairing: claim (the native app, holding no signature at all) ──────
   if (path === '/api/auth/pair/claim' && req.method === 'POST') {
+    /*
+     * ТОРМОЗ ДО РАЗБОРА ТЕЛА.
+     *
+     * Дверь не требует личности и не может её требовать: у входящего ещё
+     * ничего нет. Единственное, чем можно ограничить перебор шестизначного
+     * кода, — частота обращений с источника.
+     *
+     * Стоит ПЕРВЫМ: считать попытку после разбора тела значит позволить
+     * заваливать сервис телами, которые всё равно будут отвергнуты.
+     */
+    const пуск = пуститьПопытку(источникЗапроса(req))
+    if (!пуск.можно) {
+      res.setHeader('Retry-After', String(пуск.ждатьСекунд))
+      json(res, 429, {
+        error: 'слишком часто — подождите и попробуйте снова',
+        ждать_секунд: пуск.ждатьСекунд,
+      })
+      return true
+    }
+
     let body: Record<string, unknown>
     try {
       body = JSON.parse((await readBody(req)) || '{}')
@@ -571,8 +605,15 @@ export async function handleAuthRoute(
     // Strip what a person types: spaces, and the dash they add themselves
     // when the screen shows the code grouped as 123-456.
     const code = String(body.code ?? '').replace(/[\s-]/g, '')
-    if (!/^\d{6}$/.test(code)) {
-      json(res, 400, { error: 'код должен быть из шести цифр' })
+    /*
+     * Длина проверяется ПО PAIRING.DIGITS, а не числом в регулярке. Иначе
+     * при смене длины кода дверь молча перестала бы принимать собственные
+     * коды — а сообщение продолжало бы называть прежнее число.
+     */
+    if (!new RegExp(`^\\d{${PAIRING.DIGITS}}$`).test(code)) {
+      json(res, 400, {
+        error: `код должен быть из ${PAIRING.DIGITS} цифр`,
+      })
       return true
     }
 

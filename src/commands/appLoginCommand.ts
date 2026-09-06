@@ -57,7 +57,10 @@ appLoginCommand.command('app', async ctx => {
 
   await ctx.reply(
     isRu
-      ? 'Нажмите кнопку — откроется окно с кодом из шести цифр. Введите его в приложении на вкладке «Профиль».\n\nКод живёт несколько минут и работает один раз.'
+      ? // Длина кода намеренно НЕ названа числом: она задана на сервере
+        // (PAIRING.DIGITS) и уже менялась. Текст, повторяющий число
+        // руками, разошёлся бы с настоящим кодом молча.
+        'Нажмите кнопку — откроется окно с кодом. Введите его в приложении на вкладке «Профиль».\n\nКод живёт несколько минут и работает один раз.'
       : 'Press the button — a window opens with a six-digit code. Enter it in the app under “Profile”.\n\nThe code lasts a few minutes and works once.',
     Markup.inlineKeyboard([
       [

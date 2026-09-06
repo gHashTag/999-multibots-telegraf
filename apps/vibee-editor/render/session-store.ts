@@ -154,10 +154,31 @@ export const PAIRING = {
   /** Two minutes: long enough to walk to the other device, short enough that
    *  a shoulder-surfed code is stale before it is useful. */
   TTL_SECONDS: 120,
-  /** Six digits is a million codes. That is only safe because the window is
-   *  two minutes AND because guesses are counted — see `claimPairingCode`. */
-  DIGITS: 6,
-  MAX_ATTEMPTS: 5,
+  /*
+   * ВОСЕМЬ ЦИФР, А НЕ ШЕСТЬ — И ЭТО СЛЕДСТВИЕ, А НЕ ВКУС.
+   *
+   * Здесь стояло шесть, и комментарий рядом честно называл условие
+   * безопасности: «миллион кодов безопасен ПОТОМУ ЧТО окно две минуты И
+   * потому что догадки считаются».
+   *
+   * Второе условие пришлось снять: счёт вёлся запросом без фильтра по
+   * владельцу, то есть каждый промах гасил живые коды ВСЕХ людей платформы, а
+   * маршрут не требует личности и тормоза не имел. Пять запросов в секунду с
+   * любого адреса — и вход по коду не работал ни у кого.
+   *
+   * Сняв условие, надо было вернуть прочность другим способом, а не сделать
+   * вид, что её хватает. Теперь она держится на двух вещах:
+   *
+   *   энтропия  10^8 вместо 10^6 — в сто раз дороже перебор;
+   *   тормоз    десять попыток в минуту с источника (src/entry-throttle.ts).
+   *
+   * Считаем худший случай честно: распределённая атака с тысячи адресов даёт
+   * 20 000 догадок за 120 секунд жизни кода — 0,02% против 10^8. Прежние
+   * шесть цифр дали бы 2% за то же окно, то есть попадание за пару часов.
+   *
+   * Цена — две лишние цифры, которые человек набирает один раз.
+   */
+  DIGITS: 8,
 } as const
 
 /**
@@ -228,23 +249,33 @@ export async function claimPairingCode(
   )
 
   if (!hit.rows.length) {
-    // Charge the miss to every live code. Nothing to charge means nothing
-    // was outstanding, and the guess was pure noise.
-    await pool.query(
-      `UPDATE app_pairing_codes SET attempts = attempts + 1
-        WHERE consumed_at IS NULL AND expires_at > now()`
-    )
-    await pool.query(
-      `UPDATE app_pairing_codes SET consumed_at = now()
-        WHERE consumed_at IS NULL AND attempts >= $1`,
-      [PAIRING.MAX_ATTEMPTS]
-    )
+    /*
+     * ПРОМАХ БОЛЬШЕ НЕ ГАСИТ ЧУЖИЕ КОДЫ.
+     *
+     * Здесь стояло начисление попытки ВСЕМ живым кодам:
+     *
+     *     UPDATE app_pairing_codes SET attempts = attempts + 1
+     *      WHERE consumed_at IS NULL AND expires_at > now()
+     *
+     * без единого фильтра по владельцу. Замысел был против перебора, и
+     * комментарий описывал последствие как «жжёт коды жертвы — заметно и
+     * неприятно». Жертва тут не одна: маршрут не требует личности (и не
+     * может), тормоза по частоте не было, значит пять запросов в секунду с
+     * любого адреса гасили живые коды ВСЕХ людей платформы — вход по коду
+     * переставал работать у всех и навсегда, ценой копеек.
+     *
+     * Перебор теперь ограничен иначе — тормозом по источнику на самом
+     * маршруте (src/entry-throttle.ts). Код живёт 120 секунд, пространство
+     * миллион, десять попыток в минуту: двадцать догадок за жизнь кода, то
+     * есть один шанс на пятьдесят тысяч, и он не накапливается.
+     *
+     * Промах теперь не трогает ничего. Отказ в обслуживании исчез вместе с
+     * начислением.
+     */
     return { ok: false, reason: 'unknown' }
   }
 
   const row = hit.rows[0]
-  if (row.attempts >= PAIRING.MAX_ATTEMPTS)
-    return { ok: false, reason: 'exhausted' }
 
   const consumed = await pool.query(
     `UPDATE app_pairing_codes SET consumed_at = now()

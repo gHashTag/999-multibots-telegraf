@@ -32,6 +32,10 @@ tri — оболочка Trinity S³AI
   tri all        ВЕСЬ серверный набор (Node 20) — свои файлы зелёные ≠ зелёный проект
   tri deps       вылечить node_modules: npm ci, а не install
   tri ios        собрать приложение И УБРАТЬ за собой — иначе диск кончится
+  tri blind <файл> <было> <стало> <тест>
+                 сломать код и посмотреть, покраснеет ли тест
+                 (тест, который не может упасть, — не защита, а её изображение)
+  tri entry      двери входа: чем отвечают на мусор, есть ли тормоз
 U
 }
 
@@ -61,6 +65,36 @@ fresh() {
     || echo "! незакоммиченных файлов: $dirty (git status)"
 }
 
+
+# МУТАЦИЯ КАК ЕДИНСТВЕННОЕ ДОКАЗАТЕЛЬСТВО.
+#
+# За смену 07.09.2026 нашлось семнадцать тестов, которые не могли упасть, —
+# две из них написал я сам в тот же день. Проверка «сломай и посмотри» занимает
+# минуту и ловит то, чего не видно чтением.
+#
+# Замена ОБЯЗАНА примениться: молчаливый промах выглядит как «тест поймал»,
+# поэтому при ненайденном образце команда отказывается работать.
+# ИМЕНА ПЕРЕМЕННЫХ ЗДЕСЬ ЛАТИНСКИЕ, И ЭТО НЕ ВКУСОВЩИНА.
+# bash разбирает `К=401` как команду, а не как присваивание: скрипт с
+# кириллическими идентификаторами падает строкой «command not found» на пустом
+# месте. В комментариях кириллица уместна, в идентификаторах — нет.
+mutate() {
+  f="$1"; old="$2"; new="$3"; t="$4"
+  [ -f "$f" ] || { echo "нет файла: $f"; return 1; }
+  cp "$f" /tmp/tri-blind.bak
+  BLIND_FILE="$f" BLIND_OLD="$old" BLIND_NEW="$new" python3 -c 'import io,os,sys
+p=os.environ["BLIND_FILE"]; было=os.environ["BLIND_OLD"]; стало=os.environ["BLIND_NEW"]
+s=io.open(p,encoding="utf-8").read()
+if было not in s:
+    print("МУТАЦИЯ НЕ ПРИМЕНЕНА: искомого текста нет в файле"); sys.exit(1)
+io.open(p,"w",encoding="utf-8").write(s.replace(было,стало,1))' || { cp /tmp/tri-blind.bak "$f"; return 1; }
+  echo "— мутация применена, гоняю тест —"
+  ( cd "$(dirname "$t")" 2>/dev/null || cd .
+    PATH="$HOME/.nvm/versions/node/v20.19.0/bin:$PATH" npx vitest run "$(basename "$t")" 2>&1 | grep -E "Tests +[0-9]" | tail -1 )
+  cp /tmp/tri-blind.bak "$f"
+  echo "— файл восстановлен —"
+}
+
 case "${1:-}" in
   fresh)    fresh ;;
   disk)     bash "$LOOP/check-free-disk.sh" && bash "$LOOP/free-disk.sh" ;;
@@ -74,6 +108,32 @@ case "${1:-}" in
     if [ -z "$KEY" ]; then echo "нет RENDER_API_KEY в окружении сервиса"; exit 1; fi
     curl -s -m 30 "https://vibee-render-production.up.railway.app/api/feed?limit=100" \
       -H "X-Api-Key: $KEY" | python3 "$ROOT/bin/helpers/feed.py" ;;
+  blind)
+    shift
+    [ $# -eq 4 ] || { echo "tri blind <файл> <было> <стало> <тест>"; exit 1; }
+    mutate "$1" "$2" "$3" "$4"
+    ;;
+
+  entry)
+    # ДВЕРИ ВХОДА. Пять маршрутов, каждый обязан отказывать мусору внятно, а
+    # pair/claim — ещё и тормозить: он не требует личности и не может.
+    B="https://vibee-render-production.up.railway.app"
+    echo "— чем отвечают на мусор —"
+    for P in /api/auth/telegram /api/auth/widget /api/auth/refresh /api/auth/pair/claim; do
+      code=$(curl -s -o /tmp/tri-entry -w "%{http_code}" --max-time 25 -X POST "$B$P" -H "Content-Type: application/json" -d "{}")
+      printf "%-26s %s  %s\n" "$P" "$code" "$(head -c 90 /tmp/tri-entry)"
+    done
+    echo
+    echo "— тормоз на подборе кода —"
+    if grep -q "пуститьПопытку" apps/vibee-editor/render/session-routes.ts; then
+      echo "  есть (src/entry-throttle.ts)"
+    else
+      echo "  НЕТ — перебор ничем не ограничен"
+    fi
+    echo "— длина кода —"
+    grep -n "DIGITS:" apps/vibee-editor/render/session-store.ts | head -1
+    ;;
+
   feed-hide)
     # СКРЫТЬ ВСЁ, КРОМЕ ОДНОГО. Скрытие обратимо: маршрут ставит `deleted_at`,
     # а повторная публикация того же имени его снимает. Удаления здесь нет и
