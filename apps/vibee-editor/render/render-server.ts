@@ -1,6 +1,7 @@
 // ETIMEDOUT AggregateError на fetch к api.replicate.com (витки №121/173):
 // undici первым пробует IPv6, в этой сети он чёрной дырой — таймаут.
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
+import { удалитьСвоёФото } from './src/assets/delete-own-photo'
 import { KIE_MODELS } from './src/agent/kie-models'
 import { РАЗРЕШЕНИЕ_ЛИПСИНКА, поляМоделей } from './src/agent/kie-web-provider'
 // Голоса и вход того провайдера, который реально отдаёт mp3. См. модуль:
@@ -8781,14 +8782,22 @@ const server = createServer(async (req, res) => {
     }
     try {
       const pool = await getPool()
+      /*
+       * Само условие вынесено в `src/assets/delete-own-photo.ts`.
+       *
+       * Не ради красоты: вся защита от «удалить чужое» — это `AND telegram_id
+       * = $2` в запросе, а исполнить её было нечем. `render-server.ts` не
+       * импортирует ни один тест (импорт поднимает сервер), поэтому здесь
+       * стоял только ТЕКСТОВЫЙ сторож на порядок проверок, честно писавший о
+       * себе, что верность самой проверки он не смотрит.
+       *
+       * Теперь условие живёт там, где его можно запустить и сломать в тесте,
+       * а здесь остаётся HTTP.
+       */
       // rowCount 0 = не нашлось СВОЕЙ avatar_photo с таким id; сообщаем
       // именно это, а не «удалено», иначе клиент поверит в успех.
-      const r = await pool.query(
-        `DELETE FROM assets
-          WHERE id = $1 AND telegram_id = $2 AND type = 'avatar_photo'`,
-        [rawId, String(who)]
-      )
-      if ((r.rowCount ?? 0) === 0) {
+      const итог = await удалитьСвоёФото(pool, { кто: String(who), id: rawId })
+      if (итог === 'не найдено') {
         res.writeHead(404, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
