@@ -542,7 +542,7 @@ test.describe('Generate Page — Lipsync Tab', () => {
 
   test('should render lipsync form elements', async ({ page }) => {
     await expect(
-      page.locator('.model-btn', { hasText: 'Kie · Fabric' })
+      page.locator('.model-btn', { hasText: 'Kie · InfiniTalk' })
     ).toBeVisible()
     await expect(page.locator('.audio-source-btn')).toHaveCount(3)
     await expect(page.locator('.form-chip', { hasText: '480p' })).toBeVisible()

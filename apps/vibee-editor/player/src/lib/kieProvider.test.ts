@@ -13,8 +13,12 @@ describe('Kie web provider catalogue', () => {
     expect(KIE_WEB_MODELS.audio.map(model => model.id)).toContain(
       'kie/elevenlabs/text-to-speech-multilingual-v2'
     )
+    // Была `kie/veed/fabric-1` — модель, которую сервер НЕ ДОПУСКАЕТ: у неё
+    // нет себестоимости в прайсе KieAI, а допуск отсеивает такие целиком.
+    // Липсинк из веба поэтому не работал ни разу: списание проходило, следом
+    // летело «Kie.ai model is not enabled for lipsync», возврат и 500.
     expect(KIE_WEB_MODELS.lipsync.map(model => model.id)).toContain(
-      'kie/veed/fabric-1'
+      'kie/infinitalk/from-audio'
     )
   })
 
