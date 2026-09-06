@@ -124,14 +124,42 @@ case "${1:-}" in
       printf "%-26s %s  %s\n" "$P" "$code" "$(head -c 90 /tmp/tri-entry)"
     done
     echo
-    echo "— тормоз на подборе кода —"
-    if grep -q "пуститьПопытку" apps/vibee-editor/render/session-routes.ts; then
-      echo "  есть (src/entry-throttle.ts)"
-    else
-      echo "  НЕТ — перебор ничем не ограничен"
-    fi
+    echo "— тормоз на дверях —"
+    for P in pair/claim auth/refresh auth/widget auth/telegram; do
+      if grep -q "пуститьВход" apps/vibee-editor/render/session-routes.ts; then
+        echo "  $P: тормоз есть"
+      else
+        echo "  $P: НЕТ — поток ничем не ограничен"
+      fi
+    done
     echo "— длина кода —"
     grep -n "DIGITS:" apps/vibee-editor/render/session-store.ts | head -1
+    ;;
+
+  throttle)
+    # ЗА ЧЕЙ АДРЕС СЧИТАЕМ. Урок 07.09.2026, ошибка моя же.
+    #
+    # Railway обрывает TLS у себя и идёт в контейнер сам, поэтому
+    # `remoteAddress` -- адрес ПРОКСИ, один на всех. Лимит, ключом которого
+    # служит только он, считает всю платформу за одного человека: десять
+    # попыток в минуту -- и вход закрыт всем сразу. Это не защита, это авария,
+    # и выглядит она в точности как атака, которую защита должна была отбить.
+    #
+    # Правильная форма -- два ключа: узкий лимит на клиента (левый
+    # X-Forwarded-For, подделываемый) и широкий потолок на соединение
+    # (неподделываемый). Команда показывает, какая форма в коде сейчас.
+    echo "— ключи лимитов —"
+    grep -rn "remoteAddress" apps/vibee-editor/render --include="*.ts" \
+      | grep -v node_modules | grep -v ".test.ts" \
+      | sed 's|apps/vibee-editor/render/||'
+    echo
+    echo "— есть ли разделение клиент/канал —"
+    if grep -q "ПОТОЛОК_КАНАЛА" apps/vibee-editor/render/src/entry-throttle.ts 2>/dev/null; then
+      grep -n "ПОПЫТОК_В_ОКНЕ = \|ПОТОЛОК_КАНАЛА = \|ОКНО_МС = " \
+        apps/vibee-editor/render/src/entry-throttle.ts
+    else
+      echo "  НЕТ потолка канала: лимит считает всех за прокси как одного"
+    fi
     ;;
 
   feed-hide)
