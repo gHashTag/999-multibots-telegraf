@@ -11,6 +11,26 @@ import { initSentry } from './lib/sentry'
 // Initialize Sentry error tracking
 initSentry()
 
+/*
+ * ПОДСТАВНОЙ TELEGRAM — ДО МОНТИРОВАНИЯ, иначе поздно: `TelegramProvider`
+ * смотрит на `window.Telegram` при монтировании.
+ *
+ * ИМПОРТ ДИНАМИЧЕСКИЙ И ВНУТРИ `DEV`, И ЭТО НЕ СТИЛЬ.
+ *
+ * Сначала здесь стоял обычный статический импорт, а защитой служило
+ * `import.meta.env.DEV` ВНУТРИ модуля. Проверка `telegram-dev-mock.test.ts`
+ * собрала продакшен-бандл и нашла в нём подставку: мёртвую ветку минификатор
+ * убрал, а модуль остался в графе вместе со строками. Защита, которую никто
+ * не собрал и не поискал, — это надежда.
+ *
+ * Динамический импорт под статически ложным условием Rollup выбрасывает
+ * вместе со всем модулем: в продакшен-бандле от него не остаётся ни байта.
+ */
+if (import.meta.env.DEV) {
+  const модуль = await import('./lib/telegramDevMock')
+  модуль.включитьПодставнойTelegram()
+}
+
 // ===============================
 // Storage Version — force reset when defaults change
 // Bump this value whenever production defaults are updated
