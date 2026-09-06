@@ -17,7 +17,7 @@
  * переменной и командой, которой её взять.
  */
 
-export type ProviderId = 'zai' | 'zai-lite' | 'openai'
+export type ProviderId = 'zai' | 'zai-lite' | 'nemotron' | 'openai'
 
 export interface Provider {
   id: ProviderId
@@ -64,6 +64,26 @@ const CATALOG: Record<
     model: 'glm-4.5',
     thinking: false,
   },
+  /**
+   * NVIDIA NIM — запасной, когда z.ai упирается в лимит.
+   *
+   * Заведён 06.09.2026 по живому отказу: владелец написал боту вопрос и не
+   * получил ответа, потому что не отозвался НИ ОДИН провайдер — у zai и
+   * zai-lite «превышен лимит запросов», у openai «ключ недействителен». Два
+   * запасных пути, ведущих в один и тот же z.ai, запасными не были.
+   *
+   * ИМЯ МОДЕЛИ ВЫЯСНЕНО У САМОГО NVIDIA, а не выбрано по названию: из восьми
+   * моделей с «nemotron» в имени этому аккаунту доступна ровно одна.
+   * llama-3.1-nemotron 51b/70b/ultra отвечают 404 «Not found for account».
+   * Проверено и главное: она умеет вызывать ИНСТРУМЕНТЫ — без этого агент
+   * превращается в собеседника, который ничего не может сделать.
+   */
+  nemotron: {
+    base: process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1',
+    env: 'NVIDIA_API_KEY',
+    model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
+    thinking: false,
+  },
   openai: {
     base: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
     env: 'OPENAI_API_KEY',
@@ -93,7 +113,9 @@ export function allProviders(): Provider[] {
    * положат рабочий ключ, путь сработает. Но полагаться на него нельзя —
    * сейчас он отвечает 401, а раньше был единственным запасным вариантом.
    */
-  const DEFAULT_ORDER: ProviderId[] = ['zai', 'zai-lite', 'openai']
+  // Nemotron ПЕРЕД openai: у openai ключ недействителен (замер 06.09.2026),
+  // и держать его выше живого провайдера значит тратить виток на отказ.
+  const DEFAULT_ORDER: ProviderId[] = ['zai', 'zai-lite', 'nemotron', 'openai']
   const order: ProviderId[] = DEFAULT_ORDER.includes(wanted)
     ? [wanted, ...DEFAULT_ORDER.filter(id => id !== wanted)]
     : DEFAULT_ORDER
