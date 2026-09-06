@@ -159,6 +159,38 @@ enum API {
       : base.appendingPathComponent(ссылка).absoluteString
   }
 
+  /**
+   * ГОЛОСА — С СЕРВЕРА, А НЕ СПИСКОМ В КОДЕ.
+   *
+   * В приложении стояли три имени: «Sarah», «Rachel», «Josh». Они уходили как
+   * `voice_id` в нижнем регистре и не были идентификаторами голоса НИГДЕ —
+   * ни у ElevenLabs, ни у MiniMax. Провайдер, который реально читает текст,
+   * получал неизвестную строку, отбрасывал её и говорил голосом по умолчанию:
+   * три попытки разными голосами стоили трижды и давали один файл.
+   *
+   * Маршрут `/api/voices` называет и голоса, и того, чьи они (`provider`) —
+   * он же падает с ElevenLabs на MiniMax тем же порядком, что и озвучка.
+   * Спрашивать его — единственный способ не завести четвёртый список.
+   */
+  struct Голос: Decodable, Hashable {
+    let id: String
+    let name: String
+    let category: String?
+  }
+
+  private struct ОтветГолосов: Decodable {
+    let voices: [Голос]?
+    let provider: String?
+  }
+
+  /// Голоса того провайдера, который будет читать. Пустой список — не отказ:
+  /// экран оставит запасные, лишь бы не показать пустую строку выбора.
+  static func голоса() async throws -> [Голос] {
+    let (d, _) = try await URLSession.shared.data(
+      from: base.appendingPathComponent("api/voices"))
+    return (try? JSONDecoder().decode(ОтветГолосов.self, from: d))?.voices ?? []
+  }
+
   struct Баланс: Decodable {
     let balance: Int
     let prices: [String: Int]

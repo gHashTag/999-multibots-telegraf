@@ -2,6 +2,9 @@
 // undici первым пробует IPv6, в этой сети он чёрной дырой — таймаут.
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
 import { KIE_MODELS } from './src/agent/kie-models'
+// Голоса и вход того провайдера, который реально отдаёт mp3. См. модуль:
+// экран показывал чужие голоса, а выбор до провайдера не доходил.
+import { ГОЛОСА_MINIMAX, входМиниМакс } from './src/agent/minimax-voices'
 import * as dns from 'node:dns'
 import {
   запустить as startKieJob, // cyrillic-ok
@@ -2944,7 +2947,19 @@ const server = createServer(async (req, res) => {
    * URL; the caller downloads it and puts it in S3 like the ElevenLabs path, so
    * the link does not expire.
    */
-  async function generateAudioViaReplicate(text: string): Promise<string> {
+  async function generateAudioViaReplicate(
+    text: string,
+    /**
+     * ВЫБОР ЧЕЛОВЕКА ДОХОДИТ ДО ТОГО, КТО ОЗВУЧИВАЕТ.
+     *
+     * Функция принимала ОДИН текст, а голос и скорость с экрана оставались в
+     * теле запроса к маршруту и дальше не шли. Эта нога — та, что реально
+     * отдаёт mp3 (ElevenLabs недоступен: ключ в переменной хранит не ключ, а
+     * его идентификатор), поэтому выбор голоса не значил ничего: три попытки
+     * разными голосами стоили трижды и давали один и тот же файл.
+     */
+    выбор: { voice?: unknown; speed?: unknown } = {}
+  ): Promise<string> {
     const REPLICATE_TOKEN =
       process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
     if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
@@ -2956,7 +2971,7 @@ const server = createServer(async (req, res) => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${REPLICATE_TOKEN}`,
         },
-        body: JSON.stringify({ input: { text } }),
+        body: JSON.stringify({ input: входМиниМакс(text, выбор) }),
       }
     )
     if (!response.ok) {
@@ -4124,7 +4139,12 @@ const server = createServer(async (req, res) => {
           console.warn(
             `🎤 [Generate] ElevenLabs unavailable (${String(elevenErr).slice(0, 120)}), switching to Replicate TTS`
           )
-          const audioUrl = await generateAudioViaReplicate(text)
+          const audioUrl = await generateAudioViaReplicate(text, {
+            // `voice_id` — то, что прислал клиент; чужой идентификатор
+            // `входМиниМакс` отбросит сам, а не отправит провайдеру.
+            voice: voice_id,
+            speed,
+          })
           const dl = await fetch(audioUrl)
           if (!dl.ok) {
             throw new Error(`Replicate audio download failed: ${dl.status}`)
@@ -4262,9 +4282,51 @@ const server = createServer(async (req, res) => {
       }))
 
       res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ success: true, voices: simplifiedVoices }))
+      res.end(
+        JSON.stringify({
+          success: true,
+          voices: simplifiedVoices,
+          provider: 'elevenlabs',
+        })
+      )
     } catch (error) {
       console.error('❌ [Voices] Error:', error)
+      /**
+       * ОТКАЗ ElevenLabs НЕ ОСТАВЛЯЕТ ЭКРАН БЕЗ ГОЛОСОВ — потому что звук всё
+       * равно будет сделан, только другим провайдером.
+       *
+       * Здесь стоял 500, и это был не сбой, а ПОСТОЯННОЕ состояние: замер на
+       * боевом сервере даёт «ELEVENLABS_API_KEY хранит НЕ КЛЮЧ, а его
+       * идентификатор». Веб на отказе подставлял три запасных имени — `sarah`,
+       * `rachel`, `josh`, — которые не являются идентификаторами голоса нигде.
+       * Человек выбирал из трёх выдуманных и получал голос MiniMax по
+       * умолчанию.
+       *
+       * Отдаём голоса ТОЙ ноги, которая доедет: маршрут озвучки падает с
+       * ElevenLabs на Replicate minimax, и её голоса провайдер понимает
+       * дословно. Порядок здесь тот же, что в маршруте, — одна правда о том,
+       * кто озвучивает.
+       *
+       * Починят ключ — первая ветка снова ответит своими голосами, и этот код
+       * менять не придётся.
+       */
+      if (ГОЛОСА_MINIMAX.length > 0) {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            success: true,
+            voices: ГОЛОСА_MINIMAX,
+            provider: 'replicate/minimax-speech-02-turbo',
+            // Причина не прячется: без неё «почему голоса другие» станет
+            // загадкой на месяц, как уже было с «почему всегда Replicate».
+            note:
+              error instanceof Error
+                ? `ElevenLabs недоступен: ${error.message.slice(0, 200)}`
+                : 'ElevenLabs недоступен',
+          })
+        )
+        return
+      }
       res.writeHead(500, { 'Content-Type': 'application/json' })
       res.end(
         JSON.stringify({

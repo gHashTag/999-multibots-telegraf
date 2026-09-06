@@ -15,11 +15,24 @@ export interface Voice {
   preview_url?: string;
 }
 
-// Fallback voices in case API fails
+/**
+ * Запасной список — ТОЛЬКО НАСТОЯЩИЕ идентификаторы голосов.
+ *
+ * Здесь стояли `sarah`, `rachel`, `josh` — имена, которых нет ни у одного
+ * провайдера. И это был не редкий случай: `/api/voices` отвечал 500 ПОСТОЯННО
+ * (ключ ElevenLabs в переменной хранит идентификатор, а не ключ), то есть
+ * человек всегда выбирал из трёх выдуманных, платил и получал голос MiniMax
+ * по умолчанию.
+ *
+ * Теперь сервер на отказе ElevenLabs отдаёт голоса той ноги, которая
+ * действительно читает, — эти строки нужны только до первого ответа и при
+ * обрыве сети. Они уходят провайдеру дословно, поэтому взяты из его же
+ * списка (replicate.com/minimax/speech-02-turbo/readme, 06.09.2026).
+ */
 const FALLBACK_VOICES: Voice[] = [
-  { id: 'sarah', name: 'Sarah', category: 'premade' },
-  { id: 'rachel', name: 'Rachel', category: 'premade' },
-  { id: 'josh', name: 'Josh', category: 'premade' },
+  { id: 'Russian_ReliableMan', name: 'Максим — уверенный', category: 'ru' },
+  { id: 'Russian_BrightHeroine', name: 'Алиса — звонкая', category: 'ru' },
+  { id: 'English_Wiselady', name: 'Wise Lady', category: 'en' },
 ];
 
 // Voices cached in localStorage (refreshed on fetch)
