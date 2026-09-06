@@ -37,6 +37,76 @@ const RECOGNIZED_GATES = [
   /\bres\s*\.\s*status\s*\(\s*403\s*\)/,
 ]
 
+/**
+ * ВЫЗВАТЬ ПРОВЕРКУ — НЕ ЗНАЧИТ ЕЙ ПОДЧИНИТЬСЯ.
+ *
+ * Сетка искала только ВЫЗОВ примитива и считала обработчик защищённым. Аудит
+ * 06.09.2026 показал, чем это кончается: в robokassa.routes.ts можно удалить
+ *
+ *     if (!isValidSignature) { return res.status(400).send('Invalid signature') }
+ *
+ * оставив сам вызов `validateRobokassaSignature(...)` — и ВЕСЬ набор тестов
+ * бота остаётся зелёным. А это значит, что любой мог бы отправить
+ * OutSum/InvId/произвольную подпись на публичный ResultURL и закрыть платёж с
+ * зачислением.
+ *
+ * Поэтому проверяется не только вызов, но и ОТКАЗ: между гвардом и
+ * зачислением обязан стоять ранний выход — return со статусом ошибки, throw
+ * или res.status(4xx). Гвард, чей результат никуда не ведёт, — это
+ * комментарий с побочным эффектом.
+ */
+const ОТКАЗ = /return\s+res\s*\.\s*status\s*\(\s*4\d\d\s*\)|throw\s+new\s+\w*Error/
+
+/**
+ * СВЯЗЬ, А НЕ СОСЕДСТВО.
+ *
+ * Первая попытка искала «есть ли где-то до зачисления ранний выход» — и была
+ * бесполезна: в этом обработчике восемь `return res.status(4xx)` по совсем
+ * другим поводам (нет тела, нет параметров, платёж не найден). Мутация,
+ * удаляющая отказ ИМЕННО по подписи, оставалась зелёной.
+ *
+ * Проверяем то, что нужно на самом деле: результат гварда присвоен
+ * переменной, эта переменная проверена отрицанием, и отказ стоит внутри
+ * проверки. Гвард, чей ответ никуда не ведёт, — комментарий с побочным
+ * эффектом.
+ */
+function отказПоРезультатуГварда(текст: string): boolean {
+  // Прямой отказ статусом — сам по себе гвард, переменной не требует.
+  if (/res\s*\.\s*status\s*\(\s*(?:501|403)\s*\)/.test(текст)) return true
+
+  /*
+   * ВСТРОЕННАЯ ФОРМА: `if (!гвард(...)) <отказ>` — без переменной.
+   * Встречается там, где результат нигде больше не нужен.
+   */
+  for (const гвард of RECOGNIZED_GATES) {
+    const встроенный = new RegExp(
+      `if\\s*\\(\\s*!\\s*${гвард.source.replace('\\b', '').replace('\\s*\\(', '')}\\s*\\(`
+    )
+    if (встроенный.test(текст)) {
+      const после = текст.slice(текст.search(встроенный))
+      if (ОТКАЗ.test(после.slice(0, 400))) return true
+    }
+  }
+
+  /*
+   * Ищем построчно: `const X = ...<гвард>(...)`, затем `if (!X)` с отказом
+   * внутри. Построчно, а не одним выражением, потому что склейка регулярных
+   * выражений из чужих источников ломается молча — на этом уже споткнулась
+   * первая версия проверки.
+   */
+  for (const строка of текст.split('\n')) {
+    if (!RECOGNIZED_GATES.some(re => re.test(строка))) continue
+    const m = /(?:const|let|var)\s+(\w+)/.exec(строка)
+    if (!m) continue
+    const имя = m[1]
+    const проверка = new RegExp(
+      `if\\s*\\(\\s*!\\s*${имя}\\s*\\)[\\s\\S]{0,400}?(?:${ОТКАЗ.source})`
+    )
+    if (проверка.test(текст)) return true
+  }
+  return false
+}
+
 interface CreditSite {
   file: string
   line: number
@@ -89,7 +159,11 @@ function analyzeSource(fileLabel: string, source: string): CreditSite[] {
       if (fn) {
         // Text of the enclosing handler up to (but not including) the credit.
         const before = source.slice(fn.getStart(sf), creditPos)
-        gated = RECOGNIZED_GATES.some(re => re.test(before))
+        // Оба условия обязательны: примитив вызван И его отказ приводит к
+        // раннему выходу до зачисления.
+        gated =
+          RECOGNIZED_GATES.some(re => re.test(before)) &&
+          отказПоРезультатуГварда(before)
       }
       sites.push({
         file: fileLabel,
@@ -133,8 +207,27 @@ describe('credit-webhook routes are authenticated before crediting', () => {
         res.status(200).end()
       }
     `
+    /*
+     * ТРЕТИЙ ОБРАЗЕЦ — РАДИ КОТОРОГО ВСЁ И ПЕРЕПИСАНО.
+     *
+     * Гвард ВЫЗВАН, а результат никуда не ведёт. Прежняя сетка считала это
+     * защищённым, и потому удаление отказа по подписи в robokassa.routes.ts
+     * оставляло весь набор тестов бота зелёным — при том что любой мог бы
+     * закрыть платёж с зачислением, отправив произвольную подпись.
+     */
+    const вызванНоНеУслышан = `
+      export async function h(req, res) {
+        const ok = validateRobokassaSignature(a, b, c, d)
+        await updateUserBalance(req.body.id, req.body.stars, PaymentType.MONEY_INCOME)
+        res.status(200).end()
+      }
+    `
     expect(analyzeSource('g.ts', gated).map(s => s.gated)).toEqual([true])
     expect(analyzeSource('u.ts', ungated).map(s => s.gated)).toEqual([false])
+    expect(
+      analyzeSource('i.ts', вызванНоНеУслышан).map(s => s.gated),
+      'гвард вызван, но его отказ никуда не ведёт — это не защита'
+    ).toEqual([false])
   })
 
   it('matcher is not stale: finds every credit site (>= 3)', () => {
