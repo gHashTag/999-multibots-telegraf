@@ -963,6 +963,37 @@ If not, continue on your own and click the "I myself" button`
       }, 'create_voice_avatar')
     )
 
+    /*
+     * A RETRY BUTTON DRAWN BY A SHARED SERVICE.
+     *
+     * generateAdvancedFluxKontext (services/generateFluxKontext.ts:608) sends
+     * an error keyboard with "🔄 Try Again" -> flux_kontext_retry at :1116,
+     * through ctx.telegram.sendMessage, so it arrives whatever the scene state
+     * is. Its only handler is fluxKontextScene.action(...) -- and that scene is
+     * not in the Stage at all: `fluxKontextScene` appears nowhere in
+     * scenesToRegister, and checkBalanceScene reroutes the FluxKontext mode to
+     * ai_photoshop_scene as legacy.
+     *
+     * So the button never retried on ANY of the four call paths. Three of them
+     * are inside aiPhotoshopScene, where the person then receives a SECOND
+     * error bubble carrying a visually identical retry that does work -- two
+     * identical buttons, one live, no way to tell them apart.
+     *
+     * Bot level is the only place a service-sent message's press always lands.
+     * ai_photoshop_scene is the live successor named by checkBalanceScene and
+     * the scene three of the four callers are already in.
+     */
+    bot.action(
+      'flux_kontext_retry',
+      withErrorHandling(async ctx => {
+        await ctx.answerCbQuery()
+        await ctx.scene.leave().catch(() => {
+          // Outside a scene is the normal case for a service-sent message.
+        })
+        await ctx.scene.enter('ai_photoshop_scene')
+      }, 'flux_kontext_retry')
+    )
+
     bot.action(
       /^lip_sync_model_(.+)$/,
       withErrorHandling(async ctx => {

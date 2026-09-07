@@ -114,6 +114,7 @@ describe('the buttons repaired here land somewhere', () => {
   }
 
   const REPAIRED = [
+    'flux_kontext_retry',
     'ai_photoshop_multi_choose_model',
     'loading_indicator',
     'loading_processing_indicator',
@@ -132,6 +133,31 @@ describe('the buttons repaired here land somewhere', () => {
     const { orphans } = census()
     const still = REPAIRED.filter(id => orphans.includes(id))
     expect(still, `still without a catcher: ${still.join(', ')}`).toEqual([])
+  })
+
+  /**
+   * Two repairs from the adjudication pass, asserted through the census rather
+   * than by restating their arguments.
+   *
+   * `another_cover` is the repeat-purchase button: aiCoverWizard drew it after
+   * a paid cover and returned ctx.scene.leave() seventeen lines later, so its
+   * own handler could never fire. The success path now stays in the scene.
+   *
+   * `flux_kontext_retry` is drawn by a shared service and was caught only by a
+   * scene that is not in the Stage at all -- dead on every one of its four
+   * call paths. It has a bot-level handler now.
+   */
+  it('no longer offers a button and then abandons it', () => {
+    const out = execFileSync('node', [SCRIPT, '--json'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+    })
+    const { abandoned, crossFile } = JSON.parse(out) as {
+      abandoned: Array<{ id: string }>
+      crossFile: string[]
+    }
+    expect(abandoned.map(a => a.id)).not.toContain('another_cover')
+    expect(crossFile).not.toContain('flux_kontext_retry')
   })
 
   it('does not let the remaining debt grow', () => {
@@ -170,24 +196,54 @@ describe('the census sees a keyboard drawn just before the scene leaves', () => 
     }
   }
 
-  it('finds the calibration instance', () => {
-    const { abandoned } = census()
-    const cover = abandoned.find(a => a.id === 'another_cover')
-    expect(
-      cover,
-      'another_cover is the known instance; not finding it means the check is blind'
-    ).toBeTruthy()
-    expect(cover!.file).toContain('aiCoverWizard')
-    expect(cover!.leaveAt).toBeGreaterThan(cover!.line)
-  })
-
   /**
-   * A detector that flags everything is not a detector. The first negative
-   * control chosen for this check was `configure_fix_types`, picked as an
-   * obvious staying menu -- and it turned out to have a leave eighteen lines
-   * under its render. So what is asserted is discrimination, not a guess about
-   * one site.
+   * The calibration lives in the script's own FIXTURE, not in the repository.
+   *
+   * Its first version asserted a live defect -- aiCoverWizard's repeat-purchase
+   * button, drawn at index.ts:395 with a leave seventeen lines under it. That
+   * was repaired, and the calibration went with it: a check anchored to a
+   * defect stops working exactly when the work succeeds.
+   *
+   * So what is asserted here is that the fixture check can FAIL, in each of the
+   * three ways it has been wrong: missing a same-path leave, counting one
+   * behind a `catch`, and counting one quoted inside a comment.
    */
+  const breakLeaveFinder: Array<[string, string, string]> = [
+    [
+      'blind to a same-path leave',
+      'if (/ctx\\.scene\\.leave\\(\\)/.test(masked[k])) return k + 1',
+      'if (false) return k + 1',
+    ],
+    [
+      'deaf to a catch boundary',
+      'if (/^\\s*\\}?\\s*catch\\s*\\(/.test(masked[k])) return 0',
+      'if (false) return 0',
+    ],
+    [
+      'counting a quoted leave',
+      'const masked = maskComments(lines.join',
+      'const masked = (lines.join',
+    ],
+  ]
+
+  for (const [name, from, to] of breakLeaveFinder) {
+    it(`exits 2 when the leave-finder goes ${name}`, () => {
+      const source = fs.readFileSync(SCRIPT, 'utf8')
+      expect(source.includes(from), `anchor for "${name}" not found`).toBe(true)
+      const broken = source.replace(from, to)
+      expect(broken).not.toBe(source)
+      const tmp = path.join(
+        os.tmpdir(),
+        `census-leave-${name.replace(/\W/g, '')}.cjs`
+      )
+      fs.writeFileSync(tmp, broken)
+      const { code, out } = run(tmp)
+      fs.unlinkSync(tmp)
+      expect(code, `output:\n${out}`).toBe(2)
+      expect(out).toContain('SELF-CHECK FAILED')
+    })
+  }
+
   it('does not flag every scene-caught site', () => {
     const { abandoned } = census()
     expect(abandoned.length).toBeGreaterThan(0)
