@@ -89,6 +89,34 @@ const BATTERY = [
   ['не код вовсе', 'this is not code, just prose\n'],
 ]
 
+/**
+ * A BATTERY OF ONLY SMALL INPUTS IS BLIND TO SIZE.
+ *
+ * Every degenerate case above is tiny -- an empty file, a comment, `module m {}`
+ * -- because degenerate cases ARE tiny. That is why this battery passed while
+ * `execFile` was silently failing on large specs: `t27c parse` prints the AST,
+ * and a 48 KB spec produces 2.5 MB of it, over Node's 1 MB default. Every big
+ * spec was being scored as "does not parse", and nothing here could see it.
+ *
+ * So the self-test now REFUSES to call itself complete without a control whose
+ * AST clears the old limit. Measured: specs/base/ops.t27, 48 KB of source,
+ * 2.5 MB of AST -- roughly 53 bytes of AST per byte of spec, so anything past
+ * ~20 KB would have done.
+ */
+const AST_MUST_EXCEED = 1024 * 1024
+
+async function astSize(file) {
+  try {
+    const { stdout } = await run(T27C, ['parse', file], {
+      timeout: 60_000,
+      maxBuffer: 256 * 1024 * 1024,
+    })
+    return stdout.length
+  } catch {
+    return 0
+  }
+}
+
 async function selfTest(controlPath) {
   const dir = await mkdtemp(join(tmpdir(), 't27val-'))
   let failures = 0
@@ -115,6 +143,24 @@ async function selfTest(controlPath) {
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
+  // The battery is not complete until something large has gone through it.
+  if (controlPath) {
+    const ast = await astSize(controlPath)
+    if (ast <= AST_MUST_EXCEED) {
+      console.log(
+        `\n[t27val] ⚠️  БАТАРЕЯ НЕПОЛНАЯ: AST контроля ${(ast / 1024).toFixed(0)} КБ, ` +
+          `нужен больше ${AST_MUST_EXCEED / 1024} КБ. Батарея из мелких входов ` +
+          `не видит ошибок, зависящих от размера — так и был пропущен maxBuffer.`
+      )
+      failures++
+    } else {
+      console.log(
+        `  ✅ ${'большой вход'.padEnd(20)} AST ${(ast / 1024 / 1024).toFixed(1)} МБ — ` +
+          `размерный класс покрыт`
+      )
+    }
+  }
+
   if (failures) {
     console.log(
       `\n[t27val] ⚠️  ПРИБОР НЕ ГОДЕН: ${failures} промах(ов). ` +
