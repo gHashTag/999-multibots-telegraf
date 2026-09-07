@@ -9,6 +9,7 @@ import { Telegraf } from 'telegraf'
 import { MyContext } from '@/interfaces/telegram-bot.interface'
 import { ModeEnum } from '@/interfaces/modes'
 import { isRussianFromState } from '@/helpers/centralizedLanguage'
+import { replyWitness, silenceNet } from '@/navigation/middleware/noSilence'
 import { checkFeatureAccess } from '@/helpers/featureGuard'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
@@ -164,6 +165,16 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
     // ═══════════════════════════════════════════════════════════════════════
     // 🎯 ЦЕНТРАЛИЗОВАННАЯ ОБРАБОТКА ВСЕХ СООБЩЕНИЙ
     // ═══════════════════════════════════════════════════════════════════════
+
+    /*
+     * NO MESSAGE MAY BE MET WITH SILENCE. Two middlewares, and the pair only
+     * works if they stay at the two ends of the chain: the witness must wrap
+     * the reply methods before any handler can call them, and the net must be
+     * the last thing registered, because reaching it is half of the evidence
+     * that nobody answered. Why this hole exists at all is written down in
+     * `middleware/noSilence.ts`.
+     */
+    bot.use(replyWitness)
 
     // 1. Логгер для ВСЕХ входящих обновлений (самый первый middleware)
     bot.use((ctx, next) => {
@@ -1325,6 +1336,11 @@ If not, continue on your own and click the "I myself" button`
           })
       }
     })
+
+    // The other end of the pair above: registered LAST, after every command,
+    // every `hears` label and the agent middleware, so that reaching it means
+    // every one of them said "not mine".
+    bot.use(silenceNet)
 
     logger.info(
       '✅ [Navigation] All commands and handlers registered successfully'
