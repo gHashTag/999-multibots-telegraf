@@ -12,6 +12,10 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { checkFeatureAccess } from '@/helpers/featureGuard'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
+import {
+  attachmentFromMessage,
+  buildAgentMessage,
+} from '@/services/agentAttachments'
 import { getBotNameByToken } from '@/core/bot'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
@@ -925,7 +929,7 @@ If not, continue on your own and click the "I myself" button`
     )
 
     // 9. Обработчик фото для FLUX Kontext
-    bot.on(message('photo'), async ctx => {
+    bot.on(message('photo'), async (ctx, next) => {
       logger.info('🎯 GLOBAL PHOTO HANDLER: Photo received', {
         telegramId: ctx.from?.id,
         currentScene: ctx.scene?.current?.id,
@@ -988,24 +992,82 @@ If not, continue on your own and click the "I myself" button`
         return
       }
 
-      // Если не ожидаем FLUX Kontext изображение, передаем дальше
+      /*
+       * "PASSING IT ON" HERE PASSED NOTHING ON.
+       *
+       * The comment promised a hand-off and the handler simply ended. In
+       * Telegraf that TERMINATES the chain, so the next middleware -- the one
+       * that talks to the agent -- was never reached. A photo sent into the
+       * agent chat therefore produced neither an answer nor an error: the
+       * person saw the bot go quiet and could not tell that from a crash.
+       *
+       * `next()` puts the photo back into the chain, where the agent now
+       * picks it up.
+       */
       logger.info(
-        '🎯 GLOBAL PHOTO HANDLER: Photo not for FLUX Kontext, skipping',
+        '🎯 GLOBAL PHOTO HANDLER: not for FLUX Kontext, handing to the agent',
         {
           telegramId: ctx.from?.id,
           currentScene: ctx.scene?.current?.id,
-          reason: 'not_awaiting_flux_image',
         }
       )
+      return next()
     })
 
     // 10. AI FALLBACK — последний handler, ловит необработанный текст
     bot.use(async (ctx: any, next: any) => {
-      if (!ctx.message || !('text' in ctx.message)) return next()
-      const text = ctx.message.text
-      if (!text || text.startsWith('/')) return next()
-      if (/^[\u{1F300}-\u{1FAD6}\u{2600}-\u{27BF}]/u.test(text)) return next()
+      if (!ctx.message) return next()
+
+      /*
+       * A FILE IS A TURN IN THE CONVERSATION TOO.
+       *
+       * The first line used to be `if (!('text' in ctx.message)) return next()`
+       * -- everything that was not text went past the agent and vanished
+       * without a trace. Measured 2026-09-07: the agent path had NO handler at
+       * all for `document`, `video`, `voice`, `audio`, `video_note` or
+       * `animation`, and a photo was cut off by the global handler above.
+       *
+       * The agent's message type is text-only (`content: string | null`), so a
+       * file moves to our own shelf and becomes a line of the form
+       * `[attached image: ...; url=...]` -- exactly the one the mini app
+       * writes. That way both surfaces speak one language to the model rather
+       * than two.
+       *
+       * The caption IS the person's text: "make a reel out of this" arrives
+       * there, not as a separate message.
+       */
+      const attachment = attachmentFromMessage(ctx.message)
+      const written: string =
+        ('text' in ctx.message ? ctx.message.text : ctx.message.caption) || ''
+
+      if (!attachment) {
+        if (!('text' in ctx.message)) return next()
+        if (!written || written.startsWith('/')) return next()
+        if (/^[\u{1F300}-\u{1FAD6}\u{2600}-\u{27BF}]/u.test(written))
+          return next()
+      }
       if (ctx.scene?.current) return next()
+
+      /*
+       * The file reaches the shelf BEFORE the agent is asked, and a refusal is
+       * spoken out loud.
+       *
+       * Silence is the thing being fixed here, so a failed upload ends in a
+       * sentence rather than in nothing. If the file did not make it but the
+       * person wrote something, the conversation still continues: the text goes
+       * to the agent without the attachment, which is more honest than refusing
+       * the whole turn.
+       */
+      if (attachment) {
+        // The file travels over the network to us. Without this signal the
+        // person stares at silence for several seconds with no idea whether
+        // anything arrived.
+        await ctx.sendChatAction('upload_document').catch(() => {})
+      }
+      const plan = await buildAgentMessage(ctx.telegram, ctx.message)
+      if (plan.refusal) await ctx.reply(plan.refusal)
+      const text = plan.text
+      if (!text.trim()) return next()
 
       /*
        * НАСТОЯЩИЙ АГЕНТ, А НЕ ПЕРЕПИСКА С МОДЕЛЬЮ.
@@ -1025,9 +1087,7 @@ If not, continue on your own and click the "I myself" button`
        * сейчас недоступны, — вместо молчания.
        */
       try {
-        logger.info(
-          `🤖 [Агент] "${text.substring(0, 50)}" от ${ctx.from?.id}`
-        )
+        logger.info(`🤖 [Агент] "${text.substring(0, 50)}" от ${ctx.from?.id}`)
         /*
          * «Печатает…» ЖИВЁТ ПЯТЬ СЕКУНД, а виток агента — до трёх минут.
          *
