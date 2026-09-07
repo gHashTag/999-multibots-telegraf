@@ -53,6 +53,52 @@ const ZIG = /@(as|intCast|import|sizeOf|truncate)\b|\[\d+\]u\d+\{/
 /** t27 namespaces and spec-level maths carried into the output verbatim. */
 const SPEC_LEAK = /\b\w+::\w+|(?<![\w.])(pow|cos|sin|sqrt|log)\s*\(/
 
+/**
+ * COMPILING IS NOT THE SAME AS CONTAINING ANYTHING.
+ *
+ * The first version of this audit reported "2 of 31 compile" and treated those
+ * two as the usable corpus. Reading them killed that: both are shells.
+ *
+ *     function [31:0] get_golden_ratio; // -> f64
+ *         // TODO: implement
+ *     endfunction
+ *
+ * The generator marks them itself. `// TODO: implement` is in the output.
+ *
+ * A function with no body, no arguments and no return assignment. `constants.v`
+ * carries thirteen `const` declarations in its spec and emits ZERO parameters.
+ * It compiles precisely BECAUSE it is empty.
+ *
+ * So the audit had a false pass of its own -- the same defect class it was
+ * written to find. An empty module is worse than a broken one for training: a
+ * broken file is at least rejected, while an empty one looks like a clean
+ * example and teaches the model to answer with nothing.
+ */
+/**
+ * THE GENERATOR MARKS ITS OWN HOLES -- USE THAT, NOT A CLEVER REGEX.
+ *
+ * A structural detector was tried first: count `function ... endfunction` pairs
+ * with nothing between them. It kept missing, because the gap is not empty --
+ * it holds a comment:
+ *
+ *     function [31:0] get_golden_ratio; // -> f64
+ *         // TODO: implement
+ *     endfunction
+ *
+ * Three regex revisions later the honest answer was sitting in the output all
+ * along. `TODO: implement` is written by the generator, is unambiguous, and
+ * cannot drift the way a hand-tuned pattern does. Four of 31 files carry it.
+ *
+ * The lesson is the one this whole file is about: when a measurement will not
+ * fire, look at what the thing being measured actually says about itself
+ * before making the instrument cleverer.
+ */
+const UNIMPLEMENTED = /TODO:\s*implement/i
+
+function bodyless(code) {
+  return UNIMPLEMENTED.test(code)
+}
+
 async function fetchText(path) {
   const res = await fetch(
     `https://raw.githubusercontent.com/${REPO}/${BRANCH}/${path}`
@@ -91,6 +137,7 @@ async function main() {
   let zig = 0
   let leak = 0
   let rust = 0
+  let hollow = 0
 
   for (const p of pairs) {
     if (p.target_lang !== 'v') {
@@ -107,13 +154,21 @@ async function main() {
     if (ZIG.test(code)) zig++
     if (SPEC_LEAK.test(code)) leak++
     const r = await compiles(code)
-    if (r.ok) ok++
-    else broken.push({ id: p.pair_id, why: r.first.slice(0, 74) })
+    if (r.ok) {
+      if (bodyless(code)) {
+        hollow++
+        broken.push({
+          id: p.pair_id,
+          why: 'СОБИРАЕТСЯ, НО ПУСТ: функции без тела',
+        })
+      } else ok++
+    } else broken.push({ id: p.pair_id, why: r.first.slice(0, 74) })
   }
 
   const verilog = pairs.filter(p => p.target_lang === 'v').length
   console.log(`[audit] Verilog-пар      : ${verilog}`)
-  console.log(`[audit] КОМПИЛИРУЕТСЯ    : ${ok}`)
+  console.log(`[audit] ГОДНЫХ (собирается И не пуст): ${ok}`)
+  console.log(`[audit] пустых оболочек  : ${hollow}`)
   console.log(`[audit] не компилируется : ${broken.length}`)
   console.log(`[audit] с протечкой Zig  : ${zig}`)
   console.log(`[audit] с t27-namespace/математикой спека: ${leak}`)
