@@ -196,7 +196,7 @@ export async function начатьВход(
   сыройТелефон: string,
   создатьКлиент: () => Promise<any>,
   случайныйКлюч: () => string
-): Promise<{ handle: string; phone: string }> {
+): Promise<{ handle: string; phone: string; viaApp: boolean }> {
   убратьПротухшие()
   if (попытки.size >= МАКС_ПОПЫТОК) {
     throw new Error(
@@ -205,7 +205,18 @@ export async function начатьВход(
   }
   const phone = нормализоватьТелефон(сыройТелефон)
   const client = await создатьКлиент()
-  const { phoneCodeHash } = await client.sendCode(
+  /*
+   * `isCodeViaApp` DECIDES WHERE THE PERSON WILL LOOK FOR THE CODE.
+   *
+   * Telegram sends the code either as a message inside Telegram itself (the
+   * "Telegram" service chat) or as an SMS -- the platform chooses, not us. The
+   * screen has been ASSERTING "the code was sent to Telegram". When an SMS
+   * arrives instead, the person spends ten minutes scrolling chats and decides
+   * the login is broken.
+   *
+   * GramJS hands the value back; nothing here needed inventing, only asking.
+   */
+  const { phoneCodeHash, isCodeViaApp } = await client.sendCode(
     { apiId: client.apiId, apiHash: client.apiHash },
     phone
   )
@@ -217,7 +228,7 @@ export async function начатьВход(
     client,
     создана: Date.now(),
   })
-  return { handle, phone }
+  return { handle, phone, viaApp: !!isCodeViaApp }
 }
 
 /**
@@ -430,7 +441,10 @@ export async function обработатьПодключение(
       )
       // Телефон возвращаем ЧЕЛОВЕКУ, чтобы он видел, куда ушёл код, и заметил
       // опечатку до того, как начнёт ждать сообщение впустую.
-      return { код: 200, тело: { ok: true, handle: r.handle, phone: r.phone } }
+      return {
+        код: 200, // cyrillic-ok: pre-existing response shape
+        тело: { ok: true, handle: r.handle, phone: r.phone, viaApp: r.viaApp }, // cyrillic-ok
+      }
     }
 
     if (путь === '/api/tg/connect/code') {

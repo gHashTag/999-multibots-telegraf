@@ -29,7 +29,9 @@
  * acting reaches other people and is not.
  */
 
+import crypto from 'node:crypto'
 import type { AgentTool, ToolContext } from './tools'
+import { remember } from './tg-proposals'
 
 /**
  * WHOSE ACCOUNT THIS IS -- and why every reading tool below asks.
@@ -109,13 +111,34 @@ export interface Proposal {
   why: string
 }
 
+/**
+ * Build a proposal AND remember it, so it can actually be confirmed.
+ *
+ * It used to only build one. `grep -rn proposal` across the player and the bot
+ * found not a single reader, so `tg_send` could not send to anybody, ever --
+ * the safety half of the design was complete and the other half was missing.
+ *
+ * `requireOwner` is called here rather than in each handler: the three acting
+ * handlers took no ToolContext at all, which meant no identity check on the
+ * tools that reach other people. Harmless only while nothing executed.
+ */
 function propose(
   action: Proposal['action'],
   target: string,
   what: string | undefined,
-  why: string
-): Proposal {
-  return { proposal: true, action, target, what, why }
+  why: string,
+  ctx?: ToolContext
+): Proposal & { id: string } {
+  requireOwner(ctx)
+  const id = crypto.randomUUID()
+  remember({
+    id,
+    telegramId: String(ctx?.telegramId ?? ''),
+    action,
+    target,
+    what,
+  })
+  return { proposal: true, id, action, target, what, why }
 }
 
 /** Session presence is a state of the service, announced once — not per call. */
@@ -164,7 +187,14 @@ async function сессияДля(ctx?: ToolContext): Promise<string> {
   return ''
 }
 
-async function client(ctx?: ToolContext): Promise<unknown> {
+/**
+ * Exported so a CONFIRMED proposal can be executed outside this module.
+ *
+ * The confirmation route needs the very same session and the very same
+ * connection rules as the tools; a second way to reach Telegram would be a
+ * second place for the ownership check to drift out of step.
+ */
+export async function client(ctx?: ToolContext): Promise<unknown> {
   const session = await сессияДля(ctx)
   const apiId = Number(
     process.env.TELEGRAM_API_ID || process.env.TG_API_ID || 0
@@ -289,7 +319,9 @@ export function ждутОтвета(
         непрочитано: x.unreadCount ?? 0,
         молчу_часов:
           когда != null ? Math.floor((сейчас - когда) / 3_600_000) : null,
-        последнее: x.message?.message ? foreignText(x.message.message) : undefined,
+        последнее: x.message?.message
+          ? foreignText(x.message.message)
+          : undefined,
       }
     })
     .sort((a, b) => (b.молчу_часов ?? 0) - (a.молчу_часов ?? 0))
@@ -362,7 +394,8 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
       properties: {
         limit: {
           type: 'number',
-          description: 'сколько диалогов просмотреть (по умолчанию 50, максимум 200)',
+          description:
+            'сколько диалогов просмотреть (по умолчанию 50, максимум 200)',
         },
       },
     },
@@ -522,7 +555,7 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
       },
       required: ['chat', 'text'],
     },
-    async handler(args: Record<string, any>) {
+    async handler(args: Record<string, any>, ctx?: ToolContext) {
       /**
        * Returns a proposal, never a send.
        *
@@ -535,7 +568,8 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
         'send',
         args.chat,
         args.text,
-        'Отправка ждёт подтверждения человека. Покажи адресата и text целиком.'
+        'Отправка ждёт подтверждения человека. Покажи адресата и текст целиком.',
+        ctx
       )
     },
   },
@@ -554,12 +588,13 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
       },
       required: ['from', 'to', 'messageId'],
     },
-    async handler(args: Record<string, any>) {
+    async handler(args: Record<string, any>, ctx?: ToolContext) {
       return propose(
         'forward',
         args.to,
         `сообщение ${args.messageId} из ${args.from}`,
-        'Пересылка ждёт подтверждения: она выносит чужой text за пределы исходного диалога.'
+        'Пересылка ждёт подтверждения: она выносит чужой text за пределы исходного диалога.',
+        ctx
       )
     },
   },
@@ -574,12 +609,13 @@ export const TELEGRAM_TOOLS: AgentTool[] = [
       properties: { chat: { type: 'string', description: 'Какой диалог' } },
       required: ['chat'],
     },
-    async handler(args: Record<string, any>) {
+    async handler(args: Record<string, any>, ctx?: ToolContext) {
       return propose(
         'read',
         args.chat,
         undefined,
-        'Отметка о прочтении видна собеседнику и необратима.'
+        'Отметка о прочтении видна собеседнику и необратима.',
+        ctx
       )
     },
   },

@@ -90,7 +90,11 @@ describe('хранение номера', () => {
   it('сохранён — и читается', async () => {
     const p = пул()
     expect(
-      await запомнитьНомер(p, { telegramId: '42', phone: '+7 999 123-45-67', источник: 'бот' })
+      await запомнитьНомер(p, {
+        telegramId: '42',
+        phone: '+7 999 123-45-67',
+        источник: 'бот',
+      })
     ).toBe('сохранён')
     expect(await узнатьНомер(p, '42')).toBe('+79991234567')
   })
@@ -98,14 +102,22 @@ describe('хранение номера', () => {
   it('чужого номера не видно', async () => {
     // Подсказка чужого номера — это подсказка отправить код доступа не туда.
     const p = пул()
-    await запомнитьНомер(p, { telegramId: '42', phone: '79991234567', источник: 'бот' })
+    await запомнитьНомер(p, {
+      telegramId: '42',
+      phone: '79991234567',
+      источник: 'бот',
+    })
     expect(await узнатьНомер(p, '43')).toBeNull()
   })
 
   it('мусор не сохраняется', async () => {
     const p = пул()
     expect(
-      await запомнитьНомер(p, { telegramId: '42', phone: 'нет', источник: 'бот' })
+      await запомнитьНомер(p, {
+        telegramId: '42',
+        phone: 'нет',
+        источник: 'бот',
+      })
     ).toBe('не похоже на номер')
     expect(await узнатьНомер(p, '42')).toBeNull()
   })
@@ -117,20 +129,50 @@ describe('хранение номера', () => {
      * хранением, которого человек не заказывал и не может отменить.
      */
     const p = пул()
-    await запомнитьНомер(p, { telegramId: '42', phone: '79991234567', источник: 'бот' })
+    await запомнитьНомер(p, {
+      telegramId: '42',
+      phone: '79991234567',
+      источник: 'бот',
+    })
     await забытьНомер(p, '42')
     expect(await узнатьНомер(p, '42')).toBeNull()
   })
 })
 
 describe('обещания на экранах не разошлись с делом', () => {
-  const читать = (...ч: string[]) =>
-    fs.readFileSync(path.join(__dirname, '..', '..', '..', ...ч), 'utf8')
+  const read = (
+    ...ч: string[] // cyrillic-ok: pre-existing param name
+  ) => fs.readFileSync(path.join(__dirname, '..', '..', '..', ...ч), 'utf8')
 
-  const МИНИАПП = читать(
-    'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ConnectTelegram.tsx'
+  /*
+   * The mini app's promise moved into the dictionary on 2026-09-08.
+   *
+   * Project rule: interface text lives only in `player/src/atoms/language.ts`,
+   * so the connect screen now renders `t('connect.can.phone')` and the sentence
+   * itself is in the dictionary. A check still reading the .tsx would pass on
+   * an empty screen -- it would be looking where the text no longer is.
+   *
+   * Both halves are read: the dictionary must SAY it, and the screen must
+   * actually render that key. Either alone is a promise nobody makes.
+   */
+  const MINIAPP = read(
+    'apps',
+    'vibee-editor',
+    'player',
+    'src',
+    'components',
+    'Profile',
+    'ConnectTelegram.tsx'
   )
-  const IOS = читать('apps', 'vibee-ios', 'Vibee', 'ConnectTelegram.swift')
+  const DICT = read(
+    'apps',
+    'vibee-editor',
+    'player',
+    'src',
+    'atoms',
+    'language.ts'
+  )
+  const IOS = read('apps', 'vibee-ios', 'Vibee', 'ConnectTelegram.swift')
 
   it('ни один экран больше не обещает, что телефон НЕ хранится', () => {
     /*
@@ -139,28 +181,56 @@ describe('обещания на экранах не разошлись с дел
      * хуже экрана без обещаний: второй просто молчит, первый вводит в
      * заблуждение.
      */
-    for (const [имя, текст] of [['мини-апп', МИНИАПП], ['iOS', IOS]] as const) {
-      expect(текст, `${имя} всё ещё обещает не хранить телефон`).not.toMatch(
-        /Телефон, код и пароль не сохраняются/
+    /*
+     * Whitespace is collapsed before matching. The promise lives in JSX and
+     * prettier rewraps long lines as it sees fit: on 2026-09-07, after an edit
+     * to neighbouring code, the sentence split across two lines and this check
+     * failed -- while the text on screen had not changed by one letter.
+     *
+     * A check that fails on a line break teaches people to ignore it. This one
+     * should fail only when the screen has genuinely stopped telling the truth.
+     */
+    const flat = (s: string) => s.replace(/\s+/g, ' ')
+    // cyrillic-ok: pre-existing screen names below
+    for (const [name, raw] of [
+      ['словарь', DICT],
+      ['iOS', IOS],
+    ] as const) {
+      // cyrillic-ok
+      const screen = flat(raw)
+      expect(
+        screen,
+        `${name} всё ещё обещает не хранить телефон`
+      ).not.toContain('Телефон, код и пароль не сохраняются')
+      expect(screen, `${name} не говорит, что номер хранится`).toContain(
+        'Номер сохраняется'
       )
-      expect(текст, `${имя} не говорит, что номер хранится`).toMatch(/Номер сохраняется/)
-      expect(текст, `${имя} не говорит про удаление`).toMatch(/при отключении удаляется/)
+      expect(screen, `${name} не говорит про удаление`).toContain(
+        'при отключении удаляется'
+      )
     }
+    // ...and the screen actually renders the key that carries it.
+    expect(MINIAPP, 'мини-апп не показывает обещание про номер').toContain(
+      "t('connect.can.phone')"
+    )
   })
 
   it('оба клиента подставляют номер, но НЕ отправляют его сами', () => {
     // Подставить — да. Нажать за человека «Получить код» — нет: это начало
     // доступа к его переписке.
-    expect(МИНИАПП).toContain('setНомерИзTelegram(true)')
+    expect(MINIAPP).toContain('setPhoneFromTelegram(true)')
     expect(IOS).toContain('номерИзTelegram = true')
-    for (const текст of [МИНИАПП, IOS]) {
-      expect(текст).not.toMatch(/автоматически отправ|auto.?submit/i)
+    for (const screen of [MINIAPP, IOS]) {
+      expect(screen).not.toMatch(/auto.?submit/i)
+      expect(screen).not.toContain('автоматически отправ')
     }
   })
 
   it('оба говорят, ОТКУДА взялся номер', () => {
-    for (const текст of [МИНИАПП, IOS]) {
-      expect(текст).toContain('Номер из Telegram')
-    }
+    // The mini app says it through the dictionary; iOS still carries its own
+    // string. Both are checked where the sentence actually lives.
+    expect(MINIAPP).toContain("t('connect.phone.fromTelegram')")
+    expect(DICT).toContain('Номер из Telegram')
+    expect(IOS).toContain('Номер из Telegram')
   })
 })

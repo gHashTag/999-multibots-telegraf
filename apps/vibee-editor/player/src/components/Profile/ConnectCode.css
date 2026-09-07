@@ -1,0 +1,220 @@
+/*
+ * THE CODE SCREEN.
+ *
+ * Sizes here are larger than the app's defaults on purpose. This screen is
+ * read once, under mild stress, while holding a code that expires in about two
+ * minutes -- often one-handed, often on a phone held at arm's length. Every
+ * value below is chosen for that moment rather than for density.
+ *
+ * Colours are the app's own tokens (--vibee-green, --vibee-gold); nothing new
+ * is invented, so the screen belongs to the same product as the tab bar.
+ */
+
+.tg-code {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 12px);
+  padding: var(--space-md, 16px) 0 var(--space-lg, 24px);
+}
+
+.tg-code__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tg-code__back {
+  min-height: var(--touch-target, 44px);
+  /* No left padding: the back control should sit on the text margin, or it
+     reads as floating in from nowhere. */
+  padding: 8px 12px 8px 0;
+  font-size: 17px;
+  color: var(--vibee-green, #00ff88);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.tg-code__step {
+  font-size: 14px;
+  color: var(--text-muted, #888);
+  font-variant-numeric: tabular-nums;
+}
+
+.tg-code__title {
+  margin: 4px 0 0;
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--text-primary, #fff);
+}
+
+.tg-code__where {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--text-muted, #888);
+}
+
+/* The number is the one thing on this line worth re-reading: a typo here is
+   why the message never arrives. */
+.tg-code__phone {
+  color: var(--text-primary, #fff);
+  white-space: nowrap;
+}
+
+.tg-code__change {
+  align-self: flex-start;
+  min-height: var(--touch-target, 44px);
+  padding: 8px 0;
+  font-size: 16px;
+  color: var(--vibee-green, #00ff88);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/*
+ * ── THE FIELD ─────────────────────────────────────────────────────────────
+ *
+ * Cells are a costume. The real control is one input stretched across the
+ * whole row (see ConnectCode.tsx) so paste, one-time-code autofill, backspace
+ * and screen readers all keep working.
+ */
+.tg-code__field {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+
+.tg-code__cell {
+  flex: 1 1 0;
+  /* Roughly square without depending on aspect-ratio support in older
+     Telegram webviews. */
+  min-width: 0;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary, #fff);
+  background: var(--color-bg-elevated, #1a1a1a);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.tg-code__cell.is-filled {
+  border-color: rgba(0, 255, 136, 0.5);
+}
+
+/* The cell about to receive a digit. There is no real caret to show -- the
+   input is invisible -- so the highlight IS the caret. Without it the field
+   looks inert and people tap it repeatedly. */
+.tg-code__cell.is-next {
+  border-color: var(--vibee-green, #00ff88);
+  box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.18);
+}
+
+.tg-code__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /*
+   * opacity, NOT visibility or display.
+   *
+   * A hidden input is removed from the accessibility tree and cannot be
+   * focused; at opacity 0 it is still a real, focusable, announced field. The
+   * cells above are aria-hidden so the row is announced once, not twice.
+   */
+  opacity: 0;
+  /* 16px minimum: Safari on iOS zooms the whole page when a focused input is
+     smaller, and inside a Mini App that zoom does not undo cleanly. */
+  font-size: 16px;
+  border: 0;
+  background: transparent;
+  /* Taps must reach the input rather than the cells, or the keyboard never
+     opens on iOS. */
+  z-index: 1;
+}
+
+.tg-code__go {
+  min-height: 52px;
+  margin-top: 4px;
+  padding: 14px 20px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #000;
+  background: var(--vibee-green, #00ff88);
+  border: 0;
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.tg-code__go:active {
+  transform: translateY(1px);
+}
+
+/* Dimmed, not erased: at low opacity on black the button vanished, and "you
+   have not typed enough yet" looked identical to "this screen is broken". */
+.tg-code__go:disabled {
+  background: rgba(0, 255, 136, 0.28);
+  color: rgba(0, 0, 0, 0.55);
+  cursor: not-allowed;
+}
+
+.tg-code__warn {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-muted, #888);
+}
+
+.tg-code__resend {
+  align-self: flex-start;
+  min-height: var(--touch-target, 44px);
+  margin: 0;
+  padding: 8px 0;
+  font-size: 16px;
+  color: var(--vibee-green, #00ff88);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+/* While the countdown runs this is a sentence, not a control -- it must not
+   look tappable, or every second of waiting produces another tap. */
+.tg-code__resend.is-waiting {
+  color: var(--text-muted, #888);
+  cursor: default;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * THE ERROR IS THE MOST IMPORTANT TEXT ON THIS SCREEN.
+ *
+ * Gold rather than red: nearly every failure here is "wrong code", which is
+ * ordinary and recoverable. Red would say something broke.
+ */
+.tg-code__error {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--vibee-gold, #ffd700);
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  border-radius: 12px;
+  /* Telegram errors arrive as one long unbroken token (PHONE_CODE_INVALID…).
+     Without this they push the panel sideways. */
+  overflow-wrap: anywhere;
+}

@@ -2245,6 +2245,15 @@ async function refundMiniAppUser(
   }
 }
 
+/** Shape the execution result for the wire without losing the reason. */
+function outcomeToBody(
+  outcome: { done: true; action: string } | { done: false; why: string }
+): Record<string, unknown> {
+  return outcome.done
+    ? { ok: true, action: outcome.action }
+    : { ok: false, error: outcome.why }
+}
+
 /** Кэш RSS-блога t27.ai для GET /api/blog (см. обработчик ниже). */
 let blogCache: { at: number; data: unknown } | null = null
 
@@ -7494,6 +7503,67 @@ const server = createServer(async (req, res) => {
    * владелец ключа начал бы вход за постороннего, и Telegram прислал бы код
    * ничего не подозревающему человеку.
    */
+  /*
+   * CONFIRMING A PROPOSED TELEGRAM ACTION.
+   *
+   * `tg_send` and its siblings never act on a model's decision -- they return
+   * a proposal. Until now nothing could accept one: `grep -rn proposal` across
+   * the player and the bot found no reader at all, so those tools could not
+   * reach anybody, ever. This is the other half.
+   *
+   * Identity comes from `resolveIdentity`, the same as every other route that
+   * acts for a person, and `claim` checks it AGAIN against the proposal's own
+   * owner. Two checks because this one reaches other human beings: the id in
+   * the body is a claim, not a credential.
+   */
+  {
+    const route = req.url?.split('?')[0] || ''
+    const NO_IDENTITY = 'нужна проверенная личность'
+
+    if (route === '/api/tg/proposal' && req.method === 'GET') {
+      const who = await resolveIdentity(req, getPool)
+      if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
+      const { pendingFor } = await import('./src/agent/tg-proposals')
+      const p = pendingFor(who)
+      return sendJson(res, 200, {
+        ok: true,
+        // The full text goes back so the person confirms what will actually be
+        // sent, not a summary of it.
+        proposal: p
+          ? { id: p.id, action: p.action, target: p.target, what: p.what }
+          : null,
+      })
+    }
+
+    if (route === '/api/tg/proposal/confirm' && req.method === 'POST') {
+      const who = await resolveIdentity(req, getPool)
+      if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
+      const body = (await readBody(req)) as { id?: string }
+      const { claim, execute } = await import('./src/agent/tg-proposals')
+      const taken = claim(who, String(body?.id ?? ''))
+      if (!taken.ok) return sendJson(res, 409, { ok: false, error: taken.why })
+      const outcome = await execute(taken.proposal, {
+        telegramId: who,
+        pool: await getPool(),
+      })
+      return sendJson(res, outcome.done ? 200 : 502, outcomeToBody(outcome))
+    }
+
+    if (route === '/api/tg/proposal/cancel' && req.method === 'POST') {
+      const who = await resolveIdentity(req, getPool)
+      if (!who) return sendJson(res, 401, { error: NO_IDENTITY })
+      const body = (await readBody(req)) as { id?: string }
+      const { claim } = await import('./src/agent/tg-proposals')
+      // Cancelling uses the same claim, so a cancel cannot remove somebody
+      // else's draft either.
+      const taken = claim(who, String(body?.id ?? ''))
+      return sendJson(res, taken.ok ? 200 : 409, {
+        ok: taken.ok,
+        error: taken.ok ? undefined : taken.why,
+      })
+    }
+  }
+
   if (этоПутьПодключения(req.url?.split('?')[0] || '')) {
     const { TelegramClient } = await import('telegram')
     const { StringSession } = await import('telegram/sessions')
