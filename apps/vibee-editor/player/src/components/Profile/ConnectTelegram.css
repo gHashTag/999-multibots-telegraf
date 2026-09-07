@@ -1,0 +1,132 @@
+/*
+ * THE CONNECT SCREEN HAD NO STYLES AT ALL.
+ *
+ * The owner, from a screenshot: "make the buttons brighter and the text
+ * bigger". The cause was not timid styling -- `ConnectTelegram.tsx` carried
+ * class names that no stylesheet ever defined, so the browser drew its own
+ * defaults: a grey system button and 13px body text on a black page.
+ *
+ * This is the screen where somebody types a Telegram login code. A control
+ * that looks disabled on the one screen that asks for a credential is worse
+ * than ugly -- it reads as broken, and a person who thinks a form is broken
+ * starts pressing things twice.
+ *
+ * Colours come from the app's own tokens (--vibee-green, --vibee-gold), not
+ * from new values, so this screen belongs to the same product as the tab bar.
+ */
+
+.connect-tg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 12px);
+  padding: var(--space-md, 16px) 0;
+}
+
+/*
+ * 16px MINIMUM ON INPUTS, AND IT IS NOT A STYLE CHOICE.
+ *
+ * Safari on iOS zooms the whole page when a focused input has a font smaller
+ * than 16px. On a Mini App that zoom does not undo cleanly: the person ends up
+ * on a page wider than the screen while typing a code that expires in two
+ * minutes.
+ */
+.connect-tg input {
+  width: 100%;
+  min-height: var(--touch-target, 44px);
+  padding: 12px 14px;
+  font-size: 17px;
+  line-height: 1.3;
+  color: var(--text-primary, #fff);
+  background: var(--color-bg-elevated, #1a1a1a);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  outline: none;
+}
+
+.connect-tg input:focus {
+  border-color: var(--vibee-green, #00ff88);
+  box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.18);
+}
+
+/* The code is short, fixed-width and read back digit by digit off another
+   screen -- tabular figures stop 1 and 7 from swimming. */
+.connect-tg input[inputmode='numeric'] {
+  font-size: 22px;
+  letter-spacing: 0.18em;
+  font-variant-numeric: tabular-nums;
+}
+
+.connect-tg button {
+  min-height: var(--touch-target, 44px);
+  padding: 12px 20px;
+  font-size: 17px;
+  font-weight: 600;
+  color: #000;
+  background: var(--vibee-green, #00ff88);
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.connect-tg button:active {
+  transform: translateY(1px);
+}
+
+/*
+ * A DISABLED BUTTON STILL LOOKS LIKE A BUTTON.
+ *
+ * At 0.35 opacity on black it disappeared entirely, so "nothing typed yet"
+ * and "this screen is broken" looked the same. Dimmed, not erased.
+ */
+.connect-tg button:disabled {
+  background: rgba(0, 255, 136, 0.28);
+  color: rgba(0, 0, 0, 0.55);
+  cursor: not-allowed;
+}
+
+/* Disconnect is destructive and must not wear the same green as "connect". */
+.connect-tg button.connect-tg__off {
+  background: transparent;
+  color: var(--vibee-gold, #ffd700);
+  border: 1px solid rgba(255, 215, 0, 0.45);
+}
+
+.connect-tg__facts {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--text-primary, #fff);
+}
+
+.connect-tg__hint {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--text-muted, #888);
+}
+
+/*
+ * THE ERROR IS THE MOST IMPORTANT TEXT ON THIS SCREEN.
+ *
+ * It was a bare <p> in muted grey, below the fold of attention, on the screen
+ * where a failed login is the whole event. Now it is boxed, gold-edged and the
+ * same size as the body -- noticed without being alarming, because most
+ * failures here are "wrong code", not disasters.
+ */
+.connect-tg__error {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--vibee-gold, #ffd700);
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  border-radius: 12px;
+  /* Telegram errors arrive as one long unbroken token
+     (PHONE_CODE_INVALID...). Without this they push the panel sideways. */
+  overflow-wrap: anywhere;
+}
