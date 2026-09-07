@@ -1,9 +1,19 @@
-import { useEffect, useState, type ReactElement, type ReactNode } from 'react'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from 'react'
 import { useParams, Navigate, Link } from 'react-router-dom'
 import { Header } from '@/components/Header'
 import { useLanguage } from '@/hooks/useLanguage'
 import {
   HIVE_TABS,
+  loadComb,
+  type Comb,
+  type Module,
   isHiveTab,
   loadBoard,
   loadFactory,
@@ -15,6 +25,18 @@ import {
   type HiveTab,
 } from '@/lib/hive'
 import './Hive.css'
+
+/*
+ * BABYLON IS BEHIND `lazy`, AND THAT IS THE WHOLE POINT.
+ *
+ * `@babylonjs/core` is megabytes. This is a Telegram Mini App opened on
+ * phones, often on mobile data, and four of its five tabs have nothing to do
+ * with 3-D. A static import anywhere the main bundle can reach would make
+ * every person pay for a scene most of them never open.
+ *
+ * Loaded only when somebody is looking at the comb.
+ */
+const CombScene = lazy(() => import('@/components/Hive/CombScene'))
 
 /**
  * THE HIVE -- THE GAME, AS A TAB.
@@ -102,34 +124,150 @@ function Panel<T>({
   return <>{children(r.data)}</>
 }
 
-function Comb() {
-  const { t } = useLanguage()
-  const marks = useHive(loadMarks, 'marks')
+/**
+ * The flat map. Not a placeholder -- it is what a phone without WebGL gets,
+ * and WebGL is missing or blocked inside a Mini App webview more often than
+ * people expect.
+ */
+function FlatComb({
+  modules,
+  onPick,
+}: {
+  modules: Module[]
+  onPick: (m: Module) => void
+}) {
+  const maxLines = Math.max(...modules.map(m => m.lines), 1)
   return (
-    <Panel state={marks}>
-      {list => (
-        <ol className="hive-marks">
-          {list.map((m, i) => (
-            <li
-              key={`${m.issue}-${i}`}
-              className={`hive-mark hive-mark--${m.state}`}
-            >
-              <span className="hive-mark__kind">{m.kind}</span>
-              <span className="hive-mark__title">{m.title}</span>
-              {m.issue !== null && (
-                <span className="hive-mark__id">#{m.issue}</span>
-              )}
-            </li>
-          ))}
-          {list.length === 0 && (
-            <p className="hive-note">{t('hive.noMarks')}</p>
-          )}
-        </ol>
-      )}
-    </Panel>
+    <div className="comb-flat">
+      {modules.map(m => (
+        <button
+          key={m.path}
+          className={`comb-flat__cell${m.busy ? ' comb-flat__cell--busy' : ''}`}
+          style={{
+            // Log scale: linear left everything but the largest three
+            // invisible beside a 23 880-line neighbour.
+            opacity:
+              0.3 +
+              0.7 *
+                Math.min(
+                  Math.max(
+                    Math.log(Math.max(m.lines, 1)) / Math.log(maxLines),
+                    0
+                  ),
+                  1
+                ),
+          }}
+          onClick={() => onPick(m)}
+          title={m.path}
+          aria-label={m.path}
+        />
+      ))}
+    </div>
   )
 }
 
+function ModuleCard({ module: m }: { module: Module }) {
+  const { t } = useLanguage()
+  return (
+    <div className="hive-layer">
+      <h3>{m.path || '.'}</h3>
+      <p className="hive-note">
+        {t('hive.moduleStats', {
+          lang: m.language,
+          lines: m.lines,
+          files: m.files,
+          fn: m.functions,
+        })}
+      </p>
+      {m.busy && (
+        <p className="hive-note">
+          {t('hive.moduleIssues', {
+            list: m.openIssues
+              .slice(0, 6)
+              .map(n => `#${n}`)
+              .join(' '),
+          })}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function Comb() {
+  const { t } = useLanguage()
+  const comb = useHive(loadComb, 'comb')
+  const marks = useHive(loadMarks, 'marks')
+  const [picked, setPicked] = useState<Module | null>(null)
+  const [flat, setFlat] = useState(false)
+
+  return (
+    <>
+      <Panel state={comb}>
+        {(c: Comb) => (
+          <>
+            {flat ? (
+              <FlatComb modules={c.modules} onPick={setPicked} />
+            ) : (
+              <Suspense
+                fallback={<p className="hive-note">{t('hive.building')}</p>}
+              >
+                <CombScene
+                  modules={c.modules}
+                  onPick={setPicked}
+                  onFallback={() => setFlat(true)}
+                />
+              </Suspense>
+            )}
+
+            {/* Without a legend, amber and green are two colours and the
+                reader invents a meaning for them. */}
+            <div className="comb-legend">
+              <span className="comb-legend__dot comb-legend__dot--busy" />
+              {t('hive.legend.busy')}
+              <span className="comb-legend__dot comb-legend__dot--quiet" />
+              {t('hive.legend.quiet')}
+            </div>
+
+            {picked ? (
+              <ModuleCard module={picked} />
+            ) : (
+              <p className="hive-note">
+                {t('hive.combCounts', {
+                  total: c.modules.length,
+                  busy: c.busyCount,
+                  quiet: c.modules.length - c.busyCount,
+                })}
+                {flat ? t('hive.noWebgl') : ''}
+              </p>
+            )}
+          </>
+        )}
+      </Panel>
+
+      <Panel state={marks}>
+        {list => (
+          <ol className="hive-marks">
+            {list.slice(0, 12).map((m, i) => (
+              <li
+                key={`${m.issue}-${i}`}
+                className={`hive-mark hive-mark--${m.state}`}
+              >
+                <span className="hive-mark__kind">{m.kind}</span>
+                <span className="hive-mark__title">{m.title}</span>
+                {m.issue !== null && (
+                  <span className="hive-mark__id">#{m.issue}</span>
+                )}
+              </li>
+            ))}
+            {list.length === 0 && (
+              <p className="hive-note">{t('hive.noMarks')}</p>
+            )}
+          </ol>
+        )}
+      </Panel>
+    </>
+  )
+}
 function Kanban() {
   const { t } = useLanguage()
   const board = useHive(loadBoard, 'board')

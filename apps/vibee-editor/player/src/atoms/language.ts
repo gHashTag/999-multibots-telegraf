@@ -972,6 +972,14 @@ const en: Translations = {
   'hive.blurb.factory': 'live engineering production',
   'hive.blurb.tree': 'canonical evidence graph',
   'hive.asking': 'Asking the Queen…',
+  'hive.building': 'Building the comb…',
+  'hive.legend.busy': 'the Queen is working',
+  'hive.legend.quiet': 'quiet',
+  'hive.moduleStats': '{lang} · {lines} lines · {files} files · {fn} functions',
+  'hive.moduleIssues': 'open issues: {list}',
+  'hive.combCounts':
+    '{total} modules · {busy} with issues · {quiet} quiet · tap a cell',
+  'hive.noWebgl': ' · the 3-D scene is unavailable on this device',
   'hive.down': 'The Queen did not answer',
   'hive.down.note':
     'This does not mean the hive is quiet — it means we cannot see it right now.',
@@ -2683,6 +2691,14 @@ const ru: Translations = {
   'hive.blurb.factory': 'живое производство',
   'hive.blurb.tree': 'граф подтверждённых знаний',
   'hive.asking': 'Спрашиваем королеву…',
+  'hive.building': 'Собираем соты…',
+  'hive.legend.busy': 'королева работает',
+  'hive.legend.quiet': 'тихо',
+  'hive.moduleStats': '{lang} · {lines} строк · {files} файлов · {fn} функций',
+  'hive.moduleIssues': 'открытые задачи: {list}',
+  'hive.combCounts':
+    '{total} модулей · {busy} с задачами · {quiet} тихих · нажмите клетку',
+  'hive.noWebgl': ' · объёмная сцена недоступна на этом устройстве',
   'hive.down': 'Королева не ответила',
   'hive.down.note':
     'Это не значит, что в улье тихо — значит, что мы его сейчас не видим.',
