@@ -1,5 +1,21 @@
 #!/usr/bin/env node
 /**
+ * DEPRECATED 2026-09-08 BY THE PIVOT -- the spec-to-Verilog dataset.
+ *
+ * The goal changed: the model is to WRITE .t27, not translate a spec into
+ * Verilog. The usable pair count for the old task is zero, because the Verilog
+ * emitter has no expression translator, so nothing measured here bears on
+ * training any more.
+ *
+ * Kept rather than deleted: it holds the MEASUREMENTS that caused the pivot.
+ * It has no self-test and deliberately did not get one -- finishing an
+ * instrument for a dead path is polishing something nobody runs.
+ *
+ * The live path is build-spec-dataset.mjs, validate-t27.mjs,
+ * score-spec-answers.mjs.
+ */
+/**
+
  * TURN THE HARVESTED PAIRS INTO A LoRA DATASET THAT WILL NOT LIE.
  *
  * Input:  igla-pairs-manifest.json from harvest-igla-pairs.mjs

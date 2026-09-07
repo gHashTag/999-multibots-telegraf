@@ -1,5 +1,21 @@
 #!/usr/bin/env node
 /**
+ * DEPRECATED 2026-09-08 BY THE PIVOT -- auditing the Verilog corpus.
+ *
+ * The goal changed: the model is to WRITE .t27, not translate a spec into
+ * Verilog. The usable pair count for the old task is zero, because the Verilog
+ * emitter has no expression translator, so nothing measured here bears on
+ * training any more.
+ *
+ * Kept rather than deleted: it holds the MEASUREMENTS that caused the pivot.
+ * It has no self-test and deliberately did not get one -- finishing an
+ * instrument for a dead path is polishing something nobody runs.
+ *
+ * The live path is build-spec-dataset.mjs, validate-t27.mjs,
+ * score-spec-answers.mjs.
+ */
+/**
+
  * DOES OUR OWN TRAINING DATA COMPILE?
  *
  * Measured 2026-09-08: of 31 generated Verilog files in the harvested corpus,
