@@ -12,6 +12,11 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { checkFeatureAccess } from '@/helpers/featureGuard'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
+import {
+  ACTION_PREFIX,
+  standardButtons,
+  buttonsForAnswer,
+} from '@/navigation/helpers/actionButtons'
 import { getBotNameByToken } from '@/core/bot'
 import { getReferalsCountAndUserData } from '@/core/supabase'
 import { SubscriptionType } from '@/interfaces/subscription.interface'
@@ -1052,8 +1057,29 @@ If not, continue on your own and click the "I myself" button`
            * ленты, план на неделю, список лидов) легко перешагивает предел,
            * и человек не получал НИЧЕГО: ни ответа, ни объяснения.
            */
-          for (const часть of разбитьДлинное(ответ.текст)) {
-            await ctx.reply(часть)
+          /*
+           * BUTTONS UNDER THE AGENT'S ANSWER.
+           *
+           * Owner: "always send the answers with buttons so the user can react
+           * without writing text". The agent may propose its own with
+           * `[[Label|act:id]]` markers; unknown ids are dropped rather than
+           * rendered, because a press that reaches nothing is worse than no
+           * button. The standard set goes underneath, so there is always
+           * something to tap.
+           *
+           * Only the LAST chunk carries the keyboard: Telegram attaches a
+           * keyboard per message, and repeating it under every part of a long
+           * answer would give the person the same three buttons four times.
+           */
+          const isRuOtvet = isRussianFromState(ctx)
+          const { text: ochishcheno, markup } = buttonsForAnswer(
+            ответ.текст, // cyrillic-ok: field of ОтветАгента, defined in trinityAgent.ts
+            isRuOtvet
+          )
+          const chasti = разбитьДлинное(ochishcheno) // cyrillic-ok: helper from telegramLongAnswer.ts
+          for (let i = 0; i < chasti.length; i++) {
+            const posledniy = i === chasti.length - 1
+            await ctx.reply(chasti[i], posledniy ? markup : undefined)
           }
           return
         }
@@ -1126,7 +1152,10 @@ If not, continue on your own and click the "I myself" button`
                 'их покупают за звёзды Telegram и тратят на генерации. ' +
                 'Точную цену конкретной операции и баланс не выдумывай: ' +
                 'скажи, что покажешь их перед запуском, и предложи /start. ' +
-                'Мы зарабатываем на создании рилсов и контент-плана.',
+                'Мы зарабатываем на создании рилсов и контент-плана. ' +
+                'Если уместно, предложи кнопку в конце ответа маркером ' +
+                '[[Подпись|act:id]], где id — одно из: topup, balance, can. ' +
+                'Другие id не работают, не выдумывай их.',
             },
             { role: 'user', content: text },
           ],
@@ -1136,7 +1165,17 @@ If not, continue on your own and click the "I myself" button`
             botName: (ctx as any).botInfo?.username || '',
           }
         )
-        await ctx.reply(reply)
+        /*
+         * The fallback answer gets the same buttons. This is the path a person
+         * meets when the agent is down, and it is exactly when they most need
+         * something to press instead of a wall of apologetic text.
+         */
+        const isRuFb = isRussianFromState(ctx)
+        const { text: replyClean, markup: replyMarkup } = buttonsForAnswer(
+          reply,
+          isRuFb
+        )
+        await ctx.reply(replyClean, replyMarkup)
       } catch (err: any) {
         logger.error('🤖 [AI Fallback] Error', { error: err?.message })
 
@@ -1168,8 +1207,9 @@ If not, continue on your own and click the "I myself" button`
             : 'Что-то сломалось на нашей стороне.'
         await ctx
           .reply(
-            `${причина}\n\nПопробуйте через пару минут или откройте приложение кнопкой APP — ` +
-              'лента, файлы и профиль работают без модели.'
+            `${причина}\n\nПопробуйте через пару минут или откройте приложение — ` +
+              'лента, файлы и профиль работают без модели.',
+            standardButtons(isRussianFromState(ctx))
           )
           .catch(() => {
             // Если не отправляется даже это — писать больше некуда.
@@ -1491,7 +1531,84 @@ function requirePrivateChat(ctx: MyContext): boolean {
 /**
  * Регистрация команд бота (/start, /help)
  */
+/**
+ * THE FIRST SCREEN SAYS WHAT TO DO NEXT, AND OFFERS TO PAY.
+ *
+ * Owner: "the bot must proactively offer to pay, right after /start, so it is
+ * clear what to do". The main menu now removes the keyboard entirely -- two
+ * doors, the app or the conversation -- which is honest about the product and
+ * leaves a new person facing an empty chat with no visible next step.
+ *
+ * So /start ends with something to press. Top-up is first because it is the
+ * step a paying person is looking for, and because a balance is what every
+ * paid flow needs before it can start.
+ */
+async function offerToStart(ctx: MyContext): Promise<void> {
+  const isRu = isRussianFromState(ctx)
+  const text = isRu
+    ? 'Что дальше? Для генераций нужен баланс в звёздах — пополнить можно прямо здесь. ' +
+      'Или просто напишите, что нужно сделать, и я подскажу.'
+    : 'What next? Generations run on a star balance -- you can top it up right here. ' +
+      'Or just tell me what you need and I will help.'
+  await ctx.reply(text, standardButtons(isRu)).catch(() => {
+    // A failed follow-up must not undo a successful /start.
+  })
+}
+
 function registerNavigationCommands(bot: Telegraf<MyContext>): void {
+  /*
+   * BUTTONS UNDER EVERY ANSWER, AND A PRESS THAT ACTUALLY LANDS SOMEWHERE.
+   *
+   * Owner: "the bot must proactively offer to pay, right after /start, so it
+   * is clear what to do", and "always send the answers with buttons so the
+   * user can react without writing text".
+   *
+   * These handlers sit on the BOT, not inside a scene, so a press works
+   * wherever the person is -- including in the middle of a conversation with
+   * the agent, which is exactly where a scene-level handler would not fire.
+   *
+   * Every action rendered by actionButtons.ts is answered here. That pairing
+   * is the point: a button whose press reaches nothing is the same broken
+   * promise as a service with no provider key, one interaction later.
+   */
+  bot.action(`${ACTION_PREFIX}topup`, async ctx => {
+    // answerCbQuery first: Telegram shows a spinner on the button until it is
+    // answered, and a scene transition can take a moment.
+    await ctx.answerCbQuery().catch(() => undefined)
+    await ctx.scene.enter(ModeEnum.StarPaymentScene)
+  })
+
+  bot.action(`${ACTION_PREFIX}balance`, async ctx => {
+    await ctx.answerCbQuery().catch(() => undefined)
+    await ctx.scene.enter(ModeEnum.BalanceScene)
+  })
+
+  bot.action(`${ACTION_PREFIX}can`, async ctx => {
+    await ctx.answerCbQuery().catch(() => undefined)
+    const isRu = isRussianFromState(ctx)
+    /*
+     * Answered from the preflight rather than from a written list: a menu
+     * typed by hand drifts, and this one would drift towards promising more
+     * than the keys allow -- the failure the preflight exists to stop.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { checkAll } = require('@/services/capabilityPreflight')
+    const all = checkAll()
+    const ready = all.filter((v: any) => v.available && v.capability.paid)
+    const head = isRu
+      ? ready.length
+        ? 'Сейчас доступно:'
+        : 'Сейчас платные услуги недоступны — владелец уже знает.'
+      : ready.length
+        ? 'Available right now:'
+        : 'Paid services are unavailable right now.'
+    const body = ready.map((v: any) => `• ${v.capability.name}`).join('\n')
+    await ctx.reply(
+      [head, body].filter(Boolean).join('\n'),
+      standardButtons(isRu)
+    )
+  })
+
   // Команда /start - полная логика авторизации и показа главного меню
   bot.command('start', async ctx => {
     console.log('🔴 [DEBUG /start] ========== /start COMMAND FIRED ==========')
@@ -1575,6 +1692,7 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         console.log('🔴 [DEBUG /start] User exists, showing main menu...')
         await navShowMainMenu(ctx)
         console.log('🔴 [DEBUG /start] Main menu shown OK')
+        await offerToStart(ctx)
       }
     } catch (error) {
       console.log(
