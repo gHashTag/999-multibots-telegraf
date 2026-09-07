@@ -12,10 +12,10 @@
  * exists for an on-chain jetton transfer). Even past the op check, the amount
  * was read as a fixed 8-byte integer, but Coins are variable-length.
  *
- * OWNER-GATED: this changes WHICH payments are detected and credited. The
- * fixtures below are built with @ton/core (lib-generated, not captured from
- * chain); the owner should additionally validate against one real TON Center
- * transaction of the production wallet before merging.
+ * OWNER-GATED: this changes WHICH payments are detected and credited, so it
+ * ships as a draft for the owner to merge. Fixtures: lib-built (@ton/core) for
+ * the edge cases, PLUS one CHAIN-CAPTURED real transfer corroborated against
+ * TON Center v3's independent decoder (see REAL_BODY below).
  */
 import { describe, it, expect } from 'vitest'
 import * as fs from 'fs'
@@ -89,6 +89,34 @@ describe('USDT jetton amount is parsed from the BoC body (was: always 0)', () =>
 
   it('why the old reader was dead: the body starts with the BoC magic, not the op', () => {
     const buf = Buffer.from(fixture(5_000_000n, 'INV-42'), 'base64')
+    expect(buf.readUInt32BE(0)).toBe(0xb5ee9c72)
+    expect(buf.readUInt32BE(0)).not.toBe(JETTON_INTERNAL_TRANSFER_OP)
+  })
+
+  // CHAIN-CAPTURED fixture (not lib-generated): the real in_msg.msg_data.body of
+  // an incoming USDT internal_transfer, read from TON Center v2 getTransactions
+  // on the DESTINATION JETTON WALLET (the address getJettonTransactions queries),
+  // and corroborated against TON Center v3 jetton/transfers -- an INDEPENDENT
+  // decoder -- on four points: amount, source jetton wallet, decoded text memo,
+  // and block time (|dt| = 0s).
+  //   dest jetton wallet: 0:52A63C1D92E23EA97E60B7613B723CCF20F4F6A13512D276F77AE899850A3AF4
+  //   dest tx hash:       zaMcz/0sat3yg+V+naqayLBvA9rEYtMC+4PdcDLOZc4=  (lt 101954559000005, utime 1788800199)
+  //   v3 sender-side tx:  GeKLD8koUdE4pvppUQHCa7BtitgBcyv336Is1xXsXvU=
+  //   msg_data @type:     msg.dataRaw
+  const REAL_BODY =
+    'te6cckEBAgEAigABpxeNRRl8Ygsi5N5Njj8/zwgAUFltDRT/QfFa+SOaX+983XiD+FfYcMoAj/6ZAdsBEtcACgstoaKf6D4rXyRzS/3vm68Qfwr7DhlAEf/TIDtgIlrEBwEAYgAAAABUZWxlZ3JhbSBQcmVtaXVtIGZvciA2IG1vbnRocyAKClJlZiMyU2ZTMkc1azVMbJ8/'
+  const REAL_AMOUNT = 15990000n // micro-USDT per TON Center v3 (15.99 USDT)
+  const REAL_MEMO = 'Telegram Premium for 6 months \n\nRef#2SfS2G5k5'
+
+  it('real chain data: parses the amount and memo of a captured USDT transfer', () => {
+    const r = parseJettonInternalTransfer(REAL_BODY)
+    expect(r).not.toBeNull()
+    expect(r!.amount).toBe(REAL_AMOUNT)
+    expect(r!.comment).toBe(REAL_MEMO)
+  })
+
+  it('real chain data: the old fixed-offset reader hit the BoC magic here too', () => {
+    const buf = Buffer.from(REAL_BODY, 'base64')
     expect(buf.readUInt32BE(0)).toBe(0xb5ee9c72)
     expect(buf.readUInt32BE(0)).not.toBe(JETTON_INTERNAL_TRANSFER_OP)
   })
