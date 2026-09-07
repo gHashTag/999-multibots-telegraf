@@ -24,6 +24,14 @@ const { readFileSync, existsSync, unlinkSync } = require('fs')
 const { resolve } = require('path')
 
 const root = resolve(__dirname, '..')
+
+/*
+ * Before anything else: a git hook does not inherit a shell setup, and on this
+ * machine its PATH resolves an old Node that cannot load vite. The gate then
+ * blocks with an ESM stack trace and no broken test in sight -- and the push
+ * goes through with --no-verify. See scripts/lib/usable-node.cjs.
+ */
+require('./lib/usable-node.cjs').ensureUsableNode(__filename, root)
 const BASELINE = resolve(root, 'scripts', 'tests-baseline.json')
 const OUT = resolve(root, 'node_modules', '.cache', 'test-guard.json')
 
