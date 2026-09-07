@@ -207,6 +207,46 @@ enum API {
     return результат["structuredContent"] as? [String: Any] ?? [:]
   }
 
+  // MARK: - Файлы
+
+  /**
+   * ВСЁ СГЕНЕРИРОВАННОЕ — тем же инструментом `my_assets`, что и в вебе.
+   *
+   * Владелец 07.09.2026, паритет профиля. В приложении списка не было вовсе:
+   * единственная история генераций лежала НА УСТРОЙСТВЕ, на экране создания.
+   * То есть за картинку платили токенами, а найти её потом было негде —
+   * особенно если генерировали с другого устройства.
+   *
+   * Форма ответа измерена на живом сервере: `structuredContent.файлы` =
+   * [{id, type, public_url, storage_path, trigger_word, created_at}].
+   */
+  struct Файл: Decodable, Identifiable {
+    let id: Int
+    let type: String?
+    let public_url: String?
+    let created_at: String?
+
+    /// Картинка или видео определяются как в вебе: по расширению ИЛИ по типу.
+    var картинка: Bool {
+      let u = (public_url ?? "").lowercased()
+      return u.contains(".jpg") || u.contains(".jpeg") || u.contains(".png")
+        || u.contains(".webp") || u.contains(".gif") || type == "generated_image"
+    }
+
+    var видео: Bool {
+      let u = (public_url ?? "").lowercased()
+      return u.contains(".mp4") || u.contains(".webm") || u.contains(".mov")
+        || type == "generated_video"
+    }
+  }
+
+  static func мойФайлы(лимит: Int = 50) async throws -> [Файл] {
+    let sc = try await инструмент("my_assets", ["limit": лимит])
+    guard let файлы = sc["файлы"] else { return [] }
+    let d = try JSONSerialization.data(withJSONObject: файлы)
+    return (try? JSONDecoder().decode([Файл].self, from: d)) ?? []
+  }
+
   static func планПрочитать() async throws -> [ЦельПлана] {
     let sc = try await инструмент("plan_list")
     guard let цели = sc["цели"] else { return [] }
