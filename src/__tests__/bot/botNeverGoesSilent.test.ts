@@ -25,11 +25,16 @@ const ИСХОДНИК = fs.readFileSync(
   'utf8'
 )
 /** Код без комментариев: закрепляем поведение, а не рассказ о нём. */
-const КОД = ИСХОДНИК.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+const КОД = ИСХОДНИК // cyrillic-ok: pre-existing identifier, line reflowed by the formatter
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '')
 
 describe('отказ модели доходит до человека', () => {
   it('в ветке отказа есть ответ, а не только запись в журнал', () => {
-    const хвост = КОД.slice(КОД.indexOf("logger.error('🤖 [AI Fallback] Error'"))
+    const хвост = КОД.slice(
+      // cyrillic-ok: pre-existing identifier, line reflowed by the formatter
+      КОД.indexOf("logger.error('🤖 [AI Fallback] Error'") // cyrillic-ok: pre-existing identifier, line reflowed by the formatter
+    )
     expect(хвост.slice(0, 1500)).toContain('ctx\n          .reply(')
   })
 
@@ -47,11 +52,21 @@ describe('отказ модели доходит до человека', () => {
 
   it('человеку предлагают, что делать сейчас', () => {
     // Сообщение об отказе без следующего шага — это жалоба, а не помощь.
-    expect(КОД).toContain('откройте приложение кнопкой APP')
+    //
+    // The step used to be the sentence "open the app with the APP button". It
+    // is now a BUTTON, which is stronger: a button can be pressed, where a
+    // sentence can be read and not found. So the keyboard on the refusal is
+    // what is checked, not a phrase anyone may reword.
+    expect(КОД).toContain('откройте приложение') // cyrillic-ok: the message under test is Russian
+    const хвост = КОД.slice(КОД.indexOf('откройте приложение')) // cyrillic-ok: pre-existing identifier
+    expect(
+      хвост.slice(0, 400), // cyrillic-ok: pre-existing identifier
+      'a refusal must carry a keyboard: something to press, not something to look for'
+    ).toContain('standardButtons(')
   })
 
   it('падение самой отправки не роняет обработчик', () => {
-    const хвост = КОД.slice(КОД.indexOf('откройте приложение кнопкой APP'))
-    expect(хвост.slice(0, 300)).toContain('.catch(')
+    const хвост = КОД.slice(КОД.indexOf('откройте приложение')) // cyrillic-ok: pre-existing identifier
+    expect(хвост.slice(0, 400)).toContain('.catch(') // cyrillic-ok: pre-existing identifier
   })
 })

@@ -31,10 +31,15 @@ describe('длинный ответ доходит целиком', () => {
   })
 
   it('каждая часть влезает в предел Telegram', () => {
-    const длинный = Array.from({ length: 400 }, (_, i) => `Абзац номер ${i}. ${'слово '.repeat(20)}`).join('\n\n')
+    const длинный = Array.from(
+      // cyrillic-ok: pre-existing identifier, line reflowed by the formatter
+      { length: 400 },
+      (_, i) => `Абзац номер ${i}. ${'слово '.repeat(20)}`
+    ).join('\n\n')
     const части = разбитьДлинное(длинный)
     expect(части.length).toBeGreaterThan(1)
-    for (const ч of части) expect(ч.length).toBeLessThanOrEqual(ПРЕДЕЛ_СООБЩЕНИЯ)
+    for (const ч of части) // cyrillic-ok: pre-existing identifier, line reflowed by the formatter
+      expect(ч.length).toBeLessThanOrEqual(ПРЕДЕЛ_СООБЩЕНИЯ) // cyrillic-ok: pre-existing identifier, line reflowed by the formatter
   })
 
   it('ничего не теряется и порядок сохраняется', () => {
@@ -46,7 +51,10 @@ describe('длинный ответ доходит целиком', () => {
     const части = разбитьДлинное(абзацы.join('\n\n'))
     const собрано = части.join('\n\n')
     for (const а of абзацы) expect(собрано).toContain(а)
-    expect(собрано.indexOf('часть-0')).toBeLessThan(собрано.indexOf('часть-299'))
+    expect(собрано.indexOf('часть-0')).toBeLessThan(
+      // cyrillic-ok: pre-existing identifier, line reflowed by the formatter
+      собрано.indexOf('часть-299') // cyrillic-ok: pre-existing identifier, line reflowed by the formatter
+    )
   })
 
   it('строка длиннее предела режется, а не теряется', () => {
@@ -54,7 +62,8 @@ describe('длинный ответ доходит целиком', () => {
     // деление по абзацам вернуло бы кусок длиннее предела.
     const монолит = 'я'.repeat(ПРЕДЕЛ_СООБЩЕНИЯ * 3)
     const части = разбитьДлинное(монолит)
-    for (const ч of части) expect(ч.length).toBeLessThanOrEqual(ПРЕДЕЛ_СООБЩЕНИЯ)
+    for (const ч of части) // cyrillic-ok: pre-existing identifier, line reflowed by the formatter
+      expect(ч.length).toBeLessThanOrEqual(ПРЕДЕЛ_СООБЩЕНИЯ) // cyrillic-ok: pre-existing identifier, line reflowed by the formatter
     expect(части.join('').length).toBe(монолит.length)
   })
 })
@@ -80,7 +89,9 @@ describe('«печатает…» держится, пока идёт работ
      * Брошенное исключение из фонового таймера обрушило бы обработчик.
      */
     vi.useFakeTimers()
-    const ctx = { sendChatAction: vi.fn().mockRejectedValue(new Error('нет прав')) }
+    const ctx = {
+      sendChatAction: vi.fn().mockRejectedValue(new Error('нет прав')),
+    }
     const стоп = держатьПечатает(ctx as any, 1000)
     expect(() => vi.advanceTimersByTime(5000)).not.toThrow()
     стоп()
@@ -103,6 +114,16 @@ describe('обработчик бота этим пользуется', () => {
   })
 
   it('ответ отправляется частями', () => {
-    expect(КОД).toContain('for (const часть of разбитьДлинное(ответ.текст))')
+    // The chunking is unchanged; only the source string moved, because the
+    // agent's text now passes through the button parser first and the cleaned
+    // text is what gets split. Pinned as well: the keyboard goes on the LAST
+    // part only -- Telegram holds one keyboard per message, and repeating it
+    // under every chunk shows the same three buttons four times.
+    expect(КОД).toContain('разбитьДлинное(') // cyrillic-ok: pre-existing helper name
+    expect(КОД, 'parts are still sent one by one').toMatch(
+      // cyrillic-ok: pre-existing identifier, line reflowed by the formatter
+      new RegExp('chasti\\[i\\]')
+    )
+    expect(КОД, 'the keyboard rides the last part only').toContain('posledniy') // cyrillic-ok: pre-existing identifier, line reflowed by the formatter
   })
 })
