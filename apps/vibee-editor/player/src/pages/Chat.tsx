@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
+import { editorStore } from '@/atoms/Provider'
 import {
   agentMessagesAtom,
   agentDraftAtom,
@@ -264,7 +265,8 @@ function ChatPage() {
   // это стирало бы разговор при каждом возврате.
   useEffect(() => {
     if (messages.length > 0) return
-    setMessages([WELCOME])
+    // Account hydration can restore cached actions after this render.
+    setMessages(current => (current.length > 0 ? current : [WELCOME]))
   }, [messages.length, setMessages])
 
   /**
@@ -307,6 +309,10 @@ function ChatPage() {
 
   const uploadAttachments = useCallback(
     async (files: FileList | null) => {
+      const requestOwner = editorStore.get(agentChatOwnerAtom)
+      if (requestOwner === 'anonymous') return
+      const isCurrentOwner = () =>
+        editorStore.get(agentChatOwnerAtom) === requestOwner
       const selected = Array.from(files ?? []).slice(
         0,
         Math.max(0, 4 - attachments.length)
@@ -317,6 +323,7 @@ function ChatPage() {
       const uploaded: AgentAttachment[] = []
       try {
         for (const file of selected) {
+          if (!isCurrentOwner()) return
           if (file.size > 100 * 1024 * 1024) {
             throw new Error(`${file.name}: максимум 100 МБ`)
           }
@@ -331,6 +338,7 @@ function ChatPage() {
               `${file.name}: ${e instanceof Error ? e.message : String(e)}`
             )
           })
+          if (!isCurrentOwner()) return
           if (!url) throw new Error(`${file.name}: сервер не вернул адрес`)
           const kind: AgentAttachmentKind = file.type.startsWith('image/')
             ? 'image'
@@ -347,8 +355,11 @@ function ChatPage() {
             kind,
           })
         }
-        setAttachments(current => [...current, ...uploaded].slice(0, 4))
+        setAttachments(current =>
+          isCurrentOwner() ? [...current, ...uploaded].slice(0, 4) : current
+        )
       } catch (error) {
+        if (!isCurrentOwner()) return
         setAttachmentError(
           error instanceof Error ? error.message : 'Файл не загрузился'
         )

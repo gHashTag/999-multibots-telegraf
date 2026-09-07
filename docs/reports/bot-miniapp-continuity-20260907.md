@@ -37,6 +37,10 @@ Issue: #2136. Dependency: PR #2130, initially e12798f9, then fast-forwarded to c
 
 ## Scope and remaining evidence
 
+Final local checkpoint: feature commit 09033acb passed all hooks, exact bot subset48/48, production player build and range secret scan. Mock transport suite87/87 passed on an isolated free port; it is not live provider evidence.
+
+Browser follow-up: reload exposed a stale welcome-effect overwrite of cached actions. Three mounted DOM regression cases observed RED then GREEN cover hydration and delayed uploads after account changes. A functional welcome update and captured-owner upload guard form a narrow follow-up.
+
 Navigation only opens screens. It must not advertise unsupported deep links to individual projects. Shared conversation remains owner scoped; this wave does not partition it by bot or device.
 
 Deploy render before player: the new player requires ownerId in server history and sends the current user turn rather than trusting cached history. Then deploy the root bot for inline actions/menu setup. Backend remains compatible with older clients; the old backend is not a valid target for the new player's shared-history behavior.
