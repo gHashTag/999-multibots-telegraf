@@ -34,6 +34,8 @@ import {
 
 /** Поддельный пул, подчиняющийся SQL: неузнанный запрос — ошибка, не тишина. */
 function поддельныйПул() {
+  /** Подсказанные номера: их читает статус. */
+  const номера = new Map<string, string>()
   const строки = new Map<string, { session: string; phone: string | null }>()
   /*
    * Подделка записывает СОБЫТИЯ, а не только состояние. Без этого порядок
@@ -59,6 +61,25 @@ function поддельныйПул() {
       if (/^DELETE FROM tg_sessions WHERE telegram_id = \$1$/i.test(т)) {
         события.push('забыли')
         строки.delete(String(params[0]))
+        return { rows: [] }
+      }
+      /*
+       * Соседняя таблица подсказанных номеров: статус читает её тем же
+       * ответом, чтобы экран не делал второго круга сети.
+       *
+       * Условие берётся ИЗ ЗАПРОСА, а не повторяется здесь: подделка со своей
+       * копией `WHERE` зеленеет ровно тогда, когда условие из настоящего кода
+       * убрали.
+       */
+      if (/^SELECT phone FROM tg_known_phones/i.test(т)) {
+        const сверяет = т.includes('telegram_id = $1')
+        const найдено = [...номера.entries()].filter(
+          ([id]) => !сверяет || id === String(params[0])
+        )
+        return { rows: найдено.map(([, phone]) => ({ phone })) }
+      }
+      if (/^DELETE FROM tg_known_phones/i.test(т)) {
+        номера.delete(String(params[0]))
         return { rows: [] }
       }
       throw new Error(`подделка не узнала запрос: ${т.slice(0, 140)}`)
@@ -245,6 +266,15 @@ describe('маршруты подключения: личность строже
   })
 
   function поддельныйПулИз(строки: Map<string, any>): Пул {
+    /*
+     * Своя карта подсказанных номеров у каждой копии подделки.
+     *
+     * Раньше я объявлял её то в одной области, то в другой и трижды получал
+     * «номера is not defined»: у этого файла ДВЕ подделки пула, и правка
+     * вслепую попадала не в ту. Место объявления — там же, где хранилище,
+     * которое она подменяет.
+     */
+    const номера = new Map<string, string>()
     return {
       async query(sql: string, params: unknown[] = []) {
         const т = sql.replace(/\s+/g, ' ').trim()
@@ -259,6 +289,20 @@ describe('маршруты подключения: личность строже
         }
         if (/^DELETE FROM tg_sessions WHERE telegram_id = \$1$/i.test(т)) {
           строки.delete(String(params[0]))
+          return { rows: [] }
+        }
+        if (/^SELECT phone FROM tg_known_phones/i.test(т)) {
+          // Условие берётся ИЗ ЗАПРОСА, а не повторяется здесь: подделка со
+          // своей копией `WHERE` зеленеет ровно тогда, когда условие из
+          // настоящего кода убрали.
+          const сверяет = т.includes('telegram_id = $1')
+          const найдено = [...номера.entries()].filter(
+            ([id]) => !сверяет || id === String(params[0])
+          )
+          return { rows: найдено.map(([, phone]) => ({ phone })) }
+        }
+        if (/^DELETE FROM tg_known_phones/i.test(т)) {
+          номера.delete(String(params[0]))
           return { rows: [] }
         }
         throw new Error(`подделка не узнала запрос: ${т.slice(0, 140)}`)
@@ -314,7 +358,15 @@ describe('маршруты подключения: личность строже
       { url: '/api/tg/connect/status', method: 'GET' },
       зав('1') as any
     )
-    expect(r.тело).toEqual({ ok: true, подключено: false })
+    /*
+     * Статус теперь везёт и ПОДСКАЗКУ НОМЕРА — тем же ответом, чтобы экран не
+     * делал второй круг сети ровно тогда, когда человек ждёт форму.
+     *
+     * `подключено: false` проверяется по-прежнему точно: выдуманное «да»
+     * показало бы человеку «Telegram подключён» там, где ничего не подключено.
+     * Номер здесь `null`: делиться им никто не приходил.
+     */
+    expect(r.тело).toEqual({ ok: true, подключено: false, phone: null })
   })
 
   it('все пути объявлены и достижимы через общий гвард', () => {
