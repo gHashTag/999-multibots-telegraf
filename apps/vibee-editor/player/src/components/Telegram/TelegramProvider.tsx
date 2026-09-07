@@ -6,6 +6,7 @@ import { useTelegramWebApp } from '@/hooks/useTelegramWebApp'
 import { getWebApp, getInitData, isTelegram } from '@/lib/telegram'
 import { telegramAutoLoginAtom } from '@/atoms/telegramAuth'
 import { exchangeTelegramLaunch } from '@/lib/appSession'
+import { resolveMiniAppStartRoute } from '@/lib/miniAppRoutes'
 
 // ===============================
 // Mounts the Telegram runtime wiring. Must render INSIDE <BrowserRouter>
@@ -22,48 +23,6 @@ import { exchangeTelegramLaunch } from '@/lib/appSession'
  * start_param (?startapp=... / t.me/bot/app?startapp=feed) is honoured when it
  * names a known tab, so deep links keep working.
  */
-const START_PARAM_ROUTES: Record<string, string> = {
-  feed: '/feed',
-  search: '/search',
-  learn: '/learn',
-  editor: '/editor',
-  create: '/editor',
-  avatar: '/generate/avatar',
-  video: '/generate/video',
-  image: '/generate/image',
-  audio: '/generate/audio',
-  profile: '/profile',
-  /**
-   * `pair` — SIGN-IN FOR THE NATIVE APP. It was missing, and that alone made
-   * signing in impossible.
-   *
-   * The bot sends exactly this value: `appLoginCommand.ts` declares its start
-   * parameter as 'pair' and builds the button with `buildMiniAppUrl('pair')`.
-   * A value this map does not know is NOT an error -- it falls through to
-   * `TELEGRAM_HOME`, the feed. So the person pressed "Sign in to the app",
-   * landed on the feed, never saw a code, typed something anyway on the
-   * iPhone and got "код не найден".
-   *
-   * Production measurement 2026-09-03 matches that line for line: the logs
-   * carry `POST /api/auth/pair/start` and THREE `POST /api/auth/pair/claim`,
-   * while `app_pairing_codes` gained no row in 24 hours. No code existed for
-   * a single second; all three claims failed as `unknown`.
-   *
-   * Points at `/profile` because the card that shows the code
-   * (`PairWithApp`) lives there. No separate route was added: one screen with
-   * two addresses is one more pair that will eventually drift apart.
-   */
-  /*
-   * НА ВКЛАДКУ, ГДЕ КОД, А НЕ «КУДА-НИБУДЬ В ПРОФИЛЬ».
-   *
-   * Бот пишет: «Нажмите кнопку — откроется окно с кодом». Кнопка вела на
-   * `/profile`, профиль открывался на «Шаблонах», а код живёт во вкладке
-   * «Агент» — о которой в сообщении ни слова. Человек, пришедший за кодом по
-   * единственному рекламируемому пути, кода не видел.
-   */
-  pair: '/profile?tab=agent',
-}
-
 const TELEGRAM_HOME = '/feed'
 
 /**
@@ -76,6 +35,8 @@ const TELEGRAM_HOME = '/feed'
  */
 const LAUNCH_PATH =
   typeof window !== 'undefined' ? window.location.pathname : '/'
+const LAUNCH_SEARCH =
+  typeof window !== 'undefined' ? window.location.search : ''
 
 export function TelegramProvider() {
   useTelegramWebApp()
@@ -131,7 +92,7 @@ export function TelegramProvider() {
     if (LAUNCH_PATH !== '/') return
 
     const startParam = getWebApp()?.initDataUnsafe?.start_param
-    const target = startParam && START_PARAM_ROUTES[startParam]
+    const target = resolveMiniAppStartRoute(startParam, LAUNCH_SEARCH)
 
     redirected.current = true
 

@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+import { resolveMiniAppStartRoute } from '@/lib/miniAppRoutes'
 
 /**
  * ПУТЬ, КОТОРЫЙ БОТ РЕКЛАМИРУЕТ, ДОЛЖЕН ВЕСТИ ТУДА, ЧТО ОН ОБЕЩАЕТ.
@@ -90,18 +91,25 @@ function ЗаписатьАдрес({ onПуть }: { onПуть: (п: string) =
 }
 
 describe('ссылка бота указывает на вкладку с кодом', () => {
-  const ПРОВАЙДЕР = fs
+  const providerSource = fs
     .readFileSync(
-      path.join(__dirname, '..', 'components', 'Telegram', 'TelegramProvider.tsx'),
+      path.join(
+        __dirname,
+        '..',
+        'components',
+        'Telegram',
+        'TelegramProvider.tsx'
+      ),
       'utf8'
     )
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '')
 
   it('start_param «pair» ведёт на вкладку агента, а не в профиль вообще', () => {
-    expect(ПРОВАЙДЕР).toContain("pair: '/profile?tab=agent'")
-    // Голый '/profile' высаживал на «Шаблоны» — именно это и чинится.
-    expect(ПРОВАЙДЕР).not.toMatch(/pair: '\/profile',/)
+    expect(providerSource).toContain(
+      'resolveMiniAppStartRoute(startParam, LAUNCH_SEARCH)'
+    )
+    expect(resolveMiniAppStartRoute('pair', '')).toBe('/profile?tab=agent')
   })
 })
 

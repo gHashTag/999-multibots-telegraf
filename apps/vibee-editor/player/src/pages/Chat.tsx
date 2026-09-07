@@ -1,12 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAtom, useAtomValue } from 'jotai'
-import { agentMessagesAtom, agentDraftAtom } from '@/atoms/agentChat'
-import { sendToAgent, agentBusyAtom, isAgentBusy } from '@/lib/agentStream'
+import { editorStore } from '@/atoms/Provider'
 import {
-  shouldAdoptHistory,
-  adoptHistory,
-  turnsFromResponse,
-} from '@/lib/agentHistory'
+  agentMessagesAtom,
+  agentDraftAtom,
+  agentChatOwnerAtom,
+} from '@/atoms/agentChat'
+import { sendToAgent, agentBusyAtom } from '@/lib/agentStream'
+import {
+  startAgentHistorySync,
+  clearAgentHistory,
+  agentHistoryClearingAtom,
+} from '@/lib/agentHistorySync'
+import { ChatTaskActions } from '@/components/Chat/ChatTaskActions'
 import type {
   AgentAttachment,
   AgentAttachmentKind,
@@ -93,8 +99,11 @@ function ChatPage() {
   // размонтируется при переключении вкладки, и разговор пропадал вместе с ней.
   const [messages, setMessages] = useAtom(agentMessagesAtom)
   const [input, setInput] = useAtom(agentDraftAtom)
+  const owner = useAtomValue(agentChatOwnerAtom)
   // Занятость — в атоме: она принадлежит разговору, а не странице.
-  const busy = useAtomValue(agentBusyAtom)
+  const streaming = useAtomValue(agentBusyAtom)
+  const clearing = useAtomValue(agentHistoryClearingAtom)
+  const busy = streaming || clearing
   const [openThinking, setOpenThinking] = useState<Record<string, boolean>>({})
   const [tokens, setTokens] = useState<number | null>(null)
   const [topUp, setTopUp] = useState(false)
@@ -104,6 +113,12 @@ function ChatPage() {
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setAttachments([])
+    setAttachmentError(null)
+    setOpenThinking({})
+  }, [owner])
 
   // Пополнение: инвойс создаёт сервер (XTR), открывает Telegram.WebApp.
   // Серверной верификацией занимается вебхук кассира — клиенту не верим.
@@ -127,7 +142,7 @@ function ChatPage() {
         setTopUpNote(String(d.error ?? 'не получилось'))
         return
       }
-      const wa = (window as any).Telegram?.WebApp
+      const wa = window.Telegram?.WebApp
       if (wa?.openInvoice) {
         wa.openInvoice(d.link, async (status: string) => {
           if (status === 'paid') {
@@ -242,88 +257,17 @@ function ChatPage() {
     })()
   }, [])
 
-  /**
-   * ОБЩИЙ РАЗГОВОР: история подтягивается С СЕРВЕРА, а не только из браузера.
-   *
-   * До этого переписка жила целиком в localStorage: почистил браузер, сменил
-   * устройство или открыл мини-апп из другого клиента Telegram — разговора
-   * нет. Теперь сервер хранит его сам (`agent_messages`), и обе поверхности —
-   * бот и мини-апп — читают одно место.
-   *
-   * ПРАВИЛО СЛИЯНИЯ НАМЕРЕННО ПРОСТОЕ: сервер выигрывает, если ему есть что
-   * сказать. Он записывает каждый виток с любой поверхности, значит он полнее
-   * по построению. Пустой ответ сервера НЕ затирает местную историю — иначе
-   * первый же заход после выкладки стёр бы разговор, которого сервер ещё не
-   * видел.
-   *
-   * Локальное хранилище остаётся: оно рисует переписку мгновенно, до ответа
-   * сети, и работает, когда сети нет.
-   */
-  useEffect(() => {
-    let alive = true
-
-    /*
-     * REFRESHED ON EVERY RETURN TO THE TAB, NOT ONLY ON MOUNT.
-     *
-     * This used to run once, with an empty dependency list. A turn written in
-     * the bot while this tab stayed open never appeared here -- and, worse,
-     * never reached the model, because the next request carries THIS page's
-     * transcript. The symptom reads as the agent being stupid: you tell the
-     * bot something, switch to the app, ask a follow-up, and it has no idea.
-     *
-     * `isAgentBusy()` is read at call time rather than the `busy` value from
-     * render: this effect never re-runs, so a captured `busy` would be stale
-     * forever and the guard would be decorative.
-     */
-    const refresh = () => {
-      if (
-        typeof document !== 'undefined' &&
-        document.visibilityState === 'hidden'
-      ) {
-        return
-      }
-      fetch(`${API_BASE}/api/agent/history?limit=100`, {
-        headers: authHeaders(),
-      })
-        .then(response => (response.ok ? response.json() : null))
-        .then(body => {
-          if (!alive) return
-          const server = turnsFromResponse(body)
-          setMessages(local =>
-            shouldAdoptHistory({ server, local, busy: isAgentBusy() })
-              ? adoptHistory(server)
-              : local
-          )
-        })
-        .catch(() => {
-          // Silent ON PURPOSE: an unreachable history must not stand between a
-          // person and writing a new message. The local copy is already shown.
-        })
-    }
-
-    refresh()
-    document.addEventListener('visibilitychange', refresh)
-    window.addEventListener('focus', refresh)
-    return () => {
-      alive = false
-      document.removeEventListener('visibilitychange', refresh)
-      window.removeEventListener('focus', refresh)
-    }
-    // Mount once; the listeners above carry every later refresh.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // The server owns history; each account retains a local cache for startup.
+  useEffect(() => startAgentHistorySync(), [])
 
   // Приветствие — ТОЛЬКО в пустой чат. Раньше эффект писал его безусловно на
   // каждом монтировании; теперь, когда история переживает уход со страницы,
   // это стирало бы разговор при каждом возврате.
   useEffect(() => {
     if (messages.length > 0) return
-    setMessages([WELCOME])
-    // Один раз на монтировании: messages читается ради проверки «пусто ли»,
-    // в зависимостях ему делать нечего — иначе эффект пересчитается на каждое
-    // новое сообщение.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    // Account hydration can restore cached actions after this render.
+    setMessages(current => (current.length > 0 ? current : [WELCOME]))
+  }, [messages.length, setMessages])
 
   /**
    * Прокрутка вниз — только когда есть за чем гнаться.
@@ -353,17 +297,22 @@ function ChatPage() {
    */
   const send = useCallback(
     (text: string) => {
-      if ((!text.trim() && attachments.length === 0) || uploading) return
+      if ((!text.trim() && attachments.length === 0) || uploading || busy)
+        return
       void sendToAgent(text, attachments)
       setInput('')
       setAttachments([])
       setAttachmentError(null)
     },
-    [attachments, setInput, uploading]
+    [attachments, setInput, uploading, busy]
   )
 
   const uploadAttachments = useCallback(
     async (files: FileList | null) => {
+      const requestOwner = editorStore.get(agentChatOwnerAtom)
+      if (requestOwner === 'anonymous') return
+      const isCurrentOwner = () =>
+        editorStore.get(agentChatOwnerAtom) === requestOwner
       const selected = Array.from(files ?? []).slice(
         0,
         Math.max(0, 4 - attachments.length)
@@ -374,6 +323,7 @@ function ChatPage() {
       const uploaded: AgentAttachment[] = []
       try {
         for (const file of selected) {
+          if (!isCurrentOwner()) return
           if (file.size > 100 * 1024 * 1024) {
             throw new Error(`${file.name}: максимум 100 МБ`)
           }
@@ -388,6 +338,7 @@ function ChatPage() {
               `${file.name}: ${e instanceof Error ? e.message : String(e)}`
             )
           })
+          if (!isCurrentOwner()) return
           if (!url) throw new Error(`${file.name}: сервер не вернул адрес`)
           const kind: AgentAttachmentKind = file.type.startsWith('image/')
             ? 'image'
@@ -404,8 +355,11 @@ function ChatPage() {
             kind,
           })
         }
-        setAttachments(current => [...current, ...uploaded].slice(0, 4))
+        setAttachments(current =>
+          isCurrentOwner() ? [...current, ...uploaded].slice(0, 4) : current
+        )
       } catch (error) {
+        if (!isCurrentOwner()) return
         setAttachmentError(
           error instanceof Error ? error.message : 'Файл не загрузился'
         )
@@ -434,28 +388,15 @@ function ChatPage() {
           {messages.length > 1 && (
             <button
               className="chat-reset"
-              onClick={() => {
-                /*
-                 * «Начать заново» ТЕПЕРЬ ЧИСТИТ И СЕРВЕР.
-                 *
-                 * Раньше кнопка стирала только память браузера, а общий
-                 * разговор оставался на сервере — человек нажимал «новый», а
-                 * агент продолжал помнить всё прошлое. Обещание, которого
-                 * интерфейс не выполнял; с появлением общей памяти оно стало
-                 * ещё заметнее: разговор возвращался при следующем открытии.
-                 *
-                 * Экран очищаем СРАЗУ, не дожидаясь сети: нажатие должно
-                 * ощущаться мгновенно. Отказ сервера при этом не молчаливый —
-                 * он виден в консоли, а следующий заход покажет, что история
-                 * вернулась, и это честнее, чем ложное «очищено».
-                 */
-                setMessages([WELCOME])
-                setInput('')
-                setAttachments([])
-                fetch(`${API_BASE}/api/agent/history`, {
-                  method: 'DELETE',
-                  headers: authHeaders(),
-                }).catch(e => console.error('[chat] очистка на сервере:', e))
+              disabled={busy}
+              onClick={async () => {
+                setAttachmentError(null)
+                try {
+                  await clearAgentHistory()
+                  setAttachments([])
+                } catch {
+                  setAttachmentError(t('chat.clearFailed'))
+                }
               }}
             >
               Новый разговор
@@ -524,6 +465,7 @@ function ChatPage() {
               {m.text || (m.attachments?.length ?? 0) > 0 ? (
                 <div className="message-content">
                   {m.text ? <ChatAssets text={m.text} /> : null}
+                  <ChatTaskActions destinations={m.actions} />
                   {m.attachments && m.attachments.length > 0 ? (
                     <div className="message-attachments">
                       {m.attachments.map(attachment => (

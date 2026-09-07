@@ -1,0 +1,23 @@
+.chat-task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.chat-task-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid var(--accent, #00e887);
+  border-radius: 12px;
+  color: var(--accent, #00e887);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.chat-task-actions a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}

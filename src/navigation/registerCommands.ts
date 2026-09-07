@@ -12,6 +12,7 @@ import { isRussianFromState } from '@/helpers/centralizedLanguage'
 import { checkFeatureAccess } from '@/helpers/featureGuard'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
+import { replyWithAgentTaskButtons } from './helpers/agentTaskButtons'
 import {
   attachmentFromMessage,
   buildAgentMessage,
@@ -1106,10 +1107,10 @@ If not, continue on your own and click the "I myself" button`
          * пока идёт работа, и гасим в finally — иначе он остался бы висеть
          * после ошибки.
          */
-        const { держатьПечатает, разбитьДлинное } = await import(
+        const { ['держатьПечатает']: keepTyping } = await import(
           '@/helpers/telegramLongAnswer'
         )
-        const стоп = держатьПечатает(ctx as any)
+        const стоп = keepTyping(ctx as any) // cyrillic-ok: existing timer
         let ответ
         try {
           const { спроситьАгента } = await import('@/services/trinityAgent')
@@ -1124,16 +1125,14 @@ If not, continue on your own and click the "I myself" button`
         } finally {
           стоп()
         }
-        if (ответ.текст) {
-          /*
-           * Telegram ОТКАЗЫВАЕТ в отправке текста длиннее 4096 символов —
-           * не обрезает, а отказывает. Развёрнутый ответ агента (разбор
-           * ленты, план на неделю, список лидов) легко перешагивает предел,
-           * и человек не получал НИЧЕГО: ни ответа, ни объяснения.
-           */
-          for (const часть of разбитьДлинное(ответ.текст)) {
-            await ctx.reply(часть)
-          }
+        if (
+          await replyWithAgentTaskButtons(
+            ctx,
+            ответ.текст, // cyrillic-ok: existing response
+            ответ.actions, // cyrillic-ok: existing response variable
+            isRussianFromState(ctx)
+          )
+        ) {
           return
         }
         logger.warn('🤖 [Агент] пустой ответ — иду запасным путём', {
@@ -1188,7 +1187,7 @@ If not, continue on your own and click the "I myself" button`
             botName: (ctx as any).botInfo?.username || '',
           }
         )
-        await ctx.reply(reply)
+        await replyWithAgentTaskButtons(ctx, reply, [], isRussianFromState(ctx))
 
         /*
          * THE FALLBACK ANSWER GOES INTO THE SHARED CONVERSATION TOO.

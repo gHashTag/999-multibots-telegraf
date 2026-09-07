@@ -12,9 +12,20 @@ import type { KeyboardButton } from 'telegraf/types'
  * URL мини-аппа. Переопределяется через VIBEE_EDITOR_URL,
  * чтобы можно было указать staging или кастомный домен без пересборки.
  */
-export const MINI_APP_URL =
-  process.env.VIBEE_EDITOR_URL ||
-  'https://vibee-editor-production.up.railway.app'
+const DEFAULT_MINI_APP_URL = 'https://app.t27.ai'
+
+function configuredMiniAppUrl(): string {
+  try {
+    const url = new URL(process.env.VIBEE_EDITOR_URL || DEFAULT_MINI_APP_URL)
+    if (url.protocol === 'https:' && !url.username && !url.password)
+      return url.origin
+  } catch {
+    // A malformed deployment override must not turn app buttons into dead ends.
+  }
+  return DEFAULT_MINI_APP_URL
+}
+
+export const MINI_APP_URL = configuredMiniAppUrl()
 
 export const MINI_APP_BUTTON = {
   id: 'videoEditor',

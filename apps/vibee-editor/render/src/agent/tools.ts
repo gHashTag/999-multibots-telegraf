@@ -26,6 +26,7 @@
  */
 
 import { planTools } from './plan-tools'
+import { OPEN_APP_TOOL } from './app-tools'
 import { pricingSummary, providerSetup, CLUB } from './pricing'
 import { editImage, EDIT_MODEL } from '../kie-image'
 
@@ -1564,7 +1565,9 @@ export const TOOLS: AgentTool[] = [
       )
       const д: any = await о.json()
       if (!д?.ok || !д?.result) {
-        throw new Error(`Telegram не выдал ссылку: ${String(д?.description).slice(0, 200)}`)
+        throw new Error(
+          `Telegram не выдал ссылку: ${String(д?.description).slice(0, 200)}`
+        )
       }
       return {
         ссылка: д.result,
@@ -1924,7 +1927,9 @@ export const TOOLS: AgentTool[] = [
       required: ['username'],
     },
     async handler(a: Record<string, unknown>, ctx) {
-      const name = String(a.username ?? '').replace(/^@/, '').trim()
+      const name = String(a.username ?? '')
+        .replace(/^@/, '')
+        .trim()
       if (!name) return { ok: false, error: 'нужно имя пользователя' }
       const r = await ctx.pool.query(
         `SELECT us.content, us.updated_at::text AS updated_at, p.username
@@ -2251,13 +2256,7 @@ TOOLS.push(...PROJECT_TOOLS)
  * owner sees their bots, everyone else sees only themselves.
  */
 TOOLS.push(...HIVE_TOOLS)
-/*
- * Пульс улья — сюда же. Это ответ на «как дела у проекта», и спрашивают его
- * в том же чате, где спрашивают про баланс и ленту. Область видимости у
- * инструмента своя (`hive/roles.ts`): смотритель видит ферму, владелец —
- * своих ботов, остальные — только себя.
- */
-TOOLS.push(...HIVE_TOOLS)
+TOOLS.push(OPEN_APP_TOOL)
 
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
 

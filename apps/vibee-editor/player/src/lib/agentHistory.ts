@@ -19,8 +19,10 @@ import type { Message } from '@/atoms/agentChat'
  */
 
 export interface ServerTurn {
+  id?: number
   role: string
   content: string
+  surface?: string
 }
 
 /**
@@ -33,10 +35,8 @@ export interface ServerTurn {
  * rest of the reply would vanish silently. A refresh can always wait; a reply
  * in flight cannot be recovered.
  *
- * WHY AN EMPTY SERVER ANSWER CHANGES NOTHING. Empty means "the server has
- * nothing for this person yet", not "the conversation was cleared". Treating it
- * as authoritative would wipe a visible chat on the first request after a
- * deploy, or whenever the history endpoint has a bad minute.
+ * A validated empty response means the shared conversation was cleared.
+ * Missing or malformed responses are rejected before reaching this function.
  *
  * WHY IDENTICAL HISTORY IS SKIPPED. This runs on every tab focus. Rebuilding
  * the list with fresh ids on each focus makes React remount every bubble --
@@ -52,54 +52,76 @@ export function shouldAdoptHistory({
   busy: boolean
 }): boolean {
   if (busy) return false
-  if (!server.length) return false
-  /*
-   * A SHORTER SERVER TRANSCRIPT IS NOT AUTHORITATIVE.
-   *
-   * If the page shows more turns than the server has, the page holds something
-   * the server does not -- a reply whose recording failed, or a turn that has
-   * not landed yet. Adopting would delete an answer the person has already
-   * read, off their screen, with no way to get it back. Being one turn stale
-   * costs nothing by comparison.
-   *
-   * Found by mutation: with the length check removed the tests stayed green,
-   * because every case they covered had the server equal or longer.
-   */
-  if (server.length < local.length) return false
-  return !sameConversation(server, local)
+  if (!server.length && local.every(message => message.id === 'welcome'))
+    return false
+  return JSON.stringify(adoptHistory(server, local)) !== JSON.stringify(local)
 }
 
-/**
- * Compared position by position over the SERVER transcript.
- *
- * There is deliberately no length check here. The caller has already refused a
- * server transcript shorter than the page, so by this point the server is equal
- * or longer -- and if it is longer, the walk runs past the end of `local` and
- * the missing entry answers false on its own. A length check would be dead
- * code, and a mutation run proved it: removing it changed no behaviour and no
- * test went red.
- */
-function sameConversation(server: ServerTurn[], local: Message[]): boolean {
-  return server.every((turn, i) => {
-    const mine = local[i]
-    if (!mine) return false
-    const role = turn.role === 'user' ? 'user' : 'assistant'
-    return role === mine.role && String(turn.content ?? '') === mine.text
-  })
+function renderedTurn(turn: ServerTurn, index: number): Message {
+  const id = `server-${turn.id ?? index}`
+  const attachments: NonNullable<Message['attachments']> = []
+  const text = turn.content
+    .split('\n')
+    .filter(line => {
+      const match = line.match(
+        /^\[attached (image|video|audio|file): (.*); mime=(.*); url=(.*)\]$/
+      )
+      if (!match || !/^(https?:\/\/|\/(?!\/))/.test(match[4])) return true
+      attachments.push({
+        id: `${id}-attachment-${attachments.length}`,
+        kind: match[1] as 'image' | 'video' | 'audio' | 'file',
+        name: match[2],
+        mimeType: match[3],
+        url: match[4],
+      })
+      return false
+    })
+    .join('\n')
+    .trim()
+  return {
+    id,
+    role: turn.role === 'user' ? 'user' : 'assistant',
+    text,
+    ...(turn.surface ? { surface: turn.surface } : {}),
+    ...(attachments.length ? { attachments } : {}),
+  }
 }
 
 /**
  * Turn the server's transcript into what the page renders.
  *
- * Ids are positional and stable for a given transcript, which is what lets
- * `sameConversation` short-circuit a repeat refresh into no work at all.
+ * Database ids survive changes to the history window. Matching local turns
+ * keep tool traces and actions, which the server currently does not persist.
+ * Each local match is consumed once so repeated identical messages stay distinct.
  */
-export function adoptHistory(server: ServerTurn[]): Message[] {
-  return server.map((turn, i) => ({
-    id: `server-${i}`,
-    role: turn.role === 'user' ? 'user' : 'assistant',
-    text: String(turn.content ?? ''),
-  }))
+export function adoptHistory(
+  server: ServerTurn[],
+  local: Message[] = []
+): Message[] {
+  const available = new Set(local)
+  return server.map((turn, index) => {
+    const rendered = renderedTurn(turn, index)
+    const match = [...available].find(
+      message =>
+        message.role === rendered.role &&
+        (message.id === rendered.id ||
+          (!message.id.startsWith('server-') &&
+            message.text.replace(/\s/g, '') ===
+              rendered.text.replace(/\s/g, '') &&
+            JSON.stringify(message.attachments?.map(a => a.url) ?? []) ===
+              JSON.stringify(rendered.attachments?.map(a => a.url) ?? [])))
+    )
+    if (!match) return rendered
+    available.delete(match)
+    return {
+      ...match,
+      ...rendered,
+      ...(match.text.replace(/\s/g, '') === rendered.text.replace(/\s/g, '')
+        ? { text: match.text }
+        : {}),
+      ...(match.attachments?.length ? { attachments: match.attachments } : {}),
+    }
+  })
 }
 
 /**
@@ -110,18 +132,18 @@ export function adoptHistory(server: ServerTurn[]): Message[] {
  * otherwise become `undefined.length` inside the effect, and the catch there
  * swallows errors on purpose.
  */
-export function turnsFromResponse(body: unknown): ServerTurn[] {
-  const messages = (body as { messages?: unknown } | null)?.messages
-  if (!Array.isArray(messages)) return []
-  return messages
-    .filter(
-      (m): m is ServerTurn =>
-        !!m &&
+export function turnsFromResponse(body: unknown): ServerTurn[] | null {
+  const response = body as { ok?: boolean; messages?: unknown } | null
+  if (response?.ok !== true || !Array.isArray(response.messages)) return null
+  if (
+    !response.messages.every(
+      m =>
+        m &&
         typeof m === 'object' &&
-        typeof (m as ServerTurn).content === 'string'
+        (m.role === 'user' || m.role === 'assistant') &&
+        typeof m.content === 'string'
     )
-    .map(m => ({
-      role: String(m.role ?? 'assistant'),
-      content: String(m.content),
-    }))
+  )
+    return null
+  return response.messages as ServerTurn[]
 }
