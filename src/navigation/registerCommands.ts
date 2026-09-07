@@ -1656,30 +1656,6 @@ function requirePrivateChat(ctx: MyContext): boolean {
 /**
  * Регистрация команд бота (/start, /help)
  */
-/**
- * THE FIRST SCREEN SAYS WHAT TO DO NEXT, AND OFFERS TO PAY.
- *
- * Owner: "the bot must proactively offer to pay, right after /start, so it is
- * clear what to do". The main menu now removes the keyboard entirely -- two
- * doors, the app or the conversation -- which is honest about the product and
- * leaves a new person facing an empty chat with no visible next step.
- *
- * So /start ends with something to press. Top-up is first because it is the
- * step a paying person is looking for, and because a balance is what every
- * paid flow needs before it can start.
- */
-async function offerToStart(ctx: MyContext): Promise<void> {
-  const isRu = isRussianFromState(ctx)
-  const text = isRu
-    ? 'Что дальше? Для генераций нужен баланс в звёздах — пополнить можно прямо здесь. ' +
-      'Или просто напишите, что нужно сделать, и я подскажу.'
-    : 'What next? Generations run on a star balance -- you can top it up right here. ' +
-      'Or just tell me what you need and I will help.'
-  await ctx.reply(text, standardButtons(isRu)).catch(() => {
-    // A failed follow-up must not undo a successful /start.
-  })
-}
-
 function registerNavigationCommands(bot: Telegraf<MyContext>): void {
   /*
    * BUTTONS UNDER EVERY ANSWER, AND A PRESS THAT ACTUALLY LANDS SOMEWHERE.
@@ -1817,7 +1793,6 @@ function registerNavigationCommands(bot: Telegraf<MyContext>): void {
         console.log('🔴 [DEBUG /start] User exists, showing main menu...')
         await navShowMainMenu(ctx)
         console.log('🔴 [DEBUG /start] Main menu shown OK')
-        await offerToStart(ctx)
       }
     } catch (error) {
       console.log(

@@ -117,12 +117,31 @@ describe('a rendered button always has somewhere to land', () => {
     expect(app!.web_app!.url).toMatch(new RegExp('^https://'))
   })
 
-  it('offers payment right after /start', () => {
-    // Owner: "proactively offer to pay, right after /start, so it is clear
-    // what to do". Structural, because the handler is not exported.
-    expect(commands, '/start must end with an offer to top up').toMatch(
-      new RegExp('offerToStart\\(ctx\\)')
+  /**
+   * The offer used to live in a private `offerToStart` called from ONE branch
+   * of /start -- the existing-user branch. A brand-new person went to
+   * CreateUserScene, through the free demo, and never saw it. It now lives in
+   * `showMainMenu`, which is where every one of those paths ends, so this
+   * checks the reachable property instead of the old function's name: /start
+   * goes to the main menu, and the main menu makes the offer.
+   */
+  it('offers payment after /start, through the menu every path ends at', () => {
+    expect(commands, '/start must reach the main menu').toMatch(
+      new RegExp('navShowMainMenu\\(ctx\\)')
     )
-    expect(commands).toMatch(new RegExp('async function offerToStart'))
+    const menu = fs.readFileSync(
+      path.join(
+        __dirname,
+        '..',
+        '..',
+        'navigation',
+        'helpers',
+        'menuKeyboard.ts'
+      ),
+      'utf8'
+    )
+    expect(menu, 'the main menu must offer something to press').toMatch(
+      new RegExp('standardButtons\\(isRu\\)')
+    )
   })
 })
