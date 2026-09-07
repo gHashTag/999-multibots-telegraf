@@ -1,6 +1,26 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
+# Deploy ONLY when something the runtime image actually contains has changed.
+# Every push to main redeploys this service; on 2026-09-08 that was 15 deploys
+# in 3 hours (autonomous loops merging), 6 of them touching only tests, loop
+# tooling or docs. Each redeploy restarts every bot: in-memory Telegraf
+# sessions are wiped mid-wizard and polling has a hand-over window, so users
+# saw a bot that "does not work". The Dockerfile bundles src/index.ts with
+# esbuild after COPY . ., so these are the inputs that can change the image.
+# Negated patterns exclude test files, which esbuild never bundles.
+watchPatterns = [
+  "src/**",
+  "!src/__tests__/**",
+  "!src/**/*.test.ts",
+  "package.json",
+  "package-lock.json",
+  "Dockerfile",
+  "railway.toml",
+  "tsconfig.json",
+  "tsconfig.*.json",
+  "scripts/install-hooks.cjs",
+]
 
 [deploy]
 healthcheckPath = "/health"
