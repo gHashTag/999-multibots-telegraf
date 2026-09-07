@@ -27,7 +27,48 @@ const root = resolve(__dirname, '..')
 const BASELINE = resolve(root, 'scripts', 'tests-baseline.json')
 const OUT = resolve(root, 'node_modules', '.cache', 'test-guard.json')
 
-const files = process.argv.slice(2).filter(f => /\.(ts|tsx|js|jsx)$/.test(f))
+const declared = process.argv.slice(2).filter(f => /\.(ts|tsx|js|jsx)$/.test(f))
+
+/**
+ * Intersect what was handed in with what actually differs from origin/main.
+ *
+ * WHY. On the FIRST push of a new branch the remote ref does not exist, so
+ * lefthook fills `{push_files}` with the ENTIRE repository. `vitest related`
+ * then gets hundreds of paths and does not start at all -- and the gate stops
+ * the push saying "tests failed", when not one test ran. Hit twice in one
+ * shift on an untouched repository.
+ *
+ * On an ordinary push this is a no-op: the files already come from the diff.
+ * On a new branch it collapses the repository to the real change.
+ *
+ * If git does not answer, the declared list is used unchanged. A gate has no
+ * business quietly passing because of its own failure.
+ */
+let files = declared
+try {
+  const changed = execFileSync(
+    'git',
+    ['diff', '--name-only', 'origin/main...HEAD'],
+    { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+  )
+    .split('\n')
+    .map(s => s.trim())
+    .filter(Boolean)
+  if (changed.length) {
+    const mine = new Set(changed)
+    const both = declared.filter(f => mine.has(f))
+    if (both.length !== declared.length) {
+      console.log(
+        `[tests] handed ${declared.length} files, this branch changes ` +
+          `${both.length} -- checking those`
+      )
+    }
+    files = both
+  }
+} catch {
+  // git did not answer -- go with what was given.
+}
+
 if (files.length === 0) {
   console.log('[тесты] в push нет файлов с кодом — проверять нечего')
   process.exit(0)
@@ -43,6 +84,36 @@ if (!existsSync(BASELINE)) {
 const baseline = JSON.parse(readFileSync(BASELINE, 'utf8'))
 const known = new Set(baseline.файлы || [])
 
+/**
+ * Run vitest under a node that can load its config.
+ *
+ * `vitest related` loads the config through a CJS shim that `require()`s vite.
+ * Vite 7 is ESM-only, so on node below 20.19 -- where `require(esm)` is not
+ * allowed -- vitest dies at startup with ERR_REQUIRE_ESM and writes no report.
+ * The gate then blocks the push saying "tests failed", when none ran.
+ *
+ * This bit the repository the moment vite 7 arrived in the shared root
+ * node_modules. A git hook does not inherit an interactive shell's PATH, so it
+ * gets whatever node is default -- here, 18.
+ *
+ * `bin/tri` already solves this by prepending the nvm 20 bin directory; the
+ * gate needs the same and did not have it. If that directory is absent we run
+ * as we are: a missing toolchain must surface as vitest's own error, not as a
+ * silent pass.
+ */
+function nodeEnv() {
+  const nvm = resolve(
+    process.env.HOME || '',
+    '.nvm',
+    'versions',
+    'node',
+    'v20.19.0',
+    'bin'
+  )
+  if (!existsSync(nvm)) return process.env
+  return { ...process.env, PATH: `${nvm}:${process.env.PATH || ''}` }
+}
+
 if (existsSync(OUT)) unlinkSync(OUT)
 
 try {
@@ -56,7 +127,7 @@ try {
       `--outputFile=${OUT}`,
       ...files,
     ],
-    { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] }
+    { cwd: root, stdio: ['ignore', 'ignore', 'inherit'], env: nodeEnv() }
   )
 } catch {
   // Ненулевой код здесь — это «есть упавшие тесты», нормальный ход событий.
