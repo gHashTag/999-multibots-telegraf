@@ -96,6 +96,42 @@ describe('x402 is not offered while nothing can credit it', () => {
     }
   })
 
+  it('the handler that writes the payment row is guarded before it writes', () => {
+    /*
+     * GUARDING THE OFFER IS NOT GUARDING THE ACT. The first version of this fix
+     * checked canX402Credit on scene entry, which closes the way IN. It did not
+     * close the handler that actually writes the row: a person already inside
+     * the scene -- session state outlives a restart, and a message carrying
+     * these buttons stays pressable in the chat history forever -- reaches
+     * `crypto_topup_<n>` without passing the door.
+     *
+     * Order is the assertion. A guard that runs after setPayments has already
+     * recorded an invoice guards nothing.
+     */
+    const src = fs.readFileSync(
+      path.join(REPO, 'src/scenes/cryptoPaymentScene.ts'),
+      'utf8'
+    )
+    const handler = src.slice(
+      src.indexOf('cryptoPaymentScene.action(/crypto_topup_')
+    )
+    const guardAt = handler.indexOf('canX402Credit()')
+    const writeAt = handler.indexOf('setPayments(')
+
+    expect(
+      guardAt,
+      'the top-up handler must ask whether x402 can credit'
+    ).toBeGreaterThan(-1)
+    expect(
+      writeAt,
+      'the top-up handler must still be the one that writes the row'
+    ).toBeGreaterThan(-1)
+    expect(
+      guardAt < writeAt,
+      'the credit check must run BEFORE the payment row is written, not after'
+    ).toBe(true)
+  })
+
   it('the refusal hands over a live way to pay instead of naming one in prose', async () => {
     const src = fs.readFileSync(
       path.join(REPO, 'src/scenes/cryptoPaymentScene.ts'),
