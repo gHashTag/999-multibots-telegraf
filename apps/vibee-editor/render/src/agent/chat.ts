@@ -44,6 +44,28 @@ export type AgentEvent =
   | { тип: 'готово'; витков: number; обрыв?: string }
   | { тип: 'ошибка'; текст: string }
 
+/**
+ * The money-and-plan rule, lifted OUT of the SYSTEM template on purpose.
+ *
+ * It used to end with "the 30-day content plan is in SOUL.md below" -- said
+ * unconditionally, while SOUL.md is absent in production (see `soul()`), so
+ * the model was sent to a section that was not there. A model told to consult
+ * something it cannot see has one move left: ask the person. Which is the
+ * complaint the owner made.
+ *
+ * It lives here rather than inline because the Cyrillic gate can only see
+ * complete quoted literals on a single line: inside a multi-line template
+ * every edited line reads as code, and the marker that would satisfy the gate
+ * would end up inside the prompt itself.
+ */
+const MONEY_AND_PLAN =
+  '- Про деньги — честно: рилсы помогают зарабатывать, когда выходят ' + // cyrillic-ok: prompt copy
+  'регулярно (3–4 в неделю минимум). Обещать доход нельзя — можно ' + // cyrillic-ok: prompt copy
+  'обещать регулярность и разбор цифр. Контент-план на 30 дней ' + // cyrillic-ok: prompt copy
+  'составь САМ, когда человек говорит «хочу раскрутиться / зарабатывать / ' + // cyrillic-ok: prompt copy
+  'с чего начать» — не спрашивай разрешения, покажи первую неделю ' + // cyrillic-ok: prompt copy
+  'и спроси, что поправить.' // cyrillic-ok: prompt copy
+
 const SYSTEM = `Ты — агент внутри приложения Trinity S³AI для создания рилсов.
 
 Ты не советчик, а исполнитель: у тебя есть инструменты, которые ДЕЙСТВИТЕЛЬНО
@@ -123,11 +145,7 @@ const SYSTEM = `Ты — агент внутри приложения Trinity S�
   только вместе с человеческим объяснением.
 - Хвали за действия, а не за слова: «ты опубликовал — это уже больше,
   чем у 90% людей, которые только собираются».
-- Про деньги — честно: рилсы помогают зарабатывать, когда выходят
-  регулярно (3–4 в неделю минимум). Обещать доход нельзя — можно
-  обещать регулярность и разбор цифр. Контент-план на 30 дней —
-  в SOUL.md ниже; предложи его сам, когда человек говорит «хочу
-  раскрутиться / зарабатывать / с чего начать».
+${MONEY_AND_PLAN}
 
 Отвечай по-русски, коротко, числами из инструментов, а не примерными.`
 
@@ -142,9 +160,26 @@ let soulCache: string | null | undefined
 function soul(): string | null {
   if (soulCache !== undefined) return soulCache
   const here = dirname(fileURLToPath(import.meta.url))
+  /*
+   * Walk UP looking for the file instead of counting `..` segments.
+   *
+   * The count was six; from the source tree it is five (agent -> src ->
+   * render -> vibee-editor -> apps -> root), so it resolved one level ABOVE
+   * the repository and never matched. A number like that is wrong differently
+   * under `tsx` and under a build that emits to `dist/`, and it fails the same
+   * silent way both times.
+   */
+  const upwards: string[] = []
+  let dir = here
+  for (;;) {
+    upwards.push(join(dir, 'SOUL.md'))
+    const up = dirname(dir)
+    if (up === dir) break
+    dir = up
+  }
   const candidates = [
     process.env.SOUL_MD_PATH,
-    join(here, '../../../../../../SOUL.md'),
+    ...upwards,
     join(process.cwd(), 'SOUL.md'),
   ].filter(Boolean) as string[]
   for (const p of candidates) {
@@ -158,16 +193,35 @@ function soul(): string | null {
       // файла нет по этому пути — пробуем следующий
     }
   }
-  console.warn('[agent] SOUL.md не найден, агент говорит без голоса владельца')
+  /*
+   * Say what to DO about it. Fixing the path above is not enough in
+   * production: the render image is built with `apps/vibee-editor` as its
+   * context and copies only `packages/` and `render/`, so the repository-root
+   * SOUL.md never enters the image at all. Until that is decided, SOUL_MD_PATH
+   * is the way in -- and the prompt below no longer pretends the voice is
+   * there when it is not.
+   */
+  console.warn(
+    '[agent] SOUL.md не найден (искал ' + // cyrillic-ok: operator-facing log line
+      candidates.length +
+      ' путей, включая SOUL_MD_PATH). Агент говорит без голоса владельца.' // cyrillic-ok: operator-facing log line
+  )
   soulCache = null
   return null
 }
 
-function systemPrompt(): string {
+/**
+ * Exported for the tests: the property being guarded is that the prompt never
+ * refers the model to a section that is not in it, and that is a property of
+ * the STRING, which is unreachable through `runAgent` without a live model.
+ */
+export function systemPrompt(): string {
   const s = soul()
   if (!s) return SYSTEM
   return (
     SYSTEM +
+    '\n\nКОНТЕНТ-ПЛАН НА 30 ДНЕЙ есть в голосе владельца ниже — бери его ' + // cyrillic-ok: prompt copy
+    'оттуда, а не выдумывай.' + // cyrillic-ok: prompt copy
     '\n\nГОЛОС ВЛАДЕЛЬЦА (SOUL.md). Когда пишешь текст поста, заголовок или ' +
     'описание для публикации — делай это голосом ниже: измерение вместо ' +
     'прилагательного, границы честно, ретракции без страха. В обычных ' +
