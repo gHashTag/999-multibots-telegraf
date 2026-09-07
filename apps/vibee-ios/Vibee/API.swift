@@ -145,6 +145,88 @@ enum API {
     return try await profile(username: имя)
   }
 
+  // MARK: - Контент-план
+
+  /**
+   * ПЛАН ЖИВЁТ ЗА MCP, А НЕ ЗА REST — И ЭТО НАРОЧНО.
+   *
+   * Те же инструменты (`plan_list`, `plan_item_update`), которыми пользуется
+   * агент. Заводить рядом отдельный REST означало бы два описания одного
+   * списка: одно для человека, другое для агента. Они разойдутся, и первым
+   * это заметит тот, кто попросит агента «отметь, что вышло», а в приложении
+   * увидит прежнее.
+   *
+   * Форма ответа ИЗМЕРЕНА на живом сервере, а не угадана:
+   * `result.structuredContent.цели` = [{id, цель, зачем, карточки}],
+   * карточка = {id, название, заметка, статус}, статус по-русски.
+   */
+  struct КарточкаПлана: Decodable, Identifiable {
+    let id: Int
+    let название: String
+    let заметка: String?
+    let статус: String
+  }
+
+  struct ЦельПлана: Decodable, Identifiable {
+    let id: Int
+    let цель: String
+    let зачем: String?
+    let карточки: [КарточкаПлана]
+
+    /** Сделано из всего — то же число, что веб пишет в заголовке папки. */
+    var сделано: Int { карточки.filter { $0.статус == "вышло" }.count }
+  }
+
+  /** Один вызов инструмента MCP. Личность — та же, что у всего остального. */
+  private static func инструмент(
+    _ имя: String,
+    _ аргументы: [String: Any] = [:]
+  ) async throws -> [String: Any] {
+    var r = URLRequest(url: base.appendingPathComponent("mcp"))
+    r.httpMethod = "POST"
+    r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    r.httpBody = try JSONSerialization.data(withJSONObject: [
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "tools/call",
+      "params": ["name": имя, "arguments": аргументы],
+    ])
+    let (d, http) = try await сЛичностью(r)
+    guard http.statusCode == 200 else {
+      throw ProjectError.разбор("сервер ответил \(http.statusCode)")
+    }
+    let тело = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] ?? [:]
+    /*
+     * JSON-RPC отвечает 200 И на ошибку — она лежит в поле `error`. Молча
+     * вернуть пустоту значило бы показать пустой план вместо причины.
+     */
+    if let ошибка = (тело["error"] as? [String: Any])?["message"] as? String {
+      throw ProjectError.разбор(ошибка)
+    }
+    let результат = тело["result"] as? [String: Any] ?? [:]
+    return результат["structuredContent"] as? [String: Any] ?? [:]
+  }
+
+  static func планПрочитать() async throws -> [ЦельПлана] {
+    let sc = try await инструмент("plan_list")
+    guard let цели = sc["цели"] else { return [] }
+    let d = try JSONSerialization.data(withJSONObject: цели)
+    return (try? JSONDecoder().decode([ЦельПлана].self, from: d)) ?? []
+  }
+
+  /** По кругу: замысел → в работе → вышло → замысел. Как в вебе. */
+  static func следующийСтатус(_ текущий: String) -> String {
+    switch текущий {
+    case "замысел": return "doing"
+    case "в работе": return "done"
+    default: return "idea"
+    }
+  }
+
+  static func планОтметить(id: Int, статус: String) async throws {
+    _ = try await инструмент("plan_item_update", ["id": id, "status": статус])
+  }
+
   /**
    * ЖДУТ ОДОБРЕНИЯ — единственное место, где видно свой НЕОДОБРЕННЫЙ ролик.
    *
