@@ -182,7 +182,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
    * принимал это за проблему со входом, пока не прочитал условие в коде.
    * Мобильное приложение говорит причину с самого начала.
    */
-  const почемуНельзя = (
+  const generationBlockReason = (
     операция: string,
     модель: string | undefined,
     промптПуст: boolean,
@@ -1056,15 +1056,15 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             </button>
 
             {/* Причина ТЕКСТОМ: `title` на телефоне не видно. */}
-            {почемуНельзя(
-              /* cyrillic-ok: existing billing API */ 'image_generate',
+            {generationBlockReason(
+              'image_generate',
               imageModel,
               !imagePrompt.trim(),
               'Опишите картинку — без описания генерировать нечего'
             ) && (
               <div className="generate-hint">
-                {почемуНельзя(
-                  /* cyrillic-ok: existing billing API */ 'image_generate',
+                {generationBlockReason(
+                  'image_generate',
                   imageModel,
                   !imagePrompt.trim(),
                   'Опишите картинку — без описания генерировать нечего'
@@ -1283,15 +1283,15 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
             {/* Причина ТЕКСТОМ, а не подсказкой: `title` на телефоне не
                 показывается вовсе, и кнопка выглядела бы сломанной. */}
-            {почемуНельзя(
-              /* cyrillic-ok: existing billing API */ 'video_generate',
+            {generationBlockReason(
+              'video_generate',
               videoModel,
               !videoPrompt.trim(),
               'Опишите видео — без описания генерировать нечего'
             ) && (
               <div className="generate-hint">
-                {почемуНельзя(
-                  /* cyrillic-ok: existing billing API */ 'video_generate',
+                {generationBlockReason(
+                  'video_generate',
                   videoModel,
                   !videoPrompt.trim(),
                   'Опишите видео — без описания генерировать нечего'
@@ -1509,16 +1509,16 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             </button>
 
             {/* Причина ТЕКСТОМ: `title` на телефоне не видно. */}
-            {почемуНельзя(
-              /* cyrillic-ok: existing billing API */ 'audio_generate',
+            {generationBlockReason(
+              'audio_generate',
               audioModel,
               !audioText.trim(),
               'Введите текст, который надо произнести',
               тысячиОзвучки // cyrillic-ok: existing API or fixture identifier
             ) && (
               <div className="generate-hint">
-                {почемуНельзя(
-                  /* cyrillic-ok: existing billing API */ 'audio_generate',
+                {generationBlockReason(
+                  'audio_generate',
                   audioModel,
                   !audioText.trim(),
                   'Введите текст, который надо произнести',
@@ -1870,15 +1870,15 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
               «Пока только для трёх из четырёх» — это незаконченная работа, а
               не этап.
             */}
-            {почемуНельзя(
-              /* cyrillic-ok: existing billing API */ 'lipsync_generate',
+            {generationBlockReason(
+              'lipsync_generate',
               lipsyncModel,
               !lipsyncAudioUrl.trim() || !lipsyncImageUrl.trim(),
               'Нужны фото и звук — без них озвучивать нечего'
             ) && (
               <div className="generate-hint">
-                {почемуНельзя(
-                  /* cyrillic-ok: existing billing API */ 'lipsync_generate',
+                {generationBlockReason(
+                  'lipsync_generate',
                   lipsyncModel,
                   !lipsyncAudioUrl.trim() || !lipsyncImageUrl.trim(),
                   'Нужны фото и звук — без них озвучивать нечего'

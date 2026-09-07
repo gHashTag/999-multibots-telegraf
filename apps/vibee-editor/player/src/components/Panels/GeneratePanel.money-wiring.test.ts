@@ -39,7 +39,10 @@ describe('у каждой кнопки есть цена, ворота и при
     })
 
     it(`${оп}: причина словами, а не серая кнопка`, () => {
-      expect(ПАНЕЛЬ).toMatch(new RegExp(`почемуНельзя\\(\\s*\n?\\s*'${оп}'`))
+      expect(ПАНЕЛЬ /* cyrillic-ok: existing fixture identifier */).toMatch(
+        // cyrillic-ok: existing fixture identifiers
+        new RegExp(`generationBlockReason\\(\\s*\n?\\s*'${оп}'`) // cyrillic-ok: existing fixture identifier
+      )
     })
   }
 })
