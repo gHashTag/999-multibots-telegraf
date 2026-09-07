@@ -41,6 +41,9 @@ struct AgentChatView: View {
     var свой: Bool
     var текст: String
     var инструменты: [String] = []
+    /// Which client wrote it. Absent for anything typed here and now: only
+    /// history fetched from the server carries it.
+    var surface: String?
 
     /**
      * Предложение действия, ждущее слова человека.
@@ -143,6 +146,32 @@ struct AgentChatView: View {
   struct ServerTurn: Decodable {
     let role: String
     let content: String
+    /// Which client wrote it: bot | miniapp | ios | agent | unknown.
+    let surface: String?
+  }
+
+  /**
+   * WHERE THIS SURFACE IS. Anything written here is "here", so it is never
+   * labelled: a caption on every single bubble is noise, and noise is what
+   * stops people reading the captions that matter.
+   */
+  static let thisSurface = "ios"
+
+  /**
+   * The human name of another surface, or nil when there is nothing to say.
+   *
+   * `unknown` returns nil ON PURPOSE. It is the column default, so it marks a
+   * turn written before this existed or by a client that did not name itself.
+   * It carries no information, and "from somewhere" would be a caption that
+   * looks like knowledge.
+   */
+  static func surfaceLabel(_ surface: String?) -> String? {
+    switch surface {
+    case "bot": return say("from the bot", "из бота")
+    case "miniapp": return say("from the app", "из мини-аппа")
+    case "agent": return say("via an agent key", "по ключу агента")
+    default: return nil
+    }
   }
 
   private struct HistoryResponse: Decodable {
@@ -176,7 +205,9 @@ struct AgentChatView: View {
     }
     if awaitingAnswer { return local }
     if server.isEmpty { return local }
-    return server.map { Реплика(свой: $0.role == "user", текст: $0.content) }
+    return server.map {
+      Реплика(свой: $0.role == "user", текст: $0.content, surface: $0.surface)
+    }
   }
 
   /**
@@ -354,6 +385,21 @@ struct AgentChatView: View {
 
   private func реплика(_ m: Реплика) -> some View {
     VStack(alignment: m.свой ? .trailing : .leading, spacing: Тема.Отступ.вкладка) {
+      /*
+       * WHERE THIS TURN CAME FROM, when it was not this phone.
+       *
+       * One conversation spans the bot, the mini app and here, so a reply can
+       * answer a question that was never typed on this screen. Without the
+       * caption the transcript reads as the agent answering itself.
+       *
+       * Quieter than the tool chip below it on purpose: a tool chip reports
+       * something the agent DID, this reports only where a line was typed.
+       */
+      if let откуда = AgentChatView.surfaceLabel(m.surface) {
+        Text(откуда)
+          .font(Тема.Шрифт.моно(Тема.Чат.кегльЧипа))
+          .foregroundStyle(Тема.Цвет.текстПриглушённый)
+      }
       if !m.инструменты.isEmpty {
         // Показываем, ЧЕМ агент проверял. Это и есть доверие:
         // человек видит, что ответ не выдуман.

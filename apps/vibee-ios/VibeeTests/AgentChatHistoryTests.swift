@@ -22,8 +22,8 @@ final class AgentChatHistoryTests: XCTestCase {
   func testServerHistoryReplacesTheLocalCopy() {
     let merged = AgentChatView.mergeHistory(
       server: [
-        ServerTurn(role: "user", content: "sent from the bot"),
-        ServerTurn(role: "assistant", content: "good evening"),
+        ServerTurn(role: "user", content: "sent from the bot", surface: nil),
+        ServerTurn(role: "assistant", content: "good evening", surface: nil),
       ],
       local: [mine("stale local turn")])
 
@@ -57,7 +57,7 @@ final class AgentChatHistoryTests: XCTestCase {
       пояснение: "draft", одобрено: nil)
 
     let merged = AgentChatView.mergeHistory(
-      server: [ServerTurn(role: "user", content: "something else entirely")],
+      server: [ServerTurn(role: "user", content: "something else entirely", surface: nil)],
       local: [mine("a question"), withProposal])
 
     XCTAssertEqual(merged.count, 2)
@@ -74,7 +74,7 @@ final class AgentChatHistoryTests: XCTestCase {
       пояснение: "draft", одобрено: true)
 
     let merged = AgentChatView.mergeHistory(
-      server: [ServerTurn(role: "user", content: "from the mini app")],
+      server: [ServerTurn(role: "user", content: "from the mini app", surface: nil)],
       local: [decided])
 
     XCTAssertEqual(merged.map(\.текст), ["from the mini app"])
@@ -123,5 +123,44 @@ final class AgentChatHistoryTests: XCTestCase {
   func testAnEmptyHistoryYieldsJustTheQuestion() {
     let body = AgentChatView.requestMessages(history: [], question: "hello")
     XCTAssertEqual(body, [["role": "user", "content": "hello"]])
+  }
+
+  // MARK: - surfaceLabel
+
+  /*
+   * One conversation spans the bot, the mini app and this phone. Without a
+   * marker a reply can answer a question that was never typed on this screen,
+   * and the transcript reads as the agent answering itself.
+   *
+   * The failure to avoid is the opposite one: a caption on every bubble. Noise
+   * is what stops people reading the captions that matter.
+   */
+  func testOtherSurfacesAreNamed() {
+    XCTAssertNotNil(AgentChatView.surfaceLabel("bot"))
+    XCTAssertNotNil(AgentChatView.surfaceLabel("miniapp"))
+    XCTAssertNotNil(AgentChatView.surfaceLabel("agent"))
+  }
+
+  func testThisSurfaceIsNotNamed() {
+    XCTAssertNil(AgentChatView.surfaceLabel(AgentChatView.thisSurface))
+    XCTAssertNil(AgentChatView.surfaceLabel("ios"))
+  }
+
+  /// A turn stored before this existed, or by a client that did not name
+  /// itself, carries the column default. "From somewhere" would be a caption
+  /// that looks like knowledge.
+  func testUnknownAndMissingSayNothing() {
+    XCTAssertNil(AgentChatView.surfaceLabel("unknown"))
+    XCTAssertNil(AgentChatView.surfaceLabel(nil))
+    XCTAssertNil(AgentChatView.surfaceLabel(""))
+  }
+
+  func testTheSurfaceSurvivesTheMerge() {
+    let merged = AgentChatView.mergeHistory(
+      server: [
+        ServerTurn(role: "user", content: "asked in the bot", surface: "bot")
+      ],
+      local: [])
+    XCTAssertEqual(merged.first?.surface, "bot")
   }
 }
