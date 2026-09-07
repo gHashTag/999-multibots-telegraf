@@ -28,6 +28,7 @@ import {
 } from './heygen-avatars-config'
 import { videoTaskStore } from '@/services/video-task-store'
 import { refundAndTell } from '@/price/helpers/refundAndTell'
+import { standardButtons } from '@/navigation/helpers/actionButtons'
 
 logger.info('📦 [AI REELS RENDER WIZARD] Module loaded')
 
@@ -1406,10 +1407,14 @@ export const aiReelsRenderWizard = new Scenes.WizardScene<MyContext>(
       console.log('🔴 [STEP 6] Checking if balance sufficient...')
       if (currentBalance === null || currentBalance < estimatedCost) {
         console.log('🔴 [STEP 6] INSUFFICIENT BALANCE!')
+        // A refusal that names the price hands over the way to pay it: the
+        // person asked for something paid and was told the only obstacle is
+        // money, and it carried nothing to press.
         await ctx.reply(
           isRu
             ? `💰 Недостаточно средств\n\nТребуется: ${estimatedCost}⭐\nУ вас: ${(currentBalance || 0).toFixed(2)}⭐`
-            : `💰 Insufficient funds\n\nRequired: ${estimatedCost}⭐\nYou have: ${(currentBalance || 0).toFixed(2)}⭐`
+            : `💰 Insufficient funds\n\nRequired: ${estimatedCost}⭐\nYou have: ${(currentBalance || 0).toFixed(2)}⭐`,
+          standardButtons(isRu)
         )
         return ctx.scene.leave()
       }
