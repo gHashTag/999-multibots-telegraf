@@ -106,6 +106,7 @@ import {
   handleCheckBalanceCommand,
 } from '@/handlers/adminCommands'
 import appLoginCommand from '@/commands/appLoginCommand'
+import sharePhoneCommand from '@/commands/sharePhoneCommand'
 import expenseAnalysisCommand from '@/commands/expenseAnalysisCommand'
 import { setupAutoFixerCommands } from '@/commands/autofixer/autofixer.command'
 import { autoFixerConfigScene } from '@/commands/autofixer/autofixer-config.scene'
@@ -374,6 +375,13 @@ export function registerCommands({ bot }: { bot: Telegraf<MyContext> }) {
      * bitten by exactly that more than once.
      */
     bot.use(appLoginCommand)
+    /*
+     * «Поделиться номером» — единственный способ узнать телефон человека.
+     * Telegram не отдаёт его ботам ни при каком входе; он приходит ТОЛЬКО
+     * контактом, который человек прислал сам. Обработчик здесь же, рядом с
+     * входом в приложение: там номер и понадобится.
+     */
+    bot.use(sharePhoneCommand)
 
     // 🧪 ТЕСТОВАЯ КОМАНДА ДЛЯ ПРОВЕРКИ СООБЩЕНИЯ ПОСЛЕ ОПЛАТЫ (ТОЛЬКО ДЛЯ АДМИНОВ)
     bot.command('test_payment_message', requireAdmin(), async ctx => {

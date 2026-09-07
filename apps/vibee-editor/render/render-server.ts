@@ -1,6 +1,7 @@
 // ETIMEDOUT AggregateError на fetch к api.replicate.com (витки №121/173):
 // undici первым пробует IPv6, в этой сети он чёрной дырой — таймаут.
 // IPv4-first лечит; curl работал, потому что резолвил иначе.
+import { запомнитьНомер } from './src/agent/known-phone'
 import { удалитьСвоёФото } from './src/assets/delete-own-photo'
 import { KIE_MODELS } from './src/agent/kie-models'
 import { РАЗРЕШЕНИЕ_ЛИПСИНКА, поляМоделей } from './src/agent/kie-web-provider'
@@ -79,6 +80,7 @@ import {
 } from '@remotion/renderer'
 import path from 'node:path'
 import {
+  hasServerKey,
   authenticate,
   authMode,
   verifyTelegramInitData,
@@ -8755,6 +8757,60 @@ const server = createServer(async (req, res) => {
         })
       )
     }
+    return
+  }
+
+  /*
+   * POST /api/tg/phone — БОТ ПЕРЕДАЁТ НОМЕР, КОТОРЫМ ЧЕЛОВЕК ПОДЕЛИЛСЯ.
+   *
+   * Владелец 07.09.2026: «заполни телефон из телеграм, чтобы руками не
+   * писать». Читать номер у Telegram нельзя: платформа не отдаёт его ботам ни
+   * при каком входе — только если человек САМ нажал «Поделиться номером».
+   * Тогда Telegram присылает боту контакт, и вот он приезжает сюда.
+   *
+   * ДВА УСЛОВИЯ, ОБА ОБЯЗАТЕЛЬНЫ, и это ровно та же пара, что у зачисления
+   * звёзд: СЕРВЕРНЫЙ КЛЮЧ (а не «кто-то опознанный» — подпись мини-аппа есть
+   * у каждого) плюс ЯВНО названный telegram_id. Без первого любой желающий
+   * записал бы чужой номер; без второго безымянный вызов писал бы владельцу.
+   *
+   * Номер, пришедший в контакте, Telegram гарантирует принадлежащим
+   * отправителю ТОЛЬКО когда `contact.user_id === from.id`. Эту проверку
+   * делает бот — здесь мы её повторить не можем и потому требуем ключ.
+   */
+  if (req.url?.split('?')[0] === '/api/tg/phone' && req.method === 'POST') {
+    if (!hasServerKey(req)) {
+      res.writeHead(403, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: 'нужен ключ сервера',
+          detail: 'номер записывает только сервис бота, проверивший контакт',
+        })
+      )
+      return
+    }
+    let тело: any = {}
+    try {
+      тело = JSON.parse((await readBody(req)) || '{}')
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'тело запроса не разобрано как JSON' }))
+      return
+    }
+    const кому = String(тело.telegram_id ?? '')
+    if (!/^\d{5,15}$/.test(кому)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'нужен telegram_id' }))
+      return
+    }
+    const итог = await запомнитьНомер(await getPool(), {
+      telegramId: кому,
+      phone: тело.phone,
+      источник: String(тело.источник ?? 'бот'),
+    })
+    res.writeHead(итог === 'сохранён' ? 200 : 400, {
+      'Content-Type': 'application/json',
+    })
+    res.end(JSON.stringify({ ok: итог === 'сохранён', итог }))
     return
   }
 
