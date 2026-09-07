@@ -546,6 +546,8 @@ export interface InstagramStatus {
 // Feed template - a published video/template in the social feed
 export interface FeedTemplate {
   id: number
+  /** Composition identity sent by the feed API and consumed by profile grouping. */
+  compositionId?: string | null
   telegramId: number
   creatorName: string
   creatorAvatar?: string

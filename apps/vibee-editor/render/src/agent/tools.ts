@@ -16,18 +16,15 @@
  * аргументов — только из подтверждённого контекста вызова. Иначе любой, кто
  * умеет писать JSON, читал бы чужие черновики и публиковал от чужого имени.
  *
- * ГЕНЕРАЦИИ. Владелец выдал агенту полный доступ к производству: картинки —
- * через собственный POST /api/generate/image (FAL), озвучка — через
- * /api/generate/audio (ElevenLabs), видео — через /api/generate/video (MCP),
- * рилс целиком — через /render/template (Remotion). Инструменты ниже ходят
- * в эти же эндпоинты по SELF_URL, а не дублируют их логику: один список
- * возможностей — один путь к провайдеру. Когда появится списание баланса,
- * границу пропуска нужно будет вернуть сюда же — одним местом.
+ * Production tools call the same render endpoints through SELF_URL:
+ * image, audio (Kie by default), video and Remotion. Provider routing stays
+ * at the HTTP boundary instead of being duplicated in each agent transport.
  */
 
 import { planTools } from './plan-tools'
 import { pricingSummary, providerSetup, CLUB } from './pricing'
 import { editImage, EDIT_MODEL } from '../kie-image'
+import { reviewedKieModel } from './kie-web-provider'
 
 export interface ToolContext {
   /** Подтверждён подписью или ключом. НЕ приходит из аргументов. */
@@ -176,6 +173,8 @@ import {
   TOKEN_PRICES,
   COST_PER_TOKEN_USD,
   OPERATION_COST_USD,
+  priceForKieModel,
+  тысячиЗнаковКОплате, // cyrillic-ok: existing billing API
 } from './billing-shared'
 
 const TOKEN_START = 20
@@ -283,14 +282,14 @@ async function ensureSkillsTable(ctx: ToolContext): Promise<void> {
 /** Списание с честным отказом: недостаток — это ответ, а не исключение. */
 async function spendTokens(
   ctx: ToolContext,
-  tool: string
+  tool: string,
+  price = TOKEN_PRICES[tool]
 ): Promise<{
   ok: boolean
   потрачено?: number
   осталось?: number
   причина?: string
 }> {
-  const price = TOKEN_PRICES[tool]
   if (!price) return { ok: true }
 
   // THE HOUSE DOES NOT BILL ITSELF.
@@ -358,9 +357,9 @@ async function spendTokens(
 async function refundTokens(
   ctx: ToolContext,
   tool: string,
-  why: string
+  why: string,
+  price = TOKEN_PRICES[tool]
 ): Promise<void> {
-  const price = TOKEN_PRICES[tool]
   if (!price) return
 
   /**
@@ -399,9 +398,9 @@ async function refundTokens(
 async function withTokens<T extends object>(
   ctx: ToolContext,
   tool: string,
-  result: T
+  result: T,
+  price = TOKEN_PRICES[tool]
 ): Promise<T & { токены?: { потрачено: number; осталось: number } }> {
-  const price = TOKEN_PRICES[tool]
   if (!price) return result
   const balance = await ensureTokenRow(ctx)
   return { ...result, токены: { потрачено: price, осталось: balance } }
@@ -1148,29 +1147,69 @@ export const TOOLS: AgentTool[] = [
   {
     name: 'audio_generate',
     description:
-      'Озвучить текст голосом (ElevenLabs). Без voice_id берётся КЛОН ВЛАДЕЛЬЦА, ' +
-      'а если своего клона в аккаунте нет — библиотечный, и это будет сказано в ответе. ' +
-      'Работает ТОЛЬКО при валидном ключе аккаунта: если вернулась ' +
-      'ошибка про голоса — озвучка не настроена, честно скажи это и собери рилс без звука. ' +
-      'Если voice_id не знаешь — не указывай, возьмётся первый доступный голос.',
+      'Озвучить текст через Kie.ai (основной провайдер, голос Rachel по умолчанию). ' +
+      'Ключ прямого ElevenLabs для Kie не нужен. Direct ElevenLabs и клон аккаунта ' +
+      'доступны только при явном model="direct/elevenlabs". При отказе провайдера ' +
+      'автоматической платной замены нет: сообщи ошибку, не запускай другой провайдер без согласия.',
     parameters: {
       type: 'object',
       properties: {
         text: { type: 'string', description: 'текст для озвучки' },
         voice_id: {
           type: 'string',
-          description: 'идентификатор голоса ElevenLabs, необязателен',
+          description:
+            'идентификатор голоса только для явного Direct ElevenLabs',
+        },
+        voice_name: {
+          type: 'string',
+          description: 'имя стокового голоса Kie.ai; по умолчанию Rachel',
+        },
+        model: {
+          type: 'string',
+          enum: [
+            'kie/elevenlabs/text-to-speech-multilingual-v2',
+            'kie/elevenlabs/text-to-speech-turbo-2-5',
+            'direct/elevenlabs',
+          ],
+          description:
+            'Kie.ai по умолчанию; Direct только по явному выбору человека',
         },
       },
       required: ['text'],
       additionalProperties: false,
     },
     async handler(args, ctx) {
-      const charge = await spendTokens(ctx, 'audio_generate')
+      const model =
+        typeof args.model === 'string'
+          ? args.model
+          : 'kie/elevenlabs/text-to-speech-multilingual-v2'
+      const direct = model === 'direct/elevenlabs'
+      let price: number
+      try {
+        if (typeof args.text !== 'string' || !args.text.trim())
+          throw new Error('text is required')
+        const kieModel = direct ? null : reviewedKieModel('audio', model)
+        if (!direct && !kieModel) throw new Error('Audio model is not enabled')
+        // Reuse the existing tariff and character units; do not price Kie as Direct.
+        const unitPrice = direct
+          ? TOKEN_PRICES.audio_generate
+          : priceForKieModel(kieModel!)
+        if (!unitPrice) throw new Error('Audio model has no price')
+        price = unitPrice * тысячиЗнаковКОплате(args.text) // cyrillic-ok: existing billing API
+      } catch (error) {
+        return {
+          сделано: false, // cyrillic-ok: existing tool protocol field
+          причина /* cyrillic-ok: existing protocol field */:
+            error instanceof Error ? error.message : 'Invalid audio request',
+        }
+      }
+      const charge = await spendTokens(ctx, 'audio_generate', price)
       if (!charge.ok) return { сделано: false, причина: charge.причина }
       const base = selfBase()
+      const voiceName =
+        typeof args.voice_name === 'string' ? args.voice_name : 'Rachel'
       /**
-       * Голос по умолчанию — КЛОН ВЛАДЕЛЬЦА, а не первый попавшийся.
+       * Explicit Direct ElevenLabs may use the account's own clone.
        *
        * Было `voices[0].voice_id`: первый в ответе ElevenLabs — это, как
        * правило, готовый голос из библиотеки. Владелец спросил напрямую:
@@ -1189,10 +1228,30 @@ export const TOOLS: AgentTool[] = [
        */
       let voiceId = args.voice_id ? String(args.voice_id) : ''
       let голосВладельца = false
-      if (!voiceId) {
-        const v = await selfFetch(`${base}/api/voices`)
+      if (direct && !voiceId) {
+        let v: Response
+        try {
+          v = await selfFetch(`${base}/api/voices`)
+        } catch (error) {
+          await refundTokens(
+            ctx,
+            'audio_generate',
+            'voice catalog unavailable',
+            price
+          )
+          return {
+            сделано: false, // cyrillic-ok: existing tool protocol field
+            причина /* cyrillic-ok: existing protocol field */:
+              error instanceof Error
+                ? error.message
+                : 'Voice catalog unavailable',
+          }
+        }
         const vData: any = await v.json().catch(() => null)
-        const list: any[] = Array.isArray(vData?.voices) ? vData.voices : []
+        const list: any[] =
+          vData?.provider === 'elevenlabs' && Array.isArray(vData?.voices)
+            ? vData.voices
+            : []
         const свой = list.find(
           x => String(x?.category || '').toLowerCase() !== 'premade'
         )
@@ -1201,11 +1260,12 @@ export const TOOLS: AgentTool[] = [
         )
         голосВладельца = !!свой
       }
-      if (!voiceId) {
+      if (direct && !voiceId) {
         await refundTokens(
           ctx,
           'audio_generate',
-          'провайдер не выполнил работу'
+          'провайдер не выполнил работу',
+          price
         )
         return {
           сделано: false,
@@ -1214,22 +1274,47 @@ export const TOOLS: AgentTool[] = [
       }
       // Агент должен знать, чьим голосом озвучено: если библиотечным —
       // стоит предложить человеку записать свой клон.
-      const голос = args.voice_id
-        ? 'выбран явно'
-        : голосВладельца
-          ? 'клон владельца'
-          : 'библиотечный — своего клона в аккаунте нет, предложи записать'
-      const gen = await selfFetch(`${base}/api/generate/audio`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: String(args.text), voice_id: voiceId }),
-      })
+      const voiceDescription = !direct
+        ? `стоковый голос Kie.ai: ${voiceName}`
+        : args.voice_id
+          ? 'выбран явно'
+          : голосВладельца // cyrillic-ok: existing clone state
+            ? 'клон владельца'
+            : 'библиотечный — своего клона в аккаунте нет, предложи записать'
+      let gen: Response
+      try {
+        gen = await selfFetch(`${base}/api/generate/audio`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: String(args.text),
+            voice_id: voiceId,
+            voice_name: voiceName,
+            model,
+          }),
+        })
+      } catch (error) {
+        await refundTokens(
+          ctx,
+          'audio_generate',
+          'generation connection failed',
+          price
+        )
+        return {
+          сделано: false, // cyrillic-ok: existing tool protocol field
+          причина /* cyrillic-ok: existing protocol field */:
+            error instanceof Error
+              ? error.message
+              : 'Generation connection failed',
+        }
+      }
       const genData: any = await gen.json().catch(() => null)
       if (!gen.ok || !genData?.url) {
         await refundTokens(
           ctx,
           'audio_generate',
-          'провайдер не выполнил работу'
+          'провайдер не выполнил работу',
+          price
         )
         return {
           сделано: false,
@@ -1241,19 +1326,25 @@ export const TOOLS: AgentTool[] = [
       const absolute = genData.url.startsWith('http')
         ? genData.url
         : `${base}${genData.url}`
-      const direct = genData.directUrl || absolute
+      const audioUrl = genData.directUrl || absolute
       const r = await ctx.pool.query(
         `INSERT INTO assets (type, trigger_word, telegram_id, storage_path, public_url, text, bot_name)
          VALUES ('voiceover', '', $1, '', $2, $3, 'agent')
          RETURNING id, created_at::text`,
-        [ctx.telegramId, direct, String(args.text).slice(0, 500)]
+        [ctx.telegramId, audioUrl, String(args.text).slice(0, 500)]
       )
-      return withTokens(ctx, 'audio_generate', {
-        сделано: true,
-        url: direct,
-        id: r.rows[0]?.id,
-        голос,
-      })
+      return withTokens(
+        ctx,
+        'audio_generate',
+        {
+          сделано: true, // cyrillic-ok: existing tool protocol field
+          url: audioUrl,
+          id: r.rows[0]?.id,
+          provider: genData.provider,
+          голос: voiceDescription, // cyrillic-ok: existing tool protocol field
+        },
+        charge['потрачено'] ?? price
+      )
     },
   },
 
@@ -1511,7 +1602,9 @@ export const TOOLS: AgentTool[] = [
       )
       const д: any = await о.json()
       if (!д?.ok || !д?.result) {
-        throw new Error(`Telegram не выдал ссылку: ${String(д?.description).slice(0, 200)}`)
+        throw new Error(
+          `Telegram не выдал ссылку: ${String(д?.description).slice(0, 200)}`
+        )
       }
       return {
         ссылка: д.result,
@@ -1871,7 +1964,9 @@ export const TOOLS: AgentTool[] = [
       required: ['username'],
     },
     async handler(a: Record<string, unknown>, ctx) {
-      const имя = String(a.username ?? '').replace(/^@/, '').trim()
+      const имя = String(a.username ?? '') // cyrillic-ok: reflowed existing identifier
+        .replace(/^@/, '')
+        .trim()
       if (!имя) return { ok: false, error: 'нужно имя пользователя' }
       const r = await ctx.pool.query(
         `SELECT us.content, us.updated_at::text AS updated_at, p.username

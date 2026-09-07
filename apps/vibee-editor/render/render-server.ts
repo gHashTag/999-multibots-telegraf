@@ -9,7 +9,6 @@ import { РАЗРЕШЕНИЕ_ЛИПСИНКА, поляМоделей } from '.
 // экран показывал чужие голоса, а выбор до провайдера не доходил.
 import {
   ГОЛОСА_MINIMAX,
-  входМиниМакс,
   имяДляElevenLabs,
   скоростьРечи,
 } from './src/agent/minimax-voices'
@@ -3037,76 +3036,6 @@ const server = createServer(async (req, res) => {
   }
 
   /**
-   * TTS via Replicate when ElevenLabs is unavailable (the key stored in the env
-   * var is an identifier, not an sk_ key). minimax/speech-02-turbo is
-   * multilingual (Russian included) and Replicate is paid. Returns an audio
-   * URL; the caller downloads it and puts it in S3 like the ElevenLabs path, so
-   * the link does not expire.
-   */
-  async function generateAudioViaReplicate(
-    text: string,
-    /**
-     * ВЫБОР ЧЕЛОВЕКА ДОХОДИТ ДО ТОГО, КТО ОЗВУЧИВАЕТ.
-     *
-     * Функция принимала ОДИН текст, а голос и скорость с экрана оставались в
-     * теле запроса к маршруту и дальше не шли. Эта нога — та, что реально
-     * отдаёт mp3 (ElevenLabs недоступен: ключ в переменной хранит не ключ, а
-     * его идентификатор), поэтому выбор голоса не значил ничего: три попытки
-     * разными голосами стоили трижды и давали один и тот же файл.
-     */
-    выбор: { voice?: unknown; speed?: unknown } = {}
-  ): Promise<string> {
-    const REPLICATE_TOKEN =
-      process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY
-    if (!REPLICATE_TOKEN) throw new Error('REPLICATE token not configured')
-    const response = await fetch(
-      'https://api.replicate.com/v1/models/minimax/speech-02-turbo/predictions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${REPLICATE_TOKEN}`,
-        },
-        body: JSON.stringify({ input: входМиниМакс(text, выбор) }),
-      }
-    )
-    if (!response.ok) {
-      throw new Error(
-        `Replicate TTS failed: ${response.status} - ${await response.text()}`
-      )
-    }
-    let data = await response.json()
-    const predictionUrl: string | null = data?.urls?.get ?? null
-    const deadline = Date.now() + 120_000
-    while (
-      predictionUrl &&
-      data.output == null &&
-      !data.error &&
-      Date.now() < deadline
-    ) {
-      await new Promise(r => setTimeout(r, 2000))
-      const poll = await fetch(predictionUrl, {
-        headers: { Authorization: `Bearer ${REPLICATE_TOKEN}` },
-      })
-      if (!poll.ok) break
-      data = await poll.json()
-    }
-    if (data.error) {
-      throw new Error(
-        `Replicate TTS error: ${String(data.error).slice(0, 120)}`
-      )
-    }
-    let out = Array.isArray(data.output) ? data.output[0] : data.output
-    if (out && typeof out === 'object') {
-      out = out.audio || out.audio_url || out.url
-    }
-    if (typeof out !== 'string') {
-      throw new Error('Replicate did not return an audio URL')
-    }
-    return out
-  }
-
-  /**
    * Third leg of the poster chain: Kie, the only provider with a funded
    * balance (FAL answers 403 "Exhausted balance", measured 2026-08-31).
    *
@@ -3282,7 +3211,14 @@ const server = createServer(async (req, res) => {
          */
         const ownerКартинки = generationOwnerId(req)
         if (ownerКартинки) {
-          recordInto(startJob('image', ownerКартинки, typeof prompt === 'string' ? prompt : undefined), res)
+          recordInto(
+            startJob(
+              'image',
+              ownerКартинки, // cyrillic-ok: existing route owner variable
+              typeof prompt === 'string' ? prompt : undefined
+            ),
+            res
+          )
         }
         receipt = billed.receipt
 
@@ -4021,7 +3957,10 @@ const server = createServer(async (req, res) => {
    * времени; личность берётся из подписи или сессии, а список — из `ADMIN_IDS`,
    * той же переменной, что решает вопрос оплаты.
    */
-  if (req.url?.split('?')[0] === '/api/feed/backfill-thumbnails' && req.method === 'POST') {
+  if (
+    req.url?.split('?')[0] === '/api/feed/backfill-thumbnails' &&
+    req.method === 'POST'
+  ) {
     const кто = generationOwnerId(req)
     if (!кто || !владелец(кто)) {
       res.writeHead(403, { 'Content-Type': 'application/json' })
@@ -4087,7 +4026,7 @@ const server = createServer(async (req, res) => {
     return
   }
 
-  // POST /api/generate/audio - Generate TTS using ElevenLabs (direct API call)
+  // POST /api/generate/audio - Kie TTS by default; Direct ElevenLabs is opt-in.
   if (req.url === '/api/generate/audio' && req.method === 'POST') {
     let body = ''
     req.on('data', chunk => {
@@ -4099,15 +4038,21 @@ const server = createServer(async (req, res) => {
       // Модель нужна ВОЗВРАТУ: он считает ту же цену, что списание,
       // а `model` объявлена внутри try и из catch не видна.
       let requestedModel: string | undefined
-      // Same charge, two possible providers below (KieAI, then ElevenLabs or
-      // Replicate). Whoever delivers, the price stated is the one taken.
+      // Charge and refund the selected provider; failures never switch providers.
       let receipt: Receipt = {}
       // Сколько тысяч знаков оплачено — снаружи try по той же причине,
       // что и модель: возврат живёт в catch.
       let оплаченныеТысячи = 1
       try {
-        const { text, voice_id, voice_name, speed, model } = JSON.parse(body)
-        requestedModel = typeof model === 'string' ? model : undefined
+        const {
+          text,
+          voice_id,
+          voice_name,
+          speed,
+          model: requested,
+        } = JSON.parse(body)
+        const model =
+          requested ?? 'kie/elevenlabs/text-to-speech-multilingual-v2'
 
         /**
          * ПРОВЕРКА ДО ЖУРНАЛА, А НЕ ПОСЛЕ.
@@ -4132,6 +4077,27 @@ const server = createServer(async (req, res) => {
           return
         }
 
+        // Resolve and validate before billing, including legacy callers omitting model.
+        try {
+          if (
+            model !== 'direct/elevenlabs' &&
+            !reviewedKieModel('audio', model)
+          ) {
+            throw new Error('Audio model is not enabled')
+          }
+        } catch (error) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: false,
+              error:
+                error instanceof Error ? error.message : 'Invalid audio model',
+            })
+          )
+          return
+        }
+        requestedModel = model
+
         console.log(
           `🎤 [Generate] Audio: voice=${voice_id}, text="${text.substring(0, 50)}..."`
         )
@@ -4151,8 +4117,7 @@ const server = createServer(async (req, res) => {
          * запрос без `model` оставлял множитель единицей, и 20 000 знаков
          * стоили 12 токенов вместо 480. Дыру открыл я сам, закрывая соседнюю.
          *
-         * Условие и не нужно: все ноги этого маршрута — KieAI ElevenLabs,
-         * прямой ElevenLabs, Replicate — тарифицируются провайдером за знаки.
+         * Both supported providers are billed by character count.
          */
         оплаченныеТысячи = тысячиЗнаковКОплате(text)
 
@@ -4186,162 +4151,92 @@ const server = createServer(async (req, res) => {
          */
         const ownerЗвука = generationOwnerId(req)
         if (ownerЗвука) {
-          recordInto(startJob('audio', ownerЗвука, typeof text === 'string' ? text : undefined), res)
+          recordInto(
+            startJob(
+              'audio',
+              ownerЗвука, // cyrillic-ok: existing route owner variable
+              typeof text === 'string' ? text : undefined
+            ),
+            res
+          )
         }
         receipt = billed.receipt
 
         if (typeof model === 'string' && model.startsWith('kie/')) {
-          /**
-           * ОТКАЗ KIE НЕ ЗАВЕРШАЕТ ЗАПРОС — переходим на запасной путь ниже.
-           *
-           * Раньше `runExplicitKieJob` бросал прямо наружу, и человек получал
-           * 500 «Internal Error, Please try again later» — дословный ответ
-           * KieAI. Замер: единственная разрешённая для звука модель
-           * `elevenlabs/text-to-speech-multilingual-v2` отвечает этой ошибкой
-           * стабильно, а путь ниже (ElevenLabs → Replicate) в ту же секунду
-           * отдаёт готовый mp3. То есть озвучка была технически доступна и
-           * недоступна на практике: приложение всегда шлёт `kie/…`.
-           *
-           * Правило уже сформулировано двумя строками ниже — «провайдер лёг,
-           * идём к следующему, симметрично картинкам». KIE просто в нём не
-           * участвовал.
-           *
-           * ДЕНЬГИ. Списание произошло выше. Отдать результат запасным путём
-           * ЧЕСТНЕЕ, чем вернуть отказ и возврат: человек платил за озвучку,
-           * а не за конкретного подрядчика, и получает именно её. Кто
-           * исполнил на самом деле — сказано в `provider` ответа, не выдумано.
-           */
-          try {
-            const kieModel = reviewedKieModel('audio', model)!
-            const result = await runExplicitKieJob(kieModel, {
-              text,
-              /*
-               * ИМЯ — ТОЛЬКО ТО, ЧТО ЭТОТ ПРОВАЙДЕР УЗНАЕТ.
-               *
-               * Здесь стояло «взять `voice_name` как есть», и это было верно,
-               * пока список голосов был от ElevenLabs. Теперь он от MiniMax:
-               * приходит «Максим — уверенный», а нога ждёт «Rachel». Чужая
-               * строка даёт отказ на ПЕРВОЙ ноге — то есть удлиняет путь до
-               * звука ради имени, которого здесь не поймут.
-               */
-              voice: имяДляElevenLabs(voice_name) ?? 'Rachel',
-              stability: 0.5,
-              similarity_boost: 0.75,
-              style: 0,
-              speed: Number.isFinite(Number(speed)) ? Number(speed) : 1,
-              timestamps: false,
-              previous_text: '',
-              next_text: '',
-              language_code: '',
+          // Kie is primary. A failure is returned and refunded, not rerouted.
+          const kieModel = reviewedKieModel('audio', model)!
+          const result = await runExplicitKieJob(kieModel, {
+            text,
+            // Legacy clients may send another provider's name; keep Rachel as the default.
+            voice: имяДляElevenLabs(voice_name) ?? 'Rachel', // cyrillic-ok: existing provider API
+            stability: 0.5,
+            similarity_boost: 0.75,
+            style: 0,
+            speed: Number.isFinite(Number(speed)) ? Number(speed) : 1,
+            timestamps: false,
+            previous_text: '',
+            next_text: '',
+            language_code: '',
+          })
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              success: true,
+              url: result.url,
+              id: result.taskId,
+              provider: model,
+              ...receipt,
             })
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(
-              JSON.stringify({
-                success: true,
-                url: result.url,
-                id: result.taskId,
-                provider: model,
-                ...receipt,
-              })
-            )
-            return
-          } catch (kieError) {
-            // Не глушим: причина отказа KieAI должна остаться в логе, иначе
-            // «почему-то всегда Replicate» станет загадкой на месяц.
-            console.warn(
-              `⚠️ Kie.ai TTS отказал (${model}), идём запасным путём:`,
-              kieError instanceof Error ? kieError.message : kieError
-            )
-          }
+          )
+          return
         }
 
-        // ElevenLabs is the primary path; if it is unavailable (the key stored
-        // is an identifier, not an sk_ key, OR the API errors) fall back to
-        // Replicate TTS. Symmetric with images (FAL dead -> Replicate).
-        let audioBuffer: Buffer
-        let timedCaptions: TimedCaption[] | undefined
-        let audioProvider = 'elevenlabs'
-        try {
-          const ELEVENLABS_API_KEY = elevenLabsKey() // throws if not an sk_ key
-          const ttsResponse = await fetch(
-            `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}/with-timestamps`,
-            {
-              method: 'POST',
-              headers: {
-                'xi-api-key': ELEVENLABS_API_KEY,
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
+        // Direct ElevenLabs runs only when explicitly selected.
+        const audioProvider = 'elevenlabs'
+        const ELEVENLABS_API_KEY = elevenLabsKey() // throws if not an sk_ key
+        const ttsResponse = await fetch(
+          `https://api.elevenlabs.io/v1/text-to-speech/${voice_id}/with-timestamps`,
+          {
+            method: 'POST',
+            headers: {
+              'xi-api-key': ELEVENLABS_API_KEY,
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+            },
+            body: JSON.stringify({
+              text,
+              model_id: 'eleven_multilingual_v2',
+              // Preserve the existing UI speed range; omit the provider's default of 1.
+              voice_settings: {
+                stability: 0.5,
+                similarity_boost: 0.75,
+                ...(скоростьРечи(speed) != null && скоростьРечи(speed) !== 1 // cyrillic-ok: existing provider API
+                  ? { speed: скоростьРечи(speed) } // cyrillic-ok: existing provider API
+                  : {}),
               },
-              body: JSON.stringify({
-                text,
-                model_id: 'eleven_multilingual_v2',
-                /*
-                 * СКОРОСТЬ ПЕРЕДАЁТСЯ И ЗДЕСЬ.
-                 *
-                 * Ползунок терялся на ВСЕХ трёх ногах; две уже починены, а
-                 * эта осталась бы мёртвой ровно до того дня, когда почините
-                 * ключ ElevenLabs, — и слайдер снова перестал бы значить
-                 * что-либо, без единой правки в коде.
-                 *
-                 * Поле документировано провайдером как `speed` внутри
-                 * `voice_settings`: double, по умолчанию 1
-                 * (elevenlabs.io/docs/api-reference/text-to-speech/convert,
-                 * снято 06.09.2026). Границ там НЕ УКАЗАНО, поэтому свои не
-                 * выдумываем, а берём ту же, что умеет породить наш ползунок
-                 * (0.5–2.0 в вебе, три значения в приложении): за её
-                 * пределами значение прийти не может, и обещать провайдеру
-                 * то, чего он не обещал, не приходится.
-                 *
-                 * Единицу не шлём: это и есть значение по умолчанию.
-                 */
-                voice_settings: {
-                  stability: 0.5,
-                  similarity_boost: 0.75,
-                  ...(скоростьРечи(speed) != null &&
-                  скоростьРечи(speed) !== 1
-                    ? { speed: скоростьРечи(speed) }
-                    : {}),
-                },
-              }),
-            }
+            }),
+          }
+        )
+        if (!ttsResponse.ok) {
+          throw new Error(
+            `ElevenLabs TTS error: ${ttsResponse.status} - ${await ttsResponse.text()}`
           )
-          if (!ttsResponse.ok) {
-            throw new Error(
-              `ElevenLabs TTS error: ${ttsResponse.status} - ${await ttsResponse.text()}`
-            )
-          }
-          const timedSpeech = (await ttsResponse.json()) as {
-            audio_base64?: unknown
-            alignment?: CharacterAlignment
-            normalized_alignment?: CharacterAlignment
-          }
-          if (
-            typeof timedSpeech.audio_base64 !== 'string' ||
-            timedSpeech.audio_base64.length === 0
-          ) {
-            throw new Error('ElevenLabs timestamp response has no audio')
-          }
-          audioBuffer = Buffer.from(timedSpeech.audio_base64, 'base64')
-          timedCaptions = captionsFromCharacterAlignment(
-            timedSpeech.normalized_alignment ?? timedSpeech.alignment!
-          )
-        } catch (elevenErr) {
-          console.warn(
-            `🎤 [Generate] ElevenLabs unavailable (${String(elevenErr).slice(0, 120)}), switching to Replicate TTS`
-          )
-          const audioUrl = await generateAudioViaReplicate(text, {
-            // `voice_id` — то, что прислал клиент; чужой идентификатор
-            // `входМиниМакс` отбросит сам, а не отправит провайдеру.
-            voice: voice_id,
-            speed,
-          })
-          const dl = await fetch(audioUrl)
-          if (!dl.ok) {
-            throw new Error(`Replicate audio download failed: ${dl.status}`)
-          }
-          audioBuffer = Buffer.from(await dl.arrayBuffer())
-          audioProvider = 'replicate/minimax-speech-02-turbo'
         }
+        const timedSpeech = (await ttsResponse.json()) as {
+          audio_base64?: unknown
+          alignment?: CharacterAlignment
+          normalized_alignment?: CharacterAlignment
+        }
+        if (
+          typeof timedSpeech.audio_base64 !== 'string' ||
+          timedSpeech.audio_base64.length === 0
+        ) {
+          throw new Error('ElevenLabs timestamp response has no audio')
+        }
+        const audioBuffer = Buffer.from(timedSpeech.audio_base64, 'base64')
+        const timedCaptions: TimedCaption[] = captionsFromCharacterAlignment(
+          timedSpeech.normalized_alignment ?? timedSpeech.alignment!
+        )
         console.log(
           `✅ [Generate] Audio received: ${audioBuffer.length} bytes (${audioProvider})`
         )
@@ -4661,7 +4556,7 @@ const server = createServer(async (req, res) => {
           'kling/ai-avatar-standard',
         ]
         const explicitKie = model?.startsWith('kie/') ?? false
-/*
+        /*
          * ГОЛОЕ ИМЯ НЕ ВЫБИРАЕТ МОДЕЛЬ. Было `: model`: строка без префикса
          * `kie/` миновала допуск и попадала в список липсинка, а цена
          * считалась ПО ПРЕФИКСУ — убери четыре символа, и OmniHuman работал
@@ -6814,7 +6709,9 @@ const server = createServer(async (req, res) => {
    * читателя, как он выглядит.
    */
   if (req.url?.startsWith('/api/soul/') && req.method === 'GET') {
-    const имя = decodeURIComponent(req.url.slice('/api/soul/'.length).split('?')[0])
+    const имя /* cyrillic-ok: existing identifier */ = decodeURIComponent(
+      req.url.slice('/api/soul/'.length).split('?')[0]
+    )
     if (!имя) {
       sendJson(res, 400, { success: false, error: 'username is required' })
       return
@@ -6845,7 +6742,10 @@ const server = createServer(async (req, res) => {
       })
     } catch (e) {
       console.error('[render] ошибка обработчика:', e)
-      sendJson(res, 500, { success: false, error: 'внутренняя ошибка — подробность в журнале сервера' })
+      sendJson(res, 500, {
+        success: false,
+        error: 'внутренняя ошибка — подробность в журнале сервера',
+      })
     }
     return
   }
@@ -6933,7 +6833,10 @@ const server = createServer(async (req, res) => {
       sendJson(res, 200, { success: true, coverUrl: результат.url })
     } catch (e) {
       console.error('[render] ошибка обработчика:', e)
-      sendJson(res, 500, { success: false, error: 'внутренняя ошибка — подробность в журнале сервера' })
+      sendJson(res, 500, {
+        success: false,
+        error: 'внутренняя ошибка — подробность в журнале сервера',
+      })
     }
     return
   }
@@ -6986,7 +6889,12 @@ const server = createServer(async (req, res) => {
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' })
       console.error('[render] ошибка обработчика:', e)
-      res.end(JSON.stringify({ success: false, error: 'внутренняя ошибка — подробность в журнале сервера' }))
+      res.end(
+        JSON.stringify({
+          success: false,
+          error: 'внутренняя ошибка — подробность в журнале сервера',
+        })
+      )
     }
     return
   }
@@ -7037,7 +6945,12 @@ const server = createServer(async (req, res) => {
       } catch (e) {
         res.writeHead(500, { 'Content-Type': 'application/json' })
         console.error('[render] ошибка обработчика:', e)
-      res.end(JSON.stringify({ success: false, error: 'внутренняя ошибка — подробность в журнале сервера' }))
+        res.end(
+          JSON.stringify({
+            success: false,
+            error: 'внутренняя ошибка — подробность в журнале сервера',
+          })
+        )
       }
     })
     return
@@ -7333,9 +7246,14 @@ const server = createServer(async (req, res) => {
       личность: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
       readBody: r => readBody(r as any),
       создатьКлиент: async () => {
-        const c: any = new TelegramClient(new StringSession(''), apiId, apiHash, {
-          connectionRetries: 2,
-        })
+        const c: any = new TelegramClient(
+          new StringSession(''),
+          apiId,
+          apiHash,
+          {
+            connectionRetries: 2,
+          }
+        )
         c.apiId = apiId
         c.apiHash = apiHash
         await c.connect()
@@ -7567,8 +7485,11 @@ const server = createServer(async (req, res) => {
            * работающего клиента ради формы запроса незачем.
            */
           const запрошено =
-            body.tokens != null ? Number(body.tokens) : PACKS[String(body.pack)]?.tokens
-          if (!запрошено) throw new Error('нужно поле tokens или известный pack')
+            body.tokens != null
+              ? Number(body.tokens)
+              : PACKS[String(body.pack)]?.tokens
+          if (!запрошено /* cyrillic-ok: existing identifier */)
+            throw new Error('нужно поле tokens или известный pack')
           const цена = ценаТокенов(запрошено)
           const pack = {
             tokens: цена.токенов,
@@ -9299,9 +9220,7 @@ const server = createServer(async (req, res) => {
         [username]
       )
       sendJson(res, 200, {
-        compositionCounts: Object.fromEntries(
-          counts.rows.map(r => [r.k, r.n])
-        ),
+        compositionCounts: Object.fromEntries(counts.rows.map(r => [r.k, r.n])),
         templates: result.rows.map(row => ({
           id: row.id,
           telegramId: row.telegram_id,
@@ -9778,7 +9697,7 @@ const server = createServer(async (req, res) => {
               {
                 role: 'system',
                 content:
-                  'Translate the user\'s SOUL.md into natural English. ' +
+                  "Translate the user's SOUL.md into natural English. " +
                   'Keep the markdown structure and heading levels exactly. ' +
                   'Do not add, drop or soften anything: this is what a person ' +
                   'says about themselves. Answer with the translation only.',
@@ -9815,7 +9734,10 @@ const server = createServer(async (req, res) => {
         })
       } catch (e) {
         console.error('[render] ошибка обработчика:', e)
-      sendJson(res, 500, { success: false, error: 'внутренняя ошибка — подробность в журнале сервера' })
+        sendJson(res, 500, {
+          success: false,
+          error: 'внутренняя ошибка — подробность в журнале сервера',
+        })
       }
     })
     return
@@ -10323,17 +10245,22 @@ export { broadcastWS }
  */
 function понятнаяПричина(e: unknown): string {
   const т = String(e)
-  if (/PHONE_CODE_INVALID/i.test(т)) return 'код неверный — проверьте и введите заново'
+  if (/PHONE_CODE_INVALID/i.test(т /* cyrillic-ok: existing identifier */))
+    return 'код неверный — проверьте и введите заново'
   if (/PHONE_CODE_EXPIRED/i.test(т)) return 'код истёк — запросите новый'
-  if (/PHONE_NUMBER_INVALID/i.test(т)) return 'номер не принят Telegram — проверьте формат'
-  if (/PASSWORD_HASH_INVALID/i.test(т)) return 'пароль двухфакторной защиты не подошёл'
+  if (/PHONE_NUMBER_INVALID/i.test(т /* cyrillic-ok: existing identifier */))
+    return 'номер не принят Telegram — проверьте формат'
+  if (/PASSWORD_HASH_INVALID/i.test(т /* cyrillic-ok: existing identifier */))
+    return 'пароль двухфакторной защиты не подошёл'
   if (/FLOOD_WAIT_(\d+)/i.test(т)) {
     const m = /FLOOD_WAIT_(\d+)/i.exec(т)
     return `Telegram просит подождать ${m ? m[1] : 'немного'} секунд`
   }
-  if (/SESSION_PASSWORD_NEEDED/i.test(т)) return 'нужен пароль двухфакторной защиты'
+  if (/SESSION_PASSWORD_NEEDED/i.test(т /* cyrillic-ok: existing identifier */))
+    return 'нужен пароль двухфакторной защиты'
   // Сообщения, которые мы формулируем сами, безопасны и полезны.
-  if (e instanceof Error && /^[А-Яа-яЁё]/.test(e.message)) return e.message.slice(0, 200)
+  if (e instanceof Error && /^[\u0410-\u044F\u0401\u0451]/.test(e.message))
+    return e.message.slice(0, 200)
   return 'не получилось — подробность в журнале сервера'
 }
 

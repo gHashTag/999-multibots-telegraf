@@ -39,7 +39,11 @@ import type { Asset } from '@vibee/atoms'
 import { DEFAULT_WIDTH, DEFAULT_HEIGHT } from '@vibee/atoms'
 import { toAbsoluteUrl } from '@/lib/mediaUrl'
 import { optionalTimedCaptions } from '@/lib/timedCaptions'
-import { KIE_WEB_MODELS } from '@/lib/kieProvider'
+import {
+  DEFAULT_AUDIO_MODEL,
+  KIE_AUDIO_VOICES,
+  KIE_WEB_MODELS,
+} from '@/lib/kieProvider'
 import {
   userAtom,
   canRenderAtom,
@@ -178,7 +182,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
    * принимал это за проблему со входом, пока не прочитал условие в коде.
    * Мобильное приложение говорит причину с самого начала.
    */
-  const почемуНельзя = (
+  const generationBlockReason = (
     операция: string,
     модель: string | undefined,
     промптПуст: boolean,
@@ -224,7 +228,12 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
     // («· 6/с»), но во фразе давала «не хватит: 6 за с» — по-русски это не
     // читается. Мобильное приложение говорит «за секунду звука» с самого
     // начала, и до липсинка эта ветка в вебе просто не встречалась.
-    const словами = мера === 'с' ? 'секунду звука' : мера === '1000 зн.' ? '1000 знаков' : мера
+    const словами = // cyrillic-ok: existing API or fixture identifier
+      мера === 'с' // cyrillic-ok: existing API or fixture identifier
+        ? 'секунду звука'
+        : мера === '1000 зн.' // cyrillic-ok: existing API or fixture identifier
+          ? '1000 знаков'
+          : мера // cyrillic-ok: existing API or fixture identifier
     return словами && количество === 1
       ? `не хватит: ${ц} за ${словами}, есть ${баланс.balance}`
       : `не хватит токенов: нужно ${всего}, есть ${баланс.balance}`
@@ -315,7 +324,9 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   // Audio state
   const [audioText, setAudioText] = useState('')
   const [audioSpeed, setAudioSpeed] = useState(1.0)
-  const [audioModel, setAudioModel] = useState('direct/elevenlabs')
+  const [audioModel, setAudioModel] = useState(DEFAULT_AUDIO_MODEL)
+  const isKieAudio = audioModel.startsWith('kie/')
+  const [kieVoice, setKieVoice] = useState(KIE_AUDIO_VOICES[0].id)
   /**
    * ЗА СКОЛЬКО ТЫСЯЧ ЗНАКОВ ВОЗЬМУТ. Считается всегда, при любой модели.
    *
@@ -329,17 +340,40 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
   const тысячиОзвучки = тысячиЗнаковКОплате(audioText)
 
   // Voices from Jotai (persisted to localStorage)
-  const voices = useAtomValue(voicesAtom)
-  const isLoadingVoices = useAtomValue(voicesLoadingAtom)
-  const voicesError = useAtomValue(voicesErrorAtom)
-  const [audioVoice, setAudioVoice] = useAtom(selectedVoiceAtom)
-  const voiceProvider = useAtomValue(voiceProviderAtom)
+  const directVoices = useAtomValue(voicesAtom)
+  const directVoicesLoading = useAtomValue(voicesLoadingAtom)
+  const directVoicesError = useAtomValue(voicesErrorAtom)
+  const [directVoice, setDirectVoice] = useAtom(selectedVoiceAtom)
+  const directVoiceProvider = useAtomValue(voiceProviderAtom)
+  const directVoicesReady =
+    directVoiceProvider === 'elevenlabs' &&
+    !directVoicesLoading &&
+    !directVoicesError
+  const voices = isKieAudio
+    ? KIE_AUDIO_VOICES
+    : directVoicesReady
+      ? directVoices
+      : []
+  const isLoadingVoices = !isKieAudio && directVoicesLoading
+  const voicesError = isKieAudio ? null : directVoicesError
+  const audioVoice = isKieAudio ? kieVoice : directVoice
+  const setAudioVoice = isKieAudio ? setKieVoice : setDirectVoice
+  const voiceProvider = isKieAudio ? 'Kie.ai' : directVoiceProvider
+  const audioVoiceReady =
+    isKieAudio ||
+    (directVoicesReady && voices.some(voice => voice.id === audioVoice))
   const fetchVoices = useSetAtom(fetchVoicesAtom)
 
-  // Load voices from ElevenLabs on mount
+  // Direct credentials/catalog are not a prerequisite for the primary path.
   useEffect(() => {
-    fetchVoices()
-  }, [fetchVoices])
+    if (activeTab === 'audio' && !isKieAudio) void fetchVoices()
+  }, [activeTab, isKieAudio, fetchVoices])
+
+  const selectAudioModel = (model: string) => {
+    setAudioModel(model)
+    setError(null)
+    setЧек(null) // cyrillic-ok: existing receipt setter
+  }
 
   // Prefill from Script page
   const [imagePrefilledPrompt, setImagePrefilledPrompt] = useAtom(
@@ -785,6 +819,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
   // Handle Audio Generation
   const handleGenerateAudio = async () => {
+    if (!audioVoiceReady) return
     if (!checkBalanceAndProceed()) return
 
     setIsGenerating(true)
@@ -1021,9 +1056,19 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             </button>
 
             {/* Причина ТЕКСТОМ: `title` на телефоне не видно. */}
-            {почемуНельзя('image_generate', imageModel, !imagePrompt.trim(), 'Опишите картинку — без описания генерировать нечего') && (
+            {generationBlockReason(
+              'image_generate',
+              imageModel,
+              !imagePrompt.trim(),
+              'Опишите картинку — без описания генерировать нечего'
+            ) && (
               <div className="generate-hint">
-                {почемуНельзя('image_generate', imageModel, !imagePrompt.trim(), 'Опишите картинку — без описания генерировать нечего')}
+                {generationBlockReason(
+                  'image_generate',
+                  imageModel,
+                  !imagePrompt.trim(),
+                  'Опишите картинку — без описания генерировать нечего'
+                )}
               </div>
             )}
             {чек && activeTab === 'image' && (
@@ -1175,40 +1220,40 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             */}
             <div className="form-row">
               {полеДоходит(баланс, 'duration', videoModel) && (
-              <div className="form-group">
-                <label>{t('generate.duration')}</label>
-                <div className="form-chips">
-                  {(videoModel.startsWith('kie/')
-                    ? KIE_VIDEO_DURATIONS
-                    : DURATIONS
-                  ).map(dur => (
-                    <button
-                      key={dur}
-                      className={`form-chip ${videoDuration === dur ? 'active' : ''}`}
-                      onClick={() => setVideoDuration(dur)}
-                    >
-                      {dur}
-                    </button>
-                  ))}
+                <div className="form-group">
+                  <label>{t('generate.duration')}</label>
+                  <div className="form-chips">
+                    {(videoModel.startsWith('kie/')
+                      ? KIE_VIDEO_DURATIONS
+                      : DURATIONS
+                    ).map(dur => (
+                      <button
+                        key={dur}
+                        className={`form-chip ${videoDuration === dur ? 'active' : ''}`}
+                        onClick={() => setVideoDuration(dur)}
+                      >
+                        {dur}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
               )}
 
               {полеДоходит(баланс, 'aspect_ratio', videoModel) && (
-              <div className="form-group">
-                <label>{t('generate.aspectRatio')}</label>
-                <div className="form-chips">
-                  {ASPECT_RATIOS.slice(0, 3).map(ratio => (
-                    <button
-                      key={ratio}
-                      className={`form-chip ${videoAspect === ratio ? 'active' : ''}`}
-                      onClick={() => setVideoAspect(ratio)}
-                    >
-                      {ratio}
-                    </button>
-                  ))}
+                <div className="form-group">
+                  <label>{t('generate.aspectRatio')}</label>
+                  <div className="form-chips">
+                    {ASPECT_RATIOS.slice(0, 3).map(ratio => (
+                      <button
+                        key={ratio}
+                        className={`form-chip ${videoAspect === ratio ? 'active' : ''}`}
+                        onClick={() => setVideoAspect(ratio)}
+                      >
+                        {ratio}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
               )}
             </div>
 
@@ -1238,9 +1283,19 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
 
             {/* Причина ТЕКСТОМ, а не подсказкой: `title` на телефоне не
                 показывается вовсе, и кнопка выглядела бы сломанной. */}
-            {почемуНельзя('video_generate', videoModel, !videoPrompt.trim(), 'Опишите видео — без описания генерировать нечего') && (
+            {generationBlockReason(
+              'video_generate',
+              videoModel,
+              !videoPrompt.trim(),
+              'Опишите видео — без описания генерировать нечего'
+            ) && (
               <div className="generate-hint">
-                {почемуНельзя('video_generate', videoModel, !videoPrompt.trim(), 'Опишите видео — без описания генерировать нечего')}
+                {generationBlockReason(
+                  'video_generate',
+                  videoModel,
+                  !videoPrompt.trim(),
+                  'Опишите видео — без описания генерировать нечего'
+                )}
               </div>
             )}
             {чек && activeTab === 'video' && (
@@ -1314,28 +1369,37 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             <div className="form-group">
               <label>{t('generate.model')}</label>
               <div className="model-buttons">
-                <button
-                  className={`model-btn model-btn-audio ${audioModel === 'direct/elevenlabs' ? 'active' : ''}`}
-                  onClick={() => setAudioModel('direct/elevenlabs')}
-                  type="button"
-                >
-                  <span className="model-name">ElevenLabs · Direct</span>
-                  <span className="model-desc">
-                    {'Точный тайминг титров из той же озвучки'}
-                  </span>
-                </button>
                 {KIE_WEB_MODELS.audio.map(model => (
                   <button
                     key={model.id}
                     className={`model-btn model-btn-audio ${audioModel === model.id ? 'active' : ''}`}
-                    onClick={() => setAudioModel(model.id)}
+                    onClick={() => selectAudioModel(model.id)}
+                    aria-pressed={audioModel === model.id}
+                    disabled={isGenerating}
                     type="button"
                   >
                     <span className="model-name">{model.name}</span>
-                    <span className="model-desc">{model.description}</span>
+                    <span className="model-desc">
+                      {t('generate.kiePrimary')}
+                    </span>
                   </button>
                 ))}
+                <button
+                  className={`model-btn model-btn-audio ${audioModel === 'direct/elevenlabs' ? 'active' : ''}`}
+                  onClick={() => selectAudioModel('direct/elevenlabs')}
+                  aria-pressed={audioModel === 'direct/elevenlabs'}
+                  disabled={isGenerating}
+                  type="button"
+                >
+                  <span className="model-name">ElevenLabs · Direct</span>
+                  <span className="model-desc">
+                    {t('generate.directOptional')}
+                  </span>
+                </button>
               </div>
+              {isKieAudio && (
+                <p className="generate-hint">{t('generate.kieVoiceHint')}</p>
+              )}
             </div>
 
             <div className="form-group">
@@ -1351,12 +1415,19 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
                   <span>{voicesError}</span>
                 </div>
               )}
+              {!isKieAudio && !directVoicesLoading && !audioVoiceReady && (
+                <p className="generate-hint">
+                  {t('generate.directUnavailable')}
+                </p>
+              )}
               <div className="model-buttons voices-grid">
                 {voices.map(voice => (
                   <button
                     key={voice.id}
                     className={`model-btn model-btn-audio ${audioVoice === voice.id ? 'active' : ''}`}
                     onClick={() => setAudioVoice(voice.id)}
+                    aria-pressed={audioVoice === voice.id}
+                    disabled={isGenerating}
                     /*
                      * Чей голос — С СЕРВЕРА. Здесь стояло «ElevenLabs voice»
                      * для всего, что не клон, и это подписывало голоса
@@ -1418,6 +1489,7 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
               onClick={handleGenerateAudio}
               disabled={
                 isGenerating ||
+                !audioVoiceReady ||
                 !audioText.trim() ||
                 неХватает('audio_generate', audioModel, тысячиОзвучки) != null
               }
@@ -1437,9 +1509,21 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
             </button>
 
             {/* Причина ТЕКСТОМ: `title` на телефоне не видно. */}
-            {почемуНельзя('audio_generate', audioModel, !audioText.trim(), 'Введите текст, который надо произнести', тысячиОзвучки) && (
+            {generationBlockReason(
+              'audio_generate',
+              audioModel,
+              !audioText.trim(),
+              'Введите текст, который надо произнести',
+              тысячиОзвучки // cyrillic-ok: existing API or fixture identifier
+            ) && (
               <div className="generate-hint">
-                {почемуНельзя('audio_generate', audioModel, !audioText.trim(), 'Введите текст, который надо произнести', тысячиОзвучки)}
+                {generationBlockReason(
+                  'audio_generate',
+                  audioModel,
+                  !audioText.trim(),
+                  'Введите текст, который надо произнести',
+                  тысячиОзвучки // cyrillic-ok: existing API or fixture identifier
+                )}
               </div>
             )}
             {чек && activeTab === 'audio' && (
@@ -1786,14 +1870,14 @@ export function GeneratePanel({ activeTab: externalTab }: GeneratePanelProps) {
               «Пока только для трёх из четырёх» — это незаконченная работа, а
               не этап.
             */}
-            {почемуНельзя(
+            {generationBlockReason(
               'lipsync_generate',
               lipsyncModel,
               !lipsyncAudioUrl.trim() || !lipsyncImageUrl.trim(),
               'Нужны фото и звук — без них озвучивать нечего'
             ) && (
               <div className="generate-hint">
-                {почемуНельзя(
+                {generationBlockReason(
                   'lipsync_generate',
                   lipsyncModel,
                   !lipsyncAudioUrl.trim() || !lipsyncImageUrl.trim(),

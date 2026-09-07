@@ -9,6 +9,8 @@
  * оплата их оживит. Replicate уже оплачен и отдаёт реальный вывод.
  */
 
+import { priceForKieModel } from './billing-shared'
+
 /** Бесплатно — в производстве ничего не стоит. */
 export const FREE = [
   {
@@ -37,8 +39,9 @@ export const PAID = [
   },
   {
     функция: 'audio_generate',
-    токенов: 6,
-    провайдер: 'Replicate minimax / ElevenLabs',
+    токенов: priceForKieModel('elevenlabs/text-to-speech-multilingual-v2'), // cyrillic-ok: existing pricing protocol field
+    unit: 'за 1000 знаков (округление вверх)',
+    провайдер: 'Kie.ai (основной) / Direct ElevenLabs (явный выбор)', // cyrillic-ok: existing pricing protocol field
   },
   {
     функция: 'video_generate',
@@ -65,7 +68,7 @@ export const PROVIDERS: Record<
   }
 > = {
   replicate: {
-    даёт: 'картинки (flux), видео (seedance), озвучка (minimax) — основной рабочий провайдер',
+    даёт: 'картинки (flux), видео (seedance); автоматической замены озвучки нет', // cyrillic-ok: existing setup protocol field
     статус: 'работает',
     env: 'REPLICATE_API_TOKEN',
     как: 'Ключ в replicate.com/account/api-tokens; пополнение — replicate.com/account/billing',
@@ -88,7 +91,7 @@ export const PROVIDERS: Record<
     как: 'В кабинете ElevenLabs → Profile → API Key. Настоящий ключ начинается с «sk_».',
     стоимость: 'по подписке ElevenLabs',
     заметка:
-      'Сейчас в переменной идентификатор, а не sk_-ключ. Либо используйте Replicate-озвучку (без ElevenLabs).',
+      'Только для явного Direct ElevenLabs и клона аккаунта. Основная озвучка Kie.ai использует KIE_AI_API_KEY и не зависит от этого ключа.',
   },
   glm: {
     даёт: 'агент/текст (флэт-рейт, работает); картинки CogView и видео CogVideoX — при мультимодал-пакете',

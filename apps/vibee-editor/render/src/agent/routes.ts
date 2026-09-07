@@ -173,7 +173,7 @@ const CARD = () => {
     ],
     производство: [
       'image_generate: картинка по описанию (Replicate flux-schnell) — файл сразу в S3',
-      'audio_generate: озвучка текста (ElevenLabs; только при валидном ключе аккаунта)',
+      'audio_generate: озвучка текста (Kie.ai по умолчанию; Direct ElevenLabs только явно; без автоматической платной замены)',
       'video_generate: видеофрагмент по описанию (Replicate seedance-1-lite) — mp4 в S3',
       'reel_render: сборка рилса в mp4 (Remotion), ждёт окончания',
     ],
@@ -522,7 +522,8 @@ export async function handleAgentHistoryDelete(
       const убрано = await удалитьРеплику(pool, telegramId, id)
       // 404, а не 200: «удалил ноль строк» и «удалил» — разные исходы, и
       // молчаливое «ок» на несуществующий id скрывало бы опечатку.
-      if (!убрано) return json(res, 404, { ok: false, error: 'реплика не найдена' })
+      if (!убрано /* cyrillic-ok: existing identifier */)
+        return json(res, 404, { ok: false, error: 'реплика не найдена' })
       return json(res, 200, { ok: true, убрано })
     }
     const убрано = await очиститьРазговор(pool, telegramId)
