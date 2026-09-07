@@ -66,6 +66,36 @@ const MONEY_AND_PLAN =
   'с чего начать» — не спрашивай разрешения, покажи первую неделю ' + // cyrillic-ok: prompt copy
   'и спроси, что поправить.' // cyrillic-ok: prompt copy
 
+/**
+ * BUTTONS THE AGENT PROPOSES ITSELF.
+ *
+ * The owner asked that answers always arrive with something to press, so a
+ * person can react without typing. The bot already renders `[[Label|act:id]]`
+ * markers through `parseAgentButtons` and drops any id it cannot handle -- but
+ * nothing ever told the AGENT that the syntax exists. The only prompt that knew
+ * it was the bot's FALLBACK, the tool-less model used when this agent is down.
+ * So buttons were offered by the degraded path and not by the good one.
+ *
+ * ONLY FOR THE BOT. The same agent answers the mini app, which renders text as
+ * text: a marker there would reach the person as literal bracket soup. The
+ * surface arrives on the request and is already validated against an allowlist
+ * in routes.ts; this rule is appended only when it says `bot`.
+ *
+ * The contract is the parser's, not a wish: id must be one of the three
+ * registered ones, the label is at most 40 characters and may not contain `]`
+ * or `|`, and at most four markers survive. An unknown id is dropped silently,
+ * which is why the list is spelled out rather than left to invention.
+ */
+const BUTTON_MARKERS =
+  '\n\nКНОПКИ. Ты отвечаешь в Telegram-боте, где человек может нажать, а не ' + // cyrillic-ok: prompt copy
+  'печатать. Если у ответа есть очевидный следующий шаг — предложи его ' + // cyrillic-ok: prompt copy
+  'кнопкой: поставь в конце ответа маркер [[Подпись|act:id]], где id — одно ' + // cyrillic-ok: prompt copy
+  'из ТРЁХ: topup (пополнить баланс), balance (показать баланс), can (что ' + // cyrillic-ok: prompt copy
+  'сейчас доступно). Другие id не работают и будут молча выброшены — не ' + // cyrillic-ok: prompt copy
+  'выдумывай их. Подпись — до 40 символов, без символов ] и |. Не больше ' + // cyrillic-ok: prompt copy
+  '4 маркеров. Кнопка нужна не всегда: ставь её, когда шаг реально ' + // cyrillic-ok: prompt copy
+  'есть, а не для украшения. Стандартные кнопки бот добавит и без тебя.' // cyrillic-ok: prompt copy
+
 const SYSTEM = `Ты — агент внутри приложения Trinity S³AI для создания рилсов.
 
 Ты не советчик, а исполнитель: у тебя есть инструменты, которые ДЕЙСТВИТЕЛЬНО
@@ -215,11 +245,13 @@ function soul(): string | null {
  * refers the model to a section that is not in it, and that is a property of
  * the STRING, which is unreachable through `runAgent` without a live model.
  */
-export function systemPrompt(): string {
+export function systemPrompt(surface?: string): string {
+  const buttons = surface === 'bot' ? BUTTON_MARKERS : ''
   const s = soul()
-  if (!s) return SYSTEM
+  if (!s) return SYSTEM + buttons
   return (
     SYSTEM +
+    buttons +
     '\n\nКОНТЕНТ-ПЛАН НА 30 ДНЕЙ есть в голосе владельца ниже — бери его ' + // cyrillic-ok: prompt copy
     'оттуда, а не выдумывай.' + // cyrillic-ok: prompt copy
     '\n\nГОЛОС ВЛАДЕЛЬЦА (SOUL.md). Когда пишешь текст поста, заголовок или ' +
@@ -379,7 +411,14 @@ async function* streamModel(
  */
 export async function* runAgent(
   history: ChatMessage[],
-  ctx: ToolContext
+  ctx: ToolContext,
+  /**
+   * Where the person is writing from. The chat route already validates it
+   * against an allowlist and used it only to label the stored turn; the agent
+   * needs it too, because a button marker belongs in the bot and nowhere else.
+   * Absent means "not the bot", which is the safe direction: no markers.
+   */
+  opts?: { surface?: string }
 ): AsyncGenerator<AgentEvent> {
   // ЛИЧНЫЙ SOUL звонящего: у каждого человека свой голос и свои границы,
   // агент пишет посты от его имени — значит, должен знать его SOUL так же,
@@ -407,14 +446,14 @@ export async function* runAgent(
     {
       role: 'system',
       content: personalSoul
-        ? systemPrompt() +
+        ? systemPrompt(opts?.surface) +
           '\n\nЛИЧНЫЙ SOUL ЧЕЛОВЕКА, С КОТОРЫМ ТЫ ГОВОРИШЬ. Тексты постов, ' +
           'идеи и тон — подстраивай под него; голос бренда t27 остаётся ' +
           'правилом честности (числа, границы), но ЧЕЙ это контент и каким ' +
           'голосом — решает этот SOUL. Человек может просить править его ' +
           'через soul_edit — это его скилл, помогай с этим.\n\n' +
           personalSoul
-        : systemPrompt(),
+        : systemPrompt(opts?.surface),
     },
     ...history,
   ]
