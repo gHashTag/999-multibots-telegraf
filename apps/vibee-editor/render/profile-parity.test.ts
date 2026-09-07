@@ -170,6 +170,66 @@ describe('оба клиента читают одни и те же поля пр
     expect(IOS_ЭКРАН).toContain('API.ПрофильError')
   })
 
+  it('«Ждут одобрения» есть в обоих и берёт те же адреса', () => {
+    /*
+     * САМАЯ ДОРОГАЯ ИЗ НАЙДЕННЫХ ПОТЕРЬ.
+     *
+     * Все чтения ленты фильтруют `is_public = TRUE`, поэтому неодобренный
+     * ролик не виден НИГДЕ, кроме этого раздела. Пока его не было на телефоне,
+     * владелец, живущий в приложении, не узнавал о сделанном агентом вообще:
+     * работа лежала в базе и была невидима отовсюду, навсегда.
+     */
+    const веб = читать(
+      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfilePending.tsx'
+    )
+    const ios = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
+    for (const адрес of ['api/feed/pending', 'api/feed/approve']) {
+      expect(веб, `веб потерял ${адрес}`).toContain(адрес)
+      expect(ios, `iOS не знает ${адрес}`).toContain(адрес)
+    }
+    expect(IOS_ЭКРАН).toContain('ждутОдобрения')
+  })
+
+  it('карточка исчезает ТОЛЬКО после успеха — в обоих клиентах', () => {
+    /*
+     * Убрать её сразу «для отзывчивости» значит сказать «опубликовано» там,
+     * где публикации не было: человек уходит уверенным, ролик лежит дальше, и
+     * второй раз он туда не заглянет.
+     *
+     * В вебе это уже записано словами в комментарии; здесь проверяется, что
+     * удаление стоит ПОСЛЕ успешного запроса, а не до него.
+     */
+    const веб = читать(
+      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfilePending.tsx'
+    )
+    expect(веб.indexOf('if (!о.ok) throw')).toBeLessThan(веб.indexOf('setСписок(с =>'))
+    expect(IOS_ЭКРАН.indexOf('try await API.одобрить')).toBeLessThan(
+      IOS_ЭКРАН.indexOf('ожидают.removeAll')
+    )
+  })
+
+  it('iOS разбирает id и строкой, и числом', () => {
+    /*
+     * Измерено на живом ответе: сервер отдаёт `{"id":"51"}` — СТРОКОЙ.
+     * Объявленный `Int` ронял разбор целиком, и раздел выглядел бы рабочим и
+     * всегда пустым: худший вид поломки, потому что жаловаться не на что.
+     */
+    const ios = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
+    const от = ios.indexOf('struct Ожидающий')
+    const блок = ios.slice(от, от + 1800)
+    expect(блок).toContain('decode(Int.self, forKey: .id)')
+    expect(блок).toContain('decode(String.self, forKey: .id)')
+  })
+
+  it('iOS читает ответ той формы, что отдаёт сервер', () => {
+    // Сервер отвечает `{ success, templates }`. Разбор, ждущий `items`, вернул
+    // бы пустой список молча.
+    const сервер = читать('apps', 'vibee-editor', 'render', 'render-server.ts')
+    expect(сервер).toContain("success: true, templates: r.rows")
+    const ios = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
+    expect(ios).toContain('let templates: [Ожидающий]?')
+  })
+
   it('сокращение тысяч одинаковое: 1.2K и 3.4M', () => {
     // Иначе одно и то же число выглядит на двух экранах по-разному, и человек
     // решает, что видит разные величины.
