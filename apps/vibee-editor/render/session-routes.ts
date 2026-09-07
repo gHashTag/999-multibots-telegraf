@@ -22,8 +22,12 @@
  * nothing downstream changes when it does.
  */
 
-import { сообщитьОВходе } from './src/auth/notify-sign-in'
+import {
+  сообщитьОВходе,
+  безопасноеИмяУстройства,
+} from './src/auth/notify-sign-in'
 import { отправитьВTelegram } from './src/auth/telegram-sender'
+import { записать } from './src/hive/journal'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { пуститьВход } from './src/entry-throttle'
 import crypto from 'node:crypto'
@@ -547,6 +551,20 @@ export async function handleAuthRoute(
       return true
     }
 
+    /*
+     * САМЫЙ ЧАСТЫЙ ВХОД БЫЛ САМЫМ НЕЗАМЕТНЫМ.
+     *
+     * Замер 07.09.2026: этот маршрут — обычный вход из мини-аппа — не писал
+     * НИЧЕГО при успехе, тогда как pair/start и pair/claim пишут оба. То есть
+     * в логах были видны редкие входы по коду и не был виден основной путь.
+     * «Тихо» означало и «всё хорошо», и «никто не заходил».
+     */
+    void записать(pool, {
+      вид: 'вход',
+      кого: telegramId,
+      чем: безопасноеИмяУстройства(body.device_name),
+    })
+
     json(
       res,
       200,
@@ -752,6 +770,22 @@ export async function handleAuthRoute(
        * The digits are never printed in any form.
        */
       console.warn(`🔑 [pair] claim ОТКАЗ: ${outcome.reason} — ${detail}`)
+      /*
+       * В журнал — как ТРЕВОГА и БЕЗ СУБЪЕКТА.
+       *
+       * Без субъекта не по забывчивости: `claimPairingCode` на отказе
+       * возвращает одну лишь причину, и чей это был код, здесь неизвестно.
+       * Значит событие ничьё, а ничьё событие видно только смотрителю улья —
+       * показывать «кто-то подбирал код» владельцу бота нечего и незачем.
+       *
+       * Тревога — потому что `exhausted` означает перебор. В логе это
+       * тонуло: одна строка среди тысяч, и никто её не ищет.
+       */
+      void записать(pool, {
+        вид: 'код-отказ',
+        чем: outcome.reason,
+        важность: outcome.reason === 'exhausted' ? 'тревога' : 'внимание',
+      })
       json(res, 401, {
         error: 'pairing_failed',
         reason: outcome.reason,
@@ -786,6 +820,22 @@ export async function handleAuthRoute(
       telegramId: outcome.telegramId,
       устройство: body.device_name,
       когда: new Date(),
+    })
+
+    /*
+     * И в журнал — по той же причине, что и уведомление, но для другого
+     * читателя. Уведомление говорит ЧЕЛОВЕКУ «на твой аккаунт вошли»;
+     * событие даёт СМОТРИТЕЛЮ увидеть картину: три входа по коду за час у
+     * трёх разных людей — это уже не совпадение.
+     *
+     * `void` по той же причине: вход состоялся, сессия выдана. Упавшая
+     * запись в журнал не должна его отменять.
+     */
+    void записать(pool, {
+      вид: 'код-принят',
+      кого: outcome.telegramId,
+      чем: безопасноеИмяУстройства(body.device_name),
+      важность: 'внимание',
     })
 
     json(res, 200, сессия)

@@ -409,6 +409,7 @@ async function withTokens<T extends object>(
 
 import { ценаТокенов, названиеСчёта } from './token-packs'
 import { CRM_TOOLS } from './crm-tools'
+import { HIVE_TOOLS } from './hive-tools'
 import { TELEGRAM_TOOLS } from './telegram-tools'
 import { PROJECT_TOOLS } from './project-tools'
 
@@ -2191,6 +2192,13 @@ TOOLS.push(...TELEGRAM_TOOLS)
  */
 TOOLS.push(...CRM_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
+/*
+ * Пульс улья — сюда же. Это ответ на «как дела у проекта», и спрашивают его
+ * в том же чате, где спрашивают про баланс и ленту. Область видимости у
+ * инструмента своя (`hive/roles.ts`): смотритель видит ферму, владелец —
+ * своих ботов, остальные — только себя.
+ */
+TOOLS.push(...HIVE_TOOLS)
 
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
 
