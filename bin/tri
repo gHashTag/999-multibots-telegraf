@@ -45,6 +45,20 @@ tri — оболочка Trinity S³AI
                  сломать код и посмотреть, покраснеет ли тест
                  (тест, который не может упасть, — не защита, а её изображение)
   tri entry      двери входа: чем отвечают на мусор, есть ли тормоз
+
+  Улей и наблюдение
+  tri hive       смотритель, журнал событий, отчёты королевы
+  tri session    сессии: срок жизни, ротация, обнаружение повторного использования
+  tri pairing    вход по коду: длина, срок, попытки — и совпадают ли клиенты с сервером
+  tri throttle   тормоз на входе: по чему считает и кого не заденет
+  tri tma        мини-апп: какой ключ уходит с запросом (два сразу = отказ сервера)
+
+  Состояние проекта
+  tri schema     таблицы, которые код считает существующими, против настоящих
+  tri shipped    уехало ли в прод — и пользуется ли им кто-нибудь
+  tri guards     защиты, которые ничего не защищают
+  tri space      место на диске: что заняли мы и что можно вернуть
+  tri worktrees  брошенные копии репозитория (могут хранить несохранённое)
 U
 }
 
@@ -325,11 +339,45 @@ case "${1:-}" in
       echo "  МАЛО: ${FREE_MB} МБ. Сборка iOS откажется работать (и правильно)."
     fi
     echo "— что создаём мы и можно вернуть —"
+    # Стенограммы агентов добавлены 07.09.2026: за один заход они съели 7 ГБ и
+    # уронили цикл в ENOSPC ДВАЖДЫ. Прошлая версия списка их не знала, поэтому
+    # команда показывала «всё в порядке» ровно тогда, когда всё было не в
+    # порядке. Диск забивает не только сборка.
     for D in "$ROOT/apps/vibee-ios/build2" /tmp/dd "$ROOT/.vite-cache" \
-             "$ROOT/.claude/worktrees" "$HOME/Library/Developer/Xcode/DerivedData"; do
+             "$ROOT/.claude/worktrees" "$HOME/Library/Developer/Xcode/DerivedData" \
+             "/private/tmp/claude-501" \
+             "$HOME/.claude/projects"; do
       [ -e "$D" ] && printf "  %-52s %s\n" "$D" "$(du -sh "$D" 2>/dev/null | cut -f1)"
     done
     echo "  (worktrees могут содержать несохранённую работу -- см. tri worktrees)"
+    echo "— вернуть место, ничего своего не теряя —"
+    echo "  rm -rf /private/tmp/claude-501 \$HOME/.claude/projects/*/*/subagents/workflows/wf_*"
+    ;;
+
+  hive)
+    # УЛЕЙ: КТО СМОТРИТЕЛЬ, ЖИВ ЛИ ЖУРНАЛ, ИДУТ ЛИ ОТЧЁТЫ.
+    #
+    # Заведено 07.09.2026. Причина в другом репозитории: в trios лежат два
+    # append-only журнала, `gardener_decisions` и `railway_audit_events`, и у
+    # ОБОИХ ноль читателей -- ничего из них не выбирает. Журнал умирает не от
+    # ошибки, а от того, что в него перестают смотреть. Эта команда и есть
+    # способ смотреть.
+    echo "— роли —"
+    V=$(railway variables --kv 2>/dev/null | grep '^HIVE_KEEPERS=' | cut -d= -f2-)
+    if [ -z "$V" ]; then
+      echo "  HIVE_KEEPERS НЕ ЗАДАН на vibee-render -- смотрителя нет,"
+      echo "  отчёты выключены, супер-админ видит только свои события."
+    else
+      echo "  смотрителей: $(echo "$V" | tr ',' '\n' | grep -c .) (…${V: -4})"
+    fi
+    echo "— проверки улья —"
+    export PATH="$HOME/.nvm/versions/node/v20.19.0/bin:$PATH"
+    npx vitest run apps/vibee-editor/render/hive-*.test.ts 2>&1 |
+      grep -E "Tests |FAIL" | sed "s|^|  |"
+    echo "— места, откуда события приходят —"
+    printf "  %-28s %s\n" "эмиссия в коде:" \
+      "$(grep -rn 'записать(pool' apps/vibee-editor/render --include='*.ts' 2>/dev/null | grep -vc test)"
+    echo "  (31 место найдено разведкой; подключено меньше -- остальное впереди)"
     ;;
 
   worktrees)

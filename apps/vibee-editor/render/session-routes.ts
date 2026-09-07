@@ -22,8 +22,12 @@
  * nothing downstream changes when it does.
  */
 
-import { сообщитьОВходе } from './src/auth/notify-sign-in'
-import { отправитьВTelegram } from './src/auth/telegram-sender'
+import {
+  notifySignIn,
+  safeDeviceName,
+} from './src/auth/notify-sign-in'
+import { sendToTelegram } from './src/auth/telegram-sender'
+import { record } from './src/hive/journal'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { пуститьВход } from './src/entry-throttle'
 import crypto from 'node:crypto'
@@ -547,6 +551,20 @@ export async function handleAuthRoute(
       return true
     }
 
+    /*
+     * THE MOST COMMON SIGN-IN WAS THE LEAST VISIBLE ONE.
+     *
+     * Measured 2026-09-07: this route -- the ordinary Mini App sign-in -- wrote
+     * NOTHING on success, while pair/start and pair/claim both log. So the logs
+     * showed the rare code sign-ins and hid the main path. "Quiet" meant both
+     * "all is well" and "nobody came".
+     */
+    void record(pool, {
+      kind: 'sign-in',
+      who: telegramId,
+      what: safeDeviceName(body.device_name),
+    })
+
     json(
       res,
       200,
@@ -752,6 +770,23 @@ export async function handleAuthRoute(
        * The digits are never printed in any form.
        */
       console.warn(`🔑 [pair] claim ОТКАЗ: ${outcome.reason} — ${detail}`)
+      /*
+       * Into the journal as an ALARM and with NO SUBJECT.
+       *
+       * No subject is not forgetfulness: on refusal `claimPairingCode` returns
+       * only a reason, and whose code it was is unknown here. So the event
+       * belongs to nobody, and a nobody event is visible to the hive keeper
+       * alone -- there is nothing to show a bot owner in "somebody was guessing
+       * a code", and no reason to.
+       *
+       * An alarm, because `exhausted` means brute force. In the log that sank:
+       * one line among thousands, and nobody goes looking for it.
+       */
+      void record(pool, {
+        kind: 'code-refused',
+        what: outcome.reason,
+        severity: outcome.reason === 'exhausted' ? 'alarm' : 'attention',
+      })
       json(res, 401, {
         error: 'pairing_failed',
         reason: outcome.reason,
@@ -782,10 +817,27 @@ export async function handleAuthRoute(
      * это должно кончаться потерянным уведомлением и НИЧЕМ больше. Ждать
      * отправку значит поставить успех входа в зависимость от чужой сети.
      */
-    void сообщитьОВходе(отправитьВTelegram, {
+    void notifySignIn(sendToTelegram, {
       telegramId: outcome.telegramId,
-      устройство: body.device_name,
-      когда: new Date(),
+      device: body.device_name,
+      when: new Date(),
+    })
+
+    /*
+     * Into the journal too -- for the same reason as the notification, but for
+     * a different reader. The notification tells a PERSON "somebody signed in
+     * to your account"; the event lets the KEEPER see the shape: three code
+     * sign-ins within an hour across three different people is no longer a
+     * coincidence.
+     *
+     * `void` for the same reason: the sign-in already happened and the session
+     * was issued. A failed journal write must not undo it.
+     */
+    void record(pool, {
+      kind: 'code-claimed',
+      who: outcome.telegramId,
+      what: safeDeviceName(body.device_name),
+      severity: 'attention',
     })
 
     json(res, 200, сессия)

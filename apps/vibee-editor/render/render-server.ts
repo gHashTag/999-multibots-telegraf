@@ -30,6 +30,9 @@ import {
 } from './src/lib/remoteMediaDuration'
 import { handleAuthRouteSafely } from './session-routes'
 import { ensureAuthTables, pollRevocations } from './session-store'
+import { report } from './src/hive/queen-report'
+import { record } from './src/hive/journal'
+import { sendToTelegram } from './src/auth/telegram-sender'
 import {
   readRenderQuota,
   reserveRenderQuota,
@@ -53,6 +56,7 @@ import {
   handleMcpCard,
   handleAgentChat,
   handleAgentHistory,
+  handleAgentHistoryAppend,
   handleAgentHistoryDelete,
   handleAgentKeys,
   chatIdentity,
@@ -2254,6 +2258,59 @@ setInterval(() => {
   }
 }, 60 * 1000)
 
+/*
+ * THE QUEEN'S REPORT -- THE ONLY READER OF THE JOURNAL THAT ARRIVES BY ITSELF.
+ *
+ * The pulse tool in the agent chat answers when asked. That is not enough: the
+ * owner asked to react in time, and in time means without waiting to be asked.
+ *
+ * trios holds two append-only journals with zero readers. The difference
+ * between those and this one is exactly this timer.
+ *
+ * CHECK OFTEN, WRITE RARELY. A tick every ten minutes; an alarm goes out
+ * immediately, ordinary events accumulate and arrive in a batch at most every
+ * three hours (QUIET_GAP_MINUTES). The cursor lives in the database rather than
+ * in memory: this Railway project has no volumes and a deploy wipes anything
+ * local.
+ */
+setInterval(
+  () => {
+    void (async () => {
+      try {
+        const outcome = await report(getPool(), async (who, text) => {
+          try {
+            await sendToTelegram(who, text)
+            return true
+          } catch (e) {
+            // Return false rather than THROW: the cursor's advance depends on
+            // this value. A thrown exception would lose the events forever.
+            console.warn(
+              '[hive] report not delivered:',
+              e instanceof Error ? e.message : String(e)
+            )
+            return false
+          }
+        })
+        if (outcome.what === 'no keepers') {
+          // Once per tick, but out loud. Without HIVE_KEEPERS reports do not
+          // work, and that is a setting rather than a fault; silence here is
+          // indistinguishable from "all quiet".
+          console.warn(
+            '[hive] HIVE_KEEPERS is not set -- nobody to report to, reports are off'
+          )
+        } else if (outcome.what === 'sent') {
+          console.log(`[hive] report sent: ${outcome.events} events`)
+        }
+      } catch (e) {
+        // The report is observation. Its failure must not bring down the render
+        // server.
+        console.error('[hive] report failed:', e)
+      }
+    })()
+  },
+  10 * 60 * 1000
+)
+
 // Resolve media path to absolute file path
 function resolveMediaPath(mediaPath: string): string {
   if (mediaPath.startsWith('http://') || mediaPath.startsWith('https://')) {
@@ -3282,7 +3339,14 @@ const server = createServer(async (req, res) => {
          */
         const ownerКартинки = generationOwnerId(req)
         if (ownerКартинки) {
-          recordInto(startJob('image', ownerКартинки, typeof prompt === 'string' ? prompt : undefined), res)
+          recordInto(
+            startJob(
+              'image',
+              ownerКартинки,
+              typeof prompt === 'string' ? prompt : undefined
+            ),
+            res
+          )
         }
         receipt = billed.receipt
 
@@ -4021,7 +4085,10 @@ const server = createServer(async (req, res) => {
    * времени; личность берётся из подписи или сессии, а список — из `ADMIN_IDS`,
    * той же переменной, что решает вопрос оплаты.
    */
-  if (req.url?.split('?')[0] === '/api/feed/backfill-thumbnails' && req.method === 'POST') {
+  if (
+    req.url?.split('?')[0] === '/api/feed/backfill-thumbnails' &&
+    req.method === 'POST'
+  ) {
     const кто = generationOwnerId(req)
     if (!кто || !владелец(кто)) {
       res.writeHead(403, { 'Content-Type': 'application/json' })
@@ -4186,7 +4253,14 @@ const server = createServer(async (req, res) => {
          */
         const ownerЗвука = generationOwnerId(req)
         if (ownerЗвука) {
-          recordInto(startJob('audio', ownerЗвука, typeof text === 'string' ? text : undefined), res)
+          recordInto(
+            startJob(
+              'audio',
+              ownerЗвука,
+              typeof text === 'string' ? text : undefined
+            ),
+            res
+          )
         }
         receipt = billed.receipt
 
@@ -4297,8 +4371,7 @@ const server = createServer(async (req, res) => {
                 voice_settings: {
                   stability: 0.5,
                   similarity_boost: 0.75,
-                  ...(скоростьРечи(speed) != null &&
-                  скоростьРечи(speed) !== 1
+                  ...(скоростьРечи(speed) != null && скоростьРечи(speed) !== 1
                     ? { speed: скоростьРечи(speed) }
                     : {}),
                 },
@@ -4661,7 +4734,7 @@ const server = createServer(async (req, res) => {
           'kling/ai-avatar-standard',
         ]
         const explicitKie = model?.startsWith('kie/') ?? false
-/*
+        /*
          * ГОЛОЕ ИМЯ НЕ ВЫБИРАЕТ МОДЕЛЬ. Было `: model`: строка без префикса
          * `kie/` миновала допуск и попадала в список липсинка, а цена
          * считалась ПО ПРЕФИКСУ — убери четыре символа, и OmniHuman работал
@@ -6814,7 +6887,9 @@ const server = createServer(async (req, res) => {
    * читателя, как он выглядит.
    */
   if (req.url?.startsWith('/api/soul/') && req.method === 'GET') {
-    const имя = decodeURIComponent(req.url.slice('/api/soul/'.length).split('?')[0])
+    const имя = decodeURIComponent(
+      req.url.slice('/api/soul/'.length).split('?')[0]
+    )
     if (!имя) {
       sendJson(res, 400, { success: false, error: 'username is required' })
       return
@@ -6845,7 +6920,10 @@ const server = createServer(async (req, res) => {
       })
     } catch (e) {
       console.error('[render] ошибка обработчика:', e)
-      sendJson(res, 500, { success: false, error: 'внутренняя ошибка — подробность в журнале сервера' })
+      sendJson(res, 500, {
+        success: false,
+        error: 'внутренняя ошибка — подробность в журнале сервера',
+      })
     }
     return
   }
@@ -6933,7 +7011,10 @@ const server = createServer(async (req, res) => {
       sendJson(res, 200, { success: true, coverUrl: результат.url })
     } catch (e) {
       console.error('[render] ошибка обработчика:', e)
-      sendJson(res, 500, { success: false, error: 'внутренняя ошибка — подробность в журнале сервера' })
+      sendJson(res, 500, {
+        success: false,
+        error: 'внутренняя ошибка — подробность в журнале сервера',
+      })
     }
     return
   }
@@ -6986,7 +7067,12 @@ const server = createServer(async (req, res) => {
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' })
       console.error('[render] ошибка обработчика:', e)
-      res.end(JSON.stringify({ success: false, error: 'внутренняя ошибка — подробность в журнале сервера' }))
+      res.end(
+        JSON.stringify({
+          success: false,
+          error: 'внутренняя ошибка — подробность в журнале сервера',
+        })
+      )
     }
     return
   }
@@ -7037,7 +7123,12 @@ const server = createServer(async (req, res) => {
       } catch (e) {
         res.writeHead(500, { 'Content-Type': 'application/json' })
         console.error('[render] ошибка обработчика:', e)
-      res.end(JSON.stringify({ success: false, error: 'внутренняя ошибка — подробность в журнале сервера' }))
+        res.end(
+          JSON.stringify({
+            success: false,
+            error: 'внутренняя ошибка — подробность в журнале сервера',
+          })
+        )
       }
     })
     return
@@ -7089,6 +7180,29 @@ const server = createServer(async (req, res) => {
         // Тот же код, что и у автопубликации после рендера. Раньше SQL был
         // написан здесь второй раз, а рендер ходил сюда по сети к самому себе.
         const row = await publishTemplateRow(data)
+
+        /*
+         * THE ONE DOOR INTO PUBLIC, SO THE ONE PLACE FOR THE EVENT.
+         *
+         * Both the Mini App button and the agent's `feed_publish` tool funnel
+         * through this handler, so a single record here covers both. Putting it
+         * in each caller would mean two places to keep in step, and the agent's
+         * path is the one that has already misfired: tools.ts records the agent
+         * creating a duplicate live post from a single "publish it again".
+         *
+         * `is_public === false` means the post is waiting for approval. That
+         * distinction is carried into the note rather than dropped, because a
+         * pile of unapproved posts is a different situation from a pile of
+         * published ones, and the keeper needs to tell them apart.
+         */
+        void record(getPool(), {
+          kind: 'published',
+          who: String(owner ?? ''),
+          what:
+            data.is_public === false
+              ? 'awaiting approval'
+              : 'visible in the feed',
+        })
 
         /**
          * Публикация в Telegram-канал.
@@ -7333,9 +7447,14 @@ const server = createServer(async (req, res) => {
       личность: r => chatIdentity(r as any, verifiedTelegramId(r as any)),
       readBody: r => readBody(r as any),
       создатьКлиент: async () => {
-        const c: any = new TelegramClient(new StringSession(''), apiId, apiHash, {
-          connectionRetries: 2,
-        })
+        const c: any = new TelegramClient(
+          new StringSession(''),
+          apiId,
+          apiHash,
+          {
+            connectionRetries: 2,
+          }
+        )
         c.apiId = apiId
         c.apiHash = apiHash
         await c.connect()
@@ -7407,6 +7526,38 @@ const server = createServer(async (req, res) => {
       return
     }
     await handleAgentHistory(req, res, String(who), getPool)
+    return
+  }
+
+  /*
+   * POST /api/agent/history -- append a turn to YOUR OWN conversation.
+   *
+   * It exists for the bot's fallback: when the agent is unreachable the bot
+   * answers with a plain model, and that answer used to go nowhere. The
+   * conversation ended on a question with no answer -- the server had already
+   * stored the question on its way into the agent, and nobody stored the reply.
+   *
+   * Identity comes from the same `resolveIdentity` as reading, deleting and
+   * chatting: four routes about one conversation must understand a person
+   * identically.
+   */
+  if (
+    req.url?.split('?')[0] === '/api/agent/history' &&
+    req.method === 'POST'
+  ) {
+    const who = await resolveIdentity(req, getPool)
+    if (!who) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: 'не удалось определить пользователя',
+          detail:
+            'нужна подпись Telegram (X-Telegram-Init-Data) или ключ агента (X-Agent-Key)',
+        })
+      )
+      return
+    }
+    await handleAgentHistoryAppend(req, res, String(who), getPool)
     return
   }
 
@@ -7567,8 +7718,11 @@ const server = createServer(async (req, res) => {
            * работающего клиента ради формы запроса незачем.
            */
           const запрошено =
-            body.tokens != null ? Number(body.tokens) : PACKS[String(body.pack)]?.tokens
-          if (!запрошено) throw new Error('нужно поле tokens или известный pack')
+            body.tokens != null
+              ? Number(body.tokens)
+              : PACKS[String(body.pack)]?.tokens
+          if (!запрошено)
+            throw new Error('нужно поле tokens или известный pack')
           const цена = ценаТокенов(запрошено)
           const pack = {
             tokens: цена.токенов,
@@ -8617,7 +8771,7 @@ const server = createServer(async (req, res) => {
     const url: string = String(body.url ?? '')
     // Только http(s)-ссылки: файл уже должен лежать в хранилище (клиент
     // грузит через /upload). Принять произвольную строку значило бы
-    // записать в профиль мусор, который галерея потом отфильтрует.
+    // записать в профиль мусор, который галерея потом отфильтрует. // cyrillic-ok: pre-existing comment
     if (!/^https?:\/\//.test(url)) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
       res.end(
@@ -9299,9 +9453,7 @@ const server = createServer(async (req, res) => {
         [username]
       )
       sendJson(res, 200, {
-        compositionCounts: Object.fromEntries(
-          counts.rows.map(r => [r.k, r.n])
-        ),
+        compositionCounts: Object.fromEntries(counts.rows.map(r => [r.k, r.n])),
         templates: result.rows.map(row => ({
           id: row.id,
           telegramId: row.telegram_id,
@@ -9778,7 +9930,7 @@ const server = createServer(async (req, res) => {
               {
                 role: 'system',
                 content:
-                  'Translate the user\'s SOUL.md into natural English. ' +
+                  "Translate the user's SOUL.md into natural English. " +
                   'Keep the markdown structure and heading levels exactly. ' +
                   'Do not add, drop or soften anything: this is what a person ' +
                   'says about themselves. Answer with the translation only.',
@@ -9815,7 +9967,10 @@ const server = createServer(async (req, res) => {
         })
       } catch (e) {
         console.error('[render] ошибка обработчика:', e)
-      sendJson(res, 500, { success: false, error: 'внутренняя ошибка — подробность в журнале сервера' })
+        sendJson(res, 500, {
+          success: false,
+          error: 'внутренняя ошибка — подробность в журнале сервера',
+        })
       }
     })
     return
@@ -10323,17 +10478,22 @@ export { broadcastWS }
  */
 function понятнаяПричина(e: unknown): string {
   const т = String(e)
-  if (/PHONE_CODE_INVALID/i.test(т)) return 'код неверный — проверьте и введите заново'
+  if (/PHONE_CODE_INVALID/i.test(т))
+    return 'код неверный — проверьте и введите заново'
   if (/PHONE_CODE_EXPIRED/i.test(т)) return 'код истёк — запросите новый'
-  if (/PHONE_NUMBER_INVALID/i.test(т)) return 'номер не принят Telegram — проверьте формат'
-  if (/PASSWORD_HASH_INVALID/i.test(т)) return 'пароль двухфакторной защиты не подошёл'
+  if (/PHONE_NUMBER_INVALID/i.test(т))
+    return 'номер не принят Telegram — проверьте формат'
+  if (/PASSWORD_HASH_INVALID/i.test(т))
+    return 'пароль двухфакторной защиты не подошёл'
   if (/FLOOD_WAIT_(\d+)/i.test(т)) {
     const m = /FLOOD_WAIT_(\d+)/i.exec(т)
     return `Telegram просит подождать ${m ? m[1] : 'немного'} секунд`
   }
-  if (/SESSION_PASSWORD_NEEDED/i.test(т)) return 'нужен пароль двухфакторной защиты'
+  if (/SESSION_PASSWORD_NEEDED/i.test(т))
+    return 'нужен пароль двухфакторной защиты'
   // Сообщения, которые мы формулируем сами, безопасны и полезны.
-  if (e instanceof Error && /^[А-Яа-яЁё]/.test(e.message)) return e.message.slice(0, 200)
+  if (e instanceof Error && /^[А-Яа-яЁё]/.test(e.message))
+    return e.message.slice(0, 200)
   return 'не получилось — подробность в журнале сервера'
 }
 

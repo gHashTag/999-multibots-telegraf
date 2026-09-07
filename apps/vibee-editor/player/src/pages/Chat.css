@@ -412,3 +412,18 @@
   color: #8a8578;
   font-size: 12px;
 }
+
+/*
+ * WHERE A TURN CAME FROM, when it was not this app.
+ *
+ * Deliberately quieter than the tool chip next to it: the tool chip reports
+ * something the agent DID, this reports only where a line was typed. It uses
+ * the muted text colour and no border, so it reads as a note on the bubble
+ * rather than as another thing that happened.
+ */
+.message-surface {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--t27-text-muted, rgba(255, 255, 255, 0.45));
+  margin-bottom: 4px;
+}

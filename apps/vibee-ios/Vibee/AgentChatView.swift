@@ -41,6 +41,9 @@ struct AgentChatView: View {
     var свой: Bool
     var текст: String
     var инструменты: [String] = []
+    /// Which client wrote it. Absent for anything typed here and now: only
+    /// history fetched from the server carries it.
+    var surface: String?
 
     /**
      * Предложение действия, ждущее слова человека.
@@ -113,6 +116,164 @@ struct AgentChatView: View {
     try? data.write(to: url, options: .atomic)
   }
 
+  // MARK: - The shared conversation
+  //
+  // New members here are named in English by project convention; the Russian
+  // names around them are pre-existing and migrate separately.
+
+  /**
+   * ONE CONVERSATION, THREE SURFACES -- AND THIS ONE WAS DEAF.
+   *
+   * The bot and the mini app both read `agent_messages` before every turn, so
+   * what you write in one appears in the other. This screen did neither: it
+   * kept a private file (`agent-chat.json`) and posted exactly one message,
+   * `[{role:"user", content: question}]`.
+   *
+   * Two consequences, and the second is the expensive one:
+   *
+   *   the phone never showed what was said in the bot or the mini app;
+   *   the MODEL received no history at all, so every question on iOS was
+   *   answered with zero memory. "And make it shorter" had nothing to refer
+   *   to -- and the answer looked like the agent had simply stopped listening.
+   *
+   * The server already expects the client to send its transcript: it records
+   * only the LAST user turn of what arrives (routes.ts), precisely so a client
+   * can pass the whole conversation without duplicating it.
+   */
+
+  /// One turn as the server stores it. Only `role` and `content` survive the
+  /// round trip: tool chips and proposals live in the stream, not in the table.
+  struct ServerTurn: Decodable {
+    let role: String
+    let content: String
+    /// Which client wrote it: bot | miniapp | ios | agent | unknown.
+    let surface: String?
+  }
+
+  /**
+   * WHERE THIS SURFACE IS. Anything written here is "here", so it is never
+   * labelled: a caption on every single bubble is noise, and noise is what
+   * stops people reading the captions that matter.
+   */
+  static let thisSurface = "ios"
+
+  /**
+   * Every surface has a name here, INCLUDING this one.
+   *
+   * Leaving "ios" out would make the `thisSurface` check below dead code -- the
+   * lookup alone would already return nil -- and a mutation run on the sibling
+   * clients proved exactly that: deleting the check changed no behaviour and no
+   * test went red. With the name present, the check is the only thing standing
+   * between a person and a caption on every single bubble of their own chat.
+   */
+  private static let surfaceNames: [String: (String, String)] = [
+    "bot": ("from the bot", "из бота"),
+    "miniapp": ("from the app", "из мини-аппа"),
+    "ios": ("from this phone", "с этого телефона"),
+    "agent": ("via an agent key", "по ключу агента"),
+  ]
+
+  /**
+   * The human name of another surface, or nil when there is nothing to say.
+   *
+   * `unknown` returns nil ON PURPOSE. It is the column default, so it marks a
+   * turn written before this existed or by a client that did not name itself.
+   * It carries no information, and "from somewhere" would be a caption that
+   * looks like knowledge.
+   */
+  static func surfaceLabel(_ surface: String?) -> String? {
+    guard let surface, surface != thisSurface else { return nil }
+    guard let (en, ru) = surfaceNames[surface] else { return nil }
+    return say(en, ru)
+  }
+
+
+  private struct HistoryResponse: Decodable {
+    let messages: [ServerTurn]
+  }
+
+  /// How many past turns travel with a question. Matches the bot, which reads
+  /// 40 before every turn; a different number would give the same person a
+  /// different memory depending on which app they happened to open.
+  static let contextLimit = 40
+
+  /**
+   * Fold the shared conversation into what this device is showing.
+   *
+   * The server copy wins when there is one -- it is the only place all three
+   * surfaces meet. Empty means "nothing shared yet", not "the conversation was
+   * cleared", so an empty answer leaves the local copy alone: a network blip
+   * must not wipe a visible conversation.
+   *
+   * A PENDING PROPOSAL BLOCKS THE REPLACEMENT. `tg_send` and its siblings do
+   * not act, they propose, and the proposal arrives only in the live stream --
+   * it is not stored and cannot be fetched back. Overwriting a turn that still
+   * carries an unanswered one would erase the only window in which the person
+   * can say yes or no, while the agent goes on waiting for an answer that can
+   * no longer be given.
+   */
+  static func mergeHistory(server: [ServerTurn], local: [Реплика]) -> [Реплика] {
+    let awaitingAnswer = local.contains { реплика in
+      guard let предложение = реплика.предложение else { return false }
+      return предложение.одобрено == nil
+    }
+    if awaitingAnswer { return local }
+    if server.isEmpty { return local }
+    return server.map {
+      Реплика(свой: $0.role == "user", текст: $0.content, surface: $0.surface)
+    }
+  }
+
+  /**
+   * The `messages` array a chat request carries.
+   *
+   * Empty turns are dropped: the screen appends a blank assistant bubble as a
+   * placeholder while an answer streams in, and a failed turn leaves it blank
+   * forever. Sending `content: ""` would ask the model to make sense of a
+   * silence it never produced.
+   */
+  static func requestMessages(
+    history: [Реплика],
+    question: String,
+    limit: Int = contextLimit
+  ) -> [[String: String]] {
+    let tail = history.filter { !$0.текст.isEmpty }.suffix(limit)
+    return tail.map { ["role": $0.свой ? "user" : "assistant", "content": $0.текст] }
+      + [["role": "user", "content": question]]
+  }
+
+  /**
+   * Pull the shared conversation when the screen opens.
+   *
+   * Failure is silent ON PURPOSE, exactly as in the mini app: an unreachable
+   * history must not stand between a person and writing a new message. The
+   * local copy is already on screen, so the worst case is what the screen did
+   * before this existed.
+   */
+  @MainActor
+  private func loadSharedHistory() async {
+    guard Identity.known else { return }
+    guard
+      var компоненты = URLComponents(
+        url: API.base.appendingPathComponent("api/agent/history"),
+        resolvingAgainstBaseURL: false
+      )
+    else { return }
+    компоненты.queryItems = [URLQueryItem(name: "limit", value: "100")]
+    guard let url = компоненты.url else { return }
+
+    var r = URLRequest(url: url)
+    for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+    do {
+      let (data, ответ) = try await URLSession.shared.data(for: r)
+      guard (ответ as? HTTPURLResponse)?.statusCode == 200 else { return }
+      let история = try JSONDecoder().decode(HistoryResponse.self, from: data)
+      сообщения = AgentChatView.mergeHistory(server: история.messages, local: сообщения)
+    } catch {
+      // See the note above: silence here is the designed behaviour.
+    }
+  }
+
   var body: some View {
     основное
       /**
@@ -126,6 +287,15 @@ struct AgentChatView: View {
       .onChange(of: сообщения) { _, новые in
         AgentChatView.сохранитьИсторию(новые)
       }
+      /*
+       * Pull the shared conversation when the screen opens.
+       *
+       * `.task` rather than `.onAppear`: the work is asynchronous and SwiftUI
+       * cancels it by itself if the person leaves before the answer arrives.
+       * `onAppear` would need a `Task` that nobody cancels, and the answer
+       * would land on a screen that is already gone.
+       */
+      .task { await loadSharedHistory() }
   }
 
   private var основное: some View {
@@ -229,6 +399,21 @@ struct AgentChatView: View {
 
   private func реплика(_ m: Реплика) -> some View {
     VStack(alignment: m.свой ? .trailing : .leading, spacing: Тема.Отступ.вкладка) {
+      /*
+       * WHERE THIS TURN CAME FROM, when it was not this phone.
+       *
+       * One conversation spans the bot, the mini app and here, so a reply can
+       * answer a question that was never typed on this screen. Without the
+       * caption the transcript reads as the agent answering itself.
+       *
+       * Quieter than the tool chip below it on purpose: a tool chip reports
+       * something the agent DID, this reports only where a line was typed.
+       */
+      if let откуда = AgentChatView.surfaceLabel(m.surface) {
+        Text(откуда)
+          .font(Тема.Шрифт.моно(Тема.Чат.кегльЧипа))
+          .foregroundStyle(Тема.Цвет.текстПриглушённый)
+      }
       if !m.инструменты.isEmpty {
         // Показываем, ЧЕМ агент проверял. Это и есть доверие:
         // человек видит, что ответ не выдуман.
@@ -364,6 +549,13 @@ struct AgentChatView: View {
      */
     defer { идёт = false }
 
+    /*
+     * The snapshot is taken BEFORE this question and the blank answer bubble
+     * are appended. Otherwise the question would travel twice and the
+     * placeholder would travel as a turn whose content is "".
+     */
+    let priorTurns = сообщения
+
     сообщения.append(.init(свой: true, текст: вопрос))
     сообщения.append(.init(свой: false, текст: ""))
     let i = сообщения.count - 1
@@ -390,8 +582,24 @@ struct AgentChatView: View {
       // Личность. Без неё сервер отвечает 401, а экран молчал: агент просто
       // не отвечал, и понять почему было нельзя.
       for (k, v) in Identity.headers() { r.setValue(v, forHTTPHeaderField: k) }
+      /*
+       * The whole conversation travels, not just the question.
+       *
+       * This used to be `[["role": "user", "content": вопрос]]`: the model got
+       * ONE turn and answered with no memory, so "now make it shorter" had
+       * nothing to refer to. The server expects this shape -- it records only
+       * the LAST user turn of what arrives, so passing the full transcript
+       * duplicates nothing.
+       *
+       * `surface: "ios"` makes the origin visible in the shared feed. The
+       * server knows the word; without it the turn was stored as "unknown".
+       */
       r.httpBody = try JSONSerialization.data(
-        withJSONObject: ["messages": [["role": "user", "content": вопрос]]])
+        withJSONObject: [
+          "messages": AgentChatView.requestMessages(
+            history: priorTurns, question: вопрос),
+          "surface": "ios",
+        ])
 
       let (поток, _) = try await URLSession.shared.bytes(for: r)
       var послеИнструмента = false

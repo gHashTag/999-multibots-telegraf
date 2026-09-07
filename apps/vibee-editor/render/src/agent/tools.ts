@@ -338,6 +338,27 @@ async function spendTokens(
         'Пополняется звёздами Telegram — скажи человеку и предложи бесплатные действия (лента, SOUL, ремикс из готовых файлов)',
     }
   }
+  /*
+   * THE HIVE JOURNAL GOES HERE, BECAUSE THIS IS THE CHOKEPOINT.
+   *
+   * Every paid agent tool passes through this deduction: image, image edit,
+   * audio, video, reel render. An event placed in each of the five separately
+   * would mean five places to remember -- and the sixth tool added tomorrow
+   * would never reach the feed.
+   *
+   * Written AFTER a successful UPDATE: a deduction that did not happen (not
+   * enough balance) is a refusal, not a spend, and it is not money in the feed.
+   *
+   * The house never gets here: it returns early above and genuinely spends
+   * nothing.
+   */
+  void record(ctx.pool, {
+    kind: 'tokens-spent',
+    who: ctx.telegramId,
+    amount: -price,
+    what: tool,
+  })
+
   return { ok: true, потрачено: price, осталось: r.rows[0].balance }
 }
 
@@ -390,8 +411,38 @@ async function refundTokens(
       [ctx.telegramId, price]
     )
     console.log(`[токены] возврат ${price} за «${tool}»: ${why}`)
+    /*
+     * A refund is ATTENTION, not an ordinary event.
+     *
+     * A refund happens exactly when a provider refused: the person got nothing
+     * and noticed. The 2026-08-26 measurement showed where that leads without
+     * observation -- FAL said "Exhausted balance", the ElevenLabs key held an
+     * identifier instead of a key, and people spent months asking for images
+     * and getting refusals. A run of refunds within an hour means a provider
+     * is down, and that must be seen in the same hour, not through complaints.
+     */
+    void record(ctx.pool, {
+      kind: 'tokens-refunded',
+      who: ctx.telegramId,
+      amount: price,
+      what: `${tool}: ${why}`,
+      severity: 'attention',
+    })
   } catch (e) {
     console.error(`[токены] ВОЗВРАТ НЕ ВЫПОЛНЕН ${price} за «${tool}»`, e)
+    /*
+     * A refund that did NOT go through is an alarm. The provider refused the
+     * person and the token was taken from them anyway. This is the only place
+     * in the file where the gap between what was charged and what was done
+     * becomes permanent.
+     */
+    void record(ctx.pool, {
+      kind: 'failure',
+      who: ctx.telegramId,
+      amount: price,
+      what: `refund for "${tool}" did not go through`,
+      severity: 'alarm',
+    })
   }
 }
 
@@ -409,6 +460,8 @@ async function withTokens<T extends object>(
 
 import { ценаТокенов, названиеСчёта } from './token-packs'
 import { CRM_TOOLS } from './crm-tools'
+import { HIVE_TOOLS } from './hive-tools'
+import { record } from '../hive/journal'
 import { TELEGRAM_TOOLS } from './telegram-tools'
 import { PROJECT_TOOLS } from './project-tools'
 
@@ -1871,15 +1924,15 @@ export const TOOLS: AgentTool[] = [
       required: ['username'],
     },
     async handler(a: Record<string, unknown>, ctx) {
-      const имя = String(a.username ?? '').replace(/^@/, '').trim()
-      if (!имя) return { ok: false, error: 'нужно имя пользователя' }
+      const name = String(a.username ?? '').replace(/^@/, '').trim()
+      if (!name) return { ok: false, error: 'нужно имя пользователя' }
       const r = await ctx.pool.query(
         `SELECT us.content, us.updated_at::text AS updated_at, p.username
            FROM profiles p
            LEFT JOIN user_soul us ON us.telegram_id = p.telegram_id::text
           WHERE p.username = $1
           LIMIT 1`,
-        [имя]
+        [name]
       )
       if (r.rows.length === 0) return { ok: false, error: 'такого имени нет' }
       // Пустой SOUL и отсутствующий человек — РАЗНЫЕ ответы: спутав их, агент
@@ -2191,6 +2244,20 @@ TOOLS.push(...TELEGRAM_TOOLS)
  */
 TOOLS.push(...CRM_TOOLS)
 TOOLS.push(...PROJECT_TOOLS)
+/*
+ * The hive pulse goes into the same registry. It answers "how is the project
+ * doing", and that is asked in the same chat as balance and feed. The tool
+ * carries its own visibility scope (hive/roles.ts): a keeper sees the farm, an
+ * owner sees their bots, everyone else sees only themselves.
+ */
+TOOLS.push(...HIVE_TOOLS)
+/*
+ * Пульс улья — сюда же. Это ответ на «как дела у проекта», и спрашивают его
+ * в том же чате, где спрашивают про баланс и ленту. Область видимости у
+ * инструмента своя (`hive/roles.ts`): смотритель видит ферму, владелец —
+ * своих ботов, остальные — только себя.
+ */
+TOOLS.push(...HIVE_TOOLS)
 
 export const TOOLS_BY_NAME = new Map(TOOLS.map(t => [t.name, t]))
 

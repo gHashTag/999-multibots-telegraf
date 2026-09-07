@@ -9,6 +9,8 @@
  *
  * Same SQL and the same order as before; the handler now calls this.
  */
+import { record } from './hive/journal'
+
 export async function creditStarsPayment(
   pool: { query: (sql: string, params?: unknown[]) => Promise<any> },
   payment: { chargeId: string; telegramId: string; amount: number }
@@ -59,6 +61,27 @@ export async function creditStarsPayment(
      DO UPDATE SET balance = user_tokens.balance + $2, updated_at = now()`,
     [tid, amount]
   )
+
+  /*
+   * INTO THE HIVE JOURNAL -- HERE, NOT IN THE ROUTES.
+   *
+   * TWO routes call this credit: `/api/stars/credit` and `/api/star-paid`. An
+   * event placed in each of them would drift one day -- one gets fixed, the
+   * other is forgotten, and half the money stops being visible. There is one
+   * point of credit, so there is one point of event.
+   *
+   * A missing `chargeId` is named out loud: such a credit runs WITHOUT
+   * deduplication, and a redelivery would double it. The keeper needs to see
+   * that in the feed, not in a code comment.
+   */
+  void record(pool, {
+    kind: 'payment',
+    who: tid,
+    amount,
+    what: chargeId ? 'звёзды Telegram' : 'звёзды без идентификатора платежа',
+    severity: chargeId ? 'normal' : 'attention',
+  })
+
   return {
     credited: true,
     reason: chargeId

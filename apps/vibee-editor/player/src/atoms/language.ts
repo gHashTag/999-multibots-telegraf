@@ -958,6 +958,61 @@ const en: Translations = {
   'nav.profile': 'Profile',
   'nav.learn': 'Learn',
   'nav.agent': 'Agent',
+  'nav.hive': 'Hive',
+  'hive.tab.comb': 'Comb',
+  'hive.tab.specs': 'Specs',
+  'hive.tab.kanban': 'Kanban',
+  'hive.tab.mission': 'Mission',
+  'hive.tab.factory': 'Factory',
+  'hive.tab.tree': 'Tree',
+  'hive.blurb.comb': 'the board as a field of marks',
+  'hive.blurb.specs': 'the corpus she is generated from',
+  'hive.blurb.kanban': 'operational columns',
+  'hive.blurb.mission': 'strategic lifecycle sectors',
+  'hive.blurb.factory': 'live engineering production',
+  'hive.blurb.tree': 'canonical evidence graph',
+  'hive.asking': 'Asking the Queen…',
+  'hive.building': 'Building the comb…',
+  'hive.legend.busy': 'the Queen is working',
+  'hive.legend.quiet': 'quiet',
+  'hive.moduleStats': '{lang} · {lines} lines · {files} files · {fn} functions',
+  'hive.moduleIssues': 'open issues: {list}',
+  'hive.combCounts':
+    '{total} modules · {busy} with issues · {quiet} quiet · tap a cell',
+  'hive.noWebgl': ' · the 3-D scene is unavailable on this device',
+  'hive.down': 'The Queen did not answer',
+  'hive.down.note':
+    'This does not mean the hive is quiet — it means we cannot see it right now.',
+  'hive.noMarks': 'No marks — the board is quiet.',
+  'hive.andMore': 'and {n} more',
+  'hive.bees': 'bees busy',
+  'hive.swarm': 'swarm state',
+  'hive.tick': 'round step',
+  'hive.skipped': 'skipped this round',
+  'hive.foundrySigned': 'Foundry signed: {alg}, key {key}',
+  'hive.foundrySilent': 'The foundry did not report a signature.',
+  'hive.lastRound': 'Last round: {at}',
+  'hive.studied': 'studied',
+  'hive.done': 'done',
+  'hive.inWork': 'in progress',
+  'hive.locked': 'locked',
+  'hive.closedIssues': '{repo} · closed issues: {n}',
+  'hive.releases': 'Releases',
+  'hive.epics': 'Epics',
+  'hive.firstN': 'Showing the first {n}.',
+  'hive.mission':
+    'The goal of the game is that files are generated from t27 specs rather than written by hand. Below: how many exist and what state they are in.',
+  'hive.specCount': 'specs',
+  'hive.lines': 'lines',
+  'hive.healthOk': 'healthy',
+  'hive.healthWarn': 'with warnings',
+  'hive.healthFail': 'need a person',
+  'hive.engines': 'Engines',
+  'hive.coverageNote':
+    'The "covered by t27 / hand-written" split lives on the 3-D board: it cannot honestly be derived from these files, because spec names and repository paths do not match.',
+  'hive.sections': 'Sections',
+  'hive.featured': 'Featured',
+  'hive.open3d': 'Open the 3-D board on t27.ai →',
   'nav.editor': 'Editor',
   'nav.generate': 'Generate',
   'nav.templates': 'Templates',
@@ -2622,6 +2677,61 @@ const ru: Translations = {
   'nav.profile': 'Профиль',
   'nav.learn': 'Обучение',
   'nav.agent': 'Агент',
+  'nav.hive': 'Улей',
+  'hive.tab.comb': 'Соты',
+  'hive.tab.specs': 'Спеки',
+  'hive.tab.kanban': 'Канбан',
+  'hive.tab.mission': 'Карта',
+  'hive.tab.factory': 'Фабрика',
+  'hive.tab.tree': 'Дерево',
+  'hive.blurb.comb': 'доска как поле меток',
+  'hive.blurb.specs': 'корпус, из которого она собрана',
+  'hive.blurb.kanban': 'рабочие колонки',
+  'hive.blurb.mission': 'сектора жизненного цикла',
+  'hive.blurb.factory': 'живое производство',
+  'hive.blurb.tree': 'граф подтверждённых знаний',
+  'hive.asking': 'Спрашиваем королеву…',
+  'hive.building': 'Собираем соты…',
+  'hive.legend.busy': 'королева работает',
+  'hive.legend.quiet': 'тихо',
+  'hive.moduleStats': '{lang} · {lines} строк · {files} файлов · {fn} функций',
+  'hive.moduleIssues': 'открытые задачи: {list}',
+  'hive.combCounts':
+    '{total} модулей · {busy} с задачами · {quiet} тихих · нажмите клетку',
+  'hive.noWebgl': ' · объёмная сцена недоступна на этом устройстве',
+  'hive.down': 'Королева не ответила',
+  'hive.down.note':
+    'Это не значит, что в улье тихо — значит, что мы его сейчас не видим.',
+  'hive.noMarks': 'Отметок нет — сейчас на доске тихо.',
+  'hive.andMore': 'и ещё {n}',
+  'hive.bees': 'пчёл занято',
+  'hive.swarm': 'состояние роя',
+  'hive.tick': 'шаг круга',
+  'hive.skipped': 'пропущено в круге',
+  'hive.foundrySigned': 'Литейная подписана: {alg}, ключ {key}',
+  'hive.foundrySilent': 'Литейная не ответила о подписи.',
+  'hive.lastRound': 'Последний круг: {at}',
+  'hive.studied': 'изучено',
+  'hive.done': 'готово',
+  'hive.inWork': 'в работе',
+  'hive.locked': 'закрыто',
+  'hive.closedIssues': '{repo} · закрытых задач: {n}',
+  'hive.releases': 'Релизы',
+  'hive.epics': 'Эпики',
+  'hive.firstN': 'Показаны первые {n}.',
+  'hive.mission':
+    'Цель игры — чтобы файлы не писались руками, а порождались из спецификаций t27. Ниже — сколько их уже есть и в каком они состоянии.',
+  'hive.specCount': 'спецификаций',
+  'hive.lines': 'строк',
+  'hive.healthOk': 'здоровы',
+  'hive.healthWarn': 'с замечаниями',
+  'hive.healthFail': 'требуют человека',
+  'hive.engines': 'Движки',
+  'hive.coverageNote':
+    'Разметка «покрыто t27 / написано руками» живёт на объёмной доске: свести её из этих файлов честно нельзя — имена спецификаций и пути в репозитории не совпадают.',
+  'hive.sections': 'Разделы',
+  'hive.featured': 'Избранное',
+  'hive.open3d': 'Открыть объёмную доску на t27.ai →',
   'nav.editor': 'Редактор',
   'nav.generate': 'Генерация',
   'nav.templates': 'Шаблоны',
@@ -3364,10 +3474,28 @@ export const languageAtom = atomWithStorage<Language>(
 )
 
 // Translation function atom (derived)
+/**
+ * `t('hive.andMore', { n: 4 })` -- substitution, added 2026-09-07.
+ *
+ * Without it a sentence with a number in the middle has to be assembled from
+ * fragments at the call site: `t('a') + n + t('b')`. That produces two
+ * half-sentences a translator cannot see the shape of, and it breaks outright
+ * in any language where the number does not sit where it sits in English.
+ *
+ * The second argument is optional, so every existing single-argument call
+ * keeps working unchanged.
+ */
 export const translateAtom = atom(get => {
   const lang = get(languageAtom)
-  return (key: string): string => {
-    return translations[lang][key] || key
+  return (key: string, vars?: Record<string, string | number>): string => {
+    const line = translations[lang][key] || key
+    if (!vars) return line
+    // An unknown placeholder is left as it stands rather than replaced with
+    // "undefined": a visible `{name}` says which key is wrong, while the word
+    // "undefined" on screen says nothing to anybody.
+    return line.replace(/\{(\w+)\}/g, (whole, name) =>
+      name in vars ? String(vars[name]) : whole
+    )
   }
 })
 

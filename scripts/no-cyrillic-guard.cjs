@@ -26,17 +26,37 @@ const { execSync } = require('node:child_process')
 const fs = require('node:fs')
 
 const CYRILLIC = /[\u0400-\u04FF]/
-const CODE_EXT = /\.(ts|tsx|js|jsx|mjs|cjs)$/
+/*
+ * SWIFT IS IN THE LIST BECAUSE IT WAS THE HOLE.
+ *
+ * On 2026-09-07 a Swift test file shipped with Cyrillic test names --
+ * "testБерётсяХвост..." -- and this guard said nothing, because .swift was not
+ * in the list and lefthook's glob did not mention it either. The owner caught
+ * it by eye. A gate that covers four of five languages is a gate people trust
+ * for the fifth.
+ *
+ * Both places have to agree: this regex and the `no-cyrillic` glob in
+ * lefthook.yml. The glob decides which files reach the script at all.
+ */
+const CODE_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|swift)$/
+const SWIFT_EXT = /\.swift$/
 const MARKER = 'cyrillic-ok'
 
 // Remove complete quoted literals (single, double, template), honouring
 // backslash escapes. Cyrillic that lived inside a string is gone after this;
 // whatever Cyrillic remains sat in a comment or an identifier.
-function stripStrings(line) {
-  return line
-    .replace(/`(?:[^`\\]|\\.)*`/g, '')
-    .replace(/'(?:[^'\\]|\\.)*'/g, '')
-    .replace(/"(?:[^"\\]|\\.)*"/g, '')
+function stripStrings(line, swift) {
+  let out = line
+  // Swift has no single-quoted strings and no backticks-as-strings (backticks
+  // quote an identifier there). Applying the JavaScript rules would treat an
+  // apostrophe as an opening quote and swallow the rest of the line -- hiding
+  // whatever followed, which is the opposite of what a guard is for.
+  if (!swift) {
+    out = out
+      .replace(/`(?:[^`\\]|\\.)*`/g, '')
+      .replace(/'(?:[^'\\]|\\.)*'/g, '')
+  }
+  return out.replace(/"(?:[^"\\]|\\.)*"/g, '')
 }
 
 // Where a // line comment begins, ignoring a // that sits inside a string
@@ -45,7 +65,7 @@ function stripStrings(line) {
 // stripped: stripStrings would erase a quoted Russian word inside a comment such
 // as  // see '<ru>'  and let the comment through. A quoted word in a comment is
 // still a comment, not a UI string.
-function lineCommentStart(line) {
+function lineCommentStart(line, swift) {
   let quote = null
   for (let i = 0; i < line.length; i++) {
     const c = line[i]
@@ -55,7 +75,7 @@ function lineCommentStart(line) {
         continue
       }
       if (c === quote) quote = null
-    } else if (c === '"' || c === "'" || c === '`') {
+    } else if (c === '"' || (!swift && (c === "'" || c === '`'))) {
       quote = c
     } else if (c === '/' && line[i + 1] === '/') {
       return i
@@ -66,12 +86,12 @@ function lineCommentStart(line) {
 
 // Cyrillic is allowed only inside string literals (bilingual UI text). It is a
 // violation in a // comment — even wrapped in quotes — or in a code identifier.
-function cyrillicOutsideStrings(line) {
-  const at = lineCommentStart(line)
+function cyrillicOutsideStrings(line, swift) {
+  const at = lineCommentStart(line, swift)
   const code = at === -1 ? line : line.slice(0, at)
   const comment = at === -1 ? '' : line.slice(at)
   if (CYRILLIC.test(comment)) return true
-  return CYRILLIC.test(stripStrings(code))
+  return CYRILLIC.test(stripStrings(code, swift))
 }
 
 // A merge commit stages every line the merged branch brings in, so the ratchet
@@ -156,6 +176,8 @@ function checkStaged(mode = 'staged') {
   const violations = []
   let file = null
   let scan = false
+  let swift = false
+  let inMultiline = false
 
   for (const raw of diff.split('\n')) {
     if (raw.startsWith('diff --git')) {
@@ -167,13 +189,39 @@ function checkStaged(mode = 'staged') {
       const m = raw.match(/^\+\+\+ b\/(.*)$/)
       file = m ? m[1] : null
       scan = !!file && CODE_EXT.test(file)
+      swift = !!file && SWIFT_EXT.test(file)
+      inMultiline = false
       continue
     }
     if (!scan) continue
     if (raw.startsWith('+') && !raw.startsWith('+++')) {
       const line = raw.slice(1)
+      /*
+       * Swift multiline strings ("""), tracked across the added lines.
+       *
+       * They hold UI text, so their contents are a string literal like any
+       * other -- but a line-by-line scan sees bare words. Two files in this
+       * repository use them today. An odd number of `"""` on a line flips the
+       * state; while inside, the line is skipped.
+       *
+       * The diff can omit context lines, so this state can be wrong. It errs
+       * toward SKIPPING, which risks a miss rather than a false accusation:
+       * a guard that cries wolf gets switched off, and this one already spent
+       * a day switched off for a different reason.
+       */
+      if (swift) {
+        const fences = (line.match(/"""/g) || []).length
+        if (inMultiline) {
+          if (fences % 2 === 1) inMultiline = false
+          continue
+        }
+        if (fences % 2 === 1) {
+          inMultiline = true
+          continue
+        }
+      }
       if (line.includes(MARKER)) continue
-      if (cyrillicOutsideStrings(line)) {
+      if (cyrillicOutsideStrings(line, swift)) {
         violations.push({ file, text: line.trim() })
       }
     }

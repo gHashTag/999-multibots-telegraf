@@ -30,10 +30,10 @@
  * одного `throw`, а вызывающий не ждёт результата.
  */
 
-/** Минимум от отправителя: адресат и текст. */
-export type Отправитель = (
+/** The minimum a sender must offer: a recipient and a text. */
+export type Sender = (
   telegramId: string,
-  текст: string
+  text: string
 ) => Promise<unknown>
 
 /**
@@ -43,50 +43,50 @@ export type Отправитель = (
  * несколько экранов: подделка вида «...\n\nВаш код: 12345678» — готовое
  * мошенничество внутри нашего же уведомления.
  */
-export function безопасноеИмяУстройства(сырое: unknown): string {
-  const очищенное = (сырое == null ? '' : String(сырое))
+export function safeDeviceName(raw: unknown): string {
+  const cleaned = (raw == null ? '' : String(raw))
     .replace(/[\r\n\t]+/g, ' ')
     .replace(/[<>&]/g, '')
     .trim()
-  if (!очищенное) return 'устройство без имени'
-  return очищенное.length > 40
-    ? `${очищенное.slice(0, 40)}…`
-    : очищенное
+  if (!cleaned) return 'без имени' // cyrillic-ok: shown to the person
+  return cleaned.length > 40
+    ? `${cleaned.slice(0, 40)}…`
+    : cleaned
 }
 
 /**
- * Сообщить о входе. Никогда не бросает.
+ * Announce a sign-in. Never throws.
  *
- * `когда` передаётся снаружи, а не берётся из `Date.now()` внутри: так тест
- * проверяет текст, а не часы.
+ * `when` is passed in from outside rather than read from `Date.now()` inside,
+ * so a test checks the text and not the clock.
  */
-export async function сообщитьОВходе(
-  отправить: Отправитель,
+export async function notifySignIn(
+  send: Sender,
   {
     telegramId,
-    устройство,
-    когда,
-  }: { telegramId: string; устройство: unknown; когда: Date }
-): Promise<'отправлено' | 'не отправлено'> {
-  const время = когда.toLocaleString('ru-RU', {
+    device,
+    when,
+  }: { telegramId: string; device: unknown; when: Date }
+): Promise<'sent' | 'not sent'> {
+  const at = when.toLocaleString('ru-RU', {
     timeZone: 'Europe/Moscow',
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
   })
-  const текст =
+  const text =
     `🔐 Вход в приложение выполнен\n\n` +
-    `Устройство: ${безопасноеИмяУстройства(устройство)}\n` +
-    `Время: ${время} МСК\n\n` +
+    `Устройство: ${safeDeviceName(device)}\n` +
+    `Время: ${at} МСК\n\n` +
     `Это были не вы? Откройте профиль в приложении и нажмите «Выйти» — ` +
     `это закроет все сессии этого входа.`
   try {
-    await отправить(String(telegramId), текст)
-    return 'отправлено'
+    await send(String(telegramId), text)
+    return 'sent'
   } catch {
     // Вход уже состоялся. Потерянное уведомление — это потерянное
     // уведомление, и ничего больше.
-    return 'не отправлено'
+    return 'not sent'
   }
 }

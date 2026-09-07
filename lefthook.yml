@@ -85,8 +85,12 @@ pre-commit:
     #    literals first and only rejects Cyrillic left in comments/identifiers.
     #    Ratchet on the staged diff: existing Russian comments and .md docs are
     #    untouched. Escape hatch: put  cyrillic-ok  on the line.
+    #    Swift is in the glob because it was the hole: on 07.09.2026 a Swift
+    #    test file shipped with Cyrillic test names and this gate said nothing,
+    #    because .swift was in neither the glob nor the script. Both lists must
+    #    agree -- the glob decides which files reach the script at all.
     no-cyrillic:
-      glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs,swift}"
       run: node scripts/no-cyrillic-guard.cjs staged
       fail_text: "Cyrillic in a code comment. Write comments in English."
 
@@ -95,9 +99,19 @@ commit-msg:
     # Сообщение коммита уходит в публичный репозиторий вместе с кодом:
     # секрет в нём так же необратим, как в файле.
     no-secrets-in-message:
+      # The URL branch came from the old husky prepare-commit-msg hook, which
+      # this file replaced. It catches what the shape patterns cannot: a link
+      # carrying a credential in its query string, whose value looks like
+      # nothing in particular. Ported deliberately rather than dropped -- a
+      # pasted dashboard URL with ?token= is exactly how a secret reaches a
+      # public repository without looking like a secret.
       run: |
         if grep -qEi '(bot[0-9]{8,}:[A-Za-z0-9_-]{30,}|sk-[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{20,}\.)' {1}; then
           echo "В сообщении коммита похоже на токен. Уберите его."
+          exit 1
+        fi
+        if grep -qEi 'https?://[^[:space:]]*[?&][^[:space:]]*(token|secret|key|auth)=' {1}; then
+          echo "В сообщении коммита ссылка с токеном в параметрах. Уберите её."
           exit 1
         fi
 

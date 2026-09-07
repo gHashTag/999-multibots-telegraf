@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
-import { Home, User, Bot, Sparkles } from 'lucide-react'
+import { Home, User, Bot, Sparkles, Hexagon } from 'lucide-react'
 import { myProfileAtom } from '@/atoms'
 import { useLanguage } from '@/hooks/useLanguage'
 import { haptic } from '@/lib/telegram'
@@ -38,6 +38,8 @@ const TAB_ICONS: Record<PrimaryTabId, React.ReactNode> = {
   feed: <Home size={20} />,
   chat: <Bot size={20} />,
   ai: <Sparkles size={20} />,
+  // The hive. A hexagon because the comb is her own metaphor for the board.
+  hive: <Hexagon size={20} />,
   profile: <User size={20} />,
 }
 

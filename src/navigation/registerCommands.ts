@@ -13,6 +13,10 @@ import { checkFeatureAccess } from '@/helpers/featureGuard'
 import { ADMIN_IDS_ARRAY } from '@/config'
 import { logger } from '@/utils/logger'
 import {
+  attachmentFromMessage,
+  buildAgentMessage,
+} from '@/services/agentAttachments'
+import {
   ACTION_PREFIX,
   standardButtons,
   buttonsForAnswer,
@@ -930,7 +934,7 @@ If not, continue on your own and click the "I myself" button`
     )
 
     // 9. Обработчик фото для FLUX Kontext
-    bot.on(message('photo'), async ctx => {
+    bot.on(message('photo'), async (ctx, next) => {
       logger.info('🎯 GLOBAL PHOTO HANDLER: Photo received', {
         telegramId: ctx.from?.id,
         currentScene: ctx.scene?.current?.id,
@@ -993,24 +997,92 @@ If not, continue on your own and click the "I myself" button`
         return
       }
 
-      // Если не ожидаем FLUX Kontext изображение, передаем дальше
+      /*
+       * "PASSING IT ON" HERE PASSED NOTHING ON.
+       *
+       * The comment promised a hand-off and the handler simply ended. In
+       * Telegraf that TERMINATES the chain, so the next middleware -- the one
+       * that talks to the agent -- was never reached. A photo sent into the
+       * agent chat therefore produced neither an answer nor an error: the
+       * person saw the bot go quiet and could not tell that from a crash.
+       *
+       * `next()` puts the photo back into the chain, where the agent now
+       * picks it up.
+       */
       logger.info(
-        '🎯 GLOBAL PHOTO HANDLER: Photo not for FLUX Kontext, skipping',
+        '🎯 GLOBAL PHOTO HANDLER: not for FLUX Kontext, handing to the agent',
         {
           telegramId: ctx.from?.id,
           currentScene: ctx.scene?.current?.id,
-          reason: 'not_awaiting_flux_image',
         }
       )
+      return next()
     })
 
     // 10. AI FALLBACK — последний handler, ловит необработанный текст
     bot.use(async (ctx: any, next: any) => {
-      if (!ctx.message || !('text' in ctx.message)) return next()
-      const text = ctx.message.text
-      if (!text || text.startsWith('/')) return next()
-      if (/^[\u{1F300}-\u{1FAD6}\u{2600}-\u{27BF}]/u.test(text)) return next()
+      if (!ctx.message) return next()
+
+      /*
+       * A FILE IS A TURN IN THE CONVERSATION TOO.
+       *
+       * The first line used to be `if (!('text' in ctx.message)) return next()`
+       * -- everything that was not text went past the agent and vanished
+       * without a trace. Measured 2026-09-07: the agent path had NO handler at
+       * all for `document`, `video`, `voice`, `audio`, `video_note` or
+       * `animation`, and a photo was cut off by the global handler above.
+       *
+       * The agent's message type is text-only (`content: string | null`), so a
+       * file moves to our own shelf and becomes a line of the form
+       * `[attached image: ...; url=...]` -- exactly the one the mini app
+       * writes. That way both surfaces speak one language to the model rather
+       * than two.
+       *
+       * The caption IS the person's text: "make a reel out of this" arrives
+       * there, not as a separate message.
+       */
+      const attachment = attachmentFromMessage(ctx.message)
+      const written: string =
+        ('text' in ctx.message ? ctx.message.text : ctx.message.caption) || ''
+
+      if (!attachment) {
+        if (!('text' in ctx.message)) return next()
+        if (!written || written.startsWith('/')) return next()
+        if (/^[\u{1F300}-\u{1FAD6}\u{2600}-\u{27BF}]/u.test(written))
+          return next()
+      }
       if (ctx.scene?.current) return next()
+
+      /*
+       * The file reaches the shelf BEFORE the agent is asked, and a refusal is
+       * spoken out loud.
+       *
+       * Silence is the thing being fixed here, so a failed upload ends in a
+       * sentence rather than in nothing. If the file did not make it but the
+       * person wrote something, the conversation still continues: the text goes
+       * to the agent without the attachment, which is more honest than refusing
+       * the whole turn.
+       */
+      if (attachment) {
+        // The file travels over the network to us. Without this signal the
+        // person stares at silence for several seconds with no idea whether
+        // anything arrived.
+        await ctx.sendChatAction('upload_document').catch(() => {})
+      }
+      /*
+       * Did the question already reach the shared conversation?
+       *
+       * The server records the person's turn on its way into the agent, so
+       * after a successful call it is stored. If the call never arrived, it is
+       * not -- and the fallback below has to write both turns, or the answer
+       * would appear in the conversation with nothing it answers.
+       */
+      let questionRecorded = false
+
+      const plan = await buildAgentMessage(ctx.telegram, ctx.message)
+      if (plan.refusal) await ctx.reply(plan.refusal)
+      const text = plan.text
+      if (!text.trim()) return next()
 
       /*
        * НАСТОЯЩИЙ АГЕНТ, А НЕ ПЕРЕПИСКА С МОДЕЛЬЮ.
@@ -1047,6 +1119,13 @@ If not, continue on your own and click the "I myself" button`
         try {
           const { спроситьАгента } = await import('@/services/trinityAgent')
           ответ = await спроситьАгента(String(ctx.from?.id ?? ''), text)
+          /*
+           * The request reached the server, so the server already stored the
+           * question on its way into the agent. Only an ANSWER can be missing
+           * from here on. A thrown call means it never arrived and neither
+           * turn is on record -- see the fallback below.
+           */
+          questionRecorded = true
         } finally {
           стоп()
         }
@@ -1176,6 +1255,36 @@ If not, continue on your own and click the "I myself" button`
           isRuFb
         )
         await ctx.reply(replyClean, replyMarkup)
+
+        /*
+         * THE FALLBACK ANSWER GOES INTO THE SHARED CONVERSATION TOO.
+         *
+         * It used to go nowhere. The question was already stored by the server
+         * before `runAgent`, so the conversation ended on a question with no
+         * answer -- and the next turn fed the model a transcript in which the
+         * bot appeared to have ignored somebody. The mini app and the phone
+         * showed the same hole.
+         *
+         * `void`, and the writer never throws: the person already has their
+         * reply out loud, and failed bookkeeping must not turn an answered
+         * question into an error.
+         *
+         * MERGE NOTE: the buttons and this record arrived from two different
+         * branches and neither replaces the other -- one is what the person
+         * sees, the other is what the next turn reads. `replyClean` is stored
+         * rather than `reply`, because the conversation should hold what was
+         * actually said, not the button markers stripped out of it.
+         */
+        const { recordTurns } = await import('@/services/trinityAgent')
+        void recordTurns(
+          String(ctx.from?.id ?? ''),
+          questionRecorded
+            ? [{ role: 'assistant', content: replyClean }]
+            : [
+                { role: 'user', content: text },
+                { role: 'assistant', content: replyClean },
+              ]
+        )
       } catch (err: any) {
         logger.error('🤖 [AI Fallback] Error', { error: err?.message })
 

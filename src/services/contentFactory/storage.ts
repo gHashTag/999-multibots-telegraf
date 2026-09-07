@@ -19,6 +19,22 @@ import { Artifact } from './types'
  * как появился, а не «перед отправкой».
  */
 
+/**
+ * THE SHELF ADDRESS. WE ADD THE SCHEME -- RAILWAY DOES NOT.
+ *
+ * Measured 2026-09-07 on the service `999-multibots-telegraf`: of the three
+ * variables, ONLY `RAILWAY_SERVICE_VIBEE_RENDER_URL` is set, and Railway puts a
+ * bare host in it -- `vibee-render-production.up.railway.app`, no `https://`.
+ *
+ * `fetch` cannot use such a string at all:
+ *
+ *     TypeError: Failed to parse URL from vibee-render-production.../upload
+ *
+ * That error is caught upstream and turned into a polite "it did not save on
+ * our side" -- meaning every single upload WOULD have been refused while
+ * looking like a refusal that works. The worst kind of failure: the one that
+ * reports itself in a calm voice.
+ */
 function serverBase(): string {
   const url =
     process.env.RENDER_SERVER_URL ||
@@ -29,7 +45,8 @@ function serverBase(): string {
       'RENDER_SERVER_URL не задан — заводу негде хранить артефакты. Это адрес сервиса vibee-render в Railway.'
     )
   }
-  return url.replace(/\/+$/, '')
+  const trimmed = url.trim().replace(/\/+$/, '')
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
 }
 
 function apiKey(): string {
@@ -52,12 +69,19 @@ interface UploadResult {
   error?: string
 }
 
-/** Кладёт локальный файл на полку и возвращает публичную ссылку. */
-export async function putFile(
-  localPath: string,
+/**
+ * Puts BYTES on the shelf and returns a public link.
+ *
+ * Separate from `putFile` because not every file has a path on disk: an
+ * attachment from Telegram arrives as a stream, and writing it to a temporary
+ * file only to read it back is a pointless trip through a disk that does not
+ * survive a Railway deploy anyway. There is still ONE upload path: `putFile`
+ * below reads the file and calls this function.
+ */
+export async function putBytes(
+  body: Buffer | Uint8Array,
   filename: string
 ): Promise<Artifact> {
-  const body = await fs.readFile(localPath)
   if (!body.length) {
     throw new Error(`${filename}: пустой файл, класть на полку нечего`)
   }
@@ -68,7 +92,19 @@ export async function putFile(
       // Сервер требует X-Api-Key (не Bearer) — проверено ответом 401.
       'X-Api-Key': apiKey(),
       'Content-Type': contentTypeOf(filename),
-      'X-Filename': filename,
+      /*
+       * THE NAME IS ENCODED. An HTTP header value must be Latin-1, and file
+       * names arriving from Telegram are routinely non-Latin. A Cyrillic name
+       * kills `new Headers` before a byte reaches the network:
+       *
+       *   TypeError: Cannot convert argument to a ByteString because the
+       *   character at index 0 has a value of 1044...
+       *
+       * The server already expects percent-encoding and decodes it (the
+       * `/upload` handler in render-server.ts), and the mini app encodes. This
+       * did not -- so any file with a non-Latin name would not upload at all.
+       */
+      'X-Filename': encodeURIComponent(filename),
     },
     body: new Uint8Array(body),
   })
@@ -100,7 +136,17 @@ export async function putFile(
     key: parsed.key,
     bytes: body.length,
   })
-  return { url, localPath, meta: { bytes: body.length, key: parsed.key } }
+  return { url, meta: { bytes: body.length, key: parsed.key } }
+}
+
+/** Puts a local file on the shelf and returns a public link. */
+export async function putFile(
+  localPath: string,
+  filename: string
+): Promise<Artifact> {
+  const body = await fs.readFile(localPath)
+  const artifact = await putBytes(body, filename)
+  return { ...artifact, localPath }
 }
 
 const CONTENT_TYPES: Record<string, string> = {

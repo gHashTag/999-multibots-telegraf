@@ -1,4 +1,4 @@
-export type PrimaryTabId = 'feed' | 'chat' | 'ai' | 'profile'
+export type PrimaryTabId = 'feed' | 'chat' | 'ai' | 'hive' | 'profile'
 
 export interface PrimaryNavigationItem {
   id: PrimaryTabId
@@ -16,6 +16,17 @@ export const PRIMARY_NAV_ITEMS: readonly PrimaryNavigationItem[] = [
     labelKey: 'tabs.ai',
     match: /^\/generate/,
   },
+  /*
+   * The hive is the game. It sits BEFORE the profile, not after it.
+   *
+   * The last tab is the one a thumb reaches without looking, and the profile
+   * has earned that place: people open it constantly. The hive is a
+   * destination somebody goes to on purpose, so it goes where the eye lands
+   * rather than where the thumb rests.
+   *
+   * Five tabs still fit a phone; the bar starts scrolling past six.
+   */
+  { id: 'hive', route: '/hive/comb', labelKey: 'nav.hive', match: /^\/hive/ },
   {
     id: 'profile',
     route: '/profile',
