@@ -10632,3 +10632,71 @@ $0,40 / $0,016 = **25**. Комментарий приводит обе цифр
 раздаёшь агентам пути в рабочее дерево, помни, что у них есть право записи;
 `git status` до и после — дешёвая страховка, а чистое дерево перед коммитом —
 обязательная.
+
+## A stub on the instance misses the copy made per event
+
+Built a harness for "which messages get no reply": stub `bot.telegram.callApi`,
+feed updates, count outgoing calls. Nine message shapes came back SILENT. The
+table was wrong end to end.
+
+The self-check caught it: a command that MUST answer also returned zero. Four
+lines of diagnostic:
+
+    ctx.telegram === bot.telegram ?  false
+    ctx.telegram.callApi is stub ?   false
+
+Telegraf builds its OWN `Telegram` for each update. A direct
+`bot.telegram.sendMessage` hit the stub -- so a "the counter works" check passed
+-- while `ctx.reply` went to the real api.telegram.org and failed with 401. Those
+401s were blamed first on the code under test, then on "a different bot
+registry". Both guesses were wrong. The fix is to stub `Telegram.prototype`.
+
+**Why:** holding an object X does not mean the code under test uses THAT X.
+Frameworks clone, wrap and rebuild per event, and a stub on the wrong instance
+produces silence indistinguishable from a finding.
+
+**How to apply:** in any harness, print the identity (`===`) of the object you
+hold against the one the code sees, and always keep a positive control that MUST
+answer. Without it, "zero calls" reads as a result.
+
+## Position in a file is not registration order
+
+A structural check said "nothing may be registered after the terminal
+middleware", read the whole file, and went red with 16 matches. Every one was
+false: the `bot.hears` labels live in functions DEFINED near the bottom of the
+file and CALLED at line 209, before the subject. Registration order follows the
+call graph, not the line numbers.
+
+The fix is to narrow the population to the BODY of the relevant function (from
+its signature to the first `\n}\n` in column zero) and to print the size of that
+population -- `expect(all.length).toBeGreaterThan(4)` -- so a matcher that stops
+matching cannot pass as "nothing comes after".
+
+**Why:** a text offset is an available number that answers a different question.
+That the two questions coincide has to be shown, not assumed.
+
+**How to apply:** before measuring order by index in a file, ask whether that
+order is executed or merely written down. If a function call sits between them,
+the thing to measure is the caller's body.
+
+## An unconditional pointer to conditional content
+
+The owner said the agent asks for details instead of acting. The prompt already
+said the right things ("if the person asks for a video, you MAKE it"). The defect
+was not what it said but what it pointed at: the fixed part of the prompt stated
+that the 30-day content plan is "in SOUL.md below", while SOUL.md was appended
+CONDITIONALLY and in production was never found at all. A model sent to a section
+it cannot see has one move left -- ask the person.
+
+The cure is that the pointer travels WITH the content: it is emitted in the same
+branch that appends the section, and the branch without it tells the agent to
+produce the plan itself.
+
+**Why:** a prompt is a branching structure that reads like continuous prose. A
+claim about the prompt's own contents must live in the same branch as those
+contents, or it lies exactly when they are missing.
+
+**How to apply:** grep the prompt for "below/above/see/in the section" and ask,
+for each, whether the reference is unconditional and whether its subject is.
+Test by composing the prompt in the branch WITHOUT the optional part and
+asserting that no reference to it survives.
