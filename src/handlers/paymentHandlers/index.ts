@@ -252,55 +252,59 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
       if (!club) {
         throw new Error(`Malformed foundry payload: ${payload}`)
       }
-      await setPayments({
-        telegram_id: normalizedUserId,
-        OutSum: club.stars.toString(),
-        InvId: payload,
-        currency: Currency.XTR,
-        stars: club.stars,
-        status: PaymentStatus.COMPLETED,
-        payment_method: 'Telegram',
-        subscription_type: club.tier.subscriptionType,
-        bot_name: botUsername,
-        language: ctx.from?.language_code ?? 'en',
-        type: PaymentType.MONEY_INCOME,
-        metadata: {
-          telegram_payment_charge_id: telegramPaymentChargeId,
-          provider_payment_charge_id: providerPaymentChargeId,
-          invoice_payload: payload,
-          username,
-          club: 'golden_foundry',
-          club_tier: club.tier.key,
+      // Income + compensating outcome are ONE atomic multi-row insert (see
+      // setPayments): a transient failure between two separate inserts used to
+      // leave the income alone = the whole club fee minted as spendable balance.
+      await setPayments([
+        {
+          telegram_id: normalizedUserId,
+          OutSum: club.stars.toString(),
+          InvId: payload,
+          currency: Currency.XTR,
+          stars: club.stars,
+          status: PaymentStatus.COMPLETED,
+          payment_method: 'Telegram',
+          subscription_type: club.tier.subscriptionType,
+          bot_name: botUsername,
+          language: ctx.from?.language_code ?? 'en',
+          type: PaymentType.MONEY_INCOME,
+          metadata: {
+            telegram_payment_charge_id: telegramPaymentChargeId,
+            provider_payment_charge_id: providerPaymentChargeId,
+            invoice_payload: payload,
+            username,
+            club: 'golden_foundry',
+            club_tier: club.tier.key,
+          },
         },
-      })
-
-      // Компенсирующее списание. get_user_balance суммирует все COMPLETED
-      // MONEY_INCOME без фильтра по subscription_type, поэтому без этой записи
-      // взнос за клуб целиком превратился бы в расходуемый баланс генераций
-      // (12499⭐ членства = 12499⭐ на видео за счёт владельца). Пара
-      // income+outcome оставляет доход видимым в отчётах, а баланс — нулевым.
-      await setPayments({
-        telegram_id: normalizedUserId,
-        OutSum: club.stars.toString(),
-        InvId: `${payload}_membership`,
-        currency: Currency.XTR,
-        stars: club.stars,
-        status: PaymentStatus.COMPLETED,
-        payment_method: 'Telegram',
-        subscription_type: null,
-        bot_name: botUsername,
-        language: ctx.from?.language_code ?? 'en',
-        type: PaymentType.MONEY_OUTCOME,
-        service_type: 'golden_foundry_membership',
-        cost: 0,
-        metadata: {
-          invoice_payload: payload,
-          username,
-          club: 'golden_foundry',
-          club_tier: club.tier.key,
-          note: 'membership fee is not a spendable balance top-up',
+        // Compensating debit. get_user_balance sums every COMPLETED MONEY_INCOME
+        // with no subscription_type filter, so without this row the club fee would
+        // become spendable generation balance (12499 stars of membership = 12499
+        // stars of video at the owner's cost). The pair keeps the income visible
+        // in reports while the balance stays zero.
+        {
+          telegram_id: normalizedUserId,
+          OutSum: club.stars.toString(),
+          InvId: `${payload}_membership`,
+          currency: Currency.XTR,
+          stars: club.stars,
+          status: PaymentStatus.COMPLETED,
+          payment_method: 'Telegram',
+          subscription_type: null,
+          bot_name: botUsername,
+          language: ctx.from?.language_code ?? 'en',
+          type: PaymentType.MONEY_OUTCOME,
+          service_type: 'golden_foundry_membership',
+          cost: 0,
+          metadata: {
+            invoice_payload: payload,
+            username,
+            club: 'golden_foundry',
+            club_tier: club.tier.key,
+            note: 'membership fee is not a spendable balance top-up',
+          },
         },
-      })
+      ])
 
       const { getSubScribeChannel } = await import(
         '@/handlers/getSubScribeChannel'
@@ -364,48 +368,52 @@ export async function handleSuccessfulPayment(ctx: MyContext) {
         throw new Error('render /api/star-paid ответил ошибкой')
       }
 
-      // Отправитель: движение видно, баланс не меняется (подарок).
-      await setPayments({
-        telegram_id: normalizedUserId,
-        OutSum: String(starAmount),
-        InvId: payload,
-        currency: Currency.XTR,
-        stars: starAmount,
-        status: PaymentStatus.COMPLETED,
-        payment_method: 'Telegram',
-        subscription_type: null,
-        bot_name: botUsername,
-        language: ctx.from?.language_code ?? 'en',
-        type: PaymentType.MONEY_INCOME,
-        metadata: {
-          telegram_payment_charge_id: telegramPaymentChargeId,
-          provider_payment_charge_id: providerPaymentChargeId,
-          invoice_payload: payload,
-          username,
-          gift: 'feed_star',
+      // Sender: the movement is visible, the balance does not change (a gift).
+      // Income + compensating outcome are ONE atomic multi-row insert, so a
+      // transient failure cannot leave the income alone (a spendable mint).
+      await setPayments([
+        {
+          telegram_id: normalizedUserId,
+          OutSum: String(starAmount),
+          InvId: payload,
+          currency: Currency.XTR,
+          stars: starAmount,
+          status: PaymentStatus.COMPLETED,
+          payment_method: 'Telegram',
+          subscription_type: null,
+          bot_name: botUsername,
+          language: ctx.from?.language_code ?? 'en',
+          type: PaymentType.MONEY_INCOME,
+          metadata: {
+            telegram_payment_charge_id: telegramPaymentChargeId,
+            provider_payment_charge_id: providerPaymentChargeId,
+            invoice_payload: payload,
+            username,
+            gift: 'feed_star',
+          },
         },
-      })
-      await setPayments({
-        telegram_id: normalizedUserId,
-        OutSum: String(starAmount),
-        InvId: `${payload}_gift`,
-        currency: Currency.XTR,
-        stars: starAmount,
-        status: PaymentStatus.COMPLETED,
-        payment_method: 'Telegram',
-        subscription_type: null,
-        bot_name: botUsername,
-        language: ctx.from?.language_code ?? 'en',
-        type: PaymentType.MONEY_OUTCOME,
-        service_type: 'feed_star_gift',
-        cost: 0,
-        metadata: {
-          invoice_payload: payload,
-          username,
-          gift: 'feed_star',
-          note: 'gift to author is not a spendable balance top-up',
+        {
+          telegram_id: normalizedUserId,
+          OutSum: String(starAmount),
+          InvId: `${payload}_gift`,
+          currency: Currency.XTR,
+          stars: starAmount,
+          status: PaymentStatus.COMPLETED,
+          payment_method: 'Telegram',
+          subscription_type: null,
+          bot_name: botUsername,
+          language: ctx.from?.language_code ?? 'en',
+          type: PaymentType.MONEY_OUTCOME,
+          service_type: 'feed_star_gift',
+          cost: 0,
+          metadata: {
+            invoice_payload: payload,
+            username,
+            gift: 'feed_star',
+            note: 'gift to author is not a spendable balance top-up',
+          },
         },
-      })
+      ])
 
       // Автор: звезда на баланс.
       const authorId = paid.to_telegram_id ?? null

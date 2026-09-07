@@ -32,83 +32,87 @@ type PaymentParams = {
  * Принимает объект с параметрами платежа
  */
 
-export const setPayments = async ({
-  telegram_id,
-  OutSum,
-  InvId,
-  currency,
-  stars,
-  status,
-  payment_method,
-  bot_name,
-  language,
-  type,
-  subscription_type,
-  metadata,
-  service_type,
-  cost,
-}: PaymentParams) => {
+// One payments_v2 row for one param set. Per-row derivation (id normalisation,
+// cost) and per-row logging live HERE so the single-row and the atomic
+// multi-row paths of setPayments cannot drift apart.
+function buildPaymentRow(p: PaymentParams) {
+  const amount = parseFloat(p.OutSum)
+  const normalizedId = normalizeTelegramId(p.telegram_id).toString()
+
+  if (!p.InvId) {
+    logger.warn(
+      '⚠️ setPayments: InvId is empty or null. Using placeholder logic if necessary or allowing NULL.'
+    )
+  }
+
+  logger.info('✍️ Inserting payment record:', {
+    telegram_id: normalizedId,
+    amount,
+    inv_id: p.InvId,
+    currency: p.currency,
+    status: p.status,
+    payment_method: p.payment_method,
+    stars: p.stars,
+    bot_name: p.bot_name,
+    type: p.type,
+    language: p.language,
+    subscription_type: p.subscription_type,
+    metadata: p.metadata || {},
+  })
+
+  // Compute cost when the caller did not supply one.
+  let finalCost = p.cost
+  if (p.type === PaymentType.MONEY_OUTCOME && finalCost === undefined) {
+    finalCost = calculateServiceCost(
+      p.service_type,
+      p.metadata as Record<string, any>,
+      p.stars
+    )
+    logger.info('🧮 Автоматически рассчитан cost в setPayments:', {
+      telegram_id: normalizedId,
+      service_type: p.service_type,
+      metadata: p.metadata,
+      stars: p.stars,
+      calculatedCost: finalCost,
+    })
+  } else if (p.type === PaymentType.MONEY_INCOME) {
+    finalCost = 0 // income rows always carry cost 0
+  }
+
+  return {
+    telegram_id: normalizedId,
+    amount: amount,
+    inv_id: p.InvId,
+    currency: p.currency,
+    status: p.status,
+    payment_method: p.payment_method,
+    description: `Payment via ${p.payment_method}`,
+    stars: p.stars,
+    bot_name: p.bot_name,
+    type: p.type,
+    language: p.language,
+    subscription_type: p.subscription_type,
+    service_type: p.type === PaymentType.MONEY_OUTCOME ? p.service_type : null,
+    cost: finalCost,
+    metadata: p.metadata || {},
+  }
+}
+
+// Accepts ONE param set (unchanged behaviour) OR an ARRAY. An array is written
+// as ONE multi-row INSERT, which Postgres executes all-or-nothing: a paired
+// MONEY_INCOME + compensating MONEY_OUTCOME (club fee, feed-star gift) can no
+// longer be left half-written by a transient failure between two separate
+// inserts -- the failure mode that minted an orphaned, spendable income row.
+// A 23505 (duplicate) on the batch means the rows already exist (retry).
+export const setPayments = async (input: PaymentParams | PaymentParams[]) => {
+  const list = Array.isArray(input) ? input : [input]
+  const invIds = list.map(p => p.InvId)
   try {
-    const amount = parseFloat(OutSum)
-    const normalizedId = normalizeTelegramId(telegram_id).toString()
+    const rows = list.map(buildPaymentRow)
 
-    if (!InvId) {
-      logger.warn(
-        '⚠️ setPayments: InvId is empty or null. Using placeholder logic if necessary or allowing NULL.'
-      )
-    }
-
-    logger.info('✍️ Inserting payment record:', {
-      telegram_id: normalizedId,
-      amount,
-      inv_id: InvId,
-      currency,
-      status,
-      payment_method,
-      stars,
-      bot_name,
-      type: type,
-      language,
-      subscription_type: subscription_type,
-      metadata: metadata || {},
-    })
-
-    // Рассчитываем cost если не передан
-    let finalCost = cost
-    if (type === PaymentType.MONEY_OUTCOME && finalCost === undefined) {
-      finalCost = calculateServiceCost(
-        service_type,
-        metadata as Record<string, any>,
-        stars
-      )
-      logger.info('🧮 Автоматически рассчитан cost в setPayments:', {
-        telegram_id: normalizedId,
-        service_type,
-        metadata,
-        stars,
-        calculatedCost: finalCost,
-      })
-    } else if (type === PaymentType.MONEY_INCOME) {
-      finalCost = 0 // Для доходов cost всегда 0
-    }
-
-    const { error } = await supabase.from('payments_v2').insert({
-      telegram_id: normalizedId,
-      amount: amount,
-      inv_id: InvId,
-      currency: currency,
-      status,
-      payment_method,
-      description: `Payment via ${payment_method}`,
-      stars: stars,
-      bot_name,
-      type: type,
-      language,
-      subscription_type: subscription_type,
-      service_type: type === PaymentType.MONEY_OUTCOME ? service_type : null,
-      cost: finalCost,
-      metadata: metadata || {},
-    })
+    const { error } = await supabase
+      .from('payments_v2')
+      .insert(list.length === 1 ? rows[0] : rows)
 
     // Уведомление владельца отправляется из robokassa.routes.ts после реальной оплаты
 
@@ -118,14 +122,13 @@ export const setPayments = async ({
         details: error.details,
         hint: error.hint,
         code: error.code,
-        telegram_id: normalizedId,
-        inv_id: InvId,
+        inv_ids: invIds,
       })
 
       // Повтор той же записи — не беда: строка уже есть, а именно она и нужна.
       if (error.code === '23505') {
         logger.warn(
-          `⚠️ Attempted to insert duplicate payment record for InvId: ${InvId}. Ignoring.`
+          `⚠️ Attempted to insert duplicate payment record for InvId: ${invIds.join(', ')}. Ignoring.`
         )
       } else {
         // ОСТАЛЬНЫЕ ОШИБКИ ПРОБРАСЫВАЕМ.
@@ -142,19 +145,19 @@ export const setPayments = async ({
         // Robokassa не нашёл платёж по inv_id и ответил «Payment not found»
         // (robokassa.routes.ts). Звёзды не начислены, следа в базе нет.
         throw new Error(
-          `Не удалось создать запись платежа (inv_id ${InvId}): ${error.message}`
+          `Не удалось создать запись платежа (inv_id ${invIds.join(', ')}): ${error.message}`
         )
       }
     } else {
       logger.info(
-        `✅ Payment record inserted successfully for InvId: ${InvId}, User: ${normalizedId}`
+        `✅ Payment record inserted successfully for InvId: ${invIds.join(', ')}, User: ${rows.map(r => r.telegram_id).join(', ')}`
       )
     }
   } catch (error) {
     logger.error('❌ Error in setPayments function', {
       error: error instanceof Error ? error.message : String(error),
       error_details: error,
-      input_params: { telegram_id, InvId },
+      input_params: { inv_ids: invIds },
     })
     // Пробрасываем дальше: вызывающие умеют показать человеку, что платёж не
     // создан, и не отправить его платить в никуда. Молчание здесь стоило бы
