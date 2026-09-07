@@ -293,6 +293,50 @@ describe('оба клиента читают одни и те же поля пр
     expect(блок).toContain('throw')
   })
 
+  it('файлы берутся тем же инструментом my_assets', () => {
+    /*
+     * В приложении списка не было вовсе: единственная история генераций жила
+     * НА УСТРОЙСТВЕ, на экране создания. За картинку платили токенами, а найти
+     * её потом было негде — тем более если делали с другого устройства.
+     */
+    const веб = читать(
+      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfileFilesGrid.tsx'
+    )
+    const ios = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
+    expect(веб).toContain("name: 'my_assets'")
+    expect(ios).toContain('"my_assets"')
+    expect(IOS_ЭКРАН).toContain('карточкаФайлов')
+  })
+
+  it('вид файла определяется одинаково: по расширению ИЛИ по типу', () => {
+    /*
+     * В вебе: `/\.(jpe?g|png|webp|gif)/ || type === 'generated_image'`.
+     * Если оставить только тип, файл со старой записью типа станет «озвучкой»
+     * и человек не узнает своё изображение.
+     */
+    const веб = читать(
+      'apps', 'vibee-editor', 'player', 'src', 'components', 'Profile', 'ProfileFilesGrid.tsx'
+    )
+    expect(веб).toContain("f.type === 'generated_image'")
+    expect(веб).toContain("f.type === 'generated_video'")
+
+    const ios = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
+    const от = ios.indexOf('struct Файл')
+    const блок = ios.slice(от, от + 1200)
+    expect(блок).toContain('type == "generated_image"')
+    expect(блок).toContain('type == "generated_video"')
+    expect(блок).toContain('.jpg')
+    expect(блок).toContain('.mp4')
+  })
+
+  it('iOS читает ответ той формы, что отдаёт инструмент', () => {
+    // Измерено на живом сервере: `structuredContent.файлы`. Разбор, ждущий
+    // другого ключа, вернул бы пустоту молча.
+    const ios = читать('apps', 'vibee-ios', 'Vibee', 'API.swift')
+    const от = ios.indexOf('func мойФайлы')
+    expect(ios.slice(от, от + 400)).toContain('sc["файлы"]')
+  })
+
   it('сокращение тысяч одинаковое: 1.2K и 3.4M', () => {
     // Иначе одно и то же число выглядит на двух экранах по-разному, и человек
     // решает, что видит разные величины.

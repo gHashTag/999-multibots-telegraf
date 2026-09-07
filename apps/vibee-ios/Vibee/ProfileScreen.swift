@@ -119,6 +119,8 @@ struct ProfileScreen: View {
   /// id карточки, статус которой сейчас меняется.
   @State private var меняюСтатус: Int?
   @State private var ошибкаПлана: String?
+  /// Всё сгенерированное — то, за что уже заплачено токенами.
+  @State private var файлы: [API.Файл] = []
 
   var body: some View {
     ScrollView {
@@ -176,6 +178,12 @@ struct ProfileScreen: View {
              * живёшь дальше, и только потом готовое.
              */
             карточкаПлана
+            /*
+             * ФАЙЛЫ — после плана, перед роликами. Тот же порядок, что в вебе
+             * (план → файлы), и та же логика: сначала намерение, потом сырьё,
+             * потом опубликованное.
+             */
+            карточкаФайлов
             сетка
           }
         }
@@ -649,6 +657,72 @@ struct ProfileScreen: View {
     }
   }
 
+  /**
+   * ФАЙЛЫ — ВСЁ СГЕНЕРИРОВАННОЕ, А НЕ ТОЛЬКО ОПУБЛИКОВАННОЕ.
+   *
+   * В приложении такого списка не было вовсе: единственная история генераций
+   * жила НА УСТРОЙСТВЕ, на экране создания. За картинку платили токенами, а
+   * найти её потом было негде — тем более если делали с другого устройства.
+   *
+   * Плитка ОТКРЫВАЕТ файл, а не показывает его крупнее: человек пришёл сюда
+   * за самим файлом — переслать, сохранить, вставить.
+   */
+  @ViewBuilder private var карточкаФайлов: some View {
+    if !файлы.isEmpty {
+      VStack(alignment: .leading, spacing: Тема.Отступ.xs) {
+        Text("Файлы · \(файлы.count)")
+          .font(Тема.Шрифт.стиль(.subheadline, .semibold))
+          .foregroundStyle(Тема.Профиль.текст)
+
+        LazyVGrid(
+          columns: Array(
+            repeating: GridItem(.flexible(), spacing: Тема.Профиль.просветСетки),
+            count: 3
+          ),
+          spacing: Тема.Профиль.просветСетки
+        ) {
+          ForEach(файлы) { ф in
+            if let адрес = ф.public_url.flatMap(URL.init(string:)) {
+              Link(destination: адрес) { плиткаФайла(ф) }
+            } else {
+              // Без адреса открывать нечего: показываем, но не притворяемся
+              // ссылкой — нажатие, которое ничего не делает, хуже его
+              // отсутствия.
+              плиткаФайла(ф)
+            }
+          }
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  @ViewBuilder private func плиткаФайла(_ ф: API.Файл) -> some View {
+    ZStack(alignment: .bottomLeading) {
+      if ф.картинка, let u = ф.public_url.flatMap(URL.init(string:)) {
+        AsyncImage(url: u) { фаза in
+          if case .success(let img) = фаза {
+            img.resizable().scaledToFill()
+          } else {
+            Тема.Профиль.поверхность
+          }
+        }
+      } else {
+        // Видео и озвучка: показываем ЗНАК типа, а не пустую плитку —
+        // пустая читается как «не загрузилось».
+        ZStack {
+          Тема.Профиль.поверхность
+          Image(systemName: ф.видео ? "film" : "mic")
+            .font(.system(size: 22))
+            .foregroundStyle(Тема.Профиль.текстПриглушённый)
+        }
+      }
+    }
+    .frame(height: 120)
+    .frame(maxWidth: .infinity)
+    .clipShape(RoundedRectangle(cornerRadius: Тема.Профиль.радиусПоля))
+  }
+
   @ViewBuilder private var сетка: some View {
     if ролики.isEmpty {
       подпись("Пока ни одного ролика")
@@ -755,6 +829,8 @@ struct ProfileScreen: View {
       ожидают = (try? await API.ожидаютОдобрения()) ?? []
       // План — тоже необязательно: профиль без него полезен.
       план = (try? await API.планПрочитать()) ?? []
+      // Файлы — тоже необязательно: профиль без них полезен.
+      файлы = (try? await API.мойФайлы()) ?? []
       пакеты = await API.tokenPacks()
       // Остаток НЕ обязателен для экрана: без входа его нет, и профиль обязан
       // открыться всё равно. Поэтому отдельной попыткой и без throw наружу.
